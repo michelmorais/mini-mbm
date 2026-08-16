@@ -1566,6 +1566,8 @@ meshD:updateSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, oneBasedKeyIndex,
     time, tx, ty, tz, qx, qy, qz, qw, sx, sy, sz,
     easing, bezierX1, bezierY1, bezierX2, bezierY2)
 meshD:removeSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, oneBasedKeyIndex)
+meshD:moveSkeletalKeys(oneBasedClipIndex,
+    {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
 ```
 
 Insertion requires a unique time inside the clip, samples the current canonical clip first, and
@@ -1575,6 +1577,10 @@ existing curve by itself. Keys remain strictly time-ordered. Update may change t
 key when its time changes. Duplicate times, invalid transforms, unsupported easing/Bezier values,
 and times outside the clip reject without mutation. Removal is allowed only while the track retains
 at least one key.
+`moveSkeletalKeys` translates every referenced key by the same finite time delta. Pair indices refer
+to the ordering before the move. Duplicate references, out-of-range results, or collisions reject
+the candidate without mutation; affected tracks are sorted and the complete animation collection
+validates once before one atomic commit.
 
 ### 15.1 Articulated-animation authoring
 

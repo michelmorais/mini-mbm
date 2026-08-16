@@ -267,6 +267,8 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.31.0 Timeline fills resized vertical space and supports empty-space rectangle key selection with Ctrl-additive semantics while retaining stationary-click seek.
+    7.30.0 Timeline supports atomic multi-key group dragging through a candidate-copy backend operation that moves pre-order references by one bounded delta, sorts affected tracks, validates once, and commits all-or-nothing.
     7.29.0 Timeline adds non-mutating Ctrl multi-selection across tracks with persistent marker/count/clear UX; group mutation remains blocked pending an atomic backend batch operation.
     7.28.0 Timeline authoring playback adds play/restart, pause/resume, stop, 0.05x-4x speed, loop/end handling, synchronized in-memory pose evaluation, and edit-triggered pause without key mutation.
     7.27.1 Timeline collision feedback adds an eight-pixel key capture zone and draws the enlarged invalid red dragged marker last so the destination marker cannot hide it.
@@ -351,7 +353,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.29.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.31.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

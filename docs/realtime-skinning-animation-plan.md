@@ -803,6 +803,8 @@ remain required before choosing palette sizes or fallbacks.
 |---|---|---|
 | 8.33 | 2026-08-15 | Rotate mode now draws a fixed-head orbit guide at the preserved visual segment length, while joint-radius edits require a strictly positive mesh-relative value and reject zero atomically. |
 | 8.32 | 2026-08-15 | Segment rotation now preserves displayed global length through non-uniform bind bases, and joint-radius authoring uses proportional DragFloat interaction. |
+| 8.46 | 2026-08-16 | Timeline uses all resized vertical space and adds empty-space rectangle selection with Ctrl-additive semantics while preserving stationary-click seek. |
+| 8.45 | 2026-08-16 | Timeline multi-selection gains atomic group movement through pre-move track/key references, shared bounded delta preview, candidate-copy track sorting, complete validation, and all-or-nothing commit. |
 | 8.44 | 2026-08-15 | Timeline adds non-mutating Ctrl multi-selection with persistent marker/count/clear UX while explicitly blocking group mutation until a candidate-copy atomic backend operation is delivered. |
 | 8.43 | 2026-08-15 | Timeline authoring playback advances the shared in-memory pose/playhead with play/restart, pause/resume, stop, bounded speed, loop/end behavior, and edit-triggered pause without key mutation. |
 | 8.42 | 2026-08-15 | Timeline collision feedback adds an eight-pixel marker capture zone and last-pass enlarged red invalid rendering while retaining canonical numeric collision validation. |

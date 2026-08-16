@@ -2867,6 +2867,42 @@ namespace mbm
         return 1;
     }
 
+    int onMoveSkeletalKeysDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        luaL_checktype(lua,3,LUA_TTABLE);
+        const lua_Integer itemCount=static_cast<lua_Integer>(lua_rawlen(lua,3));
+        if (itemCount<=0 || (itemCount%2)!=0)
+            return luaL_error(lua,"canonical key move references must contain track/key pairs");
+        std::vector<uint32_t> tracks;
+        std::vector<uint32_t> keys;
+        tracks.reserve(static_cast<size_t>(itemCount/2));
+        keys.reserve(static_cast<size_t>(itemCount/2));
+        for (lua_Integer item=1;item<=itemCount;item+=2)
+        {
+            lua_rawgeti(lua,3,item);
+            const lua_Integer track=luaL_checkinteger(lua,-1);
+            lua_pop(lua,1);
+            lua_rawgeti(lua,3,item+1);
+            const lua_Integer key=luaL_checkinteger(lua,-1);
+            lua_pop(lua,1);
+            if (track<=0 || key<=0)
+                return luaL_error(lua,"canonical track and key indices must be one-based");
+            tracks.push_back(static_cast<uint32_t>(track-1));
+            keys.push_back(static_cast<uint32_t>(key-1));
+        }
+        const float delta=static_cast<float>(luaL_checknumber(lua,4));
+        char errorOut[255]="";
+        if (!meshDebug->mesh.moveSkeletalKeys(static_cast<uint32_t>(clip-1),tracks.data(),
+                keys.data(),static_cast<uint32_t>(tracks.size()),delta,errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
     int onEvaluateSkeletalAuthoringPoseDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3104,6 +3140,7 @@ namespace mbm
                                           {"addSkeletalKey", onAddSkeletalKeyDebugLua},
                                           {"updateSkeletalKey", onUpdateSkeletalKeyDebugLua},
                                           {"removeSkeletalKey", onRemoveSkeletalKeyDebugLua},
+                                          {"moveSkeletalKeys", onMoveSkeletalKeysDebugLua},
                                           {"evaluateSkeletalAuthoringPose", onEvaluateSkeletalAuthoringPoseDebugLua},
                                           {"commitSkeletalAuthoringKey", onCommitSkeletalAuthoringKeyDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},

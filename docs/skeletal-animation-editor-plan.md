@@ -489,6 +489,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.41 | 2026-08-16 | Timeline canvas now consumes the window's full remaining vertical area, revealing more tracks when resized. Empty-space drag draws a clipped rectangle and selects enclosed visible key markers on release; Ctrl makes it additive, while a stationary click still seeks. |
+| 7.40 | 2026-08-16 | Added atomic multi-key timeline movement. A selected group previews one shared clamped delta and cross-checks unselected same-track keys; release passes pre-move track/key pairs to one candidate-copy backend mutation that sorts affected tracks and commits only after complete canonical validation. Lua API and rejection/round-trip tests cover the contract. |
 | 7.39 | 2026-08-15 | Added non-mutating timeline multi-selection: normal click selects one key, Ctrl-click toggles keys across tracks, markers/count/clear action expose selection state, and clip/workspace/mutation transitions clear stale identities. Group dragging stays disabled until an atomic backend batch operation exists. |
 | 7.38 | 2026-08-15 | Added timeline authoring playback over the shared in-memory evaluator: Play/Restart, Pause/Resume, Stop, `0.05x..4x` speed, loop/end handling, synchronized playhead/mesh/skeleton, and automatic pause before seek or transform editing. Playback never authors keys. |
 | 7.37 | 2026-08-15 | Made timeline collisions perceptible: an eight-pixel capture zone snaps the dragged preview to another same-track key's exact time, and the larger invalid red marker renders after all ordinary markers so it cannot be occluded. Canonical `1e-6` time validation remains authoritative. |

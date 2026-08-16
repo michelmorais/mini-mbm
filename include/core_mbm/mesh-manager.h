@@ -334,6 +334,11 @@ namespace mbm
                                         const uint8_t easing, const float bezierX1,
                                         const float bezierY1, const float bezierX2,
                                         const float bezierY2, char *errorOut, const int errorOutLen);
+        // Moves multiple existing keys by one time delta on a candidate copy. Track/key indices
+        // refer to the pre-move ordering; validation and commit are atomic.
+        API_IMPL bool moveSkeletalKeys(const uint32_t clipIndex, const uint32_t *trackIndices,
+                                       const uint32_t *keyIndices, const uint32_t keyCount,
+                                       const float timeDelta, char *errorOut, const int errorOutLen);
         API_IMPL bool removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
                                         const uint32_t keyIndex, char *errorOut, const int errorOutLen);
         API_IMPL bool commitSkeletalAuthoringKey(const uint32_t clipIndex, const uint32_t boneIndex,

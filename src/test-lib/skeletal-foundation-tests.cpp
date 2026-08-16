@@ -737,12 +737,21 @@ namespace
         committedLocal.localRotationW=1.0f;
         committedLocal.localScale=VEC3(1,1,1);
         bool createdAuthoringKey=false;
+        const uint32_t movedTracks[2]={editedTrackIndex,editedTrackIndex};
+        const uint32_t movedKeys[2]={1,2};
+        const uint32_t collisionTrack[1]={editedTrackIndex};
+        const uint32_t collisionKey[1]={2};
         expect(clipEditMesh.commitSkeletalAuthoringKey(editedClipIndex,0,1.0f,
                    SKELETAL_CHANNEL_TRANSLATION,committedLocal,&createdAuthoringKey,error,sizeof(error)-1) &&
                    createdAuthoringKey &&
                    clipEditMesh.getSkeletalTrack(editedClipIndex,editedTrackIndex,editedTrack) &&
                    editedTrack.keyCount==3 &&
+                   clipEditMesh.moveSkeletalKeys(editedClipIndex,movedTracks,movedKeys,2,0.25f,
+                       error,sizeof(error)-1) &&
+                   !clipEditMesh.moveSkeletalKeys(editedClipIndex,collisionTrack,collisionKey,1,-2.25f,
+                       error,sizeof(error)-1) &&
                    clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,1,committedLocal) &&
+                   std::fabs(committedLocal.time-1.25f)<=MATRIX_TOLERANCE &&
                    std::fabs(committedLocal.localTranslation.x-3.0f)<=MATRIX_TOLERANCE &&
                    clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,1,error,sizeof(error)-1),
                "explicit authoring commit must atomically create a translation key from the temporary pose");
@@ -754,7 +763,7 @@ namespace
                    editedTrack.channelMask==(SKELETAL_CHANNEL_TRANSLATION|
                        SKELETAL_CHANNEL_ROTATION|SKELETAL_CHANNEL_SCALE) && editedTrack.keyCount==2 &&
                    trackReload.getSkeletalKey(editedClipIndex,editedTrackIndex,1,bindSeedKey) &&
-                   std::fabs(bindSeedKey.time-2.0f)<=MATRIX_TOLERANCE &&
+                   std::fabs(bindSeedKey.time-2.25f)<=MATRIX_TOLERANCE &&
                    std::fabs(bindSeedKey.localTranslation.x-1.0f)<=MATRIX_TOLERANCE &&
                    std::fabs(bindSeedKey.localRotationW-1.0f)<=MATRIX_TOLERANCE && bindSeedKey.easing==4 &&
                    clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,editedKeyIndex,

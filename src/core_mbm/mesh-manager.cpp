@@ -4822,6 +4822,62 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::moveSkeletalKeys(const uint32_t clipIndex,
+                                           const uint32_t *trackIndices,
+                                           const uint32_t *keyIndices,
+                                           const uint32_t keyCount,
+                                           const float timeDelta,
+                                           char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!trackIndices || !keyIndices || keyCount==0)
+            return fail("canonical key move selection must not be empty");
+        if (!std::isfinite(timeDelta)) return fail("canonical key move delta must be finite");
+
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        std::unordered_set<uint64_t> references;
+        references.reserve(keyCount);
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint32_t trackIndex=trackIndices[index];
+            const uint32_t keyIndex=keyIndices[index];
+            if (trackIndex>=sourceClip.tracks.size() ||
+                    keyIndex>=sourceClip.tracks[trackIndex].keys.size())
+                return fail("canonical key move index is out of range");
+            const uint64_t reference=(static_cast<uint64_t>(trackIndex)<<32u)|keyIndex;
+            if (!references.insert(reference).second)
+                return fail("canonical key move selection contains a duplicate reference");
+            const float movedTime=sourceClip.tracks[trackIndex].keys[keyIndex].time+timeDelta;
+            if (!std::isfinite(movedTime) || movedTime<0.0f || movedTime>sourceClip.duration)
+                return fail("canonical moved key time must remain inside the clip duration");
+        }
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint32_t> affectedTracks;
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            clip.tracks[trackIndices[index]].keys[keyIndices[index]].time+=timeDelta;
+            affectedTracks.insert(trackIndices[index]);
+        }
+        for (const uint32_t trackIndex:affectedTracks)
+        {
+            std::stable_sort(clip.tracks[trackIndex].keys.begin(),clip.tracks[trackIndex].keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("moved canonical keys would be invalid or collide with another key time");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::commitSkeletalAuthoringKey(const uint32_t clipIndex,
                                                      const uint32_t boneIndex,
                                                      const float time,
