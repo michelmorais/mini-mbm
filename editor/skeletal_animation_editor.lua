@@ -57,6 +57,7 @@ local state = {
     animationTimelineDrag = nil,
     animationTimelineSelection = {},
     animationKeyClipboard = nil,
+    animationBonePoseClipboard = nil,
     animationTimelineBox = nil,
     animationTimelineClip = nil,
     animationTimelineEmptyDuration = 0.1,
@@ -2119,6 +2120,7 @@ local function loadMesh(path)
     state.animationNewKeyTimes={}
     state.animationKeyEdits={}
     state.animationKeyClipboard=nil
+    state.animationBonePoseClipboard=nil
     state.boneEditorPosition={x=0,y=0,z=0}
     state.boneEditorLength=1
     state.boneEditorSelectedIndex=nil
@@ -3933,6 +3935,59 @@ local function pasteTimelineClipboardAtPlayhead()
     return true
 end
 
+local function copySelectedBonePose()
+    local bone=getBones()[state.boneIndex]
+    local posed=state.authoringPose and state.authoringPose.bones and
+        state.authoringPose.bones[state.boneIndex] or nil
+    if state.workspace~='animation' or not bone or not posed then return false end
+    local t=posed.localTranslation or {}
+    local q=posed.localRotation or {}
+    local s=posed.localScale or {}
+    state.animationBonePoseClipboard={boneId=bone.boneId,boneName=bone.name,
+        translation={x=t.x or 0,y=t.y or 0,z=t.z or 0},
+        rotation={x=q.x or 0,y=q.y or 0,z=q.z or 0,w=q.w or 1},
+        scale={x=s.x or 1,y=s.y or 1,z=s.z or 1}}
+    local message=string.format(tLang.L('swl_animation_bone_pose_copied_fmt'),bone.name or '?')
+    setStatus(message,false)
+    tUtil.bRightSide=true
+    tUtil.sMessageOverlay=false
+    tUtil.showMessage(message,4.0)
+    return true
+end
+
+local function pasteSelectedBonePoseAtPlayhead()
+    local clipboard=state.animationBonePoseClipboard
+    local clip=state.animationTimelineClip
+    if state.workspace~='animation' or not clipboard or not clip then return false end
+    local boneIndex=nil
+    for index,bone in ipairs(getBones()) do
+        if bone.boneId==clipboard.boneId then boneIndex=index break end
+    end
+    if not boneIndex then
+        setStatus(tLang.L('swl_animation_bone_pose_missing'),true)
+        return false
+    end
+    local t,q,s=clipboard.translation,clipboard.rotation,clipboard.scale
+    local snapshot=stageRollbackSnapshot()
+    local committed=snapshot and select(1,safeCall(function()
+        return state.meshD:commitSkeletalAuthoringKey(state.animationClipSelected,boneIndex,
+            state.authoringTime or 0,7,t.x,t.y,t.z,q.x,q.y,q.z,q.w,s.x,s.y,s.z)
+    end)) or false
+    if not committed then
+        if snapshot then discardRollbackSnapshot(snapshot) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_paste_bone_pose')
+    state.modified=true
+    state.boneIndex=boneIndex
+    clearAuthoringOverride()
+    refreshBindReport()
+    refreshAuthoringPose(clip)
+    setStatus(string.format(tLang.L('swl_animation_bone_pose_pasted_fmt'),
+        clipboard.boneName or '?'),false)
+    return true
+end
+
 local function timelineRemovalImpact(clip)
     local startTime=math.max(0,math.min(clip.duration or 0,state.authoringTime or 0))
     local endTime=math.min(clip.duration or 0,
@@ -4672,6 +4727,24 @@ local function showSkeletalAnimationInspection()
             clearAuthoringOverride()
         end
         refreshAuthoringPose(clip)
+        local selectedPoseBone=getBones()[state.boneIndex]
+        tImGui.BeginDisabled(not selectedPoseBone or not state.authoringPose)
+        if tImGui.Button(tLang.L('swl_animation_copy_bone_pose')..
+                '##swlCopyBonePose') then
+            copySelectedBonePose()
+        end
+        tImGui.EndDisabled()
+        tImGui.SameLine()
+        tImGui.BeginDisabled(state.animationBonePoseClipboard==nil)
+        if tImGui.Button(tLang.L('swl_animation_paste_bone_pose')..
+                '##swlPasteBonePose') then
+            pasteSelectedBonePoseAtPlayhead()
+        end
+        tImGui.EndDisabled()
+        if state.animationBonePoseClipboard then
+            tImGui.TextDisabled(string.format(tLang.L('swl_animation_bone_pose_clipboard_fmt'),
+                state.animationBonePoseClipboard.boneName or '?'))
+        end
         local authoringMethods={tLang.L('swl_skinning_auto'),tLang.L('swl_skinning_lbs'),
             tLang.L('swl_skinning_dqs')}
         tImGui.PushItemWidth(190)

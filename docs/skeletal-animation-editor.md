@@ -178,6 +178,15 @@ joint or its parent-to-child segment performs a nearest-hit ray test and selects
 dragging empty viewport space continues to orbit the camera. This establishes the selection
 semantics that translation and rotation gizmos will consume without yet mutating the pose.
 
+The selected evaluated bone pose can be copied into a separate pose clipboard. **Copy selected bone
+pose** captures the local translation, quaternion rotation, and scale currently visible at the
+playhead, including an uncommitted temporary gizmo result. **Paste bone pose at playhead** resolves
+the same stable bone ID in the current skeleton and commits T+R+S as one canonical key transaction.
+It works after switching clips, creates or extends the required bone track through the existing
+authoring-key contract, and produces one Undo entry. A missing bone rejects without mutation. This
+clipboard is distinct from the timeline multi-key clipboard, so their controls and meanings do not
+compete for Ctrl+C/Ctrl+V.
+
 The selected animation bone now displays world-space X/Y/Z translation handles. Dragging a handle
 computes displacement along that axis, converts the world delta through the inverse parent basis,
 and feeds the resulting local translation back into the one-bone in-memory override contract on

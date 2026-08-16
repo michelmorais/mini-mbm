@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.66 | 2026-08-16 | Added a distinct selected-bone pose clipboard. It captures the evaluated local TRS, including temporary gizmo preview, resolves the stable bone ID after clip changes, and atomically commits T+R+S at the playhead through one existing authoring-key transaction and Undo entry. |
 | 7.65 | 2026-08-16 | Extended the key clipboard across clips with detached full payloads. A new atomic backend/Lua operation maps stable bone IDs into the destination, requires equal masks on existing tracks, creates missing tracks without intermediate state, preserves relative timing/easing/Bezier/TRS, and rejects unknown bones, mask conflicts, bounds, collisions, or invalid candidates without mutation. |
 | 7.64 | 2026-08-16 | Added the first transactional key clipboard: selected timeline keys copy as bone-ID/original-time identities, paste aligns them to the playhead through the atomic batch duplicate contract, repeated index resolution avoids stale indices, Ctrl+C/Ctrl+V respect active ImGui controls, and same-clip/range/source/collision gates are explicit. |
 | 7.63 | 2026-08-16 | Replaced frozen/generic history text with operation-specific translation keys across skeleton, Bone Editor, weights, clips, tracks, keys, and timeline transactions. Undo/Redo menus and feedback now resolve descriptions in the editor's current language. |
