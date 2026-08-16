@@ -189,6 +189,14 @@ compete for Ctrl+C/Ctrl+V. The copy and paste actions occupy separate GUI lines 
 and each exposes a tooltip describing the one-bone scope, temporary-pose capture, T+R+S key commit,
 indirect descendant motion, and Undo boundary.
 
+A second, explicitly labeled clipboard handles the **complete skeleton pose**. Copy captures the
+evaluated local T/R/S of every bone at the current playhead, including the current temporary gizmo
+override. Paste requires exactly the same stable bone identities, then creates or updates T+R+S keys
+for all bones at the destination playhead through one candidate validation, one commit, and one Undo
+entry. No partial skeleton pose is retained if any identity or transform is invalid. The UI reports
+the copied bone count, source clip, and source time, and tooltips distinguish this operation from the
+single-bone and timeline-key clipboards.
+
 The selected animation bone now displays world-space X/Y/Z translation handles. Dragging a handle
 computes displacement along that axis, converts the world delta through the inverse parent basis,
 and feeds the resulting local translation back into the one-bone in-memory override contract on

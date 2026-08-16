@@ -3182,6 +3182,57 @@ namespace mbm
         return 1;
     }
 
+    int onCommitSkeletalAuthoringPoseDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        const float time=static_cast<float>(luaL_checknumber(lua,3));
+        luaL_checktype(lua,4,LUA_TTABLE);
+        const lua_Integer itemCount=static_cast<lua_Integer>(lua_rawlen(lua,4));
+        if (itemCount<=0) return luaL_error(lua,"canonical authoring pose must not be empty");
+        std::vector<uint64_t> boneIds;
+        std::vector<SKELETAL_KEY_INFO> locals;
+        boneIds.reserve(static_cast<size_t>(itemCount));
+        locals.reserve(static_cast<size_t>(itemCount));
+        for (lua_Integer itemIndex=1;itemIndex<=itemCount;++itemIndex)
+        {
+            lua_rawgeti(lua,4,itemIndex);
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            lua_rawgeti(lua,-1,1);
+            const char *boneIdText=luaL_checkstring(lua,-1);
+            char *boneIdEnd=nullptr;
+            const uint64_t boneId=static_cast<uint64_t>(std::strtoull(boneIdText,&boneIdEnd,16));
+            if (!boneIdText[0] || !boneIdEnd || *boneIdEnd!='\0')
+                return luaL_error(lua,"canonical authoring pose bone ID must be hexadecimal");
+            lua_pop(lua,1);
+            const auto numberAt=[lua](const int index)
+            {
+                lua_rawgeti(lua,-1,index);
+                const float value=static_cast<float>(luaL_checknumber(lua,-1));
+                lua_pop(lua,1);
+                return value;
+            };
+            SKELETAL_KEY_INFO local;
+            local.localTranslation=VEC3(numberAt(2),numberAt(3),numberAt(4));
+            local.localRotationX=numberAt(5);
+            local.localRotationY=numberAt(6);
+            local.localRotationZ=numberAt(7);
+            local.localRotationW=numberAt(8);
+            local.localScale=VEC3(numberAt(9),numberAt(10),numberAt(11));
+            boneIds.push_back(boneId);
+            locals.push_back(local);
+            lua_pop(lua,1);
+        }
+        char errorOut[255]="";
+        if (!meshDebug->mesh.commitSkeletalAuthoringPose(static_cast<uint32_t>(clip-1),time,
+                boneIds.data(),locals.data(),static_cast<uint32_t>(locals.size()),errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
     int onGetTotalSkeletalWeightBonesDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
@@ -3323,6 +3374,7 @@ namespace mbm
                                           {"removeSkeletalTimeRange", onRemoveSkeletalTimeRangeDebugLua},
                                           {"evaluateSkeletalAuthoringPose", onEvaluateSkeletalAuthoringPoseDebugLua},
                                           {"commitSkeletalAuthoringKey", onCommitSkeletalAuthoringKeyDebugLua},
+                                          {"commitSkeletalAuthoringPose", onCommitSkeletalAuthoringPoseDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},

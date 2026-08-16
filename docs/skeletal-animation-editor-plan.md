@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.69 | 2026-08-16 | Added complete-skeleton pose copy/paste. A strict batch API requires exactly one stable identity/TRS per bone, creates or extends T+R+S tracks, creates/updates every playhead key on one candidate, and commits with one Undo or rejects all. The editor records source clip/time/count and includes localized tooltips. |
 | 7.68 | 2026-08-16 | Added localized tooltips to selected-bone pose copy/paste, explaining evaluated temporary-pose capture, one-bone scope, T+R+S key creation/update, inherited descendant motion without child-key edits, stable identity, and the single Undo boundary. |
 | 7.67 | 2026-08-16 | Placed selected-bone pose paste on its own GUI line and clarified that the operation authors one bone's local T+R+S at the destination playhead, not the complete character pose. |
 | 7.66 | 2026-08-16 | Added a distinct selected-bone pose clipboard. It captures the evaluated local TRS, including temporary gizmo preview, resolves the stable bone ID after clip changes, and atomically commits T+R+S at the playhead through one existing authoring-key transaction and Undo entry. |

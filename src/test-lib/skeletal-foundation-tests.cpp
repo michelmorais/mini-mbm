@@ -855,6 +855,27 @@ namespace
                    emptyAnimationReload.getTotalSkeletalClips()==0,
                "removing the final canonical clip must omit type-43 cleanly across save/reload");
         std::remove(emptyAnimationPath);
+        uint32_t completePoseClip=0;
+        const uint64_t completePoseBoneIds[1]={10};
+        SKELETAL_KEY_INFO completePoseLocals[1];
+        completePoseLocals[0].localTranslation=VEC3(2,3,4);
+        completePoseLocals[0].localRotationW=1.0f;
+        expect(clipEditMesh.addSkeletalClip("complete-pose",2.0f,false,&completePoseClip,
+                   error,sizeof(error)-1) &&
+                   clipEditMesh.commitSkeletalAuthoringPose(completePoseClip,1.0f,
+                       completePoseBoneIds,completePoseLocals,1,error,sizeof(error)-1) &&
+                   clipEditMesh.getSkeletalTrack(completePoseClip,0,editedTrack) &&
+                   editedTrack.channelMask==(SKELETAL_CHANNEL_TRANSLATION|
+                       SKELETAL_CHANNEL_ROTATION|SKELETAL_CHANNEL_SCALE) &&
+                   editedTrack.keyCount==2 &&
+                   clipEditMesh.getSkeletalKey(completePoseClip,0,1,pastedResult) &&
+                   std::fabs(pastedResult.localTranslation.x-2.0f)<=MATRIX_TOLERANCE &&
+                   !clipEditMesh.commitSkeletalAuthoringPose(completePoseClip,1.5f,
+                       completePoseBoneIds,completePoseLocals,0,error,sizeof(error)-1) &&
+                   clipEditMesh.getSkeletalTrack(completePoseClip,0,editedTrack) &&
+                   editedTrack.keyCount==2 &&
+                   clipEditMesh.removeSkeletalClip(completePoseClip,error,sizeof(error)-1),
+               "complete skeletal pose authoring must commit every bone atomically and reject incomplete candidates");
         SKELETON_BIND_BONE_INFO referencedBone;
         uint32_t temporaryBoneIndex = 0;
         expect(mesh.addSkeletalBone(-1, "temporary-root", VEC3(), 0.1f, 1.0f, true, false,

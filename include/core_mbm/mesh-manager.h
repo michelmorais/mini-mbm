@@ -373,6 +373,11 @@ namespace mbm
                                                  const SKELETAL_KEY_INFO &local,
                                                  bool *createdKeyOut, char *errorOut,
                                                  const int errorOutLen);
+        API_IMPL bool commitSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
+                                                  const uint64_t *boneIds,
+                                                  const SKELETAL_KEY_INFO *locals,
+                                                  const uint32_t boneCount,
+                                                  char *errorOut, const int errorOutLen);
         // Evaluates an editor-only pose from the unsaved canonical clip state. An optional local
         // override is applied after sampling and before hierarchy/global/palette reconstruction.
         API_IMPL bool evaluateSkeletalAuthoringPose(const uint32_t clipIndex, const float time,

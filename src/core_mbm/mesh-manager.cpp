@@ -5265,6 +5265,90 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::commitSkeletalAuthoringPose(const uint32_t clipIndex,
+                                                      const float time,
+                                                      const uint64_t *boneIds,
+                                                      const SKELETAL_KEY_INFO *locals,
+                                                      const uint32_t boneCount,
+                                                      char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical authoring pose clip index is out of range");
+        if (!boneIds || !locals || boneCount==0 ||
+                boneCount!=impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical authoring pose must contain every skeleton bone exactly once");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(time) || time<0.0f || time>sourceClip.duration)
+            return fail("canonical authoring pose time must be inside the clip duration");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint64_t> seenBoneIds;
+        seenBoneIds.reserve(boneCount);
+        for (uint32_t itemIndex=0;itemIndex<boneCount;++itemIndex)
+        {
+            const uint64_t boneId=boneIds[itemIndex];
+            if (!seenBoneIds.insert(boneId).second)
+                return fail("canonical authoring pose contains a duplicate bone ID");
+            const auto boneFound=impl->canonicalSkeleton.compiled.indexById.find(boneId);
+            if (boneFound==impl->canonicalSkeleton.compiled.indexById.end())
+                return fail("canonical authoring pose contains an unknown bone ID");
+            const SKELETAL_KEY_INFO &local=locals[itemIndex];
+            const float quaternionNorm=std::sqrt(local.localRotationX*local.localRotationX+
+                local.localRotationY*local.localRotationY+local.localRotationZ*local.localRotationZ+
+                local.localRotationW*local.localRotationW);
+            if (!std::isfinite(quaternionNorm) ||
+                    quaternionNorm<=skeletal::QUATERNION_ZERO_EPSILON)
+                return fail("canonical authoring pose rotation must be nonzero and finite");
+            skeletal::LOCAL_TRANSFORM transform;
+            transform.translation=local.localTranslation;
+            transform.rotation={local.localRotationX/quaternionNorm,
+                local.localRotationY/quaternionNorm,local.localRotationZ/quaternionNorm,
+                local.localRotationW/quaternionNorm};
+            transform.scale=local.localScale;
+            auto trackIt=std::find_if(clip.tracks.begin(),clip.tracks.end(),
+                [boneId](const skeletal::SKELETAL_TRACK &track){ return track.boneId==boneId; });
+            if (trackIt==clip.tracks.end())
+            {
+                skeletal::SKELETAL_TRACK track;
+                track.boneId=boneId;
+                track.channelMask=skeletal::SKELETAL_CHANNEL_TRANSLATION|
+                    skeletal::SKELETAL_CHANNEL_ROTATION|skeletal::SKELETAL_CHANNEL_SCALE;
+                skeletal::SKELETAL_KEY bindKey;
+                bindKey.time=0.0f;
+                bindKey.local=impl->canonicalSkeleton.compiled.bones[boneFound->second].localBind;
+                track.keys.push_back(bindKey);
+                clip.tracks.push_back(std::move(track));
+                trackIt=clip.tracks.end()-1;
+            }
+            else trackIt->channelMask|=skeletal::SKELETAL_CHANNEL_TRANSLATION|
+                skeletal::SKELETAL_CHANNEL_ROTATION|skeletal::SKELETAL_CHANNEL_SCALE;
+            auto keyIt=std::find_if(trackIt->keys.begin(),trackIt->keys.end(),
+                [time](const skeletal::SKELETAL_KEY &key)
+                { return std::fabs(key.time-time)<=skeletal::KEY_TIME_TOLERANCE; });
+            if (keyIt==trackIt->keys.end())
+            {
+                skeletal::SKELETAL_KEY key;
+                key.time=time;
+                key.local=transform;
+                const auto position=std::lower_bound(trackIt->keys.begin(),trackIt->keys.end(),time,
+                    [](const skeletal::SKELETAL_KEY &key,const float value)
+                    { return key.time<value; });
+                trackIt->keys.insert(position,key);
+            }
+            else keyIt->local=transform;
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("committed canonical authoring pose would be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::evaluateSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
                                                         const int32_t overrideBoneIndex,
                                                         const SKELETAL_KEY_INFO *overrideLocal,

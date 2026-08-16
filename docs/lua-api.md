@@ -1465,12 +1465,23 @@ representation; converting them to 32-bit numbers destroys stable identity.
 ```lua
 local created = meshD:commitSkeletalAuthoringKey(clipIndex, boneIndex, time, channelMask,
     tx,ty,tz, qx,qy,qz,qw, sx,sy,sz)
+meshD:commitSkeletalAuthoringPose(clipIndex, time, {
+    {hexBoneId, tx,ty,tz, qx,qy,qz,qw, sx,sy,sz},
+    ...
+})
 ```
 
 Atomically commits an evaluated local pose to the selected canonical clip/bone. It creates the
 bone track when absent, unions the requested T/R/S `channelMask`, and creates or updates the key at
 `time`; `created` distinguishes insertion from update. The complete candidate animation validates
 before replacement, so failure cannot leave a track or channel half-created.
+
+`commitSkeletalAuthoringPose` is the complete-pose batch equivalent. Its detached input must contain
+exactly one local TRS for every stable bone ID in the destination skeleton. It creates missing
+tracks with T+R+S, unions T+R+S into existing tracks, and creates or updates one key per bone at
+`time`. Duplicate, missing, or unknown identities, invalid transforms, and an out-of-range time
+raise a Lua error without committing any bone. It returns `true` after one complete validation and
+atomic replacement.
 
 ```lua
 meshD:removeSkeletalBoneRemapped(oneBasedBoneIndex, replacementBoneIndex,

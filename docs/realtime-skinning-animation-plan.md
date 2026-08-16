@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.74 | 2026-08-16 | Complete skeleton poses now copy evaluated local TRS for every stable bone and paste through a strict all-bones candidate that creates/extends T+R+S tracks, updates one playhead key per bone, and commits once or rejects all with one Undo boundary. |
 | 8.73 | 2026-08-16 | Selected-bone pose copy/paste now has localized explanatory tooltips covering one-bone TRS scope, temporary capture, authored key behavior, inherited child motion, stable identity, and Undo. |
 | 8.72 | 2026-08-16 | Clarified selected-bone pose semantics as one bone's local T+R+S authored at the destination playhead and moved the paste action to a separate GUI line. |
 | 8.71 | 2026-08-16 | Animation authoring adds a separate selected-bone pose clipboard: evaluated local TRS, including temporary preview, is copied by stable bone ID and committed as one T+R+S key transaction at the destination clip/playhead with one Undo entry. |
