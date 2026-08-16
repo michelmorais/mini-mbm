@@ -2188,8 +2188,9 @@ local function rebuildPaintCursor(hit)
             local py=nearest.point.y+n.y*surfaceOffset
             local pz=nearest.point.z+n.z*surfaceOffset
             local markerCoords={}
-            appendPoint(markerCoords,px-tx*markerSize,py-ty*markerSize,pz-tz*markerSize)
             appendPoint(markerCoords,px+tx*markerSize,py+ty*markerSize,pz+tz*markerSize)
+            appendPoint(markerCoords,px-tx*markerSize,py-ty*markerSize,pz-tz*markerSize)
+            appendPoint(markerCoords,px,py,pz)
             appendPoint(markerCoords,px-bx*markerSize,py-by*markerSize,pz-bz*markerSize)
             appendPoint(markerCoords,px+bx*markerSize,py+by*markerSize,pz+bz*markerSize)
             state.paint.hoveredVertexMarker=line:new('3d',0,0,0)
