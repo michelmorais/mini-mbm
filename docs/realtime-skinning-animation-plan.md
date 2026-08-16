@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.86**
+Document version: **8.87**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.87 | 2026-08-16 | Began Weight Tools migration with atomic whole-mesh Clean Weak Influences. It removes weights below a configurable threshold, always preserves the dominant influence, renormalizes survivors, and creates one Undo entry; canonical validation already makes separate Normalize All and Limit Four redundant. |
 | 8.86 | 2026-08-16 | Made Paint/Add and Erase/Subtract directly selectable through radio buttons instead of a brush-operation combo. |
 | 8.85 | 2026-08-16 | Added transactional Erase/Subtract to Paint Weights. Existing selected-bone influence decreases and the remaining positive influences renormalize; zero-weight vertices and sole rigid influences remain unchanged, avoiding implicit replacement-bone guesses. |
 | 8.84 | 2026-08-16 | Restored editor-wide mouse consistency in Paint Weights: left-drag orbits and left-click selects skeleton bones, while right-drag performs the transactional Paint/Add stroke. |

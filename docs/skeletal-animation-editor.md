@@ -66,6 +66,13 @@ remain unchanged. If the selected bone is a vertex's sole influence, subtraction
 vertex unchanged because canonical type-42 data requires one to four positive influences summing
 to one; the brush never fabricates a replacement bone.
 
+The first migrated **Weight Tools** operation is **Clean Weak Influences**. A configurable threshold
+is applied to the complete mesh. Influences below it are removed, except that every vertex's
+strongest influence is always preserved; the survivors are normalized and committed as one atomic
+batch with one Undo entry. If no influence qualifies, the operation creates neither a snapshot nor
+a mutation. Because canonical weights are already normalized and limited to four influences,
+separate Normalize All and Limit Four buttons would currently be redundant.
+
 The overlay reuses one vertex and UV per canonical frame-zero vertex through indexed geometry when
 the complete mesh fits the shape API's 16-bit index limit. Larger meshes use an explicit
 non-indexed fallback. Because the ordinary preview is hidden, no normal-offset duplicate is needed.

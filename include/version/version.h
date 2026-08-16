@@ -267,6 +267,7 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.57.0 Paint Weights Weight Tools adds atomic whole-mesh weak-influence cleanup with dominant-weight preservation, deterministic renormalization, and Undo.
     7.56.1 Paint Weights exposes Paint/Add and Erase/Subtract as directly visible radio buttons instead of a combo.
     7.56.0 Added transactional Erase/Subtract with normalized redistribution, zero-weight no-op behavior, and safe preservation of sole rigid influences.
     7.55.1 Paint Weights keeps left-drag camera orbit and uses right-drag exclusively for Paint/Add, matching the editor's established navigation.
@@ -392,7 +393,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.56.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.57.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

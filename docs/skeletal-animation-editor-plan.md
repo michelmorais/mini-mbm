@@ -458,6 +458,11 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    dominant-weight concentration, active influence count, and weak-weight contamination, but must
    not label a deformation good or bad without pose-stress evidence.
 
+   **Started:** Weight Tools now includes whole-mesh Clean Weak Influences with a configurable
+   threshold, strongest-influence preservation, deterministic normalization, one atomic batch, and
+   one Undo entry. Normalize All and Limit Four are not duplicated because canonical type-42
+   validation already enforces both invariants.
+
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
 
@@ -531,6 +536,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.82 | 2026-08-16 | Started Paint Weights Weight Tools with whole-mesh Clean Weak Influences. A configurable threshold removes small weights while preserving each vertex's strongest influence, then deterministically renormalizes and commits one atomic batch plus one Undo entry. |
 | 7.81 | 2026-08-16 | Replaced the Paint Weights brush-operation combo with directly visible Paint/Add and Erase/Subtract radio buttons. |
 | 7.80 | 2026-08-16 | Added Erase/Subtract through the Paint/Add stroke transaction. It reduces existing selected-bone weights, renormalizes remaining influences, ignores zero-weight vertices, preserves sole rigid influences, and commits one atomic batch plus one Undo entry. |
 | 7.79 | 2026-08-16 | Aligned Paint Weights mouse input with the rest of the editor: left-drag remains camera orbit and left-click selects visible bones, while right-drag exclusively performs Paint/Add. |

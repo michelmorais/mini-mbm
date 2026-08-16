@@ -197,7 +197,8 @@ local state = {
     paint = {boneIndex=1,boneId=nil,radius=0.1,geometry=nil,heatmapLines={},cursor=nil,
         cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
-        heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,stroke=nil},
+        heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
+        cleanThreshold=0.01,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -2887,6 +2888,66 @@ local function commitPaintStroke()
     return true
 end
 
+local function cleanPaintWeakInfluences()
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return false end
+    local indices={}
+    for index in pairs(cache.vertices) do indices[#indices+1]=index end
+    table.sort(indices)
+    local edits={}
+    for _,index in ipairs(indices) do
+        local before=readInfluenceMap(index,false)
+        local ordered=normalizedInfluences(before)
+        if #ordered>0 then
+            local kept={{name=ordered[1].name,weight=ordered[1].weight}}
+            local removed=false
+            for slot=2,#ordered do
+                local influence=ordered[slot]
+                if influence.weight>=state.paint.cleanThreshold then
+                    kept[#kept+1]={name=influence.name,weight=influence.weight}
+                else
+                    removed=true
+                end
+            end
+            if removed then
+                local weightMap={}
+                for _,influence in ipairs(kept) do weightMap[influence.name]=influence.weight end
+                kept=normalizedInfluences(weightMap)
+                local row={index}
+                for slot=1,4 do
+                    local influence=kept[slot]
+                    row[slot*2]=influence and influence.name or nil
+                    row[slot*2+1]=influence and influence.weight or 0
+                end
+                edits[#edits+1]=row
+            end
+        end
+    end
+    if #edits==0 then
+        setStatus(tLang.L('swl_paint_clean_no_change'),false)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_clean_weights')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local ok,committed=safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    if not ok or not committed then
+        discardRollbackSnapshot(snapshot)
+        if ok then setStatus(tLang.L('swl_paint_clean_failed'),true) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_clean_weights')
+    state.modified=true
+    invalidateAnalysis()
+    state.paint.heatmapDirty=true
+    rebuildPaintHeatmap()
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_paint_clean_applied_fmt'),#edits,
+        state.paint.cleanThreshold),false)
+    return true
+end
+
 local function buildTopologyAdjacency()
     if state.topologyAdjacency then return state.topologyAdjacency end
     local adjacency={}
@@ -4450,6 +4511,15 @@ local function showPaintWeights()
     else
         tImGui.TextDisabled(tLang.L('swl_paint_no_hit'))
     end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('swl_paint_weight_tools'))
+    tImGui.TextWrapped(tLang.L('swl_paint_clean_help'))
+    tImGui.PushItemWidth(240)
+    local thresholdChanged,cleanThreshold=tImGui.SliderFloat(
+        tLang.L('swl_paint_clean_threshold'),state.paint.cleanThreshold,0.0001,0.25,'%.4f')
+    tImGui.PopItemWidth()
+    if thresholdChanged then state.paint.cleanThreshold=cleanThreshold end
+    if tImGui.Button(tLang.L('swl_paint_clean_apply')) then cleanPaintWeakInfluences() end
     showRollbackControls('Paint')
 end
 
