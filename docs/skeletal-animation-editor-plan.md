@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.14**
+Document version: **8.15**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
 Last updated: **2026-08-16**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.15 | 2026-08-16 | Replaced the Skin Weight Lab's shared continuous-strip vertex-marker helper with one batched shape of independent double-sided orthogonal crosses. Selection, shell, heatmap, abrupt-vertex, and seam markers no longer gain false connectors; intentional topology edge lines remain unchanged. |
 | 8.14 | 2026-08-16 | Replaced Show Affected Vertices line strips with at most 500 independent planar filled crosses batched in one shape. Audited the Lab: selection/heatmap/abrupt/seam vertex visuals intended crosses but share the same continuous-strip defect; actual abrupt and boundary edge lines are intentional. |
 | 8.13 | 2026-08-16 | Corrected the planar inspector marker for line-strip semantics by routing vertical -> center -> horizontal, removing the diagonal segment that still made the nominal cross look like a fish. |
 | 8.12 | 2026-08-16 | Replaced the inspector's reused three-axis technical marker, which looked like a fish in perspective, with a two-stroke yellow cross oriented in the brush plane. |

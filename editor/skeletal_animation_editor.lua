@@ -1829,17 +1829,36 @@ local function transitionAlpha(p, b)
     return math.max(0,math.min(1,1-t)), 'shell'
 end
 
+local vertexMarkerGeneration=0
+
 local function buildVertexMarkers(vertices, r, g, b, extent)
     if #vertices == 0 then return nil end
     local size = math.max(extent*0.006,0.001)
+    local halfWidth=size*0.16
     local coords,step={},math.max(1,math.ceil(#vertices/500))
+    local function addQuad(a,b,c,d)
+        for _,point in ipairs({a,b,c,a,c,d,a,c,b,a,d,c}) do
+            appendPoint(coords,point[1],point[2],point[3])
+        end
+    end
     for i=1,#vertices,step do
         local p=vertices[i].point
-        appendPoint(coords,p.x-size,p.y,p.z); appendPoint(coords,p.x+size,p.y,p.z)
-        appendPoint(coords,p.x,p.y-size,p.z); appendPoint(coords,p.x,p.y+size,p.z)
+        -- Three orthogonal double-sided bars form one camera-independent 3D cross without
+        -- line-strip connectors between its arms or neighboring vertices.
+        addQuad({p.x-size,p.y-halfWidth,p.z},{p.x+size,p.y-halfWidth,p.z},
+            {p.x+size,p.y+halfWidth,p.z},{p.x-size,p.y+halfWidth,p.z})
+        addQuad({p.x-halfWidth,p.y-size,p.z},{p.x+halfWidth,p.y-size,p.z},
+            {p.x+halfWidth,p.y+size,p.z},{p.x-halfWidth,p.y+size,p.z})
+        addQuad({p.x-halfWidth,p.y,p.z-size},{p.x+halfWidth,p.y,p.z-size},
+            {p.x+halfWidth,p.y,p.z+size},{p.x-halfWidth,p.y,p.z+size})
     end
-    local marks=line:new('3d',0,0,0)
-    marks:add(coords); marks:setColor(r,g,b,1); marks:setPos(0,0,0)
+    vertexMarkerGeneration=vertexMarkerGeneration+1
+    local marks=shape:new('3d',0,0,0)
+    if not marks:create(coords,nil,'skeletal_vertex_markers_'..vertexMarkerGeneration) then
+        destroyObject(marks)
+        return nil
+    end
+    marks:setColor(r,g,b,0.9); marks:setPos(0,0,0)
     marks.alwaysOnTop=state.markersAlwaysOnTop
     return marks
 end

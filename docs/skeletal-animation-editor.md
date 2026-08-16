@@ -733,10 +733,10 @@ by the heatmap.
 The report includes selected vertices, rigid-core/transition counts, non-normalized sums, unknown
 bone references, and references excluded by the current allowed-bone filter. A heatmap warning about
 zero selected influence does not invalidate geometric analysis or full-vector transition diagnosis.
-The selection, shell, heatmap-bucket, abrupt-vertex, and seam visuals were intended as per-vertex
-cross markers. Their shared legacy helper currently submits all points as one continuous line strip,
-so diagonal connectors can appear. Actual abrupt-edge and selection-boundary edge lines are separate
-intentional topology visuals. This distinction is now explicit before replacing the Lab helper.
+The selection, shell, heatmap-bucket, abrupt-vertex, and seam visuals are per-vertex cross markers.
+Their shared helper batches at most 500 sampled vertices as independent, double-sided orthogonal
+bars in one shape, remaining legible from different camera angles without line-strip connectors.
+Actual abrupt-edge and selection-boundary edge lines remain separate intentional topology visuals.
 
 ## 4. Operations
 
