@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.94**
+Document version: **8.97**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.97 | 2026-08-16 | Moved Show Skeleton to the first Paint Weights GUI control and relabeled the abrupt-transition threshold as statistics-only, matching its cached classification behavior and raw unchanged heatmap. |
+| 8.96 | 2026-08-16 | Scoped Target Bone and viewport bone picking to Selected Bone Heatmap. Whole-weight diagnostics hide the nonfunctional selector and retain only skeleton visibility plus camera navigation. |
+| 8.95 | 2026-08-16 | Added read-only Abrupt Weight Transitions diagnostics based on bounded half-L1 distance between complete normalized weight vectors across triangle edges. Cached distances support threshold-only edge/vertex reclassification without heatmap reconstruction. |
 | 8.94 | 2026-08-16 | Promoted Repair / Diagnostics to the first Paint Weights GUI block, making its radio choice the primary mode that immediately controls the contextual sections below. |
 | 8.93 | 2026-08-16 | Made Paint Weights modes behaviorally contextual: only Selected Bone Heatmap exposes and accepts brush strokes; diagnostic modes hide the cursor and are read-only; Weak Contamination alone exposes the shared threshold and Clean repair action. |
 | 8.92 | 2026-08-16 | Reorganized Paint Weights into six clear UI sections, replaced diagnostic checkboxes with an explicit Selected Bone/Distribution/Weak Contamination radio group, and moved Clean controls after diagnostic selection. |

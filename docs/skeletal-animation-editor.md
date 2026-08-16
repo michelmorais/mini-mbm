@@ -45,14 +45,29 @@ count, total weak weight, and maximum weak weight. Changing the threshold refres
 read-only; cleanup still requires an explicit **Clean Weak Influences** action using the same
 threshold.
 
-The Paint Weights panel is contextual rather than showing every control at once. **Repair /
-Diagnostics is the first block** because its radio selection defines the rest of the panel in the
-same frame. Target / Skeleton, Viewport Feedback, and History remain visible. **Brush Operations** appears
+The Paint Weights panel is contextual rather than showing every control at once. **Skeleton /
+Show Skeleton is the first control**, followed by Repair / Diagnostics because its radio selection
+defines the rest of the panel in the same frame. Target Bone, Viewport Feedback, and History remain
+contextual or visible as applicable. **Brush Operations** appears
 only for Selected Bone Heatmap. Influence Distribution and Weak Influence Contamination are
 read-only: the cursor is hidden and right-drag cannot start a stroke. Weak Contamination alone shows
 its shared threshold and the contextual **Weight Tools / Clean Weak Influences** action below the
-diagnostic statistics. Diagnostic visualization is one explicit three-value radio group: Selected
-Bone Heatmap, Influence Distribution, or Weak Influence Contamination.
+diagnostic statistics. Diagnostic visualization is one explicit four-value radio group: Selected
+Bone Heatmap, Influence Distribution, Weak Influence Contamination, or Abrupt Weight Transitions.
+
+Target Bone and viewport bone picking are also contextual: they are exposed only in Selected Bone
+Heatmap, where a particular bone actually drives visualization and brush edits. The three
+whole-weight diagnostics hide Target Bone and leave left-drag exclusively to camera orbit; their
+Skeleton section retains only the independent visibility control.
+
+**Abrupt Weight Transitions** is read-only and compares complete normalized weight vectors across
+triangle-adjacent vertices using half their L1 distance, producing a bounded `0..1` value. Each
+vertex displays its largest incident-edge difference. A configurable threshold classifies and
+reports abrupt edges and unique affected vertices; the heatmap itself remains raw and unchanged
+when only the threshold moves, so slider interaction updates cached statistics without rebuilding
+geometry or rereading weights. The GUI therefore labels it as a classification threshold for
+statistics only; it intentionally does not recolor the raw heatmap. Automatic repair remains a
+later, separately validated action.
 
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight

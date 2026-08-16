@@ -474,6 +474,12 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    affected vertices, weak influence count, total weak mass, and maximum weak weight. Threshold
    changes refresh the diagnostic; only the explicit Clean action mutates data.
 
+   Abrupt Weight Transitions now provides a fourth read-only view. It measures complete normalized
+   weight-vector difference across triangle edges with bounded half-L1 distance, maps each vertex's
+   maximum incident difference, and reports threshold-classified edges and unique vertices. Moving
+   the threshold reclassifies cached edge distances without rebuilding heatmap geometry. Automatic
+   smoothing of detected transitions remains the next separate repair slice.
+
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
 
@@ -548,6 +554,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.92 | 2026-08-16 | Moved Show Skeleton to the first Paint Weights control. Clarified that the Abrupt Weight Transitions threshold classifies cached statistics only and intentionally does not recolor the raw difference heatmap. |
+| 7.91 | 2026-08-16 | Made Target Bone contextual to Selected Bone Heatmap. Whole-weight diagnostics now hide the irrelevant selector and disable viewport bone picking, while retaining skeleton visibility and normal left-drag camera orbit. |
+| 7.90 | 2026-08-16 | Added read-only Abrupt Weight Transitions diagnostics. Complete normalized weight vectors are compared across triangle edges with half-L1 distance; the heatmap shows each vertex's maximum difference, while a threshold classifies cached edges and affected vertices without geometry rebuilds. |
 | 7.89 | 2026-08-16 | Moved Repair / Diagnostics to the first Paint Weights block so its primary mode selection determines all contextual sections immediately in the same GUI frame. |
 | 7.88 | 2026-08-16 | Made the reorganized Paint Weights panel contextual. Brush controls/cursor/right-drag exist only in Selected Bone Heatmap; both diagnostics are read-only; Weak Contamination alone exposes its threshold and contextual Clean action after the statistics. |
 | 7.87 | 2026-08-16 | Reorganized Paint Weights into Target/Skeleton, Brush Operations, Viewport Feedback, Repair/Diagnostics, Weight Tools, and History sections. Replaced mutually disabling diagnostic checkboxes with one three-option radio group and placed Clean controls after diagnostics. |

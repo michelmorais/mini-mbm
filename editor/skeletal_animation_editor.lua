@@ -199,7 +199,7 @@ local state = {
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
-        distributionStats=nil,weakStats=nil,stroke=nil},
+        abruptThreshold=0.35,distributionStats=nil,weakStats=nil,abruptStats=nil,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -229,6 +229,7 @@ end
 local rebuildSkeletonVisuals
 local rebuildPaintHeatmap
 local buildTopologyAdjacency
+local readInfluenceMap
 
 local function safeCall(fn)
     local result = table.pack(pcall(fn))
@@ -2095,6 +2096,7 @@ rebuildPaintHeatmap = function()
     state.paint.heatmapIndexed=false
     state.paint.distributionStats=nil
     state.paint.weakStats=nil
+    state.paint.abruptStats=nil
     if not state.meshD then return end
     local bones=getBones()
     local bone=bones[state.paint.boneIndex]
@@ -2107,6 +2109,41 @@ rebuildPaintHeatmap = function()
     local distributionTotal,distributionMin,distributionMax=0,math.huge,0
     local distributionCounts={0,0,0,0}
     local weakVertices,weakInfluences,weakTotal,weakMaximum=0,0,0,0
+    local abruptValues,abruptEdges,abruptVertices,abruptMaximum,abruptRecords=nil,0,{},0,{}
+    if state.paint.visualizationMode==4 then
+        abruptValues={}
+        local adjacency=buildTopologyAdjacency()
+        local maps={}
+        for _,vertex in pairs(cache.vertices) do
+            maps[vertex.globalIndex]=readInfluenceMap(vertex.globalIndex,false)
+        end
+        local function distanceBetween(a,b)
+            local names={}
+            for name in pairs(a) do names[name]=true end
+            for name in pairs(b) do names[name]=true end
+            local total=0
+            for name in pairs(names) do
+                total=total+math.abs((a[name] or 0)-(b[name] or 0))
+            end
+            return math.min(1,total*0.5)
+        end
+        for index,neighbors in pairs(adjacency) do
+            abruptValues[index]=abruptValues[index] or 0
+            for neighbor in pairs(neighbors) do
+                if index<neighbor then
+                    local distance=distanceBetween(maps[index] or {},maps[neighbor] or {})
+                    abruptValues[index]=math.max(abruptValues[index],distance)
+                    abruptValues[neighbor]=math.max(abruptValues[neighbor] or 0,distance)
+                    abruptMaximum=math.max(abruptMaximum,distance)
+                    abruptRecords[#abruptRecords+1]={a=index,b=neighbor,distance=distance}
+                    if distance>=state.paint.abruptThreshold then
+                        abruptEdges=abruptEdges+1
+                        abruptVertices[index]=true; abruptVertices[neighbor]=true
+                    end
+                end
+            end
+        end
+    end
     for _,vertex in pairs(cache.vertices) do
         if state.paint.visualizationMode==2 then
             local _,influences=vertexWeightForBone(vertex.globalIndex,'')
@@ -2136,6 +2173,8 @@ rebuildPaintHeatmap = function()
             if weakCount>0 then weakVertices=weakVertices+1 end
             weakInfluences=weakInfluences+weakCount
             weakTotal=weakTotal+weakSum
+        elseif state.paint.visualizationMode==4 then
+            weights[vertex.globalIndex]=abruptValues[vertex.globalIndex] or 0
         else
             weights[vertex.globalIndex]=vertexWeightForBone(vertex.globalIndex,bone.name)
         end
@@ -2148,6 +2187,11 @@ rebuildPaintHeatmap = function()
     elseif state.paint.visualizationMode==3 then
         state.paint.weakStats={vertices=weakVertices,influences=weakInfluences,
             totalWeight=weakTotal,maximumWeight=weakMaximum,total=#cache.vertices}
+    elseif state.paint.visualizationMode==4 then
+        local affected=0
+        for _ in pairs(abruptVertices) do affected=affected+1 end
+        state.paint.abruptStats={edges=abruptEdges,vertices=affected,maximum=abruptMaximum,
+            total=#cache.vertices,records=abruptRecords}
     end
     local vertices,uvs,indices={},{},{}
     local useIndexed=#cache.vertices<=65535
@@ -2728,7 +2772,7 @@ local function writeInfluences(globalIndex,influences)
         d and d.name or nil,d and d.weight or 0)
 end
 
-local function readInfluenceMap(globalIndex,respectRestriction)
+readInfluenceMap=function(globalIndex,respectRestriction)
     local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
         return state.meshD:getSkeletalVertexWeight(globalIndex)
     end)
@@ -4559,6 +4603,13 @@ local function showPaintWeights()
         tImGui.TextWrapped(tLang.L('swl_paint_requires_weights'))
         return
     end
+    showSectionTitle('swl_paint_skeleton_view')
+    local showSkeleton=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.paint.showSkeleton)
+    if showSkeleton~=state.paint.showSkeleton then
+        state.paint.showSkeleton=showSkeleton
+        applyWorkspaceVisibility()
+    end
+    tImGui.Separator()
     showSectionTitle('swl_paint_repair_diagnostics')
     local previousVisualizationMode=state.paint.visualizationMode
     state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_selected'),
@@ -4567,6 +4618,8 @@ local function showPaintWeights()
         state.paint.visualizationMode,2)
     state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_weak'),
         state.paint.visualizationMode,3)
+    state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_abrupt'),
+        state.paint.visualizationMode,4)
     if state.paint.visualizationMode~=previousVisualizationMode then
         state.paint.heatmapDirty=true
         rebuildPaintHeatmap()
@@ -4603,27 +4656,52 @@ local function showPaintWeights()
         showSectionTitle('swl_paint_weight_tools')
         tImGui.TextWrapped(tLang.L('swl_paint_clean_help'))
         if tImGui.Button(tLang.L('swl_paint_clean_apply')) then cleanPaintWeakInfluences() end
+    elseif state.paint.visualizationMode==4 then
+        tImGui.TextWrapped(tLang.L('swl_paint_abrupt_help'))
+        tImGui.PushItemWidth(240)
+        local thresholdChanged,abruptThreshold=tImGui.SliderFloat(
+            tLang.L('swl_paint_abrupt_threshold'),state.paint.abruptThreshold,0.01,1,'%.2f')
+        tImGui.PopItemWidth()
+        if thresholdChanged then
+            state.paint.abruptThreshold=abruptThreshold
+            local stats=state.paint.abruptStats
+            if stats and stats.records then
+                local edges,vertices=0,{}
+                for _,record in ipairs(stats.records) do
+                    if record.distance>=abruptThreshold then
+                        edges=edges+1; vertices[record.a]=true; vertices[record.b]=true
+                    end
+                end
+                local affected=0
+                for _ in pairs(vertices) do affected=affected+1 end
+                stats.edges,stats.vertices=edges,affected
+            end
+        end
+        local stats=state.paint.abruptStats
+        if stats then
+            tImGui.Text(string.format(tLang.L('swl_paint_abrupt_stats_fmt'),stats.edges,
+                stats.vertices,stats.total))
+            tImGui.Text(string.format(tLang.L('swl_paint_abrupt_max_fmt'),stats.maximum,
+                state.paint.abruptThreshold))
+        end
     end
-    tImGui.Separator()
-    showSectionTitle('swl_paint_target_view')
-    local showSkeleton=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.paint.showSkeleton)
-    if showSkeleton~=state.paint.showSkeleton then
-        state.paint.showSkeleton=showSkeleton
-        applyWorkspaceVisibility()
-    end
-    local names={}
-    for _,bone in ipairs(bones) do names[#names+1]=bone.name end
-    state.paint.boneIndex=math.max(1,math.min(state.paint.boneIndex,#bones))
-    tImGui.PushItemWidth(240)
-    local changed,boneIndex=tImGui.Combo(tLang.L('swl_paint_target_bone'),
-        state.paint.boneIndex,names,-1)
-    tImGui.PopItemWidth()
-    if changed then
-        state.paint.boneIndex=boneIndex
-        state.paint.heatmapDirty=true
-        rebuildPaintHeatmap()
-        rebuildSkeletonVisuals()
-        applyWorkspaceVisibility()
+    if state.paint.visualizationMode==1 then
+        tImGui.Separator()
+        showSectionTitle('swl_paint_target_only')
+        local names={}
+        for _,bone in ipairs(bones) do names[#names+1]=bone.name end
+        state.paint.boneIndex=math.max(1,math.min(state.paint.boneIndex,#bones))
+        tImGui.PushItemWidth(240)
+        local changed,boneIndex=tImGui.Combo(tLang.L('swl_paint_target_bone'),
+            state.paint.boneIndex,names,-1)
+        tImGui.PopItemWidth()
+        if changed then
+            state.paint.boneIndex=boneIndex
+            state.paint.heatmapDirty=true
+            rebuildPaintHeatmap()
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
+        end
     end
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
@@ -6740,7 +6818,7 @@ function onTouchDown(key, x, y)
         return
     end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
-        if state.workspace=='paint' then
+        if state.workspace=='paint' and state.paint.visualizationMode==1 then
             local selectedBone=hitTestPaintBone(x,y)
             if selectedBone then
                 state.paint.boneIndex=selectedBone
