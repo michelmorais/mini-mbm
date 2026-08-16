@@ -100,7 +100,9 @@ identify coincident seam vertices written through a synchronized group. The repo
 unique protected faces from total failed face/pose samples and states the seam vertex/group counts
 on separate GUI lines.
 The overlay is diagnostic only and is replaced by the next successful repair or cleared with the
-loaded editor state.
+loaded editor state. In Paint Weights, the shared **Show Mesh** control is the first viewport option,
+immediately before **Show Skeleton**. Hiding the mesh does not hide the safety overlay, allowing the
+protected faces and seam markers to be inspected in isolation.
 
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight

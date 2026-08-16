@@ -1066,11 +1066,11 @@ local function applyWorkspaceVisibility()
     end
     if state.paint.cursor then state.paint.cursor.visible=paintWorkspace and state.meshVisible end
     if state.paint.safetyFaceShape then
-        state.paint.safetyFaceShape.visible=paintWorkspace and state.meshVisible and
+        state.paint.safetyFaceShape.visible=paintWorkspace and
             state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
     end
     if state.paint.safetySeamMarkers then
-        state.paint.safetySeamMarkers.visible=paintWorkspace and state.meshVisible and
+        state.paint.safetySeamMarkers.visible=paintWorkspace and
             state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
     end
     if state.abruptLines then
@@ -3428,7 +3428,7 @@ local function rebuildPaintSafetyOverlay(unsafeTriangles,seamVertices,report)
     for _,object in ipairs({state.paint.safetyFaceShape,state.paint.safetySeamMarkers}) do
         if object then
             object.alwaysOnTop=state.markersAlwaysOnTop
-            object.visible=state.workspace=='paint' and state.meshVisible and
+            object.visible=state.workspace=='paint' and
                 state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
         end
     end
@@ -5074,6 +5074,11 @@ local function showPaintWeights()
         return
     end
     showSectionTitle('swl_paint_skeleton_view')
+    local meshVisible=tImGui.Checkbox(tLang.L('swl_show_mesh'),state.meshVisible)
+    if meshVisible~=state.meshVisible then
+        state.meshVisible=meshVisible
+        applyWorkspaceVisibility()
+    end
     local showSkeleton=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.paint.showSkeleton)
     if showSkeleton~=state.paint.showSkeleton then
         state.paint.showSkeleton=showSkeleton
@@ -7057,8 +7062,10 @@ local function showPanel()
             tImGui.Text(string.format(tLang.L('swl_summary_fmt'), state.aabb and state.aabb.total or 0,
                 #bones, okW and hasWeights and tLang.L('swl_yes') or tLang.L('swl_no')))
             showStatusMessage()
-            showSharedVisualization()
-            tImGui.Separator()
+            if state.workspace~='paint' then
+                showSharedVisualization()
+                tImGui.Separator()
+            end
             tImGui.Text(tLang.L('swl_workspaces'))
             if openWorkspaceNode('bone_editor',tLang.L('swl_bone_editor_workspace'),
                     '##swlBoneEditorWorkspace') then
