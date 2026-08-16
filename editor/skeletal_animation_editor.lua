@@ -195,7 +195,9 @@ local state = {
     abruptLines = nil,
     boundaryLines = nil,
     paint = {boneIndex=1,boneId=nil,radius=0.1,geometry=nil,heatmapLines={},cursor=nil,
-        cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0},
+        cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
+        cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
+        heatmapIndexed=false},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -268,6 +270,10 @@ local function clearPaintVisuals()
     state.paint.heatmapLines={}
     state.paint.cursor=nil
     state.paint.cursorHit=nil
+    state.paint.cursorLastX=nil
+    state.paint.cursorLastY=nil
+    state.paint.cursorPendingX=nil
+    state.paint.cursorPendingY=nil
 end
 
 local function appendPoint(coords, x, y, z)
@@ -2031,10 +2037,22 @@ local function rebuildPaintCursor(hit)
     state.paint.cursor=cursor
 end
 
+local function updatePaintCursorHover()
+    if state.workspace~='paint' or not state.paint.cursorPendingX then return end
+    local now=mbm.getTimeRun()
+    if now-state.paint.cursorLastUpdate<1/30 then return end
+    local x,y=state.paint.cursorPendingX,state.paint.cursorPendingY
+    state.paint.cursorPendingX,state.paint.cursorPendingY=nil,nil
+    state.paint.cursorLastX,state.paint.cursorLastY=x,y
+    state.paint.cursorLastUpdate=now
+    rebuildPaintCursor(pickPaintSurface(x,y))
+end
+
 rebuildPaintHeatmap = function()
     for _,object in ipairs(state.paint.heatmapLines) do destroyObject(object) end
     state.paint.heatmapLines={}
     state.paint.heatmapDirty=false
+    state.paint.heatmapIndexed=false
     if not state.meshD then return end
     local bones=getBones()
     local bone=bones[state.paint.boneIndex]
@@ -2047,37 +2065,42 @@ rebuildPaintHeatmap = function()
     for _,vertex in pairs(cache.vertices) do
         weights[vertex.globalIndex]=vertexWeightForBone(vertex.globalIndex,bone.name)
     end
-    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
-        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
-    local offset=math.max(extent*0.00005,0.000001)
-    local vertices,uvs={},{}
-    for _,triangle in ipairs(cache.triangles) do
-        local a,b,c=triangle.a.point,triangle.b.point,triangle.c.point
-        local e1x,e1y,e1z=b.x-a.x,b.y-a.y,b.z-a.z
-        local e2x,e2y,e2z=c.x-a.x,c.y-a.y,c.z-a.z
-        local nx=e1y*e2z-e1z*e2y
-        local ny=e1z*e2x-e1x*e2z
-        local nz=e1x*e2y-e1y*e2x
-        local length=math.sqrt(nx*nx+ny*ny+nz*nz)
-        if length>1e-12 then nx,ny,nz=nx/length*offset,ny/length*offset,nz/length*offset
-        else nx,ny,nz=0,0,0 end
-        for _,entry in ipairs({triangle.a,triangle.b,triangle.c}) do
-            appendPoint(vertices,entry.point.x+nx,entry.point.y+ny,entry.point.z+nz)
+    local vertices,uvs,indices={},{},{}
+    local useIndexed=#cache.vertices<=65535
+    if useIndexed then
+        for index=1,#cache.vertices do
+            local entry=cache.vertices[index]
+            appendPoint(vertices,entry.point.x,entry.point.y,entry.point.z)
             uvs[#uvs+1]=math.max(0,math.min(1,weights[entry.globalIndex] or 0))
             uvs[#uvs+1]=0.5
+        end
+        for _,triangle in ipairs(cache.triangles) do
+            indices[#indices+1]=triangle.a.globalIndex
+            indices[#indices+1]=triangle.b.globalIndex
+            indices[#indices+1]=triangle.c.globalIndex
+        end
+    else
+        for _,triangle in ipairs(cache.triangles) do
+            for _,entry in ipairs({triangle.a,triangle.b,triangle.c}) do
+                appendPoint(vertices,entry.point.x,entry.point.y,entry.point.z)
+                uvs[#uvs+1]=math.max(0,math.min(1,weights[entry.globalIndex] or 0))
+                uvs[#uvs+1]=0.5
+            end
         end
     end
     state.paint.heatmapGeneration=state.paint.heatmapGeneration+1
     if #vertices>0 and ensurePaintHeatmapShader() then
         local marker=shape:new('3d',0,0,0)
-        local created=marker:create(vertices,uvs,
-            'paint_weight_surface_'..state.paint.heatmapGeneration)
+        local nickname='paint_weight_surface_'..state.paint.heatmapGeneration
+        local created=useIndexed and marker:createIndexed(vertices,indices,uvs) or
+            marker:create(vertices,uvs,nickname)
         local okShader,shader=pcall(function() return marker:getShader() end)
         if created and okShader and shader and shader:load(paintHeatmapShaderName,nil) then
             marker:setPos(0,0,0)
             marker.alwaysOnTop=false
             marker.visible=state.workspace=='paint'
             state.paint.heatmapLines[1]=marker
+            state.paint.heatmapIndexed=useIndexed
         else
             destroyObject(marker)
             setStatus(tLang.L('swl_paint_heatmap_shader_failed'),true)
@@ -4188,6 +4211,10 @@ local function showPaintWeights()
     if geometry then
         tImGui.Text(string.format(tLang.L('swl_paint_geometry_fmt'),
             #geometry.vertices,#geometry.triangles))
+        if #state.paint.heatmapLines>0 then
+            tImGui.TextDisabled(tLang.L(state.paint.heatmapIndexed and
+                'swl_paint_indexed_heatmap' or 'swl_paint_nonindexed_heatmap'))
+        end
     end
     if state.paint.cursorHit then
         local p=state.paint.cursorHit.point
@@ -6226,6 +6253,7 @@ end
 
 function onLoop(delta)
     updateCameraKeyboard(delta)
+    updatePaintCursorHover()
     updateAuthoringPlayback(delta)
     showMenu()
     showPanel()
@@ -6393,8 +6421,14 @@ end
 
 function onTouchMove(key, x, y)
     if state.workspace=='paint' then
-        if tImGui.GetWantCaptureMouse() then rebuildPaintCursor(nil)
-        else rebuildPaintCursor(pickPaintSurface(x,y)) end
+        if tImGui.GetWantCaptureMouse() then
+            state.paint.cursorPendingX,state.paint.cursorPendingY=nil,nil
+            if state.paint.cursor then rebuildPaintCursor(nil) end
+        else
+            local moved=not state.paint.cursorLastX or
+                math.abs(x-state.paint.cursorLastX)>=1 or math.abs(y-state.paint.cursorLastY)>=1
+            if moved then state.paint.cursorPendingX,state.paint.cursorPendingY=x,y end
+        end
     end
     local drag=state.translationGizmo.drag
     local rotationDrag=state.rotationGizmo.drag

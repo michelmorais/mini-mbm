@@ -480,7 +480,7 @@ namespace mbm
                 getArrayFloatFromTable(lua, 4, vertex.ls_uv, sTableUV);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 3);
-            for (unsigned short int i = 0; i < vertex.sizeIndex; ++i)
+            for (unsigned int i = 0; i < vertex.sizeIndex; ++i)
             {
                 if (vertex.ls_index[i] == 0 || vertex.ls_index[i] > maxVertex)
                 {
@@ -522,7 +522,7 @@ namespace mbm
                 getArrayFloatFromTable(lua, 4, vertex.ls_uv, sTableUV);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 2);
-            for (unsigned short int i = 0; i < vertex.sizeIndex; ++i)
+            for (unsigned int i = 0; i < vertex.sizeIndex; ++i)
             {
                 if (vertex.ls_index[i] == 0 || vertex.ls_index[i] > maxVertex)
                 {

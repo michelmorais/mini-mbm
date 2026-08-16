@@ -267,6 +267,7 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.54.1 Optimized Paint Weights with indexed heatmap geometry and changed-position 30 Hz cursor raycasts/rebuilds; fixed createIndexed validation looping past 65,535 indices.
     7.54.0 Paint Weights heatmap now uses true per-vertex UV interpolation and a continuous gradient pixel shader.
     7.53.2 Paint Weights now renders its opaque heatmap surface instead of layering it over the ordinary textured preview.
     7.53.1 Replaced Paint Weights vertex-cross heatmap markers with depth-tested filled-face overlays and added independent skeleton visibility.
@@ -386,7 +387,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.54.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.54.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

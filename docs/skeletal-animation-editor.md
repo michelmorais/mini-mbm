@@ -45,6 +45,12 @@ the worktree restores the shared preview normally. This visualization therefore 
 stored interpolation rather than six clamped face-average buckets. This slice does not start a stroke,
 mutate type-42 data, or create Undo history.
 
+The overlay reuses one vertex and UV per canonical frame-zero vertex through indexed geometry when
+the complete mesh fits the shape API's 16-bit index limit. Larger meshes use an explicit
+non-indexed fallback. Because the ordinary preview is hidden, no normal-offset duplicate is needed.
+Surface picking remains event-driven through the cached BVH; cursor raycasts and cursor-object
+rebuilds require a changed pointer position and are capped at 30 updates per second.
+
 ## 2. Opening the editor
 
 Choose **Skeletal Animation Editor** from the Mini MBM launcher, or start it directly:

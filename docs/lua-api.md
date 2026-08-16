@@ -786,6 +786,10 @@ sh:createDynamicIndexed(vertices, indices, uvs)  -- updatable each frame
 sh:onRender(callback)  -- callback(sh) called every frame for dynamic update
 ```
 
+Indexed shapes use 16-bit vertex indices and therefore support at most 65,535 distinct vertices,
+but the triangle index list itself may contain more than 65,535 entries. The Lua binding validates
+that complete list with a 32-bit loop counter; large triangle collections do not wrap the validator.
+
 **Pitfall: `nickName` is a shared cache key, not a per-instance label or a "reload guard."** Every
 `create*` variant above ultimately resolves its geometry through the engine's mesh manager, keyed
 by `nickName` (or an auto-generated name if omitted) — **across every `shape` object in the

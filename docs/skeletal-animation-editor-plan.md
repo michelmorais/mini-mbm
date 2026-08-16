@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **7.74**
+Document version: **7.75**
 Status: **Five active skeletal workflows implemented; Paint Weights visual foundation started; composition deferred**
 Last updated: **2026-08-16**
 
@@ -503,6 +503,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.75 | 2026-08-16 | Reduced Paint Weights CPU/geometry pressure: the continuous overlay now uses one vertex/UV per canonical vertex with 16-bit indexed drawing when possible and an explicit large-mesh non-indexed fallback. Cursor picking/recreation now requires actual pointer movement and is capped at 30 Hz. |
 | 7.74 | 2026-08-16 | Replaced face-average heatmap buckets with true per-vertex interpolation. Paint Weights stores each selected-bone weight in the overlay UV stream, lets rasterization interpolate it across triangles, and maps the continuous value through a dedicated heatmap pixel shader. |
 | 7.73 | 2026-08-16 | Added the non-destructive Paint Weights visual foundation: isolated state, panel/viewport bone selection, an opaque face-filled selected-bone heatmap that replaces the ordinary textured preview inside this worktree, independent skeleton visibility, cached frame-zero triangles, BVH-accelerated local raycast, and a surface-oriented configurable-radius cursor. Painting and weight mutation remain intentionally absent from this slice. |
 | 7.72 | 2026-08-16 | Reframed Paint Weights as the primary visual authoring workflow and eventual successor to the standalone Skin Weight Lab experience. The Lab remains during incremental delivery; its useful batch and diagnostic operations migrate later under Weight Tools / Repair and Diagnostics after brush stability and parity. Began the non-visual foundation with atomic canonical weight batch mutation. |
