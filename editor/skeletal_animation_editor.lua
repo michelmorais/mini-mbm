@@ -198,7 +198,8 @@ local state = {
         cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
-        smoothIterations=3,cleanThreshold=0.01,stroke=nil},
+        smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
+        distributionStats=nil,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -2087,6 +2088,7 @@ rebuildPaintHeatmap = function()
     state.paint.heatmapLines={}
     state.paint.heatmapDirty=false
     state.paint.heatmapIndexed=false
+    state.paint.distributionStats=nil
     if not state.meshD then return end
     local bones=getBones()
     local bone=bones[state.paint.boneIndex]
@@ -2096,8 +2098,30 @@ rebuildPaintHeatmap = function()
     local cache=state.paint.geometry or buildPaintGeometryCache()
     if not cache then return end
     local weights={}
+    local distributionTotal,distributionMin,distributionMax=0,math.huge,0
+    local distributionCounts={0,0,0,0}
     for _,vertex in pairs(cache.vertices) do
-        weights[vertex.globalIndex]=vertexWeightForBone(vertex.globalIndex,bone.name)
+        if state.paint.visualizationMode==2 then
+            local _,influences=vertexWeightForBone(vertex.globalIndex,'')
+            local dominant,count=0,0
+            for _,pair in ipairs(influences) do
+                local name,weight=pair[1],tonumber(pair[2]) or 0
+                if name and weight>0 then dominant=math.max(dominant,weight); count=count+1 end
+            end
+            weights[vertex.globalIndex]=math.max(0,math.min(1,(dominant-0.25)/0.75))
+            distributionTotal=distributionTotal+dominant
+            distributionMin=math.min(distributionMin,dominant)
+            distributionMax=math.max(distributionMax,dominant)
+            if count>=1 and count<=4 then distributionCounts[count]=distributionCounts[count]+1 end
+        else
+            weights[vertex.globalIndex]=vertexWeightForBone(vertex.globalIndex,bone.name)
+        end
+    end
+    if state.paint.visualizationMode==2 then
+        local total=#cache.vertices
+        state.paint.distributionStats={minimum=total>0 and distributionMin or 0,
+            maximum=distributionMax,average=total>0 and distributionTotal/total or 0,
+            counts=distributionCounts,total=total}
     end
     local vertices,uvs,indices={},{},{}
     local useIndexed=#cache.vertices<=65535
@@ -4591,6 +4615,26 @@ local function showPaintWeights()
     tImGui.PopItemWidth()
     if thresholdChanged then state.paint.cleanThreshold=cleanThreshold end
     if tImGui.Button(tLang.L('swl_paint_clean_apply')) then cleanPaintWeakInfluences() end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('swl_paint_repair_diagnostics'))
+    local showDistribution=tImGui.Checkbox(tLang.L('swl_paint_show_distribution'),
+        state.paint.visualizationMode==2)
+    local visualizationMode=showDistribution and 2 or 1
+    if visualizationMode~=state.paint.visualizationMode then
+        state.paint.visualizationMode=visualizationMode
+        state.paint.heatmapDirty=true
+        rebuildPaintHeatmap()
+    end
+    if state.paint.visualizationMode==2 then
+        tImGui.TextWrapped(tLang.L('swl_paint_distribution_help'))
+        local stats=state.paint.distributionStats
+        if stats then
+            tImGui.Text(string.format(tLang.L('swl_paint_distribution_stats_fmt'),
+                stats.minimum,stats.average,stats.maximum))
+            tImGui.Text(string.format(tLang.L('swl_paint_distribution_counts_fmt'),
+                stats.counts[1],stats.counts[2],stats.counts[3],stats.counts[4]))
+        end
+    end
     showRollbackControls('Paint')
 end
 

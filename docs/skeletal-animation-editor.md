@@ -29,11 +29,14 @@ rigid fill, and invalid-coverage diagnostics may migrate into Paint Weights unde
 and **Repair / Diagnostics**. The Lab is removed only after explicit parity, performance, Undo,
 and save/reload acceptance; its GUI-specific state must never leak into Paint Weights.
 
-One later diagnostic may visualize **Influence Distribution**: how concentrated or spread each
-vertex's normalized weights are across its active bones. It can expose unexpectedly rigid regions,
-unnecessary weak influences, and overly mixed areas, but it does not judge deformation quality or
-replace pose-stress testing. It remains secondary to Paint/Add, Erase/Subtract, normalization,
-cleanup, smoothing, influence limits, and invalid-weight coverage.
+**Influence Distribution** is now available as an optional Repair / Diagnostics view. It maps a
+normalized concentration score derived from each vertex's largest weight (`0.25 -> 0`, `1 -> 1`)
+through the continuous heatmap: cooler colors mean influence is
+more distributed, while warmer colors mean one bone dominates. The panel also reports dominant
+minimum/average/maximum and vertex counts with one through four active influences. It can expose
+unexpectedly rigid regions, unnecessary weak influences, and overly mixed areas, but it does not
+judge deformation quality or replace pose-stress testing. Disabling it restores the unchanged
+selected-bone heatmap.
 
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight

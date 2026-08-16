@@ -463,6 +463,12 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    one Undo entry. Normalize All and Limit Four are not duplicated because canonical type-42
    validation already enforces both invariants.
 
+   Repair / Diagnostics now includes an optional Influence Distribution heatmap using a normalized
+   concentration score derived from each vertex's dominant weight, plus aggregate raw dominant
+   min/average/max and one-to-four active
+   influence counts. It remains explicitly descriptive rather than a deformation-quality verdict,
+   and disabling it restores the selected-bone heatmap.
+
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
 
@@ -537,6 +543,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.85 | 2026-08-16 | Started Paint Weights Repair / Diagnostics with optional Influence Distribution. The interpolated map shows each vertex's dominant normalized weight and reports min/average/max plus counts using one through four influences, without labeling deformation good or bad. |
 | 7.84 | 2026-08-16 | Made Smooth effective on dense topology with 1-10 stable neighbor-average iterations per stroke, defaulting to three. Brush-operation radio buttons now occupy one line each for clearer selection. |
 | 7.83 | 2026-08-16 | Added Smooth as a third transactional brush operation. It moves only the selected bone's weight toward the triangle-neighbor average under brush Strength/Falloff, proportionally redistributes remaining influences, normalizes, and commits one atomic batch plus one Undo entry. |
 | 7.82 | 2026-08-16 | Started Paint Weights Weight Tools with whole-mesh Clean Weak Influences. A configurable threshold removes small weights while preserving each vertex's strongest influence, then deterministically renormalizes and commits one atomic batch plus one Undo entry. |
