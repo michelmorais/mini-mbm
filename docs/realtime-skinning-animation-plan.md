@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.81**
+Document version: **8.82**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -327,6 +327,12 @@ The Skeletal Animation Editor contains six mutually exclusive worktrees:
    authoring surface. Once its brush workflow is solid, it will progressively absorb useful Lab
    operations under Weight Tools and Repair / Diagnostics. The Lab remains as a reference and
    fallback until that migration reaches verified parity.
+
+   The next delivery is a minimal transactional Paint/Add stroke using the existing cached
+   surface cursor and atomic canonical weight-batch boundary. Erase/Subtract follows only after
+   Paint/Add is continuous, normalized, influence-bounded, undoable per stroke, and persistent.
+   Influence Distribution remains a later diagnostic for weight concentration, active influence
+   count, and weak-weight contamination; it is not a direct rigidity or deformation-quality score.
 
 The asset, camera, viewport, status, and mesh visibility remain shared services. Skeleton display is
 worktree-specific: bind inspection shows the bind skeleton, Skin Weight Lab owns its local toggle,
@@ -808,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.82 | 2026-08-16 | Set the next Paint Weights delivery to a minimal transactional Paint/Add stroke, followed by Erase/Subtract after correctness acceptance. Reserved Influence Distribution for later Repair / Diagnostics as a weight-concentration aid, not a rigidity verdict or substitute for pose-stress testing. |
 | 8.81 | 2026-08-16 | Made Paint Weights skeleton selection topology-generic: explicit canonical tails define each bone's own displayed and pickable segment, while head joints remain pickable and missing tails are not inferred from importer names, hierarchy direction, or anatomy. |
 | 8.80 | 2026-08-16 | Optimized the continuous Paint Weights surface with indexed canonical vertices under the 16-bit shape limit, an explicit non-indexed fallback for larger meshes, and changed-position 30 Hz cursor raycast/rebuild throttling. Heatmap reconstruction remains dirty/event-driven rather than per-frame. |
 | 8.79 | 2026-08-16 | Paint Weights heatmap now uses true per-vertex weight interpolation through overlay UVs and a continuous gradient pixel shader, removing the misleading six-bucket face-average clamp before brush authoring begins. |

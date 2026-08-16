@@ -29,6 +29,12 @@ rigid fill, and invalid-coverage diagnostics may migrate into Paint Weights unde
 and **Repair / Diagnostics**. The Lab is removed only after explicit parity, performance, Undo,
 and save/reload acceptance; its GUI-specific state must never leak into Paint Weights.
 
+One later diagnostic may visualize **Influence Distribution**: how concentrated or spread each
+vertex's normalized weights are across its active bones. It can expose unexpectedly rigid regions,
+unnecessary weak influences, and overly mixed areas, but it does not judge deformation quality or
+replace pose-stress testing. It remains secondary to Paint/Add, Erase/Subtract, normalization,
+cleanup, smoothing, influence limits, and invalid-weight coverage.
+
 The first Paint Weights viewport slice is read-only. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight
 heatmap, hide

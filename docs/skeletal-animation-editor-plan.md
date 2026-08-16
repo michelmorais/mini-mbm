@@ -438,6 +438,27 @@ Exit: editor and runtime produce matching reference vertices/normals for the sam
 
 Exit: there is one canonical implementation for each skeleton, weight, and animation responsibility.
 
+### Milestone 9 — Paint Weights authoring
+
+1. Deliver one minimal transactional **Paint/Add** stroke over the existing surface cursor and
+   cached picking foundation. Radius, strength, and falloff are explicit; drag sampling must not
+   leave gaps between frames.
+2. A complete stroke previews or accumulates changes locally and commits one validated canonical
+   type-42 batch on release. One stroke creates one Undo entry; cancellation or validation failure
+   restores the exact pre-stroke state.
+3. Preserve normalization and the canonical per-vertex influence limit deterministically without
+   importer-name or anatomy assumptions. The selected bone gains influence while the remaining
+   influences are redistributed according to an explicit policy.
+4. After Paint/Add passes synthetic and real-asset deformation checks, add **Erase/Subtract** with
+   the same transaction, normalization, Undo, and save/reload guarantees.
+5. Only after both brush directions are stable, migrate selected Skin Weight Lab operations into
+   **Weight Tools** and **Repair / Diagnostics**. A later **Influence Distribution** view may report
+   dominant-weight concentration, active influence count, and weak-weight contamination, but must
+   not label a deformation good or bad without pose-stress evidence.
+
+Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
+contract, undoable per stroke, and persistent across save/reload.
+
 ## 12. Validation fixtures and acceptance
 
 The alien-rat bundle remains the primary real asset for hierarchy, weights, extreme proportions,
@@ -503,6 +524,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.77 | 2026-08-16 | Defined Paint Weights Milestone 9: transactional gap-free Paint/Add first, then Erase/Subtract, followed only later by selected Weight Tools and diagnostics. Reserved Influence Distribution as a secondary concentration/mixing diagnostic rather than a deformation-quality or rigidity verdict. |
 | 7.76 | 2026-08-16 | Aligned Paint Weights viewport selection with canonical Bone Editor ownership: an explicit `head -> tail` segment is drawn and picked as its own bone, independent of importer names or anatomy; bones without explicit tails remain joint-selectable without guessed topology. |
 | 7.75 | 2026-08-16 | Reduced Paint Weights CPU/geometry pressure: the continuous overlay now uses one vertex/UV per canonical vertex with 16-bit indexed drawing when possible and an explicit large-mesh non-indexed fallback. Cursor picking/recreation now requires actual pointer movement and is capped at 30 Hz. |
 | 7.74 | 2026-08-16 | Replaced face-average heatmap buckets with true per-vertex interpolation. Paint Weights stores each selected-bone weight in the overlay UV stream, lets rasterization interpolate it across triangles, and maps the continuous value through a dedicated heatmap pixel shader. |
