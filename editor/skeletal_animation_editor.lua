@@ -197,7 +197,7 @@ local state = {
     paint = {boneIndex=1,boneId=nil,radius=0.1,geometry=nil,heatmapLines={},cursor=nil,
         cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
-        heatmapIndexed=false,strength=0.25,falloffMode=2,stroke=nil},
+        heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -2798,7 +2798,7 @@ local function beginPaintStroke(hit)
     local snapshot=stageRollbackSnapshot('swl_history_paint_add')
     if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
     state.paint.stroke={snapshot=snapshot,boneName=bone.name,boneId=bone.boneId,
-        alphas={},lastPoint=nil,distanceSinceSample=0}
+        operationMode=state.paint.operationMode,alphas={},lastPoint=nil,distanceSinceSample=0}
     extendPaintStroke(hit)
     rebuildPaintCursor(hit)
     return true
@@ -2828,14 +2828,42 @@ local function commitPaintStroke()
     end
     local edits={}
     for _,index in ipairs(indices) do
-        local influences=blendedInfluences(index,stroke.boneName,stroke.alphas[index])
-        local row={index}
-        for slot=1,4 do
-            local influence=influences[slot]
-            row[slot*2]=influence and influence.name or nil
-            row[slot*2+1]=influence and influence.weight or 0
+        local before=readInfluenceMap(index,false)
+        local influences=nil
+        if stroke.operationMode==2 then
+            local remaining={}
+            for name,weight in pairs(before) do remaining[name]=weight end
+            local targetWeight=remaining[stroke.boneName] or 0
+            local otherWeight=0
+            for name,weight in pairs(remaining) do
+                if name~=stroke.boneName then otherWeight=otherWeight+weight end
+            end
+            if targetWeight>0 and otherWeight>0 then
+                remaining[stroke.boneName]=targetWeight*(1-stroke.alphas[index])
+                influences=normalizedInfluences(remaining)
+            end
+        else
+            influences=blendedInfluences(index,stroke.boneName,stroke.alphas[index])
         end
-        edits[#edits+1]=row
+        local afterTarget=0
+        for _,influence in ipairs(influences or {}) do
+            if influence.name==stroke.boneName then afterTarget=influence.weight break end
+        end
+        if influences and math.abs(afterTarget-(before[stroke.boneName] or 0))>1e-7 then
+            local row={index}
+            for slot=1,4 do
+                local influence=influences[slot]
+                row[slot*2]=influence and influence.name or nil
+                row[slot*2+1]=influence and influence.weight or 0
+            end
+            edits[#edits+1]=row
+        end
+    end
+    if #edits==0 then
+        discardRollbackSnapshot(stroke.snapshot)
+        setStatus(tLang.L(stroke.operationMode==2 and 'swl_paint_subtract_no_change' or
+            'swl_paint_add_no_change'),false)
+        return false
     end
     local ok,committed=safeCall(function()
         return state.meshD:setSkeletalVertexWeightsBatch(edits)
@@ -2845,13 +2873,17 @@ local function commitPaintStroke()
         if ok then setStatus(tLang.L('swl_paint_stroke_failed'),true) end
         return false
     end
-    commitRollbackSnapshot(stroke.snapshot,'swl_history_paint_add')
+    local historyKey=stroke.operationMode==2 and 'swl_history_paint_subtract' or
+        'swl_history_paint_add'
+    commitRollbackSnapshot(stroke.snapshot,historyKey)
     state.modified=true
     invalidateAnalysis()
     state.paint.heatmapDirty=true
     rebuildPaintHeatmap()
     applyWorkspaceVisibility()
-    setStatus(string.format(tLang.L('swl_paint_stroke_applied_fmt'),#edits,stroke.boneName),false)
+    local statusKey=stroke.operationMode==2 and 'swl_paint_subtract_applied_fmt' or
+        'swl_paint_stroke_applied_fmt'
+    setStatus(string.format(tLang.L(statusKey),#edits,stroke.boneName),false)
     return true
 end
 
@@ -4353,7 +4385,8 @@ local function showPaintWeights()
         tImGui.TextWrapped(tLang.L('swl_paint_requires_weights'))
         return
     end
-    tImGui.TextWrapped(tLang.L('swl_paint_add_help'))
+    tImGui.TextWrapped(tLang.L(state.paint.operationMode==2 and
+        'swl_paint_subtract_help' or 'swl_paint_add_help'))
     local showSkeleton=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.paint.showSkeleton)
     if showSkeleton~=state.paint.showSkeleton then
         state.paint.showSkeleton=showSkeleton
@@ -4373,6 +4406,12 @@ local function showPaintWeights()
         rebuildSkeletonVisuals()
         applyWorkspaceVisibility()
     end
+    tImGui.Text(tLang.L('swl_paint_operation'))
+    state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_add'),
+        state.paint.operationMode,1)
+    tImGui.SameLine()
+    state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_subtract'),
+        state.paint.operationMode,2)
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     tImGui.PushItemWidth(240)

@@ -450,7 +450,9 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    importer-name or anatomy assumptions. The selected bone gains influence while the remaining
    influences are redistributed according to an explicit policy.
 4. After Paint/Add passes synthetic and real-asset deformation checks, add **Erase/Subtract** with
-   the same transaction, normalization, Undo, and save/reload guarantees.
+   the same transaction, normalization, Undo, and save/reload guarantees. **Implemented:** it
+   reduces existing selected-bone influence, redistributes through normalization, ignores zero
+   influence, and preserves a sole rigid influence rather than inventing a replacement bone.
 5. Only after both brush directions are stable, migrate selected Skin Weight Lab operations into
    **Weight Tools** and **Repair / Diagnostics**. A later **Influence Distribution** view may report
    dominant-weight concentration, active influence count, and weak-weight contamination, but must
@@ -459,10 +461,10 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
 
-Current delivery: item 1 and the transaction core of items 2-3 are implemented. Paint/Add uses a
+Current delivery: items 1 and 4 plus the transaction core of items 2-3 are implemented. Both brush operations use a
 cached vertex BVH, bounded quarter-radius interpolation between ordinary surface hits, local per-stroke accumulation,
 deterministic four-influence normalization, one atomic batch on release, one Undo snapshot, and Esc
-cancellation. Interactive deformation quality, save/reload acceptance, and Erase/Subtract remain.
+cancellation. Interactive deformation quality and save/reload acceptance remain.
 
 ## 12. Validation fixtures and acceptance
 
@@ -529,6 +531,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.81 | 2026-08-16 | Replaced the Paint Weights brush-operation combo with directly visible Paint/Add and Erase/Subtract radio buttons. |
+| 7.80 | 2026-08-16 | Added Erase/Subtract through the Paint/Add stroke transaction. It reduces existing selected-bone weights, renormalizes remaining influences, ignores zero-weight vertices, preserves sole rigid influences, and commits one atomic batch plus one Undo entry. |
 | 7.79 | 2026-08-16 | Aligned Paint Weights mouse input with the rest of the editor: left-drag remains camera orbit and left-click selects visible bones, while right-drag exclusively performs Paint/Add. |
 | 7.78 | 2026-08-16 | Implemented the first Paint/Add authoring stroke: radius/strength/falloff controls, vertex-BVH radius queries, bounded quarter-radius drag interpolation, deterministic normalized four-influence blending, one atomic type-42 batch and Undo entry per release, Esc cancellation, and post-commit heatmap refresh. |
 | 7.77 | 2026-08-16 | Defined Paint Weights Milestone 9: transactional gap-free Paint/Add first, then Erase/Subtract, followed only later by selected Weight Tools and diagnostics. Reserved Influence Distribution as a secondary concentration/mixing diagnostic rather than a deformation-quality or rigidity verdict. |

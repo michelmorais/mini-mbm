@@ -38,7 +38,7 @@ cleanup, smoothing, influence limits, and invalid-weight coverage.
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight
 heatmap, hide or show the skeleton independently, adjust radius, strength, and linear/smooth
-falloff, and drag the right mouse button over the mesh to Paint/Add. Frame-zero vertices and
+falloff, choose Paint/Add or Erase/Subtract through visible radio buttons, and drag the right mouse button over the mesh. Frame-zero vertices and
 triangles are cached per loaded/restored mesh; separate local-space triangle and vertex BVHs narrow
 surface ray intersection and radius queries. The heatmap rebuilds only when its target or canonical weights become
 dirty. The heatmap stores each vertex's selected-bone weight in `UV.x`; the rasterizer interpolates
@@ -56,9 +56,15 @@ is blended toward weight one; other stored influences are reduced proportionally
 sorted deterministically, limited to four influences, and normalized. The editor sends all changed
 vertices through one atomic canonical type-42 batch only when the mouse is released. A successful
 stroke creates one Undo entry and refreshes the heatmap; an empty, cancelled, or rejected stroke
-does not mutate weights. `Esc` cancels the active stroke. Erase/Subtract remains pending.
+does not mutate weights. `Esc` cancels the active stroke.
 Left-drag retains the editor-wide camera-orbit behavior; clicking a visible skeleton joint or
 segment with the left button still selects its bone before an orbit begins.
+
+Erase/Subtract uses the same sampling, transaction, and Undo boundary. It reduces only an existing
+weight for the selected bone, then normalizes the remaining influences. Blue/zero-weight vertices
+remain unchanged. If the selected bone is a vertex's sole influence, subtraction also leaves that
+vertex unchanged because canonical type-42 data requires one to four positive influences summing
+to one; the brush never fabricates a replacement bone.
 
 The overlay reuses one vertex and UV per canonical frame-zero vertex through indexed geometry when
 the complete mesh fits the shape API's 16-bit index limit. Larger meshes use an explicit
