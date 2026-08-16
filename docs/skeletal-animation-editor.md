@@ -140,7 +140,9 @@ alpha previews `strength * falloff` independently of the mesh triangulation: gre
 Paint/Add, red represents Erase/Subtract, and cyan represents Smooth. The disk communicates radius
 and falloff, not the exact topology-clipped result. **Show Affected Vertices (Diagnostic)** is the
 default-off exact candidate view; it runs the same spatial or connected-surface query as painting and
-draws at most 500 white crosses. Both previews update only through the changed-pointer 30 Hz cursor
+draws at most 500 white filled crosses in the brush plane. The crosses are independent batched
+quads, not one continuous line strip, so no diagonal segments join their arms or neighboring
+vertices. Both previews update only through the changed-pointer 30 Hz cursor
 refresh and perform no idle query. The disk and radius circle use always-on-top priority 0, so the
 whole flat brush remains visible over curved surfaces. Skeleton joints and segments use priority 1
 and therefore remain visible above the brush. The disk winding follows the camera-facing hit normal
@@ -731,6 +733,10 @@ by the heatmap.
 The report includes selected vertices, rigid-core/transition counts, non-normalized sums, unknown
 bone references, and references excluded by the current allowed-bone filter. A heatmap warning about
 zero selected influence does not invalidate geometric analysis or full-vector transition diagnosis.
+The selection, shell, heatmap-bucket, abrupt-vertex, and seam visuals were intended as per-vertex
+cross markers. Their shared legacy helper currently submits all points as one continuous line strip,
+so diagonal connectors can appear. Actual abrupt-edge and selection-boundary edge lines are separate
+intentional topology visuals. This distinction is now explicit before replacing the Lab helper.
 
 ## 4. Operations
 

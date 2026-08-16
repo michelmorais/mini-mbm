@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.18**
+Document version: **9.19**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.19 | 2026-08-16 | Replaced Show Affected Vertices line strips with at most 500 independent planar filled crosses batched in one shape. Audited the Lab: selection/heatmap/abrupt/seam vertex visuals intended crosses but share the same continuous-strip defect; actual abrupt and boundary edge lines are intentional. |
 | 9.18 | 2026-08-16 | Corrected the planar inspector marker for line-strip semantics by routing vertical -> center -> horizontal, removing the diagonal segment that still made the nominal cross look like a fish. |
 | 9.17 | 2026-08-16 | Replaced the inspector's reused three-axis technical marker, which looked like a fish in perspective, with a two-stroke yellow cross oriented in the brush plane. |
 | 9.16 | 2026-08-16 | Stabilized the nearest-vertex inspector layout by permanently reserving its header and four influence rows with empty placeholders, preventing the vertical scrollbar from disappearing when the pointer leaves the mesh to reach it. |

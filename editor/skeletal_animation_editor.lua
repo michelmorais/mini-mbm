@@ -2266,11 +2266,45 @@ local function rebuildPaintCursor(hit)
             state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
         local vertices={}
         for _,candidate in ipairs(candidates) do vertices[#vertices+1]=candidate.vertex end
-        state.paint.brushFootprintMarkers=buildVertexMarkers(vertices,1,1,1,extent)
-        if state.paint.brushFootprintMarkers then
-            state.paint.brushFootprintMarkers.alwaysOnTop=true
-            state.paint.brushFootprintMarkers.alwaysOnTopPriority=0
-            state.paint.brushFootprintMarkers.visible=state.meshVisible
+        local markerVertices={}
+        local markerSize=math.max(extent*0.006,0.001)
+        local markerHalfWidth=markerSize*0.16
+        local step=math.max(1,math.ceil(#vertices/500))
+        local function addQuad(a,b,c,d)
+            for _,point in ipairs({a,b,c,a,c,d,a,c,b,a,d,c}) do
+                appendPoint(markerVertices,point.x,point.y,point.z)
+            end
+        end
+        local function markerPoint(point,tangentScale,bitangentScale)
+            return {x=point.x+tx*tangentScale+bx*bitangentScale+n.x*surfaceOffset,
+                y=point.y+ty*tangentScale+by*bitangentScale+n.y*surfaceOffset,
+                z=point.z+tz*tangentScale+bz*bitangentScale+n.z*surfaceOffset}
+        end
+        for index=1,#vertices,step do
+            local point=vertices[index].point
+            addQuad(markerPoint(point,-markerSize,-markerHalfWidth),
+                markerPoint(point,markerSize,-markerHalfWidth),
+                markerPoint(point,markerSize,markerHalfWidth),
+                markerPoint(point,-markerSize,markerHalfWidth))
+            addQuad(markerPoint(point,-markerHalfWidth,-markerSize),
+                markerPoint(point,markerHalfWidth,-markerSize),
+                markerPoint(point,markerHalfWidth,markerSize),
+                markerPoint(point,-markerHalfWidth,markerSize))
+        end
+        if #markerVertices>0 then
+            state.paint.brushFootprintGeneration=state.paint.brushFootprintGeneration+1
+            local markers=shape:new('3d',0,0,0)
+            if markers:create(markerVertices,nil,'paint_affected_vertices_'..
+                    state.paint.brushFootprintGeneration) then
+                markers:setColor(1,1,1,0.9)
+                markers:setPos(0,0,0)
+                markers.alwaysOnTop=true
+                markers.alwaysOnTopPriority=0
+                markers.visible=state.meshVisible
+                state.paint.brushFootprintMarkers=markers
+            else
+                destroyObject(markers)
+            end
         end
     end
 end
