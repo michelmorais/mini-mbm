@@ -58,6 +58,7 @@ local state = {
     animationTimelineSelection = {},
     animationTimelineBox = nil,
     animationTimelineClip = nil,
+    animationTimelineEmptyDuration = 0.1,
     animationReport = nil,
     animationPlayback = {playing=false,paused=false,speed=1},
     leftPanelRight = 440,
@@ -3941,6 +3942,34 @@ local function showSkeletalTimelineWindow()
             end
             tImGui.EndDisabled()
         end
+        tImGui.PushItemWidth(110)
+        local gapChanged,gapDuration=tImGui.DragFloat(
+            tLang.L('swl_animation_timeline_empty_duration')..'##swlTimelineEmptyDuration',
+            state.animationTimelineEmptyDuration,0.01,0.001,60,'%.3f s')
+        tImGui.PopItemWidth()
+        if gapChanged then
+            state.animationTimelineEmptyDuration=math.max(0.001,math.min(60,gapDuration))
+        end
+        tImGui.SameLine()
+        local gapBlocked=(state.animationTimelineEmptyDuration or 0)<=1e-6
+        tImGui.BeginDisabled(gapBlocked)
+        if tImGui.Button(tLang.L('swl_animation_timeline_insert_empty')..
+                '##swlTimelineInsertEmpty') then
+            local snapshot=stageRollbackSnapshot()
+            local inserted=snapshot and select(1,safeCall(function()
+                return state.meshD:insertSkeletalEmptyTime(state.animationClipSelected,
+                    state.authoringTime,state.animationTimelineEmptyDuration)
+            end)) or false
+            if inserted then
+                commitRollbackSnapshot(snapshot)
+                state.modified=true
+                clearAuthoringOverride()
+                setStatus(string.format(tLang.L(
+                    'swl_animation_timeline_empty_inserted_fmt'),
+                    state.animationTimelineEmptyDuration),false)
+            elseif snapshot then discardRollbackSnapshot(snapshot) end
+        end
+        tImGui.EndDisabled()
         tImGui.TextDisabled(tLang.L('swl_animation_timeline_box_help'))
         if tImGui.Button(tLang.L('swl_play_restart')..'##swlTimelinePlay') then
             playback.playing=true; playback.paused=false; state.authoringTime=0

@@ -772,6 +772,14 @@ namespace
                    clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,5,error,sizeof(error)-1) &&
                    clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,4,error,sizeof(error)-1) &&
                    clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,3,error,sizeof(error)-1) &&
+                   clipEditMesh.insertSkeletalEmptyTime(editedClipIndex,2.0f,0.5f,
+                       error,sizeof(error)-1) &&
+                   clipEditMesh.getSkeletalClip(editedClipIndex,editedClip) &&
+                   editedClip.duration>7.75f && editedClip.duration<7.751f &&
+                   clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,2,bindSeedKey) &&
+                   std::fabs(bindSeedKey.time-2.75f)<=MATRIX_TOLERANCE &&
+                   clipEditMesh.moveSkeletalKeys(editedClipIndex,collisionTrack,collisionKey,1,-0.5f,
+                       error,sizeof(error)-1) &&
                    clipEditMesh.updateSkeletalClip(editedClipIndex,"idle-loop",3.0f,true,
                        error,sizeof(error)-1) &&
                    clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,1,committedLocal) &&

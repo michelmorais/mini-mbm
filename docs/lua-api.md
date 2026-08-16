@@ -1572,6 +1572,7 @@ meshD:duplicateSkeletalKeys(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
 meshD:insertSkeletalKeysRipple(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, insertionTime)
+meshD:insertSkeletalEmptyTime(oneBasedClipIndex, insertionTime, duration)
 ```
 
 Insertion requires a unique time inside the clip, samples the current canonical clip first, and
@@ -1593,6 +1594,9 @@ space across every track by shifting keys at or after `insertionTime`, then copi
 with their earliest time aligned to the insertion point. The clip duration grows by the opened span
 (plus the canonical numerical separation needed between endpoint keys). Duplicate references,
 invalid results, and collisions reject the entire candidate atomically.
+`insertSkeletalEmptyTime` creates no keys. It grows the clip by the positive finite `duration` and
+shifts every existing key at or after `insertionTime` by exactly that duration across every track.
+The complete result validates and commits atomically.
 
 ### 15.1 Articulated-animation authoring
 

@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.49 | 2026-08-16 | Timeline adds atomic empty-time insertion: a positive duration grows the clip and shifts all keys at or after the playhead across every track without creating keys, with one editor rollback transaction. |
 | 8.48 | 2026-08-16 | Timeline adds atomic ripple insertion: the clip grows by the selected span, space is opened across all tracks with canonical endpoint separation, later keys shift together, copies preserve tracks/payloads/relative timing, and invalid candidates do not mutate the clip. |
 | 8.33 | 2026-08-15 | Rotate mode now draws a fixed-head orbit guide at the preserved visual segment length, while joint-radius edits require a strictly positive mesh-relative value and reject zero atomically. |
 | 8.32 | 2026-08-15 | Segment rotation now preserves displayed global length through non-uniform bind bases, and joint-radius authoring uses proportional DragFloat interaction. |

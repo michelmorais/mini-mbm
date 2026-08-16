@@ -5011,6 +5011,47 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::insertSkeletalEmptyTime(const uint32_t clipIndex,
+                                                  const float insertionTime,
+                                                  const float duration,
+                                                  char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(insertionTime) || insertionTime<0.0f || insertionTime>sourceClip.duration)
+            return fail("canonical empty-time insertion must be inside the clip duration");
+        if (!std::isfinite(duration) || duration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical empty-time duration must be positive and finite");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        clip.duration+=duration;
+        if (!std::isfinite(clip.duration))
+            return fail("canonical empty-time insertion would make the clip duration invalid");
+        for (skeletal::SKELETAL_TRACK &track:clip.tracks)
+        {
+            for (skeletal::SKELETAL_KEY &key:track.keys)
+            {
+                if (key.time+skeletal::KEY_TIME_TOLERANCE>=insertionTime)
+                {
+                    key.time+=duration;
+                    if (!std::isfinite(key.time))
+                        return fail("canonical empty-time insertion would make a key time invalid");
+                }
+            }
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("empty-time-inserted canonical keys would be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::commitSkeletalAuthoringKey(const uint32_t clipIndex,
                                                      const uint32_t boneIndex,
                                                      const float time,

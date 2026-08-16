@@ -349,6 +349,9 @@ leave both original keys and selection source data unchanged.
 track, shifts all keys at or after the playhead by that span, and inserts a copy aligned by its
 earliest key. The clip duration grows with the inserted space; endpoint keys receive only the
 canonical numerical separation required to remain distinct. Invalid candidates are rejected atomically.
+**Insert empty time at playhead** creates a gap of the requested duration without copying or creating
+keys. Every key at or after the playhead moves by the same amount across all tracks, and the clip
+duration grows equally. The operation produces one rollback entry.
 The detached canonical clip/track/key report is cached while the asset is unchanged. Skeleton or
 animation mutation invalidates it through the shared bind/report refresh boundary. This avoids
 rebuilding and garbage-collecting the complete nested Lua report every frame while Animation is idle.

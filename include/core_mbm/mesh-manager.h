@@ -350,6 +350,10 @@ namespace mbm
                                                const uint32_t keyCount,
                                                const float insertionTime, char *errorOut,
                                                const int errorOutLen);
+        API_IMPL bool insertSkeletalEmptyTime(const uint32_t clipIndex,
+                                              const float insertionTime,
+                                              const float duration, char *errorOut,
+                                              const int errorOutLen);
         API_IMPL bool removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
                                         const uint32_t keyIndex, char *errorOut, const int errorOutLen);
         API_IMPL bool commitSkeletalAuthoringKey(const uint32_t clipIndex, const uint32_t boneIndex,

@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.44 | 2026-08-16 | Added atomic empty-time insertion at the playhead with an editor duration control. It creates no keys, grows the clip, shifts every key at or after the insertion point across all tracks by the same duration, and commits through one rollback entry. |
 | 7.43 | 2026-08-16 | Added atomic ripple insertion at the playhead. It grows the clip to open the selected time span across every track, shifts later keys with canonical endpoint separation, inserts complete selected payloads with relative timing intact, and rejects invalid candidates without partial mutation. |
 | 7.42 | 2026-08-16 | Added atomic Duplicate at playhead for timeline selection. The earliest selected key aligns to the playhead, relative spacing/tracks/full payloads are preserved, and a candidate-copy backend insertion sorts affected tracks and rejects duplicate references, bounds errors, or collisions without partial copies. |
 | 7.41 | 2026-08-16 | Timeline canvas now consumes the window's full remaining vertical area, revealing more tracks when resized. Empty-space drag draws a clipped rectangle and selects enclosed visible key markers on release; Ctrl makes it additive, while a stationary click still seeks. |
