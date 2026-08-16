@@ -195,7 +195,7 @@ local state = {
     abruptLines = nil,
     boundaryLines = nil,
     paint = {boneIndex=1,boneId=nil,radius=0.1,geometry=nil,heatmapLines={},cursor=nil,
-        cursorHit=nil,heatmapDirty=true},
+        cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -218,7 +218,7 @@ end
 
 local function shouldShowSkeleton()
     return state.workspace=='bind' or state.workspace=='bone_editor' or state.workspace=='animation' or
-        state.workspace=='paint' or
+        (state.workspace=='paint' and state.paint.showSkeleton) or
         (isWeightLabWorkspace() and state.skeletonVisible)
 end
 
@@ -1013,7 +1013,10 @@ local function applyWorkspaceVisibility()
     rebuildBoneEditorRotationGuide()
 
     if state.preview then
-        state.preview.visible=state.meshVisible
+        -- Paint Weights' filled-face heatmap is a complete read-only surface copy. Hiding the
+        -- textured preview there avoids z-fighting and color mixing; other worktrees keep it.
+        state.preview.visible=state.meshVisible and not
+            (paintWorkspace and #state.paint.heatmapLines>0)
         pcall(function()
             local x=0
             if runtimeWorkspace and state.skeletalPreview.poseStress then
@@ -1035,8 +1038,10 @@ local function applyWorkspaceVisibility()
     if state.selectionLines then state.selectionLines.visible=analysisVisible end
     if state.transitionLines then state.transitionLines.visible=analysisVisible end
     for _,marker in ipairs(state.heatmapLines) do marker.visible=analysisVisible end
-    for _,marker in ipairs(state.paint.heatmapLines) do marker.visible=paintWorkspace end
-    if state.paint.cursor then state.paint.cursor.visible=paintWorkspace end
+    for _,marker in ipairs(state.paint.heatmapLines) do
+        marker.visible=paintWorkspace and state.meshVisible
+    end
+    if state.paint.cursor then state.paint.cursor.visible=paintWorkspace and state.meshVisible end
     if state.abruptLines then
         state.abruptLines.visible=weightWorkspace and state.abruptMarkersVisible
     end
@@ -2007,26 +2012,39 @@ rebuildPaintHeatmap = function()
     state.boneIndex=state.paint.boneIndex
     local cache=state.paint.geometry or buildPaintGeometryCache()
     if not cache then return end
-    local buckets={{},{},{},{},{},{}}
+    local weights={}
     for _,vertex in pairs(cache.vertices) do
-        local weight=vertexWeightForBone(vertex.globalIndex,bone.name)
-        local index=math.min(6,math.floor(weight*6)+1)
-        buckets[index][#buckets[index]+1]=vertex
+        weights[vertex.globalIndex]=vertexWeightForBone(vertex.globalIndex,bone.name)
     end
+    local buckets={{},{},{},{},{},{}}
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
-    local size=math.max(extent*0.004,0.0005)
+    local offset=math.max(extent*0.00005,0.000001)
+    for _,triangle in ipairs(cache.triangles) do
+        local weight=((weights[triangle.a.globalIndex] or 0)+(weights[triangle.b.globalIndex] or 0)+
+            (weights[triangle.c.globalIndex] or 0))/3
+        local index=math.min(6,math.floor(weight*6)+1)
+        local a,b,c=triangle.a.point,triangle.b.point,triangle.c.point
+        local e1x,e1y,e1z=b.x-a.x,b.y-a.y,b.z-a.z
+        local e2x,e2y,e2z=c.x-a.x,c.y-a.y,c.z-a.z
+        local nx=e1y*e2z-e1z*e2y
+        local ny=e1z*e2x-e1x*e2z
+        local nz=e1x*e2y-e1y*e2x
+        local length=math.sqrt(nx*nx+ny*ny+nz*nz)
+        if length>1e-12 then nx,ny,nz=nx/length*offset,ny/length*offset,nz/length*offset
+        else nx,ny,nz=0,0,0 end
+        local vertices=buckets[index]
+        appendPoint(vertices,a.x+nx,a.y+ny,a.z+nz)
+        appendPoint(vertices,b.x+nx,b.y+ny,b.z+nz)
+        appendPoint(vertices,c.x+nx,c.y+ny,c.z+nz)
+    end
+    state.paint.heatmapGeneration=state.paint.heatmapGeneration+1
     for index,vertices in ipairs(buckets) do
         if #vertices>0 then
-            local coords={}
-            for _,vertex in ipairs(vertices) do
-                local p=vertex.point
-                appendPoint(coords,p.x-size,p.y,p.z); appendPoint(coords,p.x+size,p.y,p.z)
-                appendPoint(coords,p.x,p.y-size,p.z); appendPoint(coords,p.x,p.y+size,p.z)
-            end
             local color=heatmapColors[index]
-            local marker=line:new('3d',0,0,0)
-            marker:add(coords); marker:setColor(color[1],color[2],color[3],1); marker:setPos(0,0,0)
+            local marker=shape:new('3d',0,0,0)
+            marker:create(vertices,nil,'paint_weight_faces_'..state.paint.heatmapGeneration..'_'..index)
+            marker:setColor(color[1],color[2],color[3],1); marker:setPos(0,0,0)
             marker.alwaysOnTop=false
             marker.visible=state.workspace=='paint'
             state.paint.heatmapLines[#state.paint.heatmapLines+1]=marker
@@ -4103,6 +4121,11 @@ local function showPaintWeights()
         return
     end
     tImGui.TextWrapped(tLang.L('swl_paint_visual_foundation_help'))
+    local showSkeleton=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.paint.showSkeleton)
+    if showSkeleton~=state.paint.showSkeleton then
+        state.paint.showSkeleton=showSkeleton
+        applyWorkspaceVisibility()
+    end
     local names={}
     for _,bone in ipairs(bones) do names[#names+1]=bone.name end
     state.paint.boneIndex=math.max(1,math.min(state.paint.boneIndex,#bones))

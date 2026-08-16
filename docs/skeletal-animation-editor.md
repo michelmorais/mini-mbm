@@ -30,11 +30,16 @@ and **Repair / Diagnostics**. The Lab is removed only after explicit parity, per
 and save/reload acceptance; its GUI-specific state must never leak into Paint Weights.
 
 The first Paint Weights viewport slice is read-only. The user can select a target bone from the
-panel or by clicking its joint/segment, inspect that bone's complete stored-weight heatmap, adjust
+panel or by clicking its joint/segment, inspect that bone's face-filled stored-weight heatmap, hide
+or show the skeleton independently, adjust
 the brush radius in mesh-local units, and move a surface-oriented cursor over the closest visible
 triangle. Frame-zero vertices and triangles are cached per loaded/restored mesh; a local-space BVH
 narrows ray intersection work. The heatmap rebuilds only when its target or canonical weights become
-dirty. This slice does not start a stroke, mutate type-42 data, or create Undo history.
+dirty. Faces use the average selected-bone weight of their three vertices and retain normal depth
+testing, so hidden back faces are not painted through the mesh. While this complete heatmap surface
+exists, Paint Weights hides the ordinary textured preview instead of layering both copies; leaving
+the worktree restores the shared preview normally. This slice does not start a stroke,
+mutate type-42 data, or create Undo history.
 
 ## 2. Opening the editor
 
