@@ -489,6 +489,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.43 | 2026-08-16 | Added atomic ripple insertion at the playhead. It grows the clip to open the selected time span across every track, shifts later keys with canonical endpoint separation, inserts complete selected payloads with relative timing intact, and rejects invalid candidates without partial mutation. |
+| 7.42 | 2026-08-16 | Added atomic Duplicate at playhead for timeline selection. The earliest selected key aligns to the playhead, relative spacing/tracks/full payloads are preserved, and a candidate-copy backend insertion sorts affected tracks and rejects duplicate references, bounds errors, or collisions without partial copies. |
 | 7.41 | 2026-08-16 | Timeline canvas now consumes the window's full remaining vertical area, revealing more tracks when resized. Empty-space drag draws a clipped rectangle and selects enclosed visible key markers on release; Ctrl makes it additive, while a stationary click still seeks. |
 | 7.40 | 2026-08-16 | Added atomic multi-key timeline movement. A selected group previews one shared clamped delta and cross-checks unselected same-track keys; release passes pre-move track/key pairs to one candidate-copy backend mutation that sorts affected tracks and commits only after complete canonical validation. Lua API and rejection/round-trip tests cover the contract. |
 | 7.39 | 2026-08-15 | Added non-mutating timeline multi-selection: normal click selects one key, Ctrl-click toggles keys across tracks, markers/count/clear action expose selection state, and clip/workspace/mutation transitions clear stale identities. Group dragging stays disabled until an atomic backend batch operation exists. |

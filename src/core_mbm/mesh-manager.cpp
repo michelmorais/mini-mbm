@@ -4878,6 +4878,139 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::duplicateSkeletalKeys(const uint32_t clipIndex,
+                                                const uint32_t *trackIndices,
+                                                const uint32_t *keyIndices,
+                                                const uint32_t keyCount,
+                                                const float timeDelta,
+                                                char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!trackIndices || !keyIndices || keyCount==0)
+            return fail("canonical key duplicate selection must not be empty");
+        if (!std::isfinite(timeDelta)) return fail("canonical key duplicate delta must be finite");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        std::unordered_set<uint64_t> references;
+        references.reserve(keyCount);
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint32_t trackIndex=trackIndices[index];
+            const uint32_t keyIndex=keyIndices[index];
+            if (trackIndex>=sourceClip.tracks.size() ||
+                    keyIndex>=sourceClip.tracks[trackIndex].keys.size())
+                return fail("canonical key duplicate index is out of range");
+            const uint64_t reference=(static_cast<uint64_t>(trackIndex)<<32u)|keyIndex;
+            if (!references.insert(reference).second)
+                return fail("canonical key duplicate selection contains a duplicate reference");
+            const float newTime=sourceClip.tracks[trackIndex].keys[keyIndex].time+timeDelta;
+            if (!std::isfinite(newTime) || newTime<0.0f || newTime>sourceClip.duration)
+                return fail("canonical duplicated key time must remain inside the clip duration");
+        }
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint32_t> affectedTracks;
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            skeletal::SKELETAL_KEY copy=sourceClip.tracks[trackIndices[index]].keys[keyIndices[index]];
+            copy.time+=timeDelta;
+            clip.tracks[trackIndices[index]].keys.push_back(copy);
+            affectedTracks.insert(trackIndices[index]);
+        }
+        for (const uint32_t trackIndex:affectedTracks)
+        {
+            std::stable_sort(clip.tracks[trackIndex].keys.begin(),clip.tracks[trackIndex].keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("duplicated canonical keys would be invalid or collide with another key time");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::insertSkeletalKeysRipple(const uint32_t clipIndex,
+                                                   const uint32_t *trackIndices,
+                                                   const uint32_t *keyIndices,
+                                                   const uint32_t keyCount,
+                                                   const float insertionTime,
+                                                   char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!trackIndices || !keyIndices || keyCount==0)
+            return fail("canonical ripple selection must not be empty");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(insertionTime) || insertionTime<0.0f || insertionTime>sourceClip.duration)
+            return fail("canonical ripple insertion time must be inside the clip duration");
+        std::unordered_set<uint64_t> references;
+        references.reserve(keyCount);
+        float minimumTime=std::numeric_limits<float>::max();
+        float maximumTime=-std::numeric_limits<float>::max();
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint32_t trackIndex=trackIndices[index];
+            const uint32_t keyIndex=keyIndices[index];
+            if (trackIndex>=sourceClip.tracks.size() ||
+                    keyIndex>=sourceClip.tracks[trackIndex].keys.size())
+                return fail("canonical ripple key index is out of range");
+            const uint64_t reference=(static_cast<uint64_t>(trackIndex)<<32u)|keyIndex;
+            if (!references.insert(reference).second)
+                return fail("canonical ripple selection contains a duplicate reference");
+            const float time=sourceClip.tracks[trackIndex].keys[keyIndex].time;
+            minimumTime=std::min(minimumTime,time);
+            maximumTime=std::max(maximumTime,time);
+        }
+        const float span=maximumTime-minimumTime;
+        if (!std::isfinite(span) || span<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical ripple selection must span a positive duration");
+        const float shift=span+skeletal::KEY_TIME_TOLERANCE*2.0f;
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        clip.duration+=shift;
+        if (!std::isfinite(clip.duration))
+            return fail("canonical ripple insertion would make the clip duration invalid");
+        for (skeletal::SKELETAL_TRACK &track:clip.tracks)
+        {
+            for (skeletal::SKELETAL_KEY &key:track.keys)
+            {
+                if (key.time+skeletal::KEY_TIME_TOLERANCE>=insertionTime)
+                {
+                    key.time+=shift;
+                    if (!std::isfinite(key.time))
+                        return fail("canonical ripple shift would make a key time invalid");
+                }
+            }
+        }
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            skeletal::SKELETAL_KEY copy=sourceClip.tracks[trackIndices[index]].keys[keyIndices[index]];
+            copy.time=insertionTime+(copy.time-minimumTime);
+            clip.tracks[trackIndices[index]].keys.push_back(copy);
+        }
+        for (skeletal::SKELETAL_TRACK &track:clip.tracks)
+        {
+            std::stable_sort(track.keys.begin(),track.keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("ripple-inserted canonical keys would collide or be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::commitSkeletalAuthoringKey(const uint32_t clipIndex,
                                                      const uint32_t boneIndex,
                                                      const float time,

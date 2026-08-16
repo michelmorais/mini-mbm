@@ -339,6 +339,17 @@ namespace mbm
         API_IMPL bool moveSkeletalKeys(const uint32_t clipIndex, const uint32_t *trackIndices,
                                        const uint32_t *keyIndices, const uint32_t keyCount,
                                        const float timeDelta, char *errorOut, const int errorOutLen);
+        API_IMPL bool duplicateSkeletalKeys(const uint32_t clipIndex,
+                                            const uint32_t *trackIndices,
+                                            const uint32_t *keyIndices, const uint32_t keyCount,
+                                            const float timeDelta, char *errorOut,
+                                            const int errorOutLen);
+        API_IMPL bool insertSkeletalKeysRipple(const uint32_t clipIndex,
+                                               const uint32_t *trackIndices,
+                                               const uint32_t *keyIndices,
+                                               const uint32_t keyCount,
+                                               const float insertionTime, char *errorOut,
+                                               const int errorOutLen);
         API_IMPL bool removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
                                         const uint32_t keyIndex, char *errorOut, const int errorOutLen);
         API_IMPL bool commitSkeletalAuthoringKey(const uint32_t clipIndex, const uint32_t boneIndex,

@@ -3611,6 +3611,22 @@ local function timelineSelectionCount()
     return count
 end
 
+local function collectTimelineSelection(clip)
+    local references={}
+    local minimumTime,maximumTime=math.huge,-math.huge
+    for trackIndex,track in ipairs(clip.tracks or {}) do
+        for keyIndex,key in ipairs(track.keys or {}) do
+            if state.animationTimelineSelection[timelineSelectionId(trackIndex,keyIndex)] then
+                references[#references+1]=trackIndex
+                references[#references+1]=keyIndex
+                minimumTime=math.min(minimumTime,key.time or 0)
+                maximumTime=math.max(maximumTime,key.time or 0)
+            end
+        end
+    end
+    return references,minimumTime,maximumTime
+end
+
 local function commitTimelineKeyDrag(drag)
     if not drag or not drag.moved or drag.invalid then return false end
     local snapshot=stageRollbackSnapshot()
@@ -3881,6 +3897,49 @@ local function showSkeletalTimelineWindow()
                 state.animationTimelineTrackIndex=nil
                 state.animationTimelineKeyIndex=nil
             end
+            local references,minimumTime,maximumTime=
+                collectTimelineSelection(state.animationTimelineClip)
+            local duplicateDelta=(state.authoringTime or 0)-minimumTime
+            local duplicateBlocked=#references==0 or math.abs(duplicateDelta)<=1e-6 or
+                maximumTime+duplicateDelta>(state.animationTimelineClip.duration or 0)+1e-6
+            tImGui.SameLine()
+            tImGui.BeginDisabled(duplicateBlocked)
+            if tImGui.Button(tLang.L('swl_animation_timeline_duplicate_at_playhead')..
+                    '##swlTimelineDuplicate') then
+                local snapshot=stageRollbackSnapshot()
+                local duplicated=snapshot and select(1,safeCall(function()
+                    return state.meshD:duplicateSkeletalKeys(state.animationClipSelected,
+                        references,duplicateDelta)
+                end)) or false
+                if duplicated then
+                    commitRollbackSnapshot(snapshot)
+                    state.modified=true
+                    clearAuthoringOverride()
+                    setStatus(string.format(tLang.L(
+                        'swl_animation_timeline_keys_duplicated_fmt'),selectedCount),false)
+                elseif snapshot then discardRollbackSnapshot(snapshot) end
+            end
+            tImGui.EndDisabled()
+            local selectionSpan=maximumTime-minimumTime
+            local rippleBlocked=selectionSpan<=1e-6
+            tImGui.SameLine()
+            tImGui.BeginDisabled(rippleBlocked)
+            if tImGui.Button(tLang.L('swl_animation_timeline_insert_ripple')..
+                    '##swlTimelineRipple') then
+                local snapshot=stageRollbackSnapshot()
+                local inserted=snapshot and select(1,safeCall(function()
+                    return state.meshD:insertSkeletalKeysRipple(state.animationClipSelected,
+                        references,state.authoringTime)
+                end)) or false
+                if inserted then
+                    commitRollbackSnapshot(snapshot)
+                    state.modified=true
+                    clearAuthoringOverride()
+                    setStatus(string.format(tLang.L(
+                        'swl_animation_timeline_keys_inserted_fmt'),selectedCount,selectionSpan),false)
+                elseif snapshot then discardRollbackSnapshot(snapshot) end
+            end
+            tImGui.EndDisabled()
         end
         tImGui.TextDisabled(tLang.L('swl_animation_timeline_box_help'))
         if tImGui.Button(tLang.L('swl_play_restart')..'##swlTimelinePlay') then

@@ -801,8 +801,10 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.48 | 2026-08-16 | Timeline adds atomic ripple insertion: the clip grows by the selected span, space is opened across all tracks with canonical endpoint separation, later keys shift together, copies preserve tracks/payloads/relative timing, and invalid candidates do not mutate the clip. |
 | 8.33 | 2026-08-15 | Rotate mode now draws a fixed-head orbit guide at the preserved visual segment length, while joint-radius edits require a strictly positive mesh-relative value and reject zero atomically. |
 | 8.32 | 2026-08-15 | Segment rotation now preserves displayed global length through non-uniform bind bases, and joint-radius authoring uses proportional DragFloat interaction. |
+| 8.47 | 2026-08-16 | Timeline adds atomic Duplicate at playhead, preserving selected keys' tracks, relative timing, TRS/easing payloads, and rejecting the complete candidate on reference, bound, or collision errors. |
 | 8.46 | 2026-08-16 | Timeline uses all resized vertical space and adds empty-space rectangle selection with Ctrl-additive semantics while preserving stationary-click seek. |
 | 8.45 | 2026-08-16 | Timeline multi-selection gains atomic group movement through pre-move track/key references, shared bounded delta preview, candidate-copy track sorting, complete validation, and all-or-nothing commit. |
 | 8.44 | 2026-08-15 | Timeline adds non-mutating Ctrl multi-selection with persistent marker/count/clear UX while explicitly blocking group mutation until a candidate-copy atomic backend operation is delivered. |

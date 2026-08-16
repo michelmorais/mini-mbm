@@ -341,6 +341,14 @@ window, so increasing window height reveals more rows before scrolling. Dragging
 space draws a translucent selection rectangle and selects every visible marker inside it on release;
 without Ctrl it replaces the selection, while Ctrl adds the rectangle result to the current set. A
 stationary empty-space click retains its seek behavior.
+**Duplicate at playhead** copies the complete selected group within its existing tracks, aligning the
+earliest selected key to the current playhead and preserving relative timing and all key payloads.
+The action is disabled for a zero delta or an out-of-range group; collisions reject atomically and
+leave both original keys and selection source data unchanged.
+**Insert at playhead (ripple)** opens space equal to the selected group's time span across every
+track, shifts all keys at or after the playhead by that span, and inserts a copy aligned by its
+earliest key. The clip duration grows with the inserted space; endpoint keys receive only the
+canonical numerical separation required to remain distinct. Invalid candidates are rejected atomically.
 The detached canonical clip/track/key report is cached while the asset is unchanged. Skeleton or
 animation mutation invalidates it through the shared bind/report refresh boundary. This avoids
 rebuilding and garbage-collecting the complete nested Lua report every frame while Animation is idle.

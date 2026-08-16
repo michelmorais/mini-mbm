@@ -741,6 +741,9 @@ namespace
         const uint32_t movedKeys[2]={1,2};
         const uint32_t collisionTrack[1]={editedTrackIndex};
         const uint32_t collisionKey[1]={2};
+        const uint32_t duplicateCollisionKey[1]={1};
+        const uint32_t rippleKeys[2]={0,1};
+        uint32_t rippleExtraIndex=0;
         expect(clipEditMesh.commitSkeletalAuthoringKey(editedClipIndex,0,1.0f,
                    SKELETAL_CHANNEL_TRANSLATION,committedLocal,&createdAuthoringKey,error,sizeof(error)-1) &&
                    createdAuthoringKey &&
@@ -748,7 +751,28 @@ namespace
                    editedTrack.keyCount==3 &&
                    clipEditMesh.moveSkeletalKeys(editedClipIndex,movedTracks,movedKeys,2,0.25f,
                        error,sizeof(error)-1) &&
+                   clipEditMesh.duplicateSkeletalKeys(editedClipIndex,movedTracks,movedKeys,2,0.5f,
+                       error,sizeof(error)-1) &&
+                   clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,4,
+                       error,sizeof(error)-1) &&
+                   clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,2,
+                       error,sizeof(error)-1) &&
+                   !clipEditMesh.duplicateSkeletalKeys(editedClipIndex,collisionTrack,
+                       duplicateCollisionKey,1,1.0f,error,sizeof(error)-1) &&
                    !clipEditMesh.moveSkeletalKeys(editedClipIndex,collisionTrack,collisionKey,1,-2.25f,
+                       error,sizeof(error)-1) &&
+                   clipEditMesh.updateSkeletalClip(editedClipIndex,"idle-loop",6.0f,true,
+                       error,sizeof(error)-1) &&
+                   clipEditMesh.addSkeletalKey(editedClipIndex,editedTrackIndex,4.0f,
+                       &rippleExtraIndex,error,sizeof(error)-1) && rippleExtraIndex==3 &&
+                   clipEditMesh.insertSkeletalKeysRipple(editedClipIndex,movedTracks,rippleKeys,2,2.5f,
+                       error,sizeof(error)-1) &&
+                   clipEditMesh.getSkeletalClip(editedClipIndex,editedClip) &&
+                   editedClip.duration>7.25f && editedClip.duration<7.251f &&
+                   clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,5,error,sizeof(error)-1) &&
+                   clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,4,error,sizeof(error)-1) &&
+                   clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,3,error,sizeof(error)-1) &&
+                   clipEditMesh.updateSkeletalClip(editedClipIndex,"idle-loop",3.0f,true,
                        error,sizeof(error)-1) &&
                    clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,1,committedLocal) &&
                    std::fabs(committedLocal.time-1.25f)<=MATRIX_TOLERANCE &&

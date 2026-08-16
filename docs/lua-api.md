@@ -1568,6 +1568,10 @@ meshD:updateSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, oneBasedKeyIndex,
 meshD:removeSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, oneBasedKeyIndex)
 meshD:moveSkeletalKeys(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
+meshD:duplicateSkeletalKeys(oneBasedClipIndex,
+    {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
+meshD:insertSkeletalKeysRipple(oneBasedClipIndex,
+    {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, insertionTime)
 ```
 
 Insertion requires a unique time inside the clip, samples the current canonical clip first, and
@@ -1581,6 +1585,14 @@ at least one key.
 to the ordering before the move. Duplicate references, out-of-range results, or collisions reject
 the candidate without mutation; affected tracks are sorted and the complete animation collection
 validates once before one atomic commit.
+`duplicateSkeletalKeys` uses the same pre-operation pair contract and copies complete key payloads
+into their source tracks at shifted times. Existing keys remain untouched. Duplicate references,
+out-of-range destinations, and collisions reject the entire candidate before commit.
+`insertSkeletalKeysRipple` requires a selection with a positive time span. It opens that amount of
+space across every track by shifting keys at or after `insertionTime`, then copies the selected keys
+with their earliest time aligned to the insertion point. The clip duration grows by the opened span
+(plus the canonical numerical separation needed between endpoint keys). Duplicate references,
+invalid results, and collisions reject the entire candidate atomically.
 
 ### 15.1 Articulated-animation authoring
 
