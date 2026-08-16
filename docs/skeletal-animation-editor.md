@@ -675,3 +675,10 @@ backend delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Skeleton and animation authoring/import remain in the product plan. Mesh Debug's legacy Bone
 node/window has been retired; canonical bind inspection and weight repair belong to this editor.
+
+Runtime Skeletal Preview identifies whether its player was built from the saved asset or an
+in-memory canonical snapshot. **Refresh runtime preview from memory** serializes current unsaved
+skeleton, weights, and clips to a temporary MSH, constructs the real immutable-method runtime mesh
+and player from it, then removes the temporary file. Later editor mutations mark that snapshot stale
+until refreshed again. Method and pose-stress changes preserve an in-memory source by rebuilding a
+fresh snapshot instead of silently returning to the saved file.

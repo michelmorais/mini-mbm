@@ -71,6 +71,8 @@ local state = {
     animationTimelineSnapEnabled = false,
     animationTimelineSnapStep = 1/30,
     animationReport = nil,
+    runtimePreviewFromMemory = false,
+    runtimePreviewMemoryDirty = false,
     animationPlayback = {playing=false,paused=false,speed=1},
     leftPanelRight = 440,
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
@@ -1872,6 +1874,8 @@ local function rebuildPreview(sourcePath)
     destroyObject(state.comparisonPreview)
     state.preview = nil
     state.comparisonPreview = nil
+    state.runtimePreviewFromMemory=sourcePath~=nil
+    state.runtimePreviewMemoryDirty=false
     local playback=state.skeletalPreview
     playback.clips={}
     playback.selected=1
@@ -1907,6 +1911,24 @@ local function rebuildPreview(sourcePath)
         end
     end
     applyWorkspaceVisibility()
+end
+
+local function rebuildRuntimePreviewFromMemory()
+    if not state.meshD then return false end
+    local temporaryPath=os.tmpname()..'.msh'
+    local okSaved,saved=safeCall(function()
+        return state.meshD:save(temporaryPath,false,false)
+    end)
+    if not okSaved or not saved then
+        pcall(os.remove,temporaryPath)
+        return false
+    end
+    local selected=state.skeletalPreview.selected or 1
+    rebuildPreview(temporaryPath)
+    pcall(os.remove,temporaryPath)
+    state.skeletalPreview.selected=math.max(1,
+        math.min(selected,#state.skeletalPreview.clips>0 and #state.skeletalPreview.clips or 1))
+    return state.preview~=nil
 end
 
 local function playSelectedSkeletalClip()
@@ -1947,10 +1969,21 @@ end
 
 local function showSkeletalPreviewControls()
     local playback=state.skeletalPreview
+    local sourceKey=not state.runtimePreviewFromMemory and 'swl_runtime_source_file' or
+        state.runtimePreviewMemoryDirty and 'swl_runtime_source_memory_stale' or
+        'swl_runtime_source_memory'
+    tImGui.TextDisabled(tLang.L(sourceKey))
+    if tImGui.Button(tLang.L('swl_runtime_refresh_from_memory')..
+            '##swlRuntimeRefreshMemory') then
+        if rebuildRuntimePreviewFromMemory() then
+            setStatus(tLang.L('swl_runtime_refreshed_from_memory'),false)
+        end
+    end
     local poseStress=tImGui.Checkbox(tLang.L('swl_pose_stress_compare'),playback.poseStress)
     if poseStress~=playback.poseStress then
         playback.poseStress=poseStress
-        rebuildPreview()
+        if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
+        else rebuildPreview() end
         framePoseStressLayout()
     end
     if playback.poseStress then
@@ -1964,7 +1997,8 @@ local function showSkeletalPreviewControls()
     tImGui.EndDisabled()
     if methodChanged then
         playback.method=method
-        rebuildPreview()
+        if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
+        else rebuildPreview() end
     end
     if not state.preview then
         tImGui.TextDisabled(tLang.L('swl_runtime_preview_unavailable'))
@@ -2119,6 +2153,7 @@ local function commitRollbackSnapshot(snapshot)
     state.rollbackModified = snapshot.modified
     state.animationReport = nil
     state.animationTimelineSelection = {}
+    if state.runtimePreviewFromMemory then state.runtimePreviewMemoryDirty=true end
 end
 
 local function discardRollbackSnapshot(snapshot)

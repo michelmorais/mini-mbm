@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.59 | 2026-08-16 | Runtime Skeletal Preview can now explicitly rebuild the real runtime mesh/player from a temporary snapshot of current unsaved canonical memory. Source labels distinguish saved file, current memory, and stale memory; later mutations mark staleness, and method/pose-stress rebuilding preserves the chosen memory source. |
 | 7.58 | 2026-08-16 | Scale availability now follows the authoring preview's resolved method. Forced DQS and Auto-to-DQS disable Scale, LBS and Auto-to-LBS enable uniform scaling, and an incompatible method change safely returns the active tool to Move. |
 | 7.57 | 2026-08-16 | Corrected Scale UX to the delivered backend contract. Compact GLES2 LBS normals support uniform scale only and rigid DQS supports none, so per-axis handles are hidden instead of failing during preview; the yellow proportional XYZ handle remains functional and non-uniform scale is reserved for an inverse-transpose normal-palette milestone. |
 | 7.56 | 2026-08-16 | Scale adds a yellow bone-local diagonal handle for proportional XYZ multiplication. Animation now exposes Auto/LBS/DQS authoring-preview selection plus resolved method; immutable-method preview rebuilding uses a temporary snapshot of current unsaved canonical state rather than reloading the stale source asset. |

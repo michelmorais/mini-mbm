@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.64 | 2026-08-16 | Runtime preview adds explicit validation from unsaved canonical memory through a temporary MSH-backed real player, with saved/current/stale source reporting and source-preserving method or pose-stress rebuilds. |
 | 8.63 | 2026-08-16 | Scale tool availability follows resolved preview method: DQS and Auto-to-DQS disable it, LBS and Auto-to-LBS enable uniform scale, and incompatible switching returns safely to Move. |
 | 8.62 | 2026-08-16 | Scale UX now matches compact GLES2 normal math: only proportional XYZ scale is exposed under LBS, DQS remains rigid, and per-axis non-uniform scale is deferred to an explicit inverse-transpose normal-palette/shader milestone. |
 | 8.61 | 2026-08-16 | Scale gains a proportional XYZ diagonal handle, and Animation gains explicit Auto/LBS/DQS preview selection with resolved reporting and immutable-method rebuilding from an unsaved canonical temporary snapshot. |
