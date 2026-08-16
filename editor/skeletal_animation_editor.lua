@@ -2794,8 +2794,10 @@ local function showMenu()
     tImGui.EndMainMenuBar()
 end
 
-local function showItemTooltip(text)
-    if tImGui.IsItemHovered(0) then
+local function showItemTooltip(text,allowWhenDisabled)
+    local flags=allowWhenDisabled and
+        tImGui.Flags('ImGuiHoveredFlags_AllowWhenDisabled') or 0
+    if tImGui.IsItemHovered(flags) then
         tImGui.BeginTooltip()
         -- Tooltip windows have no reliable wrap width in this ImGui binding.
         -- Localized tooltip strings use explicit line breaks instead.
@@ -4733,13 +4735,14 @@ local function showSkeletalAnimationInspection()
                 '##swlCopyBonePose') then
             copySelectedBonePose()
         end
+        showItemTooltip(tLang.L('swl_animation_copy_bone_pose_tooltip'),true)
         tImGui.EndDisabled()
-        tImGui.SameLine()
         tImGui.BeginDisabled(state.animationBonePoseClipboard==nil)
         if tImGui.Button(tLang.L('swl_animation_paste_bone_pose')..
                 '##swlPasteBonePose') then
             pasteSelectedBonePoseAtPlayhead()
         end
+        showItemTooltip(tLang.L('swl_animation_paste_bone_pose_tooltip'),true)
         tImGui.EndDisabled()
         if state.animationBonePoseClipboard then
             tImGui.TextDisabled(string.format(tLang.L('swl_animation_bone_pose_clipboard_fmt'),

@@ -185,7 +185,9 @@ the same stable bone ID in the current skeleton and commits T+R+S as one canonic
 It works after switching clips, creates or extends the required bone track through the existing
 authoring-key contract, and produces one Undo entry. A missing bone rejects without mutation. This
 clipboard is distinct from the timeline multi-key clipboard, so their controls and meanings do not
-compete for Ctrl+C/Ctrl+V.
+compete for Ctrl+C/Ctrl+V. The copy and paste actions occupy separate GUI lines for readability,
+and each exposes a tooltip describing the one-bone scope, temporary-pose capture, T+R+S key commit,
+indirect descendant motion, and Undo boundary.
 
 The selected animation bone now displays world-space X/Y/Z translation handles. Dragging a handle
 computes displacement along that axis, converts the world delta through the inverse parent basis,
