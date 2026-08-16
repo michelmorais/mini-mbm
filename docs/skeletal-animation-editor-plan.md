@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.09**
+Document version: **8.12**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
 Last updated: **2026-08-16**
 
@@ -559,6 +559,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.12 | 2026-08-16 | Replaced the inspector's reused three-axis technical marker, which looked like a fish in perspective, with a two-stroke yellow cross oriented in the brush plane. |
+| 8.11 | 2026-08-16 | Stabilized the nearest-vertex inspector layout by permanently reserving its header and four influence rows with empty placeholders, preventing the vertical scrollbar from disappearing when the pointer leaves the mesh to reach it. |
+| 8.10 | 2026-08-16 | Added a throttled read-only nearest-face-vertex inspector with a yellow viewport marker and exact sorted canonical influences. Audited and rejected redundant invalid-coverage/normalize/limit panels because accepted type-42 data already enforces those invariants; regional Rigid Bind remains a Lab batch tool. |
 | 8.09 | 2026-08-16 | Corrected last-stroke inversion diagnosis after an aggressive knee edit exposed false positives from absolute before/after normal rotation. Unsafe orientation now requires a newly introduced sign conflict between geometric and LBS-transformed bind normals; absolute rotation remains informational. |
 | 8.08 | 2026-08-16 | Added non-mutating last-stroke pose diagnostics for Paint/Add, Erase/Subtract, and Smooth. Only incident faces are compared before/after across five selected-clip LBS poses; the UI reports area/orientation risk and can overlay unsafe faces in red without limiting the stroke. |
 | 8.07 | 2026-08-16 | Added integer always-on-top layers to the renderer and Lua API. The complete curved-surface brush uses priority 0; skeleton joints and segments use priority 1, eliminating their former depth competition. |

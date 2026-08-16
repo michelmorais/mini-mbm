@@ -198,6 +198,7 @@ local state = {
         cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
         showBrushGradient=true,showBrushFootprint=false,brushFootprintGeneration=0,
         brushFootprintShape=nil,brushFootprintMarkers=nil,
+        showVertexInspector=true,hoveredVertex=nil,hoveredVertexMarker=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         connectedSurfaceOnly=true,
@@ -285,6 +286,7 @@ local function clearPaintVisuals()
     destroyObject(state.paint.cursor)
     destroyObject(state.paint.brushFootprintShape)
     destroyObject(state.paint.brushFootprintMarkers)
+    destroyObject(state.paint.hoveredVertexMarker)
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     destroyObject(state.paint.strokeSafetyFaceShape)
@@ -292,6 +294,8 @@ local function clearPaintVisuals()
     state.paint.cursor=nil
     state.paint.brushFootprintShape=nil
     state.paint.brushFootprintMarkers=nil
+    state.paint.hoveredVertex=nil
+    state.paint.hoveredVertexMarker=nil
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
@@ -1088,6 +1092,10 @@ local function applyWorkspaceVisibility()
     if state.paint.brushFootprintMarkers then
         state.paint.brushFootprintMarkers.visible=paintWorkspace and state.meshVisible and
             state.paint.visualizationMode==1 and state.paint.showBrushFootprint
+    end
+    if state.paint.hoveredVertexMarker then
+        state.paint.hoveredVertexMarker.visible=paintWorkspace and state.meshVisible and
+            state.paint.visualizationMode==1 and state.paint.showVertexInspector
     end
     if state.paint.safetyFaceShape then
         state.paint.safetyFaceShape.visible=paintWorkspace and
@@ -2116,9 +2124,12 @@ local function rebuildPaintCursor(hit)
     destroyObject(state.paint.cursor)
     destroyObject(state.paint.brushFootprintShape)
     destroyObject(state.paint.brushFootprintMarkers)
+    destroyObject(state.paint.hoveredVertexMarker)
     state.paint.cursor=nil
     state.paint.brushFootprintShape=nil
     state.paint.brushFootprintMarkers=nil
+    state.paint.hoveredVertex=nil
+    state.paint.hoveredVertexMarker=nil
     state.paint.cursorHit=hit
     if not hit or state.workspace~='paint' then return end
     local n=hit.normal
@@ -2147,6 +2158,51 @@ local function rebuildPaintCursor(hit)
     cursor.alwaysOnTop=true
     cursor.alwaysOnTopPriority=0
     state.paint.cursor=cursor
+    if state.paint.showVertexInspector then
+        local nearest,nearestDistance=nil,math.huge
+        for _,vertex in ipairs({hit.triangle.a,hit.triangle.b,hit.triangle.c}) do
+            local dx,dy,dz=vertex.point.x-hit.point.x,vertex.point.y-hit.point.y,
+                vertex.point.z-hit.point.z
+            local distance=dx*dx+dy*dy+dz*dz
+            if not nearest or distance<nearestDistance or
+                    (distance==nearestDistance and vertex.globalIndex<nearest.globalIndex) then
+                nearest,nearestDistance=vertex,distance
+            end
+        end
+        if nearest then
+            local influences={}
+            for name,weight in pairs(readInfluenceMap(nearest.globalIndex,false)) do
+                influences[#influences+1]={name=name,weight=weight}
+            end
+            table.sort(influences,function(a,b)
+                if a.weight==b.weight then return a.name<b.name end
+                return a.weight>b.weight
+            end)
+            state.paint.hoveredVertex={globalIndex=nearest.globalIndex,subset=nearest.subset,
+                point=nearest.point,influences=influences}
+            local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+                state.meshBounds.maxY-state.meshBounds.minY,
+                state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+            local markerSize=math.max(extent*0.008,0.001)
+            local px=nearest.point.x+n.x*surfaceOffset
+            local py=nearest.point.y+n.y*surfaceOffset
+            local pz=nearest.point.z+n.z*surfaceOffset
+            local markerCoords={}
+            appendPoint(markerCoords,px-tx*markerSize,py-ty*markerSize,pz-tz*markerSize)
+            appendPoint(markerCoords,px+tx*markerSize,py+ty*markerSize,pz+tz*markerSize)
+            appendPoint(markerCoords,px-bx*markerSize,py-by*markerSize,pz-bz*markerSize)
+            appendPoint(markerCoords,px+bx*markerSize,py+by*markerSize,pz+bz*markerSize)
+            state.paint.hoveredVertexMarker=line:new('3d',0,0,0)
+            state.paint.hoveredVertexMarker:add(markerCoords)
+            state.paint.hoveredVertexMarker:setColor(1,1,0,1)
+            state.paint.hoveredVertexMarker:setPos(0,0,0)
+            if state.paint.hoveredVertexMarker then
+                state.paint.hoveredVertexMarker.alwaysOnTop=true
+                state.paint.hoveredVertexMarker.alwaysOnTopPriority=0
+                state.paint.hoveredVertexMarker.visible=state.meshVisible
+            end
+        end
+    end
     if state.paint.showBrushGradient then
         local faceVertices,uvs={},{}
         local operation=(state.paint.operationMode-1)*0.5
@@ -5616,6 +5672,35 @@ local function showPaintWeights()
     end
     tImGui.Separator()
     showSectionTitle('swl_paint_viewport_feedback')
+    if state.paint.visualizationMode==1 then
+        local showVertexInspector=tImGui.Checkbox(tLang.L('swl_paint_vertex_inspector'),
+            state.paint.showVertexInspector)
+        if showVertexInspector~=state.paint.showVertexInspector then
+            state.paint.showVertexInspector=showVertexInspector
+            rebuildPaintCursor(state.paint.cursorHit)
+            applyWorkspaceVisibility()
+        end
+        tImGui.TextWrapped(tLang.L('swl_paint_vertex_inspector_help'))
+        local hoveredVertex=state.paint.hoveredVertex
+        if state.paint.showVertexInspector and hoveredVertex then
+            tImGui.Text(string.format(tLang.L('swl_paint_vertex_inspector_header_fmt'),
+                hoveredVertex.globalIndex,hoveredVertex.subset,#hoveredVertex.influences))
+        elseif state.paint.showVertexInspector then
+            tImGui.TextDisabled(tLang.L('swl_paint_vertex_inspector_header_empty'))
+        end
+        if state.paint.showVertexInspector then
+            for slot=1,4 do
+                local influence=hoveredVertex and hoveredVertex.influences[slot] or nil
+                if influence then
+                    tImGui.Text(string.format(tLang.L('swl_paint_vertex_influence_fmt'),
+                        influence.name,influence.weight))
+                else
+                    tImGui.TextDisabled(string.format(
+                        tLang.L('swl_paint_vertex_influence_empty_fmt'),slot))
+                end
+            end
+        end
+    end
     local strokeSafetyReport=state.paint.strokeSafetyReport
     tImGui.BeginDisabled(strokeSafetyReport==nil)
     local strokeSafetyVisible=tImGui.Checkbox(tLang.L('swl_paint_stroke_safety_overlay'),

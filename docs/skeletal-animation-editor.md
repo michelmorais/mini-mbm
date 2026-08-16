@@ -22,10 +22,12 @@ boundaries, the audited relationship to Mesh Debug's Bones node, and the migrati
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
 Paint Weights is intended to become the primary day-to-day weight-authoring surface. Skin Weight
-Lab remains available while the brush workflow is implemented and validated. After Paint/Add and
-Erase/Subtract are solid, useful operations such as normalization, cleanup, limit-four, smoothing,
-rigid fill, and invalid-coverage diagnostics may migrate into Paint Weights under **Weight Tools**
-and **Repair / Diagnostics**. The Lab is removed only after explicit parity, performance, Undo,
+Lab remains available while the brush workflow is implemented and validated. Useful nonredundant
+operations migrate under **Weight Tools** and **Repair / Diagnostics** only after brush stability.
+Canonical type-42 validation already guarantees normalized one-to-four-influence coverage, so a
+Paint Weights normalize/limit/invalid-coverage panel would report no actionable state. Regional
+Rigid Bind remains a Skin Weight Lab batch workflow rather than duplicating visual painting. The Lab
+is removed only after explicit parity, performance, Undo,
 and save/reload acceptance; its GUI-specific state must never leak into Paint Weights.
 
 **Influence Distribution** is now available as an optional Repair / Diagnostics view. It maps a
@@ -143,6 +145,16 @@ refresh and perform no idle query. The disk and radius circle use always-on-top 
 whole flat brush remains visible over curved surfaces. Skeleton joints and segments use priority 1
 and therefore remain visible above the brush. The disk winding follows the camera-facing hit normal
 even when the surface is viewed from below.
+
+**Inspect Nearest Vertex** is a read-only local inspector in Viewport Feedback. From the triangle
+already returned by the throttled surface raycast, it deterministically chooses the face vertex
+nearest to the brush hit, marks it with a yellow two-stroke cross oriented in the brush plane, and
+lists its exact canonical global index,
+subset, and up to four bone weights in descending order. It performs no global spatial query and
+does not update while the pointer is stationary. The panel permanently reserves its header and four
+influence rows, filling absent data with placeholders so entering the scrollbar does not collapse
+the window content and remove the scrollbar itself. This complements the interpolated heatmap when an
+artist needs to explain one precise vertex without returning to the region-oriented laboratory.
 
 After each successful Paint/Add, Erase/Subtract, or Smooth stroke, Paint Weights performs a
 non-mutating pose-safety diagnostic over only the triangles incident to changed vertices. It
