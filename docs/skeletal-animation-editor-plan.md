@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **7.75**
+Document version: **7.96**
 Status: **Five active skeletal workflows implemented; Paint Weights visual foundation started; composition deferred**
 Last updated: **2026-08-16**
 
@@ -480,8 +480,9 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    the threshold reclassifies cached edge distances without rebuilding heatmap geometry. Automatic
    smoothing of detected transitions is now available contextually: only classified vertices are
    edited, external neighbors stay fixed during configurable stable Jacobi passes, complete vectors
-   normalize/limit deterministically, and one atomic batch plus Undo entry reports edge counts
-   before and after.
+   normalize/limit deterministically, candidate influences remain inside each vertex's original
+   one-ring neighborhood, and a half-L1 maximum-change cap prevents iteration count from producing
+   an unbounded single repair. One atomic batch plus Undo entry reports edge counts before and after.
 
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
@@ -558,6 +559,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.96 | 2026-08-16 | Added pose-aware surface preservation to abrupt-transition repair. Five deterministic LBS clip samples test incident triangles for severe area loss or orientation reversal; an unsafe batch is reduced by binary search and reports its final safety scale plus avoided face samples. |
+| 7.95 | 2026-08-16 | Added shape-preserving safety to abrupt-transition repair: candidate bones are frozen to each vertex's original one-ring neighborhood, final half-L1 weight-vector change is capped independently of strength/iterations, and the GUI previews affected vertices plus the cap. |
 | 7.94 | 2026-08-16 | Closed Paint Weights save/reload acceptance at its shared atomic type-42 boundary. The deterministic batch fixture now reloads and verifies every name/order/value/empty slot of separate four-influence and two-influence edited vertices. |
 | 7.93 | 2026-08-16 | Added contextual Smooth Detected Transitions repair. Threshold-classified vertices receive configurable full-vector Jacobi smoothing against triangle neighbors with fixed external boundaries, deterministic normalization/four-influence limiting, one atomic batch/Undo entry, and before/after abrupt-edge reporting. |
 | 7.92 | 2026-08-16 | Moved Show Skeleton to the first Paint Weights control. Clarified that the Abrupt Weight Transitions threshold classifies cached statistics only and intentionally does not recolor the raw difference heatmap. |

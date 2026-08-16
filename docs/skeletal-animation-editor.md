@@ -72,9 +72,19 @@ later, separately validated action.
 Abrupt Weight Transitions now exposes the contextual **Smooth Detected Transitions** repair. Only
 vertices belonging to threshold-classified edges are editable. Configurable strength and 1-10
 iterations blend their complete weight vectors toward triangle-neighbor averages; external
-neighbors remain fixed boundaries during stable Jacobi passes. Every pass deterministically
-normalizes and limits influences. The final candidate commits through one canonical batch and one
-Undo entry, then the diagnostic rebuild reports abrupt-edge counts before and after.
+neighbors remain fixed boundaries during stable Jacobi passes. A separate maximum-change control
+limits each final vertex by bounded half-L1 weight-vector distance. Candidate bone names are frozen
+to the vertex's original one-ring neighborhood, preventing iterative propagation across multiple
+topology rings in one repair. Every result deterministically normalizes and limits influences. The
+final candidate commits through one canonical batch and one Undo entry, then the diagnostic rebuild
+reports abrupt-edge counts and the maximum applied change.
+
+When the selected runtime clip is available, repair also evaluates its start, quarter, midpoint,
+three-quarter, and end poses through the canonical LBS palette. Every triangle incident to an edited
+vertex is compared with its pre-repair posed area and orientation. If the full candidate would reduce
+area below 25 percent or rotate the face normal by roughly 87 degrees or more, a deterministic binary
+search reduces the complete batch until all sampled faces remain safe. The result reports the applied
+pose-safety scale and how many unsafe face samples the unrestricted candidate would have produced.
 
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight

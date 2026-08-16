@@ -200,6 +200,7 @@ local state = {
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
+        abruptRepairMaxChange=0.2,
         distributionStats=nil,weakStats=nil,abruptStats=nil,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
@@ -3142,6 +3143,147 @@ local function influenceDistance(a,b)
     return math.min(1,total*0.5)
 end
 
+local function constrainedRepairWeights(original,candidate,allowedNames,maxChange)
+    local filtered={}
+    for name,weight in pairs(candidate or {}) do
+        if allowedNames[name] and weight>0 and weight==weight and weight<math.huge then
+            filtered[name]=weight
+        end
+    end
+    local normalized=normalizedInfluences(filtered)
+    if #normalized==0 then return original,0 end
+    local normalizedMap={}
+    for _,influence in ipairs(normalized) do normalizedMap[influence.name]=influence.weight end
+    local distance=influenceDistance(original,normalizedMap)
+    local limit=math.max(0,math.min(1,maxChange or 0))
+    if distance<=limit+1e-9 then return normalizedMap,distance end
+    local function blendAt(alpha)
+        local blended={}
+        for name,weight in pairs(original) do blended[name]=weight*(1-alpha) end
+        for name,weight in pairs(normalizedMap) do
+            blended[name]=(blended[name] or 0)+weight*alpha
+        end
+        local limited=normalizedInfluences(blended)
+        local limitedMap={}
+        for _,influence in ipairs(limited) do limitedMap[influence.name]=influence.weight end
+        return limitedMap,influenceDistance(original,limitedMap)
+    end
+    local low,high=0,math.min(1,limit/distance)
+    local bestMap,bestDistance=original,0
+    for _=1,24 do
+        local middle=(low+high)*0.5
+        local trialMap,trialDistance=blendAt(middle)
+        if trialDistance<=limit+1e-9 then
+            low=middle; bestMap,bestDistance=trialMap,trialDistance
+        else
+            high=middle
+        end
+    end
+    return bestMap,bestDistance
+end
+
+local function poseSafeRepairScale(original,candidates,editable)
+    if not state.meshD or not state.preview or not next(candidates) then return 1,0 end
+    local duration=state.preview:getSkeletalAnimationDuration(state.skeletalPreview.selected) or 0
+    if duration<=0 then return 1,0 end
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return 1,0 end
+    local incident={}
+    for _,triangle in ipairs(cache.triangles) do
+        if editable[triangle.a.globalIndex] or editable[triangle.b.globalIndex] or
+                editable[triangle.c.globalIndex] then
+            incident[#incident+1]=triangle
+        end
+    end
+    if #incident==0 then return 1,0 end
+    local boneIndex={}
+    for index,bone in ipairs(getBones()) do boneIndex[bone.name]=index-1 end
+    local samples={0,duration*0.25,duration*0.5,duration*0.75,duration}
+    local poses={}
+    for _,time in ipairs(samples) do
+        local ok,pose=safeCall(function()
+            return state.meshD:evaluateSkeletalAuthoringPose(
+                state.skeletalPreview.selected,time,'lbs')
+        end)
+        if not ok or not pose or not pose.palette then return 1,0 end
+        poses[#poses+1]=pose.palette
+    end
+    local function blendedMap(index,scale)
+        local candidate=candidates[index]
+        if not candidate then return original[index] or readInfluenceMap(index,false) end
+        if scale>=1 then return candidate end
+        local mixed={}
+        for name,weight in pairs(original[index] or {}) do mixed[name]=weight*(1-scale) end
+        for name,weight in pairs(candidate) do
+            mixed[name]=(mixed[name] or 0)+weight*scale
+        end
+        local result={}
+        for _,influence in ipairs(normalizedInfluences(mixed)) do
+            result[influence.name]=influence.weight
+        end
+        return result
+    end
+    local function deform(point,weights,palette)
+        local x,y,z=0,0,0
+        for name,weight in pairs(weights) do
+            local index=boneIndex[name]
+            if index then
+                local first=index*12
+                x=x+(point.x*palette[first+1]+point.y*palette[first+2]+
+                    point.z*palette[first+3]+palette[first+4])*weight
+                y=y+(point.x*palette[first+5]+point.y*palette[first+6]+
+                    point.z*palette[first+7]+palette[first+8])*weight
+                z=z+(point.x*palette[first+9]+point.y*palette[first+10]+
+                    point.z*palette[first+11]+palette[first+12])*weight
+            end
+        end
+        return {x=x,y=y,z=z}
+    end
+    local function areaVector(a,b,c)
+        local ux,uy,uz=b.x-a.x,b.y-a.y,b.z-a.z
+        local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
+        return {x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx}
+    end
+    local function safeAt(scale,countFailures)
+        local failures=0
+        for _,palette in ipairs(poses) do
+            local beforeCache,afterCache={},{ }
+            for _,triangle in ipairs(incident) do
+                local before,after={},{}
+                for slot,vertex in ipairs({triangle.a,triangle.b,triangle.c}) do
+                    local index=vertex.globalIndex
+                    if not beforeCache[index] then
+                        beforeCache[index]=deform(vertex.point,original[index] or
+                            readInfluenceMap(index,false),palette)
+                        afterCache[index]=deform(vertex.point,blendedMap(index,scale),palette)
+                    end
+                    before[slot],after[slot]=beforeCache[index],afterCache[index]
+                end
+                local oldArea=areaVector(before[1],before[2],before[3])
+                local newArea=areaVector(after[1],after[2],after[3])
+                local oldLength=math.sqrt(oldArea.x^2+oldArea.y^2+oldArea.z^2)
+                local newLength=math.sqrt(newArea.x^2+newArea.y^2+newArea.z^2)
+                if oldLength>1e-10 then
+                    local orientation=oldArea.x*newArea.x+oldArea.y*newArea.y+oldArea.z*newArea.z
+                    if newLength<oldLength*0.25 or orientation<=oldLength*newLength*0.05 then
+                        failures=failures+1
+                        if not countFailures then return false,failures end
+                    end
+                end
+            end
+        end
+        return failures==0,failures
+    end
+    local fullSafe,fullFailures=safeAt(1,true)
+    if fullSafe then return 1,0 end
+    local low,high=0,1
+    for _=1,12 do
+        local middle=(low+high)*0.5
+        if safeAt(middle,false) then low=middle else high=middle end
+    end
+    return low,fullFailures
+end
+
 local function repairPaintAbruptTransitions()
     local stats=state.paint.abruptStats
     if not stats or not stats.records then return false end
@@ -3159,12 +3301,15 @@ local function repairPaintAbruptTransitions()
         return false
     end
     local adjacency=buildTopologyAdjacency()
-    local current,original={},{ }
+    local current,original,allowedNames={},{},{}
     for _,index in ipairs(indices) do
         local weights=readInfluenceMap(index,false)
         current[index]=weights; original[index]=weights
+        allowedNames[index]={}
+        for name in pairs(weights) do allowedNames[index][name]=true end
         for neighbor in pairs(adjacency[index] or {}) do
             if not current[neighbor] then current[neighbor]=readInfluenceMap(neighbor,false) end
+            for name in pairs(current[neighbor]) do allowedNames[index][name]=true end
         end
     end
     local strength=math.max(0,math.min(1,state.paint.abruptRepairStrength))
@@ -3194,10 +3339,37 @@ local function repairPaintAbruptTransitions()
         end
         for index,weights in pairs(nextWeights) do current[index]=weights end
     end
-    local edits={}
+    local candidateMaps={}
+    local maximumAppliedChange=0
     for _,index in ipairs(indices) do
-        if influenceDistance(original[index] or {},current[index] or {})>1e-7 then
-            local influences=normalizedInfluences(current[index] or {})
+        local constrained,appliedChange=constrainedRepairWeights(original[index] or {},
+            current[index] or {},allowedNames[index] or {},state.paint.abruptRepairMaxChange)
+        maximumAppliedChange=math.max(maximumAppliedChange,appliedChange)
+        if appliedChange>1e-7 then candidateMaps[index]=constrained end
+    end
+    local poseScale,protectedFaces=poseSafeRepairScale(original,candidateMaps,editable)
+    local edits={}
+    maximumAppliedChange=0
+    for _,index in ipairs(indices) do
+        local candidate=candidateMaps[index]
+        if candidate then
+            local finalMap=candidate
+            if poseScale<0.999999 then
+                local mixed={}
+                for name,weight in pairs(original[index] or {}) do
+                    mixed[name]=weight*(1-poseScale)
+                end
+                for name,weight in pairs(candidate) do
+                    mixed[name]=(mixed[name] or 0)+weight*poseScale
+                end
+                finalMap={}
+                for _,influence in ipairs(normalizedInfluences(mixed)) do
+                    finalMap[influence.name]=influence.weight
+                end
+            end
+            local appliedChange=influenceDistance(original[index] or {},finalMap)
+            maximumAppliedChange=math.max(maximumAppliedChange,appliedChange)
+            local influences=normalizedInfluences(finalMap)
             if #influences>0 then
                 local row={index}
                 for slot=1,4 do
@@ -3232,7 +3404,7 @@ local function repairPaintAbruptTransitions()
     applyWorkspaceVisibility()
     local afterEdges=state.paint.abruptStats and state.paint.abruptStats.edges or 0
     setStatus(string.format(tLang.L('swl_paint_abrupt_repaired_fmt'),#edits,beforeEdges,
-        afterEdges),false)
+        afterEdges,maximumAppliedChange,poseScale,protectedFaces),false)
     return true
 end
 
@@ -4793,6 +4965,16 @@ local function showPaintWeights()
             tLang.L('swl_paint_abrupt_repair_iterations'),state.paint.abruptRepairIterations,1,10)
         tImGui.PopItemWidth()
         if iterationsChanged then state.paint.abruptRepairIterations=repairIterations end
+        tImGui.PushItemWidth(240)
+        local maxChangeChanged,maxChange=tImGui.SliderFloat(
+            tLang.L('swl_paint_abrupt_repair_max_change'),state.paint.abruptRepairMaxChange,
+            0.01,1,'%.2f')
+        tImGui.PopItemWidth()
+        if maxChangeChanged then state.paint.abruptRepairMaxChange=maxChange end
+        if stats then
+            tImGui.Text(string.format(tLang.L('swl_paint_abrupt_repair_preview_fmt'),
+                stats.vertices,state.paint.abruptRepairMaxChange))
+        end
         if tImGui.Button(tLang.L('swl_paint_abrupt_repair_apply')) then
             repairPaintAbruptTransitions()
         end
