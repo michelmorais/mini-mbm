@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.08**
+Document version: **8.09**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
 Last updated: **2026-08-16**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.09 | 2026-08-16 | Corrected last-stroke inversion diagnosis after an aggressive knee edit exposed false positives from absolute before/after normal rotation. Unsafe orientation now requires a newly introduced sign conflict between geometric and LBS-transformed bind normals; absolute rotation remains informational. |
 | 8.08 | 2026-08-16 | Added non-mutating last-stroke pose diagnostics for Paint/Add, Erase/Subtract, and Smooth. Only incident faces are compared before/after across five selected-clip LBS poses; the UI reports area/orientation risk and can overlay unsafe faces in red without limiting the stroke. |
 | 8.07 | 2026-08-16 | Added integer always-on-top layers to the renderer and Lua API. The complete curved-surface brush uses priority 0; skeleton joints and segments use priority 1, eliminating their former depth competition. |
 | 8.06 | 2026-08-16 | Replaced the topology-face brush patch with a camera-facing radial disk whose falloff is independent of mesh triangulation; restored ordinary depth so the skeleton remains visible above it, while exact geodesic candidates stay available through diagnostic vertex markers. |

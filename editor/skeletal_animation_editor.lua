@@ -3244,7 +3244,7 @@ local function commitPaintStroke()
     local unsafeTriangles={}
     local strokeSafetyReport=nil
     local okDiagnostic,_,unsafeFaceSamples,diagnosticTriangles,checkedFaces,poseSamples,
-        minimumAreaRatio,maximumOrientationDegrees=safeCall(function()
+        minimumAreaRatio,maximumOrientationDegrees,minimumNormalAlignment=safeCall(function()
             return poseSafeRepairScale(weightCache,candidateMaps,editable,true)
         end)
     if okDiagnostic and poseSamples>0 then
@@ -3252,7 +3252,8 @@ local function commitPaintStroke()
         strokeSafetyReport={changedVertices=#edits,checkedFaces=checkedFaces,
             poseSamples=poseSamples,unsafeFaces=#unsafeTriangles,
             unsafeFaceSamples=unsafeFaceSamples,minimumAreaRatio=minimumAreaRatio,
-            maximumOrientationDegrees=maximumOrientationDegrees}
+            maximumOrientationDegrees=maximumOrientationDegrees,
+            minimumNormalAlignment=minimumNormalAlignment}
     end
     local ok,committed=safeCall(function()
         return state.meshD:setSkeletalVertexWeightsBatch(edits)
@@ -3513,12 +3514,12 @@ end
 
 poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
     if not state.meshD or not state.preview or not next(candidates) then
-        return 1,0,{},0,0,1,0
+        return 1,0,{},0,0,1,0,1
     end
     local duration=state.preview:getSkeletalAnimationDuration(state.skeletalPreview.selected) or 0
-    if duration<=0 then return 1,0,{},0,0,1,0 end
+    if duration<=0 then return 1,0,{},0,0,1,0,1 end
     local cache=state.paint.geometry or buildPaintGeometryCache()
-    if not cache then return 1,0,{},0,0,1,0 end
+    if not cache then return 1,0,{},0,0,1,0,1 end
     local incident,incidentLookup={},{}
     for index in pairs(editable) do
         for _,triangle in ipairs(cache.incidentTriangles[index] or {}) do
@@ -3528,7 +3529,7 @@ poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
             end
         end
     end
-    if #incident==0 then return 1,0,{},0,0,1,0 end
+    if #incident==0 then return 1,0,{},0,0,1,0,1 end
     local boneIndex={}
     for index,bone in ipairs(getBones()) do boneIndex[bone.name]=index-1 end
     local samples={0,duration*0.25,duration*0.5,duration*0.75,duration}
@@ -3538,15 +3539,19 @@ poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
             return state.meshD:evaluateSkeletalAuthoringPose(
                 state.skeletalPreview.selected,time,'lbs')
         end)
-        if not ok or not pose or not pose.palette then return 1,0,{},0,0,1,0 end
+        if not ok or not pose or not pose.palette then return 1,0,{},0,0,1,0,1 end
         poses[#poses+1]=pose.palette
+    end
+    local function originalMap(index)
+        if not original[index] then original[index]=readInfluenceMap(index,false) end
+        return original[index]
     end
     local function blendedMap(index,scale)
         local candidate=candidates[index]
-        if not candidate then return original[index] or readInfluenceMap(index,false) end
+        if not candidate then return originalMap(index) end
         if scale>=1 then return candidate end
         local mixed={}
-        for name,weight in pairs(original[index] or {}) do mixed[name]=weight*(1-scale) end
+        for name,weight in pairs(originalMap(index)) do mixed[name]=weight*(1-scale) end
         for name,weight in pairs(candidate) do
             mixed[name]=(mixed[name] or 0)+weight*scale
         end
@@ -3572,6 +3577,22 @@ poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
         end
         return {x=x,y=y,z=z}
     end
+    local function deformVector(vector,weights,palette)
+        local x,y,z=0,0,0
+        for name,weight in pairs(weights) do
+            local index=boneIndex[name]
+            if index then
+                local first=index*12
+                x=x+(vector.x*palette[first+1]+vector.y*palette[first+2]+
+                    vector.z*palette[first+3])*weight
+                y=y+(vector.x*palette[first+5]+vector.y*palette[first+6]+
+                    vector.z*palette[first+7])*weight
+                z=z+(vector.x*palette[first+9]+vector.y*palette[first+10]+
+                    vector.z*palette[first+11])*weight
+            end
+        end
+        return {x=x,y=y,z=z}
+    end
     local function areaVector(a,b,c)
         local ux,uy,uz=b.x-a.x,b.y-a.y,b.z-a.z
         local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
@@ -3582,6 +3603,7 @@ poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
         local failedTriangles,failedLookup={},{}
         local minimumAreaRatio=math.huge
         local maximumOrientationDegrees=0
+        local minimumNormalAlignment=1
         for _,palette in ipairs(poses) do
             local beforeCache,afterCache={},{ }
             for _,triangle in ipairs(incident) do
@@ -3589,14 +3611,14 @@ poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
                 for slot,vertex in ipairs({triangle.a,triangle.b,triangle.c}) do
                     local index=vertex.globalIndex
                     if not beforeCache[index] then
-                        beforeCache[index]=deform(vertex.point,original[index] or
-                            readInfluenceMap(index,false),palette)
+                        beforeCache[index]=deform(vertex.point,originalMap(index),palette)
                         afterCache[index]=deform(vertex.point,blendedMap(index,scale),palette)
                     end
                     before[slot],after[slot]=beforeCache[index],afterCache[index]
                 end
                 local oldArea=areaVector(before[1],before[2],before[3])
                 local newArea=areaVector(after[1],after[2],after[3])
+                local bindArea=areaVector(triangle.a.point,triangle.b.point,triangle.c.point)
                 local oldLength=math.sqrt(oldArea.x^2+oldArea.y^2+oldArea.z^2)
                 local newLength=math.sqrt(newArea.x^2+newArea.y^2+newArea.z^2)
                 if oldLength>1e-10 then
@@ -3610,7 +3632,36 @@ poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
                     else
                         maximumOrientationDegrees=180
                     end
-                    if newLength<oldLength*0.25 or orientation<=oldLength*newLength*0.05 then
+                    local expected,expectedBefore={x=0,y=0,z=0},{x=0,y=0,z=0}
+                    for _,vertex in ipairs({triangle.a,triangle.b,triangle.c}) do
+                        local transformed=deformVector(bindArea,
+                            blendedMap(vertex.globalIndex,scale),palette)
+                        local transformedBefore=deformVector(bindArea,
+                            originalMap(vertex.globalIndex),palette)
+                        expected.x=expected.x+transformed.x
+                        expected.y=expected.y+transformed.y
+                        expected.z=expected.z+transformed.z
+                        expectedBefore.x=expectedBefore.x+transformedBefore.x
+                        expectedBefore.y=expectedBefore.y+transformedBefore.y
+                        expectedBefore.z=expectedBefore.z+transformedBefore.z
+                    end
+                    local expectedLength=math.sqrt(expected.x^2+expected.y^2+expected.z^2)
+                    local expectedBeforeLength=math.sqrt(expectedBefore.x^2+
+                        expectedBefore.y^2+expectedBefore.z^2)
+                    local normalAlignment,normalAlignmentBefore=1,1
+                    if newLength>1e-10 and expectedLength>1e-10 then
+                        normalAlignment=(newArea.x*expected.x+newArea.y*expected.y+
+                            newArea.z*expected.z)/(newLength*expectedLength)
+                        normalAlignment=math.max(-1,math.min(1,normalAlignment))
+                        minimumNormalAlignment=math.min(minimumNormalAlignment,normalAlignment)
+                    end
+                    if oldLength>1e-10 and expectedBeforeLength>1e-10 then
+                        normalAlignmentBefore=(oldArea.x*expectedBefore.x+
+                            oldArea.y*expectedBefore.y+oldArea.z*expectedBefore.z)/
+                            (oldLength*expectedBeforeLength)
+                    end
+                    local introducedInversion=normalAlignmentBefore>0 and normalAlignment<=0
+                    if newLength<oldLength*0.25 or introducedInversion then
                         failures=failures+1
                         if collectTriangles and not failedLookup[triangle] then
                             failedLookup[triangle]=true
@@ -3623,16 +3674,17 @@ poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
         end
         if minimumAreaRatio==math.huge then minimumAreaRatio=1 end
         return failures==0,failures,failedTriangles,minimumAreaRatio,
-            maximumOrientationDegrees
+            maximumOrientationDegrees,minimumNormalAlignment
     end
-    local fullSafe,fullFailures,failedTriangles,minimumAreaRatio,maximumOrientationDegrees=
-        safeAt(1,true,true)
+    local fullSafe,fullFailures,failedTriangles,minimumAreaRatio,maximumOrientationDegrees,
+        minimumNormalAlignment=safeAt(1,true,true)
     if diagnosticOnly then
         return 1,fullFailures,failedTriangles,#incident,#poses,minimumAreaRatio,
-            maximumOrientationDegrees
+            maximumOrientationDegrees,minimumNormalAlignment
     end
     if fullSafe then
-        return 1,0,{},#incident,#poses,minimumAreaRatio,maximumOrientationDegrees
+        return 1,0,{},#incident,#poses,minimumAreaRatio,maximumOrientationDegrees,
+            minimumNormalAlignment
     end
     local low,high=0,1
     for _=1,12 do
@@ -3640,7 +3692,7 @@ poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
         if safeAt(middle,false) then low=middle else high=middle end
     end
     return low,fullFailures,failedTriangles,#incident,#poses,minimumAreaRatio,
-        maximumOrientationDegrees
+        maximumOrientationDegrees,minimumNormalAlignment
 end
 
 rebuildPaintStrokeSafetyOverlay = function(unsafeTriangles,report)
@@ -5579,7 +5631,8 @@ local function showPaintWeights()
             strokeSafetyReport.changedVertices,strokeSafetyReport.checkedFaces,
             strokeSafetyReport.poseSamples,strokeSafetyReport.unsafeFaces,
             strokeSafetyReport.unsafeFaceSamples,strokeSafetyReport.minimumAreaRatio,
-            strokeSafetyReport.maximumOrientationDegrees))
+            strokeSafetyReport.maximumOrientationDegrees,
+            strokeSafetyReport.minimumNormalAlignment))
     end
     tImGui.TextDisabled(tLang.L('swl_heatmap_legend'))
     local geometry=state.paint.geometry

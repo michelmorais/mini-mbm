@@ -149,8 +149,12 @@ non-mutating pose-safety diagnostic over only the triangles incident to changed 
 compares the pre-stroke and candidate weights at the start, quarter, midpoint, three-quarter, and
 end of the selected clip using the canonical LBS palette. The report shows changed vertices,
 checked faces and poses, unsafe unique faces and face/pose samples, minimum posed-area ratio, and
-maximum orientation change. A face is unsafe under the same conservative criteria used by abrupt
-repair: area below 25 percent of its pre-stroke value or orientation reaching roughly 87 deg.
+maximum absolute orientation change, and minimum alignment between the new geometric normal and the
+bind-face normal transformed by the same LBS palette and candidate weights. A face is unsafe when
+its area falls below 25 percent of its pre-stroke value or when the stroke introduces an actual
+normal-alignment sign inversion. Large absolute rotation remains informative but is not itself a
+failure: a face may legitimately follow a different bone after painting. Pre-existing negative
+alignment is reported by the metric but is not attributed to the stroke.
 **Show Last Stroke Safety Overlay** displays unsafe faces in translucent red. This first slice is
 diagnostic only: it never rejects, scales, or rewrites the committed stroke. If no usable clip is
 selected, painting remains available and no stale diagnostic is retained.
