@@ -201,6 +201,7 @@ local state = {
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
+        safetyOverlayVisible=true,safetyFaceLines=nil,safetySeamMarkers=nil,safetyReport=nil,
         distributionStats=nil,weakStats=nil,abruptStats=nil,stroke=nil},
     topologyAdjacency = nil,
     coincidentSeams = nil,
@@ -274,8 +275,13 @@ end
 local function clearPaintVisuals()
     for _,object in ipairs(state.paint.heatmapLines) do destroyObject(object) end
     destroyObject(state.paint.cursor)
+    destroyObject(state.paint.safetyFaceLines)
+    destroyObject(state.paint.safetySeamMarkers)
     state.paint.heatmapLines={}
     state.paint.cursor=nil
+    state.paint.safetyFaceLines=nil
+    state.paint.safetySeamMarkers=nil
+    state.paint.safetyReport=nil
     state.paint.cursorHit=nil
     state.paint.cursorLastX=nil
     state.paint.cursorLastY=nil
@@ -1059,6 +1065,14 @@ local function applyWorkspaceVisibility()
         marker.visible=paintWorkspace and state.meshVisible
     end
     if state.paint.cursor then state.paint.cursor.visible=paintWorkspace and state.meshVisible end
+    if state.paint.safetyFaceLines then
+        state.paint.safetyFaceLines.visible=paintWorkspace and state.meshVisible and
+            state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
+    end
+    if state.paint.safetySeamMarkers then
+        state.paint.safetySeamMarkers.visible=paintWorkspace and state.meshVisible and
+            state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
+    end
     if state.abruptLines then
         state.abruptLines.visible=weightWorkspace and state.abruptMarkersVisible
     end
@@ -3278,11 +3292,11 @@ local function constrainedRepairWeights(original,candidate,allowedNames,maxChang
 end
 
 local function poseSafeRepairScale(original,candidates,editable)
-    if not state.meshD or not state.preview or not next(candidates) then return 1,0 end
+    if not state.meshD or not state.preview or not next(candidates) then return 1,0,{} end
     local duration=state.preview:getSkeletalAnimationDuration(state.skeletalPreview.selected) or 0
-    if duration<=0 then return 1,0 end
+    if duration<=0 then return 1,0,{} end
     local cache=state.paint.geometry or buildPaintGeometryCache()
-    if not cache then return 1,0 end
+    if not cache then return 1,0,{} end
     local incident={}
     for _,triangle in ipairs(cache.triangles) do
         if editable[triangle.a.globalIndex] or editable[triangle.b.globalIndex] or
@@ -3290,7 +3304,7 @@ local function poseSafeRepairScale(original,candidates,editable)
             incident[#incident+1]=triangle
         end
     end
-    if #incident==0 then return 1,0 end
+    if #incident==0 then return 1,0,{} end
     local boneIndex={}
     for index,bone in ipairs(getBones()) do boneIndex[bone.name]=index-1 end
     local samples={0,duration*0.25,duration*0.5,duration*0.75,duration}
@@ -3300,7 +3314,7 @@ local function poseSafeRepairScale(original,candidates,editable)
             return state.meshD:evaluateSkeletalAuthoringPose(
                 state.skeletalPreview.selected,time,'lbs')
         end)
-        if not ok or not pose or not pose.palette then return 1,0 end
+        if not ok or not pose or not pose.palette then return 1,0,{} end
         poses[#poses+1]=pose.palette
     end
     local function blendedMap(index,scale)
@@ -3339,8 +3353,9 @@ local function poseSafeRepairScale(original,candidates,editable)
         local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
         return {x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx}
     end
-    local function safeAt(scale,countFailures)
+    local function safeAt(scale,countFailures,collectTriangles)
         local failures=0
+        local failedTriangles,failedLookup={},{}
         for _,palette in ipairs(poses) do
             local beforeCache,afterCache={},{ }
             for _,triangle in ipairs(incident) do
@@ -3362,21 +3377,50 @@ local function poseSafeRepairScale(original,candidates,editable)
                     local orientation=oldArea.x*newArea.x+oldArea.y*newArea.y+oldArea.z*newArea.z
                     if newLength<oldLength*0.25 or orientation<=oldLength*newLength*0.05 then
                         failures=failures+1
+                        if collectTriangles and not failedLookup[triangle] then
+                            failedLookup[triangle]=true
+                            failedTriangles[#failedTriangles+1]=triangle
+                        end
                         if not countFailures then return false,failures end
                     end
                 end
             end
         end
-        return failures==0,failures
+        return failures==0,failures,failedTriangles
     end
-    local fullSafe,fullFailures=safeAt(1,true)
-    if fullSafe then return 1,0 end
+    local fullSafe,fullFailures,failedTriangles=safeAt(1,true,true)
+    if fullSafe then return 1,0,{} end
     local low,high=0,1
     for _=1,12 do
         local middle=(low+high)*0.5
         if safeAt(middle,false) then low=middle else high=middle end
     end
-    return low,fullFailures
+    return low,fullFailures,failedTriangles
+end
+
+local function rebuildPaintSafetyOverlay(unsafeTriangles,seamVertices,report)
+    destroyObject(state.paint.safetyFaceLines)
+    destroyObject(state.paint.safetySeamMarkers)
+    state.paint.safetyFaceLines=nil
+    state.paint.safetySeamMarkers=nil
+    state.paint.safetyReport=report
+    local edges={}
+    for _,triangle in ipairs(unsafeTriangles or {}) do
+        edges[#edges+1]={triangle.a,triangle.b}
+        edges[#edges+1]={triangle.b,triangle.c}
+        edges[#edges+1]={triangle.c,triangle.a}
+    end
+    state.paint.safetyFaceLines=buildEdgeLines(edges,1,0.15,0.05)
+    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+    state.paint.safetySeamMarkers=buildVertexMarkers(seamVertices or {},0,1,1,extent)
+    for _,object in ipairs({state.paint.safetyFaceLines,state.paint.safetySeamMarkers}) do
+        if object then
+            object.alwaysOnTop=state.markersAlwaysOnTop
+            object.visible=state.workspace=='paint' and state.meshVisible and
+                state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
+        end
+    end
 end
 
 local function repairPaintAbruptTransitions()
@@ -3444,6 +3488,7 @@ local function repairPaintAbruptTransitions()
     end
     local seams=buildCoincidentSeams(adjacency)
     local synchronizedSeams,conflictingSeams=0,0
+    local seamVertices,seamVertexLookup={},{}
     for _,group in ipairs(seams.groups) do
         local touched=false
         for _,index in ipairs(group) do
@@ -3470,6 +3515,11 @@ local function repairPaintAbruptTransitions()
                 for _,index in ipairs(group) do
                     candidateMaps[index]=common
                     editable[index]=true
+                    if not seamVertexLookup[index] then
+                        seamVertexLookup[index]=true
+                        seamVertices[#seamVertices+1]=(state.paint.geometry or
+                            buildPaintGeometryCache()).vertices[index]
+                    end
                 end
                 synchronizedSeams=synchronizedSeams+1
             else
@@ -3480,7 +3530,8 @@ local function repairPaintAbruptTransitions()
     indices={}
     for index in pairs(candidateMaps) do indices[#indices+1]=index end
     table.sort(indices)
-    local poseScale,protectedFaces=poseSafeRepairScale(original,candidateMaps,editable)
+    local poseScale,protectedFaces,unsafeTriangles=
+        poseSafeRepairScale(original,candidateMaps,editable)
     local edits={}
     maximumAppliedChange=0
     for _,index in ipairs(indices) do
@@ -3536,6 +3587,11 @@ local function repairPaintAbruptTransitions()
     rebuildPaintHeatmap()
     applyWorkspaceVisibility()
     local afterEdges=state.paint.abruptStats and state.paint.abruptStats.edges or 0
+    rebuildPaintSafetyOverlay(unsafeTriangles,seamVertices,{poseScale=poseScale,
+        unsafeFaceSamples=protectedFaces,unsafeFaces=#unsafeTriangles,
+        synchronizedSeams=synchronizedSeams,seamVertices=#seamVertices,
+        conflictingSeams=conflictingSeams})
+    applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_abrupt_repaired_fmt'),#edits,beforeEdges,
         afterEdges,maximumAppliedChange,poseScale,protectedFaces,synchronizedSeams,
         conflictingSeams),false)
@@ -5113,6 +5169,21 @@ local function showPaintWeights()
         end
         if tImGui.Button(tLang.L('swl_paint_abrupt_repair_apply')) then
             repairPaintAbruptTransitions()
+        end
+        local safetyReport=state.paint.safetyReport
+        tImGui.BeginDisabled(safetyReport==nil)
+        local overlayVisible=tImGui.Checkbox(tLang.L('swl_paint_safety_overlay'),
+            state.paint.safetyOverlayVisible)
+        if overlayVisible~=state.paint.safetyOverlayVisible then
+            state.paint.safetyOverlayVisible=overlayVisible
+            applyWorkspaceVisibility()
+        end
+        tImGui.EndDisabled()
+        if safetyReport then
+            tImGui.TextWrapped(tLang.L('swl_paint_safety_legend'))
+            tImGui.Text(string.format(tLang.L('swl_paint_safety_report_fmt'),
+                safetyReport.unsafeFaces,safetyReport.unsafeFaceSamples,
+                safetyReport.seamVertices,safetyReport.synchronizedSeams))
         end
     end
     if state.paint.visualizationMode==1 then
