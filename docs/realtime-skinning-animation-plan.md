@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.90**
+Document version: **8.94**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,10 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.94 | 2026-08-16 | Promoted Repair / Diagnostics to the first Paint Weights GUI block, making its radio choice the primary mode that immediately controls the contextual sections below. |
+| 8.93 | 2026-08-16 | Made Paint Weights modes behaviorally contextual: only Selected Bone Heatmap exposes and accepts brush strokes; diagnostic modes hide the cursor and are read-only; Weak Contamination alone exposes the shared threshold and Clean repair action. |
+| 8.92 | 2026-08-16 | Reorganized Paint Weights into six clear UI sections, replaced diagnostic checkboxes with an explicit Selected Bone/Distribution/Weak Contamination radio group, and moved Clean controls after diagnostic selection. |
+| 8.91 | 2026-08-16 | Added mutually exclusive Weak Influence Contamination diagnostics. Using the shared Clean threshold, the read-only heatmap displays per-vertex weak-weight mass and reports affected vertices, influence count, total mass, and maximum weak weight; cleanup remains explicit. |
 | 8.90 | 2026-08-16 | Began Repair / Diagnostics with optional Influence Distribution: a normalized concentration score derived from dominant weight drives the interpolated heatmap, aggregate raw dominant min/average/max and one-to-four influence counts provide context, and the view explicitly avoids a good/bad deformation verdict. |
 | 8.89 | 2026-08-16 | Added configurable 1-10 iterative Smooth passes, default three, so neighbor averaging propagates meaningfully across dense meshes while retaining one atomic stroke. Paint operation radio buttons now use separate lines. |
 | 8.88 | 2026-08-16 | Added selected-bone Smooth painting. Brush alpha interpolates the active weight toward its triangle-neighbor average, proportionally redistributes other influences, preserves canonical normalization/four-influence limits, and uses the existing atomic per-stroke Undo boundary. |

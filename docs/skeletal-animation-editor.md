@@ -38,6 +38,22 @@ unexpectedly rigid regions, unnecessary weak influences, and overly mixed areas,
 judge deformation quality or replace pose-stress testing. Disabling it restores the unchanged
 selected-bone heatmap.
 
+**Weak Influence Contamination** is a second optional, mutually exclusive diagnostic. For each
+vertex it sums positive influences strictly below the current Clean threshold and maps that sum
+relative to the threshold through the heatmap. The panel reports affected vertices, weak influence
+count, total weak weight, and maximum weak weight. Changing the threshold refreshes this view. It is
+read-only; cleanup still requires an explicit **Clean Weak Influences** action using the same
+threshold.
+
+The Paint Weights panel is contextual rather than showing every control at once. **Repair /
+Diagnostics is the first block** because its radio selection defines the rest of the panel in the
+same frame. Target / Skeleton, Viewport Feedback, and History remain visible. **Brush Operations** appears
+only for Selected Bone Heatmap. Influence Distribution and Weak Influence Contamination are
+read-only: the cursor is hidden and right-drag cannot start a stroke. Weak Contamination alone shows
+its shared threshold and the contextual **Weight Tools / Clean Weak Influences** action below the
+diagnostic statistics. Diagnostic visualization is one explicit three-value radio group: Selected
+Bone Heatmap, Influence Distribution, or Weak Influence Contamination.
+
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight
 heatmap, hide or show the skeleton independently, adjust radius, strength, and linear/smooth

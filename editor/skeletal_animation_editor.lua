@@ -199,7 +199,7 @@ local state = {
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
-        distributionStats=nil,stroke=nil},
+        distributionStats=nil,weakStats=nil,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -2074,6 +2074,11 @@ end
 
 local function updatePaintCursorHover()
     if state.workspace~='paint' or not state.paint.cursorPendingX then return end
+    if state.paint.visualizationMode~=1 then
+        state.paint.cursorPendingX,state.paint.cursorPendingY=nil,nil
+        if state.paint.cursor then rebuildPaintCursor(nil) end
+        return
+    end
     local now=mbm.getTimeRun()
     if now-state.paint.cursorLastUpdate<1/30 then return end
     local x,y=state.paint.cursorPendingX,state.paint.cursorPendingY
@@ -2089,6 +2094,7 @@ rebuildPaintHeatmap = function()
     state.paint.heatmapDirty=false
     state.paint.heatmapIndexed=false
     state.paint.distributionStats=nil
+    state.paint.weakStats=nil
     if not state.meshD then return end
     local bones=getBones()
     local bone=bones[state.paint.boneIndex]
@@ -2100,6 +2106,7 @@ rebuildPaintHeatmap = function()
     local weights={}
     local distributionTotal,distributionMin,distributionMax=0,math.huge,0
     local distributionCounts={0,0,0,0}
+    local weakVertices,weakInfluences,weakTotal,weakMaximum=0,0,0,0
     for _,vertex in pairs(cache.vertices) do
         if state.paint.visualizationMode==2 then
             local _,influences=vertexWeightForBone(vertex.globalIndex,'')
@@ -2113,6 +2120,22 @@ rebuildPaintHeatmap = function()
             distributionMin=math.min(distributionMin,dominant)
             distributionMax=math.max(distributionMax,dominant)
             if count>=1 and count<=4 then distributionCounts[count]=distributionCounts[count]+1 end
+        elseif state.paint.visualizationMode==3 then
+            local _,influences=vertexWeightForBone(vertex.globalIndex,'')
+            local weakSum,weakCount=0,0
+            for _,pair in ipairs(influences) do
+                local name,weight=pair[1],tonumber(pair[2]) or 0
+                if name and weight>0 and weight<state.paint.cleanThreshold then
+                    weakSum=weakSum+weight
+                    weakCount=weakCount+1
+                    weakMaximum=math.max(weakMaximum,weight)
+                end
+            end
+            weights[vertex.globalIndex]=math.max(0,math.min(1,
+                weakSum/math.max(state.paint.cleanThreshold,1e-9)))
+            if weakCount>0 then weakVertices=weakVertices+1 end
+            weakInfluences=weakInfluences+weakCount
+            weakTotal=weakTotal+weakSum
         else
             weights[vertex.globalIndex]=vertexWeightForBone(vertex.globalIndex,bone.name)
         end
@@ -2122,6 +2145,9 @@ rebuildPaintHeatmap = function()
         state.paint.distributionStats={minimum=total>0 and distributionMin or 0,
             maximum=distributionMax,average=total>0 and distributionTotal/total or 0,
             counts=distributionCounts,total=total}
+    elseif state.paint.visualizationMode==3 then
+        state.paint.weakStats={vertices=weakVertices,influences=weakInfluences,
+            totalWeight=weakTotal,maximumWeight=weakMaximum,total=#cache.vertices}
     end
     local vertices,uvs,indices={},{},{}
     local useIndexed=#cache.vertices<=65535
@@ -4533,8 +4559,53 @@ local function showPaintWeights()
         tImGui.TextWrapped(tLang.L('swl_paint_requires_weights'))
         return
     end
-    tImGui.TextWrapped(tLang.L(state.paint.operationMode==3 and 'swl_paint_smooth_help' or
-        state.paint.operationMode==2 and 'swl_paint_subtract_help' or 'swl_paint_add_help'))
+    showSectionTitle('swl_paint_repair_diagnostics')
+    local previousVisualizationMode=state.paint.visualizationMode
+    state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_selected'),
+        state.paint.visualizationMode,1)
+    state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_distribution'),
+        state.paint.visualizationMode,2)
+    state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_weak'),
+        state.paint.visualizationMode,3)
+    if state.paint.visualizationMode~=previousVisualizationMode then
+        state.paint.heatmapDirty=true
+        rebuildPaintHeatmap()
+        rebuildPaintCursor(nil)
+    end
+    if state.paint.visualizationMode==2 then
+        tImGui.TextWrapped(tLang.L('swl_paint_distribution_help'))
+        local stats=state.paint.distributionStats
+        if stats then
+            tImGui.Text(string.format(tLang.L('swl_paint_distribution_stats_fmt'),
+                stats.minimum,stats.average,stats.maximum))
+            tImGui.Text(string.format(tLang.L('swl_paint_distribution_counts_fmt'),
+                stats.counts[1],stats.counts[2],stats.counts[3],stats.counts[4]))
+        end
+    elseif state.paint.visualizationMode==3 then
+        tImGui.TextWrapped(tLang.L('swl_paint_weak_help'))
+        tImGui.PushItemWidth(240)
+        local thresholdChanged,cleanThreshold=tImGui.SliderFloat(
+            tLang.L('swl_paint_clean_threshold'),state.paint.cleanThreshold,0.0001,0.25,'%.4f')
+        tImGui.PopItemWidth()
+        if thresholdChanged then
+            state.paint.cleanThreshold=cleanThreshold
+            state.paint.heatmapDirty=true
+            rebuildPaintHeatmap()
+        end
+        local stats=state.paint.weakStats
+        if stats then
+            tImGui.Text(string.format(tLang.L('swl_paint_weak_stats_fmt'),stats.vertices,
+                stats.total,stats.influences))
+            tImGui.Text(string.format(tLang.L('swl_paint_weak_weight_fmt'),stats.totalWeight,
+                stats.maximumWeight,state.paint.cleanThreshold))
+        end
+        tImGui.Separator()
+        showSectionTitle('swl_paint_weight_tools')
+        tImGui.TextWrapped(tLang.L('swl_paint_clean_help'))
+        if tImGui.Button(tLang.L('swl_paint_clean_apply')) then cleanPaintWeakInfluences() end
+    end
+    tImGui.Separator()
+    showSectionTitle('swl_paint_target_view')
     local showSkeleton=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.paint.showSkeleton)
     if showSkeleton~=state.paint.showSkeleton then
         state.paint.showSkeleton=showSkeleton
@@ -4554,41 +4625,49 @@ local function showPaintWeights()
         rebuildSkeletonVisuals()
         applyWorkspaceVisibility()
     end
-    tImGui.Text(tLang.L('swl_paint_operation'))
-    state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_add'),
-        state.paint.operationMode,1)
-    state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_subtract'),
-        state.paint.operationMode,2)
-    state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_smooth'),
-        state.paint.operationMode,3)
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
-    tImGui.PushItemWidth(240)
-    local radiusChanged,radius=tImGui.SliderFloat(tLang.L('swl_paint_brush_radius'),
-        state.paint.radius,math.max(extent*0.002,0.0001),math.max(extent*0.5,0.001),'%.4g')
-    tImGui.PopItemWidth()
-    if radiusChanged then
-        state.paint.radius=radius
-        rebuildPaintCursor(state.paint.cursorHit)
-    end
-    tImGui.PushItemWidth(240)
-    local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_paint_brush_strength'),
-        state.paint.strength,0.01,1,'%.2f')
-    tImGui.PopItemWidth()
-    if strengthChanged then state.paint.strength=strength end
-    if state.paint.operationMode==3 then
+    if state.paint.visualizationMode==1 then
+        tImGui.Separator()
+        showSectionTitle('swl_paint_brush_section')
+        tImGui.TextWrapped(tLang.L(state.paint.operationMode==3 and 'swl_paint_smooth_help' or
+            state.paint.operationMode==2 and 'swl_paint_subtract_help' or 'swl_paint_add_help'))
+        tImGui.Text(tLang.L('swl_paint_operation'))
+        state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_add'),
+            state.paint.operationMode,1)
+        state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_subtract'),
+            state.paint.operationMode,2)
+        state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_smooth'),
+            state.paint.operationMode,3)
         tImGui.PushItemWidth(240)
-        local iterationsChanged,smoothIterations=tImGui.SliderInt(
-            tLang.L('swl_paint_smooth_iterations'),state.paint.smoothIterations,1,10)
+        local radiusChanged,radius=tImGui.SliderFloat(tLang.L('swl_paint_brush_radius'),
+            state.paint.radius,math.max(extent*0.002,0.0001),math.max(extent*0.5,0.001),'%.4g')
         tImGui.PopItemWidth()
-        if iterationsChanged then state.paint.smoothIterations=smoothIterations end
+        if radiusChanged then
+            state.paint.radius=radius
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
+        tImGui.PushItemWidth(240)
+        local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_paint_brush_strength'),
+            state.paint.strength,0.01,1,'%.2f')
+        tImGui.PopItemWidth()
+        if strengthChanged then state.paint.strength=strength end
+        if state.paint.operationMode==3 then
+            tImGui.PushItemWidth(240)
+            local iterationsChanged,smoothIterations=tImGui.SliderInt(
+                tLang.L('swl_paint_smooth_iterations'),state.paint.smoothIterations,1,10)
+            tImGui.PopItemWidth()
+            if iterationsChanged then state.paint.smoothIterations=smoothIterations end
+        end
+        local falloffNames={tLang.L('swl_falloff_linear'),tLang.L('swl_falloff_smooth')}
+        tImGui.PushItemWidth(240)
+        local falloffChanged,falloffMode=tImGui.Combo(tLang.L('swl_falloff'),
+            state.paint.falloffMode,falloffNames,-1)
+        tImGui.PopItemWidth()
+        if falloffChanged then state.paint.falloffMode=falloffMode end
     end
-    local falloffNames={tLang.L('swl_falloff_linear'),tLang.L('swl_falloff_smooth')}
-    tImGui.PushItemWidth(240)
-    local falloffChanged,falloffMode=tImGui.Combo(tLang.L('swl_falloff'),
-        state.paint.falloffMode,falloffNames,-1)
-    tImGui.PopItemWidth()
-    if falloffChanged then state.paint.falloffMode=falloffMode end
+    tImGui.Separator()
+    showSectionTitle('swl_paint_viewport_feedback')
     tImGui.TextDisabled(tLang.L('swl_heatmap_legend'))
     local geometry=state.paint.geometry
     if geometry then
@@ -4599,41 +4678,14 @@ local function showPaintWeights()
                 'swl_paint_indexed_heatmap' or 'swl_paint_nonindexed_heatmap'))
         end
     end
-    if state.paint.cursorHit then
+    if state.paint.visualizationMode~=1 then
+        tImGui.TextDisabled(tLang.L('swl_paint_diagnostic_read_only'))
+    elseif state.paint.cursorHit then
         local p=state.paint.cursorHit.point
         tImGui.Text(string.format(tLang.L('swl_paint_hit_fmt'),p.x,p.y,p.z,
             state.paint.cursorHit.triangle.subset))
     else
         tImGui.TextDisabled(tLang.L('swl_paint_no_hit'))
-    end
-    tImGui.Separator()
-    tImGui.Text(tLang.L('swl_paint_weight_tools'))
-    tImGui.TextWrapped(tLang.L('swl_paint_clean_help'))
-    tImGui.PushItemWidth(240)
-    local thresholdChanged,cleanThreshold=tImGui.SliderFloat(
-        tLang.L('swl_paint_clean_threshold'),state.paint.cleanThreshold,0.0001,0.25,'%.4f')
-    tImGui.PopItemWidth()
-    if thresholdChanged then state.paint.cleanThreshold=cleanThreshold end
-    if tImGui.Button(tLang.L('swl_paint_clean_apply')) then cleanPaintWeakInfluences() end
-    tImGui.Separator()
-    tImGui.Text(tLang.L('swl_paint_repair_diagnostics'))
-    local showDistribution=tImGui.Checkbox(tLang.L('swl_paint_show_distribution'),
-        state.paint.visualizationMode==2)
-    local visualizationMode=showDistribution and 2 or 1
-    if visualizationMode~=state.paint.visualizationMode then
-        state.paint.visualizationMode=visualizationMode
-        state.paint.heatmapDirty=true
-        rebuildPaintHeatmap()
-    end
-    if state.paint.visualizationMode==2 then
-        tImGui.TextWrapped(tLang.L('swl_paint_distribution_help'))
-        local stats=state.paint.distributionStats
-        if stats then
-            tImGui.Text(string.format(tLang.L('swl_paint_distribution_stats_fmt'),
-                stats.minimum,stats.average,stats.maximum))
-            tImGui.Text(string.format(tLang.L('swl_paint_distribution_counts_fmt'),
-                stats.counts[1],stats.counts[2],stats.counts[3],stats.counts[4]))
-        end
     end
     showRollbackControls('Paint')
 end
@@ -6681,7 +6733,8 @@ function onTouchDown(key, x, y)
         cancelBoneEditorDrag()
         return
     end
-    if key==1 and state.workspace=='paint' and not tImGui.GetWantCaptureMouse() then
+    if key==1 and state.workspace=='paint' and state.paint.visualizationMode==1 and
+            not tImGui.GetWantCaptureMouse() then
         local hit=pickPaintSurface(x,y)
         if hit then beginPaintStroke(hit) end
         return

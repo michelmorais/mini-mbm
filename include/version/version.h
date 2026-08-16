@@ -267,6 +267,10 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.60.3 Promoted Repair / Diagnostics to the first Paint Weights block so its mode controls contextual GUI sections immediately.
+    7.60.2 Made diagnostic views read-only and contextual: only the selected-bone heatmap enables painting, while weak contamination owns its threshold and Clean action.
+    7.60.1 Reorganized Paint Weights into clear UI sections and replaced diagnostic checkboxes with one explicit three-option radio group.
+    7.60.0 Added read-only Weak Influence Contamination heatmap and statistics tied to the shared cleanup threshold.
     7.59.0 Added optional Influence Distribution diagnostics with a dominant-weight heatmap and aggregate active-influence statistics.
     7.58.1 Added 1-10 iterative Smooth passes for dense meshes and placed each Paint Weights operation radio button on its own line.
     7.58.0 Added transactional selected-bone Smooth painting using triangle-neighbor averages, brush falloff, proportional redistribution, normalization, and Undo.
@@ -396,7 +400,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.59.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.60.3" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

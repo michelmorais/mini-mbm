@@ -469,6 +469,11 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    influence counts. It remains explicitly descriptive rather than a deformation-quality verdict,
    and disabling it restores the selected-bone heatmap.
 
+   Weak Influence Contamination is also available as a mutually exclusive read-only view. It maps
+   each vertex's sum of positive weights strictly below the shared Clean threshold and reports
+   affected vertices, weak influence count, total weak mass, and maximum weak weight. Threshold
+   changes refresh the diagnostic; only the explicit Clean action mutates data.
+
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
 
@@ -543,6 +548,10 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.89 | 2026-08-16 | Moved Repair / Diagnostics to the first Paint Weights block so its primary mode selection determines all contextual sections immediately in the same GUI frame. |
+| 7.88 | 2026-08-16 | Made the reorganized Paint Weights panel contextual. Brush controls/cursor/right-drag exist only in Selected Bone Heatmap; both diagnostics are read-only; Weak Contamination alone exposes its threshold and contextual Clean action after the statistics. |
+| 7.87 | 2026-08-16 | Reorganized Paint Weights into Target/Skeleton, Brush Operations, Viewport Feedback, Repair/Diagnostics, Weight Tools, and History sections. Replaced mutually disabling diagnostic checkboxes with one three-option radio group and placed Clean controls after diagnostics. |
+| 7.86 | 2026-08-16 | Added Weak Influence Contamination diagnostics tied to the Clean threshold. The read-only heatmap shows per-vertex weak-weight mass and reports affected vertices, weak influence count, total mass, and maximum weak weight; it is mutually exclusive with Influence Distribution. |
 | 7.85 | 2026-08-16 | Started Paint Weights Repair / Diagnostics with optional Influence Distribution. The interpolated map shows each vertex's dominant normalized weight and reports min/average/max plus counts using one through four influences, without labeling deformation good or bad. |
 | 7.84 | 2026-08-16 | Made Smooth effective on dense topology with 1-10 stable neighbor-average iterations per stroke, defaulting to three. Brush-operation radio buttons now occupy one line each for clearer selection. |
 | 7.83 | 2026-08-16 | Added Smooth as a third transactional brush operation. It moves only the selected bone's weight toward the triangle-neighbor average under brush Strength/Falloff, proportionally redistributes remaining influences, normalizes, and commits one atomic batch plus one Undo entry. |
