@@ -490,7 +490,8 @@ Current delivery: items 1 and 4 plus the transaction core of items 2-3 are imple
 Erase/Subtract, and selected-bone Smooth use a
 cached vertex BVH, bounded quarter-radius interpolation between ordinary surface hits, local per-stroke accumulation,
 deterministic four-influence normalization, one atomic batch on release, one Undo snapshot, and Esc
-cancellation. Interactive deformation quality and save/reload acceptance remain.
+cancellation. Interactive deformation quality remains; save/reload acceptance is closed by an
+executable atomic-batch round-trip that verifies complete four-slot and two-slot edited records.
 
 ## 12. Validation fixtures and acceptance
 
@@ -557,6 +558,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.94 | 2026-08-16 | Closed Paint Weights save/reload acceptance at its shared atomic type-42 boundary. The deterministic batch fixture now reloads and verifies every name/order/value/empty slot of separate four-influence and two-influence edited vertices. |
 | 7.93 | 2026-08-16 | Added contextual Smooth Detected Transitions repair. Threshold-classified vertices receive configurable full-vector Jacobi smoothing against triangle neighbors with fixed external boundaries, deterministic normalization/four-influence limiting, one atomic batch/Undo entry, and before/after abrupt-edge reporting. |
 | 7.92 | 2026-08-16 | Moved Show Skeleton to the first Paint Weights control. Clarified that the Abrupt Weight Transitions threshold classifies cached statistics only and intentionally does not recolor the raw difference heatmap. |
 | 7.91 | 2026-08-16 | Made Target Bone contextual to Selected Bone Heatmap. Whole-weight diagnostics now hide the irrelevant selector and disable viewport bone picking, while retaining skeleton visibility and normal left-drag camera orbit. |

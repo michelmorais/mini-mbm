@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.98**
+Document version: **8.99**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.99 | 2026-08-16 | Closed Paint Weights persistence acceptance at the shared atomic canonical batch boundary. Save/reload now verifies every occupied and empty slot, bone name, ordering, and value for separate four-influence and two-influence edited vertices. |
 | 8.98 | 2026-08-16 | Added atomic Smooth Detected Transitions repair. Threshold-classified vertices undergo configurable complete-vector Jacobi smoothing with fixed external boundaries, deterministic normalization/four-influence limiting, one Undo entry, and immediate before/after abrupt-edge reporting. |
 | 8.97 | 2026-08-16 | Moved Show Skeleton to the first Paint Weights GUI control and relabeled the abrupt-transition threshold as statistics-only, matching its cached classification behavior and raw unchanged heatmap. |
 | 8.96 | 2026-08-16 | Scoped Target Bone and viewport bone picking to Selected Bone Heatmap. Whole-weight diagnostics hide the nonfunctional selector and retain only skeleton visibility plus camera navigation. |

@@ -681,12 +681,25 @@ namespace
         const char *batchReloadPath = "/tmp/mini-mbm-canonical-weights-batch-edited.msh";
         MESH_MBM_DEBUG batchReloaded;
         expect(batchMesh.saveV11(batchReloadPath, false, false, false, editError,
-                    static_cast<int>(sizeof(editError))) && batchReloaded.loadV11(batchReloadPath) &&
-                   batchReloaded.getSkeletalVertexWeight(1, &name0, &weight0, &name1, &weight1,
-                       &name2, &weight2, &name3, &weight3) && name0 && name1 &&
+                    static_cast<int>(sizeof(editError))) && batchReloaded.loadV11(batchReloadPath),
+               "canonical batch mutation must save and reload");
+        expect(batchReloaded.getSkeletalVertexWeight(0, &name0, &weight0, &name1, &weight1,
+                       &name2, &weight2, &name3, &weight3) && name0 && name1 && name2 && name3 &&
+                   std::string(name0) == "root" && std::string(name1) == "child-a" &&
+                   std::string(name2) == "child-b" && std::string(name3) == "child-c" &&
+                   std::fabs(weight0 - 0.4f) <= MATRIX_TOLERANCE &&
+                   std::fabs(weight1 - 0.3f) <= MATRIX_TOLERANCE &&
+                   std::fabs(weight2 - 0.2f) <= MATRIX_TOLERANCE &&
+                   std::fabs(weight3 - 0.1f) <= MATRIX_TOLERANCE,
+               "four-influence canonical batch edit must survive save and reload exactly");
+        expect(batchReloaded.getSkeletalVertexWeight(1, &name0, &weight0, &name1, &weight1,
+                       &name2, &weight2, &name3, &weight3) && name0 && name1 && !name2 && !name3 &&
                    std::string(name0) == "child-a" && std::string(name1) == "root" &&
-                   std::fabs(weight0 - 0.75f) <= MATRIX_TOLERANCE,
-               "canonical batch mutation must survive save and reload");
+                   std::fabs(weight0 - 0.75f) <= MATRIX_TOLERANCE &&
+                   std::fabs(weight1 - 0.25f) <= MATRIX_TOLERANCE &&
+                   std::fabs(weight2) <= MATRIX_TOLERANCE &&
+                   std::fabs(weight3) <= MATRIX_TOLERANCE,
+               "two-influence canonical batch edit must survive save and reload exactly");
         std::remove(batchFixture);
         std::remove(batchReloadPath);
         const char *edited="/tmp/mini-mbm-canonical-weights-edited.msh";

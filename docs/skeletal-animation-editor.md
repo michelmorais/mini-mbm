@@ -98,6 +98,11 @@ sorted deterministically, limited to four influences, and normalized. The editor
 vertices through one atomic canonical type-42 batch only when the mouse is released. A successful
 stroke creates one Undo entry and refreshes the heatmap; an empty, cancelled, or rejected stroke
 does not mutate weights. `Esc` cancels the active stroke.
+
+The shared atomic type-42 batch boundary used by every Paint/Add, Erase/Subtract, Smooth, Clean,
+and repair commit has executable save/reload acceptance. A deterministic fixture edits separate
+four-influence and two-influence vertices, writes the mesh, reloads it, and verifies every occupied
+and empty slot's bone name, order, and weight within the canonical tolerance.
 Left-drag retains the editor-wide camera-orbit behavior; clicking a visible skeleton joint or
 segment with the left button still selects its bone before an orbit begins.
 
