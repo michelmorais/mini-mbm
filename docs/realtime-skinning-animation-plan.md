@@ -801,6 +801,11 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.63 | 2026-08-16 | Scale tool availability follows resolved preview method: DQS and Auto-to-DQS disable it, LBS and Auto-to-LBS enable uniform scale, and incompatible switching returns safely to Move. |
+| 8.62 | 2026-08-16 | Scale UX now matches compact GLES2 normal math: only proportional XYZ scale is exposed under LBS, DQS remains rigid, and per-axis non-uniform scale is deferred to an explicit inverse-transpose normal-palette/shader milestone. |
+| 8.61 | 2026-08-16 | Scale gains a proportional XYZ diagonal handle, and Animation gains explicit Auto/LBS/DQS preview selection with resolved reporting and immutable-method rebuilding from an unsaved canonical temporary snapshot. |
+| 8.60 | 2026-08-16 | Animation authoring completes initial visual TRS manipulation with a bone-local axis Scale tool, positive component factors, continuous in-memory preview, and scale-only explicit/Auto Key commits through shared rollback semantics. |
+| 8.59 | 2026-08-16 | Timeline ruler now derives bounded adaptive major ticks from the `1/2/5 x 10^n` family, with scale-aware precision and full-track grid lines across zoom levels. |
 | 8.58 | 2026-08-16 | Temporal snap adds one-click 24/25/30/50/60 FPS presets that store exact reciprocal steps and enable snapping while retaining arbitrary numeric intervals. |
 | 8.57 | 2026-08-16 | Timeline adds optional positive-step time snap, defaulting to `1/30 s`, for playhead seeking and key-group anchor dragging while preserving shared deltas and backend collision/bounds authority. |
 | 8.56 | 2026-08-16 | Timeline adds non-mutating Fit selection framing with padded multi-time bounds, a centered minimum range for one-time selections, clip-bound clamping, and synchronized pan reset. |

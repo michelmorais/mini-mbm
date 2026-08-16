@@ -75,6 +75,7 @@ local state = {
     leftPanelRight = 440,
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
     rotationGizmo = {rings={},origin=nil,radius=nil,drag=nil},
+    scaleGizmo = {axes={},origin=nil,length=nil,drag=nil},
     boneEditorPosition = {x=0,y=0,z=0},
     boneEditorLength = 1,
     boneEditorExtendCount = 1,
@@ -620,6 +621,8 @@ local function destroySkeletonVisuals(preserveTranslationGizmo)
         state.translationGizmo={axes={},boneIndex=nil,poseKey=nil,drag=nil}
         for _,object in pairs(state.rotationGizmo.rings) do destroyObject(object) end
         state.rotationGizmo={rings={},origin=nil,radius=nil,drag=nil}
+        for _,object in pairs(state.scaleGizmo.axes) do destroyObject(object) end
+        state.scaleGizmo={axes={},origin=nil,length=nil,drag=nil}
     end
     destroyObject(state.analysisBoneHighlightSphere)
     state.analysisBoneHighlightSphere=nil
@@ -884,6 +887,54 @@ local function rebuildRotationGizmo()
     gizmo.origin={x=bone.x,y=bone.y,z=bone.z}
     gizmo.radius=radius
     gizmo.axes=axes
+end
+
+local function rebuildScaleGizmo()
+    local gizmo=state.scaleGizmo
+    if state.workspace~='animation' or not state.authoringPose then
+        for _,object in pairs(gizmo.axes) do object.visible=false end
+        gizmo.origin=nil; gizmo.length=nil; gizmo.axesLocal=nil; gizmo.drag=nil
+        return
+    end
+    local bone=getVisualBones()[state.boneIndex]
+    if not bone then
+        for _,object in pairs(gizmo.axes) do object.visible=false end
+        gizmo.origin=nil; gizmo.length=nil; gizmo.axesLocal=nil
+        return
+    end
+    local matrix=bone.globalMatrix or {}
+    local axes={
+        x=normalizedDirection(matrix[1] or 1,matrix[2] or 0,matrix[3] or 0),
+        y=normalizedDirection(matrix[5] or 0,matrix[6] or 1,matrix[7] or 0),
+        z=normalizedDirection(matrix[9] or 0,matrix[10] or 0,matrix[11] or 1),
+    }
+    if not axes.x or not axes.y or not axes.z then return end
+    axes.uniform=normalizedDirection(axes.x.x+axes.y.x+axes.z.x,
+        axes.x.y+axes.y.y+axes.z.y,axes.x.z+axes.y.z+axes.z.z)
+    if not axes.uniform then return end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local length=math.max(extent*0.14,0.05)
+    for _,object in pairs(gizmo.axes) do object.visible=false end
+    local drawAxes={uniform=axes.uniform}
+    local colors={uniform={1,0.85,0.05,1}}
+    for name,axis in pairs(drawAxes) do
+        local object=gizmo.axes[name]
+        local points={0,0,0,axis.x*length,axis.y*length,axis.z*length,
+            axis.x*length,axis.y*length,axis.z*length,
+            axis.x*length*0.88,axis.y*length*0.88,axis.z*length*0.88}
+        if object then object:set(points,1) else
+            object=line:new('3d',0,0,0); object:add(points); object.alwaysOnTop=true
+            gizmo.axes[name]=object
+        end
+        object:setPos(bone.x,bone.y,bone.z)
+        object:setColor(table.unpack(colors[name]))
+        object.visible=state.animationTransformTool==3
+    end
+    gizmo.origin={x=bone.x,y=bone.y,z=bone.z}
+    gizmo.length=length
+    gizmo.axesLocal=drawAxes
 end
 
 local function nextSkeletonNickname(prefix)
@@ -1201,6 +1252,7 @@ rebuildSkeletonVisuals=function()
     rebuildTargetBoneHighlight()
     rebuildTranslationGizmo()
     rebuildRotationGizmo()
+    rebuildScaleGizmo()
 end
 
 local function updateAnimationSkeletonVisuals()
@@ -1222,6 +1274,7 @@ local function updateAnimationSkeletonVisuals()
     end
     rebuildTranslationGizmo()
     rebuildRotationGizmo()
+    rebuildScaleGizmo()
     updateSkeletonVisibility()
     return true
 end
@@ -1235,6 +1288,7 @@ local function clearAuthoringOverride()
     state.authoringOverride=nil
     state.translationGizmo.drag=nil
     state.rotationGizmo.drag=nil
+    state.scaleGizmo.drag=nil
     invalidateAuthoringPose()
 end
 
@@ -1469,6 +1523,32 @@ local function hitTestRotationRing(sx,sy)
                 local direction=normalizedDirection(vx,vy,vz)
                 if direction then best={name=name,axis=axis,direction=direction}; bestDistance=error end
             end
+        end
+    end
+    return best
+end
+
+local function hitTestScaleAxis(sx,sy)
+    local gizmo=state.scaleGizmo
+    if state.workspace~='animation' or state.animationTransformTool~=3 or
+            not gizmo.origin or not gizmo.length or not gizmo.axesLocal then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(extent*0.01,0.0015)
+    local best,bestDistance=nil,math.huge
+    for name,axis in pairs(gizmo.axesLocal) do
+        if math.abs(dx*axis.x+dy*axis.y+dz*axis.z)<0.95 then
+            local startPoint={x=gizmo.origin.x+axis.x*gizmo.length*0.3,
+                y=gizmo.origin.y+axis.y*gizmo.length*0.3,
+                z=gizmo.origin.z+axis.z*gizmo.length*0.3}
+            local endpoint={x=gizmo.origin.x+axis.x*gizmo.length,
+                y=gizmo.origin.y+axis.y*gizmo.length,
+                z=gizmo.origin.z+axis.z*gizmo.length}
+            local distance=raySegmentDistance(ox,oy,oz,dx,dy,dz,startPoint,endpoint,radius)
+            if distance and distance<bestDistance then best,bestDistance=name,distance end
         end
     end
     return best
@@ -1787,7 +1867,7 @@ local function analyzeSelection()
     setStatus(string.format(tLang.L('swl_analysis_complete_fmt'), #selected), false)
 end
 
-local function rebuildPreview()
+local function rebuildPreview(sourcePath)
     destroyObject(state.preview)
     destroyObject(state.comparisonPreview)
     state.preview = nil
@@ -1799,14 +1879,15 @@ local function rebuildPreview()
     playback.playing=false
     playback.paused=false
     playback.comparisonReady=false
-    if not state.fileName then return end
+    sourcePath=sourcePath or state.fileName
+    if not sourcePath then return end
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     local separation=extent*0.65
     local function loadRuntimePreview(method,x)
         local preview=mesh:new('3d')
         if not preview:setSkeletalSkinningMethod(method) then preview:destroy(); return nil end
-        if not preview:load(state.fileName) then preview:destroy(); return nil end
+        if not preview:load(sourcePath) then preview:destroy(); return nil end
         preview:setPos(x,0,0)
         preview.visible=state.meshVisible
         return preview
@@ -2057,12 +2138,15 @@ local function commitAuthoringOverride()
     end)
     if not ok then discardRollbackSnapshot(snapshot); return false end
     local rotation=value.channelMask==2
+    local scaling=value.channelMask==4
     commitRollbackSnapshot(snapshot)
     state.modified=true
     clearAuthoringOverride()
     refreshBindReport()
     refreshAuthoringPose(state.authoringActiveClip)
-    setStatus(tLang.L(rotation and (created and 'swl_animation_rotation_key_created' or
+    setStatus(tLang.L(scaling and (created and 'swl_animation_scale_key_created' or
+        'swl_animation_scale_key_updated') or rotation and
+        (created and 'swl_animation_rotation_key_created' or
         'swl_animation_rotation_key_updated') or (created and
         'swl_animation_translation_key_created' or
         'swl_animation_translation_key_updated')),false)
@@ -3671,6 +3755,22 @@ local function snapTimelineTime(time,duration)
     return value
 end
 
+local function niceTimelineTickStep(rawStep)
+    local safe=math.max(rawStep or 0,1e-9)
+    local power=10^math.floor(math.log(safe)/math.log(10))
+    local normalized=safe/power
+    local factor=normalized<=1 and 1 or normalized<=2 and 2 or normalized<=5 and 5 or 10
+    return factor*power
+end
+
+local function timelineTickFormat(step)
+    if step>=1 then return '%.2f' end
+    if step>=0.1 then return '%.2f' end
+    if step>=0.01 then return '%.3f' end
+    if step>=0.001 then return '%.4f' end
+    return '%.6f'
+end
+
 local function commitTimelineKeyDrag(drag)
     if not drag or not drag.moved or drag.invalid then return false end
     local snapshot=stageRollbackSnapshot()
@@ -3813,15 +3913,25 @@ local function showSkeletalTimeline(clip)
     tImGui.AddRectFilled(minimum,maximum,{r=0.055,g=0.065,b=0.085,a=1},3,0)
     tImGui.AddLine({x=x0,y=minimum.y},{x=x0,y=maximum.y},
         {r=0.35,g=0.38,b=0.45,a=1},1)
-    for tick=0,4 do
-        local fraction=tick/4
-        local tx=x0+timelineWidth*fraction
-        tImGui.AddLine({x=tx,y=minimum.y},{x=tx,y=minimum.y+rulerHeight},
-            {r=0.4,g=0.42,b=0.48,a=1},1)
-        tImGui.AddText({x=tx+2,y=minimum.y+3},{r=0.75,g=0.78,b=0.85,a=1},
-            string.format('%.3f',viewStart+viewDuration*fraction))
+    local tickStep=niceTimelineTickStep(viewDuration/math.max(1,timelineWidth/90))
+    local tickFormat=timelineTickFormat(tickStep)
+    local tickTime=math.ceil((viewStart-1e-9)/tickStep)*tickStep
+    local tickCount=0
+    local tickPositions={}
+    while tickTime<=viewEnd+tickStep*1e-5 and tickCount<200 do
+        local tx=timeToX(tickTime)
+        if tx>=x0-1 and tx<=x1+1 then
+            tickPositions[#tickPositions+1]=tx
+            tImGui.AddLine({x=tx,y=minimum.y},{x=tx,y=minimum.y+rulerHeight},
+                {r=0.28,g=0.3,b=0.36,a=0.65},1)
+            tImGui.AddText({x=tx+2,y=minimum.y+3},{r=0.75,g=0.78,b=0.85,a=1},
+                string.format(tickFormat,math.abs(tickTime)<tickStep*1e-5 and 0 or tickTime))
+        end
+        tickTime=tickTime+tickStep
+        tickCount=tickCount+1
     end
     local markerPositions={}
+    local ordinaryMarkers={}
     local draggedMarkers={}
     local scrollY=tImGui.GetScrollY()
     local firstVisible=math.max(1,math.floor(math.max(0,scrollY-rulerHeight)/rowHeight)+1)
@@ -3850,14 +3960,16 @@ local function showSkeletalTimeline(clip)
             if dragged and kx>=x0 and kx<=x1 then
                 draggedMarkers[#draggedMarkers+1]={x=kx,y=y,invalid=activeDrag.invalid}
             elseif kx>=x0 and kx<=x1 then
-                tImGui.AddCircleFilled({x=kx,y=y},selected and 6 or 4,
-                    selected and {r=1,g=0.75,b=0.1,a=1} or
-                    {r=0.75,g=0.35,b=0.9,a=1},12)
+                ordinaryMarkers[#ordinaryMarkers+1]={x=kx,y=y,selected=selected}
             end
             if kx>=x0 and kx<=x1 then
                 markerPositions[trackIndex][keyIndex]={x=kx,y=y,key=key,track=track}
             end
         end
+    end
+    for _,tx in ipairs(tickPositions) do
+        tImGui.AddLine({x=tx,y=minimum.y+rulerHeight},{x=tx,y=maximum.y},
+            {r=0.28,g=0.3,b=0.36,a=0.42},1)
     end
     if state.animationTimelineRemovalPreview then
         local impact=timelineRemovalImpact(clip)
@@ -3871,6 +3983,11 @@ local function showSkeletalTimeline(clip)
             tImGui.AddLine({x=rangeX1,y=minimum.y},{x=rangeX1,y=maximum.y},
                 {r=1,g=0.45,b=0.2,a=0.9},1.5)
         end
+    end
+    for _,marker in ipairs(ordinaryMarkers) do
+        tImGui.AddCircleFilled({x=marker.x,y=marker.y},marker.selected and 6 or 4,
+            marker.selected and {r=1,g=0.75,b=0.1,a=1} or
+            {r=0.75,g=0.35,b=0.9,a=1},12)
     end
     for _,draggedMarker in ipairs(draggedMarkers) do
         tImGui.AddCircleFilled({x=draggedMarker.x,y=draggedMarker.y},7,
@@ -4320,6 +4437,44 @@ local function showSkeletalAnimationInspection()
             clearAuthoringOverride()
         end
         refreshAuthoringPose(clip)
+        local authoringMethods={tLang.L('swl_skinning_auto'),tLang.L('swl_skinning_lbs'),
+            tLang.L('swl_skinning_dqs')}
+        tImGui.PushItemWidth(190)
+        local authoringMethodChanged,authoringMethod=tImGui.Combo(
+            tLang.L('swl_animation_preview_skinning_method'),
+            state.skeletalPreview.method,authoringMethods,-1)
+        tImGui.PopItemWidth()
+        if authoringMethodChanged then
+            local temporaryPath=os.tmpname()..'.msh'
+            local okSaved,saved=safeCall(function()
+                return state.meshD:save(temporaryPath,false,false)
+            end)
+            if okSaved and saved then
+                state.skeletalPreview.method=authoringMethod
+                state.skeletalPreview.poseStress=false
+                clearAuthoringOverride()
+                state.authoringPose=nil
+                rebuildPreview(temporaryPath)
+                pcall(os.remove,temporaryPath)
+                refreshAuthoringPose(clip)
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+            else
+                pcall(os.remove,temporaryPath)
+            end
+        end
+        local resolvedAuthoringMethod=nil
+        if state.preview then
+            local okResolved,resolved=safeCall(function()
+                return state.preview:getResolvedSkeletalSkinningMethod()
+            end)
+            if okResolved then
+                resolvedAuthoringMethod=resolved
+                tImGui.TextDisabled(string.format(
+                    tLang.L('swl_animation_preview_resolved_method_fmt'),
+                    tostring(resolved or 'unknown'):upper()))
+            end
+        end
         local previousTransformTool=state.animationTransformTool
         state.animationTransformTool=tImGui.RadioButton(
             tLang.L('swl_animation_tool_move')..'##swlAnimationMove',
@@ -4328,9 +4483,24 @@ local function showSkeletalAnimationInspection()
         state.animationTransformTool=tImGui.RadioButton(
             tLang.L('swl_animation_tool_rotate')..'##swlAnimationRotate',
             state.animationTransformTool,2)
+        tImGui.SameLine()
+        tImGui.BeginDisabled(resolvedAuthoringMethod~='lbs')
+        state.animationTransformTool=tImGui.RadioButton(
+            tLang.L('swl_animation_tool_scale')..'##swlAnimationScale',
+            state.animationTransformTool,3)
+        tImGui.EndDisabled()
+        if state.animationTransformTool==3 and resolvedAuthoringMethod~='lbs' then
+            state.animationTransformTool=1
+        end
         if previousTransformTool~=state.animationTransformTool then
             state.translationGizmo.drag=nil; state.rotationGizmo.drag=nil
-            rebuildTranslationGizmo(); rebuildRotationGizmo()
+            state.scaleGizmo.drag=nil
+            rebuildTranslationGizmo(); rebuildRotationGizmo(); rebuildScaleGizmo()
+        end
+        if state.animationTransformTool==3 then
+            tImGui.TextWrapped(tLang.L('swl_animation_scale_uniform_only'))
+        elseif resolvedAuthoringMethod~='lbs' then
+            tImGui.TextDisabled(tLang.L('swl_animation_scale_requires_lbs'))
         end
         state.animationAutoKey=tImGui.Checkbox(
             tLang.L('swl_animation_auto_key')..'##swlAnimationAutoKey',state.animationAutoKey)
@@ -4340,7 +4510,9 @@ local function showSkeletalAnimationInspection()
             tImGui.TextColored({r=1,g=0.75,b=0.15,a=1},
                 tLang.L('swl_animation_temporary_pose'))
             local rotationOverride=state.authoringOverride.channelMask==2
-            if tImGui.Button(tLang.L(rotationOverride and
+            local scaleOverride=state.authoringOverride.channelMask==4
+            if tImGui.Button(tLang.L(scaleOverride and
+                    'swl_animation_commit_scale_key' or rotationOverride and
                     'swl_animation_commit_rotation_key' or
                     'swl_animation_commit_translation_key')..'##swlCommitAuthoringKey') then
                 commitAuthoringOverride()
@@ -5403,6 +5575,25 @@ function onTouchDown(key, x, y)
                 return
             end
         end
+        local scaleAxisName=hitTestScaleAxis(x,y)
+        if scaleAxisName and state.authoringPose and
+                state.authoringPose.bones[state.boneIndex] then
+            if state.animationPlayback.playing then state.animationPlayback.paused=true end
+            local axis=state.scaleGizmo.axesLocal[scaleAxisName]
+            local parameter=rayAxisParameter(x,y,state.scaleGizmo.origin,axis)
+            local posed=state.authoringPose.bones[state.boneIndex]
+            if parameter and posed then
+                local t,q,s=posed.localTranslation,posed.localRotation,posed.localScale
+                state.scaleGizmo.drag={axisName=scaleAxisName,axis=axis,
+                    startParameter=parameter,length=state.scaleGizmo.length,
+                    origin={x=state.scaleGizmo.origin.x,y=state.scaleGizmo.origin.y,
+                        z=state.scaleGizmo.origin.z},
+                    translation={x=t.x,y=t.y,z=t.z},
+                    rotation={x=q.x,y=q.y,z=q.z,w=q.w},
+                    baseScale={x=s.x,y=s.y,z=s.z},moved=false}
+                return
+            end
+        end
         local selectedBone=hitTestAuthoringBone(x,y)
         if selectedBone then
             state.boneIndex=selectedBone
@@ -5434,6 +5625,7 @@ end
 function onTouchMove(key, x, y)
     local drag=state.translationGizmo.drag
     local rotationDrag=state.rotationGizmo.drag
+    local scaleDrag=state.scaleGizmo.drag
     local boneDrag=state.boneEditorDrag
     if state.workspace=='bone_editor' and boneDrag then
         local screenDx,screenDy=x-boneDrag.startX,y-boneDrag.startY
@@ -5570,6 +5762,26 @@ function onTouchMove(key, x, y)
                 end
             end
         end
+    elseif state.workspace=='animation' and scaleDrag and state.scaleGizmo.origin then
+        local parameter=rayAxisParameter(x,y,scaleDrag.origin,scaleDrag.axis)
+        if parameter then
+            local factor=math.max(0.001,
+                1+(parameter-scaleDrag.startParameter)/math.max(scaleDrag.length,0.0001))
+            local scale={x=scaleDrag.baseScale.x,y=scaleDrag.baseScale.y,
+                z=scaleDrag.baseScale.z}
+            if scaleDrag.axisName=='uniform' then
+                scale.x=scaleDrag.baseScale.x*factor
+                scale.y=scaleDrag.baseScale.y*factor
+                scale.z=scaleDrag.baseScale.z*factor
+            else
+                scale[scaleDrag.axisName]=scaleDrag.baseScale[scaleDrag.axisName]*factor
+            end
+            state.authoringOverride={clipIndex=state.animationClipSelected,
+                time=state.authoringTime,boneIndex=state.boneIndex,channelMask=4,
+                translation=scaleDrag.translation,rotation=scaleDrag.rotation,scale=scale}
+            invalidateAuthoringPose()
+            if refreshAuthoringPose(state.authoringActiveClip) then scaleDrag.moved=true end
+        end
     elseif state.workspace=='animation' and drag and state.translationGizmo.origin then
         local parameter=rayAxisParameter(x,y,drag.origin,drag.axis)
         if parameter then
@@ -5617,7 +5829,8 @@ function onTouchUp(key, x, y)
         local boneDrag=state.boneEditorDrag
         local completedAuthoringDrag=(state.translationGizmo.drag and
             state.translationGizmo.drag.moved) or (state.rotationGizmo.drag and
-            state.rotationGizmo.drag.moved)
+            state.rotationGizmo.drag.moved) or (state.scaleGizmo.drag and
+            state.scaleGizmo.drag.moved)
         local completedBoneDrag=boneDrag and boneDrag.moved
         if boneDrag then
             if boneDrag.moved then
@@ -5650,6 +5863,7 @@ function onTouchUp(key, x, y)
         end
         state.translationGizmo.drag=nil
         state.rotationGizmo.drag=nil
+        state.scaleGizmo.drag=nil
         mouseDown = false
         state.aabbDragging = false
         state.aabbDragPlane = nil

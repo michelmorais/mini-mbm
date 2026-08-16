@@ -378,6 +378,27 @@ relative timing. Insert/duplicate/remove actions inherit snap through the positi
 all mutations retain canonical collision and bounds validation.
 Preset buttons for 24, 25, 30, 50, and 60 FPS set the interval to the exact reciprocal of the chosen
 rate and enable snap immediately. The numeric field remains available for arbitrary intervals.
+The ruler chooses major divisions adaptively from the `1/2/5 x 10^n` family using the current
+visible duration and pixel width. Labels increase decimal precision as the step shrinks, major grid
+lines span the track canvas, and a hard tick cap protects the frame loop from pathological ranges.
+Animation pose tools now expose Move, Rotate, and Scale. The current GLES2 Scale tool draws one
+yellow bone-local diagonal handle and changes X/Y/Z by the same strictly positive factor, evaluating
+the temporary in-memory pose continuously. With Auto Key disabled,
+the result remains temporary until explicitly committed as channel `S`; with Auto Key enabled, mouse
+release commits only scale through the shared snapshot/rollback transaction. DQS incompatibility is
+still reported by the existing runtime method contract rather than silently changing skinning mode.
+The yellow diagonal Scale handle applies one positive factor to all three local scale components,
+preserving their existing proportions. Per-axis scale handles are intentionally unavailable: compact
+GLES2 LBS palettes do not carry inverse-transpose normal matrices, while rigid DQS rejects scale.
+Non-uniform X/Y/Z scale remains reserved for a later non-compact normal-palette/shader contract.
+The Scale tool is enabled from the preview's resolved method, not merely its requested method. Forced
+DQS and Auto resolving to DQS disable Scale; forced LBS and Auto resolving to LBS enable its uniform
+handle. Changing to an incompatible method while Scale is selected returns the tool to Move.
+Animation also exposes its own **Authoring preview method** selector for Auto, LBS, or DQS and reports
+the resolved method. Switching serializes the current unsaved canonical asset to a temporary file,
+rebuilds the immutable-method preview from that snapshot, then removes the file; unsaved skeleton,
+weights, and animation edits are therefore retained. Scaled clips can explicitly select LBS instead
+of first visiting Runtime Skeletal Preview.
 The timeline window receives its panel-relative bottom position and remaining width only on first
 appearance; afterward it is freely movable and resizable by the user.
 Timeline authoring playback advances `authoringTime` through the same in-memory pose evaluator used

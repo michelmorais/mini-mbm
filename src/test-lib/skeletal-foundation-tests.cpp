@@ -1198,6 +1198,12 @@ namespace
                    std::fabs(palette[15] - 3.0f) <= MATRIX_TOLERANCE,
                "GPU LBS palette must pack row-vector translation for the shader dot decoder");
 
+        movedChild.scale = VEC3(2, 2, 2);
+        pose.globalTransforms[1] = buildTrsMatrix(movedChild);
+        expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
+                   GLES2_LBS_PALETTE_STATUS::READY && palette.size() == 24,
+               "compact GPU LBS normal palette must accept uniform scale");
+
         movedChild.scale = VEC3(2, 1, 1);
         pose.globalTransforms[1] = buildTrsMatrix(movedChild);
         expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
