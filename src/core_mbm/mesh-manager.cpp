@@ -5052,6 +5052,61 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::removeSkeletalTimeRange(const uint32_t clipIndex,
+                                                  const float startTime,
+                                                  const float duration,
+                                                  uint32_t *removedKeyCountOut,
+                                                  char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (removedKeyCountOut) *removedKeyCountOut=0;
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(startTime) || startTime<0.0f || startTime>=sourceClip.duration)
+            return fail("canonical time removal must begin inside the clip duration");
+        if (!std::isfinite(duration) || duration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical time-removal duration must be positive and finite");
+        const float endTime=std::min(sourceClip.duration,startTime+duration);
+        const float removedDuration=endTime-startTime;
+        if (!std::isfinite(endTime) || removedDuration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical time-removal interval must have a positive duration");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        uint32_t removedKeyCount=0;
+        for (skeletal::SKELETAL_TRACK &track:clip.tracks)
+        {
+            const size_t oldSize=track.keys.size();
+            track.keys.erase(std::remove_if(track.keys.begin(),track.keys.end(),
+                [startTime,endTime](const skeletal::SKELETAL_KEY &key)
+                {
+                    return key.time+skeletal::KEY_TIME_TOLERANCE>=startTime &&
+                           key.time<endTime-skeletal::KEY_TIME_TOLERANCE;
+                }),track.keys.end());
+            removedKeyCount+=static_cast<uint32_t>(oldSize-track.keys.size());
+            if (track.keys.empty())
+                return fail("canonical time removal would leave a track without keys");
+            for (skeletal::SKELETAL_KEY &key:track.keys)
+            {
+                if (key.time+skeletal::KEY_TIME_TOLERANCE>=endTime)
+                    key.time-=removedDuration;
+            }
+        }
+        clip.duration-=removedDuration;
+        if (!std::isfinite(clip.duration) || clip.duration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical time removal would leave an invalid clip duration");
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("time-removed canonical keys would collide or be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        if (removedKeyCountOut) *removedKeyCountOut=removedKeyCount;
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::commitSkeletalAuthoringKey(const uint32_t clipIndex,
                                                      const uint32_t boneIndex,
                                                      const float time,

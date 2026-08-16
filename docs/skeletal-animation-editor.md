@@ -352,6 +352,12 @@ canonical numerical separation required to remain distinct. Invalid candidates a
 **Insert empty time at playhead** creates a gap of the requested duration without copying or creating
 keys. Every key at or after the playhead moves by the same amount across all tracks, and the clip
 duration grows equally. The operation produces one rollback entry.
+The timeline can also preview a future **time removal** interval beginning at the playhead. A shaded
+range and impact summary report its effective bounds, keys that would be deleted, and tracks that
+would become empty. This stage is deliberately non-mutating; canonical tracks with no surviving key
+are identified as blockers before transactional removal is enabled. After explicit confirmation,
+**Remove interval** deletes keys in the semi-open range, shifts later keys left, shrinks the clip,
+and creates one rollback entry. Confirmation is invalidated whenever the playhead or duration changes.
 The detached canonical clip/track/key report is cached while the asset is unchanged. Skeleton or
 animation mutation invalidates it through the shared bind/report refresh boundary. This avoids
 rebuilding and garbage-collecting the complete nested Lua report every frame while Animation is idle.

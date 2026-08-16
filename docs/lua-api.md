@@ -1573,6 +1573,8 @@ meshD:duplicateSkeletalKeys(oneBasedClipIndex,
 meshD:insertSkeletalKeysRipple(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, insertionTime)
 meshD:insertSkeletalEmptyTime(oneBasedClipIndex, insertionTime, duration)
+local removedKeyCount = meshD:removeSkeletalTimeRange(
+    oneBasedClipIndex, startTime, duration)
 ```
 
 Insertion requires a unique time inside the clip, samples the current canonical clip first, and
@@ -1597,6 +1599,10 @@ invalid results, and collisions reject the entire candidate atomically.
 `insertSkeletalEmptyTime` creates no keys. It grows the clip by the positive finite `duration` and
 shifts every existing key at or after `insertionTime` by exactly that duration across every track.
 The complete result validates and commits atomically.
+`removeSkeletalTimeRange` removes keys in the semi-open interval `[startTime, endTime)`, where the
+end is clamped to the current clip duration. Surviving keys at or after the end shift left by the
+effective removed duration and the clip shrinks equally. It returns the number of deleted keys and
+rejects atomically if any track would become empty or the resulting canonical clip would be invalid.
 
 ### 15.1 Articulated-animation authoring
 

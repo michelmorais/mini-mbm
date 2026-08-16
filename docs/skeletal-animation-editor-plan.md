@@ -489,6 +489,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.47 | 2026-08-16 | Normalized unsupported typographic glyphs in editor-visible strings to ASCII-safe equivalents. Time ranges now use ` - `, angles use `deg`, truncated bone labels use `...`, and the shared language catalog no longer exposes risky dash, multiplication, or arrow glyphs. |
+| 7.46 | 2026-08-16 | Completed transactional time-range removal. Explicit confirmation is tied to the currently previewed interval; mutation deletes keys in `[start,end)`, shifts later keys left, shrinks duration, returns the deletion count, blocks empty tracks, validates once, and creates one rollback entry. |
+| 7.45 | 2026-08-16 | Began safe time removal with a non-mutating playhead-relative interval preview. The timeline shades the effective range and reports keys to delete plus canonical tracks that would become empty, establishing blockers before transactional removal is exposed. |
 | 7.44 | 2026-08-16 | Added atomic empty-time insertion at the playhead with an editor duration control. It creates no keys, grows the clip, shifts every key at or after the insertion point across all tracks by the same duration, and commits through one rollback entry. |
 | 7.43 | 2026-08-16 | Added atomic ripple insertion at the playhead. It grows the clip to open the selected time span across every track, shifts later keys with canonical endpoint separation, inserts complete selected payloads with relative timing intact, and rejects invalid candidates without partial mutation. |
 | 7.42 | 2026-08-16 | Added atomic Duplicate at playhead for timeline selection. The earliest selected key aligns to the playhead, relative spacing/tracks/full payloads are preserved, and a candidate-copy backend insertion sorts affected tracks and rejects duplicate references, bounds errors, or collisions without partial copies. |

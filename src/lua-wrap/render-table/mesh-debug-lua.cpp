@@ -2990,6 +2990,22 @@ namespace mbm
         return 1;
     }
 
+    int onRemoveSkeletalTimeRangeDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        const float startTime=static_cast<float>(luaL_checknumber(lua,3));
+        const float duration=static_cast<float>(luaL_checknumber(lua,4));
+        uint32_t removedKeyCount=0;
+        char errorOut[255]="";
+        if (!meshDebug->mesh.removeSkeletalTimeRange(static_cast<uint32_t>(clip-1),startTime,
+                duration,&removedKeyCount,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushinteger(lua,static_cast<lua_Integer>(removedKeyCount));
+        return 1;
+    }
+
     int onEvaluateSkeletalAuthoringPoseDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3231,6 +3247,7 @@ namespace mbm
                                           {"duplicateSkeletalKeys", onDuplicateSkeletalKeysDebugLua},
                                           {"insertSkeletalKeysRipple", onInsertSkeletalKeysRippleDebugLua},
                                           {"insertSkeletalEmptyTime", onInsertSkeletalEmptyTimeDebugLua},
+                                          {"removeSkeletalTimeRange", onRemoveSkeletalTimeRangeDebugLua},
                                           {"evaluateSkeletalAuthoringPose", onEvaluateSkeletalAuthoringPoseDebugLua},
                                           {"commitSkeletalAuthoringKey", onCommitSkeletalAuthoringKeyDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},

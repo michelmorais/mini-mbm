@@ -801,6 +801,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.52 | 2026-08-16 | Editor-visible typographic glyphs unsupported by the current ImGui font atlas were replaced by ASCII-safe range, angle, truncation, multiplication, arrow, and separator text. |
+| 8.51 | 2026-08-16 | Timeline completes confirmed atomic time removal: keys in the previewed semi-open interval are deleted, later content shifts left, clip duration shrinks, empty-track results are blocked, and confirmation expires when interval identity changes. |
+| 8.50 | 2026-08-16 | Timeline begins safe time removal with a shaded non-mutating interval and an impact report for deleted keys and tracks that would become empty; mutation remains blocked pending explicit confirmation semantics. |
 | 8.49 | 2026-08-16 | Timeline adds atomic empty-time insertion: a positive duration grows the clip and shifts all keys at or after the playhead across every track without creating keys, with one editor rollback transaction. |
 | 8.48 | 2026-08-16 | Timeline adds atomic ripple insertion: the clip grows by the selected span, space is opened across all tracks with canonical endpoint separation, later keys shift together, copies preserve tracks/payloads/relative timing, and invalid candidates do not mutate the clip. |
 | 8.33 | 2026-08-15 | Rotate mode now draws a fixed-head orbit guide at the preserved visual segment length, while joint-radius edits require a strictly positive mesh-relative value and reject zero atomically. |

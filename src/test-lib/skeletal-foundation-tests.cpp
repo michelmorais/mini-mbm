@@ -744,6 +744,7 @@ namespace
         const uint32_t duplicateCollisionKey[1]={1};
         const uint32_t rippleKeys[2]={0,1};
         uint32_t rippleExtraIndex=0;
+        uint32_t removedRangeKeys=0;
         expect(clipEditMesh.commitSkeletalAuthoringKey(editedClipIndex,0,1.0f,
                    SKELETAL_CHANNEL_TRANSLATION,committedLocal,&createdAuthoringKey,error,sizeof(error)-1) &&
                    createdAuthoringKey &&
@@ -778,8 +779,12 @@ namespace
                    editedClip.duration>7.75f && editedClip.duration<7.751f &&
                    clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,2,bindSeedKey) &&
                    std::fabs(bindSeedKey.time-2.75f)<=MATRIX_TOLERANCE &&
-                   clipEditMesh.moveSkeletalKeys(editedClipIndex,collisionTrack,collisionKey,1,-0.5f,
-                       error,sizeof(error)-1) &&
+                   clipEditMesh.removeSkeletalTimeRange(editedClipIndex,2.0f,0.5f,
+                       &removedRangeKeys,error,sizeof(error)-1) && removedRangeKeys==0 &&
+                   clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,2,bindSeedKey) &&
+                   std::fabs(bindSeedKey.time-2.25f)<=MATRIX_TOLERANCE &&
+                   !clipEditMesh.removeSkeletalTimeRange(editedClipIndex,0.0f,3.0f,
+                       &removedRangeKeys,error,sizeof(error)-1) &&
                    clipEditMesh.updateSkeletalClip(editedClipIndex,"idle-loop",3.0f,true,
                        error,sizeof(error)-1) &&
                    clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,1,committedLocal) &&

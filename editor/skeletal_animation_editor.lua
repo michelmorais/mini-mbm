@@ -59,6 +59,11 @@ local state = {
     animationTimelineBox = nil,
     animationTimelineClip = nil,
     animationTimelineEmptyDuration = 0.1,
+    animationTimelineRemovalDuration = 0.1,
+    animationTimelineRemovalPreview = false,
+    animationTimelineRemovalConfirmed = false,
+    animationTimelineRemovalConfirmedStart = nil,
+    animationTimelineRemovalConfirmedDuration = nil,
     animationReport = nil,
     animationPlayback = {playing=false,paused=false,speed=1},
     leftPanelRight = 440,
@@ -3628,6 +3633,28 @@ local function collectTimelineSelection(clip)
     return references,minimumTime,maximumTime
 end
 
+local function timelineRemovalImpact(clip)
+    local startTime=math.max(0,math.min(clip.duration or 0,state.authoringTime or 0))
+    local endTime=math.min(clip.duration or 0,
+        startTime+math.max(0,state.animationTimelineRemovalDuration or 0))
+    local removedKeys,emptyTracks=0,0
+    for _,track in ipairs(clip.tracks or {}) do
+        local trackRemoved=0
+        for _,key in ipairs(track.keys or {}) do
+            local time=key.time or 0
+            if time+1e-6>=startTime and time<endTime-1e-6 then
+                trackRemoved=trackRemoved+1
+            end
+        end
+        removedKeys=removedKeys+trackRemoved
+        if trackRemoved>0 and trackRemoved==#(track.keys or {}) then
+            emptyTracks=emptyTracks+1
+        end
+    end
+    return {startTime=startTime,endTime=endTime,duration=endTime-startTime,
+        removedKeys=removedKeys,emptyTracks=emptyTracks}
+end
+
 local function commitTimelineKeyDrag(drag)
     if not drag or not drag.moved or drag.invalid then return false end
     local snapshot=stageRollbackSnapshot()
@@ -3741,7 +3768,7 @@ local function showSkeletalTimeline(clip)
                 {x=maximum.x,y=y+rowHeight*0.5},{r=0.08,g=0.09,b=0.115,a=1},0,0)
         end
         local label=(track.boneName or '?')..' ['..skeletalChannelLabel(track.channelMask or 0)..']'
-        if #label>30 then label=label:sub(1,29)..'…' end
+        if #label>30 then label=label:sub(1,27)..'...' end
         tImGui.AddText({x=minimum.x+4,y=y-7},{r=0.8,g=0.82,b=0.88,a=1},label)
         tImGui.AddLine({x=x0,y=y},{x=x1,y=y},{r=0.22,g=0.24,b=0.3,a=1},1)
         markerPositions[trackIndex]={}
@@ -3761,6 +3788,19 @@ local function showSkeletalTimeline(clip)
                     {r=0.75,g=0.35,b=0.9,a=1},12)
             end
             markerPositions[trackIndex][keyIndex]={x=kx,y=y,key=key,track=track}
+        end
+    end
+    if state.animationTimelineRemovalPreview then
+        local impact=timelineRemovalImpact(clip)
+        local rangeX0=x0+timelineWidth*impact.startTime/duration
+        local rangeX1=x0+timelineWidth*impact.endTime/duration
+        if rangeX1>rangeX0 then
+            tImGui.AddRectFilled({x=rangeX0,y=minimum.y},{x=rangeX1,y=maximum.y},
+                {r=1,g=0.25,b=0.12,a=0.16},0,0)
+            tImGui.AddLine({x=rangeX0,y=minimum.y},{x=rangeX0,y=maximum.y},
+                {r=1,g=0.45,b=0.2,a=0.9},1.5)
+            tImGui.AddLine({x=rangeX1,y=minimum.y},{x=rangeX1,y=maximum.y},
+                {r=1,g=0.45,b=0.2,a=0.9},1.5)
         end
     end
     for _,draggedMarker in ipairs(draggedMarkers) do
@@ -3970,6 +4010,70 @@ local function showSkeletalTimelineWindow()
             elseif snapshot then discardRollbackSnapshot(snapshot) end
         end
         tImGui.EndDisabled()
+        local removalPreview=tImGui.Checkbox(
+            tLang.L('swl_animation_timeline_preview_removal'),
+            state.animationTimelineRemovalPreview)
+        if removalPreview~=state.animationTimelineRemovalPreview then
+            state.animationTimelineRemovalPreview=removalPreview
+            state.animationTimelineRemovalConfirmed=false
+        end
+        tImGui.SameLine()
+        tImGui.PushItemWidth(110)
+        local removalChanged,removalDuration=tImGui.DragFloat(
+            tLang.L('swl_animation_timeline_removal_duration')..'##swlTimelineRemovalDuration',
+            state.animationTimelineRemovalDuration,0.01,0.001,60,'%.3f s')
+        tImGui.PopItemWidth()
+        if removalChanged then
+            state.animationTimelineRemovalDuration=math.max(0.001,math.min(60,removalDuration))
+            state.animationTimelineRemovalConfirmed=false
+        end
+        if state.animationTimelineRemovalPreview then
+            local impact=timelineRemovalImpact(state.animationTimelineClip)
+            if state.animationTimelineRemovalConfirmed and
+                    (math.abs((state.animationTimelineRemovalConfirmedStart or -1)-
+                        impact.startTime)>1e-6 or
+                     math.abs((state.animationTimelineRemovalConfirmedDuration or -1)-
+                        impact.duration)>1e-6) then
+                state.animationTimelineRemovalConfirmed=false
+            end
+            tImGui.TextColored(impact.emptyTracks>0 and {r=1,g=0.4,b=0.2,a=1} or
+                    {r=1,g=0.75,b=0.2,a=1},string.format(
+                tLang.L('swl_animation_timeline_removal_impact_fmt'),impact.startTime,
+                impact.endTime,impact.removedKeys,impact.emptyTracks))
+            if impact.emptyTracks>0 then
+                tImGui.TextWrapped(tLang.L('swl_animation_timeline_removal_blocked_tracks'))
+            end
+            local confirmed=tImGui.Checkbox(
+                tLang.L('swl_animation_timeline_confirm_removal'),
+                state.animationTimelineRemovalConfirmed)
+            if confirmed~=state.animationTimelineRemovalConfirmed then
+                state.animationTimelineRemovalConfirmed=confirmed
+                state.animationTimelineRemovalConfirmedStart=confirmed and impact.startTime or nil
+                state.animationTimelineRemovalConfirmedDuration=confirmed and impact.duration or nil
+            end
+            tImGui.SameLine()
+            local removalBlocked=not state.animationTimelineRemovalConfirmed or
+                impact.duration<=1e-6 or impact.emptyTracks>0
+            tImGui.BeginDisabled(removalBlocked)
+            if tImGui.Button(tLang.L('swl_animation_timeline_remove_interval')..
+                    '##swlTimelineRemoveInterval') then
+                local snapshot=stageRollbackSnapshot()
+                local removed=snapshot and select(2,safeCall(function()
+                    return state.meshD:removeSkeletalTimeRange(state.animationClipSelected,
+                        impact.startTime,impact.duration)
+                end)) or nil
+                if removed~=nil then
+                    commitRollbackSnapshot(snapshot)
+                    state.modified=true
+                    state.animationTimelineRemovalConfirmed=false
+                    clearAuthoringOverride()
+                    setStatus(string.format(tLang.L(
+                        'swl_animation_timeline_interval_removed_fmt'),
+                        impact.duration,removed),false)
+                elseif snapshot then discardRollbackSnapshot(snapshot) end
+            end
+            tImGui.EndDisabled()
+        end
         tImGui.TextDisabled(tLang.L('swl_animation_timeline_box_help'))
         if tImGui.Button(tLang.L('swl_play_restart')..'##swlTimelinePlay') then
             playback.playing=true; playback.paused=false; state.authoringTime=0

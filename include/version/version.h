@@ -267,6 +267,9 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.36.1 Replaced editor-visible typographic glyphs unsupported by the current ImGui font atlas with ASCII-safe equivalents.
+    7.36.0 Timeline completes confirmed atomic time-range removal, deleting interval keys, shifting later content left, shrinking the clip, and blocking empty-track results.
+    7.35.0 Timeline begins safe time removal with a shaded non-mutating interval and impact reporting for deleted keys and tracks that would become empty.
     7.34.0 Timeline adds atomic empty-time insertion at the playhead, growing the clip and shifting all later keys across every track without creating keys.
     7.33.0 Timeline adds atomic ripple insertion at the playhead, growing the clip and shifting all later content by the selected span before inserting complete copies.
     7.32.0 Timeline adds atomic Duplicate at playhead, aligning the earliest selected key while preserving tracks, relative timing, and complete payloads with all-or-nothing collision/bounds validation.
@@ -356,7 +359,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.34.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.36.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
