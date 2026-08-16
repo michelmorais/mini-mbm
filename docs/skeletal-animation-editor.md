@@ -372,6 +372,10 @@ framing.
 When keys are selected, **Fit selection** frames their minimum/maximum times with ten-percent padding
 on each side. A selection confined to one time column receives a small centered range instead of a
 zero-width view. Both framing actions preserve the canonical clip and selection.
+**Time snap** optionally quantizes timeline seeking and the dragged selection anchor to a positive
+configurable interval (default `1/30 s`). Group key movement still uses one shared delta, preserving
+relative timing. Insert/duplicate/remove actions inherit snap through the positioned playhead, while
+all mutations retain canonical collision and bounds validation.
 The timeline window receives its panel-relative bottom position and remaining width only on first
 appearance; afterward it is freely movable and resizable by the user.
 Timeline authoring playback advances `authoringTime` through the same in-memory pose evaluator used

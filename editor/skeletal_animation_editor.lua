@@ -68,6 +68,8 @@ local state = {
     animationTimelineViewEnd = nil,
     animationTimelineViewClipId = nil,
     animationTimelinePan = nil,
+    animationTimelineSnapEnabled = false,
+    animationTimelineSnapStep = 1/30,
     animationReport = nil,
     animationPlayback = {playing=false,paused=false,speed=1},
     leftPanelRight = 440,
@@ -3659,6 +3661,16 @@ local function timelineRemovalImpact(clip)
         removedKeys=removedKeys,emptyTracks=emptyTracks}
 end
 
+local function snapTimelineTime(time,duration)
+    local value=math.max(0,math.min(duration or time,time or 0))
+    local step=state.animationTimelineSnapStep or 0
+    if state.animationTimelineSnapEnabled and step>1e-6 then
+        value=math.floor(value/step+0.5)*step
+        value=math.max(0,math.min(duration or value,value))
+    end
+    return value
+end
+
 local function commitTimelineKeyDrag(drag)
     if not drag or not drag.moved or drag.invalid then return false end
     local snapshot=stageRollbackSnapshot()
@@ -3767,7 +3779,7 @@ local function showSkeletalTimeline(clip)
     end
     if activeDrag and tImGui.IsMouseDown(0) then
         local mouse=tImGui.GetMousePos()
-        local requestedTime=xToTime(mouse.x)
+        local requestedTime=snapTimelineTime(xToTime(mouse.x),duration)
         activeDrag.delta=math.max(-activeDrag.minimumTime,
             math.min(duration-activeDrag.maximumTime,requestedTime-activeDrag.anchorTime))
         activeDrag.previewTime=activeDrag.anchorTime+activeDrag.delta
@@ -3962,7 +3974,7 @@ local function showSkeletalTimeline(clip)
             state.animationTimelineSelection=selectionBox.additive and
                 state.animationTimelineSelection or {}
             state.animationTimelineTrackIndex=nil; state.animationTimelineKeyIndex=nil
-            state.authoringTime=math.max(0,math.min(duration,xToTime(selectionBox.startX)))
+            state.authoringTime=snapTimelineTime(xToTime(selectionBox.startX),duration)
             clearAuthoringOverride()
             refreshAuthoringPose(clip)
         end
@@ -4180,6 +4192,20 @@ local function showSkeletalTimelineWindow()
                 state.animationTimelineViewEnd=panStart+visibleDuration
                 state.animationTimelinePan=nil
             end
+        end
+        local snapEnabled=tImGui.Checkbox(tLang.L('swl_animation_timeline_snap'),
+            state.animationTimelineSnapEnabled)
+        if snapEnabled~=state.animationTimelineSnapEnabled then
+            state.animationTimelineSnapEnabled=snapEnabled
+        end
+        tImGui.SameLine()
+        tImGui.PushItemWidth(120)
+        local snapChanged,snapStep=tImGui.DragFloat(
+            tLang.L('swl_animation_timeline_snap_step')..'##swlTimelineSnapStep',
+            state.animationTimelineSnapStep,0.001,0.000001,10,'%.6f s')
+        tImGui.PopItemWidth()
+        if snapChanged then
+            state.animationTimelineSnapStep=math.max(0.000001,math.min(10,snapStep))
         end
         tImGui.TextDisabled(tLang.L('swl_animation_timeline_navigation_help'))
         tImGui.TextDisabled(tLang.L('swl_animation_timeline_box_help'))
