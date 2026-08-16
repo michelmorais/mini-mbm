@@ -86,6 +86,13 @@ area below 25 percent or rotate the face normal by roughly 87 degrees or more, a
 search reduces the complete batch until all sampled faces remain safe. The result reports the applied
 pose-safety scale and how many unsafe face samples the unrestricted candidate would have produced.
 
+The repair also closes indexed topology seams without welding render data. Vertices are considered
+seam copies only when their bind positions match within a mesh-extent-relative tolerance and their
+separate triangle neighborhoods contain a matching geometric neighbor. This excludes merely
+overlapping surfaces. Copies whose original weight vectors already agree receive one shared repair
+candidate and are written atomically with identical weights. Pre-existing weight conflicts are left
+unchanged and reported rather than silently forcing an ambiguous merge.
+
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight
 heatmap, hide or show the skeleton independently, adjust radius, strength, and linear/smooth
@@ -826,7 +833,8 @@ The following are not defects in the delivered Skin Weight Lab:
   worktree instead displays the evaluated in-memory pose skeleton;
 - no protected/exclusion volumes;
 - no topology-ring selection expansion;
-- no welded/coincident-vertex adjacency across seams;
+- abrupt-transition classification still follows stored triangle indices rather than adding welded
+  diagnostic edges; its repair separately synchronizes compatible connected coincident copies;
 - no automatic heavy whole-mesh weight generation;
 - no custom-tail animation generation;
 - no multi-clip composition yet: priority, layer weight, fade, Absolute/Additive evaluation,

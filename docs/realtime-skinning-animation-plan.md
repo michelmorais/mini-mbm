@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.01**
+Document version: **9.02**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.02 | 2026-08-16 | Added topology-seam preservation to abrupt-transition repair. Mesh-scale coincident vertices are grouped only when their independent triangle neighborhoods share geometry; compatible copies receive one identical atomic weight candidate, while pre-existing weight conflicts remain unchanged and are reported. |
 | 9.01 | 2026-08-16 | Added pose-aware surface preservation to abrupt-transition repair. Five deterministic LBS clip samples test incident triangles for severe area loss or orientation reversal; an unsafe batch is reduced by binary search and reports its final safety scale plus avoided face samples. |
 | 9.00 | 2026-08-16 | Bounded abrupt-transition repair independently of strength and iterations. Final per-vertex half-L1 change is capped, candidate bone names cannot propagate beyond the original one-ring neighborhood, and the GUI previews the affected-vertex upper bound and safety cap. |
 | 8.99 | 2026-08-16 | Closed Paint Weights persistence acceptance at the shared atomic canonical batch boundary. Save/reload now verifies every occupied and empty slot, bone name, ordering, and value for separate four-influence and two-influence edited vertices. |

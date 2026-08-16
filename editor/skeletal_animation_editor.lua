@@ -203,6 +203,7 @@ local state = {
         abruptRepairMaxChange=0.2,
         distributionStats=nil,weakStats=nil,abruptStats=nil,stroke=nil},
     topologyAdjacency = nil,
+    coincidentSeams = nil,
     meshBounds = nil,
     aabbDragging = false,
     aabbDragPlane = nil,
@@ -2598,6 +2599,7 @@ local function loadMesh(path)
     state.allowedBonesHighlight=false
     state.hoveredAllowedBone=nil
     state.topologyAdjacency=nil
+    state.coincidentSeams=nil
     state.paint.geometry=nil
     state.paint.boneIndex=1
     state.paint.boneId=nil
@@ -3134,6 +3136,99 @@ buildTopologyAdjacency=function()
     return adjacency
 end
 
+local function buildCoincidentSeams(adjacency)
+    if state.coincidentSeams then return state.coincidentSeams end
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return {groups={},byVertex={}} end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local tolerance=math.max(extent*1e-6,1e-7)
+    local function cell(point)
+        return math.floor(point.x/tolerance),math.floor(point.y/tolerance),
+            math.floor(point.z/tolerance)
+    end
+    local function cellKey(x,y,z) return x..':'..y..':'..z end
+    local parent,buckets={},{ }
+    local function root(index)
+        local value=parent[index] or index
+        while value~=(parent[value] or value) do value=parent[value] end
+        while index~=(parent[index] or index) do
+            local nextIndex=parent[index]; parent[index]=value; index=nextIndex
+        end
+        return value
+    end
+    local function unite(left,right)
+        left,right=root(left),root(right)
+        if left~=right then parent[right]=left end
+    end
+    for _,vertex in ipairs(cache.vertices) do
+        local index=vertex.globalIndex
+        parent[index]=index
+        local x,y,z=cell(vertex.point)
+        for dx=-1,1 do for dy=-1,1 do for dz=-1,1 do
+            for _,other in ipairs(buckets[cellKey(x+dx,y+dy,z+dz)] or {}) do
+                local point=cache.vertices[other].point
+                local px,py,pz=point.x-vertex.point.x,point.y-vertex.point.y,
+                    point.z-vertex.point.z
+                if px*px+py*py+pz*pz<=tolerance*tolerance then unite(index,other) end
+            end
+        end end end
+        local key=cellKey(x,y,z)
+        buckets[key]=buckets[key] or {}; buckets[key][#buckets[key]+1]=index
+    end
+    local coincident={}
+    for _,vertex in ipairs(cache.vertices) do
+        local key=root(vertex.globalIndex)
+        coincident[key]=coincident[key] or {}
+        coincident[key][#coincident[key]+1]=vertex.globalIndex
+    end
+    local function sharesGeometricNeighbor(left,right)
+        for leftNeighbor in pairs(adjacency[left] or {}) do
+            local leftVertex=cache.vertices[leftNeighbor]
+            for rightNeighbor in pairs(adjacency[right] or {}) do
+                local rightVertex=cache.vertices[rightNeighbor]
+                if leftVertex and rightVertex then
+                    local x=leftVertex.point.x-rightVertex.point.x
+                    local y=leftVertex.point.y-rightVertex.point.y
+                    local z=leftVertex.point.z-rightVertex.point.z
+                    if x*x+y*y+z*z<=tolerance*tolerance then return true end
+                end
+            end
+        end
+        return false
+    end
+    local groups,byVertex={},{}
+    for _,bucket in pairs(coincident) do
+        local remaining={}
+        for _,index in ipairs(bucket) do remaining[index]=true end
+        while next(remaining) do
+            local seed=next(remaining)
+            local accepted,queue={seed},{seed}; remaining[seed]=nil
+            local position=1
+            while position<=#queue do
+                local member=queue[position]; position=position+1
+                local additions={}
+                for candidate in pairs(remaining) do
+                    if sharesGeometricNeighbor(member,candidate) then
+                        additions[#additions+1]=candidate
+                    end
+                end
+                for _,candidate in ipairs(additions) do
+                    remaining[candidate]=nil
+                    accepted[#accepted+1]=candidate; queue[#queue+1]=candidate
+                end
+            end
+            if #accepted>1 then
+                groups[#groups+1]=accepted
+                for _,index in ipairs(accepted) do byVertex[index]=accepted end
+            end
+        end
+    end
+    state.coincidentSeams={groups=groups,byVertex=byVertex,tolerance=tolerance}
+    return state.coincidentSeams
+end
+
 local function influenceDistance(a,b)
     local names={}
     for name in pairs(a) do names[name]=true end
@@ -3347,6 +3442,44 @@ local function repairPaintAbruptTransitions()
         maximumAppliedChange=math.max(maximumAppliedChange,appliedChange)
         if appliedChange>1e-7 then candidateMaps[index]=constrained end
     end
+    local seams=buildCoincidentSeams(adjacency)
+    local synchronizedSeams,conflictingSeams=0,0
+    for _,group in ipairs(seams.groups) do
+        local touched=false
+        for _,index in ipairs(group) do
+            if candidateMaps[index] then touched=true break end
+        end
+        if touched then
+            local compatible=true
+            local base=original[group[1]] or readInfluenceMap(group[1],false)
+            for _,index in ipairs(group) do
+                original[index]=original[index] or readInfluenceMap(index,false)
+                if influenceDistance(base,original[index])>1e-4 then compatible=false end
+            end
+            if compatible then
+                local average,allowed={},{ }
+                for _,index in ipairs(group) do
+                    local source=candidateMaps[index] or original[index]
+                    for name,weight in pairs(source) do
+                        average[name]=(average[name] or 0)+weight/#group
+                        allowed[name]=true
+                    end
+                end
+                local common=select(1,constrainedRepairWeights(base,average,allowed,
+                    state.paint.abruptRepairMaxChange))
+                for _,index in ipairs(group) do
+                    candidateMaps[index]=common
+                    editable[index]=true
+                end
+                synchronizedSeams=synchronizedSeams+1
+            else
+                conflictingSeams=conflictingSeams+1
+            end
+        end
+    end
+    indices={}
+    for index in pairs(candidateMaps) do indices[#indices+1]=index end
+    table.sort(indices)
     local poseScale,protectedFaces=poseSafeRepairScale(original,candidateMaps,editable)
     local edits={}
     maximumAppliedChange=0
@@ -3404,7 +3537,8 @@ local function repairPaintAbruptTransitions()
     applyWorkspaceVisibility()
     local afterEdges=state.paint.abruptStats and state.paint.abruptStats.edges or 0
     setStatus(string.format(tLang.L('swl_paint_abrupt_repaired_fmt'),#edits,beforeEdges,
-        afterEdges,maximumAppliedChange,poseScale,protectedFaces),false)
+        afterEdges,maximumAppliedChange,poseScale,protectedFaces,synchronizedSeams,
+        conflictingSeams),false)
     return true
 end
 
@@ -3679,6 +3813,8 @@ local function restoreHistoryEntry(entry)
     end
     state.meshD = restored
     clearPaintVisuals()
+    state.topologyAdjacency=nil
+    state.coincidentSeams=nil
     state.paint.geometry=nil
     state.paint.heatmapDirty=true
     state.animationReport=nil
