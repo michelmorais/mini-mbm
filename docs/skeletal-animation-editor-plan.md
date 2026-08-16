@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **7.71**
-Status: **Five active skeletal workflows implemented; Paint Weights reserved; composition deferred**
+Document version: **7.72**
+Status: **Five active skeletal workflows implemented; Paint Weights backend foundation started; composition deferred**
 Last updated: **2026-08-16**
 
 ## 1. Purpose
@@ -40,8 +40,11 @@ top-level worktrees; opening one closes the previous worktree:
 5. **Create / Edit Animations** — active local authoring for clips, bone tracks, keys, easing,
    viewport TRS manipulation, playback, timeline editing, transactional clipboards, and Undo/Redo.
    Multi-clip composition remains explicitly deferred as described in Section 8.
-6. **Paint Weights** — reserved for direct brush-based weight authoring. It is intentionally
-   separate from the region/diagnostic/repair operations owned by Skin Weight Lab.
+6. **Paint Weights** — the intended primary visual weight-authoring workflow, beginning with direct
+   brush interaction and remaining state-isolated from Skin Weight Lab. After Paint/Add and
+   Erase/Subtract are stable, useful Lab operations migrate here under **Weight Tools** and
+   **Repair / Diagnostics**. Skin Weight Lab remains intact as a reference and fallback until the
+   replacement reaches explicit functional parity.
 
 The loaded asset, viewport, camera, status, modified state, and **Show Mesh** control are shared.
 Skeleton visualization is worktree-specific: Bind Pose Contract shows the bind skeleton
@@ -500,6 +503,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.72 | 2026-08-16 | Reframed Paint Weights as the primary visual authoring workflow and eventual successor to the standalone Skin Weight Lab experience. The Lab remains during incremental delivery; its useful batch and diagnostic operations migrate later under Weight Tools / Repair and Diagnostics after brush stability and parity. Began the non-visual foundation with atomic canonical weight batch mutation. |
 | 7.71 | 2026-08-16 | Closed the session with a documentation drift audit. Current-state sections now identify Bone Editor, local animation authoring, timeline, viewport TRS, clipboards, and bounded Undo/Redo as delivered; only Paint Weights remains a reserved worktree, while multi-clip composition remains explicitly deferred. |
 | 7.70 | 2026-08-16 | Marked multi-clip composition/blending as explicit deferred work while development moves to Paint Weights. Priority, weight/fade, Absolute/Additive, masks, persistence boundaries, and composed-pose math remain pending and are not implied by the delivered clip/pose clipboards. |
 | 7.69 | 2026-08-16 | Added complete-skeleton pose copy/paste. A strict batch API requires exactly one stable identity/TRS per bone, creates or extends T+R+S tracks, creates/updates every playhead key on one candidate, and commits with one Undo or rejects all. The editor records source clip/time/count and includes localized tooltips. |

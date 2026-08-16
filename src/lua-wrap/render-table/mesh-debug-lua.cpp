@@ -27,6 +27,7 @@ extern "C"
 #include <map>
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
 #include <lua-wrap/render-table/animation-lua.h>
@@ -2630,6 +2631,45 @@ namespace mbm
         return 8;
     }
 
+    int onSetSkeletalVertexWeightsBatchDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        luaL_checktype(lua, 2, LUA_TTABLE);
+        const size_t editCount = lua_rawlen(lua, 2);
+        if (editCount == 0 || editCount > UINT32_MAX)
+            return luaL_error(lua, "canonical vertex weight batch must contain at least one edit");
+
+        std::vector<SKELETAL_VERTEX_WEIGHT_EDIT> edits(editCount);
+        for (size_t editIndex = 0; editIndex < editCount; ++editIndex)
+        {
+            lua_rawgeti(lua, 2, static_cast<lua_Integer>(editIndex + 1));
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            SKELETAL_VERTEX_WEIGHT_EDIT &edit = edits[editIndex];
+            lua_rawgeti(lua, -1, 1);
+            const lua_Integer vertexIndex = luaL_checkinteger(lua, -1);
+            if (vertexIndex <= 0) return luaL_error(lua, "canonical vertex index must be one-based");
+            edit.vertexIndex = static_cast<uint32_t>(vertexIndex - 1);
+            lua_pop(lua, 1);
+            for (int slot = 0; slot < 4; ++slot)
+            {
+                lua_rawgeti(lua, -1, 2 + slot * 2);
+                edit.boneNames[slot] = lua_isnil(lua, -1) ? nullptr : luaL_checkstring(lua, -1);
+                lua_pop(lua, 1);
+                lua_rawgeti(lua, -1, 3 + slot * 2);
+                edit.weights[slot] = static_cast<float>(luaL_optnumber(lua, -1, 0.0));
+                lua_pop(lua, 1);
+            }
+            lua_pop(lua, 1);
+        }
+
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setSkeletalVertexWeightsBatch(edits.data(),
+                static_cast<uint32_t>(edits.size()), errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     int onHasSkeletalVertexWeightsDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
@@ -3353,6 +3393,7 @@ namespace mbm
                                           {"removeSkeletalBone", onRemoveSkeletalBoneDebugLua},
                                           {"removeSkeletalBoneRemapped", onRemoveSkeletalBoneRemappedDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
+                                          {"setSkeletalVertexWeightsBatch", onSetSkeletalVertexWeightsBatchDebugLua},
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},
                                           {"initializeSkeletalVertexWeights", onInitializeSkeletalVertexWeightsDebugLua},

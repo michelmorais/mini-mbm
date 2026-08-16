@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, runtime preview, and local animation authoring implemented; Paint Weights reserved; composition deferred**
+Status: **Bind, Bone Editor, canonical weight repair, runtime preview, and local animation authoring implemented; Paint Weights backend foundation started; composition deferred**
 Last updated: **2026-08-16**
 
 ## 1. Purpose
@@ -16,10 +16,18 @@ remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-p
 
 The editor is organized into six mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Skin Weight Lab**, **Create / Edit Animations**, and
-**Paint Weights**. Create / Edit Animations is active; Paint Weights is the only reserved worktree.
+**Paint Weights**. Create / Edit Animations is active; Paint Weights has started with its atomic
+canonical-weight backend but does not yet expose brush interaction.
 Multi-clip composition remains separately deferred. Their product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
+
+Paint Weights is intended to become the primary day-to-day weight-authoring surface. Skin Weight
+Lab remains available while the brush workflow is implemented and validated. After Paint/Add and
+Erase/Subtract are solid, useful operations such as normalization, cleanup, limit-four, smoothing,
+rigid fill, and invalid-coverage diagnostics may migrate into Paint Weights under **Weight Tools**
+and **Repair / Diagnostics**. The Lab is removed only after explicit parity, performance, Undo,
+and save/reload acceptance; its GUI-specific state must never leak into Paint Weights.
 
 ## 2. Opening the editor
 

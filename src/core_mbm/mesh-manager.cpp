@@ -6723,6 +6723,18 @@ namespace mbm
                                                   const char *boneName3, const float weight3,
                                                   char *errorOut, const int errorOutLen)
     {
+        const SKELETAL_VERTEX_WEIGHT_EDIT edit = {
+            vertexIndex,
+            {boneName0, boneName1, boneName2, boneName3},
+            {weight0, weight1, weight2, weight3}
+        };
+        return setSkeletalVertexWeightsBatch(&edit, 1, errorOut, errorOutLen);
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalVertexWeightsBatch(const SKELETAL_VERTEX_WEIGHT_EDIT *edits,
+                                                        const uint32_t editCount,
+                                                        char *errorOut, const int errorOutLen)
+    {
         auto fail = [errorOut, errorOutLen](const char *message)
         {
             if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
@@ -6731,48 +6743,66 @@ namespace mbm
         if (impl->canonicalSkeleton.skeletonId == 0 || impl->canonicalWeights.skeletonId == 0 ||
             impl->canonicalWeights.skeletonId != impl->canonicalSkeleton.skeletonId)
             return fail("mesh has no matching canonical skeleton and type-42 weights");
-        if (vertexIndex >= impl->canonicalWeights.vertices.size())
-            return fail("canonical vertex weight index out of range");
+        if (!edits || editCount == 0)
+            return fail("canonical vertex weight batch must contain at least one edit");
 
-        const char *names[4] = {boneName0, boneName1, boneName2, boneName3};
-        const float values[4] = {weight0, weight1, weight2, weight3};
-        skeletal::CANONICAL_VERTEX_WEIGHT candidate;
-        std::vector<uint64_t> palette=impl->canonicalWeights.paletteBoneIds;
-        float weightSum=0.0f;
-        uint32_t influenceCount=0;
-        for (int slot=0; slot<4; ++slot)
+        skeletal::CANONICAL_WEIGHTS candidateWeights = impl->canonicalWeights;
+        std::unordered_set<uint32_t> editedVertices;
+        for (uint32_t editIndex = 0; editIndex < editCount; ++editIndex)
         {
-            if (!names[slot] || !names[slot][0])
+            const SKELETAL_VERTEX_WEIGHT_EDIT &edit = edits[editIndex];
+            if (edit.vertexIndex >= candidateWeights.vertices.size())
+                return fail("canonical vertex weight index out of range");
+            if (!editedVertices.insert(edit.vertexIndex).second)
+                return fail("canonical vertex weight batch contains a duplicate vertex index");
+
+            skeletal::CANONICAL_VERTEX_WEIGHT candidate;
+            float weightSum = 0.0f;
+            uint32_t influenceCount = 0;
+            for (int slot = 0; slot < 4; ++slot)
             {
-                if (values[slot] != 0.0f) return fail("unused canonical influence must have zero weight");
-                continue;
+                const char *name = edit.boneNames[slot];
+                const float value = edit.weights[slot];
+                if (!name || !name[0])
+                {
+                    if (value != 0.0f) return fail("unused canonical influence must have zero weight");
+                    continue;
+                }
+                if (!std::isfinite(value) || value <= 0.0f)
+                    return fail("canonical influence weight must be finite and positive");
+                const auto found = impl->canonicalSkeleton.compiled.indexByName.find(name);
+                if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+                    return fail("canonical influence references an unknown bone name");
+                const uint64_t boneId = impl->canonicalSkeleton.compiled.bones[found->second].boneId;
+                for (int previous = 0; previous < slot; ++previous)
+                    if (candidate.paletteIndex[previous] != UINT16_MAX &&
+                        candidateWeights.paletteBoneIds[candidate.paletteIndex[previous]] == boneId)
+                        return fail("canonical vertex contains a duplicate bone influence");
+                auto paletteIt = std::find(candidateWeights.paletteBoneIds.begin(),
+                                           candidateWeights.paletteBoneIds.end(), boneId);
+                if (paletteIt == candidateWeights.paletteBoneIds.end())
+                {
+                    if (candidateWeights.paletteBoneIds.size() >= UINT16_MAX)
+                        return fail("canonical weight palette is full");
+                    candidateWeights.paletteBoneIds.push_back(boneId);
+                    paletteIt = candidateWeights.paletteBoneIds.end() - 1;
+                }
+                candidate.paletteIndex[slot] = static_cast<uint16_t>(
+                    paletteIt - candidateWeights.paletteBoneIds.begin());
+                candidate.weight[slot] = value;
+                weightSum += value;
+                ++influenceCount;
             }
-            if (!std::isfinite(values[slot]) || values[slot] <= 0.0f)
-                return fail("canonical influence weight must be finite and positive");
-            const auto found=impl->canonicalSkeleton.compiled.indexByName.find(names[slot]);
-            if (found == impl->canonicalSkeleton.compiled.indexByName.end())
-                return fail("canonical influence references an unknown bone name");
-            const uint64_t boneId=impl->canonicalSkeleton.compiled.bones[found->second].boneId;
-            for (int previous=0; previous<slot; ++previous)
-                if (candidate.paletteIndex[previous] != UINT16_MAX &&
-                    palette[candidate.paletteIndex[previous]] == boneId)
-                    return fail("canonical vertex contains a duplicate bone influence");
-            auto paletteIt=std::find(palette.begin(),palette.end(),boneId);
-            if (paletteIt==palette.end())
-            {
-                if (palette.size()>=UINT16_MAX) return fail("canonical weight palette is full");
-                palette.push_back(boneId);
-                paletteIt=palette.end()-1;
-            }
-            candidate.paletteIndex[slot]=static_cast<uint16_t>(paletteIt-palette.begin());
-            candidate.weight[slot]=values[slot];
-            weightSum+=values[slot];
-            ++influenceCount;
+            if (influenceCount == 0 ||
+                std::fabs(weightSum - 1.0f) > skeletal::MATRIX_TOLERANCE)
+                return fail("canonical influence weights must sum to one");
+            candidateWeights.vertices[edit.vertexIndex] = candidate;
         }
-        if (influenceCount==0 || std::fabs(weightSum-1.0f)>skeletal::MATRIX_TOLERANCE)
-            return fail("canonical influence weights must sum to one");
-        impl->canonicalWeights.paletteBoneIds=std::move(palette);
-        impl->canonicalWeights.vertices[vertexIndex]=candidate;
+
+        if (!skeletal::validateCanonicalWeights(impl->canonicalSkeleton, candidateWeights,
+                static_cast<uint32_t>(candidateWeights.vertices.size())))
+            return fail("canonical vertex weight batch would produce invalid type-42 weights");
+        impl->canonicalWeights = std::move(candidateWeights);
         return true;
     }
 

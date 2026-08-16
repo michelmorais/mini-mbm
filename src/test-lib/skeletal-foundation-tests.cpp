@@ -637,6 +637,58 @@ namespace
                    mesh.getSkeletalVertexWeight(0,&name0,&weight0,&name1,&weight1,&name2,&weight2,
                                                 &name3,&weight3) && name0 && std::string(name0)=="root",
                "rejected canonical editor mutation must preserve the previous vertex weights");
+
+        const char *batchFixture = "/tmp/mini-mbm-canonical-weights-batch.msh";
+        MESH_MBM_DEBUG batchMesh;
+        expect(writeCanonicalWeightedFixture(batchFixture, 100, 1.0f, 100, 10, 0, true) &&
+                   batchMesh.loadV11(batchFixture) &&
+                   batchMesh.addSkeletalBone(0, "child-a", VEC3(0, 1, 0), 0.1f, 1.0f, true, false,
+                       nullptr, editError, static_cast<int>(sizeof(editError))) &&
+                   batchMesh.addSkeletalBone(0, "child-b", VEC3(1, 0, 0), 0.1f, 1.0f, true, false,
+                       nullptr, editError, static_cast<int>(sizeof(editError))) &&
+                   batchMesh.addSkeletalBone(0, "child-c", VEC3(0, 0, 1), 0.1f, 1.0f, true, false,
+                       nullptr, editError, static_cast<int>(sizeof(editError))),
+               "canonical batch fixture must provide four stable influences and three vertices");
+        const SKELETAL_VERTEX_WEIGHT_EDIT validBatch[2] = {
+            {0, {"root", "child-a", "child-b", "child-c"}, {0.4f, 0.3f, 0.2f, 0.1f}},
+            {1, {"child-a", "root", nullptr, nullptr}, {0.75f, 0.25f, 0.0f, 0.0f}}
+        };
+        expect(batchMesh.setSkeletalVertexWeightsBatch(validBatch, 2, editError,
+                   static_cast<int>(sizeof(editError))) &&
+                   batchMesh.getSkeletalVertexWeight(0, &name0, &weight0, &name1, &weight1,
+                       &name2, &weight2, &name3, &weight3) && name3 &&
+                   std::string(name0) == "root" && std::string(name3) == "child-c" &&
+                   std::fabs(weight0 - 0.4f) <= MATRIX_TOLERANCE &&
+                   std::fabs(weight3 - 0.1f) <= MATRIX_TOLERANCE,
+               "canonical batch mutation must atomically accept four influences per vertex");
+        const SKELETAL_VERTEX_WEIGHT_EDIT rejectedBatch[2] = {
+            {0, {"child-c", nullptr, nullptr, nullptr}, {1.0f, 0.0f, 0.0f, 0.0f}},
+            {2, {"missing", nullptr, nullptr, nullptr}, {1.0f, 0.0f, 0.0f, 0.0f}}
+        };
+        expect(!batchMesh.setSkeletalVertexWeightsBatch(rejectedBatch, 2, editError,
+                    static_cast<int>(sizeof(editError))) &&
+                   batchMesh.getSkeletalVertexWeight(0, &name0, &weight0, &name1, &weight1,
+                       &name2, &weight2, &name3, &weight3) && name0 &&
+                   std::string(name0) == "root" && std::fabs(weight0 - 0.4f) <= MATRIX_TOLERANCE,
+               "a rejected canonical batch must preserve every earlier candidate edit");
+        const SKELETAL_VERTEX_WEIGHT_EDIT duplicateBatch[2] = {
+            {2, {"root", nullptr, nullptr, nullptr}, {1.0f, 0.0f, 0.0f, 0.0f}},
+            {2, {"child-a", nullptr, nullptr, nullptr}, {1.0f, 0.0f, 0.0f, 0.0f}}
+        };
+        expect(!batchMesh.setSkeletalVertexWeightsBatch(duplicateBatch, 2, editError,
+                    static_cast<int>(sizeof(editError))),
+               "canonical batch mutation must reject duplicate vertex indices");
+        const char *batchReloadPath = "/tmp/mini-mbm-canonical-weights-batch-edited.msh";
+        MESH_MBM_DEBUG batchReloaded;
+        expect(batchMesh.saveV11(batchReloadPath, false, false, false, editError,
+                    static_cast<int>(sizeof(editError))) && batchReloaded.loadV11(batchReloadPath) &&
+                   batchReloaded.getSkeletalVertexWeight(1, &name0, &weight0, &name1, &weight1,
+                       &name2, &weight2, &name3, &weight3) && name0 && name1 &&
+                   std::string(name0) == "child-a" && std::string(name1) == "root" &&
+                   std::fabs(weight0 - 0.75f) <= MATRIX_TOLERANCE,
+               "canonical batch mutation must survive save and reload");
+        std::remove(batchFixture);
+        std::remove(batchReloadPath);
         const char *edited="/tmp/mini-mbm-canonical-weights-edited.msh";
         MESH_MBM_DEBUG reloaded;
         expect(mesh.saveV11(edited,false,false,false,editError,static_cast<int>(sizeof(editError))) &&

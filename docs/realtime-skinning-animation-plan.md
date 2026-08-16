@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.76**
+Document version: **8.77**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -323,7 +323,10 @@ The Skeletal Animation Editor contains six mutually exclusive worktrees:
 5. **Create / Edit Animations** — delivered clip/track/key editing, viewport T/R/S authoring,
    playback, timeline operations, clipboards, and history. Multi-clip composition remains deferred.
 6. **Paint Weights** — reserved for direct brush-based weight authoring, distinct from the
-   diagnostic and region-based Skin Weight Lab.
+   diagnostic and region-based Skin Weight Lab. It is the intended primary day-to-day weight
+   authoring surface. Once its brush workflow is solid, it will progressively absorb useful Lab
+   operations under Weight Tools and Repair / Diagnostics. The Lab remains as a reference and
+   fallback until that migration reaches verified parity.
 
 The asset, camera, viewport, status, and mesh visibility remain shared services. Skeleton display is
 worktree-specific: bind inspection shows the bind skeleton, Skin Weight Lab owns its local toggle,
@@ -805,6 +808,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.77 | 2026-08-16 | Paint Weights is now the intended primary visual authoring workflow and eventual successor to the standalone Skin Weight Lab experience. The Lab remains during incremental delivery; normalization, cleanup, smoothing, limit-four, rigid fill, and diagnostics migrate later as Weight Tools / Repair and Diagnostics only after brush stability and parity. The first backend slice adds atomic canonical type-42 batch mutation without implementing a brush. |
 | 8.76 | 2026-08-16 | Closed the session with a documentation drift audit. The plan status now reflects delivered canonical import, GLES LBS/DQS runtime, six-worktree editor organization, Bone Editor, and local animation authoring; modern backends, Paint Weights, multi-clip composition, and Velocity Skinning remain pending. |
 | 8.75 | 2026-08-16 | Explicitly deferred multi-clip composition/blending while development moves to Paint Weights. Priority, layer weight/fade, Absolute/Additive, per-bone masks, persistence boundaries, and composed runtime pose evaluation remain pending. |
 | 8.74 | 2026-08-16 | Complete skeleton poses now copy evaluated local TRS for every stable bone and paste through a strict all-bones candidate that creates/extends T+R+S tracks, updates one playhead key per bone, and commits once or rejects all with one Undo boundary. |

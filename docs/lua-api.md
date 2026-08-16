@@ -1510,6 +1510,10 @@ local name1, weight1, name2, weight2, name3, weight3, name4, weight4 =
     meshD:getSkeletalVertexWeight(vertexIndex)
 meshD:setSkeletalVertexWeight(vertexIndex,
     name1, weight1, name2, weight2, name3, weight3, name4, weight4)
+meshD:setSkeletalVertexWeightsBatch({
+    {vertexIndex, name1, weight1, name2, weight2, name3, weight3, name4, weight4},
+    ...
+})
 ```
 
 These one-based vertex operations read and mutate canonical type-42 weights only. Bone names are
@@ -1520,6 +1524,13 @@ influences, out-of-range vertices, or assets without matching type-41/type-42 se
 error without modifying the previous vertex. The getter returns eight values, using `nil, 0` for
 unused slots, or a single `nil` for an invalid vertex. These methods never read, create, or update
 the exploratory sections 11/40.
+
+`setSkeletalVertexWeightsBatch` applies one or more unique one-based vertex edits through a single
+detached type-42 candidate. Every row follows the scalar setter's influence contract. The complete
+candidate validates before replacement, so an invalid row, duplicate vertex index, unknown bone,
+or invalid final canonical collection raises a Lua error without applying any row. It returns
+`true` after one atomic commit. This is the backend transaction boundary for a future Paint Weights
+stroke; it does not implement brush math, picking, heatmaps, or Undo by itself.
 
 `initializeSkeletalVertexWeights` is the explicit bootstrap for a locally authored skeleton that
 does not yet have type-42 data. It creates complete frame-zero coverage and rigidly binds every

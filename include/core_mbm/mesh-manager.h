@@ -58,6 +58,13 @@ namespace mbm
     // pattern as MESH_MBM::Impl.
     struct MESH_LOAD_INTERMEDIATE_V11;
 
+    struct SKELETAL_VERTEX_WEIGHT_EDIT
+    {
+        uint32_t vertexIndex;
+        const char *boneNames[4];
+        float weights[4];
+    };
+
     struct BUFFER_MESH
     {
         BUFFER_GL *pBufferGL;
@@ -474,6 +481,11 @@ namespace mbm
                                                const char *boneName2, const float weight2,
                                                const char *boneName3, const float weight3,
                                                char *errorOut, const int errorOutLen);
+        // Atomically validates and applies a detached set of unique vertex edits. The caller-owned
+        // records are consumed only for the duration of the call; no pointer or container is retained.
+        API_IMPL bool setSkeletalVertexWeightsBatch(const SKELETAL_VERTEX_WEIGHT_EDIT *edits,
+                                                     const uint32_t editCount,
+                                                     char *errorOut, const int errorOutLen);
         API_IMPL bool getSkeletalVertexWeight(const uint32_t vertexIndex,
                                                const char **boneName0, float *weight0,
                                                const char **boneName1, float *weight1,
