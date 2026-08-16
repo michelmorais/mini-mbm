@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.82**
+Document version: **8.84**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.84 | 2026-08-16 | Restored editor-wide mouse consistency in Paint Weights: left-drag orbits and left-click selects skeleton bones, while right-drag performs the transactional Paint/Add stroke. |
+| 8.83 | 2026-08-16 | Delivered the first Paint/Add stroke over the cached surface foundation. A vertex BVH bounds radius queries, bounded quarter-radius interpolation closes ordinary drag gaps, local alpha accumulation blends and deterministically normalizes at most four influences, and release performs one atomic canonical batch plus one Undo entry; Esc cancels without mutation. |
 | 8.82 | 2026-08-16 | Set the next Paint Weights delivery to a minimal transactional Paint/Add stroke, followed by Erase/Subtract after correctness acceptance. Reserved Influence Distribution for later Repair / Diagnostics as a weight-concentration aid, not a rigidity verdict or substitute for pose-stress testing. |
 | 8.81 | 2026-08-16 | Made Paint Weights skeleton selection topology-generic: explicit canonical tails define each bone's own displayed and pickable segment, while head joints remain pickable and missing tails are not inferred from importer names, hierarchy direction, or anatomy. |
 | 8.80 | 2026-08-16 | Optimized the continuous Paint Weights surface with indexed canonical vertices under the 16-bit shape limit, an explicit non-indexed fallback for larger meshes, and changed-position 30 Hz cursor raycast/rebuild throttling. Heatmap reconstruction remains dirty/event-driven rather than per-frame. |

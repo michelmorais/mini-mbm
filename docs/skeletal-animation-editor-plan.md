@@ -459,6 +459,11 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
 
+Current delivery: item 1 and the transaction core of items 2-3 are implemented. Paint/Add uses a
+cached vertex BVH, bounded quarter-radius interpolation between ordinary surface hits, local per-stroke accumulation,
+deterministic four-influence normalization, one atomic batch on release, one Undo snapshot, and Esc
+cancellation. Interactive deformation quality, save/reload acceptance, and Erase/Subtract remain.
+
 ## 12. Validation fixtures and acceptance
 
 The alien-rat bundle remains the primary real asset for hierarchy, weights, extreme proportions,
@@ -524,6 +529,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.79 | 2026-08-16 | Aligned Paint Weights mouse input with the rest of the editor: left-drag remains camera orbit and left-click selects visible bones, while right-drag exclusively performs Paint/Add. |
+| 7.78 | 2026-08-16 | Implemented the first Paint/Add authoring stroke: radius/strength/falloff controls, vertex-BVH radius queries, bounded quarter-radius drag interpolation, deterministic normalized four-influence blending, one atomic type-42 batch and Undo entry per release, Esc cancellation, and post-commit heatmap refresh. |
 | 7.77 | 2026-08-16 | Defined Paint Weights Milestone 9: transactional gap-free Paint/Add first, then Erase/Subtract, followed only later by selected Weight Tools and diagnostics. Reserved Influence Distribution as a secondary concentration/mixing diagnostic rather than a deformation-quality or rigidity verdict. |
 | 7.76 | 2026-08-16 | Aligned Paint Weights viewport selection with canonical Bone Editor ownership: an explicit `head -> tail` segment is drawn and picked as its own bone, independent of importer names or anatomy; bones without explicit tails remain joint-selectable without guessed topology. |
 | 7.75 | 2026-08-16 | Reduced Paint Weights CPU/geometry pressure: the continuous overlay now uses one vertex/UV per canonical vertex with 16-bit indexed drawing when possible and an explicit large-mesh non-indexed fallback. Cursor picking/recreation now requires actual pointer movement and is capped at 30 Hz. |

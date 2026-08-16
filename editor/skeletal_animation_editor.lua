@@ -197,7 +197,7 @@ local state = {
     paint = {boneIndex=1,boneId=nil,radius=0.1,geometry=nil,heatmapLines={},cursor=nil,
         cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
-        heatmapIndexed=false},
+        heatmapIndexed=false,strength=0.25,falloffMode=2,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -274,6 +274,10 @@ local function clearPaintVisuals()
     state.paint.cursorLastY=nil
     state.paint.cursorPendingX=nil
     state.paint.cursorPendingY=nil
+    if state.paint.stroke and state.paint.stroke.snapshot and state.paint.stroke.snapshot.path then
+        pcall(os.remove,state.paint.stroke.snapshot.path)
+    end
+    state.paint.stroke=nil
 end
 
 local function appendPoint(coords, x, y, z)
@@ -1938,7 +1942,32 @@ local function buildPaintGeometryCache()
         node.left=buildBvh(left); node.right=buildBvh(right)
         return node
     end
+    local function buildVertexBvh(vertices)
+        if #vertices==0 then return nil end
+        local node={minX=math.huge,minY=math.huge,minZ=math.huge,
+            maxX=-math.huge,maxY=-math.huge,maxZ=-math.huge}
+        for _,vertex in ipairs(vertices) do
+            local p=vertex.point
+            node.minX=math.min(node.minX,p.x); node.maxX=math.max(node.maxX,p.x)
+            node.minY=math.min(node.minY,p.y); node.maxY=math.max(node.maxY,p.y)
+            node.minZ=math.min(node.minZ,p.z); node.maxZ=math.max(node.maxZ,p.z)
+        end
+        if #vertices<=32 then node.vertices=vertices return node end
+        local dx,dy,dz=node.maxX-node.minX,node.maxY-node.minY,node.maxZ-node.minZ
+        local axis=dx>=dy and dx>=dz and 'x' or (dy>=dz and 'y' or 'z')
+        table.sort(vertices,function(a,b) return a.point[axis]<b.point[axis] end)
+        local middle=math.floor(#vertices/2)
+        local left,right={},{}
+        for index,vertex in ipairs(vertices) do
+            if index<=middle then left[#left+1]=vertex else right[#right+1]=vertex end
+        end
+        node.left=buildVertexBvh(left); node.right=buildVertexBvh(right)
+        return node
+    end
     cache.bvh=buildBvh(cache.triangles)
+    local vertexCopy={}
+    for _,vertex in pairs(cache.vertices) do vertexCopy[#vertexCopy+1]=vertex end
+    cache.vertexBvh=buildVertexBvh(vertexCopy)
     state.paint.geometry=cache
     return cache
 end
@@ -2682,6 +2711,150 @@ local function normalizedInfluences(weightMap)
     return result
 end
 
+local function queryPaintVertices(point,radius)
+    local cache=state.paint.geometry
+    if not cache or not cache.vertexBvh then return {} end
+    local result={}
+    local radiusSquared=radius*radius
+    local function boxDistanceSquared(node)
+        local dx=point.x<node.minX and node.minX-point.x or
+            (point.x>node.maxX and point.x-node.maxX or 0)
+        local dy=point.y<node.minY and node.minY-point.y or
+            (point.y>node.maxY and point.y-node.maxY or 0)
+        local dz=point.z<node.minZ and node.minZ-point.z or
+            (point.z>node.maxZ and point.z-node.maxZ or 0)
+        return dx*dx+dy*dy+dz*dz
+    end
+    local function visit(node)
+        if not node or boxDistanceSquared(node)>radiusSquared then return end
+        if node.vertices then
+            for _,vertex in ipairs(node.vertices) do
+                local p=vertex.point
+                local dx,dy,dz=p.x-point.x,p.y-point.y,p.z-point.z
+                local distanceSquared=dx*dx+dy*dy+dz*dz
+                if distanceSquared<=radiusSquared then
+                    result[#result+1]={vertex=vertex,distance=math.sqrt(distanceSquared)}
+                end
+            end
+        else
+            visit(node.left); visit(node.right)
+        end
+    end
+    visit(cache.vertexBvh)
+    return result
+end
+
+local function paintFalloff(distance,radius)
+    local value=math.max(0,math.min(1,1-distance/math.max(radius,1e-9)))
+    if state.paint.falloffMode==2 then return value*value*(3-2*value) end
+    return value
+end
+
+local function stampPaintStroke(stroke,point)
+    for _,candidate in ipairs(queryPaintVertices(point,state.paint.radius)) do
+        local alpha=math.max(0,math.min(1,state.paint.strength*
+            paintFalloff(candidate.distance,state.paint.radius)))
+        if alpha>0 then
+            local index=candidate.vertex.globalIndex
+            local previous=stroke.alphas[index] or 0
+            stroke.alphas[index]=1-(1-previous)*(1-alpha)
+        end
+    end
+end
+
+local function extendPaintStroke(hit)
+    local stroke=state.paint.stroke
+    if not stroke or not hit then return end
+    local previous=stroke.lastPoint
+    local point=hit.point
+    if previous then
+        local dx,dy,dz=point.x-previous.x,point.y-previous.y,point.z-previous.z
+        local distance=math.sqrt(dx*dx+dy*dy+dz*dz)
+        if distance>1e-9 then
+            local spacing=math.max(state.paint.radius*0.25,1e-6)
+            local carried=stroke.distanceSinceSample or 0
+            if math.floor((carried+distance)/spacing)>256 then
+                spacing=distance/256
+                carried=0
+            end
+            local sampleDistance=spacing-carried
+            while sampleDistance<=distance+1e-9 do
+                local t=math.min(1,sampleDistance/distance)
+                stampPaintStroke(stroke,{x=previous.x+dx*t,y=previous.y+dy*t,z=previous.z+dz*t})
+                sampleDistance=sampleDistance+spacing
+            end
+            stroke.distanceSinceSample=(carried+distance)%spacing
+        end
+    else
+        stampPaintStroke(stroke,point)
+        stroke.distanceSinceSample=0
+    end
+    stroke.lastPoint={x=point.x,y=point.y,z=point.z}
+end
+
+local function beginPaintStroke(hit)
+    local bone=getBones()[state.paint.boneIndex]
+    if not bone or not hit then return false end
+    local snapshot=stageRollbackSnapshot('swl_history_paint_add')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    state.paint.stroke={snapshot=snapshot,boneName=bone.name,boneId=bone.boneId,
+        alphas={},lastPoint=nil,distanceSinceSample=0}
+    extendPaintStroke(hit)
+    rebuildPaintCursor(hit)
+    return true
+end
+
+local function cancelPaintStroke()
+    local stroke=state.paint.stroke
+    if not stroke then return false end
+    discardRollbackSnapshot(stroke.snapshot)
+    state.paint.stroke=nil
+    setStatus(tLang.L('swl_paint_stroke_cancelled'),false)
+    return true
+end
+
+local function commitPaintStroke()
+    local stroke=state.paint.stroke
+    if not stroke then return false end
+    state.paint.stroke=nil
+    local indices={}
+    for index,alpha in pairs(stroke.alphas) do
+        if alpha>0 then indices[#indices+1]=index end
+    end
+    table.sort(indices)
+    if #indices==0 then
+        discardRollbackSnapshot(stroke.snapshot)
+        return false
+    end
+    local edits={}
+    for _,index in ipairs(indices) do
+        local influences=blendedInfluences(index,stroke.boneName,stroke.alphas[index])
+        local row={index}
+        for slot=1,4 do
+            local influence=influences[slot]
+            row[slot*2]=influence and influence.name or nil
+            row[slot*2+1]=influence and influence.weight or 0
+        end
+        edits[#edits+1]=row
+    end
+    local ok,committed=safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    if not ok or not committed then
+        discardRollbackSnapshot(stroke.snapshot)
+        if ok then setStatus(tLang.L('swl_paint_stroke_failed'),true) end
+        return false
+    end
+    commitRollbackSnapshot(stroke.snapshot,'swl_history_paint_add')
+    state.modified=true
+    invalidateAnalysis()
+    state.paint.heatmapDirty=true
+    rebuildPaintHeatmap()
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_paint_stroke_applied_fmt'),#edits,stroke.boneName),false)
+    return true
+end
+
 local function buildTopologyAdjacency()
     if state.topologyAdjacency then return state.topologyAdjacency end
     local adjacency={}
@@ -3010,6 +3183,7 @@ local function restoreHistoryEntry(entry)
     refreshBindReport()
     local bones=getBones()
     state.boneIndex=math.max(1,math.min(state.boneIndex,#bones))
+    if state.workspace=='paint' then state.paint.boneIndex=state.boneIndex end
     state.allowedBones={}
     for _,bone in ipairs(bones) do state.allowedBones[bone.name]=true end
     invalidateAnalysis()
@@ -4179,7 +4353,7 @@ local function showPaintWeights()
         tImGui.TextWrapped(tLang.L('swl_paint_requires_weights'))
         return
     end
-    tImGui.TextWrapped(tLang.L('swl_paint_visual_foundation_help'))
+    tImGui.TextWrapped(tLang.L('swl_paint_add_help'))
     local showSkeleton=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.paint.showSkeleton)
     if showSkeleton~=state.paint.showSkeleton then
         state.paint.showSkeleton=showSkeleton
@@ -4209,6 +4383,17 @@ local function showPaintWeights()
         state.paint.radius=radius
         rebuildPaintCursor(state.paint.cursorHit)
     end
+    tImGui.PushItemWidth(240)
+    local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_paint_brush_strength'),
+        state.paint.strength,0.01,1,'%.2f')
+    tImGui.PopItemWidth()
+    if strengthChanged then state.paint.strength=strength end
+    local falloffNames={tLang.L('swl_falloff_linear'),tLang.L('swl_falloff_smooth')}
+    tImGui.PushItemWidth(240)
+    local falloffChanged,falloffMode=tImGui.Combo(tLang.L('swl_falloff'),
+        state.paint.falloffMode,falloffNames,-1)
+    tImGui.PopItemWidth()
+    if falloffChanged then state.paint.falloffMode=falloffMode end
     tImGui.TextDisabled(tLang.L('swl_heatmap_legend'))
     local geometry=state.paint.geometry
     if geometry then
@@ -4226,6 +4411,7 @@ local function showPaintWeights()
     else
         tImGui.TextDisabled(tLang.L('swl_paint_no_hit'))
     end
+    showRollbackControls('Paint')
 end
 
 local skeletalEasingNames={'Linear','Ease In','Ease Out','Ease In Out','Smoothstep','Cubic Bezier'}
@@ -6271,6 +6457,11 @@ function onTouchDown(key, x, y)
         cancelBoneEditorDrag()
         return
     end
+    if key==1 and state.workspace=='paint' and not tImGui.GetWantCaptureMouse() then
+        local hit=pickPaintSurface(x,y)
+        if hit then beginPaintStroke(hit) end
+        return
+    end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
         if state.workspace=='paint' then
             local selectedBone=hitTestPaintBone(x,y)
@@ -6424,7 +6615,14 @@ end
 
 function onTouchMove(key, x, y)
     if state.workspace=='paint' then
-        if tImGui.GetWantCaptureMouse() then
+        if state.paint.stroke then
+            local hit=pickPaintSurface(x,y)
+            if hit then
+                extendPaintStroke(hit)
+                rebuildPaintCursor(hit)
+            end
+            return
+        elseif tImGui.GetWantCaptureMouse() then
             state.paint.cursorPendingX,state.paint.cursorPendingY=nil,nil
             if state.paint.cursor then rebuildPaintCursor(nil) end
         else
@@ -6635,6 +6833,14 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if key==1 and state.workspace=='paint' then
+        if state.paint.stroke then
+            local hit=pickPaintSurface(x,y)
+            if hit then extendPaintStroke(hit) end
+            commitPaintStroke()
+        end
+        return
+    end
     if key == 0 then
         local boneDrag=state.boneEditorDrag
         local completedAuthoringDrag=(state.translationGizmo.drag and
@@ -6688,7 +6894,9 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
-    if key==mbm.getKeyCode('ESC') and state.workspace=='bone_editor' and
+    if key==mbm.getKeyCode('ESC') and state.workspace=='paint' and state.paint.stroke then
+        cancelPaintStroke()
+    elseif key==mbm.getKeyCode('ESC') and state.workspace=='bone_editor' and
             state.boneEditorDrag then
         cancelBoneEditorDrag()
     elseif key == mbm.getKeyCode('control') then

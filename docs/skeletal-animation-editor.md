@@ -35,21 +35,30 @@ unnecessary weak influences, and overly mixed areas, but it does not judge defor
 replace pose-stress testing. It remains secondary to Paint/Add, Erase/Subtract, normalization,
 cleanup, smoothing, influence limits, and invalid-weight coverage.
 
-The first Paint Weights viewport slice is read-only. The user can select a target bone from the
+Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight
-heatmap, hide
-or show the skeleton independently, adjust
-the brush radius in mesh-local units, and move a surface-oriented cursor over the closest visible
-triangle. Frame-zero vertices and triangles are cached per loaded/restored mesh; a local-space BVH
-narrows ray intersection work. The heatmap rebuilds only when its target or canonical weights become
+heatmap, hide or show the skeleton independently, adjust radius, strength, and linear/smooth
+falloff, and drag the right mouse button over the mesh to Paint/Add. Frame-zero vertices and
+triangles are cached per loaded/restored mesh; separate local-space triangle and vertex BVHs narrow
+surface ray intersection and radius queries. The heatmap rebuilds only when its target or canonical weights become
 dirty. The heatmap stores each vertex's selected-bone weight in `UV.x`; the rasterizer interpolates
 that value across each triangle and a dedicated pixel shader maps it through the continuous
 blue-cyan-green-yellow-orange-red gradient. It retains normal depth testing, so hidden back faces
 are not painted through the mesh. While this complete heatmap surface
 exists, Paint Weights hides the ordinary textured preview instead of layering both copies; leaving
 the worktree restores the shared preview normally. This visualization therefore exposes actual
-stored interpolation rather than six clamped face-average buckets. This slice does not start a stroke,
-mutate type-42 data, or create Undo history.
+stored interpolation rather than six clamped face-average buckets.
+
+A Paint/Add stroke accumulates per-vertex alpha locally and normally samples between consecutive
+surface hits at one quarter of the brush radius; an explicit per-event cap bounds pathological
+cursor jumps. For each affected vertex, the selected bone
+is blended toward weight one; other stored influences are reduced proportionally. Results are
+sorted deterministically, limited to four influences, and normalized. The editor sends all changed
+vertices through one atomic canonical type-42 batch only when the mouse is released. A successful
+stroke creates one Undo entry and refreshes the heatmap; an empty, cancelled, or rejected stroke
+does not mutate weights. `Esc` cancels the active stroke. Erase/Subtract remains pending.
+Left-drag retains the editor-wide camera-orbit behavior; clicking a visible skeleton joint or
+segment with the left button still selects its bone before an orbit begins.
 
 The overlay reuses one vertex and UV per canonical frame-zero vertex through indexed geometry when
 the complete mesh fits the shape API's 16-bit index limit. Larger meshes use an explicit
