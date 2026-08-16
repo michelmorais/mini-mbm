@@ -215,6 +215,17 @@ The initial Animation milestone may target clips on an existing validated skelet
 skeleton creation does not have to block timeline and clip work if the imported-skeleton contract is
 already trustworthy.
 
+### Deferred composition and blending
+
+Multi-clip composition remains planned but is explicitly deferred while work proceeds on the Paint
+Weights workflow. The delivered editor currently authors and previews one canonical clip at a time.
+Priority, layer weight, fade in/out, Absolute/Additive semantics, per-bone masks, and a composed
+runtime pose are not implemented and must not be inferred from the existing clip clipboard or pose
+clipboard features. Before implementation resumes, consolidate the local-TRS blend order,
+shortest-path quaternion policy, additive reference pose, scale compatibility, discontinuity rules,
+and the boundary between transient player-layer state and persisted clip data. The final composed
+pose must still produce one backend-neutral skeleton pose followed by one LBS/DQS palette build.
+
 ## 9. Cross-node rules
 
 1. **Single asset context.** All six worktrees operate on the same loaded mesh, skeleton, weights,
@@ -489,6 +500,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.70 | 2026-08-16 | Marked multi-clip composition/blending as explicit deferred work while development moves to Paint Weights. Priority, weight/fade, Absolute/Additive, masks, persistence boundaries, and composed-pose math remain pending and are not implied by the delivered clip/pose clipboards. |
 | 7.69 | 2026-08-16 | Added complete-skeleton pose copy/paste. A strict batch API requires exactly one stable identity/TRS per bone, creates or extends T+R+S tracks, creates/updates every playhead key on one candidate, and commits with one Undo or rejects all. The editor records source clip/time/count and includes localized tooltips. |
 | 7.68 | 2026-08-16 | Added localized tooltips to selected-bone pose copy/paste, explaining evaluated temporary-pose capture, one-bone scope, T+R+S key creation/update, inherited descendant motion without child-key edits, stable identity, and the single Undo boundary. |
 | 7.67 | 2026-08-16 | Placed selected-bone pose paste on its own GUI line and clarified that the operation authors one bone's local T+R+S at the destination playhead, not the complete character pose. |

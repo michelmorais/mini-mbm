@@ -703,6 +703,9 @@ mutate assets, evaluate clips, or deform vertices.
     alone.
 13. Mini MBM's skeletal math is row-vector: child globals use `local * parentGlobal`, and skin
     matrices use `inverseBindGlobal * currentGlobal`.
+14. Multi-clip composition and blending remain pending while editor development moves to Paint
+    Weights. Existing clip and pose clipboards do not imply priority, weight/fade,
+    Absolute/Additive, per-bone masks, or composed runtime playback.
 14. Runtime bones use stable `uint64_t` identity, parent-relative local TRS, quaternion rotation,
     derived globals/inverse bind, and names only as labels/interchange keys.
 15. Skeletal clips use a distinct bone-ID-targeted resource model; articulated data structures are
@@ -801,6 +804,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.75 | 2026-08-16 | Explicitly deferred multi-clip composition/blending while development moves to Paint Weights. Priority, layer weight/fade, Absolute/Additive, per-bone masks, persistence boundaries, and composed runtime pose evaluation remain pending. |
 | 8.74 | 2026-08-16 | Complete skeleton poses now copy evaluated local TRS for every stable bone and paste through a strict all-bones candidate that creates/extends T+R+S tracks, updates one playhead key per bone, and commits once or rejects all with one Undo boundary. |
 | 8.73 | 2026-08-16 | Selected-bone pose copy/paste now has localized explanatory tooltips covering one-bone TRS scope, temporary capture, authored key behavior, inherited child motion, stable identity, and Undo. |
 | 8.72 | 2026-08-16 | Clarified selected-bone pose semantics as one bone's local T+R+S authored at the destination playhead and moved the paste action to a separate GUI line. |

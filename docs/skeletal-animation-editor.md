@@ -695,11 +695,14 @@ The following are not defects in the delivered Skin Weight Lab:
 - no welded/coincident-vertex adjacency across seams;
 - no automatic heavy whole-mesh weight generation;
 - no custom-tail animation generation;
+- no multi-clip composition yet: priority, layer weight, fade, Absolute/Additive evaluation,
+  per-bone masks, and composed runtime playback remain explicitly deferred while Paint Weights is
+  developed;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
-Future animation authoring/timeline, richer pose-stress overlays, antipodality tooling, and non-GLES
-backend delivery remain in the
+Future composition/blending, richer pose-stress overlays, antipodality tooling, and non-GLES backend
+delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Skeleton and animation authoring/import remain in the product plan. Mesh Debug's legacy Bone
 node/window has been retired; canonical bind inspection and weight repair belong to this editor.
