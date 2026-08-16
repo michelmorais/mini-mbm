@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.03**
+Document version: **9.04**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.04 | 2026-08-16 | Changed the safety overlay from red outlines to double-sided translucent filled faces and split protected-face, failed-sample, and seam counts onto separate GUI lines. |
 | 9.03 | 2026-08-16 | Added a cached post-repair safety overlay. Red edges show unique faces that rejected the unrestricted candidate in at least one sampled pose; cyan crosses show synchronized coincident seam vertices. Counts distinguish unique faces, failed face/pose samples, seam vertices, and seam groups without per-frame reevaluation. |
 | 9.02 | 2026-08-16 | Added topology-seam preservation to abrupt-transition repair. Mesh-scale coincident vertices are grouped only when their independent triangle neighborhoods share geometry; compatible copies receive one identical atomic weight candidate, while pre-existing weight conflicts remain unchanged and are reported. |
 | 9.01 | 2026-08-16 | Added pose-aware surface preservation to abrupt-transition repair. Five deterministic LBS clip samples test incident triangles for severe area loss or orientation reversal; an unsafe batch is reduced by binary search and reports its final safety scale plus avoided face samples. |

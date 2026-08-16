@@ -94,10 +94,11 @@ candidate and are written atomically with identical weights. Pre-existing weight
 unchanged and reported rather than silently forcing an ambiguous merge.
 
 After a successful repair, **Show Last Repair Safety Overlay** visualizes the cached result without
-reevaluating poses per frame. Red triangle edges identify unique faces that failed at least one pose
+reevaluating poses per frame. Translucent red filled faces identify unique triangles that failed at least one pose
 sample for the unrestricted candidate and therefore contributed to safety scaling. Cyan crosses
 identify coincident seam vertices written through a synchronized group. The report distinguishes
-unique protected faces from total failed face/pose samples and states the seam vertex/group counts.
+unique protected faces from total failed face/pose samples and states the seam vertex/group counts
+on separate GUI lines.
 The overlay is diagnostic only and is replaced by the next successful repair or cleared with the
 loaded editor state.
 

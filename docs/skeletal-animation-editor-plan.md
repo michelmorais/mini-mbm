@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **7.98**
+Document version: **7.99**
 Status: **Five active skeletal workflows implemented; Paint Weights visual foundation started; composition deferred**
 Last updated: **2026-08-16**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.99 | 2026-08-16 | Changed the safety overlay from red outlines to double-sided translucent filled faces and split protected-face, failed-sample, and seam counts onto separate GUI lines. |
 | 7.98 | 2026-08-16 | Added a cached post-repair safety overlay. Red edges show unique faces that rejected the unrestricted candidate in at least one sampled pose; cyan crosses show synchronized coincident seam vertices. Counts distinguish unique faces, failed face/pose samples, seam vertices, and seam groups without per-frame reevaluation. |
 | 7.97 | 2026-08-16 | Added topology-seam preservation to abrupt-transition repair. Mesh-scale coincident vertices are grouped only when their independent triangle neighborhoods share geometry; compatible copies receive one identical atomic weight candidate, while pre-existing weight conflicts remain unchanged and are reported. |
 | 7.96 | 2026-08-16 | Added pose-aware surface preservation to abrupt-transition repair. Five deterministic LBS clip samples test incident triangles for severe area loss or orientation reversal; an unsafe batch is reduced by binary search and reports its final safety scale plus avoided face samples. |

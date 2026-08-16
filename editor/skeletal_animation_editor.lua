@@ -201,7 +201,7 @@ local state = {
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
-        safetyOverlayVisible=true,safetyFaceLines=nil,safetySeamMarkers=nil,safetyReport=nil,
+        safetyOverlayVisible=true,safetyFaceShape=nil,safetySeamMarkers=nil,safetyReport=nil,
         distributionStats=nil,weakStats=nil,abruptStats=nil,stroke=nil},
     topologyAdjacency = nil,
     coincidentSeams = nil,
@@ -275,11 +275,11 @@ end
 local function clearPaintVisuals()
     for _,object in ipairs(state.paint.heatmapLines) do destroyObject(object) end
     destroyObject(state.paint.cursor)
-    destroyObject(state.paint.safetyFaceLines)
+    destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     state.paint.heatmapLines={}
     state.paint.cursor=nil
-    state.paint.safetyFaceLines=nil
+    state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
     state.paint.cursorHit=nil
@@ -1065,8 +1065,8 @@ local function applyWorkspaceVisibility()
         marker.visible=paintWorkspace and state.meshVisible
     end
     if state.paint.cursor then state.paint.cursor.visible=paintWorkspace and state.meshVisible end
-    if state.paint.safetyFaceLines then
-        state.paint.safetyFaceLines.visible=paintWorkspace and state.meshVisible and
+    if state.paint.safetyFaceShape then
+        state.paint.safetyFaceShape.visible=paintWorkspace and state.meshVisible and
             state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
     end
     if state.paint.safetySeamMarkers then
@@ -3399,22 +3399,33 @@ local function poseSafeRepairScale(original,candidates,editable)
 end
 
 local function rebuildPaintSafetyOverlay(unsafeTriangles,seamVertices,report)
-    destroyObject(state.paint.safetyFaceLines)
+    destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
-    state.paint.safetyFaceLines=nil
+    state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=report
-    local edges={}
+    local vertices={}
     for _,triangle in ipairs(unsafeTriangles or {}) do
-        edges[#edges+1]={triangle.a,triangle.b}
-        edges[#edges+1]={triangle.b,triangle.c}
-        edges[#edges+1]={triangle.c,triangle.a}
+        for _,entry in ipairs({triangle.a,triangle.b,triangle.c,
+                triangle.a,triangle.c,triangle.b}) do
+            appendPoint(vertices,entry.point.x,entry.point.y,entry.point.z)
+        end
     end
-    state.paint.safetyFaceLines=buildEdgeLines(edges,1,0.15,0.05)
+    if #vertices>0 then
+        local overlay=shape:new('3d',0,0,0)
+        local nickname='paint_safety_faces_'..state.paint.heatmapGeneration
+        if overlay:create(vertices,nil,nickname) then
+            overlay:setColor(1,0.05,0.02,0.38)
+            overlay:setPos(0,0,0)
+            state.paint.safetyFaceShape=overlay
+        else
+            destroyObject(overlay)
+        end
+    end
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     state.paint.safetySeamMarkers=buildVertexMarkers(seamVertices or {},0,1,1,extent)
-    for _,object in ipairs({state.paint.safetyFaceLines,state.paint.safetySeamMarkers}) do
+    for _,object in ipairs({state.paint.safetyFaceShape,state.paint.safetySeamMarkers}) do
         if object then
             object.alwaysOnTop=state.markersAlwaysOnTop
             object.visible=state.workspace=='paint' and state.meshVisible and
