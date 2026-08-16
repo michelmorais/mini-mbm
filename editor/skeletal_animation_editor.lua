@@ -2157,12 +2157,13 @@ local function loadMesh(path)
     return true
 end
 
-local function stageRollbackSnapshot()
+local function stageRollbackSnapshot(descriptionKey)
     local path = os.tmpname() .. '.msh'
     if not state.meshD:save(path, false, false) then return false end
     return {path=path,modified=state.modified,workspace=state.workspace,
         boneIndex=state.boneIndex,clipIndex=state.animationClipSelected,
-        authoringTime=state.authoringTime,description=tLang.L('swl_history_operation')}
+        authoringTime=state.authoringTime,
+        descriptionKey=descriptionKey or 'swl_history_operation'}
 end
 
 local function trimHistoryStack(stack)
@@ -2179,14 +2180,20 @@ local function clearHistoryStack(stack)
     for index=#stack,1,-1 do stack[index]=nil end
 end
 
-local function commitRollbackSnapshot(snapshot,description)
-    snapshot.description=description or snapshot.description or tLang.L('swl_history_operation')
+local function commitRollbackSnapshot(snapshot,descriptionKey)
+    snapshot.descriptionKey=descriptionKey or snapshot.descriptionKey or 'swl_history_operation'
     state.undoStack[#state.undoStack+1]=snapshot
     trimHistoryStack(state.undoStack)
     clearHistoryStack(state.redoStack)
     state.animationReport = nil
     state.animationTimelineSelection = {}
     if state.runtimePreviewFromMemory then state.runtimePreviewMemoryDirty=true end
+end
+
+local function historyDescription(entry)
+    if not entry then return '' end
+    return entry.descriptionKey and tLang.L(entry.descriptionKey) or
+        entry.description or tLang.L('swl_history_operation')
 end
 
 local function discardRollbackSnapshot(snapshot)
@@ -2207,8 +2214,8 @@ local function commitAuthoringOverride()
     if not ok then discardRollbackSnapshot(snapshot); return false end
     local rotation=value.channelMask==2
     local scaling=value.channelMask==4
-    commitRollbackSnapshot(snapshot,tLang.L(scaling and 'swl_history_scale_key' or
-        rotation and 'swl_history_rotation_key' or 'swl_history_translation_key'))
+    commitRollbackSnapshot(snapshot,scaling and 'swl_history_scale_key' or
+        rotation and 'swl_history_rotation_key' or 'swl_history_translation_key')
     state.modified=true
     clearAuthoringOverride()
     refreshBindReport()
@@ -2253,8 +2260,8 @@ local function cancelBoneEditorDrag()
     return true
 end
 
-local function snapshotForRollback()
-    local snapshot=stageRollbackSnapshot()
+local function snapshotForRollback(descriptionKey)
+    local snapshot=stageRollbackSnapshot(descriptionKey)
     if not snapshot then return false end
     commitRollbackSnapshot(snapshot)
     return true
@@ -2443,7 +2450,7 @@ local function smoothVertices(vertices)
     end
     if #vertices==0 then return nil end
     local adjacency=buildTopologyAdjacency()
-    if not snapshotForRollback() then
+    if not snapshotForRollback('swl_history_smooth_weights') then
         setStatus(tLang.L('swl_snapshot_failed'),true)
         return nil
     end
@@ -2593,7 +2600,7 @@ local function applyNormalizeAndLimit()
             end
         end
     end
-    if #jobs>0 and not snapshotForRollback() then
+    if #jobs>0 and not snapshotForRollback('swl_history_normalize_weights') then
         setStatus(tLang.L('swl_snapshot_failed'),true)
         return
     end
@@ -2615,7 +2622,7 @@ local function applyRigidBind()
     local bones = getBones()
     local target = bones[state.targetBoneIndex]
     if not target then return end
-    if not snapshotForRollback() then
+    if not snapshotForRollback('swl_history_apply_weights') then
         setStatus(tLang.L('swl_snapshot_failed'), true)
         return
     end
@@ -2677,12 +2684,13 @@ local function undoHistory()
     local current=stageRollbackSnapshot()
     if not current then setStatus(tLang.L('swl_snapshot_failed'),true); return end
     local entry=table.remove(state.undoStack)
+    current.descriptionKey=entry.descriptionKey
     current.description=entry.description
     if restoreHistoryEntry(entry) then
         state.redoStack[#state.redoStack+1]=current
         trimHistoryStack(state.redoStack)
         pcall(os.remove,entry.path)
-        showHistoryFeedback(string.format(tLang.L('swl_undone_fmt'),entry.description))
+        showHistoryFeedback(string.format(tLang.L('swl_undone_fmt'),historyDescription(entry)))
     else
         state.undoStack[#state.undoStack+1]=entry
         discardRollbackSnapshot(current)
@@ -2694,12 +2702,13 @@ local function redoHistory()
     local current=stageRollbackSnapshot()
     if not current then setStatus(tLang.L('swl_snapshot_failed'),true); return end
     local entry=table.remove(state.redoStack)
+    current.descriptionKey=entry.descriptionKey
     current.description=entry.description
     if restoreHistoryEntry(entry) then
         state.undoStack[#state.undoStack+1]=current
         trimHistoryStack(state.undoStack)
         pcall(os.remove,entry.path)
-        showHistoryFeedback(string.format(tLang.L('swl_redone_fmt'),entry.description))
+        showHistoryFeedback(string.format(tLang.L('swl_redone_fmt'),historyDescription(entry)))
     else
         state.redoStack[#state.redoStack+1]=entry
         discardRollbackSnapshot(current)
@@ -2713,12 +2722,12 @@ local function showRollbackControls(id)
     local redoEntry=state.redoStack[#state.redoStack]
     tImGui.BeginDisabled(undoEntry==nil)
     if tImGui.Button(string.format(tLang.L('swl_undo_fmt'),
-            undoEntry and undoEntry.description or '')..'##undo'..id) then undoHistory() end
+            historyDescription(undoEntry))..'##undo'..id) then undoHistory() end
     tImGui.EndDisabled()
     tImGui.SameLine()
     tImGui.BeginDisabled(redoEntry==nil)
     if tImGui.Button(string.format(tLang.L('swl_redo_fmt'),
-            redoEntry and redoEntry.description or '')..'##redo'..id) then redoHistory() end
+            historyDescription(redoEntry))..'##redo'..id) then redoHistory() end
     tImGui.EndDisabled()
 end
 
@@ -2765,11 +2774,11 @@ local function showMenu()
         local undoEntry=state.undoStack[#state.undoStack]
         local redoEntry=state.redoStack[#state.redoStack]
         if tImGui.MenuItem(string.format(tLang.L('swl_undo_fmt'),
-                undoEntry and undoEntry.description or ''),'Ctrl+Z',false,undoEntry~=nil) then
+                historyDescription(undoEntry)),'Ctrl+Z',false,undoEntry~=nil) then
             undoHistory()
         end
         if tImGui.MenuItem(string.format(tLang.L('swl_redo_fmt'),
-                redoEntry and redoEntry.description or ''),'Ctrl+Y',false,redoEntry~=nil) then
+                historyDescription(redoEntry)),'Ctrl+Y',false,redoEntry~=nil) then
             redoHistory()
         end
         tImGui.EndMenu()
@@ -3205,7 +3214,7 @@ local function showSelectedBindBone(report)
             setStatus(tLang.L('swl_snapshot_failed'),true)
         end
         if ok then
-            commitRollbackSnapshot(snapshot)
+            commitRollbackSnapshot(snapshot,'swl_bone_renamed')
             state.modified=true
             refreshBindReport()
             for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
@@ -3250,7 +3259,7 @@ local function showSelectedBindBone(report)
             setStatus(tLang.L('swl_snapshot_failed'),true)
         end
         if ok then
-            commitRollbackSnapshot(snapshot)
+            commitRollbackSnapshot(snapshot,'swl_bone_reparented')
             state.modified=true
             refreshBindReport()
             for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
@@ -3298,7 +3307,7 @@ local function showSelectedBindBone(report)
                 setStatus(tLang.L('swl_snapshot_failed'),true)
             end
             if ok then
-                commitRollbackSnapshot(snapshot)
+                commitRollbackSnapshot(snapshot,'swl_bone_bind_updated')
                 state.modified=true
                 refreshBindReport()
                 for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
@@ -3345,7 +3354,7 @@ local function showSelectedBindBone(report)
                 setStatus(tLang.L('swl_snapshot_failed'),true)
             end
             if ok then
-                commitRollbackSnapshot(snapshot)
+                commitRollbackSnapshot(snapshot,'swl_bone_added')
                 state.modified=true
                 refreshBindReport()
                 state.boneIndex=newIndex
@@ -3394,7 +3403,7 @@ local function showSelectedBindBone(report)
                     setStatus(tLang.L('swl_snapshot_failed'),true)
                 end
                 if ok then
-                    commitRollbackSnapshot(snapshot)
+                    commitRollbackSnapshot(snapshot,'swl_chain_added')
                     state.modified=true
                     refreshBindReport()
                     state.boneIndex=lastIndex
@@ -3457,7 +3466,7 @@ local function showSelectedBindBone(report)
                 setStatus(tLang.L('swl_snapshot_failed'),true)
             end
             if ok then
-                commitRollbackSnapshot(snapshot)
+                commitRollbackSnapshot(snapshot,'swl_subtree_mirrored')
                 state.modified=true
                 refreshBindReport()
                 state.boneIndex=newRoot
@@ -3503,7 +3512,7 @@ local function showSelectedBindBone(report)
                 setStatus(tLang.L('swl_snapshot_failed'),true)
             end
             if ok then
-                commitRollbackSnapshot(snapshot)
+                commitRollbackSnapshot(snapshot,'swl_history_initialize_weights')
                 state.modified=true
                 refreshBindReport()
                 state.bindWeightsBoneId=nil
@@ -3598,7 +3607,7 @@ local function showSelectedBindBone(report)
                 setStatus(tLang.L('swl_snapshot_failed'),true)
             end
             if ok then
-                commitRollbackSnapshot(snapshot)
+                commitRollbackSnapshot(snapshot,'swl_bone_removed')
                 state.modified=true
                 refreshBindReport()
                 state.boneIndex=1
@@ -3726,7 +3735,7 @@ local function showBindPoseDiagnostics()
                 setStatus(tLang.L('swl_snapshot_failed'),true)
             end
             if ok then
-                commitRollbackSnapshot(snapshot)
+                commitRollbackSnapshot(snapshot,'swl_skeleton_initialized')
                 state.modified=true
                 refreshBindReport()
                 state.boneIndex=1
@@ -3923,7 +3932,7 @@ local function commitTimelineKeyDrag(drag)
         setStatus(tLang.L('swl_animation_timeline_key_move_failed'),true)
         return false
     end
-    commitRollbackSnapshot(snapshot)
+    commitRollbackSnapshot(snapshot,'swl_history_move_keys')
     state.modified=true
     state.animationKeyEdits={}
     state.animationTimelineTrackIndex=nil
@@ -4309,7 +4318,7 @@ local function showSkeletalTimelineWindow()
                         references,duplicateDelta)
                 end)) or false
                 if duplicated then
-                    commitRollbackSnapshot(snapshot)
+                    commitRollbackSnapshot(snapshot,'swl_animation_timeline_duplicate_at_playhead')
                     state.modified=true
                     clearAuthoringOverride()
                     setStatus(string.format(tLang.L(
@@ -4329,7 +4338,7 @@ local function showSkeletalTimelineWindow()
                         references,state.authoringTime)
                 end)) or false
                 if inserted then
-                    commitRollbackSnapshot(snapshot)
+                    commitRollbackSnapshot(snapshot,'swl_animation_timeline_insert_ripple')
                     state.modified=true
                     clearAuthoringOverride()
                     setStatus(string.format(tLang.L(
@@ -4357,7 +4366,7 @@ local function showSkeletalTimelineWindow()
                     state.authoringTime,state.animationTimelineEmptyDuration)
             end)) or false
             if inserted then
-                commitRollbackSnapshot(snapshot)
+                commitRollbackSnapshot(snapshot,'swl_animation_timeline_insert_empty')
                 state.modified=true
                 clearAuthoringOverride()
                 setStatus(string.format(tLang.L(
@@ -4419,7 +4428,7 @@ local function showSkeletalTimelineWindow()
                         impact.startTime,impact.duration)
                 end)) or nil
                 if removed~=nil then
-                    commitRollbackSnapshot(snapshot)
+                    commitRollbackSnapshot(snapshot,'swl_animation_timeline_remove_interval')
                     state.modified=true
                     state.animationTimelineRemovalConfirmed=false
                     clearAuthoringOverride()
@@ -4682,7 +4691,7 @@ local function showSkeletalAnimationInspection()
                     state.animationClipSelected,trimmed,state.animationClipDuration,state.animationClipLoop) end))
             end
             if applied then
-                commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                commitRollbackSnapshot(snapshot,'swl_animation_clip_updated'); state.modified=true; refreshBindReport()
                 state.animationEditClipId=nil
                 clearAuthoringOverride()
                 setStatus(tLang.L('swl_animation_clip_updated'),false)
@@ -4699,7 +4708,7 @@ local function showSkeletalAnimationInspection()
             if snapshot then removed=select(1,safeCall(function()
                 return state.meshD:removeSkeletalClip(state.animationClipSelected) end)) end
             if removed then
-                commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                commitRollbackSnapshot(snapshot,'swl_animation_clip_removed'); state.modified=true; refreshBindReport()
                 state.animationClipSelected=math.max(1,state.animationClipSelected-1)
                 state.animationEditClipId=nil; state.animationRemoveConfirmed=false
                 state.authoringTime=0; clearAuthoringOverride()
@@ -4750,7 +4759,7 @@ local function showSkeletalAnimationInspection()
                 if snapshot then added=select(1,safeCall(function() return state.meshD:addSkeletalTrack(
                     state.animationClipSelected,selectedAvailableBone,newMask) end)) end
                 if added then
-                    commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                    commitRollbackSnapshot(snapshot,'swl_animation_track_added'); state.modified=true; refreshBindReport()
                     state.animationTrackEdits={}
                     state.animationKeyEdits={}; state.animationNewKeyTimes={}
                     clearAuthoringOverride()
@@ -4801,7 +4810,7 @@ local function showSkeletalAnimationInspection()
                         return state.meshD:updateSkeletalTrackChannels(state.animationClipSelected,
                             trackIndex,editedMask) end)) end
                     if updated then
-                        commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                        commitRollbackSnapshot(snapshot,'swl_animation_track_updated'); state.modified=true; refreshBindReport()
                         state.animationTrackEdits={}
                         state.animationKeyEdits={}
                         clearAuthoringOverride()
@@ -4819,7 +4828,7 @@ local function showSkeletalAnimationInspection()
                     if snapshot then removed=select(1,safeCall(function()
                         return state.meshD:removeSkeletalTrack(state.animationClipSelected,trackIndex) end)) end
                     if removed then
-                        commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                        commitRollbackSnapshot(snapshot,'swl_animation_track_removed'); state.modified=true; refreshBindReport()
                         state.animationTrackEdits={}
                         state.animationKeyEdits={}; state.animationNewKeyTimes={}
                         clearAuthoringOverride()
@@ -4843,7 +4852,7 @@ local function showSkeletalAnimationInspection()
                     if snapshot then added=select(1,safeCall(function()
                         return state.meshD:addSkeletalKey(state.animationClipSelected,trackIndex,newKeyTime) end)) end
                     if added then
-                        commitRollbackSnapshot(snapshot); state.modified=true
+                        commitRollbackSnapshot(snapshot,'swl_animation_key_added'); state.modified=true
                         state.animationKeyEdits={}; state.animationNewKeyTimes={}
                         clearAuthoringOverride()
                         setStatus(tLang.L('swl_animation_key_added'),false)
@@ -4895,7 +4904,7 @@ local function showSkeletalAnimationInspection()
                                     edit.time,edit.tx,edit.ty,edit.tz,edit.qx,edit.qy,edit.qz,edit.qw,
                                     edit.sx,edit.sy,edit.sz,edit.easing-1,edit.x1,edit.y1,edit.x2,edit.y2) end)) end
                             if updated then
-                                commitRollbackSnapshot(snapshot); state.modified=true
+                                commitRollbackSnapshot(snapshot,'swl_animation_key_updated'); state.modified=true
                                 state.animationKeyEdits={}
                                 clearAuthoringOverride()
                                 setStatus(tLang.L('swl_animation_key_updated'),false)
@@ -4916,7 +4925,7 @@ local function showSkeletalAnimationInspection()
                                     return state.meshD:removeSkeletalKey(state.animationClipSelected,
                                         trackIndex,keyIndex) end)) end
                                 if removed then
-                                    commitRollbackSnapshot(snapshot); state.modified=true
+                                    commitRollbackSnapshot(snapshot,'swl_animation_key_removed'); state.modified=true
                                     state.animationKeyEdits={}; state.animationNewKeyTimes={}
                                     clearAuthoringOverride()
                                     setStatus(tLang.L('swl_animation_key_removed'),false)
@@ -4952,7 +4961,7 @@ local function showSkeletalAnimationInspection()
         if snapshot then added,newIndex=safeCall(function() return state.meshD:addSkeletalClip(
             newTrimmed,state.animationNewClipDuration,state.animationNewClipLoop) end) end
         if added then
-            commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+            commitRollbackSnapshot(snapshot,'swl_animation_clip_added'); state.modified=true; refreshBindReport()
             state.animationClipSelected=newIndex or (#clips+1); state.animationEditClipId=nil
             state.authoringTime=0; clearAuthoringOverride()
             setStatus(tLang.L('swl_animation_clip_added'),false)
@@ -5041,7 +5050,8 @@ local function showBoneEditor()
             end
         end
         if ok then
-            commitRollbackSnapshot(snapshot)
+            commitRollbackSnapshot(snapshot,hasExplicitTail and 'swl_bone_editor_added' or
+                'swl_bone_editor_joint_added')
             state.modified=true
             refreshBindReport()
             state.boneEditorSelectedIndex=nil
@@ -5089,7 +5099,7 @@ local function showBoneEditor()
             end)
         end
         if ok then
-            commitRollbackSnapshot(snapshot)
+            commitRollbackSnapshot(snapshot,'swl_bone_editor_extended')
             state.modified=true
             refreshBindReport()
             state.boneEditorSelectedIndex=newIndex
@@ -5154,7 +5164,8 @@ local function showBoneEditor()
                         state.boneEditorPreserveOtherJoints)
                 end)) or false
                 if ok then
-                    commitRollbackSnapshot(snapshot)
+                    commitRollbackSnapshot(snapshot,wantConnected and 'swl_bone_editor_connected' or
+                        'swl_bone_editor_disconnected')
                     state.modified=true
                     refreshBindReport()
                     rebuildPreview()
@@ -5202,7 +5213,7 @@ local function showBoneEditor()
                             state.boneEditorRadiusSubtree)
                     end)) or false
                     if ok then
-                        commitRollbackSnapshot(snapshot)
+                        commitRollbackSnapshot(snapshot,'swl_bone_editor_radius_applied')
                         state.modified=true
                         refreshBindReport()
                         rebuildSkeletonVisuals()
@@ -5297,7 +5308,7 @@ local function showBoneEditor()
                         return state.meshD:removeSkeletalBone(state.boneEditorSelection.boneIndex)
                     end)) or false
                     if ok then
-                        commitRollbackSnapshot(snapshot)
+                        commitRollbackSnapshot(snapshot,'swl_bone_removed')
                         state.modified=true
                         refreshBindReport()
                         state.boneIndex=1
@@ -5970,7 +5981,7 @@ function onTouchUp(key, x, y)
         local completedBoneDrag=boneDrag and boneDrag.moved
         if boneDrag then
             if boneDrag.moved then
-                commitRollbackSnapshot(boneDrag.snapshot,tLang.L('swl_history_bone_drag'))
+                commitRollbackSnapshot(boneDrag.snapshot,'swl_history_bone_drag')
                 rebuildPreview()
                 refreshBindReport()
                 rebuildSkeletonVisuals()

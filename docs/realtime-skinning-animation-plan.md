@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.68 | 2026-08-16 | History entries now store operation-specific translation keys across all editor transaction families, allowing Undo/Redo labels and feedback to follow the current editor language instead of retaining generic or previously translated text. |
 | 8.67 | 2026-08-16 | Fixed the Undo/Redo overlay lifetime so each localized or repeated history operation restarts its four-second visual feedback interval. |
 | 8.66 | 2026-08-16 | Undo/Redo descriptions now appear in a timed global overlay as well as persistent status, remaining visible independently of editor scroll/worktree/timeline focus. |
 | 8.65 | 2026-08-16 | Editor history replaces one-level rollback with bounded 50-entry Undo/Redo stacks over existing atomic snapshots, restores core context and dependent previews, exposes standard shortcuts/menus, clears Redo on new commits, evicts old files, and preserves one-entry mouse gestures. |

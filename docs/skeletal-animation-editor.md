@@ -668,8 +668,8 @@ The following are not defects in the delivered Skin Weight Lab:
 - no welded/coincident-vertex adjacency across seams;
 - no automatic heavy whole-mesh weight generation;
 - no custom-tail animation generation;
-- history entries currently use generic operation descriptions outside the first mouse/key-authoring
-  paths; broader per-command naming remains a refinement.
+- history entries carry operation-specific translation keys rather than frozen display strings, so
+  menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
 Future animation authoring/timeline, richer pose-stress overlays, antipodality tooling, and non-GLES
 backend delivery remain in the
@@ -688,6 +688,10 @@ description stays visible independent of left-panel scroll, active worktree, det
 viewport focus. Every operation resets the interval, including repeated descriptions and operations
 performed after changing the editor language. The ordinary persistent status remains available at the
 top of the panel as well.
+
+History descriptions distinguish skeleton initialization and structure edits, bind changes, bone
+editor operations, weight initialization/normalization/smoothing/application, clip/track/key edits,
+timeline movement/duplication/ripple/time insertion/removal, and viewport-authored TRS keys.
 
 Runtime Skeletal Preview identifies whether its player was built from the saved asset or an
 in-memory canonical snapshot. **Refresh runtime preview from memory** serializes current unsaved

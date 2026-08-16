@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.63 | 2026-08-16 | Replaced frozen/generic history text with operation-specific translation keys across skeleton, Bone Editor, weights, clips, tracks, keys, and timeline transactions. Undo/Redo menus and feedback now resolve descriptions in the editor's current language. |
 | 7.62 | 2026-08-16 | Undo/Redo now resets the timed overlay interval for every operation, so localized or repeated feedback remains visible after the welcome timer has expired. |
 | 7.61 | 2026-08-16 | Undo/Redo success feedback now uses the editor's timed global overlay in addition to persistent panel status, keeping the operation visible regardless of panel scroll, active worktree, detached timeline, or viewport focus. |
 | 7.60 | 2026-08-16 | Replaced the single rollback slot with bounded 50-entry Undo/Redo snapshot stacks shared by every existing atomic commit boundary. Restoration covers canonical data plus core editor context and rebuilds dependent previews/reports; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, menus, worktree controls, redo invalidation, cap eviction, and owned-file cleanup are wired. Initial authoring/bone-drag descriptions are specific; remaining commands use a safe generic label. |
