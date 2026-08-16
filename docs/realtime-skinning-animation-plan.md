@@ -801,6 +801,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.67 | 2026-08-16 | Fixed the Undo/Redo overlay lifetime so each localized or repeated history operation restarts its four-second visual feedback interval. |
+| 8.66 | 2026-08-16 | Undo/Redo descriptions now appear in a timed global overlay as well as persistent status, remaining visible independently of editor scroll/worktree/timeline focus. |
+| 8.65 | 2026-08-16 | Editor history replaces one-level rollback with bounded 50-entry Undo/Redo stacks over existing atomic snapshots, restores core context and dependent previews, exposes standard shortcuts/menus, clears Redo on new commits, evicts old files, and preserves one-entry mouse gestures. |
 | 8.64 | 2026-08-16 | Runtime preview adds explicit validation from unsaved canonical memory through a temporary MSH-backed real player, with saved/current/stale source reporting and source-preserving method or pose-stress rebuilds. |
 | 8.63 | 2026-08-16 | Scale tool availability follows resolved preview method: DQS and Auto-to-DQS disable it, LBS and Auto-to-LBS enable uniform scale, and incompatible switching returns safely to Move. |
 | 8.62 | 2026-08-16 | Scale UX now matches compact GLES2 normal math: only proportional XYZ scale is exposed under LBS, DQS remains rigid, and per-axis non-uniform scale is deferred to an explicit inverse-transpose normal-palette/shader milestone. |

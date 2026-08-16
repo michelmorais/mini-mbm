@@ -668,13 +668,26 @@ The following are not defects in the delivered Skin Weight Lab:
 - no welded/coincident-vertex adjacency across seams;
 - no automatic heavy whole-mesh weight generation;
 - no custom-tail animation generation;
-- one-level revert rather than general undo/redo.
+- history entries currently use generic operation descriptions outside the first mouse/key-authoring
+  paths; broader per-command naming remains a refinement.
 
 Future animation authoring/timeline, richer pose-stress overlays, antipodality tooling, and non-GLES
 backend delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Skeleton and animation authoring/import remain in the product plan. Mesh Debug's legacy Bone
 node/window has been retired; canonical bind inspection and weight repair belong to this editor.
+
+The editor maintains bounded 50-entry Undo and Redo stacks backed by complete temporary MSH
+snapshots. Every existing atomic commit boundary creates one Undo entry and clears Redo; Undo/Redo
+restores canonical mesh data, modified state, workspace, selected bone, selected clip, and playhead,
+then rebuilds reports, visuals, analysis state, and a memory-backed runtime preview. `Ctrl+Z` undoes,
+while `Ctrl+Y` or `Ctrl+Shift+Z` redoes. Loading another mesh and normal editor quit paths remove all
+owned history snapshots. Completed mouse drags remain one entry rather than one entry per move event.
+Successful Undo/Redo also starts the editor's global timed overlay for four seconds, so its operation
+description stays visible independent of left-panel scroll, active worktree, detached timeline, or
+viewport focus. Every operation resets the interval, including repeated descriptions and operations
+performed after changing the editor language. The ordinary persistent status remains available at the
+top of the panel as well.
 
 Runtime Skeletal Preview identifies whether its player was built from the saved asset or an
 in-memory canonical snapshot. **Refresh runtime preview from memory** serializes current unsaved

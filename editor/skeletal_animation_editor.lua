@@ -165,8 +165,10 @@ local state = {
     aabbDragSensitivity = 0.001,
     analysis = nil,
     analysisDirty = true,
-    rollbackPath = nil,
-    rollbackModified = nil,
+    undoStack = {},
+    redoStack = {},
+    historyLimit = 50,
+    shiftDown = false,
     selectionLines = nil,
     transitionLines = nil,
     heatmapLines = {},
@@ -231,6 +233,16 @@ local function setStatus(message, isError)
     state.statusError = isError == true
 end
 
+local function showHistoryFeedback(message)
+    setStatus(message,false)
+    tUtil.bRightSide=true
+    -- Reset the shared overlay timer instead of merely resuming it. Once the
+    -- welcome message expires, start() alone can hide later feedback at once.
+    -- Clearing the text also restarts identical consecutive history messages.
+    tUtil.sMessageOverlay=false
+    tUtil.showMessage(message,4.0)
+end
+
 local function shortName(path)
     return path and (path:match('([^/\\]+)$') or path) or ''
 end
@@ -269,9 +281,13 @@ local function clearSelectionVisuals()
 end
 
 local function clearRollback()
-    if state.rollbackPath then pcall(os.remove, state.rollbackPath) end
-    state.rollbackPath = nil
-    state.rollbackModified = nil
+    for _,stack in ipairs({state.undoStack,state.redoStack}) do
+        for _,entry in ipairs(stack or {}) do
+            if entry.path then pcall(os.remove,entry.path) end
+        end
+    end
+    state.undoStack={}
+    state.redoStack={}
 end
 
 local function invalidateAnalysis()
@@ -2144,13 +2160,30 @@ end
 local function stageRollbackSnapshot()
     local path = os.tmpname() .. '.msh'
     if not state.meshD:save(path, false, false) then return false end
-    return {path=path,modified=state.modified}
+    return {path=path,modified=state.modified,workspace=state.workspace,
+        boneIndex=state.boneIndex,clipIndex=state.animationClipSelected,
+        authoringTime=state.authoringTime,description=tLang.L('swl_history_operation')}
 end
 
-local function commitRollbackSnapshot(snapshot)
-    clearRollback()
-    state.rollbackPath = snapshot.path
-    state.rollbackModified = snapshot.modified
+local function trimHistoryStack(stack)
+    while #stack>(state.historyLimit or 50) do
+        local removed=table.remove(stack,1)
+        if removed and removed.path then pcall(os.remove,removed.path) end
+    end
+end
+
+local function clearHistoryStack(stack)
+    for _,entry in ipairs(stack) do
+        if entry.path then pcall(os.remove,entry.path) end
+    end
+    for index=#stack,1,-1 do stack[index]=nil end
+end
+
+local function commitRollbackSnapshot(snapshot,description)
+    snapshot.description=description or snapshot.description or tLang.L('swl_history_operation')
+    state.undoStack[#state.undoStack+1]=snapshot
+    trimHistoryStack(state.undoStack)
+    clearHistoryStack(state.redoStack)
     state.animationReport = nil
     state.animationTimelineSelection = {}
     if state.runtimePreviewFromMemory then state.runtimePreviewMemoryDirty=true end
@@ -2174,7 +2207,8 @@ local function commitAuthoringOverride()
     if not ok then discardRollbackSnapshot(snapshot); return false end
     local rotation=value.channelMask==2
     local scaling=value.channelMask==4
-    commitRollbackSnapshot(snapshot)
+    commitRollbackSnapshot(snapshot,tLang.L(scaling and 'swl_history_scale_key' or
+        rotation and 'swl_history_rotation_key' or 'swl_history_translation_key'))
     state.modified=true
     clearAuthoringOverride()
     refreshBindReport()
@@ -2600,17 +2634,26 @@ local function applyRigidBind()
     setStatus(string.format(tLang.L(statusKey), applied, target.name), applied == 0)
 end
 
-local function revertLast()
-    if not state.rollbackPath then return end
+local function restoreHistoryEntry(entry)
+    if not entry or not entry.path then return false end
     local restored = meshDebug:new()
-    if not restored:load(state.rollbackPath) then
+    if not restored:load(entry.path) then
         setStatus(tLang.L('swl_revert_failed'), true)
-        return
+        return false
     end
     state.meshD = restored
-    local restoredModified = state.rollbackModified == true
-    clearRollback()
-    state.modified = restoredModified
+    state.animationReport=nil
+    state.animationTimelineClip=nil
+    state.animationTimelineSelection={}
+    state.authoringPose=nil
+    state.authoringPoseKey=nil
+    state.authoringOverride=nil
+    state.authoringActiveClip=nil
+    state.modified = entry.modified==true
+    state.workspace=entry.workspace or state.workspace
+    state.boneIndex=entry.boneIndex or state.boneIndex
+    state.animationClipSelected=entry.clipIndex or state.animationClipSelected
+    state.authoringTime=entry.authoringTime or 0
     state.normalizeReport=nil
     state.bindRenameBoneId=nil
     state.bindReparentBoneId=nil
@@ -2621,19 +2664,61 @@ local function revertLast()
     state.allowedBones={}
     for _,bone in ipairs(bones) do state.allowedBones[bone.name]=true end
     invalidateAnalysis()
-    rebuildPreview()
+    rebuildPreview(entry.path)
     rebuildSkeletonVisuals()
     rebuildSelectionBox()
     rebuildProximityCapsule()
     applyWorkspaceVisibility()
-    setStatus(tLang.L('swl_reverted'), false)
+    return true
+end
+
+local function undoHistory()
+    if #state.undoStack==0 then return end
+    local current=stageRollbackSnapshot()
+    if not current then setStatus(tLang.L('swl_snapshot_failed'),true); return end
+    local entry=table.remove(state.undoStack)
+    current.description=entry.description
+    if restoreHistoryEntry(entry) then
+        state.redoStack[#state.redoStack+1]=current
+        trimHistoryStack(state.redoStack)
+        pcall(os.remove,entry.path)
+        showHistoryFeedback(string.format(tLang.L('swl_undone_fmt'),entry.description))
+    else
+        state.undoStack[#state.undoStack+1]=entry
+        discardRollbackSnapshot(current)
+    end
+end
+
+local function redoHistory()
+    if #state.redoStack==0 then return end
+    local current=stageRollbackSnapshot()
+    if not current then setStatus(tLang.L('swl_snapshot_failed'),true); return end
+    local entry=table.remove(state.redoStack)
+    current.description=entry.description
+    if restoreHistoryEntry(entry) then
+        state.undoStack[#state.undoStack+1]=current
+        trimHistoryStack(state.undoStack)
+        pcall(os.remove,entry.path)
+        showHistoryFeedback(string.format(tLang.L('swl_redone_fmt'),entry.description))
+    else
+        state.redoStack[#state.redoStack+1]=entry
+        discardRollbackSnapshot(current)
+    end
 end
 
 local function showRollbackControls(id)
     tImGui.Separator()
     tImGui.Text(tLang.L('swl_history'))
-    tImGui.BeginDisabled(state.rollbackPath == nil)
-    if tImGui.Button(tLang.L('swl_revert')..'##'..id) then revertLast() end
+    local undoEntry=state.undoStack[#state.undoStack]
+    local redoEntry=state.redoStack[#state.redoStack]
+    tImGui.BeginDisabled(undoEntry==nil)
+    if tImGui.Button(string.format(tLang.L('swl_undo_fmt'),
+            undoEntry and undoEntry.description or '')..'##undo'..id) then undoHistory() end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    tImGui.BeginDisabled(redoEntry==nil)
+    if tImGui.Button(string.format(tLang.L('swl_redo_fmt'),
+            redoEntry and redoEntry.description or '')..'##redo'..id) then redoHistory() end
     tImGui.EndDisabled()
 end
 
@@ -2670,7 +2755,23 @@ local function showMenu()
             if path then saveTo(path) end
         end
         tImGui.Separator()
-        if tImGui.MenuItem(tLang.L('menu_quit'), 'Ctrl+Q') then mbm.quit() end
+        if tImGui.MenuItem(tLang.L('menu_quit'), 'Ctrl+Q') then
+            clearRollback()
+            mbm.quit()
+        end
+        tImGui.EndMenu()
+    end
+    if tImGui.BeginMenu(tLang.L('menu_edit')) then
+        local undoEntry=state.undoStack[#state.undoStack]
+        local redoEntry=state.redoStack[#state.redoStack]
+        if tImGui.MenuItem(string.format(tLang.L('swl_undo_fmt'),
+                undoEntry and undoEntry.description or ''),'Ctrl+Z',false,undoEntry~=nil) then
+            undoHistory()
+        end
+        if tImGui.MenuItem(string.format(tLang.L('swl_redo_fmt'),
+                redoEntry and redoEntry.description or ''),'Ctrl+Y',false,redoEntry~=nil) then
+            redoHistory()
+        end
         tImGui.EndMenu()
     end
     if tImGui.BeginMenu(tLang.L('menu_options')) then
@@ -5869,7 +5970,7 @@ function onTouchUp(key, x, y)
         local completedBoneDrag=boneDrag and boneDrag.moved
         if boneDrag then
             if boneDrag.moved then
-                commitRollbackSnapshot(boneDrag.snapshot)
+                commitRollbackSnapshot(boneDrag.snapshot,tLang.L('swl_history_bone_drag'))
                 rebuildPreview()
                 refreshBindReport()
                 rebuildSkeletonVisuals()
@@ -5918,12 +6019,19 @@ function onKeyDown(key)
         cancelBoneEditorDrag()
     elseif key == mbm.getKeyCode('control') then
         state.controlDown = true
+    elseif key == mbm.getKeyCode('shift') then
+        state.shiftDown = true
+    elseif state.controlDown and key == mbm.getKeyCode('Z') then
+        if state.shiftDown then redoHistory() else undoHistory() end
+    elseif state.controlDown and key == mbm.getKeyCode('Y') then
+        redoHistory()
     elseif state.controlDown and key == mbm.getKeyCode('O') then
         local path = mbm.openFile(state.fileName or '', 'msh')
         if path then loadMesh(path) end
     elseif state.controlDown and key == mbm.getKeyCode('S') then
         saveTo(state.fileName)
     elseif state.controlDown and key == mbm.getKeyCode('Q') then
+        clearRollback()
         mbm.quit()
     elseif not state.controlDown and key == mbm.getKeyCode('W') then cameraMove.forward=1
     elseif not state.controlDown and key == mbm.getKeyCode('S') then cameraMove.forward=-1
@@ -5936,6 +6044,7 @@ end
 
 function onKeyUp(key)
     if key == mbm.getKeyCode('control') then state.controlDown = false
+    elseif key == mbm.getKeyCode('shift') then state.shiftDown = false
     elseif key == mbm.getKeyCode('W') or key == mbm.getKeyCode('S') then cameraMove.forward=0
     elseif key == mbm.getKeyCode('A') or key == mbm.getKeyCode('D') then cameraMove.right=0
     elseif key == mbm.getKeyCode('pageup') or key == mbm.getKeyCode('pagedown') then cameraMove.vertical=0
