@@ -25,6 +25,7 @@ extern "C"
 }
 
 #include <map>
+#include <cstdlib>
 #include <string>
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
@@ -2939,6 +2940,77 @@ namespace mbm
         return 1;
     }
 
+    int onPasteSkeletalKeysDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        luaL_checktype(lua,3,LUA_TTABLE);
+        const lua_Integer itemCount=static_cast<lua_Integer>(lua_rawlen(lua,3));
+        if (itemCount<=0) return luaL_error(lua,"canonical paste payload must not be empty");
+        std::vector<uint64_t> boneIds;
+        std::vector<uint8_t> channelMasks;
+        std::vector<SKELETAL_KEY_INFO> keys;
+        boneIds.reserve(static_cast<size_t>(itemCount));
+        channelMasks.reserve(static_cast<size_t>(itemCount));
+        keys.reserve(static_cast<size_t>(itemCount));
+        for (lua_Integer itemIndex=1;itemIndex<=itemCount;++itemIndex)
+        {
+            lua_rawgeti(lua,3,itemIndex);
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const auto integerAt=[lua](const int index)
+            {
+                lua_rawgeti(lua,-1,index);
+                const lua_Integer value=luaL_checkinteger(lua,-1);
+                lua_pop(lua,1);
+                return value;
+            };
+            const auto numberAt=[lua](const int index)
+            {
+                lua_rawgeti(lua,-1,index);
+                const float value=static_cast<float>(luaL_checknumber(lua,-1));
+                lua_pop(lua,1);
+                return value;
+            };
+            const lua_Integer mask=integerAt(2);
+            if (mask<=0 || mask>7) return luaL_error(lua,
+                "canonical paste channel mask must contain only T/R/S channels");
+            lua_rawgeti(lua,-1,1);
+            const char *boneIdText=luaL_checkstring(lua,-1);
+            char *boneIdEnd=nullptr;
+            const uint64_t boneId=static_cast<uint64_t>(std::strtoull(boneIdText,&boneIdEnd,16));
+            if (!boneIdText[0] || !boneIdEnd || *boneIdEnd!='\0')
+                return luaL_error(lua,"canonical paste bone ID must be hexadecimal");
+            lua_pop(lua,1);
+            boneIds.push_back(boneId);
+            channelMasks.push_back(static_cast<uint8_t>(mask));
+            SKELETAL_KEY_INFO key;
+            key.time=numberAt(3);
+            key.localTranslation=VEC3(numberAt(4),numberAt(5),numberAt(6));
+            key.localRotationX=numberAt(7);
+            key.localRotationY=numberAt(8);
+            key.localRotationZ=numberAt(9);
+            key.localRotationW=numberAt(10);
+            key.localScale=VEC3(numberAt(11),numberAt(12),numberAt(13));
+            key.easing=static_cast<uint8_t>(integerAt(14));
+            key.bezierX1=numberAt(15);
+            key.bezierY1=numberAt(16);
+            key.bezierX2=numberAt(17);
+            key.bezierY2=numberAt(18);
+            keys.push_back(key);
+            lua_pop(lua,1);
+        }
+        const float sourceMinimumTime=static_cast<float>(luaL_checknumber(lua,4));
+        const float insertionTime=static_cast<float>(luaL_checknumber(lua,5));
+        char errorOut[255]="";
+        if (!meshDebug->mesh.pasteSkeletalKeys(static_cast<uint32_t>(clip-1),boneIds.data(),
+                channelMasks.data(),keys.data(),static_cast<uint32_t>(keys.size()),
+                sourceMinimumTime,insertionTime,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
     int onInsertSkeletalKeysRippleDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
@@ -3245,6 +3317,7 @@ namespace mbm
                                           {"removeSkeletalKey", onRemoveSkeletalKeyDebugLua},
                                           {"moveSkeletalKeys", onMoveSkeletalKeysDebugLua},
                                           {"duplicateSkeletalKeys", onDuplicateSkeletalKeysDebugLua},
+                                          {"pasteSkeletalKeys", onPasteSkeletalKeysDebugLua},
                                           {"insertSkeletalKeysRipple", onInsertSkeletalKeysRippleDebugLua},
                                           {"insertSkeletalEmptyTime", onInsertSkeletalEmptyTimeDebugLua},
                                           {"removeSkeletalTimeRange", onRemoveSkeletalTimeRangeDebugLua},

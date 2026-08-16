@@ -344,6 +344,13 @@ namespace mbm
                                             const uint32_t *keyIndices, const uint32_t keyCount,
                                             const float timeDelta, char *errorOut,
                                             const int errorOutLen);
+        // Pastes detached key payloads into one destination clip. Tracks are resolved by stable
+        // bone ID, missing tracks are created, and the complete candidate validates atomically.
+        API_IMPL bool pasteSkeletalKeys(const uint32_t clipIndex, const uint64_t *boneIds,
+                                        const uint8_t *channelMasks,
+                                        const SKELETAL_KEY_INFO *keys, const uint32_t keyCount,
+                                        const float sourceMinimumTime, const float insertionTime,
+                                        char *errorOut, const int errorOutLen);
         API_IMPL bool insertSkeletalKeysRipple(const uint32_t clipIndex,
                                                const uint32_t *trackIndices,
                                                const uint32_t *keyIndices,

@@ -4934,6 +4934,92 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::pasteSkeletalKeys(const uint32_t clipIndex, const uint64_t *boneIds,
+                                            const uint8_t *channelMasks,
+                                            const SKELETAL_KEY_INFO *keys,
+                                            const uint32_t keyCount,
+                                            const float sourceMinimumTime,
+                                            const float insertionTime,
+                                            char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical paste clip index is out of range");
+        if (!boneIds || !channelMasks || !keys || keyCount==0)
+            return fail("canonical paste payload must not be empty");
+        if (!std::isfinite(sourceMinimumTime) || !std::isfinite(insertionTime) ||
+                insertionTime<0.0f)
+            return fail("canonical paste times must be finite and nonnegative");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint32_t> affectedTracks;
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint64_t boneId=boneIds[index];
+            const uint8_t channelMask=channelMasks[index];
+            if (impl->canonicalSkeleton.compiled.indexById.find(boneId)==
+                    impl->canonicalSkeleton.compiled.indexById.end())
+                return fail("canonical paste bone ID does not exist in the destination skeleton");
+            if (channelMask==0 || (channelMask & ~7u)!=0)
+                return fail("canonical paste channel mask must contain only T/R/S channels");
+            const float destinationTime=insertionTime+(keys[index].time-sourceMinimumTime);
+            if (!std::isfinite(destinationTime) || destinationTime<0.0f ||
+                    destinationTime>clip.duration)
+                return fail("canonical pasted key time must remain inside the destination clip");
+            auto trackIt=std::find_if(clip.tracks.begin(),clip.tracks.end(),
+                [boneId](const skeletal::SKELETAL_TRACK &track){ return track.boneId==boneId; });
+            if (trackIt==clip.tracks.end())
+            {
+                skeletal::SKELETAL_TRACK track;
+                track.boneId=boneId;
+                track.channelMask=channelMask;
+                clip.tracks.push_back(std::move(track));
+                trackIt=clip.tracks.end()-1;
+            }
+            else if (trackIt->channelMask!=channelMask)
+                return fail("canonical paste destination track has a different channel mask");
+
+            const float quaternionNorm=std::sqrt(keys[index].localRotationX*
+                    keys[index].localRotationX+keys[index].localRotationY*
+                    keys[index].localRotationY+keys[index].localRotationZ*
+                    keys[index].localRotationZ+keys[index].localRotationW*
+                    keys[index].localRotationW);
+            if (!std::isfinite(quaternionNorm) ||
+                    quaternionNorm<=skeletal::QUATERNION_ZERO_EPSILON)
+                return fail("canonical pasted key rotation quaternion must be nonzero and finite");
+            skeletal::SKELETAL_KEY pasted;
+            pasted.time=destinationTime;
+            pasted.local.translation=keys[index].localTranslation;
+            pasted.local.rotation={keys[index].localRotationX/quaternionNorm,
+                keys[index].localRotationY/quaternionNorm,
+                keys[index].localRotationZ/quaternionNorm,
+                keys[index].localRotationW/quaternionNorm};
+            pasted.local.scale=keys[index].localScale;
+            pasted.easing=static_cast<skeletal::SKELETAL_EASING>(keys[index].easing);
+            pasted.bezierX1=keys[index].bezierX1;
+            pasted.bezierY1=keys[index].bezierY1;
+            pasted.bezierX2=keys[index].bezierX2;
+            pasted.bezierY2=keys[index].bezierY2;
+            trackIt->keys.push_back(pasted);
+            affectedTracks.insert(static_cast<uint32_t>(trackIt-clip.tracks.begin()));
+        }
+        for (const uint32_t trackIndex:affectedTracks)
+        {
+            std::stable_sort(clip.tracks[trackIndex].keys.begin(),clip.tracks[trackIndex].keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("pasted canonical keys would be invalid or collide at the destination");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::insertSkeletalKeysRipple(const uint32_t clipIndex,
                                                    const uint32_t *trackIndices,
                                                    const uint32_t *keyIndices,

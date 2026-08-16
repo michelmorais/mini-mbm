@@ -1570,6 +1570,12 @@ meshD:moveSkeletalKeys(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
 meshD:duplicateSkeletalKeys(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
+meshD:pasteSkeletalKeys(oneBasedDestinationClipIndex, {
+    {hexBoneId, channelMask, sourceTime,
+     tx, ty, tz, qx, qy, qz, qw, sx, sy, sz,
+     easing, bezierX1, bezierY1, bezierX2, bezierY2},
+    ...
+}, sourceMinimumTime, insertionTime)
 meshD:insertSkeletalKeysRipple(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, insertionTime)
 meshD:insertSkeletalEmptyTime(oneBasedClipIndex, insertionTime, duration)
@@ -1591,6 +1597,13 @@ validates once before one atomic commit.
 `duplicateSkeletalKeys` uses the same pre-operation pair contract and copies complete key payloads
 into their source tracks at shifted times. Existing keys remain untouched. Duplicate references,
 out-of-range destinations, and collisions reject the entire candidate before commit.
+`pasteSkeletalKeys` accepts detached complete key payloads, so the source clip no longer needs to
+exist or remain unchanged. Each hexadecimal bone ID resolves against the destination skeleton. A
+matching destination track must have the same T/R/S mask; an absent track is created with the copied
+mask and pasted keys. Source times are offset so `sourceMinimumTime` lands at `insertionTime`.
+Unknown bones, incompatible masks, invalid transforms, out-of-range times, duplicate destinations,
+or any invalid complete animation candidate raise a Lua error and leave the destination untouched.
+The method returns `true` on one atomic commit.
 `insertSkeletalKeysRipple` requires a selection with a positive time span. It opens that amount of
 space across every track by shifting keys at or after `insertionTime`, then copies the selected keys
 with their earliest time aligned to the insertion point. The clip duration grows by the opened span

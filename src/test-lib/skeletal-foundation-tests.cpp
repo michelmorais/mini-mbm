@@ -792,6 +792,38 @@ namespace
                    std::fabs(committedLocal.localTranslation.x-3.0f)<=MATRIX_TOLERANCE &&
                    clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,1,error,sizeof(error)-1),
                "explicit authoring commit must atomically create a translation key from the temporary pose");
+        uint32_t pasteClipIndex=0;
+        SKELETAL_KEY_INFO pastedKeys[2];
+        pastedKeys[0].time=1.0f;
+        pastedKeys[0].localRotationW=1.0f;
+        pastedKeys[0].localTranslation=VEC3(7,8,9);
+        pastedKeys[1]=pastedKeys[0];
+        pastedKeys[1].time=2.0f;
+        pastedKeys[1].localTranslation=VEC3(10,11,12);
+        const uint64_t pastedBoneIds[2]={10,10};
+        const uint8_t pastedMasks[2]={SKELETAL_CHANNEL_TRANSLATION|
+            SKELETAL_CHANNEL_ROTATION,SKELETAL_CHANNEL_TRANSLATION|
+            SKELETAL_CHANNEL_ROTATION};
+        const uint8_t incompatiblePasteMasks[2]={SKELETAL_CHANNEL_TRANSLATION,
+            SKELETAL_CHANNEL_TRANSLATION};
+        SKELETAL_KEY_INFO pastedResult;
+        expect(clipEditMesh.addSkeletalClip("paste-target",3.0f,false,&pasteClipIndex,
+                   error,sizeof(error)-1) &&
+                   clipEditMesh.pasteSkeletalKeys(pasteClipIndex,pastedBoneIds,pastedMasks,
+                       pastedKeys,2,1.0f,0.5f,error,sizeof(error)-1) &&
+                   clipEditMesh.getSkeletalTrack(pasteClipIndex,0,editedTrack) &&
+                   editedTrack.boneId==10 && editedTrack.keyCount==2 &&
+                   editedTrack.channelMask==(SKELETAL_CHANNEL_TRANSLATION|
+                       SKELETAL_CHANNEL_ROTATION) &&
+                   clipEditMesh.getSkeletalKey(pasteClipIndex,0,1,pastedResult) &&
+                   std::fabs(pastedResult.time-1.5f)<=MATRIX_TOLERANCE &&
+                   std::fabs(pastedResult.localTranslation.x-10.0f)<=MATRIX_TOLERANCE &&
+                   !clipEditMesh.pasteSkeletalKeys(pasteClipIndex,pastedBoneIds,
+                       incompatiblePasteMasks,pastedKeys,2,1.0f,2.0f,error,sizeof(error)-1) &&
+                   clipEditMesh.getSkeletalTrack(pasteClipIndex,0,editedTrack) &&
+                   editedTrack.keyCount==2 &&
+                   clipEditMesh.removeSkeletalClip(pasteClipIndex,error,sizeof(error)-1),
+               "detached skeletal key paste must create missing tracks, preserve payloads, and reject incompatible candidates atomically");
         const char *trackRoundTrip="/tmp/mini-mbm-canonical-track-round-trip.msh";
         MESH_MBM_DEBUG trackReload;
         expect(clipEditMesh.saveV11(trackRoundTrip,false,false,false,error,sizeof(error)-1) &&

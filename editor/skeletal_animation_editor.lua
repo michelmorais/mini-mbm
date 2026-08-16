@@ -3879,14 +3879,21 @@ local function copyTimelineSelection()
         for keyIndex,key in ipairs(track.keys or {}) do
             if state.animationTimelineSelection[timelineSelectionId(trackIndex,keyIndex)] then
                 local time=key.time or 0
-                items[#items+1]={boneId=track.boneId,time=time}
+                local t=key.translation or {}
+                local q=key.rotation or {}
+                local s=key.scale or {}
+                local b=key.bezier or {}
+                items[#items+1]={track.boneId,track.channelMask or 0,time,
+                    t.x or 0,t.y or 0,t.z or 0,q.x or 0,q.y or 0,q.z or 0,q.w or 1,
+                    s.x or 1,s.y or 1,s.z or 1,key.easing or 0,
+                    b.x1 or 0,b.y1 or 0,b.x2 or 1,b.y2 or 1}
                 minimumTime=math.min(minimumTime,time)
                 maximumTime=math.max(maximumTime,time)
             end
         end
     end
     if #items==0 then return false end
-    state.animationKeyClipboard={clipId=clip.clipId,items=items,
+    state.animationKeyClipboard={clipId=clip.clipId,clipName=clip.name,items=items,
         minimumTime=minimumTime,maximumTime=maximumTime}
     local message=string.format(tLang.L('swl_animation_timeline_keys_copied_fmt'),#items)
     setStatus(message,false)
@@ -3896,51 +3903,20 @@ local function copyTimelineSelection()
     return true
 end
 
-local function resolveTimelineClipboardReferences(clip,clipboard)
-    if not clip or not clipboard or clip.clipId~=clipboard.clipId then return nil end
-    local references={}
-    for _,item in ipairs(clipboard.items or {}) do
-        local foundTrack,foundKey=nil,nil
-        for trackIndex,track in ipairs(clip.tracks or {}) do
-            if track.boneId==item.boneId then
-                for keyIndex,key in ipairs(track.keys or {}) do
-                    if math.abs((key.time or 0)-item.time)<=1e-6 then
-                        foundTrack,foundKey=trackIndex,keyIndex
-                        break
-                    end
-                end
-                break
-            end
-        end
-        if not foundTrack then return nil end
-        references[#references+1]=foundTrack
-        references[#references+1]=foundKey
-    end
-    return references
-end
-
 local function pasteTimelineClipboardAtPlayhead()
     local clip=state.animationTimelineClip
     local clipboard=state.animationKeyClipboard
     if state.workspace~='animation' or not clip or not clipboard then return false end
-    if clip.clipId~=clipboard.clipId then
-        setStatus(tLang.L('swl_animation_timeline_clipboard_other_clip'),true)
-        return false
-    end
-    local references=resolveTimelineClipboardReferences(clip,clipboard)
-    if not references then
-        setStatus(tLang.L('swl_animation_timeline_clipboard_stale'),true)
-        return false
-    end
-    local delta=(state.authoringTime or 0)-clipboard.minimumTime
-    local destinationEnd=clipboard.maximumTime+delta
-    if math.abs(delta)<=1e-6 or destinationEnd>(clip.duration or 0)+1e-6 then
+    local destinationEnd=(state.authoringTime or 0)+
+        (clipboard.maximumTime-clipboard.minimumTime)
+    if destinationEnd>(clip.duration or 0)+1e-6 then
         setStatus(tLang.L('swl_animation_timeline_clipboard_out_of_range'),true)
         return false
     end
     local snapshot=stageRollbackSnapshot()
     local pasted=snapshot and select(1,safeCall(function()
-        return state.meshD:duplicateSkeletalKeys(state.animationClipSelected,references,delta)
+        return state.meshD:pasteSkeletalKeys(state.animationClipSelected,clipboard.items,
+            clipboard.minimumTime,state.authoringTime or 0)
     end)) or false
     if not pasted then
         if snapshot then discardRollbackSnapshot(snapshot) end
@@ -4406,7 +4382,8 @@ local function showSkeletalTimelineWindow()
         if clipboard then
             tImGui.SameLine()
             tImGui.TextDisabled(string.format(tLang.L(
-                'swl_animation_timeline_clipboard_fmt'),#(clipboard.items or {})))
+                'swl_animation_timeline_clipboard_fmt'),#(clipboard.items or {}),
+                clipboard.clipName or '?'))
         end
         if selectedCount>0 then
             tImGui.SameLine()

@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.70 | 2026-08-16 | Cross-clip key paste now carries detached full payloads and commits through one canonical candidate. Destination tracks map by stable bone ID, equal masks are required when present, missing tracks are created atomically, and all identity/mask/time/transform/collision failures preserve prior data. |
 | 8.69 | 2026-08-16 | Timeline authoring adds a same-clip transactional key clipboard. Copy records stable bone-ID/time identities; paste re-resolves current indices and atomically aligns full key payloads to the playhead, with explicit stale-source, range, collision, and text-input shortcut gates. |
 | 8.68 | 2026-08-16 | History entries now store operation-specific translation keys across all editor transaction families, allowing Undo/Redo labels and feedback to follow the current editor language instead of retaining generic or previously translated text. |
 | 8.67 | 2026-08-16 | Fixed the Undo/Redo overlay lifetime so each localized or repeated history operation restarts its four-second visual feedback interval. |

@@ -345,13 +345,14 @@ stationary empty-space click retains its seek behavior.
 earliest selected key to the current playhead and preserving relative timing and all key payloads.
 The action is disabled for a zero delta or an out-of-range group; collisions reject atomically and
 leave both original keys and selection source data unchanged.
-**Copy selected keys** (`Ctrl+C`) stores the selected source identities as stable bone IDs plus their
-original times. **Paste at playhead** (`Ctrl+V`) resolves those identities again, aligns the earliest
-copied key to the playhead, and reuses the same atomic canonical duplication operation. The clipboard
-therefore survives selection changes and repeated pastes without retaining fragile track/key indices.
-This first clipboard slice is intentionally limited to its source clip. If an original key was moved
-or removed, if the destination is outside the clip, or if a destination collides, paste rejects
-without modifying the asset. Keyboard shortcuts do not intercept an active ImGui control.
+**Copy selected keys** (`Ctrl+C`) stores detached complete payloads together with stable bone IDs,
+track channel masks, and original times. **Paste at playhead** (`Ctrl+V`) aligns the earliest copied
+key to the playhead and atomically resolves or creates destination tracks. The clipboard therefore
+survives selection changes, source edits, and switching clips without retaining fragile indices.
+An existing destination track must have the same T/R/S mask; missing tracks are created with the
+copied mask. Unknown bones, incompatible masks, an out-of-range destination, or a collision reject
+the complete paste without modifying the asset. Keyboard shortcuts do not intercept an active ImGui
+control, and the timeline identifies the clipboard's source clip.
 **Insert at playhead (ripple)** opens space equal to the selected group's time span across every
 track, shifts all keys at or after the playhead by that span, and inserts a copy aligned by its
 earliest key. The clip duration grows with the inserted space; endpoint keys receive only the
