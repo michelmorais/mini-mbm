@@ -55,6 +55,9 @@ The following areas are already in the "treat as complete unless a bug/regressio
 - `HMD` right-eye buffer storage
 - `DEVICE` main accessor-backed state
 
+`RENDERIZABLE::alwaysOnTopPriority` follows this completed boundary: its integer storage remains in
+`RENDERIZABLE::Impl`; the public header exposes only narrow getter/setter methods.
+
 ### Low-risk render/header follow-up already done
 
 - `TEXTURE_VIEW`, `GIF_VIEW`, and `BACKGROUND` private runtime state moved behind `Impl`.

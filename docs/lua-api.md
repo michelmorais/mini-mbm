@@ -471,7 +471,13 @@ obj.az  = 3.14     -- angle Z (radians)
 
 obj.visible      = false  -- hide the object (default true)
 obj.alwaysRender = true   -- render even when off-screen / outside frustum
+obj.alwaysOnTop = true    -- render in the category's overlay sub-pass
+obj.alwaysOnTopPriority = 1 -- higher populated layers appear above lower ones (default 0)
 ```
+
+`alwaysOnTopPriority` only affects objects whose `alwaysOnTop` property is true. Priorities render
+in ascending order, with depth cleared between populated layers. Objects at the same priority retain
+ordinary depth behavior against each other. The property does not affect render-to-texture captures.
 
 ### 6.3 Size & Bounds
 

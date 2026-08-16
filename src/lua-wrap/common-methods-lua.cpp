@@ -912,6 +912,14 @@ namespace mbm
                     return setVariable(lua, ptr, what);
             }
             break;
+            case 19:
+            {
+                if (strcmp("alwaysOnTopPriority", what) == 0)
+                    ptr->setAlwaysOnTopPriority(static_cast<int>(luaL_checkinteger(lua, 3)));
+                else
+                    return setVariable(lua, ptr, what);
+            }
+            break;
             default: { return setVariable(lua, ptr, what);
             }
         }
@@ -1000,6 +1008,14 @@ namespace mbm
             {
                 if (strcmp("alwaysRender", what) == 0)
                     lua_pushboolean(lua, ptr->isAlwaysRenderizeEnabled());
+                else
+                    return getVariable(lua, ptr, what);
+            }
+            break;
+            case 19:
+            {
+                if (strcmp("alwaysOnTopPriority", what) == 0)
+                    lua_pushinteger(lua, ptr->getAlwaysOnTopPriority());
                 else
                     return getVariable(lua, ptr, what);
             }

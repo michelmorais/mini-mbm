@@ -218,8 +218,8 @@ namespace mbm
         API_IMPL void update();
         API_IMPL bool renderToTargets();
         // lsRenderOnFrustumAlwaysOnTop{2d,3d} collects the RENDERIZABLE::isAlwaysOnTop() subset
-        // separately (same sort as the main list) so render() can draw it as a distinct trailing
-        // sub-pass -- see the alwaysOnTop handling in render().
+        // separately, grouped by priority and distance, so render() can draw populated overlay
+        // layers as trailing sub-passes -- see the alwaysOnTop handling in render().
         API_IMPL static void prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d,std::vector<RENDERIZABLE *> &lsRenderOnFrustumAlwaysOnTop2d);
         API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustumAlwaysOnTop3d,const VEC3 &cameraPosition);
         API_IMPL void render();

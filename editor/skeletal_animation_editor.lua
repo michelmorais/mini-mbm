@@ -1013,6 +1013,7 @@ local function createBoneShape(x,y,z,vertices,nickname,r,g,b,a)
     object:setColor(r,g,b,a)
     object.visible=shouldShowSkeleton()
     object.alwaysOnTop=state.skeletonAlwaysOnTop
+    object.alwaysOnTopPriority=1
     return object
 end
 
@@ -1327,6 +1328,7 @@ rebuildSkeletonVisuals=function()
                     link:setColor(1,0,1,0.9)
                     link.visible=shouldShowSkeleton()
                     link.alwaysOnTop=state.skeletonAlwaysOnTop
+                    link.alwaysOnTopPriority=1
                 else
                     link=createBoneShape(parent.x,parent.y,parent.z,
                         orientedCylinderVerts(dx,dy,dz,radius*0.5,parentRadius*0.5,8),
@@ -2117,75 +2119,91 @@ local function rebuildPaintCursor(hit)
     tx,ty,tz=tx/tangentLength,ty/tangentLength,tz/tangentLength
     local bx,by,bz=n.y*tz-n.z*ty,n.z*tx-n.x*tz,n.x*ty-n.y*tx
     local radius=state.paint.radius
-    local coords,segments={},32
+    local surfaceOffset=radius*0.004
+    local coords,segments={},48
     for segment=0,segments-1 do
         local a0=segment*math.pi*2/segments
         local a1=(segment+1)*math.pi*2/segments
         local function point(angle)
             local cosine,sine=math.cos(angle)*radius,math.sin(angle)*radius
-            return hit.point.x+tx*cosine+bx*sine+n.x*radius*0.002,
-                hit.point.y+ty*cosine+by*sine+n.y*radius*0.002,
-                hit.point.z+tz*cosine+bz*sine+n.z*radius*0.002
+            return hit.point.x+tx*cosine+bx*sine+n.x*surfaceOffset,
+                hit.point.y+ty*cosine+by*sine+n.y*surfaceOffset,
+                hit.point.z+tz*cosine+bz*sine+n.z*surfaceOffset
         end
         appendPoint(coords,point(a0)); appendPoint(coords,point(a1))
     end
     local cursor=line:new('3d',0,0,0)
     cursor:add(coords); cursor:setColor(1,1,1,1); cursor:setPos(0,0,0)
     cursor.alwaysOnTop=true
+    cursor.alwaysOnTopPriority=0
     state.paint.cursor=cursor
-    if state.paint.showBrushGradient or state.paint.showBrushFootprint then
-        local candidates=queryPaintVertices(hit.point,state.paint.radius,hit.triangle)
-        local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
-            state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
-        if state.paint.showBrushGradient then
-            local values,triangles,triangleLookup={},{},{}
-            for _,candidate in ipairs(candidates) do
-                local falloff=math.max(0,math.min(1,1-candidate.distance/
-                    math.max(state.paint.radius,1e-9)))
-                if state.paint.falloffMode==2 then falloff=falloff*falloff*(3-2*falloff) end
-                values[candidate.vertex.globalIndex]=state.paint.strength*falloff
-                for _,triangle in ipairs(state.paint.geometry.incidentTriangles[
-                        candidate.vertex.globalIndex] or {}) do
-                    if not triangleLookup[triangle] then
-                        triangleLookup[triangle]=true; triangles[#triangles+1]=triangle
-                    end
-                end
-            end
-            local faceVertices,uvs={},{}
-            local operation=(state.paint.operationMode-1)*0.5
-            local offset=math.max(extent*1e-5,1e-7)
-            for _,triangle in ipairs(triangles) do
-                for _,entry in ipairs({triangle.a,triangle.b,triangle.c}) do
-                    appendPoint(faceVertices,entry.point.x+hit.normal.x*offset,
-                        entry.point.y+hit.normal.y*offset,entry.point.z+hit.normal.z*offset)
-                    uvs[#uvs+1]=values[entry.globalIndex] or 0
-                    uvs[#uvs+1]=operation
-                end
-            end
-            if #faceVertices>0 and ensurePaintBrushFootprintShader() then
-                state.paint.brushFootprintGeneration=state.paint.brushFootprintGeneration+1
-                local overlay=shape:new('3d',0,0,0)
-                local nickname='paint_brush_footprint_'..state.paint.brushFootprintGeneration
-                local created=overlay:create(faceVertices,uvs,nickname)
-                local okShader,shader=pcall(function() return overlay:getShader() end)
-                if created and okShader and shader and
-                        shader:load(paintBrushFootprintShaderName,nil) then
-                    overlay:setPos(0,0,0); overlay.alwaysOnTop=false
-                    overlay.visible=state.meshVisible
-                    state.paint.brushFootprintShape=overlay
+    if state.paint.showBrushGradient then
+        local faceVertices,uvs={},{}
+        local operation=(state.paint.operationMode-1)*0.5
+        local rings=10
+        local function influenceAt(fraction)
+            local falloff=math.max(0,math.min(1,1-fraction))
+            if state.paint.falloffMode==2 then falloff=falloff*falloff*(3-2*falloff) end
+            return state.paint.strength*falloff
+        end
+        local function addDiscVertex(fraction,segment)
+            local angle=segment*math.pi*2/segments
+            local distance=radius*fraction
+            local cosine,sine=math.cos(angle)*distance,math.sin(angle)*distance
+            appendPoint(faceVertices,
+                hit.point.x+tx*cosine+bx*sine+n.x*surfaceOffset,
+                hit.point.y+ty*cosine+by*sine+n.y*surfaceOffset,
+                hit.point.z+tz*cosine+bz*sine+n.z*surfaceOffset)
+            uvs[#uvs+1]=influenceAt(fraction)
+            uvs[#uvs+1]=operation
+        end
+        for ring=1,rings do
+            local inner=(ring-1)/rings
+            local outer=ring/rings
+            for segment=0,segments-1 do
+                local nextSegment=segment+1
+                if ring==1 then
+                    addDiscVertex(0,0)
+                    addDiscVertex(outer,segment)
+                    addDiscVertex(outer,nextSegment)
                 else
-                    destroyObject(overlay)
+                    addDiscVertex(inner,segment)
+                    addDiscVertex(outer,segment)
+                    addDiscVertex(outer,nextSegment)
+                    addDiscVertex(inner,segment)
+                    addDiscVertex(outer,nextSegment)
+                    addDiscVertex(inner,nextSegment)
                 end
             end
         end
-        if state.paint.showBrushFootprint then
-            local vertices={}
-            for _,candidate in ipairs(candidates) do vertices[#vertices+1]=candidate.vertex end
-            state.paint.brushFootprintMarkers=buildVertexMarkers(vertices,1,1,1,extent)
-            if state.paint.brushFootprintMarkers then
-                state.paint.brushFootprintMarkers.alwaysOnTop=true
-                state.paint.brushFootprintMarkers.visible=state.meshVisible
+        if #faceVertices>0 and ensurePaintBrushFootprintShader() then
+            state.paint.brushFootprintGeneration=state.paint.brushFootprintGeneration+1
+            local overlay=shape:new('3d',0,0,0)
+            local nickname='paint_brush_footprint_'..state.paint.brushFootprintGeneration
+            local created=overlay:create(faceVertices,uvs,nickname)
+            local okShader,shader=pcall(function() return overlay:getShader() end)
+            if created and okShader and shader and
+                    shader:load(paintBrushFootprintShaderName,nil) then
+                overlay:setPos(0,0,0); overlay.alwaysOnTop=true
+                overlay.alwaysOnTopPriority=0
+                overlay.visible=state.meshVisible
+                state.paint.brushFootprintShape=overlay
+            else
+                destroyObject(overlay)
             end
+        end
+    end
+    if state.paint.showBrushFootprint then
+        local candidates=queryPaintVertices(hit.point,state.paint.radius,hit.triangle)
+        local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+            state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+        local vertices={}
+        for _,candidate in ipairs(candidates) do vertices[#vertices+1]=candidate.vertex end
+        state.paint.brushFootprintMarkers=buildVertexMarkers(vertices,1,1,1,extent)
+        if state.paint.brushFootprintMarkers then
+            state.paint.brushFootprintMarkers.alwaysOnTop=true
+            state.paint.brushFootprintMarkers.alwaysOnTopPriority=0
+            state.paint.brushFootprintMarkers.visible=state.meshVisible
         end
     end
 end

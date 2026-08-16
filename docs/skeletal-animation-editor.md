@@ -134,13 +134,16 @@ does not jump through empty space to the opposite side of a thin body part or an
 Compatible coincident UV/material seam copies join the traversal through the same validated seam
 groups used by repair. Disabling the option restores the original spatial-sphere behavior.
 
-**Show Brush Influence** previews the actual next-stamp footprint as translucent filled faces over
-the surface. Per-vertex alpha is derived from the same `strength * falloff` value used by the brush,
-interpolating from a stronger center to a transparent boundary. Green represents Paint/Add, red
-represents Erase/Subtract, and cyan represents Smooth. It uses the same spatial or connected-surface
-query as painting rather than projecting a flat disk. **Show Affected Vertices (Diagnostic)** retains
-the former white crosses as a default-off technical view; dense results sample at most 500 markers.
-Both previews update only through the changed-pointer 30 Hz cursor refresh and perform no idle query.
+**Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
+alpha previews `strength * falloff` independently of the mesh triangulation: green represents
+Paint/Add, red represents Erase/Subtract, and cyan represents Smooth. The disk communicates radius
+and falloff, not the exact topology-clipped result. **Show Affected Vertices (Diagnostic)** is the
+default-off exact candidate view; it runs the same spatial or connected-surface query as painting and
+draws at most 500 white crosses. Both previews update only through the changed-pointer 30 Hz cursor
+refresh and perform no idle query. The disk and radius circle use always-on-top priority 0, so the
+whole flat brush remains visible over curved surfaces. Skeleton joints and segments use priority 1
+and therefore remain visible above the brush. The disk winding follows the camera-facing hit normal
+even when the surface is viewed from below.
 
 The shared atomic type-42 batch boundary used by every Paint/Add, Erase/Subtract, Smooth, Clean,
 and repair commit has executable save/reload acceptance. A deterministic fixture edits separate

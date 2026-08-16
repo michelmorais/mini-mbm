@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.09**
+Document version: **9.12**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.12 | 2026-08-16 | Added integer always-on-top layers to the renderer and Lua API. The complete curved-surface brush uses priority 0; skeleton joints and segments use priority 1, eliminating their former depth competition. |
+| 9.11 | 2026-08-16 | Replaced the topology-face brush patch with a camera-facing radial disk whose falloff is independent of mesh triangulation; restored ordinary depth so the skeleton remains visible above it, while exact geodesic candidates stay available through diagnostic vertex markers. |
+| 9.10 | 2026-08-16 | Made the brush influence patch a true always-on-top tool overlay and removed its hit-normal geometry offset, eliminating z-buffer fighting and curved-surface detachment against the coincident heatmap mesh. |
 | 9.09 | 2026-08-16 | Replaced default white-cross brush feedback with a surface-following translucent face preview. Interpolated alpha reflects actual strength times falloff; green/red/cyan distinguish Add/Subtract/Smooth. White affected-vertex crosses remain an optional default-off diagnostic. |
 | 9.08 | 2026-08-16 | Added default-on Show Affected Vertices. White crosses preview the actual spatial/geodesic candidate set used by the next stamp, sample dense results to 500 markers, and rebuild only through the existing changed-pointer 30 Hz cursor path. |
 | 9.07 | 2026-08-16 | Added default-on Connected Surface Only for every brush operation. Each stamp uses a radius-bounded shortest path over triangle edges from the hit face, crosses validated compatible UV/material seams, and cannot jump through empty space to nearby or opposite surfaces. |

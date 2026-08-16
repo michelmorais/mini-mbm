@@ -110,6 +110,11 @@ namespace mbm
         // existing object.
         API_IMPL bool isAlwaysOnTop() const noexcept;
         API_IMPL void setAlwaysOnTop(const bool enabled) noexcept;
+        // Layer inside the always-on-top sub-pass. Lower priorities render first; depth is cleared
+        // between populated priorities so higher values unconditionally appear above lower ones.
+        // Objects sharing a priority retain ordinary depth behavior. Default 0.
+        API_IMPL int getAlwaysOnTopPriority() const noexcept;
+        API_IMPL void setAlwaysOnTopPriority(const int priority) noexcept;
         API_IMPL void * getUserData() const noexcept;
         API_IMPL void setUserData(void *data) noexcept;
         API_IMPL RENDER_STATE & getBlend() noexcept;
