@@ -1,8 +1,8 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **3.9**
-Status: **Canonical import and exclusive six-worktree editor shell implemented**
-Last updated: **2026-08-13**
+Document version: **7.71**
+Status: **Five active skeletal workflows implemented; Paint Weights reserved; composition deferred**
+Last updated: **2026-08-16**
 
 ## 1. Purpose
 
@@ -37,9 +37,9 @@ top-level worktrees; opening one closes the previous worktree:
 4. **Skin Weight Lab** — select vertices; inspect, normalize, rigid-bind, smooth, diagnose, and
    preserve stored weights. This workflow is already delivered and must be moved into a node without
    changing its accepted behavior.
-5. **Create / Edit Animations** — reserved for creating/importing clips, editing bone tracks and
-   keyframes, using a timeline, and composing poses. It remains visibly unavailable until that
-   functionality is delivered.
+5. **Create / Edit Animations** — active local authoring for clips, bone tracks, keys, easing,
+   viewport TRS manipulation, playback, timeline editing, transactional clipboards, and Undo/Redo.
+   Multi-clip composition remains explicitly deferred as described in Section 8.
 6. **Paint Weights** — reserved for direct brush-based weight authoring. It is intentionally
    separate from the region/diagnostic/repair operations owned by Skin Weight Lab.
 
@@ -158,7 +158,7 @@ it does not authorize copying the large Lua block into the new editor.
 - Rename and reparent with an impact preview.
 - Move a bind joint with an explicit policy for mesh, descendants, inverse bind, weights, and clips.
 - Adjust orientation/tail/roll without silently replacing valid imported information.
-- Add/remove bones with affected-reference reporting and one-level rollback at minimum.
+- Add/remove bones with affected-reference reporting and bounded Undo/Redo history.
 - Offer derivation helpers only as previewable, named heuristics.
 
 ### Viewport-interaction refinement
@@ -500,6 +500,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.71 | 2026-08-16 | Closed the session with a documentation drift audit. Current-state sections now identify Bone Editor, local animation authoring, timeline, viewport TRS, clipboards, and bounded Undo/Redo as delivered; only Paint Weights remains a reserved worktree, while multi-clip composition remains explicitly deferred. |
 | 7.70 | 2026-08-16 | Marked multi-clip composition/blending as explicit deferred work while development moves to Paint Weights. Priority, weight/fade, Absolute/Additive, masks, persistence boundaries, and composed-pose math remain pending and are not implied by the delivered clip/pose clipboards. |
 | 7.69 | 2026-08-16 | Added complete-skeleton pose copy/paste. A strict batch API requires exactly one stable identity/TRS per bone, creates or extends T+R+S tracks, creates/updates every playhead key on one candidate, and commits with one Undo or rejects all. The editor records source clip/time/count and includes localized tooltips. |
 | 7.68 | 2026-08-16 | Added localized tooltips to selected-bone pose copy/paste, explaining evaluated temporary-pose capture, one-bone scope, T+R+S key creation/update, inherited descendant motion without child-key edits, stable identity, and the single Undo boundary. |

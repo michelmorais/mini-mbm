@@ -1,8 +1,8 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **2.4**
-Status: **Canonical FBX skeleton/weight/clip import implemented; runtime skinning pending**
-Last updated: **2026-08-10**
+Document version: **8.76**
+Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
+Last updated: **2026-08-16**
 
 ## 1. Purpose
 
@@ -313,15 +313,16 @@ and which file sections remain distinct.
 
 ## 11. Standalone Editor Shape
 
-The Skeletal Animation Editor contains five mutually exclusive worktrees:
+The Skeletal Animation Editor contains six mutually exclusive worktrees:
 
-1. **Bind Pose Contract** — canonical hierarchy/bind inspection and diagnostics.
-2. **Runtime Skeletal Preview** — runtime clip playback, method readiness, and LBS/DQS comparison.
-3. **Skin Weight Lab** — delivered weight selection, rigid regions, transitions, smoothing,
+1. **Bone Editor** — direct canonical joint/segment construction and bind manipulation.
+2. **Bind Pose Contract** — canonical hierarchy/bind inspection and diagnostics.
+3. **Runtime Skeletal Preview** — runtime clip playback, method readiness, and LBS/DQS comparison.
+4. **Skin Weight Lab** — delivered weight selection, rigid regions, transitions, smoothing,
    diagnostics, and rollback.
-4. **Create / Edit Animations** — reserved for clip list, bone tracks, P/R/S channels, easing,
-   timeline playback/seek, loop, speed, composition, local authoring, and external animation import.
-5. **Paint Weights** — reserved for direct brush-based weight authoring, distinct from the
+5. **Create / Edit Animations** — delivered clip/track/key editing, viewport T/R/S authoring,
+   playback, timeline operations, clipboards, and history. Multi-clip composition remains deferred.
+6. **Paint Weights** — reserved for direct brush-based weight authoring, distinct from the
    diagnostic and region-based Skin Weight Lab.
 
 The asset, camera, viewport, status, and mesh visibility remain shared services. Skeleton display is
@@ -804,6 +805,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.76 | 2026-08-16 | Closed the session with a documentation drift audit. The plan status now reflects delivered canonical import, GLES LBS/DQS runtime, six-worktree editor organization, Bone Editor, and local animation authoring; modern backends, Paint Weights, multi-clip composition, and Velocity Skinning remain pending. |
 | 8.75 | 2026-08-16 | Explicitly deferred multi-clip composition/blending while development moves to Paint Weights. Priority, layer weight/fade, Absolute/Additive, per-bone masks, persistence boundaries, and composed runtime pose evaluation remain pending. |
 | 8.74 | 2026-08-16 | Complete skeleton poses now copy evaluated local TRS for every stable bone and paste through a strict all-bones candidate that creates/extends T+R+S tracks, updates one playhead key per bone, and commits once or rejects all with one Undo boundary. |
 | 8.73 | 2026-08-16 | Selected-bone pose copy/paste now has localized explanatory tooltips covering one-bone TRS scope, temporary capture, authored key behavior, inherited child motion, stable identity, and Undo. |

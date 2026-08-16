@@ -1,13 +1,14 @@
 # Skeletal Animation Editor
 
-Status: **Bind/weight/runtime workflows implemented; canonical clip/track/key inspection started**
-Last updated: **2026-08-14**
+Status: **Bind, Bone Editor, canonical weight repair, runtime preview, and local animation authoring implemented; Paint Weights reserved; composition deferred**
+Last updated: **2026-08-16**
 
 ## 1. Purpose
 
 The Skeletal Animation Editor is the standalone Mini MBM tool for inspecting and editing skeletal
-mesh data. Its currently implemented workspace, **Skin Weight Lab**, repairs canonical type-42
-frame-1 vertex weights without expanding Mesh Debug into a general animation editor.
+mesh data. Its implemented worktrees cover bind diagnostics, direct bone editing, canonical type-42
+weight repair, runtime LBS/DQS preview, and local clip/track/key/timeline authoring without expanding
+Mesh Debug into a general animation editor.
 
 For canonical skeletal meshes within the GLES2 palette limit, the preview can play the same
 per-instance LBS or rigid-DQS deformation path used by the runtime. Non-GLES backend delivery
@@ -15,7 +16,8 @@ remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-p
 
 The editor is organized into six mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Skin Weight Lab**, **Create / Edit Animations**, and
-**Paint Weights**. The last two are currently reserved and explain their future scope. Their product
+**Paint Weights**. Create / Edit Animations is active; Paint Weights is the only reserved worktree.
+Multi-clip composition remains separately deferred. Their product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
@@ -43,9 +45,9 @@ and **Expand all** opens the complete hierarchy. Selecting a node highlights its
 parent-to-child bone segment in cyan in the bind-pose gizmo, and updates one separate technical panel with that bone's identity, parent,
 local TRS, radius/length, and bind matrices. The selected-bone panel permits an explicit rename.
 Empty or duplicate names are rejected transactionally; weights and animation tracks continue
-targeting the unchanged stable bone ID. Rename and reparent create a one-level whole-asset rollback
-snapshot before committing; failed mutations discard their staged snapshot and preserve the previous
-history entry. **Revert** reloads skeleton, weights, clips, preview, hierarchy, and gizmos together.
+targeting the unchanged stable bone ID. Rename and reparent stage a whole-asset snapshot before
+committing; failed mutations discard it without changing history. Undo/Redo restores skeleton,
+weights, clips, preview, hierarchy, selection, and gizmos together.
 Root nodes highlight only their joint because they have no incoming parent segment.
 The hierarchy has its own scroll region, so expanding a large rig does not clip its lower branches
 or push the selected-bone panel out of reach.
@@ -59,11 +61,12 @@ and the tree is rebuilt only after the complete canonical candidate validates.
 length. Applying normalizes the quaternion and transactionally recompiles and validates the complete
 canonical asset. Because this is a local bind correction, the selected bone and its descendants move;
 child transforms are not silently compensated. Invalid input leaves the asset unchanged, and the
-successful edit can be reverted through the shared one-level history.
+successful edit participates in the shared bounded Undo/Redo history.
 
-Direct mouse manipulation is reserved for the editor-refinement phase. The numeric fields remain
-available for exact values; future viewport translation/rotation/scale gizmos will feed the same
-transactional bind-edit operation rather than maintaining separate skeleton state.
+The separate Bone Editor provides direct joint/segment manipulation, constrained movement,
+segment rotation, connection editing, radius editing, snapping, cancellation, and one transaction
+per completed gesture. These numeric Bind Pose Contract fields remain available for exact values and
+feed the same canonical skeleton state rather than maintaining a second representation.
 
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
@@ -146,8 +149,8 @@ The same node can create an empty clip and update the selected clip's name, dura
 policy. Clip IDs remain unchanged when properties are edited. A duration reduction that would
 exclude an existing key is rejected rather than truncating or moving animation data. Clip removal
 requires explicit confirmation because it removes all contained tracks and keys; removing the final
-clip also removes canonical type-43 storage. These operations use the shared whole-asset rollback
-boundary. Track/key mutation and timeline authoring remain unavailable in this slice.
+clip also removes canonical type-43 storage. These operations use the shared whole-asset history
+boundary; track, key, timeline, and viewport authoring are documented below.
 
 Track-container authoring is now available for the selected clip. The editor lists only bones that
 do not already have a track there, accepts any nonempty T/R/S channel combination, and creates the
@@ -155,7 +158,7 @@ track with one key at time zero copied from the bone's local bind TRS. This seed
 empty-track intermediate and initially evaluates to bind pose. Existing track channel masks may be
 changed transactionally; stored key values remain intact and are revalidated under the enabled
 channels. Track removal requires confirmation because all of that track's keys are removed with it.
-Key-value editing and the timeline remain the next authoring layer.
+Key-value editing and the timeline are available as described below.
 
 Keyframe authoring is available inside each expanded track. A new key time must be unique and lie
 inside the clip; insertion samples the existing clip and captures that bone's evaluated local TRS,
@@ -163,16 +166,16 @@ so merely adding a key preserves the current curve. Expanded keys expose editabl
 translation, quaternion rotation, scale, easing, and Cubic-Bezier controls. Applying normalizes the
 quaternion, reorders a moved key by time, and validates the complete type-43 collection. Removal
 requires confirmation and the final key cannot be removed because canonical tracks may not be
-empty. Every insertion, update, and removal uses whole-asset rollback. A graphical timeline and
-pose-oriented viewport controls remain subsequent Milestone-6 work.
+empty. Every insertion, update, and removal uses whole-asset history. The graphical timeline and
+pose-oriented viewport controls described below use the same canonical transactions.
 
 The Animation worktree now also has the shared in-memory pose contract needed by those controls.
 Its time scrubber evaluates the current unsaved clip directly from `meshDebug`, installs the packed
 LBS/DQS palette on the preview instance without saving or reloading, and rebuilds the visible
 skeleton from the same evaluated global transforms. Consequently the mesh and skeleton show the
-same pose while editing. This slice deliberately stops at evaluation/preview: mouse picking,
-translation/rotation gizmos, auto-key policy, and the graphical timeline are the next interaction
-layer; numeric key fields are diagnostic/fallback controls rather than the intended primary UX.
+same pose while editing. Mouse picking, translation/rotation/uniform-scale gizmos, explicit commit,
+Auto Key, playback, and the graphical timeline build on this contract; numeric key fields remain
+precise diagnostic/fallback controls rather than the intended primary UX.
 Bone selection is now viewport-driven as well as tree/track-driven. Clicking either an evaluated
 joint or its parent-to-child segment performs a nearest-hit ray test and selects the child bone;
 dragging empty viewport space continues to orbit the camera. This establishes the selection
@@ -228,8 +231,9 @@ and bind-restoration commands; the right instance is re-seeked to the left insta
 frame to avoid drift. The camera reframes both meshes automatically. This comparison is read-only,
 and a DQS pose rejection is reported while the LBS instance remains visible.
 
-The editor supports **Save**, **Save As**, and one-level **Revert Last Weight Operation**. Revert is
-available only for the latest weight-changing operation in the current editor session.
+The editor supports **Save**, **Save As**, and bounded 50-entry **Undo/Redo** across existing atomic
+bind, bone, weight, clip, track, key, timeline, and pose-authoring operations. New commits clear Redo;
+loading another mesh or quitting removes the editor-owned temporary snapshots.
 
 ## 3. Interface workflow
 
@@ -465,12 +469,12 @@ selection tolerance immediately, and creates one rollback entry. Radius remains 
 it does not create envelopes or modify canonical vertex weights. The radius field uses a
 scale-proportional `DragFloat` interaction for quick visual adjustment.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
-and mouse manipulation of joints/segments are intentionally the next slices.
+and mouse manipulation of joints/segments use the same canonical asset and history boundary.
 
 Viewport picking distinguishes the initial joint, final joint, and bone segment. A selected joint
 highlights only that endpoint; selecting the segment highlights the segment and both endpoints.
 Clicking empty viewport space clears the selection and remains available for camera orbit. This
-slice records selection intent only and does not yet move bind data.
+selection feeds the delivered move/rotate, snapping, connection, radius, and structural operations.
 
 Inside **Skin Weight Lab**, the controls remain organized in three numbered groups.
 
@@ -704,7 +708,7 @@ The following are not defects in the delivered Skin Weight Lab:
 Future composition/blending, richer pose-stress overlays, antipodality tooling, and non-GLES backend
 delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
-Skeleton and animation authoring/import remain in the product plan. Mesh Debug's legacy Bone
+Further skeleton and animation authoring refinements remain in the product plan. Mesh Debug's legacy Bone
 node/window has been retired; canonical bind inspection and weight repair belong to this editor.
 
 The editor maintains bounded 50-entry Undo and Redo stacks backed by complete temporary MSH
