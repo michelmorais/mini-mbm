@@ -376,6 +376,8 @@ zero-width view. Both framing actions preserve the canonical clip and selection.
 configurable interval (default `1/30 s`). Group key movement still uses one shared delta, preserving
 relative timing. Insert/duplicate/remove actions inherit snap through the positioned playhead, while
 all mutations retain canonical collision and bounds validation.
+Preset buttons for 24, 25, 30, 50, and 60 FPS set the interval to the exact reciprocal of the chosen
+rate and enable snap immediately. The numeric field remains available for arbitrary intervals.
 The timeline window receives its panel-relative bottom position and remaining width only on first
 appearance; afterward it is freely movable and resizable by the user.
 Timeline authoring playback advances `authoringTime` through the same in-memory pose evaluator used

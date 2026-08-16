@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.58 | 2026-08-16 | Temporal snap adds one-click 24/25/30/50/60 FPS presets that store exact reciprocal steps and enable snapping while retaining arbitrary numeric intervals. |
 | 8.57 | 2026-08-16 | Timeline adds optional positive-step time snap, defaulting to `1/30 s`, for playhead seeking and key-group anchor dragging while preserving shared deltas and backend collision/bounds authority. |
 | 8.56 | 2026-08-16 | Timeline adds non-mutating Fit selection framing with padded multi-time bounds, a centered minimum range for one-time selections, clip-bound clamping, and synchronized pan reset. |
 | 8.55 | 2026-08-16 | Zoomed timelines expose a synchronized full-width horizontal-pan slider that preserves visible duration, shares the bounded range with middle-button pan, and hides when the full clip is framed. |

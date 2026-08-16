@@ -4207,6 +4207,14 @@ local function showSkeletalTimelineWindow()
         if snapChanged then
             state.animationTimelineSnapStep=math.max(0.000001,math.min(10,snapStep))
         end
+        tImGui.TextDisabled(tLang.L('swl_animation_timeline_snap_presets'))
+        for _,fps in ipairs({24,25,30,50,60}) do
+            tImGui.SameLine()
+            if tImGui.Button(string.format('%d FPS##swlTimelineSnap%d',fps,fps)) then
+                state.animationTimelineSnapStep=1/fps
+                state.animationTimelineSnapEnabled=true
+            end
+        end
         tImGui.TextDisabled(tLang.L('swl_animation_timeline_navigation_help'))
         tImGui.TextDisabled(tLang.L('swl_animation_timeline_box_help'))
         if tImGui.Button(tLang.L('swl_play_restart')..'##swlTimelinePlay') then

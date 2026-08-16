@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.53 | 2026-08-16 | Added one-click temporal-snap presets for 24, 25, 30, 50, and 60 FPS. Each stores the exact reciprocal interval and enables snap, while the existing numeric control remains the arbitrary-rate path. |
 | 7.52 | 2026-08-16 | Added optional configurable temporal snap, defaulting to `1/30 s`. Timeline seeking and dragged selection anchors quantize to the positive step, group deltas preserve relative timing, playhead-based interval operations inherit alignment, and canonical backend validation remains authoritative. |
 | 7.51 | 2026-08-16 | Added Fit selection to frame selected key-time bounds with ten-percent padding per side. A single-time selection receives a small centered range, bounds clamp to the clip, pan state resets, and the operation remains purely navigational. |
 | 7.50 | 2026-08-16 | Added a discoverable full-width horizontal-pan slider whenever the timeline is zoomed. It controls the same bounded visible range as middle-button drag, stays synchronized with zoom/framing, preserves range duration, and disappears when the complete clip is visible. |
