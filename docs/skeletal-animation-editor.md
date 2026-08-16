@@ -127,6 +127,13 @@ vertices through one atomic canonical type-42 batch only when the mouse is relea
 stroke creates one Undo entry and refreshes the heatmap; an empty, cancelled, or rejected stroke
 does not mutate weights. `Esc` cancels the active stroke.
 
+**Connected Surface Only** is enabled by default for Paint/Add, Erase/Subtract, and Smooth. Instead
+of selecting every vertex inside a Euclidean sphere, each stamp runs a radius-bounded shortest-path
+search over triangle edges seeded by the hit face. The brush therefore follows the mesh surface and
+does not jump through empty space to the opposite side of a thin body part or another nearby limb.
+Compatible coincident UV/material seam copies join the traversal through the same validated seam
+groups used by repair. Disabling the option restores the original spatial-sphere behavior.
+
 The shared atomic type-42 batch boundary used by every Paint/Add, Erase/Subtract, Smooth, Clean,
 and repair commit has executable save/reload acceptance. A deterministic fixture edits separate
 four-influence and two-influence vertices, writes the mesh, reloads it, and verifies every occupied

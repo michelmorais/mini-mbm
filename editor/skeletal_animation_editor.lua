@@ -198,6 +198,7 @@ local state = {
         cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
+        connectedSurfaceOnly=true,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
@@ -233,6 +234,7 @@ end
 local rebuildSkeletonVisuals
 local rebuildPaintHeatmap
 local buildTopologyAdjacency
+local buildCoincidentSeams
 local readInfluenceMap
 
 local function safeCall(fn)
@@ -2825,9 +2827,77 @@ local function normalizedInfluences(weightMap)
     return result
 end
 
-local function queryPaintVertices(point,radius)
+local function queryPaintVertices(point,radius,seedTriangle)
     local cache=state.paint.geometry
     if not cache or not cache.vertexBvh then return {} end
+    if state.paint.connectedSurfaceOnly and seedTriangle then
+        local adjacency=buildTopologyAdjacency()
+        local seams=buildCoincidentSeams(adjacency)
+        local distances,heap={},{}
+        local function push(index,distance)
+            heap[#heap+1]={index=index,distance=distance}
+            local child=#heap
+            while child>1 do
+                local parent=math.floor(child/2)
+                if heap[parent].distance<=distance then break end
+                heap[child]=heap[parent]; child=parent
+            end
+            heap[child]={index=index,distance=distance}
+        end
+        local function pop()
+            local root=heap[1]
+            local last=table.remove(heap)
+            if #heap>0 then
+                local parent=1
+                while parent*2<=#heap do
+                    local child=parent*2
+                    if child<#heap and heap[child+1].distance<heap[child].distance then
+                        child=child+1
+                    end
+                    if heap[child].distance>=last.distance then break end
+                    heap[parent]=heap[child]; parent=child
+                end
+                heap[parent]=last
+            end
+            return root
+        end
+        for _,vertex in ipairs({seedTriangle.a,seedTriangle.b,seedTriangle.c}) do
+            local dx,dy,dz=vertex.point.x-point.x,vertex.point.y-point.y,vertex.point.z-point.z
+            local distance=math.sqrt(dx*dx+dy*dy+dz*dz)
+            if distance<=radius and (not distances[vertex.globalIndex] or
+                    distance<distances[vertex.globalIndex]) then
+                distances[vertex.globalIndex]=distance
+                push(vertex.globalIndex,distance)
+            end
+        end
+        local result={}
+        while #heap>0 do
+            local item=pop()
+            if item.distance==distances[item.index] then
+                local vertex=cache.vertices[item.index]
+                result[#result+1]={vertex=vertex,distance=item.distance}
+                local function relax(neighbor)
+                    local target=cache.vertices[neighbor]
+                    if target then
+                        local dx=target.point.x-vertex.point.x
+                        local dy=target.point.y-vertex.point.y
+                        local dz=target.point.z-vertex.point.z
+                        local candidate=item.distance+math.sqrt(dx*dx+dy*dy+dz*dz)
+                        if candidate<=radius and
+                                (not distances[neighbor] or candidate<distances[neighbor]) then
+                            distances[neighbor]=candidate
+                            push(neighbor,candidate)
+                        end
+                    end
+                end
+                for neighbor in pairs(adjacency[item.index] or {}) do relax(neighbor) end
+                for _,neighbor in ipairs(seams.byVertex[item.index] or {}) do
+                    if neighbor~=item.index then relax(neighbor) end
+                end
+            end
+        end
+        return result
+    end
     local result={}
     local radiusSquared=radius*radius
     local function boxDistanceSquared(node)
@@ -2864,8 +2934,8 @@ local function paintFalloff(distance,radius)
     return value
 end
 
-local function stampPaintStroke(stroke,point)
-    for _,candidate in ipairs(queryPaintVertices(point,state.paint.radius)) do
+local function stampPaintStroke(stroke,point,triangle)
+    for _,candidate in ipairs(queryPaintVertices(point,state.paint.radius,triangle)) do
         local alpha=math.max(0,math.min(1,state.paint.strength*
             paintFalloff(candidate.distance,state.paint.radius)))
         if alpha>0 then
@@ -2894,16 +2964,19 @@ local function extendPaintStroke(hit)
             local sampleDistance=spacing-carried
             while sampleDistance<=distance+1e-9 do
                 local t=math.min(1,sampleDistance/distance)
-                stampPaintStroke(stroke,{x=previous.x+dx*t,y=previous.y+dy*t,z=previous.z+dz*t})
+                local triangle=t<0.5 and stroke.lastTriangle or hit.triangle
+                stampPaintStroke(stroke,{x=previous.x+dx*t,y=previous.y+dy*t,z=previous.z+dz*t},
+                    triangle)
                 sampleDistance=sampleDistance+spacing
             end
             stroke.distanceSinceSample=(carried+distance)%spacing
         end
     else
-        stampPaintStroke(stroke,point)
+        stampPaintStroke(stroke,point,hit.triangle)
         stroke.distanceSinceSample=0
     end
     stroke.lastPoint={x=point.x,y=point.y,z=point.z}
+    stroke.lastTriangle=hit.triangle
 end
 
 local function beginPaintStroke(hit)
@@ -3150,7 +3223,7 @@ buildTopologyAdjacency=function()
     return adjacency
 end
 
-local function buildCoincidentSeams(adjacency)
+buildCoincidentSeams=function(adjacency)
     if state.coincidentSeams then return state.coincidentSeams end
     local cache=state.paint.geometry or buildPaintGeometryCache()
     if not cache then return {groups={},byVertex={}} end
@@ -5242,6 +5315,12 @@ local function showPaintWeights()
             state.paint.radius=radius
             rebuildPaintCursor(state.paint.cursorHit)
         end
+        local connectedOnly=tImGui.Checkbox(tLang.L('swl_paint_connected_surface_only'),
+            state.paint.connectedSurfaceOnly)
+        if connectedOnly~=state.paint.connectedSurfaceOnly then
+            state.paint.connectedSurfaceOnly=connectedOnly
+        end
+        tImGui.TextWrapped(tLang.L('swl_paint_connected_surface_help'))
         tImGui.PushItemWidth(240)
         local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_paint_brush_strength'),
             state.paint.strength,0.01,1,'%.2f')

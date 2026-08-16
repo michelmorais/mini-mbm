@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.01**
+Document version: **8.02**
 Status: **Five active skeletal workflows implemented; Paint Weights visual foundation started; composition deferred**
 Last updated: **2026-08-16**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.02 | 2026-08-16 | Added default-on Connected Surface Only for every brush operation. Each stamp uses a radius-bounded shortest path over triangle edges from the hit face, crosses validated compatible UV/material seams, and cannot jump through empty space to nearby or opposite surfaces. |
 | 8.01 | 2026-08-16 | Moved shared Show Mesh into Paint Weights as its first viewport option, immediately before Show Skeleton, removed the duplicate overlay-local control, and preserved independent safety-overlay visibility. |
 | 8.00 | 2026-08-16 | Added contextual Show Base Mesh beside the cached safety overlay. It mirrors shared mesh visibility while leaving protected faces and seam markers independently visible for isolated inspection. |
 | 7.99 | 2026-08-16 | Changed the safety overlay from red outlines to double-sided translucent filled faces and split protected-face, failed-sample, and seam counts onto separate GUI lines. |
