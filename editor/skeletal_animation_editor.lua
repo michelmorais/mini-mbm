@@ -198,7 +198,7 @@ local state = {
         cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
-        cleanThreshold=0.01,stroke=nil},
+        smoothIterations=3,cleanThreshold=0.01,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -227,6 +227,7 @@ end
 
 local rebuildSkeletonVisuals
 local rebuildPaintHeatmap
+local buildTopologyAdjacency
 
 local function safeCall(fn)
     local result = table.pack(pcall(fn))
@@ -2799,7 +2800,8 @@ local function beginPaintStroke(hit)
     local snapshot=stageRollbackSnapshot('swl_history_paint_add')
     if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
     state.paint.stroke={snapshot=snapshot,boneName=bone.name,boneId=bone.boneId,
-        operationMode=state.paint.operationMode,alphas={},lastPoint=nil,distanceSinceSample=0}
+        operationMode=state.paint.operationMode,smoothIterations=state.paint.smoothIterations,
+        alphas={},lastPoint=nil,distanceSinceSample=0}
     extendPaintStroke(hit)
     rebuildPaintCursor(hit)
     return true
@@ -2828,10 +2830,63 @@ local function commitPaintStroke()
         return false
     end
     local edits={}
+    local adjacency=stroke.operationMode==3 and buildTopologyAdjacency() or nil
+    local weightCache={}
+    local function weightsFor(index)
+        if not weightCache[index] then weightCache[index]=readInfluenceMap(index,false) end
+        return weightCache[index]
+    end
+    local smoothTargets=nil
+    if stroke.operationMode==3 then
+        local current={}
+        for _,index in ipairs(indices) do
+            current[index]=weightsFor(index)[stroke.boneName] or 0
+            for neighbor in pairs(adjacency[index] or {}) do
+                if current[neighbor]==nil then
+                    current[neighbor]=weightsFor(neighbor)[stroke.boneName] or 0
+                end
+            end
+        end
+        for _=1,math.max(1,stroke.smoothIterations or 1) do
+            local nextValues={}
+            for _,index in ipairs(indices) do
+                local average,count=0,0
+                for neighbor in pairs(adjacency[index] or {}) do
+                    average=average+(current[neighbor] or 0)
+                    count=count+1
+                end
+                local oldTarget=current[index] or 0
+                nextValues[index]=count>0 and
+                    oldTarget+(average/count-oldTarget)*stroke.alphas[index] or oldTarget
+            end
+            for index,value in pairs(nextValues) do current[index]=value end
+        end
+        smoothTargets=current
+    end
     for _,index in ipairs(indices) do
-        local before=readInfluenceMap(index,false)
+        local before=weightsFor(index)
         local influences=nil
-        if stroke.operationMode==2 then
+        if stroke.operationMode==3 then
+            local oldTarget=before[stroke.boneName] or 0
+            local newTarget=smoothTargets[index] or oldTarget
+            if newTarget>oldTarget+1e-7 and oldTarget<1 then
+                influences=blendedInfluences(index,stroke.boneName,
+                    (newTarget-oldTarget)/(1-oldTarget))
+            elseif newTarget<oldTarget-1e-7 then
+                local otherWeight=1-oldTarget
+                if otherWeight>1e-9 then
+                    local smoothed={}
+                    for name,weight in pairs(before) do
+                        if name==stroke.boneName then
+                            if newTarget>0 then smoothed[name]=newTarget end
+                        else
+                            smoothed[name]=weight*(1-newTarget)/otherWeight
+                        end
+                    end
+                    influences=normalizedInfluences(smoothed)
+                end
+            end
+        elseif stroke.operationMode==2 then
             local remaining={}
             for name,weight in pairs(before) do remaining[name]=weight end
             local targetWeight=remaining[stroke.boneName] or 0
@@ -2862,8 +2917,10 @@ local function commitPaintStroke()
     end
     if #edits==0 then
         discardRollbackSnapshot(stroke.snapshot)
-        setStatus(tLang.L(stroke.operationMode==2 and 'swl_paint_subtract_no_change' or
-            'swl_paint_add_no_change'),false)
+        local noChangeKey=stroke.operationMode==3 and 'swl_paint_smooth_no_change' or
+            stroke.operationMode==2 and 'swl_paint_subtract_no_change' or
+            'swl_paint_add_no_change'
+        setStatus(tLang.L(noChangeKey),false)
         return false
     end
     local ok,committed=safeCall(function()
@@ -2874,15 +2931,16 @@ local function commitPaintStroke()
         if ok then setStatus(tLang.L('swl_paint_stroke_failed'),true) end
         return false
     end
-    local historyKey=stroke.operationMode==2 and 'swl_history_paint_subtract' or
-        'swl_history_paint_add'
+    local historyKey=stroke.operationMode==3 and 'swl_history_paint_smooth' or
+        stroke.operationMode==2 and 'swl_history_paint_subtract' or 'swl_history_paint_add'
     commitRollbackSnapshot(stroke.snapshot,historyKey)
     state.modified=true
     invalidateAnalysis()
     state.paint.heatmapDirty=true
     rebuildPaintHeatmap()
     applyWorkspaceVisibility()
-    local statusKey=stroke.operationMode==2 and 'swl_paint_subtract_applied_fmt' or
+    local statusKey=stroke.operationMode==3 and 'swl_paint_smooth_applied_fmt' or
+        stroke.operationMode==2 and 'swl_paint_subtract_applied_fmt' or
         'swl_paint_stroke_applied_fmt'
     setStatus(string.format(tLang.L(statusKey),#edits,stroke.boneName),false)
     return true
@@ -2948,7 +3006,7 @@ local function cleanPaintWeakInfluences()
     return true
 end
 
-local function buildTopologyAdjacency()
+buildTopologyAdjacency=function()
     if state.topologyAdjacency then return state.topologyAdjacency end
     local adjacency={}
     local okS,subsets=safeCall(function() return state.meshD:getTotalSubset(1) end)
@@ -2963,9 +3021,14 @@ local function buildTopologyAdjacency()
         local okV,total=safeCall(function() return state.meshD:getTotalVertex(1,subset) end)
         total=okV and total or 0
         local okI,indices=safeCall(function() return state.meshD:getIndex(1,subset) end)
-        if okI and indices then
+        if okI and indices and #indices>=3 then
             for i=1,#indices-2,3 do
                 local a,b,c=offset+indices[i],offset+indices[i+1],offset+indices[i+2]
+                connect(a,b); connect(b,c); connect(c,a)
+            end
+        else
+            for vertex=1,total-2,3 do
+                local a,b,c=offset+vertex,offset+vertex+1,offset+vertex+2
                 connect(a,b); connect(b,c); connect(c,a)
             end
         end
@@ -4446,8 +4509,8 @@ local function showPaintWeights()
         tImGui.TextWrapped(tLang.L('swl_paint_requires_weights'))
         return
     end
-    tImGui.TextWrapped(tLang.L(state.paint.operationMode==2 and
-        'swl_paint_subtract_help' or 'swl_paint_add_help'))
+    tImGui.TextWrapped(tLang.L(state.paint.operationMode==3 and 'swl_paint_smooth_help' or
+        state.paint.operationMode==2 and 'swl_paint_subtract_help' or 'swl_paint_add_help'))
     local showSkeleton=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.paint.showSkeleton)
     if showSkeleton~=state.paint.showSkeleton then
         state.paint.showSkeleton=showSkeleton
@@ -4470,9 +4533,10 @@ local function showPaintWeights()
     tImGui.Text(tLang.L('swl_paint_operation'))
     state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_add'),
         state.paint.operationMode,1)
-    tImGui.SameLine()
     state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_subtract'),
         state.paint.operationMode,2)
+    state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_smooth'),
+        state.paint.operationMode,3)
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     tImGui.PushItemWidth(240)
@@ -4488,6 +4552,13 @@ local function showPaintWeights()
         state.paint.strength,0.01,1,'%.2f')
     tImGui.PopItemWidth()
     if strengthChanged then state.paint.strength=strength end
+    if state.paint.operationMode==3 then
+        tImGui.PushItemWidth(240)
+        local iterationsChanged,smoothIterations=tImGui.SliderInt(
+            tLang.L('swl_paint_smooth_iterations'),state.paint.smoothIterations,1,10)
+        tImGui.PopItemWidth()
+        if iterationsChanged then state.paint.smoothIterations=smoothIterations end
+    end
     local falloffNames={tLang.L('swl_falloff_linear'),tLang.L('swl_falloff_smooth')}
     tImGui.PushItemWidth(240)
     local falloffChanged,falloffMode=tImGui.Combo(tLang.L('swl_falloff'),

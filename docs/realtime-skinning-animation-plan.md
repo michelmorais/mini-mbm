@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.87**
+Document version: **8.89**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.89 | 2026-08-16 | Added configurable 1-10 iterative Smooth passes, default three, so neighbor averaging propagates meaningfully across dense meshes while retaining one atomic stroke. Paint operation radio buttons now use separate lines. |
+| 8.88 | 2026-08-16 | Added selected-bone Smooth painting. Brush alpha interpolates the active weight toward its triangle-neighbor average, proportionally redistributes other influences, preserves canonical normalization/four-influence limits, and uses the existing atomic per-stroke Undo boundary. |
 | 8.87 | 2026-08-16 | Began Weight Tools migration with atomic whole-mesh Clean Weak Influences. It removes weights below a configurable threshold, always preserves the dominant influence, renormalizes survivors, and creates one Undo entry; canonical validation already makes separate Normalize All and Limit Four redundant. |
 | 8.86 | 2026-08-16 | Made Paint/Add and Erase/Subtract directly selectable through radio buttons instead of a brush-operation combo. |
 | 8.85 | 2026-08-16 | Added transactional Erase/Subtract to Paint Weights. Existing selected-bone influence decreases and the remaining positive influences renormalize; zero-weight vertices and sole rigid influences remain unchanged, avoiding implicit replacement-bone guesses. |

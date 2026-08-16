@@ -38,7 +38,7 @@ cleanup, smoothing, influence limits, and invalid-weight coverage.
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight
 heatmap, hide or show the skeleton independently, adjust radius, strength, and linear/smooth
-falloff, choose Paint/Add or Erase/Subtract through visible radio buttons, and drag the right mouse button over the mesh. Frame-zero vertices and
+falloff, choose Paint/Add, Erase/Subtract, or Smooth through visible radio buttons, and drag the right mouse button over the mesh. Frame-zero vertices and
 triangles are cached per loaded/restored mesh; separate local-space triangle and vertex BVHs narrow
 surface ray intersection and radius queries. The heatmap rebuilds only when its target or canonical weights become
 dirty. The heatmap stores each vertex's selected-bone weight in `UV.x`; the rasterizer interpolates
@@ -65,6 +65,15 @@ weight for the selected bone, then normalizes the remaining influences. Blue/zer
 remain unchanged. If the selected bone is a vertex's sole influence, subtraction also leaves that
 vertex unchanged because canonical type-42 data requires one to four positive influences summing
 to one; the brush never fabricates a replacement bone.
+
+Smooth uses triangle topology rather than spatial proximity to calculate the selected bone's
+neighbor average for indexed meshes and ordinary non-indexed triangle lists. Strength and falloff interpolate the current selected-bone weight toward that
+average; remaining influences are redistributed proportionally and the final record is normalized
+and limited to four. The complete stroke still commits through one atomic batch and one Undo entry.
+This is selected-bone weight smoothing, not geometry smoothing or an indiscriminate blur of every
+bone channel. A configurable 1-10 iteration count repeats stable topology passes inside the painted
+set, making the effect useful on dense meshes where one immediate-neighbor average is naturally
+subtle. The default is three iterations.
 
 The first migrated **Weight Tools** operation is **Clean Weak Influences**. A configurable threshold
 is applied to the complete mesh. Influences below it are removed, except that every vertex's

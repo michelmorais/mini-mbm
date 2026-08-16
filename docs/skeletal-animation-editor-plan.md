@@ -466,7 +466,8 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
 
-Current delivery: items 1 and 4 plus the transaction core of items 2-3 are implemented. Both brush operations use a
+Current delivery: items 1 and 4 plus the transaction core of items 2-3 are implemented. Paint/Add,
+Erase/Subtract, and selected-bone Smooth use a
 cached vertex BVH, bounded quarter-radius interpolation between ordinary surface hits, local per-stroke accumulation,
 deterministic four-influence normalization, one atomic batch on release, one Undo snapshot, and Esc
 cancellation. Interactive deformation quality and save/reload acceptance remain.
@@ -536,6 +537,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.84 | 2026-08-16 | Made Smooth effective on dense topology with 1-10 stable neighbor-average iterations per stroke, defaulting to three. Brush-operation radio buttons now occupy one line each for clearer selection. |
+| 7.83 | 2026-08-16 | Added Smooth as a third transactional brush operation. It moves only the selected bone's weight toward the triangle-neighbor average under brush Strength/Falloff, proportionally redistributes remaining influences, normalizes, and commits one atomic batch plus one Undo entry. |
 | 7.82 | 2026-08-16 | Started Paint Weights Weight Tools with whole-mesh Clean Weak Influences. A configurable threshold removes small weights while preserving each vertex's strongest influence, then deterministically renormalizes and commits one atomic batch plus one Undo entry. |
 | 7.81 | 2026-08-16 | Replaced the Paint Weights brush-operation combo with directly visible Paint/Add and Erase/Subtract radio buttons. |
 | 7.80 | 2026-08-16 | Added Erase/Subtract through the Paint/Add stroke transaction. It reduces existing selected-bone weights, renormalizes remaining influences, ignores zero-weight vertices, preserves sole rigid influences, and commits one atomic batch plus one Undo entry. |
