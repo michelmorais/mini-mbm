@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **8.78**
+Document version: **8.79**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -808,6 +808,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.79 | 2026-08-16 | Paint Weights heatmap now uses true per-vertex weight interpolation through overlay UVs and a continuous gradient pixel shader, removing the misleading six-bucket face-average clamp before brush authoring begins. |
 | 8.78 | 2026-08-16 | Paint Weights adds its non-destructive visual foundation: isolated worktree state, explicit target-bone selection from the panel or viewport skeleton, an opaque face-filled selected-influence heatmap that replaces the ordinary preview within this worktree, independent skeleton visibility, cached frame-zero triangles with a local-space BVH raycast, and a configurable surface-oriented brush cursor. No weight mutation occurs yet. |
 | 8.77 | 2026-08-16 | Paint Weights is now the intended primary visual authoring workflow and eventual successor to the standalone Skin Weight Lab experience. The Lab remains during incremental delivery; normalization, cleanup, smoothing, limit-four, rigid fill, and diagnostics migrate later as Weight Tools / Repair and Diagnostics only after brush stability and parity. The first backend slice adds atomic canonical type-42 batch mutation without implementing a brush. |
 | 8.76 | 2026-08-16 | Closed the session with a documentation drift audit. The plan status now reflects delivered canonical import, GLES LBS/DQS runtime, six-worktree editor organization, Bone Editor, and local animation authoring; modern backends, Paint Weights, multi-clip composition, and Velocity Skinning remain pending. |

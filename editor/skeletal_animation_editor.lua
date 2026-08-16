@@ -1792,6 +1792,37 @@ local heatmapColors = {
     {0.1,0.25,1}, {0,0.85,1}, {0.1,1,0.25}, {1,0.9,0}, {1,0.45,0}, {1,0.1,0},
 }
 
+local paintHeatmapShaderName='skeletal_paint_weight_heatmap.ps'
+
+local function ensurePaintHeatmapShader()
+    if mbm.existShader(paintHeatmapShaderName) then return true end
+    return mbm.addShader({name=paintHeatmapShaderName,code=[[
+        precision mediump float;
+        varying vec2 vTexCoord;
+
+        vec3 heatColor(float value)
+        {
+            float t=clamp(value,0.0,1.0);
+            vec3 c0=vec3(0.10,0.25,1.00);
+            vec3 c1=vec3(0.00,0.85,1.00);
+            vec3 c2=vec3(0.10,1.00,0.25);
+            vec3 c3=vec3(1.00,0.90,0.00);
+            vec3 c4=vec3(1.00,0.45,0.00);
+            vec3 c5=vec3(1.00,0.10,0.00);
+            if(t<0.2) return mix(c0,c1,t/0.2);
+            if(t<0.4) return mix(c1,c2,(t-0.2)/0.2);
+            if(t<0.6) return mix(c2,c3,(t-0.4)/0.2);
+            if(t<0.8) return mix(c3,c4,(t-0.6)/0.2);
+            return mix(c4,c5,(t-0.8)/0.2);
+        }
+
+        void main()
+        {
+            gl_FragColor=vec4(heatColor(vTexCoord.x),1.0);
+        }
+    ]],var={},min={},max={}})
+end
+
 local function vertexWeightForBone(globalIndex,boneName)
     local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
         return state.meshD:getSkeletalVertexWeight(globalIndex)
@@ -2016,14 +2047,11 @@ rebuildPaintHeatmap = function()
     for _,vertex in pairs(cache.vertices) do
         weights[vertex.globalIndex]=vertexWeightForBone(vertex.globalIndex,bone.name)
     end
-    local buckets={{},{},{},{},{},{}}
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     local offset=math.max(extent*0.00005,0.000001)
+    local vertices,uvs={},{}
     for _,triangle in ipairs(cache.triangles) do
-        local weight=((weights[triangle.a.globalIndex] or 0)+(weights[triangle.b.globalIndex] or 0)+
-            (weights[triangle.c.globalIndex] or 0))/3
-        local index=math.min(6,math.floor(weight*6)+1)
         local a,b,c=triangle.a.point,triangle.b.point,triangle.c.point
         local e1x,e1y,e1z=b.x-a.x,b.y-a.y,b.z-a.z
         local e2x,e2y,e2z=c.x-a.x,c.y-a.y,c.z-a.z
@@ -2033,21 +2061,26 @@ rebuildPaintHeatmap = function()
         local length=math.sqrt(nx*nx+ny*ny+nz*nz)
         if length>1e-12 then nx,ny,nz=nx/length*offset,ny/length*offset,nz/length*offset
         else nx,ny,nz=0,0,0 end
-        local vertices=buckets[index]
-        appendPoint(vertices,a.x+nx,a.y+ny,a.z+nz)
-        appendPoint(vertices,b.x+nx,b.y+ny,b.z+nz)
-        appendPoint(vertices,c.x+nx,c.y+ny,c.z+nz)
+        for _,entry in ipairs({triangle.a,triangle.b,triangle.c}) do
+            appendPoint(vertices,entry.point.x+nx,entry.point.y+ny,entry.point.z+nz)
+            uvs[#uvs+1]=math.max(0,math.min(1,weights[entry.globalIndex] or 0))
+            uvs[#uvs+1]=0.5
+        end
     end
     state.paint.heatmapGeneration=state.paint.heatmapGeneration+1
-    for index,vertices in ipairs(buckets) do
-        if #vertices>0 then
-            local color=heatmapColors[index]
-            local marker=shape:new('3d',0,0,0)
-            marker:create(vertices,nil,'paint_weight_faces_'..state.paint.heatmapGeneration..'_'..index)
-            marker:setColor(color[1],color[2],color[3],1); marker:setPos(0,0,0)
+    if #vertices>0 and ensurePaintHeatmapShader() then
+        local marker=shape:new('3d',0,0,0)
+        local created=marker:create(vertices,uvs,
+            'paint_weight_surface_'..state.paint.heatmapGeneration)
+        local okShader,shader=pcall(function() return marker:getShader() end)
+        if created and okShader and shader and shader:load(paintHeatmapShaderName,nil) then
+            marker:setPos(0,0,0)
             marker.alwaysOnTop=false
             marker.visible=state.workspace=='paint'
-            state.paint.heatmapLines[#state.paint.heatmapLines+1]=marker
+            state.paint.heatmapLines[1]=marker
+        else
+            destroyObject(marker)
+            setStatus(tLang.L('swl_paint_heatmap_shader_failed'),true)
         end
     end
     applyWorkspaceVisibility()
