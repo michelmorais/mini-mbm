@@ -1256,14 +1256,16 @@ rebuildSkeletonVisuals=function()
             'swl_bone_joint_',1,0,1,0.85)
         sphere:setScale(radius,radius,radius)
         state.skeletonGizmo.spheres[bone.name]=sphere
-        if state.workspace=='bone_editor' then
+        if state.workspace=='bone_editor' or state.workspace=='paint' then
             if bone.hasExplicitTail then
                 local head,tailPoint=getBoneEditorEndpoints(bone,extent)
                 local tx,ty,tz=tailPoint.x,tailPoint.y,tailPoint.z
-                local tail=createBoneShape(tx,ty,tz,unitSphereVerts(),
-                    'swl_bone_tail_',1,0,1,0.85)
-                tail:setScale(radius,radius,radius)
-                state.skeletonGizmo.spheres[bone.name..'::tail']=tail
+                if state.workspace=='bone_editor' then
+                    local tail=createBoneShape(tx,ty,tz,unitSphereVerts(),
+                        'swl_bone_tail_',1,0,1,0.85)
+                    tail:setScale(radius,radius,radius)
+                    state.skeletonGizmo.spheres[bone.name..'::tail']=tail
+                end
                 local dx,dy,dz=tx-bone.x,ty-bone.y,tz-bone.z
                 local link=createBoneShape(bone.x,bone.y,bone.z,
                     orientedCylinderVerts(dx,dy,dz,radius*0.5,radius*0.5,8),
@@ -1697,8 +1699,6 @@ local function hitTestPaintBone(sx,sy)
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
     if not ok then return nil end
     local bones=getVisualBones()
-    local byName={}
-    for _,bone in ipairs(bones) do byName[bone.name]=bone end
     local bounds=state.meshBounds
     local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
@@ -1706,8 +1706,11 @@ local function hitTestPaintBone(sx,sy)
     local bestIndex,bestDistance=nil,math.huge
     for index,bone in ipairs(bones) do
         local distance=raySphereDistance(ox,oy,oz,dx,dy,dz,bone.x,bone.y,bone.z,radius)
-        local parent=bone.parentName and byName[bone.parentName] or nil
-        local segmentDistance=parent and raySegmentDistance(ox,oy,oz,dx,dy,dz,parent,bone,radius) or nil
+        local segmentDistance=nil
+        if bone.hasExplicitTail then
+            local head,tailPoint=getBoneEditorEndpoints(bone,extent)
+            segmentDistance=raySegmentDistance(ox,oy,oz,dx,dy,dz,head,tailPoint,radius)
+        end
         if segmentDistance and (not distance or segmentDistance<distance) then distance=segmentDistance end
         if distance and distance<bestDistance then bestIndex,bestDistance=index,distance end
     end

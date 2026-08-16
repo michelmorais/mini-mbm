@@ -51,6 +51,13 @@ non-indexed fallback. Because the ordinary preview is hidden, no normal-offset d
 Surface picking remains event-driven through the cached BVH; cursor raycasts and cursor-object
 rebuilds require a changed pointer position and are capped at 30 updates per second.
 
+Paint Weights gives each visible segment the same mesh-independent identity used by Bone Editor:
+a bone with an explicit canonical tail owns its own transformed `head -> tail` segment. Clicking that
+segment therefore selects that bone, rather than the child whose head happens to end the segment.
+The rule depends only on canonical skeleton data, never importer names or anatomical conventions.
+Bones without an explicit tail remain selectable at their head joint and do not receive a guessed
+segment.
+
 ## 2. Opening the editor
 
 Choose **Skeletal Animation Editor** from the Mini MBM launcher, or start it directly:
