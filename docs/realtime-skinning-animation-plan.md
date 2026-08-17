@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.47**
+Document version: **9.48**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.48 | 2026-08-17 | Completed a Paint Weights documentation and retired-API audit. Current docs now match viewport-control order, delivered abrupt repair, and the post-Weight-Lab workflow. The scalar `setSkeletalVertexWeight` is the sole deprecation candidate after legacy-helper deletion; all other canonical weight APIs retain active consumers. |
 | 9.47 | 2026-08-17 | Made dirty in-memory canonical state authoritative for preview reconstruction. Unsaved skeletal edits now use an ephemeral serialized snapshot while clean loads/saves use the real file, removing the false save prerequisite before animation authoring. |
 | 9.46 | 2026-08-17 | Fixed the animated skeleton overlay so segment lines use the same visual-Z mapping as their endpoint joint shapes during creation and updates. This removes scale-visible Z separation without changing skeletal data. |
 | 9.45 | 2026-08-17 | Added deterministic automatic initial weights in Bone Editor using scale-aware segment/joint distances, four-influence normalization, and configurable topology diffusion. It is importer/anatomy independent and explicitly distinct from Blender's internal bone-heat solver. |

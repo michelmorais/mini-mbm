@@ -49,8 +49,8 @@ count, total weak weight, and maximum weak weight. Changing the threshold refres
 read-only; cleanup still requires an explicit **Clean Weak Influences** action using the same
 threshold.
 
-The Paint Weights panel is contextual rather than showing every control at once. **Skeleton /
-Show Skeleton is the first control**, followed by Repair / Diagnostics because its radio selection
+The Paint Weights panel is contextual rather than showing every control at once. **Show Mesh** is
+the first viewport control, immediately followed by **Show Skeleton**. Repair / Diagnostics follows because its radio selection
 defines the rest of the panel in the same frame. Target Bone, Viewport Feedback, and History remain
 contextual or visible as applicable. **Brush Operations** appears
 only for Selected Bone Heatmap. Influence Distribution and Weak Influence Contamination are
@@ -77,8 +77,8 @@ vertex displays its largest incident-edge difference. A configurable threshold c
 reports abrupt edges and unique affected vertices; the heatmap itself remains raw and unchanged
 when only the threshold moves, so slider interaction updates cached statistics without rebuilding
 geometry or rereading weights. The GUI therefore labels it as a classification threshold for
-statistics only; it intentionally does not recolor the raw heatmap. Automatic repair remains a
-later, separately validated action.
+statistics only; it intentionally does not recolor the raw heatmap. Repair is a separate explicit
+action described below; moving the classification threshold alone never mutates weights.
 
 Abrupt Weight Transitions now exposes the contextual **Smooth Detected Transitions** repair. Only
 vertices belonging to threshold-classified edges are editable. Configurable strength and 1-10
@@ -208,7 +208,7 @@ frustum loss but deliberately does not use `alwaysOnTop`, preserving front/behin
 against the textured mesh. Painting and bone picking are blocked. No vertex query runs per frame
 or per control edit.
 **AABB sensitivity** controls every numeric drag step, defaults from the full mesh extent, and has
-the same automatic-reset behavior as the Weight Lab. Hover feedback is prebuilt with the box rather
+the same automatic-reset behavior as the retired Weight Lab. Hover feedback is prebuilt with the box rather
 than allocated in the loop: X uses magenta, Y cyan, and Z lime; Min/Max highlights the corresponding
 single face plus parallel axis edges, while Size highlights both opposing faces and those edges.
 These transient feedback overlays use always-on-top only for legibility; the orange capture box
@@ -251,7 +251,7 @@ subset, and up to four bone weights in descending order. It performs no global s
 does not update while the pointer is stationary. The panel permanently reserves its header and four
 influence rows, filling absent data with placeholders so entering the scrollbar does not collapse
 the window content and remove the scrollbar itself. This complements the interpolated heatmap when an
-artist needs to explain one precise vertex without returning to the region-oriented laboratory.
+artist needs to explain one precise vertex without leaving the visual Paint Weights workflow.
 
 After each successful Paint/Add, Erase/Subtract, or Smooth stroke, Paint Weights performs a
 non-mutating pose-safety diagnostic over only the triangles incident to changed vertices. It
@@ -800,6 +800,12 @@ selection feeds the delivered move/rotate, snapping, connection, radius, and str
 The following sections preserve the behavior of the retired laboratory for historical comparison
 and maintenance of shared algorithms. They do not describe an accessible worktree. Paint Weights
 owns the supported authoring, mask, diagnostic, repair, Undo, and persistence workflow.
+
+The retired implementation still exists as unreachable Lua cleanup debt. Its exclusive helpers must
+be removed before retiring any public API. The active Paint Weights workflow performs mutations with
+the atomic batch setter; the scalar setter is retained only for compatibility and its existing tests.
+Canonical weight reads, initialization/removal, palette inspection, and batch mutation still have
+active Paint Weights, Bone Editor, or Mesh Debug consumers and are not removal candidates.
 
 ### 3.1 Visualization
 

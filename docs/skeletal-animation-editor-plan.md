@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.42**
+Document version: **8.43**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -224,7 +224,7 @@ pose must still produce one backend-neutral skeleton pose followed by one LBS/DQ
 
 ## 9. Cross-node rules
 
-1. **Single asset context.** All six worktrees operate on the same loaded mesh, skeleton, weights,
+1. **Single asset context.** All five active worktrees operate on the same loaded mesh, skeleton, weights,
    clips, selection, and modified state.
 2. **Single selected bone.** Selection remains coherent when switching nodes; node-specific
    highlights may add context without creating contradictory selections.
@@ -553,6 +553,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.43 | 2026-08-17 | Audited Paint Weights documentation and canonical weight API consumers against the delivered editor. Corrected viewport-control order and active-worktree count, removed the stale claim that abrupt repair remained future work, and removed workflow wording that still directed artists back to the retired Weight Lab. The scalar weight setter remains only as a compatibility/deprecation candidate after dead Lab cleanup; active workflows use the atomic batch setter. |
 | 8.42 | 2026-08-17 | Made dirty in-memory canonical state authoritative for every preview rebuild. Unmodified loads and completed saves use the real file; unsaved skeleton, weight, and clip edits transparently rebuild through an immediately discarded temporary mesh, so animation authoring no longer requires an unrelated manual save. |
 | 8.41 | 2026-08-17 | Fixed Animation-worktree skeleton segments separating from joints on small meshes at Z zero. Line origins and endpoints now use the same visual-Z mapping as joint shapes during creation and per-frame updates; bind and pose data remain unchanged. |
 | 8.40 | 2026-08-17 | Added deterministic automatic initial weights in Bone Editor. Scale-aware bone-segment/joint distance scores are limited to four influences, normalized, diffused through configurable topology iterations, and committed with snapshot restoration on failure and one Undo entry on success. This is explicitly not presented as Blender's exact bone-heat solver. |
