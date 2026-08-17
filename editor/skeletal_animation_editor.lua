@@ -182,6 +182,7 @@ local state = {
         normalSmoothAngle=30,globalNormalSmoothAudit=nil,
         globalNormalSmoothConfirmed=false,globalNormalSmoothMarkers=nil,
         exactSeamPositionAudit=nil,exactSeamPositionMarkers=nil,
+        weightHealthSummary=nil,weightHealthSeamConfirmed=false,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -326,6 +327,8 @@ local function clearPaintVisuals()
     state.paint.globalNormalSmoothMarkers=nil
     state.paint.exactSeamPositionAudit=nil
     state.paint.exactSeamPositionMarkers=nil
+    state.paint.weightHealthSummary=nil
+    state.paint.weightHealthSeamConfirmed=false
     state.paint.inspectorGeometryReport=nil
     state.paint.inspectorGeometryOverlay=nil
     state.paint.inspectorTopologyReport=nil
@@ -2868,6 +2871,8 @@ local function commitRollbackSnapshot(snapshot,descriptionKey)
     state.paint.heatmapDirty=true
     state.paint.globalSeamAudit=nil
     state.paint.globalSeamSyncConfirmed=false
+    state.paint.weightHealthSummary=nil
+    state.paint.weightHealthSeamConfirmed=false
     if state.runtimePreviewFromMemory then state.runtimePreviewMemoryDirty=true end
 end
 
@@ -3385,12 +3390,13 @@ local function commitPaintStroke()
     return true
 end
 
-local function cleanPaintWeakInfluences()
+local function cleanPaintWeakInfluences(forceCompleteMesh)
     local cache=state.paint.geometry or buildPaintGeometryCache()
     if not cache then return false end
     local indices={}
     for index in pairs(cache.vertices) do
-        if not state.paint.diagnosticsUseMask or state.paint.maskVertices[index] then
+        if forceCompleteMesh or not state.paint.diagnosticsUseMask or
+                state.paint.maskVertices[index] then
             indices[#indices+1]=index
         end
     end
@@ -4501,6 +4507,88 @@ local function analyzeExactCoincidentPositions()
     end
     applyWorkspaceVisibility()
     return state.paint.exactSeamPositionAudit
+end
+
+local function analyzeWeightHealth()
+    state.paint.weightHealthSummary=nil
+    state.paint.weightHealthSeamConfirmed=false
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return nil end
+    local knownBones={}
+    for _,bone in ipairs(getBones()) do knownBones[bone.name]=true end
+    local maps,counts={}, {0,0,0,0}
+    local total,unweighted,dominantTotal,dominantMinimum,dominantMaximum=0,0,0,math.huge,0
+    local invalidWeightVertices=0
+    local weakVertices,weakInfluences,weakWeight,weakMaximum=0,0,0,0
+    for _,vertex in ipairs(cache.vertices) do
+        local index=vertex.globalIndex
+        local map=readInfluenceMap(index,false)
+        maps[index]=map
+        local active,dominant,vertexWeakCount,vertexWeakWeight,sum,unknown=0,0,0,0,0,false
+        for name,weight in pairs(map) do
+            if weight>0 then
+                active=active+1
+                sum=sum+weight
+                if not knownBones[name] then unknown=true end
+                dominant=math.max(dominant,weight)
+                if weight<state.paint.cleanThreshold then
+                    vertexWeakCount=vertexWeakCount+1
+                    vertexWeakWeight=vertexWeakWeight+weight
+                    weakMaximum=math.max(weakMaximum,weight)
+                end
+            end
+        end
+        total=total+1
+        if active==0 then
+            unweighted=unweighted+1
+        else
+            if active<=4 then counts[active]=counts[active]+1 end
+            dominantTotal=dominantTotal+dominant
+            dominantMinimum=math.min(dominantMinimum,dominant)
+            dominantMaximum=math.max(dominantMaximum,dominant)
+        end
+        if active==0 or active>4 or unknown or math.abs(sum-1)>1e-4 then
+            invalidWeightVertices=invalidWeightVertices+1
+        end
+        if vertexWeakCount>0 then weakVertices=weakVertices+1 end
+        weakInfluences=weakInfluences+vertexWeakCount
+        weakWeight=weakWeight+vertexWeakWeight
+    end
+    local abruptEdges,abruptVertices,abruptMaximum=0,{},0
+    for index,neighbors in pairs(buildTopologyAdjacency()) do
+        for neighbor in pairs(neighbors) do
+            if index<neighbor then
+                local distance=influenceDistance(maps[index] or {},maps[neighbor] or {})
+                abruptMaximum=math.max(abruptMaximum,distance)
+                if distance>=state.paint.abruptThreshold then
+                    abruptEdges=abruptEdges+1
+                    abruptVertices[index]=true
+                    abruptVertices[neighbor]=true
+                end
+            end
+        end
+    end
+    local abruptVertexCount=0
+    for _ in pairs(abruptVertices) do abruptVertexCount=abruptVertexCount+1 end
+    local seamAudit=analyzeGlobalSeamWeights() or {groupCount=0,totalGroups=0,
+        vertexCount=0,maximumDivergence=0}
+    local weighted=total-unweighted
+    state.paint.weightHealthSummary={
+        canonicalValid=state.bindReport and state.bindReport.valid==true and
+            invalidWeightVertices==0,
+        total=total,unweighted=unweighted,invalidWeightVertices=invalidWeightVertices,
+        counts=counts,
+        dominantMinimum=weighted>0 and dominantMinimum or 0,
+        dominantAverage=weighted>0 and dominantTotal/weighted or 0,
+        dominantMaximum=dominantMaximum,
+        weakVertices=weakVertices,weakInfluences=weakInfluences,
+        weakWeight=weakWeight,weakMaximum=weakMaximum,
+        cleanThreshold=state.paint.cleanThreshold,
+        abruptEdges=abruptEdges,abruptVertices=abruptVertexCount,
+        abruptMaximum=abruptMaximum,abruptThreshold=state.paint.abruptThreshold,
+        seamGroups=seamAudit.groupCount,seamTotal=seamAudit.totalGroups,
+        seamVertices=seamAudit.vertexCount,seamMaximum=seamAudit.maximumDivergence}
+    return state.paint.weightHealthSummary
 end
 
 local function constrainedRepairWeights(original,candidate,allowedNames,maxChange)
@@ -6090,6 +6178,69 @@ local function showPaintWeights()
     end
     tImGui.Separator()
     showSectionTitle('swl_paint_repair_diagnostics')
+    tImGui.Text(tLang.L('swl_paint_health_title'))
+    if tImGui.Button(tLang.L('swl_paint_health_analyze')) then
+        analyzeWeightHealth()
+    end
+    showItemTooltip(tLang.L('swl_paint_health_help'))
+    local health=state.paint.weightHealthSummary
+    if health then
+        local canonicalKey=health.canonicalValid and 'swl_paint_health_canonical_valid' or
+            'swl_paint_health_canonical_invalid'
+        local canonicalColor=health.canonicalValid and {r=0.25,g=0.9,b=0.35,a=1} or
+            {r=1,g=0.3,b=0.25,a=1}
+        tImGui.TextColored(canonicalColor,tLang.L(canonicalKey))
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_health_coverage_fmt'),
+            health.total,health.unweighted,health.invalidWeightVertices,
+            health.counts[1],health.counts[2],
+            health.counts[3],health.counts[4]))
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_health_dominant_fmt'),
+            health.dominantMinimum,health.dominantAverage,health.dominantMaximum))
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_health_weak_fmt'),
+            health.weakVertices,health.weakInfluences,health.weakWeight,
+            health.weakMaximum,health.cleanThreshold))
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_health_abrupt_fmt'),
+            health.abruptEdges,health.abruptVertices,health.abruptMaximum,
+            health.abruptThreshold))
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_health_seam_fmt'),
+            health.seamGroups,health.seamTotal,health.seamVertices,health.seamMaximum))
+        if health.canonicalValid and health.unweighted==0 and health.weakVertices==0 and
+                health.seamGroups==0 then
+            tImGui.TextColored({r=0.25,g=0.9,b=0.35,a=1},
+                tLang.L('swl_paint_health_mechanical_clear'))
+        else
+            tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
+                tLang.L('swl_paint_health_mechanical_attention'))
+        end
+        if health.abruptEdges>0 then
+            tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
+                tLang.L('swl_paint_health_pose_review'))
+        else
+            tImGui.TextDisabled(tLang.L('swl_paint_health_no_abrupt'))
+        end
+        if health.weakVertices>0 or health.seamGroups>0 then
+            tImGui.Separator()
+            tImGui.Text(tLang.L('swl_paint_health_known_repairs'))
+            if health.weakVertices>0 then
+                if tImGui.Button(tLang.L('swl_paint_health_clean_weak')) then
+                    if cleanPaintWeakInfluences(true) then analyzeWeightHealth() end
+                end
+                showItemTooltip(tLang.L('swl_paint_health_clean_weak_help'))
+            end
+            if health.seamGroups>0 then
+                state.paint.weightHealthSeamConfirmed=tImGui.Checkbox(
+                    tLang.L('swl_paint_health_confirm_seams'),
+                    state.paint.weightHealthSeamConfirmed)
+                tImGui.BeginDisabled(not state.paint.weightHealthSeamConfirmed)
+                if tImGui.Button(tLang.L('swl_paint_health_sync_seams')) then
+                    if synchronizeGlobalSeamWeights() then analyzeWeightHealth() end
+                end
+                tImGui.EndDisabled()
+                showItemTooltip(tLang.L('swl_paint_health_sync_seams_help'),true)
+            end
+        end
+    end
+    tImGui.Separator()
     local previousVisualizationMode=state.paint.visualizationMode
     state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_selected'),
         state.paint.visualizationMode,1)
@@ -6159,6 +6310,7 @@ local function showPaintWeights()
         tImGui.PopItemWidth()
         if thresholdChanged then
             state.paint.cleanThreshold=cleanThreshold
+            state.paint.weightHealthSummary=nil
             state.paint.heatmapDirty=true
             rebuildPaintHeatmap()
         end
@@ -6181,6 +6333,7 @@ local function showPaintWeights()
         tImGui.PopItemWidth()
         if thresholdChanged then
             state.paint.abruptThreshold=abruptThreshold
+            state.paint.weightHealthSummary=nil
             local stats=state.paint.abruptStats
             if stats and stats.records then
                 local edges,vertices=0,{}

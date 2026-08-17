@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.74**
+Document version: **9.76**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.76 | 2026-08-17 | Weight Health now exposes panel-safe multiline guidance plus contextual Undoable actions for deterministic weak-influence cleanup and confirmed seam synchronization, automatically refreshing the report while leaving artistic repairs manual. |
+| 9.75 | 2026-08-17 | Added a one-action read-only Weight Health Summary covering canonical validity, coverage, distribution, weak contamination, abrupt transitions, and seam conflicts without treating artistic influence choices as pass/fail. Documented that defects already visible in an unrigged static source are outside skeletal-deformation causality. |
 | 9.74 | 2026-08-17 | Added a read-only exact-position audit for known coincident seam groups, exposing strict stored-coordinate spread, affected vertices, copy/pair comparison coverage, pinned-group spread, and red markers without changing geometry. |
 | 9.73 | 2026-08-17 | Added confirmed whole-mesh coincident-normal smoothing with complete-link angular grouping, hard-boundary preservation, cyan impact preview, normal-only mutation, Undo, and post-apply audit. |
 | 9.72 | 2026-08-17 | Added whole-mesh incompatible-normal impact analysis, orange markers, explicit confirmation, one Undoable selective repair, automatic invalidation, and post-repair re-audit. |

@@ -49,6 +49,20 @@ count, total weak weight, and maximum weak weight. Changing the threshold refres
 read-only; cleanup still requires an explicit **Clean Weak Influences** action using the same
 threshold.
 
+**Weight Health Summary** runs the principal weight checks over the complete mesh with one explicit
+read-only action. It reports canonical contract validity, unweighted coverage, one-to-four active
+influence counts, dominant-weight range, weak contamination at the current cleanup threshold,
+abrupt triangle-edge transitions at the current classification threshold, and divergent connected
+coincident seams. The summary does not assign a quality score: influence concentration is an
+artistic choice, and abrupt transitions require inspection in representative poses. Mechanical
+problems direct the user to the corresponding detailed diagnostic and explicit repair below.
+The summary offers direct Undoable actions only for findings with deterministic mechanical repairs:
+weak influences can be removed over the complete mesh at the reported threshold, and divergent
+coincident-seam weights can be synchronized after explicit confirmation. It reruns the summary after
+either action. It does not automatically reduce influence count, smooth abrupt transitions, create
+missing weights, or repair an invalid skeleton because those operations require artistic intent or
+a broader authoring decision.
+
 The Paint Weights panel is contextual rather than showing every control at once. **Show Mesh** is
 the first viewport control, immediately followed by **Show Skeleton**. Repair / Diagnostics follows because its radio selection
 defines the rest of the panel in the same frame. Target Bone, Viewport Feedback, and History remain
@@ -492,6 +506,10 @@ nonzero spread, the number of copies and pair comparisons actually evaluated, an
 pinned group when available. Affected copies are marked red.
 It does not weld vertices or otherwise modify geometry; its purpose is to distinguish a real
 micro-gap in the imported mesh from weight, deformation, topology, or normal artifacts.
+If a visible fissure is already present in the static source mesh before a skeleton, weights, or
+animation exists, skeletal deformation is excluded as its cause. The skeletal investigation may be
+resumed for another asset only when that asset is intact before rigging and develops a fissure after
+weighting or deformation.
 
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those

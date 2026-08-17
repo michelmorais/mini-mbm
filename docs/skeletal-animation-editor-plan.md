@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.69**
+Document version: **8.71**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.71 | 2026-08-17 | Made Weight Health tooltip and colored guidance panel-width safe through explicit line breaks. Added contextual Undoable repairs only for deterministic findings: complete-mesh weak cleanup and confirmed coincident-seam synchronization, each followed by automatic re-analysis; artistic transition/influence decisions remain manual. |
+| 8.70 | 2026-08-17 | Added the read-only Weight Health Summary: one action aggregates canonical validity, coverage, influence counts/concentration, weak contamination, abrupt transitions, and coincident-seam conflicts while avoiding a misleading quality score. Also recorded the diagnostic stop rule that a fissure already present in an unrigged static source cannot be attributed to skeletal deformation. |
 | 8.69 | 2026-08-17 | Added a read-only exact-position audit for established coincident seam groups. It reports strict nonzero coordinate spread globally and for the pinned seam, proves coverage with copy/pair comparison counts, marks affected copies in red, and deliberately performs no welding or geometry repair. |
 | 8.68 | 2026-08-17 | Added whole-mesh coincident-normal smoothing as a separate aesthetic operation. Complete-link angular groups prevent transitive over-smoothing, preserve hard divisions above the limit, preview cyan impact, and apply one confirmed Undoable normal-only edit. |
 | 8.67 | 2026-08-17 | Added on-demand whole-mesh incompatible-normal audit and confirmed repair. It reports affected/usable/unavailable counts and maximum difference, marks impact in orange, preserves data below the limit, commits one Undo entry, and remains separate from aesthetic smoothing. |
