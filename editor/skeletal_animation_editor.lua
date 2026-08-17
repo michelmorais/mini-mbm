@@ -1026,6 +1026,7 @@ local function applyWorkspaceVisibility()
     end
     if state.paint.hoveredVertexMarker then
         state.paint.hoveredVertexMarker.visible=paintWorkspace and state.meshVisible and
+            state.showAdvancedDiagnostics and
             state.paint.showVertexInspector and
             not state.paint.aabbCapture.active
     end
@@ -2185,7 +2186,8 @@ rebuildPaintCursor=function(hit)
         cursor.alwaysOnTopPriority=0
         state.paint.cursor=cursor
     end
-    if state.paint.showVertexInspector and not state.paint.inspectorPinned then
+    if state.showAdvancedDiagnostics and state.paint.showVertexInspector and
+            not state.paint.inspectorPinned then
         local nearest,nearestDistance=nil,math.huge
         for _,vertex in ipairs({hit.triangle.a,hit.triangle.b,hit.triangle.c}) do
             local dx,dy,dz=vertex.point.x-hit.point.x,vertex.point.y-hit.point.y,
@@ -2367,7 +2369,8 @@ local function updatePaintCursorHover()
         if state.paint.cursor then rebuildPaintCursor(nil) end
         return
     end
-    if state.paint.visualizationMode~=1 and not state.paint.showVertexInspector then
+    if state.paint.visualizationMode~=1 and
+            (not state.showAdvancedDiagnostics or not state.paint.showVertexInspector) then
         state.paint.cursorPendingX,state.paint.cursorPendingY=nil,nil
         if state.paint.cursor then rebuildPaintCursor(nil) end
         return
@@ -5452,6 +5455,10 @@ local function showMenu()
             tLang.L('swl_show_advanced_diagnostics'),nil,state.showAdvancedDiagnostics)
         if pressed then
             state.showAdvancedDiagnostics=showAdvanced
+            if not showAdvanced then
+                state.paint.inspectorClick=nil
+                rebuildPaintCursor(nil)
+            end
             applyWorkspaceVisibility()
         end
         tImGui.Separator()
@@ -6698,7 +6705,10 @@ local function showPaintWeights()
         end
         tImGui.EndDisabled()
     end
+    if state.showAdvancedDiagnostics then
     tImGui.Separator()
+    showWrappedColoredText(tLang.L('swl_paint_advanced_diagnostics_notice'),
+        {r=1,g=0.75,b=0.15,a=1})
     showSectionTitle('swl_paint_viewport_feedback')
     local showVertexInspector=tImGui.Checkbox(tLang.L('swl_paint_vertex_inspector'),
         state.paint.showVertexInspector)
@@ -6760,7 +6770,6 @@ local function showPaintWeights()
             end
         end
     end
-    if state.showAdvancedDiagnostics then
     tImGui.Separator()
     showSectionTitle('swl_paint_advanced_pinned')
     local seamReport=state.paint.inspectorSeamReport
@@ -9375,7 +9384,7 @@ function onTouchDown(key, x, y)
     end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
         if state.workspace=='paint' and state.paint.visualizationMode~=1 and
-                state.paint.showVertexInspector then
+                state.showAdvancedDiagnostics and state.paint.showVertexInspector then
             state.paint.inspectorClick={startX=x,startY=y,moved=false}
         end
         if state.workspace=='paint' and state.paint.visualizationMode==1 then
@@ -9763,7 +9772,8 @@ function onTouchUp(key, x, y)
     if key == 0 then
         local inspectorClick=state.paint.inspectorClick
         if inspectorClick and not inspectorClick.moved and state.workspace=='paint' and
-                state.paint.visualizationMode~=1 and state.paint.showVertexInspector then
+                state.paint.visualizationMode~=1 and state.showAdvancedDiagnostics and
+                state.paint.showVertexInspector then
             local hit=pickPaintSurface(x,y)
             if hit then
                 state.paint.inspectorPinned=false

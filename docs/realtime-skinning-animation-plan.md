@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.79**
+Document version: **9.81**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.81 | 2026-08-17 | Classified Viewport Information and nearest-vertex pinning as advanced Paint Weights diagnostics, including input/marker suppression while the advanced region is hidden. |
+| 9.80 | 2026-08-17 | Added an explicit yellow boundary notice where the menu-controlled advanced Paint Weights diagnostic region begins. |
 | 9.79 | 2026-08-17 | Grouped forensic Paint Weights tools behind a default-off session option with separate pinned, weight-seam, normal, and source-geometry domains; hiding advanced diagnostics also hides their overlays but preserves every capability and cached result. |
 | 9.78 | 2026-08-17 | Standardized Weight Health green/yellow/red/disabled guidance on panel-width-aware wrapped rendering. |
 | 9.77 | 2026-08-17 | Weight Health explicitly reports when its findings have no deterministic automatic repair, avoiding an apparently missing action while preserving pose-dependent decisions for the user. |
