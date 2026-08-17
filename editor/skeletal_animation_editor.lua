@@ -205,6 +205,7 @@ local state = {
         connectedSurfaceOnly=true,
         restrictToHitSubset=false,
         maskVertices={},maskEditMode=0,maskRestrictBrush=false,maskMarkers=nil,
+        maskSmoothStrength=0.5,maskSmoothIterations=3,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
@@ -4074,7 +4075,7 @@ local function repairPaintAbruptTransitions()
     indices={}
     for index in pairs(candidateMaps) do indices[#indices+1]=index end
     table.sort(indices)
-    local poseScale,protectedFaces,unsafeTriangles=
+    local poseScale,protectedFaces=
         poseSafeRepairScale(original,candidateMaps,editable)
     local edits={}
     maximumAppliedChange=0
@@ -4139,6 +4140,129 @@ local function repairPaintAbruptTransitions()
     setStatus(string.format(tLang.L('swl_paint_abrupt_repaired_fmt'),#edits,beforeEdges,
         afterEdges,maximumAppliedChange,poseScale,protectedFaces,synchronizedSeams,
         conflictingSeams),false)
+    return true
+end
+
+local function smoothPaintMaskFullVector()
+    local indices,editable={},{}
+    for index in pairs(state.paint.maskVertices) do
+        if state.paint.geometry and state.paint.geometry.vertices[index] then
+            indices[#indices+1]=index
+            editable[index]=true
+        end
+    end
+    table.sort(indices)
+    if #indices==0 then
+        setStatus(tLang.L('swl_paint_mask_smooth_empty'),false)
+        return false
+    end
+    local adjacency=buildTopologyAdjacency()
+    local seams=buildCoincidentSeams(adjacency)
+    local original,current={},{ }
+    for _,index in ipairs(indices) do
+        original[index]=readInfluenceMap(index,false)
+        current[index]=original[index]
+    end
+    local function eachMaskedNeighbor(index,callback)
+        local seen={}
+        for neighbor in pairs(adjacency[index] or {}) do
+            if editable[neighbor] then seen[neighbor]=true; callback(neighbor) end
+        end
+        for _,neighbor in ipairs(seams.byVertex[index] or {}) do
+            if neighbor~=index and editable[neighbor] and not seen[neighbor] then
+                seen[neighbor]=true; callback(neighbor)
+            end
+        end
+    end
+    local strength=math.max(0,math.min(1,state.paint.maskSmoothStrength))
+    for _=1,math.max(1,state.paint.maskSmoothIterations) do
+        local nextWeights={}
+        for _,index in ipairs(indices) do
+            local average,count={},0
+            eachMaskedNeighbor(index,function(neighbor)
+                count=count+1
+                for name,weight in pairs(current[neighbor] or {}) do
+                    average[name]=(average[name] or 0)+weight
+                end
+            end)
+            local mixed={}
+            for name,weight in pairs(current[index] or {}) do
+                mixed[name]=weight*(1-strength)
+            end
+            if count>0 then
+                for name,weight in pairs(average) do
+                    mixed[name]=(mixed[name] or 0)+weight/count*strength
+                end
+            else
+                mixed=current[index] or {}
+            end
+            local normalized=normalizedInfluences(mixed)
+            local weightMap={}
+            for _,influence in ipairs(normalized) do weightMap[influence.name]=influence.weight end
+            nextWeights[index]=weightMap
+        end
+        current=nextWeights
+    end
+    local candidateMaps={}
+    for _,index in ipairs(indices) do
+        if influenceDistance(original[index] or {},current[index] or {})>1e-7 then
+            candidateMaps[index]=current[index]
+        end
+    end
+    local poseScale,protectedFaces,unsafeTriangles=
+        poseSafeRepairScale(original,candidateMaps,editable)
+    local edits={}
+    for _,index in ipairs(indices) do
+        local candidate=candidateMaps[index]
+        if candidate then
+            local finalMap=candidate
+            if poseScale<0.999999 then
+                local mixed={}
+                for name,weight in pairs(original[index] or {}) do
+                    mixed[name]=weight*(1-poseScale)
+                end
+                for name,weight in pairs(candidate) do
+                    mixed[name]=(mixed[name] or 0)+weight*poseScale
+                end
+                finalMap={}
+                for _,influence in ipairs(normalizedInfluences(mixed)) do
+                    finalMap[influence.name]=influence.weight
+                end
+            end
+            local influences=normalizedInfluences(finalMap)
+            if #influences>0 then
+                local row={index}
+                for slot=1,4 do
+                    local influence=influences[slot]
+                    row[slot*2]=influence and influence.name or nil
+                    row[slot*2+1]=influence and influence.weight or 0
+                end
+                edits[#edits+1]=row
+            end
+        end
+    end
+    if #edits==0 then
+        setStatus(tLang.L('swl_paint_mask_smooth_no_change'),false)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_smooth_mask_weights')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local ok,committed=safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    if not ok or not committed then
+        discardRollbackSnapshot(snapshot)
+        if ok then setStatus(tLang.L('swl_paint_mask_smooth_failed'),true) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_smooth_mask_weights')
+    state.modified=true
+    invalidateAnalysis()
+    state.paint.heatmapDirty=true
+    rebuildPaintHeatmap()
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_paint_mask_smoothed_fmt'),#edits,
+        state.paint.maskSmoothIterations,poseScale,protectedFaces),false)
     return true
 end
 
@@ -5786,6 +5910,22 @@ local function showPaintWeights()
             rebuildPaintCursor(state.paint.cursorHit)
         end
         tImGui.TextWrapped(tLang.L('swl_paint_mask_help'))
+        tImGui.PushItemWidth(240)
+        local maskStrengthChanged,maskStrength=tImGui.SliderFloat(
+            tLang.L('swl_paint_mask_smooth_strength'),state.paint.maskSmoothStrength,0,1,'%.2f')
+        tImGui.PopItemWidth()
+        if maskStrengthChanged then state.paint.maskSmoothStrength=maskStrength end
+        tImGui.PushItemWidth(240)
+        local maskIterationsChanged,maskIterations=tImGui.SliderInt(
+            tLang.L('swl_paint_mask_smooth_iterations'),state.paint.maskSmoothIterations,1,10)
+        tImGui.PopItemWidth()
+        if maskIterationsChanged then state.paint.maskSmoothIterations=maskIterations end
+        tImGui.BeginDisabled(maskCount==0 or state.paint.maskEditMode~=0)
+        if tImGui.Button(tLang.L('swl_paint_mask_smooth_apply')) then
+            smoothPaintMaskFullVector()
+        end
+        tImGui.EndDisabled()
+        tImGui.TextWrapped(tLang.L('swl_paint_mask_smooth_help'))
         tImGui.TextWrapped(tLang.L(state.paint.operationMode==4 and 'swl_paint_rigid_help' or
             state.paint.operationMode==3 and 'swl_paint_smooth_help' or
             state.paint.operationMode==2 and 'swl_paint_subtract_help' or 'swl_paint_add_help'))

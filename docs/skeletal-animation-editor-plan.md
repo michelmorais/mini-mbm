@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.22**
+Document version: **8.23**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
 Last updated: **2026-08-17**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.23 | 2026-08-17 | Migrated full-vector regional smoothing into Paint Weights. A masked action jointly averages every influence using only masked triangle/compatible-seam neighbors, normalizes to four bones per iteration, applies sampled-pose safety scaling, and commits one canonical batch plus Undo entry. |
 | 8.22 | 2026-08-17 | Began regional-tool migration with a session-only painted vertex mask. Right-drag add/remove modes do not mutate weights; persistent orange markers visualize the selection; an optional shared filter constrains all four weight brushes and their exact affected-vertex preview. |
 | 8.21 | 2026-08-17 | Fixed the exact affected-vertex preview during subset-restricted dragging. It now follows the subset locked by the first stroke hit and shows no crosses while the cursor is over another subset, matching the brush's actual no-paint behavior. |
 | 8.20 | 2026-08-17 | Fixed Mesh Debug subset-filter previews for canonical skeletal meshes. Core subset removal now erases the matching frame-global type-42 weight range before compacting geometry, so temporary filtered copies remain valid and savable. |

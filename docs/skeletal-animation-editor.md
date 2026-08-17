@@ -158,6 +158,15 @@ Bind, and the exact affected-vertex diagnostic uses the same mask filter. **Clea
 selection. The mask is editor-session state, is reset when another mesh is loaded, and is never
 written to the mesh file or added to Undo history because editing it does not mutate asset data.
 
+**Smooth Complete Weights in Mask** is the regional counterpart to the selected-bone Smooth brush.
+For every masked vertex it averages the complete influence vector using only masked triangle and
+compatible coincident-seam neighbors, then blends by the configured strength for the requested
+iterations. Each iteration normalizes deterministically and retains at most four bones. Mask
+boundaries therefore do not import weights from unmasked vertices. Before one atomic canonical
+batch and Undo entry, the candidate passes the same sampled-pose face safety scaling used by
+repairs; the status reports changed vertices, iterations, applied safety scale, and avoided unsafe
+samples.
+
 **Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
 alpha previews `strength * falloff` independently of the mesh triangulation: green represents
 Paint/Add, red represents Erase/Subtract, and cyan represents Smooth. The disk communicates radius
