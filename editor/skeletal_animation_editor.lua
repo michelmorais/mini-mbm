@@ -2580,11 +2580,11 @@ local function showSkeletalPreviewControls()
     tImGui.Text(string.format(tLang.L('swl_lbs_report_fmt'),
         (lbsReport.requestedMethod or 'unknown'):upper(),
         (lbsReport.resolvedMethod or 'unknown'):upper(),lbsReport.status or 'unknown'))
-    tImGui.TextDisabled(string.format(tLang.L('swl_skinning_reason_fmt'),
+    showItemTooltip(string.format(tLang.L('swl_skinning_reason_fmt'),
         lbsReport.resolutionReason or 'unknown'))
     tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
         lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
-    tImGui.TextDisabled(tLang.L('swl_lbs_capacity_note'))
+    showItemTooltip(tLang.L('swl_lbs_capacity_note'))
     if playback.poseStress and state.comparisonPreview then
         local dqsReport=state.comparisonPreview:getSkeletalSkinningReport()
         tImGui.Text(string.format(tLang.L('swl_pose_stress_reports'),lbsReport.status or 'unknown',
@@ -2618,6 +2618,7 @@ local function showSkeletalPreviewControls()
         end
     end
     tImGui.EndDisabled()
+    showItemTooltip(tLang.L('swl_bind_gizmo_note'),true)
     tImGui.SameLine()
     tImGui.BeginDisabled(not playback.playing)
     if tImGui.Button(playback.paused and tLang.L('swl_resume') or tLang.L('swl_pause')) then
@@ -2639,7 +2640,6 @@ local function showSkeletalPreviewControls()
         state.preview:seekSkeletalAnimation(seekTime)
         if state.comparisonPreview then state.comparisonPreview:seekSkeletalAnimation(seekTime) end
     end
-    tImGui.TextDisabled(tLang.L('swl_bind_gizmo_note'))
 end
 
 local function loadMesh(path)

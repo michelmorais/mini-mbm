@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.51**
+Document version: **9.52**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.52 | 2026-08-17 | Replaced long gray Runtime Preview resolution, per-instance capacity, and bind-gizmo notes with localized contextual hover tooltips. |
 | 9.51 | 2026-08-17 | Replaced wide inline Animation transform, scale-capability, viewport-selection, and Auto Key helper text with localized hover tooltips so the worktree remains usable at its standard width. |
 | 9.50 | 2026-08-17 | Added read-only joint/segment picking to Bind Pose Contract. Viewport selection now synchronizes the canonical selected bone and bind hierarchy/details while empty-space drag retains camera orbit; direct bind manipulation remains owned by Bone Editor. |
 | 9.49 | 2026-08-17 | Deleted the unreachable Skin Weight Lab GUI and its exclusive Lua interaction, analysis, scalar mutation, repair, and overlay helpers. Shared Paint Weights algorithms remain active. `setSkeletalVertexWeight` now has no production editor consumer and is documented as deprecated compatibility surface; atomic batch mutation is the supported path. |

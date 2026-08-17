@@ -455,6 +455,8 @@ The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and
 matching GLES2 LBS or DQS palette. The bind-only diagnostic gizmo is hidden in this worktree so it
 is not mistaken for either evaluated runtime instance.
+Resolution details, per-instance capacity guidance, and the hidden bind-gizmo explanation are
+available as hover tooltips on their corresponding Runtime Preview report or control.
 
 Open **Create / Edit Animations** to inspect the canonical type-43 structure before editing is
 enabled. The node selects a named clip and displays its stable ID, duration, looping policy, tracks,
