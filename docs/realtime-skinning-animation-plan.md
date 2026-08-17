@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.81**
+Document version: **9.82**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.82 | 2026-08-17 | Standardized long Bone Editor and Paint Weights disabled guidance on width-aware wrapping and made the Runtime Preview lighting tooltip explicitly multiline. |
 | 9.81 | 2026-08-17 | Classified Viewport Information and nearest-vertex pinning as advanced Paint Weights diagnostics, including input/marker suppression while the advanced region is hidden. |
 | 9.80 | 2026-08-17 | Added an explicit yellow boundary notice where the menu-controlled advanced Paint Weights diagnostic region begins. |
 | 9.79 | 2026-08-17 | Grouped forensic Paint Weights tools behind a default-off session option with separate pinned, weight-seam, normal, and source-geometry domains; hiding advanced diagnostics also hides their overlays but preserves every capability and cached result. |

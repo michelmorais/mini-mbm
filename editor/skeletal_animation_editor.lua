@@ -7104,24 +7104,24 @@ local function showPaintWeights()
             strokeSafetyReport.maximumOrientationDegrees,
             strokeSafetyReport.minimumNormalAlignment))
     end
-    tImGui.TextDisabled(tLang.L('swl_heatmap_legend'))
+    showWrappedDisabledText(tLang.L('swl_heatmap_legend'))
     local geometry=state.paint.geometry
     if geometry then
         tImGui.Text(string.format(tLang.L('swl_paint_geometry_fmt'),
             #geometry.vertices,#geometry.triangles))
         if #state.paint.heatmapLines>0 then
-            tImGui.TextDisabled(tLang.L(state.paint.heatmapIndexed and
+            showWrappedDisabledText(tLang.L(state.paint.heatmapIndexed and
                 'swl_paint_indexed_heatmap' or 'swl_paint_nonindexed_heatmap'))
         end
     end
     if state.paint.visualizationMode~=1 then
-        tImGui.TextDisabled(tLang.L('swl_paint_diagnostic_read_only'))
+        showWrappedDisabledText(tLang.L('swl_paint_diagnostic_read_only'))
     elseif state.paint.cursorHit then
         local p=state.paint.cursorHit.point
         tImGui.Text(string.format(tLang.L('swl_paint_hit_fmt'),p.x,p.y,p.z,
             state.paint.cursorHit.triangle.subset))
     else
-        tImGui.TextDisabled(tLang.L('swl_paint_no_hit'))
+        showWrappedDisabledText(tLang.L('swl_paint_no_hit'))
     end
     showRollbackControls('Paint')
 end
@@ -8781,11 +8781,11 @@ local function showBoneEditor()
     end
     tImGui.EndDisabled()
     if selectedTail then
-        tImGui.TextDisabled(string.format(tLang.L(inheritedExtensionLength and
+        showWrappedDisabledText(string.format(tLang.L(inheritedExtensionLength and
             'swl_bone_editor_inherited_length' or 'swl_bone_editor_configured_length'),
             extensionLength or 0))
     end
-    tImGui.TextDisabled(tLang.L('swl_bone_editor_root_note'))
+    showWrappedDisabledText(tLang.L('swl_bone_editor_root_note'))
     if state.boneEditorSelection then
         local selectionKey=state.boneEditorSelection.kind=='segment' and
             'swl_bone_editor_selected_segment' or state.boneEditorSelection.kind=='joint' and

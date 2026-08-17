@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.76**
+Document version: **8.77**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.77 | 2026-08-17 | Applied width-aware disabled wrapping to Bone Editor extension/root guidance and Paint Weights cached-geometry feedback, and split the Runtime Preview lighting tooltip into explicit short lines. |
 | 8.76 | 2026-08-17 | Moved Viewport Information and nearest-vertex inspection into the advanced diagnostic region. Hiding advanced diagnostics now suppresses its hover/pin computation and markers as well as its controls, while ordinary brush feedback remains available. |
 | 8.75 | 2026-08-17 | Added a width-aware yellow boundary notice at the beginning of the advanced Paint Weights region so the menu-controlled diagnostic scope is visually explicit. |
 | 8.74 | 2026-08-17 | Organized low-frequency Paint Weights forensic tools behind the default-off, session-only Options > Show Advanced Diagnostics toggle. Pinned geometry/topology/normals, whole-mesh weight seams, whole-mesh normals, and exact source-seam positions now have explicit domain headings, and disabling the option hides their viewport overlays without removing tools or results. |

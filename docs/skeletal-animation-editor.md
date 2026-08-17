@@ -82,6 +82,11 @@ Disabling the option also hides advanced viewport overlays. It does not undo a r
 committed; every mutating advanced action remains explicit, confirmed where applicable, and
 Undoable.
 
+Long disabled guidance around Bone Editor extension/selection and Paint Weights cached-geometry
+feedback uses the same width-aware disabled wrapper as Weight Health. Runtime Preview lighting keeps
+its panel text wrapped and uses explicit multiline tooltip formatting because tooltip windows have
+no reliable automatic wrap width in the current ImGui binding.
+
 The Paint Weights panel is contextual rather than showing every control at once. **Show Mesh** is
 the first viewport control, immediately followed by **Show Skeleton**. Repair / Diagnostics follows because its radio selection
 defines the rest of the panel in the same frame. Target Bone, Viewport Feedback, and History remain
