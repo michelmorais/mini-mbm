@@ -177,6 +177,8 @@ local state = {
         inspectorGeometryTime=0,
         inspectorTopologyReport=nil,inspectorTopologyOverlay=nil,
         inspectorNormalReport=nil,
+        normalRepairThreshold=30,normalRepairConfirmed=false,
+        globalNormalAudit=nil,globalNormalRepairConfirmed=false,globalNormalMarkers=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -287,6 +289,7 @@ local function clearPaintVisuals()
     destroyObject(state.paint.inspectorSeamMarkers)
     destroyObject(state.paint.inspectorGeometryOverlay)
     destroyObject(state.paint.inspectorTopologyOverlay)
+    destroyObject(state.paint.globalNormalMarkers)
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     destroyObject(state.paint.strokeSafetyFaceShape)
@@ -308,11 +311,18 @@ local function clearPaintVisuals()
     state.paint.inspectorSeamSyncConfirmed=false
     state.paint.globalSeamAudit=nil
     state.paint.globalSeamSyncConfirmed=false
+    state.paint.globalNormalAudit=nil
+    state.paint.globalNormalRepairConfirmed=false
+    destroyObject(state.paint.globalNormalMarkers)
+    state.paint.globalNormalMarkers=nil
     state.paint.inspectorGeometryReport=nil
     state.paint.inspectorGeometryOverlay=nil
     state.paint.inspectorTopologyReport=nil
     state.paint.inspectorTopologyOverlay=nil
     state.paint.inspectorNormalReport=nil
+    state.paint.globalNormalAudit=nil
+    state.paint.globalNormalRepairConfirmed=false
+    state.paint.globalNormalMarkers=nil
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
@@ -1017,6 +1027,10 @@ local function applyWorkspaceVisibility()
     if state.paint.inspectorTopologyOverlay then
         state.paint.inspectorTopologyOverlay.visible=paintWorkspace and state.meshVisible and
             state.paint.showVertexInspector and state.paint.inspectorPinned and
+            not state.paint.aabbCapture.active
+    end
+    if state.paint.globalNormalMarkers then
+        state.paint.globalNormalMarkers.visible=paintWorkspace and state.meshVisible and
             not state.paint.aabbCapture.active
     end
     if state.paint.safetyFaceShape then
@@ -1962,7 +1976,7 @@ local function buildPaintGeometryCache()
         for vertex=1,total do
             local okP,p=safeCall(function() return state.meshD:getVertex(1,subset,vertex) end)
             if okP and p then
-                local entry={globalIndex=offset+vertex,subset=subset,point=p}
+                local entry={globalIndex=offset+vertex,subset=subset,localIndex=vertex,point=p}
                 subsetVertices[vertex]=entry
                 cache.vertices[offset+vertex]=entry
             end
@@ -3618,6 +3632,7 @@ local function rebuildPinnedSeamInspector()
         if vertex then
             local weightMap=readInfluenceMap(index,false)
             members[#members+1]={globalIndex=index,subset=vertex.subset,point=vertex.point,
+                localIndex=vertex.localIndex,
                 weightMap=weightMap,influences=normalizedInfluences(weightMap)}
         end
     end
@@ -4084,6 +4099,187 @@ local function analyzePinnedSeamNormals()
         copies=#seam.members,normals=#normals,bindMaximum=bindMaximum,
         deformedMaximum=deformedMaximum,entries=normals,
         selectedIndex=reference and reference.globalIndex or 0}
+    return true
+end
+
+local function printPinnedNormalReport()
+    local report=state.paint.inspectorNormalReport
+    if not report then return false end
+    print(string.format('[skeletal-editor][normal-report] clip=%d time=%.6f copies=%d normals=%d bind-max-deg=%.6f deformed-max-deg=%.6f selected=%d',
+        report.clipIndex,report.time,report.copies,report.normals,report.bindMaximum,
+        report.deformedMaximum,report.selectedIndex))
+    for _,entry in ipairs(report.entries or {}) do
+        local geometric=entry.geometric
+        print(string.format('[skeletal-editor][normal-copy] vertex=%d selected=%s bind=(%.6f,%.6f,%.6f) bind-angle-deg=%.6f deformed=(%.6f,%.6f,%.6f) deformed-angle-deg=%.6f geometric=(%s) stored-geometric-deg=%.6f',
+            entry.globalIndex,entry.globalIndex==report.selectedIndex and 'yes' or 'no',
+            entry.bind.x,entry.bind.y,entry.bind.z,entry.bindFromSelected,
+            entry.deformed and entry.deformed.x or 0,entry.deformed and entry.deformed.y or 0,
+            entry.deformed and entry.deformed.z or 0,entry.deformedFromSelected,
+            geometric and string.format('%.6f,%.6f,%.6f',geometric.x,geometric.y,geometric.z) or
+                'unavailable',entry.geometricDifference))
+    end
+    setStatus(tLang.L('swl_paint_normal_printed'),false)
+    return true
+end
+
+local function repairPinnedIncompatibleNormals()
+    local report=state.paint.inspectorNormalReport
+    if not report then return false end
+    local threshold=math.max(0,math.min(180,state.paint.normalRepairThreshold or 30))
+    local affected={}
+    for _,entry in ipairs(report.entries or {}) do
+        if entry.geometric and entry.geometricDifference>threshold then affected[#affected+1]=entry end
+    end
+    if #affected==0 then
+        state.paint.normalRepairConfirmed=false
+        setStatus(tLang.L('swl_paint_normal_repair_no_change'),false)
+        return false
+    end
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    local snapshot=stageRollbackSnapshot('swl_history_repair_incompatible_normals')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local applied=true
+    for _,entry in ipairs(affected) do
+        local vertex=cache and cache.vertices[entry.globalIndex]
+        if not vertex then applied=false break end
+        local data={}
+        for key,value in pairs(vertex.point) do data[key]=value end
+        data.nx,data.ny,data.nz=entry.geometric.x,entry.geometric.y,entry.geometric.z
+        local ok=safeCall(function()
+            return state.meshD:setVertex(1,vertex.subset,vertex.localIndex,data)
+        end)
+        if not ok then applied=false break end
+    end
+    if not applied then
+        restoreHistoryEntry(snapshot)
+        discardRollbackSnapshot(snapshot)
+        setStatus(tLang.L('swl_paint_normal_repair_failed'),true)
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_repair_incompatible_normals')
+    state.modified=true
+    state.paint.normalRepairConfirmed=false
+    local selectedIndex=state.paint.hoveredVertex and state.paint.hoveredVertex.globalIndex
+    state.paint.geometry=nil
+    cache=buildPaintGeometryCache()
+    if selectedIndex and cache and cache.vertices[selectedIndex] then
+        state.paint.hoveredVertex.point=cache.vertices[selectedIndex].point
+    end
+    rebuildPinnedSeamInspector()
+    analyzePinnedSeamNormals()
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_paint_normal_repair_applied_fmt'),#affected,
+        threshold),false,true)
+    return true
+end
+
+local function analyzeGlobalNormalCompatibility()
+    destroyObject(state.paint.globalNormalMarkers)
+    state.paint.globalNormalMarkers=nil
+    state.paint.globalNormalAudit=nil
+    state.paint.globalNormalRepairConfirmed=false
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return nil end
+    local threshold=math.max(0,math.min(180,state.paint.normalRepairThreshold or 30))
+    local function normalized(x,y,z)
+        local length=math.sqrt(x*x+y*y+z*z)
+        if length<=1e-12 then return nil end
+        return {x=x/length,y=y/length,z=z/length}
+    end
+    local function angle(a,b)
+        local cosine=math.max(-1,math.min(1,a.x*b.x+a.y*b.y+a.z*b.z))
+        return math.acos(cosine)*180/math.pi
+    end
+    local affected,usable,missing,maximum={ },0,0,0
+    for _,vertex in ipairs(cache.vertices) do
+        local point=vertex.point
+        local stored=normalized(point.nx or 0,point.ny or 0,point.nz or 0)
+        if stored then
+            local gx,gy,gz=0,0,0
+            for _,triangle in ipairs(cache.incidentTriangles[vertex.globalIndex] or {}) do
+                local a,b,c=triangle.a.point,triangle.b.point,triangle.c.point
+                local ux,uy,uz=b.x-a.x,b.y-a.y,b.z-a.z
+                local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
+                local nx,ny,nz=uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx
+                if nx*stored.x+ny*stored.y+nz*stored.z<0 then nx,ny,nz=-nx,-ny,-nz end
+                gx,gy,gz=gx+nx,gy+ny,gz+nz
+            end
+            local geometric=normalized(gx,gy,gz)
+            if geometric then
+                usable=usable+1
+                local difference=angle(stored,geometric)
+                maximum=math.max(maximum,difference)
+                if difference>threshold then
+                    affected[#affected+1]={globalIndex=vertex.globalIndex,
+                        subset=vertex.subset,localIndex=vertex.localIndex,point=vertex.point,
+                        geometric=geometric,difference=difference}
+                end
+            else
+                missing=missing+1
+            end
+        else
+            missing=missing+1
+        end
+    end
+    state.paint.globalNormalAudit={affected=affected,affectedCount=#affected,
+        usable=usable,missing=missing,maximumDifference=maximum,threshold=threshold}
+    if #affected>0 then
+        local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+            state.meshBounds.maxY-state.meshBounds.minY,
+            state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+        state.paint.globalNormalMarkers=buildVertexMarkers(affected,1,0.45,0,extent)
+        if state.paint.globalNormalMarkers then
+            state.paint.globalNormalMarkers.alwaysRender=true
+            state.paint.globalNormalMarkers.alwaysOnTop=true
+            state.paint.globalNormalMarkers.alwaysOnTopPriority=1
+        end
+    end
+    applyWorkspaceVisibility()
+    return state.paint.globalNormalAudit
+end
+
+local function repairGlobalIncompatibleNormals()
+    local audit=state.paint.globalNormalAudit
+    if not audit or audit.affectedCount==0 then
+        setStatus(tLang.L('swl_paint_global_normal_no_change'),false)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_repair_all_incompatible_normals')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    local applied=true
+    for _,entry in ipairs(audit.affected) do
+        local vertex=cache and cache.vertices[entry.globalIndex]
+        if not vertex then applied=false break end
+        local data={}
+        for key,value in pairs(vertex.point) do data[key]=value end
+        data.nx,data.ny,data.nz=entry.geometric.x,entry.geometric.y,entry.geometric.z
+        local ok=safeCall(function()
+            return state.meshD:setVertex(1,entry.subset,entry.localIndex,data)
+        end)
+        if not ok then applied=false break end
+    end
+    if not applied then
+        restoreHistoryEntry(snapshot)
+        discardRollbackSnapshot(snapshot)
+        setStatus(tLang.L('swl_paint_global_normal_failed'),true)
+        return false
+    end
+    local affectedCount,threshold=audit.affectedCount,audit.threshold
+    commitRollbackSnapshot(snapshot,'swl_history_repair_all_incompatible_normals')
+    state.modified=true
+    state.paint.geometry=nil
+    buildPaintGeometryCache()
+    analyzeGlobalNormalCompatibility()
+    if state.paint.inspectorPinned then
+        local selectedIndex=state.paint.hoveredVertex.globalIndex
+        local selected=state.paint.geometry and state.paint.geometry.vertices[selectedIndex]
+        if selected then state.paint.hoveredVertex.point=selected.point end
+        rebuildPinnedSeamInspector()
+        analyzePinnedSeamNormals()
+    end
+    setStatus(string.format(tLang.L('swl_paint_global_normal_applied_fmt'),
+        affectedCount,threshold),false,true)
     return true
 end
 
@@ -6271,6 +6467,43 @@ local function showPaintWeights()
                 normalReport.copies))
             tImGui.TextWrapped(string.format(tLang.L('swl_paint_normal_angles_fmt'),
                 normalReport.bindMaximum,normalReport.deformedMaximum))
+            if tImGui.Button(tLang.L('swl_paint_normal_print')) then
+                printPinnedNormalReport()
+            end
+            showItemTooltip(tLang.L('swl_paint_normal_print_help'))
+            tImGui.PushItemWidth(240)
+            local thresholdChanged,threshold=tImGui.SliderFloat(
+                tLang.L('swl_paint_normal_repair_threshold'),
+                state.paint.normalRepairThreshold,0,180,'%.1f deg')
+            tImGui.PopItemWidth()
+            if thresholdChanged then
+                state.paint.normalRepairThreshold=threshold
+                state.paint.normalRepairConfirmed=false
+                state.paint.globalNormalAudit=nil
+                state.paint.globalNormalRepairConfirmed=false
+                destroyObject(state.paint.globalNormalMarkers)
+                state.paint.globalNormalMarkers=nil
+            end
+            local affected=0
+            for _,entry in ipairs(normalReport.entries or {}) do
+                if entry.geometric and
+                        entry.geometricDifference>state.paint.normalRepairThreshold then
+                    affected=affected+1
+                end
+            end
+            tImGui.TextWrapped(string.format(tLang.L('swl_paint_normal_repair_preview_fmt'),
+                affected,normalReport.normals))
+            local confirmed=tImGui.Checkbox(tLang.L('swl_paint_normal_repair_confirm'),
+                state.paint.normalRepairConfirmed)
+            if confirmed~=state.paint.normalRepairConfirmed then
+                state.paint.normalRepairConfirmed=confirmed
+            end
+            tImGui.BeginDisabled(not state.paint.normalRepairConfirmed or affected==0)
+            if tImGui.Button(tLang.L('swl_paint_normal_repair_apply')) then
+                repairPinnedIncompatibleNormals()
+            end
+            tImGui.EndDisabled()
+            showItemTooltip(tLang.L('swl_paint_normal_repair_help'))
             for _,entry in ipairs(normalReport.entries or {}) do
                 local selected=entry.globalIndex==normalReport.selectedIndex and ' *' or ''
                 if tImGui.TreeNode(string.format(tLang.L('swl_paint_normal_entry_fmt'),
@@ -6328,6 +6561,47 @@ local function showPaintWeights()
             end
             tImGui.EndDisabled()
             showItemTooltip(tLang.L('swl_paint_global_seam_sync_help'))
+        end
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('swl_paint_global_normal_title'))
+    tImGui.PushItemWidth(240)
+    local globalThresholdChanged,globalThreshold=tImGui.SliderFloat(
+        tLang.L('swl_paint_normal_repair_threshold')..'##globalNormalThreshold',
+        state.paint.normalRepairThreshold,0,180,'%.1f deg')
+    tImGui.PopItemWidth()
+    if globalThresholdChanged then
+        state.paint.normalRepairThreshold=globalThreshold
+        state.paint.normalRepairConfirmed=false
+        state.paint.globalNormalAudit=nil
+        state.paint.globalNormalRepairConfirmed=false
+        destroyObject(state.paint.globalNormalMarkers)
+        state.paint.globalNormalMarkers=nil
+    end
+    if tImGui.Button(tLang.L('swl_paint_global_normal_analyze')) then
+        analyzeGlobalNormalCompatibility()
+    end
+    showItemTooltip(tLang.L('swl_paint_global_normal_analyze_help'))
+    local globalNormalAudit=state.paint.globalNormalAudit
+    if globalNormalAudit then
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_global_normal_summary_fmt'),
+            globalNormalAudit.affectedCount,globalNormalAudit.usable,
+            globalNormalAudit.missing,globalNormalAudit.maximumDifference,
+            globalNormalAudit.threshold))
+        if globalNormalAudit.affectedCount==0 then
+            tImGui.TextDisabled(tLang.L('swl_paint_global_normal_clean'))
+        else
+            local confirmed=tImGui.Checkbox(tLang.L('swl_paint_global_normal_confirm'),
+                state.paint.globalNormalRepairConfirmed)
+            if confirmed~=state.paint.globalNormalRepairConfirmed then
+                state.paint.globalNormalRepairConfirmed=confirmed
+            end
+            tImGui.BeginDisabled(not state.paint.globalNormalRepairConfirmed)
+            if tImGui.Button(tLang.L('swl_paint_global_normal_apply')) then
+                repairGlobalIncompatibleNormals()
+            end
+            tImGui.EndDisabled()
+            showItemTooltip(tLang.L('swl_paint_global_normal_apply_help'))
         end
     end
     local strokeSafetyReport=state.paint.strokeSafetyReport

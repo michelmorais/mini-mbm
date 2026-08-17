@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.64**
+Document version: **8.67**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.67 | 2026-08-17 | Added on-demand whole-mesh incompatible-normal audit and confirmed repair. It reports affected/usable/unavailable counts and maximum difference, marks impact in orange, preserves data below the limit, commits one Undo entry, and remains separate from aesthetic smoothing. |
+| 8.66 | 2026-08-17 | Added confirmed local repair for pinned normals incompatible with their incident geometry. A configurable angle limit previews affected copies, recomputes only those normals, preserves positions/UVs/weights/compatible normals, creates one Undo entry, and refreshes the report. |
+| 8.65 | 2026-08-17 | Coincident-normal details can now be printed to the terminal as one compact summary and one complete line per copy, avoiding manual transcription without mutating the asset. |
 | 8.64 | 2026-08-17 | Expanded coincident-copy normal diagnosis with per-vertex bind/deformed XYZ, angles to the pinned copy, and sign-corrected area-weighted incident-face averages, providing the evidence needed to separate smooth groups from intentional hard boundaries. |
 | 8.63 | 2026-08-17 | Replaced the Runtime Preview lighting checkbox with a movable Mesh-Debug-style light window containing enable, ambient/directional colors, orbit direction gizmo with XYZ feedback, and reset. Enable changes rebuild the shader variant; live parameters remain editor-only and runtime-worktree-scoped. |
 | 8.62 | 2026-08-17 | Runtime Skeletal Preview now has an explicit editor-only lit/unlit comparison. Enabling fixed ambient/directional inspection lighting rebuilds the mesh under the lit shader variant; other worktrees remain unlit and the choice is not serialized. Also fixed new diagnostic tooltips passing localization keys instead of translated text. |

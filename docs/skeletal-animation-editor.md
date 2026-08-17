@@ -462,6 +462,20 @@ copy, and an area-weighted incident-face average with its angle to the stored bi
 face cross products are sign-oriented toward that copy's stored normal before averaging, so the
 engine's CW/CCW convention cannot create a false 180-degree mismatch. These details identify which
 copies form one smooth group and which represent an intentional hard geometric boundary.
+The report can be printed to the terminal as one machine-readable summary line followed by one line
+per copy containing index, selection, bind/deformed vectors and angles, incident-face average, and
+stored-to-geometric difference. Printing is read-only and avoids manually transcribing wide panels.
+The confirmed local **Recompute Incompatible Normals Here** repair uses a configurable stored-to-
+incident-face angle limit (30 degrees by default), previews affected copies, and replaces only those
+stored normals with their normalized incident-face averages. Position, UV, weights, and compatible
+copy normals remain unchanged. The edits use the original frame/subset/local-vertex identity, create
+one Undo entry, rebuild the cached vertex data, and immediately rerun the pinned normal report.
+The same test is available mesh-wide through **Analyze All Incompatible Normals** without requiring a
+pin. It reports affected versus usable normals, unavailable normals, maximum difference, and the
+active limit, with orange markers for affected vertices. Separately confirmed **Recompute All
+Incompatible Normals** applies only that cached impact set, in one Undoable operation, then rebuilds
+the geometry cache and reruns the audit. Changing the limit or committing another edit invalidates
+both the audit and its confirmation. This remains distinct from aesthetic smoothing below the limit.
 
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
