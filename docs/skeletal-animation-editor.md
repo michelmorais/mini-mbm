@@ -263,6 +263,16 @@ complete influence list without enabling the brush cursor or weight mutation. In
 diagnostic, a stationary left click pins the current vertex, yellow marker, and complete influence
 list while subsequent pointer movement resumes ordinary surface probing without replacing the
 pinned result; left-drag remains camera orbit. The explicit clear action returns to live inspection.
+Pinning also resolves the editor's existing connected coincident-seam group for that global index.
+The read-only report lists every copy by global index and subset with its normalized influences,
+shows the maximum pairwise half-L1 weight divergence from 0 (identical) to 1 (disjoint), and marks
+multi-vertex groups in cyan. A singleton explicitly reports that no connected coincident copy was
+found. This makes seam-weight disagreement reproducible before any repair is authorized.
+For a multi-copy group with nonzero divergence, **Synchronize This Seam's Weights** is an explicit,
+confirmed local repair. It averages each bone weight across only the listed copies, deterministically
+keeps the four strongest combined influences, normalizes once, and atomically writes that identical
+result to every copy. The operation creates one Undo entry and immediately recomputes the pinned
+report; success therefore reads as zero divergence without requiring a new pick.
 
 After each successful Paint/Add, Erase/Subtract, or Smooth stroke, Paint Weights performs a
 non-mutating pose-safety diagnostic over only the triangles incident to changed vertices. It

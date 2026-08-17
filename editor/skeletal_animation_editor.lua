@@ -166,6 +166,8 @@ local state = {
         brushFootprintShape=nil,brushFootprintMarkers=nil,
         showVertexInspector=true,hoveredVertex=nil,hoveredVertexMarker=nil,
         inspectorPinned=false,inspectorClick=nil,
+        inspectorSeamReport=nil,inspectorSeamMarkers=nil,
+        inspectorSeamSyncConfirmed=false,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -260,6 +262,7 @@ local function clearPaintVisuals()
     destroyObject(state.paint.brushFootprintShape)
     destroyObject(state.paint.brushFootprintMarkers)
     destroyObject(state.paint.hoveredVertexMarker)
+    destroyObject(state.paint.inspectorSeamMarkers)
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     destroyObject(state.paint.strokeSafetyFaceShape)
@@ -276,6 +279,9 @@ local function clearPaintVisuals()
     state.paint.hoveredVertexMarker=nil
     state.paint.inspectorPinned=false
     state.paint.inspectorClick=nil
+    state.paint.inspectorSeamReport=nil
+    state.paint.inspectorSeamMarkers=nil
+    state.paint.inspectorSeamSyncConfirmed=false
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
@@ -965,6 +971,11 @@ local function applyWorkspaceVisibility()
     if state.paint.hoveredVertexMarker then
         state.paint.hoveredVertexMarker.visible=paintWorkspace and state.meshVisible and
             state.paint.showVertexInspector and
+            not state.paint.aabbCapture.active
+    end
+    if state.paint.inspectorSeamMarkers then
+        state.paint.inspectorSeamMarkers.visible=paintWorkspace and state.meshVisible and
+            state.paint.showVertexInspector and state.paint.inspectorPinned and
             not state.paint.aabbCapture.active
     end
     if state.paint.safetyFaceShape then
@@ -3545,6 +3556,102 @@ local function influenceDistance(a,b)
     return math.min(1,total*0.5)
 end
 
+local function rebuildPinnedSeamInspector()
+    destroyObject(state.paint.inspectorSeamMarkers)
+    state.paint.inspectorSeamMarkers=nil
+    state.paint.inspectorSeamReport=nil
+    local selected=state.paint.hoveredVertex
+    if not selected or not state.paint.inspectorPinned then return end
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return end
+    local seams=buildCoincidentSeams(buildTopologyAdjacency())
+    local group=seams.byVertex[selected.globalIndex] or {selected.globalIndex}
+    local members={}
+    for _,index in ipairs(group) do
+        local vertex=cache.vertices[index]
+        if vertex then
+            local weightMap=readInfluenceMap(index,false)
+            members[#members+1]={globalIndex=index,subset=vertex.subset,point=vertex.point,
+                weightMap=weightMap,influences=normalizedInfluences(weightMap)}
+        end
+    end
+    table.sort(members,function(a,b) return a.globalIndex<b.globalIndex end)
+    for _,member in ipairs(members) do
+        if member.globalIndex==selected.globalIndex then
+            selected.influences=member.influences
+            break
+        end
+    end
+    local maximumDivergence=0
+    for left=1,#members-1 do
+        for right=left+1,#members do
+            maximumDivergence=math.max(maximumDivergence,
+                influenceDistance(members[left].weightMap,members[right].weightMap))
+        end
+    end
+    state.paint.inspectorSeamReport={members=members,
+        maximumDivergence=maximumDivergence,tolerance=seams.tolerance or 0}
+    if #members>1 then
+        local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+            state.meshBounds.maxY-state.meshBounds.minY,
+            state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+        state.paint.inspectorSeamMarkers=buildVertexMarkers(members,0,1,1,extent)
+        if state.paint.inspectorSeamMarkers then
+            state.paint.inspectorSeamMarkers.alwaysRender=true
+            state.paint.inspectorSeamMarkers.alwaysOnTop=true
+            state.paint.inspectorSeamMarkers.alwaysOnTopPriority=1
+        end
+    end
+end
+
+local function synchronizePinnedSeamWeights()
+    local report=state.paint.inspectorSeamReport
+    if not report or #report.members<=1 then
+        setStatus(tLang.L('swl_paint_vertex_seam_sync_unavailable'),false)
+        return false
+    end
+    local average={}
+    for _,member in ipairs(report.members) do
+        for name,weight in pairs(member.weightMap) do
+            average[name]=(average[name] or 0)+weight/#report.members
+        end
+    end
+    local influences=normalizedInfluences(average)
+    if #influences==0 then
+        setStatus(tLang.L('swl_paint_vertex_seam_sync_failed'),true)
+        return false
+    end
+    local edits={}
+    for _,member in ipairs(report.members) do
+        local row={member.globalIndex}
+        for slot=1,4 do
+            local influence=influences[slot]
+            row[slot*2]=influence and influence.name or nil
+            row[slot*2+1]=influence and influence.weight or 0
+        end
+        edits[#edits+1]=row
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_sync_seam_weights')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local ok,committed=safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    if not ok or not committed then
+        discardRollbackSnapshot(snapshot)
+        if ok then setStatus(tLang.L('swl_paint_vertex_seam_sync_failed'),true) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_sync_seam_weights')
+    state.modified=true
+    state.paint.inspectorSeamSyncConfirmed=false
+    state.paint.heatmapDirty=true
+    rebuildPaintHeatmap()
+    rebuildPinnedSeamInspector()
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_paint_vertex_seam_sync_applied_fmt'),#edits),false)
+    return true
+end
+
 local function constrainedRepairWeights(original,candidate,allowedNames,maxChange)
     local filtered={}
     for name,weight in pairs(candidate or {}) do
@@ -5560,7 +5667,13 @@ local function showPaintWeights()
         state.paint.showVertexInspector)
     if showVertexInspector~=state.paint.showVertexInspector then
         state.paint.showVertexInspector=showVertexInspector
-        if not showVertexInspector then state.paint.inspectorPinned=false end
+        if not showVertexInspector then
+            state.paint.inspectorPinned=false
+            destroyObject(state.paint.inspectorSeamMarkers)
+            state.paint.inspectorSeamMarkers=nil
+            state.paint.inspectorSeamReport=nil
+            state.paint.inspectorSeamSyncConfirmed=false
+        end
         rebuildPaintCursor(state.paint.cursorHit)
         applyWorkspaceVisibility()
     end
@@ -5569,6 +5682,10 @@ local function showPaintWeights()
         tImGui.TextColored({r=1,g=0.8,b=0.15,a=1},tLang.L('swl_paint_vertex_inspector_pinned'))
         if tImGui.Button(tLang.L('swl_paint_vertex_inspector_clear_pin')) then
             state.paint.inspectorPinned=false
+            destroyObject(state.paint.inspectorSeamMarkers)
+            state.paint.inspectorSeamMarkers=nil
+            state.paint.inspectorSeamReport=nil
+            state.paint.inspectorSeamSyncConfirmed=false
             rebuildPaintCursor(state.paint.cursorHit)
             applyWorkspaceVisibility()
         end
@@ -5590,6 +5707,39 @@ local function showPaintWeights()
                 tImGui.TextDisabled(string.format(
                     tLang.L('swl_paint_vertex_influence_empty_fmt'),slot))
             end
+        end
+    end
+    local seamReport=state.paint.inspectorSeamReport
+    if state.paint.showVertexInspector and state.paint.inspectorPinned and seamReport then
+        tImGui.Separator()
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_vertex_seam_summary_fmt'),
+            #seamReport.members,seamReport.maximumDivergence,seamReport.tolerance))
+        if #seamReport.members<=1 then
+            tImGui.TextDisabled(tLang.L('swl_paint_vertex_seam_none'))
+        else
+            tImGui.TextWrapped(tLang.L('swl_paint_vertex_seam_help'))
+            for _,member in ipairs(seamReport.members) do
+                local selected=member.globalIndex==hoveredVertex.globalIndex and ' *' or ''
+                tImGui.Text(string.format(tLang.L('swl_paint_vertex_seam_member_fmt'),
+                    member.globalIndex,member.subset,selected))
+                for _,influence in ipairs(member.influences) do
+                    tImGui.BulletText(string.format(tLang.L('swl_paint_vertex_influence_fmt'),
+                        influence.name,influence.weight))
+                end
+            end
+            local confirmed=tImGui.Checkbox(
+                tLang.L('swl_paint_vertex_seam_sync_confirm'),
+                state.paint.inspectorSeamSyncConfirmed)
+            if confirmed~=state.paint.inspectorSeamSyncConfirmed then
+                state.paint.inspectorSeamSyncConfirmed=confirmed
+            end
+            tImGui.BeginDisabled(not state.paint.inspectorSeamSyncConfirmed or
+                seamReport.maximumDivergence<=1e-9)
+            if tImGui.Button(tLang.L('swl_paint_vertex_seam_sync_apply')) then
+                synchronizePinnedSeamWeights()
+            end
+            tImGui.EndDisabled()
+            showItemTooltip('swl_paint_vertex_seam_sync_help')
         end
     end
     local strokeSafetyReport=state.paint.strokeSafetyReport
@@ -8195,6 +8345,8 @@ function onTouchUp(key, x, y)
                 state.paint.inspectorPinned=false
                 rebuildPaintCursor(hit)
                 state.paint.inspectorPinned=state.paint.hoveredVertex~=nil
+                state.paint.inspectorSeamSyncConfirmed=false
+                rebuildPinnedSeamInspector()
                 applyWorkspaceVisibility()
             end
         end
