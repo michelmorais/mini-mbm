@@ -104,7 +104,7 @@ local state = {
     boneEditorRadius = 0,
     boneEditorRadiusSubtree = false,
     boneEditorRotationGuide = nil,
-    workspace = 'paint',
+    workspace = 'none',
     meshVisible = true,
     skeletonVisible = true,
     skeletonAlwaysOnTop = true,
@@ -3114,6 +3114,7 @@ local function loadMesh(path)
         setStatus(string.format(tLang.L('swl_load_failed_fmt'), path), true)
         return false
     end
+    setWorkspace('none')
     clearRollback()
     clearSelectionVisuals()
     clearPaintVisuals()
@@ -3122,6 +3123,7 @@ local function loadMesh(path)
     state.paint.maskRestrictBrush=false
     destroySkeletonVisuals()
     state.fileName, state.meshD = path, meshD
+    state.meshVisible = true
     state.info = meshDebug:getInfo(path)
     refreshBindReport()
     state.modified = false

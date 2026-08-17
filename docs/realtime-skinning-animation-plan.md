@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.41**
+Document version: **9.42**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.42 | 2026-08-17 | Added a neutral initial workspace. Loading or replacing a mesh closes every worktree, restores ordinary mesh visibility, and shows no skeleton, heatmap, cursor, capture volume, or diagnostic overlay until explicit selection. |
 | 9.41 | 2026-08-17 | Retired the Skin Weight Lab worktree after Paint Weights reached accepted parity. Navigation, default state, history restoration, and post-initialization handoff now use Paint Weights; legacy implementation helpers remain temporarily unreachable pending mechanical cleanup. |
 | 9.40 | 2026-08-17 | Documented the Lua `condition and nil or fallback` removal trap as a permanent implementation risk and required explicit branches for every mask generator. |
 | 9.39 | 2026-08-17 | Fixed Remove-from-Mask for both AABB capture and hit-subset generators. The Lua `condition and nil or true` idiom could never yield nil and therefore re-added vertices; explicit branches now erase mask membership. |

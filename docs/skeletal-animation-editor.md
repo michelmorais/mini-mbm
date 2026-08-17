@@ -17,6 +17,9 @@ remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-p
 The editor is organized into five mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Create / Edit Animations**, and **Paint Weights**. Create / Edit
 Animations and direct brush-based weight authoring are active.
+No worktree is selected initially. Loading or replacing an asset returns to this neutral state,
+enables the ordinary textured mesh, and keeps skeletons, heatmaps, cursors, capture volumes, and
+diagnostic overlays hidden until the user explicitly opens a worktree.
 Multi-clip composition remains separately deferred. Their product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
