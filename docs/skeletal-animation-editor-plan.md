@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.39**
+Document version: **8.42**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.42 | 2026-08-17 | Made dirty in-memory canonical state authoritative for every preview rebuild. Unmodified loads and completed saves use the real file; unsaved skeleton, weight, and clip edits transparently rebuild through an immediately discarded temporary mesh, so animation authoring no longer requires an unrelated manual save. |
+| 8.41 | 2026-08-17 | Fixed Animation-worktree skeleton segments separating from joints on small meshes at Z zero. Line origins and endpoints now use the same visual-Z mapping as joint shapes during creation and per-frame updates; bind and pose data remain unchanged. |
+| 8.40 | 2026-08-17 | Added deterministic automatic initial weights in Bone Editor. Scale-aware bone-segment/joint distance scores are limited to four influences, normalized, diffused through configurable topology iterations, and committed with snapshot restoration on failure and one Undo entry on success. This is explicitly not presented as Blender's exact bone-heat solver. |
 | 8.39 | 2026-08-17 | Fixed Bone Editor weight initialization for rigs opened without a viewport selection. The action now exposes an explicit target-bone selector synchronized with visual selection instead of incorrectly requiring a prior joint/segment click. |
 | 8.38 | 2026-08-17 | Bone Editor adds selected-bone rigid weight initialization, weight-only removal preserving skeleton/clips, and confirmed complete 41-43 removal with impact counts. Every successful action is one canonical transaction and one Undo entry. |
 | 8.37 | 2026-08-17 | Added a neutral initial workspace. Loading or replacing a mesh closes every worktree, restores ordinary mesh visibility, and shows no skeleton, heatmap, cursor, capture volume, or diagnostic overlay until explicit selection. |

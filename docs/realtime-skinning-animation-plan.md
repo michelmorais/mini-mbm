@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.44**
+Document version: **9.47**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.47 | 2026-08-17 | Made dirty in-memory canonical state authoritative for preview reconstruction. Unsaved skeletal edits now use an ephemeral serialized snapshot while clean loads/saves use the real file, removing the false save prerequisite before animation authoring. |
+| 9.46 | 2026-08-17 | Fixed the animated skeleton overlay so segment lines use the same visual-Z mapping as their endpoint joint shapes during creation and updates. This removes scale-visible Z separation without changing skeletal data. |
+| 9.45 | 2026-08-17 | Added deterministic automatic initial weights in Bone Editor using scale-aware segment/joint distances, four-influence normalization, and configurable topology diffusion. It is importer/anatomy independent and explicitly distinct from Blender's internal bone-heat solver. |
 | 9.44 | 2026-08-17 | Fixed Bone Editor weight initialization for rigs opened without a viewport selection by adding an explicit target-bone selector synchronized with visual selection. |
 | 9.43 | 2026-08-17 | Bone Editor adds selected-bone rigid weight initialization, weight-only removal preserving skeleton/clips, and confirmed complete 41-43 removal with impact counts. New narrow C++/Lua operations keep both removal paths atomic. |
 | 9.42 | 2026-08-17 | Added a neutral initial workspace. Loading or replacing a mesh closes every worktree, restores ordinary mesh visibility, and shows no skeleton, heatmap, cursor, capture volume, or diagnostic overlay until explicit selection. |

@@ -373,6 +373,16 @@ bones and clips. **Remove all bones and weights** reports bone, weighted-vertex,
 then atomically deletes sections 41-43 because clips cannot remain valid without their skeleton.
 Both destructive actions require separate confirmation and create one Undo entry.
 
+**Generate automatic bone weights** is the non-rigid bootstrap. It scores every frame-zero vertex
+against every explicit head-to-tail segment; a joint-only bone behaves as a zero-length segment.
+Bone radius makes distance scale-aware, the four strongest candidates are normalized, and zero to
+twelve configurable iterations diffuse 40 percent of each update through stored triangle adjacency
+while retaining 60 percent of the current value. Each iteration prunes and renormalizes back to four
+influences. The operation is deterministic, name/anatomy/importer independent, available only when
+type 42 is absent, and commits one Undo entry. If initialization or the final canonical batch fails,
+the staged asset snapshot is restored. This is an envelope-distance plus topology solver inspired by
+automatic-weight workflows; it is not claimed to reproduce Blender's internal bone-heat solver.
+
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
 values can then be corrected through the local-bind fields. Addition allocates a new stable ID,
@@ -539,6 +549,13 @@ and a DQS pose rejection is reported while the LBS instance remains visible.
 The editor supports **Save**, **Save As**, and bounded 50-entry **Undo/Redo** across existing atomic
 bind, bone, weight, clip, track, key, timeline, and pose-authoring operations. New commits clear Redo;
 loading another mesh or quitting removes the editor-owned temporary snapshots.
+
+Preview reconstruction follows the authoritative asset boundary. An unmodified load uses the
+selected file directly. Once any canonical edit makes the session dirty, a preview request first
+saves the current `meshDebug` state to an editor-owned temporary mesh, loads the runtime preview
+from that snapshot, and immediately removes the temporary file. Saving is therefore a persistence
+choice, not a prerequisite for Paint Weights, Runtime Preview, or animation authoring to observe
+unsaved skeleton, weight, and clip changes.
 
 ## 3. Interface workflow
 

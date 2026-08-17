@@ -101,6 +101,8 @@ local state = {
     boneEditorRemoveConfirmed = false,
     boneEditorInitializeWeightsConfirmed = false,
     boneEditorInitializeWeightsBoneId = nil,
+    boneEditorAutomaticWeightsConfirmed = false,
+    boneEditorAutomaticWeightIterations = 3,
     boneEditorRemoveWeightsConfirmed = false,
     boneEditorRemoveAllConfirmed = false,
     boneEditorRemovePreviewIndex = nil,
@@ -1393,8 +1395,9 @@ rebuildSkeletonVisuals=function()
             if dx*dx+dy*dy+dz*dz>0.000001 then
                 local link
                 if state.workspace=='animation' then
-                    link=line:new('3d',parent.x,parent.y,parent.z)
-                    link:add({0,0,0,dx,dy,dz})
+                    local parentVisualZ,boneVisualZ=visualZ(parent.z),visualZ(bone.z)
+                    link=line:new('3d',parent.x,parent.y,parentVisualZ)
+                    link:add({0,0,0,dx,dy,boneVisualZ-parentVisualZ})
                     link:setColor(1,0,1,0.9)
                     link.visible=shouldShowSkeleton()
                     link.alwaysOnTop=state.skeletonAlwaysOnTop
@@ -1433,8 +1436,9 @@ local function updateAnimationSkeletonVisuals()
             local parent=byName[bone.parentName]
             local link=state.skeletonGizmo.bones[bone.boneId]
             if not parent or not link then return false end
-            link:set({0,0,0,bone.x-parent.x,bone.y-parent.y,bone.z-parent.z},1)
-            link:setPos(parent.x,parent.y,parent.z)
+            local parentVisualZ,boneVisualZ=visualZ(parent.z),visualZ(bone.z)
+            link:set({0,0,0,bone.x-parent.x,bone.y-parent.y,boneVisualZ-parentVisualZ},1)
+            link:setPos(parent.x,parent.y,parentVisualZ)
         end
     end
     rebuildTranslationGizmo()
@@ -2908,7 +2912,12 @@ local function analyzeSelection()
     setStatus(string.format(tLang.L('swl_analysis_complete_fmt'), #selected), false)
 end
 
+local rebuildRuntimePreviewFromMemory
+
 local function rebuildPreview(sourcePath)
+    if sourcePath==nil and state.modified and state.meshD and rebuildRuntimePreviewFromMemory then
+        return rebuildRuntimePreviewFromMemory()
+    end
     destroyObject(state.preview)
     destroyObject(state.comparisonPreview)
     state.preview = nil
@@ -2952,7 +2961,7 @@ local function rebuildPreview(sourcePath)
     applyWorkspaceVisibility()
 end
 
-local function rebuildRuntimePreviewFromMemory()
+rebuildRuntimePreviewFromMemory=function()
     if not state.meshD then return false end
     local temporaryPath=os.tmpname()..'.msh'
     local okSaved,saved=safeCall(function()
@@ -3155,6 +3164,7 @@ local function loadMesh(path)
     state.boneEditorSelection=nil
     state.boneEditorInitializeWeightsConfirmed=false
     state.boneEditorInitializeWeightsBoneId=nil
+    state.boneEditorAutomaticWeightsConfirmed=false
     state.boneEditorRemoveWeightsConfirmed=false
     state.boneEditorRemoveAllConfirmed=false
     state.authoringTime=0
@@ -8000,6 +8010,118 @@ local function nextSimpleBoneName()
     return 'Bone_'..index
 end
 
+local function generateAutomaticBoneWeights()
+    local bones=getBones()
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if #bones==0 or not cache or #cache.vertices==0 then return false end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local minimumRadius=math.max(extent*0.015,1e-5)
+    local segments={}
+    for _,bone in ipairs(bones) do
+        local head,tail=getBoneEditorEndpoints(bone,extent)
+        segments[#segments+1]={name=bone.name,head=head,tail=tail,
+            radius=math.max(bone.radius or 0,minimumRadius)}
+    end
+    local function distanceToSegment(point,segment)
+        local ax,ay,az=segment.head.x,segment.head.y,segment.head.z
+        local bx,by,bz=segment.tail.x,segment.tail.y,segment.tail.z
+        local dx,dy,dz=bx-ax,by-ay,bz-az
+        local lengthSquared=dx*dx+dy*dy+dz*dz
+        local t=lengthSquared>1e-12 and ((point.x-ax)*dx+(point.y-ay)*dy+
+            (point.z-az)*dz)/lengthSquared or 0
+        t=math.max(0,math.min(1,t))
+        local x,y,z=ax+dx*t,ay+dy*t,az+dz*t
+        local px,py,pz=point.x-x,point.y-y,point.z-z
+        return math.sqrt(px*px+py*py+pz*pz)
+    end
+    local function trimAndNormalize(map)
+        local ranked={}
+        for name,value in pairs(map) do
+            if value>1e-12 then ranked[#ranked+1]={name=name,value=value} end
+        end
+        table.sort(ranked,function(a,b)
+            return a.value==b.value and a.name<b.name or a.value>b.value
+        end)
+        local result,total={},0
+        for index=1,math.min(4,#ranked) do total=total+ranked[index].value end
+        if total<=1e-12 then return result end
+        for index=1,math.min(4,#ranked) do
+            result[ranked[index].name]=ranked[index].value/total
+        end
+        return result
+    end
+    local weights={}
+    for index,vertex in ipairs(cache.vertices) do
+        local scores={}
+        for _,segment in ipairs(segments) do
+            local scaled=distanceToSegment(vertex.point,segment)/segment.radius
+            scores[segment.name]=1/((0.25+scaled)*(0.25+scaled))
+        end
+        weights[index]=trimAndNormalize(scores)
+    end
+    local adjacency=buildTopologyAdjacency()
+    for _=1,state.boneEditorAutomaticWeightIterations do
+        local nextWeights={}
+        for index,current in ipairs(weights) do
+            local mixed={}
+            for name,value in pairs(current) do mixed[name]=(mixed[name] or 0)+value*0.6 end
+            local neighbors,count=adjacency[index],0
+            if neighbors then for _ in pairs(neighbors) do count=count+1 end end
+            if count>0 then
+                local scale=0.4/count
+                for neighbor in pairs(neighbors) do
+                    for name,value in pairs(weights[neighbor] or {}) do
+                        mixed[name]=(mixed[name] or 0)+value*scale
+                    end
+                end
+            else
+                for name,value in pairs(current) do mixed[name]=(mixed[name] or 0)+value*0.4 end
+            end
+            nextWeights[index]=trimAndNormalize(mixed)
+        end
+        weights=nextWeights
+    end
+    local edits={}
+    for index,map in ipairs(weights) do
+        local ranked={}
+        for name,value in pairs(map) do ranked[#ranked+1]={name=name,value=value} end
+        table.sort(ranked,function(a,b)
+            return a.value==b.value and a.name<b.name or a.value>b.value
+        end)
+        local row={[1]=index}
+        for slot=1,4 do
+            local influence=ranked[slot]
+            row[2+(slot-1)*2]=influence and influence.name or nil
+            row[3+(slot-1)*2]=influence and influence.value or 0
+        end
+        edits[#edits+1]=row
+    end
+    local snapshot=stageRollbackSnapshot()
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local initialized=select(1,safeCall(function()
+        return state.meshD:initializeSkeletalVertexWeights(1)
+    end))
+    local applied=initialized and select(1,safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end))
+    if not applied then
+        restoreHistoryEntry(snapshot)
+        discardRollbackSnapshot(snapshot)
+        setStatus(tLang.L('swl_bone_editor_automatic_weights_failed'),true)
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_generate_automatic_weights')
+    state.modified=true
+    state.boneEditorAutomaticWeightsConfirmed=false
+    refreshBindReport(); rebuildPreview(); buildPaintGeometryCache()
+    state.paint.heatmapDirty=true; rebuildSkeletonVisuals(); applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_bone_editor_automatic_weights_applied_fmt'),
+        #edits,#bones,state.boneEditorAutomaticWeightIterations),false)
+    return true
+end
+
 local function showBoneEditor()
     local previousRemovePreview=state.boneEditorRemovePreviewIndex
     state.boneEditorRemovePreviewIndex=nil
@@ -8419,6 +8541,27 @@ local function showBoneEditor()
             tImGui.EndDisabled()
             tImGui.EndDisabled()
             if not selected then tImGui.TextDisabled(tLang.L('swl_bone_editor_select_bone_first')) end
+            tImGui.Separator()
+            tImGui.TextWrapped(tLang.L('swl_bone_editor_automatic_weights_help'))
+            tImGui.PushItemWidth(100)
+            local iterationsChanged,iterations=tImGui.InputInt(
+                tLang.L('swl_bone_editor_automatic_iterations')..
+                '##swlBoneEditorAutomaticIterations',state.boneEditorAutomaticWeightIterations,
+                1,1,tImGui.Flags('ImGuiInputTextFlags_None'))
+            tImGui.PopItemWidth()
+            if iterationsChanged then
+                state.boneEditorAutomaticWeightIterations=math.max(0,math.min(12,iterations))
+                state.boneEditorAutomaticWeightsConfirmed=false
+            end
+            state.boneEditorAutomaticWeightsConfirmed=tImGui.Checkbox(
+                tLang.L('swl_bone_editor_confirm_automatic_weights')..
+                '##swlBoneEditorAutomaticConfirm',state.boneEditorAutomaticWeightsConfirmed)
+            tImGui.BeginDisabled(#bones==0 or not state.boneEditorAutomaticWeightsConfirmed)
+            if tImGui.Button(tLang.L('swl_bone_editor_generate_automatic_weights')..
+                    '##swlBoneEditorGenerateAutomatic') then
+                generateAutomaticBoneWeights()
+            end
+            tImGui.EndDisabled()
         else
             tImGui.TextWrapped(tLang.L('swl_bone_editor_remove_weights_help'))
             state.boneEditorRemoveWeightsConfirmed=tImGui.Checkbox(
