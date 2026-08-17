@@ -206,6 +206,7 @@ local state = {
         restrictToHitSubset=false,
         maskVertices={},maskEditMode=0,maskRestrictBrush=false,maskMarkers=nil,
         maskSmoothStrength=0.5,maskSmoothIterations=3,
+        maskRigidTransitionRings=2,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
@@ -1886,6 +1887,7 @@ local function rebuildPaintMaskMarkers()
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     state.paint.maskMarkers=buildVertexMarkers(vertices,1,0.45,0,extent)
     if state.paint.maskMarkers then
+        state.paint.maskMarkers.alwaysRender=true
         state.paint.maskMarkers.alwaysOnTop=true
         state.paint.maskMarkers.alwaysOnTopPriority=0
         state.paint.maskMarkers.visible=state.workspace=='paint' and state.meshVisible
@@ -4099,7 +4101,8 @@ local function repairPaintAbruptTransitions()
             local appliedChange=influenceDistance(original[index] or {},finalMap)
             maximumAppliedChange=math.max(maximumAppliedChange,appliedChange)
             local influences=normalizedInfluences(finalMap)
-            if #influences>0 then
+            if #influences>0 and
+                    influenceDistance(original[index] or {},finalMap)>1e-7 then
                 local row={index}
                 for slot=1,4 do
                     local influence=influences[slot]
@@ -4242,7 +4245,8 @@ local function smoothPaintMaskFullVector()
         end
     end
     if #edits==0 then
-        setStatus(tLang.L('swl_paint_mask_smooth_no_change'),false)
+        setStatus(tLang.L(poseScale<=1e-6 and 'swl_paint_mask_smooth_safety_blocked' or
+            'swl_paint_mask_smooth_no_change'),false)
         return false
     end
     local snapshot=stageRollbackSnapshot('swl_history_smooth_mask_weights')
@@ -4263,6 +4267,126 @@ local function smoothPaintMaskFullVector()
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_mask_smoothed_fmt'),#edits,
         state.paint.maskSmoothIterations,poseScale,protectedFaces),false)
+    return true
+end
+
+local function rigidBindPaintMask()
+    local bone=getBones()[state.paint.boneIndex]
+    if not bone then return false end
+    local indices,editable={},{}
+    for index in pairs(state.paint.maskVertices) do
+        if state.paint.geometry and state.paint.geometry.vertices[index] then
+            indices[#indices+1]=index; editable[index]=true
+        end
+    end
+    table.sort(indices)
+    if #indices==0 then
+        setStatus(tLang.L('swl_paint_mask_rigid_empty'),false)
+        return false
+    end
+    local adjacency=buildTopologyAdjacency()
+    local seams=buildCoincidentSeams(adjacency)
+    local function eachNeighbor(index,callback)
+        local seen={}
+        for neighbor in pairs(adjacency[index] or {}) do
+            seen[neighbor]=true; callback(neighbor)
+        end
+        for _,neighbor in ipairs(seams.byVertex[index] or {}) do
+            if neighbor~=index and not seen[neighbor] then
+                seen[neighbor]=true; callback(neighbor)
+            end
+        end
+    end
+    local distance,queue={},{}
+    for _,index in ipairs(indices) do
+        local boundary=false
+        eachNeighbor(index,function(neighbor)
+            if not editable[neighbor] then boundary=true end
+        end)
+        if boundary then distance[index]=0; queue[#queue+1]=index end
+    end
+    local head=1
+    while head<=#queue do
+        local index=queue[head]; head=head+1
+        eachNeighbor(index,function(neighbor)
+            if editable[neighbor] and distance[neighbor]==nil then
+                distance[neighbor]=distance[index]+1
+                queue[#queue+1]=neighbor
+            end
+        end)
+    end
+    local rings=math.max(0,state.paint.maskRigidTransitionRings)
+    local original,candidateMaps={},{ }
+    for _,index in ipairs(indices) do
+        local before=readInfluenceMap(index,false)
+        original[index]=before
+        local alpha=1
+        if rings>0 and distance[index]~=nil then
+            alpha=math.min(1,(distance[index]+1)/(rings+1))
+        end
+        local mixed={}
+        for name,weight in pairs(before) do mixed[name]=weight*(1-alpha) end
+        mixed[bone.name]=(mixed[bone.name] or 0)+alpha
+        local result={}
+        for _,influence in ipairs(normalizedInfluences(mixed)) do
+            result[influence.name]=influence.weight
+        end
+        if influenceDistance(before,result)>1e-7 then candidateMaps[index]=result end
+    end
+    local poseScale,protectedSamples=poseSafeRepairScale(original,candidateMaps,editable)
+    local edits={}
+    for _,index in ipairs(indices) do
+        local candidate=candidateMaps[index]
+        if candidate then
+            local finalMap=candidate
+            if poseScale<0.999999 then
+                local mixed={}
+                for name,weight in pairs(original[index]) do
+                    mixed[name]=weight*(1-poseScale)
+                end
+                for name,weight in pairs(candidate) do
+                    mixed[name]=(mixed[name] or 0)+weight*poseScale
+                end
+                finalMap={}
+                for _,influence in ipairs(normalizedInfluences(mixed)) do
+                    finalMap[influence.name]=influence.weight
+                end
+            end
+            local influences=normalizedInfluences(finalMap)
+            if #influences>0 and influenceDistance(original[index],finalMap)>1e-7 then
+                local row={index}
+                for slot=1,4 do
+                    local influence=influences[slot]
+                    row[slot*2]=influence and influence.name or nil
+                    row[slot*2+1]=influence and influence.weight or 0
+                end
+                edits[#edits+1]=row
+            end
+        end
+    end
+    if #edits==0 then
+        setStatus(tLang.L(poseScale<=1e-6 and 'swl_paint_mask_rigid_safety_blocked' or
+            'swl_paint_mask_rigid_no_change'),false)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_rigid_mask_weights')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local ok,committed=safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    if not ok or not committed then
+        discardRollbackSnapshot(snapshot)
+        if ok then setStatus(tLang.L('swl_paint_mask_rigid_failed'),true) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_rigid_mask_weights')
+    state.modified=true
+    invalidateAnalysis()
+    state.paint.heatmapDirty=true
+    rebuildPaintHeatmap()
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_paint_mask_rigid_applied_fmt'),#edits,bone.name,
+        rings,poseScale,protectedSamples),false)
     return true
 end
 
@@ -5926,6 +6050,18 @@ local function showPaintWeights()
         end
         tImGui.EndDisabled()
         tImGui.TextWrapped(tLang.L('swl_paint_mask_smooth_help'))
+        tImGui.PushItemWidth(240)
+        local transitionChanged,transitionRings=tImGui.SliderInt(
+            tLang.L('swl_paint_mask_rigid_transition_rings'),
+            state.paint.maskRigidTransitionRings,0,10)
+        tImGui.PopItemWidth()
+        if transitionChanged then state.paint.maskRigidTransitionRings=transitionRings end
+        tImGui.BeginDisabled(maskCount==0 or state.paint.maskEditMode~=0)
+        if tImGui.Button(tLang.L('swl_paint_mask_rigid_apply')) then
+            rigidBindPaintMask()
+        end
+        tImGui.EndDisabled()
+        tImGui.TextWrapped(tLang.L('swl_paint_mask_rigid_help'))
         tImGui.TextWrapped(tLang.L(state.paint.operationMode==4 and 'swl_paint_rigid_help' or
             state.paint.operationMode==3 and 'swl_paint_smooth_help' or
             state.paint.operationMode==2 and 'swl_paint_subtract_help' or 'swl_paint_add_help'))

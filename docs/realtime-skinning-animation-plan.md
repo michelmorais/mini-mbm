@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.28**
+Document version: **9.31**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -814,6 +814,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.31 | 2026-08-17 | Made persistent painted-mask crosses frustum-independent with the existing renderizable `alwaysRender` property while retaining workspace/mesh visibility and always-on-top overlay ordering. |
+| 9.30 | 2026-08-17 | Corrected zero-scale regional-operation accounting. Full-vector smoothing and complete-mask Rigid Bind now omit vertices unchanged after pose scaling; a fully blocked candidate performs no canonical batch, creates no Undo entry, and reports the safety block instead of claiming every candidate vertex was applied. |
+| 9.29 | 2026-08-17 | Migrated regional Rigid Bind into Paint Weights. The complete painted mask targets the selected bone; configurable topology rings form an internal linear boundary transition over triangle/compatible-seam adjacency, external vertices remain untouched, and sampled-pose safety precedes one canonical batch and Undo entry. |
 | 9.28 | 2026-08-17 | Migrated full-vector regional smoothing into Paint Weights. A masked action jointly averages every influence using only masked triangle/compatible-seam neighbors, normalizes to four bones per iteration, applies sampled-pose safety scaling, and commits one canonical batch plus Undo entry. |
 | 9.27 | 2026-08-17 | Began regional-tool migration with a session-only painted vertex mask. Right-drag add/remove modes do not mutate weights; persistent orange markers visualize the selection; an optional shared filter constrains all four weight brushes and their exact affected-vertex preview. |
 | 9.26 | 2026-08-17 | Fixed the exact affected-vertex preview during subset-restricted dragging. It now follows the subset locked by the first stroke hit and shows no crosses while the cursor is over another subset, matching the brush's actual no-paint behavior. |

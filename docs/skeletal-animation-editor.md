@@ -157,6 +157,8 @@ vertices. **Limit Weight Brushes to Mask** constrains Paint/Add, Erase/Subtract,
 Bind, and the exact affected-vertex diagnostic uses the same mask filter. **Clear Mask** removes the
 selection. The mask is editor-session state, is reset when another mesh is loaded, and is never
 written to the mesh file or added to Undo history because editing it does not mutate asset data.
+Its persistent orange marker batch uses `alwaysRender` to bypass frustum rejection and
+`alwaysOnTop` for overlay ordering, while ordinary workspace and mesh visibility still control it.
 
 **Smooth Complete Weights in Mask** is the regional counterpart to the selected-bone Smooth brush.
 For every masked vertex it averages the complete influence vector using only masked triangle and
@@ -166,6 +168,19 @@ boundaries therefore do not import weights from unmasked vertices. Before one at
 batch and Undo entry, the candidate passes the same sampled-pose face safety scaling used by
 repairs; the status reports changed vertices, iterations, applied safety scale, and avoided unsafe
 samples.
+
+**Rigid Bind Complete Mask** applies the selected target bone regionally without repeated brush
+strokes. With zero transition rings every masked vertex targets exclusive weight one. With one or
+more rings, a topology breadth-first distance from the masked/unmasked boundary produces an
+internal blend: boundary vertices receive `1 / (rings + 1)` of the rigid target, successive masked
+rings increase linearly, and the deeper interior becomes rigid. Triangle and compatible coincident
+seam adjacency share the distance field; unmasked vertices are never edited. Sampled-pose safety
+may uniformly reduce the complete candidate before its single canonical batch and Undo entry.
+After safety scaling, vertices whose final vector is numerically unchanged are excluded from the
+batch. If the safe scale reaches zero, the operation reports that pose safety blocked it and creates
+neither an asset mutation nor an Undo entry. Increasing transition rings is not guaranteed to raise
+the safe scale: it changes more vertices and faces, and the shared global scale is limited by the
+most sensitive sampled face in the complete region.
 
 **Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
 alpha previews `strength * falloff` independently of the mesh triangulation: green represents
