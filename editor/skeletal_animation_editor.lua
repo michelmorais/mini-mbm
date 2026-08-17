@@ -208,6 +208,8 @@ local state = {
         maskSmoothStrength=0.5,maskSmoothIterations=3,
         maskRigidTransitionRings=2,
         diagnosticsUseMask=false,
+        aabbCapture={active=false,initialized=false,bounds=nil,result=nil},
+        aabbCaptureBox=nil,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
@@ -237,7 +239,8 @@ end
 
 local function shouldShowSkeleton()
     return state.workspace=='bind' or state.workspace=='bone_editor' or state.workspace=='animation' or
-        (state.workspace=='paint' and state.paint.showSkeleton) or
+        (state.workspace=='paint' and state.paint.showSkeleton and
+            not state.paint.aabbCapture.active) or
         (isWeightLabWorkspace() and state.skeletonVisible)
 end
 
@@ -298,6 +301,7 @@ local function clearPaintVisuals()
     destroyObject(state.paint.safetySeamMarkers)
     destroyObject(state.paint.strokeSafetyFaceShape)
     destroyObject(state.paint.maskMarkers)
+    destroyObject(state.paint.aabbCaptureBox)
     state.paint.heatmapLines={}
     state.paint.cursor=nil
     state.paint.brushFootprintShape=nil
@@ -310,6 +314,8 @@ local function clearPaintVisuals()
     state.paint.strokeSafetyFaceShape=nil
     state.paint.strokeSafetyReport=nil
     state.paint.maskMarkers=nil
+    state.paint.aabbCaptureBox=nil
+    state.paint.aabbCapture={active=false,initialized=false,bounds=nil,result=nil}
     state.paint.cursorHit=nil
     state.paint.lastSurfaceHit=nil
     state.paint.cursorLastX=nil
@@ -1068,8 +1074,10 @@ local function applyWorkspaceVisibility()
     if state.preview then
         -- Paint Weights' filled-face heatmap is a complete read-only surface copy. Hiding the
         -- textured preview there avoids z-fighting and color mixing; other worktrees keep it.
-        state.preview.visible=state.meshVisible and not
-            (paintWorkspace and #state.paint.heatmapLines>0)
+        state.preview.visible=(state.meshVisible or (paintWorkspace and
+            state.paint.aabbCapture.active)) and not
+            (paintWorkspace and #state.paint.heatmapLines>0 and
+                not state.paint.aabbCapture.active)
         pcall(function()
             local x=0
             if runtimeWorkspace and state.skeletalPreview.poseStress then
@@ -1092,23 +1100,33 @@ local function applyWorkspaceVisibility()
     if state.transitionLines then state.transitionLines.visible=analysisVisible end
     for _,marker in ipairs(state.heatmapLines) do marker.visible=analysisVisible end
     for _,marker in ipairs(state.paint.heatmapLines) do
-        marker.visible=paintWorkspace and state.meshVisible
+        marker.visible=paintWorkspace and state.meshVisible and not state.paint.aabbCapture.active
     end
-    if state.paint.cursor then state.paint.cursor.visible=paintWorkspace and state.meshVisible end
+    if state.paint.cursor then
+        state.paint.cursor.visible=paintWorkspace and state.meshVisible and
+            not state.paint.aabbCapture.active
+    end
     if state.paint.brushFootprintShape then
         state.paint.brushFootprintShape.visible=paintWorkspace and state.meshVisible and
-            state.paint.visualizationMode==1 and state.paint.showBrushGradient
+            state.paint.visualizationMode==1 and state.paint.showBrushGradient and
+            not state.paint.aabbCapture.active
     end
     if state.paint.brushFootprintMarkers then
         state.paint.brushFootprintMarkers.visible=paintWorkspace and state.meshVisible and
-            state.paint.visualizationMode==1 and state.paint.showBrushFootprint
+            state.paint.visualizationMode==1 and state.paint.showBrushFootprint and
+            not state.paint.aabbCapture.active
     end
     if state.paint.maskMarkers then
-        state.paint.maskMarkers.visible=paintWorkspace and state.meshVisible
+        state.paint.maskMarkers.visible=paintWorkspace and state.meshVisible and
+            not state.paint.aabbCapture.active
+    end
+    if state.paint.aabbCaptureBox then
+        state.paint.aabbCaptureBox.visible=paintWorkspace and state.paint.aabbCapture.active
     end
     if state.paint.hoveredVertexMarker then
         state.paint.hoveredVertexMarker.visible=paintWorkspace and state.meshVisible and
-            state.paint.visualizationMode==1 and state.paint.showVertexInspector
+            state.paint.visualizationMode==1 and state.paint.showVertexInspector and
+            not state.paint.aabbCapture.active
     end
     if state.paint.safetyFaceShape then
         state.paint.safetyFaceShape.visible=paintWorkspace and
@@ -1770,7 +1788,8 @@ local function hitTestAuthoringBone(sx,sy)
 end
 
 local function hitTestPaintBone(sx,sy)
-    if state.workspace~='paint' or not state.paint.showSkeleton then return nil end
+    if state.workspace~='paint' or not state.paint.showSkeleton or
+            state.paint.aabbCapture.active then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
     if not ok then return nil end
     local bones=getVisualBones()
@@ -1916,6 +1935,71 @@ local function applyHitSubsetToPaintMask(mode)
     local count=0
     for _ in pairs(state.paint.maskVertices) do count=count+1 end
     setStatus(string.format(tLang.L('swl_paint_mask_subset_applied_fmt'),subset,count),false)
+    return true
+end
+
+local function rebuildPaintAabbCaptureBox()
+    destroyObject(state.paint.aabbCaptureBox)
+    state.paint.aabbCaptureBox=nil
+    local capture=state.paint.aabbCapture
+    if not capture.active or not capture.bounds then return end
+    state.paint.aabbCaptureBox=createSelectionBox(capture.bounds,1,0.65,0)
+    if state.paint.aabbCaptureBox then
+        state.paint.aabbCaptureBox.alwaysRender=true
+        state.paint.aabbCaptureBox.alwaysOnTop=true
+        state.paint.aabbCaptureBox.alwaysOnTopPriority=1
+        state.paint.aabbCaptureBox.visible=state.workspace=='paint' and state.meshVisible
+    end
+end
+
+local function setPaintAabbCaptureActive(active)
+    local capture=state.paint.aabbCapture
+    if active then
+        local meshBounds=state.meshBounds
+        if not capture.initialized and meshBounds then
+            local cx=(meshBounds.minX+meshBounds.maxX)*0.5
+            local cy=(meshBounds.minY+meshBounds.maxY)*0.5
+            local cz=(meshBounds.minZ+meshBounds.maxZ)*0.5
+            local hx=math.max((meshBounds.maxX-meshBounds.minX)*0.125,0.001)
+            local hy=math.max((meshBounds.maxY-meshBounds.minY)*0.125,0.001)
+            local hz=math.max((meshBounds.maxZ-meshBounds.minZ)*0.125,0.001)
+            capture.bounds={minX=cx-hx,maxX=cx+hx,minY=cy-hy,maxY=cy+hy,
+                minZ=cz-hz,maxZ=cz+hz}
+            capture.initialized=true
+        end
+        capture.active=true
+        capture.result=nil
+        rebuildPaintCursor(nil)
+        rebuildPaintAabbCaptureBox()
+    else
+        capture.active=false
+        destroyObject(state.paint.aabbCaptureBox)
+        state.paint.aabbCaptureBox=nil
+        capture.result={}
+        local cache=state.paint.geometry
+        if cache and capture.bounds then
+            for _,vertex in pairs(cache.vertices) do
+                if pointInsideAABB(vertex.point,capture.bounds) then
+                    capture.result[vertex.globalIndex]=true
+                end
+            end
+        end
+    end
+    applyWorkspaceVisibility()
+end
+
+local function applyPaintAabbCaptureToMask(mode)
+    local result=state.paint.aabbCapture.result
+    if not result then return false end
+    if mode=='replace' then state.paint.maskVertices={} end
+    for index in pairs(result) do
+        state.paint.maskVertices[index]=mode=='remove' and nil or true
+    end
+    rebuildPaintMaskMarkers()
+    local count=0
+    for _ in pairs(state.paint.maskVertices) do count=count+1 end
+    setStatus(string.format(tLang.L('swl_paint_aabb_mask_applied_fmt'),count),false)
+    applyWorkspaceVisibility()
     return true
 end
 
@@ -2414,6 +2498,11 @@ end
 
 local function updatePaintCursorHover()
     if state.workspace~='paint' or not state.paint.cursorPendingX then return end
+    if state.paint.aabbCapture.active then
+        state.paint.cursorPendingX,state.paint.cursorPendingY=nil,nil
+        if state.paint.cursor then rebuildPaintCursor(nil) end
+        return
+    end
     if state.paint.visualizationMode~=1 then
         state.paint.cursorPendingX,state.paint.cursorPendingY=nil,nil
         if state.paint.cursor then rebuildPaintCursor(nil) end
@@ -6063,6 +6152,62 @@ local function showPaintWeights()
     if state.paint.visualizationMode==1 then
         tImGui.Separator()
         showSectionTitle('swl_paint_brush_section')
+        local capture=state.paint.aabbCapture
+        local captureActive=tImGui.Checkbox(tLang.L('swl_paint_aabb_capture_start'),
+            capture.active)
+        if captureActive~=capture.active then
+            setPaintAabbCaptureActive(captureActive)
+        end
+        if capture.active and capture.bounds then
+            local b=capture.bounds
+            local reference=state.meshBounds
+            local dragSpeed=math.max(reference and math.max(
+                reference.maxX-reference.minX,reference.maxY-reference.minY,
+                reference.maxZ-reference.minZ)*0.0025 or 0.001,0.0001)
+            local cx,cy,cz=(b.minX+b.maxX)*0.5,(b.minY+b.maxY)*0.5,
+                (b.minZ+b.maxZ)*0.5
+            local sx,sy,sz=b.maxX-b.minX,b.maxY-b.minY,b.maxZ-b.minZ
+            tImGui.PushItemWidth(200)
+            local cxChanged,newCx=tImGui.DragFloat(tLang.L('swl_paint_aabb_center_x'),
+                cx,dragSpeed,-1000000,1000000,'%.4f')
+            local cyChanged,newCy=tImGui.DragFloat(tLang.L('swl_paint_aabb_center_y'),
+                cy,dragSpeed,-1000000,1000000,'%.4f')
+            local czChanged,newCz=tImGui.DragFloat(tLang.L('swl_paint_aabb_center_z'),
+                cz,dragSpeed,-1000000,1000000,'%.4f')
+            local sxChanged,newSx=tImGui.DragFloat(tLang.L('swl_paint_aabb_size_x'),
+                sx,dragSpeed,0.0001,2000000,'%.4f')
+            local syChanged,newSy=tImGui.DragFloat(tLang.L('swl_paint_aabb_size_y'),
+                sy,dragSpeed,0.0001,2000000,'%.4f')
+            local szChanged,newSz=tImGui.DragFloat(tLang.L('swl_paint_aabb_size_z'),
+                sz,dragSpeed,0.0001,2000000,'%.4f')
+            tImGui.PopItemWidth()
+            if cxChanged or cyChanged or czChanged or sxChanged or syChanged or szChanged then
+                cx,cy,cz=cxChanged and newCx or cx,cyChanged and newCy or cy,
+                    czChanged and newCz or cz
+                sx,sy,sz=math.max(sxChanged and newSx or sx,0.0001),
+                    math.max(syChanged and newSy or sy,0.0001),
+                    math.max(szChanged and newSz or sz,0.0001)
+                b.minX,b.maxX=cx-sx*0.5,cx+sx*0.5
+                b.minY,b.maxY=cy-sy*0.5,cy+sy*0.5
+                b.minZ,b.maxZ=cz-sz*0.5,cz+sz*0.5
+                rebuildPaintAabbCaptureBox()
+            end
+            tImGui.TextWrapped(tLang.L('swl_paint_aabb_capture_active_help'))
+        elseif capture.result then
+            local capturedCount=0
+            for _ in pairs(capture.result) do capturedCount=capturedCount+1 end
+            tImGui.Text(string.format(tLang.L('swl_paint_aabb_capture_result_fmt'),capturedCount))
+            if tImGui.Button(tLang.L('swl_paint_aabb_replace')) then
+                applyPaintAabbCaptureToMask('replace')
+            end
+            if tImGui.Button(tLang.L('swl_paint_aabb_add')) then
+                applyPaintAabbCaptureToMask('add')
+            end
+            if tImGui.Button(tLang.L('swl_paint_aabb_remove')) then
+                applyPaintAabbCaptureToMask('remove')
+            end
+        end
+        tImGui.BeginDisabled(capture.active)
         tImGui.Text(tLang.L('swl_paint_mask_mode'))
         local previousMaskMode=state.paint.maskEditMode
         state.paint.maskEditMode=tImGui.RadioButton(tLang.L('swl_paint_mask_off'),
@@ -6217,6 +6362,7 @@ local function showPaintWeights()
             state.paint.falloffMode=falloffMode
             rebuildPaintCursor(state.paint.cursorHit)
         end
+        tImGui.EndDisabled()
     end
     tImGui.Separator()
     showSectionTitle('swl_paint_viewport_feedback')
@@ -8330,6 +8476,7 @@ function onLoop(delta)
 end
 
 function onTouchDown(key, x, y)
+    if key==1 and state.workspace=='paint' and state.paint.aabbCapture.active then return end
     if key==1 and state.workspace=='bone_editor' and state.boneEditorDrag then
         cancelBoneEditorDrag()
         return

@@ -196,6 +196,16 @@ retains the last valid surface hit while the pointer moves into the GUI, so the 
 usable without requiring an impossible simultaneous hover over mesh and panel. These commands
 change only session mask membership and never mutate weights or create Undo history.
 
+**Start AABB Capture** follows Mesh Debug's Split capture boundary. Turning it on initializes a
+quarter-size orange box at the mesh center, temporarily shows the original textured mesh even when
+base-mesh visibility was off, and hides the heatmap, mask crosses, skeleton, brush cursor, and brush
+feedback. Center X/Y/Z and Size X/Y/Z rebuild only the visual box; painting and bone picking are
+blocked, while camera orbit remains available. No vertex query runs per frame or per control edit.
+Turning capture off performs one point-inside-box pass over the cached frame-1 vertices, destroys
+the box, restores the previous editor visualization, and retains the captured vertex set. Separate
+Replace/Add/Remove actions then apply that result to the session mask without touching weights or
+Undo history.
+
 **Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
 alpha previews `strength * falloff` independently of the mesh triangulation: green represents
 Paint/Add, red represents Erase/Subtract, and cyan represents Smooth. The disk communicates radius

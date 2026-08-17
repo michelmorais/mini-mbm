@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.33**
+Document version: **9.34**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -814,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.34 | 2026-08-17 | Added modal AABB mask capture following Mesh Debug Split semantics. Capture temporarily isolates the textured mesh and adjustable orange box, blocks authoring interactions, performs no per-loop vertex work, evaluates cached vertices once when unchecked, then exposes Replace/Add/Remove mask actions. |
 | 9.33 | 2026-08-17 | Added the first Paint Weights mask generator. The last valid visible surface hit identifies a material subset, and vertical Replace/Add/Remove actions update all of that subset's vertices in the session mask without mutating weights or history. |
 | 9.32 | 2026-08-17 | Migrated regional diagnostics into Paint Weights. Distribution, weak contamination, and abrupt transitions optionally use only painted-mask vertices; outside heatmap regions are neutral gray, statistics use the scoped denominator, abrupt edges require two scoped endpoints, and weak cleanup/abrupt repair share that scope. |
 | 9.31 | 2026-08-17 | Made persistent painted-mask crosses frustum-independent with the existing renderizable `alwaysRender` property while retaining workspace/mesh visibility and always-on-top overlay ordering. |
