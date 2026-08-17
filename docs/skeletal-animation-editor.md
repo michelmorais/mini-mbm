@@ -150,6 +150,14 @@ also breaks stroke interpolation so re-entering it cannot create a hidden bridge
 lock a different subset. This is useful for editing clothing near a body surface without changing
 the body, while leaving the option disabled preserves cross-subset painting.
 
+The session-only **Painted Mask** provides a persistent regional selection without changing stored
+weights. **Add to Mask** and **Remove from Mask** use right-drag with the current radius, falloff,
+connected-surface, and optional hit-subset scope; orange crosses show up to 500 sampled masked
+vertices. **Limit Weight Brushes to Mask** constrains Paint/Add, Erase/Subtract, Smooth, and Rigid
+Bind, and the exact affected-vertex diagnostic uses the same mask filter. **Clear Mask** removes the
+selection. The mask is editor-session state, is reset when another mesh is loaded, and is never
+written to the mesh file or added to Undo history because editing it does not mutate asset data.
+
 **Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
 alpha previews `strength * falloff` independently of the mesh triangulation: green represents
 Paint/Add, red represents Erase/Subtract, and cyan represents Smooth. The disk communicates radius

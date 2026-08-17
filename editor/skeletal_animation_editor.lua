@@ -204,6 +204,7 @@ local state = {
         rigidCoreRatio=0.6,
         connectedSurfaceOnly=true,
         restrictToHitSubset=false,
+        maskVertices={},maskEditMode=0,maskRestrictBrush=false,maskMarkers=nil,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
@@ -292,6 +293,7 @@ local function clearPaintVisuals()
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     destroyObject(state.paint.strokeSafetyFaceShape)
+    destroyObject(state.paint.maskMarkers)
     state.paint.heatmapLines={}
     state.paint.cursor=nil
     state.paint.brushFootprintShape=nil
@@ -303,6 +305,7 @@ local function clearPaintVisuals()
     state.paint.safetyReport=nil
     state.paint.strokeSafetyFaceShape=nil
     state.paint.strokeSafetyReport=nil
+    state.paint.maskMarkers=nil
     state.paint.cursorHit=nil
     state.paint.cursorLastX=nil
     state.paint.cursorLastY=nil
@@ -1095,6 +1098,9 @@ local function applyWorkspaceVisibility()
         state.paint.brushFootprintMarkers.visible=paintWorkspace and state.meshVisible and
             state.paint.visualizationMode==1 and state.paint.showBrushFootprint
     end
+    if state.paint.maskMarkers then
+        state.paint.maskMarkers.visible=paintWorkspace and state.meshVisible
+    end
     if state.paint.hoveredVertexMarker then
         state.paint.hoveredVertexMarker.visible=paintWorkspace and state.meshVisible and
             state.paint.visualizationMode==1 and state.paint.showVertexInspector
@@ -1865,6 +1871,26 @@ local function buildVertexMarkers(vertices, r, g, b, extent)
     return marks
 end
 
+local function rebuildPaintMaskMarkers()
+    destroyObject(state.paint.maskMarkers)
+    state.paint.maskMarkers=nil
+    local cache=state.paint.geometry
+    if not cache then return end
+    local vertices={}
+    for index in pairs(state.paint.maskVertices) do
+        if cache.vertices[index] then vertices[#vertices+1]=cache.vertices[index] end
+    end
+    table.sort(vertices,function(a,b) return a.globalIndex<b.globalIndex end)
+    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+    state.paint.maskMarkers=buildVertexMarkers(vertices,1,0.45,0,extent)
+    if state.paint.maskMarkers then
+        state.paint.maskMarkers.alwaysOnTop=true
+        state.paint.maskMarkers.alwaysOnTopPriority=0
+        state.paint.maskMarkers.visible=state.workspace=='paint' and state.meshVisible
+    end
+end
+
 local function buildEdgeLines(edges,r,g,b)
     if #edges==0 then return nil end
     local coords={}
@@ -2298,6 +2324,15 @@ local function rebuildPaintCursor(hit)
             (state.paint.restrictToHitSubset and hit.triangle.subset or nil)
         local candidates=outsideLockedSubset and {} or
             queryPaintVertices(hit.point,state.paint.radius,hit.triangle,requiredSubset)
+        if state.paint.maskEditMode==0 and state.paint.maskRestrictBrush then
+            local filtered={}
+            for _,candidate in ipairs(candidates) do
+                if state.paint.maskVertices[candidate.vertex.globalIndex] then
+                    filtered[#filtered+1]=candidate
+                end
+            end
+            candidates=filtered
+        end
         local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
             state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
         local vertices={}
@@ -2822,6 +2857,9 @@ local function loadMesh(path)
     clearRollback()
     clearSelectionVisuals()
     clearPaintVisuals()
+    state.paint.maskVertices={}
+    state.paint.maskEditMode=0
+    state.paint.maskRestrictBrush=false
     destroySkeletonVisuals()
     state.fileName, state.meshD = path, meshD
     state.info = meshDebug:getInfo(path)
@@ -3207,7 +3245,8 @@ local function stampPaintStroke(stroke,point,triangle)
             alpha=state.paint.strength*paintFalloff(candidate.distance,state.paint.radius)
         end
         alpha=math.max(0,math.min(1,alpha))
-        if alpha>0 then
+        if alpha>0 and (stroke.maskEditMode~=0 or not state.paint.maskRestrictBrush or
+                state.paint.maskVertices[candidate.vertex.globalIndex]) then
             local index=candidate.vertex.globalIndex
             local previous=stroke.alphas[index] or 0
             stroke.alphas[index]=stroke.operationMode==4 and math.max(previous,alpha) or
@@ -3258,12 +3297,17 @@ end
 local function beginPaintStroke(hit)
     if not state.meshVisible then return false end
     local bone=getBones()[state.paint.boneIndex]
-    if not bone or not hit then return false end
-    local snapshot=stageRollbackSnapshot('swl_history_paint_add')
-    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
-    state.paint.stroke={snapshot=snapshot,boneName=bone.name,boneId=bone.boneId,
+    if not hit or (state.paint.maskEditMode==0 and not bone) then return false end
+    local snapshot=nil
+    if state.paint.maskEditMode==0 then
+        snapshot=stageRollbackSnapshot('swl_history_paint_add')
+        if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    end
+    state.paint.stroke={snapshot=snapshot,boneName=bone and bone.name or nil,
+        boneId=bone and bone.boneId or nil,
         operationMode=state.paint.operationMode,smoothIterations=state.paint.smoothIterations,
         rigidCoreRatio=state.paint.rigidCoreRatio,
+        maskEditMode=state.paint.maskEditMode,
         requiredSubset=state.paint.restrictToHitSubset and hit.triangle.subset or nil,
         alphas={},lastPoint=nil,distanceSinceSample=0}
     extendPaintStroke(hit)
@@ -3274,7 +3318,7 @@ end
 local function cancelPaintStroke()
     local stroke=state.paint.stroke
     if not stroke then return false end
-    discardRollbackSnapshot(stroke.snapshot)
+    if stroke.snapshot then discardRollbackSnapshot(stroke.snapshot) end
     state.paint.stroke=nil
     setStatus(tLang.L('swl_paint_stroke_cancelled'),false)
     return true
@@ -3289,6 +3333,15 @@ local function commitPaintStroke()
         if alpha>0 then indices[#indices+1]=index end
     end
     table.sort(indices)
+    if stroke.maskEditMode~=0 then
+        for _,index in ipairs(indices) do
+            state.paint.maskVertices[index]=stroke.maskEditMode==1 and true or nil
+        end
+        rebuildPaintMaskMarkers()
+        setStatus(string.format(tLang.L('swl_paint_mask_count_fmt'),
+            (function() local count=0; for _ in pairs(state.paint.maskVertices) do count=count+1 end; return count end)()),false)
+        return true
+    end
     if #indices==0 then
         discardRollbackSnapshot(stroke.snapshot)
         return false
@@ -4389,6 +4442,7 @@ local function restoreHistoryEntry(entry)
     invalidateAnalysis()
     rebuildPreview(entry.path)
     buildPaintGeometryCache()
+    rebuildPaintMaskMarkers()
     if state.workspace=='paint' then rebuildPaintHeatmap() end
     rebuildSkeletonVisuals()
     rebuildSelectionBox()
@@ -5705,10 +5759,38 @@ local function showPaintWeights()
     if state.paint.visualizationMode==1 then
         tImGui.Separator()
         showSectionTitle('swl_paint_brush_section')
+        tImGui.Text(tLang.L('swl_paint_mask_mode'))
+        local previousMaskMode=state.paint.maskEditMode
+        state.paint.maskEditMode=tImGui.RadioButton(tLang.L('swl_paint_mask_off'),
+            state.paint.maskEditMode,0)
+        state.paint.maskEditMode=tImGui.RadioButton(tLang.L('swl_paint_mask_add'),
+            state.paint.maskEditMode,1)
+        state.paint.maskEditMode=tImGui.RadioButton(tLang.L('swl_paint_mask_remove'),
+            state.paint.maskEditMode,2)
+        if state.paint.maskEditMode~=previousMaskMode then
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
+        local maskCount=0
+        for _ in pairs(state.paint.maskVertices) do maskCount=maskCount+1 end
+        tImGui.Text(string.format(tLang.L('swl_paint_mask_count_fmt'),maskCount))
+        local restrictMask=tImGui.Checkbox(tLang.L('swl_paint_mask_restrict'),
+            state.paint.maskRestrictBrush)
+        if restrictMask~=state.paint.maskRestrictBrush then
+            state.paint.maskRestrictBrush=restrictMask
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('swl_paint_mask_clear')) then
+            state.paint.maskVertices={}
+            rebuildPaintMaskMarkers()
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
+        tImGui.TextWrapped(tLang.L('swl_paint_mask_help'))
         tImGui.TextWrapped(tLang.L(state.paint.operationMode==4 and 'swl_paint_rigid_help' or
             state.paint.operationMode==3 and 'swl_paint_smooth_help' or
             state.paint.operationMode==2 and 'swl_paint_subtract_help' or 'swl_paint_add_help'))
         tImGui.Text(tLang.L('swl_paint_operation'))
+        tImGui.BeginDisabled(state.paint.maskEditMode~=0)
         local previousOperation=state.paint.operationMode
         state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_add'),
             state.paint.operationMode,1)
@@ -5718,6 +5800,7 @@ local function showPaintWeights()
             state.paint.operationMode,3)
         state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_rigid'),
             state.paint.operationMode,4)
+        tImGui.EndDisabled()
         if state.paint.operationMode~=previousOperation then
             rebuildPaintCursor(state.paint.cursorHit)
         end
