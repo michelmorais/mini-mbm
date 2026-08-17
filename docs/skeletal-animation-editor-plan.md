@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.20**
+Document version: **8.21**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
 Last updated: **2026-08-17**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.21 | 2026-08-17 | Fixed the exact affected-vertex preview during subset-restricted dragging. It now follows the subset locked by the first stroke hit and shows no crosses while the cursor is over another subset, matching the brush's actual no-paint behavior. |
 | 8.20 | 2026-08-17 | Fixed Mesh Debug subset-filter previews for canonical skeletal meshes. Core subset removal now erases the matching frame-global type-42 weight range before compacting geometry, so temporary filtered copies remain valid and savable. |
 | 8.19 | 2026-08-17 | Added optional per-stroke material-subset scope to every Paint Weights brush. The first hit locks the subset, exact affected-vertex diagnostics share the filter, and leaving the subset breaks interpolation so re-entry cannot bridge across unrelated material regions. |
 | 8.18 | 2026-08-17 | Made Paint Weights mesh visibility authoritative for surface picking: a hidden mesh cannot start or extend right-button strokes or feed invisible cursor/affected-vertex/nearest-vertex hit results. |

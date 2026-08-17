@@ -2291,8 +2291,13 @@ local function rebuildPaintCursor(hit)
         end
     end
     if state.paint.showBrushFootprint then
-        local candidates=queryPaintVertices(hit.point,state.paint.radius,hit.triangle,
-            state.paint.restrictToHitSubset and hit.triangle.subset or nil)
+        local stroke=state.paint.stroke
+        local lockedSubset=stroke and stroke.requiredSubset or nil
+        local outsideLockedSubset=lockedSubset and hit.triangle.subset~=lockedSubset
+        local requiredSubset=lockedSubset or
+            (state.paint.restrictToHitSubset and hit.triangle.subset or nil)
+        local candidates=outsideLockedSubset and {} or
+            queryPaintVertices(hit.point,state.paint.radius,hit.triangle,requiredSubset)
         local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
             state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
         local vertices={}
@@ -8284,6 +8289,7 @@ function onTouchUp(key, x, y)
             local hit=pickPaintSurface(x,y)
             if hit then extendPaintStroke(hit) end
             commitPaintStroke()
+            rebuildPaintCursor(hit)
         end
         return
     end
