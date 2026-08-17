@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.29**
+Document version: **8.35**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
 Last updated: **2026-08-17**
 
@@ -526,6 +526,7 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
 | Animation UI duplicates articulated code and semantics drift | Two incompatible editors | Extract/share services only where semantics truly match. |
 | DQS hides unsupported scale behavior | Preview/runtime disagreement | Detect, report, and require explicit method/fallback policy. |
 | Worktrees own separate copies of asset state | Cross-worktree corruption and stale views | One asset context and explicit invalidation rules. |
+| Lua pseudo-ternary uses `nil` as its true result | Remove-from-mask silently adds vertices because `condition and nil or fallback` selects the fallback | Use an explicit `if` branch whenever deletion is represented by assigning `nil`; apply this to every mask generator. |
 
 ## 14. Out of scope for the initial Skeleton/Animation deliveries
 
@@ -559,6 +560,12 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.35 | 2026-08-17 | Documented the Lua `condition and nil or fallback` removal trap as a permanent implementation risk and required explicit branches for every mask generator. |
+| 8.34 | 2026-08-17 | Fixed Remove-from-Mask for both AABB capture and hit-subset generators. The Lua `condition and nil or true` idiom could never yield nil and therefore re-added vertices; explicit branches now erase mask membership. |
+| 8.33 | 2026-08-17 | Removed per-mouse-move AABB render-object reconstruction. The box and hover overlays now use centered local geometry with a shared world position; viewport translation calls only `setPos`, hover only changes visibility, and dimensional edits remain the sole rebuild path. |
+| 8.32 | 2026-08-17 | Made AABB hover faces camera-side independent by emitting every feedback triangle with both winding orders, avoiding backend-specific cull-state overrides across GLES, DirectX 9, and Metal. |
+| 8.31 | 2026-08-17 | Added AABB capture sensitivity with mesh-extent automatic reset and prebuilt Mesh-Debug-style hover feedback. Min/Max highlights one colored axis face, Size both opposing faces, and all three highlight parallel axis edges without per-frame render-object allocation. |
+| 8.30 | 2026-08-17 | Aligned AABB mask capture manipulation with the Weight Lab: Min/Max/Size controls per axis, camera-plane translation by left-dragging inside the box, orbit outside it, and depth-tested box rendering without always-on-top while retaining frustum-independent `alwaysRender`. |
 | 8.29 | 2026-08-17 | Added modal AABB mask capture following Mesh Debug Split semantics. Capture temporarily isolates the textured mesh and adjustable orange box, blocks authoring interactions, performs no per-loop vertex work, evaluates cached vertices once when unchecked, then exposes Replace/Add/Remove mask actions. |
 | 8.28 | 2026-08-17 | Added the first Paint Weights mask generator. The last valid visible surface hit identifies a material subset, and vertical Replace/Add/Remove actions update all of that subset's vertices in the session mask without mutating weights or history. |
 | 8.27 | 2026-08-17 | Migrated regional diagnostics into Paint Weights. Distribution, weak contamination, and abrupt transitions optionally use only painted-mask vertices; outside heatmap regions are neutral gray, statistics use the scoped denominator, abrupt edges require two scoped endpoints, and weak cleanup/abrupt repair share that scope. |

@@ -208,8 +208,10 @@ local state = {
         maskSmoothStrength=0.5,maskSmoothIterations=3,
         maskRigidTransitionRings=2,
         diagnosticsUseMask=false,
-        aabbCapture={active=false,initialized=false,bounds=nil,result=nil},
+        aabbCapture={active=false,initialized=false,bounds=nil,result=nil,
+            dragPlane=nil,dragOffset=nil,sensitivity=nil},
         aabbCaptureBox=nil,
+        aabbCaptureAxisEdges={},aabbCaptureMinFaces={},aabbCaptureMaxFaces={},
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
@@ -302,6 +304,9 @@ local function clearPaintVisuals()
     destroyObject(state.paint.strokeSafetyFaceShape)
     destroyObject(state.paint.maskMarkers)
     destroyObject(state.paint.aabbCaptureBox)
+    for _,object in pairs(state.paint.aabbCaptureAxisEdges) do destroyObject(object) end
+    for _,object in pairs(state.paint.aabbCaptureMinFaces) do destroyObject(object) end
+    for _,object in pairs(state.paint.aabbCaptureMaxFaces) do destroyObject(object) end
     state.paint.heatmapLines={}
     state.paint.cursor=nil
     state.paint.brushFootprintShape=nil
@@ -315,7 +320,11 @@ local function clearPaintVisuals()
     state.paint.strokeSafetyReport=nil
     state.paint.maskMarkers=nil
     state.paint.aabbCaptureBox=nil
-    state.paint.aabbCapture={active=false,initialized=false,bounds=nil,result=nil}
+    state.paint.aabbCaptureAxisEdges={}
+    state.paint.aabbCaptureMinFaces={}
+    state.paint.aabbCaptureMaxFaces={}
+    state.paint.aabbCapture={active=false,initialized=false,bounds=nil,result=nil,
+        dragPlane=nil,dragOffset=nil,sensitivity=nil}
     state.paint.cursorHit=nil
     state.paint.lastSurfaceHit=nil
     state.paint.cursorLastX=nil
@@ -1123,6 +1132,11 @@ local function applyWorkspaceVisibility()
     if state.paint.aabbCaptureBox then
         state.paint.aabbCaptureBox.visible=paintWorkspace and state.paint.aabbCapture.active
     end
+    if not paintWorkspace or not state.paint.aabbCapture.active then
+        for _,object in pairs(state.paint.aabbCaptureAxisEdges) do object.visible=false end
+        for _,object in pairs(state.paint.aabbCaptureMinFaces) do object.visible=false end
+        for _,object in pairs(state.paint.aabbCaptureMaxFaces) do object.visible=false end
+    end
     if state.paint.hoveredVertexMarker then
         state.paint.hoveredVertexMarker.visible=paintWorkspace and state.meshVisible and
             state.paint.visualizationMode==1 and state.paint.showVertexInspector and
@@ -1927,7 +1941,11 @@ local function applyHitSubsetToPaintMask(mode)
     if mode=='replace' then state.paint.maskVertices={} end
     for _,vertex in pairs(cache.vertices) do
         if vertex.subset==subset then
-            state.paint.maskVertices[vertex.globalIndex]=mode=='remove' and nil or true
+            if mode=='remove' then
+                state.paint.maskVertices[vertex.globalIndex]=nil
+            else
+                state.paint.maskVertices[vertex.globalIndex]=true
+            end
         end
     end
     rebuildPaintMaskMarkers()
@@ -1938,17 +1956,112 @@ local function applyHitSubsetToPaintMask(mode)
     return true
 end
 
+local paintAabbCaptureGeneration=0
+
 local function rebuildPaintAabbCaptureBox()
+    paintAabbCaptureGeneration=paintAabbCaptureGeneration+1
     destroyObject(state.paint.aabbCaptureBox)
+    for _,object in pairs(state.paint.aabbCaptureAxisEdges) do destroyObject(object) end
+    for _,object in pairs(state.paint.aabbCaptureMinFaces) do destroyObject(object) end
+    for _,object in pairs(state.paint.aabbCaptureMaxFaces) do destroyObject(object) end
     state.paint.aabbCaptureBox=nil
+    state.paint.aabbCaptureAxisEdges={}
+    state.paint.aabbCaptureMinFaces={}
+    state.paint.aabbCaptureMaxFaces={}
     local capture=state.paint.aabbCapture
     if not capture.active or not capture.bounds then return end
-    state.paint.aabbCaptureBox=createSelectionBox(capture.bounds,1,0.65,0)
+    local world=capture.bounds
+    local cx,cy,cz=(world.minX+world.maxX)*0.5,(world.minY+world.maxY)*0.5,
+        (world.minZ+world.maxZ)*0.5
+    local hx,hy,hz=(world.maxX-world.minX)*0.5,(world.maxY-world.minY)*0.5,
+        (world.maxZ-world.minZ)*0.5
+    local b={minX=-hx,maxX=hx,minY=-hy,maxY=hy,minZ=-hz,maxZ=hz}
+    state.paint.aabbCaptureBox=createSelectionBox(b,1,0.65,0)
     if state.paint.aabbCaptureBox then
+        state.paint.aabbCaptureBox:setPos(cx,cy,cz)
         state.paint.aabbCaptureBox.alwaysRender=true
-        state.paint.aabbCaptureBox.alwaysOnTop=true
-        state.paint.aabbCaptureBox.alwaysOnTopPriority=1
-        state.paint.aabbCaptureBox.visible=state.workspace=='paint' and state.meshVisible
+        state.paint.aabbCaptureBox.visible=state.workspace=='paint' and
+            state.paint.aabbCapture.active
+    end
+    local corners={
+        {b.minX,b.minY,b.maxZ},{b.minX,b.maxY,b.maxZ},
+        {b.maxX,b.maxY,b.maxZ},{b.maxX,b.minY,b.maxZ},
+        {b.minX,b.minY,b.minZ},{b.minX,b.maxY,b.minZ},
+        {b.maxX,b.maxY,b.minZ},{b.maxX,b.minY,b.minZ},
+    }
+    local colors={x={1,0.1,0.8},y={0.1,1,1},z={0.8,1,0.1}}
+    local edges={x={{1,4},{2,3},{5,8},{6,7}},
+        y={{1,2},{4,3},{5,6},{8,7}},z={{1,5},{2,6},{3,7},{4,8}}}
+    local faces={
+        x={min={{5,6,2},{5,2,1}},max={{4,3,7},{4,7,8}}},
+        y={min={{5,1,4},{5,4,8}},max={{2,6,7},{2,7,3}}},
+        z={min={{5,8,7},{5,7,6}},max={{1,2,3},{1,3,4}}},
+    }
+    for _,axis in ipairs({'x','y','z'}) do
+        local edgeLine=line:new('3d',0,0,0)
+        for _,edge in ipairs(edges[axis]) do
+            local coords={}
+            for _,cornerIndex in ipairs(edge) do
+                local p=corners[cornerIndex]
+                appendPoint(coords,p[1],p[2],p[3])
+            end
+            edgeLine:add(coords)
+        end
+        edgeLine:setColor(colors[axis][1],colors[axis][2],colors[axis][3],1)
+        edgeLine:setPos(cx,cy,cz)
+        edgeLine.alwaysRender=true; edgeLine.alwaysOnTop=true
+        edgeLine.alwaysOnTopPriority=1; edgeLine.visible=false
+        state.paint.aabbCaptureAxisEdges[axis]=edgeLine
+        for _,kind in ipairs({'min','max'}) do
+            local coords={}
+            for _,triangle in ipairs(faces[axis][kind]) do
+                for _,cornerIndex in ipairs(triangle) do
+                    local p=corners[cornerIndex]
+                    appendPoint(coords,p[1],p[2],p[3])
+                end
+                -- Emit the opposite winding as well. This keeps the hover face visible from
+                -- either side without relying on backend-specific cull-state overrides.
+                for reverseIndex=#triangle,1,-1 do
+                    local p=corners[triangle[reverseIndex]]
+                    appendPoint(coords,p[1],p[2],p[3])
+                end
+            end
+            local face=shape:new('3d',0,0,0)
+            if face:create(coords,nil,'paint_aabb_hover_'..axis..'_'..kind..'_'..
+                    paintAabbCaptureGeneration) then
+                face:setColor(colors[axis][1],colors[axis][2],colors[axis][3],0.32)
+                face:setPos(cx,cy,cz)
+                face.alwaysRender=true; face.alwaysOnTop=true
+                face.alwaysOnTopPriority=1; face.visible=false
+                state.paint[kind=='min' and 'aabbCaptureMinFaces' or
+                    'aabbCaptureMaxFaces'][axis]=face
+            else
+                destroyObject(face)
+            end
+        end
+    end
+end
+
+local function movePaintAabbCaptureObjects()
+    local b=state.paint.aabbCapture.bounds
+    if not b then return end
+    local cx,cy,cz=(b.minX+b.maxX)*0.5,(b.minY+b.maxY)*0.5,(b.minZ+b.maxZ)*0.5
+    if state.paint.aabbCaptureBox then state.paint.aabbCaptureBox:setPos(cx,cy,cz) end
+    for _,objects in ipairs({state.paint.aabbCaptureAxisEdges,
+            state.paint.aabbCaptureMinFaces,state.paint.aabbCaptureMaxFaces}) do
+        for _,object in pairs(objects) do object:setPos(cx,cy,cz) end
+    end
+end
+
+local function setPaintAabbCaptureHover(kind,axis)
+    for name,object in pairs(state.paint.aabbCaptureAxisEdges) do
+        object.visible=axis==name and kind~=nil
+    end
+    for name,object in pairs(state.paint.aabbCaptureMinFaces) do
+        object.visible=axis==name and (kind=='min' or kind=='size')
+    end
+    for name,object in pairs(state.paint.aabbCaptureMaxFaces) do
+        object.visible=axis==name and (kind=='max' or kind=='size')
     end
 end
 
@@ -1967,14 +2080,20 @@ local function setPaintAabbCaptureActive(active)
                 minZ=cz-hz,maxZ=cz+hz}
             capture.initialized=true
         end
+        if not capture.sensitivity then
+            capture.sensitivity=math.max(meshBounds and math.max(
+                meshBounds.maxX-meshBounds.minX,meshBounds.maxY-meshBounds.minY,
+                meshBounds.maxZ-meshBounds.minZ)*0.0025 or 0.001,0.0001)
+        end
         capture.active=true
         capture.result=nil
+        capture.dragPlane,capture.dragOffset=nil,nil
         rebuildPaintCursor(nil)
         rebuildPaintAabbCaptureBox()
     else
         capture.active=false
-        destroyObject(state.paint.aabbCaptureBox)
-        state.paint.aabbCaptureBox=nil
+        capture.dragPlane,capture.dragOffset=nil,nil
+        rebuildPaintAabbCaptureBox()
         capture.result={}
         local cache=state.paint.geometry
         if cache and capture.bounds then
@@ -1993,7 +2112,11 @@ local function applyPaintAabbCaptureToMask(mode)
     if not result then return false end
     if mode=='replace' then state.paint.maskVertices={} end
     for index in pairs(result) do
-        state.paint.maskVertices[index]=mode=='remove' and nil or true
+        if mode=='remove' then
+            state.paint.maskVertices[index]=nil
+        else
+            state.paint.maskVertices[index]=true
+        end
     end
     rebuildPaintMaskMarkers()
     local count=0
@@ -6161,37 +6284,74 @@ local function showPaintWeights()
         if capture.active and capture.bounds then
             local b=capture.bounds
             local reference=state.meshBounds
-            local dragSpeed=math.max(reference and math.max(
+            local automaticSensitivity=math.max(reference and math.max(
                 reference.maxX-reference.minX,reference.maxY-reference.minY,
                 reference.maxZ-reference.minZ)*0.0025 or 0.001,0.0001)
-            local cx,cy,cz=(b.minX+b.maxX)*0.5,(b.minY+b.maxY)*0.5,
-                (b.minZ+b.maxZ)*0.5
-            local sx,sy,sz=b.maxX-b.minX,b.maxY-b.minY,b.maxZ-b.minZ
             tImGui.PushItemWidth(200)
-            local cxChanged,newCx=tImGui.DragFloat(tLang.L('swl_paint_aabb_center_x'),
-                cx,dragSpeed,-1000000,1000000,'%.4f')
-            local cyChanged,newCy=tImGui.DragFloat(tLang.L('swl_paint_aabb_center_y'),
-                cy,dragSpeed,-1000000,1000000,'%.4f')
-            local czChanged,newCz=tImGui.DragFloat(tLang.L('swl_paint_aabb_center_z'),
-                cz,dragSpeed,-1000000,1000000,'%.4f')
+            local sensitivityChanged,sensitivity=tImGui.InputFloat(
+                tLang.L('swl_paint_aabb_sensitivity'),capture.sensitivity or automaticSensitivity,
+                automaticSensitivity*0.1,automaticSensitivity,'%.6f',0)
+            tImGui.PopItemWidth()
+            if tImGui.Button(tLang.L('swl_reset_auto')..'##paintAabbSensitivity') then
+                capture.sensitivity=automaticSensitivity
+            elseif sensitivityChanged then
+                capture.sensitivity=math.max(sensitivity,0.000001)
+            end
+            local dragSpeed=math.max(capture.sensitivity or automaticSensitivity,0.000001)
+            local hoverKind,hoverAxis=nil,nil
+            tImGui.PushItemWidth(200)
+            local minXChanged,newMinX=tImGui.DragFloat(tLang.L('swl_paint_aabb_min_x'),
+                b.minX,dragSpeed,-1000000,1000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='min','x' end
+            local minYChanged,newMinY=tImGui.DragFloat(tLang.L('swl_paint_aabb_min_y'),
+                b.minY,dragSpeed,-1000000,1000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='min','y' end
+            local minZChanged,newMinZ=tImGui.DragFloat(tLang.L('swl_paint_aabb_min_z'),
+                b.minZ,dragSpeed,-1000000,1000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='min','z' end
+            local maxXChanged,newMaxX=tImGui.DragFloat(tLang.L('swl_paint_aabb_max_x'),
+                b.maxX,dragSpeed,-1000000,1000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='max','x' end
+            local maxYChanged,newMaxY=tImGui.DragFloat(tLang.L('swl_paint_aabb_max_y'),
+                b.maxY,dragSpeed,-1000000,1000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='max','y' end
+            local maxZChanged,newMaxZ=tImGui.DragFloat(tLang.L('swl_paint_aabb_max_z'),
+                b.maxZ,dragSpeed,-1000000,1000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='max','z' end
+            local sx,sy,sz=b.maxX-b.minX,b.maxY-b.minY,b.maxZ-b.minZ
             local sxChanged,newSx=tImGui.DragFloat(tLang.L('swl_paint_aabb_size_x'),
                 sx,dragSpeed,0.0001,2000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='size','x' end
             local syChanged,newSy=tImGui.DragFloat(tLang.L('swl_paint_aabb_size_y'),
                 sy,dragSpeed,0.0001,2000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='size','y' end
             local szChanged,newSz=tImGui.DragFloat(tLang.L('swl_paint_aabb_size_z'),
                 sz,dragSpeed,0.0001,2000000,'%.4f')
+            if tImGui.IsItemHovered(0) then hoverKind,hoverAxis='size','z' end
             tImGui.PopItemWidth()
-            if cxChanged or cyChanged or czChanged or sxChanged or syChanged or szChanged then
-                cx,cy,cz=cxChanged and newCx or cx,cyChanged and newCy or cy,
-                    czChanged and newCz or cz
-                sx,sy,sz=math.max(sxChanged and newSx or sx,0.0001),
-                    math.max(syChanged and newSy or sy,0.0001),
-                    math.max(szChanged and newSz or sz,0.0001)
-                b.minX,b.maxX=cx-sx*0.5,cx+sx*0.5
-                b.minY,b.maxY=cy-sy*0.5,cy+sy*0.5
-                b.minZ,b.maxZ=cz-sz*0.5,cz+sz*0.5
+            if minXChanged or minYChanged or minZChanged or maxXChanged or maxYChanged or
+                    maxZChanged or sxChanged or syChanged or szChanged then
+                b.minX=minXChanged and math.min(newMinX,b.maxX-0.0001) or b.minX
+                b.minY=minYChanged and math.min(newMinY,b.maxY-0.0001) or b.minY
+                b.minZ=minZChanged and math.min(newMinZ,b.maxZ-0.0001) or b.minZ
+                b.maxX=maxXChanged and math.max(newMaxX,b.minX+0.0001) or b.maxX
+                b.maxY=maxYChanged and math.max(newMaxY,b.minY+0.0001) or b.maxY
+                b.maxZ=maxZChanged and math.max(newMaxZ,b.minZ+0.0001) or b.maxZ
+                if sxChanged then
+                    local center=(b.minX+b.maxX)*0.5; local half=math.max(newSx,0.0001)*0.5
+                    b.minX,b.maxX=center-half,center+half
+                end
+                if syChanged then
+                    local center=(b.minY+b.maxY)*0.5; local half=math.max(newSy,0.0001)*0.5
+                    b.minY,b.maxY=center-half,center+half
+                end
+                if szChanged then
+                    local center=(b.minZ+b.maxZ)*0.5; local half=math.max(newSz,0.0001)*0.5
+                    b.minZ,b.maxZ=center-half,center+half
+                end
                 rebuildPaintAabbCaptureBox()
             end
+            setPaintAabbCaptureHover(hoverKind,hoverAxis)
             tImGui.TextWrapped(tLang.L('swl_paint_aabb_capture_active_help'))
         elseif capture.result then
             local capturedCount=0
@@ -8477,6 +8637,25 @@ end
 
 function onTouchDown(key, x, y)
     if key==1 and state.workspace=='paint' and state.paint.aabbCapture.active then return end
+    if key==0 and state.workspace=='paint' and state.paint.aabbCapture.active and
+            not tImGui.GetWantCaptureMouse() then
+        local capture=state.paint.aabbCapture
+        local b=capture.bounds
+        if b and rayHitsAABB(x,y,b) then
+            local px,py,pz=cameraPosition()
+            local nx,ny,nz=state.cam.fx-px,state.cam.fy-py,state.cam.fz-pz
+            local length=math.sqrt(nx*nx+ny*ny+nz*nz)
+            if length>1e-6 then nx,ny,nz=nx/length,ny/length,nz/length end
+            local center={x=(b.minX+b.maxX)*0.5,y=(b.minY+b.maxY)*0.5,
+                z=(b.minZ+b.maxZ)*0.5}
+            local wx,wy,wz=rayPlaneHit(x,y,center,{x=nx,y=ny,z=nz})
+            if wx then
+                capture.dragPlane={point=center,normal={x=nx,y=ny,z=nz}}
+                capture.dragOffset={x=center.x-wx,y=center.y-wy,z=center.z-wz}
+                return
+            end
+        end
+    end
     if key==1 and state.workspace=='bone_editor' and state.boneEditorDrag then
         cancelBoneEditorDrag()
         return
@@ -8639,6 +8818,24 @@ function onTouchDown(key, x, y)
 end
 
 function onTouchMove(key, x, y)
+    local capture=state.paint.aabbCapture
+    if state.workspace=='paint' and capture.active and capture.dragPlane and
+            capture.dragOffset then
+        local wx,wy,wz=rayPlaneHit(x,y,capture.dragPlane.point,capture.dragPlane.normal)
+        if wx then
+            local b,o=capture.bounds,capture.dragOffset
+            local cx,cy,cz=(b.minX+b.maxX)*0.5,(b.minY+b.maxY)*0.5,
+                (b.minZ+b.maxZ)*0.5
+            local nx,ny,nz=wx+o.x,wy+o.y,wz+o.z
+            local dx,dy,dz=nx-cx,ny-cy,nz-cz
+            b.minX,b.maxX=b.minX+dx,b.maxX+dx
+            b.minY,b.maxY=b.minY+dy,b.maxY+dy
+            b.minZ,b.maxZ=b.minZ+dz,b.maxZ+dz
+            capture.dragPlane.point={x=nx,y=ny,z=nz}
+            movePaintAabbCaptureObjects()
+        end
+        return
+    end
     if state.workspace=='paint' then
         if state.paint.stroke then
             local hit=pickPaintSurface(x,y)
@@ -8858,6 +9055,10 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if key==0 and state.paint.aabbCapture then
+        state.paint.aabbCapture.dragPlane=nil
+        state.paint.aabbCapture.dragOffset=nil
+    end
     if key==1 and state.workspace=='paint' then
         if state.paint.stroke then
             local hit=pickPaintSurface(x,y)

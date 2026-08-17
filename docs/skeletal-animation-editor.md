@@ -199,12 +199,34 @@ change only session mask membership and never mutate weights or create Undo hist
 **Start AABB Capture** follows Mesh Debug's Split capture boundary. Turning it on initializes a
 quarter-size orange box at the mesh center, temporarily shows the original textured mesh even when
 base-mesh visibility was off, and hides the heatmap, mask crosses, skeleton, brush cursor, and brush
-feedback. Center X/Y/Z and Size X/Y/Z rebuild only the visual box; painting and bone picking are
-blocked, while camera orbit remains available. No vertex query runs per frame or per control edit.
+feedback. Min X/Y/Z, Max X/Y/Z, and Size X/Y/Z rebuild only the visual box; Size preserves the
+axis center, while Min/Max move one face. Left-dragging inside the volume translates it in the
+camera plane, while dragging outside orbits the camera. The box uses `alwaysRender` to avoid
+frustum loss but deliberately does not use `alwaysOnTop`, preserving front/behind depth cues
+against the textured mesh. Painting and bone picking are blocked. No vertex query runs per frame
+or per control edit.
+**AABB sensitivity** controls every numeric drag step, defaults from the full mesh extent, and has
+the same automatic-reset behavior as the Weight Lab. Hover feedback is prebuilt with the box rather
+than allocated in the loop: X uses magenta, Y cyan, and Z lime; Min/Max highlights the corresponding
+single face plus parallel axis edges, while Size highlights both opposing faces and those edges.
+These transient feedback overlays use always-on-top only for legibility; the orange capture box
+itself remains depth-tested.
+Each hover-face triangle is emitted with both winding orders, making the overlay visible from
+either camera side under GLES, DirectX 9, and Metal without changing shared culling state.
+The capture box and hover overlays store centered local geometry plus a separate world position.
+Viewport translation updates only their existing `setPos` values; it does not destroy or recreate
+render objects on each mouse-move frame. Hover changes only visibility. Geometry is rebuilt solely
+when Min, Max, or Size actually changes the volume dimensions.
 Turning capture off performs one point-inside-box pass over the cached frame-1 vertices, destroys
 the box, restores the previous editor visualization, and retains the captured vertex set. Separate
 Replace/Add/Remove actions then apply that result to the session mask without touching weights or
 Undo history.
+
+Implementation trap: Lua's `condition and value_if_true or value_if_false` idiom cannot represent
+`nil` as `value_if_true`. An expression such as `mode == "remove" and nil or true` always evaluates
+to `true`, so a nominal removal silently adds the vertex back to the mask. Mask membership removal
+must use an explicit branch that assigns `nil`; this rule applies to AABB, subset, brush, and future
+mask generators.
 
 **Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
 alpha previews `strength * falloff` independently of the mesh triangulation: green represents
