@@ -182,6 +182,13 @@ neither an asset mutation nor an Undo entry. Increasing transition rings is not 
 the safe scale: it changes more vertices and faces, and the shared global scale is limited by the
 most sensitive sampled face in the complete region.
 
+**Limit Diagnostics to Painted Mask** gives Influence Distribution, Weak Influence Contamination,
+and Abrupt Weight Transitions a shared regional scope. Only masked vertices contribute to counts,
+minimum/average/maximum values, weak mass, or abrupt edges; an abrupt edge requires both endpoints
+inside the mask. Unmasked heatmap vertices use neutral gray rather than the diagnostic's zero-value
+blue. The associated Weak Cleanup and Abrupt Repair actions consume the same scoped candidates, so
+enabling the option cannot diagnose locally and then silently repair the complete mesh.
+
 **Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
 alpha previews `strength * falloff` independently of the mesh triangulation: green represents
 Paint/Add, red represents Erase/Subtract, and cyan represents Smooth. The disk communicates radius

@@ -207,6 +207,7 @@ local state = {
         maskVertices={},maskEditMode=0,maskRestrictBrush=false,maskMarkers=nil,
         maskSmoothStrength=0.5,maskSmoothIterations=3,
         maskRigidTransitionRings=2,
+        diagnosticsUseMask=false,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
@@ -1913,7 +1914,7 @@ local heatmapColors = {
     {0.1,0.25,1}, {0,0.85,1}, {0.1,1,0.25}, {1,0.9,0}, {1,0.45,0}, {1,0.1,0},
 }
 
-local paintHeatmapShaderName='skeletal_paint_weight_heatmap.ps'
+local paintHeatmapShaderName='skeletal_paint_weight_heatmap_scope.ps'
 local paintBrushFootprintShaderName='skeletal_paint_brush_footprint.ps'
 
 local function ensurePaintHeatmapShader()
@@ -1940,7 +1941,10 @@ local function ensurePaintHeatmapShader()
 
         void main()
         {
-            gl_FragColor=vec4(heatColor(vTexCoord.x),1.0);
+            if(vTexCoord.y<0.5)
+                gl_FragColor=vec4(0.12,0.13,0.15,1.0);
+            else
+                gl_FragColor=vec4(heatColor(vTexCoord.x),1.0);
         }
     ]],var={},min={},max={}})
 end
@@ -2416,6 +2420,15 @@ rebuildPaintHeatmap = function()
     local cache=state.paint.geometry or buildPaintGeometryCache()
     if not cache then return end
     local weights={}
+    local scopedDiagnostics=state.paint.diagnosticsUseMask and
+        state.paint.visualizationMode~=1
+    local function inDiagnosticScope(index)
+        return not scopedDiagnostics or state.paint.maskVertices[index]==true
+    end
+    local scopedTotal=0
+    for _,vertex in pairs(cache.vertices) do
+        if inDiagnosticScope(vertex.globalIndex) then scopedTotal=scopedTotal+1 end
+    end
     local distributionTotal,distributionMin,distributionMax=0,math.huge,0
     local distributionCounts={0,0,0,0}
     local weakVertices,weakInfluences,weakTotal,weakMaximum=0,0,0,0
@@ -2440,7 +2453,8 @@ rebuildPaintHeatmap = function()
         for index,neighbors in pairs(adjacency) do
             abruptValues[index]=abruptValues[index] or 0
             for neighbor in pairs(neighbors) do
-                if index<neighbor then
+                if index<neighbor and inDiagnosticScope(index) and
+                        inDiagnosticScope(neighbor) then
                     local distance=distanceBetween(maps[index] or {},maps[neighbor] or {})
                     abruptValues[index]=math.max(abruptValues[index],distance)
                     abruptValues[neighbor]=math.max(abruptValues[neighbor] or 0,distance)
@@ -2455,7 +2469,10 @@ rebuildPaintHeatmap = function()
         end
     end
     for _,vertex in pairs(cache.vertices) do
-        if state.paint.visualizationMode==2 then
+        local inScope=inDiagnosticScope(vertex.globalIndex)
+        if not inScope then
+            weights[vertex.globalIndex]=0
+        elseif state.paint.visualizationMode==2 then
             local _,influences=vertexWeightForBone(vertex.globalIndex,'')
             local dominant,count=0,0
             for _,pair in ipairs(influences) do
@@ -2490,18 +2507,18 @@ rebuildPaintHeatmap = function()
         end
     end
     if state.paint.visualizationMode==2 then
-        local total=#cache.vertices
+        local total=scopedTotal
         state.paint.distributionStats={minimum=total>0 and distributionMin or 0,
             maximum=distributionMax,average=total>0 and distributionTotal/total or 0,
             counts=distributionCounts,total=total}
     elseif state.paint.visualizationMode==3 then
         state.paint.weakStats={vertices=weakVertices,influences=weakInfluences,
-            totalWeight=weakTotal,maximumWeight=weakMaximum,total=#cache.vertices}
+            totalWeight=weakTotal,maximumWeight=weakMaximum,total=scopedTotal}
     elseif state.paint.visualizationMode==4 then
         local affected=0
         for _ in pairs(abruptVertices) do affected=affected+1 end
         state.paint.abruptStats={edges=abruptEdges,vertices=affected,maximum=abruptMaximum,
-            total=#cache.vertices,records=abruptRecords}
+            total=scopedTotal,records=abruptRecords}
     end
     local vertices,uvs,indices={},{},{}
     local useIndexed=#cache.vertices<=65535
@@ -2510,7 +2527,7 @@ rebuildPaintHeatmap = function()
             local entry=cache.vertices[index]
             appendPoint(vertices,entry.point.x,entry.point.y,entry.point.z)
             uvs[#uvs+1]=math.max(0,math.min(1,weights[entry.globalIndex] or 0))
-            uvs[#uvs+1]=0.5
+            uvs[#uvs+1]=inDiagnosticScope(entry.globalIndex) and 1 or 0
         end
         for _,triangle in ipairs(cache.triangles) do
             indices[#indices+1]=triangle.a.globalIndex
@@ -2522,7 +2539,7 @@ rebuildPaintHeatmap = function()
             for _,entry in ipairs({triangle.a,triangle.b,triangle.c}) do
                 appendPoint(vertices,entry.point.x,entry.point.y,entry.point.z)
                 uvs[#uvs+1]=math.max(0,math.min(1,weights[entry.globalIndex] or 0))
-                uvs[#uvs+1]=0.5
+                uvs[#uvs+1]=inDiagnosticScope(entry.globalIndex) and 1 or 0
             end
         end
     end
@@ -3495,7 +3512,11 @@ local function cleanPaintWeakInfluences()
     local cache=state.paint.geometry or buildPaintGeometryCache()
     if not cache then return false end
     local indices={}
-    for index in pairs(cache.vertices) do indices[#indices+1]=index end
+    for index in pairs(cache.vertices) do
+        if not state.paint.diagnosticsUseMask or state.paint.maskVertices[index] then
+            indices[#indices+1]=index
+        end
+    end
     table.sort(indices)
     local edits={}
     for _,index in ipairs(indices) do
@@ -5881,6 +5902,16 @@ local function showPaintWeights()
         state.paint.heatmapDirty=true
         rebuildPaintHeatmap()
         rebuildPaintCursor(nil)
+    end
+    if state.paint.visualizationMode~=1 then
+        local diagnosticMask=tImGui.Checkbox(tLang.L('swl_paint_diagnostics_use_mask'),
+            state.paint.diagnosticsUseMask)
+        if diagnosticMask~=state.paint.diagnosticsUseMask then
+            state.paint.diagnosticsUseMask=diagnosticMask
+            state.paint.heatmapDirty=true
+            rebuildPaintHeatmap()
+        end
+        tImGui.TextWrapped(tLang.L('swl_paint_diagnostics_use_mask_help'))
     end
     if state.paint.visualizationMode==2 then
         tImGui.TextWrapped(tLang.L('swl_paint_distribution_help'))
