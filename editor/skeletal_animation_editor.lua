@@ -104,7 +104,7 @@ local state = {
     boneEditorRadius = 0,
     boneEditorRadiusSubtree = false,
     boneEditorRotationGuide = nil,
-    workspace = 'weights',
+    workspace = 'paint',
     meshVisible = true,
     skeletonVisible = true,
     skeletonAlwaysOnTop = true,
@@ -1220,6 +1220,9 @@ local function applyWorkspaceVisibility()
 end
 
 local function setWorkspace(workspace)
+    -- The former Skin Weight Lab worktree is retired. Old in-session history snapshots created
+    -- before its removal must return to the supported visual authoring workflow.
+    if workspace=='weights' then workspace='paint' end
     if state.workspace==workspace then return end
     if state.workspace=='animation' and workspace~='animation' then
         pcall(function() if state.preview then state.preview:stopSkeletalAnimation() end end)
@@ -4931,7 +4934,7 @@ local function restoreHistoryEntry(entry)
     state.authoringOverride=nil
     state.authoringActiveClip=nil
     state.modified = entry.modified==true
-    state.workspace=entry.workspace or state.workspace
+    state.workspace=entry.workspace=='weights' and 'paint' or (entry.workspace or state.workspace)
     state.boneIndex=entry.boneIndex or state.boneIndex
     state.animationClipSelected=entry.clipIndex or state.animationClipSelected
     state.authoringTime=entry.authoringTime or 0
@@ -5801,7 +5804,7 @@ local function showSelectedBindBone(report)
                 invalidateAnalysis()
                 rebuildPreview()
                 rebuildSkeletonVisuals()
-                setWorkspace('weights')
+                setWorkspace('paint')
                 applyWorkspaceVisibility()
                 setStatus(string.format(tLang.L('swl_weights_initialized_fmt'),affected,bone.name),false)
             else
@@ -8400,8 +8403,10 @@ local function showPanel()
                 showPaintWeights()
                 tImGui.TreePop()
             end
-            if openWorkspaceNode('weights',tLang.L('swl_weight_lab_workspace'),
-                    '##swlWeightLabWorkspace') then
+            -- Retained temporarily as unreachable implementation support while shared algorithms
+            -- are separated from the retired Skin Weight Lab UI. There is deliberately no
+            -- navigation path, state restoration path, or initialization handoff to this block.
+            if state.workspace=='__retired_weight_lab' then
             showSectionTitle('swl_visualization')
             showWeightLabSkeletonControls()
             local markersAlwaysOnTop=tImGui.Checkbox(tLang.L('swl_markers_always_on_top'),

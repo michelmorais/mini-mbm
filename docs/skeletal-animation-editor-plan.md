@@ -1,13 +1,13 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.35**
-Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
+Document version: **8.36**
+Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
 ## 1. Purpose
 
-This document plans the evolution of the standalone **Skeletal Animation Editor** from its delivered
-Skin Weight Lab into a sufficient local skeletal-animation tool. The objective is not to replace
+This document records the evolution of the standalone **Skeletal Animation Editor** from its former
+Skin Weight Lab into a sufficient local skeletal-animation tool centered on Paint Weights. The objective is not to replace
 Blender, Mixamo, or other DCC tools. Mini MBM should be able to:
 
 1. inspect and repair imported skeletal assets;
@@ -21,9 +21,9 @@ The implemented weight-authoring workflow is documented in the
 backend delivery, and LBS/DQS correctness remain planned in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
-## 2. Product shape: six exclusive worktrees
+## 2. Product shape: five exclusive worktrees
 
-The editor is the product container. Its primary navigation contains six mutually exclusive
+The editor is the product container. Its primary navigation contains five mutually exclusive
 top-level worktrees; opening one closes the previous worktree:
 
 1. **Bone Editor** — the ordinary-user surface for constructing and manipulating bind bones as
@@ -34,32 +34,25 @@ top-level worktrees; opening one closes the previous worktree:
    local/global/inverse-bind data, and deterministic structural/numeric findings.
 3. **Runtime Skeletal Preview** — select and play canonical clips through the actual runtime,
    inspect backend/method readiness, and compare synchronized LBS/DQS instances.
-4. **Skin Weight Lab** — select vertices; inspect, normalize, rigid-bind, smooth, diagnose, and
-   preserve stored weights. This workflow is already delivered and must be moved into a node without
-   changing its accepted behavior.
-5. **Create / Edit Animations** — active local authoring for clips, bone tracks, keys, easing,
+4. **Create / Edit Animations** — active local authoring for clips, bone tracks, keys, easing,
    viewport TRS manipulation, playback, timeline editing, transactional clipboards, and Undo/Redo.
    Multi-clip composition remains explicitly deferred as described in Section 8.
-6. **Paint Weights** — the intended primary visual weight-authoring workflow, beginning with direct
-   brush interaction and remaining state-isolated from Skin Weight Lab. After Paint/Add and
-   Erase/Subtract are stable, useful Lab operations migrate here under **Weight Tools** and
-   **Repair / Diagnostics**. Skin Weight Lab remains intact as a reference and fallback until the
-   replacement reaches explicit functional parity.
+5. **Paint Weights** — the primary visual weight-authoring workflow. Direct brushes, regional
+   masks, complete-vector smoothing, rigid binding, diagnostics, repair, pose safety, Undo, and
+   persistence reached functional parity and replaced the former Skin Weight Lab worktree.
 
 The loaded asset, viewport, camera, status, modified state, and **Show Mesh** control are shared.
 Skeleton visualization is worktree-specific: Bind Pose Contract shows the bind skeleton
-automatically; Skin Weight Lab owns its visibility/depth controls; Runtime Skeletal Preview hides
-the bind-only gizmo until it can draw an evaluated skeleton for every preview instance. AABB
-volumes, proximity capsules, analyzed markers, heatmaps,
-transition diagnostics, and weight operations exist and render only while Skin Weight Lab is open.
+automatically; Paint Weights owns its visibility control; Runtime Skeletal Preview hides the
+bind-only gizmo until it can draw an evaluated skeleton for every preview instance. Paint-specific
+heatmaps, masks, diagnostics, capture volumes, and repair overlays render only in Paint Weights.
 Node-specific history and selection state may be preserved while hidden but must not leak behavior
 or viewport artifacts into another worktree.
 
 ## 3. Problem
 
-Skin Weight Lab can improve data that future skeletal deformation will consume, but Mini MBM still
-cannot evaluate a bone pose, deform the mesh, author a skeletal clip, or preserve a complete imported
-animation as a runtime resource. Meanwhile, Mesh Debug's **Bones** node appears close to a skeleton
+The original Skin Weight Lab improved stored data but could not provide the complete visual
+authoring workflow now delivered by Paint Weights. Meanwhile, Mesh Debug's **Bones** node appears close to a skeleton
 editor but actually combines several different concerns:
 
 - hierarchy and joint editing;
@@ -89,7 +82,7 @@ the Animation node and the same concepts already familiar from articulated anima
 
 ### Local skeleton and local animation
 
-The user starts from a mesh, creates a hierarchy and bind pose, authors weights in Skin Weight Lab,
+The user starts from a mesh, creates a hierarchy and bind pose, authors weights in Paint Weights,
 creates clips, and validates them locally. This is a required eventual capability, but follows the
 first milestone that validates imported/existing skeletons.
 
@@ -101,8 +94,8 @@ an interchange workflow and must not define the runtime skeleton model.
 
 ## 5. Decisions taken
 
-1. Skeletal Animation Editor has six mutually exclusive worktrees: Bone Editor, Bind Pose Contract,
-   Runtime Skeletal Preview, Skin Weight Lab, Create / Edit Animations, and Paint Weights.
+1. Skeletal Animation Editor has five mutually exclusive worktrees: Bone Editor, Bind Pose Contract,
+   Runtime Skeletal Preview, Create / Edit Animations, and Paint Weights.
 2. Mesh Debug Bones is a reference implementation, not a module to copy wholesale.
 3. Existing, trustworthy imported bind and animation data must be preserved by default.
 4. Skeleton inspection and bind validation precede unrestricted local skeleton creation.
@@ -113,7 +106,7 @@ an interchange workflow and must not define the runtime skeleton model.
    retain explicit bind, hierarchy, and vertex-deformation semantics.
 8. Editor preview and runtime must use the same pose/deformation implementation after the shared
    path exists.
-9. Weight editing remains owned by Skin Weight Lab even when initiated from another node.
+9. Weight editing is owned by Paint Weights, including regional mask tools and diagnostics.
 10. Import/export conversion and runtime authoring are distinct responsibilities in the UI.
 
 ## 6. Audit of Mesh Debug Bones
@@ -139,7 +132,7 @@ it does not authorize copying the large Lua block into the new editor.
 | Load/export armature Lua template | Import/template workflow | Adapt only if the template format remains compatible with the canonical skeleton model. |
 | Mirror paired joint positions | Skeleton authoring utility | Candidate after naming/pairing rules are explicit; never infer center/left/right destructively without preview. |
 | Radius / envelope controls | Import/export fallback | Do not treat as runtime deformation behavior when real stored weights exist. |
-| Rigid Bind | Paint Weights plus Skin Weight Lab | Direct brush form uses an exact configurable core and falloff transition; retain Lab selection-based batch binding until explicit parity makes it redundant. |
+| Rigid Bind | Paint Weights | Direct brush binding uses an exact configurable core and falloff transition; complete-mask binding adds topology transition rings and pose safety. |
 | Remove complete armature and weights | Asset reset/interchange | Preserve as an explicit destructive workflow with snapshot/confirmation; not a normal Skeleton edit. |
 | Mixamo-oriented warnings and fallbacks | Import/export diagnostics | Keep only where they describe the active interchange path; do not present them as runtime invariants. |
 
@@ -148,7 +141,7 @@ it does not authorize copying the large Lua block into the new editor.
 ### Initial scope
 
 - Display the hierarchy as a navigable tree and in the 3D viewport.
-- Select one bone consistently from the tree, table, viewport, Skin Weight Lab, or Animation node.
+- Select one bone consistently from the tree, table, viewport, Paint Weights, or Animation node.
 - Inspect local and derived global bind transforms without modifying imported values.
 - Display joint, tail/axis, orientation/roll reference, parent, children, and affected-weight summary.
 - Diagnose duplicate names or identities, missing parents, cycles, invalid transforms, zero/invalid
@@ -188,7 +181,7 @@ is required before the Skeleton / Bind Pose workflow is considered ergonomically
 - Create a complete skeleton from an unrigged mesh.
 - Add chains efficiently and mirror deliberate left/right structures.
 - Define or capture the bind pose.
-- Hand off to Skin Weight Lab for weight creation or repair.
+- Hand off to Paint Weights for weight creation or repair.
 - Save reusable templates without confusing mesh-specific bind data with a generic humanoid layout.
 
 ## 8. Animation node
@@ -560,6 +553,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.36 | 2026-08-17 | Retired the Skin Weight Lab worktree after Paint Weights reached accepted parity. Navigation, default state, history restoration, and post-initialization handoff now use Paint Weights; legacy implementation helpers remain temporarily unreachable pending mechanical cleanup. |
 | 8.35 | 2026-08-17 | Documented the Lua `condition and nil or fallback` removal trap as a permanent implementation risk and required explicit branches for every mask generator. |
 | 8.34 | 2026-08-17 | Fixed Remove-from-Mask for both AABB capture and hit-subset generators. The Lua `condition and nil or true` idiom could never yield nil and therefore re-added vertices; explicit branches now erase mask membership. |
 | 8.33 | 2026-08-17 | Removed per-mouse-move AABB render-object reconstruction. The box and hover overlays now use centered local geometry with a shared world position; viewport translation calls only `setPos`, hover only changes visibility, and dimensional edits remain the sole rebuild path. |

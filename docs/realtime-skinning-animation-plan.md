@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.40**
+Document version: **9.41**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -313,32 +313,22 @@ and which file sections remain distinct.
 
 ## 11. Standalone Editor Shape
 
-The Skeletal Animation Editor contains six mutually exclusive worktrees:
+The Skeletal Animation Editor contains five mutually exclusive worktrees:
 
 1. **Bone Editor** — direct canonical joint/segment construction and bind manipulation.
 2. **Bind Pose Contract** — canonical hierarchy/bind inspection and diagnostics.
 3. **Runtime Skeletal Preview** — runtime clip playback, method readiness, and LBS/DQS comparison.
-4. **Skin Weight Lab** — delivered weight selection, rigid regions, transitions, smoothing,
-   diagnostics, and rollback.
-5. **Create / Edit Animations** — delivered clip/track/key editing, viewport T/R/S authoring,
+4. **Create / Edit Animations** — delivered clip/track/key editing, viewport T/R/S authoring,
    playback, timeline operations, clipboards, and history. Multi-clip composition remains deferred.
-6. **Paint Weights** — reserved for direct brush-based weight authoring, distinct from the
-   diagnostic and region-based Skin Weight Lab. It is the intended primary day-to-day weight
-   authoring surface. Once its brush workflow is solid, it will progressively absorb useful Lab
-   operations under Weight Tools and Repair / Diagnostics. The Lab remains as a reference and
-   fallback until that migration reaches verified parity.
-
-   The next delivery is a minimal transactional Paint/Add stroke using the existing cached
-   surface cursor and atomic canonical weight-batch boundary. Erase/Subtract follows only after
-   Paint/Add is continuous, normalized, influence-bounded, undoable per stroke, and persistent.
-   Influence Distribution remains a later diagnostic for weight concentration, active influence
-   count, and weak-weight contamination; it is not a direct rigidity or deformation-quality score.
+5. **Paint Weights** — the primary day-to-day weight-authoring surface. Its accepted brushes,
+   regional masks, diagnostics, repair tools, pose safety, Undo, and persistence replaced the
+   former Skin Weight Lab worktree.
 
 The asset, camera, viewport, status, and mesh visibility remain shared services. Skeleton display is
-worktree-specific: bind inspection shows the bind skeleton, Skin Weight Lab owns its local toggle,
+worktree-specific: bind inspection shows the bind skeleton, Paint Weights owns its local toggle,
 and Runtime Skeletal Preview hides the bind-only gizmo until evaluated per-instance skeleton gizmos
-exist. Runtime deformation/backend reporting has its own worktree, while weight-selection volumes and overlays are
-strictly scoped to Skin Weight Lab. Runtime contracts stay in this plan; worktree behavior and the
+exist. Runtime deformation/backend reporting has its own worktree, while weight-authoring overlays
+are strictly scoped to Paint Weights. Runtime contracts stay in this plan; worktree behavior and the
 staged Mesh Debug Bones migration are owned by the companion
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
@@ -698,7 +688,8 @@ mutate assets, evaluate clips, or deform vertices.
 1. LBS and DQS are planned from the initial data and architecture design.
 2. LBS is the correctness/reference baseline; DQS is a selectable quality method, not a replacement
    for weight authoring.
-3. Skin Weight Lab and skeletal animation belong in a standalone Skeletal Animation Editor.
+3. Paint Weights and skeletal animation belong in a standalone Skeletal Animation Editor; the
+   former Skin Weight Lab has been retired after migration.
 4. Editor preview and runtime must converge on one deformation implementation.
 5. Bind-pose identity, DQS antipodality correction, and explicit scale handling are required
    correctness contracts.
@@ -773,7 +764,7 @@ per clip, pose, or draw.
 12. Are propagated velocity influences cached in memory, serialized in a future mesh section, or
     generated offline only after profiling?
 13. What displacement/velocity clamps and normal/tangent policy define an acceptable first release?
-14. Are Velocity Skinning effect masks shared with Skin Weight Lab tooling or authored in a separate
+14. Are Velocity Skinning effect masks shared with Paint Weights tooling or authored in a separate
     secondary-deformation mode?
 
 ### Editor and delivery
@@ -815,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.41 | 2026-08-17 | Retired the Skin Weight Lab worktree after Paint Weights reached accepted parity. Navigation, default state, history restoration, and post-initialization handoff now use Paint Weights; legacy implementation helpers remain temporarily unreachable pending mechanical cleanup. |
 | 9.40 | 2026-08-17 | Documented the Lua `condition and nil or fallback` removal trap as a permanent implementation risk and required explicit branches for every mask generator. |
 | 9.39 | 2026-08-17 | Fixed Remove-from-Mask for both AABB capture and hit-subset generators. The Lua `condition and nil or true` idiom could never yield nil and therefore re-added vertices; explicit branches now erase mask membership. |
 | 9.38 | 2026-08-17 | Removed per-mouse-move AABB render-object reconstruction. The box and hover overlays now use centered local geometry with a shared world position; viewport translation calls only `setPos`, hover only changes visibility, and dimensional edits remain the sole rebuild path. |

@@ -14,22 +14,21 @@ For canonical skeletal meshes within the GLES2 palette limit, the preview can pl
 per-instance LBS or rigid-DQS deformation path used by the runtime. Non-GLES backend delivery
 remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
-The editor is organized into six mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
-**Runtime Skeletal Preview**, **Skin Weight Lab**, **Create / Edit Animations**, and
-**Paint Weights**. Create / Edit Animations and direct brush-based weight authoring are active.
+The editor is organized into five mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
+**Runtime Skeletal Preview**, **Create / Edit Animations**, and **Paint Weights**. Create / Edit
+Animations and direct brush-based weight authoring are active.
 Multi-clip composition remains separately deferred. Their product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
-Paint Weights is intended to become the primary day-to-day weight-authoring surface. Skin Weight
-Lab remains available while the brush workflow is implemented and validated. Useful nonredundant
-operations migrate under **Weight Tools** and **Repair / Diagnostics** only after brush stability.
+Paint Weights is the primary day-to-day weight-authoring surface. The former Skin Weight Lab
+worktree was retired after its useful nonredundant operations migrated under **Weight Tools** and
+**Repair / Diagnostics** and passed brush, pose-safety, Undo, runtime-preview, and persistence
+acceptance.
 Canonical type-42 validation already guarantees normalized one-to-four-influence coverage, so a
 Paint Weights normalize/limit/invalid-coverage panel would report no actionable state. Regional
-AABB/subset/proximity Rigid Bind remains a Skin Weight Lab batch workflow; Paint Weights also
-provides a direct brush form with an explicit rigid core and blended transition. The Lab
-is removed only after explicit parity, performance, Undo,
-and save/reload acceptance; its GUI-specific state must never leak into Paint Weights.
+AABB and subset masks, complete-mask smoothing and Rigid Bind, connected-surface painting, and
+direct rigid brush binding now provide the visual regional workflow without a separate laboratory.
 
 **Influence Distribution** is now available as an optional Repair / Diagnostics view. It maps a
 normalized concentration score derived from each vertex's largest weight (`0.25 -> 0`, `1 -> 1`)
@@ -391,8 +390,8 @@ After a local skeleton has been created but before any canonical weights exist, 
 panel offers **Initialize skin weights**. The impact preview states the complete frame-zero vertex
 count and the selected bone. Explicit confirmation creates type-42 coverage by rigidly binding
 every vertex to that bone with weight `1.0`; it does not infer envelopes or proximity. The operation
-is transactional, participates in the whole-asset rollback, and opens **Skin Weight Lab**
-immediately so influences can be redistributed with its analysis and blending tools. Existing
+is transactional, participates in the whole-asset rollback, and opens **Paint Weights**
+immediately so influences can be redistributed with its visual authoring and regional tools. Existing
 weights are never replaced by this action.
 
 **Remove bone** first displays direct-child, weighted-vertex, and animation-track counts. The first
@@ -535,13 +534,10 @@ loading another mesh or quitting removes the editor-owned temporary snapshots.
 
 Only one worktree is open at a time. Opening another automatically closes the previous one and
 updates the viewport. **Show Mesh** is shared. Skeleton visualization is contextual: Bind Pose
-Contract displays the bind skeleton automatically, Skin Weight Lab provides **Show Skeleton** and
-depth behavior, and Runtime Skeletal Preview hides the bind-only gizmo. Drawing a skeleton there
-would require a separately evaluated gizmo for each animated LBS/DQS instance. Skin Weight Lab
-preserves its state while closed, but its AABB, proximity capsule,
-heatmap, analyzed markers, transition diagnostics, highlights, and editing controls are hidden and
-inactive outside that worktree. Runtime LBS/DQS comparison geometry is likewise shown only in the
-Runtime Skeletal Preview worktree.
+Contract displays the bind skeleton automatically, Paint Weights owns its local visibility option,
+and Runtime Skeletal Preview hides the bind-only gizmo. Drawing a skeleton there would require a
+separately evaluated gizmo for each animated LBS/DQS instance. Runtime LBS/DQS comparison geometry
+is shown only in the Runtime Skeletal Preview worktree.
 
 ## Bone Editor
 
@@ -772,7 +768,11 @@ highlights only that endpoint; selecting the segment highlights the segment and 
 Clicking empty viewport space clears the selection and remains available for camera orbit. This
 selection feeds the delivered move/rotate, snapping, connection, radius, and structural operations.
 
-Inside **Skin Weight Lab**, the controls remain organized in three numbered groups.
+## Retired Skin Weight Lab reference
+
+The following sections preserve the behavior of the retired laboratory for historical comparison
+and maintenance of shared algorithms. They do not describe an accessible worktree. Paint Weights
+owns the supported authoring, mask, diagnostic, repair, Undo, and persistence workflow.
 
 ### 3.1 Visualization
 
@@ -989,7 +989,7 @@ five external neighbors with zero modifications and zero audit failures.
 
 ## 9. Current limitations and future work
 
-The following are not defects in the delivered Skin Weight Lab:
+The following are current editor limitations rather than regressions caused by retiring Skin Weight Lab:
 
 - runtime preview is currently GLES2 only; there is no non-GLES backend selector;
 - Runtime Skeletal Preview deliberately hides its bind-only diagnostic gizmo; the Animation
