@@ -274,6 +274,13 @@ keeps the four strongest combined influences, normalizes once, and atomically wr
 result to every copy. The operation creates one Undo entry and immediately recomputes the pinned
 report; success therefore reads as zero divergence without requiring a new pick.
 
+**Analyze All Coincident Seams** extends the same definition to the complete mesh on demand, rather
+than adding work to the editor loop. Its impact preview reports divergent groups versus all connected
+coincident groups, unique affected vertices, maximum divergence, and positional tolerance. The
+separately confirmed global synchronization applies the same per-group average independently to every
+divergent group in one canonical batch and one Undo entry. It does not reduce the mesh to two
+influences. Any later committed edit invalidates the audit and its confirmation.
+
 After each successful Paint/Add, Erase/Subtract, or Smooth stroke, Paint Weights performs a
 non-mutating pose-safety diagnostic over only the triangles incident to changed vertices. It
 compares the pre-stroke and candidate weights at the start, quarter, midpoint, three-quarter, and

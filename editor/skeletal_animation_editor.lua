@@ -168,6 +168,7 @@ local state = {
         inspectorPinned=false,inspectorClick=nil,
         inspectorSeamReport=nil,inspectorSeamMarkers=nil,
         inspectorSeamSyncConfirmed=false,
+        globalSeamAudit=nil,globalSeamSyncConfirmed=false,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -282,6 +283,8 @@ local function clearPaintVisuals()
     state.paint.inspectorSeamReport=nil
     state.paint.inspectorSeamMarkers=nil
     state.paint.inspectorSeamSyncConfirmed=false
+    state.paint.globalSeamAudit=nil
+    state.paint.globalSeamSyncConfirmed=false
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
@@ -2790,6 +2793,8 @@ local function commitRollbackSnapshot(snapshot,descriptionKey)
     state.animationReport = nil
     state.animationTimelineSelection = {}
     state.paint.heatmapDirty=true
+    state.paint.globalSeamAudit=nil
+    state.paint.globalSeamSyncConfirmed=false
     if state.runtimePreviewFromMemory then state.runtimePreviewMemoryDirty=true end
 end
 
@@ -3649,6 +3654,82 @@ local function synchronizePinnedSeamWeights()
     rebuildPinnedSeamInspector()
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_vertex_seam_sync_applied_fmt'),#edits),false)
+    return true
+end
+
+local function analyzeGlobalSeamWeights()
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return nil end
+    local seams=buildCoincidentSeams(buildTopologyAdjacency())
+    local conflicts,vertices,maximumDivergence={},{},0
+    for _,group in ipairs(seams.groups) do
+        local maps,groupMaximum={ },0
+        for _,index in ipairs(group) do maps[index]=readInfluenceMap(index,false) end
+        for left=1,#group-1 do
+            for right=left+1,#group do
+                groupMaximum=math.max(groupMaximum,
+                    influenceDistance(maps[group[left]],maps[group[right]]))
+            end
+        end
+        if groupMaximum>1e-9 then
+            conflicts[#conflicts+1]={indices=group,maps=maps,divergence=groupMaximum}
+            maximumDivergence=math.max(maximumDivergence,groupMaximum)
+            for _,index in ipairs(group) do vertices[index]=true end
+        end
+    end
+    local vertexCount=0
+    for _ in pairs(vertices) do vertexCount=vertexCount+1 end
+    state.paint.globalSeamAudit={groups=conflicts,groupCount=#conflicts,
+        vertexCount=vertexCount,totalGroups=#seams.groups,
+        maximumDivergence=maximumDivergence,tolerance=seams.tolerance or 0}
+    state.paint.globalSeamSyncConfirmed=false
+    return state.paint.globalSeamAudit
+end
+
+local function synchronizeGlobalSeamWeights()
+    local audit=state.paint.globalSeamAudit
+    if not audit or audit.groupCount==0 then
+        setStatus(tLang.L('swl_paint_global_seam_sync_no_change'),false)
+        return false
+    end
+    local edits={}
+    for _,group in ipairs(audit.groups) do
+        local average={}
+        for _,index in ipairs(group.indices) do
+            for name,weight in pairs(group.maps[index]) do
+                average[name]=(average[name] or 0)+weight/#group.indices
+            end
+        end
+        local influences=normalizedInfluences(average)
+        for _,index in ipairs(group.indices) do
+            local row={index}
+            for slot=1,4 do
+                local influence=influences[slot]
+                row[slot*2]=influence and influence.name or nil
+                row[slot*2+1]=influence and influence.weight or 0
+            end
+            edits[#edits+1]=row
+        end
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_sync_all_seam_weights')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local ok,committed=safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    if not ok or not committed then
+        discardRollbackSnapshot(snapshot)
+        if ok then setStatus(tLang.L('swl_paint_global_seam_sync_failed'),true) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_sync_all_seam_weights')
+    state.modified=true
+    state.paint.heatmapDirty=true
+    rebuildPaintHeatmap()
+    analyzeGlobalSeamWeights()
+    if state.paint.inspectorPinned then rebuildPinnedSeamInspector() end
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_paint_global_seam_sync_applied_fmt'),
+        audit.groupCount,#edits),false)
     return true
 end
 
@@ -5740,6 +5821,34 @@ local function showPaintWeights()
             end
             tImGui.EndDisabled()
             showItemTooltip('swl_paint_vertex_seam_sync_help')
+        end
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('swl_paint_global_seam_title'))
+    if tImGui.Button(tLang.L('swl_paint_global_seam_analyze')) then
+        analyzeGlobalSeamWeights()
+    end
+    showItemTooltip('swl_paint_global_seam_analyze_help')
+    local globalSeamAudit=state.paint.globalSeamAudit
+    if globalSeamAudit then
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_global_seam_summary_fmt'),
+            globalSeamAudit.groupCount,globalSeamAudit.totalGroups,
+            globalSeamAudit.vertexCount,globalSeamAudit.maximumDivergence,
+            globalSeamAudit.tolerance))
+        if globalSeamAudit.groupCount==0 then
+            tImGui.TextDisabled(tLang.L('swl_paint_global_seam_clean'))
+        else
+            local confirmed=tImGui.Checkbox(tLang.L('swl_paint_global_seam_sync_confirm'),
+                state.paint.globalSeamSyncConfirmed)
+            if confirmed~=state.paint.globalSeamSyncConfirmed then
+                state.paint.globalSeamSyncConfirmed=confirmed
+            end
+            tImGui.BeginDisabled(not state.paint.globalSeamSyncConfirmed)
+            if tImGui.Button(tLang.L('swl_paint_global_seam_sync_apply')) then
+                synchronizeGlobalSeamWeights()
+            end
+            tImGui.EndDisabled()
+            showItemTooltip('swl_paint_global_seam_sync_help')
         end
     end
     local strokeSafetyReport=state.paint.strokeSafetyReport

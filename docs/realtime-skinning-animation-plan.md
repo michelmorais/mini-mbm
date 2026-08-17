@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.59**
+Document version: **9.60**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.60 | 2026-08-17 | Added on-demand global coincident-seam impact analysis and one confirmed, Undoable canonical synchronization across every divergent group, kept separate from maximum-influence reduction. |
 | 9.59 | 2026-08-17 | Added a confirmed, Undoable local repair for pinned coincident seams: average the listed copies, retain and normalize the strongest four combined influences, write one identical canonical batch, and refresh the divergence report. |
 | 9.58 | 2026-08-17 | Pinned Paint Weights inspection exposes connected coincident seam copies, per-copy subset and normalized weights, maximum half-L1 divergence, and cyan viewport markers as a read-only precursor to seam repair. |
 | 9.57 | 2026-08-17 | Paint Weights global diagnostics can pin a nearest vertex and its exact influences with a stationary click while preserving left-drag orbit and an explicit return to live inspection. |

@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.54**
+Document version: **8.55**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.55 | 2026-08-17 | Added on-demand whole-mesh coincident-seam auditing and synchronization. The preview reports divergent/all groups, affected vertices, maximum divergence, and tolerance; explicit confirmation applies independent group averages in one canonical batch and Undo entry without imposing an influence-count reduction. |
 | 8.54 | 2026-08-17 | Added confirmed local synchronization for a pinned coincident seam. It averages only the listed copies, deterministically retains and normalizes up to four combined influences, commits one canonical batch and Undo entry, then refreshes the pinned divergence report. |
 | 8.53 | 2026-08-17 | Pinned vertex inspection now resolves the established connected coincident-seam group, lists each copy's index, subset, and normalized weights, reports maximum pairwise half-L1 divergence, and highlights multi-copy groups in cyan without mutation. |
 | 8.52 | 2026-08-17 | Added reproducible nearest-vertex inspection in global weight diagnostics. A stationary left click pins the vertex, yellow marker, and full influence list; movement beyond three pixels remains camera orbit, and an explicit clear action restores live inspection. |
