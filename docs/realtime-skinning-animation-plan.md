@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.65**
+Document version: **9.68**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.68 | 2026-08-17 | Expanded Runtime Preview lighting into a movable Mesh-Debug-style window with enable, ambient/directional colors, orbit gizmo, XYZ direction, reset, shader-compatible rebuilding, and runtime-only editor scope. |
+| 9.67 | 2026-08-17 | Added explicit editor-only lit/unlit Runtime Preview comparison with load-time lit shader rebuilding, fixed inspection lighting, unlit non-runtime worktrees, and no asset persistence. |
+| 9.66 | 2026-08-17 | Added read-only bind/deformed normal-angle comparison across pinned coincident copies using the Compact LBS normal transform at explicit diagnostic time. |
 | 9.65 | 2026-08-17 | Added pinned bind-topology analysis with virtual positional welding, open-edge incidence, nearest-edge distance, opposing-edge gap measurement, and a read-only red candidate overlay. |
 | 9.64 | 2026-08-17 | Made deformed-geometry diagnostic time explicit and clip-duration-clamped inside Paint Weights, independent of Runtime Preview and Animation worktree playheads. |
 | 9.63 | 2026-08-17 | Added current-playhead canonical-LBS geometry diagnosis around a pinned vertex, including incident-face area ratios, transformed-normal inversion, edge stretch, and an orange read-only risk overlay. |

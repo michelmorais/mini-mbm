@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.60**
+Document version: **8.63**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.63 | 2026-08-17 | Replaced the Runtime Preview lighting checkbox with a movable Mesh-Debug-style light window containing enable, ambient/directional colors, orbit direction gizmo with XYZ feedback, and reset. Enable changes rebuild the shader variant; live parameters remain editor-only and runtime-worktree-scoped. |
+| 8.62 | 2026-08-17 | Runtime Skeletal Preview now has an explicit editor-only lit/unlit comparison. Enabling fixed ambient/directional inspection lighting rebuilds the mesh under the lit shader variant; other worktrees remain unlit and the choice is not serialized. Also fixed new diagnostic tooltips passing localization keys instead of translated text. |
+| 8.61 | 2026-08-17 | Added pinned coincident-copy normal diagnosis. It reports stored-normal coverage and maximum pairwise angles in bind and after the Compact LBS palette 3x3 path at the explicit diagnostic time, without mutating weights or global lighting. |
 | 8.60 | 2026-08-17 | Added a read-only pinned bind-topology audit. Mesh-scale virtual welding suppresses duplicate-seam false positives; triangle-edge incidence reports open edges, nearest pin distance, and the best non-adjacent opposing-edge gap with a red candidate overlay. |
 | 8.59 | 2026-08-17 | The pinned deformed-geometry diagnostic now owns an explicit time slider clamped to the selected authoring clip duration, invalidates stale results when changed, and no longer ambiguously depends on another worktree's playhead. |
 | 8.58 | 2026-08-17 | Added a read-only pinned-vertex deformed-geometry diagnostic at the current authoring playhead. It evaluates incident triangles with canonical LBS, reports area collapse, transformed-normal inversion, and edge stretch, and marks risky bind faces in orange. |

@@ -30,6 +30,10 @@ local state = {
     comparisonPreview = nil,
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false},
+    runtimeLight={enabled=false,
+        ambientColor={r=0.16,g=0.16,b=0.2,a=1},
+        directionalColor={r=1,g=0.96,b=0.88,a=1},
+        directionalDirection={x=-0.4,y=-0.8,z=0.5},orbit=nil},
     animationClipSelected = 1,
     animationEditClipId = nil,
     animationClipName = 'Clip',
@@ -172,6 +176,7 @@ local state = {
         inspectorGeometryReport=nil,inspectorGeometryOverlay=nil,
         inspectorGeometryTime=0,
         inspectorTopologyReport=nil,inspectorTopologyOverlay=nil,
+        inspectorNormalReport=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -205,6 +210,16 @@ local camera3d
 local mouseDown = false
 local mouseX, mouseY = 0, 0
 local noMoveFlag = 0
+
+local function applyRuntimeLighting()
+    local light=state.runtimeLight
+    local enabled=state.workspace=='runtime' and light.enabled
+    mbm.setLightEnabled('3d',enabled)
+    if enabled then
+        mbm.setAmbientLight('3d',light.ambientColor)
+        mbm.setDirectionalLight('3d',light.directionalDirection,light.directionalColor)
+    end
+end
 local cameraMove = {forward=0, right=0, vertical=0}
 
 local function shouldShowSkeleton()
@@ -297,6 +312,7 @@ local function clearPaintVisuals()
     state.paint.inspectorGeometryOverlay=nil
     state.paint.inspectorTopologyReport=nil
     state.paint.inspectorTopologyOverlay=nil
+    state.paint.inspectorNormalReport=nil
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
@@ -1076,6 +1092,7 @@ local function setWorkspace(workspace)
         state.animationPlayback.paused=false
     end
     state.workspace=workspace
+    applyRuntimeLighting()
     if rebuildSkeletonVisuals then rebuildSkeletonVisuals() end
     if workspace=='paint' and state.paint.heatmapDirty then rebuildPaintHeatmap() end
     applyWorkspaceVisibility()
@@ -2519,6 +2536,7 @@ local function rebuildPreview(sourcePath)
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     local separation=extent*0.65
     local function loadRuntimePreview(method,x)
+        applyRuntimeLighting()
         local preview=mesh:new('3d')
         if not preview:setSkeletalSkinningMethod(method) then preview:destroy(); return nil end
         if not preview:load(sourcePath) then preview:destroy(); return nil end
@@ -3587,6 +3605,7 @@ local function rebuildPinnedSeamInspector()
     destroyObject(state.paint.inspectorSeamMarkers)
     state.paint.inspectorSeamMarkers=nil
     state.paint.inspectorSeamReport=nil
+    state.paint.inspectorNormalReport=nil
     local selected=state.paint.hoveredVertex
     if not selected or not state.paint.inspectorPinned then return end
     local cache=state.paint.geometry or buildPaintGeometryCache()
@@ -3982,6 +4001,68 @@ local function analyzePinnedBindTopology()
         state.paint.inspectorTopologyOverlay=overlay
     end
     applyWorkspaceVisibility()
+    return true
+end
+
+local function analyzePinnedSeamNormals()
+    state.paint.inspectorNormalReport=nil
+    local seam=state.paint.inspectorSeamReport
+    if not seam or #seam.members<=1 then return false end
+    local clipIndex=state.animationClipSelected or state.skeletalPreview.selected or 1
+    local duration=state.preview:getSkeletalAnimationDuration(clipIndex) or 0
+    local time=math.max(0,math.min(state.paint.inspectorGeometryTime or 0,duration))
+    local ok,pose=safeCall(function()
+        return state.meshD:evaluateSkeletalAuthoringPose(clipIndex,time,'lbs')
+    end)
+    if not ok or not pose or not pose.palette then return false end
+    local boneIndex={}
+    for index,bone in ipairs(getBones()) do boneIndex[bone.name]=index-1 end
+    local function normalized(x,y,z)
+        local length=math.sqrt(x*x+y*y+z*z)
+        if length<=1e-12 then return nil end
+        return {x=x/length,y=y/length,z=z/length}
+    end
+    local function deformNormal(normal,weights)
+        local x,y,z=0,0,0
+        for name,weight in pairs(weights) do
+            local index=boneIndex[name]
+            if index then
+                local first=index*12
+                x=x+(normal.x*pose.palette[first+1]+normal.y*pose.palette[first+2]+
+                    normal.z*pose.palette[first+3])*weight
+                y=y+(normal.x*pose.palette[first+5]+normal.y*pose.palette[first+6]+
+                    normal.z*pose.palette[first+7])*weight
+                z=z+(normal.x*pose.palette[first+9]+normal.y*pose.palette[first+10]+
+                    normal.z*pose.palette[first+11])*weight
+            end
+        end
+        return normalized(x,y,z)
+    end
+    local normals={}
+    for _,member in ipairs(seam.members) do
+        local point=member.point
+        local bind=point and normalized(point.nx or 0,point.ny or 0,point.nz or 0) or nil
+        if bind then
+            normals[#normals+1]={globalIndex=member.globalIndex,bind=bind,
+                deformed=deformNormal(bind,member.weightMap)}
+        end
+    end
+    local function angle(a,b)
+        if not a or not b then return 0 end
+        local cosine=math.max(-1,math.min(1,a.x*b.x+a.y*b.y+a.z*b.z))
+        return math.acos(cosine)*180/math.pi
+    end
+    local bindMaximum,deformedMaximum=0,0
+    for left=1,#normals-1 do
+        for right=left+1,#normals do
+            bindMaximum=math.max(bindMaximum,angle(normals[left].bind,normals[right].bind))
+            deformedMaximum=math.max(deformedMaximum,
+                angle(normals[left].deformed,normals[right].deformed))
+        end
+    end
+    state.paint.inspectorNormalReport={clipIndex=clipIndex,time=time,
+        copies=#seam.members,normals=#normals,bindMaximum=bindMaximum,
+        deformedMaximum=deformedMaximum}
     return true
 end
 
@@ -6016,6 +6097,7 @@ local function showPaintWeights()
             destroyObject(state.paint.inspectorTopologyOverlay)
             state.paint.inspectorTopologyOverlay=nil
             state.paint.inspectorTopologyReport=nil
+            state.paint.inspectorNormalReport=nil
         end
         rebuildPaintCursor(state.paint.cursorHit)
         applyWorkspaceVisibility()
@@ -6035,6 +6117,7 @@ local function showPaintWeights()
             destroyObject(state.paint.inspectorTopologyOverlay)
             state.paint.inspectorTopologyOverlay=nil
             state.paint.inspectorTopologyReport=nil
+            state.paint.inspectorNormalReport=nil
             rebuildPaintCursor(state.paint.cursorHit)
             applyWorkspaceVisibility()
         end
@@ -6088,7 +6171,7 @@ local function showPaintWeights()
                 synchronizePinnedSeamWeights()
             end
             tImGui.EndDisabled()
-            showItemTooltip('swl_paint_vertex_seam_sync_help')
+            showItemTooltip(tLang.L('swl_paint_vertex_seam_sync_help'))
         end
     end
     if state.paint.showVertexInspector and state.paint.inspectorPinned then
@@ -6106,13 +6189,14 @@ local function showPaintWeights()
             destroyObject(state.paint.inspectorGeometryOverlay)
             state.paint.inspectorGeometryOverlay=nil
             state.paint.inspectorGeometryReport=nil
+            state.paint.inspectorNormalReport=nil
         end
         tImGui.TextDisabled(string.format(tLang.L('swl_paint_geometry_duration_fmt'),
             geometryClip,geometryDuration))
         if tImGui.Button(tLang.L('swl_paint_geometry_analyze')) then
             analyzePinnedDeformedGeometry()
         end
-        showItemTooltip('swl_paint_geometry_analyze_help')
+        showItemTooltip(tLang.L('swl_paint_geometry_analyze_help'))
         local geometryReport=state.paint.inspectorGeometryReport
         if geometryReport then
             tImGui.TextWrapped(string.format(tLang.L('swl_paint_geometry_context_fmt'),
@@ -6133,7 +6217,7 @@ local function showPaintWeights()
         if tImGui.Button(tLang.L('swl_paint_topology_analyze')) then
             analyzePinnedBindTopology()
         end
-        showItemTooltip('swl_paint_topology_analyze_help')
+        showItemTooltip(tLang.L('swl_paint_topology_analyze_help'))
         local topologyReport=state.paint.inspectorTopologyReport
         if topologyReport then
             tImGui.TextWrapped(string.format(tLang.L('swl_paint_topology_summary_fmt'),
@@ -6155,13 +6239,33 @@ local function showPaintWeights()
                 tImGui.TextDisabled(tLang.L('swl_paint_topology_open_elsewhere'))
             end
         end
+        if tImGui.Button(tLang.L('swl_paint_normal_analyze')) then
+            analyzePinnedSeamNormals()
+        end
+        showItemTooltip(tLang.L('swl_paint_normal_analyze_help'))
+        local normalReport=state.paint.inspectorNormalReport
+        if normalReport then
+            tImGui.TextWrapped(string.format(tLang.L('swl_paint_normal_context_fmt'),
+                normalReport.clipIndex,normalReport.time,normalReport.normals,
+                normalReport.copies))
+            tImGui.TextWrapped(string.format(tLang.L('swl_paint_normal_angles_fmt'),
+                normalReport.bindMaximum,normalReport.deformedMaximum))
+            if normalReport.normals<normalReport.copies then
+                tImGui.TextDisabled(tLang.L('swl_paint_normal_missing'))
+            elseif normalReport.bindMaximum>5 or normalReport.deformedMaximum>5 then
+                tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
+                    tLang.L('swl_paint_normal_discontinuous'))
+            else
+                tImGui.TextDisabled(tLang.L('swl_paint_normal_continuous'))
+            end
+        end
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('swl_paint_global_seam_title'))
     if tImGui.Button(tLang.L('swl_paint_global_seam_analyze')) then
         analyzeGlobalSeamWeights()
     end
-    showItemTooltip('swl_paint_global_seam_analyze_help')
+    showItemTooltip(tLang.L('swl_paint_global_seam_analyze_help'))
     local globalSeamAudit=state.paint.globalSeamAudit
     if globalSeamAudit then
         tImGui.TextWrapped(string.format(tLang.L('swl_paint_global_seam_summary_fmt'),
@@ -6181,7 +6285,7 @@ local function showPaintWeights()
                 synchronizeGlobalSeamWeights()
             end
             tImGui.EndDisabled()
-            showItemTooltip('swl_paint_global_seam_sync_help')
+            showItemTooltip(tLang.L('swl_paint_global_seam_sync_help'))
         end
     end
     local strokeSafetyReport=state.paint.strokeSafetyReport
@@ -8354,6 +8458,75 @@ local function showCameraPanel()
     tImGui.End()
 end
 
+local function resetRuntimeLight()
+    state.runtimeLight={enabled=false,
+        ambientColor={r=0.16,g=0.16,b=0.2,a=1},
+        directionalColor={r=1,g=0.96,b=0.88,a=1},
+        directionalDirection={x=-0.4,y=-0.8,z=0.5},orbit=nil}
+    state.runtimeLight.orbit=tUtil.orbitFromDir(state.runtimeLight.directionalDirection)
+    applyRuntimeLighting()
+end
+
+local function rebuildRuntimePreviewForLightChange()
+    if not state.meshD then return end
+    if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
+    else rebuildPreview() end
+end
+
+local function showRuntimeLightWindow()
+    if state.workspace~='runtime' then return end
+    local screenW=mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x=math.max(0,screenW-475),y=500},
+        tImGui.Flags('ImGuiCond_Once'))
+    local flags=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize','ImGuiWindowFlags_NoCollapse')
+    local opened=tImGui.Begin(tLang.L('swl_runtime_light_window')..'##swlRuntimeLight',false,flags)
+    if opened then
+        local light=state.runtimeLight
+        local enabled=tImGui.Checkbox(tLang.L('swl_runtime_lighting'),light.enabled)
+        if enabled~=light.enabled then
+            light.enabled=enabled
+            applyRuntimeLighting()
+            rebuildRuntimePreviewForLightChange()
+        end
+        showItemTooltip(tLang.L('swl_runtime_lighting_help'))
+        local colorFlags=tImGui.Flags('ImGuiColorEditFlags_NoInputs')
+        tImGui.Text(tLang.L('ambient'))
+        tImGui.SameLine()
+        local ambientChanged,ambient=tImGui.ColorEdit4('##swlRuntimeAmbient',
+            light.ambientColor,colorFlags)
+        if ambientChanged and ambient then
+            light.ambientColor=ambient
+            if light.enabled then mbm.setAmbientLight('3d',ambient) end
+        end
+        tImGui.Text(tLang.L('directional_color'))
+        tImGui.SameLine()
+        local directionalChanged,directional=tImGui.ColorEdit4('##swlRuntimeDirectional',
+            light.directionalColor,colorFlags)
+        if directionalChanged and directional then
+            light.directionalColor=directional
+            if light.enabled then mbm.setDirectionalLightColor('3d',directional) end
+        end
+        tImGui.Text(tLang.L('direction_label'))
+        light.orbit=light.orbit or tUtil.orbitFromDir(light.directionalDirection)
+        if tUtil.drawOrbitGizmo(light.orbit,{size=110}) then
+            light.directionalDirection=tUtil.dirFromOrbit(light.orbit)
+            if light.enabled then
+                mbm.setDirectionalLightDirection('3d',light.directionalDirection.x,
+                    light.directionalDirection.y,light.directionalDirection.z)
+            end
+        end
+        tImGui.TextDisabled(string.format('x=%.3f',light.directionalDirection.x))
+        tImGui.TextDisabled(string.format('y=%.3f',light.directionalDirection.y))
+        tImGui.TextDisabled(string.format('z=%.3f',light.directionalDirection.z))
+        if tImGui.Button(tLang.L('reset_light')..'##swlRuntimeLightReset') then
+            resetRuntimeLight()
+            rebuildRuntimePreviewForLightChange()
+        end
+        tImGui.TextWrapped(tLang.L('swl_runtime_light_scope'))
+    end
+    tImGui.End()
+end
+
 function onInitScene()
     camera3d = mbm.getCamera('3d')
     camera3d:setFar(9999999)
@@ -8362,6 +8535,8 @@ function onInitScene()
     tUtil.bRightSide = true
     tUtil.tTimerOverlay:start()
     mbm.setColor(0.08, 0.09, 0.12)
+    state.runtimeLight.orbit=tUtil.orbitFromDir(state.runtimeLight.directionalDirection)
+    applyRuntimeLighting()
     applyCamera()
 end
 
@@ -8372,6 +8547,7 @@ function onLoop(delta)
     showMenu()
     showPanel()
     showCameraPanel()
+    showRuntimeLightWindow()
     showSkeletalTimelineWindow()
     syncPoseStressPreview()
     tUtil.showOverlayMessage()
@@ -8811,6 +8987,7 @@ function onTouchUp(key, x, y)
                 destroyObject(state.paint.inspectorTopologyOverlay)
                 state.paint.inspectorTopologyOverlay=nil
                 state.paint.inspectorTopologyReport=nil
+                state.paint.inspectorNormalReport=nil
                 rebuildPinnedSeamInspector()
                 applyWorkspaceVisibility()
             end

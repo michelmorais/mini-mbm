@@ -451,6 +451,13 @@ endpoint-matched gap to a non-adjacent opposing open edge. The candidate pair is
 welding prevents ordinary UV/material duplicates from being mislabeled as holes and never changes the
 stored geometry.
 
+**Analyze Coincident-Copy Normals** compares every usable stored bind normal in the pinned seam group
+and then applies the Compact LBS normal path at the explicit diagnostic time: the weighted palette
+3x3 transform followed by normalization. The report gives the maximum pairwise angle in bind and
+after deformation, plus normal coverage for the group. Angles above 5 degrees are presented as a
+visible discontinuity candidate. This is read-only and does not toggle the engine-global lighting
+state or force a mesh shader-variant reload.
+
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
 values can then be corrected through the local-bind fields. Addition allocates a new stable ID,
@@ -521,6 +528,12 @@ matching GLES2 LBS or DQS palette. The bind-only diagnostic gizmo is hidden in t
 is not mistaken for either evaluated runtime instance.
 Resolution details, per-instance capacity guidance, and the hidden bind-gizmo explanation are
 available as hover tooltips on their corresponding Runtime Preview report or control.
+Runtime Preview also provides a movable editor-only light window following Mesh Debug's controls:
+**Enable Preview Lighting**, ambient color, directional color, an orbit direction gizmo with numeric
+XYZ feedback, and Reset. Disabled is an explicit unlit baseline. Enabling or disabling rebuilds the
+runtime mesh under the matching load-time shader state; color and direction edits apply immediately.
+Reset restores the inspection defaults and disables lighting. Other worktrees force 3D lighting off,
+and none of these diagnostic values are serialized.
 
 Open **Create / Edit Animations** to inspect the canonical type-43 structure before editing is
 enabled. The node selects a named clip and displays its stable ID, duration, looping policy, tracks,
