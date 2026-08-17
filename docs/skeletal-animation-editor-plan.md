@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.49**
+Document version: **8.52**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.52 | 2026-08-17 | Added reproducible nearest-vertex inspection in global weight diagnostics. A stationary left click pins the vertex, yellow marker, and full influence list; movement beyond three pixels remains camera orbit, and an explicit clear action restores live inspection. |
+| 8.51 | 2026-08-17 | Added explicit whole-mesh Limit Maximum Influences under Influence Distribution. A `1..4` target previews the affected vertex count, requires confirmation, keeps deterministic strongest influences, renormalizes, commits one canonical batch, and creates one Undo entry. |
+| 8.50 | 2026-08-17 | Made the read-only nearest-vertex inspector available in all four Paint Weights visualization modes. Global diagnostics retain surface picking, the yellow nearest-vertex marker, and the complete influence list without exposing a brush cursor or mutations. |
 | 8.49 | 2026-08-17 | Fixed the early Runtime Preview tooltip call resolving a nonexistent global by forward-declaring the shared local helper. Non-target Paint Weights diagnostics now suppress the cyan target-bone highlight and restore it on returning to Selected Bone Heatmap. |
 | 8.48 | 2026-08-17 | Fixed abrupt-transition smoothing crashing after a successful batch because the pose-safety unsafe-triangle return was not captured before rebuilding the safety overlay. |
 | 8.47 | 2026-08-17 | Moved long gray Runtime Skeletal Preview explanations for method resolution, per-instance capacity, and hidden bind-only gizmos into contextual hover tooltips. |

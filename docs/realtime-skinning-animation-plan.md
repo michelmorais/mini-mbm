@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.54**
+Document version: **9.57**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.57 | 2026-08-17 | Paint Weights global diagnostics can pin a nearest vertex and its exact influences with a stationary click while preserving left-drag orbit and an explicit return to live inspection. |
+| 9.56 | 2026-08-17 | Added transactional maximum-influence reduction with a `1..4` target, whole-mesh impact preview, confirmation, deterministic strongest-influence retention, normalization, atomic batch commit, and Undo. |
+| 9.55 | 2026-08-17 | Extended Paint Weights nearest-vertex inspection to every visualization mode while keeping global diagnostics read-only and free of brush visuals. |
 | 9.54 | 2026-08-17 | Fixed Runtime Preview tooltip dispatch by forward-declaring its local helper and removed target-bone highlighting from Paint Weights diagnostics that do not consume a target bone. |
 | 9.53 | 2026-08-17 | Fixed Paint Weights abrupt-transition repair failing after commit because its pose-safety unsafe-triangle collection was left uncaptured before safety-overlay reconstruction. |
 | 9.52 | 2026-08-17 | Replaced long gray Runtime Preview resolution, per-instance capacity, and bind-gizmo notes with localized contextual hover tooltips. |

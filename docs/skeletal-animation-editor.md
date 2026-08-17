@@ -257,6 +257,12 @@ does not update while the pointer is stationary. The panel permanently reserves 
 influence rows, filling absent data with placeholders so entering the scrollbar does not collapse
 the window content and remove the scrollbar itself. This complements the interpolated heatmap when an
 artist needs to explain one precise vertex without leaving the visual Paint Weights workflow.
+It remains available in Selected Bone Heatmap, Influence Distribution, Weak Influence
+Contamination, and Abrupt Weight Transitions. Diagnostic modes keep the nearest-vertex marker and
+complete influence list without enabling the brush cursor or weight mutation. In a global
+diagnostic, a stationary left click pins the current vertex, yellow marker, and complete influence
+list while subsequent pointer movement resumes ordinary surface probing without replacing the
+pinned result; left-drag remains camera orbit. The explicit clear action returns to live inspection.
 
 After each successful Paint/Add, Erase/Subtract, or Smooth stroke, Paint Weights performs a
 non-mutating pose-safety diagnostic over only the triangles incident to changed vertices. It
@@ -308,8 +314,15 @@ The first migrated **Weight Tools** operation is **Clean Weak Influences**. A co
 is applied to the complete mesh. Influences below it are removed, except that every vertex's
 strongest influence is always preserved; the survivors are normalized and committed as one atomic
 batch with one Undo entry. If no influence qualifies, the operation creates neither a snapshot nor
-a mutation. Because canonical weights are already normalized and limited to four influences,
-separate Normalize All and Limit Four buttons would currently be redundant.
+a mutation. Canonical weights are already normalized and limited to four influences, so a separate
+Normalize All operation remains redundant.
+
+Influence Distribution also exposes **Limit Maximum Influences** for an explicit `1..4` target.
+Its impact preview counts vertices currently above the selected limit. After confirmation, the
+operation keeps each affected vertex's strongest influences, removes the remainder, renormalizes,
+and commits the complete mesh through one atomic batch and one Undo entry. A limit of four is a
+no-op for valid canonical data. This tool does not claim that fewer influences are universally
+better; the artist chooses the limit after inspecting the distribution and deformation.
 
 The overlay reuses one vertex and UV per canonical frame-zero vertex through indexed geometry when
 the complete mesh fits the shape API's 16-bit index limit. Larger meshes use an explicit

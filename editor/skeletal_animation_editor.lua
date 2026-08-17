@@ -165,6 +165,7 @@ local state = {
         showBrushGradient=true,showBrushFootprint=false,brushFootprintGeneration=0,
         brushFootprintShape=nil,brushFootprintMarkers=nil,
         showVertexInspector=true,hoveredVertex=nil,hoveredVertexMarker=nil,
+        inspectorPinned=false,inspectorClick=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -179,6 +180,7 @@ local state = {
         aabbCaptureBox=nil,
         aabbCaptureAxisEdges={},aabbCaptureMinFaces={},aabbCaptureMaxFaces={},
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
+        maximumInfluences=2,limitInfluencesConfirmed=false,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
         safetyOverlayVisible=true,safetyFaceShape=nil,safetySeamMarkers=nil,safetyReport=nil,
@@ -272,6 +274,8 @@ local function clearPaintVisuals()
     state.paint.brushFootprintMarkers=nil
     state.paint.hoveredVertex=nil
     state.paint.hoveredVertexMarker=nil
+    state.paint.inspectorPinned=false
+    state.paint.inspectorClick=nil
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
@@ -960,7 +964,7 @@ local function applyWorkspaceVisibility()
     end
     if state.paint.hoveredVertexMarker then
         state.paint.hoveredVertexMarker.visible=paintWorkspace and state.meshVisible and
-            state.paint.visualizationMode==1 and state.paint.showVertexInspector and
+            state.paint.showVertexInspector and
             not state.paint.aabbCapture.active
     end
     if state.paint.safetyFaceShape then
@@ -2046,12 +2050,14 @@ rebuildPaintCursor=function(hit)
     destroyObject(state.paint.cursor)
     destroyObject(state.paint.brushFootprintShape)
     destroyObject(state.paint.brushFootprintMarkers)
-    destroyObject(state.paint.hoveredVertexMarker)
+    if not state.paint.inspectorPinned then destroyObject(state.paint.hoveredVertexMarker) end
     state.paint.cursor=nil
     state.paint.brushFootprintShape=nil
     state.paint.brushFootprintMarkers=nil
-    state.paint.hoveredVertex=nil
-    state.paint.hoveredVertexMarker=nil
+    if not state.paint.inspectorPinned then
+        state.paint.hoveredVertex=nil
+        state.paint.hoveredVertexMarker=nil
+    end
     state.paint.cursorHit=hit
     if hit then state.paint.lastSurfaceHit=hit end
     if not hit or state.workspace~='paint' then return end
@@ -2076,12 +2082,14 @@ rebuildPaintCursor=function(hit)
         end
         appendPoint(coords,point(a0)); appendPoint(coords,point(a1))
     end
-    local cursor=line:new('3d',0,0,0)
-    cursor:add(coords); cursor:setColor(1,1,1,1); cursor:setPos(0,0,0)
-    cursor.alwaysOnTop=true
-    cursor.alwaysOnTopPriority=0
-    state.paint.cursor=cursor
-    if state.paint.showVertexInspector then
+    if state.paint.visualizationMode==1 then
+        local cursor=line:new('3d',0,0,0)
+        cursor:add(coords); cursor:setColor(1,1,1,1); cursor:setPos(0,0,0)
+        cursor.alwaysOnTop=true
+        cursor.alwaysOnTopPriority=0
+        state.paint.cursor=cursor
+    end
+    if state.paint.showVertexInspector and not state.paint.inspectorPinned then
         local nearest,nearestDistance=nil,math.huge
         for _,vertex in ipairs({hit.triangle.a,hit.triangle.b,hit.triangle.c}) do
             local dx,dy,dz=vertex.point.x-hit.point.x,vertex.point.y-hit.point.y,
@@ -2127,6 +2135,7 @@ rebuildPaintCursor=function(hit)
             end
         end
     end
+    if state.paint.visualizationMode~=1 then return end
     if state.paint.showBrushGradient then
         local faceVertices,uvs={},{}
         local operation=(state.paint.operationMode-1)*0.5
@@ -2262,7 +2271,7 @@ local function updatePaintCursorHover()
         if state.paint.cursor then rebuildPaintCursor(nil) end
         return
     end
-    if state.paint.visualizationMode~=1 then
+    if state.paint.visualizationMode~=1 and not state.paint.showVertexInspector then
         state.paint.cursorPendingX,state.paint.cursorPendingY=nil,nil
         if state.paint.cursor then rebuildPaintCursor(nil) end
         return
@@ -2303,7 +2312,7 @@ rebuildPaintHeatmap = function()
         if inDiagnosticScope(vertex.globalIndex) then scopedTotal=scopedTotal+1 end
     end
     local distributionTotal,distributionMin,distributionMax=0,math.huge,0
-    local distributionCounts={0,0,0,0}
+    local distributionCounts,globalDistributionCounts={0,0,0,0},{0,0,0,0}
     local weakVertices,weakInfluences,weakTotal,weakMaximum=0,0,0,0
     local abruptValues,abruptEdges,abruptVertices,abruptMaximum,abruptRecords=nil,0,{},0,{}
     if state.paint.visualizationMode==4 then
@@ -2343,20 +2352,32 @@ rebuildPaintHeatmap = function()
     end
     for _,vertex in pairs(cache.vertices) do
         local inScope=inDiagnosticScope(vertex.globalIndex)
+        local distributionDominant,distributionCount=0,0
+        if state.paint.visualizationMode==2 then
+            local _,influences=vertexWeightForBone(vertex.globalIndex,'')
+            for _,pair in ipairs(influences) do
+                local name,weight=pair[1],tonumber(pair[2]) or 0
+                if name and weight>0 then
+                    distributionDominant=math.max(distributionDominant,weight)
+                    distributionCount=distributionCount+1
+                end
+            end
+            if distributionCount>=1 and distributionCount<=4 then
+                globalDistributionCounts[distributionCount]=
+                    globalDistributionCounts[distributionCount]+1
+            end
+        end
         if not inScope then
             weights[vertex.globalIndex]=0
         elseif state.paint.visualizationMode==2 then
-            local _,influences=vertexWeightForBone(vertex.globalIndex,'')
-            local dominant,count=0,0
-            for _,pair in ipairs(influences) do
-                local name,weight=pair[1],tonumber(pair[2]) or 0
-                if name and weight>0 then dominant=math.max(dominant,weight); count=count+1 end
+            weights[vertex.globalIndex]=math.max(0,math.min(1,
+                (distributionDominant-0.25)/0.75))
+            distributionTotal=distributionTotal+distributionDominant
+            distributionMin=math.min(distributionMin,distributionDominant)
+            distributionMax=math.max(distributionMax,distributionDominant)
+            if distributionCount>=1 and distributionCount<=4 then
+                distributionCounts[distributionCount]=distributionCounts[distributionCount]+1
             end
-            weights[vertex.globalIndex]=math.max(0,math.min(1,(dominant-0.25)/0.75))
-            distributionTotal=distributionTotal+dominant
-            distributionMin=math.min(distributionMin,dominant)
-            distributionMax=math.max(distributionMax,dominant)
-            if count>=1 and count<=4 then distributionCounts[count]=distributionCounts[count]+1 end
         elseif state.paint.visualizationMode==3 then
             local _,influences=vertexWeightForBone(vertex.globalIndex,'')
             local weakSum,weakCount=0,0
@@ -2383,7 +2404,7 @@ rebuildPaintHeatmap = function()
         local total=scopedTotal
         state.paint.distributionStats={minimum=total>0 and distributionMin or 0,
             maximum=distributionMax,average=total>0 and distributionTotal/total or 0,
-            counts=distributionCounts,total=total}
+            counts=distributionCounts,globalCounts=globalDistributionCounts,total=total}
     elseif state.paint.visualizationMode==3 then
         state.paint.weakStats={vertices=weakVertices,influences=weakInfluences,
             totalWeight=weakTotal,maximumWeight=weakMaximum,total=scopedTotal}
@@ -3335,6 +3356,58 @@ local function cleanPaintWeakInfluences()
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_clean_applied_fmt'),#edits,
         state.paint.cleanThreshold),false)
+    return true
+end
+
+local function limitPaintMaximumInfluences()
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return false end
+    local maximum=math.max(1,math.min(4,state.paint.maximumInfluences or 4))
+    local indices={}
+    for index in pairs(cache.vertices) do indices[#indices+1]=index end
+    table.sort(indices)
+    local edits={}
+    for _,index in ipairs(indices) do
+        local ordered=normalizedInfluences(readInfluenceMap(index,false))
+        if #ordered>maximum then
+            local keptMap={}
+            for slot=1,maximum do
+                local influence=ordered[slot]
+                keptMap[influence.name]=influence.weight
+            end
+            local kept=normalizedInfluences(keptMap)
+            local row={index}
+            for slot=1,4 do
+                local influence=kept[slot]
+                row[slot*2]=influence and influence.name or nil
+                row[slot*2+1]=influence and influence.weight or 0
+            end
+            edits[#edits+1]=row
+        end
+    end
+    if #edits==0 then
+        state.paint.limitInfluencesConfirmed=false
+        setStatus(tLang.L('swl_paint_limit_influences_no_change'),false)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_limit_influences')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local ok,committed=safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    if not ok or not committed then
+        discardRollbackSnapshot(snapshot)
+        if ok then setStatus(tLang.L('swl_paint_limit_influences_failed'),true) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_limit_influences')
+    state.paint.limitInfluencesConfirmed=false
+    state.modified=true
+    state.paint.heatmapDirty=true
+    rebuildPaintHeatmap()
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_paint_limit_influences_applied_fmt'),#edits,
+        maximum),false)
     return true
 end
 
@@ -5065,6 +5138,7 @@ local function showPaintWeights()
     state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_abrupt'),
         state.paint.visualizationMode,4)
     if state.paint.visualizationMode~=previousVisualizationMode then
+        state.paint.limitInfluencesConfirmed=false
         state.paint.heatmapDirty=true
         rebuildPaintHeatmap()
         rebuildPaintCursor(nil)
@@ -5089,6 +5163,32 @@ local function showPaintWeights()
             tImGui.Text(string.format(tLang.L('swl_paint_distribution_counts_fmt'),
                 stats.counts[1],stats.counts[2],stats.counts[3],stats.counts[4]))
         end
+        tImGui.Separator()
+        showSectionTitle('swl_paint_weight_tools')
+        tImGui.PushItemWidth(240)
+        local maximumChanged,maximum=tImGui.SliderInt(
+            tLang.L('swl_paint_maximum_influences'),state.paint.maximumInfluences,1,4)
+        tImGui.PopItemWidth()
+        showItemTooltip(tLang.L('swl_paint_limit_influences_help'))
+        if maximumChanged then
+            state.paint.maximumInfluences=maximum
+            state.paint.limitInfluencesConfirmed=false
+        end
+        local affected=0
+        if stats and stats.globalCounts then
+            for count=(state.paint.maximumInfluences or 4)+1,4 do
+                affected=affected+(stats.globalCounts[count] or 0)
+            end
+        end
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_limit_influences_preview_fmt'),affected,
+            state.paint.maximumInfluences or 4))
+        state.paint.limitInfluencesConfirmed=tImGui.Checkbox(
+            tLang.L('swl_paint_confirm_limit_influences'),state.paint.limitInfluencesConfirmed)
+        tImGui.BeginDisabled(affected==0 or not state.paint.limitInfluencesConfirmed)
+        if tImGui.Button(tLang.L('swl_paint_limit_influences_apply')) then
+            limitPaintMaximumInfluences()
+        end
+        tImGui.EndDisabled()
     elseif state.paint.visualizationMode==3 then
         tImGui.TextWrapped(tLang.L('swl_paint_weak_help'))
         tImGui.PushItemWidth(240)
@@ -5456,32 +5556,39 @@ local function showPaintWeights()
     end
     tImGui.Separator()
     showSectionTitle('swl_paint_viewport_feedback')
-    if state.paint.visualizationMode==1 then
-        local showVertexInspector=tImGui.Checkbox(tLang.L('swl_paint_vertex_inspector'),
-            state.paint.showVertexInspector)
-        if showVertexInspector~=state.paint.showVertexInspector then
-            state.paint.showVertexInspector=showVertexInspector
+    local showVertexInspector=tImGui.Checkbox(tLang.L('swl_paint_vertex_inspector'),
+        state.paint.showVertexInspector)
+    if showVertexInspector~=state.paint.showVertexInspector then
+        state.paint.showVertexInspector=showVertexInspector
+        if not showVertexInspector then state.paint.inspectorPinned=false end
+        rebuildPaintCursor(state.paint.cursorHit)
+        applyWorkspaceVisibility()
+    end
+    tImGui.TextWrapped(tLang.L('swl_paint_vertex_inspector_help'))
+    if state.paint.showVertexInspector and state.paint.inspectorPinned then
+        tImGui.TextColored({r=1,g=0.8,b=0.15,a=1},tLang.L('swl_paint_vertex_inspector_pinned'))
+        if tImGui.Button(tLang.L('swl_paint_vertex_inspector_clear_pin')) then
+            state.paint.inspectorPinned=false
             rebuildPaintCursor(state.paint.cursorHit)
             applyWorkspaceVisibility()
         end
-        tImGui.TextWrapped(tLang.L('swl_paint_vertex_inspector_help'))
-        local hoveredVertex=state.paint.hoveredVertex
-        if state.paint.showVertexInspector and hoveredVertex then
-            tImGui.Text(string.format(tLang.L('swl_paint_vertex_inspector_header_fmt'),
-                hoveredVertex.globalIndex,hoveredVertex.subset,#hoveredVertex.influences))
-        elseif state.paint.showVertexInspector then
-            tImGui.TextDisabled(tLang.L('swl_paint_vertex_inspector_header_empty'))
-        end
-        if state.paint.showVertexInspector then
-            for slot=1,4 do
-                local influence=hoveredVertex and hoveredVertex.influences[slot] or nil
-                if influence then
-                    tImGui.Text(string.format(tLang.L('swl_paint_vertex_influence_fmt'),
-                        influence.name,influence.weight))
-                else
-                    tImGui.TextDisabled(string.format(
-                        tLang.L('swl_paint_vertex_influence_empty_fmt'),slot))
-                end
+    end
+    local hoveredVertex=state.paint.hoveredVertex
+    if state.paint.showVertexInspector and hoveredVertex then
+        tImGui.Text(string.format(tLang.L('swl_paint_vertex_inspector_header_fmt'),
+            hoveredVertex.globalIndex,hoveredVertex.subset,#hoveredVertex.influences))
+    elseif state.paint.showVertexInspector then
+        tImGui.TextDisabled(tLang.L('swl_paint_vertex_inspector_header_empty'))
+    end
+    if state.paint.showVertexInspector then
+        for slot=1,4 do
+            local influence=hoveredVertex and hoveredVertex.influences[slot] or nil
+            if influence then
+                tImGui.Text(string.format(tLang.L('swl_paint_vertex_influence_fmt'),
+                    influence.name,influence.weight))
+            else
+                tImGui.TextDisabled(string.format(
+                    tLang.L('swl_paint_vertex_influence_empty_fmt'),slot))
             end
         end
     end
@@ -7693,6 +7800,10 @@ function onTouchDown(key, x, y)
         return
     end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
+        if state.workspace=='paint' and state.paint.visualizationMode~=1 and
+                state.paint.showVertexInspector then
+            state.paint.inspectorClick={startX=x,startY=y,moved=false}
+        end
         if state.workspace=='paint' and state.paint.visualizationMode==1 then
             local selectedBone=hitTestPaintBone(x,y)
             if selectedBone then
@@ -7835,6 +7946,10 @@ function onTouchDown(key, x, y)
 end
 
 function onTouchMove(key, x, y)
+    local inspectorClick=state.paint.inspectorClick
+    if inspectorClick and (x-inspectorClick.startX)^2+(y-inspectorClick.startY)^2>9 then
+        inspectorClick.moved=true
+    end
     local capture=state.paint.aabbCapture
     if state.workspace=='paint' and capture.active and capture.dragPlane and
             capture.dragOffset then
@@ -8072,6 +8187,18 @@ function onTouchUp(key, x, y)
         return
     end
     if key == 0 then
+        local inspectorClick=state.paint.inspectorClick
+        if inspectorClick and not inspectorClick.moved and state.workspace=='paint' and
+                state.paint.visualizationMode~=1 and state.paint.showVertexInspector then
+            local hit=pickPaintSurface(x,y)
+            if hit then
+                state.paint.inspectorPinned=false
+                rebuildPaintCursor(hit)
+                state.paint.inspectorPinned=state.paint.hoveredVertex~=nil
+                applyWorkspaceVisibility()
+            end
+        end
+        state.paint.inspectorClick=nil
         local boneDrag=state.boneEditorDrag
         local completedAuthoringDrag=(state.translationGizmo.drag and
             state.translationGizmo.drag.moved) or (state.rotationGizmo.drag and
