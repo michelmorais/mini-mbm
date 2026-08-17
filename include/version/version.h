@@ -267,6 +267,7 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.64.1 Disabled Paint Weights viewport bone hit testing whenever the skeleton is hidden while preserving explicit panel selection.
     7.64.0 Added Paint Weights Rigid Bind with an exact configurable core, non-accumulating falloff transition, and shared transactional pose diagnostics.
     7.63.13 Replaced the Lab's shared line-strip vertex markers with one batched shape of independent camera-resilient orthogonal crosses.
     7.63.12 Replaced affected-vertex line strips with independent planar filled crosses batched in one shape and audited the Lab's marker intent.
@@ -427,7 +428,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.64.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.64.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -1758,7 +1758,7 @@ local function hitTestAuthoringBone(sx,sy)
 end
 
 local function hitTestPaintBone(sx,sy)
-    if state.workspace~='paint' then return nil end
+    if state.workspace~='paint' or not state.paint.showSkeleton then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
     if not ok then return nil end
     local bones=getVisualBones()

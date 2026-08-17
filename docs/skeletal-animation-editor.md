@@ -61,6 +61,9 @@ Target Bone and viewport bone picking are also contextual: they are exposed only
 Heatmap, where a particular bone actually drives visualization and brush edits. The three
 whole-weight diagnostics hide Target Bone and leave left-drag exclusively to camera orbit; their
 Skeleton section retains only the independent visibility control.
+Hidden Paint Weights skeletons are also excluded from viewport hit testing. The current target bone
+remains selected and can still be changed explicitly through the panel, but invisible joints and
+segments cannot intercept a left click intended for orbiting or inspecting the mesh.
 
 **Abrupt Weight Transitions** is read-only and compares complete normalized weight vectors across
 triangle-adjacent vertices using half their L1 distance, producing a bounded `0..1` value. Each
