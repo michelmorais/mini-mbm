@@ -1516,6 +1516,9 @@ complete validation, and a composition requiring shear rejects without mutation.
 local present = meshD:hasSkeletalVertexWeights()
 local paletteSize = meshD:getTotalSkeletalWeightBones()
 local initializedVertexCount = meshD:initializeSkeletalVertexWeights(oneBasedBoneIndex)
+local removedVertexCount = meshD:removeSkeletalVertexWeights()
+local removedBoneCount, removedWeightedVertexCount, removedClipCount =
+    meshD:removeAllSkeletalData()
 local name1, weight1, name2, weight2, name3, weight3, name4, weight4 =
     meshD:getSkeletalVertexWeight(vertexIndex)
 meshD:setSkeletalVertexWeight(vertexIndex,
@@ -1548,7 +1551,17 @@ vertex to the selected existing bone with weight `1.0`, returning the number of 
 vertices. It never guesses geometric influences and never replaces existing weights: an absent
 canonical skeleton, invalid bone index, empty frame-zero geometry, existing type-42 data, or an
 invalid resulting 41/42 contract raises a Lua error without mutation. Subsequent distribution and
-blending belong to Skin Weight Lab.
+blending belong to Paint Weights.
+
+`removeSkeletalVertexWeights` removes the complete canonical type-42 section and returns its vertex
+count. It preserves the type-41 skeleton and every type-43 animation clip, allowing weights to be
+initialized again deliberately. An asset without canonical weights raises a Lua error without
+mutation.
+
+`removeAllSkeletalData` atomically removes the canonical skeleton, weights, and animation sections
+41-43 and returns their bone, weighted-vertex, and clip counts. Clips cannot survive without the
+skeleton identity they target. An asset without a canonical skeleton raises a Lua error without
+mutation.
 
 ### Canonical skeletal-animation inspection
 

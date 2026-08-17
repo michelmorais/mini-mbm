@@ -495,6 +495,13 @@ namespace mbm
         API_IMPL bool initializeSkeletalVertexWeights(const uint32_t boneIndex,
                                                        uint32_t *vertexCountOut,
                                                        char *errorOut, const int errorOutLen);
+        // Removes only canonical type-42 weights, preserving the skeleton and animation clips.
+        API_IMPL bool removeSkeletalVertexWeights(uint32_t *vertexCountOut,
+                                                  char *errorOut, const int errorOutLen);
+        // Atomically removes the complete canonical 41-43 skeletal asset. Counts report impact.
+        API_IMPL bool removeAllSkeletalData(uint32_t *boneCountOut, uint32_t *vertexCountOut,
+                                            uint32_t *clipCountOut,
+                                            char *errorOut, const int errorOutLen);
         API_IMPL bool hasSkeletalVertexWeights() const noexcept;
         API_IMPL uint32_t getTotalSkeletalWeightBones() const noexcept;
         // Rigid/articulated animation authoring data. The storage remains PIMPL-owned; these

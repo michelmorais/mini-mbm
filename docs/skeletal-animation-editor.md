@@ -366,6 +366,13 @@ segment rotation, connection editing, radius editing, snapping, cancellation, an
 per completed gesture. These numeric Bind Pose Contract fields remain available for exact values and
 feed the same canonical skeleton state rather than maintaining a second representation.
 
+Its **Weights and complete skeleton** group also owns explicit asset-level maintenance. With no
+type-42 data, an explicit target-bone selector can rigidly initialize every frame-zero vertex and then
+redistribute influences in Paint Weights. **Remove all weights** deletes only type 42, preserving
+bones and clips. **Remove all bones and weights** reports bone, weighted-vertex, and clip counts,
+then atomically deletes sections 41-43 because clips cannot remain valid without their skeleton.
+Both destructive actions require separate confirmation and create one Undo entry.
+
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
 values can then be corrected through the local-bind fields. Addition allocates a new stable ID,

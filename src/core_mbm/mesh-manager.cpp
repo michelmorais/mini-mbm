@@ -6894,6 +6894,44 @@ namespace mbm
         return impl->canonicalWeights.skeletonId!=0 && !impl->canonicalWeights.vertices.empty();
     }
 
+    bool MESH_MBM_DEBUG::removeSkeletalVertexWeights(uint32_t *vertexCountOut,
+                                                      char *errorOut, const int errorOutLen)
+    {
+        if (impl->canonicalWeights.skeletonId == 0)
+        {
+            if (errorOut && errorOutLen > 0)
+                snprintf(errorOut, errorOutLen, "%s", "mesh has no canonical skeletal weights");
+            return false;
+        }
+        if (vertexCountOut)
+            *vertexCountOut = static_cast<uint32_t>(impl->canonicalWeights.vertices.size());
+        impl->canonicalWeights = skeletal::CANONICAL_WEIGHTS();
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeAllSkeletalData(uint32_t *boneCountOut,
+                                                uint32_t *vertexCountOut,
+                                                uint32_t *clipCountOut,
+                                                char *errorOut, const int errorOutLen)
+    {
+        if (impl->canonicalSkeleton.skeletonId == 0)
+        {
+            if (errorOut && errorOutLen > 0)
+                snprintf(errorOut, errorOutLen, "%s", "mesh has no canonical skeleton");
+            return false;
+        }
+        if (boneCountOut)
+            *boneCountOut = static_cast<uint32_t>(impl->canonicalSkeleton.sourceBones.size());
+        if (vertexCountOut)
+            *vertexCountOut = static_cast<uint32_t>(impl->canonicalWeights.vertices.size());
+        if (clipCountOut)
+            *clipCountOut = static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
+        impl->canonicalAnimations = skeletal::CANONICAL_ANIMATIONS();
+        impl->canonicalWeights = skeletal::CANONICAL_WEIGHTS();
+        impl->canonicalSkeleton = skeletal::CANONICAL_SKELETON();
+        return true;
+    }
+
     uint32_t MESH_MBM_DEBUG::getTotalSkeletalWeightBones() const noexcept
     {
         return static_cast<uint32_t>(impl->canonicalWeights.paletteBoneIds.size());

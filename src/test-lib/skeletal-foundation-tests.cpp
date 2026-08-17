@@ -455,6 +455,28 @@ namespace
         expect(!staticMesh.initializeSkeletalSkeleton("other",VEC3(),0.1f,1.0f,true,
                    reparentError,sizeof(reparentError)),
                "initial skeleton creation must reject an asset that already has skeletal data");
+        uint32_t removedWeightVertices = 0;
+        expect(initializedReload.removeSkeletalVertexWeights(&removedWeightVertices,
+                   reparentError,sizeof(reparentError)) && removedWeightVertices==initializedVertexCount &&
+                   !initializedReload.hasSkeletalVertexWeights() &&
+                   initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==7,
+               "canonical weight removal must preserve the complete skeleton");
+        expect(!initializedReload.removeSkeletalVertexWeights(&removedWeightVertices,
+                   reparentError,sizeof(reparentError)),
+               "canonical weight removal must reject an asset without type-42 data");
+        expect(initializedReload.initializeSkeletalVertexWeights(0,&initializedVertexCount,
+                   reparentError,sizeof(reparentError)),
+               "weight initialization must remain available after explicit removal");
+        uint32_t removedBones = 0, removedVertices = 0, removedClips = 0;
+        expect(initializedReload.removeAllSkeletalData(&removedBones,&removedVertices,&removedClips,
+                   reparentError,sizeof(reparentError)) && removedBones==7 &&
+                   removedVertices==initializedVertexCount && removedClips==0 &&
+                   !initializedReload.getSkeletonBindSummary(addSummary) &&
+                   !initializedReload.hasSkeletalVertexWeights(),
+               "complete skeletal removal must atomically clear canonical skeleton and weights");
+        expect(!initializedReload.removeAllSkeletalData(&removedBones,&removedVertices,&removedClips,
+                   reparentError,sizeof(reparentError)),
+               "complete skeletal removal must reject an asset without a canonical skeleton");
         std::remove(initializedPath);
         std::remove(reparentPath);
         std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);

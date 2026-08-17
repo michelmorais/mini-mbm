@@ -99,6 +99,10 @@ local state = {
     boneEditorRemoveReparentChildren = false,
     boneEditorRemoveDiscardTracks = false,
     boneEditorRemoveConfirmed = false,
+    boneEditorInitializeWeightsConfirmed = false,
+    boneEditorInitializeWeightsBoneId = nil,
+    boneEditorRemoveWeightsConfirmed = false,
+    boneEditorRemoveAllConfirmed = false,
     boneEditorRemovePreviewIndex = nil,
     boneEditorRadiusBoneId = nil,
     boneEditorRadius = 0,
@@ -3149,6 +3153,10 @@ local function loadMesh(path)
     state.boneEditorLength=1
     state.boneEditorSelectedIndex=nil
     state.boneEditorSelection=nil
+    state.boneEditorInitializeWeightsConfirmed=false
+    state.boneEditorInitializeWeightsBoneId=nil
+    state.boneEditorRemoveWeightsConfirmed=false
+    state.boneEditorRemoveAllConfirmed=false
     state.authoringTime=0
     state.authoringPose=nil
     state.authoringPoseKey=nil
@@ -8345,6 +8353,130 @@ local function showBoneEditor()
                 tImGui.TreePop()
             end
         end
+    end
+    tImGui.Separator()
+    if tImGui.TreeNode(tLang.L('swl_bone_editor_weight_asset_actions')..
+            '##swlBoneEditorWeightAssetActions') then
+        local bones=getBones()
+        local targetIndex=state.boneEditorSelection and state.boneEditorSelection.boneIndex or
+            math.max(1,math.min(state.boneIndex,#bones))
+        local selected=bones[targetIndex]
+        if #bones>0 then
+            local names={}
+            for _,bone in ipairs(bones) do names[#names+1]=bone.name end
+            tImGui.PushItemWidth(210)
+            local changed,newIndex=tImGui.Combo(tLang.L('swl_target_bone')..
+                '##swlBoneEditorInitializeTarget',targetIndex,names,-1)
+            tImGui.PopItemWidth()
+            if changed or not state.boneEditorSelection then
+                targetIndex=changed and newIndex or targetIndex
+                selected=bones[targetIndex]
+                state.boneIndex=targetIndex
+                state.boneEditorSelectedIndex=targetIndex
+                state.boneEditorSelection=selected and {
+                    kind=selected.hasExplicitTail and 'segment' or 'head',boneIndex=targetIndex,
+                    boneId=selected.boneId,boneName=selected.name} or nil
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+            end
+        end
+        local selectedBoneId=selected and selected.boneId or nil
+        if state.boneEditorInitializeWeightsBoneId~=selectedBoneId then
+            state.boneEditorInitializeWeightsBoneId=selectedBoneId
+            state.boneEditorInitializeWeightsConfirmed=false
+        end
+        local weightsOk,hasWeights=safeCall(function()
+            return state.meshD:hasSkeletalVertexWeights()
+        end)
+        hasWeights=weightsOk and hasWeights
+        if not hasWeights then
+            tImGui.TextWrapped(tLang.L('swl_bone_editor_initialize_weights_help'))
+            tImGui.BeginDisabled(#bones==0)
+            state.boneEditorInitializeWeightsConfirmed=tImGui.Checkbox(
+                tLang.L('swl_confirm_initialize_weights')..'##swlBoneEditorInitializeConfirm',
+                state.boneEditorInitializeWeightsConfirmed)
+            tImGui.BeginDisabled(not state.boneEditorInitializeWeightsConfirmed)
+            if tImGui.Button(tLang.L('swl_bone_editor_initialize_weights')..
+                    '##swlBoneEditorInitializeWeights') then
+                local snapshot=stageRollbackSnapshot()
+                local ok,affected=false,nil
+                if snapshot then
+                    ok,affected=safeCall(function()
+                        return state.meshD:initializeSkeletalVertexWeights(
+                            targetIndex)
+                    end)
+                end
+                if ok then
+                    commitRollbackSnapshot(snapshot,'swl_history_initialize_weights')
+                    state.modified=true
+                    state.boneEditorInitializeWeightsConfirmed=false
+                    refreshBindReport(); rebuildPreview(); buildPaintGeometryCache()
+                    state.paint.heatmapDirty=true; rebuildSkeletonVisuals(); applyWorkspaceVisibility()
+                    setStatus(string.format(tLang.L('swl_weights_initialized_fmt'),affected,
+                        selected.name),false)
+                elseif snapshot then discardRollbackSnapshot(snapshot) end
+            end
+            tImGui.EndDisabled()
+            tImGui.EndDisabled()
+            if not selected then tImGui.TextDisabled(tLang.L('swl_bone_editor_select_bone_first')) end
+        else
+            tImGui.TextWrapped(tLang.L('swl_bone_editor_remove_weights_help'))
+            state.boneEditorRemoveWeightsConfirmed=tImGui.Checkbox(
+                tLang.L('swl_bone_editor_confirm_remove_weights')..
+                '##swlBoneEditorRemoveWeightsConfirm',state.boneEditorRemoveWeightsConfirmed)
+            tImGui.BeginDisabled(not state.boneEditorRemoveWeightsConfirmed)
+            if tImGui.Button(tLang.L('swl_bone_editor_remove_weights')..
+                    '##swlBoneEditorRemoveWeights') then
+                local snapshot=stageRollbackSnapshot()
+                local ok,affected=false,nil
+                if snapshot then
+                    ok,affected=safeCall(function()
+                        return state.meshD:removeSkeletalVertexWeights()
+                    end)
+                end
+                if ok then
+                    commitRollbackSnapshot(snapshot,'swl_history_remove_all_weights')
+                    state.modified=true
+                    state.boneEditorRemoveWeightsConfirmed=false
+                    clearPaintVisuals(); state.paint.geometry=nil; state.paint.heatmapDirty=true
+                    refreshBindReport(); rebuildPreview(); buildPaintGeometryCache()
+                    rebuildSkeletonVisuals(); applyWorkspaceVisibility()
+                    setStatus(string.format(tLang.L('swl_bone_editor_weights_removed_fmt'),affected),false)
+                elseif snapshot then discardRollbackSnapshot(snapshot) end
+            end
+            tImGui.EndDisabled()
+        end
+        tImGui.Separator()
+        local clipsOk,clips=safeCall(function() return state.meshD:getSkeletalAnimationReport() end)
+        local clipCount=clipsOk and #(clips or {}) or 0
+        tImGui.TextWrapped(string.format(tLang.L('swl_bone_editor_remove_all_impact_fmt'),
+            #bones,hasWeights and (state.meshBounds and state.meshBounds.total or 0) or 0,clipCount))
+        state.boneEditorRemoveAllConfirmed=tImGui.Checkbox(
+            tLang.L('swl_bone_editor_confirm_remove_all')..'##swlBoneEditorRemoveAllConfirm',
+            state.boneEditorRemoveAllConfirmed)
+        tImGui.BeginDisabled(#bones==0 or not state.boneEditorRemoveAllConfirmed)
+        if tImGui.Button(tLang.L('swl_bone_editor_remove_all')..'##swlBoneEditorRemoveAll') then
+            local snapshot=stageRollbackSnapshot()
+            local ok,boneCount,vertexCount,removedClipCount=false,nil,nil,nil
+            if snapshot then
+                ok,boneCount,vertexCount,removedClipCount=safeCall(function()
+                    return state.meshD:removeAllSkeletalData()
+                end)
+            end
+            if ok then
+                commitRollbackSnapshot(snapshot,'swl_history_remove_all_skeletal_data')
+                state.modified=true
+                state.boneEditorRemoveAllConfirmed=false
+                state.boneEditorSelectedIndex=nil; state.boneEditorSelection=nil; state.boneIndex=1
+                clearPaintVisuals(); state.paint.geometry=nil; state.paint.heatmapDirty=true
+                refreshBindReport(); rebuildPreview(); buildPaintGeometryCache()
+                rebuildSkeletonVisuals(); applyWorkspaceVisibility()
+                setStatus(string.format(tLang.L('swl_bone_editor_all_removed_fmt'),boneCount,
+                    vertexCount,removedClipCount),false)
+            elseif snapshot then discardRollbackSnapshot(snapshot) end
+        end
+        tImGui.EndDisabled()
+        tImGui.TreePop()
     end
     if previousRemovePreview~=state.boneEditorRemovePreviewIndex then
         applyWorkspaceVisibility()

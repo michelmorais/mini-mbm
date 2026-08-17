@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.37**
+Document version: **8.39**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.39 | 2026-08-17 | Fixed Bone Editor weight initialization for rigs opened without a viewport selection. The action now exposes an explicit target-bone selector synchronized with visual selection instead of incorrectly requiring a prior joint/segment click. |
+| 8.38 | 2026-08-17 | Bone Editor adds selected-bone rigid weight initialization, weight-only removal preserving skeleton/clips, and confirmed complete 41-43 removal with impact counts. Every successful action is one canonical transaction and one Undo entry. |
 | 8.37 | 2026-08-17 | Added a neutral initial workspace. Loading or replacing a mesh closes every worktree, restores ordinary mesh visibility, and shows no skeleton, heatmap, cursor, capture volume, or diagnostic overlay until explicit selection. |
 | 8.36 | 2026-08-17 | Retired the Skin Weight Lab worktree after Paint Weights reached accepted parity. Navigation, default state, history restoration, and post-initialization handoff now use Paint Weights; legacy implementation helpers remain temporarily unreachable pending mechanical cleanup. |
 | 8.35 | 2026-08-17 | Documented the Lua `condition and nil or fallback` removal trap as a permanent implementation risk and required explicit branches for every mask generator. |

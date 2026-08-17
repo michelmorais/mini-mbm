@@ -2691,6 +2691,30 @@ namespace mbm
         return 1;
     }
 
+    int onRemoveSkeletalVertexWeightsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        uint32_t vertexCount = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalVertexWeights(&vertexCount, errorOut,
+                static_cast<int>(sizeof(errorOut)))) return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(vertexCount));
+        return 1;
+    }
+
+    int onRemoveAllSkeletalDataDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        uint32_t boneCount = 0, vertexCount = 0, clipCount = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeAllSkeletalData(&boneCount, &vertexCount, &clipCount,
+                errorOut, static_cast<int>(sizeof(errorOut)))) return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(boneCount));
+        lua_pushinteger(lua, static_cast<lua_Integer>(vertexCount));
+        lua_pushinteger(lua, static_cast<lua_Integer>(clipCount));
+        return 3;
+    }
+
     int onGetSkeletalAnimationReportDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3397,6 +3421,8 @@ namespace mbm
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},
                                           {"initializeSkeletalVertexWeights", onInitializeSkeletalVertexWeightsDebugLua},
+                                          {"removeSkeletalVertexWeights", onRemoveSkeletalVertexWeightsDebugLua},
+                                          {"removeAllSkeletalData", onRemoveAllSkeletalDataDebugLua},
                                           {"getSkeletalAnimationReport", onGetSkeletalAnimationReportDebugLua},
                                           {"addSkeletalClip", onAddSkeletalClipDebugLua},
                                           {"updateSkeletalClip", onUpdateSkeletalClipDebugLua},
