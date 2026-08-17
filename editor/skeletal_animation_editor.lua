@@ -195,7 +195,7 @@ local state = {
     abruptLines = nil,
     boundaryLines = nil,
     paint = {boneIndex=1,boneId=nil,radius=0.1,geometry=nil,heatmapLines={},cursor=nil,
-        cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
+        cursorHit=nil,lastSurfaceHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
         showBrushGradient=true,showBrushFootprint=false,brushFootprintGeneration=0,
         brushFootprintShape=nil,brushFootprintMarkers=nil,
         showVertexInspector=true,hoveredVertex=nil,hoveredVertexMarker=nil,
@@ -245,6 +245,7 @@ local rebuildSkeletonVisuals
 local rebuildPaintHeatmap
 local poseSafeRepairScale
 local rebuildPaintStrokeSafetyOverlay
+local rebuildPaintCursor
 local buildTopologyAdjacency
 local buildCoincidentSeams
 local queryPaintVertices
@@ -310,6 +311,7 @@ local function clearPaintVisuals()
     state.paint.strokeSafetyReport=nil
     state.paint.maskMarkers=nil
     state.paint.cursorHit=nil
+    state.paint.lastSurfaceHit=nil
     state.paint.cursorLastX=nil
     state.paint.cursorLastY=nil
     state.paint.cursorPendingX=nil
@@ -1895,6 +1897,28 @@ local function rebuildPaintMaskMarkers()
     end
 end
 
+local function applyHitSubsetToPaintMask(mode)
+    local hit=state.paint.lastSurfaceHit
+    local cache=state.paint.geometry
+    if not hit or not hit.triangle or not cache then
+        setStatus(tLang.L('swl_paint_mask_subset_no_hit'),false)
+        return false
+    end
+    local subset=hit.triangle.subset
+    if mode=='replace' then state.paint.maskVertices={} end
+    for _,vertex in pairs(cache.vertices) do
+        if vertex.subset==subset then
+            state.paint.maskVertices[vertex.globalIndex]=mode=='remove' and nil or true
+        end
+    end
+    rebuildPaintMaskMarkers()
+    rebuildPaintCursor(hit)
+    local count=0
+    for _ in pairs(state.paint.maskVertices) do count=count+1 end
+    setStatus(string.format(tLang.L('swl_paint_mask_subset_applied_fmt'),subset,count),false)
+    return true
+end
+
 local function buildEdgeLines(edges,r,g,b)
     if #edges==0 then return nil end
     local coords={}
@@ -2175,7 +2199,7 @@ local function pickPaintSurface(sx,sy)
     return nearest
 end
 
-local function rebuildPaintCursor(hit)
+rebuildPaintCursor=function(hit)
     destroyObject(state.paint.cursor)
     destroyObject(state.paint.brushFootprintShape)
     destroyObject(state.paint.brushFootprintMarkers)
@@ -2186,6 +2210,7 @@ local function rebuildPaintCursor(hit)
     state.paint.hoveredVertex=nil
     state.paint.hoveredVertexMarker=nil
     state.paint.cursorHit=hit
+    if hit then state.paint.lastSurfaceHit=hit end
     if not hit or state.workspace~='paint' then return end
     local n=hit.normal
     local rx,ry,rz=math.abs(n.y)<0.9 and 0 or 1,math.abs(n.y)<0.9 and 1 or 0,0
@@ -6065,6 +6090,18 @@ local function showPaintWeights()
             rebuildPaintCursor(state.paint.cursorHit)
         end
         tImGui.TextWrapped(tLang.L('swl_paint_mask_help'))
+        tImGui.BeginDisabled(state.paint.lastSurfaceHit==nil or not state.meshVisible)
+        if tImGui.Button(tLang.L('swl_paint_mask_subset_replace')) then
+            applyHitSubsetToPaintMask('replace')
+        end
+        if tImGui.Button(tLang.L('swl_paint_mask_subset_add')) then
+            applyHitSubsetToPaintMask('add')
+        end
+        if tImGui.Button(tLang.L('swl_paint_mask_subset_remove')) then
+            applyHitSubsetToPaintMask('remove')
+        end
+        tImGui.EndDisabled()
+        tImGui.TextWrapped(tLang.L('swl_paint_mask_subset_help'))
         tImGui.PushItemWidth(240)
         local maskStrengthChanged,maskStrength=tImGui.SliderFloat(
             tLang.L('swl_paint_mask_smooth_strength'),state.paint.maskSmoothStrength,0,1,'%.2f')

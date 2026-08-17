@@ -189,6 +189,13 @@ inside the mask. Unmasked heatmap vertices use neutral gray rather than the diag
 blue. The associated Weak Cleanup and Abrupt Repair actions consume the same scoped candidates, so
 enabling the option cannot diagnose locally and then silently repair the complete mesh.
 
+The first mask generator migrates material-subset selection into the visual workflow. After a
+visible surface hit, **Replace Mask with Hit Subset**, **Add Hit Subset to Mask**, and **Remove Hit
+Subset from Mask** operate on every frame-1 vertex belonging to that material subset. The editor
+retains the last valid surface hit while the pointer moves into the GUI, so the buttons remain
+usable without requiring an impossible simultaneous hover over mesh and panel. These commands
+change only session mask membership and never mutate weights or create Undo history.
+
 **Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
 alpha previews `strength * falloff` independently of the mesh triangulation: green represents
 Paint/Add, red represents Erase/Subtract, and cyan represents Smooth. The disk communicates radius

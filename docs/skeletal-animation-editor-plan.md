@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.27**
+Document version: **8.28**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
 Last updated: **2026-08-17**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.28 | 2026-08-17 | Added the first Paint Weights mask generator. The last valid visible surface hit identifies a material subset, and vertical Replace/Add/Remove actions update all of that subset's vertices in the session mask without mutating weights or history. |
 | 8.27 | 2026-08-17 | Migrated regional diagnostics into Paint Weights. Distribution, weak contamination, and abrupt transitions optionally use only painted-mask vertices; outside heatmap regions are neutral gray, statistics use the scoped denominator, abrupt edges require two scoped endpoints, and weak cleanup/abrupt repair share that scope. |
 | 8.26 | 2026-08-17 | Made persistent painted-mask crosses frustum-independent with the existing renderizable `alwaysRender` property while retaining workspace/mesh visibility and always-on-top overlay ordering. |
 | 8.25 | 2026-08-17 | Corrected zero-scale regional-operation accounting. Full-vector smoothing and complete-mask Rigid Bind now omit vertices unchanged after pose scaling; a fully blocked candidate performs no canonical batch, creates no Undo entry, and reports the safety block instead of claiming every candidate vertex was applied. |
