@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.23**
+Document version: **9.25**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -814,6 +814,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.25 | 2026-08-17 | Fixed Mesh Debug subset-filter previews for canonical skeletal meshes. Core subset removal now erases the matching frame-global type-42 weight range before compacting geometry, so temporary filtered copies remain valid and savable. |
+| 9.24 | 2026-08-17 | Added optional per-stroke material-subset scope to every Paint Weights brush. The first hit locks the subset, exact affected-vertex diagnostics share the filter, and leaving the subset breaks interpolation so re-entry cannot bridge across unrelated material regions. |
 | 9.23 | 2026-08-17 | Made Paint Weights mesh visibility authoritative for surface picking: a hidden mesh cannot start or extend right-button strokes or feed invisible cursor/affected-vertex/nearest-vertex hit results. |
 | 9.22 | 2026-08-17 | Made Paint Weights skeleton visibility authoritative for viewport interaction: hidden joints and segments are excluded inside the shared paint bone hit-test, while explicit target selection in the panel remains available. |
 | 9.21 | 2026-08-17 | Added Paint Weights Rigid Bind as a fourth brush operation. A configurable radius fraction receives exact selected-bone weight 1; the outer band blends to original weights through the selected falloff without frame-density accumulation. It shares connected-surface, seam, transaction, Undo, persistence, and pose-diagnostic contracts. |

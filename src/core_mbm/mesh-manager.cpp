@@ -2057,6 +2057,23 @@ namespace mbm
         const int stride  = buf->headerFrame.stride;
         const int totalV  = buf->headerFrame.sizeVertexBuffer;
         const int totalI  = buf->headerFrame.sizeIndexBuffer;
+        // Canonical type-42 weights are stored in the same frame-global vertex order as the
+        // geometry. Keep that contract intact when an editor compacts the weighted frame (for
+        // example Mesh Debug's subset-filter preview). Refuse an already-inconsistent mutation
+        // instead of turning a recoverable in-memory problem into an unsavable mesh.
+        if (this->impl->canonicalWeights.skeletonId != 0 &&
+            this->impl->canonicalWeights.frameIndex == indexFrame)
+        {
+            const size_t weightStart = static_cast<size_t>(vStart);
+            const size_t weightCount = static_cast<size_t>(vCount);
+            if (weightStart > this->impl->canonicalWeights.vertices.size() ||
+                weightCount > this->impl->canonicalWeights.vertices.size() - weightStart)
+                return;
+            this->impl->canonicalWeights.vertices.erase(
+                this->impl->canonicalWeights.vertices.begin() + static_cast<ptrdiff_t>(weightStart),
+                this->impl->canonicalWeights.vertices.begin() +
+                    static_cast<ptrdiff_t>(weightStart + weightCount));
+        }
         // Compact position
         if (buf->position && vCount > 0 && (vStart + vCount) < totalV)
         {

@@ -143,6 +143,13 @@ does not jump through empty space to the opposite side of a thin body part or an
 Compatible coincident UV/material seam copies join the traversal through the same validated seam
 groups used by repair. Disabling the option restores the original spatial-sphere behavior.
 
+**Restrict to Hit Subset** is optional and applies to every brush operation, including Rigid Bind.
+The first surface hit locks the material subset for the complete stroke. Vertices from other
+subsets are excluded from both painting and **Show Affected Vertices**; leaving the locked subset
+also breaks stroke interpolation so re-entering it cannot create a hidden bridge. A new stroke may
+lock a different subset. This is useful for editing clothing near a body surface without changing
+the body, while leaving the option disabled preserves cross-subset painting.
+
 **Show Brush Influence** displays a translucent brush-like disk oriented by the hit face. Its radial
 alpha previews `strength * falloff` independently of the mesh triangulation: green represents
 Paint/Add, red represents Erase/Subtract, and cyan represents Smooth. The disk communicates radius

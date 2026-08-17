@@ -203,6 +203,7 @@ local state = {
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
         connectedSurfaceOnly=true,
+        restrictToHitSubset=false,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
@@ -2290,7 +2291,8 @@ local function rebuildPaintCursor(hit)
         end
     end
     if state.paint.showBrushFootprint then
-        local candidates=queryPaintVertices(hit.point,state.paint.radius,hit.triangle)
+        local candidates=queryPaintVertices(hit.point,state.paint.radius,hit.triangle,
+            state.paint.restrictToHitSubset and hit.triangle.subset or nil)
         local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
             state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
         local vertices={}
@@ -3073,7 +3075,7 @@ local function normalizedInfluences(weightMap)
     return result
 end
 
-queryPaintVertices=function(point,radius,seedTriangle)
+queryPaintVertices=function(point,radius,seedTriangle,requiredSubset)
     local cache=state.paint.geometry
     if not cache or not cache.vertexBvh then return {} end
     if state.paint.connectedSurfaceOnly and seedTriangle then
@@ -3110,7 +3112,8 @@ queryPaintVertices=function(point,radius,seedTriangle)
         for _,vertex in ipairs({seedTriangle.a,seedTriangle.b,seedTriangle.c}) do
             local dx,dy,dz=vertex.point.x-point.x,vertex.point.y-point.y,vertex.point.z-point.z
             local distance=math.sqrt(dx*dx+dy*dy+dz*dz)
-            if distance<=radius and (not distances[vertex.globalIndex] or
+            if (not requiredSubset or vertex.subset==requiredSubset) and distance<=radius and
+                    (not distances[vertex.globalIndex] or
                     distance<distances[vertex.globalIndex]) then
                 distances[vertex.globalIndex]=distance
                 push(vertex.globalIndex,distance)
@@ -3124,7 +3127,7 @@ queryPaintVertices=function(point,radius,seedTriangle)
                 result[#result+1]={vertex=vertex,distance=item.distance}
                 local function relax(neighbor)
                     local target=cache.vertices[neighbor]
-                    if target then
+                    if target and (not requiredSubset or target.subset==requiredSubset) then
                         local dx=target.point.x-vertex.point.x
                         local dy=target.point.y-vertex.point.y
                         local dz=target.point.z-vertex.point.z
@@ -3162,7 +3165,8 @@ queryPaintVertices=function(point,radius,seedTriangle)
                 local p=vertex.point
                 local dx,dy,dz=p.x-point.x,p.y-point.y,p.z-point.z
                 local distanceSquared=dx*dx+dy*dy+dz*dz
-                if distanceSquared<=radiusSquared then
+                if (not requiredSubset or vertex.subset==requiredSubset) and
+                        distanceSquared<=radiusSquared then
                     result[#result+1]={vertex=vertex,distance=math.sqrt(distanceSquared)}
                 end
             end
@@ -3181,7 +3185,8 @@ local function paintFalloff(distance,radius)
 end
 
 local function stampPaintStroke(stroke,point,triangle)
-    for _,candidate in ipairs(queryPaintVertices(point,state.paint.radius,triangle)) do
+    for _,candidate in ipairs(queryPaintVertices(point,state.paint.radius,triangle,
+            stroke.requiredSubset)) do
         local alpha
         if stroke.operationMode==4 then
             local radius=math.max(state.paint.radius,1e-9)
@@ -3209,6 +3214,12 @@ end
 local function extendPaintStroke(hit)
     local stroke=state.paint.stroke
     if not stroke or not hit then return end
+    if stroke.requiredSubset and hit.triangle.subset~=stroke.requiredSubset then
+        stroke.lastPoint=nil
+        stroke.lastTriangle=nil
+        stroke.distanceSinceSample=0
+        return
+    end
     local previous=stroke.lastPoint
     local point=hit.point
     if previous then
@@ -3248,6 +3259,7 @@ local function beginPaintStroke(hit)
     state.paint.stroke={snapshot=snapshot,boneName=bone.name,boneId=bone.boneId,
         operationMode=state.paint.operationMode,smoothIterations=state.paint.smoothIterations,
         rigidCoreRatio=state.paint.rigidCoreRatio,
+        requiredSubset=state.paint.restrictToHitSubset and hit.triangle.subset or nil,
         alphas={},lastPoint=nil,distanceSinceSample=0}
     extendPaintStroke(hit)
     rebuildPaintCursor(hit)
@@ -5719,6 +5731,13 @@ local function showPaintWeights()
             rebuildPaintCursor(state.paint.cursorHit)
         end
         tImGui.TextWrapped(tLang.L('swl_paint_connected_surface_help'))
+        local restrictSubset=tImGui.Checkbox(tLang.L('swl_paint_restrict_hit_subset'),
+            state.paint.restrictToHitSubset)
+        if restrictSubset~=state.paint.restrictToHitSubset then
+            state.paint.restrictToHitSubset=restrictSubset
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
+        tImGui.TextWrapped(tLang.L('swl_paint_restrict_hit_subset_help'))
         local showGradient=tImGui.Checkbox(tLang.L('swl_paint_show_brush_gradient'),
             state.paint.showBrushGradient)
         if showGradient~=state.paint.showBrushGradient then
