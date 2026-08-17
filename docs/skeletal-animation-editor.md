@@ -426,6 +426,11 @@ influences. The operation is deterministic, name/anatomy/importer independent, a
 type 42 is absent, and commits one Undo entry. If initialization or the final canonical batch fails,
 the staged asset snapshot is restored. This is an envelope-distance plus topology solver inspired by
 automatic-weight workflows; it is not claimed to reproduce Blender's internal bone-heat solver.
+Because duplicated seam copies have independent triangle neighborhoods, topology diffusion can make
+weights that began equal diverge. After the final diffusion iteration and before the canonical batch,
+the generator therefore resolves the established connected coincident-seam groups, averages each
+group independently, retains and normalizes its strongest four combined influences, and assigns the
+same result to every copy. The success status reports how many seam groups were synchronized.
 
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those

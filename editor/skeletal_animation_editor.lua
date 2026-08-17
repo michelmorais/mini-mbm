@@ -7361,6 +7361,23 @@ local function generateAutomaticBoneWeights()
         end
         weights=nextWeights
     end
+    local synchronizedSeams=0
+    local seams=buildCoincidentSeams(adjacency)
+    for _,group in ipairs(seams.groups) do
+        local average={}
+        for _,index in ipairs(group) do
+            for name,value in pairs(weights[index] or {}) do
+                average[name]=(average[name] or 0)+value/#group
+            end
+        end
+        average=trimAndNormalize(average)
+        for _,index in ipairs(group) do
+            local copy={}
+            for name,value in pairs(average) do copy[name]=value end
+            weights[index]=copy
+        end
+        synchronizedSeams=synchronizedSeams+1
+    end
     local edits={}
     for index,map in ipairs(weights) do
         local ranked={}
@@ -7396,7 +7413,7 @@ local function generateAutomaticBoneWeights()
     refreshBindReport(); rebuildPreview(); buildPaintGeometryCache()
     state.paint.heatmapDirty=true; rebuildSkeletonVisuals(); applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_bone_editor_automatic_weights_applied_fmt'),
-        #edits,#bones,state.boneEditorAutomaticWeightIterations),false)
+        #edits,#bones,state.boneEditorAutomaticWeightIterations,synchronizedSeams),false,true)
     return true
 end
 
