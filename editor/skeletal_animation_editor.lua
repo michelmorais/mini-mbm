@@ -181,6 +181,7 @@ local state = {
         globalNormalAudit=nil,globalNormalRepairConfirmed=false,globalNormalMarkers=nil,
         normalSmoothAngle=30,globalNormalSmoothAudit=nil,
         globalNormalSmoothConfirmed=false,globalNormalSmoothMarkers=nil,
+        exactSeamPositionAudit=nil,exactSeamPositionMarkers=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -293,6 +294,7 @@ local function clearPaintVisuals()
     destroyObject(state.paint.inspectorTopologyOverlay)
     destroyObject(state.paint.globalNormalMarkers)
     destroyObject(state.paint.globalNormalSmoothMarkers)
+    destroyObject(state.paint.exactSeamPositionMarkers)
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     destroyObject(state.paint.strokeSafetyFaceShape)
@@ -322,9 +324,8 @@ local function clearPaintVisuals()
     state.paint.globalNormalSmoothConfirmed=false
     destroyObject(state.paint.globalNormalSmoothMarkers)
     state.paint.globalNormalSmoothMarkers=nil
-    state.paint.globalNormalSmoothAudit=nil
-    state.paint.globalNormalSmoothConfirmed=false
-    state.paint.globalNormalSmoothMarkers=nil
+    state.paint.exactSeamPositionAudit=nil
+    state.paint.exactSeamPositionMarkers=nil
     state.paint.inspectorGeometryReport=nil
     state.paint.inspectorGeometryOverlay=nil
     state.paint.inspectorTopologyReport=nil
@@ -1045,6 +1046,10 @@ local function applyWorkspaceVisibility()
     end
     if state.paint.globalNormalSmoothMarkers then
         state.paint.globalNormalSmoothMarkers.visible=paintWorkspace and state.meshVisible and
+            not state.paint.aabbCapture.active
+    end
+    if state.paint.exactSeamPositionMarkers then
+        state.paint.exactSeamPositionMarkers.visible=paintWorkspace and state.meshVisible and
             not state.paint.aabbCapture.active
     end
     if state.paint.safetyFaceShape then
@@ -4426,6 +4431,78 @@ local function smoothGlobalCoincidentNormals()
     return true
 end
 
+local function analyzeExactCoincidentPositions()
+    destroyObject(state.paint.exactSeamPositionMarkers)
+    state.paint.exactSeamPositionMarkers=nil
+    state.paint.exactSeamPositionAudit=nil
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return nil end
+    local seams=buildCoincidentSeams(buildTopologyAdjacency())
+    local affected,affectedLookup={},{}
+    local nonzeroGroups,maximumDistance,minimumNonzero=0,0,math.huge
+    local comparedCopies,comparedPairs=0,0
+    local pinnedDistance,pinnedCopies,pinnedPairs=nil,nil,nil
+    local pinnedIndex=state.paint.inspectorPinned and state.paint.hoveredVertex and
+        state.paint.hoveredVertex.globalIndex or nil
+    for _,group in ipairs(seams.groups) do
+        comparedCopies=comparedCopies+#group
+        comparedPairs=comparedPairs+(#group*(#group-1))/2
+        local groupMaximum=0
+        for left=1,#group-1 do
+            local a=cache.vertices[group[left]] and cache.vertices[group[left]].point
+            for right=left+1,#group do
+                local b=cache.vertices[group[right]] and cache.vertices[group[right]].point
+                if a and b then
+                    local distance=math.sqrt((a.x-b.x)^2+(a.y-b.y)^2+(a.z-b.z)^2)
+                    groupMaximum=math.max(groupMaximum,distance)
+                end
+            end
+        end
+        local containsPinned=false
+        if pinnedIndex then
+            for _,index in ipairs(group) do
+                if index==pinnedIndex then containsPinned=true break end
+            end
+        end
+        if containsPinned then
+            pinnedDistance=groupMaximum
+            pinnedCopies=#group
+            pinnedPairs=(#group*(#group-1))/2
+        end
+        if groupMaximum>0 then
+            nonzeroGroups=nonzeroGroups+1
+            maximumDistance=math.max(maximumDistance,groupMaximum)
+            minimumNonzero=math.min(minimumNonzero,groupMaximum)
+            for _,index in ipairs(group) do
+                if not affectedLookup[index] and cache.vertices[index] then
+                    affectedLookup[index]=true
+                    affected[#affected+1]=cache.vertices[index]
+                end
+            end
+        end
+    end
+    if minimumNonzero==math.huge then minimumNonzero=0 end
+    state.paint.exactSeamPositionAudit={totalGroups=#seams.groups,
+        nonzeroGroups=nonzeroGroups,affectedVertices=#affected,
+        comparedCopies=comparedCopies,comparedPairs=comparedPairs,
+        minimumNonzero=minimumNonzero,maximumDistance=maximumDistance,
+        tolerance=seams.tolerance or 0,pinnedDistance=pinnedDistance,
+        pinnedCopies=pinnedCopies,pinnedPairs=pinnedPairs}
+    if #affected>0 then
+        local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+            state.meshBounds.maxY-state.meshBounds.minY,
+            state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+        state.paint.exactSeamPositionMarkers=buildVertexMarkers(affected,1,0.1,0.1,extent)
+        if state.paint.exactSeamPositionMarkers then
+            state.paint.exactSeamPositionMarkers.alwaysRender=true
+            state.paint.exactSeamPositionMarkers.alwaysOnTop=true
+            state.paint.exactSeamPositionMarkers.alwaysOnTopPriority=1
+        end
+    end
+    applyWorkspaceVisibility()
+    return state.paint.exactSeamPositionAudit
+end
+
 local function constrainedRepairWeights(original,candidate,allowedNames,maxChange)
     local filtered={}
     for name,weight in pairs(candidate or {}) do
@@ -6784,6 +6861,31 @@ local function showPaintWeights()
             end
             tImGui.EndDisabled()
             showItemTooltip(tLang.L('swl_paint_normal_smooth_apply_help'))
+        end
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('swl_paint_exact_position_title'))
+    if tImGui.Button(tLang.L('swl_paint_exact_position_analyze')) then
+        analyzeExactCoincidentPositions()
+    end
+    showItemTooltip(tLang.L('swl_paint_exact_position_help'))
+    local positionAudit=state.paint.exactSeamPositionAudit
+    if positionAudit then
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_exact_position_summary_fmt'),
+            positionAudit.nonzeroGroups,positionAudit.totalGroups,
+            positionAudit.comparedCopies,positionAudit.comparedPairs,
+            positionAudit.affectedVertices,positionAudit.minimumNonzero,
+            positionAudit.maximumDistance,positionAudit.tolerance))
+        if positionAudit.pinnedDistance~=nil then
+            tImGui.TextWrapped(string.format(tLang.L('swl_paint_exact_position_pinned_fmt'),
+                positionAudit.pinnedCopies,positionAudit.pinnedPairs,
+                positionAudit.pinnedDistance))
+        end
+        if positionAudit.nonzeroGroups==0 then
+            tImGui.TextDisabled(tLang.L('swl_paint_exact_position_identical'))
+        else
+            tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
+                tLang.L('swl_paint_exact_position_nonzero'))
         end
     end
     local strokeSafetyReport=state.paint.strokeSafetyReport

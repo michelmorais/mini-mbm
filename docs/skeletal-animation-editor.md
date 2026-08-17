@@ -485,6 +485,14 @@ with at least two members receive one normalized average; divisions above the li
 On-demand analysis reports changed vertices/groups/seams and marks impact in cyan. Explicit apply
 preserves positions, UVs, and weights, commits one Undo entry, and reruns the analysis.
 
+**Exact Coincident Positions** is the final read-only source-geometry check for those established
+seam groups. It compares the stored XYZ coordinates directly, without tolerance rounding, reports
+how many groups have any strict nonzero spread, the affected vertex count, minimum and maximum
+nonzero spread, the number of copies and pair comparisons actually evaluated, and the spread of the
+pinned group when available. Affected copies are marked red.
+It does not weld vertices or otherwise modify geometry; its purpose is to distinguish a real
+micro-gap in the imported mesh from weight, deformation, topology, or normal artifacts.
+
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
 values can then be corrected through the local-bind fields. Addition allocates a new stable ID,

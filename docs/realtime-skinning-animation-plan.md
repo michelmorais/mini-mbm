@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.73**
+Document version: **9.74**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.74 | 2026-08-17 | Added a read-only exact-position audit for known coincident seam groups, exposing strict stored-coordinate spread, affected vertices, copy/pair comparison coverage, pinned-group spread, and red markers without changing geometry. |
 | 9.73 | 2026-08-17 | Added confirmed whole-mesh coincident-normal smoothing with complete-link angular grouping, hard-boundary preservation, cyan impact preview, normal-only mutation, Undo, and post-apply audit. |
 | 9.72 | 2026-08-17 | Added whole-mesh incompatible-normal impact analysis, orange markers, explicit confirmation, one Undoable selective repair, automatic invalidation, and post-repair re-audit. |
 | 9.71 | 2026-08-17 | Added an impact-previewed, confirmed, Undoable local repair that replaces only coincident-copy normals exceeding a configurable stored-versus-incident-geometry angle. |
