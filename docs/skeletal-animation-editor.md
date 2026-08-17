@@ -96,6 +96,8 @@ vertex is compared with its pre-repair posed area and orientation. If the full c
 area below 25 percent or rotate the face normal by roughly 87 degrees or more, a deterministic binary
 search reduces the complete batch until all sampled faces remain safe. The result reports the applied
 pose-safety scale and how many unsafe face samples the unrestricted candidate would have produced.
+The returned unsafe-triangle collection is retained for the safety overlay; an empty collection is
+a valid result and does not interrupt the editor frame after a successful repair.
 
 The repair also closes indexed topology seams without welding render data. Vertices are considered
 seam copies only when their bind positions match within a mesh-extent-relative tolerance and their

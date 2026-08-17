@@ -3863,7 +3863,7 @@ local function repairPaintAbruptTransitions()
     indices={}
     for index in pairs(candidateMaps) do indices[#indices+1]=index end
     table.sort(indices)
-    local poseScale,protectedFaces=
+    local poseScale,protectedFaces,unsafeTriangles=
         poseSafeRepairScale(original,candidateMaps,editable)
     local edits={}
     maximumAppliedChange=0
