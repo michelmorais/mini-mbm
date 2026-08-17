@@ -5459,6 +5459,18 @@ showItemTooltip=function(text,allowWhenDisabled)
     end
 end
 
+local function showWrappedColoredText(text,color)
+    tImGui.PushStyleColor('ImGuiCol_Text',color)
+    tImGui.TextWrapped(text)
+    tImGui.PopStyleColor()
+end
+
+local function showWrappedDisabledText(text)
+    tImGui.BeginDisabled(true)
+    tImGui.TextWrapped(text)
+    tImGui.EndDisabled()
+end
+
 local function showStatusMessage()
     if not state.status then return end
     tImGui.Separator()
@@ -6189,7 +6201,7 @@ local function showPaintWeights()
             'swl_paint_health_canonical_invalid'
         local canonicalColor=health.canonicalValid and {r=0.25,g=0.9,b=0.35,a=1} or
             {r=1,g=0.3,b=0.25,a=1}
-        tImGui.TextColored(canonicalColor,tLang.L(canonicalKey))
+        showWrappedColoredText(tLang.L(canonicalKey),canonicalColor)
         tImGui.TextWrapped(string.format(tLang.L('swl_paint_health_coverage_fmt'),
             health.total,health.unweighted,health.invalidWeightVertices,
             health.counts[1],health.counts[2],
@@ -6206,17 +6218,17 @@ local function showPaintWeights()
             health.seamGroups,health.seamTotal,health.seamVertices,health.seamMaximum))
         if health.canonicalValid and health.unweighted==0 and health.weakVertices==0 and
                 health.seamGroups==0 then
-            tImGui.TextColored({r=0.25,g=0.9,b=0.35,a=1},
-                tLang.L('swl_paint_health_mechanical_clear'))
+            showWrappedColoredText(tLang.L('swl_paint_health_mechanical_clear'),
+                {r=0.25,g=0.9,b=0.35,a=1})
         else
-            tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
-                tLang.L('swl_paint_health_mechanical_attention'))
+            showWrappedColoredText(tLang.L('swl_paint_health_mechanical_attention'),
+                {r=1,g=0.7,b=0.15,a=1})
         end
         if health.abruptEdges>0 then
-            tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
-                tLang.L('swl_paint_health_pose_review'))
+            showWrappedColoredText(tLang.L('swl_paint_health_pose_review'),
+                {r=1,g=0.7,b=0.15,a=1})
         else
-            tImGui.TextDisabled(tLang.L('swl_paint_health_no_abrupt'))
+            showWrappedDisabledText(tLang.L('swl_paint_health_no_abrupt'))
         end
         if health.weakVertices>0 or health.seamGroups>0 then
             tImGui.Separator()
@@ -6238,6 +6250,9 @@ local function showPaintWeights()
                 tImGui.EndDisabled()
                 showItemTooltip(tLang.L('swl_paint_health_sync_seams_help'),true)
             end
+        else
+            tImGui.Separator()
+            showWrappedDisabledText(tLang.L('swl_paint_health_no_known_repairs'))
         end
     end
     tImGui.Separator()

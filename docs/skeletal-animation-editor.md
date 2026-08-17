@@ -62,6 +62,8 @@ coincident-seam weights can be synchronized after explicit confirmation. It reru
 either action. It does not automatically reduce influence count, smooth abrupt transitions, create
 missing weights, or repair an invalid skeleton because those operations require artistic intent or
 a broader authoring decision.
+All colored and disabled guidance in the summary uses the same width-aware wrapping path as ordinary
+panel text, so resizing the editor panel reflows green, yellow, red, and gray messages consistently.
 
 The Paint Weights panel is contextual rather than showing every control at once. **Show Mesh** is
 the first viewport control, immediately followed by **Show Skeleton**. Repair / Diagnostics follows because its radio selection

@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.71**
+Document version: **8.73**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.73 | 2026-08-17 | Standardized Weight Health colored and disabled guidance on width-aware wrapped text, preserving green/yellow/red/gray presentation while allowing every message to reflow with the panel. |
+| 8.72 | 2026-08-17 | Weight Health now explicitly states when no deterministic automatic repair applies, rather than silently omitting contextual buttons; abrupt transitions and influence concentration remain pose-inspection decisions. |
 | 8.71 | 2026-08-17 | Made Weight Health tooltip and colored guidance panel-width safe through explicit line breaks. Added contextual Undoable repairs only for deterministic findings: complete-mesh weak cleanup and confirmed coincident-seam synchronization, each followed by automatic re-analysis; artistic transition/influence decisions remain manual. |
 | 8.70 | 2026-08-17 | Added the read-only Weight Health Summary: one action aggregates canonical validity, coverage, influence counts/concentration, weak contamination, abrupt transitions, and coincident-seam conflicts while avoiding a misleading quality score. Also recorded the diagnostic stop rule that a fissure already present in an unrigged static source cannot be attributed to skeletal deformation. |
 | 8.69 | 2026-08-17 | Added a read-only exact-position audit for established coincident seam groups. It reports strict nonzero coordinate spread globally and for the pinned seam, proves coverage with copy/pair comparison counts, marks affected copies in red, and deliberately performs no welding or geometry repair. |
