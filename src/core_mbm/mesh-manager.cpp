@@ -1219,6 +1219,10 @@ namespace mbm
     {
         impl->clipIndex = UINT32_MAX;
         impl->time = 0.0f;
+        impl->absoluteLayerClipIndex = UINT32_MAX;
+        impl->absoluteLayerTime = 0.0f;
+        impl->absoluteLayerWeight = 0.0f;
+        impl->absoluteLayerActive = false;
         impl->active = false;
         impl->paused = false;
         impl->paletteRows.clear();
@@ -8030,12 +8034,24 @@ namespace mbm
         {
             if (impl->canonicalAnimations.clips[i].name == name)
             {
+                const uint32_t previousClipIndex = player.impl->clipIndex;
+                const float previousTime = player.impl->time;
+                const bool previousActive = player.impl->active;
+                const bool previousPaused = player.impl->paused;
+                const bool previousAuthoringPose = player.impl->authoringPose;
                 player.impl->clipIndex = i;
                 player.impl->time = 0.0f;
                 player.impl->active = true;
                 player.impl->paused = false;
                 player.impl->authoringPose = false;
-                return updateSkeletalAnimation(player, 0.0f);
+                if (updateSkeletalAnimation(player, 0.0f))
+                    return true;
+                player.impl->clipIndex = previousClipIndex;
+                player.impl->time = previousTime;
+                player.impl->active = previousActive;
+                player.impl->paused = previousPaused;
+                player.impl->authoringPose = previousAuthoringPose;
+                return false;
             }
         }
         return false;
@@ -8068,6 +8084,10 @@ namespace mbm
             return false;
         player.impl->clipIndex = UINT32_MAX;
         player.impl->time = 0.0f;
+        player.impl->absoluteLayerClipIndex = UINT32_MAX;
+        player.impl->absoluteLayerTime = 0.0f;
+        player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerActive = false;
         player.impl->active = false;
         player.impl->paused = false;
         player.impl->paletteRows.clear();
@@ -8081,8 +8101,12 @@ namespace mbm
             player.impl->clipIndex >= impl->canonicalAnimations.clips.size())
             return false;
         const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
+        const float previousTime = player.impl->time;
         player.impl->time = std::max(0.0f, std::min(clip.duration, time));
-        return updateSkeletalAnimation(player, 0.0f);
+        if (updateSkeletalAnimation(player, 0.0f))
+            return true;
+        player.impl->time = previousTime;
+        return false;
     }
 
     bool MESH_MBM::getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player,
@@ -8094,6 +8118,91 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM::playSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                        const char *name, const float weight) const
+    {
+        if (!player.impl->active || player.impl->authoringPose || !name || !name[0] ||
+            !std::isfinite(weight) || weight < 0.0f || weight > 1.0f)
+            return false;
+        for (uint32_t index = 0; index < impl->canonicalAnimations.clips.size(); ++index)
+        {
+            if (impl->canonicalAnimations.clips[index].name == name)
+            {
+                const uint32_t previousIndex = player.impl->absoluteLayerClipIndex;
+                const float previousTime = player.impl->absoluteLayerTime;
+                const float previousWeight = player.impl->absoluteLayerWeight;
+                const bool previousActive = player.impl->absoluteLayerActive;
+                player.impl->absoluteLayerClipIndex = index;
+                player.impl->absoluteLayerTime = 0.0f;
+                player.impl->absoluteLayerWeight = weight;
+                player.impl->absoluteLayerActive = true;
+                if (updateSkeletalAnimation(player, 0.0f)) return true;
+                player.impl->absoluteLayerClipIndex = previousIndex;
+                player.impl->absoluteLayerTime = previousTime;
+                player.impl->absoluteLayerWeight = previousWeight;
+                player.impl->absoluteLayerActive = previousActive;
+                return false;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::stopSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        const uint32_t previousIndex = player.impl->absoluteLayerClipIndex;
+        const float previousTime = player.impl->absoluteLayerTime;
+        const float previousWeight = player.impl->absoluteLayerWeight;
+        player.impl->absoluteLayerClipIndex = UINT32_MAX;
+        player.impl->absoluteLayerTime = 0.0f;
+        player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerActive = false;
+        if (updateSkeletalAnimation(player, 0.0f)) return true;
+        player.impl->absoluteLayerClipIndex = previousIndex;
+        player.impl->absoluteLayerTime = previousTime;
+        player.impl->absoluteLayerWeight = previousWeight;
+        player.impl->absoluteLayerActive = true;
+        return false;
+    }
+
+    bool MESH_MBM::seekSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                        const float time) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive || !std::isfinite(time) ||
+            player.impl->absoluteLayerClipIndex >= impl->canonicalAnimations.clips.size())
+            return false;
+        const skeletal::SKELETAL_CLIP &clip =
+            impl->canonicalAnimations.clips[player.impl->absoluteLayerClipIndex];
+        const float previousTime = player.impl->absoluteLayerTime;
+        player.impl->absoluteLayerTime = std::max(0.0f, std::min(clip.duration, time));
+        if (updateSkeletalAnimation(player, 0.0f)) return true;
+        player.impl->absoluteLayerTime = previousTime;
+        return false;
+    }
+
+    bool MESH_MBM::setSkeletalAnimationAbsoluteLayerWeight(SKELETAL_ANIMATION_PLAYER &player,
+                                                             const float weight) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive ||
+            !std::isfinite(weight) || weight < 0.0f || weight > 1.0f)
+            return false;
+        const float previousWeight = player.impl->absoluteLayerWeight;
+        player.impl->absoluteLayerWeight = weight;
+        if (updateSkeletalAnimation(player, 0.0f)) return true;
+        player.impl->absoluteLayerWeight = previousWeight;
+        return false;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationAbsoluteLayerTime(
+        const SKELETAL_ANIMATION_PLAYER &player, float *time) const noexcept
+    {
+        if (!time || !player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        *time = player.impl->absoluteLayerTime;
+        return true;
+    }
+
     bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta) const
     {
         if (player.impl->authoringPose)
@@ -8102,26 +8211,56 @@ namespace mbm
             player.impl->clipIndex >= impl->canonicalAnimations.clips.size())
             return false;
         const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
+        float evaluatedBaseTime = player.impl->time;
+        float evaluatedLayerTime = player.impl->absoluteLayerTime;
         if (!player.impl->paused && delta > 0.0f)
         {
-            player.impl->time += delta;
-            if (clip.loop && clip.duration > 0.0f)
-                player.impl->time = std::fmod(player.impl->time, clip.duration);
-            else
-                player.impl->time = std::min(player.impl->time, clip.duration);
+            if (!skeletal::advanceSkeletalClipTime(clip, delta, evaluatedBaseTime))
+                return false;
+        }
+        const skeletal::SKELETAL_CLIP *absoluteLayer = nullptr;
+        if (player.impl->absoluteLayerActive)
+        {
+            if (player.impl->absoluteLayerClipIndex >= impl->canonicalAnimations.clips.size())
+                return false;
+            absoluteLayer = &impl->canonicalAnimations.clips[player.impl->absoluteLayerClipIndex];
+            if (!player.impl->paused && delta > 0.0f)
+            {
+                if (!skeletal::advanceSkeletalClipTime(*absoluteLayer, delta,
+                        evaluatedLayerTime))
+                    return false;
+            }
         }
         const BUFFER_GL *buffer = impl->buffer && impl->totalFramesMesh > 0
             ? impl->buffer[0].pBufferGL : nullptr;
         const bool hasNormals = buffer &&
             (buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
              buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        skeletal::SKELETAL_POSE pose;
+        if (absoluteLayer)
+        {
+            if (!skeletal::sampleSkeletalClipsAbsolute(impl->canonicalSkeleton.compiled,
+                    clip, evaluatedBaseTime, *absoluteLayer, evaluatedLayerTime,
+                    player.impl->absoluteLayerWeight, pose))
+                return false;
+        }
+        else if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, clip,
+                     evaluatedBaseTime, pose))
+            return false;
+        std::vector<float> paletteRows;
         if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
-            return skeletal::sampleGles2DqsPalette(impl->canonicalSkeleton, clip, player.impl->time,
-                                                   player.impl->paletteRows) ==
-                   skeletal::GLES2_DQS_PALETTE_STATUS::READY;
-        return skeletal::sampleGles2LbsPalette(impl->canonicalSkeleton, clip, player.impl->time,
-                                               hasNormals, player.impl->paletteRows) ==
-               skeletal::GLES2_LBS_PALETTE_STATUS::READY;
+        {
+            if (skeletal::buildGles2DqsPalette(impl->canonicalSkeleton, pose, paletteRows) !=
+                    skeletal::GLES2_DQS_PALETTE_STATUS::READY)
+                return false;
+        }
+        else if (skeletal::buildGles2LbsPalette(impl->canonicalSkeleton, pose, hasNormals,
+                     paletteRows) != skeletal::GLES2_LBS_PALETTE_STATUS::READY)
+            return false;
+        player.impl->time = evaluatedBaseTime;
+        player.impl->absoluteLayerTime = evaluatedLayerTime;
+        player.impl->paletteRows = std::move(paletteRows);
+        return true;
     }
 
     bool MESH_MBM::setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
@@ -8172,6 +8311,10 @@ namespace mbm
                     static_cast<unsigned long long>(impl->canonicalSkeleton.compiled.bones[index].boneId));
         player.impl->paletteRows.assign(rows, rows + rowCount);
         player.impl->clipIndex = UINT32_MAX;
+        player.impl->absoluteLayerClipIndex = UINT32_MAX;
+        player.impl->absoluteLayerTime = 0.0f;
+        player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerActive = false;
         player.impl->time = time;
         player.impl->active = true;
         player.impl->paused = true;

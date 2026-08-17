@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.82**
+Document version: **9.84**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -618,6 +618,11 @@ mutate assets, evaluate clips, or deform vertices.
 - Expose clip playback, seek, loop, speed, priority, weight/fade, and composition through the engine
   and appropriate Lua API.
 - Define resource ownership, instance state, and multi-mesh skeleton sharing.
+- The first composition foundation is implemented privately: two complete sampled poses blend in
+  parent-relative local TRS with strict Absolute weight, shortest-path normalized quaternion
+  interpolation, and one global reconstruction. The resulting backend-neutral pose is accepted by
+  both existing palette builders. Per-instance layers, independently advancing clip times, fades,
+  masks, Additive mode, public APIs, and editor controls remain pending.
 
 ### Phase 8 — Backend modernization decision
 
@@ -806,6 +811,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.84 | 2026-08-17 | Connected the Absolute compositor to a first transient per-instance C++ runtime layer. A player can now evaluate one base clip and one independently timed/seekable weighted layer into a single final LBS or DQS palette; playback mutations are transactional, base switching preserves an active layer, and base stop or authoring-palette installation clears it. The state is not serialized, pause/resume is shared, and Lua/editor controls, fades, masks, priority, and Additive composition remain pending. |
+| 9.83 | 2026-08-17 | Began the resumed composition milestone with a private two-pose Absolute CPU compositor in local TRS. Strict weight/input validation, linear T/S, shortest-path normalized quaternion R, single hierarchy reconstruction, LBS/DQS palette compatibility, and deterministic endpoint/antipodality/hierarchy fixtures are implemented; player layers and UI remain pending. |
 | 9.82 | 2026-08-17 | Standardized long Bone Editor and Paint Weights disabled guidance on width-aware wrapping and made the Runtime Preview lighting tooltip explicitly multiline. |
 | 9.81 | 2026-08-17 | Classified Viewport Information and nearest-vertex pinning as advanced Paint Weights diagnostics, including input/marker suppression while the advanced region is hidden. |
 | 9.80 | 2026-08-17 | Added an explicit yellow boundary notice where the menu-controlled advanced Paint Weights diagnostic region begins. |

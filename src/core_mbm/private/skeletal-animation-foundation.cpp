@@ -752,6 +752,91 @@ namespace mbm::skeletal
         return true;
     }
 
+    bool composeSkeletalPosesAbsolute(const COMPILED_SKELETON &skeleton,
+                                      const SKELETAL_POSE &basePose,
+                                      const SKELETAL_POSE &layerPose,
+                                      const float layerWeight,
+                                      SKELETAL_POSE &out) noexcept
+    {
+        out = {};
+        const size_t boneCount = skeleton.bones.size();
+        if (!std::isfinite(layerWeight) || layerWeight < 0.0f || layerWeight > 1.0f ||
+            basePose.localTransforms.size() != boneCount ||
+            layerPose.localTransforms.size() != boneCount)
+            return false;
+
+        out.localTransforms.resize(boneCount);
+        out.globalTransforms.resize(boneCount);
+        const auto lerp = [layerWeight](const float a, const float b)
+        {
+            return a + (b - a) * layerWeight;
+        };
+        for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            const LOCAL_TRANSFORM &base = basePose.localTransforms[boneIndex];
+            const LOCAL_TRANSFORM &layer = layerPose.localTransforms[boneIndex];
+            if (!isFinite(base) || !isFinite(layer) ||
+                quaternionNorm(base.rotation) <= QUATERNION_ZERO_EPSILON ||
+                quaternionNorm(layer.rotation) <= QUATERNION_ZERO_EPSILON)
+            {
+                out = {};
+                return false;
+            }
+            LOCAL_TRANSFORM &composed = out.localTransforms[boneIndex];
+            composed.translation = VEC3(lerp(base.translation.x, layer.translation.x),
+                                        lerp(base.translation.y, layer.translation.y),
+                                        lerp(base.translation.z, layer.translation.z));
+            composed.rotation = interpolateQuaternion(base.rotation, layer.rotation, layerWeight);
+            composed.scale = VEC3(lerp(base.scale.x, layer.scale.x),
+                                  lerp(base.scale.y, layer.scale.y),
+                                  lerp(base.scale.z, layer.scale.z));
+            if (!isFinite(composed))
+            {
+                out = {};
+                return false;
+            }
+            const MATRIX local = buildTrsMatrix(composed);
+            const int32_t parent = skeleton.bones[boneIndex].parentIndex;
+            if (parent < 0)
+                out.globalTransforms[boneIndex] = local;
+            else if (static_cast<size_t>(parent) < boneIndex)
+                MatrixMultiply(&out.globalTransforms[boneIndex], &local,
+                               &out.globalTransforms[static_cast<size_t>(parent)]);
+            else
+            {
+                out = {};
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool advanceSkeletalClipTime(const SKELETAL_CLIP &clip, const float delta,
+                                 float &time) noexcept
+    {
+        if (!std::isfinite(delta) || delta < 0.0f || !std::isfinite(time) ||
+            !std::isfinite(clip.duration) || clip.duration < 0.0f)
+            return false;
+        time += delta;
+        if (clip.loop && clip.duration > 0.0f)
+            time = std::fmod(time, clip.duration);
+        else
+            time = std::min(time, clip.duration);
+        return true;
+    }
+
+    bool sampleSkeletalClipsAbsolute(const COMPILED_SKELETON &skeleton,
+                                     const SKELETAL_CLIP &baseClip, const float baseTime,
+                                     const SKELETAL_CLIP &layerClip, const float layerTime,
+                                     const float layerWeight, SKELETAL_POSE &out)
+    {
+        SKELETAL_POSE basePose;
+        SKELETAL_POSE layerPose;
+        return sampleSkeletalClip(skeleton, baseClip, baseTime, basePose) &&
+               sampleSkeletalClip(skeleton, layerClip, layerTime, layerPose) &&
+               composeSkeletalPosesAbsolute(skeleton, basePose, layerPose, layerWeight, out);
+    }
+
     bool skinVerticesLbsReference(const CANONICAL_SKELETON &skeleton, const CANONICAL_WEIGHTS &weights,
                                   const SKELETAL_POSE &pose, const std::vector<VEC3> &bindPositions,
                                   const std::vector<VEC3> &bindNormals, std::vector<VEC3> &outPositions,

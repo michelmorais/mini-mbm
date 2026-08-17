@@ -703,6 +703,14 @@ namespace mbm
         bool stopSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool seekSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float time) const;
         bool getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player, float *time) const noexcept;
+        bool playSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                const char *name, float weight) const;
+        bool stopSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player) const;
+        bool seekSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player, float time) const;
+        bool setSkeletalAnimationAbsoluteLayerWeight(SKELETAL_ANIMATION_PLAYER &player,
+                                                     float weight) const;
+        bool getSkeletalAnimationAbsoluteLayerTime(const SKELETAL_ANIMATION_PLAYER &player,
+                                                   float *time) const noexcept;
         bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
                                          SKELETAL_SHADER_METHOD method, const float *rows,
                                          uint32_t rowCount, const uint64_t *orderedBoneIds,

@@ -251,6 +251,35 @@ namespace mbm
         return mesh ? mesh->getSkeletalAnimationTime(getSkeletalAnimationPlayer(), time) : false;
     }
 
+    bool MESH::playSkeletalAnimationAbsoluteLayer(const char *name, const float weight)
+    {
+        return mesh ? mesh->playSkeletalAnimationAbsoluteLayer(
+            getSkeletalAnimationPlayer(), name, weight) : false;
+    }
+
+    bool MESH::stopSkeletalAnimationAbsoluteLayer() noexcept
+    {
+        return mesh ? mesh->stopSkeletalAnimationAbsoluteLayer(getSkeletalAnimationPlayer()) : false;
+    }
+
+    bool MESH::seekSkeletalAnimationAbsoluteLayer(const float time)
+    {
+        return mesh ? mesh->seekSkeletalAnimationAbsoluteLayer(
+            getSkeletalAnimationPlayer(), time) : false;
+    }
+
+    bool MESH::setSkeletalAnimationAbsoluteLayerWeight(const float weight)
+    {
+        return mesh ? mesh->setSkeletalAnimationAbsoluteLayerWeight(
+            getSkeletalAnimationPlayer(), weight) : false;
+    }
+
+    bool MESH::getSkeletalAnimationAbsoluteLayerTime(float *time) const noexcept
+    {
+        return mesh ? mesh->getSkeletalAnimationAbsoluteLayerTime(
+            getSkeletalAnimationPlayer(), time) : false;
+    }
+
     bool MESH::setSkeletalAuthoringPalette(const SKELETAL_SHADER_METHOD method,
                                            const float *rows, const uint32_t rowCount,
                                            const uint64_t *orderedBoneIds, const uint32_t boneIdCount,

@@ -115,6 +115,118 @@ namespace
                "canonical skeleton must reject duplicate bone IDs");
     }
 
+    void testAbsolutePoseComposition()
+    {
+        CANONICAL_BONE root;
+        root.boneId = 10;
+        root.name = "root";
+        CANONICAL_BONE child;
+        child.boneId = 20;
+        child.parentBoneId = 10;
+        child.name = "child";
+        child.localBind.translation = VEC3(0.0f, 2.0f, 0.0f);
+        COMPILED_SKELETON skeleton;
+        expect(compileCanonicalSkeleton({root, child}, skeleton),
+               "absolute-composition fixture skeleton must compile");
+
+        SKELETAL_POSE base;
+        base.localTransforms = {root.localBind, child.localBind};
+        SKELETAL_POSE layer = base;
+        base.localTransforms[0].translation = VEC3(0.0f, 0.0f, 0.0f);
+        layer.localTransforms[0].translation = VEC3(10.0f, 4.0f, -2.0f);
+        base.localTransforms[0].scale = VEC3(1.0f, 1.0f, 1.0f);
+        layer.localTransforms[0].scale = VEC3(3.0f, 2.0f, 1.0f);
+        base.localTransforms[1].rotation = {0.0f, 0.0f, 0.996194698f, 0.087155743f};
+        layer.localTransforms[1].rotation = {0.0f, 0.0f, -0.996194698f, 0.087155743f};
+
+        SKELETAL_POSE composed;
+        expect(composeSkeletalPosesAbsolute(skeleton, base, layer, 0.5f, composed) &&
+                   composed.localTransforms.size() == 2 &&
+                   composed.globalTransforms.size() == 2,
+               "absolute composition must produce one complete local/global pose");
+        expect(std::fabs(composed.localTransforms[0].translation.x - 5.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(composed.localTransforms[0].translation.y - 2.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(composed.localTransforms[0].translation.z + 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(composed.localTransforms[0].scale.x - 2.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(composed.localTransforms[0].scale.y - 1.5f) <= MATRIX_TOLERANCE,
+               "absolute composition must linearly blend local translation and scale");
+        expect(std::fabs(std::fabs(composed.localTransforms[1].rotation.z) - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(composed.localTransforms[1].rotation.w) <= MATRIX_TOLERANCE,
+               "absolute composition must blend +170/-170 degrees through the shortest path");
+        expect(std::fabs(composed.globalTransforms[0]._41 - 5.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(composed.globalTransforms[0]._42 - 2.0f) <= MATRIX_TOLERANCE,
+               "absolute composition must rebuild globals from composed locals");
+
+        SKELETAL_POSE endpoint;
+        expect(composeSkeletalPosesAbsolute(skeleton, base, layer, 0.0f, endpoint) &&
+                   maximumMatrixDifference(endpoint.globalTransforms[0],
+                                           buildTrsMatrix(base.localTransforms[0])) <= MATRIX_TOLERANCE,
+               "zero layer weight must reproduce the base pose");
+        expect(composeSkeletalPosesAbsolute(skeleton, base, layer, 1.0f, endpoint) &&
+                   maximumMatrixDifference(endpoint.globalTransforms[0],
+                                           buildTrsMatrix(layer.localTransforms[0])) <= MATRIX_TOLERANCE,
+               "unit layer weight must reproduce the layer pose");
+        expect(!composeSkeletalPosesAbsolute(skeleton, base, layer, -0.01f, endpoint) &&
+                   endpoint.localTransforms.empty(),
+               "absolute composition must reject weights outside [0,1]");
+
+        CANONICAL_SKELETON canonical;
+        canonical.skeletonId = 1;
+        canonical.sourceBones = {root, child};
+        canonical.compiled = skeleton;
+        base.localTransforms[0].scale = VEC3(1.0f, 1.0f, 1.0f);
+        layer.localTransforms[0].scale = VEC3(1.0f, 1.0f, 1.0f);
+        expect(composeSkeletalPosesAbsolute(skeleton, base, layer, 0.5f, endpoint),
+               "rigid absolute composition must produce a palette-ready pose");
+        std::vector<float> palette;
+        expect(buildGles2LbsPalette(canonical, endpoint, true, palette) ==
+                   GLES2_LBS_PALETTE_STATUS::READY && palette.size() == 24,
+               "absolute composition must feed the existing LBS palette builder directly");
+        expect(buildGles2DqsPalette(canonical, endpoint, palette) ==
+                   GLES2_DQS_PALETTE_STATUS::READY && palette.size() == 16,
+               "rigid absolute composition must feed the existing DQS palette builder directly");
+
+        SKELETAL_CLIP baseClip;
+        baseClip.clipId = 100;
+        baseClip.name = "base";
+        baseClip.duration = 2.0f;
+        SKELETAL_TRACK baseTrack;
+        baseTrack.boneId = 10;
+        baseTrack.channelMask = SKELETAL_CHANNEL_TRANSLATION;
+        SKELETAL_KEY baseStart;
+        baseStart.local = root.localBind;
+        SKELETAL_KEY baseEnd = baseStart;
+        baseEnd.time = 2.0f;
+        baseEnd.local.translation = VEC3(20.0f, 0.0f, 0.0f);
+        baseTrack.keys = {baseStart, baseEnd};
+        baseClip.tracks = {baseTrack};
+        SKELETAL_CLIP layerClip = baseClip;
+        layerClip.clipId = 200;
+        layerClip.name = "layer";
+        layerClip.duration = 1.0f;
+        layerClip.loop = true;
+        layerClip.tracks[0].keys[1].time = 1.0f;
+        layerClip.tracks[0].keys[1].local.translation = VEC3(4.0f, 0.0f, 0.0f);
+        float baseTime = 0.25f;
+        float layerTime = 0.75f;
+        expect(advanceSkeletalClipTime(baseClip, 1.0f, baseTime) &&
+                   advanceSkeletalClipTime(layerClip, 0.5f, layerTime) &&
+                   std::fabs(baseTime - 1.25f) <= MATRIX_TOLERANCE &&
+                   std::fabs(layerTime - 0.25f) <= MATRIX_TOLERANCE,
+               "base and Absolute layer times must advance and loop independently");
+        expect(sampleSkeletalClipsAbsolute(skeleton, baseClip, baseTime, layerClip,
+                   layerTime, 0.25f, endpoint) &&
+                   std::fabs(endpoint.localTransforms[0].translation.x - 9.625f) <=
+                       MATRIX_TOLERANCE,
+               "two independently timed clips must sample before Absolute local-pose composition");
+        expect(!advanceSkeletalClipTime(baseClip, -0.1f, baseTime),
+               "clip time advancement must reject negative delta");
+
+        layer.localTransforms.pop_back();
+        expect(!composeSkeletalPosesAbsolute(skeleton, base, layer, 0.5f, endpoint),
+               "absolute composition must reject incomplete poses");
+    }
+
     void testUniformCanonicalAssetScale()
     {
         CANONICAL_BONE root;
@@ -1408,6 +1520,7 @@ int runSkeletalFoundationTests()
     failures = 0;
     testTrsRoundTrip();
     testCanonicalSkeletonCompilation();
+    testAbsolutePoseComposition();
     testUniformCanonicalAssetScale();
     testCanonicalSkeletonReader();
     testCanonicalWeightValidation();

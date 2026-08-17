@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, runtime preview, local animation, and Paint Weights authoring implemented; composition deferred**
+Status: **Bind, Bone Editor, canonical weight repair, runtime preview, local animation, and Paint Weights authoring implemented; runtime composition foundation in progress**
 Last updated: **2026-08-17**
 
 ## 1. Purpose
@@ -20,7 +20,8 @@ Animations and direct brush-based weight authoring are active.
 No worktree is selected initially. Loading or replacing an asset returns to this neutral state,
 enables the ordinary textured mesh, and keeps skeletons, heatmaps, cursors, capture volumes, and
 diagnostic overlays hidden until the user explicitly opens a worktree.
-Multi-clip composition remains separately deferred. Their product
+The C++ runtime now has a transient two-clip Absolute composition foundation; Lua and editor controls
+remain pending. Its product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
@@ -1195,9 +1196,10 @@ The following are current editor limitations rather than regressions caused by r
   diagnostic edges; its repair separately synchronizes compatible connected coincident copies;
 - no automatic heavy whole-mesh weight generation;
 - no custom-tail animation generation;
-- no multi-clip composition yet: priority, layer weight, fade, Absolute/Additive evaluation,
-  per-bone masks, and composed runtime playback remain explicitly deferred while Paint Weights is
-  developed;
+- no multi-clip editor playback yet: the C++ player supports one transient per-instance Absolute
+  layer over a base clip, with independent time/seek and weight before one final LBS/DQS palette.
+  It is not serialized or exposed to Lua/editor controls yet; independent pause, priority, fades,
+  Additive evaluation, and masks remain pending;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 

@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.77**
+Document version: **8.79**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -211,16 +211,22 @@ The initial Animation milestone may target clips on an existing validated skelet
 skeleton creation does not have to block timeline and clip work if the imported-skeleton contract is
 already trustworthy.
 
-### Deferred composition and blending
+### Composition and blending foundation
 
-Multi-clip composition remains planned but is explicitly deferred while work proceeds on the Paint
-Weights workflow. The delivered editor currently authors and previews one canonical clip at a time.
+Multi-clip composition resumed after the Paint Weights workflow reached its accepted foundation.
+The delivered editor still authors and previews one canonical clip at a time, but the private CPU
+foundation can now combine two complete sampled poses in parent-relative local TRS using strict
+`0..1` Absolute weight. Translation and scale interpolate linearly, rotation uses normalized
+shortest-path quaternion interpolation, and globals are rebuilt once in parent-first order. The
+result feeds the existing LBS and rigid-DQS palette builders without a backend-specific composition
+path.
+
 Priority, layer weight, fade in/out, Absolute/Additive semantics, per-bone masks, and a composed
-runtime pose are not implemented and must not be inferred from the existing clip clipboard or pose
-clipboard features. Before implementation resumes, consolidate the local-TRS blend order,
-shortest-path quaternion policy, additive reference pose, scale compatibility, discontinuity rules,
-and the boundary between transient player-layer state and persisted clip data. The final composed
-pose must still produce one backend-neutral skeleton pose followed by one LBS/DQS palette build.
+runtime player are not yet exposed and must not be inferred from the private compositor, clip
+clipboard, or pose clipboard features. The next increments must connect two independently timed
+sampled clips to transient per-instance layer state before adding editor controls. Additive reference
+pose, masks, fades, scale compatibility, discontinuity rules, and persistence boundaries remain
+explicit later contracts.
 
 ## 9. Cross-node rules
 
@@ -553,6 +559,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.79 | 2026-08-17 | Added the first transient per-instance composition state to the C++ skeletal player: one base clip plus one Absolute clip layer with independent time, seek, and strict weight. Both clips are sampled in local TRS and composed before exactly one hierarchy reconstruction and one LBS/DQS palette build. Mutating playback operations preserve the prior state and palette on evaluation failure; stopping the base or installing an authoring palette clears the layer. The layer is not serialized and Lua/editor controls, independent pause, fades, masks, priority, and Additive semantics remain pending. |
+| 8.78 | 2026-08-17 | Resumed composition with a private backend-neutral two-pose Absolute CPU compositor. It strictly accepts weight 0..1, blends local T/S linearly and normalized R by shortest quaternion path, rebuilds globals once, rejects incomplete/non-finite input, and feeds the existing LBS/DQS palette builders. Deterministic tests cover endpoints, hierarchy, +170/-170 deg antipodality, invalid input, and palette readiness; no public player/editor surface exists yet. |
 | 8.77 | 2026-08-17 | Applied width-aware disabled wrapping to Bone Editor extension/root guidance and Paint Weights cached-geometry feedback, and split the Runtime Preview lighting tooltip into explicit short lines. |
 | 8.76 | 2026-08-17 | Moved Viewport Information and nearest-vertex inspection into the advanced diagnostic region. Hiding advanced diagnostics now suppresses its hover/pin computation and markers as well as its controls, while ordinary brush feedback remains available. |
 | 8.75 | 2026-08-17 | Added a width-aware yellow boundary notice at the beginning of the advanced Paint Weights region so the menu-controlled diagnostic scope is visually explicit. |

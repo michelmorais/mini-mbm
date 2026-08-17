@@ -257,6 +257,19 @@ namespace mbm::skeletal
                               std::vector<DIAGNOSTIC> &diagnostics);
     bool sampleSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
                             float time, SKELETAL_POSE &out, std::vector<DIAGNOSTIC> *diagnostics = nullptr);
+    // Absolute composition operates on complete parent-relative local poses. Weight is strict
+    // [0,1]; translation/scale are linear and rotation follows the normalized shortest quaternion
+    // path. Globals are rebuilt once from the composed locals in parent-first skeleton order.
+    bool composeSkeletalPosesAbsolute(const COMPILED_SKELETON &skeleton,
+                                      const SKELETAL_POSE &basePose,
+                                      const SKELETAL_POSE &layerPose,
+                                      float layerWeight,
+                                      SKELETAL_POSE &out) noexcept;
+    bool advanceSkeletalClipTime(const SKELETAL_CLIP &clip, float delta, float &time) noexcept;
+    bool sampleSkeletalClipsAbsolute(const COMPILED_SKELETON &skeleton,
+                                     const SKELETAL_CLIP &baseClip, float baseTime,
+                                     const SKELETAL_CLIP &layerClip, float layerTime,
+                                     float layerWeight, SKELETAL_POSE &out);
     bool skinVerticesLbsReference(const CANONICAL_SKELETON &skeleton, const CANONICAL_WEIGHTS &weights,
                                   const SKELETAL_POSE &pose, const std::vector<VEC3> &bindPositions,
                                   const std::vector<VEC3> &bindNormals, std::vector<VEC3> &outPositions,

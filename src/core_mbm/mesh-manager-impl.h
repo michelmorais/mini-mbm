@@ -53,6 +53,10 @@ namespace mbm
     {
         uint32_t clipIndex = UINT32_MAX;
         float time = 0.0f;
+        uint32_t absoluteLayerClipIndex = UINT32_MAX;
+        float absoluteLayerTime = 0.0f;
+        float absoluteLayerWeight = 0.0f;
+        bool absoluteLayerActive = false;
         bool active = false;
         bool paused = false;
         SKELETAL_SHADER_METHOD requestedSkinningMethod = SKELETAL_SHADER_METHOD::LBS;
