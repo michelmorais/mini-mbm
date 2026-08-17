@@ -432,6 +432,25 @@ the generator therefore resolves the established connected coincident-seam group
 group independently, retains and normalizes its strongest four combined influences, and assigns the
 same result to every copy. The success status reports how many seam groups were synchronized.
 
+For a pinned Paint Weights vertex, **Analyze Deformed Geometry Here** evaluates its incident
+triangles with the canonical LBS palette for the selected authoring clip at the current playhead.
+The read-only report exposes minimum deformed-to-bind area ratio, faces below the 25 percent collapse
+limit, minimum alignment against the bind normal transformed by the same vertex weights, inverted
+faces, and minimum/maximum edge-length ratios. Faces below 50 percent area or 0.25 normal alignment
+are marked orange in bind space. Using a transformed reference normal distinguishes actual inversion
+from an ordinary rigid rotation of the animated part.
+The diagnostic owns an explicit time slider clamped to the selected authoring clip duration. Changing
+the time invalidates the previous report and overlay; pressing Analyze evaluates exactly the displayed
+time, independently of the Runtime Preview playback position or another worktree's playhead.
+
+**Analyze Bind Topology Here** is a second read-only pinned diagnostic. It virtually welds all vertex
+positions within the same mesh-scale tolerance used by seam analysis, builds undirected triangle-edge
+incidence on those virtual roots, and classifies edges referenced by exactly one triangle as open.
+It reports the complete open-edge count, distance from the pin to the nearest open edge, and the best
+endpoint-matched gap to a non-adjacent opposing open edge. The candidate pair is marked red. Virtual
+welding prevents ordinary UV/material duplicates from being mislabeled as holes and never changes the
+stored geometry.
+
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
 values can then be corrected through the local-bind fields. Addition allocates a new stable ID,

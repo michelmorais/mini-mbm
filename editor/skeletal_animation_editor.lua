@@ -169,6 +169,9 @@ local state = {
         inspectorSeamReport=nil,inspectorSeamMarkers=nil,
         inspectorSeamSyncConfirmed=false,
         globalSeamAudit=nil,globalSeamSyncConfirmed=false,
+        inspectorGeometryReport=nil,inspectorGeometryOverlay=nil,
+        inspectorGeometryTime=0,
+        inspectorTopologyReport=nil,inspectorTopologyOverlay=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -267,6 +270,8 @@ local function clearPaintVisuals()
     destroyObject(state.paint.brushFootprintMarkers)
     destroyObject(state.paint.hoveredVertexMarker)
     destroyObject(state.paint.inspectorSeamMarkers)
+    destroyObject(state.paint.inspectorGeometryOverlay)
+    destroyObject(state.paint.inspectorTopologyOverlay)
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     destroyObject(state.paint.strokeSafetyFaceShape)
@@ -288,6 +293,10 @@ local function clearPaintVisuals()
     state.paint.inspectorSeamSyncConfirmed=false
     state.paint.globalSeamAudit=nil
     state.paint.globalSeamSyncConfirmed=false
+    state.paint.inspectorGeometryReport=nil
+    state.paint.inspectorGeometryOverlay=nil
+    state.paint.inspectorTopologyReport=nil
+    state.paint.inspectorTopologyOverlay=nil
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
@@ -981,6 +990,16 @@ local function applyWorkspaceVisibility()
     end
     if state.paint.inspectorSeamMarkers then
         state.paint.inspectorSeamMarkers.visible=paintWorkspace and state.meshVisible and
+            state.paint.showVertexInspector and state.paint.inspectorPinned and
+            not state.paint.aabbCapture.active
+    end
+    if state.paint.inspectorGeometryOverlay then
+        state.paint.inspectorGeometryOverlay.visible=paintWorkspace and state.meshVisible and
+            state.paint.showVertexInspector and state.paint.inspectorPinned and
+            not state.paint.aabbCapture.active
+    end
+    if state.paint.inspectorTopologyOverlay then
+        state.paint.inspectorTopologyOverlay.visible=paintWorkspace and state.meshVisible and
             state.paint.showVertexInspector and state.paint.inspectorPinned and
             not state.paint.aabbCapture.active
     end
@@ -3736,6 +3755,236 @@ local function synchronizeGlobalSeamWeights()
     return true
 end
 
+local function analyzePinnedDeformedGeometry()
+    destroyObject(state.paint.inspectorGeometryOverlay)
+    state.paint.inspectorGeometryOverlay=nil
+    state.paint.inspectorGeometryReport=nil
+    local selected=state.paint.hoveredVertex
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not selected or not state.paint.inspectorPinned or not cache then return false end
+    local triangles=cache.incidentTriangles[selected.globalIndex] or {}
+    if #triangles==0 then return false end
+    local clipIndex=state.animationClipSelected or state.skeletalPreview.selected or 1
+    local duration=state.preview:getSkeletalAnimationDuration(clipIndex) or 0
+    local time=math.max(0,math.min(state.paint.inspectorGeometryTime or 0,duration))
+    state.paint.inspectorGeometryTime=time
+    local ok,pose=safeCall(function()
+        return state.meshD:evaluateSkeletalAuthoringPose(clipIndex,time,'lbs')
+    end)
+    if not ok or not pose or not pose.palette then return false end
+    local boneIndex={}
+    for index,bone in ipairs(getBones()) do boneIndex[bone.name]=index-1 end
+    local function deform(point,weights,vectorOnly)
+        local x,y,z=0,0,0
+        for name,weight in pairs(weights) do
+            local index=boneIndex[name]
+            if index then
+                local first=index*12
+                x=x+(point.x*pose.palette[first+1]+point.y*pose.palette[first+2]+
+                    point.z*pose.palette[first+3]+(vectorOnly and 0 or pose.palette[first+4]))*weight
+                y=y+(point.x*pose.palette[first+5]+point.y*pose.palette[first+6]+
+                    point.z*pose.palette[first+7]+(vectorOnly and 0 or pose.palette[first+8]))*weight
+                z=z+(point.x*pose.palette[first+9]+point.y*pose.palette[first+10]+
+                    point.z*pose.palette[first+11]+(vectorOnly and 0 or pose.palette[first+12]))*weight
+            end
+        end
+        return {x=x,y=y,z=z}
+    end
+    local function cross(a,b,c)
+        local ux,uy,uz=b.x-a.x,b.y-a.y,b.z-a.z
+        local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
+        return {x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx}
+    end
+    local function length(v) return math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z) end
+    local function edgeLength(a,b)
+        return math.sqrt((a.x-b.x)^2+(a.y-b.y)^2+(a.z-b.z)^2)
+    end
+    local minimumAreaRatio,minimumAlignment=math.huge,1
+    local minimumEdgeRatio,maximumEdgeRatio=math.huge,0
+    local collapsed,inverted=0,0
+    local worstTriangles={}
+    for _,triangle in ipairs(triangles) do
+        local vertices={triangle.a,triangle.b,triangle.c}
+        local after,weightMaps={},{}
+        for slot,vertex in ipairs(vertices) do
+            weightMaps[slot]=readInfluenceMap(vertex.globalIndex,false)
+            after[slot]=deform(vertex.point,weightMaps[slot],false)
+        end
+        local bindArea=cross(vertices[1].point,vertices[2].point,vertices[3].point)
+        local deformedArea=cross(after[1],after[2],after[3])
+        local bindLength,deformedLength=length(bindArea),length(deformedArea)
+        local areaRatio=bindLength>1e-12 and deformedLength/bindLength or 1
+        local expected={x=0,y=0,z=0}
+        for slot=1,3 do
+            local transformed=deform(bindArea,weightMaps[slot],true)
+            expected.x=expected.x+transformed.x
+            expected.y=expected.y+transformed.y
+            expected.z=expected.z+transformed.z
+        end
+        local expectedLength=length(expected)
+        local alignment=1
+        if deformedLength>1e-12 and expectedLength>1e-12 then
+            alignment=math.max(-1,math.min(1,(deformedArea.x*expected.x+
+                deformedArea.y*expected.y+deformedArea.z*expected.z)/
+                (deformedLength*expectedLength)))
+        end
+        minimumAreaRatio=math.min(minimumAreaRatio,areaRatio)
+        minimumAlignment=math.min(minimumAlignment,alignment)
+        if areaRatio<0.25 then collapsed=collapsed+1 end
+        if alignment<=0 then inverted=inverted+1 end
+        for edge=1,3 do
+            local nextEdge=edge%3+1
+            local beforeLength=edgeLength(vertices[edge].point,vertices[nextEdge].point)
+            if beforeLength>1e-12 then
+                local ratio=edgeLength(after[edge],after[nextEdge])/beforeLength
+                minimumEdgeRatio=math.min(minimumEdgeRatio,ratio)
+                maximumEdgeRatio=math.max(maximumEdgeRatio,ratio)
+            end
+        end
+        if areaRatio<0.5 or alignment<0.25 then worstTriangles[#worstTriangles+1]=triangle end
+    end
+    if minimumAreaRatio==math.huge then minimumAreaRatio=1 end
+    if minimumEdgeRatio==math.huge then minimumEdgeRatio=1 end
+    state.paint.inspectorGeometryReport={clipIndex=clipIndex,time=time,triangles=#triangles,
+        minimumAreaRatio=minimumAreaRatio,minimumNormalAlignment=minimumAlignment,
+        minimumEdgeRatio=minimumEdgeRatio,maximumEdgeRatio=maximumEdgeRatio,
+        collapsed=collapsed,inverted=inverted,flagged=#worstTriangles}
+    if #worstTriangles>0 then
+        local coords={}
+        for _,triangle in ipairs(worstTriangles) do
+            for _,vertex in ipairs({triangle.a,triangle.b,triangle.c,
+                    triangle.a,triangle.c,triangle.b}) do
+                appendPoint(coords,vertex.point.x,vertex.point.y,vertex.point.z)
+            end
+        end
+        local overlay=shape:new('3d',0,0,0)
+        if overlay:create(coords,nil,'pinned_deformed_geometry_'..state.paint.heatmapGeneration) then
+            overlay:setColor(1,0.55,0.05,0.55); overlay:setPos(0,0,0)
+            overlay.alwaysOnTop=true; overlay.alwaysOnTopPriority=1
+            state.paint.inspectorGeometryOverlay=overlay
+        else
+            destroyObject(overlay)
+        end
+    end
+    applyWorkspaceVisibility()
+    return true
+end
+
+local function analyzePinnedBindTopology()
+    destroyObject(state.paint.inspectorTopologyOverlay)
+    state.paint.inspectorTopologyOverlay=nil
+    state.paint.inspectorTopologyReport=nil
+    local selected=state.paint.hoveredVertex
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not selected or not state.paint.inspectorPinned or not cache then return false end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local tolerance=math.max(extent*1e-6,1e-7)
+    local parent,buckets={},{ }
+    local function root(index)
+        local value=parent[index] or index
+        while value~=(parent[value] or value) do value=parent[value] end
+        while index~=(parent[index] or index) do
+            local nextIndex=parent[index]; parent[index]=value; index=nextIndex
+        end
+        return value
+    end
+    local function unite(a,b)
+        a,b=root(a),root(b)
+        if a~=b then parent[b]=a end
+    end
+    local function key(x,y,z) return x..':'..y..':'..z end
+    for _,vertex in ipairs(cache.vertices) do
+        local index,point=vertex.globalIndex,vertex.point
+        parent[index]=index
+        local cx,cy,cz=math.floor(point.x/tolerance),math.floor(point.y/tolerance),
+            math.floor(point.z/tolerance)
+        for dx=-1,1 do for dy=-1,1 do for dz=-1,1 do
+            for _,other in ipairs(buckets[key(cx+dx,cy+dy,cz+dz)] or {}) do
+                local otherPoint=cache.vertices[other].point
+                local x,y,z=point.x-otherPoint.x,point.y-otherPoint.y,point.z-otherPoint.z
+                if x*x+y*y+z*z<=tolerance*tolerance then unite(index,other) end
+            end
+        end end end
+        local cell=key(cx,cy,cz)
+        buckets[cell]=buckets[cell] or {}; buckets[cell][#buckets[cell]+1]=index
+    end
+    local edgeMap={}
+    local function addEdge(a,b,triangle)
+        local ra,rb=root(a.globalIndex),root(b.globalIndex)
+        if ra==rb then return end
+        local edgeKey=ra<rb and ra..':'..rb or rb..':'..ra
+        local record=edgeMap[edgeKey]
+        if not record then
+            record={count=0,a=a,b=b,rootA=ra,rootB=rb,triangle=triangle}
+            edgeMap[edgeKey]=record
+        end
+        record.count=record.count+1
+    end
+    for _,triangle in ipairs(cache.triangles) do
+        addEdge(triangle.a,triangle.b,triangle)
+        addEdge(triangle.b,triangle.c,triangle)
+        addEdge(triangle.c,triangle.a,triangle)
+    end
+    local boundaries={}
+    for _,edge in pairs(edgeMap) do
+        if edge.count==1 then boundaries[#boundaries+1]=edge end
+    end
+    local function pointSegmentDistance(point,a,b)
+        local dx,dy,dz=b.x-a.x,b.y-a.y,b.z-a.z
+        local lengthSquared=dx*dx+dy*dy+dz*dz
+        local t=lengthSquared>1e-12 and ((point.x-a.x)*dx+(point.y-a.y)*dy+
+            (point.z-a.z)*dz)/lengthSquared or 0
+        t=math.max(0,math.min(1,t))
+        local x,y,z=a.x+dx*t,a.y+dy*t,a.z+dz*t
+        return math.sqrt((point.x-x)^2+(point.y-y)^2+(point.z-z)^2)
+    end
+    local selectedRoot=root(selected.globalIndex)
+    local nearest,nearestDistance=nil,math.huge
+    for _,edge in ipairs(boundaries) do
+        local distance=(edge.rootA==selectedRoot or edge.rootB==selectedRoot) and 0 or
+            pointSegmentDistance(selected.point,edge.a.point,edge.b.point)
+        if distance<nearestDistance then nearest,nearestDistance=edge,distance end
+    end
+    local counterpart,counterpartGap=nil,math.huge
+    local function distance(a,b)
+        return math.sqrt((a.x-b.x)^2+(a.y-b.y)^2+(a.z-b.z)^2)
+    end
+    if nearest then
+        for _,edge in ipairs(boundaries) do
+            if edge~=nearest and edge.rootA~=nearest.rootA and edge.rootA~=nearest.rootB and
+                    edge.rootB~=nearest.rootA and edge.rootB~=nearest.rootB then
+                local direct=math.max(distance(nearest.a.point,edge.a.point),
+                    distance(nearest.b.point,edge.b.point))
+                local reversed=math.max(distance(nearest.a.point,edge.b.point),
+                    distance(nearest.b.point,edge.a.point))
+                local gap=math.min(direct,reversed)
+                if gap<counterpartGap then counterpart,counterpartGap=edge,gap end
+            end
+        end
+    end
+    state.paint.inspectorTopologyReport={boundaryEdges=#boundaries,tolerance=tolerance,
+        nearestDistance=nearest and nearestDistance or nil,
+        counterpartGap=counterpart and counterpartGap or nil,
+        nearPinned=nearest and nearestDistance<=extent*0.01 or false}
+    if nearest then
+        local coords={}
+        appendPoint(coords,nearest.a.point.x,nearest.a.point.y,nearest.a.point.z)
+        appendPoint(coords,nearest.b.point.x,nearest.b.point.y,nearest.b.point.z)
+        if counterpart then
+            appendPoint(coords,counterpart.a.point.x,counterpart.a.point.y,counterpart.a.point.z)
+            appendPoint(coords,counterpart.b.point.x,counterpart.b.point.y,counterpart.b.point.z)
+        end
+        local overlay=line:new('3d',0,0,0)
+        overlay:add(coords); overlay:setColor(1,0.2,0.05,1); overlay:setPos(0,0,0)
+        overlay.alwaysOnTop=true; overlay.alwaysOnTopPriority=1
+        state.paint.inspectorTopologyOverlay=overlay
+    end
+    applyWorkspaceVisibility()
+    return true
+end
+
 local function constrainedRepairWeights(original,candidate,allowedNames,maxChange)
     local filtered={}
     for name,weight in pairs(candidate or {}) do
@@ -5761,6 +6010,12 @@ local function showPaintWeights()
             state.paint.inspectorSeamMarkers=nil
             state.paint.inspectorSeamReport=nil
             state.paint.inspectorSeamSyncConfirmed=false
+            destroyObject(state.paint.inspectorGeometryOverlay)
+            state.paint.inspectorGeometryOverlay=nil
+            state.paint.inspectorGeometryReport=nil
+            destroyObject(state.paint.inspectorTopologyOverlay)
+            state.paint.inspectorTopologyOverlay=nil
+            state.paint.inspectorTopologyReport=nil
         end
         rebuildPaintCursor(state.paint.cursorHit)
         applyWorkspaceVisibility()
@@ -5774,6 +6029,12 @@ local function showPaintWeights()
             state.paint.inspectorSeamMarkers=nil
             state.paint.inspectorSeamReport=nil
             state.paint.inspectorSeamSyncConfirmed=false
+            destroyObject(state.paint.inspectorGeometryOverlay)
+            state.paint.inspectorGeometryOverlay=nil
+            state.paint.inspectorGeometryReport=nil
+            destroyObject(state.paint.inspectorTopologyOverlay)
+            state.paint.inspectorTopologyOverlay=nil
+            state.paint.inspectorTopologyReport=nil
             rebuildPaintCursor(state.paint.cursorHit)
             applyWorkspaceVisibility()
         end
@@ -5828,6 +6089,71 @@ local function showPaintWeights()
             end
             tImGui.EndDisabled()
             showItemTooltip('swl_paint_vertex_seam_sync_help')
+        end
+    end
+    if state.paint.showVertexInspector and state.paint.inspectorPinned then
+        local geometryClip=state.animationClipSelected or state.skeletalPreview.selected or 1
+        local geometryDuration=state.preview:getSkeletalAnimationDuration(geometryClip) or 0
+        state.paint.inspectorGeometryTime=math.max(0,
+            math.min(state.paint.inspectorGeometryTime or 0,geometryDuration))
+        tImGui.PushItemWidth(240)
+        local geometryTimeChanged,geometryTime=tImGui.SliderFloat(
+            tLang.L('swl_paint_geometry_time'),state.paint.inspectorGeometryTime,
+            0,math.max(geometryDuration,0),'%.3f s')
+        tImGui.PopItemWidth()
+        if geometryTimeChanged then
+            state.paint.inspectorGeometryTime=geometryTime
+            destroyObject(state.paint.inspectorGeometryOverlay)
+            state.paint.inspectorGeometryOverlay=nil
+            state.paint.inspectorGeometryReport=nil
+        end
+        tImGui.TextDisabled(string.format(tLang.L('swl_paint_geometry_duration_fmt'),
+            geometryClip,geometryDuration))
+        if tImGui.Button(tLang.L('swl_paint_geometry_analyze')) then
+            analyzePinnedDeformedGeometry()
+        end
+        showItemTooltip('swl_paint_geometry_analyze_help')
+        local geometryReport=state.paint.inspectorGeometryReport
+        if geometryReport then
+            tImGui.TextWrapped(string.format(tLang.L('swl_paint_geometry_context_fmt'),
+                geometryReport.clipIndex,geometryReport.time,geometryReport.triangles))
+            tImGui.TextWrapped(string.format(tLang.L('swl_paint_geometry_area_fmt'),
+                geometryReport.minimumAreaRatio,geometryReport.collapsed,
+                geometryReport.minimumNormalAlignment,geometryReport.inverted))
+            tImGui.TextWrapped(string.format(tLang.L('swl_paint_geometry_edges_fmt'),
+                geometryReport.minimumEdgeRatio,geometryReport.maximumEdgeRatio,
+                geometryReport.flagged))
+            if geometryReport.collapsed>0 or geometryReport.inverted>0 then
+                tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
+                    tLang.L('swl_paint_geometry_risk'))
+            else
+                tImGui.TextDisabled(tLang.L('swl_paint_geometry_no_local_failure'))
+            end
+        end
+        if tImGui.Button(tLang.L('swl_paint_topology_analyze')) then
+            analyzePinnedBindTopology()
+        end
+        showItemTooltip('swl_paint_topology_analyze_help')
+        local topologyReport=state.paint.inspectorTopologyReport
+        if topologyReport then
+            tImGui.TextWrapped(string.format(tLang.L('swl_paint_topology_summary_fmt'),
+                topologyReport.boundaryEdges,topologyReport.tolerance))
+            if topologyReport.nearestDistance then
+                tImGui.TextWrapped(string.format(tLang.L('swl_paint_topology_nearest_fmt'),
+                    topologyReport.nearestDistance))
+            end
+            if topologyReport.counterpartGap then
+                tImGui.TextWrapped(string.format(tLang.L('swl_paint_topology_pair_fmt'),
+                    topologyReport.counterpartGap))
+            end
+            if topologyReport.boundaryEdges==0 then
+                tImGui.TextDisabled(tLang.L('swl_paint_topology_closed'))
+            elseif topologyReport.nearPinned then
+                tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
+                    tLang.L('swl_paint_topology_open_near_pin'))
+            else
+                tImGui.TextDisabled(tLang.L('swl_paint_topology_open_elsewhere'))
+            end
         end
     end
     tImGui.Separator()
@@ -8479,6 +8805,12 @@ function onTouchUp(key, x, y)
                 rebuildPaintCursor(hit)
                 state.paint.inspectorPinned=state.paint.hoveredVertex~=nil
                 state.paint.inspectorSeamSyncConfirmed=false
+                destroyObject(state.paint.inspectorGeometryOverlay)
+                state.paint.inspectorGeometryOverlay=nil
+                state.paint.inspectorGeometryReport=nil
+                destroyObject(state.paint.inspectorTopologyOverlay)
+                state.paint.inspectorTopologyOverlay=nil
+                state.paint.inspectorTopologyReport=nil
                 rebuildPinnedSeamInspector()
                 applyWorkspaceVisibility()
             end

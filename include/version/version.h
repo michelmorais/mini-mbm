@@ -267,6 +267,9 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.81.0 Paint Weights can audit virtually welded bind topology for open edges and opposing-edge gaps around a pinned vertex.
+    7.80.1 Pinned deformed-geometry diagnosis has an explicit clip-duration-clamped time independent of other worktree playheads.
+    7.80.0 Paint Weights can diagnose current-playhead LBS triangle collapse, inversion, and edge stretch around a pinned vertex.
     7.79.0 Automatic weight generation synchronizes connected coincident seams after topology diffusion and before its canonical batch.
     7.78.1 Paint Weights shows successful repair and diagnostic-mask status in yellow, distinct from red failures and neutral information.
     7.78.0 Paint Weights can audit and synchronize every divergent connected coincident seam in one confirmed Undoable transaction.
@@ -467,7 +470,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.79.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.81.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

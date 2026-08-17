@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.62**
+Document version: **9.65**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.65 | 2026-08-17 | Added pinned bind-topology analysis with virtual positional welding, open-edge incidence, nearest-edge distance, opposing-edge gap measurement, and a read-only red candidate overlay. |
+| 9.64 | 2026-08-17 | Made deformed-geometry diagnostic time explicit and clip-duration-clamped inside Paint Weights, independent of Runtime Preview and Animation worktree playheads. |
+| 9.63 | 2026-08-17 | Added current-playhead canonical-LBS geometry diagnosis around a pinned vertex, including incident-face area ratios, transformed-normal inversion, edge stretch, and an orange read-only risk overlay. |
 | 9.62 | 2026-08-17 | Fixed automatic-weight topology diffusion systematically diverging duplicated seam copies by synchronizing established connected coincident groups before the generator's single canonical batch. |
 | 9.61 | 2026-08-17 | Successful Paint Weights repairs and diagnostic-mask mutations now show yellow status feedback, distinct from red errors and neutral informational/no-change text. |
 | 9.60 | 2026-08-17 | Added on-demand global coincident-seam impact analysis and one confirmed, Undoable canonical synchronization across every divergent group, kept separate from maximum-influence reduction. |
