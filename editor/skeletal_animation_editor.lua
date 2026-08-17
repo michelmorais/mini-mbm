@@ -213,6 +213,7 @@ local buildTopologyAdjacency
 local buildCoincidentSeams
 local queryPaintVertices
 local readInfluenceMap
+local showItemTooltip
 
 local function safeCall(fn)
     local result = table.pack(pcall(fn))
@@ -975,7 +976,7 @@ local function applyWorkspaceVisibility()
             state.paint.visualizationMode==1 and state.paint.strokeSafetyOverlayVisible
     end
     local selectedBindBone=(state.workspace=='bind' or state.workspace=='animation' or
-        state.workspace=='paint') and
+        (state.workspace=='paint' and state.paint.visualizationMode==1)) and
         getBones()[state.boneIndex] or (state.workspace=='bone_editor' and
         state.boneEditorSelectedIndex and getBones()[state.boneEditorSelectedIndex] or nil)
     local removalPreviewBone=state.workspace=='bone_editor' and
@@ -4327,7 +4328,7 @@ local function showMenu()
     tImGui.EndMainMenuBar()
 end
 
-local function showItemTooltip(text,allowWhenDisabled)
+showItemTooltip=function(text,allowWhenDisabled)
     local flags=allowWhenDisabled and
         tImGui.Flags('ImGuiHoveredFlags_AllowWhenDisabled') or 0
     if tImGui.IsItemHovered(flags) then
@@ -5067,6 +5068,7 @@ local function showPaintWeights()
         state.paint.heatmapDirty=true
         rebuildPaintHeatmap()
         rebuildPaintCursor(nil)
+        applyWorkspaceVisibility()
     end
     if state.paint.visualizationMode~=1 then
         local diagnosticMask=tImGui.Checkbox(tLang.L('swl_paint_diagnostics_use_mask'),

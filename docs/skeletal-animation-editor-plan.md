@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.48**
+Document version: **8.49**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.49 | 2026-08-17 | Fixed the early Runtime Preview tooltip call resolving a nonexistent global by forward-declaring the shared local helper. Non-target Paint Weights diagnostics now suppress the cyan target-bone highlight and restore it on returning to Selected Bone Heatmap. |
 | 8.48 | 2026-08-17 | Fixed abrupt-transition smoothing crashing after a successful batch because the pose-safety unsafe-triangle return was not captured before rebuilding the safety overlay. |
 | 8.47 | 2026-08-17 | Moved long gray Runtime Skeletal Preview explanations for method resolution, per-instance capacity, and hidden bind-only gizmos into contextual hover tooltips. |
 | 8.46 | 2026-08-17 | Moved the wide Animation Move/Rotate/Scale, scale-capability, viewport-selection, and Auto Key helper text into localized hover tooltips, keeping the standard-width panel readable without removing guidance. |

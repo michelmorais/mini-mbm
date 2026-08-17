@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.53**
+Document version: **9.54**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.54 | 2026-08-17 | Fixed Runtime Preview tooltip dispatch by forward-declaring its local helper and removed target-bone highlighting from Paint Weights diagnostics that do not consume a target bone. |
 | 9.53 | 2026-08-17 | Fixed Paint Weights abrupt-transition repair failing after commit because its pose-safety unsafe-triangle collection was left uncaptured before safety-overlay reconstruction. |
 | 9.52 | 2026-08-17 | Replaced long gray Runtime Preview resolution, per-instance capacity, and bind-gizmo notes with localized contextual hover tooltips. |
 | 9.51 | 2026-08-17 | Replaced wide inline Animation transform, scale-capability, viewport-selection, and Auto Key helper text with localized hover tooltips so the worktree remains usable at its standard width. |

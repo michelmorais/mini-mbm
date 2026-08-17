@@ -79,6 +79,9 @@ when only the threshold moves, so slider interaction updates cached statistics w
 geometry or rereading weights. The GUI therefore labels it as a classification threshold for
 statistics only; it intentionally does not recolor the raw heatmap. Repair is a separate explicit
 action described below; moving the classification threshold alone never mutates weights.
+Distribution, Weak Influence Contamination, and Abrupt Weight Transitions are global or
+mask-scoped diagnostics rather than target-bone views, so Paint Weights removes the cyan target
+highlight while any of those modes is active. Returning to Selected Bone Heatmap restores it.
 
 Abrupt Weight Transitions now exposes the contextual **Smooth Detected Transitions** repair. Only
 vertices belonging to threshold-classified edges are editable. Configurable strength and 1-10
