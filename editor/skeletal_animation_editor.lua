@@ -201,6 +201,7 @@ local state = {
         showVertexInspector=true,hoveredVertex=nil,hoveredVertexMarker=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
+        rigidCoreRatio=0.6,
         connectedSurfaceOnly=true,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
@@ -1925,7 +1926,8 @@ local function ensurePaintBrushFootprintShader()
             float influence=clamp(vTexCoord.x,0.0,1.0);
             if(influence<=0.001) discard;
             vec3 color=vTexCoord.y<0.25 ? vec3(0.10,1.00,0.25) :
-                (vTexCoord.y<0.75 ? vec3(1.00,0.12,0.05) : vec3(0.00,0.85,1.00));
+                (vTexCoord.y<0.75 ? vec3(1.00,0.12,0.05) :
+                (vTexCoord.y<1.25 ? vec3(0.00,0.85,1.00) : vec3(1.00,0.75,0.05)));
             gl_FragColor=vec4(color,sqrt(influence)*0.65);
         }
     ]],var={},min={},max={}})
@@ -2228,9 +2230,17 @@ local function rebuildPaintCursor(hit)
         local operation=(state.paint.operationMode-1)*0.5
         local rings=10
         local function influenceAt(fraction)
-            local falloff=math.max(0,math.min(1,1-fraction))
+            local falloff
+            if state.paint.operationMode==4 then
+                local core=math.max(0,math.min(0.95,state.paint.rigidCoreRatio))
+                if fraction<=core then return 1 end
+                falloff=1-(fraction-core)/math.max(1-core,1e-9)
+            else
+                falloff=1-fraction
+            end
+            falloff=math.max(0,math.min(1,falloff))
             if state.paint.falloffMode==2 then falloff=falloff*falloff*(3-2*falloff) end
-            return state.paint.strength*falloff
+            return state.paint.operationMode==4 and falloff or state.paint.strength*falloff
         end
         local function addDiscVertex(fraction,segment)
             local angle=segment*math.pi*2/segments
@@ -3172,12 +3182,26 @@ end
 
 local function stampPaintStroke(stroke,point,triangle)
     for _,candidate in ipairs(queryPaintVertices(point,state.paint.radius,triangle)) do
-        local alpha=math.max(0,math.min(1,state.paint.strength*
-            paintFalloff(candidate.distance,state.paint.radius)))
+        local alpha
+        if stroke.operationMode==4 then
+            local radius=math.max(state.paint.radius,1e-9)
+            local fraction=candidate.distance/radius
+            local core=math.max(0,math.min(0.95,stroke.rigidCoreRatio or 0.6))
+            if fraction<=core then
+                alpha=1
+            else
+                local transitionDistance=(fraction-core)/math.max(1-core,1e-9)
+                alpha=paintFalloff(transitionDistance,1)
+            end
+        else
+            alpha=state.paint.strength*paintFalloff(candidate.distance,state.paint.radius)
+        end
+        alpha=math.max(0,math.min(1,alpha))
         if alpha>0 then
             local index=candidate.vertex.globalIndex
             local previous=stroke.alphas[index] or 0
-            stroke.alphas[index]=1-(1-previous)*(1-alpha)
+            stroke.alphas[index]=stroke.operationMode==4 and math.max(previous,alpha) or
+                1-(1-previous)*(1-alpha)
         end
     end
 end
@@ -3222,6 +3246,7 @@ local function beginPaintStroke(hit)
     if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
     state.paint.stroke={snapshot=snapshot,boneName=bone.name,boneId=bone.boneId,
         operationMode=state.paint.operationMode,smoothIterations=state.paint.smoothIterations,
+        rigidCoreRatio=state.paint.rigidCoreRatio,
         alphas={},lastPoint=nil,distanceSinceSample=0}
     extendPaintStroke(hit)
     rebuildPaintCursor(hit)
@@ -3345,7 +3370,8 @@ local function commitPaintStroke()
     end
     if #edits==0 then
         discardRollbackSnapshot(stroke.snapshot)
-        local noChangeKey=stroke.operationMode==3 and 'swl_paint_smooth_no_change' or
+        local noChangeKey=stroke.operationMode==4 and 'swl_paint_rigid_no_change' or
+            stroke.operationMode==3 and 'swl_paint_smooth_no_change' or
             stroke.operationMode==2 and 'swl_paint_subtract_no_change' or
             'swl_paint_add_no_change'
         setStatus(tLang.L(noChangeKey),false)
@@ -3373,7 +3399,8 @@ local function commitPaintStroke()
         if ok then setStatus(tLang.L('swl_paint_stroke_failed'),true) end
         return false
     end
-    local historyKey=stroke.operationMode==3 and 'swl_history_paint_smooth' or
+    local historyKey=stroke.operationMode==4 and 'swl_history_paint_rigid' or
+        stroke.operationMode==3 and 'swl_history_paint_smooth' or
         stroke.operationMode==2 and 'swl_history_paint_subtract' or 'swl_history_paint_add'
     commitRollbackSnapshot(stroke.snapshot,historyKey)
     state.modified=true
@@ -3382,7 +3409,8 @@ local function commitPaintStroke()
     rebuildPaintHeatmap()
     rebuildPaintStrokeSafetyOverlay(unsafeTriangles,strokeSafetyReport)
     applyWorkspaceVisibility()
-    local statusKey=stroke.operationMode==3 and 'swl_paint_smooth_applied_fmt' or
+    local statusKey=stroke.operationMode==4 and 'swl_paint_rigid_applied_fmt' or
+        stroke.operationMode==3 and 'swl_paint_smooth_applied_fmt' or
         stroke.operationMode==2 and 'swl_paint_subtract_applied_fmt' or
         'swl_paint_stroke_applied_fmt'
     setStatus(string.format(tLang.L(statusKey),#edits,stroke.boneName),false)
@@ -5659,7 +5687,8 @@ local function showPaintWeights()
     if state.paint.visualizationMode==1 then
         tImGui.Separator()
         showSectionTitle('swl_paint_brush_section')
-        tImGui.TextWrapped(tLang.L(state.paint.operationMode==3 and 'swl_paint_smooth_help' or
+        tImGui.TextWrapped(tLang.L(state.paint.operationMode==4 and 'swl_paint_rigid_help' or
+            state.paint.operationMode==3 and 'swl_paint_smooth_help' or
             state.paint.operationMode==2 and 'swl_paint_subtract_help' or 'swl_paint_add_help'))
         tImGui.Text(tLang.L('swl_paint_operation'))
         local previousOperation=state.paint.operationMode
@@ -5669,6 +5698,8 @@ local function showPaintWeights()
             state.paint.operationMode,2)
         state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_smooth'),
             state.paint.operationMode,3)
+        state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_rigid'),
+            state.paint.operationMode,4)
         if state.paint.operationMode~=previousOperation then
             rebuildPaintCursor(state.paint.cursorHit)
         end
@@ -5699,13 +5730,24 @@ local function showPaintWeights()
             state.paint.showBrushFootprint=showFootprint
             rebuildPaintCursor(state.paint.cursorHit)
         end
-        tImGui.PushItemWidth(240)
-        local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_paint_brush_strength'),
-            state.paint.strength,0.01,1,'%.2f')
-        tImGui.PopItemWidth()
-        if strengthChanged then
-            state.paint.strength=strength
-            rebuildPaintCursor(state.paint.cursorHit)
+        if state.paint.operationMode~=4 then
+            tImGui.PushItemWidth(240)
+            local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_paint_brush_strength'),
+                state.paint.strength,0.01,1,'%.2f')
+            tImGui.PopItemWidth()
+            if strengthChanged then
+                state.paint.strength=strength
+                rebuildPaintCursor(state.paint.cursorHit)
+            end
+        else
+            tImGui.PushItemWidth(240)
+            local coreChanged,core=tImGui.SliderFloat(tLang.L('swl_paint_rigid_core'),
+                state.paint.rigidCoreRatio,0,0.95,'%.2f')
+            tImGui.PopItemWidth()
+            if coreChanged then
+                state.paint.rigidCoreRatio=core
+                rebuildPaintCursor(state.paint.cursorHit)
+            end
         end
         if state.paint.operationMode==3 then
             tImGui.PushItemWidth(240)

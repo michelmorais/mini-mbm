@@ -1,8 +1,8 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.20**
+Document version: **9.21**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
-Last updated: **2026-08-16**
+Last updated: **2026-08-17**
 
 ## 1. Purpose
 
@@ -814,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.21 | 2026-08-17 | Added Paint Weights Rigid Bind as a fourth brush operation. A configurable radius fraction receives exact selected-bone weight 1; the outer band blends to original weights through the selected falloff without frame-density accumulation. It shares connected-surface, seam, transaction, Undo, persistence, and pose-diagnostic contracts. |
 | 9.20 | 2026-08-16 | Replaced the Skin Weight Lab's shared continuous-strip vertex-marker helper with one batched shape of independent double-sided orthogonal crosses. Selection, shell, heatmap, abrupt-vertex, and seam markers no longer gain false connectors; intentional topology edge lines remain unchanged. |
 | 9.19 | 2026-08-16 | Replaced Show Affected Vertices line strips with at most 500 independent planar filled crosses batched in one shape. Audited the Lab: selection/heatmap/abrupt/seam vertex visuals intended crosses but share the same continuous-strip defect; actual abrupt and boundary edge lines are intentional. |
 | 9.18 | 2026-08-16 | Corrected the planar inspector marker for line-strip semantics by routing vertical -> center -> horizontal, removing the diagonal segment that still made the nominal cross look like a fish. |

@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
 Status: **Bind, Bone Editor, canonical weight repair, runtime preview, local animation, and Paint Weights authoring implemented; composition deferred**
-Last updated: **2026-08-16**
+Last updated: **2026-08-17**
 
 ## 1. Purpose
 
@@ -26,7 +26,8 @@ Lab remains available while the brush workflow is implemented and validated. Use
 operations migrate under **Weight Tools** and **Repair / Diagnostics** only after brush stability.
 Canonical type-42 validation already guarantees normalized one-to-four-influence coverage, so a
 Paint Weights normalize/limit/invalid-coverage panel would report no actionable state. Regional
-Rigid Bind remains a Skin Weight Lab batch workflow rather than duplicating visual painting. The Lab
+AABB/subset/proximity Rigid Bind remains a Skin Weight Lab batch workflow; Paint Weights also
+provides a direct brush form with an explicit rigid core and blended transition. The Lab
 is removed only after explicit parity, performance, Undo,
 and save/reload acceptance; its GUI-specific state must never leak into Paint Weights.
 
@@ -108,7 +109,7 @@ protected faces and seam markers to be inspected in isolation.
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight
 heatmap, hide or show the skeleton independently, adjust radius, strength, and linear/smooth
-falloff, choose Paint/Add, Erase/Subtract, or Smooth through visible radio buttons, and drag the right mouse button over the mesh. Frame-zero vertices and
+falloff, choose Paint/Add, Erase/Subtract, Smooth, or Rigid Bind through visible radio buttons, and drag the right mouse button over the mesh. Frame-zero vertices and
 triangles are cached per loaded/restored mesh; separate local-space triangle and vertex BVHs narrow
 surface ray intersection and radius queries. The heatmap rebuilds only when its target or canonical weights become
 dirty. The heatmap stores each vertex's selected-bone weight in `UV.x`; the rasterizer interpolates
@@ -194,6 +195,15 @@ This is selected-bone weight smoothing, not geometry smoothing or an indiscrimin
 bone channel. A configurable 1-10 iteration count repeats stable topology passes inside the painted
 set, making the effect useful on dense meshes where one immediate-neighbor average is naturally
 subtle. The default is three iterations.
+
+Rigid Bind paints an exact selected-bone assignment inside a configurable `0..0.95` fraction of
+the brush radius. Core vertices become `{selected bone: 1.0}`. The outer band blends from that
+assignment back to the original normalized weights using Linear or Smooth falloff; brush strength
+is intentionally hidden because it would make the core only approximately rigid. Repeated or
+overlapping stamps retain the maximum spatial falloff rather than accumulating toward rigidity, so
+sampling density does not shrink the transition band. The operation shares connected-surface
+filtering, seam traversal, atomic commit, Undo, persistence, and last-stroke pose diagnostics with
+the other brushes. Its preview color is yellow.
 
 The first migrated **Weight Tools** operation is **Clean Weak Influences**. A configurable threshold
 is applied to the complete mesh. Influences below it are removed, except that every vertex's

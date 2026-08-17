@@ -1,8 +1,8 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.15**
+Document version: **8.16**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
-Last updated: **2026-08-16**
+Last updated: **2026-08-17**
 
 ## 1. Purpose
 
@@ -139,7 +139,7 @@ it does not authorize copying the large Lua block into the new editor.
 | Load/export armature Lua template | Import/template workflow | Adapt only if the template format remains compatible with the canonical skeleton model. |
 | Mirror paired joint positions | Skeleton authoring utility | Candidate after naming/pairing rules are explicit; never infer center/left/right destructively without preview. |
 | Radius / envelope controls | Import/export fallback | Do not treat as runtime deformation behavior when real stored weights exist. |
-| Rigid Bind | Skin Weight Lab | Already superseded by the delivered weight-authoring workflow; do not duplicate. |
+| Rigid Bind | Paint Weights plus Skin Weight Lab | Direct brush form uses an exact configurable core and falloff transition; retain Lab selection-based batch binding until explicit parity makes it redundant. |
 | Remove complete armature and weights | Asset reset/interchange | Preserve as an explicit destructive workflow with snapshot/confirmation; not a normal Skeleton edit. |
 | Mixamo-oriented warnings and fallbacks | Import/export diagnostics | Keep only where they describe the active interchange path; do not present them as runtime invariants. |
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.16 | 2026-08-17 | Added Paint Weights Rigid Bind as a fourth brush operation. A configurable radius fraction receives exact selected-bone weight 1; the outer band blends to original weights through the selected falloff without frame-density accumulation. It shares connected-surface, seam, transaction, Undo, persistence, and pose-diagnostic contracts. |
 | 8.15 | 2026-08-16 | Replaced the Skin Weight Lab's shared continuous-strip vertex-marker helper with one batched shape of independent double-sided orthogonal crosses. Selection, shell, heatmap, abrupt-vertex, and seam markers no longer gain false connectors; intentional topology edge lines remain unchanged. |
 | 8.14 | 2026-08-16 | Replaced Show Affected Vertices line strips with at most 500 independent planar filled crosses batched in one shape. Audited the Lab: selection/heatmap/abrupt/seam vertex visuals intended crosses but share the same continuous-strip defect; actual abrupt and boundary edge lines are intentional. |
 | 8.13 | 2026-08-16 | Corrected the planar inspector marker for line-strip semantics by routing vertical -> center -> horizontal, removing the diagonal segment that still made the nominal cross look like a fish. |
