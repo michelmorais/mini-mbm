@@ -194,6 +194,7 @@ local state = {
     meshBounds = nil,
     status = nil,
     statusError = false,
+    statusChanged = false,
     cam = {azimuth = 0.35, elevation = 0.25, distance = 5, fx = 0, fy = 0, fz = 0},
 }
 
@@ -225,14 +226,16 @@ local function safeCall(fn)
     if not result[1] then
         state.status = tostring(result[2])
         state.statusError = true
+        state.statusChanged = false
         return false
     end
     return true, table.unpack(result, 2, result.n)
 end
 
-local function setStatus(message, isError)
+local function setStatus(message, isError, isChanged)
     state.status = message
     state.statusError = isError == true
+    state.statusChanged = not state.statusError and isChanged == true
 end
 
 local function showHistoryFeedback(message)
@@ -1652,7 +1655,7 @@ local function applyHitSubsetToPaintMask(mode)
     rebuildPaintCursor(hit)
     local count=0
     for _ in pairs(state.paint.maskVertices) do count=count+1 end
-    setStatus(string.format(tLang.L('swl_paint_mask_subset_applied_fmt'),subset,count),false)
+    setStatus(string.format(tLang.L('swl_paint_mask_subset_applied_fmt'),subset,count),false,true)
     return true
 end
 
@@ -1821,7 +1824,7 @@ local function applyPaintAabbCaptureToMask(mode)
     rebuildPaintMaskMarkers()
     local count=0
     for _ in pairs(state.paint.maskVertices) do count=count+1 end
-    setStatus(string.format(tLang.L('swl_paint_aabb_mask_applied_fmt'),count),false)
+    setStatus(string.format(tLang.L('swl_paint_aabb_mask_applied_fmt'),count),false,true)
     applyWorkspaceVisibility()
     return true
 end
@@ -3308,7 +3311,7 @@ local function commitPaintStroke()
         stroke.operationMode==3 and 'swl_paint_smooth_applied_fmt' or
         stroke.operationMode==2 and 'swl_paint_subtract_applied_fmt' or
         'swl_paint_stroke_applied_fmt'
-    setStatus(string.format(tLang.L(statusKey),#edits,stroke.boneName),false)
+    setStatus(string.format(tLang.L(statusKey),#edits,stroke.boneName),false,true)
     return true
 end
 
@@ -3371,7 +3374,7 @@ local function cleanPaintWeakInfluences()
     rebuildPaintHeatmap()
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_clean_applied_fmt'),#edits,
-        state.paint.cleanThreshold),false)
+        state.paint.cleanThreshold),false,true)
     return true
 end
 
@@ -3423,7 +3426,7 @@ local function limitPaintMaximumInfluences()
     rebuildPaintHeatmap()
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_limit_influences_applied_fmt'),#edits,
-        maximum),false)
+        maximum),false,true)
     return true
 end
 
@@ -3653,7 +3656,7 @@ local function synchronizePinnedSeamWeights()
     rebuildPaintHeatmap()
     rebuildPinnedSeamInspector()
     applyWorkspaceVisibility()
-    setStatus(string.format(tLang.L('swl_paint_vertex_seam_sync_applied_fmt'),#edits),false)
+    setStatus(string.format(tLang.L('swl_paint_vertex_seam_sync_applied_fmt'),#edits),false,true)
     return true
 end
 
@@ -3729,7 +3732,7 @@ local function synchronizeGlobalSeamWeights()
     if state.paint.inspectorPinned then rebuildPinnedSeamInspector() end
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_global_seam_sync_applied_fmt'),
-        audit.groupCount,#edits),false)
+        audit.groupCount,#edits),false,true)
     return true
 end
 
@@ -4189,7 +4192,7 @@ local function repairPaintAbruptTransitions()
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_abrupt_repaired_fmt'),#edits,beforeEdges,
         afterEdges,maximumAppliedChange,poseScale,protectedFaces,synchronizedSeams,
-        conflictingSeams),false)
+        conflictingSeams),false,true)
     return true
 end
 
@@ -4312,7 +4315,7 @@ local function smoothPaintMaskFullVector()
     rebuildPaintHeatmap()
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_mask_smoothed_fmt'),#edits,
-        state.paint.maskSmoothIterations,poseScale,protectedFaces),false)
+        state.paint.maskSmoothIterations,poseScale,protectedFaces),false,true)
     return true
 end
 
@@ -4431,7 +4434,7 @@ local function rigidBindPaintMask()
     rebuildPaintHeatmap()
     applyWorkspaceVisibility()
     setStatus(string.format(tLang.L('swl_paint_mask_rigid_applied_fmt'),#edits,bone.name,
-        rings,poseScale,protectedSamples),false)
+        rings,poseScale,protectedSamples),false,true)
     return true
 end
 
@@ -4606,6 +4609,10 @@ local function showStatusMessage()
     tImGui.Separator()
     if state.statusError then
         tImGui.PushStyleColor('ImGuiCol_Text',{r=1,g=0.3,b=0.2,a=1})
+        tImGui.TextWrapped(state.status)
+        tImGui.PopStyleColor()
+    elseif state.statusChanged then
+        tImGui.PushStyleColor('ImGuiCol_Text',{r=1,g=0.82,b=0.2,a=1})
         tImGui.TextWrapped(state.status)
         tImGui.PopStyleColor()
     else

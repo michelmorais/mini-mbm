@@ -281,6 +281,11 @@ separately confirmed global synchronization applies the same per-group average i
 divergent group in one canonical batch and one Undo entry. It does not reduce the mesh to two
 influences. Any later committed edit invalidates the audit and its confirmation.
 
+Successful Paint Weights mutations and diagnostic-mask applications render their latest status in
+yellow, while failures remain red and informational/no-change messages remain neutral. This keeps a
+new repair result visually distinct from the surrounding white diagnostic text without changing the
+operation's transactional semantics.
+
 After each successful Paint/Add, Erase/Subtract, or Smooth stroke, Paint Weights performs a
 non-mutating pose-safety diagnostic over only the triangles incident to changed vertices. It
 compares the pre-stroke and candidate weights at the start, quarter, midpoint, three-quarter, and
