@@ -2103,7 +2103,7 @@ local function rayTriangleHit(ox,oy,oz,dx,dy,dz,triangle)
 end
 
 local function pickPaintSurface(sx,sy)
-    if state.workspace~='paint' then return nil end
+    if state.workspace~='paint' or not state.meshVisible then return nil end
     local cache=state.paint.geometry or buildPaintGeometryCache()
     if not cache then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
@@ -3240,6 +3240,7 @@ local function extendPaintStroke(hit)
 end
 
 local function beginPaintStroke(hit)
+    if not state.meshVisible then return false end
     local bone=getBones()[state.paint.boneIndex]
     if not bone or not hit then return false end
     local snapshot=stageRollbackSnapshot('swl_history_paint_add')

@@ -64,6 +64,10 @@ Skeleton section retains only the independent visibility control.
 Hidden Paint Weights skeletons are also excluded from viewport hit testing. The current target bone
 remains selected and can still be changed explicitly through the panel, but invisible joints and
 segments cannot intercept a left click intended for orbiting or inspecting the mesh.
+Likewise, a hidden mesh is excluded at the Paint Weights surface-picking boundary. Right-drag cannot
+start or extend an invisible stroke, and hidden geometry does not feed the brush cursor, affected-
+vertex preview, or nearest-vertex inspector. Re-enabling Show Mesh restores picking without changing
+the selected bone or brush configuration.
 
 **Abrupt Weight Transitions** is read-only and compares complete normalized weight vectors across
 triangle-adjacent vertices using half their L1 distance, producing a bounded `0..1` value. Each

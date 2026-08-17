@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.17**
+Document version: **8.18**
 Status: **Six active skeletal workflows implemented; Paint Weights authoring active; composition deferred**
 Last updated: **2026-08-17**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.18 | 2026-08-17 | Made Paint Weights mesh visibility authoritative for surface picking: a hidden mesh cannot start or extend right-button strokes or feed invisible cursor/affected-vertex/nearest-vertex hit results. |
 | 8.17 | 2026-08-17 | Made Paint Weights skeleton visibility authoritative for viewport interaction: hidden joints and segments are excluded inside the shared paint bone hit-test, while explicit target selection in the panel remains available. |
 | 8.16 | 2026-08-17 | Added Paint Weights Rigid Bind as a fourth brush operation. A configurable radius fraction receives exact selected-bone weight 1; the outer band blends to original weights through the selected falloff without frame-density accumulation. It shares connected-surface, seam, transaction, Undo, persistence, and pose-diagnostic contracts. |
 | 8.15 | 2026-08-16 | Replaced the Skin Weight Lab's shared continuous-strip vertex-marker helper with one batched shape of independent double-sided orthogonal crosses. Selection, shell, heatmap, abrupt-vertex, and seam markers no longer gain false connectors; intentional topology edge lines remain unchanged. |
