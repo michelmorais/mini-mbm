@@ -154,6 +154,7 @@ local state = {
     bindInitialRadius = 0.1,
     bindInitialLength = 1,
     modified = false,
+    showAdvancedDiagnostics = false,
     boneIndex = 1,
     aabb = nil,
     undoStack = {},
@@ -1030,29 +1031,35 @@ local function applyWorkspaceVisibility()
     end
     if state.paint.inspectorSeamMarkers then
         state.paint.inspectorSeamMarkers.visible=paintWorkspace and state.meshVisible and
+            state.showAdvancedDiagnostics and
             state.paint.showVertexInspector and state.paint.inspectorPinned and
             not state.paint.aabbCapture.active
     end
     if state.paint.inspectorGeometryOverlay then
         state.paint.inspectorGeometryOverlay.visible=paintWorkspace and state.meshVisible and
+            state.showAdvancedDiagnostics and
             state.paint.showVertexInspector and state.paint.inspectorPinned and
             not state.paint.aabbCapture.active
     end
     if state.paint.inspectorTopologyOverlay then
         state.paint.inspectorTopologyOverlay.visible=paintWorkspace and state.meshVisible and
+            state.showAdvancedDiagnostics and
             state.paint.showVertexInspector and state.paint.inspectorPinned and
             not state.paint.aabbCapture.active
     end
     if state.paint.globalNormalMarkers then
         state.paint.globalNormalMarkers.visible=paintWorkspace and state.meshVisible and
+            state.showAdvancedDiagnostics and
             not state.paint.aabbCapture.active
     end
     if state.paint.globalNormalSmoothMarkers then
         state.paint.globalNormalSmoothMarkers.visible=paintWorkspace and state.meshVisible and
+            state.showAdvancedDiagnostics and
             not state.paint.aabbCapture.active
     end
     if state.paint.exactSeamPositionMarkers then
         state.paint.exactSeamPositionMarkers.visible=paintWorkspace and state.meshVisible and
+            state.showAdvancedDiagnostics and
             not state.paint.aabbCapture.active
     end
     if state.paint.safetyFaceShape then
@@ -5441,6 +5448,13 @@ local function showMenu()
         tImGui.EndMenu()
     end
     if tImGui.BeginMenu(tLang.L('menu_options')) then
+        local pressed,showAdvanced=tImGui.MenuItem(
+            tLang.L('swl_show_advanced_diagnostics'),nil,state.showAdvancedDiagnostics)
+        if pressed then
+            state.showAdvancedDiagnostics=showAdvanced
+            applyWorkspaceVisibility()
+        end
+        tImGui.Separator()
         tLang.renderLanguageSubmenu()
         tImGui.EndMenu()
     end
@@ -6746,6 +6760,9 @@ local function showPaintWeights()
             end
         end
     end
+    if state.showAdvancedDiagnostics then
+    tImGui.Separator()
+    showSectionTitle('swl_paint_advanced_pinned')
     local seamReport=state.paint.inspectorSeamReport
     if state.paint.showVertexInspector and state.paint.inspectorPinned and seamReport then
         tImGui.Separator()
@@ -6924,6 +6941,7 @@ local function showPaintWeights()
         end
     end
     tImGui.Separator()
+    showSectionTitle('swl_paint_advanced_weight_seams')
     tImGui.Text(tLang.L('swl_paint_global_seam_title'))
     if tImGui.Button(tLang.L('swl_paint_global_seam_analyze')) then
         analyzeGlobalSeamWeights()
@@ -6952,6 +6970,7 @@ local function showPaintWeights()
         end
     end
     tImGui.Separator()
+    showSectionTitle('swl_paint_advanced_normals')
     tImGui.Text(tLang.L('swl_paint_global_normal_title'))
     tImGui.PushItemWidth(240)
     local globalThresholdChanged,globalThreshold=tImGui.SliderFloat(
@@ -7032,6 +7051,7 @@ local function showPaintWeights()
         end
     end
     tImGui.Separator()
+    showSectionTitle('swl_paint_advanced_source_geometry')
     tImGui.Text(tLang.L('swl_paint_exact_position_title'))
     if tImGui.Button(tLang.L('swl_paint_exact_position_analyze')) then
         analyzeExactCoincidentPositions()
@@ -7055,6 +7075,7 @@ local function showPaintWeights()
             tImGui.TextColored({r=1,g=0.7,b=0.15,a=1},
                 tLang.L('swl_paint_exact_position_nonzero'))
         end
+    end
     end
     local strokeSafetyReport=state.paint.strokeSafetyReport
     tImGui.BeginDisabled(strokeSafetyReport==nil)

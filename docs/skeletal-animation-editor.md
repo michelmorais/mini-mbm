@@ -65,6 +65,20 @@ a broader authoring decision.
 All colored and disabled guidance in the summary uses the same width-aware wrapping path as ordinary
 panel text, so resizing the editor panel reflows green, yellow, red, and gray messages consistently.
 
+The ordinary Paint Weights surface keeps Weight Health, influence visualizations, contextual weight
+tools, brush authoring, and nearest-vertex inspection visible. The session-only **Options > Show
+Advanced Diagnostics** toggle reveals the lower-frequency forensic tools without deleting their
+state or changing the asset. Advanced controls are grouped by intent:
+
+- pinned vertex geometry, bind topology, coincident-copy weights, and normals;
+- whole-mesh coincident weight seams and their confirmed synchronization;
+- whole-mesh incompatible-normal analysis/repair and coincident-normal smoothing;
+- exact stored positions inside established source seam groups.
+
+Disabling the option also hides advanced viewport overlays. It does not undo a repair already
+committed; every mutating advanced action remains explicit, confirmed where applicable, and
+Undoable.
+
 The Paint Weights panel is contextual rather than showing every control at once. **Show Mesh** is
 the first viewport control, immediately followed by **Show Skeleton**. Repair / Diagnostics follows because its radio selection
 defines the rest of the panel in the same frame. Target Bone, Viewport Feedback, and History remain

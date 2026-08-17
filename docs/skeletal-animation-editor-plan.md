@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.73**
+Document version: **8.74**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.74 | 2026-08-17 | Organized low-frequency Paint Weights forensic tools behind the default-off, session-only Options > Show Advanced Diagnostics toggle. Pinned geometry/topology/normals, whole-mesh weight seams, whole-mesh normals, and exact source-seam positions now have explicit domain headings, and disabling the option hides their viewport overlays without removing tools or results. |
 | 8.73 | 2026-08-17 | Standardized Weight Health colored and disabled guidance on width-aware wrapped text, preserving green/yellow/red/gray presentation while allowing every message to reflow with the panel. |
 | 8.72 | 2026-08-17 | Weight Health now explicitly states when no deterministic automatic repair applies, rather than silently omitting contextual buttons; abrupt transitions and influence concentration remain pose-inspection decisions. |
 | 8.71 | 2026-08-17 | Made Weight Health tooltip and colored guidance panel-width safe through explicit line breaks. Added contextual Undoable repairs only for deterministic findings: complete-mesh weak cleanup and confirmed coincident-seam synchronization, each followed by automatic re-analysis; artistic transition/influence decisions remain manual. |
