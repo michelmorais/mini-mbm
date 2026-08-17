@@ -1521,8 +1521,6 @@ local removedBoneCount, removedWeightedVertexCount, removedClipCount =
     meshD:removeAllSkeletalData()
 local name1, weight1, name2, weight2, name3, weight3, name4, weight4 =
     meshD:getSkeletalVertexWeight(vertexIndex)
-meshD:setSkeletalVertexWeight(vertexIndex,
-    name1, weight1, name2, weight2, name3, weight3, name4, weight4)
 meshD:setSkeletalVertexWeightsBatch({
     {vertexIndex, name1, weight1, name2, weight2, name3, weight3, name4, weight4},
     ...
@@ -1537,6 +1535,10 @@ influences, out-of-range vertices, or assets without matching type-41/type-42 se
 error without modifying the previous vertex. The getter returns eight values, using `nil, 0` for
 unused slots, or a single `nil` for an invalid vertex. These methods never read, create, or update
 the exploratory sections 11/40.
+
+`setSkeletalVertexWeight(vertexIndex, name1, weight1, ..., name4, weight4)` remains registered as a
+deprecated compatibility wrapper. New code should use `setSkeletalVertexWeightsBatch`, including
+for one vertex, so validation and mutation always use the same atomic transaction boundary.
 
 `setSkeletalVertexWeightsBatch` applies one or more unique one-based vertex edits through a single
 detached type-42 candidate. Every row follows the scalar setter's influence contract. The complete

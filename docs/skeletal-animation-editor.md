@@ -342,6 +342,10 @@ Multiple roots are shown as separate top-level nodes, nodes with diagnostics are
 and **Expand all** opens the complete hierarchy. Selecting a node highlights its joint and incoming
 parent-to-child bone segment in cyan in the bind-pose gizmo, and updates one separate technical panel with that bone's identity, parent,
 local TRS, radius/length, and bind matrices. The selected-bone panel permits an explicit rename.
+The same read-only selection is available directly in the viewport: a left click on a bind joint or
+parent-to-child segment selects the corresponding bone and synchronizes the hierarchy/details panel.
+Clicking and dragging empty viewport space continues to orbit the camera; Bind Pose Contract does
+not turn this selection path into direct manipulation.
 Empty or duplicate names are rejected transactionally; weights and animation tracks continue
 targeting the unchanged stable bone ID. Rename and reparent stage a whole-asset snapshot before
 committing; failed mutations discard it without changing history. Undo/Redo restores skeleton,
@@ -801,9 +805,9 @@ The following sections preserve the behavior of the retired laboratory for histo
 and maintenance of shared algorithms. They do not describe an accessible worktree. Paint Weights
 owns the supported authoring, mask, diagnostic, repair, Undo, and persistence workflow.
 
-The retired implementation still exists as unreachable Lua cleanup debt. Its exclusive helpers must
-be removed before retiring any public API. The active Paint Weights workflow performs mutations with
-the atomic batch setter; the scalar setter is retained only for compatibility and its existing tests.
+The retired GUI, mouse paths, and exclusive Lua helpers have been physically removed. The active
+Paint Weights workflow performs mutations with the atomic batch setter; the scalar setter is
+deprecated and retained only for compatibility and its existing tests.
 Canonical weight reads, initialization/removal, palette inspection, and batch mutation still have
 active Paint Weights, Bone Editor, or Mesh Debug consumers and are not removal candidates.
 

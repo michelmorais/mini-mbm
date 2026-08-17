@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.43**
+Document version: **8.45**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -553,6 +553,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.45 | 2026-08-17 | Completed read-only Bind Pose Contract viewport selection. The shared bind-skeleton ray test selects joints and parent-to-child segments by canonical index, synchronizes the hierarchy/details panel and cyan highlight, and preserves empty-space left-drag camera orbit without exposing direct bind manipulation. |
+| 8.44 | 2026-08-17 | Physically removed the retired Skin Weight Lab GUI, mouse paths, scalar-write wrapper usage, and exclusive analysis/repair/visual helpers from the editor. Paint Weights retains the shared topology, marker, canonical read, and atomic batch-mutation paths. The public scalar setter is now deprecated compatibility surface rather than an editor dependency. |
 | 8.43 | 2026-08-17 | Audited Paint Weights documentation and canonical weight API consumers against the delivered editor. Corrected viewport-control order and active-worktree count, removed the stale claim that abrupt repair remained future work, and removed workflow wording that still directed artists back to the retired Weight Lab. The scalar weight setter remains only as a compatibility/deprecation candidate after dead Lab cleanup; active workflows use the atomic batch setter. |
 | 8.42 | 2026-08-17 | Made dirty in-memory canonical state authoritative for every preview rebuild. Unmodified loads and completed saves use the real file; unsaved skeleton, weight, and clip edits transparently rebuild through an immediately discarded temporary mesh, so animation authoring no longer requires an unrelated manual save. |
 | 8.41 | 2026-08-17 | Fixed Animation-worktree skeleton segments separating from joints on small meshes at Z zero. Line origins and endpoints now use the same visual-Z mapping as joint shapes during creation and per-frame updates; bind and pose data remain unchanged. |

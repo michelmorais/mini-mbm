@@ -475,6 +475,7 @@ namespace mbm
         // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
         // An asset without an existing canonical skeleton/weight section is rejected rather than
         // promoted from, or mirrored into, the exploratory name-palette representation above.
+        // Deprecated compatibility wrapper. New editor code must use the atomic batch operation.
         API_IMPL bool setSkeletalVertexWeight(const uint32_t vertexIndex,
                                                const char *boneName0, const float weight0,
                                                const char *boneName1, const float weight1,
