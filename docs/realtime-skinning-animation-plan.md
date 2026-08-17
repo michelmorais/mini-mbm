@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.68**
+Document version: **9.69**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -806,6 +806,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.69 | 2026-08-17 | Coincident-normal diagnosis now lists per-copy bind/deformed vectors, selected-copy angles, and winding-safe incident-face averages for smooth-versus-hard-boundary classification. |
 | 9.68 | 2026-08-17 | Expanded Runtime Preview lighting into a movable Mesh-Debug-style window with enable, ambient/directional colors, orbit gizmo, XYZ direction, reset, shader-compatible rebuilding, and runtime-only editor scope. |
 | 9.67 | 2026-08-17 | Added explicit editor-only lit/unlit Runtime Preview comparison with load-time lit shader rebuilding, fixed inspection lighting, unlit non-runtime worktrees, and no asset persistence. |
 | 9.66 | 2026-08-17 | Added read-only bind/deformed normal-angle comparison across pinned coincident copies using the Compact LBS normal transform at explicit diagnostic time. |

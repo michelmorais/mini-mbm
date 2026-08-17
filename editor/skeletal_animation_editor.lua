@@ -4038,13 +4038,23 @@ local function analyzePinnedSeamNormals()
         end
         return normalized(x,y,z)
     end
+    local cache=state.paint.geometry or buildPaintGeometryCache()
     local normals={}
     for _,member in ipairs(seam.members) do
         local point=member.point
         local bind=point and normalized(point.nx or 0,point.ny or 0,point.nz or 0) or nil
         if bind then
+            local gx,gy,gz=0,0,0
+            for _,triangle in ipairs(cache and cache.incidentTriangles[member.globalIndex] or {}) do
+                local a,b,c=triangle.a.point,triangle.b.point,triangle.c.point
+                local ux,uy,uz=b.x-a.x,b.y-a.y,b.z-a.z
+                local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
+                local nx,ny,nz=uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx
+                if nx*bind.x+ny*bind.y+nz*bind.z<0 then nx,ny,nz=-nx,-ny,-nz end
+                gx,gy,gz=gx+nx,gy+ny,gz+nz
+            end
             normals[#normals+1]={globalIndex=member.globalIndex,bind=bind,
-                deformed=deformNormal(bind,member.weightMap)}
+                deformed=deformNormal(bind,member.weightMap),geometric=normalized(gx,gy,gz)}
         end
     end
     local function angle(a,b)
@@ -4060,9 +4070,20 @@ local function analyzePinnedSeamNormals()
                 angle(normals[left].deformed,normals[right].deformed))
         end
     end
+    local reference=nil
+    for _,entry in ipairs(normals) do
+        if entry.globalIndex==state.paint.hoveredVertex.globalIndex then reference=entry break end
+    end
+    reference=reference or normals[1]
+    for _,entry in ipairs(normals) do
+        entry.bindFromSelected=reference and angle(reference.bind,entry.bind) or 0
+        entry.deformedFromSelected=reference and angle(reference.deformed,entry.deformed) or 0
+        entry.geometricDifference=angle(entry.bind,entry.geometric)
+    end
     state.paint.inspectorNormalReport={clipIndex=clipIndex,time=time,
         copies=#seam.members,normals=#normals,bindMaximum=bindMaximum,
-        deformedMaximum=deformedMaximum}
+        deformedMaximum=deformedMaximum,entries=normals,
+        selectedIndex=reference and reference.globalIndex or 0}
     return true
 end
 
@@ -6250,6 +6271,27 @@ local function showPaintWeights()
                 normalReport.copies))
             tImGui.TextWrapped(string.format(tLang.L('swl_paint_normal_angles_fmt'),
                 normalReport.bindMaximum,normalReport.deformedMaximum))
+            for _,entry in ipairs(normalReport.entries or {}) do
+                local selected=entry.globalIndex==normalReport.selectedIndex and ' *' or ''
+                if tImGui.TreeNode(string.format(tLang.L('swl_paint_normal_entry_fmt'),
+                        entry.globalIndex,selected)..'##swlNormalEntry'..entry.globalIndex) then
+                    tImGui.TextWrapped(string.format(tLang.L('swl_paint_normal_bind_xyz_fmt'),
+                        entry.bind.x,entry.bind.y,entry.bind.z,entry.bindFromSelected))
+                    if entry.deformed then
+                        tImGui.TextWrapped(string.format(
+                            tLang.L('swl_paint_normal_deformed_xyz_fmt'),entry.deformed.x,
+                            entry.deformed.y,entry.deformed.z,entry.deformedFromSelected))
+                    end
+                    if entry.geometric then
+                        tImGui.TextWrapped(string.format(
+                            tLang.L('swl_paint_normal_geometric_fmt'),entry.geometric.x,
+                            entry.geometric.y,entry.geometric.z,entry.geometricDifference))
+                    else
+                        tImGui.TextDisabled(tLang.L('swl_paint_normal_geometric_missing'))
+                    end
+                    tImGui.TreePop()
+                end
+            end
             if normalReport.normals<normalReport.copies then
                 tImGui.TextDisabled(tLang.L('swl_paint_normal_missing'))
             elseif normalReport.bindMaximum>5 or normalReport.deformedMaximum>5 then

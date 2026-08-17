@@ -457,6 +457,11 @@ and then applies the Compact LBS normal path at the explicit diagnostic time: th
 after deformation, plus normal coverage for the group. Angles above 5 degrees are presented as a
 visible discontinuity candidate. This is read-only and does not toggle the engine-global lighting
 state or force a mesh shader-variant reload.
+Each valid copy can be expanded to inspect bind and deformed XYZ, both angles relative to the pinned
+copy, and an area-weighted incident-face average with its angle to the stored bind normal. Incident
+face cross products are sign-oriented toward that copy's stored normal before averaging, so the
+engine's CW/CCW convention cannot create a false 180-degree mismatch. These details identify which
+copies form one smooth group and which represent an intentional hard geometric boundary.
 
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
