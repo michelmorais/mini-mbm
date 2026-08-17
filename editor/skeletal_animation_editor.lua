@@ -179,6 +179,8 @@ local state = {
         inspectorNormalReport=nil,
         normalRepairThreshold=30,normalRepairConfirmed=false,
         globalNormalAudit=nil,globalNormalRepairConfirmed=false,globalNormalMarkers=nil,
+        normalSmoothAngle=30,globalNormalSmoothAudit=nil,
+        globalNormalSmoothConfirmed=false,globalNormalSmoothMarkers=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         rigidCoreRatio=0.6,
@@ -290,6 +292,7 @@ local function clearPaintVisuals()
     destroyObject(state.paint.inspectorGeometryOverlay)
     destroyObject(state.paint.inspectorTopologyOverlay)
     destroyObject(state.paint.globalNormalMarkers)
+    destroyObject(state.paint.globalNormalSmoothMarkers)
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     destroyObject(state.paint.strokeSafetyFaceShape)
@@ -315,6 +318,13 @@ local function clearPaintVisuals()
     state.paint.globalNormalRepairConfirmed=false
     destroyObject(state.paint.globalNormalMarkers)
     state.paint.globalNormalMarkers=nil
+    state.paint.globalNormalSmoothAudit=nil
+    state.paint.globalNormalSmoothConfirmed=false
+    destroyObject(state.paint.globalNormalSmoothMarkers)
+    state.paint.globalNormalSmoothMarkers=nil
+    state.paint.globalNormalSmoothAudit=nil
+    state.paint.globalNormalSmoothConfirmed=false
+    state.paint.globalNormalSmoothMarkers=nil
     state.paint.inspectorGeometryReport=nil
     state.paint.inspectorGeometryOverlay=nil
     state.paint.inspectorTopologyReport=nil
@@ -1031,6 +1041,10 @@ local function applyWorkspaceVisibility()
     end
     if state.paint.globalNormalMarkers then
         state.paint.globalNormalMarkers.visible=paintWorkspace and state.meshVisible and
+            not state.paint.aabbCapture.active
+    end
+    if state.paint.globalNormalSmoothMarkers then
+        state.paint.globalNormalSmoothMarkers.visible=paintWorkspace and state.meshVisible and
             not state.paint.aabbCapture.active
     end
     if state.paint.safetyFaceShape then
@@ -4283,6 +4297,135 @@ local function repairGlobalIncompatibleNormals()
     return true
 end
 
+local function analyzeGlobalCoincidentNormalSmoothing()
+    destroyObject(state.paint.globalNormalSmoothMarkers)
+    state.paint.globalNormalSmoothMarkers=nil
+    state.paint.globalNormalSmoothAudit=nil
+    state.paint.globalNormalSmoothConfirmed=false
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return nil end
+    local limit=math.max(0,math.min(180,state.paint.normalSmoothAngle or 30))
+    local seams=buildCoincidentSeams(buildTopologyAdjacency())
+    local function normalized(x,y,z)
+        local length=math.sqrt(x*x+y*y+z*z)
+        if length<=1e-12 then return nil end
+        return {x=x/length,y=y/length,z=z/length}
+    end
+    local function angle(a,b)
+        local cosine=math.max(-1,math.min(1,a.x*b.x+a.y*b.y+a.z*b.z))
+        return math.acos(cosine)*180/math.pi
+    end
+    local edits,groups={},0
+    for _,seam in ipairs(seams.groups) do
+        local remaining={}
+        for _,index in ipairs(seam) do
+            local vertex=cache.vertices[index]
+            local point=vertex and vertex.point
+            local normal=point and normalized(point.nx or 0,point.ny or 0,point.nz or 0)
+            if normal then remaining[#remaining+1]={vertex=vertex,normal=normal} end
+        end
+        table.sort(remaining,function(a,b) return a.vertex.globalIndex<b.vertex.globalIndex end)
+        while #remaining>0 do
+            local component={table.remove(remaining,1)}
+            local changed=true
+            while changed do
+                changed=false
+                for candidate=#remaining,1,-1 do
+                    local compatible=true
+                    for _,member in ipairs(component) do
+                        if angle(remaining[candidate].normal,member.normal)>limit then
+                            compatible=false; break
+                        end
+                    end
+                    if compatible then
+                        component[#component+1]=table.remove(remaining,candidate)
+                        changed=true
+                    end
+                end
+            end
+            if #component>1 then
+                local x,y,z=0,0,0
+                for _,member in ipairs(component) do
+                    x,y,z=x+member.normal.x,y+member.normal.y,z+member.normal.z
+                end
+                local average=normalized(x,y,z)
+                local componentChanged=false
+                if average then
+                    for _,member in ipairs(component) do
+                        if angle(member.normal,average)>1e-4 then
+                            edits[#edits+1]={globalIndex=member.vertex.globalIndex,
+                                subset=member.vertex.subset,localIndex=member.vertex.localIndex,
+                                point=member.vertex.point,normal=average}
+                            componentChanged=true
+                        end
+                    end
+                end
+                if componentChanged then groups=groups+1 end
+            end
+        end
+    end
+    state.paint.globalNormalSmoothAudit={edits=edits,affectedCount=#edits,
+        groupCount=groups,totalSeams=#seams.groups,angle=limit}
+    if #edits>0 then
+        local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+            state.meshBounds.maxY-state.meshBounds.minY,
+            state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+        state.paint.globalNormalSmoothMarkers=buildVertexMarkers(edits,0.25,0.8,1,extent)
+        if state.paint.globalNormalSmoothMarkers then
+            state.paint.globalNormalSmoothMarkers.alwaysRender=true
+            state.paint.globalNormalSmoothMarkers.alwaysOnTop=true
+            state.paint.globalNormalSmoothMarkers.alwaysOnTopPriority=1
+        end
+    end
+    applyWorkspaceVisibility()
+    return state.paint.globalNormalSmoothAudit
+end
+
+local function smoothGlobalCoincidentNormals()
+    local audit=state.paint.globalNormalSmoothAudit
+    if not audit or audit.affectedCount==0 then
+        setStatus(tLang.L('swl_paint_normal_smooth_no_change'),false)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_smooth_coincident_normals')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    local applied=true
+    for _,entry in ipairs(audit.edits) do
+        local vertex=cache and cache.vertices[entry.globalIndex]
+        if not vertex then applied=false break end
+        local data={}
+        for key,value in pairs(vertex.point) do data[key]=value end
+        data.nx,data.ny,data.nz=entry.normal.x,entry.normal.y,entry.normal.z
+        local ok=safeCall(function()
+            return state.meshD:setVertex(1,entry.subset,entry.localIndex,data)
+        end)
+        if not ok then applied=false break end
+    end
+    if not applied then
+        restoreHistoryEntry(snapshot)
+        discardRollbackSnapshot(snapshot)
+        setStatus(tLang.L('swl_paint_normal_smooth_failed'),true)
+        return false
+    end
+    local affectedCount,groupCount,angleLimit=audit.affectedCount,audit.groupCount,audit.angle
+    commitRollbackSnapshot(snapshot,'swl_history_smooth_coincident_normals')
+    state.modified=true
+    state.paint.geometry=nil
+    buildPaintGeometryCache()
+    analyzeGlobalCoincidentNormalSmoothing()
+    if state.paint.inspectorPinned then
+        local selectedIndex=state.paint.hoveredVertex.globalIndex
+        local selected=state.paint.geometry and state.paint.geometry.vertices[selectedIndex]
+        if selected then state.paint.hoveredVertex.point=selected.point end
+        rebuildPinnedSeamInspector()
+        analyzePinnedSeamNormals()
+    end
+    setStatus(string.format(tLang.L('swl_paint_normal_smooth_applied_fmt'),
+        affectedCount,groupCount,angleLimit),false,true)
+    return true
+end
+
 local function constrainedRepairWeights(original,candidate,allowedNames,maxChange)
     local filtered={}
     for name,weight in pairs(candidate or {}) do
@@ -6602,6 +6745,45 @@ local function showPaintWeights()
             end
             tImGui.EndDisabled()
             showItemTooltip(tLang.L('swl_paint_global_normal_apply_help'))
+        end
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('swl_paint_normal_smooth_title'))
+    tImGui.PushItemWidth(240)
+    local smoothAngleChanged,smoothAngle=tImGui.SliderFloat(
+        tLang.L('swl_paint_normal_smooth_angle'),state.paint.normalSmoothAngle,
+        0,180,'%.1f deg')
+    tImGui.PopItemWidth()
+    if smoothAngleChanged then
+        state.paint.normalSmoothAngle=smoothAngle
+        state.paint.globalNormalSmoothAudit=nil
+        state.paint.globalNormalSmoothConfirmed=false
+        destroyObject(state.paint.globalNormalSmoothMarkers)
+        state.paint.globalNormalSmoothMarkers=nil
+    end
+    if tImGui.Button(tLang.L('swl_paint_normal_smooth_analyze')) then
+        analyzeGlobalCoincidentNormalSmoothing()
+    end
+    showItemTooltip(tLang.L('swl_paint_normal_smooth_analyze_help'))
+    local smoothAudit=state.paint.globalNormalSmoothAudit
+    if smoothAudit then
+        tImGui.TextWrapped(string.format(tLang.L('swl_paint_normal_smooth_summary_fmt'),
+            smoothAudit.affectedCount,smoothAudit.groupCount,smoothAudit.totalSeams,
+            smoothAudit.angle))
+        if smoothAudit.affectedCount==0 then
+            tImGui.TextDisabled(tLang.L('swl_paint_normal_smooth_clean'))
+        else
+            local confirmed=tImGui.Checkbox(tLang.L('swl_paint_normal_smooth_confirm'),
+                state.paint.globalNormalSmoothConfirmed)
+            if confirmed~=state.paint.globalNormalSmoothConfirmed then
+                state.paint.globalNormalSmoothConfirmed=confirmed
+            end
+            tImGui.BeginDisabled(not state.paint.globalNormalSmoothConfirmed)
+            if tImGui.Button(tLang.L('swl_paint_normal_smooth_apply')) then
+                smoothGlobalCoincidentNormals()
+            end
+            tImGui.EndDisabled()
+            showItemTooltip(tLang.L('swl_paint_normal_smooth_apply_help'))
         end
     end
     local strokeSafetyReport=state.paint.strokeSafetyReport

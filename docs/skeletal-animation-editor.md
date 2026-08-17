@@ -477,6 +477,14 @@ Incompatible Normals** applies only that cached impact set, in one Undoable oper
 the geometry cache and reruns the audit. Changing the limit or committing another edit invalidates
 both the audit and its confirmation. This remains distinct from aesthetic smoothing below the limit.
 
+**Coincident Normal Smoothing** is that separate aesthetic operation. For each connected coincident
+seam, usable stored normals are partitioned into complete-link groups: a candidate joins only when
+its angle to every current member is within the configurable limit (30 degrees by default). This
+prevents a transitive 0/20/40-degree chain from merging endpoints beyond the requested limit. Groups
+with at least two members receive one normalized average; divisions above the limit remain hard.
+On-demand analysis reports changed vertices/groups/seams and marks impact in cyan. Explicit apply
+preserves positions, UVs, and weights, commits one Undo entry, and reruns the analysis.
+
 **Add bone** creates a root or child using a unique name and parent-relative translation. New bones
 start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
 values can then be corrected through the local-bind fields. Addition allocates a new stable ID,
