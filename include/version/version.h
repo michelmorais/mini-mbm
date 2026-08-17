@@ -267,6 +267,7 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.73.6 Moved wide Animation transform and Auto Key helper text into localized hover tooltips.
     7.73.5 Added read-only Bind Pose Contract joint/segment viewport picking with hierarchy synchronization and empty-space camera orbit.
     7.73.4 Removed the retired Skin Weight Lab GUI and exclusive Lua helpers; deprecated its unused scalar canonical weight setter in favor of atomic batch edits.
     7.73.3 Synchronized Paint Weights documentation with delivered control order, abrupt repair, and the retired Weight Lab workflow after an API-consumer audit.
@@ -455,7 +456,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.73.5" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.73.6" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

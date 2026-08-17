@@ -495,6 +495,8 @@ skeleton from the same evaluated global transforms. Consequently the mesh and sk
 same pose while editing. Mouse picking, translation/rotation/uniform-scale gizmos, explicit commit,
 Auto Key, playback, and the graphical timeline build on this contract; numeric key fields remain
 precise diagnostic/fallback controls rather than the intended primary UX.
+Move, Rotate, Scale, and Auto Key keep their detailed guidance in hover tooltips so the Animation
+panel remains readable at its standard width.
 Bone selection is now viewport-driven as well as tree/track-driven. Clicking either an evaluated
 joint or its parent-to-child segment performs a nearest-hit ray test and selects the child bone;
 dragging empty viewport space continues to orbit the camera. This establishes the selection

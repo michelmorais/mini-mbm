@@ -6560,15 +6560,19 @@ local function showSkeletalAnimationInspection()
         state.animationTransformTool=tImGui.RadioButton(
             tLang.L('swl_animation_tool_move')..'##swlAnimationMove',
             state.animationTransformTool,1)
+        showItemTooltip(tLang.L('swl_animation_viewport_select_help'))
         tImGui.SameLine()
         state.animationTransformTool=tImGui.RadioButton(
             tLang.L('swl_animation_tool_rotate')..'##swlAnimationRotate',
             state.animationTransformTool,2)
+        showItemTooltip(tLang.L('swl_animation_viewport_select_help'))
         tImGui.SameLine()
         tImGui.BeginDisabled(resolvedAuthoringMethod~='lbs')
         state.animationTransformTool=tImGui.RadioButton(
             tLang.L('swl_animation_tool_scale')..'##swlAnimationScale',
             state.animationTransformTool,3)
+        showItemTooltip(tLang.L(resolvedAuthoringMethod=='lbs' and
+            'swl_animation_scale_uniform_only' or 'swl_animation_scale_requires_lbs'),true)
         tImGui.EndDisabled()
         if state.animationTransformTool==3 and resolvedAuthoringMethod~='lbs' then
             state.animationTransformTool=1
@@ -6578,15 +6582,9 @@ local function showSkeletalAnimationInspection()
             state.scaleGizmo.drag=nil
             rebuildTranslationGizmo(); rebuildRotationGizmo(); rebuildScaleGizmo()
         end
-        if state.animationTransformTool==3 then
-            tImGui.TextWrapped(tLang.L('swl_animation_scale_uniform_only'))
-        elseif resolvedAuthoringMethod~='lbs' then
-            tImGui.TextDisabled(tLang.L('swl_animation_scale_requires_lbs'))
-        end
         state.animationAutoKey=tImGui.Checkbox(
             tLang.L('swl_animation_auto_key')..'##swlAnimationAutoKey',state.animationAutoKey)
-        tImGui.TextDisabled(tLang.L('swl_animation_auto_key_help'))
-        tImGui.TextDisabled(tLang.L('swl_animation_viewport_select_help'))
+        showItemTooltip(tLang.L('swl_animation_auto_key_help'))
         if state.authoringOverride then
             tImGui.TextColored({r=1,g=0.75,b=0.15,a=1},
                 tLang.L('swl_animation_temporary_pose'))
