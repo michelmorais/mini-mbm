@@ -1,8 +1,8 @@
 # Articulated Animation
 
-Document version: **1.0**
+Document version: **1.1**
 Status: **Implemented**
-Last updated: **2026-08-06**
+Last updated: **2026-08-17**
 
 ## 1. Purpose
 
@@ -323,11 +323,12 @@ pivots, bind poses, or file sections. See the
 | User workflow and behavioral explanation | This guide |
 | Lua signatures and return values | [Lua API](lua-api.md#articulated-playback-mesh-and-sprite) |
 | Binary layout and persisted invariants | [Mesh V11 format](mesh-v11-format.md#6f-section_articulated_parts-and-section_articulated_animation-payloads) |
-| Future LBS/DQS relationship | [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md) |
+| Skeletal LBS/DQS relationship | [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md) |
 | Weight authoring | [Skeletal Animation Editor](skeletal-animation-editor.md) |
 
 ## 15. Change Log
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1 | 2026-08-17 | Updated the source-of-truth link label now that skeletal LBS/DQS is implemented on GLES rather than wholly future work. |
 | 1.0 | 2026-08-06 | Initial implementation-backed guide covering model selection, Parts/pivots, hierarchy, clips/tracks/keys, easing, composition, playback, Lua, Mesh Debug authoring, rendering, persistence, and future skeletal-skinning boundaries. |

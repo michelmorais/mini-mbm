@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.91**
+Document version: **9.92**
 Status: **Canonical import, GLES runtime LBS/DQS, local animation, Paint Weights, and transient composition implemented; bone masks, modern backends, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -13,38 +13,37 @@ interfaces do not accidentally encode only one method. It also reserves an expli
 path for future Velocity Skinning and renderer modernization without expanding the initial runtime
 delivery gate.
 
-The [Skeletal Animation Editor guide](skeletal-animation-editor.md) documents the delivered Skin
-Weight Lab workflow for weight authoring, local repair, and validation. Runtime skinning work remains
-in the same standalone editor rather than continuing to inflate Mesh Debug.
+The [Skeletal Animation Editor guide](skeletal-animation-editor.md) documents the delivered Paint
+Weights workflow for visual weight authoring, repair, diagnostics, and validation. Runtime skinning
+and animation authoring remain in that standalone editor rather than continuing to inflate Mesh
+Debug.
 
 The companion
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md)
-defines the editor's three-node product shape, audits Mesh Debug Bones as a reference, and owns
-local/imported skeleton and clip authoring workflows.
+defines the editor's five-worktree product shape, records the completed migration away from Mesh
+Debug Bones, and owns local/imported skeleton and clip authoring workflows.
 
 This is a planning document, not a promise that LBS and DQS ship simultaneously. It separates
 confirmed facts, decisions, hypotheses, and open questions.
 
 ## 2. Current State and Confirmed Facts
 
-- Mini MBM persists an editor-only bind-pose skeleton and up to four named influences per frame-1
-  vertex.
-- The runtime currently renders pre-baked mesh frames; it does not evaluate a bone hierarchy and
-  deform vertices from skin weights per frame.
+- Mini MBM persists canonical type-41 skeletons with stable bone IDs and local bind TRS, type-42
+  weights with up to four ID-based influences per frame-zero vertex, and type-43 skeletal clips.
+- The runtime evaluates local clip tracks and the bone hierarchy per mesh instance, then deforms
+  vertices and normals through a GPU palette on the OpenGL ES path. Pre-baked static-frame
+  animation remains a separate supported animation model.
 - Current backends include OpenGL ES 2, DirectX 9, and Metal. Basic skeletal skinning does not by
   itself require replacing these APIs, but their buffer, shader, and palette limits differ.
 - Linux currently exercises the OpenGL ES path and is a practical first development platform.
-- Mesh Debug already implements articulated animation with hierarchical parts/pivots, named clips,
+- The engine implements articulated animation with hierarchical parts/pivots, named clips,
   position/rotation/scale tracks, quaternion runtime rotation, easing, timeline controls, loop,
   speed, priority, weight/fade, and Absolute/Additive composition.
 - Articulated animation moves mesh parts. Skeletal skinning instead evaluates bones and blends
   transformed vertex positions/normals. The existing workflow is a reference, not an interchangeable
   storage format.
-- `docs/articulated-animation.md` never existed in Git history. A similarly named implementation
-  plan, `docs/articulated-animation-plan.md`, existed from commit `e3f41bf` until it was removed in
-  `729c193` after the feature was refined. The broken Lua API link introduced during that transition
-  was repaired and an implementation-backed [Articulated Animation guide](articulated-animation.md)
-  now documents the current feature.
+- The implementation-backed [Articulated Animation guide](articulated-animation.md) documents that
+  separate rigid-subset feature and its distinction from skeletal deformation.
 
 ### Initial rat study bundle
 
@@ -319,7 +318,9 @@ The Skeletal Animation Editor contains five mutually exclusive worktrees:
 2. **Bind Pose Contract** — canonical hierarchy/bind inspection and diagnostics.
 3. **Runtime Skeletal Preview** — runtime clip playback, method readiness, and LBS/DQS comparison.
 4. **Create / Edit Animations** — delivered clip/track/key editing, viewport T/R/S authoring,
-   playback, timeline operations, clipboards, and history. Multi-clip composition remains deferred.
+   playback, timeline operations, clipboards, and history. The Runtime Skeletal Preview owns the
+   delivered transient two-clip Absolute/Additive composition controls; persistent composition and
+   per-bone masks remain deferred.
 5. **Paint Weights** — the primary day-to-day weight-authoring surface. Its accepted brushes,
    regional masks, diagnostics, repair tools, pose safety, Undo, and persistence replaced the
    former Skin Weight Lab worktree.
@@ -816,6 +817,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.92 | 2026-08-17 | Audited the plan against the canonical readers/writers, per-instance player/compositor, Lua registrations, editor worktrees, and backend implementations. Replaced the stale editor-only/no-runtime Current State with delivered type-41/42/43 and GLES LBS/DQS facts, corrected the five-worktree and articulated-guide descriptions, and synchronized the Lua and FBX/bone guides while preserving legacy history explicitly. |
 | 9.91 | 2026-08-17 | Explicitly deferred per-bone animation-layer masks so modern backend delivery can take priority. Recorded the fixed future contract (stable bone IDs, strict per-bone multipliers, all-ones compatibility default, global-times-mask effective weight, one final palette), the in-place Runtime Preview hierarchy/subtree GUI, gameplay benefits, and its distinction from vertex weights/Paint Weights masks. Also synchronized stale Phase-7/status prose with the composition runtime already delivered. |
 | 9.90 | 2026-08-17 | Added independent layer pause/resume/query state, Lua methods, and Runtime Preview controls. Layer pause freezes its clip time and fade without stopping the base; global pause still freezes all temporal state. Layer lifecycle and mode replacement reset the local pause deterministically. |
 | 9.89 | 2026-08-17 | Connected bind-relative Additive composition to player state, explicit Lua playback, and Runtime Preview Absolute/Additive selection. Both modes reuse independent layer time, shared pause/speed, strict weight, linear fades, transactional palette replacement, and the same final LBS/DQS builders; switching mode restarts only the layer. |

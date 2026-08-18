@@ -7,9 +7,9 @@ whole feature area was built up over many sessions chasing a single symptom (Mix
 "Quick Mental Model" and "Pitfalls" sections below exist so the next person (human or AI) doesn't
 have to re-derive any of that from scratch.
 
-Region-based weight editing, rigid-core/falloff workflows, diagnostics, and validated usage are
-documented in the [Skeletal Animation Editor guide](skeletal-animation-editor.md). The future
-bind-pose pipeline and runtime LBS/DQS delivery are tracked in
+Visual weight painting, repair, diagnostics, and validated usage are documented in the
+[Skeletal Animation Editor guide](skeletal-animation-editor.md). The delivered canonical bind-pose
+pipeline and GLES LBS/DQS runtime, plus pending backend work, are tracked in
 [`realtime-skinning-animation-plan.md`](realtime-skinning-animation-plan.md).
 
 Rigid subset animation is a separate implemented feature documented in
@@ -21,29 +21,21 @@ skeletal deformation.
 Skip this section if you already know how bones/skinning work in a modern engine — the rest of the
 document is the precise reference.
 
-**Mini MBM's status in one sentence:** the engine stores everything a real skeletal-animation system
-needs (a bind-pose bone hierarchy, and real per-vertex bone weights), but nothing in the renderer
-ever *reads* that data to deform a mesh. It is 100% editor/diagnostic + FBX round-trip data. Mini
-MBM's deforming animation model remains **static frame swapping** — a flipbook of complete,
-pre-baked vertex snapshots (`SECTION_FRAME_STATIC`, repeated per frame), while articulated animation
-moves rigid subsets. The private Milestone-0 foundation can explicitly derive inverse bind and
-sample a synthetic skeletal pose for validation, but there is no runtime skeletal player,
-bone-matrix shader upload, or vertex deformation consumer.
+**Mini MBM's status in one sentence:** canonical `.msh` assets store a stable-ID bind hierarchy,
+per-vertex weights, and local skeletal clips in sections 41-43; the OpenGL ES runtime evaluates
+those clips per mesh instance and deforms vertices/normals with selectable LBS or rigid DQS.
+Static-frame swapping and articulated rigid-subset animation remain separate supported models.
 
-Why store bones/weights at all, then? Because Mixamo (and every other rigged-character pipeline)
-needs them to work at all — a character with no skeleton can't be animated by anything, and a
-character with a skeleton but no *real* per-vertex weights gets Mixamo's own auto-rigger's geometric
-guess instead of the mesh's actual intended deformation. Mini MBM's bones/weights feature exists so
-`editor/mesh_debug.lua` can be a faithful *pass-through*: import a rigged FBX, let the user inspect
-and tweak the skeleton, export a rigged FBX back out — all without the engine itself ever having to
-understand skinning. This is why every relevant format section (`SECTION_FRAME_SKINNED`,
-`SECTION_VERTEX_SKIN_WEIGHTS`) is explicitly documented as "never consulted by rendering" — that is
-the actual, deliberate design, not an oversight.
+The Skeletal Animation Editor can create/edit the canonical skeleton and clips, paint and repair
+weights, preview the same runtime player, and round-trip the result through the supported FBX
+workflow. DirectX 9 and Metal skeletal deformation, bone masks, and Velocity Skinning remain
+pending; this backend limitation does not turn canonical skeletal data back into editor-only data.
 
 ## How Real-Time Skeletal Animation Works (Other Engines)
 
 This section describes the general, industry-standard model (Unity, Unreal, Godot, and FBX itself
-all implement some variation of this) — not Mini MBM, which is covered afterward.
+all implement some variation of this). Mini MBM's canonical implementation follows this model with
+the explicit constraints documented below.
 
 ### The rig: a hierarchy of bones
 
@@ -88,7 +80,7 @@ skinnedVertex = Σ (weight_i * boneCurrentWorld_i * inverse(boneBindWorld_i)) * 
 ```
 
 That expression uses the common column-vector notation. Mini MBM's matrices transform row vectors
-(`vertex * matrix`), so the planned runtime contract reverses the written product:
+(`vertex * matrix`), so the delivered runtime contract reverses the written product:
 `inverse(boneBindGlobal) * boneCurrentGlobal`, with child globals composed as
 `boneLocal * parentGlobal`. The normative foundation and legacy-global conversion are specified in
 the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md#milestone-0-normative-contracts).
@@ -98,8 +90,8 @@ Multiplying it by the vertex first transforms the vertex out of world space into
 *local* space (relative to wherever that bone was at bind time); then `boneCurrentWorld_i` moves it
 back out into world space, but following the bone's *current* position instead. This is called
 **Linear Blend Skinning (LBS)**, and it is *the* standard technique — the "up to 4 bone influences
-per vertex, weights summing to 1.0" convention (which Mini MBM's own
-`SECTION_VERTEX_SKIN_WEIGHTS` already follows, see below) exists specifically because this formula
+per vertex, weights summing to 1.0" convention (which Mini MBM's canonical type-42 weights follow)
+exists specifically because this formula
 is a weighted sum, and real-time engines cap the influence count for a bounded, GPU-friendly cost.
 
 ### GPU vs. CPU skinning
@@ -173,20 +165,18 @@ An explicit local tail is necessary because an FBX import basis conversion can r
 `+Y` while leaving the conjugated bind transform perfectly valid for skinning. Inferring every
 tail as `globalBind * (0,length,0)` is therefore not generally correct.
 
-Name-based parent references (not indices) mirror how both Blender and FBX identify a bone: by name,
-not by array position — this is also why Mini MBM's own `SECTION_VERTEX_SKIN_WEIGHTS` (below)
-references bones by name too, not by index into this array (see Pitfalls).
+Name-based parent references (not indices) mirror how both Blender and FBX identify a bone. This
+was also the identity convention used by the retired exploratory weight section; canonical Mini MBM
+data instead resolves hierarchy, tracks, and weights through stable numeric bone IDs.
 
-This describes the current editor/round-trip format, not the planned runtime identity contract.
-Runtime bones will use stable nonzero `uint64_t` IDs; names remain labels and legacy/interchange
-lookup keys so rename and clip targeting do not depend on vector position or display text.
+This describes the retired exploratory editor/round-trip structure. Canonical runtime bones use
+stable nonzero `uint64_t` IDs; names remain labels and interchange lookup keys so rename and clip
+targeting do not depend on vector position or display text.
 
-One real divergence from most engines: Mini MBM stores rotation as **Euler XYZ degrees**, not a
-quaternion. This is fine for a *bind pose* (a single static orientation, no interpolation ever
-happens on it) but would need converting to/from quaternions if this data were ever consumed for
-real animation blending — Euler angles interpolate badly (gimbal lock, and shortest-path ambiguity)
-and are essentially never used for runtime animation curves in real engines, only for one-shot
-authoring-time values like this.
+The exploratory `SKELETON_BONE_V11` above stored **Euler XYZ degrees**. Canonical type-41 bind data
+and type-43 rotation keys store normalized quaternions, which avoids using Euler interpolation at
+runtime. The editor may expose Euler controls as authoring input, but it converts them to the
+canonical quaternion representation.
 
 ### The skin deformer: separate from the skeleton itself
 
@@ -197,11 +187,10 @@ to the mesh: an `FbxSkin`, containing one `FbxCluster` per influencing bone. Eac
 - a `TransformLink` matrix — the bone's own world transform *at bind time* (this is where the
   inverse bind matrix comes from, per the skinning formula above)
 
-This separation — skeleton (a hierarchy of nodes) vs. skin (a separate weight-and-vertex-index
-attachment) — is exactly why Mini MBM's own format keeps `SECTION_FRAME_SKINNED` (the skeleton) and
-`SECTION_VERTEX_SKIN_WEIGHTS` (the weights) as two independent, optional sections rather than one
-combined blob. It also explains a real pitfall this session hit hard — see "Weights are independent
-of the skeleton" below.
+This separation - skeleton (a hierarchy of nodes) vs. skin (a separate weight-and-vertex-index
+attachment) - is exactly why Mini MBM keeps canonical type-41 skeletons and type-42 weights in
+independent sections linked by `skeletonId`. It also explains the historical pitfall recorded under
+"Weights are independent of the skeleton" below.
 
 ### Animation curves
 
@@ -213,79 +202,44 @@ that happen to target bone nodes' transform channels.
 
 ## What Mini MBM Has Today
 
-> **Delivery decision (2026-08-10):** the sections and Mesh Debug bone API described in this
-> “today” section are exploratory implementation, retained temporarily for audit only. The delivered
-> skeletal-animation feature uses canonical sections 41–43 exclusively. It will not retain a legacy
-> skeletal reader/writer/converter mode; affected `.msh` assets must be regenerated from source FBX.
-> Static meshes without skeletal sections are unaffected.
+The delivered skeletal path uses the canonical Mesh V11 sections documented in
+[`mesh-v11-format.md`](mesh-v11-format.md):
 
-### `SECTION_FRAME_SKINNED` — bind-pose bone hierarchy
+- **type 41:** parent-first bind hierarchy, stable bone IDs, local translation, quaternion rotation,
+  scale, and authoring tail/connectivity metadata;
+- **type 42:** exactly one canonical weight record per frame-zero vertex, with up to four stable-ID
+  influences, positive normalized weights, and strict cross-section validation;
+- **type 43:** named clips with duration/loop policy and stable-ID local T/R/S tracks.
 
-One optional bundled section per mesh (docs/mesh-v11-format.md §6e). A flat list of
-`SKELETON_BONE_V11` entries, parent-before-child order. Authored via `editor/mesh_debug.lua`'s Bones
-node — either hand-built (`meshD:addBone(...)`), captured from a real Blender import
-(`editor/blender_mesh_export.py`'s `extract_armature_joints`), or stamped onto a mesh from a saved
-**Armature Template** (see below). `MESH_MBM_DEBUG::addBone/getBone/updateBone/removeBone` — the
-*editor* mesh class. **`MESH_MBM` — the runtime class every actual game loads meshes through — has
-no bone accessors at all.** Ordinary loading parses and discards this legacy editor/interchange
-section. The version-6.52.0 foundation provides a private explicit conversion utility, but does not
-automatically reinterpret v1/v2 data as a runtime skeleton. There is still no animated-pose or
-deformation consumer and no public mutable skeleton surface.
+At load, the runtime validates the joint contract, derives global bind and inverse bind matrices,
+compiles the parent-first hierarchy, and resolves the requested skinning method. Each mesh instance
+owns its clip times, pause/speed state, optional transient Absolute or bind-relative Additive layer,
+fade state, evaluated local/global pose, and final GPU palette. LBS accepts the documented compact-
+normal scale constraints; rigid DQS rejects scale/shear and `auto` selects the compatible method.
 
-The same private foundation also provides an explicit, non-mutating weight-validation report for
-conversion tooling. It resolves the legacy name palette against a deliberately compiled skeleton,
-separates structural reference errors from quality findings such as partial coverage or a non-unit
-sum, and is not invoked by ordinary `MESH_MBM` loading.
+The OpenGL ES backend compiles the LBS or DQS shader variant and uploads the palette before lighting
+is evaluated. DirectX 9 and Metal do not yet implement this skeletal shader path. CPU pose/reference
+math and editor previews exist, but there is no general CPU-deformed rendering fallback.
 
-### `SECTION_VERTEX_SKIN_WEIGHTS` — real per-vertex bone weights
+The old `SECTION_FRAME_SKINNED`, `SECTION_VERTEX_SKIN_WEIGHTS`, `SKELETON_BONE_V11`, and Mesh Debug
+bone APIs were exploratory interchange/editor infrastructure. They are not an accepted runtime
+fallback and are retained below only as historical context for old assets and FBX investigations.
+Legacy-only skeletal `.msh` files must be regenerated from source FBX; ordinary static meshes are
+unaffected.
 
-One optional bundled section per mesh (docs/mesh-v11-format.md §6g), tied specifically to
-`SECTION_FRAME_STATIC` frame 1's own vertex topology (weights are a bind-pose property; they don't
-vary per frame, only bone *transforms* would, and this engine has none). Fixed at 4 influences per
-vertex (`VERTEX_BONE_WEIGHT_V11`: `paletteIndex[4]` + `weight[4]`), matching the industry-standard
-LBS convention described above. Bones are referenced by a small **per-section name palette** — not
-by raw index into `SECTION_FRAME_SKINNED`'s own array, and not shared with it at all (see Pitfalls).
-Captured on import from a real rig's `vertex_groups` (inline inside
-`editor/blender_mesh_export.py`'s `export_frame_subsets`, gated by its own `capture_weights`
-parameter — itself set from `--include-bones` — no separate named function); also writable
-directly in the editor via `mesh_debug.lua`'s Bones-window **Rigid Bind** tool (`setVertexWeight`,
-weight 1.0 to one bone — for a prop that shouldn't deform, e.g. a sword welded to a hand, instead
-of leaving `ARMATURE_ENVELOPE`'s distance-based guess to decide). Consumed on export
-(`editor/blender_mesh_skeleton_export.py`'s `apply_stored_vertex_weights_override`) as a per-vertex
-override pass layered on top of `bind_mesh_to_armature`'s envelope binding, not a mesh-wide
-replacement of it — see the Editor Round-Trip Pipeline section below.
+### Still pending
 
-### What is explicitly missing for real ("dynamic frame") skeletal animation
+- skeletal deformation on DirectX 9 and Metal;
+- per-bone composition masks and layer priority/queue policy;
+- evaluated runtime skeleton gizmos;
+- retargeting and completion callbacks;
+- Velocity Skinning as an optional modern-backend secondary deformation stage.
 
-None of the following exist anywhere in this codebase:
+## Legacy Editor Round-Trip Pipeline (Historical Reference)
 
-- **No skinning-palette consumer.** The private Milestone 0 conversion utility can derive inverse
-  global bind matrices when invoked explicitly, but ordinary V11 mesh loading does not promote its
-  legacy skeleton and no current pose or GPU/CPU deformation path consumes them.
-- **No bone matrix palette upload.** No shader input, uniform, or buffer slot analogous to
-  `docs/light.md`'s `LightColor[]`/`MaterialDiffuse` reserved names exists for bone matrices, in any
-  backend (OpenGL ES, DirectX 9, Metal).
-- **No pose evaluation / forward kinematics at runtime.** Nothing walks `SECTION_FRAME_SKINNED`'s
-  hierarchy to compute per-bone world transforms for "the current frame" — because there is no
-  concept of an animated pose distinct from the bind pose to begin with.
-- **No keyframed bone animation clips.** `SECTION_ANIMATION` (the engine's real, working animation
-  system) stores/plays sequences of *entire pre-baked static frames*, not per-bone transform curves.
-  Playing an "animation" in Mini MBM means swapping which whole `SECTION_FRAME_STATIC` snapshot is
-  currently displayed — the same mechanism a 2D sprite sheet uses, just extended to full 3D vertex
-  data per frame instead of a 2D UV rect. This is fundamentally different from, and much less
-  flexible than, real skeletal animation: there's no blending between clips, no retargeting, and the
-  file size scales with (vertex count × frame count) rather than (bone count × keyframe count) —
-  frame swapping is dramatically more expensive to store for a long/detailed animation.
-- **No GPU or CPU skinning code path**, per the "GPU vs. CPU skinning" section above — stated
-  explicitly in this exact wording in both `SECTION_FRAME_SKINNED`'s and
-  `SECTION_VERTEX_SKIN_WEIGHTS`'s own format-doc sections, since it's the single most important
-  scoping fact about this whole feature area.
-
-## The Editor Round-Trip Pipeline (What Actually Exists)
-
-This is the real, working feature: a faithful **import → inspect/edit → export** loop through
-`editor/mesh_debug.lua`, entirely for producing FBX files real DCC tools and Mixamo can consume —
-never for anything the engine itself renders differently.
+This section records the exploratory Mesh Debug pass-through workflow that preceded the canonical
+sections and standalone Skeletal Animation Editor. It is useful for understanding old assets and
+the FBX fixes, but it is not the delivered runtime contract.
 
 ```text
    Blender/Mixamo FBX                 mesh_debug.lua (editor)                  Blender/Mixamo FBX

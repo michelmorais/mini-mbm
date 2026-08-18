@@ -584,8 +584,8 @@ rigid `"dqs"`, or `"auto"` before `load`. Auto resolves once to DQS only when bi
 contain unit scale; otherwise it resolves to LBS. Changing method after load returns `false`, because
 the resolved method is part of the compiled default-shader variant. The Absolute layer supports a
 linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
-and fade. Transition curves/queues, priorities, Additive layers, masks, completion
-callbacks, and non-GLES backends remain future work. LBS compact normals reject negative scale, shear, or non-uniform scale;
+and fade. Transition curves/queues, priorities, bone masks, completion callbacks, and non-GLES
+backends remain future work. LBS compact normals reject negative scale, shear, or non-uniform scale;
 rigid DQS rejects any scale/shear.
 
 | Method | Signature | Returns | Description |
@@ -610,12 +610,12 @@ rigid DQS rejects any scale/shear.
 | `obj:pauseSkeletalAnimationLayer` | `()` | bool | Freeze only the active layer's clip time and fade while the base may continue |
 | `obj:resumeSkeletalAnimationLayer` | `()` | bool | Resume independently paused layer time and fade |
 | `obj:isSkeletalAnimationLayerPaused` | `()` | bool | Whether an active layer is independently paused |
-| `obj:stopSkeletalAnimationAbsoluteLayer` | `()` | bool | Remove the transient layer while preserving the base clip |
-| `obj:seekSkeletalAnimationAbsoluteLayer` | `(time)` | bool | Seek the layer independently, clamped to its clip duration |
-| `obj:setSkeletalAnimationAbsoluteLayerWeight` | `(weight)` | bool | Change the active layer's strict Absolute weight `0..1` |
-| `obj:fadeSkeletalAnimationAbsoluteLayer` | `(targetWeight, duration)` | bool | Linearly animate the active layer from its current weight to a strict target `0..1`; duration must be non-negative, pause freezes progress, and reaching zero removes the layer |
-| `obj:getSkeletalAnimationAbsoluteLayerWeight` | `()` | number or nil | Current evaluated weight, or `nil` when no layer is active |
-| `obj:getSkeletalAnimationAbsoluteLayerTime` | `()` | number or nil | Current independent layer time, or `nil` when no layer is active |
+| `obj:stopSkeletalAnimationAbsoluteLayer` | `()` | bool | Remove the transient Absolute or Additive layer while preserving the base clip; the historical method name is shared by both modes |
+| `obj:seekSkeletalAnimationAbsoluteLayer` | `(time)` | bool | Seek the active Absolute or Additive layer independently, clamped to its clip duration |
+| `obj:setSkeletalAnimationAbsoluteLayerWeight` | `(weight)` | bool | Change the active Absolute or Additive layer's strict weight `0..1` |
+| `obj:fadeSkeletalAnimationAbsoluteLayer` | `(targetWeight, duration)` | bool | Linearly animate the active Absolute or Additive layer from its current weight to a strict target `0..1`; duration must be non-negative, pause freezes progress, and reaching zero removes the layer |
+| `obj:getSkeletalAnimationAbsoluteLayerWeight` | `()` | number or nil | Current evaluated Absolute or Additive layer weight, or `nil` when no layer is active |
+| `obj:getSkeletalAnimationAbsoluteLayerTime` | `()` | number or nil | Current independent Absolute or Additive layer time, or `nil` when no layer is active |
 | `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
 ```lua
