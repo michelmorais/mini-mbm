@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.106**
+Document version: **9.108**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -861,6 +861,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.108 | 2026-08-18 | Extended automatic skeletal root motion with optional rotation. Translation-only remains the backward-compatible default; `enableAutomaticSkeletalRootMotion(boneName, true)` additionally applies continuous normalized-quaternion rotation deltas to the renderizable's Euler orientation and neutralizes the selected bone's local rotation to bind. Noncommuting row-vector rotation tests lock the composition order, and discontinuities or loop wraps apply neither translation nor rotation. |
+| 9.107 | 2026-08-18 | Added per-instance automatic translation-only root motion for a named canonical bone. Continuous raw pose deltas move the renderizable in world space while the selected local translation is restored to bind before the final hierarchy and LBS/DQS palette are rebuilt; manual raw-delta queries remain non-consuming and discontinuities suppress movement. |
 | 9.106 | 2026-08-18 | Added backend-neutral root-motion translation extraction by canonical bone name over consecutive final evaluated poses. Model space copies the raw pose delta; world space applies current renderizable rotation/scale. Discontinuities and loop wraps invalidate the per-instance private history, and extraction intentionally neither consumes the value nor removes it from the skinned pose. |
 | 9.105 | 2026-08-18 | Added `mesh:crossFadeSkeletalAnimation(name, duration)` as a bounded linear base-to-base transition. It reuses the Absolute compositor, starts the target at zero time and weight, replaces ordinary transient layer state, disallows partial layer masks during transition, and promotes the weight-one target without a pose discontinuity or residual layer. Overlapping cross-fades are rejected until promotion. |
 | 9.104 | 2026-08-18 | Connected non-looping skeletal base and layer completion to the existing `onEndAnim(obj, clipName)` surface. Per-player one-shot state prevents repeated callbacks at the clamped end pose, rearms on replay or backward seek, advances while culled, and excludes loops, pause, and seek-only changes. |

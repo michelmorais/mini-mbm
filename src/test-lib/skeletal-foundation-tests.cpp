@@ -58,6 +58,21 @@ namespace
         return false;
     }
 
+    QUATERNION quaternionZ(const float radians) noexcept
+    {
+        return {0.0f, 0.0f, std::sin(radians * 0.5f), std::cos(radians * 0.5f)};
+    }
+
+    QUATERNION quaternionY(const float radians) noexcept
+    {
+        return {0.0f, std::sin(radians * 0.5f), 0.0f, std::cos(radians * 0.5f)};
+    }
+
+    QUATERNION quaternionX(const float radians) noexcept
+    {
+        return {std::sin(radians * 0.5f), 0.0f, 0.0f, std::cos(radians * 0.5f)};
+    }
+
 
 
     void testTrsRoundTrip()
@@ -343,6 +358,7 @@ namespace
         SKELETAL_POSE pose;
         pose.localTransforms = {root.localBind, child.localBind};
         pose.localTransforms[0].translation = VEC3(9.0f, -4.0f, 6.0f);
+        pose.localTransforms[0].rotation = quaternionZ(0.75f);
         pose.localTransforms[1].translation = VEC3(0.0f, 7.0f, 0.0f);
         expect(neutralizeSkeletalPoseLocalTranslation(skeleton, 0, pose),
                "root-motion neutralization must accept a complete pose and valid bone index");
@@ -350,17 +366,92 @@ namespace
                    std::fabs(pose.localTransforms[0].translation.y - 2.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(pose.localTransforms[0].translation.z - 3.0f) <= MATRIX_TOLERANCE,
                "root-motion neutralization must restore only the selected bone local translation to bind");
+        expect(std::fabs(pose.localTransforms[0].rotation.z - std::sin(0.75f * 0.5f)) <=
+                   MATRIX_TOLERANCE,
+               "translation-only root-motion neutralization must preserve selected local rotation");
         expect(std::fabs(pose.localTransforms[1].translation.y - 7.0f) <= MATRIX_TOLERANCE,
                "root-motion neutralization must preserve non-selected local translations");
+        MATRIX expectedChildGlobal;
+        const MATRIX expectedChildLocal = buildTrsMatrix(pose.localTransforms[1]);
+        MatrixMultiply(&expectedChildGlobal, &expectedChildLocal, &pose.globalTransforms[0]);
         expect(std::fabs(pose.globalTransforms[0]._41 - 1.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(pose.globalTransforms[0]._42 - 2.0f) <= MATRIX_TOLERANCE &&
-                   std::fabs(pose.globalTransforms[1]._41 - 1.0f) <= MATRIX_TOLERANCE &&
-                   std::fabs(pose.globalTransforms[1]._42 - 9.0f) <= MATRIX_TOLERANCE,
+                   maximumMatrixDifference(expectedChildGlobal, pose.globalTransforms[1]) <=
+                       matrixComparisonTolerance(expectedChildGlobal, pose.globalTransforms[1]),
                "root-motion neutralization must rebuild descendants from the neutralized hierarchy");
 
         pose.localTransforms.pop_back();
         expect(!neutralizeSkeletalPoseLocalTranslation(skeleton, 0, pose),
                "root-motion neutralization must reject incomplete poses");
+    }
+
+    void testRootMotionRotationDeltaAndNeutralization()
+    {
+        LOCAL_TRANSFORM previousRoot;
+        previousRoot.rotation = quaternionX(0.45f);
+        LOCAL_TRANSFORM currentRoot;
+        currentRoot.rotation = quaternionY(-0.85f);
+        QUATERNION delta;
+        expect(computeSkeletalRootMotionRotationDelta(buildTrsMatrix(previousRoot),
+                   buildTrsMatrix(currentRoot), delta),
+               "root-motion rotation delta must accept normalized rigid rotations");
+        const MATRIX previousMatrix = buildTrsMatrix(previousRoot);
+        const MATRIX currentMatrix = buildTrsMatrix(currentRoot);
+        LOCAL_TRANSFORM deltaTransform;
+        deltaTransform.rotation = delta;
+        MATRIX composed;
+        const MATRIX deltaMatrix = buildTrsMatrix(deltaTransform);
+        MatrixMultiply(&composed, &deltaMatrix, &previousMatrix);
+        expect(maximumMatrixDifference(composed, currentMatrix) <=
+                   matrixComparisonTolerance(composed, currentMatrix),
+               "root-motion rotation delta must left-compose previous rotation to current rotation");
+
+        LOCAL_TRANSFORM owner;
+        owner.rotation = quaternionZ(0.35f);
+        const MATRIX ownerMatrix = buildTrsMatrix(owner);
+        MATRIX composedOwner;
+        MatrixMultiply(&composedOwner, &deltaMatrix, &ownerMatrix);
+        LOCAL_TRANSFORM ownerCurrent;
+        bool ownerNegativeScale = false;
+        bool ownerShear = false;
+        expect(decomposeTrsMatrix(composedOwner, ownerCurrent, ownerNegativeScale, ownerShear) &&
+                   !ownerShear,
+               "root-motion rotation delta must compose into a non-identity owner orientation");
+        const MATRIX rebuiltOwner = buildTrsMatrix(ownerCurrent);
+        expect(maximumMatrixDifference(rebuiltOwner, composedOwner) <=
+                   matrixComparisonTolerance(rebuiltOwner, composedOwner),
+               "root-motion rotation delta owner composition must remain a valid rigid TRS");
+
+        CANONICAL_BONE root;
+        root.boneId = 10;
+        root.name = "root";
+        root.localBind.rotation = quaternionZ(0.125f);
+        CANONICAL_BONE child;
+        child.boneId = 20;
+        child.parentBoneId = 10;
+        child.name = "child";
+        child.localBind.translation = VEC3(2.0f, 0.0f, 0.0f);
+        COMPILED_SKELETON skeleton;
+        expect(compileCanonicalSkeleton({root, child}, skeleton),
+               "rotation root-motion neutralization fixture skeleton must compile");
+        SKELETAL_POSE pose;
+        pose.localTransforms = {root.localBind, child.localBind};
+        pose.localTransforms[0].translation = VEC3(5.0f, 0.0f, 0.0f);
+        pose.localTransforms[0].rotation = quaternionZ(1.25f);
+        pose.localTransforms[1].translation = VEC3(3.0f, 0.0f, 0.0f);
+        expect(neutralizeSkeletalPoseLocalTransform(skeleton, 0, true, true, pose),
+               "root-motion transform neutralization must accept translation plus rotation");
+        expect(std::fabs(pose.localTransforms[0].translation.x -
+                   skeleton.bones[0].localBind.translation.x) <= MATRIX_TOLERANCE &&
+                   std::fabs(pose.localTransforms[0].rotation.z -
+                       skeleton.bones[0].localBind.rotation.z) <= MATRIX_TOLERANCE,
+               "root-motion transform neutralization must restore selected translation and rotation to bind");
+        const MATRIX expectedChildLocal = buildTrsMatrix(pose.localTransforms[1]);
+        MATRIX expectedChildGlobal;
+        MatrixMultiply(&expectedChildGlobal, &expectedChildLocal, &pose.globalTransforms[0]);
+        expect(maximumMatrixDifference(expectedChildGlobal, pose.globalTransforms[1]) <=
+                   matrixComparisonTolerance(expectedChildGlobal, pose.globalTransforms[1]),
+               "root-motion transform neutralization must rebuild descendants after rotation reset");
     }
 
     void testUniformCanonicalAssetScale()
@@ -1659,6 +1750,7 @@ int runSkeletalFoundationTests()
     testCanonicalSkeletonCompilation();
     testAbsolutePoseComposition();
     testRootMotionPoseNeutralization();
+    testRootMotionRotationDeltaAndNeutralization();
     testUniformCanonicalAssetScale();
     testCanonicalSkeletonReader();
     testCanonicalWeightValidation();

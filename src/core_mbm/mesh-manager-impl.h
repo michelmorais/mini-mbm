@@ -82,6 +82,7 @@ namespace mbm
         bool evaluatedMotionDeltaValid = false;
         bool authoringPose = false;
         bool automaticRootMotionEnabled = false;
+        bool automaticRootMotionApplyRotation = false;
         std::string automaticRootMotionBoneName;
         uint64_t automaticRootMotionBoneId = 0;
     };

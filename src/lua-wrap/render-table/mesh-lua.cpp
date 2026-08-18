@@ -666,8 +666,9 @@ namespace mbm
     int onEnableAutomaticSkeletalRootMotionLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const bool applyRotation = lua_gettop(lua) >= 3 && lua_toboolean(lua, 3);
         lua_pushboolean(lua, mesh->enableAutomaticSkeletalRootMotion(
-            luaL_checkstring(lua, 2)) ? 1 : 0);
+            luaL_checkstring(lua, 2), applyRotation) ? 1 : 0);
         return 1;
     }
 
@@ -683,17 +684,20 @@ namespace mbm
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
         const char *boneName = nullptr;
         uint64_t stableBoneId = 0;
-        if (!mesh->getAutomaticSkeletalRootMotionBone(&boneName, &stableBoneId))
+        bool applyRotation = false;
+        if (!mesh->getAutomaticSkeletalRootMotionBone(&boneName, &stableBoneId,
+                &applyRotation))
         {
             lua_pushnil(lua);
             return 1;
         }
-        lua_createtable(lua, 0, 2);
+        lua_createtable(lua, 0, 3);
         char boneId[17] = "";
         snprintf(boneId, sizeof(boneId), "%016llx",
                  static_cast<unsigned long long>(stableBoneId));
         lua_pushstring(lua, boneName); lua_setfield(lua, -2, "name");
         lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+        lua_pushboolean(lua, applyRotation ? 1 : 0); lua_setfield(lua, -2, "applyRotation");
         return 1;
     }
 

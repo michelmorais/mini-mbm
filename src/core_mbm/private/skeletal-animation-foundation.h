@@ -257,9 +257,17 @@ namespace mbm::skeletal
                               std::vector<DIAGNOSTIC> &diagnostics);
     bool sampleSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
                             float time, SKELETAL_POSE &out, std::vector<DIAGNOSTIC> *diagnostics = nullptr);
+    bool computeSkeletalRootMotionRotationDelta(const MATRIX &previousGlobal,
+                                                const MATRIX &currentGlobal,
+                                                QUATERNION &delta) noexcept;
     bool neutralizeSkeletalPoseLocalTranslation(const COMPILED_SKELETON &skeleton,
                                                 uint32_t boneIndex,
                                                 SKELETAL_POSE &pose) noexcept;
+    bool neutralizeSkeletalPoseLocalTransform(const COMPILED_SKELETON &skeleton,
+                                              uint32_t boneIndex,
+                                              bool translation,
+                                              bool rotation,
+                                              SKELETAL_POSE &pose) noexcept;
     // Absolute composition operates on complete parent-relative local poses. Weight is strict
     // [0,1]; translation/scale are linear and rotation follows the normalized shortest quaternion
     // path. Globals are rebuilt once from the composed locals in parent-first skeleton order.

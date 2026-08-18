@@ -752,15 +752,47 @@ namespace mbm::skeletal
         return true;
     }
 
-    bool neutralizeSkeletalPoseLocalTranslation(const COMPILED_SKELETON &skeleton,
-                                                const uint32_t boneIndex,
-                                                SKELETAL_POSE &pose) noexcept
+    bool computeSkeletalRootMotionRotationDelta(const MATRIX &previousGlobal,
+                                                const MATRIX &currentGlobal,
+                                                QUATERNION &delta) noexcept
+    {
+        LOCAL_TRANSFORM previous;
+        LOCAL_TRANSFORM current;
+        bool previousNegativeScale = false;
+        bool previousShear = false;
+        bool currentNegativeScale = false;
+        bool currentShear = false;
+        if (!decomposeTrsMatrix(previousGlobal, previous, previousNegativeScale, previousShear) ||
+            !decomposeTrsMatrix(currentGlobal, current, currentNegativeScale, currentShear) ||
+            previousShear || currentShear)
+            return false;
+        const QUATERNION previousRotation = normalizedQuaternion(previous.rotation);
+        const QUATERNION currentRotation = normalizedQuaternion(current.rotation);
+        if (quaternionNorm(previousRotation) <= QUATERNION_ZERO_EPSILON ||
+            quaternionNorm(currentRotation) <= QUATERNION_ZERO_EPSILON)
+            return false;
+        delta = normalizedQuaternion(multiplyQuaternion(
+            conjugateQuaternion(previousRotation), currentRotation));
+        return quaternionNorm(delta) > QUATERNION_ZERO_EPSILON &&
+            std::isfinite(delta.x) && std::isfinite(delta.y) &&
+            std::isfinite(delta.z) && std::isfinite(delta.w);
+    }
+
+    bool neutralizeSkeletalPoseLocalTransform(const COMPILED_SKELETON &skeleton,
+                                              const uint32_t boneIndex,
+                                              const bool translation,
+                                              const bool rotation,
+                                              SKELETAL_POSE &pose) noexcept
     {
         if (boneIndex >= skeleton.bones.size() ||
             pose.localTransforms.size() != skeleton.bones.size())
             return false;
-        pose.localTransforms[boneIndex].translation =
-            skeleton.bones[boneIndex].localBind.translation;
+        if (translation)
+            pose.localTransforms[boneIndex].translation =
+                skeleton.bones[boneIndex].localBind.translation;
+        if (rotation)
+            pose.localTransforms[boneIndex].rotation =
+                skeleton.bones[boneIndex].localBind.rotation;
         pose.globalTransforms.resize(pose.localTransforms.size());
         for (size_t index = 0; index < pose.localTransforms.size(); ++index)
         {
@@ -773,6 +805,13 @@ namespace mbm::skeletal
                                &pose.globalTransforms[static_cast<size_t>(parent)]);
         }
         return true;
+    }
+
+    bool neutralizeSkeletalPoseLocalTranslation(const COMPILED_SKELETON &skeleton,
+                                                const uint32_t boneIndex,
+                                                SKELETAL_POSE &pose) noexcept
+    {
+        return neutralizeSkeletalPoseLocalTransform(skeleton, boneIndex, true, false, pose);
     }
 
     bool composeSkeletalPosesAbsolute(const COMPILED_SKELETON &skeleton,

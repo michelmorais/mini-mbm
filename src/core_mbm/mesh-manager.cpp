@@ -1243,6 +1243,7 @@ namespace mbm
         impl->evaluatedMotionDeltaValid = false;
         impl->authoringPose = false;
         impl->automaticRootMotionEnabled = false;
+        impl->automaticRootMotionApplyRotation = false;
         impl->automaticRootMotionBoneName.clear();
         impl->automaticRootMotionBoneId = 0;
     }
@@ -8656,6 +8657,47 @@ namespace mbm
             return VEC3(transformed.x - origin.x, transformed.y - origin.y,
                         transformed.z - origin.z);
         }
+
+        bool composeSkeletalMotionRotationIntoOwner(RENDERIZABLE &owner,
+                                                    const skeletal::QUATERNION &delta) noexcept
+        {
+            skeletal::LOCAL_TRANSFORM deltaTransform;
+            deltaTransform.rotation = delta;
+            const MATRIX deltaMatrix = skeletal::buildTrsMatrix(deltaTransform);
+            MATRIX ownerMatrix;
+            const VEC3 origin(0.0f, 0.0f, 0.0f);
+            const VEC3 scale(1.0f, 1.0f, 1.0f);
+            const VEC3 &ownerAngle = owner.getAngle();
+            MatrixTranslationRotationScale(&ownerMatrix, &origin, &ownerAngle, &scale);
+            MATRIX composed;
+            MatrixMultiply(&composed, &deltaMatrix, &ownerMatrix);
+            skeletal::LOCAL_TRANSFORM decomposed;
+            bool hasNegativeScale = false;
+            bool hasShear = false;
+            if (!skeletal::decomposeTrsMatrix(composed, decomposed, hasNegativeScale,
+                    hasShear) || hasShear)
+                return false;
+            skeletal::LOCAL_TRANSFORM rotationOnly;
+            rotationOnly.rotation = decomposed.rotation;
+            const MATRIX rotationMatrix = skeletal::buildTrsMatrix(rotationOnly);
+            VEC3 angle;
+            const float clamped = std::max(-1.0f, std::min(1.0f, -rotationMatrix._13));
+            angle.y = std::asin(clamped);
+            if (std::fabs(rotationMatrix._13) > 0.999999f)
+            {
+                angle.x = 0.0f;
+                angle.z = std::atan2(-rotationMatrix._21, rotationMatrix._22);
+            }
+            else
+            {
+                angle.x = std::atan2(rotationMatrix._23, rotationMatrix._33);
+                angle.z = std::atan2(rotationMatrix._12, rotationMatrix._11);
+            }
+            if (!std::isfinite(angle.x) || !std::isfinite(angle.y) || !std::isfinite(angle.z))
+                return false;
+            owner.setAngle(angle);
+            return true;
+        }
     }
 
     bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta,
@@ -8765,9 +8807,9 @@ namespace mbm
         {
             const size_t rootMotionIndex = static_cast<size_t>(rootMotionBone->second);
             if (rootMotionIndex > UINT32_MAX ||
-                !skeletal::neutralizeSkeletalPoseLocalTranslation(
+                !skeletal::neutralizeSkeletalPoseLocalTransform(
                     impl->canonicalSkeleton.compiled, static_cast<uint32_t>(rootMotionIndex),
-                    pose))
+                    true, player.impl->automaticRootMotionApplyRotation, pose))
                 return false;
         }
         std::vector<float> paletteRows;
@@ -8862,6 +8904,13 @@ namespace mbm
                     position += worldDelta;
                     owner->setPosition(position);
                 }
+                if (player.impl->automaticRootMotionApplyRotation)
+                {
+                    skeletal::QUATERNION rotationDelta;
+                    if (skeletal::computeSkeletalRootMotionRotationDelta(previous, current,
+                            rotationDelta))
+                        composeSkeletalMotionRotationIntoOwner(*owner, rotationDelta);
+                }
             }
         }
         if (owner && onEndAnimation)
@@ -8878,7 +8927,8 @@ namespace mbm
     }
 
     bool MESH_MBM::enableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player,
-                                                      const char *boneName) const noexcept
+                                                      const char *boneName,
+                                                      const bool applyRotation) const noexcept
     {
         if (!boneName || !boneName[0])
             return false;
@@ -8886,6 +8936,7 @@ namespace mbm
         if (found == impl->canonicalSkeleton.compiled.indexByName.end())
             return false;
         player.impl->automaticRootMotionEnabled = true;
+        player.impl->automaticRootMotionApplyRotation = applyRotation;
         player.impl->automaticRootMotionBoneName = boneName;
         player.impl->automaticRootMotionBoneId =
             impl->canonicalSkeleton.compiled.bones[static_cast<size_t>(found->second)].boneId;
@@ -8896,6 +8947,7 @@ namespace mbm
     bool MESH_MBM::disableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player) const noexcept
     {
         player.impl->automaticRootMotionEnabled = false;
+        player.impl->automaticRootMotionApplyRotation = false;
         player.impl->automaticRootMotionBoneName.clear();
         player.impl->automaticRootMotionBoneId = 0;
         player.impl->evaluatedMotionDeltaValid = false;
@@ -8904,7 +8956,8 @@ namespace mbm
 
     bool MESH_MBM::getAutomaticSkeletalRootMotionBone(const SKELETAL_ANIMATION_PLAYER &player,
                                                        const char **boneName,
-                                                       uint64_t *boneId) const noexcept
+                                                       uint64_t *boneId,
+                                                       bool *applyRotation) const noexcept
     {
         if (!boneName || !boneId || !player.impl->automaticRootMotionEnabled)
             return false;
@@ -8914,6 +8967,8 @@ namespace mbm
             return false;
         *boneName = player.impl->automaticRootMotionBoneName.c_str();
         *boneId = impl->canonicalSkeleton.compiled.bones[static_cast<size_t>(found->second)].boneId;
+        if (applyRotation)
+            *applyRotation = player.impl->automaticRootMotionApplyRotation;
         return true;
     }
 

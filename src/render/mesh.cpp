@@ -417,10 +417,11 @@ namespace mbm
                                                 modelMatrixPtr, boneId, translation);
     }
 
-    bool MESH::enableAutomaticSkeletalRootMotion(const char *boneName) noexcept
+    bool MESH::enableAutomaticSkeletalRootMotion(const char *boneName,
+                                                 const bool applyRotation) noexcept
     {
         return mesh ? mesh->enableAutomaticSkeletalRootMotion(
-            getSkeletalAnimationPlayer(), boneName) : false;
+            getSkeletalAnimationPlayer(), boneName, applyRotation) : false;
     }
 
     bool MESH::disableAutomaticSkeletalRootMotion() noexcept
@@ -430,10 +431,11 @@ namespace mbm
     }
 
     bool MESH::getAutomaticSkeletalRootMotionBone(const char **boneName,
-                                                  uint64_t *boneId) const noexcept
+                                                  uint64_t *boneId,
+                                                  bool *applyRotation) const noexcept
     {
         return mesh ? mesh->getAutomaticSkeletalRootMotionBone(
-            getSkeletalAnimationPlayer(), boneName, boneId) : false;
+            getSkeletalAnimationPlayer(), boneName, boneId, applyRotation) : false;
     }
 
     bool MESH::setSkeletalAuthoringPalette(const SKELETAL_SHADER_METHOD method,

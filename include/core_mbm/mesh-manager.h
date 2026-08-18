@@ -755,11 +755,13 @@ namespace mbm
                                         const char *boneName, const MATRIX *modelMatrix,
                                         uint64_t *boneId, VEC3 *translation) const noexcept;
         bool enableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player,
-                                               const char *boneName) const noexcept;
+                                               const char *boneName,
+                                               bool applyRotation = false) const noexcept;
         bool disableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool getAutomaticSkeletalRootMotionBone(const SKELETAL_ANIMATION_PLAYER &player,
                                                 const char **boneName,
-                                                uint64_t *boneId) const noexcept;
+                                                uint64_t *boneId,
+                                                bool *applyRotation = nullptr) const noexcept;
         bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
                                          SKELETAL_SHADER_METHOD method, const float *rows,
                                          uint32_t rowCount, const uint64_t *orderedBoneIds,
