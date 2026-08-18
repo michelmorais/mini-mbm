@@ -361,7 +361,7 @@ cmake .. -G "MinGW Makefiles" ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DUSE_OPENGL_ES=1  ^
     -DUSE_STEAM=1 ^
-    -DSTEAMWORKS_SDK_PATH="C:/Users/miche/Downloads/steamworks_sdk_164/sdk" ^
+    -DSTEAMWORKS_SDK_PATH="C:/Program Files (x86)/steamworks_sdk_165/sdk" ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
     -DGAME_ASSETS_PASSWORD="agasdOyu86555" ^
