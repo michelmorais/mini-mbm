@@ -599,6 +599,7 @@ rigid DQS rejects any scale/shear.
 | `obj:getResolvedSkeletalSkinningMethod` | `()` | string | Actual compiled method (`"lbs"` or `"dqs"`), or `"unresolved"` before an Auto mesh is loaded |
 | `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, and resolved-method maximum bones per draw |
 | `obj:playSkeletalAnimation` | `(name)` | bool | Start or restart one clip at time zero |
+| `obj:crossFadeSkeletalAnimation` | `(name, duration)` | bool | Linearly transition from the active base pose to `name` starting at target time zero, then promote the target to the sole base clip. Duration must be finite and non-negative; zero is immediate play. A positive transition replaces any ordinary transient layer and uses an unmasked Absolute blend; requesting another cross-fade before promotion returns `false`. |
 | `obj:pauseSkeletalAnimation` | `()` | bool | Freeze the active clip and palette |
 | `obj:resumeSkeletalAnimation` | `()` | bool | Resume the active clip |
 | `obj:stopSkeletalAnimation` | `()` | bool | Stop the active clip and restore bind-pose deformation |
@@ -632,6 +633,7 @@ assert(character:load("character-walk.msh"))
 local report = character:getSkeletalSkinningReport()
 print(report.requestedMethod, report.resolvedMethod, report.resolutionReason)
 assert(character:playSkeletalAnimation("Walk"))
+assert(character:crossFadeSkeletalAnimation("Run", 0.25))
 assert(character:setSkeletalAnimationPlaybackSpeed(0.5))
 assert(character:playSkeletalAnimationAbsoluteLayer("LookAround", 0.35))
 -- To use bind-relative deltas instead:

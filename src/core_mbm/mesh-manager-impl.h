@@ -63,6 +63,7 @@ namespace mbm
         bool absoluteLayerFadeActive = false;
         bool absoluteLayerActive = false;
         bool additiveLayer = false;
+        bool crossFadeActive = false;
         bool layerPaused = false;
         std::unordered_map<uint64_t, float> layerBoneMask;
         float playbackSpeed = 1.0f;

@@ -1227,6 +1227,7 @@ namespace mbm
         impl->absoluteLayerFadeActive = false;
         impl->absoluteLayerActive = false;
         impl->additiveLayer = false;
+        impl->crossFadeActive = false;
         impl->layerPaused = false;
         impl->layerBoneMask.clear();
         impl->playbackSpeed = 1.0f;
@@ -8076,6 +8077,76 @@ namespace mbm
         return player.impl->active;
     }
 
+    bool MESH_MBM::crossFadeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player,
+                                               const char *name, const float duration) const
+    {
+        if (!player.impl->active || player.impl->authoringPose || player.impl->crossFadeActive ||
+            !name || !name[0] ||
+            !std::isfinite(duration) || duration < 0.0f)
+            return false;
+        if (duration == 0.0f)
+            return playSkeletalAnimation(player, name);
+        uint32_t targetIndex = UINT32_MAX;
+        for (uint32_t index = 0; index < impl->canonicalAnimations.clips.size(); ++index)
+        {
+            if (impl->canonicalAnimations.clips[index].name == name)
+            {
+                targetIndex = index;
+                break;
+            }
+        }
+        if (targetIndex == UINT32_MAX)
+            return false;
+
+        const uint32_t previousIndex = player.impl->absoluteLayerClipIndex;
+        const float previousTime = player.impl->absoluteLayerTime;
+        const float previousWeight = player.impl->absoluteLayerWeight;
+        const float previousFadeStart = player.impl->absoluteLayerFadeStartWeight;
+        const float previousFadeTarget = player.impl->absoluteLayerFadeTargetWeight;
+        const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
+        const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+        const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
+        const bool previousCrossFade = player.impl->crossFadeActive;
+        const bool previousActive = player.impl->absoluteLayerActive;
+        const bool previousAdditive = player.impl->additiveLayer;
+        const bool previousLayerPaused = player.impl->layerPaused;
+        const bool previousCompletionNotified = player.impl->layerCompletionNotified;
+        const auto previousMask = player.impl->layerBoneMask;
+
+        player.impl->absoluteLayerClipIndex = targetIndex;
+        player.impl->absoluteLayerTime = 0.0f;
+        player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerFadeStartWeight = 0.0f;
+        player.impl->absoluteLayerFadeTargetWeight = 1.0f;
+        player.impl->absoluteLayerFadeDuration = duration;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = true;
+        player.impl->absoluteLayerActive = true;
+        player.impl->additiveLayer = false;
+        player.impl->crossFadeActive = true;
+        player.impl->layerPaused = false;
+        player.impl->layerCompletionNotified = false;
+        player.impl->layerBoneMask.clear();
+        if (updateSkeletalAnimation(player, 0.0f))
+            return true;
+
+        player.impl->absoluteLayerClipIndex = previousIndex;
+        player.impl->absoluteLayerTime = previousTime;
+        player.impl->absoluteLayerWeight = previousWeight;
+        player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
+        player.impl->absoluteLayerFadeTargetWeight = previousFadeTarget;
+        player.impl->absoluteLayerFadeDuration = previousFadeDuration;
+        player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
+        player.impl->absoluteLayerFadeActive = previousFadeActive;
+        player.impl->absoluteLayerActive = previousActive;
+        player.impl->additiveLayer = previousAdditive;
+        player.impl->crossFadeActive = previousCrossFade;
+        player.impl->layerPaused = previousLayerPaused;
+        player.impl->layerCompletionNotified = previousCompletionNotified;
+        player.impl->layerBoneMask = previousMask;
+        return false;
+    }
+
     bool MESH_MBM::pauseSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept
     {
         if (!player.impl->active)
@@ -8108,6 +8179,7 @@ namespace mbm
         player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
+        player.impl->crossFadeActive = false;
         player.impl->layerPaused = false;
         player.impl->layerBoneMask.clear();
         player.impl->active = false;
@@ -8195,6 +8267,7 @@ namespace mbm
                 const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
                 const bool previousActive = player.impl->absoluteLayerActive;
                 const bool previousAdditive = player.impl->additiveLayer;
+                const bool previousCrossFade = player.impl->crossFadeActive;
                 const bool previousLayerPaused = player.impl->layerPaused;
                 const bool previousCompletionNotified = player.impl->layerCompletionNotified;
                 player.impl->absoluteLayerClipIndex = index;
@@ -8207,6 +8280,7 @@ namespace mbm
                 player.impl->absoluteLayerFadeActive = false;
                 player.impl->absoluteLayerActive = true;
                 player.impl->additiveLayer = additive;
+                player.impl->crossFadeActive = false;
                 player.impl->layerPaused = false;
                 player.impl->layerCompletionNotified = false;
                 if (updateSkeletalAnimation(player, 0.0f)) return true;
@@ -8220,6 +8294,7 @@ namespace mbm
                 player.impl->absoluteLayerFadeActive = previousFadeActive;
                 player.impl->absoluteLayerActive = previousActive;
                 player.impl->additiveLayer = previousAdditive;
+                player.impl->crossFadeActive = previousCrossFade;
                 player.impl->layerPaused = previousLayerPaused;
                 player.impl->layerCompletionNotified = previousCompletionNotified;
                 return false;
@@ -8263,6 +8338,7 @@ namespace mbm
         const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
         const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
         const bool previousAdditive = player.impl->additiveLayer;
+        const bool previousCrossFade = player.impl->crossFadeActive;
         const bool previousLayerPaused = player.impl->layerPaused;
         const bool previousCompletionNotified = player.impl->layerCompletionNotified;
         player.impl->absoluteLayerClipIndex = UINT32_MAX;
@@ -8275,6 +8351,7 @@ namespace mbm
         player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
+        player.impl->crossFadeActive = false;
         player.impl->layerPaused = false;
         player.impl->layerCompletionNotified = false;
         if (updateSkeletalAnimation(player, 0.0f)) return true;
@@ -8288,6 +8365,7 @@ namespace mbm
         player.impl->absoluteLayerFadeActive = previousFadeActive;
         player.impl->absoluteLayerActive = true;
         player.impl->additiveLayer = previousAdditive;
+        player.impl->crossFadeActive = previousCrossFade;
         player.impl->layerPaused = previousLayerPaused;
         player.impl->layerCompletionNotified = previousCompletionNotified;
         return false;
@@ -8324,12 +8402,14 @@ namespace mbm
         const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
         const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
         const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
+        const bool previousCrossFade = player.impl->crossFadeActive;
         player.impl->absoluteLayerWeight = weight;
         player.impl->absoluteLayerFadeStartWeight = weight;
         player.impl->absoluteLayerFadeTargetWeight = weight;
         player.impl->absoluteLayerFadeDuration = 0.0f;
         player.impl->absoluteLayerFadeElapsed = 0.0f;
         player.impl->absoluteLayerFadeActive = false;
+        player.impl->crossFadeActive = false;
         if (updateSkeletalAnimation(player, 0.0f)) return true;
         player.impl->absoluteLayerWeight = previousWeight;
         player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
@@ -8337,6 +8417,7 @@ namespace mbm
         player.impl->absoluteLayerFadeDuration = previousFadeDuration;
         player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
         player.impl->absoluteLayerFadeActive = previousFadeActive;
+        player.impl->crossFadeActive = previousCrossFade;
         return false;
     }
 
@@ -8359,6 +8440,7 @@ namespace mbm
         player.impl->absoluteLayerFadeDuration = duration;
         player.impl->absoluteLayerFadeElapsed = 0.0f;
         player.impl->absoluteLayerFadeActive = true;
+        player.impl->crossFadeActive = false;
         return true;
     }
 
@@ -8392,8 +8474,8 @@ namespace mbm
                                                           const float *weights,
                                                           const uint32_t count) const
     {
-        if (!player.impl->active || !player.impl->absoluteLayerActive || !boneIds || !weights ||
-            count == 0)
+        if (!player.impl->active || !player.impl->absoluteLayerActive ||
+            player.impl->crossFadeActive || !boneIds || !weights || count == 0)
             return false;
         std::unordered_set<uint64_t> uniqueIds;
         auto candidate = player.impl->layerBoneMask;
@@ -8423,7 +8505,8 @@ namespace mbm
         const SKELETAL_ANIMATION_PLAYER &player, const uint64_t boneId,
         float *weight) const noexcept
     {
-        if (!weight || !player.impl->active || !player.impl->absoluteLayerActive || boneId == 0 ||
+        if (!weight || !player.impl->active || !player.impl->absoluteLayerActive ||
+            player.impl->crossFadeActive || boneId == 0 ||
             impl->canonicalSkeleton.compiled.indexById.find(boneId) ==
                 impl->canonicalSkeleton.compiled.indexById.end())
             return false;
@@ -8434,7 +8517,8 @@ namespace mbm
 
     bool MESH_MBM::clearSkeletalAnimationLayerMask(SKELETAL_ANIMATION_PLAYER &player) const
     {
-        if (!player.impl->active || !player.impl->absoluteLayerActive)
+        if (!player.impl->active || !player.impl->absoluteLayerActive ||
+            player.impl->crossFadeActive)
             return false;
         const auto previous = player.impl->layerBoneMask;
         player.impl->layerBoneMask.clear();
@@ -8531,6 +8615,7 @@ namespace mbm
         float evaluatedFadeElapsed = player.impl->absoluteLayerFadeElapsed;
         bool evaluatedFadeActive = player.impl->absoluteLayerFadeActive;
         bool removeCompletedLayer = false;
+        bool promoteCrossFade = false;
         bool notifyBaseCompletion = false;
         bool notifyLayerCompletion = false;
         if (!player.impl->paused && scaledDelta > 0.0f)
@@ -8568,6 +8653,8 @@ namespace mbm
                     {
                         evaluatedFadeActive = false;
                         removeCompletedLayer = evaluatedLayerWeight == 0.0f;
+                        promoteCrossFade = player.impl->crossFadeActive &&
+                            evaluatedLayerWeight == 1.0f;
                     }
                 }
             }
@@ -8618,7 +8705,28 @@ namespace mbm
         player.impl->time = evaluatedBaseTime;
         if (notifyBaseCompletion)
             player.impl->baseCompletionNotified = true;
-        if (removeCompletedLayer)
+        if (promoteCrossFade)
+        {
+            player.impl->clipIndex = player.impl->absoluteLayerClipIndex;
+            player.impl->time = evaluatedLayerTime;
+            player.impl->baseCompletionNotified =
+                player.impl->layerCompletionNotified || notifyLayerCompletion;
+            player.impl->absoluteLayerClipIndex = UINT32_MAX;
+            player.impl->absoluteLayerTime = 0.0f;
+            player.impl->absoluteLayerWeight = 0.0f;
+            player.impl->absoluteLayerFadeStartWeight = 0.0f;
+            player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+            player.impl->absoluteLayerFadeDuration = 0.0f;
+            player.impl->absoluteLayerFadeElapsed = 0.0f;
+            player.impl->absoluteLayerFadeActive = false;
+            player.impl->absoluteLayerActive = false;
+            player.impl->additiveLayer = false;
+            player.impl->crossFadeActive = false;
+            player.impl->layerPaused = false;
+            player.impl->layerCompletionNotified = false;
+            player.impl->layerBoneMask.clear();
+        }
+        else if (removeCompletedLayer)
         {
             player.impl->absoluteLayerClipIndex = UINT32_MAX;
             player.impl->absoluteLayerTime = 0.0f;
@@ -8630,6 +8738,7 @@ namespace mbm
             player.impl->absoluteLayerFadeActive = false;
             player.impl->absoluteLayerActive = false;
             player.impl->additiveLayer = false;
+            player.impl->crossFadeActive = false;
             player.impl->layerPaused = false;
             player.impl->layerCompletionNotified = false;
         }
@@ -8715,6 +8824,7 @@ namespace mbm
         player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
+        player.impl->crossFadeActive = false;
         player.impl->layerPaused = false;
         player.impl->layerBoneMask.clear();
         player.impl->evaluatedGlobalTransforms.clear();

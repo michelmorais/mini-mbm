@@ -704,6 +704,8 @@ namespace mbm
         const char *getSkeletalAnimationName(uint32_t index) const noexcept;
         bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;
         bool playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const;
+        bool crossFadeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name,
+                                        float duration) const;
         bool hasActiveSkeletalAnimation(const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool pauseSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool resumeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;

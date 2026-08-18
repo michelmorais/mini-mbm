@@ -226,6 +226,12 @@ namespace mbm
         return mesh ? mesh->playSkeletalAnimation(getSkeletalAnimationPlayer(), name) : false;
     }
 
+    bool MESH::crossFadeSkeletalAnimation(const char *name, const float duration)
+    {
+        return mesh ? mesh->crossFadeSkeletalAnimation(
+            getSkeletalAnimationPlayer(), name, duration) : false;
+    }
+
     bool MESH::pauseSkeletalAnimation() noexcept
     {
         return mesh ? mesh->pauseSkeletalAnimation(getSkeletalAnimationPlayer()) : false;

@@ -69,6 +69,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
                                                 uint32_t *requiredBoneCount,
                                                 uint32_t *effectiveBoneCapacity) const noexcept;
     API_IMPL bool playSkeletalAnimation(const char *name);
+    API_IMPL bool crossFadeSkeletalAnimation(const char *name, float duration);
     API_IMPL bool pauseSkeletalAnimation() noexcept;
     API_IMPL bool resumeSkeletalAnimation() noexcept;
     API_IMPL bool stopSkeletalAnimation() noexcept;

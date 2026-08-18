@@ -322,6 +322,14 @@ namespace mbm
         return 1;
     }
 
+    int onCrossFadeSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->crossFadeSkeletalAnimation(
+            luaL_checkstring(lua, 2), static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
     int onPauseSkeletalAnimationLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -699,6 +707,7 @@ namespace mbm
                                                      {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
                                                      {"getSkeletalSkinningReport", onGetSkeletalSkinningReportLua},
                                                      {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
+                                                     {"crossFadeSkeletalAnimation", onCrossFadeSkeletalAnimationLua},
                                                      {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
                                                      {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
                                                      {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
@@ -782,6 +791,7 @@ namespace mbm
                                                          {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
                                                          {"getSkeletalSkinningReport", onGetSkeletalSkinningReportLua},
                                                          {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
+                                                         {"crossFadeSkeletalAnimation", onCrossFadeSkeletalAnimationLua},
                                                          {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
                                                          {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
                                                          {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
