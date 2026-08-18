@@ -684,10 +684,10 @@ Run:
 ```sh
 blender -b --factory-startup --python src/test-lib/skeletal-fbx-bind-audit.py -- \
   src/test-lib/T-BONE-rato-from-mixamo.fbx \
-  src/test-lib/T-BONE-rato-from-mixamo-fbx-audit.json
+  /tmp/t-bone-fbx-audit.json
 ```
 
-The checked report is tied to FBX SHA-256
+The results recorded below are tied to FBX SHA-256
 `d9d99bec7286aaca94700526ce7f78e0fc23acd5101931edf88144ab38af143c` and Blender 5.1.2. It reads
 34 raw FBX clusters through Blender's bundled parser before scene import discards `Transform` and
 `TransformLink`, then compares selected link matrices with the 41-bone imported rest armature. The
