@@ -267,6 +267,11 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.100.6 Standardized editor temporary-file paths under Windows, fixing root-relative MinGW os.tmpname results in Mesh Debug, Font Maker, Physics Editor, and Skeletal Animation Editor.
+    7.100.5 Fixed Skeletal Animation Editor rollback/runtime-preview temporary meshes under MinGW by anchoring Windows temp names in TEMP/TMP instead of using root-relative os.tmpname results.
+    7.100.4 Linked CMake testLib with the same private mesh-v11 and skeletal foundation implementations used by the MSVS harness, without exporting test internals from core_mbm.
+    7.100.3 Fixed MinGW DirectX9 testLib wiring by excluding the GLES-only numeric parity source and libraries, and aligned the test-only parity export attribute on its friend declaration.
+    7.100.2 Fixed the MinGW DirectX9 constant-table shim with integer uploads, array-element access, shared cache reference counting, and full-size float-array uploads required by skeletal palettes.
     7.100.1 Added DirectX9 variants for the Skeletal Animation Editor's paint heatmap/brush shaders; standardized shared GPU skinning capability, preparation, palette, and upload contracts so common mesh management no longer branches on render backends.
     7.100.0 Added DirectX9 real-time GPU skeletal deformation with canonical LBS and rigid-DQS palettes, per-vertex influence streams, capability limits, and default-shader lighting integration.
     7.99.0 Skeletal clip layers add independent pause/resume for layer time and fades in C++, Lua, and Runtime Preview.
@@ -497,7 +502,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.100.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.100.6" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

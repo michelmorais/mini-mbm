@@ -713,7 +713,9 @@ and a DQS pose rejection is reported while the LBS instance remains visible.
 
 The editor supports **Save**, **Save As**, and bounded 50-entry **Undo/Redo** across existing atomic
 bind, bone, weight, clip, track, key, timeline, and pose-authoring operations. New commits clear Redo;
-loading another mesh or quitting removes the editor-owned temporary snapshots.
+loading another mesh or quitting removes the editor-owned temporary snapshots. On Windows these
+snapshots are anchored under `TEMP`/`TMP` because MinGW's `os.tmpname()` may return a root-relative
+name that is not writable; other platforms retain their native temporary directory behavior.
 
 Preview reconstruction follows the authoritative asset boundary. An unmodified load uses the
 selected file directly. Once any canonical edit makes the session dirty, a preview request first

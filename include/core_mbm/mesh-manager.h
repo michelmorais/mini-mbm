@@ -582,8 +582,8 @@ namespace mbm
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
       private:
-        friend bool skeletal::copyCanonicalParityAsset(const MESH_MBM_DEBUG &mesh,
-                                                       skeletal::CANONICAL_PARITY_ASSET &out) noexcept;
+        friend API_IMPL bool skeletal::copyCanonicalParityAsset(
+            const MESH_MBM_DEBUG &mesh, skeletal::CANONICAL_PARITY_ASSET &out) noexcept;
         void fillAtLeastOneBound();
         bool fillInSubsetDebug(const MESH_MBM* meshMemory,
                                const int currentFrame,

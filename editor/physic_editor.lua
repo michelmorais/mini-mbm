@@ -1529,7 +1529,7 @@ function main_menu_physic_editor()
                         local tMeshDebug = meshDebug:new()
                         if tMeshDebug:load(sLastEditorFileName) then
                             tMeshDebug:setPhysics(tInfoPhysics)
-                            local tmpname = os.tmpname () .. '.xxx'
+                            local tmpname = tUtil.getTemporaryFilePath('.xxx')
                             if tMeshDebug:save(tmpname) then
                                 local x,y = mbm.to2dw(0,0)
                                 local spt = sprite:new('2dw',xCam,y)

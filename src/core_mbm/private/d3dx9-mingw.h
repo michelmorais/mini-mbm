@@ -51,8 +51,10 @@
 #include <d3dcompiler.h>
 #include <string>
 #include <unordered_map>
+#include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 /* ── Type aliases ───────────────────────────────────────────────────────────── */
 
@@ -102,7 +104,8 @@ struct MBM_D3DX_CONSTANT_ENTRY
  * Parses the CTAB (constant-table) comment block embedded in D3D9 shader
  * bytecode and implements the handful of ID3DXConstantTable methods that the
  * engine uses:
- *   GetConstantByName, SetDefaults, SetFloat, SetFloatArray, SetMatrix, Release
+ *   GetConstantByName, GetConstantElement, SetDefaults, SetFloat, SetFloatArray,
+ *   SetInt, SetMatrix, AddRef, Release
  *
  * D3D9 bytecode CTAB layout (all values little-endian DWORD unless noted):
  *   Payload[0..3]   = FourCC "CTAB" (0x42415443)  ← ctab pointer base
@@ -129,15 +132,22 @@ public:
     explicit ID3DXConstantTable(const void *bytecode,
                                 SIZE_T      byteLen,
                                 bool        isPixelShader) noexcept
-        : m_isPS(isPixelShader)
+        : m_isPS(isPixelShader), m_refCount(1u)
     {
         if (bytecode && byteLen >= 4)
             scanBytecodeForCtab(static_cast<const DWORD *>(bytecode),
                                 byteLen / sizeof(DWORD));
     }
 
-    /* COM-style release: deletes this object and returns 0. */
-    ULONG Release() { delete this; return 0; }
+    ULONG AddRef() noexcept { return ++m_refCount; }
+
+    ULONG Release() noexcept
+    {
+        const ULONG remaining = --m_refCount;
+        if (remaining == 0u)
+            delete this;
+        return remaining;
+    }
 
     /* No-op: default values are baked into the bytecode; nothing to push. */
     HRESULT SetDefaults(IDirect3DDevice9 * /*pDevice*/) { return S_OK; }
@@ -152,6 +162,23 @@ public:
         /* +1 so that register 0 maps to a non-null handle value. */
         return reinterpret_cast<D3DXHANDLE>(
             static_cast<uintptr_t>(it->second.registerIndex + 1u));
+    }
+
+    /* Arrays of scalar/vector constants occupy one float4 register per element
+     * in the shader profiles used by mini-mbm. Handles encode register+1, so
+     * advancing an element is equivalent to advancing one register. */
+    D3DXHANDLE GetConstantElement(D3DXHANDLE hConstant, UINT index) const noexcept
+    {
+        if (!hConstant) return nullptr;
+        const UINT baseRegister = decodeHandle(hConstant);
+        for (const auto &namedConstant : m_constants)
+        {
+            const MBM_D3DX_CONSTANT_ENTRY &entry = namedConstant.second;
+            if (entry.registerIndex == baseRegister && index < entry.registerCount)
+                return reinterpret_cast<D3DXHANDLE>(
+                    static_cast<uintptr_t>(baseRegister + index + 1u));
+        }
+        return nullptr;
     }
 
     /* Upload a single float (padded to float4) to the constant register. */
@@ -175,11 +202,16 @@ public:
         if (!hConstant || !pf || count == 0) return E_FAIL;
         UINT  reg     = decodeHandle(hConstant);
         UINT  numRegs = (count + 3u) / 4u;
-        /* Copy into a zero-padded staging buffer (max 4 registers = 16 floats). */
-        FLOAT padded[16] = {};
-        const UINT toCopy = (count < 16u) ? count : 16u;
-        memcpy(padded, pf, toCopy * sizeof(FLOAT));
-        return dispatch(pDevice, reg, padded, numRegs);
+        std::vector<FLOAT> padded(static_cast<size_t>(numRegs) * 4u, 0.0f);
+        memcpy(padded.data(), pf, static_cast<size_t>(count) * sizeof(FLOAT));
+        return dispatch(pDevice, reg, padded.data(), numRegs);
+    }
+
+    HRESULT SetInt(IDirect3DDevice9 *pDevice, D3DXHANDLE hConstant, INT value)
+    {
+        if (!hConstant || !pDevice) return E_FAIL;
+        const INT data[4] = {value, 0, 0, 0};
+        return dispatchInt(pDevice, decodeHandle(hConstant), data, 1u);
     }
 
     /* Upload a 4×4 matrix (4 consecutive float4 registers).
@@ -212,6 +244,7 @@ public:
 
 private:
     bool m_isPS;
+    std::atomic<ULONG> m_refCount;
     std::unordered_map<std::string, MBM_D3DX_CONSTANT_ENTRY> m_constants;
 
     /* Decode handle back to a zero-based register index. */
@@ -229,6 +262,16 @@ private:
         return m_isPS
             ? pDevice->SetPixelShaderConstantF(reg, pData, numRegs)
             : pDevice->SetVertexShaderConstantF(reg, pData, numRegs);
+    }
+
+    HRESULT dispatchInt(IDirect3DDevice9 *pDevice,
+                        UINT              reg,
+                        const INT        *pData,
+                        UINT              numRegs) const
+    {
+        return m_isPS
+            ? pDevice->SetPixelShaderConstantI(reg, pData, numRegs)
+            : pDevice->SetVertexShaderConstantI(reg, pData, numRegs);
     }
 
     /* Scan the D3D9 shader bytecode for a CTAB comment and parse it.

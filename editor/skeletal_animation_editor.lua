@@ -23,6 +23,10 @@
 tImGui = require "ImGui"
 tUtil = require "editor_utils"
 
+local function getTemporaryMeshPath()
+    return tUtil.getTemporaryFilePath('.msh')
+end
+
 local state = {
     fileName = nil,
     meshD = nil,
@@ -2661,7 +2665,7 @@ end
 
 rebuildRuntimePreviewFromMemory=function()
     if not state.meshD then return false end
-    local temporaryPath=os.tmpname()..'.msh'
+    local temporaryPath=getTemporaryMeshPath()
     local okSaved,saved=safeCall(function()
         return state.meshD:save(temporaryPath,false,false)
     end)
@@ -3055,7 +3059,7 @@ local function loadMesh(path)
 end
 
 local function stageRollbackSnapshot(descriptionKey)
-    local path = os.tmpname() .. '.msh'
+    local path = getTemporaryMeshPath()
     if not state.meshD:save(path, false, false) then return false end
     return {path=path,modified=state.modified,workspace=state.workspace,
         boneIndex=state.boneIndex,clipIndex=state.animationClipSelected,
@@ -8335,7 +8339,7 @@ local function showSkeletalAnimationInspection()
             state.skeletalPreview.method,authoringMethods,-1)
         tImGui.PopItemWidth()
         if authoringMethodChanged then
-            local temporaryPath=os.tmpname()..'.msh'
+            local temporaryPath=getTemporaryMeshPath()
             local okSaved,saved=safeCall(function()
                 return state.meshD:save(temporaryPath,false,false)
             end)

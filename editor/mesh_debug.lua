@@ -3399,7 +3399,7 @@ function updatePreviewMesh()
     local loadPath = fileName
     if tEntry.modified then
         local ext = fileName:match('%.([^%.]+)$') or 'msh'
-        tEntry.previewPath = tEntry.previewPath or (os.tmpname() .. '.' .. ext)
+        tEntry.previewPath = tEntry.previewPath or tUtil.getTemporaryFilePath('.' .. ext)
         if meshD:save(tEntry.previewPath, false, false) then
             meshDebug:fakeRelease(fileName)
             meshDebug:fakeRelease(tEntry.previewPath)
@@ -4056,7 +4056,7 @@ function refreshFrameFilterPreview(tEntry, index)
 
     -- Save filtered mesh to a dedicated temp path
     local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
-    tEntry.framePreviewPath = tEntry.framePreviewPath or (os.tmpname() .. '.' .. ext)
+    tEntry.framePreviewPath = tEntry.framePreviewPath or tUtil.getTemporaryFilePath('.' .. ext)
     if not tempD:save(tEntry.framePreviewPath, false, false) then return end
     meshDebug:fakeRelease(tEntry.framePreviewPath)
 
@@ -8459,7 +8459,7 @@ function splitCaptureDiscardBackup(tEntry)
 end
 
 function splitCaptureCreateBackup(tEntry, meshD)
-    local backupPath = os.tmpname() .. '.msh'
+    local backupPath = tUtil.getTemporaryFilePath('.msh')
     if not meshD:save(backupPath, false, false) then
         meshDebug:fakeRelease(backupPath)
         os.remove(backupPath)
@@ -8981,7 +8981,7 @@ function saveCapturedSplitAs(tEntry)
     local tempPath
     local sourceForCopy = sourceD
     if tEntry.modified then
-        tempPath = os.tmpname() .. '.msh'
+        tempPath = tUtil.getTemporaryFilePath('.msh')
         if not sourceD:save(tempPath, false, false) then
             tUtil.showMessageWarn('Could not prepare captured groups for saving.')
             return
@@ -10336,7 +10336,7 @@ function showMeshOptions(tEntry, index)
         local function buildXformPreview()
             cancelXformPreview()
             local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
-            tEntry.xfPreviewPath = tEntry.xfPreviewPath or (os.tmpname() .. '_xf.' .. ext)
+            tEntry.xfPreviewPath = tEntry.xfPreviewPath or tUtil.getTemporaryFilePath('_xf.' .. ext)
             if meshD:save(tEntry.xfPreviewPath, false, false) then
                 local cloneMeshD = meshDebug:new()
                 if cloneMeshD:load(tEntry.xfPreviewPath) then
@@ -11480,7 +11480,7 @@ function buildFilteredMeshForSave(tEntry)
     end
 
     local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
-    local tempPath = os.tmpname() .. '.' .. ext
+    local tempPath = tUtil.getTemporaryFilePath('.' .. ext)
     if not tEntry.meshDebug:save(tempPath, false, false) then
         restoreCheckedRemove()
         return nil
@@ -11653,7 +11653,7 @@ function exportSelectedFrameSubsets(tEntry)
     local sourcePath = tEntry.fileName
     local snapshotPath = nil
     if tEntry.modified then
-        snapshotPath = os.tmpname() .. '.msh'
+        snapshotPath = tUtil.getTemporaryFilePath('.msh')
         if not meshD:save(snapshotPath, false, false) then
             tUtil.showMessageWarn(string.format(tLang.L('save_failed_fmt'), tUtil.getShortName(tEntry.fileName)))
             return
