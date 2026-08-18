@@ -27,7 +27,7 @@
 
 namespace mbm::skeletal
 {
-    enum class GLES2_LBS_PREPARATION_STATUS : uint8_t
+    enum class GPU_SKINNING_PREPARATION_STATUS : uint8_t
     {
         NO_SKELETAL_DATA,
         READY,
@@ -43,9 +43,9 @@ namespace mbm::skeletal
         float weight[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
-    struct GLES2_LBS_INPUT
+    struct GPU_SKINNING_INPUT
     {
-        GLES2_LBS_PREPARATION_STATUS status = GLES2_LBS_PREPARATION_STATUS::NO_SKELETAL_DATA;
+        GPU_SKINNING_PREPARATION_STATUS status = GPU_SKINNING_PREPARATION_STATUS::NO_SKELETAL_DATA;
         uint32_t requiredBoneCount = 0;
         uint32_t effectiveBoneCapacity = 0;
         uint32_t lbsBoneCapacity = 0;
@@ -53,7 +53,7 @@ namespace mbm::skeletal
         std::vector<GPU_LBS_VERTEX> vertices;
         const char *diagnostic = "no-skeletal-data";
 
-        bool ready() const noexcept { return status == GLES2_LBS_PREPARATION_STATUS::READY; }
+        bool ready() const noexcept { return status == GPU_SKINNING_PREPARATION_STATUS::READY; }
         bool supports(SKELETAL_SHADER_METHOD method) const noexcept
         {
             if (!ready()) return false;
@@ -63,14 +63,14 @@ namespace mbm::skeletal
         }
     };
 
-    enum class GLES2_LBS_PALETTE_STATUS : uint8_t
+    enum class LBS_PALETTE_STATUS : uint8_t
     {
         READY,
         INVALID_POSE,
         UNSUPPORTED_NORMAL_TRANSFORM
     };
 
-    enum class GLES2_DQS_PALETTE_STATUS : uint8_t
+    enum class DQS_PALETTE_STATUS : uint8_t
     {
         READY,
         INVALID_POSE,
@@ -88,27 +88,27 @@ namespace mbm::skeletal
                                                   const CANONICAL_ANIMATIONS &animations) noexcept;
     const char *dqsCompatibilityStatusName(DQS_COMPATIBILITY_STATUS status) noexcept;
 
-    GLES2_LBS_PREPARATION_STATUS prepareGles2LbsInput(const CANONICAL_SKELETON &skeleton,
-                                                       const CANONICAL_WEIGHTS &weights,
-                                                       const SKINNING_CAPABILITY &capability,
-                                                       GLES2_LBS_INPUT &out) noexcept;
-    const char *gles2LbsPreparationStatusName(GLES2_LBS_PREPARATION_STATUS status) noexcept;
-    GLES2_LBS_PALETTE_STATUS buildGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
-                                                   const SKELETAL_POSE &pose,
-                                                   bool requireCompactNormalTransform,
-                                                   std::vector<float> &outRows) noexcept;
-    GLES2_LBS_PALETTE_STATUS sampleGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
-                                                    const SKELETAL_CLIP &clip, float time,
-                                                    bool requireCompactNormalTransform,
-                                                    std::vector<float> &outRows,
-                                                    SKELETAL_POSE *outPose = nullptr) noexcept;
-    GLES2_DQS_PALETTE_STATUS buildGles2DqsPalette(const CANONICAL_SKELETON &skeleton,
-                                                   const SKELETAL_POSE &pose,
-                                                   std::vector<float> &outRows) noexcept;
-    GLES2_DQS_PALETTE_STATUS sampleGles2DqsPalette(const CANONICAL_SKELETON &skeleton,
-                                                    const SKELETAL_CLIP &clip, float time,
-                                                    std::vector<float> &outRows,
-                                                    SKELETAL_POSE *outPose = nullptr) noexcept;
+    GPU_SKINNING_PREPARATION_STATUS prepareGpuSkinningInput(const CANONICAL_SKELETON &skeleton,
+                                                            const CANONICAL_WEIGHTS &weights,
+                                                            const SKINNING_CAPABILITY &capability,
+                                                            GPU_SKINNING_INPUT &out) noexcept;
+    const char *gpuSkinningPreparationStatusName(GPU_SKINNING_PREPARATION_STATUS status) noexcept;
+    LBS_PALETTE_STATUS buildLbsPalette(const CANONICAL_SKELETON &skeleton,
+                                       const SKELETAL_POSE &pose,
+                                       bool requireCompactNormalTransform,
+                                       std::vector<float> &outRows) noexcept;
+    LBS_PALETTE_STATUS sampleLbsPalette(const CANONICAL_SKELETON &skeleton,
+                                        const SKELETAL_CLIP &clip, float time,
+                                        bool requireCompactNormalTransform,
+                                        std::vector<float> &outRows,
+                                        SKELETAL_POSE *outPose = nullptr) noexcept;
+    DQS_PALETTE_STATUS buildDqsPalette(const CANONICAL_SKELETON &skeleton,
+                                       const SKELETAL_POSE &pose,
+                                       std::vector<float> &outRows) noexcept;
+    DQS_PALETTE_STATUS sampleDqsPalette(const CANONICAL_SKELETON &skeleton,
+                                        const SKELETAL_CLIP &clip, float time,
+                                        std::vector<float> &outRows,
+                                        SKELETAL_POSE *outPose = nullptr) noexcept;
 }
 
 #endif

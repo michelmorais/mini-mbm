@@ -103,7 +103,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
-        skeletal::GLES2_LBS_INPUT gles2LbsInput;
+        skeletal::GPU_SKINNING_INPUT gpuSkinningInput;
     };
 
     struct MESH_MBM_DEBUG::Impl

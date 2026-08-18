@@ -11,19 +11,17 @@
 | COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#ifndef SKELETAL_GPU_LBS_DIRECTX9_H
-#define SKELETAL_GPU_LBS_DIRECTX9_H
 
-#include "skeletal-gpu-lbs.h"
+#if !defined(USE_OPENGL_ES) && !defined(USE_DIRECTX9)
 
-namespace mbm
-{
-    class BUFFER_GL;
-}
+#include "skeletal-gpu-upload.h"
 
 namespace mbm::skeletal
 {
-    bool uploadDirectX9SkinVertexStream(BUFFER_GL *buffer, const GLES2_LBS_INPUT &input) noexcept;
+    bool uploadSkinVertexStream(BUFFER_GL *, const GPU_SKINNING_INPUT &) noexcept
+    {
+        return false;
+    }
 }
 
 #endif

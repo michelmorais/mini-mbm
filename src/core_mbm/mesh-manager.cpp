@@ -20,12 +20,7 @@
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
 #include "private/skeletal-parity-asset.h"
-#if defined(USE_OPENGL_ES)
-#include <skeletal-gpu-lbs-opengl_es.h>
-#endif
-#if defined(USE_DIRECTX9)
-#include <skeletal-gpu-lbs-directx9.h>
-#endif
+#include <skeletal-gpu-upload.h>
 #include <draw-compatibility.h>
 #include <shader-var-cfg.h>
 #include <texture-manager.h>
@@ -5431,12 +5426,12 @@ namespace mbm
         std::vector<float> rows;
         if (method == SKELETAL_SHADER_METHOD::DQS_RIGID)
         {
-            if (skeletal::buildGles2DqsPalette(impl->canonicalSkeleton, pose, rows) !=
-                    skeletal::GLES2_DQS_PALETTE_STATUS::READY)
+            if (skeletal::buildDqsPalette(impl->canonicalSkeleton, pose, rows) !=
+                    skeletal::DQS_PALETTE_STATUS::READY)
                 return fail("canonical authoring pose is incompatible with rigid DQS");
         }
-        else if (skeletal::buildGles2LbsPalette(impl->canonicalSkeleton, pose, true, rows) !=
-                     skeletal::GLES2_LBS_PALETTE_STATUS::READY)
+        else if (skeletal::buildLbsPalette(impl->canonicalSkeleton, pose, true, rows) !=
+                     skeletal::LBS_PALETTE_STATUS::READY)
             return fail("canonical authoring pose is incompatible with compact LBS normals");
         impl->authoringPose = std::move(pose);
         impl->authoringPaletteRows = std::move(rows);
@@ -7957,7 +7952,7 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
-        impl->gles2LbsInput = {};
+        impl->gpuSkinningInput = {};
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
         impl->coordTexFrame_0 = nullptr;
@@ -7980,7 +7975,7 @@ namespace mbm
 
     uint32_t MESH_MBM::getPreparedSkeletalPaletteSize(const SKELETAL_SHADER_METHOD method) const noexcept
     {
-        return impl->gles2LbsInput.supports(method) ? impl->gles2LbsInput.requiredBoneCount : 0;
+        return impl->gpuSkinningInput.supports(method) ? impl->gpuSkinningInput.requiredBoneCount : 0;
     }
 
     void MESH_MBM::resolveSkeletalSkinningMethod(SKELETAL_ANIMATION_PLAYER &player) const noexcept
@@ -8006,17 +8001,17 @@ namespace mbm
     {
         if (status)
         {
-            const skeletal::GLES2_LBS_PREPARATION_STATUS selectedStatus =
-                impl->gles2LbsInput.ready() && !impl->gles2LbsInput.supports(method)
-                    ? skeletal::GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE
-                    : impl->gles2LbsInput.status;
-            *status = skeletal::gles2LbsPreparationStatusName(selectedStatus);
+            const skeletal::GPU_SKINNING_PREPARATION_STATUS selectedStatus =
+                impl->gpuSkinningInput.ready() && !impl->gpuSkinningInput.supports(method)
+                    ? skeletal::GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE
+                    : impl->gpuSkinningInput.status;
+            *status = skeletal::gpuSkinningPreparationStatusName(selectedStatus);
         }
         if (requiredBoneCount)
-            *requiredBoneCount = impl->gles2LbsInput.requiredBoneCount;
+            *requiredBoneCount = impl->gpuSkinningInput.requiredBoneCount;
         if (effectiveBoneCapacity)
             *effectiveBoneCapacity = method == SKELETAL_SHADER_METHOD::DQS_RIGID
-                ? impl->gles2LbsInput.dqsBoneCapacity : impl->gles2LbsInput.lbsBoneCapacity;
+                ? impl->gpuSkinningInput.dqsBoneCapacity : impl->gpuSkinningInput.lbsBoneCapacity;
     }
 
     uint32_t MESH_MBM::getTotalSkeletalAnimations() const noexcept
@@ -8040,7 +8035,7 @@ namespace mbm
 
     bool MESH_MBM::playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const
     {
-        if (!impl->gles2LbsInput.supports(player.impl->resolvedSkinningMethod) || !name || !name[0])
+        if (!impl->gpuSkinningInput.supports(player.impl->resolvedSkinningMethod) || !name || !name[0])
             return false;
         for (uint32_t i = 0; i < impl->canonicalAnimations.clips.size(); ++i)
         {
@@ -8434,12 +8429,12 @@ namespace mbm
         std::vector<float> paletteRows;
         if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
         {
-            if (skeletal::buildGles2DqsPalette(impl->canonicalSkeleton, pose, paletteRows) !=
-                    skeletal::GLES2_DQS_PALETTE_STATUS::READY)
+            if (skeletal::buildDqsPalette(impl->canonicalSkeleton, pose, paletteRows) !=
+                    skeletal::DQS_PALETTE_STATUS::READY)
                 return false;
         }
-        else if (skeletal::buildGles2LbsPalette(impl->canonicalSkeleton, pose, hasNormals,
-                     paletteRows) != skeletal::GLES2_LBS_PALETTE_STATUS::READY)
+        else if (skeletal::buildLbsPalette(impl->canonicalSkeleton, pose, hasNormals,
+                     paletteRows) != skeletal::LBS_PALETTE_STATUS::READY)
             return false;
         player.impl->time = evaluatedBaseTime;
         if (removeCompletedLayer)
@@ -8491,13 +8486,13 @@ namespace mbm
             return fail("authoring skinning method is invalid");
         if (method!=player.impl->resolvedSkinningMethod)
             return fail("authoring method does not match preview resolved method");
-        if (!impl->gles2LbsInput.supports(method))
+        if (!impl->gpuSkinningInput.supports(method))
         {
-            const skeletal::GLES2_LBS_PREPARATION_STATUS selectedStatus=
-                impl->gles2LbsInput.ready() ? skeletal::GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE :
-                impl->gles2LbsInput.status;
+            const skeletal::GPU_SKINNING_PREPARATION_STATUS selectedStatus=
+                impl->gpuSkinningInput.ready() ? skeletal::GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE :
+                impl->gpuSkinningInput.status;
             return fail("preview skeletal input is not ready: %s (%s)",
-                skeletal::gles2LbsPreparationStatusName(selectedStatus),impl->gles2LbsInput.diagnostic);
+                skeletal::gpuSkinningPreparationStatusName(selectedStatus),impl->gpuSkinningInput.diagnostic);
         }
         const uint32_t stride = method == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
         const uint32_t expected = static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size()) * stride;
@@ -9430,12 +9425,12 @@ namespace mbm
         {
             const skeletal::SKINNING_CAPABILITY capability =
                 skeletal::getMeasuredSkinningCapability();
-            const skeletal::GLES2_LBS_PREPARATION_STATUS status = skeletal::prepareGles2LbsInput(
-                impl->canonicalSkeleton, impl->canonicalWeights, capability, impl->gles2LbsInput);
+            const skeletal::GPU_SKINNING_PREPARATION_STATUS status = skeletal::prepareGpuSkinningInput(
+                impl->canonicalSkeleton, impl->canonicalWeights, capability, impl->gpuSkinningInput);
             INFO_LOG("GPU skeletal input: status=%s bones=%u lbs-capacity=%u dqs-capacity=%u vertices=%u [%s]",
-                     skeletal::gles2LbsPreparationStatusName(status), impl->gles2LbsInput.requiredBoneCount,
-                     impl->gles2LbsInput.lbsBoneCapacity, impl->gles2LbsInput.dqsBoneCapacity,
-                     static_cast<uint32_t>(impl->gles2LbsInput.vertices.size()), fileNamePath);
+                     skeletal::gpuSkinningPreparationStatusName(status), impl->gpuSkinningInput.requiredBoneCount,
+                     impl->gpuSkinningInput.lbsBoneCapacity, impl->gpuSkinningInput.dqsBoneCapacity,
+                     static_cast<uint32_t>(impl->gpuSkinningInput.vertices.size()), fileNamePath);
         }
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;
@@ -9523,20 +9518,11 @@ namespace mbm
             if (!loadOk)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
 
-#if defined(USE_OPENGL_ES)
-            if (currentFrame == 0 && impl->gles2LbsInput.ready() &&
-                !skeletal::uploadGles2LbsVertexStreams(impl->buffer[currentFrame].pBufferGL,
-                                                       impl->gles2LbsInput))
+            if (currentFrame == 0 && impl->gpuSkinningInput.ready() &&
+                !skeletal::uploadSkinVertexStream(impl->buffer[currentFrame].pBufferGL,
+                                                  impl->gpuSkinningInput))
                 return log_util::onFailed(nullptr, __FILE__, __LINE__,
-                                          "failed to upload GLES2 LBS vertex streams [%s]", fileNamePath);
-#endif
-#if defined(USE_DIRECTX9)
-            if (currentFrame == 0 && impl->gles2LbsInput.ready() &&
-                !skeletal::uploadDirectX9SkinVertexStream(impl->buffer[currentFrame].pBufferGL,
-                                                          impl->gles2LbsInput))
-                return log_util::onFailed(nullptr, __FILE__, __LINE__,
-                                          "failed to upload DirectX9 skin vertex stream [%s]", fileNamePath);
-#endif
+                                          "failed to upload GPU skinning vertex stream [%s]", fileNamePath);
 
             const std::vector<TEXTURE *>::size_type totalIdTexture =
                 (impl->buffer[currentFrame].pBufferGL->totalSubset > lsIdTexture.size())

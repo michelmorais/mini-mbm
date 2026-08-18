@@ -192,8 +192,7 @@
     <ClInclude Include="..\..\include\core_mbm\android-bridge.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gles-shader-source.h" />
-    <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.h" />
-    <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx9.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-upload.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-directx9-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-parity-asset.h" />
@@ -351,6 +350,7 @@
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-upload.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-render-capability.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />

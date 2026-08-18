@@ -179,11 +179,11 @@ namespace
         expect(composeSkeletalPosesAbsolute(skeleton, base, layer, 0.5f, endpoint),
                "rigid absolute composition must produce a palette-ready pose");
         std::vector<float> palette;
-        expect(buildGles2LbsPalette(canonical, endpoint, true, palette) ==
-                   GLES2_LBS_PALETTE_STATUS::READY && palette.size() == 24,
+        expect(buildLbsPalette(canonical, endpoint, true, palette) ==
+                   LBS_PALETTE_STATUS::READY && palette.size() == 24,
                "absolute composition must feed the existing LBS palette builder directly");
-        expect(buildGles2DqsPalette(canonical, endpoint, palette) ==
-                   GLES2_DQS_PALETTE_STATUS::READY && palette.size() == 16,
+        expect(buildDqsPalette(canonical, endpoint, palette) ==
+                   DQS_PALETTE_STATUS::READY && palette.size() == 16,
                "rigid absolute composition must feed the existing DQS palette builder directly");
 
         SKELETAL_CLIP baseClip;
@@ -1431,10 +1431,10 @@ namespace
         weights.vertices[0].weight[0] = 0.75f;
         weights.vertices[0].weight[1] = 0.25f;
 
-        GLES2_LBS_INPUT input;
+        GPU_SKINNING_INPUT input;
         const SKINNING_CAPABILITY sufficient = calculateSkinningCapability(128, 8);
-        expect(prepareGles2LbsInput(skeleton, weights, sufficient, input) ==
-                   GLES2_LBS_PREPARATION_STATUS::READY && input.ready() &&
+        expect(prepareGpuSkinningInput(skeleton, weights, sufficient, input) ==
+                   GPU_SKINNING_PREPARATION_STATUS::READY && input.ready() &&
                    input.requiredBoneCount == 2 && input.effectiveBoneCapacity == 60 &&
                    input.lbsBoneCapacity == 40 && input.dqsBoneCapacity == 60 &&
                    input.vertices.size() == 1 && input.vertices[0].boneIndex[0] == 1.0f &&
@@ -1445,8 +1445,8 @@ namespace
         SKINNING_CAPABILITY dqsOnly = sufficient;
         dqsOnly.lbsMatrixPaletteBones = 1;
         dqsOnly.dqsRigidPaletteBones = 2;
-        expect(prepareGles2LbsInput(skeleton, weights, dqsOnly, input) ==
-                   GLES2_LBS_PREPARATION_STATUS::READY && input.ready() &&
+        expect(prepareGpuSkinningInput(skeleton, weights, dqsOnly, input) ==
+                   GPU_SKINNING_PREPARATION_STATUS::READY && input.ready() &&
                    !input.supports(SKELETAL_SHADER_METHOD::LBS) &&
                    input.supports(SKELETAL_SHADER_METHOD::DQS_RIGID),
                "GPU skeletal input must distinguish the LBS and rigid-DQS palette limits");
@@ -1454,16 +1454,16 @@ namespace
         SKINNING_CAPABILITY tooSmall = sufficient;
         tooSmall.lbsMatrixPaletteBones = 1;
         tooSmall.dqsRigidPaletteBones = 1;
-        expect(prepareGles2LbsInput(skeleton, weights, tooSmall, input) ==
-                   GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE && input.vertices.empty() &&
+        expect(prepareGpuSkinningInput(skeleton, weights, tooSmall, input) ==
+                   GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE && input.vertices.empty() &&
                    input.requiredBoneCount == 2 && input.effectiveBoneCapacity == 1,
                "GPU LBS input must reject a skeleton larger than the measured uniform palette");
-        expect(prepareGles2LbsInput(skeleton, weights, {}, input) ==
-                   GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE && input.vertices.empty(),
+        expect(prepareGpuSkinningInput(skeleton, weights, {}, input) ==
+                   GPU_SKINNING_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE && input.vertices.empty(),
                "GPU LBS input must not claim readiness before backend capability measurement");
         CANONICAL_WEIGHTS missingWeights;
-        expect(prepareGles2LbsInput(skeleton,missingWeights,sufficient,input)==
-                   GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA &&
+        expect(prepareGpuSkinningInput(skeleton,missingWeights,sufficient,input)==
+                   GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA &&
                    std::string(input.diagnostic)=="canonical vertex weights are missing",
                "GPU skeletal input must distinguish a rig without deforming vertex weights");
 
@@ -1492,8 +1492,8 @@ namespace
         pose.globalTransforms = {skeleton.compiled.bones[0].globalBindMatrix,
                                  skeleton.compiled.bones[1].globalBindMatrix};
         std::vector<float> palette;
-        expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
-                   GLES2_LBS_PALETTE_STATUS::READY && palette.size() == 24 &&
+        expect(buildLbsPalette(skeleton, pose, true, palette) ==
+                   LBS_PALETTE_STATUS::READY && palette.size() == 24 &&
                    std::fabs(palette[0] - 1.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(palette[5] - 1.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(palette[10] - 1.0f) <= MATRIX_TOLERANCE &&
@@ -1503,21 +1503,21 @@ namespace
         LOCAL_TRANSFORM movedChild = child.localBind;
         movedChild.translation = VEC3(3, 0, 0);
         pose.globalTransforms[1] = buildTrsMatrix(movedChild);
-        expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
-                   GLES2_LBS_PALETTE_STATUS::READY &&
+        expect(buildLbsPalette(skeleton, pose, true, palette) ==
+                   LBS_PALETTE_STATUS::READY &&
                    std::fabs(palette[15] - 3.0f) <= MATRIX_TOLERANCE,
                "GPU LBS palette must pack row-vector translation for the shader dot decoder");
 
         movedChild.scale = VEC3(2, 2, 2);
         pose.globalTransforms[1] = buildTrsMatrix(movedChild);
-        expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
-                   GLES2_LBS_PALETTE_STATUS::READY && palette.size() == 24,
+        expect(buildLbsPalette(skeleton, pose, true, palette) ==
+                   LBS_PALETTE_STATUS::READY && palette.size() == 24,
                "compact GPU LBS normal palette must accept uniform scale");
 
         movedChild.scale = VEC3(2, 1, 1);
         pose.globalTransforms[1] = buildTrsMatrix(movedChild);
-        expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
-                   GLES2_LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM && palette.empty(),
+        expect(buildLbsPalette(skeleton, pose, true, palette) ==
+                   LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM && palette.empty(),
                "compact GPU LBS normal palette must reject non-uniform scale");
 
         SKELETAL_CLIP clip;
@@ -1529,8 +1529,8 @@ namespace
         last.time = 1.0f; last.local = child.localBind; last.local.translation = VEC3(4, 0, 0);
         track.keys = {first, last}; clip.tracks = {track};
         SKELETAL_POSE sampled;
-        expect(sampleGles2LbsPalette(skeleton, clip, 0.5f, true, palette, &sampled) ==
-                   GLES2_LBS_PALETTE_STATUS::READY && palette.size() == 24 &&
+        expect(sampleLbsPalette(skeleton, clip, 0.5f, true, palette, &sampled) ==
+                   LBS_PALETTE_STATUS::READY && palette.size() == 24 &&
                    std::fabs(palette[15] - 2.0f) <= MATRIX_TOLERANCE &&
                    sampled.globalTransforms.size() == 2,
                "GPU LBS palette sampling must evaluate local clips before packing skin matrices");
@@ -1538,7 +1538,7 @@ namespace
         pose.localTransforms = {root.localBind, child.localBind};
         pose.globalTransforms = {skeleton.compiled.bones[0].globalBindMatrix,
                                  skeleton.compiled.bones[1].globalBindMatrix};
-        expect(buildGles2DqsPalette(skeleton, pose, palette) == GLES2_DQS_PALETTE_STATUS::READY &&
+        expect(buildDqsPalette(skeleton, pose, palette) == DQS_PALETTE_STATUS::READY &&
                    palette.size() == 16 && std::fabs(palette[3] - 1.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(palette[11] - 1.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(palette[12]) <= MATRIX_TOLERANCE,
@@ -1547,26 +1547,26 @@ namespace
         movedChild = child.localBind;
         movedChild.translation = VEC3(3, 0, 0);
         pose.globalTransforms[1] = buildTrsMatrix(movedChild);
-        expect(buildGles2DqsPalette(skeleton, pose, palette) == GLES2_DQS_PALETTE_STATUS::READY &&
+        expect(buildDqsPalette(skeleton, pose, palette) == DQS_PALETTE_STATUS::READY &&
                    std::fabs(palette[12] - 1.5f) <= MATRIX_TOLERANCE,
                "GPU DQS palette must encode rigid translation in its dual quaternion");
 
         movedChild.translation = VEC3(0, 0, 0);
         movedChild.rotation = {0, 0, 0.70710678118f, 0.70710678118f};
         pose.globalTransforms[1] = buildTrsMatrix(movedChild);
-        expect(buildGles2DqsPalette(skeleton, pose, palette) == GLES2_DQS_PALETTE_STATUS::READY &&
+        expect(buildDqsPalette(skeleton, pose, palette) == DQS_PALETTE_STATUS::READY &&
                    std::fabs(std::fabs(palette[10]) - 0.70710678118f) <= MATRIX_TOLERANCE &&
                    std::fabs(std::fabs(palette[11]) - 0.70710678118f) <= MATRIX_TOLERANCE,
                "GPU DQS palette must preserve a rigid 90-degree quaternion rotation");
 
         movedChild.scale = VEC3(2, 1, 1);
         pose.globalTransforms[1] = buildTrsMatrix(movedChild);
-        expect(buildGles2DqsPalette(skeleton, pose, palette) ==
-                   GLES2_DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM && palette.empty(),
+        expect(buildDqsPalette(skeleton, pose, palette) ==
+                   DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM && palette.empty(),
                "GPU rigid DQS palette must reject scale instead of silently discarding it");
 
-        expect(sampleGles2DqsPalette(skeleton, clip, 0.5f, palette, &sampled) ==
-                   GLES2_DQS_PALETTE_STATUS::READY && palette.size() == 16 &&
+        expect(sampleDqsPalette(skeleton, clip, 0.5f, palette, &sampled) ==
+                   DQS_PALETTE_STATUS::READY && palette.size() == 16 &&
                    std::fabs(palette[12] - 1.0f) <= MATRIX_TOLERANCE &&
                    sampled.globalTransforms.size() == 2,
                "GPU DQS palette sampling must share canonical clip evaluation with LBS");

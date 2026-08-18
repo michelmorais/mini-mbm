@@ -146,9 +146,9 @@ namespace
         SKINNING_CAPABILITY capability;
         capability.measured = true; capability.hasRequiredVertexAttributes = true;
         capability.lbsMatrixPaletteBones = UINT32_MAX; capability.dqsRigidPaletteBones = UINT32_MAX;
-        GLES2_LBS_INPUT prepared;
-        if (prepareGles2LbsInput(asset.skeleton, asset.weights, capability, prepared) !=
-            GLES2_LBS_PREPARATION_STATUS::READY)
+        GPU_SKINNING_INPUT prepared;
+        if (prepareGpuSkinningInput(asset.skeleton, asset.weights, capability, prepared) !=
+            GPU_SKINNING_PREPARATION_STATUS::READY)
             return false;
 
         CANONICAL_WEIGHTS subsetWeights;
@@ -172,12 +172,12 @@ namespace
         const uint32_t paletteSize = static_cast<uint32_t>(asset.skeleton.compiled.bones.size());
         if (!skinVerticesLbsReference(asset.skeleton, subsetWeights, pose, positions, normals,
                                       cpuPositions, cpuNormals) ||
-            buildGles2LbsPalette(asset.skeleton, pose, true, palette) != GLES2_LBS_PALETTE_STATUS::READY ||
+            buildLbsPalette(asset.skeleton, pose, true, palette) != LBS_PALETTE_STATUS::READY ||
             !runMethod("Lorekeeper", false, paletteSize, palette, positions, normals, gpuWeights,
                        cpuPositions, cpuNormals)) return false;
         if (!skinVerticesDqsRigidReference(asset.skeleton, subsetWeights, pose, positions, normals,
                                            cpuPositions, cpuNormals) ||
-            buildGles2DqsPalette(asset.skeleton, pose, palette) != GLES2_DQS_PALETTE_STATUS::READY ||
+            buildDqsPalette(asset.skeleton, pose, palette) != DQS_PALETTE_STATUS::READY ||
             !runMethod("Lorekeeper", true, paletteSize, palette, positions, normals, gpuWeights,
                        cpuPositions, cpuNormals)) return false;
         INFO_LOG("skeletal GPU parity Lorekeeper selection: clip=%s time=%.7f vertices=%u,%u,%u,%u,%u,%u,%u,%u",
@@ -326,11 +326,11 @@ bool runGlesSkeletalParityTests()
             gpuWeights[vertex].weight[influence] = weights.vertices[vertex].weight[influence];
         }
     if (!skinVerticesLbsReference(skeleton, weights, pose, positions, normals, cpuPositions, cpuNormals) ||
-        buildGles2LbsPalette(skeleton, pose, true, palette) != GLES2_LBS_PALETTE_STATUS::READY ||
+        buildLbsPalette(skeleton, pose, true, palette) != LBS_PALETTE_STATUS::READY ||
         !runMethod("synthetic", false, 2, palette, positions, normals, gpuWeights,
                    cpuPositions, cpuNormals)) return false;
     if (!skinVerticesDqsRigidReference(skeleton, weights, pose, positions, normals, cpuPositions, cpuNormals) ||
-        buildGles2DqsPalette(skeleton, pose, palette) != GLES2_DQS_PALETTE_STATUS::READY ||
+        buildDqsPalette(skeleton, pose, palette) != DQS_PALETTE_STATUS::READY ||
         !runMethod("synthetic", true, 2, palette, positions, normals, gpuWeights,
                    cpuPositions, cpuNormals)) return false;
     return runRealAssetParity();

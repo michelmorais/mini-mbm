@@ -55,10 +55,10 @@ namespace mbm::skeletal
         return "unknown";
     }
 
-    GLES2_LBS_PREPARATION_STATUS prepareGles2LbsInput(const CANONICAL_SKELETON &skeleton,
+    GPU_SKINNING_PREPARATION_STATUS prepareGpuSkinningInput(const CANONICAL_SKELETON &skeleton,
                                                        const CANONICAL_WEIGHTS &weights,
                                                        const SKINNING_CAPABILITY &capability,
-                                                       GLES2_LBS_INPUT &out) noexcept
+                                                       GPU_SKINNING_INPUT &out) noexcept
     {
         out = {};
         out.requiredBoneCount = static_cast<uint32_t>(skeleton.compiled.bones.size());
@@ -70,27 +70,27 @@ namespace mbm::skeletal
         if (!capability.measured)
         {
             out.diagnostic="GPU skinning capability was not measured";
-            return out.status = GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE;
+            return out.status = GPU_SKINNING_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE;
         }
         if (!capability.hasRequiredVertexAttributes)
         {
             out.diagnostic="GPU vertex attributes are insufficient";
-            return out.status = GLES2_LBS_PREPARATION_STATUS::INSUFFICIENT_VERTEX_ATTRIBUTES;
+            return out.status = GPU_SKINNING_PREPARATION_STATUS::INSUFFICIENT_VERTEX_ATTRIBUTES;
         }
         if (out.requiredBoneCount > out.lbsBoneCapacity && out.requiredBoneCount > out.dqsBoneCapacity)
         {
             out.diagnostic="skeleton exceeds both measured palette capacities";
-            return out.status = GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE;
+            return out.status = GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE;
         }
         if (skeleton.skeletonId == 0)
-        { out.diagnostic="canonical skeleton is missing"; return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        { out.diagnostic="canonical skeleton is missing"; return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
         if (weights.skeletonId == 0)
-        { out.diagnostic="canonical vertex weights are missing"; return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        { out.diagnostic="canonical vertex weights are missing"; return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
         if (weights.skeletonId != skeleton.skeletonId)
-        { out.diagnostic="canonical skeleton/weight IDs differ"; return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        { out.diagnostic="canonical skeleton/weight IDs differ"; return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
         if (!validateCanonicalWeights(skeleton, weights, static_cast<uint32_t>(weights.vertices.size())))
         { out.diagnostic="canonical vertex weights failed structural validation";
-            return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+            return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
         }
 
         std::vector<int32_t> paletteBoneIndices(weights.paletteBoneIds.size(), -1);
@@ -100,7 +100,7 @@ namespace mbm::skeletal
             if (found == skeleton.compiled.indexById.end())
             {
                 out.diagnostic="canonical weight palette references an unknown bone";
-                return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+                return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
             }
             paletteBoneIndices[paletteIndex] = found->second;
         }
@@ -117,7 +117,7 @@ namespace mbm::skeletal
                 if (source.paletteIndex[slot] >= paletteBoneIndices.size())
                 {
                     out = {};
-                    out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+                    out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
                     out.diagnostic="canonical vertex references an invalid palette slot";
                     return out.status;
                 }
@@ -126,24 +126,24 @@ namespace mbm::skeletal
             }
         }
         out.diagnostic="ready";
-        return out.status = GLES2_LBS_PREPARATION_STATUS::READY;
+        return out.status = GPU_SKINNING_PREPARATION_STATUS::READY;
     }
 
-    const char *gles2LbsPreparationStatusName(const GLES2_LBS_PREPARATION_STATUS status) noexcept
+    const char *gpuSkinningPreparationStatusName(const GPU_SKINNING_PREPARATION_STATUS status) noexcept
     {
         switch (status)
         {
-            case GLES2_LBS_PREPARATION_STATUS::NO_SKELETAL_DATA: return "no-skeletal-data";
-            case GLES2_LBS_PREPARATION_STATUS::READY: return "ready";
-            case GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE: return "capability-unavailable";
-            case GLES2_LBS_PREPARATION_STATUS::INSUFFICIENT_VERTEX_ATTRIBUTES: return "insufficient-vertex-attributes";
-            case GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE: return "palette-too-large";
-            case GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA: return "invalid-canonical-data";
+            case GPU_SKINNING_PREPARATION_STATUS::NO_SKELETAL_DATA: return "no-skeletal-data";
+            case GPU_SKINNING_PREPARATION_STATUS::READY: return "ready";
+            case GPU_SKINNING_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE: return "capability-unavailable";
+            case GPU_SKINNING_PREPARATION_STATUS::INSUFFICIENT_VERTEX_ATTRIBUTES: return "insufficient-vertex-attributes";
+            case GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE: return "palette-too-large";
+            case GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA: return "invalid-canonical-data";
         }
         return "unknown";
     }
 
-    GLES2_LBS_PALETTE_STATUS buildGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
+    LBS_PALETTE_STATUS buildLbsPalette(const CANONICAL_SKELETON &skeleton,
                                                    const SKELETAL_POSE &pose,
                                                    const bool requireCompactNormalTransform,
                                                    std::vector<float> &outRows) noexcept
@@ -151,7 +151,7 @@ namespace mbm::skeletal
         outRows.clear();
         const size_t boneCount = skeleton.compiled.bones.size();
         if (skeleton.skeletonId == 0 || boneCount == 0 || pose.globalTransforms.size() != boneCount)
-            return GLES2_LBS_PALETTE_STATUS::INVALID_POSE;
+            return LBS_PALETTE_STATUS::INVALID_POSE;
         outRows.resize(boneCount * 12u);
         for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
         {
@@ -169,7 +169,7 @@ namespace mbm::skeletal
                     std::fabs(decomposed.scale.x - decomposed.scale.z) > MATRIX_TOLERANCE)
                 {
                     outRows.clear();
-                    return GLES2_LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM;
+                    return LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM;
                 }
             }
             float *rows = &outRows[boneIndex * 12u];
@@ -182,10 +182,10 @@ namespace mbm::skeletal
             rows[8] = skinMatrix._13; rows[9] = skinMatrix._23;
             rows[10] = skinMatrix._33; rows[11] = skinMatrix._43;
         }
-        return GLES2_LBS_PALETTE_STATUS::READY;
+        return LBS_PALETTE_STATUS::READY;
     }
 
-    GLES2_LBS_PALETTE_STATUS sampleGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
+    LBS_PALETTE_STATUS sampleLbsPalette(const CANONICAL_SKELETON &skeleton,
                                                     const SKELETAL_CLIP &clip, const float time,
                                                     const bool requireCompactNormalTransform,
                                                     std::vector<float> &outRows,
@@ -195,23 +195,23 @@ namespace mbm::skeletal
         if (!sampleSkeletalClip(skeleton.compiled, clip, time, sampled))
         {
             outRows.clear();
-            return GLES2_LBS_PALETTE_STATUS::INVALID_POSE;
+            return LBS_PALETTE_STATUS::INVALID_POSE;
         }
-        const GLES2_LBS_PALETTE_STATUS status = buildGles2LbsPalette(
+        const LBS_PALETTE_STATUS status = buildLbsPalette(
             skeleton, sampled, requireCompactNormalTransform, outRows);
-        if (status == GLES2_LBS_PALETTE_STATUS::READY && outPose)
+        if (status == LBS_PALETTE_STATUS::READY && outPose)
             *outPose = std::move(sampled);
         return status;
     }
 
-    GLES2_DQS_PALETTE_STATUS buildGles2DqsPalette(const CANONICAL_SKELETON &skeleton,
+    DQS_PALETTE_STATUS buildDqsPalette(const CANONICAL_SKELETON &skeleton,
                                                    const SKELETAL_POSE &pose,
                                                    std::vector<float> &outRows) noexcept
     {
         outRows.clear();
         const size_t boneCount = skeleton.compiled.bones.size();
         if (skeleton.skeletonId == 0 || boneCount == 0 || pose.globalTransforms.size() != boneCount)
-            return GLES2_DQS_PALETTE_STATUS::INVALID_POSE;
+            return DQS_PALETTE_STATUS::INVALID_POSE;
         outRows.resize(boneCount * 8u);
         for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
         {
@@ -223,7 +223,7 @@ namespace mbm::skeletal
             if (!rigidDualQuaternionFromMatrix(skinMatrix, dualQuaternion))
             {
                 outRows.clear();
-                return GLES2_DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM;
+                return DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM;
             }
             float *rows = &outRows[boneIndex * 8u];
             rows[0] = dualQuaternion.real.x; rows[1] = dualQuaternion.real.y;
@@ -231,10 +231,10 @@ namespace mbm::skeletal
             rows[4] = dualQuaternion.dual.x; rows[5] = dualQuaternion.dual.y;
             rows[6] = dualQuaternion.dual.z; rows[7] = dualQuaternion.dual.w;
         }
-        return GLES2_DQS_PALETTE_STATUS::READY;
+        return DQS_PALETTE_STATUS::READY;
     }
 
-    GLES2_DQS_PALETTE_STATUS sampleGles2DqsPalette(const CANONICAL_SKELETON &skeleton,
+    DQS_PALETTE_STATUS sampleDqsPalette(const CANONICAL_SKELETON &skeleton,
                                                     const SKELETAL_CLIP &clip, const float time,
                                                     std::vector<float> &outRows,
                                                     SKELETAL_POSE *outPose) noexcept
@@ -243,10 +243,10 @@ namespace mbm::skeletal
         if (!sampleSkeletalClip(skeleton.compiled, clip, time, sampled))
         {
             outRows.clear();
-            return GLES2_DQS_PALETTE_STATUS::INVALID_POSE;
+            return DQS_PALETTE_STATUS::INVALID_POSE;
         }
-        const GLES2_DQS_PALETTE_STATUS status = buildGles2DqsPalette(skeleton, sampled, outRows);
-        if (status == GLES2_DQS_PALETTE_STATUS::READY && outPose)
+        const DQS_PALETTE_STATUS status = buildDqsPalette(skeleton, sampled, outRows);
+        if (status == DQS_PALETTE_STATUS::READY && outPose)
             *outPose = std::move(sampled);
         return status;
     }

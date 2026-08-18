@@ -13,14 +13,14 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 #if defined(USE_DIRECTX9)
 
-#include "skeletal-gpu-lbs-directx9.h"
+#include "skeletal-gpu-upload.h"
 #include "specific-directx9-buffer.h"
 #include <core_mbm/device.h>
 #include <core_mbm/shader.h>
 
 namespace mbm::skeletal
 {
-    bool uploadDirectX9SkinVertexStream(BUFFER_GL *buffer, const GLES2_LBS_INPUT &input) noexcept
+    bool uploadSkinVertexStream(BUFFER_GL *buffer, const GPU_SKINNING_INPUT &input) noexcept
     {
         if (!buffer || !input.ready() || input.vertices.empty() ||
             input.vertices.size() != buffer->sizeOfArrayVertex)

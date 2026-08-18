@@ -18,7 +18,7 @@
 
 #if defined(USE_OPENGL_ES)
 
-#include "skeletal-gpu-lbs-opengl_es.h"
+#include "skeletal-gpu-upload.h"
 
 #include <shader.h>
 #include <specific-opengl_es.h>
@@ -44,7 +44,7 @@ namespace mbm::skeletal
         }
     }
 
-    bool uploadGles2LbsVertexStreams(BUFFER_GL *buffer, const GLES2_LBS_INPUT &input) noexcept
+    bool uploadSkinVertexStream(BUFFER_GL *buffer, const GPU_SKINNING_INPUT &input) noexcept
     {
         if (!buffer || !input.ready() || input.vertices.empty() ||
             input.vertices.size() != buffer->sizeOfArrayVertex)
