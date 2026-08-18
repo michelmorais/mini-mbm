@@ -1202,7 +1202,8 @@ The following are current editor limitations rather than regressions caused by r
   base clip. Lua and Runtime Skeletal Preview expose layer clip, independent time/seek, and weight
   before one final LBS/DQS palette. A linear timed fade can target base or layer; reaching zero
   removes the layer. The layer is not serialized; independent pause, transition curves/queues,
-  priority, Additive evaluation, and masks remain pending;
+  priority and masks remain pending. Absolute and bind-relative Additive modes are explicit in Lua
+  and Runtime Skeletal Preview; both share time, weight, speed, and fade controls;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 

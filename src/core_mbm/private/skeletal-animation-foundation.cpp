@@ -825,6 +825,74 @@ namespace mbm::skeletal
         return true;
     }
 
+    bool composeSkeletalPosesAdditive(const COMPILED_SKELETON &skeleton,
+                                      const SKELETAL_POSE &basePose,
+                                      const SKELETAL_POSE &layerPose,
+                                      const float layerWeight,
+                                      SKELETAL_POSE &out) noexcept
+    {
+        out = {};
+        const size_t boneCount = skeleton.bones.size();
+        if (!std::isfinite(layerWeight) || layerWeight < 0.0f || layerWeight > 1.0f ||
+            basePose.localTransforms.size() != boneCount ||
+            layerPose.localTransforms.size() != boneCount)
+            return false;
+        out.localTransforms.resize(boneCount);
+        out.globalTransforms.resize(boneCount);
+        const QUATERNION identity;
+        for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            const LOCAL_TRANSFORM &reference = skeleton.bones[boneIndex].localBind;
+            const LOCAL_TRANSFORM &base = basePose.localTransforms[boneIndex];
+            const LOCAL_TRANSFORM &layer = layerPose.localTransforms[boneIndex];
+            if (!isFinite(reference) || !isFinite(base) || !isFinite(layer) ||
+                quaternionNorm(reference.rotation) <= QUATERNION_ZERO_EPSILON ||
+                quaternionNorm(base.rotation) <= QUATERNION_ZERO_EPSILON ||
+                quaternionNorm(layer.rotation) <= QUATERNION_ZERO_EPSILON ||
+                std::fabs(reference.scale.x) <= SINGULAR_TOLERANCE ||
+                std::fabs(reference.scale.y) <= SINGULAR_TOLERANCE ||
+                std::fabs(reference.scale.z) <= SINGULAR_TOLERANCE)
+            {
+                out = {};
+                return false;
+            }
+            LOCAL_TRANSFORM &composed = out.localTransforms[boneIndex];
+            composed.translation = VEC3(
+                base.translation.x + (layer.translation.x - reference.translation.x) * layerWeight,
+                base.translation.y + (layer.translation.y - reference.translation.y) * layerWeight,
+                base.translation.z + (layer.translation.z - reference.translation.z) * layerWeight);
+            const QUATERNION referenceRotation = normalizedQuaternion(reference.rotation);
+            const QUATERNION layerRotation = normalizedQuaternion(layer.rotation);
+            const QUATERNION deltaRotation = normalizedQuaternion(
+                multiplyQuaternion(conjugateQuaternion(referenceRotation), layerRotation));
+            const QUATERNION weightedDelta = interpolateQuaternion(identity, deltaRotation, layerWeight);
+            composed.rotation = normalizedQuaternion(
+                multiplyQuaternion(normalizedQuaternion(base.rotation), weightedDelta));
+            composed.scale = VEC3(
+                base.scale.x * (1.0f + (layer.scale.x / reference.scale.x - 1.0f) * layerWeight),
+                base.scale.y * (1.0f + (layer.scale.y / reference.scale.y - 1.0f) * layerWeight),
+                base.scale.z * (1.0f + (layer.scale.z / reference.scale.z - 1.0f) * layerWeight));
+            if (!isFinite(composed))
+            {
+                out = {};
+                return false;
+            }
+            const MATRIX local = buildTrsMatrix(composed);
+            const int32_t parent = skeleton.bones[boneIndex].parentIndex;
+            if (parent < 0)
+                out.globalTransforms[boneIndex] = local;
+            else if (static_cast<size_t>(parent) < boneIndex)
+                MatrixMultiply(&out.globalTransforms[boneIndex], &local,
+                               &out.globalTransforms[static_cast<size_t>(parent)]);
+            else
+            {
+                out = {};
+                return false;
+            }
+        }
+        return true;
+    }
+
     bool sampleSkeletalClipsAbsolute(const COMPILED_SKELETON &skeleton,
                                      const SKELETAL_CLIP &baseClip, const float baseTime,
                                      const SKELETAL_CLIP &layerClip, const float layerTime,
@@ -835,6 +903,18 @@ namespace mbm::skeletal
         return sampleSkeletalClip(skeleton, baseClip, baseTime, basePose) &&
                sampleSkeletalClip(skeleton, layerClip, layerTime, layerPose) &&
                composeSkeletalPosesAbsolute(skeleton, basePose, layerPose, layerWeight, out);
+    }
+
+    bool sampleSkeletalClipsAdditive(const COMPILED_SKELETON &skeleton,
+                                     const SKELETAL_CLIP &baseClip, const float baseTime,
+                                     const SKELETAL_CLIP &layerClip, const float layerTime,
+                                     const float layerWeight, SKELETAL_POSE &out)
+    {
+        SKELETAL_POSE basePose;
+        SKELETAL_POSE layerPose;
+        return sampleSkeletalClip(skeleton, baseClip, baseTime, basePose) &&
+               sampleSkeletalClip(skeleton, layerClip, layerTime, layerPose) &&
+               composeSkeletalPosesAdditive(skeleton, basePose, layerPose, layerWeight, out);
     }
 
     bool advanceSkeletalAbsoluteFade(const float startWeight, const float targetWeight,

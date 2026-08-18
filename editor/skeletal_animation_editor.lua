@@ -31,7 +31,7 @@ local state = {
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false, absoluteLayerSelected=1,
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
-        absoluteLayerFadeDuration=0.25, speed=1},
+        absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, speed=1},
     runtimeLight={enabled=false,
         ambientColor={r=0.16,g=0.16,b=0.2,a=1},
         directionalColor={r=1,g=0.96,b=0.88,a=1},
@@ -2650,15 +2650,20 @@ local function playSelectedAbsoluteLayer()
     local playback=state.skeletalPreview
     local name=playback.clips[playback.absoluteLayerSelected]
     if not state.preview or not playback.playing or not name then return false end
-    if not state.preview:playSkeletalAnimationAbsoluteLayer(name,playback.absoluteLayerWeight) then
+    local function playLayer(preview)
+        if playback.absoluteLayerMode==2 then
+            return preview:playSkeletalAnimationAdditiveLayer(name,playback.absoluteLayerWeight)
+        end
+        return preview:playSkeletalAnimationAbsoluteLayer(name,playback.absoluteLayerWeight)
+    end
+    if not playLayer(state.preview) then
         return false
     end
     playback.absoluteLayerDuration=
         state.preview:getSkeletalAnimationDuration(playback.absoluteLayerSelected) or 0
     playback.absoluteLayerActive=true
     if state.comparisonPreview then
-        playback.comparisonReady=state.comparisonPreview:playSkeletalAnimationAbsoluteLayer(
-            name,playback.absoluteLayerWeight)
+        playback.comparisonReady=playLayer(state.comparisonPreview)
         if playback.comparisonReady then
             state.comparisonPreview:seekSkeletalAnimationAbsoluteLayer(0)
         end
@@ -2826,6 +2831,16 @@ local function showSkeletalPreviewControls()
         playback.absoluteLayerWeight=runtimeLayerWeight
     end
     tImGui.BeginDisabled(not playback.playing)
+    local layerModes={tLang.L('swl_layer_mode_absolute'),tLang.L('swl_layer_mode_additive')}
+    tImGui.PushItemWidth(190)
+    local layerModeChanged,layerMode=tImGui.Combo(tLang.L('swl_layer_mode'),
+        playback.absoluteLayerMode,layerModes,-1)
+    tImGui.PopItemWidth()
+    if layerModeChanged then
+        playback.absoluteLayerMode=layerMode
+        if playback.absoluteLayerActive then playSelectedAbsoluteLayer() end
+    end
+    showItemTooltip(tLang.L('swl_layer_mode_help'))
     tImGui.PushItemWidth(190)
     local layerClipChanged,layerClip=tImGui.Combo(tLang.L('swl_absolute_layer_clip'),
         playback.absoluteLayerSelected,playback.clips,-1)

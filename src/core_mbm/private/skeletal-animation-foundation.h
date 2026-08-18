@@ -265,11 +265,23 @@ namespace mbm::skeletal
                                       const SKELETAL_POSE &layerPose,
                                       float layerWeight,
                                       SKELETAL_POSE &out) noexcept;
+    // Additive composition interprets the layer as a delta from each bone's canonical local bind.
+    // Translation uses an offset, rotation uses a shortest-path identity-to-delta quaternion, and
+    // scale uses a multiplicative ratio. Complete local poses and strict weight [0,1] are required.
+    bool composeSkeletalPosesAdditive(const COMPILED_SKELETON &skeleton,
+                                      const SKELETAL_POSE &basePose,
+                                      const SKELETAL_POSE &layerPose,
+                                      float layerWeight,
+                                      SKELETAL_POSE &out) noexcept;
     bool advanceSkeletalClipTime(const SKELETAL_CLIP &clip, float delta, float &time) noexcept;
     bool advanceSkeletalAbsoluteFade(float startWeight, float targetWeight, float duration,
                                      float delta, float &elapsed, float &weight,
                                      bool &complete) noexcept;
     bool sampleSkeletalClipsAbsolute(const COMPILED_SKELETON &skeleton,
+                                     const SKELETAL_CLIP &baseClip, float baseTime,
+                                     const SKELETAL_CLIP &layerClip, float layerTime,
+                                     float layerWeight, SKELETAL_POSE &out);
+    bool sampleSkeletalClipsAdditive(const COMPILED_SKELETON &skeleton,
                                      const SKELETAL_CLIP &baseClip, float baseTime,
                                      const SKELETAL_CLIP &layerClip, float layerTime,
                                      float layerWeight, SKELETAL_POSE &out);

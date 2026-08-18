@@ -382,6 +382,14 @@ namespace mbm
         return 1;
     }
 
+    int onPlaySkeletalAnimationAdditiveLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->playSkeletalAnimationAdditiveLayer(
+            luaL_checkstring(lua, 2), static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
     int onStopSkeletalAnimationAbsoluteLayerLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -514,6 +522,7 @@ namespace mbm
                                                      {"setSkeletalAnimationPlaybackSpeed", onSetSkeletalAnimationPlaybackSpeedLua},
                                                      {"getSkeletalAnimationPlaybackSpeed", onGetSkeletalAnimationPlaybackSpeedLua},
                                                      {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
+                                                     {"playSkeletalAnimationAdditiveLayer", onPlaySkeletalAnimationAdditiveLayerLua},
                                                      {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
                                                      {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
                                                      {"setSkeletalAnimationAbsoluteLayerWeight", onSetSkeletalAnimationAbsoluteLayerWeightLua},
@@ -587,6 +596,7 @@ namespace mbm
                                                          {"setSkeletalAnimationPlaybackSpeed", onSetSkeletalAnimationPlaybackSpeedLua},
                                                          {"getSkeletalAnimationPlaybackSpeed", onGetSkeletalAnimationPlaybackSpeedLua},
                                                          {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
+                                                         {"playSkeletalAnimationAdditiveLayer", onPlaySkeletalAnimationAdditiveLayerLua},
                                                          {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
                                                          {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
                                                          {"setSkeletalAnimationAbsoluteLayerWeight", onSetSkeletalAnimationAbsoluteLayerWeightLua},

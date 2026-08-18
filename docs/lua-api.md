@@ -577,7 +577,7 @@ composition, authoring, playback lifecycle, and examples.
 These methods control type-43 skeletal clips on a loaded canonical type-41/42/43 `.msh`. Playback
 state and the evaluated GPU palette belong to the individual `mesh` instance even when several
 objects share the same cached asset and shader program. The surface supports one base clip plus one
-optional transient Absolute layer. Each clip has independent time and authored loop/clamp behavior;
+optional transient layer in explicit Absolute or bind-relative Additive mode. Each clip has independent time and authored loop/clamp behavior;
 pause/resume is currently shared. Local TRS poses are composed before one final LBS/DQS palette,
 and the layer is never serialized into the mesh asset. Choose `"lbs"` (the engine default),
 rigid `"dqs"`, or `"auto"` before `load`. Auto resolves once to DQS only when bind and every clip
@@ -606,6 +606,7 @@ rigid DQS rejects any scale/shear.
 | `obj:setSkeletalAnimationPlaybackSpeed` | `(speed)` | bool | Set a finite non-negative per-instance multiplier shared by base clip, Absolute layer, and fade; `0` freezes temporal progress without changing pause state |
 | `obj:getSkeletalAnimationPlaybackSpeed` | `()` | number | Current multiplier; defaults to `1` |
 | `obj:playSkeletalAnimationAbsoluteLayer` | `(name, weight)` | bool | Start or replace the transient second clip at time zero with strict Absolute weight `0..1`; requires an active base clip |
+| `obj:playSkeletalAnimationAdditiveLayer` | `(name, weight)` | bool | Start or replace the transient second clip in bind-relative Additive local-TRS mode with strict weight `0..1`; requires an active base clip |
 | `obj:stopSkeletalAnimationAbsoluteLayer` | `()` | bool | Remove the transient layer while preserving the base clip |
 | `obj:seekSkeletalAnimationAbsoluteLayer` | `(time)` | bool | Seek the layer independently, clamped to its clip duration |
 | `obj:setSkeletalAnimationAbsoluteLayerWeight` | `(weight)` | bool | Change the active layer's strict Absolute weight `0..1` |
@@ -623,6 +624,8 @@ print(report.requestedMethod, report.resolvedMethod, report.resolutionReason)
 assert(character:playSkeletalAnimation("Walk"))
 assert(character:setSkeletalAnimationPlaybackSpeed(0.5))
 assert(character:playSkeletalAnimationAbsoluteLayer("LookAround", 0.35))
+-- To use bind-relative deltas instead:
+-- assert(character:playSkeletalAnimationAdditiveLayer("LookAround", 0.35))
 character:seekSkeletalAnimationAbsoluteLayer(0.2)
 character:setSkeletalAnimationAbsoluteLayerWeight(0.5)
 character:fadeSkeletalAnimationAbsoluteLayer(1.0, 0.25)

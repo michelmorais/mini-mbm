@@ -709,6 +709,8 @@ namespace mbm
             const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool playSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
                                                 const char *name, float weight) const;
+        bool playSkeletalAnimationAdditiveLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                const char *name, float weight) const;
         bool stopSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player) const;
         bool seekSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player, float time) const;
         bool setSkeletalAnimationAbsoluteLayerWeight(SKELETAL_ANIMATION_PLAYER &player,
@@ -725,6 +727,8 @@ namespace mbm
                                          uint32_t boneIdCount, float time, char *errorOut,
                                          int errorOutLen) const noexcept;
         bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta) const;
+        bool playSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player, const char *name,
+                                        float weight, bool additive) const;
         bool renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player, uint32_t indexFrame,
                             const SHADER *shader, const RENDERIZABLE *owner);
 

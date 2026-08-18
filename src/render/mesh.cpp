@@ -268,6 +268,12 @@ namespace mbm
             getSkeletalAnimationPlayer(), name, weight) : false;
     }
 
+    bool MESH::playSkeletalAnimationAdditiveLayer(const char *name, const float weight)
+    {
+        return mesh ? mesh->playSkeletalAnimationAdditiveLayer(
+            getSkeletalAnimationPlayer(), name, weight) : false;
+    }
+
     bool MESH::stopSkeletalAnimationAbsoluteLayer() noexcept
     {
         return mesh ? mesh->stopSkeletalAnimationAbsoluteLayer(getSkeletalAnimationPlayer()) : false;

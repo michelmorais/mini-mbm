@@ -239,6 +239,47 @@ namespace
                    fadeElapsed, fadeWeight, fadeComplete),
                "timed Absolute fade must reject zero duration");
 
+        SKELETAL_POSE additiveBase;
+        additiveBase.localTransforms = {skeleton.bones[0].localBind,
+                                        skeleton.bones[1].localBind};
+        SKELETAL_POSE additiveLayer = additiveBase;
+        additiveLayer.localTransforms[0].translation = VEC3(4.0f, 2.0f, 0.0f);
+        additiveLayer.localTransforms[0].rotation =
+            {0.0f, 0.0f, 0.707106781f, 0.707106781f};
+        additiveLayer.localTransforms[0].scale = VEC3(2.0f, 3.0f, 1.0f);
+        SKELETAL_POSE additive;
+        expect(composeSkeletalPosesAdditive(skeleton, additiveBase, additiveLayer, 0.5f,
+                   additive) && std::fabs(additive.localTransforms[0].translation.x - 2.0f) <=
+                       MATRIX_TOLERANCE &&
+                   std::fabs(additive.localTransforms[0].translation.y - 1.0f) <=
+                       MATRIX_TOLERANCE &&
+                   std::fabs(additive.localTransforms[0].scale.x - 1.5f) <= MATRIX_TOLERANCE &&
+                   std::fabs(additive.localTransforms[0].scale.y - 2.0f) <= MATRIX_TOLERANCE,
+               "Additive composition must apply weighted bind-relative translation and scale");
+        expect(std::fabs(std::fabs(additive.localTransforms[0].rotation.z) - 0.382683432f) <=
+                   MATRIX_TOLERANCE &&
+                   std::fabs(std::fabs(additive.localTransforms[0].rotation.w) - 0.923879533f) <=
+                       MATRIX_TOLERANCE,
+               "Additive composition must apply a shortest-path weighted rotation delta");
+        expect(composeSkeletalPosesAdditive(skeleton, additiveBase, additiveLayer, 0.0f,
+                   additive) && maximumMatrixDifference(additive.globalTransforms[0],
+                       buildTrsMatrix(additiveBase.localTransforms[0])) <= MATRIX_TOLERANCE,
+               "zero Additive weight must reproduce the base pose");
+        expect(composeSkeletalPosesAdditive(skeleton, additiveBase, additiveLayer, 1.0f,
+                   additive) && maximumMatrixDifference(additive.globalTransforms[0],
+                       buildTrsMatrix(additiveLayer.localTransforms[0])) <= MATRIX_TOLERANCE,
+               "unit Additive weight over bind must reproduce the layer pose exactly");
+        additiveBase.localTransforms[0].translation = VEC3(10.0f, 0.0f, 0.0f);
+        expect(composeSkeletalPosesAdditive(skeleton, additiveBase, additiveLayer, 0.5f,
+                   additive) && std::fabs(additive.localTransforms[0].translation.x - 12.0f) <=
+                       MATRIX_TOLERANCE,
+               "Additive translation must offset an arbitrary base pose rather than replace it");
+        COMPILED_SKELETON singularReference = skeleton;
+        singularReference.bones[0].localBind.scale.x = 0.0f;
+        expect(!composeSkeletalPosesAdditive(singularReference, additiveBase, additiveLayer,
+                   0.5f, additive) && additive.localTransforms.empty(),
+               "Additive scale ratios must reject a singular bind-scale component");
+
         layer.localTransforms.pop_back();
         expect(!composeSkeletalPosesAbsolute(skeleton, base, layer, 0.5f, endpoint),
                "absolute composition must reject incomplete poses");

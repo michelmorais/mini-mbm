@@ -76,9 +76,10 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool getSkeletalAnimationTime(float *time) const noexcept;
     API_IMPL bool setSkeletalAnimationPlaybackSpeed(float speed) noexcept;
     API_IMPL float getSkeletalAnimationPlaybackSpeed() const noexcept;
-    // Transient per-instance second clip. It is composed over the base clip in parent-relative
-    // local TRS with strict Absolute weight [0,1] and is never serialized into the mesh asset.
+    // Transient per-instance second clip, composed in parent-relative local TRS with strict weight
+    // [0,1]. Absolute and bind-relative Additive modes are explicit and never serialized.
     API_IMPL bool playSkeletalAnimationAbsoluteLayer(const char *name, float weight);
+    API_IMPL bool playSkeletalAnimationAdditiveLayer(const char *name, float weight);
     API_IMPL bool stopSkeletalAnimationAbsoluteLayer() noexcept;
     API_IMPL bool seekSkeletalAnimationAbsoluteLayer(float time);
     API_IMPL bool setSkeletalAnimationAbsoluteLayerWeight(float weight);

@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.82**
+Document version: **8.84**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -559,6 +559,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.84 | 2026-08-17 | Connected the tested Additive compositor to per-instance runtime playback, a documented explicit Lua play method, and Runtime Skeletal Preview mode selection. Switching Absolute/Additive restarts only the selected layer in the new mode; clip time, weight, speed, seek, shared pause, fade, automatic removal at zero, one final hierarchy reconstruction, and one LBS/DQS palette remain common. |
+| 8.83 | 2026-08-17 | Began Additive composition with a private backend-neutral local-TRS compositor and two-clip sampler. The canonical local bind is the reference: translation adds the weighted offset, rotation applies a shortest-path identity-to-delta quaternion, and scale multiplies a weighted layer/bind ratio. Strict complete-pose/weight/finite/singular-scale validation and deterministic endpoint, 45/90-degree rotation, relative-scale, arbitrary-base, hierarchy, and failure fixtures pass. Player, Lua, and editor mode selection remain pending. |
 | 8.82 | 2026-08-17 | Added a persistent per-instance skeletal playback-speed multiplier and documented Lua set/get methods. Runtime Skeletal Preview now mirrors the Animation worktree's bounded `0.05x..4x` DragFloat and reapplies it when previews rebuild. One scaled delta advances the base clip, Absolute layer, and fade together; pause remains authoritative. |
 | 8.81 | 2026-08-17 | Added linear timed fades for the transient Absolute layer. Runtime state captures start/target/duration/elapsed, advances only while the shared player is running, clamps exactly to the target, and automatically removes a layer that reaches zero. Lua exposes fade and current-weight queries; Runtime Skeletal Preview adds duration plus Fade to Base/Layer actions and displays the evaluated moving weight. Pure tests cover partial progress, exact completion, and invalid duration. The attempted graphical smoke was blocked before scene initialization by the current X11 environment and is not counted as passing evidence. |
 | 8.80 | 2026-08-17 | Exposed the transient Absolute layer through five documented Lua mesh methods and Runtime Skeletal Preview controls for clip, enable/disable, strict weight, and independent time. Pose-stress comparison applies and synchronizes the same layer on LBS and DQS previews. Pause/resume remains shared, and the UI explicitly states that the layer is runtime-only. A real Lua engine smoke test loaded Lorekeeper, exercised every new binding, and passed. |
