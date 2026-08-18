@@ -4760,13 +4760,14 @@ namespace mbm
             return fail("canonical clip could not be sampled for key insertion");
         const auto found = impl->canonicalSkeleton.compiled.indexById.find(sourceTrack.boneId);
         if (found == impl->canonicalSkeleton.compiled.indexById.end() ||
-            found->second >= sampledPose.localTransforms.size())
+            found->second < 0 ||
+            static_cast<size_t>(found->second) >= sampledPose.localTransforms.size())
             return fail("canonical track target could not be resolved");
         skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
         skeletal::SKELETAL_TRACK &track = candidate.clips[clipIndex].tracks[trackIndex];
         skeletal::SKELETAL_KEY inserted;
         inserted.time = time;
-        inserted.local = sampledPose.localTransforms[found->second];
+        inserted.local = sampledPose.localTransforms[static_cast<size_t>(found->second)];
         const auto position = std::lower_bound(track.keys.begin(), track.keys.end(), time,
             [](const skeletal::SKELETAL_KEY &key, const float value) { return key.time < value; });
         const uint32_t index = static_cast<uint32_t>(position - track.keys.begin());
