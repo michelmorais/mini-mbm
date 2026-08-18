@@ -505,13 +505,14 @@
     6.80.1 Fixed the Skeletal Animation Editor shared skeleton-visibility control so weight-lab bone highlights cannot remain visible or reappear while the skeleton is hidden.
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
+    7.110.0 Added per-instance automatic translation-only skeletal root motion for a named bone, keeping raw delta queries non-consuming while neutralizing that bone's local translation in the final pose.
     7.109.0 Added non-consuming named-bone root-motion translation delta extraction in model or renderizable-oriented world space, with private per-instance pose history and discontinuity/loop-wrap invalidation.
     7.108.0 Added direct skeletal base-to-base linear cross-fade with transient-layer replacement, unmasked Absolute composition, zero-duration immediate play, and discontinuity-free target promotion.
     7.107.0 Integrated non-looping skeletal base and layer completion with the existing onEndAnim callback, with one-shot per-player delivery, culled advancement, and replay/backward-seek rearming.
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.109.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.110.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -622,9 +622,12 @@ rigid DQS rejects any scale/shear.
 | `obj:setSkeletalAnimationLayerBoneWeights` | `(edits)` | bool | Atomically apply a nonempty array of `{boneId=hexString, weight=number}` edits; IDs must be unique and valid and every weight must be in `0..1`, otherwise the complete batch is rejected unchanged |
 | `obj:getSkeletalAnimationLayerBoneWeight` | `(boneId)` | number or nil | Get one active layer-mask multiplier; returns `1` for an unmasked valid bone and no value when the layer or identity is invalid |
 | `obj:clearSkeletalAnimationLayerMask` | `()` | bool | Atomically restore every active layer-mask multiplier to the all-ones compatibility default |
-| `obj:getSkeletalAnimationPose` | `()` | table or nil | Copy the active player's final evaluated global pose as ordered `{boneId, parentIndex, globalMatrix}` records; `parentIndex` is one-based with `0` for a root, and inactive/authoring-palette players return `nil` |
-| `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, angle={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; `angle` is Euler XYZ in radians for `setAngle`, while `rotation` preserves the normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. |
-| `obj:getSkeletalRootMotionDelta` | `(boneName, space?)` | table or nil | Copy the named bone's translation delta between the two latest continuous evaluated poses as `{boneId, space, translation={x,y,z}}`. Space is `"model"` by default or `"world"`, where the current mesh rotation/scale is applied. Returns `nil` before the first advancing update and after pause, seek, direct play/stop, authoring-pose installation, or a loop wrap. The query does not consume the delta and does not automatically move or remove motion from the mesh pose. |
+| `obj:getSkeletalAnimationPose` | `()` | table or nil | Copy the active player's final evaluated global pose as ordered `{boneId, parentIndex, globalMatrix}` records; `parentIndex` is one-based with `0` for a root, and inactive/authoring-palette players return `nil`. If automatic root motion is enabled, this is the neutralized final pose, not the raw motion pose. |
+| `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, angle={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; `angle` is Euler XYZ in radians for `setAngle`, while `rotation` preserves the normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. If automatic root motion is enabled, this reads the neutralized final pose. |
+| `obj:getSkeletalRootMotionDelta` | `(boneName, space?)` | table or nil | Copy the named bone's raw translation delta between the two latest continuous evaluated poses as `{boneId, space, translation={x,y,z}}`. Space is `"model"` by default or `"world"`, where the current mesh rotation/scale is applied. Returns `nil` before the first advancing update and after pause, seek, direct play/stop, authoring-pose installation, or a loop wrap. The query does not consume the delta and continues to report the raw selected-bone delta even when automatic root motion is enabled. |
+| `obj:enableAutomaticSkeletalRootMotion` | `(boneName)` | bool | Enable per-instance automatic root motion for a loaded mesh and valid canonical bone name. Each continuous advancing update applies that bone's raw translation delta to the mesh position in world space, then neutralizes that bone's local translation in the final evaluated/rendered pose so the motion is not doubled. Discontinuities invalidate history instead of moving the mesh. |
+| `obj:disableAutomaticSkeletalRootMotion` | `()` | bool | Disable automatic root motion and invalidate the root-motion delta history for this instance |
+| `obj:getAutomaticSkeletalRootMotionBone` | `()` | table or nil | Return `{name, boneId}` for the currently enabled automatic root-motion bone, or `nil` when disabled |
 | `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
 ```lua
@@ -634,6 +637,7 @@ assert(character:load("character-walk.msh"))
 local report = character:getSkeletalSkinningReport()
 print(report.requestedMethod, report.resolvedMethod, report.resolutionReason)
 assert(character:playSkeletalAnimation("Walk"))
+assert(character:enableAutomaticSkeletalRootMotion("mixamorig:Hips"))
 assert(character:crossFadeSkeletalAnimation("Run", 0.25))
 assert(character:setSkeletalAnimationPlaybackSpeed(0.5))
 assert(character:playSkeletalAnimationAbsoluteLayer("LookAround", 0.35))
@@ -657,12 +661,11 @@ if hand then
     -- hand.rotation preserves quaternion XYZW; hand.matrix preserves the complete transform.
 end
 
+-- Raw root-motion deltas remain available as a non-consuming query, even when automatic
+-- root motion is enabled.
 local rootDelta = character:getSkeletalRootMotionDelta("mixamorig:Hips", "world")
 if rootDelta then
-    local position = character:getPos()
-    character:setPos(position.x + rootDelta.translation.x,
-                     position.y + rootDelta.translation.y,
-                     position.z + rootDelta.translation.z)
+    print(rootDelta.translation.x, rootDelta.translation.y, rootDelta.translation.z)
 end
 ```
 

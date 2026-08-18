@@ -1238,8 +1238,13 @@ namespace mbm
         impl->paletteRows.clear();
         impl->evaluatedGlobalTransforms.clear();
         impl->previousEvaluatedGlobalTransforms.clear();
+        impl->rawEvaluatedGlobalTransforms.clear();
+        impl->previousRawEvaluatedGlobalTransforms.clear();
         impl->evaluatedMotionDeltaValid = false;
         impl->authoringPose = false;
+        impl->automaticRootMotionEnabled = false;
+        impl->automaticRootMotionBoneName.clear();
+        impl->automaticRootMotionBoneId = 0;
     }
 
     void SKELETAL_ANIMATION_PLAYER::setSkinningMethod(const SKELETAL_SHADER_METHOD method) noexcept
@@ -8192,6 +8197,8 @@ namespace mbm
         player.impl->paletteRows.clear();
         player.impl->evaluatedGlobalTransforms.clear();
         player.impl->previousEvaluatedGlobalTransforms.clear();
+        player.impl->rawEvaluatedGlobalTransforms.clear();
+        player.impl->previousRawEvaluatedGlobalTransforms.clear();
         player.impl->evaluatedMotionDeltaValid = false;
         player.impl->authoringPose = false;
         return true;
@@ -8608,17 +8615,17 @@ namespace mbm
         const MATRIX *modelMatrix, uint64_t *boneId, VEC3 *translation) const noexcept
     {
         if (!boneName || !boneId || !translation || !player.impl->evaluatedMotionDeltaValid ||
-            player.impl->previousEvaluatedGlobalTransforms.size() !=
-                player.impl->evaluatedGlobalTransforms.size())
+            player.impl->previousRawEvaluatedGlobalTransforms.size() !=
+                player.impl->rawEvaluatedGlobalTransforms.size())
             return false;
         const auto found = impl->canonicalSkeleton.compiled.indexByName.find(boneName);
         if (found == impl->canonicalSkeleton.compiled.indexByName.end())
             return false;
         const uint32_t boneIndex = found->second;
-        if (boneIndex >= player.impl->evaluatedGlobalTransforms.size())
+        if (boneIndex >= player.impl->rawEvaluatedGlobalTransforms.size())
             return false;
-        MATRIX previous = player.impl->previousEvaluatedGlobalTransforms[boneIndex];
-        MATRIX current = player.impl->evaluatedGlobalTransforms[boneIndex];
+        MATRIX previous = player.impl->previousRawEvaluatedGlobalTransforms[boneIndex];
+        MATRIX current = player.impl->rawEvaluatedGlobalTransforms[boneIndex];
         if (modelMatrix)
         {
             MatrixMultiply(&previous, &previous, modelMatrix);
@@ -8629,6 +8636,26 @@ namespace mbm
                             current._43 - previous._43);
         return std::isfinite(translation->x) && std::isfinite(translation->y) &&
             std::isfinite(translation->z);
+    }
+
+    namespace
+    {
+        VEC3 transformSkeletalMotionDeltaToOwnerSpace(const RENDERIZABLE &owner,
+                                                      const VEC3 &delta) noexcept
+        {
+            VEC3 zero(0.0f, 0.0f, 0.0f);
+            MATRIX modelMatrix;
+            VEC3 position(0.0f, 0.0f, 0.0f);
+            const VEC3 &angle = owner.getAngle();
+            const VEC3 &scale = owner.getScale();
+            MatrixTranslationRotationScale(&modelMatrix, &position, &angle, &scale);
+            VEC3 origin;
+            VEC3 transformed;
+            vec3TransformCoord(&origin, &zero, &modelMatrix);
+            vec3TransformCoord(&transformed, &delta, &modelMatrix);
+            return VEC3(transformed.x - origin.x, transformed.y - origin.y,
+                        transformed.z - origin.z);
+        }
     }
 
     bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta,
@@ -8729,6 +8756,20 @@ namespace mbm
         else if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, clip,
                      evaluatedBaseTime, pose))
             return false;
+        const skeletal::SKELETAL_POSE rawPose = pose;
+        const auto rootMotionBone = player.impl->automaticRootMotionEnabled
+            ? impl->canonicalSkeleton.compiled.indexByName.find(
+                  player.impl->automaticRootMotionBoneName)
+            : impl->canonicalSkeleton.compiled.indexByName.end();
+        if (rootMotionBone != impl->canonicalSkeleton.compiled.indexByName.end())
+        {
+            const size_t rootMotionIndex = static_cast<size_t>(rootMotionBone->second);
+            if (rootMotionIndex > UINT32_MAX ||
+                !skeletal::neutralizeSkeletalPoseLocalTranslation(
+                    impl->canonicalSkeleton.compiled, static_cast<uint32_t>(rootMotionIndex),
+                    pose))
+                return false;
+        }
         std::vector<float> paletteRows;
         if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
         {
@@ -8794,9 +8835,35 @@ namespace mbm
         player.impl->previousEvaluatedGlobalTransforms =
             std::move(player.impl->evaluatedGlobalTransforms);
         player.impl->evaluatedGlobalTransforms = std::move(pose.globalTransforms);
+        player.impl->previousRawEvaluatedGlobalTransforms =
+            std::move(player.impl->rawEvaluatedGlobalTransforms);
+        player.impl->rawEvaluatedGlobalTransforms = std::move(rawPose.globalTransforms);
         player.impl->evaluatedMotionDeltaValid = !player.impl->paused && scaledDelta > 0.0f &&
-            !wrappedLoop && player.impl->previousEvaluatedGlobalTransforms.size() ==
-                player.impl->evaluatedGlobalTransforms.size();
+            !wrappedLoop && player.impl->previousRawEvaluatedGlobalTransforms.size() ==
+                player.impl->rawEvaluatedGlobalTransforms.size();
+        if (player.impl->automaticRootMotionEnabled)
+        {
+            const auto found = impl->canonicalSkeleton.compiled.indexByName.find(
+                player.impl->automaticRootMotionBoneName);
+            if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+                player.impl->evaluatedMotionDeltaValid = false;
+            else if (player.impl->evaluatedMotionDeltaValid && owner)
+            {
+                const uint32_t boneIndex = static_cast<uint32_t>(found->second);
+                const MATRIX &previous = player.impl->previousRawEvaluatedGlobalTransforms[boneIndex];
+                const MATRIX &current = player.impl->rawEvaluatedGlobalTransforms[boneIndex];
+                const VEC3 modelDelta(current._41 - previous._41, current._42 - previous._42,
+                                      current._43 - previous._43);
+                const VEC3 worldDelta = transformSkeletalMotionDeltaToOwnerSpace(*owner, modelDelta);
+                if (std::isfinite(worldDelta.x) && std::isfinite(worldDelta.y) &&
+                    std::isfinite(worldDelta.z))
+                {
+                    VEC3 position = owner->getPosition();
+                    position += worldDelta;
+                    owner->setPosition(position);
+                }
+            }
+        }
         if (owner && onEndAnimation)
         {
             if (notifyBaseCompletion)
@@ -8807,6 +8874,46 @@ namespace mbm
                 onEndAnimation(layerName.c_str(), owner);
             }
         }
+        return true;
+    }
+
+    bool MESH_MBM::enableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player,
+                                                      const char *boneName) const noexcept
+    {
+        if (!boneName || !boneName[0])
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexByName.find(boneName);
+        if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+            return false;
+        player.impl->automaticRootMotionEnabled = true;
+        player.impl->automaticRootMotionBoneName = boneName;
+        player.impl->automaticRootMotionBoneId =
+            impl->canonicalSkeleton.compiled.bones[static_cast<size_t>(found->second)].boneId;
+        player.impl->evaluatedMotionDeltaValid = false;
+        return true;
+    }
+
+    bool MESH_MBM::disableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        player.impl->automaticRootMotionEnabled = false;
+        player.impl->automaticRootMotionBoneName.clear();
+        player.impl->automaticRootMotionBoneId = 0;
+        player.impl->evaluatedMotionDeltaValid = false;
+        return true;
+    }
+
+    bool MESH_MBM::getAutomaticSkeletalRootMotionBone(const SKELETAL_ANIMATION_PLAYER &player,
+                                                       const char **boneName,
+                                                       uint64_t *boneId) const noexcept
+    {
+        if (!boneName || !boneId || !player.impl->automaticRootMotionEnabled)
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexByName.find(
+            player.impl->automaticRootMotionBoneName);
+        if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+            return false;
+        *boneName = player.impl->automaticRootMotionBoneName.c_str();
+        *boneId = impl->canonicalSkeleton.compiled.bones[static_cast<size_t>(found->second)].boneId;
         return true;
     }
 
@@ -8873,6 +8980,8 @@ namespace mbm
         player.impl->layerBoneMask.clear();
         player.impl->evaluatedGlobalTransforms.clear();
         player.impl->previousEvaluatedGlobalTransforms.clear();
+        player.impl->rawEvaluatedGlobalTransforms.clear();
+        player.impl->previousRawEvaluatedGlobalTransforms.clear();
         player.impl->evaluatedMotionDeltaValid = false;
         player.impl->time = time;
         player.impl->active = true;

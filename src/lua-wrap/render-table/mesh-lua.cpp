@@ -663,6 +663,40 @@ namespace mbm
         return 1;
     }
 
+    int onEnableAutomaticSkeletalRootMotionLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->enableAutomaticSkeletalRootMotion(
+            luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onDisableAutomaticSkeletalRootMotionLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->disableAutomaticSkeletalRootMotion() ? 1 : 0);
+        return 1;
+    }
+
+    int onGetAutomaticSkeletalRootMotionBoneLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *boneName = nullptr;
+        uint64_t stableBoneId = 0;
+        if (!mesh->getAutomaticSkeletalRootMotionBone(&boneName, &stableBoneId))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, 0, 2);
+        char boneId[17] = "";
+        snprintf(boneId, sizeof(boneId), "%016llx",
+                 static_cast<unsigned long long>(stableBoneId));
+        lua_pushstring(lua, boneName); lua_setfield(lua, -2, "name");
+        lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -763,6 +797,9 @@ namespace mbm
                                                      {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
                                                      {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
                                                      {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
+                                                     {"enableAutomaticSkeletalRootMotion", onEnableAutomaticSkeletalRootMotionLua},
+                                                     {"disableAutomaticSkeletalRootMotion", onDisableAutomaticSkeletalRootMotionLua},
+                                                     {"getAutomaticSkeletalRootMotionBone", onGetAutomaticSkeletalRootMotionBoneLua},
                                                      {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                      {nullptr, nullptr}};
 
@@ -848,6 +885,9 @@ namespace mbm
                                                          {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
                                                          {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
                                                          {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
+                                                         {"enableAutomaticSkeletalRootMotion", onEnableAutomaticSkeletalRootMotionLua},
+                                                         {"disableAutomaticSkeletalRootMotion", onDisableAutomaticSkeletalRootMotionLua},
+                                                         {"getAutomaticSkeletalRootMotionBone", onGetAutomaticSkeletalRootMotionBoneLua},
                                                          {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);

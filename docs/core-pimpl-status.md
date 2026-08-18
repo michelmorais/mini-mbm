@@ -1,6 +1,6 @@
 # Core MBM PIMPL Status
 
-Updated: 2026-08-02
+Updated: 2026-08-18
 
 This document replaces the old milestone-style gap report. Its purpose is to describe the current PIMPL/header-hygiene status of `core_mbm`, the boundaries already established, and the rules for future work.
 
@@ -84,6 +84,11 @@ Only the areas below remain intentionally visible or intentionally deferred.
 `MESH_MBM::getTotalArticulatedAnimations()` and `getArticulatedAnimationName()` are narrow,
 read-only queries over existing `Impl`-owned clip metadata. They expose neither the clip container
 nor mutable storage and therefore preserve the completed PIMPL boundary.
+
+Runtime skeletal playback state also remains private. Automatic root-motion selection, raw pose
+history, neutralized final pose history, and discontinuity invalidation live in
+`SKELETAL_ANIMATION_PLAYER::Impl`; the public headers expose only narrow enable/disable/query and
+copy-out methods.
 
 ## Stop Rules
 

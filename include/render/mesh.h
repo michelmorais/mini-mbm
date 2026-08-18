@@ -105,6 +105,10 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool getSkeletalRootMotionDelta(const char *boneName, bool worldSpace,
                                              uint64_t *boneId,
                                              VEC3 *translation) const noexcept;
+    API_IMPL bool enableAutomaticSkeletalRootMotion(const char *boneName) noexcept;
+    API_IMPL bool disableAutomaticSkeletalRootMotion() noexcept;
+    API_IMPL bool getAutomaticSkeletalRootMotionBone(const char **boneName,
+                                                     uint64_t *boneId) const noexcept;
     API_IMPL bool setSkeletalAuthoringPalette(SKELETAL_SHADER_METHOD method,
                                               const float *rows, uint32_t rowCount,
                                               const uint64_t *orderedBoneIds, uint32_t boneIdCount,

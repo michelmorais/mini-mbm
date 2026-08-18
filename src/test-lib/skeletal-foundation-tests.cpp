@@ -325,6 +325,44 @@ namespace
                "absolute composition must reject incomplete poses");
     }
 
+    void testRootMotionPoseNeutralization()
+    {
+        CANONICAL_BONE root;
+        root.boneId = 10;
+        root.name = "root";
+        root.localBind.translation = VEC3(1.0f, 2.0f, 3.0f);
+        CANONICAL_BONE child;
+        child.boneId = 20;
+        child.parentBoneId = 10;
+        child.name = "child";
+        child.localBind.translation = VEC3(0.0f, 5.0f, 0.0f);
+        COMPILED_SKELETON skeleton;
+        expect(compileCanonicalSkeleton({root, child}, skeleton),
+               "root-motion neutralization fixture skeleton must compile");
+
+        SKELETAL_POSE pose;
+        pose.localTransforms = {root.localBind, child.localBind};
+        pose.localTransforms[0].translation = VEC3(9.0f, -4.0f, 6.0f);
+        pose.localTransforms[1].translation = VEC3(0.0f, 7.0f, 0.0f);
+        expect(neutralizeSkeletalPoseLocalTranslation(skeleton, 0, pose),
+               "root-motion neutralization must accept a complete pose and valid bone index");
+        expect(std::fabs(pose.localTransforms[0].translation.x - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(pose.localTransforms[0].translation.y - 2.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(pose.localTransforms[0].translation.z - 3.0f) <= MATRIX_TOLERANCE,
+               "root-motion neutralization must restore only the selected bone local translation to bind");
+        expect(std::fabs(pose.localTransforms[1].translation.y - 7.0f) <= MATRIX_TOLERANCE,
+               "root-motion neutralization must preserve non-selected local translations");
+        expect(std::fabs(pose.globalTransforms[0]._41 - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(pose.globalTransforms[0]._42 - 2.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(pose.globalTransforms[1]._41 - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(pose.globalTransforms[1]._42 - 9.0f) <= MATRIX_TOLERANCE,
+               "root-motion neutralization must rebuild descendants from the neutralized hierarchy");
+
+        pose.localTransforms.pop_back();
+        expect(!neutralizeSkeletalPoseLocalTranslation(skeleton, 0, pose),
+               "root-motion neutralization must reject incomplete poses");
+    }
+
     void testUniformCanonicalAssetScale()
     {
         CANONICAL_BONE root;
@@ -1620,6 +1658,7 @@ int runSkeletalFoundationTests()
     testSkeletalCompletionNotification();
     testCanonicalSkeletonCompilation();
     testAbsolutePoseComposition();
+    testRootMotionPoseNeutralization();
     testUniformCanonicalAssetScale();
     testCanonicalSkeletonReader();
     testCanonicalWeightValidation();

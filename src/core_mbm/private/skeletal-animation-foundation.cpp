@@ -752,6 +752,29 @@ namespace mbm::skeletal
         return true;
     }
 
+    bool neutralizeSkeletalPoseLocalTranslation(const COMPILED_SKELETON &skeleton,
+                                                const uint32_t boneIndex,
+                                                SKELETAL_POSE &pose) noexcept
+    {
+        if (boneIndex >= skeleton.bones.size() ||
+            pose.localTransforms.size() != skeleton.bones.size())
+            return false;
+        pose.localTransforms[boneIndex].translation =
+            skeleton.bones[boneIndex].localBind.translation;
+        pose.globalTransforms.resize(pose.localTransforms.size());
+        for (size_t index = 0; index < pose.localTransforms.size(); ++index)
+        {
+            const MATRIX local = buildTrsMatrix(pose.localTransforms[index]);
+            const int32_t parent = skeleton.bones[index].parentIndex;
+            if (parent < 0)
+                pose.globalTransforms[index] = local;
+            else
+                MatrixMultiply(&pose.globalTransforms[index], &local,
+                               &pose.globalTransforms[static_cast<size_t>(parent)]);
+        }
+        return true;
+    }
+
     bool composeSkeletalPosesAbsolute(const COMPILED_SKELETON &skeleton,
                                       const SKELETAL_POSE &basePose,
                                       const SKELETAL_POSE &layerPose,

@@ -77,8 +77,13 @@ namespace mbm
         std::vector<float> paletteRows;
         std::vector<MATRIX> evaluatedGlobalTransforms;
         std::vector<MATRIX> previousEvaluatedGlobalTransforms;
+        std::vector<MATRIX> rawEvaluatedGlobalTransforms;
+        std::vector<MATRIX> previousRawEvaluatedGlobalTransforms;
         bool evaluatedMotionDeltaValid = false;
         bool authoringPose = false;
+        bool automaticRootMotionEnabled = false;
+        std::string automaticRootMotionBoneName;
+        uint64_t automaticRootMotionBoneId = 0;
     };
 
     struct MESH_MBM::Impl

@@ -417,6 +417,25 @@ namespace mbm
                                                 modelMatrixPtr, boneId, translation);
     }
 
+    bool MESH::enableAutomaticSkeletalRootMotion(const char *boneName) noexcept
+    {
+        return mesh ? mesh->enableAutomaticSkeletalRootMotion(
+            getSkeletalAnimationPlayer(), boneName) : false;
+    }
+
+    bool MESH::disableAutomaticSkeletalRootMotion() noexcept
+    {
+        return mesh ? mesh->disableAutomaticSkeletalRootMotion(
+            getSkeletalAnimationPlayer()) : false;
+    }
+
+    bool MESH::getAutomaticSkeletalRootMotionBone(const char **boneName,
+                                                  uint64_t *boneId) const noexcept
+    {
+        return mesh ? mesh->getAutomaticSkeletalRootMotionBone(
+            getSkeletalAnimationPlayer(), boneName, boneId) : false;
+    }
+
     bool MESH::setSkeletalAuthoringPalette(const SKELETAL_SHADER_METHOD method,
                                            const float *rows, const uint32_t rowCount,
                                            const uint64_t *orderedBoneIds, const uint32_t boneIdCount,
@@ -441,6 +460,11 @@ namespace mbm
             anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
             this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
                                                      this, this->getOnEndAnimation());
+            const bool hasSkeletal = this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer());
+            if (hasSkeletal && !this->mesh->updateSkeletalAnimation(
+                    this->getSkeletalAnimationPlayer(), device->delta, this,
+                    this->getOnEndAnimation()))
+                return false;
             const VEC3 &position = this->getPosition();
             const VEC3 &angle = this->getAngle();
             const VEC3 &scale = this->getScale();
@@ -477,11 +501,6 @@ namespace mbm
             BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
             const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
-            const bool hasSkeletal = this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer());
-            if (hasSkeletal && !this->mesh->updateSkeletalAnimation(
-                    this->getSkeletalAnimationPlayer(), device->delta, this,
-                    this->getOnEndAnimation()))
-                return false;
             const bool rendered = hasSkeletal
                 ? this->mesh->renderSkeletal(this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader, this)
                 : this->mesh->hasActiveArticulatedAnimations(this->getArticulatedAnimationPlayer())
