@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.108**
+Document version: **9.109**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -129,6 +129,13 @@ bind_global_child = bind_local_child * bind_global_parent
 skin_i = inverse(bind_global_i) * current_global_i
 skinned_vertex = bind_vertex * skin_i
 ```
+
+Skeletons may contain more than one root. Any compiled bone with no parent keeps
+`parentIndex = -1`; bind and sampled-pose global evaluation restart from that bone's local TRS
+instead of composing through a previous root. Children and branches compose only through their own
+ancestor chain. LBS and rigid-DQS palette rows remain in compiled parent-first array order across
+all roots. Root-motion extraction/neutralization is selected by a named bone and only rewrites that
+bone's local transform plus its descendants; other root hierarchies are left unchanged.
 
 At the bind pose, `current_global_i == bind_global_i`, so every `skin_i` must be identity. A failure
 here indicates hierarchy, transform-order, coordinate-system, or imported-bind data problems before
@@ -796,7 +803,11 @@ mutate assets, evaluate clips, or deform vertices.
 
 1. Which articulated easing/player services are extracted exactly, and which remain only
    UX-aligned?
-2. How are root motion, multiple roots, attachments, and multi-mesh skeleton sharing represented?
+2. How are multi-mesh skeleton sharing and resource ownership represented?
+   Multiple roots are resolved: each `parentIndex = -1` bone is an independent hierarchy root for
+   bind, sampling, composition, LBS/DQS palette generation, and named-root-motion neutralization.
+   Root motion and attachment copy-outs are represented by named canonical bones on the evaluated
+   per-instance pose. Multi-mesh sharing remains open.
 3. Does the initial LBS runtime accept non-uniform scale, or preserve/report it until the normal
    transformation path is delivered?
 
@@ -861,6 +872,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.109 | 2026-08-18 | Made multiple-root canonical skeleton semantics explicit and executable. `parentIndex = -1` roots compose independently in bind and sampled global poses, multiple roots can animate simultaneously, LBS/DQS palette rows stay in compiled order across roots, and named root-motion neutralization affects only the selected root hierarchy. Multi-mesh skeleton sharing remains an open resource-ownership decision. |
 | 9.108 | 2026-08-18 | Extended automatic skeletal root motion with optional rotation. Translation-only remains the backward-compatible default; `enableAutomaticSkeletalRootMotion(boneName, true)` additionally applies continuous normalized-quaternion rotation deltas to the renderizable's Euler orientation and neutralizes the selected bone's local rotation to bind. Noncommuting row-vector rotation tests lock the composition order, and discontinuities or loop wraps apply neither translation nor rotation. |
 | 9.107 | 2026-08-18 | Added per-instance automatic translation-only root motion for a named canonical bone. Continuous raw pose deltas move the renderizable in world space while the selected local translation is restored to bind before the final hierarchy and LBS/DQS palette are rebuilt; manual raw-delta queries remain non-consuming and discontinuities suppress movement. |
 | 9.106 | 2026-08-18 | Added backend-neutral root-motion translation extraction by canonical bone name over consecutive final evaluated poses. Model space copies the raw pose delta; world space applies current renderizable rotation/scale. Discontinuities and loop wraps invalidate the per-instance private history, and extraction intentionally neither consumes the value nor removes it from the skinned pose. |

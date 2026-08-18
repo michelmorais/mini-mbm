@@ -505,6 +505,7 @@
     6.80.1 Fixed the Skeletal Animation Editor shared skeleton-visibility control so weight-lab bone highlights cannot remain visible or reappear while the skeleton is hidden.
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
+    7.112.0 Made multiple-root canonical skeleton compatibility explicit: parentIndex=-1 roots remain independent through bind, sampled global poses, composition, LBS/DQS palette order, and named root-motion neutralization, without adding public APIs.
     7.111.0 Extended automatic skeletal root motion with optional rotation: translation-only remains the default, enabled rotation uses normalized-quaternion deltas, the selected bone local rotation is neutralized to bind in the final pose, and the Lua configuration query reports applyRotation.
     7.110.0 Added per-instance automatic translation-only skeletal root motion for a named bone, keeping raw delta queries non-consuming while neutralizing that bone's local translation in the final pose.
     7.109.0 Added non-consuming named-bone root-motion translation delta extraction in model or renderizable-oriented world space, with private per-instance pose history and discontinuity/loop-wrap invalidation.
@@ -513,7 +514,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.111.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.112.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

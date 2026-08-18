@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.96**
+Document version: **8.99**
 Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, and per-bone layer masks implemented**
 Last updated: **2026-08-18**
 
@@ -512,7 +512,8 @@ neck/shoulder deformation, rigid cavity, and Mixamo comparison. It is not suffic
 Additional small fixtures must isolate:
 
 - one root and one child;
-- multiple roots and branching hierarchy;
+- multiple roots and branching hierarchy, including simultaneous root animation, palette order, and
+  named-root-motion neutralization of only one hierarchy;
 - add/remove/reparent and orphan-reference behavior;
 - bind identity;
 - antipodal quaternion inputs;
@@ -553,7 +554,11 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
 
 1. Embedded versus referenced skeleton and clip resources and their exact binary section layout.
 2. First supported FBX animation-import scope after handedness and cluster-bind validation.
-3. Root motion, attachment, multiple-root, and multi-mesh skeleton-sharing semantics.
+3. Multi-mesh skeleton-sharing semantics and resource ownership.
+   Multiple roots are resolved: every `parentIndex = -1` canonical bone is an independent hierarchy
+   root for bind, sampled global pose evaluation, Absolute/Additive composition, LBS/DQS palette
+   generation, and named-root-motion neutralization. Root motion and attachment copy-outs operate on
+   named bones in the evaluated per-instance pose. Multi-mesh sharing remains open.
 4. Whether initial LBS accepts non-uniform scale before the final normal-transform path exists.
 5. Exact shared service boundary with articulated-animation easing/player code.
 6. Transactional rename/remove/reparent remapping and snapshot/undo scope across skeleton, weights,
@@ -571,6 +576,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.99 | 2026-08-18 | Closed the multiple-root semantics gap for runtime/editor planning. Parentless canonical bones remain independent `parentIndex = -1` roots through bind, sampling, composition, LBS/DQS palette order, and named root-motion neutralization, with deterministic multi-root foundation coverage. Multi-mesh skeleton sharing stays open. |
 | 8.98 | 2026-08-18 | Extended automatic skeletal root motion with an optional rotation mode. Lua keeps translation-only behavior by default through `enableAutomaticSkeletalRootMotion(boneName, applyRotation?)`; when enabled, continuous updates apply normalized-quaternion rotation deltas to the renderizable angle and neutralize the selected bone's local rotation to bind in the final pose, while discontinuities and loop wraps still suppress teleport motion. |
 | 8.97 | 2026-08-18 | Added automatic translation-only root motion for runtime mesh instances. Lua can enable, disable, and query a named canonical bone; each continuous advancing update applies the raw bone translation delta to the mesh position in world space, neutralizes that bone's local translation in the final rendered pose, preserves non-consuming raw-delta queries, and treats play/seek/stop/pause/loop wrap/authoring palettes as discontinuities. |
 | 8.96 | 2026-08-18 | Added non-consuming named-bone root-motion translation extraction from the final evaluated pose. Model/world copy-out is available only across continuous advancing updates; start, pause, seek, direct replacement, stop, authoring poses, and loop wraps invalidate history rather than reporting teleport deltas. Automatic application and in-place pose removal remain separate future work. |

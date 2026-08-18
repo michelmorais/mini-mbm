@@ -454,6 +454,119 @@ namespace
                "root-motion transform neutralization must rebuild descendants after rotation reset");
     }
 
+    void testMultipleRootSkeletonSemantics()
+    {
+        CANONICAL_BONE rootA;
+        rootA.boneId = 10;
+        rootA.name = "rootA";
+        rootA.localBind.translation = VEC3(10.0f, 0.0f, 0.0f);
+        CANONICAL_BONE childA;
+        childA.boneId = 20;
+        childA.parentBoneId = 10;
+        childA.name = "childA";
+        childA.localBind.translation = VEC3(0.0f, 2.0f, 0.0f);
+        CANONICAL_BONE branchA;
+        branchA.boneId = 30;
+        branchA.parentBoneId = 10;
+        branchA.name = "branchA";
+        branchA.localBind.translation = VEC3(0.0f, 0.0f, 3.0f);
+        CANONICAL_BONE rootB;
+        rootB.boneId = 40;
+        rootB.name = "rootB";
+        rootB.localBind.translation = VEC3(-20.0f, 5.0f, 1.0f);
+        CANONICAL_BONE childB;
+        childB.boneId = 50;
+        childB.parentBoneId = 40;
+        childB.name = "childB";
+        childB.localBind.translation = VEC3(0.0f, -4.0f, 0.0f);
+
+        CANONICAL_SKELETON skeleton;
+        skeleton.skeletonId = 500;
+        skeleton.sourceBones = {rootA, childA, branchA, rootB, childB};
+        expect(compileCanonicalSkeleton(skeleton.sourceBones, skeleton.compiled),
+               "multiple-root fixture skeleton must compile");
+        expect(skeleton.compiled.bones.size() == 5 &&
+                   skeleton.compiled.bones[0].parentIndex == -1 &&
+                   skeleton.compiled.bones[3].parentIndex == -1 &&
+                   skeleton.compiled.bones[1].parentIndex == 0 &&
+                   skeleton.compiled.bones[2].parentIndex == 0 &&
+                   skeleton.compiled.bones[4].parentIndex == 3,
+               "multiple roots must remain parentIndex=-1 while children resolve to their own root");
+        expect(std::fabs(skeleton.compiled.bones[0].globalBindMatrix._41 - 10.0f) <=
+                   MATRIX_TOLERANCE &&
+                   std::fabs(skeleton.compiled.bones[3].globalBindMatrix._41 + 20.0f) <=
+                   MATRIX_TOLERANCE &&
+                   std::fabs(skeleton.compiled.bones[4].globalBindMatrix._41 + 20.0f) <=
+                   MATRIX_TOLERANCE &&
+                   std::fabs(skeleton.compiled.bones[4].globalBindMatrix._42 - 1.0f) <=
+                   MATRIX_TOLERANCE,
+               "multiple-root bind globals must not compose one root through another");
+
+        SKELETAL_CLIP clip;
+        clip.clipId = 600;
+        clip.name = "both-roots";
+        clip.duration = 1.0f;
+        SKELETAL_KEY startA;
+        startA.local = rootA.localBind;
+        SKELETAL_KEY endA = startA;
+        endA.time = 1.0f;
+        endA.local.translation = VEC3(14.0f, 0.0f, 0.0f);
+        SKELETAL_TRACK trackA;
+        trackA.boneId = 10;
+        trackA.channelMask = SKELETAL_CHANNEL_TRANSLATION;
+        trackA.keys = {startA, endA};
+        SKELETAL_KEY startB;
+        startB.local = rootB.localBind;
+        SKELETAL_KEY endB = startB;
+        endB.time = 1.0f;
+        endB.local.translation = VEC3(-17.0f, 8.0f, 1.0f);
+        SKELETAL_TRACK trackB;
+        trackB.boneId = 40;
+        trackB.channelMask = SKELETAL_CHANNEL_TRANSLATION;
+        trackB.keys = {startB, endB};
+        clip.tracks = {trackA, trackB};
+
+        SKELETAL_POSE sampled;
+        expect(sampleSkeletalClip(skeleton.compiled, clip, 1.0f, sampled),
+               "multiple-root clip must sample when both roots animate simultaneously");
+        expect(std::fabs(sampled.globalTransforms[0]._41 - 14.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(sampled.globalTransforms[3]._41 + 17.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(sampled.globalTransforms[3]._42 - 8.0f) <= MATRIX_TOLERANCE,
+               "sampled global roots must keep independent animated translations");
+        expect(std::fabs(sampled.globalTransforms[1]._41 - sampled.globalTransforms[0]._41) <=
+                   3.0f &&
+                   std::fabs(sampled.globalTransforms[4]._41 - sampled.globalTransforms[3]._41) <=
+                   5.0f,
+               "sampled children must follow their own animated root hierarchy");
+
+        std::vector<float> palette;
+        expect(buildLbsPalette(skeleton, sampled, true, palette) ==
+                   LBS_PALETTE_STATUS::READY && palette.size() == 60 &&
+                   std::fabs(palette[3] - 4.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(palette[39] - 3.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(palette[43] - 3.0f) <= MATRIX_TOLERANCE,
+               "LBS palette must stay in compiled order across independent roots");
+        expect(buildDqsPalette(skeleton, sampled, palette) ==
+                   DQS_PALETTE_STATUS::READY && palette.size() == 40,
+               "DQS palette must accept and order the same independent-root pose");
+
+        SKELETAL_POSE neutralized = sampled;
+        const MATRIX rootBBefore = neutralized.globalTransforms[3];
+        const MATRIX childBBefore = neutralized.globalTransforms[4];
+        expect(neutralizeSkeletalPoseLocalTransform(skeleton.compiled, 0, true, true, neutralized),
+               "root-motion neutralization must accept one selected root in a multi-root pose");
+        expect(maximumMatrixDifference(rootBBefore, neutralized.globalTransforms[3]) <=
+                   matrixComparisonTolerance(rootBBefore, neutralized.globalTransforms[3]) &&
+                   maximumMatrixDifference(childBBefore, neutralized.globalTransforms[4]) <=
+                   matrixComparisonTolerance(childBBefore, neutralized.globalTransforms[4]),
+               "neutralizing one root must not alter the other root hierarchy");
+        expect(std::fabs(neutralized.globalTransforms[0]._41 - 10.0f) <= MATRIX_TOLERANCE &&
+                   maximumMatrixDifference(sampled.globalTransforms[1],
+                                           neutralized.globalTransforms[1]) >
+                   MATRIX_TOLERANCE,
+               "neutralizing one root must rebuild only that selected root hierarchy");
+    }
+
     void testUniformCanonicalAssetScale()
     {
         CANONICAL_BONE root;
@@ -1751,6 +1864,7 @@ int runSkeletalFoundationTests()
     testAbsolutePoseComposition();
     testRootMotionPoseNeutralization();
     testRootMotionRotationDeltaAndNeutralization();
+    testMultipleRootSkeletonSemantics();
     testUniformCanonicalAssetScale();
     testCanonicalSkeletonReader();
     testCanonicalWeightValidation();
