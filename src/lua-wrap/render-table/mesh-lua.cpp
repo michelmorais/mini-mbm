@@ -633,6 +633,36 @@ namespace mbm
         return 1;
     }
 
+    int onGetSkeletalRootMotionDeltaLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *boneName = luaL_checkstring(lua, 2);
+        const char *space = luaL_optstring(lua, 3, "model");
+        const bool worldSpace = strcmp(space, "world") == 0;
+        if (!worldSpace && strcmp(space, "model") != 0)
+            return luaL_error(lua, "space must be 'model' or 'world'");
+        uint64_t stableBoneId = 0;
+        VEC3 translation;
+        if (!mesh->getSkeletalRootMotionDelta(boneName, worldSpace, &stableBoneId,
+                                               &translation))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, 0, 3);
+        char boneId[17] = "";
+        snprintf(boneId, sizeof(boneId), "%016llx",
+                 static_cast<unsigned long long>(stableBoneId));
+        lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+        lua_pushstring(lua, space); lua_setfield(lua, -2, "space");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, translation.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, translation.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, translation.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "translation");
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -732,6 +762,7 @@ namespace mbm
                                                      {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
                                                      {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
                                                      {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
+                                                     {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
                                                      {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                      {nullptr, nullptr}};
 
@@ -816,6 +847,7 @@ namespace mbm
                                                          {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
                                                          {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
                                                          {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
+                                                         {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
                                                          {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);

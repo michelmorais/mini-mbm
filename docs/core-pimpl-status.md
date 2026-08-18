@@ -192,3 +192,6 @@ runtime-pose inspection API copies one bone's stable ID, parent index, and globa
 The named-bone gameplay query resolves that same private evaluated pose and copies decomposed TRS
 plus its matrix in model or renderizable-composed world space; neither query exposes a vector,
 mutable storage, lookup container, palette pointer, or backend handle.
+Root-motion extraction retains only the previous evaluated global matrices inside the opaque
+per-instance player and copies one named bone's translation delta; the history vector and validity
+state remain private and are invalidated at discontinuities.

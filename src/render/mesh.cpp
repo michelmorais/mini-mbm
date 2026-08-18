@@ -397,6 +397,26 @@ namespace mbm
                                               rotation, angle, scale);
     }
 
+    bool MESH::getSkeletalRootMotionDelta(const char *boneName, const bool worldSpace,
+                                           uint64_t *boneId, VEC3 *translation) const noexcept
+    {
+        if (!mesh)
+            return false;
+        MATRIX modelMatrix;
+        const MATRIX *modelMatrixPtr = nullptr;
+        if (worldSpace)
+        {
+            const VEC3 &objectPosition = getPosition();
+            const VEC3 &objectAngle = getAngle();
+            const VEC3 &objectScale = getScale();
+            MatrixTranslationRotationScale(&modelMatrix, &objectPosition, &objectAngle,
+                                           &objectScale);
+            modelMatrixPtr = &modelMatrix;
+        }
+        return mesh->getSkeletalRootMotionDelta(getSkeletalAnimationPlayer(), boneName,
+                                                modelMatrixPtr, boneId, translation);
+    }
+
     bool MESH::setSkeletalAuthoringPalette(const SKELETAL_SHADER_METHOD method,
                                            const float *rows, const uint32_t rowCount,
                                            const uint64_t *orderedBoneIds, const uint32_t boneIdCount,

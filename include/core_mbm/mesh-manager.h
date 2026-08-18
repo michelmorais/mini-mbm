@@ -751,6 +751,9 @@ namespace mbm
                                       const char *boneName, const MATRIX *modelMatrix,
                                       uint64_t *boneId, MATRIX *matrix, VEC3 *position,
                                       float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
+        bool getSkeletalRootMotionDelta(const SKELETAL_ANIMATION_PLAYER &player,
+                                        const char *boneName, const MATRIX *modelMatrix,
+                                        uint64_t *boneId, VEC3 *translation) const noexcept;
         bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
                                          SKELETAL_SHADER_METHOD method, const float *rows,
                                          uint32_t rowCount, const uint64_t *orderedBoneIds,

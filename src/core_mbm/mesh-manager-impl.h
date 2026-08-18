@@ -76,6 +76,8 @@ namespace mbm
         const char *skinningResolutionReason = "explicit-lbs";
         std::vector<float> paletteRows;
         std::vector<MATRIX> evaluatedGlobalTransforms;
+        std::vector<MATRIX> previousEvaluatedGlobalTransforms;
+        bool evaluatedMotionDeltaValid = false;
         bool authoringPose = false;
     };
 

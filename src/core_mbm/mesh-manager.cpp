@@ -1237,6 +1237,8 @@ namespace mbm
         impl->layerCompletionNotified = false;
         impl->paletteRows.clear();
         impl->evaluatedGlobalTransforms.clear();
+        impl->previousEvaluatedGlobalTransforms.clear();
+        impl->evaluatedMotionDeltaValid = false;
         impl->authoringPose = false;
     }
 
@@ -8152,6 +8154,7 @@ namespace mbm
         if (!player.impl->active)
             return false;
         player.impl->paused = true;
+        player.impl->evaluatedMotionDeltaValid = false;
         return true;
     }
 
@@ -8188,6 +8191,8 @@ namespace mbm
         player.impl->layerCompletionNotified = false;
         player.impl->paletteRows.clear();
         player.impl->evaluatedGlobalTransforms.clear();
+        player.impl->previousEvaluatedGlobalTransforms.clear();
+        player.impl->evaluatedMotionDeltaValid = false;
         player.impl->authoringPose = false;
         return true;
     }
@@ -8225,6 +8230,8 @@ namespace mbm
         if (!std::isfinite(speed) || speed < 0.0f)
             return false;
         player.impl->playbackSpeed = speed;
+        if (speed == 0.0f)
+            player.impl->evaluatedMotionDeltaValid = false;
         return true;
     }
 
@@ -8596,6 +8603,34 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM::getSkeletalRootMotionDelta(
+        const SKELETAL_ANIMATION_PLAYER &player, const char *boneName,
+        const MATRIX *modelMatrix, uint64_t *boneId, VEC3 *translation) const noexcept
+    {
+        if (!boneName || !boneId || !translation || !player.impl->evaluatedMotionDeltaValid ||
+            player.impl->previousEvaluatedGlobalTransforms.size() !=
+                player.impl->evaluatedGlobalTransforms.size())
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexByName.find(boneName);
+        if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+            return false;
+        const uint32_t boneIndex = found->second;
+        if (boneIndex >= player.impl->evaluatedGlobalTransforms.size())
+            return false;
+        MATRIX previous = player.impl->previousEvaluatedGlobalTransforms[boneIndex];
+        MATRIX current = player.impl->evaluatedGlobalTransforms[boneIndex];
+        if (modelMatrix)
+        {
+            MatrixMultiply(&previous, &previous, modelMatrix);
+            MatrixMultiply(&current, &current, modelMatrix);
+        }
+        *boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        *translation = VEC3(current._41 - previous._41, current._42 - previous._42,
+                            current._43 - previous._43);
+        return std::isfinite(translation->x) && std::isfinite(translation->y) &&
+            std::isfinite(translation->z);
+    }
+
     bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta,
                                             RENDERIZABLE *owner,
                                             OnEndAnimation onEndAnimation) const
@@ -8609,6 +8644,8 @@ namespace mbm
         if (!std::isfinite(scaledDelta))
             return false;
         const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
+        const float previousBaseTime = player.impl->time;
+        const float previousLayerTime = player.impl->absoluteLayerTime;
         float evaluatedBaseTime = player.impl->time;
         float evaluatedLayerTime = player.impl->absoluteLayerTime;
         float evaluatedLayerWeight = player.impl->absoluteLayerWeight;
@@ -8752,7 +8789,14 @@ namespace mbm
                 player.impl->layerCompletionNotified = true;
         }
         player.impl->paletteRows = std::move(paletteRows);
+        const bool wrappedLoop = (clip.loop && evaluatedBaseTime < previousBaseTime) ||
+            (absoluteLayer && absoluteLayer->loop && evaluatedLayerTime < previousLayerTime);
+        player.impl->previousEvaluatedGlobalTransforms =
+            std::move(player.impl->evaluatedGlobalTransforms);
         player.impl->evaluatedGlobalTransforms = std::move(pose.globalTransforms);
+        player.impl->evaluatedMotionDeltaValid = !player.impl->paused && scaledDelta > 0.0f &&
+            !wrappedLoop && player.impl->previousEvaluatedGlobalTransforms.size() ==
+                player.impl->evaluatedGlobalTransforms.size();
         if (owner && onEndAnimation)
         {
             if (notifyBaseCompletion)
@@ -8828,6 +8872,8 @@ namespace mbm
         player.impl->layerPaused = false;
         player.impl->layerBoneMask.clear();
         player.impl->evaluatedGlobalTransforms.clear();
+        player.impl->previousEvaluatedGlobalTransforms.clear();
+        player.impl->evaluatedMotionDeltaValid = false;
         player.impl->time = time;
         player.impl->active = true;
         player.impl->paused = true;

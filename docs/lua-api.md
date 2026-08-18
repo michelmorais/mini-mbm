@@ -624,6 +624,7 @@ rigid DQS rejects any scale/shear.
 | `obj:clearSkeletalAnimationLayerMask` | `()` | bool | Atomically restore every active layer-mask multiplier to the all-ones compatibility default |
 | `obj:getSkeletalAnimationPose` | `()` | table or nil | Copy the active player's final evaluated global pose as ordered `{boneId, parentIndex, globalMatrix}` records; `parentIndex` is one-based with `0` for a root, and inactive/authoring-palette players return `nil` |
 | `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, angle={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; `angle` is Euler XYZ in radians for `setAngle`, while `rotation` preserves the normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. |
+| `obj:getSkeletalRootMotionDelta` | `(boneName, space?)` | table or nil | Copy the named bone's translation delta between the two latest continuous evaluated poses as `{boneId, space, translation={x,y,z}}`. Space is `"model"` by default or `"world"`, where the current mesh rotation/scale is applied. Returns `nil` before the first advancing update and after pause, seek, direct play/stop, authoring-pose installation, or a loop wrap. The query does not consume the delta and does not automatically move or remove motion from the mesh pose. |
 | `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
 ```lua
@@ -654,6 +655,14 @@ if hand then
     sword:setPos(hand.position.x, hand.position.y, hand.position.z)
     sword:setAngle(hand.angle.x, hand.angle.y, hand.angle.z)
     -- hand.rotation preserves quaternion XYZW; hand.matrix preserves the complete transform.
+end
+
+local rootDelta = character:getSkeletalRootMotionDelta("mixamorig:Hips", "world")
+if rootDelta then
+    local position = character:getPos()
+    character:setPos(position.x + rootDelta.translation.x,
+                     position.y + rootDelta.translation.y,
+                     position.z + rootDelta.translation.z)
 end
 ```
 

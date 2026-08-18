@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.105**
+Document version: **9.106**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -861,6 +861,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.106 | 2026-08-18 | Added backend-neutral root-motion translation extraction by canonical bone name over consecutive final evaluated poses. Model space copies the raw pose delta; world space applies current renderizable rotation/scale. Discontinuities and loop wraps invalidate the per-instance private history, and extraction intentionally neither consumes the value nor removes it from the skinned pose. |
 | 9.105 | 2026-08-18 | Added `mesh:crossFadeSkeletalAnimation(name, duration)` as a bounded linear base-to-base transition. It reuses the Absolute compositor, starts the target at zero time and weight, replaces ordinary transient layer state, disallows partial layer masks during transition, and promotes the weight-one target without a pose discontinuity or residual layer. Overlapping cross-fades are rejected until promotion. |
 | 9.104 | 2026-08-18 | Connected non-looping skeletal base and layer completion to the existing `onEndAnim(obj, clipName)` surface. Per-player one-shot state prevents repeated callbacks at the clamped end pose, rearms on replay or backward seek, advances while culled, and excludes loops, pause, and seek-only changes. |
 | 9.103 | 2026-08-18 | Made the attachment query directly consumable by renderizables by returning engine-order Euler XYZ radians as `angle`, while retaining normalized quaternion and matrix copy-outs. Runtime Preview's evaluated-skeleton checkbox now appears among the first controls and is no longer disabled by the absence of a second clip. |
