@@ -72,6 +72,21 @@ built-in `Crate.msh` fixture) and `[world]` (`2ds`, `2dw`, or `3d`, defaults to 
 ./bin/debug/arm64/testLib --metal-editor-shader-test     # compile editor paint shaders with Metal skinning
 ```
 
+For Metal buffer/shader changes, run the production paths with API validation enabled. A successful
+visual frame or exit code alone does not detect a vertex-buffer slot that was rebound later in the
+draw setup:
+
+```sh
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib 5 Lorekeeper-walk.msh 3d lbs
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib 5 Lorekeeper-walk.msh 3d dqs
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --metal-editor-shader-test
+```
+
+Treat any Metal validation message as a failed test. In particular, keep the vertex-stage resource
+map synchronized with `shader-metal.mm`: geometry 0, common uniforms 1, skin influences 2, custom
+vertex uniforms 3, lighting/material 4-18, and the skeletal palette 19. Metal resource indices are
+stage-local, but a later binding at the same vertex index silently replaces the earlier one.
+
 This only covers `MenuObjectType::MESH` today (`MY_SCENE::cliMeshFile`/`cliMeshMode`,
 `src/test-lib/my-scene-test.{h,cpp}`) — it's the type the mesh-format work in this repo touches
 most. Follow the same pattern (a `cli<Type>File` field + a check in `onInitScene()` after

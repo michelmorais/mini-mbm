@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.97**
+Document version: **9.98**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, and transient composition implemented; bone masks, modern non-Metal backends, and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -616,8 +616,20 @@ mutate assets, evaluate clips, or deform vertices.
   validation caught and verified the fix for the original slot-4 collision, where `LightEnabled`
   replaced the palette with four bytes and visibly distorted every canonical skeletal mesh.
 - Metal capability reporting derives palette capacity from the device's maximum buffer length
-  rather than legacy shader-uniform limits. A five-second Apple M4 production-path smoke animated
+  rather than legacy shader-uniform limits. This is a hard transport ceiling, not a claim that a
+  skeleton near that size has acceptable allocation cost or frame performance. The current safe
+  implementation creates a shared per-draw palette buffer; a measured frame-ring allocator is a
+  possible optimization, not part of the public contract. A five-second Apple M4 production-path smoke animated
   the committed 23-bone Lorekeeper fixture successfully under both LBS and rigid DQS.
+- Metal vertex-buffer ownership is an implementation invariant: slot 0 is geometry, slot 1 common
+  uniforms, slot 2 canonical skin influences, slot 3 custom vertex uniforms, slots 4-18 reserved
+  lighting/material data, and slot 19 the skeletal palette. Vertex and fragment indices are
+  stage-local, but two vertex bindings at the same index are not additive: a later
+  `setVertexBytes` or `setVertexBuffer` replaces the earlier binding. Any slot-map change must run
+  the production skeletal smoke tests with `MTL_DEBUG_LAYER=1`.
+- Embedded MSL in Lua editor scripts must use Lua's `[=[ ... ]=]` long-string delimiter. Ordinary
+  `[[ ... ]]` strings terminate at MSL attributes such as `[[stage_in]]`, producing a Lua syntax
+  error near the attribute's closing parenthesis.
 - An encoded/readback Metal CPU/GPU numeric parity harness remains useful follow-up coverage; the
   existing GLES harness cannot validate Metal because it is intentionally GLES/FBO-specific.
 
@@ -844,6 +856,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.98 | 2026-08-18 | Audited Metal delivery against the implementation; documented the vertex-buffer slot map, replacement hazard, hard-capacity-versus-performance distinction, shared palette allocation tradeoff, Lua embedded-MSL delimiter trap, and validation-layer requirement. |
 | 9.97 | 2026-08-18 | Fixed Metal's palette/light buffer-slot collision and fragment-only custom shaders bypassing generated skeletal deformation; added native MSL Paint Weights heatmap/brush shaders plus validation-layer LBS/DQS and focused shader tests. |
 | 9.96 | 2026-08-18 | Delivered Metal real-time LBS/rigid-DQS: buffer-backed influences and per-draw palettes, generated MSL deformation with lighting integration, method/palette-aware pipeline caching, measured buffer capacity, and Apple M4 Lorekeeper production-path validation. Metal numeric readback parity remains follow-up coverage. |
 | 9.95 | 2026-08-18 | Audited documentation after Windows delivery. Current-state and editor-preview claims now include DirectX 9, Phase 6 records MSVS/MinGW build wiring and the GLES-only scope of the encoded parity harness, and Metal remains the next backend delivery. |

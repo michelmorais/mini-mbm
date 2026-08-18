@@ -32,7 +32,13 @@ static mbm::SPECIFIC_AUX_CONTEXT_DEVICE* getMetalCtx()
     return dev ? dev->getSpecificContextDevice() : nullptr;
 }
 
+// Vertex-buffer slots 4-18 are owned by uploadReservedLightBuffersMetal().
+// Keep the skeletal palette outside that range: setVertexBytes/setVertexBuffer
+// replaces an earlier binding at the same stage/index without reporting an error.
+static constexpr uint32_t METAL_RESERVED_LIGHT_LAST_VERTEX_BUFFER_INDEX = 18u;
 static constexpr uint32_t METAL_SKINNING_PALETTE_BUFFER_INDEX = 19u;
+static_assert(METAL_SKINNING_PALETTE_BUFFER_INDEX > METAL_RESERVED_LIGHT_LAST_VERTEX_BUFFER_INDEX,
+              "Metal skeletal palette must not overlap reserved lighting vertex buffers");
 
 static void packMetalShaderVar(float *buffer, const mbm::VAR_SHADER *var, const int32_t offset)
 {

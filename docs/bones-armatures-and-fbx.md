@@ -96,8 +96,10 @@ is a weighted sum, and real-time engines cap the influence count for a bounded, 
 
 ### GPU vs. CPU skinning
 
-- **GPU skinning** (what every modern real-time engine does): every bone's current
-  `world * inverseBind` matrix is uploaded once per frame as a small array (a "bone matrix palette",
+- **GPU skinning** (what every modern real-time engine does): every bone's current skin matrix is
+  uploaded once per frame as a small array (a "bone matrix palette"; commonly written
+  `currentWorld * inverseBind` for column vectors, but stored as
+  `inverseBind * currentGlobal` by Mini MBM's row-vector runtime),
   either a uniform array or a texture for very large skeletons), and the *vertex shader* does the
   weighted-sum math per vertex, every frame, on the GPU. This is why influence count is capped — a
   fixed-size shader array needs a compile-time bound (the exact same reason `SUPPORTED_MAX_LIGHTS` is
