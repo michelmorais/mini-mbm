@@ -31,6 +31,7 @@ extern "C"
 #include <vector>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
+#include <core_mbm/mesh-manager.h>
 #include <render/mesh.h>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/scene.h>
@@ -663,6 +664,71 @@ namespace mbm
         return 1;
     }
 
+    static void pushHexBoneId(lua_State *lua, const uint64_t stableBoneId)
+    {
+        char boneId[17] = "";
+        snprintf(boneId, sizeof(boneId), "%016llx",
+                 static_cast<unsigned long long>(stableBoneId));
+        lua_pushstring(lua, boneId);
+    }
+
+    int onGetSkeletalSharingCompatibilityLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        MESH *other = getMeshFromRawTable(lua, 1, 2);
+        SKELETAL_SHARING_COMPATIBILITY report;
+        mesh->getSkeletalSharingCompatibility(*other, report);
+        lua_createtable(lua, 0, 12);
+        lua_pushboolean(lua, report.compatible ? 1 : 0);
+        lua_setfield(lua, -2, "compatible");
+        lua_pushstring(lua, report.reason ? report.reason : "missing_skeleton");
+        lua_setfield(lua, -2, "reason");
+        lua_pushinteger(lua, static_cast<lua_Integer>(report.boneCount));
+        lua_setfield(lua, -2, "boneCount");
+        if (report.boneIndex != UINT32_MAX)
+        {
+            lua_pushinteger(lua, static_cast<lua_Integer>(report.boneIndex + 1));
+            lua_setfield(lua, -2, "boneIndex");
+        }
+        if (report.boneName)
+        {
+            lua_pushstring(lua, report.boneName);
+            lua_setfield(lua, -2, "boneName");
+        }
+        if (report.boneId != 0)
+        {
+            pushHexBoneId(lua, report.boneId);
+            lua_setfield(lua, -2, "boneId");
+        }
+        if (report.otherBoneId != 0)
+        {
+            pushHexBoneId(lua, report.otherBoneId);
+            lua_setfield(lua, -2, "otherBoneId");
+        }
+        if (report.parentIndex != report.otherParentIndex)
+        {
+            lua_pushinteger(lua, static_cast<lua_Integer>(report.parentIndex + 1));
+            lua_setfield(lua, -2, "parentIndex");
+            lua_pushinteger(lua, static_cast<lua_Integer>(report.otherParentIndex + 1));
+            lua_setfield(lua, -2, "otherParentIndex");
+        }
+        if (report.parentBoneId != report.otherParentBoneId)
+        {
+            pushHexBoneId(lua, report.parentBoneId);
+            lua_setfield(lua, -2, "parentBoneId");
+            pushHexBoneId(lua, report.otherParentBoneId);
+            lua_setfield(lua, -2, "otherParentBoneId");
+        }
+        if (report.observedError != 0.0f || report.tolerance != 0.0f)
+        {
+            lua_pushnumber(lua, report.observedError);
+            lua_setfield(lua, -2, "observedError");
+            lua_pushnumber(lua, report.tolerance);
+            lua_setfield(lua, -2, "tolerance");
+        }
+        return 1;
+    }
+
     int onEnableAutomaticSkeletalRootMotionLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -801,6 +867,7 @@ namespace mbm
                                                      {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
                                                      {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
                                                      {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
+                                                     {"getSkeletalSharingCompatibility", onGetSkeletalSharingCompatibilityLua},
                                                      {"enableAutomaticSkeletalRootMotion", onEnableAutomaticSkeletalRootMotionLua},
                                                      {"disableAutomaticSkeletalRootMotion", onDisableAutomaticSkeletalRootMotionLua},
                                                      {"getAutomaticSkeletalRootMotionBone", onGetAutomaticSkeletalRootMotionBoneLua},
@@ -889,6 +956,7 @@ namespace mbm
                                                          {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
                                                          {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
                                                          {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
+                                                         {"getSkeletalSharingCompatibility", onGetSkeletalSharingCompatibilityLua},
                                                          {"enableAutomaticSkeletalRootMotion", onEnableAutomaticSkeletalRootMotionLua},
                                                          {"disableAutomaticSkeletalRootMotion", onDisableAutomaticSkeletalRootMotionLua},
                                                          {"getAutomaticSkeletalRootMotionBone", onGetAutomaticSkeletalRootMotionBoneLua},

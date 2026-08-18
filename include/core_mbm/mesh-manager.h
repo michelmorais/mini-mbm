@@ -212,6 +212,23 @@ namespace mbm
         MATRIX globalMatrix;
     };
 
+    struct SKELETAL_SHARING_COMPATIBILITY
+    {
+        bool compatible = false;
+        const char *reason = "missing_skeleton";
+        uint32_t boneCount = 0;
+        uint32_t boneIndex = UINT32_MAX;
+        const char *boneName = nullptr;
+        uint64_t boneId = 0;
+        uint64_t otherBoneId = 0;
+        int32_t parentIndex = -1;
+        int32_t otherParentIndex = -1;
+        uint64_t parentBoneId = 0;
+        uint64_t otherParentBoneId = 0;
+        float observedError = 0.0f;
+        float tolerance = 0.0f;
+    };
+
     class MESH_MBM_DEBUG
     {
       public:
@@ -308,6 +325,8 @@ namespace mbm
         API_IMPL const util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnim(const uint32_t index)const;
         API_IMPL const char *getAnimationEffectTexture(const uint32_t index) const noexcept;
         API_IMPL bool setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept;
+        API_IMPL bool getSkeletalSharingCompatibility(const MESH_MBM_DEBUG &other,
+                                                       SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
         // Read-only views of the canonical skeleton compiled and validated during load.
         API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
         API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out,
@@ -754,6 +773,8 @@ namespace mbm
         bool getSkeletalRootMotionDelta(const SKELETAL_ANIMATION_PLAYER &player,
                                         const char *boneName, const MATRIX *modelMatrix,
                                         uint64_t *boneId, VEC3 *translation) const noexcept;
+        bool getSkeletalSharingCompatibility(const MESH_MBM &other,
+                                             SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
         bool enableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player,
                                                const char *boneName,
                                                bool applyRotation = false) const noexcept;

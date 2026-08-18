@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.109**
+Document version: **9.110**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -558,6 +558,14 @@ mutate assets, evaluate clips, or deform vertices.
   same cached asset/program. Blending, speed, completion callbacks, and other backends were
   deliberately outside that initial player slice; speed and one transient composition layer were
   delivered later. Completion callbacks remained pending in that slice and were delivered in 9.104.
+- A read-only multi-mesh sharing preflight is available before any pose sharing exists. The report
+  compares two loaded `MESH` instances by canonical skeleton structure only: both must have valid
+  canonical skeletons, equal bone count, exact ordered stable bone IDs and names, identical parent
+  indices and parent IDs, and local/global bind transforms within the existing scale-aware skeletal
+  matrix tolerance. Clips, weights, geometry, and `skeletonId` are deliberately ignored when that
+  structural/bind contract matches. The only stable reason codes are `compatible`,
+  `missing_skeleton`, `bone_count_mismatch`, `bone_identity_mismatch`, `hierarchy_mismatch`, and
+  `bind_transform_mismatch`; no evaluated pose or palette is shared yet.
 - The Skeletal Animation Editor now drives that same per-instance runtime player on its preview
   mesh. It exposes clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber;
   the deformation is therefore the real active-backend LBS/DQS result rather than an editor-side pose copy. The
@@ -872,6 +880,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.110 | 2026-08-18 | Added a read-only compatibility preflight for future multi-mesh evaluated-pose/palette sharing. It requires matching ordered canonical bone identity, hierarchy, and scale-aware local/global bind transforms while deliberately ignoring clips, weights, geometry, and `skeletonId`; no pose state is shared yet. |
 | 9.109 | 2026-08-18 | Made multiple-root canonical skeleton semantics explicit and executable. `parentIndex = -1` roots compose independently in bind and sampled global poses, multiple roots can animate simultaneously, LBS/DQS palette rows stay in compiled order across roots, and named root-motion neutralization affects only the selected root hierarchy. Multi-mesh skeleton sharing remains an open resource-ownership decision. |
 | 9.108 | 2026-08-18 | Extended automatic skeletal root motion with optional rotation. Translation-only remains the backward-compatible default; `enableAutomaticSkeletalRootMotion(boneName, true)` additionally applies continuous normalized-quaternion rotation deltas to the renderizable's Euler orientation and neutralizes the selected bone's local rotation to bind. Noncommuting row-vector rotation tests lock the composition order, and discontinuities or loop wraps apply neither translation nor rotation. |
 | 9.107 | 2026-08-18 | Added per-instance automatic translation-only root motion for a named canonical bone. Continuous raw pose deltas move the renderizable in world space while the selected local translation is restored to bind before the final hierarchy and LBS/DQS palette are rebuilt; manual raw-delta queries remain non-consuming and discontinuities suppress movement. |

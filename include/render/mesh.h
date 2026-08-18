@@ -33,6 +33,8 @@
 namespace mbm
 {
 
+struct SKELETAL_SHARING_COMPATIBILITY;
+
 class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
 {
   public:
@@ -105,6 +107,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool getSkeletalRootMotionDelta(const char *boneName, bool worldSpace,
                                              uint64_t *boneId,
                                              VEC3 *translation) const noexcept;
+    API_IMPL bool getSkeletalSharingCompatibility(const MESH &other,
+                                                  SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
     API_IMPL bool enableAutomaticSkeletalRootMotion(const char *boneName,
                                                     bool applyRotation = false) noexcept;
     API_IMPL bool disableAutomaticSkeletalRootMotion() noexcept;

@@ -675,6 +675,91 @@ namespace
         return ok;
     }
 
+    bool writeSkeletalSharingFixture(const char *path, const uint64_t skeletonId,
+                                     const uint64_t childId, const uint64_t childParentId,
+                                     const char *childName, const float childY,
+                                     const bool includeChild)
+    {
+        FILE *fp = std::fopen(path, "wb+");
+        if (!fp) return false;
+        util::FILE_HEADER_V11 fileHeader;
+        fileHeader.typeMesh = util::TYPE_MESH_3D;
+        fileHeader.sectionCount = 1;
+        bool ok = util::writeFileHeaderV11(fp, fileHeader);
+        util::SECTION_HEADER_V11 header;
+        header.type = util::SECTION_SKELETAL_SKELETON;
+        header.sectionVersion = 1;
+        ok = ok && util::writeSectionV11Streamed(fp, header, [=](FILE *payload)
+        {
+            return util::le_io::writeU64LE(payload, skeletonId) &&
+                util::le_io::writeU32LE(payload, includeChild ? 2 : 1) &&
+                util::le_io::writeU64LE(payload, 10) && util::le_io::writeU64LE(payload, 0) &&
+                util::writeStringV11(payload, "root") &&
+                util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                util::le_io::writeF32LE(payload, 0.1f) && util::le_io::writeF32LE(payload, 1.0f) &&
+                (!includeChild ||
+                 (util::le_io::writeU64LE(payload, childId) &&
+                  util::le_io::writeU64LE(payload, childParentId) &&
+                  util::writeStringV11(payload, childName) &&
+                  util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, childY) &&
+                  util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                  util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                  util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                  util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                  util::le_io::writeF32LE(payload, 0.1f) &&
+                  util::le_io::writeF32LE(payload, 1.0f)));
+        });
+        std::fclose(fp);
+        return ok;
+    }
+
+    void expectSharingReason(const MESH_MBM_DEBUG &left, const MESH_MBM_DEBUG &right,
+                             const char *reason, const bool compatible)
+    {
+        SKELETAL_SHARING_COMPATIBILITY report;
+        const bool result = left.getSkeletalSharingCompatibility(right, report);
+        expect(result == compatible && report.compatible == compatible &&
+                   std::string(report.reason) == reason,
+               reason);
+    }
+
+    void testSkeletalSharingCompatibility()
+    {
+        const char *basePath = "/tmp/mini-mbm-skeletal-sharing-base.msh";
+        const char *samePath = "/tmp/mini-mbm-skeletal-sharing-same.msh";
+        const char *countPath = "/tmp/mini-mbm-skeletal-sharing-count.msh";
+        const char *identityPath = "/tmp/mini-mbm-skeletal-sharing-identity.msh";
+        const char *hierarchyPath = "/tmp/mini-mbm-skeletal-sharing-hierarchy.msh";
+        const char *bindPath = "/tmp/mini-mbm-skeletal-sharing-bind.msh";
+        expect(writeSkeletalSharingFixture(basePath, 100, 20, 10, "child", 2.0f, true) &&
+                   writeSkeletalSharingFixture(samePath, 200, 20, 10, "child", 2.0f, true) &&
+                   writeSkeletalSharingFixture(countPath, 300, 20, 10, "child", 2.0f, false) &&
+                   writeSkeletalSharingFixture(identityPath, 400, 21, 10, "child", 2.0f, true) &&
+                   writeSkeletalSharingFixture(hierarchyPath, 500, 20, 0, "child", 2.0f, true) &&
+                   writeSkeletalSharingFixture(bindPath, 600, 20, 10, "child", 3.0f, true),
+               "skeletal sharing fixtures must write");
+        MESH_MBM_DEBUG base, same, count, identity, hierarchy, bind, missing;
+        expect(base.loadV11(basePath) && same.loadV11(samePath) && count.loadV11(countPath) &&
+                   identity.loadV11(identityPath) && hierarchy.loadV11(hierarchyPath) &&
+                   bind.loadV11(bindPath),
+               "skeletal sharing fixtures must load");
+        expectSharingReason(base, same, "compatible", true);
+        expectSharingReason(base, missing, "missing_skeleton", false);
+        expectSharingReason(base, count, "bone_count_mismatch", false);
+        expectSharingReason(base, identity, "bone_identity_mismatch", false);
+        expectSharingReason(base, hierarchy, "hierarchy_mismatch", false);
+        SKELETAL_SHARING_COMPATIBILITY report;
+        expect(!base.getSkeletalSharingCompatibility(bind, report) &&
+                   std::string(report.reason) == "bind_transform_mismatch" &&
+                   report.boneIndex == 1 && std::string(report.boneName) == "child" &&
+                   report.observedError > report.tolerance,
+               "bind_transform_mismatch");
+    }
+
     void testCanonicalSkeletonReader()
     {
         const char *validPath = "/tmp/mini-mbm-canonical-skeleton-valid.msh";
@@ -1867,6 +1952,7 @@ int runSkeletalFoundationTests()
     testMultipleRootSkeletonSemantics();
     testUniformCanonicalAssetScale();
     testCanonicalSkeletonReader();
+    testSkeletalSharingCompatibility();
     testCanonicalWeightValidation();
     testCanonicalWeightReader();
     testCanonicalAnimationReader();

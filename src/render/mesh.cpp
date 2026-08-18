@@ -417,6 +417,17 @@ namespace mbm
                                                 modelMatrixPtr, boneId, translation);
     }
 
+    bool MESH::getSkeletalSharingCompatibility(const MESH &other,
+                                                SKELETAL_SHARING_COMPATIBILITY &out) const noexcept
+    {
+        if (!mesh || !other.mesh)
+        {
+            out = SKELETAL_SHARING_COMPATIBILITY();
+            return false;
+        }
+        return mesh->getSkeletalSharingCompatibility(*other.mesh, out);
+    }
+
     bool MESH::enableAutomaticSkeletalRootMotion(const char *boneName,
                                                  const bool applyRotation) noexcept
     {

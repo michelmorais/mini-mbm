@@ -4503,6 +4503,96 @@ namespace mbm
         return report.bones[index].name.c_str();
     }
 
+    namespace
+    {
+        bool getSkeletalSharingCompatibilityImpl(
+            const skeletal::CANONICAL_SKELETON &leftSkeleton,
+            const skeletal::CANONICAL_SKELETON &rightSkeleton,
+            SKELETAL_SHARING_COMPATIBILITY &out) noexcept
+        {
+            out = SKELETAL_SHARING_COMPATIBILITY();
+            const skeletal::COMPILED_SKELETON &left = leftSkeleton.compiled;
+            const skeletal::COMPILED_SKELETON &right = rightSkeleton.compiled;
+            if (leftSkeleton.skeletonId == 0 || rightSkeleton.skeletonId == 0 ||
+                left.hasFatalDiagnostics() || right.hasFatalDiagnostics() ||
+                left.bones.empty() || right.bones.empty())
+            {
+                out.reason = "missing_skeleton";
+                out.boneCount = static_cast<uint32_t>(left.bones.size());
+                return false;
+            }
+            out.boneCount = static_cast<uint32_t>(left.bones.size());
+            if (left.bones.size() != right.bones.size())
+            {
+                out.reason = "bone_count_mismatch";
+                return false;
+            }
+            for (uint32_t index = 0; index < left.bones.size(); ++index)
+            {
+                const skeletal::COMPILED_BONE &leftBone = left.bones[index];
+                const skeletal::COMPILED_BONE &rightBone = right.bones[index];
+                out.boneIndex = index;
+                out.boneName = leftBone.name.c_str();
+                out.boneId = leftBone.boneId;
+                out.otherBoneId = rightBone.boneId;
+                if (leftBone.boneId != rightBone.boneId || leftBone.name != rightBone.name)
+                {
+                    out.reason = "bone_identity_mismatch";
+                    return false;
+                }
+                out.parentIndex = leftBone.parentIndex;
+                out.otherParentIndex = rightBone.parentIndex;
+                out.parentBoneId = leftBone.parentBoneId;
+                out.otherParentBoneId = rightBone.parentBoneId;
+                if (leftBone.parentIndex != rightBone.parentIndex ||
+                    leftBone.parentBoneId != rightBone.parentBoneId)
+                {
+                    out.reason = "hierarchy_mismatch";
+                    return false;
+                }
+                out.observedError = skeletal::maximumMatrixDifference(leftBone.localBindMatrix,
+                                                                      rightBone.localBindMatrix);
+                out.tolerance = skeletal::matrixComparisonTolerance(leftBone.localBindMatrix,
+                                                                    rightBone.localBindMatrix);
+                if (out.observedError > out.tolerance)
+                {
+                    out.reason = "bind_transform_mismatch";
+                    return false;
+                }
+                out.observedError = skeletal::maximumMatrixDifference(leftBone.globalBindMatrix,
+                                                                      rightBone.globalBindMatrix);
+                out.tolerance = skeletal::matrixComparisonTolerance(leftBone.globalBindMatrix,
+                                                                    rightBone.globalBindMatrix);
+                if (out.observedError > out.tolerance)
+                {
+                    out.reason = "bind_transform_mismatch";
+                    return false;
+                }
+            }
+            out.compatible = true;
+            out.reason = "compatible";
+            out.boneIndex = UINT32_MAX;
+            out.boneName = nullptr;
+            out.observedError = 0.0f;
+            out.tolerance = 0.0f;
+            return true;
+        }
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalSharingCompatibility(
+        const MESH_MBM_DEBUG &other, SKELETAL_SHARING_COMPATIBILITY &out) const noexcept
+    {
+        return getSkeletalSharingCompatibilityImpl(impl->canonicalSkeleton,
+                                                   other.impl->canonicalSkeleton, out);
+    }
+
+    bool MESH_MBM::getSkeletalSharingCompatibility(
+        const MESH_MBM &other, SKELETAL_SHARING_COMPATIBILITY &out) const noexcept
+    {
+        return getSkeletalSharingCompatibilityImpl(impl->canonicalSkeleton,
+                                                   other.impl->canonicalSkeleton, out);
+    }
+
     bool MESH_MBM_DEBUG::getSkeletonBindDiagnostic(const uint32_t index,
                                                     SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept
     {

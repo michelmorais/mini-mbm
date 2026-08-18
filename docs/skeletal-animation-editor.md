@@ -1199,6 +1199,9 @@ The following are current editor limitations rather than regressions caused by r
   backend selector;
 - Runtime Skeletal Preview's evaluated mask gizmo follows the primary instance only; pose-stress
   comparison does not duplicate it for the secondary LBS/DQS instance;
+- multi-mesh skeletal sharing is still preflight-only. Lua can report whether two loaded meshes
+  have compatible canonical skeleton identity, hierarchy, and bind transforms for a future shared
+  evaluated pose/palette, but the editor does not yet attach multiple meshes to one player;
 - no protected/exclusion volumes;
 - no topology-ring selection expansion;
 - abrupt-transition classification still follows stored triangle indices rather than adding welded
