@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.90**
-Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
+Document version: **9.91**
+Status: **Canonical import, GLES runtime LBS/DQS, local animation, Paint Weights, and transient composition implemented; bone masks, modern backends, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
 ## 1. Purpose
@@ -618,11 +618,17 @@ mutate assets, evaluate clips, or deform vertices.
 - Expose clip playback, seek, loop, speed, priority, weight/fade, and composition through the engine
   and appropriate Lua API.
 - Define resource ownership, instance state, and multi-mesh skeleton sharing.
-- The first composition foundation is implemented privately: two complete sampled poses blend in
-  parent-relative local TRS with strict Absolute weight, shortest-path normalized quaternion
-  interpolation, and one global reconstruction. The resulting backend-neutral pose is accepted by
-  both existing palette builders. Per-instance layers, independently advancing clip times, fades,
-  masks, Additive mode, public APIs, and editor controls remain pending.
+- One transient per-instance layer is implemented with Absolute and bind-relative Additive local-TRS
+  composition, independent layer time/pause, shared speed, strict weight, linear fades, Lua/runtime
+  controls, and Runtime Preview UI. Both modes rebuild globals once and feed one final LBS/DQS
+  palette. The transient layer is not serialized.
+- Per-bone layer masks are explicitly deferred while modern backend work is prioritized. Their
+  backend-neutral contract is a strict `0..1` multiplier keyed by stable bone identity, with an
+  absent mask equivalent to all ones and effective composition weight equal to global layer weight
+  times per-bone mask weight. Masks must not require an extra GPU skinning pass or change mesh data.
+- Planned mask authoring remains inside Runtime Skeletal Preview: canonical hierarchy, selected-bone
+  weight, descendant propagation, all-zero/all-one/invert/subtree actions, and viewport feedback.
+  It is not a new worktree and is not Paint Weights vertex masking.
 
 ### Phase 8 — Backend modernization decision
 
@@ -710,14 +716,13 @@ mutate assets, evaluate clips, or deform vertices.
     alone.
 13. Mini MBM's skeletal math is row-vector: child globals use `local * parentGlobal`, and skin
     matrices use `inverseBindGlobal * currentGlobal`.
-14. Multi-clip composition and blending remain pending while editor development moves to Paint
-    Weights. Existing clip and pose clipboards do not imply priority, weight/fade,
-    Absolute/Additive, per-bone masks, or composed runtime playback.
-14. Runtime bones use stable `uint64_t` identity, parent-relative local TRS, quaternion rotation,
+14. One transient Absolute/Additive layer is delivered; per-bone animation masks and priority remain
+    explicitly deferred and do not alter serialized clip or skin-weight data.
+15. Runtime bones use stable `uint64_t` identity, parent-relative local TRS, quaternion rotation,
     derived globals/inverse bind, and names only as labels/interchange keys.
-15. Skeletal clips use a distinct bone-ID-targeted resource model; articulated data structures are
+16. Skeletal clips use a distinct bone-ID-targeted resource model; articulated data structures are
     not repurposed as skeletal persistence.
-16. Existing global-Euler skeleton sections are temporary audit inputs only. They are removed from
+17. Existing global-Euler skeleton sections are temporary audit inputs only. They are removed from
     the delivered reader/writer/API surface; affected assets are regenerated from source FBX rather
     than converted during ordinary loading.
 
@@ -811,6 +816,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.91 | 2026-08-17 | Explicitly deferred per-bone animation-layer masks so modern backend delivery can take priority. Recorded the fixed future contract (stable bone IDs, strict per-bone multipliers, all-ones compatibility default, global-times-mask effective weight, one final palette), the in-place Runtime Preview hierarchy/subtree GUI, gameplay benefits, and its distinction from vertex weights/Paint Weights masks. Also synchronized stale Phase-7/status prose with the composition runtime already delivered. |
 | 9.90 | 2026-08-17 | Added independent layer pause/resume/query state, Lua methods, and Runtime Preview controls. Layer pause freezes its clip time and fade without stopping the base; global pause still freezes all temporal state. Layer lifecycle and mode replacement reset the local pause deterministically. |
 | 9.89 | 2026-08-17 | Connected bind-relative Additive composition to player state, explicit Lua playback, and Runtime Preview Absolute/Additive selection. Both modes reuse independent layer time, shared pause/speed, strict weight, linear fades, transactional palette replacement, and the same final LBS/DQS builders; switching mode restarts only the layer. |
 | 9.88 | 2026-08-17 | Began Additive delivery with a tested private bind-relative local-TRS compositor and sampler. Translation offsets, shortest-path quaternion deltas, multiplicative scale ratios, strict validation, endpoint identity, arbitrary-base behavior, and palette-ready hierarchy reconstruction are defined. Runtime player state, Lua, and Runtime Preview mode selection remain pending. |

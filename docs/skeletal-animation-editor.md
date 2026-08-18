@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, runtime preview, local animation, and Paint Weights authoring implemented; runtime composition foundation in progress**
+Status: **Bind, Bone Editor, canonical weight repair, runtime preview, local animation, Paint Weights, and transient composition implemented; bone masks and non-GLES backends pending**
 Last updated: **2026-08-17**
 
 ## 1. Purpose
@@ -20,8 +20,8 @@ Animations and direct brush-based weight authoring are active.
 No worktree is selected initially. Loading or replacing an asset returns to this neutral state,
 enables the ordinary textured mesh, and keeps skeletons, heatmaps, cursors, capture volumes, and
 diagnostic overlays hidden until the user explicitly opens a worktree.
-The runtime and Runtime Skeletal Preview now expose a transient two-clip Absolute composition
-foundation. Its product
+The runtime and Runtime Skeletal Preview expose transient two-clip Absolute and Additive composition.
+Its product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
@@ -1198,18 +1198,22 @@ The following are current editor limitations rather than regressions caused by r
   diagnostic edges; its repair separately synchronizes compatible connected coincident copies;
 - no automatic heavy whole-mesh weight generation;
 - no custom-tail animation generation;
-- multi-clip playback is intentionally limited to one transient per-instance Absolute layer over a
+- multi-clip playback is intentionally limited to one transient per-instance layer over a
   base clip. Lua and Runtime Skeletal Preview expose layer clip, independent time/seek, and weight
   before one final LBS/DQS palette. A linear timed fade can target base or layer; reaching zero
   removes the layer. Global pause freezes everything, while Pause Layer independently freezes the
-  layer time and fade. The layer is not serialized; transition curves/queues, priority and masks
-  remain pending. Absolute and bind-relative Additive modes are explicit in Lua
+  layer time and fade. The layer is not serialized; transition curves/queues and priority remain
+  pending. Absolute and bind-relative Additive modes are explicit in Lua
   and Runtime Skeletal Preview; both share time, weight, speed, and fade controls;
+- per-bone animation-layer masks are deliberately deferred while other runtime backends are
+  prioritized. The future mask multiplies layer weight per stable bone identity, defaults to all
+  ones when absent, and will be edited inside Runtime Skeletal Preview through hierarchy/subtree
+  controls and viewport feedback. It is distinct from skin weights and Paint Weights vertex masks;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
-Future composition/blending, richer pose-stress overlays, antipodality tooling, and non-GLES backend
-delivery remain in the
+Future layer masks, richer pose-stress overlays, antipodality tooling, and non-GLES backend delivery
+remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Further skeleton and animation authoring refinements remain in the product plan. Mesh Debug's legacy Bone
 node/window has been retired; canonical bind inspection and weight repair belong to this editor.

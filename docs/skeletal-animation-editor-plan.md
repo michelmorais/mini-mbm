@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.85**
-Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
+Document version: **8.86**
+Status: **Five active skeletal workflows and transient two-clip composition implemented; bone masks deferred**
 Last updated: **2026-08-17**
 
 ## 1. Purpose
@@ -214,19 +214,23 @@ already trustworthy.
 ### Composition and blending foundation
 
 Multi-clip composition resumed after the Paint Weights workflow reached its accepted foundation.
-The delivered editor still authors and previews one canonical clip at a time, but the private CPU
-foundation can now combine two complete sampled poses in parent-relative local TRS using strict
-`0..1` Absolute weight. Translation and scale interpolate linearly, rotation uses normalized
-shortest-path quaternion interpolation, and globals are rebuilt once in parent-first order. The
-result feeds the existing LBS and rigid-DQS palette builders without a backend-specific composition
-path.
+The runtime and Runtime Skeletal Preview combine one base clip with one transient per-instance layer
+in parent-relative local TRS. Absolute and bind-relative Additive modes, independent layer time and
+pause, shared speed, strict weight, linear fades, and one final LBS/DQS palette are implemented and
+exposed through C++/Lua/editor controls. The layer remains runtime state and is not serialized.
 
-Priority, layer weight, fade in/out, Absolute/Additive semantics, per-bone masks, and a composed
-runtime player are not yet exposed and must not be inferred from the private compositor, clip
-clipboard, or pose clipboard features. The next increments must connect two independently timed
-sampled clips to transient per-instance layer state before adding editor controls. Additive reference
-pose, masks, fades, scale compatibility, discontinuity rules, and persistence boundaries remain
-explicit later contracts.
+Per-bone animation masks are deliberately deferred so backend delivery can take priority. The future
+mask contract is already fixed: absence of a mask is equivalent to weight `1` for every bone; an
+enabled mask stores a strict `0..1` multiplier per stable bone identity; and the compositor uses
+`effectiveWeight[bone] = layerWeight * maskWeight[bone]` before rebuilding globals once. This is an
+animation-layer mask, distinct from Paint Weights vertex-selection masks and vertex skin weights.
+
+The planned UI stays inside Runtime Skeletal Preview under a collapsible **Layer Mask** section; no
+new worktree is required. It will provide enable/disable, the canonical bone hierarchy, selected-bone
+weight, apply-to-descendants, All 0/All 1/Invert, selected-subtree 0/1, selected-bone viewport
+highlight, and a weight gradient. Mouse painting is not required for the first delivery. Expected
+gameplay uses include locomotion plus upper-body attacks, aim/reload overlays, head look, recoil,
+breathing, and reuse of one action clip across multiple locomotion bases.
 
 ## 9. Cross-node rules
 
@@ -559,6 +563,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.86 | 2026-08-17 | Deferred per-bone animation-layer masks to permit focus on other runtime backends while preserving an executable future contract. Masks stay in Runtime Skeletal Preview, multiply global layer weight per stable bone ID, default to all ones when absent, use hierarchy/subtree controls and viewport feedback, and remain distinct from vertex weights and Paint Weights masks. Updated stale composition status/prose to reflect delivered Absolute/Additive runtime controls. |
 | 8.85 | 2026-08-17 | Added independent pause/resume state for the transient clip layer. Lua and Runtime Preview can freeze only layer clip time and fade while the base continues; global pause remains authoritative and freezes both. Starting/replacing/removing a layer resets its local pause, and pose-stress comparison mirrors the control. |
 | 8.84 | 2026-08-17 | Connected the tested Additive compositor to per-instance runtime playback, a documented explicit Lua play method, and Runtime Skeletal Preview mode selection. Switching Absolute/Additive restarts only the selected layer in the new mode; clip time, weight, speed, seek, shared pause, fade, automatic removal at zero, one final hierarchy reconstruction, and one LBS/DQS palette remain common. |
 | 8.83 | 2026-08-17 | Began Additive composition with a private backend-neutral local-TRS compositor and two-clip sampler. The canonical local bind is the reference: translation adds the weighted offset, rotation applies a shortest-path identity-to-delta quaternion, and scale multiplies a weighted layer/bind ratio. Strict complete-pose/weight/finite/singular-scale validation and deterministic endpoint, 45/90-degree rotation, relative-scale, arbitrary-base, hierarchy, and failure fixtures pass. Player, Lua, and editor mode selection remain pending. |
