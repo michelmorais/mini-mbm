@@ -574,15 +574,16 @@ namespace mbm
         MATRIX matrix;
         VEC3 position;
         float rotation[4] = {};
+        VEC3 angle;
         VEC3 scale;
         if (!mesh->getSkeletalBoneTransform(boneName, worldSpace, &stableBoneId, &matrix,
-                                            &position, rotation, &scale))
+                                            &position, rotation, &angle, &scale))
         {
             lua_pushnil(lua);
             return 1;
         }
 
-        lua_createtable(lua, 0, 6);
+        lua_createtable(lua, 0, 7);
         char boneId[17] = "";
         snprintf(boneId, sizeof(boneId), "%016llx",
                  static_cast<unsigned long long>(stableBoneId));
@@ -601,6 +602,12 @@ namespace mbm
         lua_pushnumber(lua, rotation[2]); lua_setfield(lua, -2, "z");
         lua_pushnumber(lua, rotation[3]); lua_setfield(lua, -2, "w");
         lua_setfield(lua, -2, "rotation");
+
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, angle.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, angle.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, angle.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "angle");
 
         lua_createtable(lua, 0, 3);
         lua_pushnumber(lua, scale.x); lua_setfield(lua, -2, "x");

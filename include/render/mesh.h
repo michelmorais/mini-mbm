@@ -100,7 +100,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
                                                MATRIX *globalMatrix) const noexcept;
     API_IMPL bool getSkeletalBoneTransform(const char *boneName, bool worldSpace,
                                            uint64_t *boneId, MATRIX *matrix, VEC3 *position,
-                                           float rotation[4], VEC3 *scale) const noexcept;
+                                           float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
     API_IMPL bool setSkeletalAuthoringPalette(SKELETAL_SHADER_METHOD method,
                                               const float *rows, uint32_t rowCount,
                                               const uint64_t *orderedBoneIds, uint32_t boneIdCount,

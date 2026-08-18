@@ -8448,9 +8448,9 @@ namespace mbm
     bool MESH_MBM::getSkeletalBoneTransform(
         const SKELETAL_ANIMATION_PLAYER &player, const char *boneName,
         const MATRIX *modelMatrix, uint64_t *boneId, MATRIX *matrix, VEC3 *position,
-        float rotation[4], VEC3 *scale) const noexcept
+        float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
     {
-        if (!boneName || !boneId || !matrix || !position || !rotation || !scale ||
+        if (!boneName || !boneId || !matrix || !position || !rotation || !angle || !scale ||
             getSkeletalAnimationPoseBoneCount(player) == 0)
             return false;
         const auto found = impl->canonicalSkeleton.compiled.indexByName.find(boneName);
@@ -8472,6 +8472,21 @@ namespace mbm
         rotation[1] = transform.rotation.y;
         rotation[2] = transform.rotation.z;
         rotation[3] = transform.rotation.w;
+        skeletal::LOCAL_TRANSFORM rotationOnly;
+        rotationOnly.rotation = transform.rotation;
+        MATRIX rotationMatrix = skeletal::buildTrsMatrix(rotationOnly);
+        const float clamped = std::max(-1.0f, std::min(1.0f, -rotationMatrix._13));
+        angle->y = std::asin(clamped);
+        if (std::fabs(rotationMatrix._13) > 0.999999f)
+        {
+            angle->x = 0.0f;
+            angle->z = std::atan2(-rotationMatrix._21, rotationMatrix._22);
+        }
+        else
+        {
+            angle->x = std::atan2(rotationMatrix._23, rotationMatrix._33);
+            angle->z = std::atan2(rotationMatrix._12, rotationMatrix._11);
+        }
         *scale = transform.scale;
         return true;
     }

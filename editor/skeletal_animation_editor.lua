@@ -2852,13 +2852,6 @@ local function showRuntimeLayerMask()
     if #bones==0 then return end
     if not tImGui.TreeNode(tLang.L('swl_layer_mask')..'##swlLayerMask') then return end
     tImGui.TextWrapped(tLang.L('swl_layer_mask_help'))
-    local showSkeleton=tImGui.Checkbox(tLang.L('swl_layer_mask_show_skeleton'),
-        playback.layerMaskShowSkeleton)
-    if showSkeleton~=playback.layerMaskShowSkeleton then
-        playback.layerMaskShowSkeleton=showSkeleton
-        rebuildSkeletonVisuals()
-        applyWorkspaceVisibility()
-    end
     tImGui.BeginDisabled(not playback.absoluteLayerActive)
     if tImGui.Button(tLang.L('swl_layer_mask_all_zero')) then
         local edits={}
@@ -3000,6 +2993,13 @@ local function showSkeletalPreviewControls()
         if rebuildRuntimePreviewFromMemory() then
             setStatus(tLang.L('swl_runtime_refreshed_from_memory'),false)
         end
+    end
+    local showSkeleton=tImGui.Checkbox(tLang.L('swl_layer_mask_show_skeleton'),
+        playback.layerMaskShowSkeleton)
+    if showSkeleton~=playback.layerMaskShowSkeleton then
+        playback.layerMaskShowSkeleton=showSkeleton
+        rebuildSkeletonVisuals()
+        applyWorkspaceVisibility()
     end
     local poseStress=tImGui.Checkbox(tLang.L('swl_pose_stress_compare'),playback.poseStress)
     if poseStress~=playback.poseStress then

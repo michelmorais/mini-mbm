@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.92**
+Document version: **8.93**
 Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, and per-bone layer masks implemented**
 Last updated: **2026-08-18**
 
@@ -571,6 +571,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.93 | 2026-08-18 | Moved Show Evaluated Skeleton from the layer-mask subtree to the first Runtime Preview options, immediately after refresh. It remains enabled without a second clip because the evaluated base pose is sufficient. The gameplay bone transform also now exposes engine-compatible Euler XYZ radians alongside its lossless quaternion. |
 | 8.92 | 2026-08-18 | Added the first gameplay attachment query over the same final evaluated pose used by Runtime Preview. Lua can resolve a bone by canonical name in model or character-composed world space and receives position, normalized quaternion rotation, scale, and the complete matrix without exposing player storage. |
 | 8.91 | 2026-08-18 | Replaced the static bind-layout mask skeleton with the active player's final evaluated pose. A read-only ordered C++/Lua copy-out reports stable ID, parent index, and global matrix; Runtime Preview updates existing joints and line segments every frame while preserving the mask gradient and cyan selection. |
 | 8.90 | 2026-08-18 | Completed the first layer-mask editor contract with atomic multi-bone mutations, selected-subtree 0/1 actions, and an optional bind-layout viewport skeleton using a blue-green-red mask gradient plus cyan selection. All 0, Invert, descendant slider edits, and subtree actions now cause one runtime pose reevaluation per preview rather than one per bone. |

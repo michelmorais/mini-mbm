@@ -372,7 +372,7 @@ namespace mbm
 
     bool MESH::getSkeletalBoneTransform(const char *boneName, const bool worldSpace,
                                         uint64_t *boneId, MATRIX *matrix, VEC3 *position,
-                                        float rotation[4], VEC3 *scale) const noexcept
+                                        float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
     {
         if (!mesh)
             return false;
@@ -388,7 +388,7 @@ namespace mbm
         }
         return mesh->getSkeletalBoneTransform(getSkeletalAnimationPlayer(), boneName,
                                               modelMatrixPtr, boneId, matrix, position,
-                                              rotation, scale);
+                                              rotation, angle, scale);
     }
 
     bool MESH::setSkeletalAuthoringPalette(const SKELETAL_SHADER_METHOD method,

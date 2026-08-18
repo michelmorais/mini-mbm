@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.102**
+Document version: **9.103**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -861,6 +861,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.103 | 2026-08-18 | Made the attachment query directly consumable by renderizables by returning engine-order Euler XYZ radians as `angle`, while retaining normalized quaternion and matrix copy-outs. Runtime Preview's evaluated-skeleton checkbox now appears among the first controls and is no longer disabled by the absence of a second clip. |
 | 9.102 | 2026-08-18 | Added `mesh:getSkeletalBoneTransform(name, space)` for gameplay attachments. Exact canonical-name lookup reads the active player's final base-plus-layer evaluated pose; model space is available directly and world space composes the mesh transform, returning copy-out position, normalized quaternion, scale, and matrix. |
 | 9.101 | 2026-08-18 | Exposed a read-only copy-out of the active player's final evaluated global bone transforms and connected Runtime Preview's mask skeleton to that pose. Existing joints and line segments now follow base-plus-layer animation every frame without CPU vertex deformation or additional GPU work. |
 | 9.100 | 2026-08-18 | Added atomic stable-ID layer-mask batches and completed the planned first editor controls with selected-subtree actions and bind-layout viewport feedback. Bulk controls now validate the complete candidate and reevaluate the composed pose once per preview. |

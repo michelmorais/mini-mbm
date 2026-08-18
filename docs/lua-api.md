@@ -622,7 +622,7 @@ rigid DQS rejects any scale/shear.
 | `obj:getSkeletalAnimationLayerBoneWeight` | `(boneId)` | number or nil | Get one active layer-mask multiplier; returns `1` for an unmasked valid bone and no value when the layer or identity is invalid |
 | `obj:clearSkeletalAnimationLayerMask` | `()` | bool | Atomically restore every active layer-mask multiplier to the all-ones compatibility default |
 | `obj:getSkeletalAnimationPose` | `()` | table or nil | Copy the active player's final evaluated global pose as ordered `{boneId, parentIndex, globalMatrix}` records; `parentIndex` is one-based with `0` for a root, and inactive/authoring-palette players return `nil` |
-| `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; rotation is a normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. |
+| `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, angle={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; `angle` is Euler XYZ in radians for `setAngle`, while `rotation` preserves the normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. |
 | `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
 ```lua
@@ -650,7 +650,8 @@ character:stopSkeletalAnimationAbsoluteLayer()
 local hand = character:getSkeletalBoneTransform("mixamorig:RightHand", "world")
 if hand then
     sword:setPos(hand.position.x, hand.position.y, hand.position.z)
-    -- hand.rotation is quaternion XYZW; hand.matrix preserves the complete transform.
+    sword:setAngle(hand.angle.x, hand.angle.y, hand.angle.z)
+    -- hand.rotation preserves quaternion XYZW; hand.matrix preserves the complete transform.
 end
 ```
 
