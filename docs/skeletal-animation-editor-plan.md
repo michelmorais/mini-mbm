@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.87**
-Status: **Five active skeletal workflows, OpenGL ES/DirectX 9 preview, and transient two-clip composition implemented; bone masks and Metal preview deferred**
+Document version: **8.88**
+Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, and transient two-clip composition implemented; bone masks deferred**
 Last updated: **2026-08-18**
 
 ## 1. Purpose
@@ -382,9 +382,9 @@ Exit: a clip can be authored, saved, reopened, and sampled deterministically ins
   Scale/shear rejection is explicit and there is no silent fallback.
 - Auto is the editor preview default and displays both requested and resolved methods plus the
   one-time resolution reason; explicit DQS remains available for strict validation.
-- Backend-neutral capability reporting is shared by the delivered OpenGL ES and DirectX 9 runtime
+- Backend-neutral capability reporting is shared by the delivered OpenGL ES, DirectX 9, and Metal runtime
   paths. The editor follows the backend selected for the engine build rather than switching
-  renderers at runtime; Metal preview remains pending.
+  renderers at runtime. Metal numeric parity coverage remains separate follow-up work.
 - Side-by-side pose-stress comparison is now available with synchronized runtime LBS/DQS instances,
   mirrored playback/seek/bind restoration, separate readiness reporting, and automatic reframing.
 - The first numeric parity gate now compares two-bone LBS/DQS shader output with the CPU references
@@ -566,6 +566,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.88 | 2026-08-18 | Synchronized the product plan with Metal delivery: Runtime Preview now uses the shared OpenGL ES/DirectX 9/Metal capability and deformation surface; Metal numeric parity coverage remains follow-up work. |
 | 8.87 | 2026-08-18 | Synchronized the product plan with Windows delivery: Runtime Preview now documents the shared OpenGL ES/DirectX 9 capability surface, Metal remains pending, and stale prose no longer describes the delivered transient composition layer as deferred. |
 | 8.86 | 2026-08-17 | Deferred per-bone animation-layer masks to permit focus on other runtime backends while preserving an executable future contract. Masks stay in Runtime Skeletal Preview, multiply global layer weight per stable bone ID, default to all ones when absent, use hierarchy/subtree controls and viewport feedback, and remain distinct from vertex weights and Paint Weights masks. Updated stale composition status/prose to reflect delivered Absolute/Additive runtime controls. |
 | 8.85 | 2026-08-17 | Added independent pause/resume state for the transient clip layer. Lua and Runtime Preview can freeze only layer clip time and fade while the base continues; global pause remains authoritative and freezes both. Starting/replacing/removing a layer resets its local pause, and pose-stress comparison mirrors the control. |

@@ -9,7 +9,7 @@ have to re-derive any of that from scratch.
 
 Visual weight painting, repair, diagnostics, and validated usage are documented in the
 [Skeletal Animation Editor guide](skeletal-animation-editor.md). The delivered canonical bind-pose
-pipeline and GLES LBS/DQS runtime, plus pending backend work, are tracked in
+pipeline and cross-backend LBS/DQS runtime, plus pending parity work, are tracked in
 [`realtime-skinning-animation-plan.md`](realtime-skinning-animation-plan.md).
 
 Rigid subset animation is a separate implemented feature documented in
@@ -22,13 +22,13 @@ Skip this section if you already know how bones/skinning work in a modern engine
 document is the precise reference.
 
 **Mini MBM's status in one sentence:** canonical `.msh` assets store a stable-ID bind hierarchy,
-per-vertex weights, and local skeletal clips in sections 41-43; the OpenGL ES and DirectX9 runtimes
-evaluate those clips per mesh instance and deform vertices/normals with selectable LBS or rigid DQS.
+per-vertex weights, and local skeletal clips in sections 41-43; the OpenGL ES, DirectX9, and Metal
+runtimes evaluate those clips per mesh instance and deform vertices/normals with selectable LBS or rigid DQS.
 Static-frame swapping and articulated rigid-subset animation remain separate supported models.
 
 The Skeletal Animation Editor can create/edit the canonical skeleton and clips, paint and repair
 weights, preview the same runtime player, and round-trip the result through the supported FBX
-workflow. Metal skeletal deformation, bone masks, and Velocity Skinning remain
+workflow. Bone masks, Metal numeric parity coverage, and Velocity Skinning remain
 pending; this backend limitation does not turn canonical skeletal data back into editor-only data.
 
 ## How Real-Time Skeletal Animation Works (Other Engines)
@@ -106,8 +106,8 @@ is a weighted sum, and real-time engines cap the influence count for a bounded, 
   into a vertex buffer. Simpler to implement, much more expensive at scale — mostly seen in older or
   very constrained engines, or as a fallback for skeletons too large/exotic for a GPU path.
 
-Mini MBM implements GPU skinning in its OpenGL ES and DirectX9 default shader paths. Both upload the
-per-instance canonical palette each frame; Metal does not yet implement skeletal deformation, and
+Mini MBM implements GPU skinning in its OpenGL ES, DirectX9, and Metal default shader paths. All
+upload the per-instance canonical palette each frame; Metal uses explicit influence and palette buffers, and
 there is no general CPU-deformed rendering fallback.
 
 ### Animation clips and retargeting
@@ -217,8 +217,8 @@ owns its clip times, pause/speed state, optional transient Absolute or bind-rela
 fade state, evaluated local/global pose, and final GPU palette. LBS accepts the documented compact-
 normal scale constraints; rigid DQS rejects scale/shear and `auto` selects the compatible method.
 
-The OpenGL ES and DirectX9 backends compile the LBS or DQS shader variant and upload the palette
-before lighting is evaluated. Metal does not yet implement this skeletal shader path. CPU
+The OpenGL ES, DirectX9, and Metal backends compile the LBS or DQS shader variant and upload the palette
+before lighting is evaluated. CPU
 pose/reference math and editor previews exist, but there is no general CPU-deformed rendering fallback.
 
 The old `SECTION_FRAME_SKINNED`, `SECTION_VERTEX_SKIN_WEIGHTS`, `SKELETON_BONE_V11`, and Mesh Debug
@@ -229,7 +229,7 @@ unaffected.
 
 ### Still pending
 
-- skeletal deformation on Metal;
+- encoded/readback CPU/GPU numeric parity coverage on Metal and DirectX9;
 - per-bone composition masks and layer priority/queue policy;
 - evaluated runtime skeleton gizmos;
 - retargeting and completion callbacks;

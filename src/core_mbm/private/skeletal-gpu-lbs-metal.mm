@@ -11,16 +11,32 @@
 | COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |-----------------------------------------------------------------------------------------------------------------------*/
-
-#if !defined(USE_OPENGL_ES) && !defined(USE_DIRECTX9) && !defined(USE_METAL)
+#if defined(USE_METAL)
 
 #include "skeletal-gpu-upload.h"
+#include "specific-metal-buffer.h"
+#include "specific-metal-context.h"
+
+#include <core_mbm/device.h>
+#include <core_mbm/shader.h>
 
 namespace mbm::skeletal
 {
-    bool uploadSkinVertexStream(BUFFER_GL *, const GPU_SKINNING_INPUT &) noexcept
+    bool uploadSkinVertexStream(BUFFER_GL *buffer, const GPU_SKINNING_INPUT &input) noexcept
     {
-        return false;
+        if (!buffer || !input.ready() || input.vertices.empty() ||
+            input.vertices.size() != buffer->sizeOfArrayVertex)
+            return false;
+        BUFFER_SPECIFIC *backend = buffer->getBackendBuffer();
+        DEVICE *device = DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device ? device->getSpecificContextDevice() : nullptr;
+        if (!backend || !context || !context->mtlDevice)
+            return false;
+        const NSUInteger bytes = input.vertices.size() * sizeof(GPU_LBS_VERTEX);
+        backend->skinVertexBuffer = [context->mtlDevice newBufferWithBytes:input.vertices.data()
+                                                                    length:bytes
+                                                                   options:MTLResourceStorageModeShared];
+        return backend->skinVertexBuffer != nil;
     }
 }
 

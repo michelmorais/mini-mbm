@@ -33,7 +33,8 @@
 // Usage: testLib --skeletal-foundation-tests
 //        testLib --gles-dqs-shader-test
 //        testLib --gles-skeletal-parity-test
-//        testLib [seconds] [mesh_file] [world]
+//        testLib --metal-editor-shader-test
+//        testLib [seconds] [mesh_file] [world] [lbs|dqs|auto]
 //   seconds    Exit on its own once this many seconds have elapsed in the
 //              render loop, instead of running forever. Meant for
 //              agent-driven / CI test runs, where nothing is present to
@@ -52,6 +53,14 @@ int main(int argc, char** argv)
         return runSkeletalFoundationTests();
 
     GAME game;
+#if defined(USE_METAL)
+    if (argc == 2 && std::strcmp(argv[1], "--metal-editor-shader-test") == 0)
+    {
+        game.myScene.testMetalEditorShaders = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else
+#endif
 #if defined(USE_OPENGL_ES)
     if (argc == 2 && std::strcmp(argv[1], "--gles-dqs-shader-test") == 0)
     {
@@ -85,6 +94,13 @@ int main(int argc, char** argv)
                 mode = RenderMode::WORLD_3D;
         }
         game.myScene.cliMeshMode = mode;
+        if (argc > 4)
+        {
+            if (strcmp(argv[4], "dqs") == 0)
+                game.myScene.cliSkeletalMethod = mbm::SKELETAL_SHADER_METHOD::DQS_RIGID;
+            else if (strcmp(argv[4], "auto") == 0)
+                game.myScene.cliSkeletalMethod = mbm::SKELETAL_SHADER_METHOD::AUTO;
+        }
     }
 	// this is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
     game.setUsageOfDefaultPS_VS_WhenNoShader(true, true);

@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9 runtime preview, local animation, Paint Weights, and transient composition implemented; bone masks and Metal pending**
+Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal runtime preview, local animation, Paint Weights, and transient composition implemented; bone masks pending**
 Last updated: **2026-08-18**
 
 ## 1. Purpose
@@ -11,9 +11,11 @@ weight repair, runtime LBS/DQS preview, and local clip/track/key/timeline author
 Mesh Debug into a general animation editor.
 
 For canonical skeletal meshes within the active backend's measured palette limit, the preview can
-play the same per-instance LBS or rigid-DQS deformation path used by the runtime. OpenGL ES and
-DirectX 9 are delivered; Metal backend delivery remains in the
+play the same per-instance LBS or rigid-DQS deformation path used by the runtime. OpenGL ES,
+DirectX 9, and Metal are delivered; remaining numeric backend parity work is tracked in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
+Paint Weights uses backend-native heatmap and brush shaders on all three delivered backends;
+Metal keeps generated skeletal deformation active when a fragment-only editor shader is applied.
 
 The editor is organized into five mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Create / Edit Animations**, and **Paint Weights**. Create / Edit
@@ -1192,8 +1194,8 @@ five external neighbors with zero modifications and zero audit failures.
 
 The following are current editor limitations rather than regressions caused by retiring Skin Weight Lab:
 
-- runtime preview uses the engine's compiled OpenGL ES or DirectX 9 backend; there is no runtime
-  backend selector, and Metal skeletal preview remains pending;
+- runtime preview uses the engine's compiled OpenGL ES, DirectX 9, or Metal backend; there is no runtime
+  backend selector;
 - Runtime Skeletal Preview deliberately hides its bind-only diagnostic gizmo; the Animation
   worktree instead displays the evaluated in-memory pose skeleton;
 - no protected/exclusion volumes;
@@ -1209,14 +1211,14 @@ The following are current editor limitations rather than regressions caused by r
   layer time and fade. The layer is not serialized; transition curves/queues and priority remain
   pending. Absolute and bind-relative Additive modes are explicit in Lua
   and Runtime Skeletal Preview; both share time, weight, speed, and fade controls;
-- per-bone animation-layer masks are deliberately deferred while other runtime backends are
-  prioritized. The future mask multiplies layer weight per stable bone identity, defaults to all
+- per-bone animation-layer masks are deliberately deferred. The future mask multiplies layer
+  weight per stable bone identity, defaults to all
   ones when absent, and will be edited inside Runtime Skeletal Preview through hierarchy/subtree
   controls and viewport feedback. It is distinct from skin weights and Paint Weights vertex masks;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
-Future layer masks, richer pose-stress overlays, antipodality tooling, and Metal backend delivery
+Future layer masks, richer pose-stress overlays, antipodality tooling, and Metal numeric parity coverage
 remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Further skeleton and animation authoring refinements remain in the product plan. Mesh Debug's legacy Bone

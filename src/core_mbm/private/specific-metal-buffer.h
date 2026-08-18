@@ -28,6 +28,7 @@ namespace mbm
     {
         id<MTLBuffer> vertexBuffer = nil;
         id<MTLBuffer> indexBuffer  = nil;
+        id<MTLBuffer> skinVertexBuffer = nil;
         NSUInteger    vertexCount  = 0;
         NSUInteger    indexCount   = 0;
 

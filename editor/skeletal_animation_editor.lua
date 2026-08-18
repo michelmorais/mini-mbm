@@ -1921,7 +1921,27 @@ local paintBrushFootprintShaderName='skeletal_paint_brush_footprint.ps'
 local function ensurePaintHeatmapShader()
     if mbm.existShader(paintHeatmapShaderName) then return true end
     local code
-    if mbm.get('USE_DIRECTX9') then
+    if mbm.get('USE_METAL') then
+        code=[=[
+        fragment float4 frag_main(VOut in [[stage_in]])
+        {
+            float t=clamp(in.uv.x,0.0f,1.0f);
+            if(in.uv.y<0.5f)
+                return float4(0.12f,0.13f,0.15f,1.0f);
+            float3 c0=float3(0.10f,0.25f,1.00f);
+            float3 c1=float3(0.00f,0.85f,1.00f);
+            float3 c2=float3(0.10f,1.00f,0.25f);
+            float3 c3=float3(1.00f,0.90f,0.00f);
+            float3 c4=float3(1.00f,0.45f,0.00f);
+            float3 c5=float3(1.00f,0.10f,0.00f);
+            float3 color=t<0.2f ? mix(c0,c1,t/0.2f) :
+                (t<0.4f ? mix(c1,c2,(t-0.2f)/0.2f) :
+                (t<0.6f ? mix(c2,c3,(t-0.4f)/0.2f) :
+                (t<0.8f ? mix(c3,c4,(t-0.6f)/0.2f) : mix(c4,c5,(t-0.8f)/0.2f))));
+            return float4(color,1.0f);
+        }
+        ]=]
+    elseif mbm.get('USE_DIRECTX9') then
         code=[[
         float3 heatColor(float value)
         {
@@ -1982,7 +2002,19 @@ end
 local function ensurePaintBrushFootprintShader()
     if mbm.existShader(paintBrushFootprintShaderName) then return true end
     local code
-    if mbm.get('USE_DIRECTX9') then
+    if mbm.get('USE_METAL') then
+        code=[=[
+        fragment float4 frag_main(VOut in [[stage_in]])
+        {
+            float influence=clamp(in.uv.x,0.0f,1.0f);
+            if(influence<=0.001f) discard_fragment();
+            float3 color=in.uv.y<0.25f ? float3(0.10f,1.00f,0.25f) :
+                (in.uv.y<0.75f ? float3(1.00f,0.12f,0.05f) :
+                (in.uv.y<1.25f ? float3(0.00f,0.85f,1.00f) : float3(1.00f,0.75f,0.05f)));
+            return float4(color,sqrt(influence)*0.65f);
+        }
+        ]=]
+    elseif mbm.get('USE_DIRECTX9') then
         code=[[
         float4 main(float2 texCoord : TEXCOORD0) : COLOR0
         {

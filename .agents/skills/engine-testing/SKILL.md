@@ -34,7 +34,7 @@ Build and run:
 ```sh
 cd build   # existing configured build dir, see README.md for a fresh cmake invocation
 cmake --build . --target testLib -j$(nproc)
-./bin/debug/linux_x86/testLib <seconds> [mesh_file] [world]
+./bin/debug/linux_x86/testLib <seconds> [mesh_file] [world] [lbs|dqs|auto]
 ```
 
 If configuring a **fresh** build dir for agent-driven runs, also pass
@@ -68,6 +68,8 @@ built-in `Crate.msh` fixture) and `[world]` (`2ds`, `2dw`, or `3d`, defaults to 
 ./bin/debug/linux_x86/testLib 5 Crate.msh 3d     # preload the bundled fixture mesh
 ./bin/debug/linux_x86/testLib 5 MyNewThing.msh 2dw
 ./bin/debug/linux_x86/testLib 0 MyNewThing.msh 3d  # 0 = no timeout, still preloads the mesh
+./bin/debug/arm64/testLib 5 Lorekeeper-walk.msh 3d dqs  # force the Metal rigid-DQS path
+./bin/debug/arm64/testLib --metal-editor-shader-test     # compile editor paint shaders with Metal skinning
 ```
 
 This only covers `MenuObjectType::MESH` today (`MY_SCENE::cliMeshFile`/`cliMeshMode`,

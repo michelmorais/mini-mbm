@@ -83,8 +83,10 @@ MY_SCENE::MY_SCENE()
     testTimeoutSeconds = -1.0f;
     testElapsedSeconds = 0.0f;
     cliMeshMode        = RenderMode::NONE;
+    cliSkeletalMethod  = mbm::SKELETAL_SHADER_METHOD::LBS;
     testGlesDqsShader  = false;
     testGlesSkeletalParity = false;
+    testMetalEditorShaders = false;
     automatedTestFailed = false;
 }
 
@@ -167,6 +169,35 @@ void MY_SCENE::onInitScene()
         automatedTestFailed = true;
         device->setRun(false);
         return;
+    }
+#endif
+
+#if defined(USE_METAL)
+    if (testMetalEditorShaders)
+    {
+        const char *shaderSources[] = {
+            "fragment float4 frag_main(VOut in [[stage_in]]) {"
+            "float t=clamp(in.uv.x,0.0f,1.0f);return float4(t,1.0f-t,0.25f,1.0f);}",
+            "fragment float4 frag_main(VOut in [[stage_in]]) {"
+            "float influence=clamp(in.uv.x,0.0f,1.0f);if(influence<=0.001f) discard_fragment();"
+            "return float4(1.0f,0.12f,0.05f,sqrt(influence)*0.65f);}"};
+        for (uint32_t index = 0; index < 2; ++index)
+        {
+            mbm::BASE_SHADER pixelShader;
+            pixelShader.loadShader(index == 0 ? "metal-editor-heat.ps" : "metal-editor-brush.ps",
+                                   shaderSources[index]);
+            mbm::SHADER shader;
+            if (!shader.compileShader(&pixelShader, nullptr,
+                                      mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV, 23,
+                                      mbm::SKELETAL_SHADER_METHOD::DQS_RIGID))
+            {
+                ERROR_LOG("testLib: Metal editor shader %u compile failed", index);
+                automatedTestFailed = true;
+                device->setRun(false);
+                return;
+            }
+        }
+        INFO_LOG("testLib: Metal editor heatmap/brush shaders compiled with skeletal DQS vertex stage");
     }
 #endif
 
@@ -768,6 +799,8 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             mesh = new mbm::MESH(this, is3d, is2dS);
             const bool isCustomMesh = !cliMeshFile.empty();
             const char* meshFile = isCustomMesh ? cliMeshFile.c_str() : "Crate.msh";
+            if (isCustomMesh && !mesh->setSkeletalSkinningMethod(cliSkeletalMethod))
+                ERROR_LOG("Failed to select skeletal skinning method [%s]", meshFile);
             if (mesh->load(meshFile))
             {
                 if (!isCustomMesh)

@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.95**
-Status: **Canonical import, OpenGL ES and DirectX 9 runtime LBS/DQS, local animation, Paint Weights, and transient composition implemented; bone masks, Metal/modern backends, and Velocity Skinning pending**
+Document version: **9.97**
+Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, and transient composition implemented; bone masks, modern non-Metal backends, and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
 ## 1. Purpose
@@ -31,7 +31,7 @@ confirmed facts, decisions, hypotheses, and open questions.
 - Mini MBM persists canonical type-41 skeletons with stable bone IDs and local bind TRS, type-42
   weights with up to four ID-based influences per frame-zero vertex, and type-43 skeletal clips.
 - The runtime evaluates local clip tracks and the bone hierarchy per mesh instance, then deforms
-  vertices and normals through a GPU palette on the OpenGL ES and DirectX 9 paths. Pre-baked static-frame
+  vertices and normals through a GPU palette on the OpenGL ES, DirectX 9, and Metal paths. Pre-baked static-frame
   animation remains a separate supported animation model.
 - Current backends include OpenGL ES 2, DirectX 9, and Metal. Basic skeletal skinning does not by
   itself require replacing these APIs, but their buffer, shader, and palette limits differ.
@@ -549,7 +549,7 @@ mutate assets, evaluate clips, or deform vertices.
   player advanced while the other stayed at `0.5s` paused, then resumed, despite both sharing the
   same cached asset/program. Blending, speed, completion callbacks, and other backends were
   deliberately outside that initial player slice; speed and one transient composition layer were
-  delivered later, while completion callbacks and Metal remain pending.
+  delivered later, while completion callbacks remained pending.
 - The Skeletal Animation Editor now drives that same per-instance runtime player on its preview
   mesh. It exposes clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber;
   the deformation is therefore the real active-backend LBS/DQS result rather than an editor-side pose copy. The
@@ -580,7 +580,7 @@ mutate assets, evaluate clips, or deform vertices.
   resolves to LBS with `bind-contains-scale` or `clip-contains-scale` reported publicly. Forced DQS
   remains strict and never falls back, and no per-frame shader switching occurs.
 - The shared preview uses the backend selected for the engine build. It does not offer a runtime
-  backend selector; OpenGL ES and DirectX 9 both consume the same editor/player/report surface.
+  backend selector; OpenGL ES, DirectX 9, and Metal consume the same editor/player/report surface.
 - Validate the rat and small skeletons before investigating palette expansion.
 - A first GLES2-portable CPU/GPU parity harness now exercises a deterministic two-bone/two-vertex
   fixture for both LBS and rigid DQS. It renders shader-deformed positions and normals into an
@@ -603,8 +603,23 @@ mutate assets, evaluate clips, or deform vertices.
 
 ### Phase 5 — Metal validation and delivery
 
-- Implement buffer-backed palettes and shader parity.
-- Compare reference vertices/normals and visual fixtures with Linux results.
+- Delivered on macOS Metal: a dedicated secondary vertex buffer carries the canonical four-float
+  bone-index and weight attributes, while a per-draw Metal buffer carries the same three-`float4`
+  LBS or two-`float4` rigid-DQS palette used by the other backends.
+- Generated default MSL variants deform positions and normals before the existing lighting path.
+  Cache identity includes method and exact palette size, custom vertex shaders reject canonical
+  skinning explicitly, and indexed/non-indexed subset offsets bind the matching influence data.
+- Fragment-only custom shaders retain the generated skeletal vertex stage instead of falling back
+  to a static vertex prefix. The Skeletal Animation Editor supplies native MSL heatmap and brush
+  shaders, both covered by a focused Metal compilation test with the 23-bone rigid-DQS variant.
+- The Metal palette uses vertex-buffer slot 19, outside the reserved lighting range 4-18. Metal API
+  validation caught and verified the fix for the original slot-4 collision, where `LightEnabled`
+  replaced the palette with four bytes and visibly distorted every canonical skeletal mesh.
+- Metal capability reporting derives palette capacity from the device's maximum buffer length
+  rather than legacy shader-uniform limits. A five-second Apple M4 production-path smoke animated
+  the committed 23-bone Lorekeeper fixture successfully under both LBS and rigid DQS.
+- An encoded/readback Metal CPU/GPU numeric parity harness remains useful follow-up coverage; the
+  existing GLES harness cannot validate Metal because it is intentionally GLES/FBO-specific.
 
 ### Phase 6 — DirectX 9 validation and delivery
 
@@ -717,8 +732,8 @@ mutate assets, evaluate clips, or deform vertices.
 5. Bind-pose identity, DQS antipodality correction, and explicit scale handling are required
    correctness contracts.
 6. Backend limitations are reported as capabilities and must not silently select another method.
-7. Linux/GLES led implementation; DirectX9 now consumes the same canonical pose and palette
-   contracts, while Metal remains the planned backend milestone.
+7. Linux/GLES led implementation; DirectX9 and Metal now consume the same canonical pose and
+   palette contracts through backend-specific transports.
 8. Existing articulated animation is the UX/domain reference, while skeletal data remains distinct.
 9. Velocity Skinning is a post-LBS/DQS optional extension and is not part of the initial runtime
    delivery gate.
@@ -829,6 +844,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.97 | 2026-08-18 | Fixed Metal's palette/light buffer-slot collision and fragment-only custom shaders bypassing generated skeletal deformation; added native MSL Paint Weights heatmap/brush shaders plus validation-layer LBS/DQS and focused shader tests. |
+| 9.96 | 2026-08-18 | Delivered Metal real-time LBS/rigid-DQS: buffer-backed influences and per-draw palettes, generated MSL deformation with lighting integration, method/palette-aware pipeline caching, measured buffer capacity, and Apple M4 Lorekeeper production-path validation. Metal numeric readback parity remains follow-up coverage. |
 | 9.95 | 2026-08-18 | Audited documentation after Windows delivery. Current-state and editor-preview claims now include DirectX 9, Phase 6 records MSVS/MinGW build wiring and the GLES-only scope of the encoded parity harness, and Metal remains the next backend delivery. |
 | 9.94 | 2026-08-18 | Standardized the shared GPU skinning preparation, palette, capability, and upload contracts. Common mesh management now performs one backend-neutral upload call; OpenGL ES and DirectX9 implement the same private symbol in their own translation units, with no renderer defines in `mesh-manager.cpp`. |
 | 9.93 | 2026-08-18 | Delivered the DirectX9 real-time skinning path: Shader Model 3 generated LBS/rigid-DQS variants, measured constant-based capacities, a secondary influence stream and skeletal vertex declarations, per-instance palette upload, lighting integration, and Debug/Release Lorekeeper production-path validation. |

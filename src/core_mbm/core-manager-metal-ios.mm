@@ -32,6 +32,7 @@
 #include <mesh-manager.h>
 #include <device.h>
 #include "specific-metal-context.h"
+#include "private/skeletal-render-capability.h"
 #include <audio-interface.h>
 #include <util-interface.h>
 
@@ -97,6 +98,10 @@ namespace mbm
             ERROR_LOG("iOS Metal: failed to create MTLCommandQueue.");
             return false;
         }
+        const uint64_t paletteVectors = std::min<uint64_t>(
+            static_cast<uint64_t>(ctx->mtlDevice.maxBufferLength / (4u * sizeof(float))),
+            static_cast<uint64_t>(UINT32_MAX));
+        skeletal::setMeasuredSkinningCapability(static_cast<uint32_t>(paletteVectors), 31u);
 
         // -- Backbuffer dimensions -------------------------------------------
         // MetalViewController sets the backbuffer size from the view's logical

@@ -48,6 +48,7 @@ namespace mbm
     {
         vertexBuffer = nil;
         indexBuffer  = nil;
+        skinVertexBuffer = nil;
         vertexCount  = 0;
         indexCount   = 0;
     }
