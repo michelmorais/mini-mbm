@@ -31,7 +31,7 @@ local state = {
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false, absoluteLayerSelected=1,
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
-        absoluteLayerFadeDuration=0.25},
+        absoluteLayerFadeDuration=0.25, speed=1},
     runtimeLight={enabled=false,
         ambientColor={r=0.16,g=0.16,b=0.2,a=1},
         directionalColor={r=1,g=0.96,b=0.88,a=1},
@@ -2591,6 +2591,7 @@ local function rebuildPreview(sourcePath)
         local preview=mesh:new('3d')
         if not preview:setSkeletalSkinningMethod(method) then preview:destroy(); return nil end
         if not preview:load(sourcePath) then preview:destroy(); return nil end
+        preview:setSkeletalAnimationPlaybackSpeed(playback.speed)
         preview:setPos(x,0,0)
         preview.visible=state.meshVisible
         return preview
@@ -2792,6 +2793,20 @@ local function showSkeletalPreviewControls()
         end
     end
     tImGui.EndDisabled()
+    tImGui.PushItemWidth(110)
+    local speedChanged,speed=tImGui.DragFloat(tLang.L('swl_animation_playback_speed')..
+        '##swlRuntimeSpeed',playback.speed,0.05,0.05,4,'%.2fx')
+    tImGui.PopItemWidth()
+    if speedChanged then
+        speed=math.max(0.05,math.min(4,speed))
+        if state.preview:setSkeletalAnimationPlaybackSpeed(speed) then
+            playback.speed=speed
+            if state.comparisonPreview then
+                state.comparisonPreview:setSkeletalAnimationPlaybackSpeed(speed)
+            end
+        end
+    end
+    showItemTooltip(tLang.L('swl_runtime_speed_help'))
     local time=state.preview:getSkeletalAnimationTime() or 0
     tImGui.PushItemWidth(240)
     local seekChanged,seekTime=tImGui.SliderFloat(tLang.L('swl_preview_time'),time,

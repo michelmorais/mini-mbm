@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.86**
+Document version: **9.87**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -811,6 +811,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.87 | 2026-08-17 | Added a finite non-negative per-instance skeletal speed multiplier, Lua set/get access, and a `0.05x..4x` Runtime Preview control matching animation authoring. The multiplier scales one delta shared by base clip, Absolute layer, and fade, remains stable across preview rebuilds, and does not replace explicit pause state. |
 | 9.86 | 2026-08-17 | Added linear timed fade state to the transient Absolute layer, including pause-aware progress, exact target clamp, automatic removal at zero, Lua fade/current-weight methods, and Runtime Preview duration plus Fade to Base/Layer controls. Deterministic tests cover temporal math; a new graphical smoke could not initialize under the current X11 session and is explicitly not treated as passed. Curves, queues, independent pause, priorities, masks, and Additive composition remain pending. |
 | 9.85 | 2026-08-17 | Exposed the one-layer Absolute runtime through documented Lua methods and Runtime Skeletal Preview controls. The editor selects/enables a layer clip, edits strict weight and independent time, mirrors it into pose-stress LBS/DQS comparison, and labels its shared pause and non-persistent scope. A real headless Lorekeeper Lua smoke exercised play, weight, seek, time query, and stop successfully. |
 | 9.84 | 2026-08-17 | Connected the Absolute compositor to a first transient per-instance C++ runtime layer. A player can now evaluate one base clip and one independently timed/seekable weighted layer into a single final LBS or DQS palette; playback mutations are transactional, base switching preserves an active layer, and base stop or authoring-palette installation clears it. The state is not serialized, pause/resume is shared, and Lua/editor controls, fades, masks, priority, and Additive composition remain pending. |

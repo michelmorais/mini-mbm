@@ -593,7 +593,9 @@ manufacture a legacy skeleton. Assets containing only exploratory skeletal secti
 re-imported from FBX.
 
 Open **Runtime Skeletal Preview** to select a canonical clip, play or restart it, pause/resume,
-seek by time, or explicitly return the mesh to bind pose. Choose Auto, LBS, or rigid DQS in the same panel;
+seek by time, change the shared `0.05x..4x` playback speed, or explicitly return the mesh to bind
+pose. Speed advances the base clip, Absolute layer, and active fade from the same scaled delta.
+Choose Auto, LBS, or rigid DQS in the same panel;
 changing it rebuilds the preview so the method is selected before mesh loading and shader creation.
 Auto selects DQS only if bind and all clips use unit scale; otherwise it selects LBS and shows the
 reason. The panel reports requested/resolved methods and explains the limits directly: how many bones this mesh requires and the

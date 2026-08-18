@@ -359,6 +359,21 @@ namespace mbm
         return 1;
     }
 
+    int onSetSkeletalAnimationPlaybackSpeedLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->setSkeletalAnimationPlaybackSpeed(
+            static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationPlaybackSpeedLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushnumber(lua, mesh->getSkeletalAnimationPlaybackSpeed());
+        return 1;
+    }
+
     int onPlaySkeletalAnimationAbsoluteLayerLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -496,6 +511,8 @@ namespace mbm
                                                      {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
                                                      {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
                                                      {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
+                                                     {"setSkeletalAnimationPlaybackSpeed", onSetSkeletalAnimationPlaybackSpeedLua},
+                                                     {"getSkeletalAnimationPlaybackSpeed", onGetSkeletalAnimationPlaybackSpeedLua},
                                                      {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
                                                      {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
                                                      {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
@@ -567,6 +584,8 @@ namespace mbm
                                                          {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
                                                          {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
                                                          {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
+                                                         {"setSkeletalAnimationPlaybackSpeed", onSetSkeletalAnimationPlaybackSpeedLua},
+                                                         {"getSkeletalAnimationPlaybackSpeed", onGetSkeletalAnimationPlaybackSpeedLua},
                                                          {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
                                                          {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
                                                          {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},

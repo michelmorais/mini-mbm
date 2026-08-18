@@ -74,6 +74,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool stopSkeletalAnimation() noexcept;
     API_IMPL bool seekSkeletalAnimation(float time);
     API_IMPL bool getSkeletalAnimationTime(float *time) const noexcept;
+    API_IMPL bool setSkeletalAnimationPlaybackSpeed(float speed) noexcept;
+    API_IMPL float getSkeletalAnimationPlaybackSpeed() const noexcept;
     // Transient per-instance second clip. It is composed over the base clip in parent-relative
     // local TRS with strict Absolute weight [0,1] and is never serialized into the mesh asset.
     API_IMPL bool playSkeletalAnimationAbsoluteLayer(const char *name, float weight);

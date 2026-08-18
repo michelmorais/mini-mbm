@@ -251,6 +251,17 @@ namespace mbm
         return mesh ? mesh->getSkeletalAnimationTime(getSkeletalAnimationPlayer(), time) : false;
     }
 
+    bool MESH::setSkeletalAnimationPlaybackSpeed(const float speed) noexcept
+    {
+        return mesh ? mesh->setSkeletalAnimationPlaybackSpeed(
+            getSkeletalAnimationPlayer(), speed) : false;
+    }
+
+    float MESH::getSkeletalAnimationPlaybackSpeed() const noexcept
+    {
+        return mesh ? mesh->getSkeletalAnimationPlaybackSpeed(getSkeletalAnimationPlayer()) : 1.0f;
+    }
+
     bool MESH::playSkeletalAnimationAbsoluteLayer(const char *name, const float weight)
     {
         return mesh ? mesh->playSkeletalAnimationAbsoluteLayer(

@@ -62,6 +62,7 @@ namespace mbm
         float absoluteLayerFadeElapsed = 0.0f;
         bool absoluteLayerFadeActive = false;
         bool absoluteLayerActive = false;
+        float playbackSpeed = 1.0f;
         bool active = false;
         bool paused = false;
         SKELETAL_SHADER_METHOD requestedSkinningMethod = SKELETAL_SHADER_METHOD::LBS;

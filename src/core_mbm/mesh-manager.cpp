@@ -1228,6 +1228,7 @@ namespace mbm
         impl->absoluteLayerFadeElapsed = 0.0f;
         impl->absoluteLayerFadeActive = false;
         impl->absoluteLayerActive = false;
+        impl->playbackSpeed = 1.0f;
         impl->active = false;
         impl->paused = false;
         impl->paletteRows.clear();
@@ -8128,6 +8129,21 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM::setSkeletalAnimationPlaybackSpeed(SKELETAL_ANIMATION_PLAYER &player,
+                                                       const float speed) const noexcept
+    {
+        if (!std::isfinite(speed) || speed < 0.0f)
+            return false;
+        player.impl->playbackSpeed = speed;
+        return true;
+    }
+
+    float MESH_MBM::getSkeletalAnimationPlaybackSpeed(
+        const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->playbackSpeed;
+    }
+
     bool MESH_MBM::playSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
                                                         const char *name, const float weight) const
     {
@@ -8296,6 +8312,9 @@ namespace mbm
         if (!player.impl->active || !std::isfinite(delta) || delta < 0.0f ||
             player.impl->clipIndex >= impl->canonicalAnimations.clips.size())
             return false;
+        const float scaledDelta = delta * player.impl->playbackSpeed;
+        if (!std::isfinite(scaledDelta))
+            return false;
         const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
         float evaluatedBaseTime = player.impl->time;
         float evaluatedLayerTime = player.impl->absoluteLayerTime;
@@ -8303,9 +8322,9 @@ namespace mbm
         float evaluatedFadeElapsed = player.impl->absoluteLayerFadeElapsed;
         bool evaluatedFadeActive = player.impl->absoluteLayerFadeActive;
         bool removeCompletedLayer = false;
-        if (!player.impl->paused && delta > 0.0f)
+        if (!player.impl->paused && scaledDelta > 0.0f)
         {
-            if (!skeletal::advanceSkeletalClipTime(clip, delta, evaluatedBaseTime))
+            if (!skeletal::advanceSkeletalClipTime(clip, scaledDelta, evaluatedBaseTime))
                 return false;
         }
         const skeletal::SKELETAL_CLIP *absoluteLayer = nullptr;
@@ -8314,9 +8333,9 @@ namespace mbm
             if (player.impl->absoluteLayerClipIndex >= impl->canonicalAnimations.clips.size())
                 return false;
             absoluteLayer = &impl->canonicalAnimations.clips[player.impl->absoluteLayerClipIndex];
-            if (!player.impl->paused && delta > 0.0f)
+            if (!player.impl->paused && scaledDelta > 0.0f)
             {
-                if (!skeletal::advanceSkeletalClipTime(*absoluteLayer, delta,
+                if (!skeletal::advanceSkeletalClipTime(*absoluteLayer, scaledDelta,
                         evaluatedLayerTime))
                     return false;
                 if (evaluatedFadeActive)
@@ -8325,7 +8344,7 @@ namespace mbm
                     if (!skeletal::advanceSkeletalAbsoluteFade(
                             player.impl->absoluteLayerFadeStartWeight,
                             player.impl->absoluteLayerFadeTargetWeight,
-                            player.impl->absoluteLayerFadeDuration, delta,
+                            player.impl->absoluteLayerFadeDuration, scaledDelta,
                             evaluatedFadeElapsed, evaluatedLayerWeight, fadeComplete))
                         return false;
                     if (fadeComplete)

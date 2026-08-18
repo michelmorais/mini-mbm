@@ -583,7 +583,8 @@ and the layer is never serialized into the mesh asset. Choose `"lbs"` (the engin
 rigid `"dqs"`, or `"auto"` before `load`. Auto resolves once to DQS only when bind and every clip
 contain unit scale; otherwise it resolves to LBS. Changing method after load returns `false`, because
 the resolved method is part of the compiled default-shader variant. The Absolute layer supports a
-linear timed fade; speed, transition curves/queues, priorities, Additive layers, masks, completion
+linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
+and fade. Transition curves/queues, priorities, Additive layers, masks, completion
 callbacks, and non-GLES backends remain future work. LBS compact normals reject negative scale, shear, or non-uniform scale;
 rigid DQS rejects any scale/shear.
 
@@ -602,6 +603,8 @@ rigid DQS rejects any scale/shear.
 | `obj:stopSkeletalAnimation` | `()` | bool | Stop the active clip and restore bind-pose deformation |
 | `obj:seekSkeletalAnimation` | `(time)` | bool | Seek the active clip, clamped to its duration |
 | `obj:getSkeletalAnimationTime` | `()` | number or nil | Current time, or `nil` when inactive |
+| `obj:setSkeletalAnimationPlaybackSpeed` | `(speed)` | bool | Set a finite non-negative per-instance multiplier shared by base clip, Absolute layer, and fade; `0` freezes temporal progress without changing pause state |
+| `obj:getSkeletalAnimationPlaybackSpeed` | `()` | number | Current multiplier; defaults to `1` |
 | `obj:playSkeletalAnimationAbsoluteLayer` | `(name, weight)` | bool | Start or replace the transient second clip at time zero with strict Absolute weight `0..1`; requires an active base clip |
 | `obj:stopSkeletalAnimationAbsoluteLayer` | `()` | bool | Remove the transient layer while preserving the base clip |
 | `obj:seekSkeletalAnimationAbsoluteLayer` | `(time)` | bool | Seek the layer independently, clamped to its clip duration |
@@ -618,6 +621,7 @@ assert(character:load("character-walk.msh"))
 local report = character:getSkeletalSkinningReport()
 print(report.requestedMethod, report.resolvedMethod, report.resolutionReason)
 assert(character:playSkeletalAnimation("Walk"))
+assert(character:setSkeletalAnimationPlaybackSpeed(0.5))
 assert(character:playSkeletalAnimationAbsoluteLayer("LookAround", 0.35))
 character:seekSkeletalAnimationAbsoluteLayer(0.2)
 character:setSkeletalAnimationAbsoluteLayerWeight(0.5)
