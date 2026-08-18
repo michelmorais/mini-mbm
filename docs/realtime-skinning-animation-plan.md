@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.103**
+Document version: **9.104**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -550,7 +550,7 @@ mutate assets, evaluate clips, or deform vertices.
   player advanced while the other stayed at `0.5s` paused, then resumed, despite both sharing the
   same cached asset/program. Blending, speed, completion callbacks, and other backends were
   deliberately outside that initial player slice; speed and one transient composition layer were
-  delivered later, while completion callbacks remained pending.
+  delivered later. Completion callbacks remained pending in that slice and were delivered in 9.104.
 - The Skeletal Animation Editor now drives that same per-instance runtime player on its preview
   mesh. It exposes clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber;
   the deformation is therefore the real active-backend LBS/DQS result rather than an editor-side pose copy. The
@@ -861,6 +861,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.104 | 2026-08-18 | Connected non-looping skeletal base and layer completion to the existing `onEndAnim(obj, clipName)` surface. Per-player one-shot state prevents repeated callbacks at the clamped end pose, rearms on replay or backward seek, advances while culled, and excludes loops, pause, and seek-only changes. |
 | 9.103 | 2026-08-18 | Made the attachment query directly consumable by renderizables by returning engine-order Euler XYZ radians as `angle`, while retaining normalized quaternion and matrix copy-outs. Runtime Preview's evaluated-skeleton checkbox now appears among the first controls and is no longer disabled by the absence of a second clip. |
 | 9.102 | 2026-08-18 | Added `mesh:getSkeletalBoneTransform(name, space)` for gameplay attachments. Exact canonical-name lookup reads the active player's final base-plus-layer evaluated pose; model space is available directly and world space composes the mesh transform, returning copy-out position, normalized quaternion, scale, and matrix. |
 | 9.101 | 2026-08-18 | Exposed a read-only copy-out of the active player's final evaluated global bone transforms and connected Runtime Preview's mask skeleton to that pose. Existing joints and line segments now follow base-plus-layer animation every frame without CPU vertex deformation or additional GPU work. |

@@ -79,6 +79,26 @@ namespace
                "TRS decomposition must reconstruct the original matrix");
     }
 
+    void testSkeletalCompletionNotification()
+    {
+        SKELETAL_CLIP clip;
+        clip.duration = 1.0f;
+        clip.loop = false;
+        expect(shouldNotifySkeletalClipCompletion(clip, 0.1f, 1.0f, false),
+               "non-looping skeletal clip must notify once at its end");
+        expect(!shouldNotifySkeletalClipCompletion(clip, 0.1f, 1.0f, true),
+               "completed skeletal clip must not notify repeatedly");
+        expect(!shouldNotifySkeletalClipCompletion(clip, 0.0f, 1.0f, false),
+               "seek-only evaluation must not notify skeletal completion");
+        clip.loop = true;
+        expect(!shouldNotifySkeletalClipCompletion(clip, 0.1f, 1.0f, false),
+               "looping skeletal clip must not notify completion");
+        clip.loop = false;
+        clip.duration = 0.0f;
+        expect(shouldNotifySkeletalClipCompletion(clip, 0.1f, 0.0f, false),
+               "zero-duration non-looping skeletal clip must notify on its first advancing update");
+    }
+
 
     void testCanonicalSkeletonCompilation()
     {
@@ -1597,6 +1617,7 @@ int runSkeletalFoundationTests()
 {
     failures = 0;
     testTrsRoundTrip();
+    testSkeletalCompletionNotification();
     testCanonicalSkeletonCompilation();
     testAbsolutePoseComposition();
     testUniformCanonicalAssetScale();

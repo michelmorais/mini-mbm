@@ -286,6 +286,9 @@ namespace mbm::skeletal
                                             const std::vector<float> &boneMask,
                                             SKELETAL_POSE &out) noexcept;
     bool advanceSkeletalClipTime(const SKELETAL_CLIP &clip, float delta, float &time) noexcept;
+    bool shouldNotifySkeletalClipCompletion(const SKELETAL_CLIP &clip, float scaledDelta,
+                                            float evaluatedTime,
+                                            bool completionNotified) noexcept;
     bool advanceSkeletalAbsoluteFade(float startWeight, float targetWeight, float duration,
                                      float delta, float &elapsed, float &weight,
                                      bool &complete) noexcept;

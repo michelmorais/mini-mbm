@@ -754,7 +754,9 @@ namespace mbm
                                          uint32_t rowCount, const uint64_t *orderedBoneIds,
                                          uint32_t boneIdCount, float time, char *errorOut,
                                          int errorOutLen) const noexcept;
-        bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta) const;
+        bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta,
+                                     RENDERIZABLE *owner = nullptr,
+                                     OnEndAnimation onEndAnimation = nullptr) const;
         bool playSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player, const char *name,
                                         float weight, bool additive) const;
         bool renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player, uint32_t indexFrame,

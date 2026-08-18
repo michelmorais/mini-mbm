@@ -541,7 +541,7 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
 | `obj:restartAnim` | `()` | — | Restart animation from frame 1 |
 | `obj:isEndedAnim` | `()` | bool | Whether a non-looping animation has finished |
-| `obj:onEndAnim` | `(callback)` | — | Call `callback(obj, animationName)` once when a non-looping frame animation or articulated clip ends |
+| `obj:onEndAnim` | `(callback)` | — | Call `callback(obj, animationName)` once when a non-looping frame, articulated, skeletal base, or skeletal layer clip ends through normal playback. Looping clips, pause, and an isolated seek do not emit completion. |
 | `obj:onEndFx` | `(callback)` | — | Call `callback()` when shader effect ends |
 | `obj:setTypeAnim` | `(type: int)` | — | Set animation loop type using `mbm.*` constants |
 | `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
@@ -584,8 +584,8 @@ rigid `"dqs"`, or `"auto"` before `load`. Auto resolves once to DQS only when bi
 contain unit scale; otherwise it resolves to LBS. Changing method after load returns `false`, because
 the resolved method is part of the compiled default-shader variant. The Absolute layer supports a
 linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
-and fade. Transition curves/queues, priorities, bone masks, completion callbacks, and Metal
-support remain future work. OpenGL ES and DirectX9 provide the current GPU paths. LBS compact
+and fade. Per-bone masks, completion callbacks, and Metal are delivered; transition curves/queues
+and priorities remain future work. OpenGL ES, DirectX9, and Metal provide the current GPU paths. LBS compact
 normals reject negative scale, shear, or non-uniform scale;
 rigid DQS rejects any scale/shear.
 
@@ -1819,6 +1819,11 @@ A non-looping articulated clip invokes the same callback registered by `obj:onEn
 when it reaches its duration. The callback receives the renderizable object and the articulated
 clip name. Looping clips do not emit this completion callback. If multiple active clips finish in
 the same update, the callback is invoked once for each finished clip.
+
+Non-looping skeletal base and transient layer clips use that same callback and clip-name argument.
+They emit once when normal playback reaches the clamped end pose, including while the mesh is
+culled. Replay or seeking backward rearms completion; looping clips, pause, and seek alone do not
+emit it.
 
 ```lua
 car:playArticulatedAnimation("wheel_spin", 10, 0.5, 0.75)

@@ -68,6 +68,8 @@ namespace mbm
         float playbackSpeed = 1.0f;
         bool active = false;
         bool paused = false;
+        bool baseCompletionNotified = false;
+        bool layerCompletionNotified = false;
         SKELETAL_SHADER_METHOD requestedSkinningMethod = SKELETAL_SHADER_METHOD::LBS;
         SKELETAL_SHADER_METHOD resolvedSkinningMethod = SKELETAL_SHADER_METHOD::LBS;
         const char *skinningResolutionReason = "explicit-lbs";

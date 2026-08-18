@@ -1232,6 +1232,8 @@ namespace mbm
         impl->playbackSpeed = 1.0f;
         impl->active = false;
         impl->paused = false;
+        impl->baseCompletionNotified = false;
+        impl->layerCompletionNotified = false;
         impl->paletteRows.clear();
         impl->evaluatedGlobalTransforms.clear();
         impl->authoringPose = false;
@@ -8047,11 +8049,13 @@ namespace mbm
                 const float previousTime = player.impl->time;
                 const bool previousActive = player.impl->active;
                 const bool previousPaused = player.impl->paused;
+                const bool previousCompletionNotified = player.impl->baseCompletionNotified;
                 const bool previousAuthoringPose = player.impl->authoringPose;
                 player.impl->clipIndex = i;
                 player.impl->time = 0.0f;
                 player.impl->active = true;
                 player.impl->paused = false;
+                player.impl->baseCompletionNotified = false;
                 player.impl->authoringPose = false;
                 if (updateSkeletalAnimation(player, 0.0f))
                     return true;
@@ -8059,6 +8063,7 @@ namespace mbm
                 player.impl->time = previousTime;
                 player.impl->active = previousActive;
                 player.impl->paused = previousPaused;
+                player.impl->baseCompletionNotified = previousCompletionNotified;
                 player.impl->authoringPose = previousAuthoringPose;
                 return false;
             }
@@ -8107,6 +8112,8 @@ namespace mbm
         player.impl->layerBoneMask.clear();
         player.impl->active = false;
         player.impl->paused = false;
+        player.impl->baseCompletionNotified = false;
+        player.impl->layerCompletionNotified = false;
         player.impl->paletteRows.clear();
         player.impl->evaluatedGlobalTransforms.clear();
         player.impl->authoringPose = false;
@@ -8120,10 +8127,14 @@ namespace mbm
             return false;
         const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
         const float previousTime = player.impl->time;
+        const bool previousCompletionNotified = player.impl->baseCompletionNotified;
         player.impl->time = std::max(0.0f, std::min(clip.duration, time));
+        if (player.impl->time < clip.duration)
+            player.impl->baseCompletionNotified = false;
         if (updateSkeletalAnimation(player, 0.0f))
             return true;
         player.impl->time = previousTime;
+        player.impl->baseCompletionNotified = previousCompletionNotified;
         return false;
     }
 
@@ -8185,6 +8196,7 @@ namespace mbm
                 const bool previousActive = player.impl->absoluteLayerActive;
                 const bool previousAdditive = player.impl->additiveLayer;
                 const bool previousLayerPaused = player.impl->layerPaused;
+                const bool previousCompletionNotified = player.impl->layerCompletionNotified;
                 player.impl->absoluteLayerClipIndex = index;
                 player.impl->absoluteLayerTime = 0.0f;
                 player.impl->absoluteLayerWeight = weight;
@@ -8196,6 +8208,7 @@ namespace mbm
                 player.impl->absoluteLayerActive = true;
                 player.impl->additiveLayer = additive;
                 player.impl->layerPaused = false;
+                player.impl->layerCompletionNotified = false;
                 if (updateSkeletalAnimation(player, 0.0f)) return true;
                 player.impl->absoluteLayerClipIndex = previousIndex;
                 player.impl->absoluteLayerTime = previousTime;
@@ -8208,6 +8221,7 @@ namespace mbm
                 player.impl->absoluteLayerActive = previousActive;
                 player.impl->additiveLayer = previousAdditive;
                 player.impl->layerPaused = previousLayerPaused;
+                player.impl->layerCompletionNotified = previousCompletionNotified;
                 return false;
             }
         }
@@ -8250,6 +8264,7 @@ namespace mbm
         const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
         const bool previousAdditive = player.impl->additiveLayer;
         const bool previousLayerPaused = player.impl->layerPaused;
+        const bool previousCompletionNotified = player.impl->layerCompletionNotified;
         player.impl->absoluteLayerClipIndex = UINT32_MAX;
         player.impl->absoluteLayerTime = 0.0f;
         player.impl->absoluteLayerWeight = 0.0f;
@@ -8261,6 +8276,7 @@ namespace mbm
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
         player.impl->layerPaused = false;
+        player.impl->layerCompletionNotified = false;
         if (updateSkeletalAnimation(player, 0.0f)) return true;
         player.impl->absoluteLayerClipIndex = previousIndex;
         player.impl->absoluteLayerTime = previousTime;
@@ -8273,6 +8289,7 @@ namespace mbm
         player.impl->absoluteLayerActive = true;
         player.impl->additiveLayer = previousAdditive;
         player.impl->layerPaused = previousLayerPaused;
+        player.impl->layerCompletionNotified = previousCompletionNotified;
         return false;
     }
 
@@ -8285,9 +8302,13 @@ namespace mbm
         const skeletal::SKELETAL_CLIP &clip =
             impl->canonicalAnimations.clips[player.impl->absoluteLayerClipIndex];
         const float previousTime = player.impl->absoluteLayerTime;
+        const bool previousCompletionNotified = player.impl->layerCompletionNotified;
         player.impl->absoluteLayerTime = std::max(0.0f, std::min(clip.duration, time));
+        if (player.impl->absoluteLayerTime < clip.duration)
+            player.impl->layerCompletionNotified = false;
         if (updateSkeletalAnimation(player, 0.0f)) return true;
         player.impl->absoluteLayerTime = previousTime;
+        player.impl->layerCompletionNotified = previousCompletionNotified;
         return false;
     }
 
@@ -8491,7 +8512,9 @@ namespace mbm
         return true;
     }
 
-    bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta) const
+    bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta,
+                                            RENDERIZABLE *owner,
+                                            OnEndAnimation onEndAnimation) const
     {
         if (player.impl->authoringPose)
             return player.impl->active && !player.impl->paletteRows.empty();
@@ -8508,10 +8531,15 @@ namespace mbm
         float evaluatedFadeElapsed = player.impl->absoluteLayerFadeElapsed;
         bool evaluatedFadeActive = player.impl->absoluteLayerFadeActive;
         bool removeCompletedLayer = false;
+        bool notifyBaseCompletion = false;
+        bool notifyLayerCompletion = false;
         if (!player.impl->paused && scaledDelta > 0.0f)
         {
             if (!skeletal::advanceSkeletalClipTime(clip, scaledDelta, evaluatedBaseTime))
                 return false;
+            notifyBaseCompletion = skeletal::shouldNotifySkeletalClipCompletion(
+                clip, scaledDelta, evaluatedBaseTime,
+                player.impl->baseCompletionNotified);
         }
         const skeletal::SKELETAL_CLIP *absoluteLayer = nullptr;
         if (player.impl->absoluteLayerActive)
@@ -8524,6 +8552,9 @@ namespace mbm
                 if (!skeletal::advanceSkeletalClipTime(*absoluteLayer, scaledDelta,
                         evaluatedLayerTime))
                     return false;
+                notifyLayerCompletion = skeletal::shouldNotifySkeletalClipCompletion(
+                    *absoluteLayer, scaledDelta, evaluatedLayerTime,
+                    player.impl->layerCompletionNotified);
                 if (evaluatedFadeActive)
                 {
                     bool fadeComplete = false;
@@ -8585,6 +8616,8 @@ namespace mbm
                      paletteRows) != skeletal::LBS_PALETTE_STATUS::READY)
             return false;
         player.impl->time = evaluatedBaseTime;
+        if (notifyBaseCompletion)
+            player.impl->baseCompletionNotified = true;
         if (removeCompletedLayer)
         {
             player.impl->absoluteLayerClipIndex = UINT32_MAX;
@@ -8598,6 +8631,7 @@ namespace mbm
             player.impl->absoluteLayerActive = false;
             player.impl->additiveLayer = false;
             player.impl->layerPaused = false;
+            player.impl->layerCompletionNotified = false;
         }
         else
         {
@@ -8605,9 +8639,21 @@ namespace mbm
             player.impl->absoluteLayerWeight = evaluatedLayerWeight;
             player.impl->absoluteLayerFadeElapsed = evaluatedFadeElapsed;
             player.impl->absoluteLayerFadeActive = evaluatedFadeActive;
+            if (notifyLayerCompletion)
+                player.impl->layerCompletionNotified = true;
         }
         player.impl->paletteRows = std::move(paletteRows);
         player.impl->evaluatedGlobalTransforms = std::move(pose.globalTransforms);
+        if (owner && onEndAnimation)
+        {
+            if (notifyBaseCompletion)
+                onEndAnimation(clip.name.c_str(), owner);
+            if (notifyLayerCompletion && absoluteLayer)
+            {
+                const std::string layerName = absoluteLayer->name;
+                onEndAnimation(layerName.c_str(), owner);
+            }
+        }
         return true;
     }
 
@@ -8675,6 +8721,8 @@ namespace mbm
         player.impl->time = time;
         player.impl->active = true;
         player.impl->paused = true;
+        player.impl->baseCompletionNotified = false;
+        player.impl->layerCompletionNotified = false;
         player.impl->authoringPose = true;
         return true;
     }

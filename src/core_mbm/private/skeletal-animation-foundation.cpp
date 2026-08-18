@@ -844,6 +844,16 @@ namespace mbm::skeletal
         return true;
     }
 
+    bool shouldNotifySkeletalClipCompletion(const SKELETAL_CLIP &clip,
+                                             const float scaledDelta,
+                                             const float evaluatedTime,
+                                             const bool completionNotified) noexcept
+    {
+        return !clip.loop && !completionNotified && std::isfinite(scaledDelta) &&
+            scaledDelta > 0.0f && std::isfinite(evaluatedTime) &&
+            evaluatedTime >= clip.duration;
+    }
+
     bool composeSkeletalPosesAdditive(const COMPILED_SKELETON &skeleton,
                                       const SKELETAL_POSE &basePose,
                                       const SKELETAL_POSE &layerPose,

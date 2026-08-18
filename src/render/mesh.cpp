@@ -452,7 +452,9 @@ namespace mbm
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
             const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
             const bool hasSkeletal = this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer());
-            if (hasSkeletal && !this->mesh->updateSkeletalAnimation(this->getSkeletalAnimationPlayer(), device->delta))
+            if (hasSkeletal && !this->mesh->updateSkeletalAnimation(
+                    this->getSkeletalAnimationPlayer(), device->delta, this,
+                    this->getOnEndAnimation()))
                 return false;
             const bool rendered = hasSkeletal
                 ? this->mesh->renderSkeletal(this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader, this)
@@ -501,7 +503,9 @@ namespace mbm
                 this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
                                                          this, this->getOnEndAnimation());
                 if (this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer()))
-                    this->mesh->updateSkeletalAnimation(this->getSkeletalAnimationPlayer(), device->delta);
+                    this->mesh->updateSkeletalAnimation(this->getSkeletalAnimationPlayer(),
+                                                         device->delta, this,
+                                                         this->getOnEndAnimation());
             }
             return ret;
         }
