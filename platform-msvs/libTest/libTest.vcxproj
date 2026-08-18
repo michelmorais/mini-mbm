@@ -170,7 +170,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup>
     <Link>
-      <AdditionalDependencies Condition="'$(MbmBackend)'=='OpenGLES'">libGLESv2.dll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- The GLES parity test source is always part of libTest, even when the engine backend is DirectX9. -->
+      <AdditionalDependencies>libGLESv2.dll.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
