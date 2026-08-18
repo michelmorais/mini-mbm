@@ -52,6 +52,7 @@ int main(int argc, char** argv)
         return runSkeletalFoundationTests();
 
     GAME game;
+#if defined(USE_OPENGL_ES)
     if (argc == 2 && std::strcmp(argv[1], "--gles-dqs-shader-test") == 0)
     {
         game.myScene.testGlesDqsShader = true;
@@ -62,7 +63,9 @@ int main(int argc, char** argv)
         game.myScene.testGlesSkeletalParity = true;
         game.myScene.testTimeoutSeconds = 1.0f;
     }
-    else if (argc > 1)
+    else
+#endif
+    if (argc > 1)
     {
         const float seconds = static_cast<float>(std::atof(argv[1]));
         if (seconds > 0.0f)

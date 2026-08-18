@@ -146,6 +146,7 @@ void MY_SCENE::onInitScene()
 
     util::addPath(__FILE__);
 
+#if defined(USE_OPENGL_ES)
     if (testGlesDqsShader)
     {
         mbm::SHADER shader;
@@ -167,6 +168,7 @@ void MY_SCENE::onInitScene()
         device->setRun(false);
         return;
     }
+#endif
 
     this->fontDrawNoShader = new mbm::FONT_DRAW(this);
     float heightLetter   = 0;
