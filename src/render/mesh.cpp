@@ -274,6 +274,21 @@ namespace mbm
             getSkeletalAnimationPlayer(), name, weight) : false;
     }
 
+    bool MESH::pauseSkeletalAnimationLayer() noexcept
+    {
+        return mesh ? mesh->pauseSkeletalAnimationLayer(getSkeletalAnimationPlayer()) : false;
+    }
+
+    bool MESH::resumeSkeletalAnimationLayer() noexcept
+    {
+        return mesh ? mesh->resumeSkeletalAnimationLayer(getSkeletalAnimationPlayer()) : false;
+    }
+
+    bool MESH::isSkeletalAnimationLayerPaused() const noexcept
+    {
+        return mesh ? mesh->isSkeletalAnimationLayerPaused(getSkeletalAnimationPlayer()) : false;
+    }
+
     bool MESH::stopSkeletalAnimationAbsoluteLayer() noexcept
     {
         return mesh ? mesh->stopSkeletalAnimationAbsoluteLayer(getSkeletalAnimationPlayer()) : false;

@@ -390,6 +390,27 @@ namespace mbm
         return 1;
     }
 
+    int onPauseSkeletalAnimationLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->pauseSkeletalAnimationLayer() ? 1 : 0);
+        return 1;
+    }
+
+    int onResumeSkeletalAnimationLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->resumeSkeletalAnimationLayer() ? 1 : 0);
+        return 1;
+    }
+
+    int onIsSkeletalAnimationLayerPausedLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->isSkeletalAnimationLayerPaused() ? 1 : 0);
+        return 1;
+    }
+
     int onStopSkeletalAnimationAbsoluteLayerLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -523,6 +544,9 @@ namespace mbm
                                                      {"getSkeletalAnimationPlaybackSpeed", onGetSkeletalAnimationPlaybackSpeedLua},
                                                      {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
                                                      {"playSkeletalAnimationAdditiveLayer", onPlaySkeletalAnimationAdditiveLayerLua},
+                                                     {"pauseSkeletalAnimationLayer", onPauseSkeletalAnimationLayerLua},
+                                                     {"resumeSkeletalAnimationLayer", onResumeSkeletalAnimationLayerLua},
+                                                     {"isSkeletalAnimationLayerPaused", onIsSkeletalAnimationLayerPausedLua},
                                                      {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
                                                      {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
                                                      {"setSkeletalAnimationAbsoluteLayerWeight", onSetSkeletalAnimationAbsoluteLayerWeightLua},
@@ -597,6 +621,9 @@ namespace mbm
                                                          {"getSkeletalAnimationPlaybackSpeed", onGetSkeletalAnimationPlaybackSpeedLua},
                                                          {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
                                                          {"playSkeletalAnimationAdditiveLayer", onPlaySkeletalAnimationAdditiveLayerLua},
+                                                         {"pauseSkeletalAnimationLayer", onPauseSkeletalAnimationLayerLua},
+                                                         {"resumeSkeletalAnimationLayer", onResumeSkeletalAnimationLayerLua},
+                                                         {"isSkeletalAnimationLayerPaused", onIsSkeletalAnimationLayerPausedLua},
                                                          {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
                                                          {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
                                                          {"setSkeletalAnimationAbsoluteLayerWeight", onSetSkeletalAnimationAbsoluteLayerWeightLua},

@@ -63,6 +63,7 @@ namespace mbm
         bool absoluteLayerFadeActive = false;
         bool absoluteLayerActive = false;
         bool additiveLayer = false;
+        bool layerPaused = false;
         float playbackSpeed = 1.0f;
         bool active = false;
         bool paused = false;

@@ -80,6 +80,9 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     // [0,1]. Absolute and bind-relative Additive modes are explicit and never serialized.
     API_IMPL bool playSkeletalAnimationAbsoluteLayer(const char *name, float weight);
     API_IMPL bool playSkeletalAnimationAdditiveLayer(const char *name, float weight);
+    API_IMPL bool pauseSkeletalAnimationLayer() noexcept;
+    API_IMPL bool resumeSkeletalAnimationLayer() noexcept;
+    API_IMPL bool isSkeletalAnimationLayerPaused() const noexcept;
     API_IMPL bool stopSkeletalAnimationAbsoluteLayer() noexcept;
     API_IMPL bool seekSkeletalAnimationAbsoluteLayer(float time);
     API_IMPL bool setSkeletalAnimationAbsoluteLayerWeight(float weight);

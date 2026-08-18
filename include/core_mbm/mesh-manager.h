@@ -711,6 +711,10 @@ namespace mbm
                                                 const char *name, float weight) const;
         bool playSkeletalAnimationAdditiveLayer(SKELETAL_ANIMATION_PLAYER &player,
                                                 const char *name, float weight) const;
+        bool pauseSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool resumeSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool isSkeletalAnimationLayerPaused(
+            const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool stopSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player) const;
         bool seekSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player, float time) const;
         bool setSkeletalAnimationAbsoluteLayerWeight(SKELETAL_ANIMATION_PLAYER &player,

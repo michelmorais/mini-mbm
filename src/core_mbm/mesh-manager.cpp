@@ -1229,6 +1229,7 @@ namespace mbm
         impl->absoluteLayerFadeActive = false;
         impl->absoluteLayerActive = false;
         impl->additiveLayer = false;
+        impl->layerPaused = false;
         impl->playbackSpeed = 1.0f;
         impl->active = false;
         impl->paused = false;
@@ -8101,6 +8102,7 @@ namespace mbm
         player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
+        player.impl->layerPaused = false;
         player.impl->active = false;
         player.impl->paused = false;
         player.impl->paletteRows.clear();
@@ -8179,6 +8181,7 @@ namespace mbm
                 const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
                 const bool previousActive = player.impl->absoluteLayerActive;
                 const bool previousAdditive = player.impl->additiveLayer;
+                const bool previousLayerPaused = player.impl->layerPaused;
                 player.impl->absoluteLayerClipIndex = index;
                 player.impl->absoluteLayerTime = 0.0f;
                 player.impl->absoluteLayerWeight = weight;
@@ -8189,6 +8192,7 @@ namespace mbm
                 player.impl->absoluteLayerFadeActive = false;
                 player.impl->absoluteLayerActive = true;
                 player.impl->additiveLayer = additive;
+                player.impl->layerPaused = false;
                 if (updateSkeletalAnimation(player, 0.0f)) return true;
                 player.impl->absoluteLayerClipIndex = previousIndex;
                 player.impl->absoluteLayerTime = previousTime;
@@ -8200,10 +8204,33 @@ namespace mbm
                 player.impl->absoluteLayerFadeActive = previousFadeActive;
                 player.impl->absoluteLayerActive = previousActive;
                 player.impl->additiveLayer = previousAdditive;
+                player.impl->layerPaused = previousLayerPaused;
                 return false;
             }
         }
         return false;
+    }
+
+    bool MESH_MBM::pauseSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        player.impl->layerPaused = true;
+        return true;
+    }
+
+    bool MESH_MBM::resumeSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        player.impl->layerPaused = false;
+        return true;
+    }
+
+    bool MESH_MBM::isSkeletalAnimationLayerPaused(
+        const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->active && player.impl->absoluteLayerActive && player.impl->layerPaused;
     }
 
     bool MESH_MBM::stopSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player) const
@@ -8219,6 +8246,7 @@ namespace mbm
         const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
         const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
         const bool previousAdditive = player.impl->additiveLayer;
+        const bool previousLayerPaused = player.impl->layerPaused;
         player.impl->absoluteLayerClipIndex = UINT32_MAX;
         player.impl->absoluteLayerTime = 0.0f;
         player.impl->absoluteLayerWeight = 0.0f;
@@ -8229,6 +8257,7 @@ namespace mbm
         player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
+        player.impl->layerPaused = false;
         if (updateSkeletalAnimation(player, 0.0f)) return true;
         player.impl->absoluteLayerClipIndex = previousIndex;
         player.impl->absoluteLayerTime = previousTime;
@@ -8240,6 +8269,7 @@ namespace mbm
         player.impl->absoluteLayerFadeActive = previousFadeActive;
         player.impl->absoluteLayerActive = true;
         player.impl->additiveLayer = previousAdditive;
+        player.impl->layerPaused = previousLayerPaused;
         return false;
     }
 
@@ -8354,7 +8384,7 @@ namespace mbm
             if (player.impl->absoluteLayerClipIndex >= impl->canonicalAnimations.clips.size())
                 return false;
             absoluteLayer = &impl->canonicalAnimations.clips[player.impl->absoluteLayerClipIndex];
-            if (!player.impl->paused && scaledDelta > 0.0f)
+            if (!player.impl->paused && !player.impl->layerPaused && scaledDelta > 0.0f)
             {
                 if (!skeletal::advanceSkeletalClipTime(*absoluteLayer, scaledDelta,
                         evaluatedLayerTime))
@@ -8420,6 +8450,7 @@ namespace mbm
             player.impl->absoluteLayerFadeActive = false;
             player.impl->absoluteLayerActive = false;
             player.impl->additiveLayer = false;
+            player.impl->layerPaused = false;
         }
         else
         {
@@ -8490,6 +8521,7 @@ namespace mbm
         player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
+        player.impl->layerPaused = false;
         player.impl->time = time;
         player.impl->active = true;
         player.impl->paused = true;

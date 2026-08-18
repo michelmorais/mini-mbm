@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.89**
+Document version: **9.90**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-17**
 
@@ -811,6 +811,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.90 | 2026-08-17 | Added independent layer pause/resume/query state, Lua methods, and Runtime Preview controls. Layer pause freezes its clip time and fade without stopping the base; global pause still freezes all temporal state. Layer lifecycle and mode replacement reset the local pause deterministically. |
 | 9.89 | 2026-08-17 | Connected bind-relative Additive composition to player state, explicit Lua playback, and Runtime Preview Absolute/Additive selection. Both modes reuse independent layer time, shared pause/speed, strict weight, linear fades, transactional palette replacement, and the same final LBS/DQS builders; switching mode restarts only the layer. |
 | 9.88 | 2026-08-17 | Began Additive delivery with a tested private bind-relative local-TRS compositor and sampler. Translation offsets, shortest-path quaternion deltas, multiplicative scale ratios, strict validation, endpoint identity, arbitrary-base behavior, and palette-ready hierarchy reconstruction are defined. Runtime player state, Lua, and Runtime Preview mode selection remain pending. |
 | 9.87 | 2026-08-17 | Added a finite non-negative per-instance skeletal speed multiplier, Lua set/get access, and a `0.05x..4x` Runtime Preview control matching animation authoring. The multiplier scales one delta shared by base clip, Absolute layer, and fade, remains stable across preview rebuilds, and does not replace explicit pause state. |

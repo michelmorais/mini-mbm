@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.84**
+Document version: **8.85**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -559,6 +559,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.85 | 2026-08-17 | Added independent pause/resume state for the transient clip layer. Lua and Runtime Preview can freeze only layer clip time and fade while the base continues; global pause remains authoritative and freezes both. Starting/replacing/removing a layer resets its local pause, and pose-stress comparison mirrors the control. |
 | 8.84 | 2026-08-17 | Connected the tested Additive compositor to per-instance runtime playback, a documented explicit Lua play method, and Runtime Skeletal Preview mode selection. Switching Absolute/Additive restarts only the selected layer in the new mode; clip time, weight, speed, seek, shared pause, fade, automatic removal at zero, one final hierarchy reconstruction, and one LBS/DQS palette remain common. |
 | 8.83 | 2026-08-17 | Began Additive composition with a private backend-neutral local-TRS compositor and two-clip sampler. The canonical local bind is the reference: translation adds the weighted offset, rotation applies a shortest-path identity-to-delta quaternion, and scale multiplies a weighted layer/bind ratio. Strict complete-pose/weight/finite/singular-scale validation and deterministic endpoint, 45/90-degree rotation, relative-scale, arbitrary-base, hierarchy, and failure fixtures pass. Player, Lua, and editor mode selection remain pending. |
 | 8.82 | 2026-08-17 | Added a persistent per-instance skeletal playback-speed multiplier and documented Lua set/get methods. Runtime Skeletal Preview now mirrors the Animation worktree's bounded `0.05x..4x` DragFloat and reapplies it when previews rebuild. One scaled delta advances the base clip, Absolute layer, and fade together; pause remains authoritative. |

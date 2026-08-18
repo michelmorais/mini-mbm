@@ -578,7 +578,7 @@ These methods control type-43 skeletal clips on a loaded canonical type-41/42/43
 state and the evaluated GPU palette belong to the individual `mesh` instance even when several
 objects share the same cached asset and shader program. The surface supports one base clip plus one
 optional transient layer in explicit Absolute or bind-relative Additive mode. Each clip has independent time and authored loop/clamp behavior;
-pause/resume is currently shared. Local TRS poses are composed before one final LBS/DQS palette,
+global pause/resume freezes both, while the layer also has an independent pause. Local TRS poses are composed before one final LBS/DQS palette,
 and the layer is never serialized into the mesh asset. Choose `"lbs"` (the engine default),
 rigid `"dqs"`, or `"auto"` before `load`. Auto resolves once to DQS only when bind and every clip
 contain unit scale; otherwise it resolves to LBS. Changing method after load returns `false`, because
@@ -607,6 +607,9 @@ rigid DQS rejects any scale/shear.
 | `obj:getSkeletalAnimationPlaybackSpeed` | `()` | number | Current multiplier; defaults to `1` |
 | `obj:playSkeletalAnimationAbsoluteLayer` | `(name, weight)` | bool | Start or replace the transient second clip at time zero with strict Absolute weight `0..1`; requires an active base clip |
 | `obj:playSkeletalAnimationAdditiveLayer` | `(name, weight)` | bool | Start or replace the transient second clip in bind-relative Additive local-TRS mode with strict weight `0..1`; requires an active base clip |
+| `obj:pauseSkeletalAnimationLayer` | `()` | bool | Freeze only the active layer's clip time and fade while the base may continue |
+| `obj:resumeSkeletalAnimationLayer` | `()` | bool | Resume independently paused layer time and fade |
+| `obj:isSkeletalAnimationLayerPaused` | `()` | bool | Whether an active layer is independently paused |
 | `obj:stopSkeletalAnimationAbsoluteLayer` | `()` | bool | Remove the transient layer while preserving the base clip |
 | `obj:seekSkeletalAnimationAbsoluteLayer` | `(time)` | bool | Seek the layer independently, clamped to its clip duration |
 | `obj:setSkeletalAnimationAbsoluteLayerWeight` | `(weight)` | bool | Change the active layer's strict Absolute weight `0..1` |
@@ -629,6 +632,8 @@ assert(character:playSkeletalAnimationAbsoluteLayer("LookAround", 0.35))
 character:seekSkeletalAnimationAbsoluteLayer(0.2)
 character:setSkeletalAnimationAbsoluteLayerWeight(0.5)
 character:fadeSkeletalAnimationAbsoluteLayer(1.0, 0.25)
+character:pauseSkeletalAnimationLayer()
+character:resumeSkeletalAnimationLayer()
 character:seekSkeletalAnimation(0.5)
 character:pauseSkeletalAnimation()
 character:resumeSkeletalAnimation()

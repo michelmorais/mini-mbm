@@ -31,7 +31,7 @@ local state = {
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false, absoluteLayerSelected=1,
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
-        absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, speed=1},
+        absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, absoluteLayerPaused=false, speed=1},
     runtimeLight={enabled=false,
         ambientColor={r=0.16,g=0.16,b=0.2,a=1},
         directionalColor={r=1,g=0.96,b=0.88,a=1},
@@ -2581,6 +2581,7 @@ local function rebuildPreview(sourcePath)
     playback.absoluteLayerSelected=1
     playback.absoluteLayerDuration=0
     playback.absoluteLayerActive=false
+    playback.absoluteLayerPaused=false
     sourcePath=sourcePath or state.fileName
     if not sourcePath then return end
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
@@ -2662,6 +2663,7 @@ local function playSelectedAbsoluteLayer()
     playback.absoluteLayerDuration=
         state.preview:getSkeletalAnimationDuration(playback.absoluteLayerSelected) or 0
     playback.absoluteLayerActive=true
+    playback.absoluteLayerPaused=false
     if state.comparisonPreview then
         playback.comparisonReady=playLayer(state.comparisonPreview)
         if playback.comparisonReady then
@@ -2677,6 +2679,7 @@ local function stopAbsoluteLayer()
     if not state.preview or not state.preview:stopSkeletalAnimationAbsoluteLayer() then return false end
     if state.comparisonPreview then state.comparisonPreview:stopSkeletalAnimationAbsoluteLayer() end
     playback.absoluteLayerActive=false
+    playback.absoluteLayerPaused=false
     return true
 end
 
@@ -2782,6 +2785,7 @@ local function showSkeletalPreviewControls()
             playback.playing=false
             playback.paused=false
             playback.absoluteLayerActive=false
+            playback.absoluteLayerPaused=false
         end
     end
     tImGui.EndDisabled()
@@ -2827,8 +2831,10 @@ local function showSkeletalPreviewControls()
     local runtimeLayerWeight=state.preview:getSkeletalAnimationAbsoluteLayerWeight()
     if playback.absoluteLayerActive and runtimeLayerWeight==nil then
         playback.absoluteLayerActive=false
+        playback.absoluteLayerPaused=false
     elseif runtimeLayerWeight~=nil then
         playback.absoluteLayerWeight=runtimeLayerWeight
+        playback.absoluteLayerPaused=state.preview:isSkeletalAnimationLayerPaused()
     end
     tImGui.BeginDisabled(not playback.playing)
     local layerModes={tLang.L('swl_layer_mode_absolute'),tLang.L('swl_layer_mode_additive')}
@@ -2855,6 +2861,21 @@ local function showSkeletalPreviewControls()
         if layerEnabled then playSelectedAbsoluteLayer() else stopAbsoluteLayer() end
     end
     tImGui.BeginDisabled(not playback.absoluteLayerActive)
+    if tImGui.Button(playback.absoluteLayerPaused and
+            tLang.L('swl_resume_layer') or tLang.L('swl_pause_layer')) then
+        if playback.absoluteLayerPaused then
+            if state.preview:resumeSkeletalAnimationLayer() then
+                playback.absoluteLayerPaused=false
+                if state.comparisonPreview then
+                    state.comparisonPreview:resumeSkeletalAnimationLayer()
+                end
+            end
+        elseif state.preview:pauseSkeletalAnimationLayer() then
+            playback.absoluteLayerPaused=true
+            if state.comparisonPreview then state.comparisonPreview:pauseSkeletalAnimationLayer() end
+        end
+    end
+    showItemTooltip(tLang.L('swl_layer_pause_help'))
     tImGui.PushItemWidth(190)
     local weightChanged,layerWeight=tImGui.SliderFloat(tLang.L('swl_absolute_layer_weight'),
         playback.absoluteLayerWeight,0,1,'%.3f')
