@@ -479,6 +479,31 @@ namespace mbm
         return 1;
     }
 
+    int onSetSkeletalAnimationLayerBoneWeightsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        luaL_checktype(lua, 2, LUA_TTABLE);
+        const size_t count = lua_rawlen(lua, 2);
+        if (count == 0 || count > UINT32_MAX)
+            return luaL_error(lua, "skeletal layer mask batch must be a nonempty array");
+        std::vector<uint64_t> boneIds(count);
+        std::vector<float> weights(count);
+        for (size_t index = 0; index < count; ++index)
+        {
+            lua_rawgeti(lua, 2, static_cast<lua_Integer>(index + 1));
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            lua_getfield(lua, -1, "boneId");
+            boneIds[index] = checkSkeletalBoneId(lua, -1);
+            lua_pop(lua, 1);
+            lua_getfield(lua, -1, "weight");
+            weights[index] = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 2);
+        }
+        lua_pushboolean(lua, mesh->setSkeletalAnimationLayerBoneWeights(
+            boneIds.data(), weights.data(), static_cast<uint32_t>(count)) ? 1 : 0);
+        return 1;
+    }
+
     int onGetSkeletalAnimationLayerBoneWeightLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -589,6 +614,7 @@ namespace mbm
                                                      {"getSkeletalAnimationAbsoluteLayerWeight", onGetSkeletalAnimationAbsoluteLayerWeightLua},
                                                      {"getSkeletalAnimationAbsoluteLayerTime", onGetSkeletalAnimationAbsoluteLayerTimeLua},
                                                      {"setSkeletalAnimationLayerBoneWeight", onSetSkeletalAnimationLayerBoneWeightLua},
+                                                     {"setSkeletalAnimationLayerBoneWeights", onSetSkeletalAnimationLayerBoneWeightsLua},
                                                      {"getSkeletalAnimationLayerBoneWeight", onGetSkeletalAnimationLayerBoneWeightLua},
                                                      {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
                                                      {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
@@ -669,6 +695,7 @@ namespace mbm
                                                          {"getSkeletalAnimationAbsoluteLayerWeight", onGetSkeletalAnimationAbsoluteLayerWeightLua},
                                                          {"getSkeletalAnimationAbsoluteLayerTime", onGetSkeletalAnimationAbsoluteLayerTimeLua},
                                                          {"setSkeletalAnimationLayerBoneWeight", onSetSkeletalAnimationLayerBoneWeightLua},
+                                                         {"setSkeletalAnimationLayerBoneWeights", onSetSkeletalAnimationLayerBoneWeightsLua},
                                                          {"getSkeletalAnimationLayerBoneWeight", onGetSkeletalAnimationLayerBoneWeightLua},
                                                          {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
                                                          {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},

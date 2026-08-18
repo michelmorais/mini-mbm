@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.99**
+Document version: **9.100**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -666,8 +666,10 @@ mutate assets, evaluate clips, or deform vertices.
   absent mask equivalent to all ones and effective composition weight equal to global layer weight
   times per-bone mask weight. Masks must not require an extra GPU skinning pass or change mesh data.
 - Mask authoring remains inside Runtime Skeletal Preview: canonical hierarchy, selected-bone
-  weight, descendant propagation, and all-zero/all-one/invert actions. Subtree shortcuts and
-  viewport feedback remain follow-up refinements.
+  weight, descendant propagation, all-zero/all-one/invert and selected-subtree actions, plus an
+  optional bind-layout skeleton with selected-bone highlight and a blue-green-red weight gradient.
+  Multi-bone mutations validate and commit atomically before one pose rebuild; an evaluated
+  runtime-pose gizmo remains separate follow-up work.
   It is not a new worktree and is not Paint Weights vertex masking.
 
 ### Phase 8 — Backend modernization decision
@@ -857,6 +859,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.100 | 2026-08-18 | Added atomic stable-ID layer-mask batches and completed the planned first editor controls with selected-subtree actions and bind-layout viewport feedback. Bulk controls now validate the complete candidate and reevaluate the composed pose once per preview. |
 | 9.99 | 2026-08-18 | Delivered transient per-bone animation-layer masks in the backend-neutral CPU compositor. Stable-ID strict weights multiply the global layer weight for Absolute and Additive composition before one hierarchy rebuild and unchanged LBS/DQS palette upload. Added transactional C++/Lua controls, Runtime Preview hierarchy/descendant/all/invert controls, deterministic foundation coverage, and a real Lorekeeper Lua runtime smoke. |
 | 9.98 | 2026-08-18 | Audited Metal delivery against the implementation; documented the vertex-buffer slot map, replacement hazard, hard-capacity-versus-performance distinction, shared palette allocation tradeoff, Lua embedded-MSL delimiter trap, and validation-layer requirement. |
 | 9.97 | 2026-08-18 | Fixed Metal's palette/light buffer-slot collision and fragment-only custom shaders bypassing generated skeletal deformation; added native MSL Paint Weights heatmap/brush shaders plus validation-layer LBS/DQS and focused shader tests. |

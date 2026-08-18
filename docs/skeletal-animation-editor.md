@@ -1213,12 +1213,14 @@ The following are current editor limitations rather than regressions caused by r
   and Runtime Skeletal Preview; both share time, weight, speed, and fade controls;
 - per-bone animation-layer masks multiply layer weight per stable bone identity and default to all
   ones when absent. Runtime Skeletal Preview exposes the canonical hierarchy, selected-bone weight,
-  descendant propagation, All 0, All 1, and Invert controls. The mask remains transient per-instance
-  state and is distinct from skin weights and Paint Weights vertex masks;
+  descendant propagation, All 0, All 1, Invert, and selected-subtree controls. Multi-bone actions
+  commit transactionally through one pose evaluation. An optional bind-layout skeleton maps low-to-high
+  mask weights from blue through green to red and highlights the selected bone in cyan. The mask
+  remains transient per-instance state and is distinct from skin weights and Paint Weights vertex masks;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
-Richer pose-stress overlays, mask viewport gradients, antipodality tooling, and Metal numeric parity coverage
+Richer pose-stress overlays, evaluated runtime-pose gizmos, antipodality tooling, and Metal numeric parity coverage
 remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Further skeleton and animation authoring refinements remain in the product plan. Mesh Debug's legacy Bone

@@ -330,6 +330,14 @@ namespace mbm
             getSkeletalAnimationPlayer(), boneId, weight) : false;
     }
 
+    bool MESH::setSkeletalAnimationLayerBoneWeights(const uint64_t *boneIds,
+                                                     const float *weights,
+                                                     const uint32_t count)
+    {
+        return mesh ? mesh->setSkeletalAnimationLayerBoneWeights(
+            getSkeletalAnimationPlayer(), boneIds, weights, count) : false;
+    }
+
     bool MESH::getSkeletalAnimationLayerBoneWeight(const uint64_t boneId,
                                                     float *weight) const noexcept
     {

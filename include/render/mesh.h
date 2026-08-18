@@ -90,6 +90,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool getSkeletalAnimationAbsoluteLayerWeight(float *weight) const noexcept;
     API_IMPL bool getSkeletalAnimationAbsoluteLayerTime(float *time) const noexcept;
     API_IMPL bool setSkeletalAnimationLayerBoneWeight(uint64_t boneId, float weight);
+    API_IMPL bool setSkeletalAnimationLayerBoneWeights(const uint64_t *boneIds,
+                                                       const float *weights, uint32_t count);
     API_IMPL bool getSkeletalAnimationLayerBoneWeight(uint64_t boneId, float *weight) const noexcept;
     API_IMPL bool clearSkeletalAnimationLayerMask();
     API_IMPL bool setSkeletalAuthoringPalette(SKELETAL_SHADER_METHOD method,

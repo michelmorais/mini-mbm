@@ -8361,24 +8361,38 @@ namespace mbm
                                                          const uint64_t boneId,
                                                          const float weight) const
     {
-        if (!player.impl->active || !player.impl->absoluteLayerActive || boneId == 0 ||
-            !std::isfinite(weight) || weight < 0.0f || weight > 1.0f ||
-            impl->canonicalSkeleton.compiled.indexById.find(boneId) ==
-                impl->canonicalSkeleton.compiled.indexById.end())
+        return setSkeletalAnimationLayerBoneWeights(player, &boneId, &weight, 1);
+    }
+
+    bool MESH_MBM::setSkeletalAnimationLayerBoneWeights(SKELETAL_ANIMATION_PLAYER &player,
+                                                          const uint64_t *boneIds,
+                                                          const float *weights,
+                                                          const uint32_t count) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive || !boneIds || !weights ||
+            count == 0)
             return false;
-        const auto previous = player.impl->layerBoneMask.find(boneId);
-        const bool hadPrevious = previous != player.impl->layerBoneMask.end();
-        const float previousWeight = hadPrevious ? previous->second : 1.0f;
-        if (weight == 1.0f)
-            player.impl->layerBoneMask.erase(boneId);
-        else
-            player.impl->layerBoneMask[boneId] = weight;
+        std::unordered_set<uint64_t> uniqueIds;
+        auto candidate = player.impl->layerBoneMask;
+        for (uint32_t index = 0; index < count; ++index)
+        {
+            const uint64_t boneId = boneIds[index];
+            const float weight = weights[index];
+            if (boneId == 0 || !uniqueIds.insert(boneId).second || !std::isfinite(weight) ||
+                weight < 0.0f || weight > 1.0f ||
+                impl->canonicalSkeleton.compiled.indexById.find(boneId) ==
+                    impl->canonicalSkeleton.compiled.indexById.end())
+                return false;
+            if (weight == 1.0f)
+                candidate.erase(boneId);
+            else
+                candidate[boneId] = weight;
+        }
+        const auto previous = player.impl->layerBoneMask;
+        player.impl->layerBoneMask = std::move(candidate);
         if (updateSkeletalAnimation(player, 0.0f))
             return true;
-        if (hadPrevious)
-            player.impl->layerBoneMask[boneId] = previousWeight;
-        else
-            player.impl->layerBoneMask.erase(boneId);
+        player.impl->layerBoneMask = previous;
         return false;
     }
 

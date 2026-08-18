@@ -727,6 +727,9 @@ namespace mbm
                                                    float *time) const noexcept;
         bool setSkeletalAnimationLayerBoneWeight(SKELETAL_ANIMATION_PLAYER &player,
                                                  uint64_t boneId, float weight) const;
+        bool setSkeletalAnimationLayerBoneWeights(SKELETAL_ANIMATION_PLAYER &player,
+                                                  const uint64_t *boneIds, const float *weights,
+                                                  uint32_t count) const;
         bool getSkeletalAnimationLayerBoneWeight(const SKELETAL_ANIMATION_PLAYER &player,
                                                  uint64_t boneId, float *weight) const noexcept;
         bool clearSkeletalAnimationLayerMask(SKELETAL_ANIMATION_PLAYER &player) const;
