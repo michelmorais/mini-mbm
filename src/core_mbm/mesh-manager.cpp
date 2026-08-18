@@ -1228,6 +1228,7 @@ namespace mbm
         impl->absoluteLayerActive = false;
         impl->additiveLayer = false;
         impl->layerPaused = false;
+        impl->layerBoneMask.clear();
         impl->playbackSpeed = 1.0f;
         impl->active = false;
         impl->paused = false;
@@ -8102,6 +8103,7 @@ namespace mbm
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
         player.impl->layerPaused = false;
+        player.impl->layerBoneMask.clear();
         player.impl->active = false;
         player.impl->paused = false;
         player.impl->paletteRows.clear();
@@ -8355,6 +8357,56 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM::setSkeletalAnimationLayerBoneWeight(SKELETAL_ANIMATION_PLAYER &player,
+                                                         const uint64_t boneId,
+                                                         const float weight) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive || boneId == 0 ||
+            !std::isfinite(weight) || weight < 0.0f || weight > 1.0f ||
+            impl->canonicalSkeleton.compiled.indexById.find(boneId) ==
+                impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        const auto previous = player.impl->layerBoneMask.find(boneId);
+        const bool hadPrevious = previous != player.impl->layerBoneMask.end();
+        const float previousWeight = hadPrevious ? previous->second : 1.0f;
+        if (weight == 1.0f)
+            player.impl->layerBoneMask.erase(boneId);
+        else
+            player.impl->layerBoneMask[boneId] = weight;
+        if (updateSkeletalAnimation(player, 0.0f))
+            return true;
+        if (hadPrevious)
+            player.impl->layerBoneMask[boneId] = previousWeight;
+        else
+            player.impl->layerBoneMask.erase(boneId);
+        return false;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationLayerBoneWeight(
+        const SKELETAL_ANIMATION_PLAYER &player, const uint64_t boneId,
+        float *weight) const noexcept
+    {
+        if (!weight || !player.impl->active || !player.impl->absoluteLayerActive || boneId == 0 ||
+            impl->canonicalSkeleton.compiled.indexById.find(boneId) ==
+                impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        const auto found = player.impl->layerBoneMask.find(boneId);
+        *weight = found == player.impl->layerBoneMask.end() ? 1.0f : found->second;
+        return true;
+    }
+
+    bool MESH_MBM::clearSkeletalAnimationLayerMask(SKELETAL_ANIMATION_PLAYER &player) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        const auto previous = player.impl->layerBoneMask;
+        player.impl->layerBoneMask.clear();
+        if (updateSkeletalAnimation(player, 0.0f))
+            return true;
+        player.impl->layerBoneMask = previous;
+        return false;
+    }
+
     bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta) const
     {
         if (player.impl->authoringPose)
@@ -8413,13 +8465,25 @@ namespace mbm
         skeletal::SKELETAL_POSE pose;
         if (absoluteLayer)
         {
+            std::vector<float> boneMask;
+            if (!player.impl->layerBoneMask.empty())
+            {
+                boneMask.assign(impl->canonicalSkeleton.compiled.bones.size(), 1.0f);
+                for (const auto &entry : player.impl->layerBoneMask)
+                {
+                    const auto found = impl->canonicalSkeleton.compiled.indexById.find(entry.first);
+                    if (found == impl->canonicalSkeleton.compiled.indexById.end())
+                        return false;
+                    boneMask[static_cast<size_t>(found->second)] = entry.second;
+                }
+            }
             const bool sampled = player.impl->additiveLayer
-                ? skeletal::sampleSkeletalClipsAdditive(impl->canonicalSkeleton.compiled,
+                ? skeletal::sampleSkeletalClipsAdditiveMasked(impl->canonicalSkeleton.compiled,
                     clip, evaluatedBaseTime, *absoluteLayer, evaluatedLayerTime,
-                    evaluatedLayerWeight, pose)
-                : skeletal::sampleSkeletalClipsAbsolute(impl->canonicalSkeleton.compiled,
+                    evaluatedLayerWeight, boneMask, pose)
+                : skeletal::sampleSkeletalClipsAbsoluteMasked(impl->canonicalSkeleton.compiled,
                     clip, evaluatedBaseTime, *absoluteLayer, evaluatedLayerTime,
-                    evaluatedLayerWeight, pose);
+                    evaluatedLayerWeight, boneMask, pose);
             if (!sampled)
                 return false;
         }
@@ -8521,6 +8585,7 @@ namespace mbm
         player.impl->absoluteLayerActive = false;
         player.impl->additiveLayer = false;
         player.impl->layerPaused = false;
+        player.impl->layerBoneMask.clear();
         player.impl->time = time;
         player.impl->active = true;
         player.impl->paused = true;

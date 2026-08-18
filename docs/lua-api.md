@@ -617,6 +617,9 @@ rigid DQS rejects any scale/shear.
 | `obj:fadeSkeletalAnimationAbsoluteLayer` | `(targetWeight, duration)` | bool | Linearly animate the active Absolute or Additive layer from its current weight to a strict target `0..1`; duration must be non-negative, pause freezes progress, and reaching zero removes the layer |
 | `obj:getSkeletalAnimationAbsoluteLayerWeight` | `()` | number or nil | Current evaluated Absolute or Additive layer weight, or `nil` when no layer is active |
 | `obj:getSkeletalAnimationAbsoluteLayerTime` | `()` | number or nil | Current independent Absolute or Additive layer time, or `nil` when no layer is active |
+| `obj:setSkeletalAnimationLayerBoneWeight` | `(boneId, weight)` | bool | Set one active layer-mask multiplier using a nonzero hexadecimal stable bone ID and strict weight `0..1`; `1` restores the compatibility default |
+| `obj:getSkeletalAnimationLayerBoneWeight` | `(boneId)` | number or nil | Get one active layer-mask multiplier; returns `1` for an unmasked valid bone and no value when the layer or identity is invalid |
+| `obj:clearSkeletalAnimationLayerMask` | `()` | bool | Atomically restore every active layer-mask multiplier to the all-ones compatibility default |
 | `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
 ```lua

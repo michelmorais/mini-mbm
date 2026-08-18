@@ -324,6 +324,24 @@ namespace mbm
             getSkeletalAnimationPlayer(), time) : false;
     }
 
+    bool MESH::setSkeletalAnimationLayerBoneWeight(const uint64_t boneId, const float weight)
+    {
+        return mesh ? mesh->setSkeletalAnimationLayerBoneWeight(
+            getSkeletalAnimationPlayer(), boneId, weight) : false;
+    }
+
+    bool MESH::getSkeletalAnimationLayerBoneWeight(const uint64_t boneId,
+                                                    float *weight) const noexcept
+    {
+        return mesh ? mesh->getSkeletalAnimationLayerBoneWeight(
+            getSkeletalAnimationPlayer(), boneId, weight) : false;
+    }
+
+    bool MESH::clearSkeletalAnimationLayerMask()
+    {
+        return mesh ? mesh->clearSkeletalAnimationLayerMask(getSkeletalAnimationPlayer()) : false;
+    }
+
     bool MESH::setSkeletalAuthoringPalette(const SKELETAL_SHADER_METHOD method,
                                            const float *rows, const uint32_t rowCount,
                                            const uint64_t *orderedBoneIds, const uint32_t boneIdCount,

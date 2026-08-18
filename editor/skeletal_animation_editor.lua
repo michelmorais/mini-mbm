@@ -35,7 +35,8 @@ local state = {
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false, absoluteLayerSelected=1,
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
-        absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, absoluteLayerPaused=false, speed=1},
+        absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, absoluteLayerPaused=false, speed=1,
+        layerMaskWeights={},layerMaskSelected=1,layerMaskDescendants=true},
     runtimeLight={enabled=false,
         ambientColor={r=0.16,g=0.16,b=0.2,a=1},
         directionalColor={r=1,g=0.96,b=0.88,a=1},
@@ -2741,6 +2742,9 @@ local function playSelectedAbsoluteLayer()
     if not playLayer(state.preview) then
         return false
     end
+    for boneId,weight in pairs(playback.layerMaskWeights) do
+        state.preview:setSkeletalAnimationLayerBoneWeight(boneId,weight)
+    end
     playback.absoluteLayerDuration=
         state.preview:getSkeletalAnimationDuration(playback.absoluteLayerSelected) or 0
     playback.absoluteLayerActive=true
@@ -2749,9 +2753,92 @@ local function playSelectedAbsoluteLayer()
         playback.comparisonReady=playLayer(state.comparisonPreview)
         if playback.comparisonReady then
             state.comparisonPreview:seekSkeletalAnimationAbsoluteLayer(0)
+            for boneId,weight in pairs(playback.layerMaskWeights) do
+                state.comparisonPreview:setSkeletalAnimationLayerBoneWeight(boneId,weight)
+            end
         end
     end
     return true
+end
+
+local function setRuntimeLayerMaskWeight(bone,weight)
+    if not bone or not bone.boneId or not state.skeletalPreview.absoluteLayerActive then return false end
+    weight=math.max(0,math.min(1,weight))
+    if not state.preview:setSkeletalAnimationLayerBoneWeight(bone.boneId,weight) then return false end
+    if state.comparisonPreview then
+        state.comparisonPreview:setSkeletalAnimationLayerBoneWeight(bone.boneId,weight)
+    end
+    if weight==1 then state.skeletalPreview.layerMaskWeights[bone.boneId]=nil
+    else state.skeletalPreview.layerMaskWeights[bone.boneId]=weight end
+    return true
+end
+
+local function showRuntimeLayerMask()
+    local playback=state.skeletalPreview
+    local bones=getBones()
+    if #bones==0 then return end
+    if not tImGui.TreeNode(tLang.L('swl_layer_mask')..'##swlLayerMask') then return end
+    tImGui.TextWrapped(tLang.L('swl_layer_mask_help'))
+    tImGui.BeginDisabled(not playback.absoluteLayerActive)
+    if tImGui.Button(tLang.L('swl_layer_mask_all_zero')) then
+        for _,bone in ipairs(bones) do setRuntimeLayerMaskWeight(bone,0) end
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('swl_layer_mask_all_one')) then
+        if state.preview:clearSkeletalAnimationLayerMask() then
+            if state.comparisonPreview then state.comparisonPreview:clearSkeletalAnimationLayerMask() end
+            playback.layerMaskWeights={}
+        end
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('swl_layer_mask_invert')) then
+        for _,bone in ipairs(bones) do
+            setRuntimeLayerMaskWeight(bone,1-(playback.layerMaskWeights[bone.boneId] or 1))
+        end
+    end
+    local children,roots={},{}
+    for index,bone in ipairs(bones) do
+        if bone.parentIndex and bone.parentIndex>0 then
+            children[bone.parentIndex]=children[bone.parentIndex] or {}
+            children[bone.parentIndex][#children[bone.parentIndex]+1]=index
+        else roots[#roots+1]=index end
+    end
+    local function showBone(index)
+        local bone=bones[index]
+        local flags=playback.layerMaskSelected==index and
+            tImGui.Flags('ImGuiTreeNodeFlags_Selected') or tImGui.Flags('ImGuiTreeNodeFlags_None')
+        local open=tImGui.TreeNodeEx(string.format('%s  %.2f##swlMaskBone%d',bone.name,
+            playback.layerMaskWeights[bone.boneId] or 1,index),flags)
+        if tImGui.IsItemClicked() then playback.layerMaskSelected=index end
+        if open then
+            for _,child in ipairs(children[index] or {}) do showBone(child) end
+            tImGui.TreePop()
+        end
+    end
+    for _,root in ipairs(roots) do showBone(root) end
+    local selected=bones[playback.layerMaskSelected] or bones[1]
+    local current=playback.layerMaskWeights[selected.boneId] or 1
+    tImGui.PushItemWidth(190)
+    local changed,weight=tImGui.SliderFloat(tLang.L('swl_layer_mask_weight'),current,0,1,'%.3f')
+    tImGui.PopItemWidth()
+    local descendants=tImGui.Checkbox(tLang.L('swl_layer_mask_descendants'),
+        playback.layerMaskDescendants)
+    playback.layerMaskDescendants=descendants
+    if changed then
+        for index,bone in ipairs(bones) do
+            local affected=index==playback.layerMaskSelected
+            if not affected and descendants then
+                local parent=bone.parentIndex
+                while parent and parent>0 do
+                    if parent==playback.layerMaskSelected then affected=true break end
+                    parent=bones[parent] and bones[parent].parentIndex or 0
+                end
+            end
+            if affected then setRuntimeLayerMaskWeight(bone,weight) end
+        end
+    end
+    tImGui.EndDisabled()
+    tImGui.TreePop()
 end
 
 local function stopAbsoluteLayer()
@@ -3002,6 +3089,7 @@ local function showSkeletalPreviewControls()
         end
     end
     showItemTooltip(tLang.L('swl_absolute_layer_fade_help'))
+    showRuntimeLayerMask()
     tImGui.EndDisabled()
     tImGui.EndDisabled()
 end

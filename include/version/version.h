@@ -506,7 +506,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.101.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.102.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

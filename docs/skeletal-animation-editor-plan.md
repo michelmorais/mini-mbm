@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.88**
-Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, and transient two-clip composition implemented; bone masks deferred**
+Document version: **8.89**
+Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, and per-bone layer masks implemented**
 Last updated: **2026-08-18**
 
 ## 1. Purpose
@@ -36,8 +36,8 @@ top-level worktrees; opening one closes the previous worktree:
    inspect backend/method readiness, and compare synchronized LBS/DQS instances.
 4. **Create / Edit Animations** — active local authoring for clips, bone tracks, keys, easing,
    viewport TRS manipulation, playback, timeline editing, transactional clipboards, and Undo/Redo.
-   One transient Absolute/Additive composition layer is delivered as described in Section 8;
-   per-bone masks and richer queue/priority policy remain deferred.
+   One transient Absolute/Additive composition layer and its per-bone mask are delivered as
+   described in Section 8; richer queue/priority policy remains deferred.
 5. **Paint Weights** — the primary visual weight-authoring workflow. Direct brushes, regional
    masks, complete-vector smoothing, rigid binding, diagnostics, repair, pose safety, Undo, and
    persistence reached functional parity and replaced the former Skin Weight Lab worktree.
@@ -220,16 +220,16 @@ in parent-relative local TRS. Absolute and bind-relative Additive modes, indepen
 pause, shared speed, strict weight, linear fades, and one final LBS/DQS palette are implemented and
 exposed through C++/Lua/editor controls. The layer remains runtime state and is not serialized.
 
-Per-bone animation masks are deliberately deferred so backend delivery can take priority. The future
-mask contract is already fixed: absence of a mask is equivalent to weight `1` for every bone; an
-enabled mask stores a strict `0..1` multiplier per stable bone identity; and the compositor uses
+Per-bone animation masks are implemented without changing backend palette transport. Absence of a
+mask is equivalent to weight `1` for every bone; an enabled mask stores a strict `0..1` multiplier
+per stable bone identity; and the compositor uses
 `effectiveWeight[bone] = layerWeight * maskWeight[bone]` before rebuilding globals once. This is an
 animation-layer mask, distinct from Paint Weights vertex-selection masks and vertex skin weights.
 
-The planned UI stays inside Runtime Skeletal Preview under a collapsible **Layer Mask** section; no
-new worktree is required. It will provide enable/disable, the canonical bone hierarchy, selected-bone
-weight, apply-to-descendants, All 0/All 1/Invert, selected-subtree 0/1, selected-bone viewport
-highlight, and a weight gradient. Mouse painting is not required for the first delivery. Expected
+The UI stays inside Runtime Skeletal Preview under a collapsible **Layer Mask** section; no new
+worktree is required. It provides the canonical bone hierarchy, selected-bone weight,
+apply-to-descendants, and All 0/All 1/Invert actions. Selected-subtree shortcuts, viewport highlight,
+and a weight gradient remain follow-up refinements. Mouse painting is not required. Expected
 gameplay uses include locomotion plus upper-body attacks, aim/reload overlays, head look, recoil,
 breathing, and reuse of one action clip across multiple locomotion bases.
 
@@ -566,6 +566,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.89 | 2026-08-18 | Delivered transient stable-ID per-bone layer masks across the shared CPU compositor, C++/Lua runtime surface, and Runtime Skeletal Preview. The editor provides hierarchy selection, strict weight, descendant propagation, All 0, All 1, and Invert while preserving one final LBS/DQS palette and no mesh serialization. |
 | 8.88 | 2026-08-18 | Synchronized the product plan with Metal delivery: Runtime Preview now uses the shared OpenGL ES/DirectX 9/Metal capability and deformation surface; Metal numeric parity coverage remains follow-up work. |
 | 8.87 | 2026-08-18 | Synchronized the product plan with Windows delivery: Runtime Preview now documents the shared OpenGL ES/DirectX 9 capability surface, Metal remains pending, and stale prose no longer describes the delivered transient composition layer as deferred. |
 | 8.86 | 2026-08-17 | Deferred per-bone animation-layer masks to permit focus on other runtime backends while preserving an executable future contract. Masks stay in Runtime Skeletal Preview, multiply global layer weight per stable bone ID, default to all ones when absent, use hierarchy/subtree controls and viewport feedback, and remain distinct from vertex weights and Paint Weights masks. Updated stale composition status/prose to reflect delivered Absolute/Additive runtime controls. |

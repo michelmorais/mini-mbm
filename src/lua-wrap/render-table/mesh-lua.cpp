@@ -461,6 +461,41 @@ namespace mbm
         return 1;
     }
 
+    uint64_t checkSkeletalBoneId(lua_State *lua, const int index)
+    {
+        const char *text = luaL_checkstring(lua, index);
+        char *end = nullptr;
+        const uint64_t id = static_cast<uint64_t>(std::strtoull(text, &end, 16));
+        if (!text[0] || !end || end[0] != '\0' || id == 0)
+            luaL_error(lua, "skeletal bone id must be a nonzero hexadecimal string");
+        return id;
+    }
+
+    int onSetSkeletalAnimationLayerBoneWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->setSkeletalAnimationLayerBoneWeight(
+            checkSkeletalBoneId(lua, 2), static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationLayerBoneWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float weight = 0.0f;
+        if (!mesh->getSkeletalAnimationLayerBoneWeight(checkSkeletalBoneId(lua, 2), &weight))
+            return 0;
+        lua_pushnumber(lua, weight);
+        return 1;
+    }
+
+    int onClearSkeletalAnimationLayerMaskLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->clearSkeletalAnimationLayerMask() ? 1 : 0);
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -553,6 +588,9 @@ namespace mbm
                                                      {"fadeSkeletalAnimationAbsoluteLayer", onFadeSkeletalAnimationAbsoluteLayerLua},
                                                      {"getSkeletalAnimationAbsoluteLayerWeight", onGetSkeletalAnimationAbsoluteLayerWeightLua},
                                                      {"getSkeletalAnimationAbsoluteLayerTime", onGetSkeletalAnimationAbsoluteLayerTimeLua},
+                                                     {"setSkeletalAnimationLayerBoneWeight", onSetSkeletalAnimationLayerBoneWeightLua},
+                                                     {"getSkeletalAnimationLayerBoneWeight", onGetSkeletalAnimationLayerBoneWeightLua},
+                                                     {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
                                                      {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                      {nullptr, nullptr}};
 
@@ -630,6 +668,9 @@ namespace mbm
                                                          {"fadeSkeletalAnimationAbsoluteLayer", onFadeSkeletalAnimationAbsoluteLayerLua},
                                                          {"getSkeletalAnimationAbsoluteLayerWeight", onGetSkeletalAnimationAbsoluteLayerWeightLua},
                                                          {"getSkeletalAnimationAbsoluteLayerTime", onGetSkeletalAnimationAbsoluteLayerTimeLua},
+                                                         {"setSkeletalAnimationLayerBoneWeight", onSetSkeletalAnimationLayerBoneWeightLua},
+                                                         {"getSkeletalAnimationLayerBoneWeight", onGetSkeletalAnimationLayerBoneWeightLua},
+                                                         {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
                                                          {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);

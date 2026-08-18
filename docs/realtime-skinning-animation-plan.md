@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.98**
-Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, and transient composition implemented; bone masks, modern non-Metal backends, and Velocity Skinning pending**
+Document version: **9.99**
+Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
 ## 1. Purpose
@@ -314,8 +314,8 @@ The Skeletal Animation Editor contains five mutually exclusive worktrees:
 3. **Runtime Skeletal Preview** — runtime clip playback, method readiness, and LBS/DQS comparison.
 4. **Create / Edit Animations** — delivered clip/track/key editing, viewport T/R/S authoring,
    playback, timeline operations, clipboards, and history. The Runtime Skeletal Preview owns the
-   delivered transient two-clip Absolute/Additive composition controls; persistent composition and
-   per-bone masks remain deferred.
+   delivered transient two-clip Absolute/Additive composition and per-bone mask controls;
+   persistent composition remains deferred.
 5. **Paint Weights** — the primary day-to-day weight-authoring surface. Its accepted brushes,
    regional masks, diagnostics, repair tools, pose safety, Undo, and persistence replaced the
    former Skin Weight Lab worktree.
@@ -661,12 +661,13 @@ mutate assets, evaluate clips, or deform vertices.
   composition, independent layer time/pause, shared speed, strict weight, linear fades, Lua/runtime
   controls, and Runtime Preview UI. Both modes rebuild globals once and feed one final LBS/DQS
   palette. The transient layer is not serialized.
-- Per-bone layer masks are explicitly deferred while modern backend work is prioritized. Their
-  backend-neutral contract is a strict `0..1` multiplier keyed by stable bone identity, with an
+- Per-bone layer masks are implemented in the backend-neutral CPU compositor as a strict `0..1`
+  multiplier keyed by stable bone identity, with an
   absent mask equivalent to all ones and effective composition weight equal to global layer weight
   times per-bone mask weight. Masks must not require an extra GPU skinning pass or change mesh data.
-- Planned mask authoring remains inside Runtime Skeletal Preview: canonical hierarchy, selected-bone
-  weight, descendant propagation, all-zero/all-one/invert/subtree actions, and viewport feedback.
+- Mask authoring remains inside Runtime Skeletal Preview: canonical hierarchy, selected-bone
+  weight, descendant propagation, and all-zero/all-one/invert actions. Subtree shortcuts and
+  viewport feedback remain follow-up refinements.
   It is not a new worktree and is not Paint Weights vertex masking.
 
 ### Phase 8 — Backend modernization decision
@@ -756,8 +757,8 @@ mutate assets, evaluate clips, or deform vertices.
     alone.
 13. Mini MBM's skeletal math is row-vector: child globals use `local * parentGlobal`, and skin
     matrices use `inverseBindGlobal * currentGlobal`.
-14. One transient Absolute/Additive layer is delivered; per-bone animation masks and priority remain
-    explicitly deferred and do not alter serialized clip or skin-weight data.
+14. One transient Absolute/Additive layer and per-bone animation mask are delivered; priority remains
+    explicitly deferred. Neither alters serialized clip or skin-weight data.
 15. Runtime bones use stable `uint64_t` identity, parent-relative local TRS, quaternion rotation,
     derived globals/inverse bind, and names only as labels/interchange keys.
 16. Skeletal clips use a distinct bone-ID-targeted resource model; articulated data structures are
@@ -856,6 +857,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.99 | 2026-08-18 | Delivered transient per-bone animation-layer masks in the backend-neutral CPU compositor. Stable-ID strict weights multiply the global layer weight for Absolute and Additive composition before one hierarchy rebuild and unchanged LBS/DQS palette upload. Added transactional C++/Lua controls, Runtime Preview hierarchy/descendant/all/invert controls, deterministic foundation coverage, and a real Lorekeeper Lua runtime smoke. |
 | 9.98 | 2026-08-18 | Audited Metal delivery against the implementation; documented the vertex-buffer slot map, replacement hazard, hard-capacity-versus-performance distinction, shared palette allocation tradeoff, Lua embedded-MSL delimiter trap, and validation-layer requirement. |
 | 9.97 | 2026-08-18 | Fixed Metal's palette/light buffer-slot collision and fragment-only custom shaders bypassing generated skeletal deformation; added native MSL Paint Weights heatmap/brush shaders plus validation-layer LBS/DQS and focused shader tests. |
 | 9.96 | 2026-08-18 | Delivered Metal real-time LBS/rigid-DQS: buffer-backed influences and per-draw palettes, generated MSL deformation with lighting integration, method/palette-aware pipeline caching, measured buffer capacity, and Apple M4 Lorekeeper production-path validation. Metal numeric readback parity remains follow-up coverage. |

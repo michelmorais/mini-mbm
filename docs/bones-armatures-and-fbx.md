@@ -27,8 +27,8 @@ runtimes evaluate those clips per mesh instance and deform vertices/normals with
 Static-frame swapping and articulated rigid-subset animation remain separate supported models.
 
 The Skeletal Animation Editor can create/edit the canonical skeleton and clips, paint and repair
-weights, preview the same runtime player, and round-trip the result through the supported FBX
-workflow. Bone masks, Metal numeric parity coverage, and Velocity Skinning remain
+weights, preview the same runtime player, author transient per-bone animation-layer masks, and
+round-trip the result through the supported FBX workflow. Metal numeric parity coverage and Velocity Skinning remain
 pending; this backend limitation does not turn canonical skeletal data back into editor-only data.
 
 ## How Real-Time Skeletal Animation Works (Other Engines)
@@ -232,7 +232,7 @@ unaffected.
 ### Still pending
 
 - encoded/readback CPU/GPU numeric parity coverage on Metal and DirectX9;
-- per-bone composition masks and layer priority/queue policy;
+- richer multi-layer priority/queue policy;
 - evaluated runtime skeleton gizmos;
 - retargeting and completion callbacks;
 - Velocity Skinning as an optional modern-backend secondary deformation stage.

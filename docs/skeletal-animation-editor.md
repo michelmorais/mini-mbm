@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal runtime preview, local animation, Paint Weights, and transient composition implemented; bone masks pending**
+Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal runtime preview, local animation, Paint Weights, transient composition, and per-bone layer masks implemented**
 Last updated: **2026-08-18**
 
 ## 1. Purpose
@@ -1211,14 +1211,14 @@ The following are current editor limitations rather than regressions caused by r
   layer time and fade. The layer is not serialized; transition curves/queues and priority remain
   pending. Absolute and bind-relative Additive modes are explicit in Lua
   and Runtime Skeletal Preview; both share time, weight, speed, and fade controls;
-- per-bone animation-layer masks are deliberately deferred. The future mask multiplies layer
-  weight per stable bone identity, defaults to all
-  ones when absent, and will be edited inside Runtime Skeletal Preview through hierarchy/subtree
-  controls and viewport feedback. It is distinct from skin weights and Paint Weights vertex masks;
+- per-bone animation-layer masks multiply layer weight per stable bone identity and default to all
+  ones when absent. Runtime Skeletal Preview exposes the canonical hierarchy, selected-bone weight,
+  descendant propagation, All 0, All 1, and Invert controls. The mask remains transient per-instance
+  state and is distinct from skin weights and Paint Weights vertex masks;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
-Future layer masks, richer pose-stress overlays, antipodality tooling, and Metal numeric parity coverage
+Richer pose-stress overlays, mask viewport gradients, antipodality tooling, and Metal numeric parity coverage
 remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Further skeleton and animation authoring refinements remain in the product plan. Mesh Debug's legacy Bone

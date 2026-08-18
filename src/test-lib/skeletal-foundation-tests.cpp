@@ -169,6 +169,21 @@ namespace
         expect(!composeSkeletalPosesAbsolute(skeleton, base, layer, -0.01f, endpoint) &&
                    endpoint.localTransforms.empty(),
                "absolute composition must reject weights outside [0,1]");
+        const std::vector<float> rootOnlyMask = {1.0f, 0.0f};
+        expect(composeSkeletalPosesAbsoluteMasked(skeleton, base, layer, 0.5f, rootOnlyMask,
+                   endpoint) &&
+                   std::fabs(endpoint.localTransforms[0].translation.x - 5.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(endpoint.localTransforms[1].rotation.z -
+                       base.localTransforms[1].rotation.z) <= MATRIX_TOLERANCE &&
+                   std::fabs(endpoint.localTransforms[1].rotation.w -
+                       base.localTransforms[1].rotation.w) <= MATRIX_TOLERANCE,
+               "absolute bone masks must multiply layer weight per stable skeleton slot");
+        expect(!composeSkeletalPosesAbsoluteMasked(skeleton, base, layer, 0.5f, {1.0f}, endpoint) &&
+                   endpoint.localTransforms.empty(),
+               "absolute bone masks must reject a size that differs from the skeleton");
+        expect(!composeSkeletalPosesAbsoluteMasked(skeleton, base, layer, 0.5f,
+                   {1.0f, 1.01f}, endpoint) && endpoint.localTransforms.empty(),
+               "absolute bone masks must reject values outside [0,1]");
 
         CANONICAL_SKELETON canonical;
         canonical.skeletonId = 1;
@@ -274,6 +289,11 @@ namespace
                    additive) && std::fabs(additive.localTransforms[0].translation.x - 12.0f) <=
                        MATRIX_TOLERANCE,
                "Additive translation must offset an arbitrary base pose rather than replace it");
+        const std::vector<float> childOnlyMask = {0.0f, 1.0f};
+        expect(composeSkeletalPosesAdditiveMasked(skeleton, additiveBase, additiveLayer, 1.0f,
+                   childOnlyMask, additive) &&
+                   std::fabs(additive.localTransforms[0].translation.x - 10.0f) <= MATRIX_TOLERANCE,
+               "Additive bone masks must leave a zero-weight bone at its base local transform");
         COMPILED_SKELETON singularReference = skeleton;
         singularReference.bones[0].localBind.scale.x = 0.0f;
         expect(!composeSkeletalPosesAdditive(singularReference, additiveBase, additiveLayer,
