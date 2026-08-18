@@ -267,6 +267,7 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.100.7 Replaced stale GLES2-specific Skeletal Animation Editor runtime-preview labels with backend-neutral GPU-skinning terminology.
     7.100.6 Standardized editor temporary-file paths under Windows, fixing root-relative MinGW os.tmpname results in Mesh Debug, Font Maker, Physics Editor, and Skeletal Animation Editor.
     7.100.5 Fixed Skeletal Animation Editor rollback/runtime-preview temporary meshes under MinGW by anchoring Windows temp names in TEMP/TMP instead of using root-relative os.tmpname results.
     7.100.4 Linked CMake testLib with the same private mesh-v11 and skeletal foundation implementations used by the MSVS harness, without exporting test internals from core_mbm.
@@ -502,7 +503,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.100.6" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.100.7" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
