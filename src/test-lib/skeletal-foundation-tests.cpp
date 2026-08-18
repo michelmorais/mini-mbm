@@ -222,6 +222,23 @@ namespace
         expect(!advanceSkeletalClipTime(baseClip, -0.1f, baseTime),
                "clip time advancement must reject negative delta");
 
+        float fadeElapsed = 0.0f;
+        float fadeWeight = 0.25f;
+        bool fadeComplete = false;
+        expect(advanceSkeletalAbsoluteFade(0.25f, 1.0f, 0.5f, 0.2f,
+                   fadeElapsed, fadeWeight, fadeComplete) && !fadeComplete &&
+                   std::fabs(fadeElapsed - 0.2f) <= MATRIX_TOLERANCE &&
+                   std::fabs(fadeWeight - 0.55f) <= MATRIX_TOLERANCE,
+               "Absolute fade must advance linearly from its captured start weight");
+        expect(advanceSkeletalAbsoluteFade(0.25f, 1.0f, 0.5f, 0.4f,
+                   fadeElapsed, fadeWeight, fadeComplete) && fadeComplete &&
+                   std::fabs(fadeElapsed - 0.5f) <= MATRIX_TOLERANCE &&
+                   std::fabs(fadeWeight - 1.0f) <= MATRIX_TOLERANCE,
+               "Absolute fade must clamp exactly to its target and duration");
+        expect(!advanceSkeletalAbsoluteFade(0.0f, 1.0f, 0.0f, 0.1f,
+                   fadeElapsed, fadeWeight, fadeComplete),
+               "timed Absolute fade must reject zero duration");
+
         layer.localTransforms.pop_back();
         expect(!composeSkeletalPosesAbsolute(skeleton, base, layer, 0.5f, endpoint),
                "absolute composition must reject incomplete poses");

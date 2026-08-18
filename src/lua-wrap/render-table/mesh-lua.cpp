@@ -359,6 +359,64 @@ namespace mbm
         return 1;
     }
 
+    int onPlaySkeletalAnimationAbsoluteLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->playSkeletalAnimationAbsoluteLayer(
+            luaL_checkstring(lua, 2), static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
+    int onStopSkeletalAnimationAbsoluteLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->stopSkeletalAnimationAbsoluteLayer() ? 1 : 0);
+        return 1;
+    }
+
+    int onSeekSkeletalAnimationAbsoluteLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->seekSkeletalAnimationAbsoluteLayer(
+            static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0);
+        return 1;
+    }
+
+    int onSetSkeletalAnimationAbsoluteLayerWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->setSkeletalAnimationAbsoluteLayerWeight(
+            static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0);
+        return 1;
+    }
+
+    int onFadeSkeletalAnimationAbsoluteLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->fadeSkeletalAnimationAbsoluteLayer(
+            static_cast<float>(luaL_checknumber(lua, 2)),
+            static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationAbsoluteLayerWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float weight = 0.0f;
+        if (mesh->getSkeletalAnimationAbsoluteLayerWeight(&weight)) lua_pushnumber(lua, weight);
+        else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationAbsoluteLayerTimeLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float time = 0.0f;
+        if (mesh->getSkeletalAnimationAbsoluteLayerTime(&time)) lua_pushnumber(lua, time);
+        else lua_pushnil(lua);
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -438,6 +496,13 @@ namespace mbm
                                                      {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
                                                      {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
                                                      {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
+                                                     {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
+                                                     {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
+                                                     {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
+                                                     {"setSkeletalAnimationAbsoluteLayerWeight", onSetSkeletalAnimationAbsoluteLayerWeightLua},
+                                                     {"fadeSkeletalAnimationAbsoluteLayer", onFadeSkeletalAnimationAbsoluteLayerLua},
+                                                     {"getSkeletalAnimationAbsoluteLayerWeight", onGetSkeletalAnimationAbsoluteLayerWeightLua},
+                                                     {"getSkeletalAnimationAbsoluteLayerTime", onGetSkeletalAnimationAbsoluteLayerTimeLua},
                                                      {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                      {nullptr, nullptr}};
 
@@ -502,6 +567,13 @@ namespace mbm
                                                          {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
                                                          {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
                                                          {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
+                                                         {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
+                                                         {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
+                                                         {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
+                                                         {"setSkeletalAnimationAbsoluteLayerWeight", onSetSkeletalAnimationAbsoluteLayerWeightLua},
+                                                         {"fadeSkeletalAnimationAbsoluteLayer", onFadeSkeletalAnimationAbsoluteLayerLua},
+                                                         {"getSkeletalAnimationAbsoluteLayerWeight", onGetSkeletalAnimationAbsoluteLayerWeightLua},
+                                                         {"getSkeletalAnimationAbsoluteLayerTime", onGetSkeletalAnimationAbsoluteLayerTimeLua},
                                                          {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);

@@ -837,6 +837,25 @@ namespace mbm::skeletal
                composeSkeletalPosesAbsolute(skeleton, basePose, layerPose, layerWeight, out);
     }
 
+    bool advanceSkeletalAbsoluteFade(const float startWeight, const float targetWeight,
+                                     const float duration, const float delta, float &elapsed,
+                                     float &weight, bool &complete) noexcept
+    {
+        complete = false;
+        if (!std::isfinite(startWeight) || startWeight < 0.0f || startWeight > 1.0f ||
+            !std::isfinite(targetWeight) || targetWeight < 0.0f || targetWeight > 1.0f ||
+            !std::isfinite(duration) || duration <= 0.0f || !std::isfinite(delta) || delta < 0.0f ||
+            !std::isfinite(elapsed) || elapsed < 0.0f || elapsed > duration)
+            return false;
+        elapsed = std::min(duration, elapsed + delta);
+        const float ratio = elapsed / duration;
+        weight = startWeight + (targetWeight - startWeight) * ratio;
+        complete = elapsed >= duration;
+        if (complete)
+            weight = targetWeight;
+        return true;
+    }
+
     bool skinVerticesLbsReference(const CANONICAL_SKELETON &skeleton, const CANONICAL_WEIGHTS &weights,
                                   const SKELETAL_POSE &pose, const std::vector<VEC3> &bindPositions,
                                   const std::vector<VEC3> &bindNormals, std::vector<VEC3> &outPositions,

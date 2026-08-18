@@ -709,6 +709,10 @@ namespace mbm
         bool seekSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player, float time) const;
         bool setSkeletalAnimationAbsoluteLayerWeight(SKELETAL_ANIMATION_PLAYER &player,
                                                      float weight) const;
+        bool fadeSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                float targetWeight, float duration) const;
+        bool getSkeletalAnimationAbsoluteLayerWeight(const SKELETAL_ANIMATION_PLAYER &player,
+                                                     float *weight) const noexcept;
         bool getSkeletalAnimationAbsoluteLayerTime(const SKELETAL_ANIMATION_PLAYER &player,
                                                    float *time) const noexcept;
         bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,

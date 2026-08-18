@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.79**
+Document version: **8.81**
 Status: **Five active skeletal workflows implemented; Skin Weight Lab retired; composition deferred**
 Last updated: **2026-08-17**
 
@@ -559,6 +559,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.81 | 2026-08-17 | Added linear timed fades for the transient Absolute layer. Runtime state captures start/target/duration/elapsed, advances only while the shared player is running, clamps exactly to the target, and automatically removes a layer that reaches zero. Lua exposes fade and current-weight queries; Runtime Skeletal Preview adds duration plus Fade to Base/Layer actions and displays the evaluated moving weight. Pure tests cover partial progress, exact completion, and invalid duration. The attempted graphical smoke was blocked before scene initialization by the current X11 environment and is not counted as passing evidence. |
+| 8.80 | 2026-08-17 | Exposed the transient Absolute layer through five documented Lua mesh methods and Runtime Skeletal Preview controls for clip, enable/disable, strict weight, and independent time. Pose-stress comparison applies and synchronizes the same layer on LBS and DQS previews. Pause/resume remains shared, and the UI explicitly states that the layer is runtime-only. A real Lua engine smoke test loaded Lorekeeper, exercised every new binding, and passed. |
 | 8.79 | 2026-08-17 | Added the first transient per-instance composition state to the C++ skeletal player: one base clip plus one Absolute clip layer with independent time, seek, and strict weight. Both clips are sampled in local TRS and composed before exactly one hierarchy reconstruction and one LBS/DQS palette build. Mutating playback operations preserve the prior state and palette on evaluation failure; stopping the base or installing an authoring palette clears the layer. The layer is not serialized and Lua/editor controls, independent pause, fades, masks, priority, and Additive semantics remain pending. |
 | 8.78 | 2026-08-17 | Resumed composition with a private backend-neutral two-pose Absolute CPU compositor. It strictly accepts weight 0..1, blends local T/S linearly and normalized R by shortest quaternion path, rebuilds globals once, rejects incomplete/non-finite input, and feeds the existing LBS/DQS palette builders. Deterministic tests cover endpoints, hierarchy, +170/-170 deg antipodality, invalid input, and palette readiness; no public player/editor surface exists yet. |
 | 8.77 | 2026-08-17 | Applied width-aware disabled wrapping to Bone Editor extension/root guidance and Paint Weights cached-geometry feedback, and split the Runtime Preview lighting tooltip into explicit short lines. |

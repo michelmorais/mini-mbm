@@ -274,6 +274,18 @@ namespace mbm
             getSkeletalAnimationPlayer(), weight) : false;
     }
 
+    bool MESH::fadeSkeletalAnimationAbsoluteLayer(const float targetWeight, const float duration)
+    {
+        return mesh ? mesh->fadeSkeletalAnimationAbsoluteLayer(
+            getSkeletalAnimationPlayer(), targetWeight, duration) : false;
+    }
+
+    bool MESH::getSkeletalAnimationAbsoluteLayerWeight(float *weight) const noexcept
+    {
+        return mesh ? mesh->getSkeletalAnimationAbsoluteLayerWeight(
+            getSkeletalAnimationPlayer(), weight) : false;
+    }
+
     bool MESH::getSkeletalAnimationAbsoluteLayerTime(float *time) const noexcept
     {
         return mesh ? mesh->getSkeletalAnimationAbsoluteLayerTime(

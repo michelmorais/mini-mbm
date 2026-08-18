@@ -266,6 +266,9 @@ namespace mbm::skeletal
                                       float layerWeight,
                                       SKELETAL_POSE &out) noexcept;
     bool advanceSkeletalClipTime(const SKELETAL_CLIP &clip, float delta, float &time) noexcept;
+    bool advanceSkeletalAbsoluteFade(float startWeight, float targetWeight, float duration,
+                                     float delta, float &elapsed, float &weight,
+                                     bool &complete) noexcept;
     bool sampleSkeletalClipsAbsolute(const COMPILED_SKELETON &skeleton,
                                      const SKELETAL_CLIP &baseClip, float baseTime,
                                      const SKELETAL_CLIP &layerClip, float layerTime,

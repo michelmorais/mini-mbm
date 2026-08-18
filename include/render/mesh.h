@@ -80,6 +80,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool stopSkeletalAnimationAbsoluteLayer() noexcept;
     API_IMPL bool seekSkeletalAnimationAbsoluteLayer(float time);
     API_IMPL bool setSkeletalAnimationAbsoluteLayerWeight(float weight);
+    API_IMPL bool fadeSkeletalAnimationAbsoluteLayer(float targetWeight, float duration);
+    API_IMPL bool getSkeletalAnimationAbsoluteLayerWeight(float *weight) const noexcept;
     API_IMPL bool getSkeletalAnimationAbsoluteLayerTime(float *time) const noexcept;
     API_IMPL bool setSkeletalAuthoringPalette(SKELETAL_SHADER_METHOD method,
                                               const float *rows, uint32_t rowCount,

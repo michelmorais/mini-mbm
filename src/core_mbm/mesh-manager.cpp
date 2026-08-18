@@ -1222,6 +1222,11 @@ namespace mbm
         impl->absoluteLayerClipIndex = UINT32_MAX;
         impl->absoluteLayerTime = 0.0f;
         impl->absoluteLayerWeight = 0.0f;
+        impl->absoluteLayerFadeStartWeight = 0.0f;
+        impl->absoluteLayerFadeTargetWeight = 0.0f;
+        impl->absoluteLayerFadeDuration = 0.0f;
+        impl->absoluteLayerFadeElapsed = 0.0f;
+        impl->absoluteLayerFadeActive = false;
         impl->absoluteLayerActive = false;
         impl->active = false;
         impl->paused = false;
@@ -8087,6 +8092,11 @@ namespace mbm
         player.impl->absoluteLayerClipIndex = UINT32_MAX;
         player.impl->absoluteLayerTime = 0.0f;
         player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerFadeStartWeight = 0.0f;
+        player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+        player.impl->absoluteLayerFadeDuration = 0.0f;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         player.impl->active = false;
         player.impl->paused = false;
@@ -8131,15 +8141,30 @@ namespace mbm
                 const uint32_t previousIndex = player.impl->absoluteLayerClipIndex;
                 const float previousTime = player.impl->absoluteLayerTime;
                 const float previousWeight = player.impl->absoluteLayerWeight;
+                const float previousFadeStart = player.impl->absoluteLayerFadeStartWeight;
+                const float previousFadeTarget = player.impl->absoluteLayerFadeTargetWeight;
+                const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
+                const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+                const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
                 const bool previousActive = player.impl->absoluteLayerActive;
                 player.impl->absoluteLayerClipIndex = index;
                 player.impl->absoluteLayerTime = 0.0f;
                 player.impl->absoluteLayerWeight = weight;
+                player.impl->absoluteLayerFadeStartWeight = weight;
+                player.impl->absoluteLayerFadeTargetWeight = weight;
+                player.impl->absoluteLayerFadeDuration = 0.0f;
+                player.impl->absoluteLayerFadeElapsed = 0.0f;
+                player.impl->absoluteLayerFadeActive = false;
                 player.impl->absoluteLayerActive = true;
                 if (updateSkeletalAnimation(player, 0.0f)) return true;
                 player.impl->absoluteLayerClipIndex = previousIndex;
                 player.impl->absoluteLayerTime = previousTime;
                 player.impl->absoluteLayerWeight = previousWeight;
+                player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
+                player.impl->absoluteLayerFadeTargetWeight = previousFadeTarget;
+                player.impl->absoluteLayerFadeDuration = previousFadeDuration;
+                player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
+                player.impl->absoluteLayerFadeActive = previousFadeActive;
                 player.impl->absoluteLayerActive = previousActive;
                 return false;
             }
@@ -8154,14 +8179,29 @@ namespace mbm
         const uint32_t previousIndex = player.impl->absoluteLayerClipIndex;
         const float previousTime = player.impl->absoluteLayerTime;
         const float previousWeight = player.impl->absoluteLayerWeight;
+        const float previousFadeStart = player.impl->absoluteLayerFadeStartWeight;
+        const float previousFadeTarget = player.impl->absoluteLayerFadeTargetWeight;
+        const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
+        const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+        const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
         player.impl->absoluteLayerClipIndex = UINT32_MAX;
         player.impl->absoluteLayerTime = 0.0f;
         player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerFadeStartWeight = 0.0f;
+        player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+        player.impl->absoluteLayerFadeDuration = 0.0f;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         if (updateSkeletalAnimation(player, 0.0f)) return true;
         player.impl->absoluteLayerClipIndex = previousIndex;
         player.impl->absoluteLayerTime = previousTime;
         player.impl->absoluteLayerWeight = previousWeight;
+        player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
+        player.impl->absoluteLayerFadeTargetWeight = previousFadeTarget;
+        player.impl->absoluteLayerFadeDuration = previousFadeDuration;
+        player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
+        player.impl->absoluteLayerFadeActive = previousFadeActive;
         player.impl->absoluteLayerActive = true;
         return false;
     }
@@ -8188,10 +8228,56 @@ namespace mbm
             !std::isfinite(weight) || weight < 0.0f || weight > 1.0f)
             return false;
         const float previousWeight = player.impl->absoluteLayerWeight;
+        const float previousFadeStart = player.impl->absoluteLayerFadeStartWeight;
+        const float previousFadeTarget = player.impl->absoluteLayerFadeTargetWeight;
+        const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
+        const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+        const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
         player.impl->absoluteLayerWeight = weight;
+        player.impl->absoluteLayerFadeStartWeight = weight;
+        player.impl->absoluteLayerFadeTargetWeight = weight;
+        player.impl->absoluteLayerFadeDuration = 0.0f;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = false;
         if (updateSkeletalAnimation(player, 0.0f)) return true;
         player.impl->absoluteLayerWeight = previousWeight;
+        player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
+        player.impl->absoluteLayerFadeTargetWeight = previousFadeTarget;
+        player.impl->absoluteLayerFadeDuration = previousFadeDuration;
+        player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
+        player.impl->absoluteLayerFadeActive = previousFadeActive;
         return false;
+    }
+
+    bool MESH_MBM::fadeSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                        const float targetWeight,
+                                                        const float duration) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive ||
+            !std::isfinite(targetWeight) || targetWeight < 0.0f || targetWeight > 1.0f ||
+            !std::isfinite(duration) || duration < 0.0f)
+            return false;
+        if (duration == 0.0f)
+        {
+            if (targetWeight == 0.0f)
+                return stopSkeletalAnimationAbsoluteLayer(player);
+            return setSkeletalAnimationAbsoluteLayerWeight(player, targetWeight);
+        }
+        player.impl->absoluteLayerFadeStartWeight = player.impl->absoluteLayerWeight;
+        player.impl->absoluteLayerFadeTargetWeight = targetWeight;
+        player.impl->absoluteLayerFadeDuration = duration;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = true;
+        return true;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationAbsoluteLayerWeight(
+        const SKELETAL_ANIMATION_PLAYER &player, float *weight) const noexcept
+    {
+        if (!weight || !player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        *weight = player.impl->absoluteLayerWeight;
+        return true;
     }
 
     bool MESH_MBM::getSkeletalAnimationAbsoluteLayerTime(
@@ -8213,6 +8299,10 @@ namespace mbm
         const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
         float evaluatedBaseTime = player.impl->time;
         float evaluatedLayerTime = player.impl->absoluteLayerTime;
+        float evaluatedLayerWeight = player.impl->absoluteLayerWeight;
+        float evaluatedFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+        bool evaluatedFadeActive = player.impl->absoluteLayerFadeActive;
+        bool removeCompletedLayer = false;
         if (!player.impl->paused && delta > 0.0f)
         {
             if (!skeletal::advanceSkeletalClipTime(clip, delta, evaluatedBaseTime))
@@ -8229,6 +8319,21 @@ namespace mbm
                 if (!skeletal::advanceSkeletalClipTime(*absoluteLayer, delta,
                         evaluatedLayerTime))
                     return false;
+                if (evaluatedFadeActive)
+                {
+                    bool fadeComplete = false;
+                    if (!skeletal::advanceSkeletalAbsoluteFade(
+                            player.impl->absoluteLayerFadeStartWeight,
+                            player.impl->absoluteLayerFadeTargetWeight,
+                            player.impl->absoluteLayerFadeDuration, delta,
+                            evaluatedFadeElapsed, evaluatedLayerWeight, fadeComplete))
+                        return false;
+                    if (fadeComplete)
+                    {
+                        evaluatedFadeActive = false;
+                        removeCompletedLayer = evaluatedLayerWeight == 0.0f;
+                    }
+                }
             }
         }
         const BUFFER_GL *buffer = impl->buffer && impl->totalFramesMesh > 0
@@ -8241,7 +8346,7 @@ namespace mbm
         {
             if (!skeletal::sampleSkeletalClipsAbsolute(impl->canonicalSkeleton.compiled,
                     clip, evaluatedBaseTime, *absoluteLayer, evaluatedLayerTime,
-                    player.impl->absoluteLayerWeight, pose))
+                    evaluatedLayerWeight, pose))
                 return false;
         }
         else if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, clip,
@@ -8258,7 +8363,25 @@ namespace mbm
                      paletteRows) != skeletal::GLES2_LBS_PALETTE_STATUS::READY)
             return false;
         player.impl->time = evaluatedBaseTime;
-        player.impl->absoluteLayerTime = evaluatedLayerTime;
+        if (removeCompletedLayer)
+        {
+            player.impl->absoluteLayerClipIndex = UINT32_MAX;
+            player.impl->absoluteLayerTime = 0.0f;
+            player.impl->absoluteLayerWeight = 0.0f;
+            player.impl->absoluteLayerFadeStartWeight = 0.0f;
+            player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+            player.impl->absoluteLayerFadeDuration = 0.0f;
+            player.impl->absoluteLayerFadeElapsed = 0.0f;
+            player.impl->absoluteLayerFadeActive = false;
+            player.impl->absoluteLayerActive = false;
+        }
+        else
+        {
+            player.impl->absoluteLayerTime = evaluatedLayerTime;
+            player.impl->absoluteLayerWeight = evaluatedLayerWeight;
+            player.impl->absoluteLayerFadeElapsed = evaluatedFadeElapsed;
+            player.impl->absoluteLayerFadeActive = evaluatedFadeActive;
+        }
         player.impl->paletteRows = std::move(paletteRows);
         return true;
     }
@@ -8314,6 +8437,11 @@ namespace mbm
         player.impl->absoluteLayerClipIndex = UINT32_MAX;
         player.impl->absoluteLayerTime = 0.0f;
         player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerFadeStartWeight = 0.0f;
+        player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+        player.impl->absoluteLayerFadeDuration = 0.0f;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = false;
         player.impl->absoluteLayerActive = false;
         player.impl->time = time;
         player.impl->active = true;

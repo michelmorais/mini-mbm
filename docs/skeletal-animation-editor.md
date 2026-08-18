@@ -20,8 +20,8 @@ Animations and direct brush-based weight authoring are active.
 No worktree is selected initially. Loading or replacing an asset returns to this neutral state,
 enables the ordinary textured mesh, and keeps skeletons, heatmaps, cursors, capture volumes, and
 diagnostic overlays hidden until the user explicitly opens a worktree.
-The C++ runtime now has a transient two-clip Absolute composition foundation; Lua and editor controls
-remain pending. Its product
+The runtime and Runtime Skeletal Preview now expose a transient two-clip Absolute composition
+foundation. Its product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
@@ -1196,10 +1196,11 @@ The following are current editor limitations rather than regressions caused by r
   diagnostic edges; its repair separately synchronizes compatible connected coincident copies;
 - no automatic heavy whole-mesh weight generation;
 - no custom-tail animation generation;
-- no multi-clip editor playback yet: the C++ player supports one transient per-instance Absolute
-  layer over a base clip, with independent time/seek and weight before one final LBS/DQS palette.
-  It is not serialized or exposed to Lua/editor controls yet; independent pause, priority, fades,
-  Additive evaluation, and masks remain pending;
+- multi-clip playback is intentionally limited to one transient per-instance Absolute layer over a
+  base clip. Lua and Runtime Skeletal Preview expose layer clip, independent time/seek, and weight
+  before one final LBS/DQS palette. A linear timed fade can target base or layer; reaching zero
+  removes the layer. The layer is not serialized; independent pause, transition curves/queues,
+  priority, Additive evaluation, and masks remain pending;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 

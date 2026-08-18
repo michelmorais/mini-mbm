@@ -56,6 +56,11 @@ namespace mbm
         uint32_t absoluteLayerClipIndex = UINT32_MAX;
         float absoluteLayerTime = 0.0f;
         float absoluteLayerWeight = 0.0f;
+        float absoluteLayerFadeStartWeight = 0.0f;
+        float absoluteLayerFadeTargetWeight = 0.0f;
+        float absoluteLayerFadeDuration = 0.0f;
+        float absoluteLayerFadeElapsed = 0.0f;
+        bool absoluteLayerFadeActive = false;
         bool absoluteLayerActive = false;
         bool active = false;
         bool paused = false;
