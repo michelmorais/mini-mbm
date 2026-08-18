@@ -183,7 +183,12 @@ duration/progress, per-play additive weight, and tie-break sequence remain priva
 rendering storage); each `ANIMATION_MANAGER` instance owns a separate player, used by `MESH` and
 `SPRITE`, so cached assets never leak playback state between renderizable instances.
 Canonical skeletal playback follows the same ownership rule with its own opaque
-`SKELETAL_ANIMATION_PLAYER`. Active clip index, time, pause state, and evaluated palette rows live
+`SKELETAL_ANIMATION_PLAYER`. Active clip index, time, pause state, stable-ID layer mask, evaluated
+global transforms, and palette rows live
 in the renderizable instance's `ANIMATION_MANAGER::Impl`; the cached `MESH_MBM::Impl` keeps only
 validated type-41/42/43 asset data and GLES-ready immutable vertex inputs. Shader draw calls accept
-a transient pointer/count for the owning instance's palette without retaining or exposing it.
+a transient pointer/count for the owning instance's palette without retaining or exposing it. The
+runtime-pose inspection API copies one bone's stable ID, parent index, and global matrix at a time.
+The named-bone gameplay query resolves that same private evaluated pose and copies decomposed TRS
+plus its matrix in model or renderizable-composed world space; neither query exposes a vector,
+mutable storage, lookup container, palette pointer, or backend handle.

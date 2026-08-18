@@ -607,9 +607,10 @@ separately; the capacity is not a combined scene-wide bone budget. Bind restorat
 the active player; it does not assume that time zero of an authored clip is the bind pose.
 The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and
-matching active-backend LBS or DQS palette. The bind-only diagnostic gizmo is hidden in this worktree so it
-is not mistaken for either evaluated runtime instance.
-Resolution details, per-instance capacity guidance, and the hidden bind-gizmo explanation are
+matching active-backend LBS or DQS palette. When a clip layer is active, the optional mask skeleton
+follows the primary preview's final evaluated global transforms while retaining per-bone mask colors.
+In LBS/DQS comparison it intentionally does not duplicate the secondary instance.
+Resolution details, per-instance capacity guidance, and the evaluated-gizmo scope are
 available as hover tooltips on their corresponding Runtime Preview report or control.
 Runtime Preview also provides a movable editor-only light window following Mesh Debug's controls:
 **Enable Preview Lighting**, ambient color, directional color, an orbit direction gizmo with numeric
@@ -732,9 +733,9 @@ unsaved skeleton, weight, and clip changes.
 Only one worktree is open at a time. Opening another automatically closes the previous one and
 updates the viewport. **Show Mesh** is shared. Skeleton visualization is contextual: Bind Pose
 Contract displays the bind skeleton automatically, Paint Weights owns its local visibility option,
-and Runtime Skeletal Preview hides the bind-only gizmo. Drawing a skeleton there would require a
-separately evaluated gizmo for each animated LBS/DQS instance. Runtime LBS/DQS comparison geometry
-is shown only in the Runtime Skeletal Preview worktree.
+and Runtime Skeletal Preview optionally draws the primary player's final evaluated pose with mask
+colors. Runtime LBS/DQS comparison geometry is shown only in that worktree; its secondary instance
+does not receive a duplicate skeleton gizmo.
 
 ## Bone Editor
 
@@ -1196,8 +1197,8 @@ The following are current editor limitations rather than regressions caused by r
 
 - runtime preview uses the engine's compiled OpenGL ES, DirectX 9, or Metal backend; there is no runtime
   backend selector;
-- Runtime Skeletal Preview deliberately hides its bind-only diagnostic gizmo; the Animation
-  worktree instead displays the evaluated in-memory pose skeleton;
+- Runtime Skeletal Preview's evaluated mask gizmo follows the primary instance only; pose-stress
+  comparison does not duplicate it for the secondary LBS/DQS instance;
 - no protected/exclusion volumes;
 - no topology-ring selection expansion;
 - abrupt-transition classification still follows stored triangle indices rather than adding welded
@@ -1214,13 +1215,15 @@ The following are current editor limitations rather than regressions caused by r
 - per-bone animation-layer masks multiply layer weight per stable bone identity and default to all
   ones when absent. Runtime Skeletal Preview exposes the canonical hierarchy, selected-bone weight,
   descendant propagation, All 0, All 1, Invert, and selected-subtree controls. Multi-bone actions
-  commit transactionally through one pose evaluation. An optional bind-layout skeleton maps low-to-high
-  mask weights from blue through green to red and highlights the selected bone in cyan. The mask
+  commit transactionally through one pose evaluation. An optional evaluated-pose skeleton follows
+  the active player's final transforms each frame, including base-only playback. It maps low-to-high
+  mask weights from blue through green to red, defaults to all-high without a mask, and highlights
+  the selected bone in cyan. The mask
   remains transient per-instance state and is distinct from skin weights and Paint Weights vertex masks;
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
-Richer pose-stress overlays, evaluated runtime-pose gizmos, antipodality tooling, and Metal numeric parity coverage
+Richer pose-stress overlays, antipodality tooling, and Metal numeric parity coverage
 remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Further skeleton and animation authoring refinements remain in the product plan. Mesh Debug's legacy Bone

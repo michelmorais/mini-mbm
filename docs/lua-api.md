@@ -621,6 +621,8 @@ rigid DQS rejects any scale/shear.
 | `obj:setSkeletalAnimationLayerBoneWeights` | `(edits)` | bool | Atomically apply a nonempty array of `{boneId=hexString, weight=number}` edits; IDs must be unique and valid and every weight must be in `0..1`, otherwise the complete batch is rejected unchanged |
 | `obj:getSkeletalAnimationLayerBoneWeight` | `(boneId)` | number or nil | Get one active layer-mask multiplier; returns `1` for an unmasked valid bone and no value when the layer or identity is invalid |
 | `obj:clearSkeletalAnimationLayerMask` | `()` | bool | Atomically restore every active layer-mask multiplier to the all-ones compatibility default |
+| `obj:getSkeletalAnimationPose` | `()` | table or nil | Copy the active player's final evaluated global pose as ordered `{boneId, parentIndex, globalMatrix}` records; `parentIndex` is one-based with `0` for a root, and inactive/authoring-palette players return `nil` |
+| `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; rotation is a normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. |
 | `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
 ```lua
@@ -643,6 +645,13 @@ character:seekSkeletalAnimation(0.5)
 character:pauseSkeletalAnimation()
 character:resumeSkeletalAnimation()
 character:stopSkeletalAnimationAbsoluteLayer()
+
+-- Read the final hand pose each frame for an attachment such as a sword.
+local hand = character:getSkeletalBoneTransform("mixamorig:RightHand", "world")
+if hand then
+    sword:setPos(hand.position.x, hand.position.y, hand.position.z)
+    -- hand.rotation is quaternion XYZW; hand.matrix preserves the complete transform.
+end
 ```
 
 ### 6.7 Depth / Ordering

@@ -205,6 +205,13 @@ namespace mbm
         MATRIX globalMatrix;
     };
 
+    struct SKELETAL_RUNTIME_POSE_BONE_INFO
+    {
+        uint64_t boneId = 0;
+        int32_t parentIndex = -1;
+        MATRIX globalMatrix;
+    };
+
     class MESH_MBM_DEBUG
     {
       public:
@@ -733,6 +740,15 @@ namespace mbm
         bool getSkeletalAnimationLayerBoneWeight(const SKELETAL_ANIMATION_PLAYER &player,
                                                  uint64_t boneId, float *weight) const noexcept;
         bool clearSkeletalAnimationLayerMask(SKELETAL_ANIMATION_PLAYER &player) const;
+        uint32_t getSkeletalAnimationPoseBoneCount(
+            const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool getSkeletalAnimationPoseBone(const SKELETAL_ANIMATION_PLAYER &player,
+                                          uint32_t boneIndex,
+                                          SKELETAL_RUNTIME_POSE_BONE_INFO &out) const noexcept;
+        bool getSkeletalBoneTransform(const SKELETAL_ANIMATION_PLAYER &player,
+                                      const char *boneName, const MATRIX *modelMatrix,
+                                      uint64_t *boneId, MATRIX *matrix, VEC3 *position,
+                                      float rotation[4], VEC3 *scale) const noexcept;
         bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
                                          SKELETAL_SHADER_METHOD method, const float *rows,
                                          uint32_t rowCount, const uint64_t *orderedBoneIds,

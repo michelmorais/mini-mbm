@@ -94,6 +94,13 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
                                                        const float *weights, uint32_t count);
     API_IMPL bool getSkeletalAnimationLayerBoneWeight(uint64_t boneId, float *weight) const noexcept;
     API_IMPL bool clearSkeletalAnimationLayerMask();
+    API_IMPL uint32_t getSkeletalAnimationPoseBoneCount() const noexcept;
+    API_IMPL bool getSkeletalAnimationPoseBone(uint32_t boneIndex, uint64_t *boneId,
+                                               int32_t *parentIndex,
+                                               MATRIX *globalMatrix) const noexcept;
+    API_IMPL bool getSkeletalBoneTransform(const char *boneName, bool worldSpace,
+                                           uint64_t *boneId, MATRIX *matrix, VEC3 *position,
+                                           float rotation[4], VEC3 *scale) const noexcept;
     API_IMPL bool setSkeletalAuthoringPalette(SKELETAL_SHADER_METHOD method,
                                               const float *rows, uint32_t rowCount,
                                               const uint64_t *orderedBoneIds, uint32_t boneIdCount,

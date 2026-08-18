@@ -37,7 +37,7 @@ local state = {
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
         absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, absoluteLayerPaused=false, speed=1,
         layerMaskWeights={},layerMaskSelected=1,layerMaskDescendants=true,
-        layerMaskShowSkeleton=true},
+        layerMaskShowSkeleton=true,runtimePose=nil,previewX=0},
     runtimeLight={enabled=false,
         ambientColor={r=0.16,g=0.16,b=0.2,a=1},
         directionalColor={r=1,g=0.96,b=0.88,a=1},
@@ -239,7 +239,7 @@ local cameraMove = {forward=0, right=0, vertical=0}
 
 local function shouldShowSkeleton()
     return state.workspace=='bind' or state.workspace=='bone_editor' or state.workspace=='animation' or
-        (state.workspace=='runtime' and state.skeletalPreview.absoluteLayerActive and
+        (state.workspace=='runtime' and state.skeletalPreview.playing and
             state.skeletalPreview.layerMaskShowSkeleton) or
         (state.workspace=='paint' and state.paint.showSkeleton and
             not state.paint.aabbCapture.active)
@@ -535,17 +535,25 @@ end
 
 local function getVisualBones()
     local bones=getBones()
-    if state.workspace~='animation' or not state.authoringPose or
-            type(state.authoringPose.bones)~='table' then return bones end
+    local posedBones=state.workspace=='animation' and state.authoringPose and
+        state.authoringPose.bones or state.workspace=='runtime' and
+        state.skeletalPreview.runtimePose or nil
+    if type(posedBones)~='table' then
+        if state.workspace=='runtime' then
+            for _,bone in ipairs(bones) do bone.x=bone.x+(state.skeletalPreview.previewX or 0) end
+        end
+        return bones
+    end
     for index,bone in ipairs(bones) do
-        local posed=state.authoringPose.bones[index]
+        local posed=posedBones[index]
         local global=posed and posed.globalMatrix or nil
-        if global then
+        if global and (not posed.boneId or posed.boneId==bone.boneId) then
             bone.x=global[13] or bone.x
             bone.y=global[14] or bone.y
             bone.z=global[15] or bone.z
             bone.globalMatrix=global
         end
+        if state.workspace=='runtime' then bone.x=bone.x+(state.skeletalPreview.previewX or 0) end
     end
     return bones
 end
@@ -1232,7 +1240,7 @@ rebuildSkeletonVisuals=function()
             local parentRadius=math.max(parent.radius or 0,extent*0.006,0.001)
             if dx*dx+dy*dy+dz*dz>0.000001 then
                 local link
-                if state.workspace=='animation' then
+                if state.workspace=='animation' or state.workspace=='runtime' then
                     local parentVisualZ,boneVisualZ=visualZ(parent.z),visualZ(bone.z)
                     link=line:new('3d',parent.x,parent.y,parentVisualZ)
                     link:add({0,0,0,dx,dy,boneVisualZ-parentVisualZ})
@@ -1281,6 +1289,33 @@ local function updateAnimationSkeletonVisuals()
     rebuildRotationGizmo()
     rebuildScaleGizmo()
     updateSkeletonVisibility()
+    return true
+end
+
+local function updateRuntimeSkeletonVisuals()
+    local playback=state.skeletalPreview
+    if state.workspace~='runtime' or not playback.playing or
+            not playback.layerMaskShowSkeleton or not state.preview then return false end
+    local pose=state.preview:getSkeletalAnimationPose()
+    if type(pose)~='table' then return false end
+    playback.runtimePose=pose
+    local bones=getVisualBones()
+    local byName={}
+    for _,bone in ipairs(bones) do byName[bone.name]=bone end
+    for _,bone in ipairs(bones) do
+        local sphere=state.skeletonGizmo.spheres[bone.name]
+        if not sphere then return false end
+        sphere:setPos(bone.x,bone.y,visualZ(bone.z))
+        if bone.parentName then
+            local parent=byName[bone.parentName]
+            local link=state.skeletonGizmo.bones[bone.boneId]
+            if not parent or not link then return false end
+            local parentVisualZ,boneVisualZ=visualZ(parent.z),visualZ(bone.z)
+            link:set({0,0,0,bone.x-parent.x,bone.y-parent.y,boneVisualZ-parentVisualZ},1)
+            link:setPos(parent.x,parent.y,parentVisualZ)
+        end
+    end
+    applyWorkspaceVisibility()
     return true
 end
 
@@ -2685,6 +2720,7 @@ local function rebuildPreview(sourcePath)
     playback.absoluteLayerDuration=0
     playback.absoluteLayerActive=false
     playback.absoluteLayerPaused=false
+    playback.runtimePose=nil
     sourcePath=sourcePath or state.fileName
     if not sourcePath then return end
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
@@ -2702,11 +2738,13 @@ local function rebuildPreview(sourcePath)
     end
     if playback.poseStress then
         state.preview=loadRuntimePreview('lbs',-separation)
+        playback.previewX=-separation
         state.comparisonPreview=loadRuntimePreview('dqs',separation)
         playback.comparisonReady=state.preview~=nil and state.comparisonPreview~=nil
     else
         local method=playback.method==1 and 'auto' or playback.method==3 and 'dqs' or 'lbs'
         state.preview=loadRuntimePreview(method,0)
+        playback.previewX=0
     end
     if state.preview then
         local total=state.preview:getTotalSkeletalAnimations()
@@ -2747,6 +2785,8 @@ local function playSelectedSkeletalClip()
             playback.comparisonReady=state.comparisonPreview:playSkeletalAnimation(name)
             if playback.comparisonReady then state.comparisonPreview:seekSkeletalAnimation(0) end
         end
+        rebuildSkeletonVisuals()
+        applyWorkspaceVisibility()
     end
 end
 
@@ -2812,6 +2852,13 @@ local function showRuntimeLayerMask()
     if #bones==0 then return end
     if not tImGui.TreeNode(tLang.L('swl_layer_mask')..'##swlLayerMask') then return end
     tImGui.TextWrapped(tLang.L('swl_layer_mask_help'))
+    local showSkeleton=tImGui.Checkbox(tLang.L('swl_layer_mask_show_skeleton'),
+        playback.layerMaskShowSkeleton)
+    if showSkeleton~=playback.layerMaskShowSkeleton then
+        playback.layerMaskShowSkeleton=showSkeleton
+        rebuildSkeletonVisuals()
+        applyWorkspaceVisibility()
+    end
     tImGui.BeginDisabled(not playback.absoluteLayerActive)
     if tImGui.Button(tLang.L('swl_layer_mask_all_zero')) then
         local edits={}
@@ -2900,13 +2947,6 @@ local function showRuntimeLayerMask()
     if tImGui.Button(tLang.L('swl_layer_mask_subtree_one')) then
         applyRuntimeLayerMaskEdits(selectedSubtreeEdits(1))
     end
-    local showSkeleton=tImGui.Checkbox(tLang.L('swl_layer_mask_show_skeleton'),
-        playback.layerMaskShowSkeleton)
-    if showSkeleton~=playback.layerMaskShowSkeleton then
-        playback.layerMaskShowSkeleton=showSkeleton
-        rebuildSkeletonVisuals()
-        applyWorkspaceVisibility()
-    end
     tImGui.EndDisabled()
     tImGui.TreePop()
 end
@@ -2918,6 +2958,7 @@ local function stopAbsoluteLayer()
     if state.comparisonPreview then state.comparisonPreview:stopSkeletalAnimationAbsoluteLayer() end
     playback.absoluteLayerActive=false
     playback.absoluteLayerPaused=false
+    playback.runtimePose=nil
     rebuildSkeletonVisuals()
     applyWorkspaceVisibility()
     return true
@@ -3026,6 +3067,9 @@ local function showSkeletalPreviewControls()
             playback.paused=false
             playback.absoluteLayerActive=false
             playback.absoluteLayerPaused=false
+            playback.runtimePose=nil
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
         end
     end
     tImGui.EndDisabled()
@@ -3072,6 +3116,9 @@ local function showSkeletalPreviewControls()
     if playback.absoluteLayerActive and runtimeLayerWeight==nil then
         playback.absoluteLayerActive=false
         playback.absoluteLayerPaused=false
+        playback.runtimePose=nil
+        rebuildSkeletonVisuals()
+        applyWorkspaceVisibility()
     elseif runtimeLayerWeight~=nil then
         playback.absoluteLayerWeight=runtimeLayerWeight
         playback.absoluteLayerPaused=state.preview:isSkeletalAnimationLayerPaused()
@@ -9750,6 +9797,10 @@ function onLoop(delta)
     showRuntimeLightWindow()
     showSkeletalTimelineWindow()
     syncPoseStressPreview()
+    if state.workspace=='runtime' and state.skeletalPreview.playing and
+            state.skeletalPreview.layerMaskShowSkeleton then
+        if not updateRuntimeSkeletonVisuals() then rebuildSkeletonVisuals() end
+    end
     tUtil.showOverlayMessage()
 end
 

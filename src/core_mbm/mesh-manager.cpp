@@ -1233,6 +1233,7 @@ namespace mbm
         impl->active = false;
         impl->paused = false;
         impl->paletteRows.clear();
+        impl->evaluatedGlobalTransforms.clear();
         impl->authoringPose = false;
     }
 
@@ -8107,6 +8108,7 @@ namespace mbm
         player.impl->active = false;
         player.impl->paused = false;
         player.impl->paletteRows.clear();
+        player.impl->evaluatedGlobalTransforms.clear();
         player.impl->authoringPose = false;
         return true;
     }
@@ -8421,6 +8423,59 @@ namespace mbm
         return false;
     }
 
+    uint32_t MESH_MBM::getSkeletalAnimationPoseBoneCount(
+        const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->active && !player.impl->authoringPose &&
+            player.impl->evaluatedGlobalTransforms.size() ==
+                impl->canonicalSkeleton.compiled.bones.size()
+            ? static_cast<uint32_t>(player.impl->evaluatedGlobalTransforms.size()) : 0;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationPoseBone(
+        const SKELETAL_ANIMATION_PLAYER &player, const uint32_t boneIndex,
+        SKELETAL_RUNTIME_POSE_BONE_INFO &out) const noexcept
+    {
+        if (boneIndex >= getSkeletalAnimationPoseBoneCount(player))
+            return false;
+        const skeletal::COMPILED_BONE &bone = impl->canonicalSkeleton.compiled.bones[boneIndex];
+        out.boneId = bone.boneId;
+        out.parentIndex = bone.parentIndex;
+        out.globalMatrix = player.impl->evaluatedGlobalTransforms[boneIndex];
+        return true;
+    }
+
+    bool MESH_MBM::getSkeletalBoneTransform(
+        const SKELETAL_ANIMATION_PLAYER &player, const char *boneName,
+        const MATRIX *modelMatrix, uint64_t *boneId, MATRIX *matrix, VEC3 *position,
+        float rotation[4], VEC3 *scale) const noexcept
+    {
+        if (!boneName || !boneId || !matrix || !position || !rotation || !scale ||
+            getSkeletalAnimationPoseBoneCount(player) == 0)
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexByName.find(boneName);
+        if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+            return false;
+        const uint32_t boneIndex = found->second;
+        MATRIX result = player.impl->evaluatedGlobalTransforms[boneIndex];
+        if (modelMatrix)
+            MatrixMultiply(&result, &result, modelMatrix);
+        skeletal::LOCAL_TRANSFORM transform;
+        bool hasNegativeScale = false;
+        bool hasShear = false;
+        if (!skeletal::decomposeTrsMatrix(result, transform, hasNegativeScale, hasShear) || hasShear)
+            return false;
+        *boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        *matrix = result;
+        *position = transform.translation;
+        rotation[0] = transform.rotation.x;
+        rotation[1] = transform.rotation.y;
+        rotation[2] = transform.rotation.z;
+        rotation[3] = transform.rotation.w;
+        *scale = transform.scale;
+        return true;
+    }
+
     bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta) const
     {
         if (player.impl->authoringPose)
@@ -8537,6 +8592,7 @@ namespace mbm
             player.impl->absoluteLayerFadeActive = evaluatedFadeActive;
         }
         player.impl->paletteRows = std::move(paletteRows);
+        player.impl->evaluatedGlobalTransforms = std::move(pose.globalTransforms);
         return true;
     }
 
@@ -8600,6 +8656,7 @@ namespace mbm
         player.impl->additiveLayer = false;
         player.impl->layerPaused = false;
         player.impl->layerBoneMask.clear();
+        player.impl->evaluatedGlobalTransforms.clear();
         player.impl->time = time;
         player.impl->active = true;
         player.impl->paused = true;

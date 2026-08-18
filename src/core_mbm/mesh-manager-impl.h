@@ -72,6 +72,7 @@ namespace mbm
         SKELETAL_SHADER_METHOD resolvedSkinningMethod = SKELETAL_SHADER_METHOD::LBS;
         const char *skinningResolutionReason = "explicit-lbs";
         std::vector<float> paletteRows;
+        std::vector<MATRIX> evaluatedGlobalTransforms;
         bool authoringPose = false;
     };
 

@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.100**
+Document version: **9.102**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-18**
 
@@ -322,8 +322,9 @@ The Skeletal Animation Editor contains five mutually exclusive worktrees:
 
 The asset, camera, viewport, status, and mesh visibility remain shared services. Skeleton display is
 worktree-specific: bind inspection shows the bind skeleton, Paint Weights owns its local toggle,
-and Runtime Skeletal Preview hides the bind-only gizmo until evaluated per-instance skeleton gizmos
-exist. Runtime deformation/backend reporting has its own worktree, while weight-authoring overlays
+and Runtime Skeletal Preview optionally draws the primary player's final evaluated pose with mask
+colors. The secondary pose-stress instance has no duplicate gizmo. Runtime deformation/backend
+reporting has its own worktree, while weight-authoring overlays
 are strictly scoped to Paint Weights. Runtime contracts stay in this plan; worktree behavior and the
 staged Mesh Debug Bones migration are owned by the companion
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
@@ -667,9 +668,10 @@ mutate assets, evaluate clips, or deform vertices.
   times per-bone mask weight. Masks must not require an extra GPU skinning pass or change mesh data.
 - Mask authoring remains inside Runtime Skeletal Preview: canonical hierarchy, selected-bone
   weight, descendant propagation, all-zero/all-one/invert and selected-subtree actions, plus an
-  optional bind-layout skeleton with selected-bone highlight and a blue-green-red weight gradient.
-  Multi-bone mutations validate and commit atomically before one pose rebuild; an evaluated
-  runtime-pose gizmo remains separate follow-up work.
+  optional evaluated-pose skeleton for base-only or composed playback, with selected-bone highlight
+  and a blue-green-red weight gradient. The active player exposes an ordered read-only copy of its final global transforms;
+  no palette, mutable pose container, or backend state escapes. Multi-bone mutations validate and
+  commit atomically before one pose rebuild.
   It is not a new worktree and is not Paint Weights vertex masking.
 
 ### Phase 8 — Backend modernization decision
@@ -859,6 +861,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.102 | 2026-08-18 | Added `mesh:getSkeletalBoneTransform(name, space)` for gameplay attachments. Exact canonical-name lookup reads the active player's final base-plus-layer evaluated pose; model space is available directly and world space composes the mesh transform, returning copy-out position, normalized quaternion, scale, and matrix. |
+| 9.101 | 2026-08-18 | Exposed a read-only copy-out of the active player's final evaluated global bone transforms and connected Runtime Preview's mask skeleton to that pose. Existing joints and line segments now follow base-plus-layer animation every frame without CPU vertex deformation or additional GPU work. |
 | 9.100 | 2026-08-18 | Added atomic stable-ID layer-mask batches and completed the planned first editor controls with selected-subtree actions and bind-layout viewport feedback. Bulk controls now validate the complete candidate and reevaluate the composed pose once per preview. |
 | 9.99 | 2026-08-18 | Delivered transient per-bone animation-layer masks in the backend-neutral CPU compositor. Stable-ID strict weights multiply the global layer weight for Absolute and Additive composition before one hierarchy rebuild and unchanged LBS/DQS palette upload. Added transactional C++/Lua controls, Runtime Preview hierarchy/descendant/all/invert controls, deterministic foundation coverage, and a real Lorekeeper Lua runtime smoke. |
 | 9.98 | 2026-08-18 | Audited Metal delivery against the implementation; documented the vertex-buffer slot map, replacement hazard, hard-capacity-versus-performance distinction, shared palette allocation tradeoff, Lua embedded-MSL delimiter trap, and validation-layer requirement. |

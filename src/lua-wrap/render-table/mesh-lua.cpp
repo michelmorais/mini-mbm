@@ -521,6 +521,103 @@ namespace mbm
         return 1;
     }
 
+    int onGetSkeletalAnimationPoseLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const uint32_t count = mesh->getSkeletalAnimationPoseBoneCount();
+        if (count == 0)
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, static_cast<int>(count), 0);
+        for (uint32_t index = 0; index < count; ++index)
+        {
+            uint64_t stableBoneId = 0;
+            int32_t parentIndex = -1;
+            MATRIX globalMatrix;
+            if (!mesh->getSkeletalAnimationPoseBone(index, &stableBoneId, &parentIndex,
+                                                     &globalMatrix))
+            {
+                lua_pop(lua, 1);
+                lua_pushnil(lua);
+                return 1;
+            }
+            lua_createtable(lua, 0, 3);
+            char boneId[17] = "";
+            snprintf(boneId, sizeof(boneId), "%016llx",
+                     static_cast<unsigned long long>(stableBoneId));
+            lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+            lua_pushinteger(lua, parentIndex + 1); lua_setfield(lua, -2, "parentIndex");
+            lua_createtable(lua, 16, 0);
+            for (int matrixIndex = 0; matrixIndex < 16; ++matrixIndex)
+            {
+                lua_pushnumber(lua, globalMatrix.p[matrixIndex]);
+                lua_rawseti(lua, -2, matrixIndex + 1);
+            }
+            lua_setfield(lua, -2, "globalMatrix");
+            lua_rawseti(lua, -2, index + 1);
+        }
+        return 1;
+    }
+
+    int onGetSkeletalBoneTransformLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *boneName = luaL_checkstring(lua, 2);
+        const char *space = luaL_optstring(lua, 3, "model");
+        const bool worldSpace = strcmp(space, "world") == 0;
+        if (!worldSpace && strcmp(space, "model") != 0)
+            return luaL_error(lua, "space must be 'model' or 'world'");
+
+        uint64_t stableBoneId = 0;
+        MATRIX matrix;
+        VEC3 position;
+        float rotation[4] = {};
+        VEC3 scale;
+        if (!mesh->getSkeletalBoneTransform(boneName, worldSpace, &stableBoneId, &matrix,
+                                            &position, rotation, &scale))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+
+        lua_createtable(lua, 0, 6);
+        char boneId[17] = "";
+        snprintf(boneId, sizeof(boneId), "%016llx",
+                 static_cast<unsigned long long>(stableBoneId));
+        lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+        lua_pushstring(lua, space); lua_setfield(lua, -2, "space");
+
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, position.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, position.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, position.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "position");
+
+        lua_createtable(lua, 0, 4);
+        lua_pushnumber(lua, rotation[0]); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, rotation[1]); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, rotation[2]); lua_setfield(lua, -2, "z");
+        lua_pushnumber(lua, rotation[3]); lua_setfield(lua, -2, "w");
+        lua_setfield(lua, -2, "rotation");
+
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, scale.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, scale.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, scale.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "scale");
+
+        lua_createtable(lua, 16, 0);
+        for (int index = 0; index < 16; ++index)
+        {
+            lua_pushnumber(lua, matrix.p[index]);
+            lua_rawseti(lua, -2, index + 1);
+        }
+        lua_setfield(lua, -2, "matrix");
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -617,6 +714,8 @@ namespace mbm
                                                      {"setSkeletalAnimationLayerBoneWeights", onSetSkeletalAnimationLayerBoneWeightsLua},
                                                      {"getSkeletalAnimationLayerBoneWeight", onGetSkeletalAnimationLayerBoneWeightLua},
                                                      {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
+                                                     {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
+                                                     {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
                                                      {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                      {nullptr, nullptr}};
 
@@ -698,6 +797,8 @@ namespace mbm
                                                          {"setSkeletalAnimationLayerBoneWeights", onSetSkeletalAnimationLayerBoneWeightsLua},
                                                          {"getSkeletalAnimationLayerBoneWeight", onGetSkeletalAnimationLayerBoneWeightLua},
                                                          {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
+                                                         {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
+                                                         {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
                                                          {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);

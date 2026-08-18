@@ -350,6 +350,47 @@ namespace mbm
         return mesh ? mesh->clearSkeletalAnimationLayerMask(getSkeletalAnimationPlayer()) : false;
     }
 
+    uint32_t MESH::getSkeletalAnimationPoseBoneCount() const noexcept
+    {
+        return mesh ? mesh->getSkeletalAnimationPoseBoneCount(getSkeletalAnimationPlayer()) : 0;
+    }
+
+    bool MESH::getSkeletalAnimationPoseBone(const uint32_t boneIndex, uint64_t *boneId,
+                                             int32_t *parentIndex,
+                                             MATRIX *globalMatrix) const noexcept
+    {
+        if (!mesh || !boneId || !parentIndex || !globalMatrix)
+            return false;
+        SKELETAL_RUNTIME_POSE_BONE_INFO out;
+        if (!mesh->getSkeletalAnimationPoseBone(getSkeletalAnimationPlayer(), boneIndex, out))
+            return false;
+        *boneId = out.boneId;
+        *parentIndex = out.parentIndex;
+        *globalMatrix = out.globalMatrix;
+        return true;
+    }
+
+    bool MESH::getSkeletalBoneTransform(const char *boneName, const bool worldSpace,
+                                        uint64_t *boneId, MATRIX *matrix, VEC3 *position,
+                                        float rotation[4], VEC3 *scale) const noexcept
+    {
+        if (!mesh)
+            return false;
+        MATRIX modelMatrix;
+        const MATRIX *modelMatrixPtr = nullptr;
+        if (worldSpace)
+        {
+            const VEC3 &objectPosition = getPosition();
+            const VEC3 &objectAngle = getAngle();
+            const VEC3 &objectScale = getScale();
+            MatrixTranslationRotationScale(&modelMatrix, &objectPosition, &objectAngle, &objectScale);
+            modelMatrixPtr = &modelMatrix;
+        }
+        return mesh->getSkeletalBoneTransform(getSkeletalAnimationPlayer(), boneName,
+                                              modelMatrixPtr, boneId, matrix, position,
+                                              rotation, scale);
+    }
+
     bool MESH::setSkeletalAuthoringPalette(const SKELETAL_SHADER_METHOD method,
                                            const float *rows, const uint32_t rowCount,
                                            const uint64_t *orderedBoneIds, const uint32_t boneIdCount,

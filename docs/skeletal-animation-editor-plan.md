@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.90**
+Document version: **8.92**
 Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, and per-bone layer masks implemented**
 Last updated: **2026-08-18**
 
@@ -44,8 +44,9 @@ top-level worktrees; opening one closes the previous worktree:
 
 The loaded asset, viewport, camera, status, modified state, and **Show Mesh** control are shared.
 Skeleton visualization is worktree-specific: Bind Pose Contract shows the bind skeleton
-automatically; Paint Weights owns its visibility control; Runtime Skeletal Preview hides the
-bind-only gizmo until it can draw an evaluated skeleton for every preview instance. Paint-specific
+automatically; Paint Weights owns its visibility control; Runtime Skeletal Preview optionally draws
+the primary player's final evaluated pose with layer-mask colors. Pose-stress comparison does not
+duplicate the gizmo for its secondary instance. Paint-specific
 heatmaps, masks, diagnostics, capture volumes, and repair overlays render only in Paint Weights.
 Node-specific history and selection state may be preserved while hidden but must not leak behavior
 or viewport artifacts into another worktree.
@@ -228,10 +229,12 @@ animation-layer mask, distinct from Paint Weights vertex-selection masks and ver
 
 The UI stays inside Runtime Skeletal Preview under a collapsible **Layer Mask** section; no new
 worktree is required. It provides the canonical bone hierarchy, selected-bone weight,
-apply-to-descendants, All 0/All 1/Invert and selected-subtree actions, and an optional bind-layout
-viewport skeleton with selected-bone highlight and a blue-green-red weight gradient. Multi-bone
-actions use one transactional batch and one pose reevaluation. An evaluated runtime-pose gizmo
-remains separate follow-up work. Mouse painting is not required. Expected
+apply-to-descendants, All 0/All 1/Invert and selected-subtree actions, and an optional evaluated-pose
+viewport skeleton, available for base-only or composed playback, with selected-bone highlight and
+a blue-green-red weight gradient. The runtime
+copies its final composed global transforms without exposing player-owned storage, and the editor
+updates existing joint/segment objects per frame. Multi-bone actions use one transactional batch
+and one pose reevaluation. Mouse painting is not required. Expected
 gameplay uses include locomotion plus upper-body attacks, aim/reload overlays, head look, recoil,
 breathing, and reuse of one action clip across multiple locomotion bases.
 
@@ -568,6 +571,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.92 | 2026-08-18 | Added the first gameplay attachment query over the same final evaluated pose used by Runtime Preview. Lua can resolve a bone by canonical name in model or character-composed world space and receives position, normalized quaternion rotation, scale, and the complete matrix without exposing player storage. |
+| 8.91 | 2026-08-18 | Replaced the static bind-layout mask skeleton with the active player's final evaluated pose. A read-only ordered C++/Lua copy-out reports stable ID, parent index, and global matrix; Runtime Preview updates existing joints and line segments every frame while preserving the mask gradient and cyan selection. |
 | 8.90 | 2026-08-18 | Completed the first layer-mask editor contract with atomic multi-bone mutations, selected-subtree 0/1 actions, and an optional bind-layout viewport skeleton using a blue-green-red mask gradient plus cyan selection. All 0, Invert, descendant slider edits, and subtree actions now cause one runtime pose reevaluation per preview rather than one per bone. |
 | 8.89 | 2026-08-18 | Delivered transient stable-ID per-bone layer masks across the shared CPU compositor, C++/Lua runtime surface, and Runtime Skeletal Preview. The editor provides hierarchy selection, strict weight, descendant propagation, All 0, All 1, and Invert while preserving one final LBS/DQS palette and no mesh serialization. |
 | 8.88 | 2026-08-18 | Synchronized the product plan with Metal delivery: Runtime Preview now uses the shared OpenGL ES/DirectX 9/Metal capability and deformation surface; Metal numeric parity coverage remains follow-up work. |

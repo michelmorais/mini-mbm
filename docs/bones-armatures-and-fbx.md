@@ -233,7 +233,7 @@ unaffected.
 
 - encoded/readback CPU/GPU numeric parity coverage on Metal and DirectX9;
 - richer multi-layer priority/queue policy;
-- evaluated runtime skeleton gizmos;
+- richer evaluated runtime skeleton diagnostics beyond the delivered editor mask gizmo;
 - retargeting and completion callbacks;
 - Velocity Skinning as an optional modern-backend secondary deformation stage.
 
