@@ -572,7 +572,7 @@ composition, authoring, playback lifecycle, and examples.
 | `obj:seekArticulatedAnimation` | `(name, time)` | bool | Move an active clip's playback position to the specified time, clamped to `0..duration` |
 | `obj:getArticulatedAnimationTime` | `(name)` | number or nil | Current time for an active clip, or `nil` when it is inactive/unknown |
 
-#### Canonical skeletal playback (`mesh`, GLES2 LBS/DQS profile)
+#### Canonical skeletal playback (`mesh`, GPU LBS/DQS profile)
 
 These methods control type-43 skeletal clips on a loaded canonical type-41/42/43 `.msh`. Playback
 state and the evaluated GPU palette belong to the individual `mesh` instance even when several
@@ -584,8 +584,9 @@ rigid `"dqs"`, or `"auto"` before `load`. Auto resolves once to DQS only when bi
 contain unit scale; otherwise it resolves to LBS. Changing method after load returns `false`, because
 the resolved method is part of the compiled default-shader variant. The Absolute layer supports a
 linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
-and fade. Transition curves/queues, priorities, bone masks, completion callbacks, and non-GLES
-backends remain future work. LBS compact normals reject negative scale, shear, or non-uniform scale;
+and fade. Transition curves/queues, priorities, bone masks, completion callbacks, and Metal
+support remain future work. OpenGL ES and DirectX9 provide the current GPU paths. LBS compact
+normals reject negative scale, shear, or non-uniform scale;
 rigid DQS rejects any scale/shear.
 
 | Method | Signature | Returns | Description |

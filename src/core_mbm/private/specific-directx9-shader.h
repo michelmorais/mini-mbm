@@ -34,6 +34,9 @@ namespace mbm
 
         D3DXHANDLE mvpMatrixHandle;
         D3DXHANDLE mvMatrixHandle;
+        D3DXHANDLE bonePaletteHandle;
+        uint32_t skeletalPaletteSize;
+        SKELETAL_SHADER_METHOD skeletalMethod;
         D3DXHANDLE samplerHandle0;
         D3DXHANDLE samplerHandle1;
         D3DXHANDLE samplerHandle2;

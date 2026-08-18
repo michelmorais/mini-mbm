@@ -1395,22 +1395,22 @@ namespace
                "CPU rigid DQS must antipodally align equivalent hemisphere rotations before blending");
     }
 
-    void testGles2SkinningCapability()
+    void testSkinningCapability()
     {
-        const GLES2_SKINNING_CAPABILITY minimum = calculateGles2SkinningCapability(128, 8);
+        const SKINNING_CAPABILITY minimum = calculateSkinningCapability(128, 8);
         expect(minimum.measured && minimum.hasRequiredVertexAttributes &&
-                   minimum.reservedVertexUniformVectors == 8 &&
+                   minimum.reservedVertexShaderVectors == 8 &&
                    minimum.lbsMatrixPaletteBones == 40 && minimum.dqsRigidPaletteBones == 60,
-               "GLES2 minimum capability must reserve scene matrices before calculating palettes");
-        const GLES2_SKINNING_CAPABILITY insufficientAttributes =
-            calculateGles2SkinningCapability(256, 4);
+               "GPU skinning capability must reserve scene matrices before calculating palettes");
+        const SKINNING_CAPABILITY insufficientAttributes =
+            calculateSkinningCapability(256, 4);
         expect(insufficientAttributes.measured && !insufficientAttributes.hasRequiredVertexAttributes &&
                    insufficientAttributes.lbsMatrixPaletteBones == 0 &&
                    insufficientAttributes.dqsRigidPaletteBones == 0,
-               "GLES2 skeletal capability must reject an insufficient vertex-attribute budget");
-        const GLES2_SKINNING_CAPABILITY unavailable = calculateGles2SkinningCapability(0, 0);
+               "GPU skinning capability must reject an insufficient vertex-attribute budget");
+        const SKINNING_CAPABILITY unavailable = calculateSkinningCapability(0, 0);
         expect(!unavailable.measured && unavailable.lbsMatrixPaletteBones == 0,
-               "GLES2 zero query results must remain unmeasured rather than claiming support");
+               "zero GPU capability results must remain unmeasured rather than claiming support");
     }
 
     void testGles2LbsInputPreparation()
@@ -1432,7 +1432,7 @@ namespace
         weights.vertices[0].weight[1] = 0.25f;
 
         GLES2_LBS_INPUT input;
-        const GLES2_SKINNING_CAPABILITY sufficient = calculateGles2SkinningCapability(128, 8);
+        const SKINNING_CAPABILITY sufficient = calculateSkinningCapability(128, 8);
         expect(prepareGles2LbsInput(skeleton, weights, sufficient, input) ==
                    GLES2_LBS_PREPARATION_STATUS::READY && input.ready() &&
                    input.requiredBoneCount == 2 && input.effectiveBoneCapacity == 60 &&
@@ -1442,7 +1442,7 @@ namespace
                    std::fabs(input.vertices[0].weight[0] - 0.75f) <= MATRIX_TOLERANCE,
                "GPU LBS input must resolve stable palette IDs to compiled float attributes");
 
-        GLES2_SKINNING_CAPABILITY dqsOnly = sufficient;
+        SKINNING_CAPABILITY dqsOnly = sufficient;
         dqsOnly.lbsMatrixPaletteBones = 1;
         dqsOnly.dqsRigidPaletteBones = 2;
         expect(prepareGles2LbsInput(skeleton, weights, dqsOnly, input) ==
@@ -1451,7 +1451,7 @@ namespace
                    input.supports(SKELETAL_SHADER_METHOD::DQS_RIGID),
                "GPU skeletal input must distinguish the LBS and rigid-DQS palette limits");
 
-        GLES2_SKINNING_CAPABILITY tooSmall = sufficient;
+        SKINNING_CAPABILITY tooSmall = sufficient;
         tooSmall.lbsMatrixPaletteBones = 1;
         tooSmall.dqsRigidPaletteBones = 1;
         expect(prepareGles2LbsInput(skeleton, weights, tooSmall, input) ==
@@ -1587,7 +1587,7 @@ int runSkeletalFoundationTests()
     testCanonicalAnimationValidation();
     testCanonicalWriterRoundTrip();
     testCpuLbsReference();
-    testGles2SkinningCapability();
+    testSkinningCapability();
     testGles2LbsInputPreparation();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");

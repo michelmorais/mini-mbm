@@ -23,6 +23,9 @@
 #if defined(USE_OPENGL_ES)
 #include <skeletal-gpu-lbs-opengl_es.h>
 #endif
+#if defined(USE_DIRECTX9)
+#include <skeletal-gpu-lbs-directx9.h>
+#endif
 #include <draw-compatibility.h>
 #include <shader-var-cfg.h>
 #include <texture-manager.h>
@@ -9425,11 +9428,11 @@ namespace mbm
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
         if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0)
         {
-            const skeletal::GLES2_SKINNING_CAPABILITY capability =
-                skeletal::getMeasuredGles2SkinningCapability();
+            const skeletal::SKINNING_CAPABILITY capability =
+                skeletal::getMeasuredSkinningCapability();
             const skeletal::GLES2_LBS_PREPARATION_STATUS status = skeletal::prepareGles2LbsInput(
                 impl->canonicalSkeleton, impl->canonicalWeights, capability, impl->gles2LbsInput);
-            INFO_LOG("GLES2 skeletal input: status=%s bones=%u lbs-capacity=%u dqs-capacity=%u vertices=%u [%s]",
+            INFO_LOG("GPU skeletal input: status=%s bones=%u lbs-capacity=%u dqs-capacity=%u vertices=%u [%s]",
                      skeletal::gles2LbsPreparationStatusName(status), impl->gles2LbsInput.requiredBoneCount,
                      impl->gles2LbsInput.lbsBoneCapacity, impl->gles2LbsInput.dqsBoneCapacity,
                      static_cast<uint32_t>(impl->gles2LbsInput.vertices.size()), fileNamePath);
@@ -9526,6 +9529,13 @@ namespace mbm
                                                        impl->gles2LbsInput))
                 return log_util::onFailed(nullptr, __FILE__, __LINE__,
                                           "failed to upload GLES2 LBS vertex streams [%s]", fileNamePath);
+#endif
+#if defined(USE_DIRECTX9)
+            if (currentFrame == 0 && impl->gles2LbsInput.ready() &&
+                !skeletal::uploadDirectX9SkinVertexStream(impl->buffer[currentFrame].pBufferGL,
+                                                          impl->gles2LbsInput))
+                return log_util::onFailed(nullptr, __FILE__, __LINE__,
+                                          "failed to upload DirectX9 skin vertex stream [%s]", fileNamePath);
 #endif
 
             const std::vector<TEXTURE *>::size_type totalIdTexture =

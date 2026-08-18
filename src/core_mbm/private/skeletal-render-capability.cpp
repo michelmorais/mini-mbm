@@ -25,37 +25,37 @@ namespace mbm::skeletal
     namespace
     {
         std::mutex capabilityMutex;
-        GLES2_SKINNING_CAPABILITY measuredCapability;
+        SKINNING_CAPABILITY measuredCapability;
     }
 
-    GLES2_SKINNING_CAPABILITY calculateGles2SkinningCapability(const uint32_t maxVertexUniformVectors,
-                                                               const uint32_t maxVertexAttributes) noexcept
+    SKINNING_CAPABILITY calculateSkinningCapability(const uint32_t maxVertexShaderVectors,
+                                                    const uint32_t maxVertexAttributes) noexcept
     {
-        GLES2_SKINNING_CAPABILITY result;
-        result.maxVertexUniformVectors = maxVertexUniformVectors;
+        SKINNING_CAPABILITY result;
+        result.maxVertexShaderVectors = maxVertexShaderVectors;
         result.maxVertexAttributes = maxVertexAttributes;
-        result.hasRequiredVertexAttributes = maxVertexAttributes >= GLES2_SKELETAL_VERTEX_ATTRIBUTES;
-        result.measured = maxVertexUniformVectors > 0 && maxVertexAttributes > 0;
-        if (maxVertexUniformVectors > result.reservedVertexUniformVectors &&
+        result.hasRequiredVertexAttributes = maxVertexAttributes >= GPU_SKELETAL_VERTEX_ATTRIBUTES;
+        result.measured = maxVertexShaderVectors > 0 && maxVertexAttributes > 0;
+        if (maxVertexShaderVectors > result.reservedVertexShaderVectors &&
             result.hasRequiredVertexAttributes)
         {
-            const uint32_t available = maxVertexUniformVectors - result.reservedVertexUniformVectors;
-            result.lbsMatrixPaletteBones = available / GLES2_LBS_VECTORS_PER_BONE;
-            result.dqsRigidPaletteBones = available / GLES2_DQS_VECTORS_PER_BONE;
+            const uint32_t available = maxVertexShaderVectors - result.reservedVertexShaderVectors;
+            result.lbsMatrixPaletteBones = available / GPU_LBS_VECTORS_PER_BONE;
+            result.dqsRigidPaletteBones = available / GPU_DQS_VECTORS_PER_BONE;
         }
         return result;
     }
 
-    void setMeasuredGles2SkinningCapability(const uint32_t maxVertexUniformVectors,
-                                            const uint32_t maxVertexAttributes) noexcept
+    void setMeasuredSkinningCapability(const uint32_t maxVertexShaderVectors,
+                                       const uint32_t maxVertexAttributes) noexcept
     {
-        const GLES2_SKINNING_CAPABILITY measured =
-            calculateGles2SkinningCapability(maxVertexUniformVectors, maxVertexAttributes);
+        const SKINNING_CAPABILITY measured =
+            calculateSkinningCapability(maxVertexShaderVectors, maxVertexAttributes);
         std::lock_guard<std::mutex> lock(capabilityMutex);
         measuredCapability = measured;
     }
 
-    GLES2_SKINNING_CAPABILITY getMeasuredGles2SkinningCapability() noexcept
+    SKINNING_CAPABILITY getMeasuredSkinningCapability() noexcept
     {
         std::lock_guard<std::mutex> lock(capabilityMutex);
         return measuredCapability;

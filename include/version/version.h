@@ -267,6 +267,8 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.100.1 Added DirectX9 variants for the Skeletal Animation Editor's paint heatmap/brush shaders and renamed shared GPU skinning capability symbols that still incorrectly referred to GLES2.
+    7.100.0 Added DirectX9 real-time GPU skeletal deformation with canonical LBS and rigid-DQS palettes, per-vertex influence streams, capability limits, and default-shader lighting integration.
     7.99.0 Skeletal clip layers add independent pause/resume for layer time and fades in C++, Lua, and Runtime Preview.
     7.98.0 Skeletal players, Lua, and Runtime Preview expose explicit bind-relative Additive clip-layer composition.
     7.97.0 Skeletal animation adds a tested private bind-relative Additive local-TRS compositor and two-clip sampler.
@@ -495,7 +497,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.99.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.100.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -272,11 +272,11 @@ namespace mbm
         GLint maxVertexUniformVectors = 0, maxVertexAttributes = 0;
         GLGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &maxVertexUniformVectors);
         GLGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttributes);
-        skeletal::setMeasuredGles2SkinningCapability(static_cast<uint32_t>(maxVertexUniformVectors),
+        skeletal::setMeasuredSkinningCapability(static_cast<uint32_t>(maxVertexUniformVectors),
                                                       static_cast<uint32_t>(maxVertexAttributes));
-        const skeletal::GLES2_SKINNING_CAPABILITY skinning = skeletal::getMeasuredGles2SkinningCapability();
+        const skeletal::SKINNING_CAPABILITY skinning = skeletal::getMeasuredSkinningCapability();
         INFO_LOG("GLES2 skeletal capability: vertexUniformVectors=%u vertexAttributes=%u LBS=%u DQS=%u",
-                 skinning.maxVertexUniformVectors, skinning.maxVertexAttributes,
+                 skinning.maxVertexShaderVectors, skinning.maxVertexAttributes,
                  skinning.lbsMatrixPaletteBones, skinning.dqsRigidPaletteBones);
         //const GLint MaxTextureWidth = static_cast<GLint>(std::sqrt(static_cast<float>(maxTextureSize)));
         const GLint MaxTextureWidth = maxTextureSize;

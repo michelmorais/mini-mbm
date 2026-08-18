@@ -35,7 +35,8 @@ namespace mbm
         vertex_declaration_pos(nullptr),
         vertex_declaration_pos_norm(nullptr),
         vertex_declaration_pos_uv(nullptr),
-        vertex_declaration_pos_norm_uv(nullptr)
+        vertex_declaration_pos_norm_uv(nullptr),
+        vertex_declaration_skeletal{nullptr, nullptr, nullptr, nullptr}
     {
     };
 
@@ -61,11 +62,15 @@ namespace mbm
             vertex_declaration_pos_uv->Release();
         if (vertex_declaration_pos_norm_uv)
             vertex_declaration_pos_norm_uv->Release();
+        for (IDirect3DVertexDeclaration9 *declaration : vertex_declaration_skeletal)
+            if (declaration) declaration->Release();
 
         vertex_declaration_pos = nullptr;
         vertex_declaration_pos_norm = nullptr;
         vertex_declaration_pos_uv = nullptr;
         vertex_declaration_pos_norm_uv = nullptr;
+        for (IDirect3DVertexDeclaration9 *&declaration : vertex_declaration_skeletal)
+            declaration = nullptr;
 
         if (pd3dDevice)
         {
@@ -91,8 +96,34 @@ namespace mbm
         this->win32_joystickByPass = new WIN_JOYSTICK_BY_PASS(core_manager_ptr ? reinterpret_cast<JOYSTICK_BASE*>(core_manager_ptr) : nullptr);
     }
 
-    IDirect3DVertexDeclaration9* SPECIFIC_AUX_CONTEXT_DEVICE::getFVF(const FVF_PROVIDE_BY_ENGINE FVF)
+    IDirect3DVertexDeclaration9* SPECIFIC_AUX_CONTEXT_DEVICE::getFVF(const FVF_PROVIDE_BY_ENGINE FVF,
+                                                                     const bool skeletal)
     {
+        if (skeletal)
+        {
+            const uint32_t index = static_cast<uint32_t>(FVF) - static_cast<uint32_t>(FVF_PROVIDE_BY_ENGINE::FVF_POS);
+            if (index >= 4u) return nullptr;
+            if (vertex_declaration_skeletal[index] == nullptr)
+            {
+                D3DVERTEXELEMENT9 elements[6] = {};
+                uint32_t count = 0;
+                elements[count++] = {0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0};
+                uint16_t offset = 12;
+                if (FVF == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || FVF == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV)
+                {
+                    elements[count++] = {0, offset, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL, 0};
+                    offset += 12;
+                }
+                if (FVF == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || FVF == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV)
+                    elements[count++] = {0, offset, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0};
+                elements[count++] = {1, 0,  D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_BLENDINDICES, 0};
+                elements[count++] = {1, 16, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_BLENDWEIGHT, 0};
+                elements[count] = D3DDECL_END();
+                if (FAILED(pd3dDevice->CreateVertexDeclaration(elements, &vertex_declaration_skeletal[index])))
+                    ERROR_AT(__LINE__, __FILE__, "failed to create skeletal vertex declaration");
+            }
+            return vertex_declaration_skeletal[index];
+        }
         IDirect3DVertexDeclaration9* vertex_declaration = nullptr;
         switch (FVF)
         {

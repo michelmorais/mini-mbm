@@ -23,27 +23,27 @@
 
 namespace mbm::skeletal
 {
-    constexpr uint32_t GLES2_RESERVED_VERTEX_UNIFORM_VECTORS = 8;
-    constexpr uint32_t GLES2_LBS_VECTORS_PER_BONE = 3;
-    constexpr uint32_t GLES2_DQS_VECTORS_PER_BONE = 2;
-    constexpr uint32_t GLES2_SKELETAL_VERTEX_ATTRIBUTES = 5;
+    constexpr uint32_t GPU_RESERVED_VERTEX_SHADER_VECTORS = 8;
+    constexpr uint32_t GPU_LBS_VECTORS_PER_BONE = 3;
+    constexpr uint32_t GPU_DQS_VECTORS_PER_BONE = 2;
+    constexpr uint32_t GPU_SKELETAL_VERTEX_ATTRIBUTES = 5;
 
-    struct GLES2_SKINNING_CAPABILITY
+    struct SKINNING_CAPABILITY
     {
-        uint32_t maxVertexUniformVectors = 0;
+        uint32_t maxVertexShaderVectors = 0;
         uint32_t maxVertexAttributes = 0;
-        uint32_t reservedVertexUniformVectors = GLES2_RESERVED_VERTEX_UNIFORM_VECTORS;
+        uint32_t reservedVertexShaderVectors = GPU_RESERVED_VERTEX_SHADER_VECTORS;
         uint32_t lbsMatrixPaletteBones = 0;
         uint32_t dqsRigidPaletteBones = 0;
         bool hasRequiredVertexAttributes = false;
         bool measured = false;
     };
 
-    GLES2_SKINNING_CAPABILITY calculateGles2SkinningCapability(uint32_t maxVertexUniformVectors,
-                                                               uint32_t maxVertexAttributes) noexcept;
-    void setMeasuredGles2SkinningCapability(uint32_t maxVertexUniformVectors,
-                                            uint32_t maxVertexAttributes) noexcept;
-    GLES2_SKINNING_CAPABILITY getMeasuredGles2SkinningCapability() noexcept;
+    SKINNING_CAPABILITY calculateSkinningCapability(uint32_t maxVertexShaderVectors,
+                                                    uint32_t maxVertexAttributes) noexcept;
+    void setMeasuredSkinningCapability(uint32_t maxVertexShaderVectors,
+                                       uint32_t maxVertexAttributes) noexcept;
+    SKINNING_CAPABILITY getMeasuredSkinningCapability() noexcept;
 }
 
 #endif

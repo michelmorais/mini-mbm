@@ -27,6 +27,7 @@
 #include <device.h>
 #include <renderizable.h>
 #include <texture-manager.h>
+#include "private/skeletal-render-capability.h"
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <audio-interface.h>
@@ -220,6 +221,12 @@ namespace mbm
         D3DDEVTYPE _typeDevice = D3DDEVTYPE_HAL;
         context->pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, _typeDevice, &cap);
         setShaderVersionsFromCaps(cap);
+        skeletal::setMeasuredSkinningCapability(cap.MaxVertexShaderConst, 16u);
+        const skeletal::SKINNING_CAPABILITY skinning =
+            skeletal::getMeasuredSkinningCapability();
+        INFO_LOG("DirectX9 skeletal capability: vertexConstants=%u LBS=%u DQS=%u",
+                 cap.MaxVertexShaderConst, skinning.lbsMatrixPaletteBones,
+                 skinning.dqsRigidPaletteBones);
         int Hardware_Software_Vertex_Process = 0;
         const bool forceSoftwareProcess = false;
         if (forceSoftwareProcess)

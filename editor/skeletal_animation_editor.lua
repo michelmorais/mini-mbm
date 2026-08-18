@@ -1916,7 +1916,34 @@ local paintBrushFootprintShaderName='skeletal_paint_brush_footprint.ps'
 
 local function ensurePaintHeatmapShader()
     if mbm.existShader(paintHeatmapShaderName) then return true end
-    return mbm.addShader({name=paintHeatmapShaderName,code=[[
+    local code
+    if mbm.get('USE_DIRECTX9') then
+        code=[[
+        float3 heatColor(float value)
+        {
+            float t=saturate(value);
+            float3 c0=float3(0.10,0.25,1.00);
+            float3 c1=float3(0.00,0.85,1.00);
+            float3 c2=float3(0.10,1.00,0.25);
+            float3 c3=float3(1.00,0.90,0.00);
+            float3 c4=float3(1.00,0.45,0.00);
+            float3 c5=float3(1.00,0.10,0.00);
+            if(t<0.2) return lerp(c0,c1,t/0.2);
+            if(t<0.4) return lerp(c1,c2,(t-0.2)/0.2);
+            if(t<0.6) return lerp(c2,c3,(t-0.4)/0.2);
+            if(t<0.8) return lerp(c3,c4,(t-0.6)/0.2);
+            return lerp(c4,c5,(t-0.8)/0.2);
+        }
+
+        float4 main(float2 texCoord : TEXCOORD0) : COLOR0
+        {
+            if(texCoord.y<0.5)
+                return float4(0.12,0.13,0.15,1.0);
+            return float4(heatColor(texCoord.x),1.0);
+        }
+        ]]
+    else
+        code=[[
         precision mediump float;
         varying vec2 vTexCoord;
 
@@ -1943,12 +1970,28 @@ local function ensurePaintHeatmapShader()
             else
                 gl_FragColor=vec4(heatColor(vTexCoord.x),1.0);
         }
-    ]],var={},min={},max={}})
+        ]]
+    end
+    return mbm.addShader({name=paintHeatmapShaderName,code=code,var={},min={},max={}})
 end
 
 local function ensurePaintBrushFootprintShader()
     if mbm.existShader(paintBrushFootprintShaderName) then return true end
-    return mbm.addShader({name=paintBrushFootprintShaderName,code=[[
+    local code
+    if mbm.get('USE_DIRECTX9') then
+        code=[[
+        float4 main(float2 texCoord : TEXCOORD0) : COLOR0
+        {
+            float influence=saturate(texCoord.x);
+            if(influence<=0.001) discard;
+            float3 color=texCoord.y<0.25 ? float3(0.10,1.00,0.25) :
+                (texCoord.y<0.75 ? float3(1.00,0.12,0.05) :
+                (texCoord.y<1.25 ? float3(0.00,0.85,1.00) : float3(1.00,0.75,0.05)));
+            return float4(color,sqrt(influence)*0.65);
+        }
+        ]]
+    else
+        code=[[
         precision mediump float;
         varying vec2 vTexCoord;
 
@@ -1961,7 +2004,9 @@ local function ensurePaintBrushFootprintShader()
                 (vTexCoord.y<1.25 ? vec3(0.00,0.85,1.00) : vec3(1.00,0.75,0.05)));
             gl_FragColor=vec4(color,sqrt(influence)*0.65);
         }
-    ]],var={},min={},max={}})
+        ]]
+    end
+    return mbm.addShader({name=paintBrushFootprintShaderName,code=code,var={},min={},max={}})
 end
 
 local function vertexWeightForBone(globalIndex,boneName)

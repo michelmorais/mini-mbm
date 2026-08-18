@@ -90,7 +90,7 @@ namespace mbm::skeletal
 
     GLES2_LBS_PREPARATION_STATUS prepareGles2LbsInput(const CANONICAL_SKELETON &skeleton,
                                                        const CANONICAL_WEIGHTS &weights,
-                                                       const GLES2_SKINNING_CAPABILITY &capability,
+                                                       const SKINNING_CAPABILITY &capability,
                                                        GLES2_LBS_INPUT &out) noexcept;
     const char *gles2LbsPreparationStatusName(GLES2_LBS_PREPARATION_STATUS status) noexcept;
     GLES2_LBS_PALETTE_STATUS buildGles2LbsPalette(const CANONICAL_SKELETON &skeleton,

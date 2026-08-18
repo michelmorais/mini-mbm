@@ -143,7 +143,7 @@ namespace
         if (selected.size() != 8 || !allPositions || !allNormals)
             return false;
 
-        GLES2_SKINNING_CAPABILITY capability;
+        SKINNING_CAPABILITY capability;
         capability.measured = true; capability.hasRequiredVertexAttributes = true;
         capability.lbsMatrixPaletteBones = UINT32_MAX; capability.dqsRigidPaletteBones = UINT32_MAX;
         GLES2_LBS_INPUT prepared;

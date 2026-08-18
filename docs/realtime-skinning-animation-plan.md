@@ -611,8 +611,14 @@ mutate assets, evaluate clips, or deform vertices.
 
 ### Phase 6 — DirectX 9 validation and delivery
 
-- Select and document the supported shader profile and effective palette capacity.
-- Compare reference vertices/normals and visual fixtures with other backends.
+- Delivered on Shader Model 3 (`vs_3_0`): the device's measured vertex-constant count determines the
+  effective palette capacity after reserved engine constants (82 LBS or 124 rigid-DQS bones on the
+  tested 256-constant adapter).
+- A managed secondary vertex stream carries four float bone indices and weights. Generated HLSL
+  consumes the same canonical 3-float4 LBS or 2-float4 DQS palette layout as OpenGL ES, deforms
+  positions/normals before lighting, and rejects custom vertex shaders explicitly.
+- Debug and Release production-path runs animate the 23-bone Lorekeeper fixture through DirectX9.
+  A dedicated encoded-output CPU/GPU numeric parity harness remains useful follow-up coverage.
 
 ### Phase 7 — Runtime animation surface
 
@@ -706,7 +712,8 @@ mutate assets, evaluate clips, or deform vertices.
 5. Bind-pose identity, DQS antipodality correction, and explicit scale handling are required
    correctness contracts.
 6. Backend limitations are reported as capabilities and must not silently select another method.
-7. Linux/GLES may lead implementation, with Metal and DirectX represented by planned milestones.
+7. Linux/GLES led implementation; DirectX9 now consumes the same canonical pose and palette
+   contracts, while Metal remains the planned backend milestone.
 8. Existing articulated animation is the UX/domain reference, while skeletal data remains distinct.
 9. Velocity Skinning is a post-LBS/DQS optional extension and is not part of the initial runtime
    delivery gate.
@@ -817,6 +824,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.93 | 2026-08-18 | Delivered the DirectX9 real-time skinning path: Shader Model 3 generated LBS/rigid-DQS variants, measured constant-based capacities, a secondary influence stream and skeletal vertex declarations, per-instance palette upload, lighting integration, and Debug/Release Lorekeeper production-path validation. |
 | 9.92 | 2026-08-17 | Audited the plan against the canonical readers/writers, per-instance player/compositor, Lua registrations, editor worktrees, and backend implementations. Replaced the stale editor-only/no-runtime Current State with delivered type-41/42/43 and GLES LBS/DQS facts, corrected the five-worktree and articulated-guide descriptions, and synchronized the Lua and FBX/bone guides while preserving legacy history explicitly. |
 | 9.91 | 2026-08-17 | Explicitly deferred per-bone animation-layer masks so modern backend delivery can take priority. Recorded the fixed future contract (stable bone IDs, strict per-bone multipliers, all-ones compatibility default, global-times-mask effective weight, one final palette), the in-place Runtime Preview hierarchy/subtree GUI, gameplay benefits, and its distinction from vertex weights/Paint Weights masks. Also synchronized stale Phase-7/status prose with the composition runtime already delivered. |
 | 9.90 | 2026-08-17 | Added independent layer pause/resume/query state, Lua methods, and Runtime Preview controls. Layer pause freezes its clip time and fade without stopping the base; global pause still freezes all temporal state. Layer lifecycle and mode replacement reset the local pause deterministically. |

@@ -193,6 +193,8 @@
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gles-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx9.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-directx9-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-parity-asset.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-render-capability.h" />
@@ -347,6 +349,7 @@
     <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-animation-foundation.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-render-capability.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />

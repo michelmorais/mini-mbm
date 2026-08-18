@@ -772,6 +772,14 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             {
                 if (!isCustomMesh)
                     mesh->setScale(mbm::VEC3(3.5f, 3.5f, 3.5f)); // tuned for the bundled Crate.msh fixture only
+                if (isCustomMesh && mesh->getTotalSkeletalAnimations() > 0)
+                {
+                    const char *animationName = mesh->getSkeletalAnimationName(0);
+                    if (!animationName || !mesh->playSkeletalAnimation(animationName))
+                        ERROR_LOG("Failed to start first skeletal animation [%s]", meshFile);
+                    else
+                        INFO_LOG("Skeletal animation started [%s]", animationName);
+                }
                 INFO_LOG("MESH loaded (%s) [%s]", modeToStr(mode), meshFile);
                 row.object = mesh;
             }
