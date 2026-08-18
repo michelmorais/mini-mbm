@@ -1,8 +1,8 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.92**
-Status: **Canonical import, GLES runtime LBS/DQS, local animation, Paint Weights, and transient composition implemented; bone masks, modern backends, and Velocity Skinning pending**
-Last updated: **2026-08-17**
+Document version: **9.95**
+Status: **Canonical import, OpenGL ES and DirectX 9 runtime LBS/DQS, local animation, Paint Weights, and transient composition implemented; bone masks, Metal/modern backends, and Velocity Skinning pending**
+Last updated: **2026-08-18**
 
 ## 1. Purpose
 
@@ -31,7 +31,7 @@ confirmed facts, decisions, hypotheses, and open questions.
 - Mini MBM persists canonical type-41 skeletons with stable bone IDs and local bind TRS, type-42
   weights with up to four ID-based influences per frame-zero vertex, and type-43 skeletal clips.
 - The runtime evaluates local clip tracks and the bone hierarchy per mesh instance, then deforms
-  vertices and normals through a GPU palette on the OpenGL ES path. Pre-baked static-frame
+  vertices and normals through a GPU palette on the OpenGL ES and DirectX 9 paths. Pre-baked static-frame
   animation remains a separate supported animation model.
 - Current backends include OpenGL ES 2, DirectX 9, and Metal. Basic skeletal skinning does not by
   itself require replacing these APIs, but their buffer, shader, and palette limits differ.
@@ -552,16 +552,17 @@ mutate assets, evaluate clips, or deform vertices.
   palette to the GLES draw; inactive instances retain bind identity. Authored loop behavior is
   honored and culled meshes still advance. A real two-instance Lorekeeper smoke verified that one
   player advanced while the other stayed at `0.5s` paused, then resumed, despite both sharing the
-  same cached asset/program. Blending, speed, completion callbacks, and other backends remain
-  deliberately outside this initial player.
+  same cached asset/program. Blending, speed, completion callbacks, and other backends were
+  deliberately outside that initial player slice; speed and one transient composition layer were
+  delivered later, while completion callbacks and Metal remain pending.
 - The Skeletal Animation Editor now drives that same per-instance runtime player on its preview
   mesh. It exposes clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber;
-  the deformation is therefore the real GLES2 LBS result rather than an editor-side pose copy. The
+  the deformation is therefore the real active-backend LBS/DQS result rather than an editor-side pose copy. The
   separate skeleton diagnostic gizmo intentionally remains in bind pose. This small playback panel
   is not the Animation node timeline planned for editor Milestone 6.
 - The preview can explicitly stop its instance player to restore the identity/bind deformation;
   seeking to clip time zero is deliberately not used as a substitute. A read-only preparation
-  report exposes the selected GLES2 method plus required and measured-capacity bone counts, so an
+  report exposes the selected GPU skinning method plus required and measured-capacity bone counts, so an
   unavailable or oversized path is visible rather than inferred from a failed Play action.
 - Add GPU LBS and DQS incrementally against CPU references.
 - Rigid pose-to-DQS palette construction is now implemented privately as the first GPU-DQS gate.
@@ -583,7 +584,8 @@ mutate assets, evaluate clips, or deform vertices.
   compilation. It resolves once to rigid DQS only when every transform has unit scale; otherwise it
   resolves to LBS with `bind-contains-scale` or `clip-contains-scale` reported publicly. Forced DQS
   remains strict and never falls back, and no per-frame shader switching occurs.
-- Extend the shared preview with backend selection when additional runtime paths exist.
+- The shared preview uses the backend selected for the engine build. It does not offer a runtime
+  backend selector; OpenGL ES and DirectX 9 both consume the same editor/player/report surface.
 - Validate the rat and small skeletons before investigating palette expansion.
 - A first GLES2-portable CPU/GPU parity harness now exercises a deterministic two-bone/two-vertex
   fixture for both LBS and rigid DQS. It renders shader-deformed positions and normals into an
@@ -619,6 +621,14 @@ mutate assets, evaluate clips, or deform vertices.
   positions/normals before lighting, and rejects custom vertex shaders explicitly.
 - Debug and Release production-path runs animate the 23-bone Lorekeeper fixture through DirectX9.
   A dedicated encoded-output CPU/GPU numeric parity harness remains useful follow-up coverage.
+- Visual Studio selects DirectX 9 or OpenGL ES through `platform-msvs/mbm-backend.props`; the core
+  project contains both backend implementations and compiles their bodies through the selected
+  backend define. The CMake/MinGW build uses the same DirectX 9 production sources and shared
+  skeletal foundation tests.
+- The existing `gles-skeletal-parity-tests.cpp` harness is intentionally compiled only for an
+  OpenGL ES build because it includes GLES headers and uses FBO readback. DirectX 9 builds exclude
+  that source rather than acquiring a GLES build dependency. This is a test-coverage distinction,
+  not a missing DirectX 9 runtime path.
 
 ### Phase 7 — Runtime animation surface
 
@@ -824,6 +834,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.95 | 2026-08-18 | Audited documentation after Windows delivery. Current-state and editor-preview claims now include DirectX 9, Phase 6 records MSVS/MinGW build wiring and the GLES-only scope of the encoded parity harness, and Metal remains the next backend delivery. |
 | 9.94 | 2026-08-18 | Standardized the shared GPU skinning preparation, palette, capability, and upload contracts. Common mesh management now performs one backend-neutral upload call; OpenGL ES and DirectX9 implement the same private symbol in their own translation units, with no renderer defines in `mesh-manager.cpp`. |
 | 9.93 | 2026-08-18 | Delivered the DirectX9 real-time skinning path: Shader Model 3 generated LBS/rigid-DQS variants, measured constant-based capacities, a secondary influence stream and skeletal vertex declarations, per-instance palette upload, lighting integration, and Debug/Release Lorekeeper production-path validation. |
 | 9.92 | 2026-08-17 | Audited the plan against the canonical readers/writers, per-instance player/compositor, Lua registrations, editor worktrees, and backend implementations. Replaced the stale editor-only/no-runtime Current State with delivered type-41/42/43 and GLES LBS/DQS facts, corrected the five-worktree and articulated-guide descriptions, and synchronized the Lua and FBX/bone guides while preserving legacy history explicitly. |

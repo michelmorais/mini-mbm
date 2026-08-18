@@ -1,8 +1,8 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.86**
-Status: **Five active skeletal workflows and transient two-clip composition implemented; bone masks deferred**
-Last updated: **2026-08-17**
+Document version: **8.87**
+Status: **Five active skeletal workflows, OpenGL ES/DirectX 9 preview, and transient two-clip composition implemented; bone masks and Metal preview deferred**
+Last updated: **2026-08-18**
 
 ## 1. Purpose
 
@@ -18,7 +18,7 @@ Blender, Mixamo, or other DCC tools. Mini MBM should be able to:
 
 The implemented weight-authoring workflow is documented in the
 [Skeletal Animation Editor guide](skeletal-animation-editor.md). Runtime deformation, bind-pose math,
-backend delivery, and LBS/DQS correctness remain planned in the
+backend delivery, and LBS/DQS correctness are tracked in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
 ## 2. Product shape: five exclusive worktrees
@@ -36,7 +36,8 @@ top-level worktrees; opening one closes the previous worktree:
    inspect backend/method readiness, and compare synchronized LBS/DQS instances.
 4. **Create / Edit Animations** — active local authoring for clips, bone tracks, keys, easing,
    viewport TRS manipulation, playback, timeline editing, transactional clipboards, and Undo/Redo.
-   Multi-clip composition remains explicitly deferred as described in Section 8.
+   One transient Absolute/Additive composition layer is delivered as described in Section 8;
+   per-bone masks and richer queue/priority policy remain deferred.
 5. **Paint Weights** — the primary visual weight-authoring workflow. Direct brushes, regional
    masks, complete-vector smoothing, rigid binding, diagnostics, repair, pose safety, Undo, and
    persistence reached functional parity and replaced the former Skin Weight Lab worktree.
@@ -381,7 +382,9 @@ Exit: a clip can be authored, saved, reopened, and sampled deterministically ins
   Scale/shear rejection is explicit and there is no silent fallback.
 - Auto is the editor preview default and displays both requested and resolved methods plus the
   one-time resolution reason; explicit DQS remains available for strict validation.
-- Add backend capability selection/reporting when another runtime backend is delivered.
+- Backend-neutral capability reporting is shared by the delivered OpenGL ES and DirectX 9 runtime
+  paths. The editor follows the backend selected for the engine build rather than switching
+  renderers at runtime; Metal preview remains pending.
 - Side-by-side pose-stress comparison is now available with synchronized runtime LBS/DQS instances,
   mirrored playback/seek/bind restoration, separate readiness reporting, and automatic reframing.
 - The first numeric parity gate now compares two-bone LBS/DQS shader output with the CPU references
@@ -563,6 +566,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.87 | 2026-08-18 | Synchronized the product plan with Windows delivery: Runtime Preview now documents the shared OpenGL ES/DirectX 9 capability surface, Metal remains pending, and stale prose no longer describes the delivered transient composition layer as deferred. |
 | 8.86 | 2026-08-17 | Deferred per-bone animation-layer masks to permit focus on other runtime backends while preserving an executable future contract. Masks stay in Runtime Skeletal Preview, multiply global layer weight per stable bone ID, default to all ones when absent, use hierarchy/subtree controls and viewport feedback, and remain distinct from vertex weights and Paint Weights masks. Updated stale composition status/prose to reflect delivered Absolute/Additive runtime controls. |
 | 8.85 | 2026-08-17 | Added independent pause/resume state for the transient clip layer. Lua and Runtime Preview can freeze only layer clip time and fade while the base continues; global pause remains authoritative and freezes both. Starting/replacing/removing a layer resets its local pause, and pose-stress comparison mirrors the control. |
 | 8.84 | 2026-08-17 | Connected the tested Additive compositor to per-instance runtime playback, a documented explicit Lua play method, and Runtime Skeletal Preview mode selection. Switching Absolute/Additive restarts only the selected layer in the new mode; clip time, weight, speed, seek, shared pause, fade, automatic removal at zero, one final hierarchy reconstruction, and one LBS/DQS palette remain common. |

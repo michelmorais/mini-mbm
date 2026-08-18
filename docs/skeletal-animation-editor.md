@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, runtime preview, local animation, Paint Weights, and transient composition implemented; bone masks and non-GLES backends pending**
-Last updated: **2026-08-17**
+Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9 runtime preview, local animation, Paint Weights, and transient composition implemented; bone masks and Metal pending**
+Last updated: **2026-08-18**
 
 ## 1. Purpose
 
@@ -10,9 +10,10 @@ mesh data. Its implemented worktrees cover bind diagnostics, direct bone editing
 weight repair, runtime LBS/DQS preview, and local clip/track/key/timeline authoring without expanding
 Mesh Debug into a general animation editor.
 
-For canonical skeletal meshes within the GLES2 palette limit, the preview can play the same
-per-instance LBS or rigid-DQS deformation path used by the runtime. Non-GLES backend delivery
-remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
+For canonical skeletal meshes within the active backend's measured palette limit, the preview can
+play the same per-instance LBS or rigid-DQS deformation path used by the runtime. OpenGL ES and
+DirectX 9 are delivered; Metal backend delivery remains in the
+[Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
 The editor is organized into five mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Create / Edit Animations**, and **Paint Weights**. Create / Edit
@@ -604,7 +605,7 @@ separately; the capacity is not a combined scene-wide bone budget. Bind restorat
 the active player; it does not assume that time zero of an authored clip is the bind pose.
 The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and
-matching GLES2 LBS or DQS palette. The bind-only diagnostic gizmo is hidden in this worktree so it
+matching active-backend LBS or DQS palette. The bind-only diagnostic gizmo is hidden in this worktree so it
 is not mistaken for either evaluated runtime instance.
 Resolution details, per-instance capacity guidance, and the hidden bind-gizmo explanation are
 available as hover tooltips on their corresponding Runtime Preview report or control.
@@ -898,7 +899,7 @@ rate and enable snap immediately. The numeric field remains available for arbitr
 The ruler chooses major divisions adaptively from the `1/2/5 x 10^n` family using the current
 visible duration and pixel width. Labels increase decimal precision as the step shrinks, major grid
 lines span the track canvas, and a hard tick cap protects the frame loop from pathological ranges.
-Animation pose tools now expose Move, Rotate, and Scale. The current GLES2 Scale tool draws one
+Animation pose tools now expose Move, Rotate, and Scale. The compact LBS Scale tool draws one
 yellow bone-local diagonal handle and changes X/Y/Z by the same strictly positive factor, evaluating
 the temporary in-memory pose continuously. With Auto Key disabled,
 the result remains temporary until explicitly committed as channel `S`; with Auto Key enabled, mouse
@@ -906,7 +907,7 @@ release commits only scale through the shared snapshot/rollback transaction. DQS
 still reported by the existing runtime method contract rather than silently changing skinning mode.
 The yellow diagonal Scale handle applies one positive factor to all three local scale components,
 preserving their existing proportions. Per-axis scale handles are intentionally unavailable: compact
-GLES2 LBS palettes do not carry inverse-transpose normal matrices, while rigid DQS rejects scale.
+LBS palettes do not carry inverse-transpose normal matrices, while rigid DQS rejects scale.
 Non-uniform X/Y/Z scale remains reserved for a later non-compact normal-palette/shader contract.
 The Scale tool is enabled from the preview's resolved method, not merely its requested method. Forced
 DQS and Auto resolving to DQS disable Scale; forced LBS and Auto resolving to LBS enable its uniform
@@ -1191,7 +1192,8 @@ five external neighbors with zero modifications and zero audit failures.
 
 The following are current editor limitations rather than regressions caused by retiring Skin Weight Lab:
 
-- runtime preview is currently GLES2 only; there is no non-GLES backend selector;
+- runtime preview uses the engine's compiled OpenGL ES or DirectX 9 backend; there is no runtime
+  backend selector, and Metal skeletal preview remains pending;
 - Runtime Skeletal Preview deliberately hides its bind-only diagnostic gizmo; the Animation
   worktree instead displays the evaluated in-memory pose skeleton;
 - no protected/exclusion volumes;
@@ -1214,7 +1216,7 @@ The following are current editor limitations rather than regressions caused by r
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
-Future layer masks, richer pose-stress overlays, antipodality tooling, and non-GLES backend delivery
+Future layer masks, richer pose-stress overlays, antipodality tooling, and Metal backend delivery
 remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Further skeleton and animation authoring refinements remain in the product plan. Mesh Debug's legacy Bone

@@ -153,7 +153,7 @@ records remain `Impl`-owned and are validated against the compiled type-41 skele
 topology before being retained.
 Type-43 follows identically: canonical clips, tracks, keys, easing, and lookup validation remain
 private in `Impl`; the public mesh headers expose neither the vectors nor mutable animation state.
-The GLES2 skeletal preparation cache follows that boundary as well. Resolved float bone-index/weight
+The backend-neutral skeletal preparation cache follows that boundary as well. Resolved float bone-index/weight
 streams, method-specific palette counts, and readiness status live only in `MESH_MBM::Impl` via
 the private `skeletal-gpu-lbs.h` contract. No backend handle, mutable vector, or convenience accessor
 was added to the public mesh header. Each instance's selected LBS/rigid-DQS method and evaluated
@@ -169,10 +169,11 @@ and per-subset arrays live only in private `BUFFER_SPECIFIC` storage and are cre
 private backend-neutral `skeletal-gpu-upload.h` bridge. OpenGL ES and DirectX9 provide the same
 private upload symbol from backend translation units. `BUFFER_GL`'s public layout/API did not acquire
 a graphics handle or a skeletal-data container.
-The corresponding shader integration adds only a backend-neutral palette-size compile parameter to
-the public `SHADER` operation. GLES attribute/uniform handles and the active palette size remain in
-private `GLES_PS_VS`; the default-program cache key includes the size without exposing the cache or
-backend program identity.
+The corresponding shader integration adds only backend-neutral palette size and method compile
+parameters to the public `SHADER` operation. GLES attribute/uniform handles remain in private
+`GLES_PS_VS`; DirectX 9 declarations, streams, constant-table handles, and palette state remain in
+its private backend structures. Both default-program cache keys include skeletal method and palette
+size without exposing cache or backend program identity.
 
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade
