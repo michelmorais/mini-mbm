@@ -27,12 +27,14 @@
 #include "my-scene-test.h"
 #include "skeletal-foundation-tests.h"
 #include "gles-skeletal-parity-tests.h"
+#include "directx9-skeletal-parity-tests.h"
 #include <cstdlib>
 #include <cstring>
 
 // Usage: testLib --skeletal-foundation-tests
 //        testLib --gles-dqs-shader-test
 //        testLib --gles-skeletal-parity-test
+//        testLib --directx9-skeletal-parity-test
 //        testLib --metal-editor-shader-test
 //        testLib [seconds] [mesh_file] [world] [lbs|dqs|auto] [gpu|cpu|auto]
 //   seconds    Exit on its own once this many seconds have elapsed in the
@@ -70,6 +72,14 @@ int main(int argc, char** argv)
     else if (argc == 2 && std::strcmp(argv[1], "--gles-skeletal-parity-test") == 0)
     {
         game.myScene.testGlesSkeletalParity = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else
+#endif
+#if defined(USE_DIRECTX9)
+    if (argc == 2 && std::strcmp(argv[1], "--directx9-skeletal-parity-test") == 0)
+    {
+        game.myScene.testDirectX9SkeletalParity = true;
         game.myScene.testTimeoutSeconds = 1.0f;
     }
     else

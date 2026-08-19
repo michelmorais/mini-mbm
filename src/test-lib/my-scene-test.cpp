@@ -19,6 +19,7 @@
 
 #include "my-scene-test.h"
 #include "gles-skeletal-parity-tests.h"
+#include "directx9-skeletal-parity-tests.h"
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
@@ -88,6 +89,7 @@ MY_SCENE::MY_SCENE()
     cliSkeletalExecutionPathSet = false;
     testGlesDqsShader  = false;
     testGlesSkeletalParity = false;
+    testDirectX9SkeletalParity = false;
     testMetalEditorShaders = false;
     automatedTestFailed = false;
 }
@@ -168,6 +170,16 @@ void MY_SCENE::onInitScene()
     if (testGlesSkeletalParity && !runGlesSkeletalParityTests())
     {
         ERROR_LOG("testLib: GLES skeletal CPU/GPU parity failed");
+        automatedTestFailed = true;
+        device->setRun(false);
+        return;
+    }
+#endif
+
+#if defined(USE_DIRECTX9)
+    if (testDirectX9SkeletalParity && !runDirectX9SkeletalParityTests())
+    {
+        ERROR_LOG("testLib: DirectX 9 skeletal CPU/GPU parity failed");
         automatedTestFailed = true;
         device->setRun(false);
         return;

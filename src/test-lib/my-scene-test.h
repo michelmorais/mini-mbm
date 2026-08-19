@@ -150,6 +150,7 @@ class MY_SCENE : public mbm::SCENE
     bool                    cliSkeletalExecutionPathSet;
     bool                    testGlesDqsShader;
     bool                    testGlesSkeletalParity;
+    bool                    testDirectX9SkeletalParity;
     bool                    testMetalEditorShaders;
     bool                    automatedTestFailed;
 
