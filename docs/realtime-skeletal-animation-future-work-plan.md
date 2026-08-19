@@ -67,8 +67,8 @@ and unchanged canonical clip/weight semantics unless a new format version is exp
 ### 3.5 Editor and interchange refinements
 
 Candidate independent tools are animation-aware subtree mirroring, protected/exclusion volumes,
-topology-ring expansion, welded diagnostic topology, bounded automatic weight generation, richer
-pose-stress/antipodality diagnostics, and custom-tail authoring.
+welded diagnostic topology, bounded automatic weight generation, richer pose-stress/antipodality
+diagnostics, and custom-tail authoring.
 
 FBX coverage should expand only through named source fixtures that demonstrate a missing armature,
 Action/NLA, deformer, or transform case. The objective is measured interoperability, not universal

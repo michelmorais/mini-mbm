@@ -510,6 +510,7 @@
     7.124.3 Extracted backend-neutral skeletal numeric-parity cases, CPU references, RGBA8 encoding, tolerances, comparison, and reporting from the OpenGL ES capture harness so DirectX 9 and Metal only need native capture callbacks. The shared synthetic/Lorekeeper LBS/DQS contract is compiled by CMake and Visual Studio test targets, OpenGL ES still passes all four cases, and skeletal foundation fixtures now use the platform temporary directory instead of hard-coded POSIX /tmp paths.
     7.124.4 Added native Metal skeletal numeric parity. The macOS test harness shares production LBS/DQS MSL deformation generation, renders the four common synthetic/Lorekeeper cases to RGBA8, reads positions/normals after GPU completion, and passes the shared tolerances with Metal API validation enabled.
     7.125.0 Added the native DirectX 9 skeletal numeric-parity capture harness, completing automated encoded/readback coverage across OpenGL ES, DirectX 9, and Metal. It compiles the production HLSL LBS/DQS helpers, renders each prepared sample into a lockable RGBA8 target, reads positions and normals back through Direct3D 9, and passes the shared synthetic and Lorekeeper cases against the existing CPU references and tolerances.
+    7.125.1 Added explicit Paint Weights mask growth and shrinkage across 1-10 cached topology rings. Compatible connected seam copies can participate as one logical neighborhood, the transient operation rebuilds markers only after a real change, and focused Lua tests cover growth, erosion, repeated rings, seam traversal, and input immutability.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -535,7 +536,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.125.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.125.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -35,8 +35,9 @@ worktree was retired after its useful nonredundant operations migrated under **W
 acceptance.
 Canonical type-42 validation already guarantees normalized one-to-four-influence coverage, so a
 Paint Weights normalize/limit/invalid-coverage panel would report no actionable state. Regional
-AABB and subset masks, complete-mask smoothing and Rigid Bind, connected-surface painting, and
-direct rigid brush binding now provide the visual regional workflow without a separate laboratory.
+AABB, subset, and topology-ring masks, complete-mask smoothing and Rigid Bind, connected-surface
+painting, and direct rigid brush binding now provide the visual regional workflow without a separate
+laboratory.
 
 **Influence Distribution** is now available as an optional Repair / Diagnostics view. It maps a
 normalized concentration score derived from each vertex's largest weight (`0.25 -> 0`, `1 -> 1`)
@@ -245,6 +246,15 @@ Subset from Mask** operate on every frame-1 vertex belonging to that material su
 retains the last valid surface hit while the pointer moves into the GUI, so the buttons remain
 usable without requiring an impossible simultaneous hover over mesh and panel. These commands
 change only session mask membership and never mutate weights or create Undo history.
+
+The painted mask can also **Grow** or **Shrink** by 1-10 topology rings on explicit button clicks.
+Grow adds triangle-neighbor rings; Shrink removes selected vertices adjacent to an unselected
+triangle neighbor, repeating from the updated boundary for each requested ring. **Cross Compatible
+Seams** is enabled by default and treats the editor's already validated connected coincident copies
+as one logical neighborhood, so selection does not stop merely at a UV or material split. Disabling
+it follows stored triangle indices only. The operation uses cached adjacency, rebuilds mask markers
+once after a real change, runs no analysis in idle frames, changes no weights, and creates no Undo
+history because the mask remains transient session state.
 
 **Start AABB Capture** follows Mesh Debug's Split capture boundary. Turning it on initializes a
 quarter-size orange box at the mesh center, temporarily shows the original textured mesh even when
@@ -1232,7 +1242,6 @@ The following are current editor limitations rather than regressions caused by r
   primary evaluated pose. Persistence and shared-player authoring/resource management remain future
   work;
 - no protected/exclusion volumes;
-- no topology-ring selection expansion;
 - abrupt-transition classification still follows stored triangle indices rather than adding welded
   diagnostic edges; its repair separately synchronizes compatible connected coincident copies;
 - no automatic heavy whole-mesh weight generation;

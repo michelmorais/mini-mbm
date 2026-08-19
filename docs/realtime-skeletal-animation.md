@@ -244,8 +244,8 @@ production default shaders.
 - The engine does not retarget clips between different skeletons or proportions.
 - Bone-subtree mirroring does not mirror animation tracks and is therefore restricted to assets
   without clips.
-- Paint Weights has no protected/exclusion volumes, topology-ring expansion, welded diagnostic
-  topology, or automatic high-cost whole-mesh weight generator.
+- Paint Weights has no protected/exclusion volumes, welded diagnostic topology, or automatic
+  high-cost whole-mesh weight generator.
 - The editor is not a Blender-equivalent IK, constraint, graph, topology-modeling, automatic-rigging,
   corrective-shape, muscle, or procedural-tail suite.
 - FBX support covers the measured armature, weights, Actions/NLA, and canonical round-trip workflow;

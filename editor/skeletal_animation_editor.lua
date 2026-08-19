@@ -23,6 +23,7 @@
 tImGui = require "ImGui"
 tUtil = require "editor_utils"
 tWearable = require "skeletal_runtime_wearable_helpers"
+tMaskTopology = require "skeletal_mask_topology"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -200,6 +201,7 @@ local state = {
         connectedSurfaceOnly=true,
         restrictToHitSubset=false,
         maskVertices={},maskEditMode=0,maskRestrictBrush=false,maskMarkers=nil,
+        maskTopologyRings=1,maskTopologyAcrossSeams=true,
         maskSmoothStrength=0.5,maskSmoothIterations=3,
         maskRigidTransitionRings=2,
         diagnosticsUseMask=false,
@@ -4355,6 +4357,33 @@ buildCoincidentSeams=function(adjacency)
     return state.coincidentSeams
 end
 
+function adjustPaintMaskTopology(mode)
+    local previousCount=tMaskTopology.count(state.paint.maskVertices)
+    if previousCount==0 then
+        setStatus(tLang.L('swl_paint_mask_topology_empty'),false)
+        return false
+    end
+    local adjacency=buildTopologyAdjacency()
+    local seamByVertex={}
+    if state.paint.maskTopologyAcrossSeams then
+        seamByVertex=buildCoincidentSeams(adjacency).byVertex
+    end
+    local adjusted=tMaskTopology.adjust(state.paint.maskVertices,adjacency,seamByVertex,
+        state.paint.maskTopologyRings,mode,state.paint.maskTopologyAcrossSeams)
+    local adjustedCount=tMaskTopology.count(adjusted)
+    if adjustedCount==previousCount then
+        setStatus(tLang.L('swl_paint_mask_topology_no_change'),false)
+        return false
+    end
+    state.paint.maskVertices=adjusted
+    rebuildPaintMaskMarkers()
+    rebuildPaintCursor(state.paint.cursorHit)
+    setStatus(string.format(tLang.L(mode=='shrink' and
+        'swl_paint_mask_topology_shrunk_fmt' or 'swl_paint_mask_topology_grown_fmt'),
+        state.paint.maskTopologyRings,previousCount,adjustedCount),false,true)
+    return true
+end
+
 local function influenceDistance(a,b)
     local names={}
     for name in pairs(a) do names[name]=true end
@@ -7313,6 +7342,26 @@ local function showPaintWeights()
             rebuildPaintCursor(state.paint.cursorHit)
         end
         tImGui.TextWrapped(tLang.L('swl_paint_mask_help'))
+        tImGui.PushItemWidth(240)
+        local topologyRingsChanged,topologyRings=tImGui.SliderInt(
+            tLang.L('swl_paint_mask_topology_rings'),state.paint.maskTopologyRings,1,10)
+        tImGui.PopItemWidth()
+        if topologyRingsChanged then state.paint.maskTopologyRings=topologyRings end
+        local acrossSeams=tImGui.Checkbox(tLang.L('swl_paint_mask_topology_seams'),
+            state.paint.maskTopologyAcrossSeams)
+        if acrossSeams~=state.paint.maskTopologyAcrossSeams then
+            state.paint.maskTopologyAcrossSeams=acrossSeams
+        end
+        tImGui.BeginDisabled(maskCount==0)
+        if tImGui.Button(tLang.L('swl_paint_mask_topology_grow')) then
+            adjustPaintMaskTopology('grow')
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('swl_paint_mask_topology_shrink')) then
+            adjustPaintMaskTopology('shrink')
+        end
+        tImGui.EndDisabled()
+        tImGui.TextWrapped(tLang.L('swl_paint_mask_topology_help'))
         tImGui.BeginDisabled(state.paint.lastSurfaceHit==nil or not state.meshVisible)
         if tImGui.Button(tLang.L('swl_paint_mask_subset_replace')) then
             applyHitSubsetToPaintMask('replace')
