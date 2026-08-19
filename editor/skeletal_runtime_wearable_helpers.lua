@@ -69,8 +69,13 @@ function M.primarySkinningMethod(primary)
 end
 
 function M.primaryExecutionPath(primary)
-    if not primary or not primary.getSkeletalExecutionPath then return 'gpu' end
-    local path = primary:getSkeletalExecutionPath()
+    if not primary then return 'gpu' end
+    local path = nil
+    if primary.getResolvedSkeletalExecutionPath then
+        path = primary:getResolvedSkeletalExecutionPath()
+    elseif primary.getSkeletalExecutionPath then
+        path = primary:getSkeletalExecutionPath()
+    end
     if path == 'cpu' or path == 'gpu' then return path end
     return 'gpu'
 end

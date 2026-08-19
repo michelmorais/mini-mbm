@@ -171,6 +171,9 @@ was added to the public mesh header. Each instance's selected LBS/rigid-DQS meth
 palette remain in `SKELETAL_ANIMATION_PLAYER::Impl`; public reports copy only scalar status/counts.
 The requested Auto/LBS/DQS policy, resolved backend method, and static resolution-reason pointer are
 also instance-private; Auto scans immutable canonical data before shader compilation.
+The requested GPU/CPU/Auto execution policy follows the same shape. The public surface exposes only
+scalar policy/report values; the one-shot resolution helper is private, and dynamic CPU buffers stay
+owned by the `MESH` instance rather than leaking mesh/cache/backend state through headers.
 A test-only private parity bridge copies canonical skeleton/weights/clips out of
 `MESH_MBM_DEBUG::Impl` into an internal structure. It is a friend solely to preserve the PIMPL
 boundary for numeric GLES tests: no mutable reference, backend handle, Lua binding, or public

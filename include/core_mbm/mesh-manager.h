@@ -715,6 +715,7 @@ namespace mbm
         // pattern as Impl.
         bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
         uint32_t getPreparedSkeletalPaletteSize(SKELETAL_SHADER_METHOD method) const noexcept;
+        bool supportsGpuSkeletalPath(SKELETAL_SHADER_METHOD method) const noexcept;
         void resolveSkeletalSkinningMethod(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         void getSkeletalSkinningReport(SKELETAL_SHADER_METHOD method, const char **status,
                                        uint32_t *requiredBoneCount,

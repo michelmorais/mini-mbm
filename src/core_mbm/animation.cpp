@@ -1129,7 +1129,7 @@ namespace mbm
             getSkeletalAnimationPlayer().getResolvedSkinningMethod();
         const MESH *meshRenderable = dynamic_cast<const MESH*>(renderizable);
         const bool cpuSkeletal = meshRenderable &&
-            meshRenderable->getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU;
+            meshRenderable->getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU;
         if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf,
                                     cpuSkeletal ? 0u : mesh->getPreparedSkeletalPaletteSize(skeletalMethod),
                                     cpuSkeletal ? SKELETAL_SHADER_METHOD::NONE : skeletalMethod))

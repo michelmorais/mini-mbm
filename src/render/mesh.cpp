@@ -23,6 +23,7 @@
 #include <util-interface.h>
 #include <file-util.h>
 #include <core_mbm/scene.h>
+#include <skeletal-execution-policy.h>
 
 #include <algorithm>
 #include <vector>
@@ -41,7 +42,9 @@ namespace mbm
         std::vector<VEC3> positions;
         std::vector<VEC3> normals;
         std::vector<VEC2> uvs;
-        SKELETAL_EXECUTION_PATH executionPath = SKELETAL_EXECUTION_PATH::GPU;
+        SKELETAL_EXECUTION_PATH requestedExecutionPath = skeletal::defaultSkeletalExecutionPath();
+        SKELETAL_EXECUTION_PATH resolvedExecutionPath = SKELETAL_EXECUTION_PATH::GPU;
+        const char *executionReason = "not-loaded";
         bool initialized = false;
     };
 
@@ -87,6 +90,14 @@ namespace mbm
         cpuSkeletalRenderState->positions.clear();
         cpuSkeletalRenderState->normals.clear();
         cpuSkeletalRenderState->uvs.clear();
+        cpuSkeletalRenderState->resolvedExecutionPath =
+            cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::AUTO
+                ? SKELETAL_EXECUTION_PATH::GPU
+                : cpuSkeletalRenderState->requestedExecutionPath;
+        cpuSkeletalRenderState->executionReason =
+            cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::AUTO ? "not-loaded" :
+            cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::CPU ? "explicit-cpu" :
+            "explicit-gpu";
         cpuSkeletalRenderState->initialized = false;
     }
     
@@ -99,6 +110,7 @@ namespace mbm
         if (this->mesh)
         {
             this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
+            this->resolveSkeletalExecutionPath();
             const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {
@@ -135,6 +147,7 @@ namespace mbm
             }
             this->mesh = mesh;
             this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
+            this->resolveSkeletalExecutionPath();
             const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {
@@ -243,37 +256,93 @@ namespace mbm
 
     bool MESH::setSkeletalExecutionPath(const SKELETAL_EXECUTION_PATH path) noexcept
     {
-        if (mesh)
+        if (mesh || (path != SKELETAL_EXECUTION_PATH::GPU &&
+                     path != SKELETAL_EXECUTION_PATH::CPU &&
+                     path != SKELETAL_EXECUTION_PATH::AUTO))
             return false;
         if (cpuSkeletalRenderState)
         {
             cpuSkeletalRenderState->initialized = false;
-            cpuSkeletalRenderState->executionPath = path;
+            cpuSkeletalRenderState->requestedExecutionPath = path;
+            cpuSkeletalRenderState->resolvedExecutionPath =
+                path == SKELETAL_EXECUTION_PATH::AUTO ? SKELETAL_EXECUTION_PATH::GPU : path;
+            cpuSkeletalRenderState->executionReason =
+                path == SKELETAL_EXECUTION_PATH::AUTO ? "not-loaded" :
+                path == SKELETAL_EXECUTION_PATH::CPU ? "explicit-cpu" : "explicit-gpu";
         }
         return true;
     }
 
     SKELETAL_EXECUTION_PATH MESH::getSkeletalExecutionPath() const noexcept
     {
-        return cpuSkeletalRenderState ? cpuSkeletalRenderState->executionPath : SKELETAL_EXECUTION_PATH::GPU;
+        return cpuSkeletalRenderState ?
+            cpuSkeletalRenderState->requestedExecutionPath : skeletal::defaultSkeletalExecutionPath();
+    }
+
+    SKELETAL_EXECUTION_PATH MESH::getResolvedSkeletalExecutionPath() const noexcept
+    {
+        return cpuSkeletalRenderState ?
+            cpuSkeletalRenderState->resolvedExecutionPath : SKELETAL_EXECUTION_PATH::GPU;
+    }
+
+    void MESH::resolveSkeletalExecutionPath() noexcept
+    {
+        if (!cpuSkeletalRenderState)
+            return;
+        const SKELETAL_EXECUTION_PATH requested = cpuSkeletalRenderState->requestedExecutionPath;
+        if (requested == SKELETAL_EXECUTION_PATH::GPU)
+        {
+            cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::GPU;
+            cpuSkeletalRenderState->executionReason = "explicit-gpu";
+            return;
+        }
+        if (requested == SKELETAL_EXECUTION_PATH::CPU)
+        {
+            cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::CPU;
+            cpuSkeletalRenderState->executionReason = "explicit-cpu";
+            return;
+        }
+        const char *cpuReason = nullptr;
+        const SKELETAL_SHADER_METHOD method = getResolvedSkeletalSkinningMethod();
+        const bool gpuSupported = mesh && mesh->supportsGpuSkeletalPath(method);
+        const bool cpuAvailable = mesh && mesh->canUseCpuSkeletalPath(method, &getSkeletalAnimationPlayer(), &cpuReason);
+        const skeletal::SKELETAL_EXECUTION_RESOLUTION resolution =
+            skeletal::resolveSkeletalExecutionPolicy(requested, mesh != nullptr, gpuSupported, cpuAvailable, cpuReason);
+        cpuSkeletalRenderState->resolvedExecutionPath = resolution.resolvedPath;
+        cpuSkeletalRenderState->executionReason = resolution.reason;
     }
 
     void MESH::getSkeletalSkinningReport(const char **status, const char **resolutionReason,
                                          uint32_t *requiredBoneCount,
                                          uint32_t *effectiveBoneCapacity,
                                          const char **executionPath,
-                                         const char **executionStatus) const noexcept
+                                         const char **executionStatus,
+                                         const char **requestedExecutionPath,
+                                         const char **resolvedExecutionPath,
+                                         const char **executionReason) const noexcept
     {
+        const auto pathName = [](const SKELETAL_EXECUTION_PATH path) -> const char *
+        {
+            return path == SKELETAL_EXECUTION_PATH::AUTO ? "auto" :
+                path == SKELETAL_EXECUTION_PATH::CPU ? "cpu" : "gpu";
+        };
         if (resolutionReason)
             *resolutionReason = getSkeletalAnimationPlayer().getSkinningResolutionReason();
+        if (requestedExecutionPath)
+            *requestedExecutionPath = pathName(getSkeletalExecutionPath());
+        if (resolvedExecutionPath)
+            *resolvedExecutionPath = pathName(getResolvedSkeletalExecutionPath());
+        if (executionReason)
+            *executionReason = cpuSkeletalRenderState ? cpuSkeletalRenderState->executionReason : "not-loaded";
         if (executionPath)
-            *executionPath = getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU ? "cpu" : "gpu";
+            *executionPath = pathName(getResolvedSkeletalExecutionPath());
         if (executionStatus)
         {
             if (!mesh)
                 *executionStatus = "not-loaded";
-            else if (getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::GPU)
-                *executionStatus = "gpu-default";
+            else if (getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::GPU)
+                *executionStatus = mesh->supportsGpuSkeletalPath(getResolvedSkeletalSkinningMethod())
+                    ? "gpu-ready" : "gpu-skeletal-unavailable";
             else
             {
                 const char *reason = nullptr;
@@ -573,7 +642,7 @@ namespace mbm
             if (reason) *reason = "skinning_method_mismatch";
             return false;
         }
-        if (getSkeletalExecutionPath() != source->getSkeletalExecutionPath())
+        if (getResolvedSkeletalExecutionPath() != source->getResolvedSkeletalExecutionPath())
         {
             if (reason) *reason = "execution_path_mismatch";
             return false;
@@ -693,7 +762,7 @@ namespace mbm
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
             const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
             const bool useCpuSkeletal = hasSkeletal &&
-                getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU;
+                getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU;
             const bool rendered = useCpuSkeletal
                 ? this->renderCpuSkeletal(
                     hasSharedSkeletal ? skeletalPoseSharingState->source->getSkeletalAnimationPlayer() :

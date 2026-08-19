@@ -605,9 +605,13 @@ Auto selects DQS only if bind and all clips use unit scale; otherwise it selects
 reason. The panel reports requested/resolved methods and explains the limits directly: how many bones this mesh requires and the
 maximum accepted by the current device for one mesh draw. Multiple mesh instances are evaluated
 separately; the capacity is not a combined scene-wide bone budget. The Execution Path selector
-chooses GPU or CPU before loading the preview instance. CPU is explicit and supports resolved LBS
-or rigid DQS when the loaded report says `cpu-lbs-ready` or `cpu-dqs-ready`; invalid non-rigid DQS
-content reports an unavailable reason rather than changing method.
+chooses Auto, GPU, or CPU before loading the preview instance. Auto is the default, prefers GPU,
+and falls back to CPU only when the resolved LBS or rigid
+DQS mesh cannot use GPU and CPU is ready; it never changes the selected LBS/DQS method.
+Explicit GPU and CPU selections remain mandatory comparison paths with no fallback. CPU supports
+resolved LBS or rigid DQS when the loaded report says `cpu-lbs-ready` or `cpu-dqs-ready`; invalid
+non-rigid DQS content reports an unavailable reason rather than changing method or claiming a CPU
+fallback.
 Bind restoration stops
 the active player; it does not assume that time zero of an authored clip is the bind pose.
 The slider is a lightweight playback scrubber, not the future Animation-node
@@ -736,7 +740,7 @@ Enable **Compare GPU / CPU** to reuse the same side-by-side preview and synchron
 for execution-path parity: the left instance is GPU and the right instance is CPU using the same
 resolved method selected before load. This mode is mutually exclusive with LBS/DQS pose stress,
 disables the normal method/execution selectors while active, and reports each side from its loaded
-`getSkeletalSkinningReport()` execution path rather than the requested combo state. Disabling it
+`getSkeletalSkinningReport()` resolved execution path rather than the requested combo state. Disabling it
 returns to the ordinary single-preview controls without writing method or execution changes into
 the mesh asset.
 

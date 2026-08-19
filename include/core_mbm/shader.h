@@ -48,7 +48,8 @@ namespace mbm
     enum class SKELETAL_EXECUTION_PATH : uint8_t
     {
         GPU,
-        CPU
+        CPU,
+        AUTO
     };
     class TEXTURE;
     class RENDERIZABLE;

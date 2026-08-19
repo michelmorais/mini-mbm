@@ -69,11 +69,15 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL SKELETAL_SHADER_METHOD getResolvedSkeletalSkinningMethod() const noexcept;
     API_IMPL bool setSkeletalExecutionPath(SKELETAL_EXECUTION_PATH path) noexcept;
     API_IMPL SKELETAL_EXECUTION_PATH getSkeletalExecutionPath() const noexcept;
+    API_IMPL SKELETAL_EXECUTION_PATH getResolvedSkeletalExecutionPath() const noexcept;
     API_IMPL void getSkeletalSkinningReport(const char **status, const char **resolutionReason,
                                             uint32_t *requiredBoneCount,
                                             uint32_t *effectiveBoneCapacity,
                                             const char **executionPath = nullptr,
-                                            const char **executionStatus = nullptr) const noexcept;
+                                            const char **executionStatus = nullptr,
+                                            const char **requestedExecutionPath = nullptr,
+                                            const char **resolvedExecutionPath = nullptr,
+                                            const char **executionReason = nullptr) const noexcept;
     API_IMPL bool playSkeletalAnimation(const char *name);
     API_IMPL bool crossFadeSkeletalAnimation(const char *name, float duration);
     API_IMPL bool pauseSkeletalAnimation() noexcept;
@@ -141,6 +145,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     const MESH_MBM *         getMesh() const override;
     bool                     isLoaded() const override;
     bool                     canUseSkeletalPoseSharing(const char **reason) const noexcept;
+    void                     resolveSkeletalExecutionPath() noexcept;
     void                     detachSkeletalPoseSharingSource() noexcept;
     void                     detachSkeletalPoseSharingFollowers() noexcept;
     bool                     renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,

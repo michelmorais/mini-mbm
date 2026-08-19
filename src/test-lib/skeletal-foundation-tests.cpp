@@ -20,6 +20,7 @@
 #include "skeletal-foundation-tests.h"
 
 #include <skeletal-animation-foundation.h>
+#include <skeletal-execution-policy.h>
 #include <skeletal-render-capability.h>
 #include <skeletal-gpu-lbs.h>
 #include <skeletal-parity-asset.h>
@@ -30,6 +31,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <string>
 #include <vector>
 
 namespace
@@ -1938,6 +1940,60 @@ namespace
                    sampled.globalTransforms.size() == 2,
                "GPU DQS palette sampling must share canonical clip evaluation with LBS");
     }
+
+    void testSkeletalExecutionPolicyResolution()
+    {
+        expect(defaultSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::AUTO,
+               "engine default requested skeletal execution policy must be Auto");
+
+        SKELETAL_EXECUTION_RESOLUTION resolution = resolveSkeletalExecutionPolicy(
+            SKELETAL_EXECUTION_PATH::GPU, true, false, true, "ready");
+        expect(resolution.resolvedPath == SKELETAL_EXECUTION_PATH::GPU &&
+                   std::string(resolution.reason) == "explicit-gpu",
+               "explicit GPU execution must remain mandatory even when capability probes say unsupported");
+
+        resolution = resolveSkeletalExecutionPolicy(
+            SKELETAL_EXECUTION_PATH::CPU, true, true, false, "cpu-dqs-non-rigid-skeleton-or-clips");
+        expect(resolution.resolvedPath == SKELETAL_EXECUTION_PATH::CPU &&
+                   std::string(resolution.reason) == "explicit-cpu",
+               "explicit CPU execution must remain mandatory even when CPU readiness says unavailable");
+
+        resolution = resolveSkeletalExecutionPolicy(
+            SKELETAL_EXECUTION_PATH::AUTO, false, false, false, nullptr);
+        expect(resolution.resolvedPath == SKELETAL_EXECUTION_PATH::GPU &&
+                   std::string(resolution.reason) == "not-loaded",
+               "Auto execution must report the pre-load default without claiming a resolved runtime fallback");
+
+        resolution = resolveSkeletalExecutionPolicy(
+            SKELETAL_EXECUTION_PATH::AUTO, true, true, true, "ready");
+        expect(resolution.resolvedPath == SKELETAL_EXECUTION_PATH::GPU &&
+                   std::string(resolution.reason) == "auto-gpu-supported",
+               "Auto execution must prefer GPU whenever the resolved method fits the GPU path");
+
+        resolution = resolveSkeletalExecutionPolicy(
+            SKELETAL_EXECUTION_PATH::AUTO, true, true, false, "cpu-method-unresolved");
+        expect(resolution.resolvedPath == SKELETAL_EXECUTION_PATH::GPU &&
+                   std::string(resolution.reason) == "auto-gpu-supported",
+               "Auto execution must be independent from CPU method readiness when GPU is supported");
+
+        resolution = resolveSkeletalExecutionPolicy(
+            SKELETAL_EXECUTION_PATH::AUTO, true, false, true, "ready");
+        expect(resolution.resolvedPath == SKELETAL_EXECUTION_PATH::CPU &&
+                   std::string(resolution.reason) == "auto-cpu-fallback",
+               "Auto execution must fall back to CPU when GPU is unsupported and CPU is ready");
+
+        resolution = resolveSkeletalExecutionPolicy(
+            SKELETAL_EXECUTION_PATH::AUTO, true, false, false, "cpu-dqs-non-rigid-skeleton-or-clips");
+        expect(resolution.resolvedPath == SKELETAL_EXECUTION_PATH::GPU &&
+                   std::string(resolution.reason) == "cpu-dqs-non-rigid-skeleton-or-clips",
+               "Auto execution must not report CPU fallback when CPU is unavailable");
+
+        resolution = resolveSkeletalExecutionPolicy(
+            SKELETAL_EXECUTION_PATH::AUTO, true, false, false, nullptr);
+        expect(resolution.resolvedPath == SKELETAL_EXECUTION_PATH::GPU &&
+                   std::string(resolution.reason) == "auto-cpu-unavailable",
+               "Auto execution total failure must have a deterministic fallback reason");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -1961,6 +2017,7 @@ int runSkeletalFoundationTests()
     testCpuLbsReference();
     testSkinningCapability();
     testGles2LbsInputPreparation();
+    testSkeletalExecutionPolicyResolution();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

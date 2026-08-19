@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.114**
-Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime GPU LBS/DQS plus explicit CPU LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
+Document version: **9.115**
+Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime GPU LBS/DQS plus explicit/Auto CPU LBS/DQS fallback, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-19**
 
 ## 1. Purpose
@@ -32,7 +32,7 @@ confirmed facts, decisions, hypotheses, and open questions.
   weights with up to four ID-based influences per frame-zero vertex, and type-43 skeletal clips.
 - The runtime evaluates local clip tracks and the bone hierarchy per mesh instance, then deforms
   vertices and normals through a GPU palette on the OpenGL ES, DirectX 9, and Metal paths, or through
-  an explicit opt-in CPU-rendered LBS path. Pre-baked static-frame animation remains a separate
+  an explicit opt-in CPU-rendered LBS/DQS path. Pre-baked static-frame animation remains a separate
   supported animation model.
 - Current backends include OpenGL ES 2, DirectX 9, and Metal. Basic skeletal skinning does not by
   itself require replacing these APIs, but their buffer, shader, and palette limits differ.
@@ -1130,8 +1130,9 @@ remain required before choosing palette sizes or fallbacks.
 | 5.3 | 2026-08-13 | Fixed reverse-FBX canonical coordinate restoration after real Mixamo testing: undo X reflection, restore winding, and invert the bind-matrix coordinate change by full conjugation. A 67-bone source-axis comparison now has maximum error 1.28e-7. |
 | 5.2 | 2026-08-13 | Migrated reverse Mesh Debug → FBX interchange from exploratory sections 11/40 to canonical bind-report global matrices and type-42 weights, removing the last active editor/export consumer before C++ persistence deletion. |
 | 5.1 | 2026-08-13 | Began physical legacy deletion by removing sections 11/40 authoring methods from the registered Mesh Debug Lua surface. Confirmed the active FBX importer writes only canonical sections 41–43 and isolated its unused exploratory constants/builders. C++ persistence and the old reverse FBX-export path remain explicit deletion blockers. |
-| 9.114 | 2026-08-19 | Extended the explicit per-MESH CPU execution path from LBS to rigid DQS. CPU DQS reuses the canonical reference math, deforms only from immutable bind geometry into per-instance dynamic buffers, keeps GPU as default, reports `cpu-dqs-ready` when valid, and rejects non-rigid DQS with an execution reason instead of switching to LBS. Runtime Preview GPU/CPU comparison now uses the selected resolved method when safe. |
-| 9.113 | 2026-08-19 | Added an explicit per-MESH CPU execution path for canonical LBS. It uses the same final evaluated pose/palette as GPU LBS, deforms positions and normals from immutable bind geometry into per-instance dynamic buffers, keeps GPU as the default, exposes C++/Lua selection and reporting, and rejects CPU+DQS instead of silently falling back. Indexed dynamic vertex updates are now implemented for OpenGL ES, DirectX9, Metal, and the dummy backend metadata path, so indexed skeletal meshes do not fail before draw. |
+| 9.115 | 2026-08-19 | Corrected Auto skeletal execution semantics: the no-configuration requested policy is now Auto, Auto prefers GPU and falls back to CPU only when GPU cannot support the resolved method and CPU is ready, explicit GPU/CPU stay mandatory, reports distinguish requested/provisional/resolved execution, and Runtime Preview defaults to Auto while GPU/CPU comparison remains forced. |
+| 9.114 | 2026-08-19 | Extended the explicit per-MESH CPU execution path from LBS to rigid DQS. CPU DQS reuses the canonical reference math, deforms only from immutable bind geometry into per-instance dynamic buffers, reports `cpu-dqs-ready` when valid, and rejects non-rigid DQS with an execution reason instead of switching to LBS. Runtime Preview GPU/CPU comparison now uses the selected resolved method when safe. |
+| 9.113 | 2026-08-19 | Added an explicit per-MESH CPU execution path for canonical LBS. It uses the same final evaluated pose/palette as GPU LBS, deforms positions and normals from immutable bind geometry into per-instance dynamic buffers, exposes C++/Lua selection and reporting, and rejects CPU+DQS instead of silently falling back. Indexed dynamic vertex updates are now implemented for OpenGL ES, DirectX9, Metal, and the dummy backend metadata path, so indexed skeletal meshes do not fail before draw. |
 | 5.0 | 2026-08-13 | Retired Mesh Debug's visible legacy Bone node/window and destructive section-40 removal controls. Mesh Info now reports canonical type-42 weights, while unreachable legacy code and persistence remain isolated for the next physical-deletion pass. A locally regenerated 67-bone Mixamo mesh successfully previewed both LBS and DQS on the measured 4096-vector device; this does not change the 40/60-bone GLES2-minimum limits. |
 | 4.9 | 2026-08-12 | Migrated Skin Weight Lab from exploratory name-palette weights to canonical type-42 mutation. Editor-facing names resolve to stable IDs, each update is validated transactionally, and no legacy weight section is created. The remaining section/API removal consumers are confined to Mesh Debug and interchange code. |
 | 4.8 | 2026-08-12 | Began Mesh Debug migration by making the Skeletal Animation Editor's bind gizmo consume only canonical bind-report bones. It derives hierarchy and joint positions from type-41 global bind matrices and deliberately gives legacy-only assets no skeleton. The remaining editor deletion blocker is Skin Weight Lab's exploratory name-palette weight API, which must be replaced by canonical type-42 mutation/rollback. |

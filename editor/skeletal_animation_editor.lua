@@ -2832,7 +2832,7 @@ local function rebuildPreview(sourcePath)
         applyRuntimeLighting()
         local preview=mesh:new('3d')
         if not preview:setSkeletalSkinningMethod(method) then preview:destroy(); return nil end
-        local execution=executionOverride or (playback.execution==2 and 'cpu' or 'gpu')
+        local execution=executionOverride or (playback.execution==2 and 'gpu' or playback.execution==3 and 'cpu' or 'auto')
         if not preview:setSkeletalExecutionPath(execution) then preview:destroy(); return nil end
         if not preview:load(sourcePath) then preview:destroy(); return nil end
         preview:setSkeletalAnimationPlaybackSpeed(playback.speed)
@@ -2841,10 +2841,10 @@ local function rebuildPreview(sourcePath)
         return preview
     end
     if playback.gpuCpuCompare then
-        playback.execution=1
+        playback.execution=2
     end
     if playback.poseStress then
-        playback.execution=1
+        playback.execution=2
         state.preview=loadRuntimePreview('lbs',-separation)
         playback.previewX=-separation
         state.comparisonPreview=loadRuntimePreview('dqs',separation)
@@ -3186,7 +3186,7 @@ local function showSkeletalPreviewControls()
         playback.poseStress=poseStress
         if poseStress then
             playback.gpuCpuCompare=false
-            playback.execution=1
+            playback.execution=2
         end
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
         else rebuildPreview() end
@@ -3198,7 +3198,7 @@ local function showSkeletalPreviewControls()
         if gpuCpuCompare then
             playback.poseStress=false
             playback.method=2
-            playback.execution=1
+            playback.execution=2
         end
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
         else rebuildPreview() end
@@ -3220,7 +3220,7 @@ local function showSkeletalPreviewControls()
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
         else rebuildPreview() end
     end
-    local executions={tLang.L('swl_execution_gpu'),tLang.L('swl_execution_cpu')}
+    local executions={tLang.L('swl_execution_auto'),tLang.L('swl_execution_gpu'),tLang.L('swl_execution_cpu')}
     tImGui.BeginDisabled(swlHasRuntimeComparison())
     tImGui.PushItemWidth(190)
     local executionChanged,execution=tImGui.Combo(tLang.L('swl_execution_path'),playback.execution,executions,-1)
@@ -3244,11 +3244,15 @@ local function showSkeletalPreviewControls()
     tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
         lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
     showItemTooltip(tLang.L('swl_lbs_capacity_note'))
-    drawExecutionStatusIndicator(lbsReport.executionPath)
+    local resolvedExecutionPath=lbsReport.resolvedExecutionPath or lbsReport.executionPath or 'gpu'
+    drawExecutionStatusIndicator(resolvedExecutionPath)
     tImGui.SameLine()
     tImGui.TextWrapped(string.format(tLang.L('swl_execution_report_fmt'),
-        lbsReport.executionPath or 'gpu',lbsReport.executionStatus or 'unknown'))
-    local executionPath=lbsReport.executionPath or 'gpu'
+        lbsReport.requestedExecutionPath or lbsReport.executionPath or 'gpu',
+        resolvedExecutionPath,lbsReport.executionStatus or 'unknown'))
+    showItemTooltip(string.format(tLang.L('swl_execution_reason_fmt'),
+        lbsReport.executionReason or 'unknown'))
+    local executionPath=resolvedExecutionPath
     if executionPath=='cpu' then
         showItemTooltip(tLang.L('swl_execution_cpu_note'))
     elseif executionPath=='gpu' then
@@ -3258,15 +3262,18 @@ local function showSkeletalPreviewControls()
         local secondaryReport=state.comparisonPreview:getSkeletalSkinningReport()
         if playback.gpuCpuCompare then
             tImGui.Text(tLang.L('swl_gpu_cpu_primary_label'))
-            drawExecutionStatusIndicator(lbsReport.executionPath)
+            drawExecutionStatusIndicator(lbsReport.resolvedExecutionPath or lbsReport.executionPath)
             tImGui.SameLine()
             tImGui.TextWrapped(string.format(tLang.L('swl_execution_report_fmt'),
-                lbsReport.executionPath or 'unknown',lbsReport.executionStatus or 'unknown'))
+                lbsReport.requestedExecutionPath or lbsReport.executionPath or 'unknown',
+                lbsReport.resolvedExecutionPath or lbsReport.executionPath or 'unknown',
+                lbsReport.executionStatus or 'unknown'))
             tImGui.Text(tLang.L('swl_gpu_cpu_secondary_label'))
-            drawExecutionStatusIndicator(secondaryReport.executionPath)
+            drawExecutionStatusIndicator(secondaryReport.resolvedExecutionPath or secondaryReport.executionPath)
             tImGui.SameLine()
             tImGui.TextWrapped(string.format(tLang.L('swl_execution_report_fmt'),
-                secondaryReport.executionPath or 'unknown',
+                secondaryReport.requestedExecutionPath or secondaryReport.executionPath or 'unknown',
+                secondaryReport.resolvedExecutionPath or secondaryReport.executionPath or 'unknown',
                 secondaryReport.executionStatus or 'unknown'))
             tImGui.Text(string.format(tLang.L('swl_gpu_cpu_reports'),
                 lbsReport.executionStatus or 'unknown',

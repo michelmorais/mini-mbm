@@ -45,9 +45,10 @@ local primary = {
     getResolvedSkeletalSkinningMethod=function() return 'dqs' end,
     getSkeletalSkinningMethod=function() return 'auto' end,
     getSkeletalExecutionPath=function() return 'cpu' end,
+    getResolvedSkeletalExecutionPath=function() return 'gpu' end,
 }
 assert(helper.primarySkinningMethod(primary) == 'dqs')
-assert(helper.primaryExecutionPath(primary) == 'cpu')
+assert(helper.primaryExecutionPath(primary) == 'gpu')
 
 local fallbackPrimary = {
     getResolvedSkeletalSkinningMethod=function() return 'unresolved' end,

@@ -585,9 +585,15 @@ contain unit scale; otherwise it resolves to LBS. Changing method after load ret
 the resolved method is part of the compiled default-shader variant. The Absolute layer supports a
 linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
 and fade. Per-bone masks, completion callbacks, and Metal are delivered; transition curves/queues
-and priorities remain future work. OpenGL ES, DirectX9, and Metal provide the current GPU paths. An
-explicit opt-in CPU execution path supports resolved LBS and rigid DQS through the same immutable
-bind-geometry to per-instance dynamic-buffer path; GPU remains the default. LBS compact normals
+and priorities remain future work. OpenGL ES, DirectX9, and Metal provide the current GPU paths.
+The default requested execution policy is `"auto"`, which prefers GPU and resolves once at load to
+CPU only when the loaded mesh's
+resolved LBS or rigid DQS method cannot fit the GPU path and the CPU path is ready. Execution auto
+does not change the LBS/DQS method. Explicit `"gpu"` is mandatory GPU with no fallback, and explicit
+`"cpu"` is mandatory CPU. The CPU path supports resolved LBS and rigid DQS through the same
+immutable bind-geometry to per-instance dynamic-buffer path. If neither GPU nor CPU can support the
+resolved method, the report keeps a GPU resolved path with an unavailable status/reason rather than
+changing method. LBS compact normals
 reject negative scale, shear, or non-uniform scale; rigid DQS rejects any scale/shear instead of
 silently switching to LBS.
 
@@ -599,9 +605,10 @@ silently switching to LBS.
 | `obj:setSkeletalSkinningMethod` | `(method: "auto"|"lbs"|"dqs")` | bool | Select requested policy before `load`; returns `false` after the mesh is loaded |
 | `obj:getSkeletalSkinningMethod` | `()` | string | Requested method/policy |
 | `obj:getResolvedSkeletalSkinningMethod` | `()` | string | Actual compiled method (`"lbs"` or `"dqs"`), or `"unresolved"` before an Auto mesh is loaded |
-| `obj:setSkeletalExecutionPath` | `(path: "gpu"|"cpu")` | bool | Select execution path before `load`; default is `"gpu"`. CPU is explicit and works with resolved LBS or rigid DQS when valid |
-| `obj:getSkeletalExecutionPath` | `()` | string | `"gpu"` or `"cpu"` |
-| `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, resolved-method maximum bones per draw, `executionPath`, and `executionStatus` (`gpu-default`, `cpu-lbs-ready`, `cpu-dqs-ready`, or a clear unavailable reason) |
+| `obj:setSkeletalExecutionPath` | `(path: "gpu"|"cpu"|"auto")` | bool | Select requested execution policy before `load`; default is `"auto"` |
+| `obj:getSkeletalExecutionPath` | `()` | string | Requested execution policy: `"gpu"`, `"cpu"`, or `"auto"` |
+| `obj:getResolvedSkeletalExecutionPath` | `()` | string | Actual immutable execution path after load: `"gpu"` or `"cpu"` |
+| `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, resolved-method maximum bones per draw, legacy `executionPath`, `requestedExecutionPath`, `resolvedExecutionPath`, `executionStatus`, and `executionReason`. Before load, default reports `requestedExecutionPath = "auto"`, provisional `resolvedExecutionPath = "gpu"`, `executionStatus = "not-loaded"`, and `executionReason = "not-loaded"`. After load, `executionPath` is always the actual resolved `"gpu"` or `"cpu"` path |
 | `obj:playSkeletalAnimation` | `(name)` | bool | Start or restart one clip at time zero |
 | `obj:crossFadeSkeletalAnimation` | `(name, duration)` | bool | Linearly transition from the active base pose to `name` starting at target time zero, then promote the target to the sole base clip. Duration must be finite and non-negative; zero is immediate play. A positive transition replaces any ordinary transient layer and uses an unmasked Absolute blend; requesting another cross-fade before promotion returns `false`. |
 | `obj:pauseSkeletalAnimation` | `()` | bool | Freeze the active clip and palette |
@@ -641,9 +648,11 @@ silently switching to LBS.
 ```lua
 local character = mesh:new("3d")
 assert(character:setSkeletalSkinningMethod("auto"))
+assert(character:setSkeletalExecutionPath("auto"))
 assert(character:load("character-walk.msh"))
 local report = character:getSkeletalSkinningReport()
-print(report.requestedMethod, report.resolvedMethod, report.resolutionReason)
+print(report.requestedMethod, report.resolvedMethod, report.resolutionReason,
+      report.requestedExecutionPath, report.resolvedExecutionPath, report.executionReason)
 assert(character:playSkeletalAnimation("Walk"))
 assert(character:enableAutomaticSkeletalRootMotion("mixamorig:Hips"))
 assert(character:crossFadeSkeletalAnimation("Run", 0.25))

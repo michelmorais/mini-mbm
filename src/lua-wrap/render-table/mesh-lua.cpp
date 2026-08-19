@@ -259,8 +259,10 @@ namespace mbm
             selected = SKELETAL_EXECUTION_PATH::GPU;
         else if (std::strcmp(path, "cpu") == 0)
             selected = SKELETAL_EXECUTION_PATH::CPU;
+        else if (std::strcmp(path, "auto") == 0)
+            selected = SKELETAL_EXECUTION_PATH::AUTO;
         else
-            return luaL_error(lua, "skeletal execution path must be 'gpu' or 'cpu'");
+            return luaL_error(lua, "skeletal execution path must be 'gpu', 'cpu', or 'auto'");
         lua_pushboolean(lua, mesh->setSkeletalExecutionPath(selected) ? 1 : 0);
         return 1;
     }
@@ -268,7 +270,17 @@ namespace mbm
     int onGetSkeletalExecutionPathLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
-        lua_pushstring(lua, mesh->getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU ? "cpu" : "gpu");
+        const SKELETAL_EXECUTION_PATH path = mesh->getSkeletalExecutionPath();
+        lua_pushstring(lua, path == SKELETAL_EXECUTION_PATH::AUTO ? "auto" :
+            path == SKELETAL_EXECUTION_PATH::CPU ? "cpu" : "gpu");
+        return 1;
+    }
+
+    int onGetResolvedSkeletalExecutionPathLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushstring(lua, mesh->getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU
+            ? "cpu" : "gpu");
         return 1;
     }
 
@@ -278,9 +290,11 @@ namespace mbm
         const char *status = nullptr, *resolutionReason = nullptr;
         uint32_t requiredBoneCount = 0, effectiveBoneCapacity = 0;
         const char *executionPath = nullptr, *executionStatus = nullptr;
+        const char *requestedExecutionPath = nullptr, *resolvedExecutionPath = nullptr, *executionReason = nullptr;
         mesh->getSkeletalSkinningReport(&status, &resolutionReason, &requiredBoneCount,
-                                        &effectiveBoneCapacity, &executionPath, &executionStatus);
-        lua_createtable(lua, 0, 8);
+                                        &effectiveBoneCapacity, &executionPath, &executionStatus,
+                                        &requestedExecutionPath, &resolvedExecutionPath, &executionReason);
+        lua_createtable(lua, 0, 12);
         lua_pushstring(lua, status ? status : "unknown");
         lua_setfield(lua, -2, "status");
         lua_pushinteger(lua, static_cast<lua_Integer>(requiredBoneCount));
@@ -299,8 +313,14 @@ namespace mbm
         lua_setfield(lua, -2, "resolutionReason");
         lua_pushstring(lua, executionPath ? executionPath : "gpu");
         lua_setfield(lua, -2, "executionPath");
+        lua_pushstring(lua, requestedExecutionPath ? requestedExecutionPath : "auto");
+        lua_setfield(lua, -2, "requestedExecutionPath");
+        lua_pushstring(lua, resolvedExecutionPath ? resolvedExecutionPath : "gpu");
+        lua_setfield(lua, -2, "resolvedExecutionPath");
         lua_pushstring(lua, executionStatus ? executionStatus : "unknown");
         lua_setfield(lua, -2, "executionStatus");
+        lua_pushstring(lua, executionReason ? executionReason : "unknown");
+        lua_setfield(lua, -2, "executionReason");
         return 1;
     }
 
@@ -905,6 +925,7 @@ namespace mbm
                                                      {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
                                                      {"setSkeletalExecutionPath", onSetSkeletalExecutionPathLua},
                                                      {"getSkeletalExecutionPath", onGetSkeletalExecutionPathLua},
+                                                     {"getResolvedSkeletalExecutionPath", onGetResolvedSkeletalExecutionPathLua},
                                                      {"getSkeletalSkinningReport", onGetSkeletalSkinningReportLua},
                                                      {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
                                                      {"crossFadeSkeletalAnimation", onCrossFadeSkeletalAnimationLua},
@@ -999,6 +1020,7 @@ namespace mbm
                                                          {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
                                                          {"setSkeletalExecutionPath", onSetSkeletalExecutionPathLua},
                                                          {"getSkeletalExecutionPath", onGetSkeletalExecutionPathLua},
+                                                         {"getResolvedSkeletalExecutionPath", onGetResolvedSkeletalExecutionPathLua},
                                                          {"getSkeletalSkinningReport", onGetSkeletalSkinningReportLua},
                                                          {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
                                                          {"crossFadeSkeletalAnimation", onCrossFadeSkeletalAnimationLua},

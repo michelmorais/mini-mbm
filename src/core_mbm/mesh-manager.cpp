@@ -8090,6 +8090,11 @@ namespace mbm
         return impl->gpuSkinningInput.supports(method) ? impl->gpuSkinningInput.requiredBoneCount : 0;
     }
 
+    bool MESH_MBM::supportsGpuSkeletalPath(const SKELETAL_SHADER_METHOD method) const noexcept
+    {
+        return impl->gpuSkinningInput.supports(method);
+    }
+
     void MESH_MBM::resolveSkeletalSkinningMethod(SKELETAL_ANIMATION_PLAYER &player) const noexcept
     {
         if (player.impl->requestedSkinningMethod != SKELETAL_SHADER_METHOD::AUTO)

@@ -147,6 +147,7 @@ class MY_SCENE : public mbm::SCENE
     RenderMode              cliMeshMode;
     mbm::SKELETAL_SHADER_METHOD cliSkeletalMethod;
     mbm::SKELETAL_EXECUTION_PATH cliSkeletalExecutionPath;
+    bool                    cliSkeletalExecutionPathSet;
     bool                    testGlesDqsShader;
     bool                    testGlesSkeletalParity;
     bool                    testMetalEditorShaders;
