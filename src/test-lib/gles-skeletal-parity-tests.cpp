@@ -190,3 +190,6 @@ bool runGlesSkeletalParityTests()
     ERROR_LOG("testLib: %s", error.c_str());
     return false;
 }
+/**
+ Prossiga com a implementação e execução do teste de paridade numérica esquelética no backend nativo deste sistema.
+ */
