@@ -3228,6 +3228,15 @@ local function showSkeletalPreviewControls()
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
         else rebuildPreview() end
     end
+    local lbsReport=nil
+    if state.preview then
+        lbsReport=state.preview:getSkeletalSkinningReport()
+        tImGui.Text(string.format(tLang.L('swl_lbs_report_fmt'),
+            (lbsReport.requestedMethod or 'unknown'):upper(),
+            (lbsReport.resolvedMethod or 'unknown'):upper()))
+        showItemTooltip(string.format(tLang.L('swl_skinning_reason_fmt'),
+            lbsReport.resolutionReason or 'unknown'))
+    end
     local executions={tLang.L('swl_execution_auto'),tLang.L('swl_execution_gpu'),tLang.L('swl_execution_cpu')}
     tImGui.BeginDisabled(swlHasRuntimeComparison())
     tImGui.PushItemWidth(190)
@@ -3243,15 +3252,6 @@ local function showSkeletalPreviewControls()
         tImGui.TextDisabled(tLang.L('swl_runtime_preview_unavailable'))
         return
     end
-    local lbsReport=state.preview:getSkeletalSkinningReport()
-    tImGui.Text(string.format(tLang.L('swl_lbs_report_fmt'),
-        (lbsReport.requestedMethod or 'unknown'):upper(),
-        (lbsReport.resolvedMethod or 'unknown'):upper(),lbsReport.status or 'unknown'))
-    showItemTooltip(string.format(tLang.L('swl_skinning_reason_fmt'),
-        lbsReport.resolutionReason or 'unknown'))
-    tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
-        lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
-    showItemTooltip(tLang.L('swl_lbs_capacity_note'))
     local resolvedExecutionPath=lbsReport.resolvedExecutionPath or lbsReport.executionPath or 'gpu'
     drawExecutionStatusIndicator(resolvedExecutionPath)
     tImGui.SameLine()
@@ -3260,6 +3260,10 @@ local function showSkeletalPreviewControls()
         resolvedExecutionPath,lbsReport.executionStatus or 'unknown'))
     showItemTooltip(string.format(tLang.L('swl_execution_reason_fmt'),
         lbsReport.executionReason or 'unknown'))
+    tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
+        lbsReport.status or 'unknown',lbsReport.requiredBoneCount or 0,
+        lbsReport.effectiveBoneCapacity or 0))
+    showItemTooltip(tLang.L('swl_lbs_capacity_note'))
     local executionPath=resolvedExecutionPath
     if executionPath=='cpu' then
         showItemTooltip(tLang.L('swl_execution_cpu_note'))
