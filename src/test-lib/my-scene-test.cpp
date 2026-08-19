@@ -20,6 +20,9 @@
 #include "my-scene-test.h"
 #include "gles-skeletal-parity-tests.h"
 #include "directx9-skeletal-parity-tests.h"
+#if defined(USE_METAL)
+#include "metal-skeletal-parity-tests.h"
+#endif
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
@@ -91,6 +94,7 @@ MY_SCENE::MY_SCENE()
     testGlesSkeletalParity = false;
     testDirectX9SkeletalParity = false;
     testMetalEditorShaders = false;
+    testMetalSkeletalParity = false;
     automatedTestFailed = false;
 }
 
@@ -187,6 +191,13 @@ void MY_SCENE::onInitScene()
 #endif
 
 #if defined(USE_METAL)
+    if (testMetalSkeletalParity && !runMetalSkeletalParityTests())
+    {
+        ERROR_LOG("testLib: Metal skeletal CPU/GPU parity failed");
+        automatedTestFailed = true;
+        device->setRun(false);
+        return;
+    }
     if (testMetalEditorShaders)
     {
         const char *shaderSources[] = {

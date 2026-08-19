@@ -152,6 +152,7 @@ class MY_SCENE : public mbm::SCENE
     bool                    testGlesSkeletalParity;
     bool                    testDirectX9SkeletalParity;
     bool                    testMetalEditorShaders;
+    bool                    testMetalSkeletalParity;
     bool                    automatedTestFailed;
 
     MY_SCENE();

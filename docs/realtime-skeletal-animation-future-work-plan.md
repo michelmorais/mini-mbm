@@ -16,33 +16,16 @@ platform scope, fixtures, performance budget, and versioned acceptance criteria.
 
 | Order | Project | Reason |
 |---|---|---|
-| 1 | Metal numeric parity harness | Strengthens regression coverage without changing runtime behavior |
-| 2 | Multi-layer composition and persistence | Extends the existing base-plus-one-layer contract used by games |
-| 3 | Persistent shared skeletal resources | Formalizes body/wearable ownership beyond transient direct followers |
-| 4 | Skeleton-to-skeleton retargeting | Adds a new animation-data transformation boundary and needs dedicated fixtures |
-| 5 | Extended scale and palette support | Requires shader/palette contract changes and backend-specific measurement |
-| 6 | Editor and FBX refinements | Should be driven by concrete authoring assets rather than DCC feature parity |
-| 7 | Renderer modernization and secondary deformation | Separate research/architecture work, not a skinning correctness requirement |
+| 1 | Multi-layer composition and persistence | Extends the existing base-plus-one-layer contract used by games |
+| 2 | Persistent shared skeletal resources | Formalizes body/wearable ownership beyond transient direct followers |
+| 3 | Skeleton-to-skeleton retargeting | Adds a new animation-data transformation boundary and needs dedicated fixtures |
+| 4 | Extended scale and palette support | Requires shader/palette contract changes and backend-specific measurement |
+| 5 | Editor and FBX refinements | Should be driven by concrete authoring assets rather than DCC feature parity |
+| 6 | Renderer modernization and secondary deformation | Separate research/architecture work, not a skinning correctness requirement |
 
 ## 3. Deferred Projects
 
-### 3.1 Metal encoded parity
-
-The shared cross-platform test contract is implemented and compiled by the Linux/macOS CMake and
-Windows Visual Studio test targets. It owns deterministic synthetic and Lorekeeper LBS/DQS cases,
-CPU references, common RGBA8 encoding/tolerances, comparison, and reporting. Foundation tests also
-use the platform temporary directory rather than assuming POSIX `/tmp`.
-
-The backend-native DirectX 9 callback is implemented and validated on Windows. It consumes the
-production HLSL skeletal helpers, captures lockable RGBA8 render targets, and passes all four shared
-synthetic/Lorekeeper LBS/DQS cases. Remaining work is limited to the Metal shader capture/readback
-callback. It receives the same prepared case and encoding and returns two RGBA8 arrays, leaving no
-backend-specific fixture selection or tolerance policy.
-
-Acceptance: both methods pass the shared numeric tolerances on Metal while consuming the production
-skeletal shader logic and without maintaining another CPU oracle or comparator.
-
-### 3.2 Multi-layer composition
+### 3.1 Multi-layer composition
 
 Generalize the current base plus one transient Absolute/Additive layer into an explicitly bounded
 layer stack. Define priority, ordering, queues, transition curves, masks, pause/time ownership, and
@@ -51,7 +34,7 @@ serialization separately from canonical source clips.
 Acceptance: deterministic composition order, bounded runtime cost, transactional mutations, stable
 save/reload semantics, Lua/editor coverage, and no extra skinning draw per layer.
 
-### 3.3 Persistent skeletal sharing
+### 3.2 Persistent skeletal sharing
 
 Define reusable skeleton/clip resource ownership and persisted body/wearable relationships beyond
 the current direct runtime follower. Decide whether follower chains remain forbidden and how source
@@ -60,7 +43,7 @@ advancement order is guaranteed across scenes and asynchronous loading.
 Acceptance: explicit lifetime ownership, compatibility/version rules, deterministic load order,
 safe reload/destruction, and no duplicated pose evaluation or palette copy for compatible followers.
 
-### 3.4 Animation retargeting
+### 3.3 Animation retargeting
 
 Add an explicit offline/editor operation for applying a clip to a different compatible skeleton.
 Define bone mapping, bind-space correction, proportion handling, missing/extra bones, root motion,
@@ -69,7 +52,7 @@ scale policy, and error reporting. Do not treat FBX round-trip bind reconstructi
 Acceptance: source and destination remain independent assets; named reference poses and clips match
 expected global transforms within tolerance; unsupported mappings fail without partial mutation.
 
-### 3.5 Extended deformation and palette capacity
+### 3.4 Extended deformation and palette capacity
 
 Evaluate these independent additions:
 
@@ -81,7 +64,7 @@ Evaluate these independent additions:
 Acceptance: no silent scale/shear approximation, measured memory/draw cost, CPU reference parity,
 and unchanged canonical clip/weight semantics unless a new format version is explicitly required.
 
-### 3.6 Editor and interchange refinements
+### 3.5 Editor and interchange refinements
 
 Candidate independent tools are animation-aware subtree mirroring, protected/exclusion volumes,
 topology-ring expansion, welded diagnostic topology, bounded automatic weight generation, richer
@@ -94,7 +77,7 @@ FBX or Blender feature parity.
 Acceptance: every tool is transactional and Undoable, expensive analysis is event/dirty-driven, idle
 editor cost remains bounded, and import/export additions have reproducible round-trip fixtures.
 
-### 3.7 Renderer modernization and secondary deformation
+### 3.6 Renderer modernization and secondary deformation
 
 Evaluate modern OpenGL versus Vulkan as a renderer-wide decision. Velocity Skinning, corrective
 shapes, bulge compensation, muscle effects, and procedural/physical tail motion remain optional

@@ -36,6 +36,7 @@
 //        testLib --gles-skeletal-parity-test
 //        testLib --directx9-skeletal-parity-test
 //        testLib --metal-editor-shader-test
+//        testLib --metal-skeletal-parity-test
 //        testLib [seconds] [mesh_file] [world] [lbs|dqs|auto] [gpu|cpu|auto]
 //   seconds    Exit on its own once this many seconds have elapsed in the
 //              render loop, instead of running forever. Meant for
@@ -56,7 +57,12 @@ int main(int argc, char** argv)
 
     GAME game;
 #if defined(USE_METAL)
-    if (argc == 2 && std::strcmp(argv[1], "--metal-editor-shader-test") == 0)
+    if (argc == 2 && std::strcmp(argv[1], "--metal-skeletal-parity-test") == 0)
+    {
+        game.myScene.testMetalSkeletalParity = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--metal-editor-shader-test") == 0)
     {
         game.myScene.testMetalEditorShaders = true;
         game.myScene.testTimeoutSeconds = 1.0f;

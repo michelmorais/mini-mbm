@@ -219,14 +219,16 @@ The complete user workflow is documented in the
 | Linux/OpenGL ES | Mesa OpenGL ES 3.2, 12,216 vertices and 88 bones: LBS `88/1024`, 4,224 bytes; DQS `88/1024`, 2,816 bytes; both methods visually accepted |
 | Windows/DirectX 9 | The 88-bone reference exceeds the measured 82-bone LBS limit and uses Auto CPU fallback; it fits the 124-bone DQS limit and runs DQS on GPU; GPU and CPU execution were visually accepted. The native encoded/readback parity harness passes synthetic and Lorekeeper LBS/DQS positions and normals against the shared CPU references |
 | Windows/OpenGL ES/ANGLE | The same 88-bone reference reports LBS and DQS `88/1024`; GPU and CPU execution were visually accepted |
-| macOS/Metal | Apple M4 production-path LBS/DQS validation passed with the committed Lorekeeper; an 88-bone, 13,111-vertex real mesh also ran Auto-resolved GPU LBS at `88/1024` with a 4,224-byte palette |
+| macOS/Metal | Apple M4 production-path LBS/DQS validation passed with the committed Lorekeeper; an 88-bone, 13,111-vertex real mesh also ran Auto-resolved GPU LBS at `88/1024` with a 4,224-byte palette; native RGBA8 readback passes all four shared synthetic/Lorekeeper LBS/DQS parity cases with Metal API validation enabled |
 
 Deterministic foundation tests cover canonical validation, sampling, easing, hierarchy evaluation,
 bind identity, LBS/DQS reference deformation, antipodality, scale rejection, composition, masks,
 root motion, execution policy, sharing compatibility, and the shared skeletal-parity case contract.
 The parity suite builds backend-neutral synthetic and real-asset LBS/DQS inputs, CPU references,
-RGBA8 encoding, tolerances, comparison, and reporting once. The OpenGL ES and DirectX 9 capture
-backends execute all four shared cases and read encoded GPU positions/normals for comparison.
+RGBA8 encoding, tolerances, comparison, and reporting once. The OpenGL ES, DirectX 9, and native
+Metal capture backends execute all four shared cases and read encoded GPU positions/normals for
+comparison. DirectX 9 and Metal use the same generated LBS/DQS deformation source as their
+production default shaders.
 
 ## 11. Current Capability Boundaries
 
@@ -250,9 +252,7 @@ backends execute all four shared cases and read encoded GPU positions/normals fo
   it is not a claim that every FBX animation/deformer feature is supported.
 - Velocity Skinning, compute skinning, and a new modern OpenGL/Vulkan renderer are not part of the
   implemented skeletal capability.
-- Numeric encoded/readback CPU/GPU comparison is automated for OpenGL ES and DirectX 9. Metal uses
-  the same compiled shared cases/comparator but still needs its backend-native shader capture and
-  readback callback. It already has production-path, shader, and manual runtime evidence.
+- Numeric encoded/readback CPU/GPU comparison is automated for OpenGL ES, DirectX 9, and Metal.
 
 Optional projects outside this accepted capability are tracked separately in the
 [Deferred Work Plan](realtime-skeletal-animation-future-work-plan.md).

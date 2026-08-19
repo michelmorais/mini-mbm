@@ -19,6 +19,7 @@
 #include <texture-manager.h>
 #include "specific-metal-context.h"
 #include "specific-metal-buffer.h"
+#include "skeletal-metal-shader-source.h"
 #include <device.h>
 #include <util-interface.h>
 #include <particle-control.h>
@@ -544,13 +545,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
 
     if (skeletalPaletteSize > 0)
     {
-        [src appendString:@"float4 qmul(float4 a,float4 b){return float4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz),a.w*b.w-dot(a.xyz,b.xyz));}\n"
-                           "float3 qrotate(float3 v,float4 q){return v+2.0f*cross(q.xyz,cross(q.xyz,v)+q.w*v);}\n"];
-        if (skeletalMethod == mbm::SKELETAL_SHADER_METHOD::DQS_RIGID)
-            [src appendString:@"void accumulateDq(float bone,float weight,float4 reference,device const float4* palette,thread float4& realQ,thread float4& dualQ){uint first=uint(bone)*2;float4 r=palette[first];float signQ=dot(r,reference)<0.0f?-1.0f:1.0f;realQ+=r*(weight*signQ);dualQ+=palette[first+1]*(weight*signQ);}\n"];
-        else
-            [src appendString:@"float3 skinPoint(float4 value,float bone,device const float4* palette){uint first=uint(bone)*3;return float3(dot(value,palette[first]),dot(value,palette[first+1]),dot(value,palette[first+2]));}\n"
-                               "float3 skinVector(float3 value,float bone,device const float4* palette){return skinPoint(float4(value,0.0f),bone,palette);}\n"];
+        std::string skeletalFunctions;
+        mbm::skeletal::appendMetalSkeletalFunctions(skeletalFunctions, skeletalMethod);
+        [src appendString:[NSString stringWithUTF8String:skeletalFunctions.c_str()]];
     }
 
     // vertex output struct
@@ -569,21 +566,18 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
     [src appendString:@") {\n  VOut out;\n"];
     if (skeletalPaletteSize == 0)
         [src appendString:@"  float4 skinnedPosition=float4(in.pos,1.0f);\n"];
-    else if (skeletalMethod == mbm::SKELETAL_SHADER_METHOD::DQS_RIGID)
-        [src appendString:@"  float4 dqReal=float4(0.0f),dqDual=float4(0.0f);float4 dqReference=bonePalette[uint(in.boneIndices.x)*2];\n"
-                           "  accumulateDq(in.boneIndices.x,in.boneWeights.x,dqReference,bonePalette,dqReal,dqDual);accumulateDq(in.boneIndices.y,in.boneWeights.y,dqReference,bonePalette,dqReal,dqDual);accumulateDq(in.boneIndices.z,in.boneWeights.z,dqReference,bonePalette,dqReal,dqDual);accumulateDq(in.boneIndices.w,in.boneWeights.w,dqReference,bonePalette,dqReal,dqDual);\n"
-                           "  float dqLength=length(dqReal);dqReal/=dqLength;dqDual/=dqLength;dqDual-=dqReal*dot(dqReal,dqDual);float4 dqConjugate=float4(-dqReal.xyz,dqReal.w);float3 dqTranslation=2.0f*qmul(dqDual,dqConjugate).xyz;float4 skinnedPosition=float4(qrotate(in.pos,dqReal)+dqTranslation,1.0f);\n"];
     else
-        [src appendString:@"  float4 bindPosition=float4(in.pos,1.0f);float4 skinnedPosition=float4(skinPoint(bindPosition,in.boneIndices.x,bonePalette)*in.boneWeights.x+skinPoint(bindPosition,in.boneIndices.y,bonePalette)*in.boneWeights.y+skinPoint(bindPosition,in.boneIndices.z,bonePalette)*in.boneWeights.z+skinPoint(bindPosition,in.boneIndices.w,bonePalette)*in.boneWeights.w,1.0f);\n"];
+    {
+        std::string skeletalDeformation;
+        mbm::skeletal::appendMetalSkeletalDeformation(skeletalDeformation, skeletalMethod,
+                                                       hasNor && useReservedLightScaffolding);
+        [src appendString:[NSString stringWithUTF8String:skeletalDeformation.c_str()]];
+    }
     [src appendString:@"  out.pos = u.mvpMatrix * skinnedPosition;\n"];
     if (hasNor && useReservedLightScaffolding)
     {
         if (skeletalPaletteSize == 0)
             [src appendString:@"  float3 skinnedNormal=in.nor;\n"];
-        else if (skeletalMethod == mbm::SKELETAL_SHADER_METHOD::DQS_RIGID)
-            [src appendString:@"  float3 skinnedNormal=normalize(qrotate(in.nor,dqReal));\n"];
-        else
-            [src appendString:@"  float3 skinnedNormal=normalize(skinVector(in.nor,in.boneIndices.x,bonePalette)*in.boneWeights.x+skinVector(in.nor,in.boneIndices.y,bonePalette)*in.boneWeights.y+skinVector(in.nor,in.boneIndices.z,bonePalette)*in.boneWeights.z+skinVector(in.nor,in.boneIndices.w,bonePalette)*in.boneWeights.w);\n"];
         [src appendString:@"  out.nor = (u.mvMatrix * float4(skinnedNormal,0.0f)).xyz;\n"];
     }
     if (hasUV)  [src appendString:@"  out.uv = in.uv;\n"];

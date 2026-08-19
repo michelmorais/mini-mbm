@@ -11,6 +11,7 @@
 | COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |-----------------------------------------------------------------------------------------------------------------------*/
+#if defined(USE_DIRECTX9)
 #include "directx9-skeletal-parity-tests.h"
 #include "skeletal-parity-tests.h"
 
@@ -237,3 +238,4 @@ bool runDirectX9SkeletalParityTests()
     ERROR_LOG("testLib: %s", error.c_str());
     return false;
 }
+#endif
