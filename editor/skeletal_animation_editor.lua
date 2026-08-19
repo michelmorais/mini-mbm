@@ -3207,10 +3207,15 @@ local function showSkeletalPreviewControls()
     tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
         lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
     showItemTooltip(tLang.L('swl_lbs_capacity_note'))
+    drawExecutionStatusIndicator(lbsReport.executionPath)
+    tImGui.SameLine()
     tImGui.TextWrapped(string.format(tLang.L('swl_execution_report_fmt'),
         lbsReport.executionPath or 'gpu',lbsReport.executionStatus or 'unknown'))
-    if (lbsReport.executionPath or 'gpu')=='cpu' then
+    local executionPath=lbsReport.executionPath or 'gpu'
+    if executionPath=='cpu' then
         showItemTooltip(tLang.L('swl_execution_cpu_note'))
+    elseif executionPath=='gpu' then
+        showItemTooltip(tLang.L('swl_execution_gpu_note'))
     end
     if playback.poseStress and state.comparisonPreview then
         local dqsReport=state.comparisonPreview:getSkeletalSkinningReport()
@@ -6104,6 +6109,29 @@ showItemTooltip=function(text,allowWhenDisabled)
         -- Localized tooltip strings use explicit line breaks instead.
         tImGui.Text(text)
         tImGui.EndTooltip()
+    end
+end
+
+drawExecutionStatusIndicator=function(executionPath)
+    local path=executionPath or ''
+    local color=nil
+    local tooltipKey=nil
+    if path=='gpu' then
+        color={r=0.15,g=0.82,b=0.32,a=1}
+        tooltipKey='swl_execution_gpu_note'
+    elseif path=='cpu' then
+        color={r=1.0,g=0.55,b=0.10,a=1}
+        tooltipKey='swl_execution_cpu_note'
+    end
+    if not color then return end
+
+    local radius=5
+    local cursor=tImGui.GetCursorScreenPos()
+    local yOffset=2
+    tImGui.Dummy({x=radius*2+2,y=radius*2+4})
+    tImGui.AddCircleFilled({x=cursor.x+radius+1,y=cursor.y+radius+yOffset},radius,color,18)
+    if tooltipKey then
+        showItemTooltip(tLang.L(tooltipKey))
     end
 end
 
