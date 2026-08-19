@@ -35,6 +35,10 @@ include_directories(${INCLUDE}
 
 file(GLOB SOURCES "*.cpp")
 
+if(USE_METAL)
+  list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-skeletal-parity-tests.mm")
+endif()
+
 # Foundation tests intentionally exercise private, non-exported mesh/skeletal
 # helpers. Keep this list aligned with platform-msvs/libTest/libTest.vcxproj;
 # exporting these test internals from core_mbm would widen the DLL API solely

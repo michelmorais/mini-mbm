@@ -16,7 +16,7 @@ platform scope, fixtures, performance budget, and versioned acceptance criteria.
 
 | Order | Project | Reason |
 |---|---|---|
-| 1 | DirectX 9 and Metal numeric parity harnesses | Strengthens regression coverage without changing runtime behavior |
+| 1 | DirectX 9 numeric parity harness | Completes regression coverage without changing runtime behavior |
 | 2 | Multi-layer composition and persistence | Extends the existing base-plus-one-layer contract used by games |
 | 3 | Persistent shared skeletal resources | Formalizes body/wearable ownership beyond transient direct followers |
 | 4 | Skeleton-to-skeleton retargeting | Adds a new animation-data transformation boundary and needs dedicated fixtures |
@@ -26,18 +26,22 @@ platform scope, fixtures, performance budget, and versioned acceptance criteria.
 
 ## 3. Deferred Projects
 
-### 3.1 DirectX 9 and Metal encoded parity
+### 3.1 DirectX 9 encoded parity
 
 The shared cross-platform test contract is implemented and compiled by the Linux/macOS CMake and
 Windows Visual Studio test targets. It owns deterministic synthetic and Lorekeeper LBS/DQS cases,
 CPU references, common RGBA8 encoding/tolerances, comparison, and reporting. Foundation tests also
 use the platform temporary directory rather than assuming POSIX `/tmp`.
 
-Remaining work is limited to backend-native DirectX 9 and Metal shader capture/readback callbacks.
-Each callback receives the same prepared case and encoding and returns two RGBA8 arrays, leaving no
+The native Metal callback is complete. It consumes the production Metal LBS/DQS shader-generation
+helper, renders deterministic sample quads into `RGBA8Unorm`, reads positions and normals after GPU
+completion, and passes all four shared cases on Apple M4 with Metal API validation enabled.
+
+Remaining work is limited to the backend-native DirectX 9 shader capture/readback callback. It
+receives the same prepared case and encoding and returns two RGBA8 arrays, leaving no
 backend-specific fixture selection or tolerance policy.
 
-Acceptance: both methods pass the shared numeric tolerances on each backend while consuming the
+Acceptance: both methods pass the shared numeric tolerances on DirectX 9 while consuming the
 production skeletal shader logic and without maintaining another CPU oracle or comparator.
 
 ### 3.2 Multi-layer composition
