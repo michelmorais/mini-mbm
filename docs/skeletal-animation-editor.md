@@ -12,9 +12,10 @@ Mesh Debug into a general animation editor.
 
 For canonical skeletal meshes within the active backend's measured palette limit, the preview can
 play the same per-instance GPU LBS or rigid-DQS deformation path used by the runtime. It can also
-select the explicit CPU execution path for resolved LBS or rigid DQS. OpenGL ES, DirectX 9, and Metal are delivered; remaining
-numeric backend parity work is tracked in the
-[Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
+select the explicit CPU execution path for resolved LBS or rigid DQS. OpenGL ES, DirectX 9, and
+Metal are delivered. Their palette contracts, recorded validation evidence, and current capability
+boundaries are documented in
+[Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md).
 Paint Weights uses backend-native heatmap and brush shaders on all three delivered backends;
 Metal keeps generated skeletal deformation active when a fragment-only editor shader is applied.
 
@@ -25,9 +26,8 @@ No worktree is selected initially. Loading or replacing an asset returns to this
 enables the ordinary textured mesh, and keeps skeletons, heatmaps, cursors, capture volumes, and
 diagnostic overlays hidden until the user explicitly opens a worktree.
 The runtime and Runtime Skeletal Preview expose transient two-clip Absolute and Additive composition.
-Its product
-boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
-[Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
+Its product boundaries and relationship to the canonical runtime are defined in
+[Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md).
 
 Paint Weights is the primary day-to-day weight-authoring surface. The former Skin Weight Lab
 worktree was retired after its useful nonredundant operations migrated under **Weight Tools** and
@@ -1255,10 +1255,9 @@ The following are current editor limitations rather than regressions caused by r
 - history entries carry operation-specific translation keys rather than frozen display strings, so
   menus and Undo/Redo feedback use the editor's current language even when it changed after the edit.
 
-Richer pose-stress overlays, antipodality tooling, and Metal numeric parity coverage
-remain in the
-[Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
-Further skeleton and animation authoring refinements remain in the product plan. Mesh Debug's legacy Bone
+Richer pose-stress overlays and antipodality tooling are outside the current editor capability.
+Backend validation coverage and its boundaries are recorded in
+[Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md). Mesh Debug's legacy Bone
 node/window has been retired; canonical bind inspection and weight repair belong to this editor.
 
 The editor maintains bounded 50-entry Undo and Redo stacks backed by complete temporary MSH

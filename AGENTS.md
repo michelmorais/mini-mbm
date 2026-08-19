@@ -29,7 +29,7 @@ Repo-local Codex skills live in `.agents/skills/`.
 - Use `new-plugin` when creating Lua/C++ plugins or plugin-helper-backed Lua bindings.
 - Use `new-editor-tool` when adding ImGui/Lua editor tools under `editor/`.
 - Use `new-platform-port` when adding a new `PLAT=` target or platform directory.
-- Use `doc-drift-check` when touching docs tied to implementation behavior, especially `docs/lua-api.md`, `docs/mesh-v11-format.md`, `docs/light.md`, and `docs/bones-armatures-and-fbx.md`.
+- Use `doc-drift-check` when touching docs tied to implementation behavior, especially `docs/lua-api.md`, `docs/mesh-v11-format.md`, `docs/light.md`, `docs/bones-armatures-and-fbx.md`, and `docs/realtime-skeletal-animation.md`.
 - Use `grill-me` when asked to stress-test a plan or design before implementation.
 
 ---

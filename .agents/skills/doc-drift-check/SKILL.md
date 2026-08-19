@@ -25,6 +25,7 @@ touches one of the doc/implementation pairs below.
 | `docs/mesh-v11-format.md` | `src/core_mbm/mesh-v11-io.{h,cpp}`, `src/core_mbm/mesh-manager.cpp`, `include/core_mbm/header-mesh.h` | Binary struct layouts (field name/type/order), section-presence invariants, enum values |
 | `docs/lua-api.md` | `src/lua-wrap/**`, `src/lua-wrap/render-table/**` | Function names, arg/return signatures, `:` vs `.` method call convention, constant values |
 | `docs/light.md` | `include/core_mbm/light.h`, `src/core_mbm/shader*.cpp`, `src/core_mbm/shader-fx.cpp`, `src/core_mbm/core-manager-common.cpp` | Light-count limits, material model behavior, shader input names, classification-at-creation-time contract |
+| `docs/realtime-skeletal-animation.md` | `include/render/mesh.h`, `src/render/mesh.cpp`, `src/core_mbm/private/skeletal-*`, `src/core_mbm/mesh-manager.cpp`, backend shader/core-manager sources, `src/lua-wrap/render-table/mesh-lua.cpp`, `editor/skeletal_animation_editor.lua` | Canonical runtime capabilities, method/execution policy, palette layouts and limits, playback/composition, pose sharing, editor surface, validation evidence |
 
 If the doc in question isn't in this table, find its implementation by grepping for the doc's own
 distinctive identifiers (struct names, function names) — the doc almost always names the exact

@@ -9,8 +9,9 @@ have to re-derive any of that from scratch.
 
 Visual weight painting, repair, diagnostics, and validated usage are documented in the
 [Skeletal Animation Editor guide](skeletal-animation-editor.md). The delivered canonical bind-pose
-pipeline and cross-backend LBS/DQS runtime, plus pending parity work, are tracked in
-[`realtime-skinning-animation-plan.md`](realtime-skinning-animation-plan.md).
+pipeline, cross-backend LBS/DQS runtime, editor capabilities, validation evidence, and current
+boundaries are documented in
+[Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md).
 
 Rigid subset animation is a separate implemented feature documented in
 [`articulated-animation.md`](articulated-animation.md). It should not be confused with bone-weighted
@@ -29,8 +30,8 @@ Static-frame swapping and articulated rigid-subset animation remain separate sup
 
 The Skeletal Animation Editor can create/edit the canonical skeleton and clips, paint and repair
 weights, preview the same runtime player, author transient per-bone animation-layer masks, and
-round-trip the result through the supported FBX workflow. Metal numeric parity coverage and Velocity Skinning remain
-pending; this backend limitation does not turn canonical skeletal data back into editor-only data.
+round-trip the result through the supported FBX workflow. OpenGL ES, DirectX 9, and Metal use the
+same canonical pose and deformation contracts.
 CPU execution supports resolved LBS and rigid DQS, deforms from immutable bind geometry into
 per-instance dynamic buffers, and rejects non-rigid DQS explicitly.
 
@@ -113,8 +114,8 @@ skinnedVertex = Σ (weight_i * boneCurrentWorld_i * inverse(boneBindWorld_i)) * 
 That expression uses the common column-vector notation. Mini MBM's matrices transform row vectors
 (`vertex * matrix`), so the delivered runtime contract reverses the written product:
 `inverse(boneBindGlobal) * boneCurrentGlobal`, with child globals composed as
-`boneLocal * parentGlobal`. The normative foundation and legacy-global conversion are specified in
-the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md#milestone-0-normative-contracts).
+`boneLocal * parentGlobal`. The implemented convention is summarized in
+[Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md#3-pose-evaluation-and-skinning).
 
 `inverse(boneBindWorld_i)` is the **inverse bind matrix** — captured once, at bind time, per bone.
 Multiplying it by the vertex first transforms the vertex out of world space into that bone's own
@@ -140,8 +141,10 @@ is a weighted sum, and real-time engines cap the influence count for a bounded, 
   very constrained engines, or as a fallback for skeletons too large/exotic for a GPU path.
 
 Mini MBM implements GPU skinning in its OpenGL ES, DirectX9, and Metal default shader paths. All
-upload the per-instance canonical palette each frame; Metal uses explicit influence and palette buffers.
-CPU skinning is an explicit pre-load execution path, not an automatic fallback.
+upload the per-instance canonical palette each frame; Metal uses explicit influence and palette
+buffers. CPU skinning is also an explicit pre-load execution path. The default `auto` execution
+policy prefers GPU for the resolved method and falls back to CPU when that GPU path is unavailable
+and CPU deformation is valid.
 
 ### Animation clips and retargeting
 
@@ -252,7 +255,8 @@ normal scale constraints; rigid DQS rejects scale/shear and `auto` selects the c
 
 The OpenGL ES, DirectX9, and Metal backends compile the LBS or DQS shader variant and upload the palette
 before lighting is evaluated. CPU pose/reference math, editor previews, and explicit CPU execution
-exist, but no automatic CPU fallback is performed.
+exist. The default `auto` execution policy prefers GPU and uses CPU as a capability fallback without
+changing the resolved LBS/DQS method.
 
 The old `SECTION_FRAME_SKINNED`, `SECTION_VERTEX_SKIN_WEIGHTS`, `SKELETON_BONE_V11`, and Mesh Debug
 bone APIs were exploratory interchange/editor infrastructure. They are not an accepted runtime
@@ -260,13 +264,9 @@ fallback and are retained below only as historical context for old assets and FB
 Legacy-only skeletal `.msh` files must be regenerated from source FBX; ordinary static meshes are
 unaffected.
 
-### Still pending
-
-- encoded/readback CPU/GPU numeric parity coverage on Metal and DirectX9;
-- richer multi-layer priority/queue policy;
-- richer evaluated runtime skeleton diagnostics beyond the delivered editor mask gizmo;
-- retargeting and completion callbacks;
-- Velocity Skinning as an optional modern-backend secondary deformation stage.
+The precise implemented surface, backend evidence, and capability boundaries are maintained in
+[Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md). In particular,
+non-looping skeletal completion already uses `onEndAnim`; it is not pending functionality.
 
 ## Legacy Editor Round-Trip Pipeline (Historical Reference)
 
