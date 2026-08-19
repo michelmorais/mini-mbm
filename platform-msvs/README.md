@@ -128,6 +128,31 @@ msbuild platform-msvs\core_mbm\core_mbm.vcxproj /p:Configuration=Debug /p:Platfo
 
 ---
 
+## Skeletal Numeric Parity Tests
+
+`libTest` provides native encoded/readback comparison against the shared CPU references for both
+Windows graphics backends. Build the selected backend and run its matching command from the output
+directory:
+
+```cmd
+rem DirectX 9 (Debug|Win32 default)
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal
+cd platform-msvs\Debug
+libTest.exe --directx9-skeletal-parity-test
+
+rem OpenGL ES through ANGLE (Release|Win32 default)
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=OpenGLES /m /v:minimal
+cd platform-msvs\Release
+libTest.exe --gles-skeletal-parity-test
+```
+
+Each command exercises synthetic and Lorekeeper LBS/DQS positions and normals. All four cases must
+report `PASS`, the suite must end with `cases=4 PASS`, and the process must exit with status zero.
+The Windows OpenGL ES result is specifically ANGLE coverage and does not replace native OpenGL ES
+coverage on Linux.
+
+---
+
 ## Post-Build: Copying DLLs
 
 After the first successful build, run `copy-dlls.bat` to copy the required runtime
@@ -361,7 +386,7 @@ cmake .. -G "MinGW Makefiles" ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DUSE_OPENGL_ES=1  ^
     -DUSE_STEAM=1 ^
-    -DSTEAMWORKS_SDK_PATH="C:/Users/miche/Downloads/steamworks_sdk_164/sdk" ^
+    -DSTEAMWORKS_SDK_PATH="C:/Program Files (x86)/steamworks_sdk_165/sdk" ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
     -DGAME_ASSETS_PASSWORD="agasdOyu86555" ^

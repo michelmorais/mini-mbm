@@ -23,6 +23,7 @@
 #include <mesh-manager.h>
 #include <device.h>
 #include "specific-metal-context.h"
+#include "private/skeletal-render-capability.h"
 #include <audio-interface.h>
 #include <util-interface.h>
 
@@ -195,6 +196,10 @@ namespace mbm
                       "Ensure you are running on macOS 10.11+ with Metal support.");
             return false;
         }
+        const uint64_t paletteVectors = std::min<uint64_t>(
+            static_cast<uint64_t>(ctx->mtlDevice.maxBufferLength / (4u * sizeof(float))),
+            static_cast<uint64_t>(UINT32_MAX));
+        skeletal::setMeasuredSkinningCapability(static_cast<uint32_t>(paletteVectors), 31u);
         ctx->commandQueue = [ctx->mtlDevice newCommandQueue];
         if (!ctx->commandQueue)
         {

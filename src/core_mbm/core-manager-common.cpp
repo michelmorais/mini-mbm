@@ -561,7 +561,12 @@ namespace mbm
         }
         const auto sortByDistance = [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); };
         std::sort(lsRenderOnFrustum2d.begin(), lsRenderOnFrustum2d.end(), sortByDistance);
-        std::sort(lsRenderOnFrustumAlwaysOnTop2d.begin(), lsRenderOnFrustumAlwaysOnTop2d.end(), sortByDistance);
+        const auto sortAlwaysOnTop = [&sortByDistance](const RENDERIZABLE *a, const RENDERIZABLE *b) {
+            const int priorityA = a->getAlwaysOnTopPriority();
+            const int priorityB = b->getAlwaysOnTopPriority();
+            return priorityA == priorityB ? sortByDistance(a, b) : priorityA < priorityB;
+        };
+        std::sort(lsRenderOnFrustumAlwaysOnTop2d.begin(), lsRenderOnFrustumAlwaysOnTop2d.end(), sortAlwaysOnTop);
     }
 
     void CORE_MANAGER::prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,
@@ -609,7 +614,12 @@ namespace mbm
         }
         const auto sortByDistance = [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); };
         std::sort(lsRenderOnFrustum3d.begin(), lsRenderOnFrustum3d.end(), sortByDistance);
-        std::sort(lsRenderOnFrustumAlwaysOnTop3d.begin(), lsRenderOnFrustumAlwaysOnTop3d.end(), sortByDistance);
+        const auto sortAlwaysOnTop = [&sortByDistance](const RENDERIZABLE *a, const RENDERIZABLE *b) {
+            const int priorityA = a->getAlwaysOnTopPriority();
+            const int priorityB = b->getAlwaysOnTopPriority();
+            return priorityA == priorityB ? sortByDistance(a, b) : priorityA < priorityB;
+        };
+        std::sort(lsRenderOnFrustumAlwaysOnTop3d.begin(), lsRenderOnFrustumAlwaysOnTop3d.end(), sortAlwaysOnTop);
     }
 
     void CORE_MANAGER::render()
@@ -622,7 +632,7 @@ namespace mbm
         std::vector<RENDERIZABLE *> lsRender2ds;
         std::vector<RENDERIZABLE *> lsRender2dw;
         std::vector<RENDERIZABLE *> lsRender3d;
-        // isAlwaysOnTop() subset of each category above, drawn as a small trailing sub-pass after
+        // isAlwaysOnTop() subset of each category above, drawn as populated priority layers after
         // its own category's normal list -- see the render loop below for the depth handling.
         std::vector<RENDERIZABLE *> lsRender2dsAlwaysOnTop;
         std::vector<RENDERIZABLE *> lsRender2dwAlwaysOnTop;
@@ -690,14 +700,18 @@ namespace mbm
                 // Guarantee visibility over the 3D scene just drawn above regardless of
                 // distance/z ties or actual geometry occlusion -- draw order alone is not
                 // enough here since depth test stays enabled through the whole 3D pass (see
-                // isAlwaysOnTop's own doc comment on why). Clearing depth (rather than
-                // disabling the test) keeps this sub-pass's own objects correctly depth-sorted
-                // against EACH OTHER (e.g. a hover highlight vs. a selected highlight both
-                // visible at once), while still unconditionally beating the already-drawn
-                // scene, whose depth values were just wiped.
+                // isAlwaysOnTop's own doc comment on why). Each populated priority starts with
+                // a depth clear: objects within one priority retain depth against each other,
+                // while a higher priority unconditionally beats every lower one.
+                int activePriority = lsRender3dAlwaysOnTop.front()->getAlwaysOnTopPriority();
                 device->clearDepth();
                 for (auto ptrRender : lsRender3dAlwaysOnTop)
                 {
+                    if (ptrRender->getAlwaysOnTopPriority() != activePriority)
+                    {
+                        activePriority = ptrRender->getAlwaysOnTopPriority();
+                        device->clearDepth();
+                    }
                     if (ptrRender->render())
                         device->incrementTotalObjectsIsRendering3D();
                 }
@@ -721,9 +735,15 @@ namespace mbm
             {
                 // Same trick as the 3D case above, scoped to the 2dw pass (which also keeps
                 // depth test enabled -- see the setDepthTest(true) two lines up).
+                int activePriority = lsRender2dwAlwaysOnTop.front()->getAlwaysOnTopPriority();
                 device->clearDepth();
                 for (auto ptrRender : lsRender2dwAlwaysOnTop)
                 {
+                    if (ptrRender->getAlwaysOnTopPriority() != activePriority)
+                    {
+                        activePriority = ptrRender->getAlwaysOnTopPriority();
+                        device->clearDepth();
+                    }
                     if (ptrRender->render())
                         device->incrementTotalObjectsIsRendering2D();
                 }

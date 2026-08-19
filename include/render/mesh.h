@@ -33,6 +33,8 @@
 namespace mbm
 {
 
+struct SKELETAL_SHARING_COMPATIBILITY;
+
 class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
 {
   public:
@@ -59,18 +61,99 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool seekArticulatedAnimation(const char *name, const float time) noexcept;
     API_IMPL bool getArticulatedAnimationTime(const char *name, float *time) const noexcept;
+    API_IMPL uint32_t getTotalSkeletalAnimations() const noexcept;
+    API_IMPL const char *getSkeletalAnimationName(uint32_t index) const noexcept;
+    API_IMPL bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;
+    API_IMPL bool setSkeletalSkinningMethod(SKELETAL_SHADER_METHOD method) noexcept;
+    API_IMPL SKELETAL_SHADER_METHOD getSkeletalSkinningMethod() const noexcept;
+    API_IMPL SKELETAL_SHADER_METHOD getResolvedSkeletalSkinningMethod() const noexcept;
+    API_IMPL bool setSkeletalExecutionPath(SKELETAL_EXECUTION_PATH path) noexcept;
+    API_IMPL SKELETAL_EXECUTION_PATH getSkeletalExecutionPath() const noexcept;
+    API_IMPL SKELETAL_EXECUTION_PATH getResolvedSkeletalExecutionPath() const noexcept;
+    API_IMPL void getSkeletalSkinningReport(const char **status, const char **resolutionReason,
+                                            uint32_t *requiredBoneCount,
+                                            uint32_t *effectiveBoneCapacity,
+                                            const char **executionPath = nullptr,
+                                            const char **executionStatus = nullptr,
+                                            const char **requestedExecutionPath = nullptr,
+                                            const char **resolvedExecutionPath = nullptr,
+                                            const char **executionReason = nullptr) const noexcept;
+    API_IMPL bool playSkeletalAnimation(const char *name);
+    API_IMPL bool crossFadeSkeletalAnimation(const char *name, float duration);
+    API_IMPL bool pauseSkeletalAnimation() noexcept;
+    API_IMPL bool resumeSkeletalAnimation() noexcept;
+    API_IMPL bool stopSkeletalAnimation() noexcept;
+    API_IMPL bool seekSkeletalAnimation(float time);
+    API_IMPL bool getSkeletalAnimationTime(float *time) const noexcept;
+    API_IMPL bool setSkeletalAnimationPlaybackSpeed(float speed) noexcept;
+    API_IMPL float getSkeletalAnimationPlaybackSpeed() const noexcept;
+    // Transient per-instance second clip, composed in parent-relative local TRS with strict weight
+    // [0,1]. Absolute and bind-relative Additive modes are explicit and never serialized.
+    API_IMPL bool playSkeletalAnimationAbsoluteLayer(const char *name, float weight);
+    API_IMPL bool playSkeletalAnimationAdditiveLayer(const char *name, float weight);
+    API_IMPL bool pauseSkeletalAnimationLayer() noexcept;
+    API_IMPL bool resumeSkeletalAnimationLayer() noexcept;
+    API_IMPL bool isSkeletalAnimationLayerPaused() const noexcept;
+    API_IMPL bool stopSkeletalAnimationAbsoluteLayer() noexcept;
+    API_IMPL bool seekSkeletalAnimationAbsoluteLayer(float time);
+    API_IMPL bool setSkeletalAnimationAbsoluteLayerWeight(float weight);
+    API_IMPL bool fadeSkeletalAnimationAbsoluteLayer(float targetWeight, float duration);
+    API_IMPL bool getSkeletalAnimationAbsoluteLayerWeight(float *weight) const noexcept;
+    API_IMPL bool getSkeletalAnimationAbsoluteLayerTime(float *time) const noexcept;
+    API_IMPL bool setSkeletalAnimationLayerBoneWeight(uint64_t boneId, float weight);
+    API_IMPL bool setSkeletalAnimationLayerBoneWeights(const uint64_t *boneIds,
+                                                       const float *weights, uint32_t count);
+    API_IMPL bool getSkeletalAnimationLayerBoneWeight(uint64_t boneId, float *weight) const noexcept;
+    API_IMPL bool clearSkeletalAnimationLayerMask();
+    API_IMPL uint32_t getSkeletalAnimationPoseBoneCount() const noexcept;
+    API_IMPL bool getSkeletalAnimationPoseBone(uint32_t boneIndex, uint64_t *boneId,
+                                               int32_t *parentIndex,
+                                               MATRIX *globalMatrix) const noexcept;
+    API_IMPL bool getSkeletalBoneTransform(const char *boneName, bool worldSpace,
+                                           uint64_t *boneId, MATRIX *matrix, VEC3 *position,
+                                           float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
+    API_IMPL bool getSkeletalRootMotionDelta(const char *boneName, bool worldSpace,
+                                             uint64_t *boneId,
+                                             VEC3 *translation) const noexcept;
+    API_IMPL bool getSkeletalSharingCompatibility(const MESH &other,
+                                                  SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
+    API_IMPL bool enableSkeletalPoseSharing(MESH &source) noexcept;
+    API_IMPL bool disableSkeletalPoseSharing() noexcept;
+    API_IMPL bool getSkeletalPoseSharing(const MESH **source, bool *active,
+                                         const char **reason) const noexcept;
+    API_IMPL bool enableAutomaticSkeletalRootMotion(const char *boneName,
+                                                    bool applyRotation = false) noexcept;
+    API_IMPL bool disableAutomaticSkeletalRootMotion() noexcept;
+    API_IMPL bool getAutomaticSkeletalRootMotionBone(const char **boneName,
+                                                     uint64_t *boneId,
+                                                     bool *applyRotation = nullptr) const noexcept;
+    API_IMPL bool setSkeletalAuthoringPalette(SKELETAL_SHADER_METHOD method,
+                                              const float *rows, uint32_t rowCount,
+                                              const uint64_t *orderedBoneIds, uint32_t boneIdCount,
+                                              float time, char *errorOut, int errorOutLen) noexcept;
     API_IMPL FX*  getFx() const override;
 	  API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
     FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
   private:
+    struct SKELETAL_POSE_SHARING_STATE;
+    struct CPU_SKELETAL_RENDER_STATE;
     bool                     render() override;
     bool                     onRestoreDevice() override;
     bool                     isOnFrustum() override;
     const mbm::INFO_PHYSICS *getInfoPhysics() const override;
     const MESH_MBM *         getMesh() const override;
     bool                     isLoaded() const override;
+    bool                     canUseSkeletalPoseSharing(const char **reason) const noexcept;
+    void                     resolveSkeletalExecutionPath() noexcept;
+    void                     detachSkeletalPoseSharingSource() noexcept;
+    void                     detachSkeletalPoseSharingFollowers() noexcept;
+    bool                     renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                                               uint32_t frameIndex, SHADER *shader);
+    void                     releaseCpuSkeletalRenderState() noexcept;
     MESH_MBM *               mesh;
+    SKELETAL_POSE_SHARING_STATE *skeletalPoseSharingState;
+    CPU_SKELETAL_RENDER_STATE *cpuSkeletalRenderState;
     };
 }
 

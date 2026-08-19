@@ -1,8 +1,8 @@
 # Articulated Animation
 
-Document version: **1.0**
+Document version: **1.1**
 Status: **Implemented**
-Last updated: **2026-08-06**
+Last updated: **2026-08-17**
 
 ## 1. Purpose
 
@@ -303,18 +303,18 @@ Do not use this guide as the byte-level format specification. See
 [Mesh V11 format §6f](mesh-v11-format.md#6f-section_articulated_parts-and-section_articulated_animation-payloads)
 for field order, types, versions, and loader invariants.
 
-## 13. Relationship to Future Skeletal Skinning
+## 13. Relationship to Skeletal Skinning
 
-The planned Skeletal Animation Editor nodes may reuse the established vocabulary and interaction patterns
-for hierarchy, clips, P/R/S tracks, easing, timeline, priority, blend, and Absolute/Additive
-composition. The underlying deformation remains different:
+The implemented Skeletal Animation Editor reuses established vocabulary and interaction patterns
+for hierarchy, clips, P/R/S tracks, easing, timeline, blend, and Absolute/Additive composition.
+The underlying deformation remains different:
 
 - articulated animation targets Parts and applies one rigid matrix per subset;
 - skeletal animation targets bones and blends each vertex using skin weights through LBS or DQS.
 
-The systems should share suitable playback concepts without conflating Part IDs, bone identities,
-pivots, bind poses, or file sections. See the
-[Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
+The systems share suitable playback concepts without conflating Part IDs, bone identities, pivots,
+bind poses, or file sections. See
+[Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md).
 
 ## 14. Source-of-Truth Map
 
@@ -323,11 +323,12 @@ pivots, bind poses, or file sections. See the
 | User workflow and behavioral explanation | This guide |
 | Lua signatures and return values | [Lua API](lua-api.md#articulated-playback-mesh-and-sprite) |
 | Binary layout and persisted invariants | [Mesh V11 format](mesh-v11-format.md#6f-section_articulated_parts-and-section_articulated_animation-payloads) |
-| Future LBS/DQS relationship | [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md) |
+| Skeletal LBS/DQS relationship | [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md) |
 | Weight authoring | [Skeletal Animation Editor](skeletal-animation-editor.md) |
 
 ## 15. Change Log
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1 | 2026-08-17 | Updated the source-of-truth link label now that skeletal LBS/DQS is implemented on GLES rather than wholly future work. |
 | 1.0 | 2026-08-06 | Initial implementation-backed guide covering model selection, Parts/pivots, hierarchy, clips/tracks/keys, easing, composition, playback, Lua, Mesh Debug authoring, rendering, persistence, and future skeletal-skinning boundaries. |

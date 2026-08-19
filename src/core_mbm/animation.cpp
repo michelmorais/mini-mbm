@@ -24,6 +24,7 @@
 #include <mesh-manager.h>
 #include <device.h>
 #include <renderizable.h>
+#include <render/mesh.h>
 #include <util-interface.h>
 
 #include <map>
@@ -971,6 +972,8 @@ namespace mbm
         OnEndEffect onEndFx = nullptr;
         std::unique_ptr<ARTICULATED_ANIMATION_PLAYER> articulatedPlayer =
             std::make_unique<ARTICULATED_ANIMATION_PLAYER>();
+        std::unique_ptr<SKELETAL_ANIMATION_PLAYER> skeletalPlayer =
+            std::make_unique<SKELETAL_ANIMATION_PLAYER>();
     };
 
     ANIMATION_MANAGER::ANIMATION_MANAGER() noexcept
@@ -997,6 +1000,21 @@ namespace mbm
     void ANIMATION_MANAGER::resetArticulatedAnimationPlayer() noexcept
     {
         impl->articulatedPlayer->reset();
+    }
+
+    SKELETAL_ANIMATION_PLAYER &ANIMATION_MANAGER::getSkeletalAnimationPlayer() noexcept
+    {
+        return *impl->skeletalPlayer;
+    }
+
+    const SKELETAL_ANIMATION_PLAYER &ANIMATION_MANAGER::getSkeletalAnimationPlayer() const noexcept
+    {
+        return *impl->skeletalPlayer;
+    }
+
+    void ANIMATION_MANAGER::resetSkeletalAnimationPlayer() noexcept
+    {
+        impl->skeletalPlayer->reset();
     }
 
     void ANIMATION_MANAGER::populateTextureAnimationEffectFromMesh(MESH_MBM *mesh)
@@ -1107,7 +1125,14 @@ namespace mbm
         RENDERIZABLE *renderizable = dynamic_cast<RENDERIZABLE*>(this);
         fx.defaultShaderMode = getDefaultShaderModeForRenderizable(renderizable);
         fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-        if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf))
+        const SKELETAL_SHADER_METHOD skeletalMethod =
+            getSkeletalAnimationPlayer().getResolvedSkinningMethod();
+        const MESH *meshRenderable = dynamic_cast<const MESH*>(renderizable);
+        const bool cpuSkeletal = meshRenderable &&
+            meshRenderable->getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU;
+        if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf,
+                                    cpuSkeletal ? 0u : mesh->getPreparedSkeletalPaletteSize(skeletalMethod),
+                                    cpuSkeletal ? SKELETAL_SHADER_METHOD::NONE : skeletalMethod))
         {
             if(infoHead->effectShader && infoHead->effectShader->blendOperation != 0)
                 fx.blendOperation = infoHead->effectShader->blendOperation;

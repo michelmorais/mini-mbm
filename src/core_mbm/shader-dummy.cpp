@@ -73,7 +73,21 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
-        REMINDER_TODO
+        if (this->vertexStartVB)
+            delete[] this->vertexStartVB;
+        if (this->vertexCountVB)
+            delete[] this->vertexCountVB;
+        if (this->indexStartIB)
+            delete[] this->indexStartIB;
+        if (this->indexCountIB)
+            delete[] this->indexCountIB;
+
+        this->vertexStartVB = nullptr;
+        this->vertexCountVB = nullptr;
+        this->indexStartIB = nullptr;
+        this->indexCountIB = nullptr;
+        this->sizeOfArrayVertex = 0;
+        this->initializedIndexBuffer = false;
         //we do not delete bs
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         backendBuffer->release();
@@ -93,7 +107,11 @@ namespace mbm
         this->release();
         if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
             return false;
-        REMINDER_TODO
+        this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex,
+                                            vertexStartSubset, vertexCountSubset, info_draw_mode);
+        this->fvf = (normal && uv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV :
+            (normal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR :
+            (uv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
         return true;
     }
 
@@ -105,7 +123,11 @@ namespace mbm
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        REMINDER_TODO
+        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex,
+                                           indexStartSubset, indexCountSubset, info_draw_mode);
+        this->fvf = (normal && uv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV :
+            (normal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR :
+            (uv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
         return true;
     }
 
@@ -120,7 +142,26 @@ namespace mbm
         release();
         if ( !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        REMINDER_TODO
+        uint32_t vertexCount = 0;
+        for (uint32_t subset = 0; subset < totalSubsets; ++subset)
+        {
+            if (indexStartSubset[subset] < 0 || indexCountSubset[subset] <= 0)
+                return false;
+            for (int i = 0; i < indexCountSubset[subset]; ++i)
+            {
+                const uint32_t candidate =
+                    static_cast<uint32_t>(arrayIndices[indexStartSubset[subset] + i]) + 1u;
+                if (candidate > vertexCount)
+                    vertexCount = candidate;
+            }
+        }
+        if (vertexCount == 0)
+            return false;
+        this->initializeIndexBufferControl(totalSubsets, vertexCount,
+                                           indexStartSubset, indexCountSubset, info_draw_mode);
+        this->fvf = (hasNormal && hasUv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV :
+            (hasNormal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR :
+            (hasUv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
         return true;
     }
 
@@ -141,7 +182,20 @@ namespace mbm
                                   const int* vertexStartSubset,
                                   const int* vertexCountSubset)// update when dynamic
     {
-        REMINDER_TODO
+        if (!vertex || !vertexStartSubset || !vertexCountSubset)
+            return false;
+        if (this->initializedIndexBuffer)
+            return this->sizeOfArrayVertex > 0;
+        for (uint32_t subset = 0; subset < this->totalSubset; ++subset)
+        {
+            if (vertexStartSubset[subset] < 0 || vertexCountSubset[subset] <= 0)
+                return false;
+            const uint32_t vertexStart = static_cast<uint32_t>(vertexStartSubset[subset]);
+            const uint32_t vertexCount = static_cast<uint32_t>(vertexCountSubset[subset]);
+            if (vertexCount > this->sizeOfArrayVertex ||
+                vertexStart + vertexCount > this->sizeOfArrayVertex)
+                return false;
+        }
         return true;
     }
 
@@ -203,7 +257,9 @@ namespace mbm
         REMINDER_TODO
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
+    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
+                               mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t /*skeletalPaletteSize*/,
+                               const SKELETAL_SHADER_METHOD /*skeletalMethod*/)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
             return false;
@@ -215,7 +271,8 @@ namespace mbm
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
-                        const int32_t subsetIndex) const
+                        const int32_t subsetIndex, const float * /*skeletalPaletteRows*/,
+                        const uint32_t /*skeletalPaletteFloatCount*/) const
     {
         REMINDER_TODO
         return true;

@@ -30,6 +30,7 @@
 #include <miniz-wrap/miniz-wrap.h>
 #include <audio-interface.h>
 #include <util-interface.h>
+#include <skeletal-render-capability.h>
 #include <cassert>
 #include <thread>
 #include <unistd.h>
@@ -163,6 +164,15 @@ namespace mbm
         TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
         GLint maxTextureSize = 0;
         GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        GLint maxVertexUniformVectors = 0, maxVertexAttributes = 0;
+        GLGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &maxVertexUniformVectors);
+        GLGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttributes);
+        skeletal::setMeasuredSkinningCapability(static_cast<uint32_t>(maxVertexUniformVectors),
+                                                      static_cast<uint32_t>(maxVertexAttributes));
+        const skeletal::SKINNING_CAPABILITY skinning = skeletal::getMeasuredSkinningCapability();
+        INFO_LOG("GLES2 skeletal capability: vertexUniformVectors=%u vertexAttributes=%u LBS=%u DQS=%u",
+                 skinning.maxVertexShaderVectors, skinning.maxVertexAttributes,
+                 skinning.lbsMatrixPaletteBones, skinning.dqsRigidPaletteBones);
         //const GLint MaxTextureWidth = static_cast<GLint>(std::sqrt(static_cast<float>(maxTextureSize)));
         const GLint MaxTextureWidth = maxTextureSize;
         const GLint MaxTextureHeight = MaxTextureWidth;

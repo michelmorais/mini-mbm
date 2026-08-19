@@ -229,8 +229,314 @@
     6.51.2 Added exact external-boundary weight-slot auditing around targeted smoothing, with verified/modified/failure reporting and error status on contract violation.
     6.51.3 Completed and approved the initial Skin Weight Lab delivery, including no-influence normalization coverage and removal of the redundant Phase-3 footer notice.
     6.51.4 Renamed Real-Time Skinning Editor to Skeletal Animation Editor across the launcher, Lua entry point, generated shortcuts, localization, documentation, and product plans.
+    6.52.0 Started the shared skeletal-animation foundation with private row-vector TRS math, an explicit legacy conversion utility, deterministic compiled skeleton identities, local/global and inverse-bind validation, scale diagnostics, and headless numeric fixtures without changing ordinary legacy mesh loading.
+    6.53.0 Added non-mutating skeletal weight validation with explicit palette-to-bone resolution, structural reference diagnostics, weight-quality reports, aggregate counts, and deterministic fixtures.
+    6.54.0 Added private skeletal clip, track, and key contracts with validation, pure sampling, easing, antipodal quaternion interpolation, bind-local channel fallback, and local-to-global pose evaluation fixtures.
+    6.54.1 Expanded skeletal-foundation regression coverage across corrupt weights/clips, easing, loop/clamp, scale/shear classification, and normalized scale-1/scale-100 pose equivalence.
+    6.54.2 Added a reproducible raw-cluster/rest-pose FBX audit fixture for the rat asset and documented the accepted atomic handedness conversion contract without changing importer output.
+    6.54.3 Added provisional audited Mixamo walking fixture evidence for frames 1, 16, and 32 while retaining the rat as the bind/weight/topology baseline.
+    6.55.0 Added a temporary read-only canonical bind-pose audit report to meshDebug and the Skeletal Animation Editor, exposing stable IDs, local/global/inverse-bind matrices, numeric errors, and diagnostics without exposing private compiled storage or modifying authored skeletons. This legacy-backed bridge is explicitly scheduled for removal after canonical-section inspection is verified; it is not a delivered compatibility API.
+    6.56.0 Started canonical skeletal persistence with section enum values 41-43 and a strict type-41 reader shared by runtime staging and Mesh Debug loading; validates stable IDs, parent-first hierarchy, names, local quaternion TRS, inverse bind, duplicate sections, versions, and payload boundaries. Types 42/43 and all writers remain intentionally unavailable.
+    6.57.0 Added the canonical type-42 weight reader to runtime staging and Mesh Debug, with order-independent type resolution and strict skeletonId, frame-1 topology, stable-ID palette, four-slot sentinel, finite/nonnegative/positive-used weight, duplicate influence, full coverage, unit-sum, duplicate-section, version, and payload-boundary validation. Type 43 and every canonical writer remain unavailable.
+    6.58.0 Completed canonical read support with type-43 skeletal clips in both real loaders, validating shared skeletonId, unique clip IDs/names, bone targets, channels, nonempty ordered keys, finite quaternion-local TRS, easing/Bezier controls, reserved bytes, booleans, versions, duplicate sections, counts, and payload boundaries. Types 41-43 now resolve independent of file order; writers/import remain unavailable.
+    6.59.0 Added validated canonical skeletal writer round-trip for sections 41-43 in MESH_MBM_DEBUG::saveV11, including preflight dependency/topology validation, exact sectionCount accounting, deterministic skeleton-weight-animation order, and save/reload coverage. The writer emits only existing canonical state and never converts legacy editor skeleton/weight data implicitly; FBX-to-canonical import remains pending.
+    6.60.0 Replaced the direct Blender/FBX importer's exploratory/static skeletal output with canonical sections 41-43. Armature imports now emit one reflected REST bind geometry, deterministic hierarchy-path identities, parent-relative quaternion bind TRS, stable-ID four-influence weights, and sampled parent-relative clip tracks; geometry, normals, winding, bind, and poses share the accepted (-x,z,-y) conversion. A real 67-bone/32-frame Mixamo walk passed canonical load plus save/reload without legacy 11/40 and shrank from about 28 MB static-baked to 1.4 MB canonical.
+    6.61.0 Connected Mesh Debug's Bone inspector and gizmo to canonical section 41 through the canonical-first detached bind report. Canonical hierarchy, global positions, quaternion-derived orientation, scale, radius, and length are visible read-only without populating or enabling the destructive legacy skeleton model.
+    6.62.0 Added the private canonical CPU LBS reference used as the future GPU oracle. It composes inverse-global-bind with evaluated global pose in row-vector order, blends four-influence positions, applies inverse-transpose normal matrices, and verifies bind identity, rigid weight-one motion, and non-uniform-scale normals without changing rendering or Lua APIs.
+    6.63.0 Added the private rigid CPU DQS reference alongside LBS. It converts rigid skin matrices to dual quaternions, aligns antipodal hemispheres per vertex, normalizes and orthogonalizes blended real/dual parts, transforms positions and normals, rejects scale/shear explicitly, and verifies bind/weight-one LBS parity plus the +170/-170 degree antipodal case.
+    6.64.0 Began the GLES2 runtime integration with a private capability gate shared by Linux/X11, Android, and Windows GLES initialization. It measures vertex-uniform-vector and vertex-attribute budgets from the active context, reserves eight uniform vectors for scene matrices, and reports conservative three-vec4 LBS and two-vec4 rigid-DQS palette capacities only when five skeletal vertex attributes fit. Tests lock the GLES2-minimum result at 40 LBS/60 DQS bones and reject missing limits or insufficient attributes without adding a GPU shader or fallback.
+    6.65.0 Added private canonical-to-GLES2 LBS input preparation during runtime mesh finalization. Stable type-42 palette IDs are resolved to compact type-41 bone indices and retained as four float indices plus four weights per vertex behind MESH_MBM::Impl. Readiness distinguishes unavailable capability, insufficient attributes, oversized palettes, and invalid data without changing static mesh loading. Tests verify reordered ID resolution and deterministic capacity rejection; shader deformation and clip playback remain pending.
+    6.66.0 Added private GLES2 VBO ownership and upload for canonical LBS bone-index/weight attributes. Indexed meshes use one shared stream pair and non-indexed meshes use one pair per subset, both with exact vertex-count validation and lifecycle cleanup. A ready canonical mesh now fails explicitly if attribute upload fails instead of silently rendering REST geometry. Shader consumption remains pending a skeletal-aware default-program cache key.
+    6.67.0 Added the first GLES2 LBS default vertex-shader variant with four float bone indices/weights and a three-vec4 affine palette. Static and skeletal programs plus distinct palette sizes have separate cache keys/handles, custom vertex shaders reject unsupported canonical deformation, and a real Mesa GLES run compiled and drew the 23-bone Lorekeeper with an identity bind palette. Compact normal deformation is explicitly restricted to rigid/uniform-scale transforms; posed clip palettes remain pending.
+    6.68.0 Added private canonical pose-to-LBS palette construction. It samples local clip tracks, composes global transforms, calculates row-vector inverseGlobalBind times posedGlobal for every bone, and packs the exact three-vec4 GLES shader layout. Tests prove bind identity, translation packing, midpoint clip sampling, and explicit non-uniform-scale rejection for compact normals. Per-instance playback/upload remains pending.
+    6.69.0 Connected canonical clips to GLES LBS draws through an opaque per-instance player. Mesh instances now own active clip, time, pause state, and evaluated palette independently of cached assets; explicit C++/Lua count/name/play/pause/resume/seek/time controls avoid autoplay, honor authored looping, and advance while culled. A real two-instance Lorekeeper smoke verified independent paused/advancing times and per-draw palettes. Blending, speed, callbacks, DQS, and non-GLES execution remain pending.
+    6.70.0 Added shared-runtime skeletal preview controls to the Skeletal Animation Editor: clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber drive the preview mesh's per-instance GLES2 LBS player. The bind-pose gizmo remains explicitly static. Added read-only C++/Lua skeletal clip-duration queries; this is not a timeline or destructive skeleton editing.
+    6.71.0 Added explicit skeletal bind-pose restoration by stopping and clearing a mesh instance's active player, plus a read-only GLES2 LBS preparation report with status, required bones, and measured capacity. The Skeletal Animation Editor exposes both in its runtime preview and no longer claims that LBS preview is unavailable in legacy weight-workflow notices.
+    6.72.0 Began GPU rigid-DQS delivery with a private tested pose/clip-to-dual-quaternion palette builder. It packs real and dual vec4 values per bone, shares canonical sampling with LBS, and rejects scale/shear. The CPU DQS reference reuses the same rigid conversion contract; no DQS shader or method selector is exposed yet. The editor now explains LBS capacity as required bones versus the current device's per-mesh-draw limit, not an ambiguous fraction or scene-wide budget.
+    6.73.0 Added a separately cached GLES2 rigid-DQS default vertex-shader variant with antipodal four-influence blending, dual-quaternion normalization/orthogonalization, rigid position transformation, and quaternion normal rotation. A dedicated Mesa GLES test compiles and links the lit 23-bone variant. Runtime/editor method selection and actual DQS palette draws remain pending.
+    6.74.0 Connected explicit pre-load LBS/rigid-DQS selection to mesh instances, method-specific capability reporting, default-shader selection, canonical clip sampling, and real per-draw palette upload. Lua and the Skeletal Animation Editor expose the choice without runtime shader recompilation or silent scale fallback; the selected method is immutable after load.
+    6.75.0 Added explicit pre-load Auto skinning resolution. Auto audits canonical bind and every clip scale key once, resolves rigid content to DQS and scaled content to LBS, and exposes requested method, resolved method, and reason through C++/Lua/editor reporting. Forced DQS remains strict and no per-frame shader switching occurs.
+    6.76.0 Added a GLES2-portable skeletal CPU/GPU numeric parity harness. A deterministic two-bone/two-vertex fixture captures shader-deformed LBS and rigid-DQS positions/normals through an RGBA8 framebuffer and glReadPixels, reporting maximum error, worst vertex, quantization-aware tolerance, and PASS/FAIL.
+    6.77.0 Unified production and parity-test GLES skeletal shader generation. One private source helper now emits the exact LBS/DQS palette functions, antipodal blending, position deformation, and normal deformation consumed by both the default runtime shader and RGBA8 numeric readback harness.
+    6.78.0 Extended GLES skeletal numeric parity to eight deterministically selected mixed-influence vertices from the committed Lorekeeper at a fixed authored clip time. LBS and DQS positions/normals match CPU references within RGBA8-aware tolerances through a private canonical copy-out bridge that preserves PIMPL and adds no Lua surface.
+    6.86.3 Retired exploratory section-11/name-palette fixtures from the active skeletal suite; equivalent canonical hierarchy, weight, clip, corruption, scale, and round-trip coverage remains.
+    7.0.0 Added atomic canonical subtree mirroring across global X/Y/Z for non-animated rigs, with full bind-matrix reflection, local rederivation, impact confirmation, stable IDs, validation, and rollback.
+    6.99.0 Added atomic local canonical chain creation with generated unique names/IDs, uniform parent-relative steps, complete validation, final-bone selection, save/reload, and rollback.
+    6.98.0 Began local rigging with transactional one-root canonical skeleton initialization on static meshes, AABB-derived editor defaults, save/reload, and rollback without implicit weights or clips.
+    6.97.0 Added animated child-track baking for parent removal at authored key-time unions, preserving sampled global poses with explicit continuous-interpolation limits and shear rejection.
+    6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
+    6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
+    6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.101.1 Fixed Metal's bone-palette/lighting buffer-slot collision and fragment-only custom shaders bypassing generated skeletal deformation; added native MSL Paint Weights shaders and validation coverage.
+    7.101.0 Added Metal real-time LBS and rigid-DQS with buffer-backed influences/palettes, generated MSL deformation, lighting integration, capability reporting, and production-path macOS validation.
+    7.100.8 Synchronized real-time skinning documentation with delivered Windows DirectX9 support, MSVS/MinGW wiring, backend-neutral editor preview, and remaining Metal/parity work.
+    7.100.7 Replaced stale GLES2-specific Skeletal Animation Editor runtime-preview labels with backend-neutral GPU-skinning terminology.
+    7.100.6 Standardized editor temporary-file paths under Windows, fixing root-relative MinGW os.tmpname results in Mesh Debug, Font Maker, Physics Editor, and Skeletal Animation Editor.
+    7.100.5 Fixed Skeletal Animation Editor rollback/runtime-preview temporary meshes under MinGW by anchoring Windows temp names in TEMP/TMP instead of using root-relative os.tmpname results.
+    7.100.4 Linked CMake testLib with the same private mesh-v11 and skeletal foundation implementations used by the MSVS harness, without exporting test internals from core_mbm.
+    7.100.3 Fixed MinGW DirectX9 testLib wiring by excluding the GLES-only numeric parity source and libraries, and aligned the test-only parity export attribute on its friend declaration.
+    7.100.2 Fixed the MinGW DirectX9 constant-table shim with integer uploads, array-element access, shared cache reference counting, and full-size float-array uploads required by skeletal palettes.
+    7.100.1 Added DirectX9 variants for the Skeletal Animation Editor's paint heatmap/brush shaders; standardized shared GPU skinning capability, preparation, palette, and upload contracts so common mesh management no longer branches on render backends.
+    7.100.0 Added DirectX9 real-time GPU skeletal deformation with canonical LBS and rigid-DQS palettes, per-vertex influence streams, capability limits, and default-shader lighting integration.
+    7.99.0 Skeletal clip layers add independent pause/resume for layer time and fades in C++, Lua, and Runtime Preview.
+    7.98.0 Skeletal players, Lua, and Runtime Preview expose explicit bind-relative Additive clip-layer composition.
+    7.97.0 Skeletal animation adds a tested private bind-relative Additive local-TRS compositor and two-clip sampler.
+    7.96.0 Skeletal playback adds per-instance speed shared by base clip, Absolute layer, and fade, with Lua and Runtime Preview controls.
+    7.95.0 Transient Absolute skeletal layers add pause-aware linear fades, current-weight queries, preview controls, and removal when fading to zero.
+    7.94.0 Lua and Runtime Skeletal Preview expose the transient Absolute clip layer with clip, weight, and independent time controls.
+    7.93.0 Skeletal players add one transient independently timed Absolute clip layer composed before a single final LBS/DQS palette.
+    7.92.0 Skeletal animation adds a private tested two-pose Absolute local-TRS compositor that feeds existing LBS/DQS palette builders.
+    7.91.3 Long Bone Editor/Paint Weights disabled guidance wraps with panel width, and Runtime Preview lighting help is multiline.
+    7.91.2 Paint Weights scopes viewport vertex inspection, input, and markers to its optional advanced-diagnostics region.
+    7.91.1 Paint Weights marks the beginning of its optional advanced-diagnostics region with a wrapped yellow notice.
+    7.91.0 Paint Weights groups forensic tools behind a session-only advanced-diagnostics option with domain headings and scoped overlays.
+    7.90.3 Weight Health colored and disabled guidance now reflows consistently with panel width.
+    7.90.2 Weight Health explicitly reports when no deterministic automatic repair applies.
+    7.90.1 Weight Health provides contextual Undoable repairs for deterministic weak-influence and coincident-seam findings.
+    7.90.0 Paint Weights provides a one-action read-only health summary across canonical, coverage, distribution, weak, abrupt, and seam checks.
+    7.89.0 Paint Weights can audit strict coordinate spread inside known coincident seam groups without modifying geometry.
+    7.88.0 Paint Weights can smooth complete-link coincident-normal groups while preserving hard angular divisions, with impact preview and Undo.
+    7.87.0 Paint Weights can audit and selectively recompute all mesh normals incompatible with incident geometry in one confirmed Undoable operation.
+    7.86.0 Paint Weights can locally recompute confirmed pinned-copy normals incompatible with incident geometry, with Undo.
+    7.85.1 Coincident-normal details can be printed to the terminal as compact summary and per-copy records.
+    7.85.0 Coincident-normal diagnosis exposes per-copy bind/deformed vectors and winding-safe incident-face comparison.
+    7.84.0 Runtime Skeletal Preview has a movable editor-only light window with ambient/directional controls, orbit gizmo, reset, and shader-compatible rebuilding.
+    7.83.0 Runtime Skeletal Preview has an explicit non-persistent lit/unlit comparison with a load-time-compatible lit mesh variant.
+    7.82.0 Paint Weights can compare bind and Compact-LBS-deformed normals across pinned coincident seam copies.
+    7.81.0 Paint Weights can audit virtually welded bind topology for open edges and opposing-edge gaps around a pinned vertex.
+    7.80.1 Pinned deformed-geometry diagnosis has an explicit clip-duration-clamped time independent of other worktree playheads.
+    7.80.0 Paint Weights can diagnose current-playhead LBS triangle collapse, inversion, and edge stretch around a pinned vertex.
+    7.79.0 Automatic weight generation synchronizes connected coincident seams after topology diffusion and before its canonical batch.
+    7.78.1 Paint Weights shows successful repair and diagnostic-mask status in yellow, distinct from red failures and neutral information.
+    7.78.0 Paint Weights can audit and synchronize every divergent connected coincident seam in one confirmed Undoable transaction.
+    7.77.0 Paint Weights can locally synchronize one confirmed pinned coincident seam through an atomic canonical batch and Undo entry.
+    7.76.0 Pinned weight inspection reports connected coincident seam copies, per-copy weights, and maximum divergence without mutation.
+    7.75.1 Global weight diagnostics can pin a nearest vertex and its full influence list with a stationary click.
+    7.75.0 Paint Weights can transactionally limit every vertex to an explicit maximum of one through four strongest influences.
+    7.74.0 Paint Weights nearest-vertex inspection is available in every visualization mode without enabling diagnostic-mode brushes.
+    7.73.9 Fixed early Runtime Preview tooltip dispatch and suppressed target-bone highlights in non-target weight diagnostics.
+    7.73.8 Fixed abrupt-transition smoothing losing its unsafe-triangle pose-safety result before overlay rebuild.
+    7.73.7 Moved long Runtime Skeletal Preview explanations into contextual hover tooltips.
+    7.73.6 Moved wide Animation transform and Auto Key helper text into localized hover tooltips.
+    7.73.5 Added read-only Bind Pose Contract joint/segment viewport picking with hierarchy synchronization and empty-space camera orbit.
+    7.73.4 Removed the retired Skin Weight Lab GUI and exclusive Lua helpers; deprecated its unused scalar canonical weight setter in favor of atomic batch edits.
+    7.73.3 Synchronized Paint Weights documentation with delivered control order, abrupt repair, and the retired Weight Lab workflow after an API-consumer audit.
+    7.73.2 Fixed unsaved canonical skeletal edits rebuilding runtime/authoring previews from the stale disk file instead of the authoritative in-memory asset.
+    7.73.1 Fixed Animation-worktree skeleton line endpoints using a different visual-Z mapping from their joint shapes on small meshes.
+    7.73.0 Added deterministic automatic initial skeletal weights from scale-aware bone segment/joint distances with four-influence normalization and configurable topology diffusion.
+    7.72.1 Fixed Bone Editor weight initialization being disabled until a viewport bone click by adding an explicit synchronized target-bone selector.
+    7.72.0 Added Bone Editor initialization and confirmed atomic removal for canonical skeletal weights alone or the complete skeleton/weights/clips asset.
+    7.71.7 Added a neutral Skeletal Animation Editor workspace that shows only the ordinary mesh after loading until a worktree is selected.
+    7.71.6 Retired the Skin Weight Lab worktree after its accepted authoring, regional repair, diagnostics, pose-safety, Undo, and persistence capabilities migrated to Paint Weights.
+    7.71.5 Fixed AABB and subset Remove-from-Mask actions that accidentally re-added captured vertices.
+    7.71.4 Replaced per-mouse-move AABB reconstruction with shared-position updates over centered local geometry.
+    7.71.3 Made AABB hover faces double-sided through opposite triangle windings on every backend.
+    7.71.2 Added AABB sensitivity and prebuilt axis/face hover feedback to Paint Weights capture.
+    7.71.1 Added depth-tested AABB capture plus Min/Max/Size controls and camera-plane mouse translation.
+    7.71.0 Added modal AABB painted-mask capture with isolated textured preview and one-shot evaluation on capture close.
+    7.70.0 Added Replace/Add/Remove painted-mask generation from the material subset under the last valid surface hit.
+    7.69.0 Added painted-mask scope for distribution, weak-contamination, and abrupt-transition diagnostics plus their repair actions.
+    7.68.2 Made persistent painted-mask markers bypass frustum rejection while preserving editor visibility controls.
+    7.68.1 Prevented zero-scale masked regional repairs from claiming changes, writing a no-op batch, or creating Undo history.
+    7.68.0 Added pose-safe regional Rigid Bind for the complete painted mask with topology-ring boundary transition.
+    7.67.0 Added pose-safe full-vector skeletal-weight smoothing inside the session painted mask.
+    7.66.0 Added a session-only painted vertex mask with add/remove brush modes, persistent markers, and optional filtering for all Paint Weights brushes.
+    7.65.2 Kept affected-vertex crosses synchronized with the subset locked by an active Paint Weights stroke.
+    7.65.1 Kept canonical type-42 weights aligned when Mesh Debug removes a subset for filtered previews.
+    7.65.0 Added optional per-stroke material-subset restriction to every Paint Weights brush and its exact affected-vertex diagnostic.
+    7.64.2 Disabled Paint Weights surface picking and right-button strokes whenever the mesh is hidden.
+    7.64.1 Disabled Paint Weights viewport bone hit testing whenever the skeleton is hidden while preserving explicit panel selection.
+    7.64.0 Added Paint Weights Rigid Bind with an exact configurable core, non-accumulating falloff transition, and shared transactional pose diagnostics.
+    7.63.13 Replaced the Lab's shared line-strip vertex markers with one batched shape of independent camera-resilient orthogonal crosses.
+    7.63.12 Replaced affected-vertex line strips with independent planar filled crosses batched in one shape and audited the Lab's marker intent.
+    7.63.11 Corrected the inspector cross for continuous line-strip semantics by routing both strokes through the center.
+    7.63.10 Replaced the inspector's three-axis fish-like marker with a two-stroke cross oriented in the brush plane.
+    7.63.9 Stabilized the vertex-inspector window height with a permanent header and four placeholder influence rows.
+    7.63.8 Added a throttled nearest-face-vertex inspector with an exact canonical influence list and yellow viewport marker.
+    7.63.7 Replaced false-positive absolute-rotation stroke failures with newly introduced geometric-versus-skinned-normal sign inversion diagnostics.
+    7.63.6 Added non-mutating five-pose area/orientation diagnostics and a red unsafe-face overlay for the last successful paint stroke.
+    7.63.5 Added layered always-on-top integer priorities with Lua access and used them to place the skeleton above the complete curved-surface brush disk.
+    7.63.4 Replaced the triangulated face preview with a camera-facing radial brush disk and depth-safe skeleton ordering.
+    7.63.3 Made the brush influence patch an always-on-top overlay without geometric offset.
+    7.63.2 Added surface-following translucent strength/falloff face preview with operation colors.
+    7.63.1 Added throttled actual-candidate brush footprint visualization for spatial/geodesic modes.
+    7.63.0 Added default-on geodesic Connected Surface Only filtering to all Paint Weights brushes.
+    7.62.8 Moved Paint Weights Show Mesh before Show Skeleton and removed its overlay duplicate.
+    7.62.7 Added contextual base-mesh visibility independent from the repair safety overlay.
+    7.62.6 Changed repair safety outlines to translucent filled faces and split report lines.
+    7.62.5 Added cached red-face/cyan-seam post-repair safety visualization and counts.
+    7.62.4 Added connected coincident-vertex seam synchronization to abrupt-transition repair.
+    7.62.3 Added five-sample pose-aware face-collapse/orientation safety scaling to abrupt-transition repair.
+    7.62.2 Bounded abrupt-transition repair per vertex and froze candidate influences to each original one-ring neighborhood.
+    7.62.1 Strengthened Paint Weights atomic-batch save/reload acceptance to verify complete four-slot and two-slot edited records.
+    7.62.0 Added atomic full-vector Smooth Detected Transitions repair with configurable Jacobi passes, fixed boundaries, Undo, and before/after diagnostics.
+    7.61.2 Moved Show Skeleton to the first Paint Weights control and clarified that the abrupt threshold classifies statistics without recoloring the raw heatmap.
+    7.61.1 Scoped Target Bone and viewport bone picking to the selected-bone heatmap, hiding them from whole-weight diagnostics.
+    7.61.0 Added read-only topology-based Abrupt Weight Transitions heatmap and cached threshold statistics.
+    7.60.3 Promoted Repair / Diagnostics to the first Paint Weights block so its mode controls contextual GUI sections immediately.
+    7.60.2 Made diagnostic views read-only and contextual: only the selected-bone heatmap enables painting, while weak contamination owns its threshold and Clean action.
+    7.60.1 Reorganized Paint Weights into clear UI sections and replaced diagnostic checkboxes with one explicit three-option radio group.
+    7.60.0 Added read-only Weak Influence Contamination heatmap and statistics tied to the shared cleanup threshold.
+    7.59.0 Added optional Influence Distribution diagnostics with a dominant-weight heatmap and aggregate active-influence statistics.
+    7.58.1 Added 1-10 iterative Smooth passes for dense meshes and placed each Paint Weights operation radio button on its own line.
+    7.58.0 Added transactional selected-bone Smooth painting using triangle-neighbor averages, brush falloff, proportional redistribution, normalization, and Undo.
+    7.57.0 Paint Weights Weight Tools adds atomic whole-mesh weak-influence cleanup with dominant-weight preservation, deterministic renormalization, and Undo.
+    7.56.1 Paint Weights exposes Paint/Add and Erase/Subtract as directly visible radio buttons instead of a combo.
+    7.56.0 Added transactional Erase/Subtract with normalized redistribution, zero-weight no-op behavior, and safe preservation of sole rigid influences.
+    7.55.1 Paint Weights keeps left-drag camera orbit and uses right-drag exclusively for Paint/Add, matching the editor's established navigation.
+    7.55.0 Added transactional Paint/Add strokes with radius, strength, falloff, vertex-BVH queries, continuous sampling, deterministic four-influence normalization, atomic batch commit, Undo, and cancellation.
+    7.54.2 Paint Weights draws and picks each explicit canonical head-to-tail segment as its own bone, independent of importer naming or anatomy.
+    7.54.1 Optimized Paint Weights with indexed heatmap geometry and changed-position 30 Hz cursor raycasts/rebuilds; fixed createIndexed validation looping past 65,535 indices.
+    7.54.0 Paint Weights heatmap now uses true per-vertex UV interpolation and a continuous gradient pixel shader.
+    7.53.2 Paint Weights now renders its opaque heatmap surface instead of layering it over the ordinary textured preview.
+    7.53.1 Replaced Paint Weights vertex-cross heatmap markers with depth-tested filled-face overlays and added independent skeleton visibility.
+    7.53.0 Added the read-only Paint Weights visual foundation with isolated state, bone selection, complete heatmap, cached BVH surface picking, and a brush cursor.
+    7.52.0 Added atomic canonical type-42 skeletal vertex-weight batch mutation for Paint Weights, with complete-candidate validation and Lua authoring support.
+    7.51.0 Complete skeleton poses copy every evaluated local TRS and paste all bone keys through one strict atomic candidate and Undo entry.
+    7.50.2 Selected-bone pose copy/paste buttons explain their TRS, key, descendant, stable-ID, and Undo semantics through localized tooltips.
+    7.50.1 Selected-bone pose paste uses a separate GUI line and documents its one-bone local T/R/S authoring semantics.
+    7.50.0 Selected evaluated bone poses copy by stable identity and paste as one transactional T/R/S key across clips.
+    7.49.0 Detached timeline key payloads paste atomically across clips by stable bone ID, creating compatible missing tracks and rejecting conflicts.
+    7.48.0 Timeline key clipboard copies stable bone/time identities and atomically pastes the complete selection at the playhead within its source clip.
+    7.47.0 Editor history names skeleton, weight, clip, track, key, and timeline transactions with translation keys resolved in the current language.
+    7.46.2 Undo/Redo feedback resets its timed overlay interval so localized and repeated operations remain visible.
+    7.46.1 Undo/Redo success descriptions use the editor's timed global overlay so feedback remains visible independently of panel scroll or focus.
+    7.46.0 Editor history replaces one-level rollback with bounded 50-entry Undo/Redo stacks, standard shortcuts, context restoration, and snapshot cleanup.
+    7.45.0 Runtime Skeletal Preview can rebuild the real runtime player from unsaved canonical memory and reports saved, current-memory, or stale-memory source state.
+    7.44.2 Scale availability follows the resolved authoring method: LBS enables uniform scale, while DQS disables it and safely returns the tool to Move.
+    7.44.1 Scale exposes only backend-compatible uniform XYZ manipulation; per-axis scale is deferred until inverse-transpose LBS normal palettes exist.
+    7.44.0 Scale adds a proportional XYZ diagonal handle; Animation exposes Auto/LBS/DQS authoring-preview selection rebuilt from unsaved canonical snapshots.
+    7.43.0 Animation authoring adds a bone-local visual Scale tool with positive component dragging and scale-only explicit/Auto Key commit.
+    7.42.0 Timeline ruler adds bounded adaptive major ticks and grid lines using scale-aware 1/2/5 steps and precision.
+    7.41.0 Timeline time snap adds one-click exact-reciprocal presets for 24, 25, 30, 50, and 60 FPS.
+    7.40.0 Timeline adds optional configurable time snap for playhead seeking and atomic key-group anchor dragging.
+    7.39.0 Timeline adds padded Fit selection framing, including a centered minimum range for selections at one time.
+    7.38.0 Zoomed timelines expose a synchronized full-width horizontal-pan slider that hides when the full clip is visible.
+    7.37.1 Timeline zoom requires Ctrl plus wheel, preserving the unmodified wheel for vertical track scrolling on large rigs.
+    7.37.0 Timeline adds cursor-anchored horizontal zoom, middle-button pan, clip framing, visible-range feedback, and unified range-aware interaction mapping.
+    7.36.1 Replaced editor-visible typographic glyphs unsupported by the current ImGui font atlas with ASCII-safe equivalents.
+    7.36.0 Timeline completes confirmed atomic time-range removal, deleting interval keys, shifting later content left, shrinking the clip, and blocking empty-track results.
+    7.35.0 Timeline begins safe time removal with a shaded non-mutating interval and impact reporting for deleted keys and tracks that would become empty.
+    7.34.0 Timeline adds atomic empty-time insertion at the playhead, growing the clip and shifting all later keys across every track without creating keys.
+    7.33.0 Timeline adds atomic ripple insertion at the playhead, growing the clip and shifting all later content by the selected span before inserting complete copies.
+    7.32.0 Timeline adds atomic Duplicate at playhead, aligning the earliest selected key while preserving tracks, relative timing, and complete payloads with all-or-nothing collision/bounds validation.
+    7.31.0 Timeline fills resized vertical space and supports empty-space rectangle key selection with Ctrl-additive semantics while retaining stationary-click seek.
+    7.30.0 Timeline supports atomic multi-key group dragging through a candidate-copy backend operation that moves pre-order references by one bounded delta, sorts affected tracks, validates once, and commits all-or-nothing.
+    7.29.0 Timeline adds non-mutating Ctrl multi-selection across tracks with persistent marker/count/clear UX; group mutation remains blocked pending an atomic backend batch operation.
+    7.28.0 Timeline authoring playback adds play/restart, pause/resume, stop, 0.05x-4x speed, loop/end handling, synchronized in-memory pose evaluation, and edit-triggered pause without key mutation.
+    7.27.1 Timeline collision feedback adds an eight-pixel key capture zone and draws the enlarged invalid red dragged marker last so the destination marker cannot hide it.
+    7.27.0 Timeline keys support horizontal transactional dragging with clamped preview, same-track collision rejection, payload-preserving backend reorder, and one rollback entry on release.
+    7.26.3 Timeline is movable/resizable after initial placement; Animation caches its detached clip/track/key report until asset mutation, removing idle per-frame Lua allocation and delayed GC CPU growth.
+    7.26.2 Timeline begins at the live right edge of the resizable left worktree panel and occupies only the remaining bottom width.
+    7.26.1 Timeline moves to a full-width bottom window with wider bone labels and visible-row draw culling, removing narrow-panel overlap and off-screen per-frame CPU work.
+    7.26.0 Animation adds a scrollable graphical timeline with canonical track rows, channel labels, selectable key markers, and synchronized playhead seeking; key dragging remains deliberately disabled.
+    7.25.0 Animation adds default-off Auto Key: completed Move/Rotate drags commit only their T/R channel through snapshot rollback, while stationary clicks remain non-mutating.
+    7.24.2 Animation pose dragging now updates persistent joints and dynamic parent-child lines in place instead of destroying and recreating the complete skeleton per pointer event.
+    7.24.1 Fixed Animation Move/Rotate controls to use mini-mbm ImGui's numeric RadioButton contract instead of the unsupported boolean overload that aborted the editor window.
+    7.24.0 Animation pose authoring adds persistent local XYZ rotation rings, normalized quaternion preview overrides, and explicit R-channel commit/discard without bind mutation or mouse-up key creation.
+    7.23.6 Animation authoring XYZ lines now use persistent pivot-local geometry and update renderable positions in place, preventing the same origin-sort Z drift and drag trails fixed in Bone Editor.
+    7.23.5 Bone Editor XYZ lines now use pivot-local geometry and renderable world positions, preventing incorrect origin-based always-on-top sorting and apparent Z drift.
+    7.23.4 Rotate tool intent maps joint clicks to their owning segment while preserving overlapping-joint pick cycling; Move retains direct joint editing.
+    7.23.3 Rotate mode marks its fixed head with a camera-facing cross and radial line offset above the always-on-top skeleton, and anchors the XYZ gizmo at that pivot.
+    7.23.2 Rotate mode draws a fixed-head orbit guide at the preserved visual length; joint-radius authoring now requires a strictly positive mesh-relative value and rejects zero atomically.
+    7.23.1 Segment rotation preserves displayed global length through scaled bind bases, the live label reports visual length, and joint-radius input uses proportional DragFloat interaction.
+    7.23.0 Bone Editor adds atomic joint-radius editing for one bone or its descendant subtree, updating visual/picking metadata without modifying skin weights.
+    7.22.1 Fixed axis-gizmo direction sign and accidental/unstable capture by prioritizing bone geometry, narrowing handles to their outer region, rejecting camera-parallel axes, and highlighting the active axis.
+    7.22.0 Bone Editor adds selected-point global XYZ drag handles and a nonnegative incremental snap step; axis handles constrain one gesture while zero retains continuous movement.
+    7.21.0 Bone Editor head/tail/segment gestures support exact Esc/right-click cancellation through their staged complete-asset snapshot without creating a history entry.
+    7.20.1 Bone Editor removal preview highlights the selected weight-transfer target in green across its joint, tail, and segment, distinct from the blue removal source.
+    7.20.0 Bone Editor exposes safe transactional removal with dependency impact, replacement, child promotion, track-discard policy, confirmation, rollback, and surviving-parent selection.
+    7.19.0 Bone Editor adds atomic connect/disconnect between a head and its current parent tail, preserving the edited global tail and optionally compensating every other joint without conflating connection with reparenting.
+    7.18.3 Fixed Bone Editor direction-arrow drift/trails by updating one persistent line object in place during rotation instead of recreating renderables every frame.
+    7.18.2 Bone Editor draws a selected-segment yellow direction arrow from head toward tail, updating during manipulation for direct spatial rotation feedback.
+    7.18.1 Bone Editor reports live selected-segment direction, length, inclination, and azimuth during endpoint rotation, explicitly distinguishing this from undefined roll and canonical bind quaternion rotation.
+    7.18.0 Bone Editor adds explicit Move/Rotate segment dragging. Rotation fixes the head and bone-local length while changing tail direction, respecting connected joints, preservation, rollback, and axis constraints.
+    7.17.1 Repeated tail extension inherits the selected non-root segment length across the generated chain; root extension uses the explicit Bone length field.
+    7.17.0 Bone Editor adds atomic 1–256 repeated tail extension and global X/Y/Z drag constraints for joints and segments; no selected constraint retains free camera-plane dragging.
+    7.16.0 Bone Editor supports direct rigid segment translation: head and tail move together, connected child heads follow, and the preservation policy controls compensation of the remaining hierarchy.
+    7.15.0 Bone Editor adds a default-on Preserve other joints policy. Bind head/shared-joint dragging compensates unaffected descendants to retain their global transforms; disabling it restores ordinary hierarchical subtree propagation.
+    7.14.0 Bone Editor supports direct head dragging with global-tail preservation. Shared connected-joint drag now also preserves each connected child's opposite tail, so moving the joint reshapes both adjacent segments instead of translating the child segment wholesale.
+    7.13.1 Fixed overlap selection changing at drag start: mouse-down now locks the highlighted candidate, movement beyond three pixels drags it, and only a stationary left-button release cycles to the next nearest-depth candidate.
+    7.13.0 Bone Editor resolves overlapping endpoints without zoom: explicitly connected parent-tail/child-head members form one logical highlighted joint, while repeated clicks near the same pixel cycle deterministic nearest-depth candidates when coincident endpoints are intentionally disconnected.
+    7.12.1 Fixed Bone Editor tail-drag stalls on weighted meshes: interactive bind reports omit per-bone vertex/track impact scans, tail-only mutation skips redundant identity-dependency validation, and expensive complete gizmo reconstruction is capped near 30 Hz until release restores the full report.
+    7.12.0 Bone Editor supports direct tail dragging on a camera-facing plane. The endpoint is converted to bone-local bind space, length and connected child heads update atomically, one rollback snapshot covers the gesture, and moving a connected head independently clears that constraint.
+    7.11.0 Bone Editor can extend a selected explicit tail into a connected child bone. Canonical skeleton section 41 version 3 persists connectedToParent independently from hierarchy; FBX import preserves Blender's connection flag, and the new child is selected transactionally after creation.
+    7.10.1 Bone Editor now distinguishes Add Joint (hierarchy transform only) from Add Bone (explicit tail and selectable segment). Tail-less joints expose only their transform/head hit target, and technical bind edits no longer silently manufacture an explicit bone.
+    7.10.0 Canonical bones now persist an explicit bone-local tail joint in SECTION_SKELETAL_SKELETON version 2. FBX import captures the real Blender tail across arbitrary basis conversion; Bone Editor rendering and picking transform that offset through bind or animated global matrices. Version 1 remains readable as transform-only data.
+    7.9.2 Added distinct Bone Editor viewport selection for initial joint, final joint, and owned segment, including endpoint/segment highlighting and empty-space deselection without bind mutation.
+    7.9.1 Added a positive length control to Bone Editor root creation; it defaults to 1 and directly defines the derived local +Y head-to-tail distance.
+    7.9.0 Added the simplified Bone Editor worktree alongside advanced Bind Pose Contract: XYZ creates an independent root, and standalone bones render as a derived head/tail pair plus owned segment using local +Y and length.
+    7.8.0 Added explicit atomic commit of temporary translation poses: create/resolve track, enable T, insert/update the current-time key, validate the full animation, and integrate editor rollback while keeping mouse release and Auto Key non-persistent.
+    7.7.3 Made long Skeletal Animation Editor error/status diagnostics wrap within the panel while retaining their error color.
+    7.7.2 Decomposed invalid canonical GPU input into missing skeleton/weights, ID, structural, palette-target, and vertex-slot diagnostics; fixed the authoring bridge to preserve canonical 64-bit bone IDs as hexadecimal strings instead of truncating them to 32 bits.
+    7.7.1 Replaced the authoring-preview compatibility boolean with clause-specific diagnostics for GPU input readiness, method, palette/bone counts, finite rows, and the first ordered stable-bone identity mismatch.
+    7.7.0 Added the first animation-authoring transform gizmo: world XYZ translation handles convert drag deltas through the inverse parent basis, evaluate a one-bone local override continuously, and keep the result explicitly temporary until key policy is delivered.
+    7.6.1 Added nearest-hit viewport selection for evaluated animation bones: both joints and parent-to-child segments select the canonical bone while empty-space dragging remains camera orbit.
+    7.6.0 Added the in-memory authoring-pose contract: unsaved canonical clips evaluate at arbitrary time, optionally accept one sampled local override, expose evaluated globals/palettes, and drive a paused runtime mesh preview plus posed skeleton without saving or reloading.
+    7.5.0 Added transactional canonical key insertion by sampled local pose, complete time/TRS/easing/Bezier editing, quaternion normalization, sorted time changes, confirmed removal, rollback, and save/reload coverage.
+    7.4.0 Added transactional canonical per-bone track creation, T/R/S channel editing, confirmed removal, bind-local time-zero key seeding, duplicate-target rejection, rollback, and save/reload coverage.
+    7.3.1 Standardized the Animation-worktree Clip selector to the editor's 190-pixel combo-field width.
+    7.3.0 Added transactional canonical clip-container creation, property editing, confirmed removal, stable identity preservation, key-time-aware duration validation, rollback, and save/reload coverage.
+    7.2.0 Began the local Animation worktree with detached canonical type-43 clip/track/key inspection, including stable identities, bone resolution, channel masks, local TRS, easing/Bezier data, and synchronized bone selection.
+    7.1.0 Added explicit transactional type-42 weight initialization for local rigs: complete frame-zero coverage rigidly bound to one selected stable bone ID, with validation, editor impact confirmation, rollback, direct Skin Weight Lab handoff, and save/reload coverage.
+    6.93.0 Added transactional canonical root/child bone creation with opaque stable IDs, parent-relative bind defaults, complete dependency validation, editor selection, and rollback.
+    6.92.0 Added transactional canonical local-bind editing for translation, normalized quaternion rotation, scale, radius, and length, with explicit subtree movement and whole-asset rollback.
+    6.91.1 Extended one-level editor rollback to canonical bind mutations, staging complete assets before rename/reparent and rebuilding skeletal reports, preview, hierarchy, gizmos, and selection on revert.
+    6.91.0 Added transactional canonical bone reparent with cycle rejection, stable parent-first reordering, preserve-global/default or preserve-local policy, and complete weight/animation revalidation.
+    6.90.3 Fixed expanded bind-hierarchy clipping by placing large skeleton trees in an independently scrollable region while keeping selected-bone details accessible below.
+    6.90.2 Skeletal Animation Editor bind selection now highlights both the selected joint and its incoming parent-to-child segment, keyed by stable bone ID so rename does not break visual selection.
+    6.90.1 Fixed the Skeletal Animation Editor rename InputText crash by passing the Lua binding's flags argument instead of an invalid C++-style buffer-size argument.
+    6.90.0 Added transactional canonical bone rename through C++/Lua and the Skeletal Animation Editor: section 41 recompiles and sections 42/43 revalidate before commit while stable IDs preserve weight and animation references.
+    6.89.0 Added a canonical parent/child hierarchy tree to the Skeletal Animation Editor bind-pose worktree, with multi-root display, diagnostic node marking, selected-bone technical details, and synchronized gizmo highlighting.
+    6.88.1 Fixed x100 canonical scaling by bounding bind-identity float roundoff from the inverse/global matrix-product operands; Mesh Debug now also reports transactional scale failures in the UI instead of only the terminal.
+    6.88.0 Added transactional positive-uniform scaling for complete canonical skeletal assets: all geometry frames, bind and clip translations, bone radius/length, and physics bounds scale together, inverse bind is rebuilt, and invalid/non-uniform requests cannot partially mutate the asset.
+    6.87.1 Physically deleted the isolated section-11/40 #if-0 implementations and fixtures; simplified MESH_MBM_DEBUG::scaleFrame and its Lua binding to geometry-only parameters by removing the unused legacy skeleton-sync/error arguments.
+    6.87.0 Removed the compiled/public exploratory skeletal model for numeric sections 11/40: enum members, payload structs/serializers, Mesh Debug C++ APIs and PIMPL storage, Lua callbacks, and legacy compiler/validator declarations; canonical sections 41-43 are now the sole skeletal contract.
+    6.86.2 Removed refreshSkeletonBindReport and its duplicate compiled snapshot; bind-report getters now read the load-validated canonical skeleton directly.
+    6.86.1 Made skeleton bind reports unconditionally canonical and removed runtime intermediate scratch storage for exploratory sections 11/40.
+    6.86.0 Removed active loading and writing of exploratory skeletal sections 11/40; canonical section 41 now supplies mesh skeleton metadata inspection.
+    6.85.1 Fixed canonical Mesh Debug-to-FBX coordinate restoration: undo X reflection and winding, then recover bone axis/roll through full inverse bind-matrix conjugation.
+    6.85.0 Migrated Mesh Debug-to-FBX export to canonical bind-report global matrices and type-42 vertex weights; Blender reconstructs bone axis and roll without sections 11/40.
+    6.84.0 Removed exploratory section-11 bone and section-40 name-palette weight methods from the registered Mesh Debug Lua API; FBX import remains canonical-only on sections 41-43.
+    6.83.0 Retired Mesh Debug's visible legacy Bone editor and destructive legacy-weight removal controls; Mesh Info now reports canonical type-42 weights.
+    6.82.0 Migrated Skin Weight Lab reads and transactional edits to canonical type-42 weights resolved through stable bone IDs; the editor no longer uses legacy has/get/setVertexWeight.
+    6.81.0 Migrated the Skeletal Animation Editor bind gizmo and bone selectors to canonical bind-report bones only; legacy getTotalBone/getBone data is no longer an editor fallback.
+    6.80.2 Scoped Skeletal Animation Editor skeleton visualization by worktree: automatic bind skeleton for bind inspection, local controls for Skin Weight Lab, and no misleading bind-only gizmo in runtime LBS/DQS preview.
+    6.80.1 Fixed the Skeletal Animation Editor shared skeleton-visibility control so weight-lab bone highlights cannot remain visible or reappear while the skeleton is hidden.
+    6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
+    6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
+    7.124.1 Fixed Runtime Skeletal Preview GPU/CPU comparison forcing LBS after CPU DQS support was added. Comparison now preserves the selected Auto/LBS/DQS method, resolves Auto once on the GPU instance, and loads the CPU instance with that same resolved method, so high-bone-count rigid meshes can compare DQS GPU against DQS CPU instead of producing an unavailable invisible LBS GPU side.
+    7.124.2 Replaced misleading GPU skeletal capacity diagnostics with actual usage/limit and per-draw palette byte cost for the loaded mesh. A real engine-wide operational ceiling of 1024 bones per draw bounds otherwise impractical Metal maxBufferLength-derived results; stricter measured OpenGL ES and DirectX 9 limits remain authoritative.
+    7.124.3 Extracted backend-neutral skeletal numeric-parity cases, CPU references, RGBA8 encoding, tolerances, comparison, and reporting from the OpenGL ES capture harness so DirectX 9 and Metal only need native capture callbacks. The shared synthetic/Lorekeeper LBS/DQS contract is compiled by CMake and Visual Studio test targets, OpenGL ES still passes all four cases, and skeletal foundation fixtures now use the platform temporary directory instead of hard-coded POSIX /tmp paths.
+    7.124.4 Added native Metal skeletal numeric parity. The macOS test harness shares production LBS/DQS MSL deformation generation, renders the four common synthetic/Lorekeeper cases to RGBA8, reads positions/normals after GPU completion, and passes the shared tolerances with Metal API validation enabled.
+    7.125.0 Added the native DirectX 9 skeletal numeric-parity capture harness, completing automated encoded/readback coverage across OpenGL ES, DirectX 9, and Metal. It compiles the production HLSL LBS/DQS helpers, renders each prepared sample into a lockable RGBA8 target, reads positions and normals back through Direct3D 9, and passes the shared synthetic and Lorekeeper cases against the existing CPU references and tolerances.
+    7.125.1 Added explicit Paint Weights mask growth and shrinkage across 1-10 cached topology rings. Compatible connected seam copies can participate as one logical neighborhood, the transient operation rebuilds markers only after a real change, and focused Lua tests cover growth, erosion, repeated rings, seam traversal, and input immutability.
+    7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
+    7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
+    7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
+    7.123.0 Mesh Debug FBX export now preserves canonical type-43 skeletal animation: the engine samples every clip into global bone poses, Blender rebuilds one Action per clip, and animated FBX baking keeps multiple clips available on re-import instead of returning bind data alone.
+    7.122.1 Runtime Skeletal Preview GPU/CPU and LBS/DQS comparisons now seek the secondary animation only when its clock actually drifts, avoiding redundant pose evaluation every frame while preserving base and absolute-layer synchronization.
+    7.122.0 Mesh Debug Blender import now preflights animation scans on direct import and auto-selects all explicit armature animation sources for skeletal import, using scene range only as fallback.
+    7.121.0 Added per-file Blender importer skeletal-capability detection in Mesh Debug. The import option now prefers real-time skeletal animation only when an armature with bones and usable skin weights is available, reports baked fallback reasons for mesh-cache/static sources, keeps --include-bones as a robust CLI preference, and fixes estimates to distinguish REST geometry frames, skeletal key samples, and baked mesh frames.
+    7.120.0 Added Auto skeletal execution as the default requested policy. Auto prefers GPU and falls back to CPU only when GPU cannot support the resolved LBS/DQS mesh and CPU is ready; explicit GPU/CPU stay mandatory, reports requested/resolved execution separately, and pose sharing compares actual resolved execution paths.
+    7.119.0 Extended explicit CPU skeletal execution from LBS to rigid DQS. CPU DQS reuses the canonical reference math, deforms immutable bind geometry into per-instance dynamic buffers, reports cpu-dqs-ready when valid, rejects non-rigid DQS through executionStatus/reason instead of switching to LBS, and lets Runtime Skeletal Preview GPU/CPU comparison use the selected resolved method when safe.
+    7.118.0 Added Runtime Skeletal Preview GPU/CPU comparison mode. It reuses the side-by-side comparison lifecycle with GPU LBS on the left and CPU LBS on the right, stays mutually exclusive with LBS/DQS pose stress, constrains preview-only method/execution controls coherently, keeps playback/layer/mask/seek synchronization, preserves wearable follower policy, and labels each side from the loaded preview's actual execution report.
+    7.117.1 Added a compact Runtime Skeletal Preview execution-status dot next to the loaded preview report: green for GPU, orange for CPU, with localized hover help, driven by the active preview report rather than the execution combo selection.
+    7.117.0 Added an explicit opt-in CPU skeletal execution path for canonical LBS meshes. CPU selection is per MESH before load, forces LBS, rejects DQS, deforms positions/normals from immutable bind geometry into per-instance dynamic buffers, exposes C++/Lua selection and reporting, and adds Runtime Skeletal Preview execution reporting.
+    7.116.0 Expanded Runtime Skeletal Preview secondary wearable/follower loading from one transient follower to an ordered non-persistent collection. Add loads another .msh with the primary resolved LBS/DQS method, preflights compatibility, enables pose sharing only for compatible followers, gives each follower path/status/visibility/remove controls, mirrors primary preview transforms including pose-stress offsets, and removes all followers on primary rebuild/reset/scene end while keeping them separate from LBS/DQS comparison.
+    7.115.0 Added Runtime Skeletal Preview secondary wearable/follower loading with compatibility reporting and runtime pose sharing against the primary preview mesh.
+    7.114.0 Added the first skeletal pose-sharing runtime slice: a compatible loaded direct follower MESH can render with a compatible source MESH's already-evaluated private palette and same resolved skinning method while retaining its own geometry, weights, textures, and transform. Lua exposes enable/disable/query; self, unloaded, incompatible, method-mismatched, and chained cases reject without mutation, inactive sources fall back to non-shared rendering, and release/reload/destruction unlinks relationships.
+    7.113.0 Added a read-only skeletal-sharing compatibility report for loaded mesh instances, with strict canonical skeleton identity, hierarchy, and scale-aware bind-transform checks but no pose sharing yet.
+    7.112.0 Made multiple-root canonical skeleton compatibility explicit: parentIndex=-1 roots remain independent through bind, sampled global poses, composition, LBS/DQS palette order, and named root-motion neutralization, without adding public APIs.
+    7.111.0 Extended automatic skeletal root motion with optional rotation: translation-only remains the default, enabled rotation uses normalized-quaternion deltas, the selected bone local rotation is neutralized to bind in the final pose, and the Lua configuration query reports applyRotation.
+    7.110.0 Added per-instance automatic translation-only skeletal root motion for a named bone, keeping raw delta queries non-consuming while neutralizing that bone's local translation in the final pose.
+    7.109.0 Added non-consuming named-bone root-motion translation delta extraction in model or renderizable-oriented world space, with private per-instance pose history and discontinuity/loop-wrap invalidation.
+    7.108.0 Added direct skeletal base-to-base linear cross-fade with transient-layer replacement, unmasked Absolute composition, zero-duration immediate play, and discontinuity-free target promotion.
+    7.107.0 Integrated non-looping skeletal base and layer completion with the existing onEndAnim callback, with one-shot per-player delivery, culled advancement, and replay/backward-seek rearming.
+    7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
+    7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "6.51.4" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.125.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

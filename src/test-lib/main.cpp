@@ -25,10 +25,19 @@
 #endif
 
 #include "my-scene-test.h"
+#include "skeletal-foundation-tests.h"
+#include "gles-skeletal-parity-tests.h"
+#include "directx9-skeletal-parity-tests.h"
 #include <cstdlib>
 #include <cstring>
 
-// Usage: testLib [seconds] [mesh_file] [world]
+// Usage: testLib --skeletal-foundation-tests
+//        testLib --gles-dqs-shader-test
+//        testLib --gles-skeletal-parity-test
+//        testLib --directx9-skeletal-parity-test
+//        testLib --metal-editor-shader-test
+//        testLib --metal-skeletal-parity-test
+//        testLib [seconds] [mesh_file] [world] [lbs|dqs|auto] [gpu|cpu|auto]
 //   seconds    Exit on its own once this many seconds have elapsed in the
 //              render loop, instead of running forever. Meant for
 //              agent-driven / CI test runs, where nothing is present to
@@ -43,7 +52,44 @@
 //              (default "3d" when mesh_file is given but world is omitted).
 int main(int argc, char** argv)
 {
+    if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)
+        return runSkeletalFoundationTests();
+
     GAME game;
+#if defined(USE_METAL)
+    if (argc == 2 && std::strcmp(argv[1], "--metal-skeletal-parity-test") == 0)
+    {
+        game.myScene.testMetalSkeletalParity = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--metal-editor-shader-test") == 0)
+    {
+        game.myScene.testMetalEditorShaders = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else
+#endif
+#if defined(USE_OPENGL_ES)
+    if (argc == 2 && std::strcmp(argv[1], "--gles-dqs-shader-test") == 0)
+    {
+        game.myScene.testGlesDqsShader = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--gles-skeletal-parity-test") == 0)
+    {
+        game.myScene.testGlesSkeletalParity = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else
+#endif
+#if defined(USE_DIRECTX9)
+    if (argc == 2 && std::strcmp(argv[1], "--directx9-skeletal-parity-test") == 0)
+    {
+        game.myScene.testDirectX9SkeletalParity = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else
+#endif
     if (argc > 1)
     {
         const float seconds = static_cast<float>(std::atof(argv[1]));
@@ -64,13 +110,40 @@ int main(int argc, char** argv)
                 mode = RenderMode::WORLD_3D;
         }
         game.myScene.cliMeshMode = mode;
+        if (argc > 4)
+        {
+            if (strcmp(argv[4], "dqs") == 0)
+                game.myScene.cliSkeletalMethod = mbm::SKELETAL_SHADER_METHOD::DQS_RIGID;
+            else if (strcmp(argv[4], "auto") == 0)
+                game.myScene.cliSkeletalMethod = mbm::SKELETAL_SHADER_METHOD::AUTO;
+        }
+        if (argc > 5)
+        {
+            if (strcmp(argv[5], "cpu") == 0)
+            {
+                game.myScene.cliSkeletalExecutionPath = mbm::SKELETAL_EXECUTION_PATH::CPU;
+                game.myScene.cliSkeletalExecutionPathSet = true;
+            }
+            else if (strcmp(argv[5], "gpu") == 0)
+            {
+                game.myScene.cliSkeletalExecutionPath = mbm::SKELETAL_EXECUTION_PATH::GPU;
+                game.myScene.cliSkeletalExecutionPathSet = true;
+            }
+            else if (strcmp(argv[5], "auto") == 0)
+            {
+                game.myScene.cliSkeletalExecutionPath = mbm::SKELETAL_EXECUTION_PATH::AUTO;
+                game.myScene.cliSkeletalExecutionPathSet = true;
+            }
+        }
     }
 	// this is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
     game.setUsageOfDefaultPS_VS_WhenNoShader(true, true);
     constexpr bool singleLoop    = false;
     constexpr bool doSwapBuffers = true;
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
-        return game.onLoop(singleLoop, doSwapBuffers);
+    {
+        const int result = game.onLoop(singleLoop, doSwapBuffers);
+        return game.myScene.automatedTestFailed ? -1 : result;
+    }
     return -1;
 }
-

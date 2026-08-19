@@ -30,6 +30,7 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 tBlender      =     require "blender_cli_wrapper"
+tImportMode   =     require "blender_import_mode_helper"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -414,7 +415,8 @@ function onInitScene()
         nImportAngleY = 0,
         nImportAngleZ = 0,
         iLargeMeshMode = 1,
-        bImportIncludeBones = true,
+        bImportPreferSkeletal = true,
+        bImportIncludeBones = true, -- legacy state name kept for older saved sessions
         tRunResults = {},
     }
     tMixamoGuideState = {
@@ -941,6 +943,7 @@ local function ensureBlenderAnimSettings(row)
         iSampleStep = 1,
         sAnimationName = 'Bake',
         tClips = {},
+        bSourceSelectionManual = false,
     }
     row.anim.tClips = type(row.anim.tClips) == 'table' and row.anim.tClips or {}
     return row.anim
@@ -952,8 +955,18 @@ local function getSourceFrameCount(src)
 end
 
 local function getBakedFrameCount(frameStart, frameEnd, sampleStep)
-    local total = math.max(1, math.abs((frameEnd or 1) - (frameStart or 1)) + 1)
-    return math.floor((total - 1) / math.max(1, sampleStep or 1)) + 1
+    return tImportMode.getBakedFrameCount(frameStart, frameEnd, sampleStep)
+end
+
+local function makeBlenderSourceKey(src)
+    if type(src) ~= 'table' then return '' end
+    return table.concat({
+        tostring(src.kind or ''),
+        tostring(src.name or ''),
+        tostring(src.object or ''),
+        tostring(src.frameStart or ''),
+        tostring(src.frameEnd or ''),
+    }, '\31')
 end
 
 local function formatLargeInt(value)
@@ -1002,21 +1015,42 @@ end
 local getEnabledBlenderSourceRows
 local getBlenderImportOptionsForRow
 
+tBlender.getPreferSkeletal = function()
+    if tBlenderImportState.bImportPreferSkeletal == nil then
+        tBlenderImportState.bImportPreferSkeletal = tBlenderImportState.bImportIncludeBones ~= false
+    end
+    tBlenderImportState.bImportIncludeBones = tBlenderImportState.bImportPreferSkeletal
+    return tBlenderImportState.bImportPreferSkeletal == true
+end
+
+tBlender.getRowImportMode = function(row)
+    local anim = row and row.anim
+    return tImportMode.resolveImportMode(
+        tBlender.getPreferSkeletal(),
+        anim and anim.scanStatus,
+        anim and anim.scanData,
+        tBlender.getLargeMeshModeArg())
+end
+
+tBlender.getImportModeReasonText = function(modeInfo)
+    if modeInfo and modeInfo.reasonCode == 'vb_only_no_canonical_weights' then
+        return tLang.L('blender_import_reason_vb_only_no_canonical_weights')
+    end
+    return modeInfo and modeInfo.reason or ''
+end
+
 local function getRowImportEstimate(row)
     local options = getBlenderImportOptionsForRow(row)
-    local targetFrames = 1
-    if options.bakeAnimation and type(options.animationClips) == 'table' and #options.animationClips > 0 then
-        targetFrames = 0
-        for i = 1, #options.animationClips do
-            local clip = options.animationClips[i]
-            targetFrames = targetFrames + getBakedFrameCount(clip.frameStart, clip.frameEnd, clip.sampleStep)
-        end
-    elseif options.bakeAnimation then
-        targetFrames = getBakedFrameCount(options.frameStart, options.frameEnd, options.sampleStep)
-    end
+    local modeInfo = tBlender.getRowImportMode(row)
+    local frameEstimate = tImportMode.estimateFrames(modeInfo, options)
+    local targetFrames = frameEstimate.targetFrames or 1
     local anim = row and row.anim
     local stats = anim and anim.scanData and anim.scanData.meshStats or nil
     local out = {
+        modeInfo = modeInfo,
+        bakedMeshFrames = frameEstimate.bakedMeshFrames or 0,
+        skeletalKeySamples = frameEstimate.skeletalKeySamples or 0,
+        unknownMode = frameEstimate.unknown == true,
         targetFrames = targetFrames,
         hasStats = type(stats) == 'table' and stats.available == true,
         verticesPerFrame = nil,
@@ -1028,7 +1062,11 @@ local function getRowImportEstimate(row)
         texturePaths = getTextureSearchPathCountFromScan(row),
         animationText = '',
     }
-    if options.bakeAnimation and type(options.animationClips) == 'table' and #options.animationClips > 1 then
+    if modeInfo.mode == 'skeletal' then
+        out.animationText = string.format(tLang.L('blender_anim_estimate_skeletal_fmt'), frameEstimate.skeletalKeySamples or 1)
+    elseif modeInfo.unknown then
+        out.animationText = tLang.L('blender_anim_estimate_unknown_preference')
+    elseif options.bakeAnimation and type(options.animationClips) == 'table' and #options.animationClips > 1 then
         out.animationText = string.format('%d clips', #options.animationClips)
     elseif options.bakeAnimation then
         out.animationText = string.format('%s %d..%d step %d', options.animationName or 'Bake', options.frameStart or 1, options.frameEnd or 1, options.sampleStep or 1)
@@ -1062,6 +1100,11 @@ local function getBlenderImportEstimateSummary()
     local statsMissing = 0
     local maxFrames = 0
     local vertexLimitExceeded = false
+    local modeSummary = tImportMode.summarizeModes(
+        rows,
+        getBlenderImportOptionsForRow,
+        tBlender.getPreferSkeletal(),
+        tBlender.getLargeMeshModeArg())
     for i = 1, #rows do
         local est = getRowImportEstimate(rows[i])
         targetFrames = targetFrames + est.targetFrames
@@ -1098,10 +1141,11 @@ local function getBlenderImportEstimateSummary()
         statsMissing = statsMissing,
         vertexLimitExceeded = vertexLimitExceeded,
         warning = warning,
+        modeSummary = modeSummary,
     }
 end
 
-local function getBlenderLargeMeshModeArg()
+tBlender.getLargeMeshModeArg = function()
     if (tBlenderImportState.iLargeMeshMode or 1) == 2 then
         return 'vb_only'
     end
@@ -1114,9 +1158,12 @@ local function makeBlenderClipFromSource(src, index, previous)
     local frameEnd = math.max(1, math.floor(tonumber(src.frameEnd or frameStart) or frameStart))
     local clip = previous or {}
     clip.enabled = clip.enabled == true
+    clip.sourceKey = makeBlenderSourceKey(src)
     clip.sourceIndex = index or clip.sourceIndex or 0
     clip.sourceName = tostring(src.name or ('Source ' .. tostring(index or 0)))
     clip.kind = tostring(src.kind or '')
+    clip.sourceObject = tostring(src.object or '')
+    clip.sourceAction = tostring(src.action or src.name or '')
     clip.reason = tostring(src.reason or src.confidence or '')
     clip.name = tostring(clip.name or src.name or ('Bake ' .. tostring(index or 0)))
     clip.frameStart = math.max(1, math.floor(tonumber(clip.frameStart or frameStart) or frameStart))
@@ -1130,9 +1177,17 @@ local function syncBlenderClipsWithSources(anim)
     if type(sources) ~= 'table' then return end
     anim.tClips = type(anim.tClips) == 'table' and anim.tClips or {}
     local old = anim.tClips
+    local oldByKey = {}
+    for i = 1, #old do
+        local key = old[i] and old[i].sourceKey
+        if key and key ~= '' then
+            oldByKey[key] = old[i]
+        end
+    end
     local clips = {}
     for i = 1, #sources do
-        clips[i] = makeBlenderClipFromSource(sources[i], i, old[i])
+        local key = makeBlenderSourceKey(sources[i])
+        clips[i] = makeBlenderClipFromSource(sources[i], i, oldByKey[key] or old[i])
     end
     anim.tClips = clips
 end
@@ -1159,42 +1214,48 @@ local function getSelectedBlenderClips(anim)
                 frameEnd = math.max(1, clip.frameEnd or clip.frameStart or 1),
                 sampleStep = math.max(1, clip.sampleStep or 1),
                 sourceIndex = clip.sourceIndex or i,
+                sourceKind = clip.kind or '',
+                sourceObject = clip.sourceObject or '',
+                sourceAction = clip.sourceAction or '',
             }
         end
     end
     return out
 end
 
-local function applyBlenderSourceToSettings(anim, src, index)
-    if not src then return end
+local function applyBlenderSourceIndicesToSettings(anim, indices)
+    if type(indices) ~= 'table' or #indices == 0 then
+        return false
+    end
+
     syncBlenderClipsWithSources(anim)
     local clips = anim.tClips or {}
     for i = 1, #clips do
         clips[i].enabled = false
     end
-    local clip = clips[index]
-    if clip then
-        clip.enabled = true
-        anim.bManualRange = false
-        anim.bEnableAnimation = true
-        anim.iSelectedSource = index or 0
-        anim.iFrameStart = clip.frameStart
-        anim.iFrameEnd = clip.frameEnd
-        anim.iSampleStep = clip.sampleStep
-        anim.sAnimationName = clip.name or tostring(src.name or 'Bake')
-    end
-end
 
-local function getBestBlenderScanSource(scanData)
-    local sources = scanData and scanData.sources
-    if type(sources) ~= 'table' then return nil, 0 end
-    for i = 1, #sources do
-        local src = sources[i]
-        if src.confidence == 'high' and getSourceFrameCount(src) > 1 then
-            return src, i
+    local firstClip = nil
+    for i = 1, #indices do
+        local index = indices[i]
+        local clip = clips[index]
+        if clip then
+            clip.enabled = true
+            firstClip = firstClip or clip
         end
     end
-    return nil, 0
+
+    if not firstClip then
+        return false
+    end
+
+    anim.bManualRange = false
+    anim.bEnableAnimation = true
+    anim.iSelectedSource = firstClip.sourceIndex or indices[1] or 0
+    anim.iFrameStart = firstClip.frameStart
+    anim.iFrameEnd = firstClip.frameEnd
+    anim.iSampleStep = firstClip.sampleStep
+    anim.sAnimationName = firstClip.name or 'Bake'
+    return true
 end
 
 local function canBakeBlenderAnimation(anim)
@@ -1232,9 +1293,12 @@ local function applyBlenderScanDefaults(row)
     end
 
     syncBlenderClipsWithSources(anim)
-    local src, index = getBestBlenderScanSource(anim.scanData)
-    if src then
-        applyBlenderSourceToSettings(anim, src, index)
+    local selectedIndices = tImportMode.selectDefaultAnimationSourceIndices(
+        anim.scanData,
+        tBlender.getPreferSkeletal(),
+        anim.bSourceSelectionManual == true)
+    if #selectedIndices > 0 then
+        applyBlenderSourceIndicesToSettings(anim, selectedIndices)
     elseif not canBakeBlenderAnimation(anim) then
         anim.bEnableAnimation = false
         anim.iSelectedSource = 0
@@ -1531,6 +1595,13 @@ local function validateBlenderScanData(tData)
         src.fps = tonumber(src.fps or scene.fps) or scene.fps
         src.confidence = tostring(src.confidence or 'low')
         src.reason = tostring(src.reason or '')
+        src.object = tostring(src.object or '')
+        src.objectType = tostring(src.objectType or src.type or '')
+        src.hasGeometryAnimation = src.hasGeometryAnimation == true
+        src.hasTextureAnimation = src.hasTextureAnimation == true
+        src.hasSkeletalAnimation = src.hasSkeletalAnimation == true
+        src.hasArmatureAnimation = src.hasArmatureAnimation == true
+        src.isCanonicalArmatureSource = src.isCanonicalArmatureSource == true
     end
 
     if type(tData.meshStats) == 'table' then
@@ -1544,6 +1615,15 @@ local function validateBlenderScanData(tData)
         stats.error = tostring(stats.error or '')
     else
         tData.meshStats = { available = false, textureSearchPaths = {} }
+    end
+
+    if type(tData.skeletalCapability) == 'table' then
+        local cap = tData.skeletalCapability
+        cap.available = cap.available == true
+        cap.reason = tostring(cap.reason or '')
+        cap.armatureCount = math.max(0, math.floor(tonumber(cap.armatureCount or 0) or 0))
+        cap.boneCount = math.max(0, math.floor(tonumber(cap.boneCount or 0) or 0))
+        cap.skinnedMeshCount = math.max(0, math.floor(tonumber(cap.skinnedMeshCount or 0) or 0))
     end
 
     return true
@@ -1629,6 +1709,51 @@ local function pollBlenderAnimationScan(row)
         anim.scanStatus = 'failed'
         anim.scanError = tLang.L('blender_anim_scan_timed_out')
     end
+end
+
+local function ensureBlenderImportScanReady(row)
+    local st = tBlenderImportState
+    local anim = ensureBlenderAnimSettings(row)
+    if not tBlender.getPreferSkeletal() then
+        return true
+    end
+
+    if anim.scanStatus == 'ready' then
+        applyBlenderScanDefaults(row)
+        return true
+    end
+
+    if anim.scanStatus ~= 'scanning' then
+        startBlenderAnimationScan(row)
+        anim = ensureBlenderAnimSettings(row)
+    end
+
+    local lastWaitLog = -1
+    while anim.scanStatus == 'scanning' do
+        if st.bAbortRequested then
+            return false, tLang.L('blender_import_status_canceled')
+        end
+        pollBlenderAnimationScan(row)
+        if anim.scanStatus ~= 'scanning' then
+            break
+        end
+        st.sProgressDetail = string.format(tLang.L('blender_import_progress_scan_wait_fmt'), tUtil.getShortName(row.path or ''))
+        if st.bPrintDebugSteps then
+            local elapsed = os.time() - (anim.scanStartTime or os.time())
+            local nowTick = math.floor(elapsed / 5)
+            if nowTick ~= lastWaitLog then
+                blenderDebugPrint(st, 'waiting scan (%ds): %s', elapsed, row.path or '')
+                lastWaitLog = nowTick
+            end
+        end
+        coroutine.yield()
+    end
+
+    if anim.scanStatus == 'ready' then
+        return true
+    end
+
+    return false, anim.scanError ~= '' and anim.scanError or tLang.L('blender_anim_scan_failed')
 end
 
 local function validateIntermediateData(tData)
@@ -2038,13 +2163,22 @@ local function buildBlenderImportSuccessSummary(row, outMsh, importOptions)
     else
         animationText = string.format(tLang.L('blender_import_summary_static_fmt'), (importOptions and importOptions.frameStart) or 1)
     end
-    return string.format(
+    local summary = string.format(
         tLang.L('blender_import_summary_fmt'),
         outMsh,
         frames,
         animationText,
         sizeText,
         textureText)
+    local modeInfo = importOptions and importOptions.modeInfo or nil
+    if modeInfo and modeInfo.mode == 'skeletal' then
+        summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_skeletal_fmt'), importOptions.skeletalKeySamples or 1)
+    elseif modeInfo and modeInfo.fallbackExpected then
+        summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_baked_fallback_fmt'), tBlender.getImportModeReasonText(modeInfo))
+    elseif modeInfo and modeInfo.unknown then
+        summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_unknown_preference_fmt'), modeInfo.reason or '')
+    end
+    return summary
 end
 
 local function blenderImportCoroutine()
@@ -2087,7 +2221,30 @@ local function blenderImportCoroutine()
         blenderDebugPrint(st, 'outputs: stream=%s manifest=%s msh=%s log=%s', outDir, outManifest, outMsh, dbgLog)
         st.sProgressDetail = string.format(tLang.L('blender_import_progress_waiting_fmt'), tUtil.getShortName(src))
 
+        local scanOk, scanErr = ensureBlenderImportScanReady(row)
+        local scanWarning = nil
+        if not scanOk then
+            if st.bAbortRequested then
+                failed = failed + 1
+                lastErr = scanErr or tLang.L('blender_import_status_canceled')
+                blenderDebugPrint(st, 'pre-import scan canceled: %s', lastErr)
+                pushBlenderRunResult(src, 'failed', lastErr)
+                st.iProgress = i
+                st.sCancelFile = ''
+                break
+            end
+            scanWarning = scanErr or tLang.L('blender_anim_scan_failed')
+            blenderDebugPrint(st, 'pre-import scan warning: %s', scanWarning)
+        end
+
         local importOptions = getBlenderImportOptionsForRow(row)
+        local modeInfo = tBlender.getRowImportMode(row)
+        if scanWarning and modeInfo.unknown then
+            modeInfo.reason = scanWarning
+        end
+        local rowEstimate = getRowImportEstimate(row)
+        importOptions.modeInfo = modeInfo
+        importOptions.skeletalKeySamples = rowEstimate.skeletalKeySamples or 0
         importOptions.debugSteps = st.bPrintDebugSteps
         importOptions.cancelFile = cancelFile
         importOptions.streamOutput = modeIntermediateOnly
@@ -2098,10 +2255,15 @@ local function blenderImportCoroutine()
         importOptions.importAngleX = st.nImportAngleX
         importOptions.importAngleY = st.nImportAngleY
         importOptions.importAngleZ = st.nImportAngleZ
-        importOptions.largeMeshMode = getBlenderLargeMeshModeArg()
-        importOptions.includeBones = st.bImportIncludeBones
+        importOptions.largeMeshMode = tBlender.getLargeMeshModeArg()
+        importOptions.includeBones = tBlender.getPreferSkeletal()
         local cmd = tBlender.buildBakeCmd(src, modeIntermediateOnly and outDir or outMsh, exporterPath, importOptions)
         if cmd then
+            if modeInfo.fallbackExpected then
+                blenderDebugPrint(st, 'skeletal preference fallback expected: %s', modeInfo.reason or '')
+            elseif modeInfo.unknown then
+                blenderDebugPrint(st, 'skeletal preference scan unknown: %s', modeInfo.reason or '')
+            end
             tBlender.launchCmdAsync(cmd, dbgLog)
             st.sCancelFile = cancelFile
             local startTime = os.time()
@@ -2109,7 +2271,7 @@ local function blenderImportCoroutine()
             local lastWaitLog = -1
             local lastLogLinePrinted = nil
             local lastProgressLine = nil
-            local expectedFrames = importOptions.bakeAnimation and getBakedFrameCount(importOptions.frameStart, importOptions.frameEnd, importOptions.sampleStep) or 1
+            local expectedFrames = rowEstimate.targetFrames or 1
             local finished = false
             while not finished do
                 if st.bAbortRequested then
@@ -2341,15 +2503,19 @@ local function showBlenderAnimationSettingsPopup(st)
         local changedStatic, newStatic = tImGui.InputInt(tLang.L('blender_anim_static_frame'), anim.iStaticFrame or 1, 1, 10)
         if changedStatic and newStatic then
             anim.iStaticFrame = math.max(1, newStatic)
+            anim.bSourceSelectionManual = true
         end
     elseif anim.scanStatus == 'ready' then
         local scan = anim.scanData or {}
         local scene = scan.scene or {}
+        local modeInfo = tBlender.getRowImportMode(row)
+        local presentationKeys = tImportMode.getAnimationPresentationKeys(modeInfo)
         tImGui.Text(string.format(tLang.L('blender_anim_scene_info_fmt'),
             scene.frameStart or 1,
             scene.frameEnd or 1,
             tonumber(scene.fps or 0) or 0))
         local stats = scan.meshStats or {}
+        local cap = modeInfo.capability or {}
         if stats.available then
             local rowEstimate = getRowImportEstimate(row)
             tImGui.TextDisabled(string.format(
@@ -2363,6 +2529,21 @@ local function showBlenderAnimationSettingsPopup(st)
                 formatBytes(rowEstimate.estimatedRawBytes or 0)))
         elseif stats.error and stats.error ~= '' then
             tImGui.TextDisabled(string.format(tLang.L('blender_anim_mesh_stats_unavailable_fmt'), stats.error))
+        end
+
+        if modeInfo.mode == 'skeletal' then
+            tImGui.TextDisabled(string.format(
+                tLang.L('blender_anim_skeletal_available_fmt'),
+                cap.boneCount or 0,
+                cap.skinnedMeshCount or 0))
+        elseif modeInfo.fallbackExpected then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(string.format(tLang.L('blender_anim_skeletal_fallback_fmt'), tBlender.getImportModeReasonText(modeInfo)))
+            tImGui.PopStyleColor()
+        elseif modeInfo.unknown then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(string.format(tLang.L('blender_anim_skeletal_unknown_fmt'), modeInfo.reason or ''))
+            tImGui.PopStyleColor()
         end
 
         local issues = scan.meshCacheIssues or {}
@@ -2387,7 +2568,7 @@ local function showBlenderAnimationSettingsPopup(st)
                 tImGui.TableSetupColumn(tLang.L('blender_anim_col_use'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 55)
                 tImGui.TableSetupColumn(tLang.L('blender_anim_col_name'))
                 tImGui.TableSetupColumn(tLang.L('blender_anim_col_kind'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 100)
-                tImGui.TableSetupColumn(tLang.L('blender_anim_col_frames'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
+                tImGui.TableSetupColumn(tLang.L(presentationKeys.sourceFramesColumnKey), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
                 tImGui.TableSetupColumn(tLang.L('blender_anim_col_reason'))
                 tImGui.TableHeadersRow()
                 for i = 1, #sources do
@@ -2400,6 +2581,7 @@ local function showBlenderAnimationSettingsPopup(st)
                         clip.enabled = newEnabled
                         anim.bManualRange = false
                         anim.bEnableAnimation = true
+                        anim.bSourceSelectionManual = true
                         if newEnabled then
                             anim.iSelectedSource = i
                         end
@@ -2419,13 +2601,24 @@ local function showBlenderAnimationSettingsPopup(st)
         end
 
         tImGui.Separator()
+        local sampleStepTooltip = (modeInfo.mode == 'skeletal')
+            and tLang.L('blender_import_sample_step_skeletal_tooltip')
+            or tLang.L('blender_import_sample_step_baked_tooltip')
         local canBake = canBakeBlenderAnimation(anim)
         if not canBake then
             anim.bEnableAnimation = false
         end
         if not canBake then tImGui.BeginDisabled(true) end
-        anim.bEnableAnimation = tImGui.Checkbox(tLang.L('blender_import_bake_animation'), anim.bEnableAnimation)
+        local oldEnableAnimation = anim.bEnableAnimation == true
+        anim.bEnableAnimation = tImGui.Checkbox(
+            tLang.L(tImportMode.getAnimationToggleLabelKey(modeInfo)),
+            anim.bEnableAnimation)
+        if anim.bEnableAnimation ~= oldEnableAnimation then
+            anim.bSourceSelectionManual = true
+        end
         if not canBake then tImGui.EndDisabled() end
+        tImGui.SameLine()
+        tImGui.HelpMarker(tLang.L(tImportMode.getAnimationToggleHelpKey()))
         if not canBake then
             tImGui.TextDisabled(tLang.L('blender_anim_bake_disabled_cache_issue'))
         end
@@ -2433,10 +2626,16 @@ local function showBlenderAnimationSettingsPopup(st)
             local changedStatic, newStatic = tImGui.InputInt(tLang.L('blender_anim_static_frame'), anim.iStaticFrame or 1, 1, 10)
             if changedStatic and newStatic then
                 anim.iStaticFrame = math.max(1, newStatic)
+                anim.bSourceSelectionManual = true
             end
         else
+            local oldManualRange = anim.bManualRange == true
             anim.bManualRange = tImGui.Checkbox(tLang.L('blender_anim_manual_range'), anim.bManualRange)
+            if anim.bManualRange ~= oldManualRange then
+                anim.bSourceSelectionManual = true
+            end
             if anim.bManualRange then
+                anim.bSourceSelectionManual = true
                 anim.iSelectedSource = 0
                 if type(anim.tClips) == 'table' then
                     for i = 1, #anim.tClips do
@@ -2450,14 +2649,15 @@ local function showBlenderAnimationSettingsPopup(st)
 
             local selectedClips = getSelectedBlenderClips(anim)
             if not anim.bManualRange and #selectedClips > 0 then
-                tImGui.Text(tLang.L('blender_anim_selected_clips_title'))
+                tImGui.Text(tLang.L(presentationKeys.selectedClipsTitleKey))
+                tImGui.TextDisabled(tLang.L(presentationKeys.sourceRangeHelpKey))
                 local clipFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
                 if tImGui.BeginTable('blenderSelectedClipsTable', 5, clipFlags, {x=1080, y=math.min(180, 34 + (#selectedClips * 30))}) then
                     tImGui.TableSetupColumn(tLang.L('blender_anim_col_name'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 430)
-                    tImGui.TableSetupColumn(tLang.L('blender_import_frame_start'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 135)
-                    tImGui.TableSetupColumn(tLang.L('blender_import_frame_end'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 135)
+                    tImGui.TableSetupColumn(tLang.L(presentationKeys.frameStartKey), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 135)
+                    tImGui.TableSetupColumn(tLang.L(presentationKeys.frameEndKey), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 135)
                     tImGui.TableSetupColumn(tLang.L('blender_import_sample_step'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 150)
-                    tImGui.TableSetupColumn(tLang.L('blender_anim_col_frames'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+                    tImGui.TableSetupColumn(tLang.L(presentationKeys.sampleCountColumnKey), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
                     tImGui.TableHeadersRow()
                     for i = 1, #(anim.tClips or {}) do
                         local clip = anim.tClips[i]
@@ -2467,25 +2667,37 @@ local function showBlenderAnimationSettingsPopup(st)
                             tImGui.PushItemWidth(-1)
                             local nameChanged, newName = tImGui.InputText('##clipName-' .. i, clip.name or ('Bake ' .. i), 64, 0)
                             tImGui.PopItemWidth()
-                            if nameChanged and newName then clip.name = newName end
+                            if nameChanged and newName then
+                                clip.name = newName
+                                anim.bSourceSelectionManual = true
+                            end
                             tImGui.TableNextColumn()
                             tImGui.PushItemWidth(-1)
                             local fsChanged, newFs = tImGui.InputInt('##clipStart-' .. i, clip.frameStart or 1, 1, 10)
                             tImGui.PopItemWidth()
-                            if fsChanged and newFs then clip.frameStart = math.max(1, newFs) end
+                            if fsChanged and newFs then
+                                clip.frameStart = math.max(1, newFs)
+                                anim.bSourceSelectionManual = true
+                            end
                             tImGui.TableNextColumn()
                             tImGui.PushItemWidth(-1)
                             local feChanged, newFe = tImGui.InputInt('##clipEnd-' .. i, clip.frameEnd or clip.frameStart or 1, 1, 10)
                             tImGui.PopItemWidth()
-                            if feChanged and newFe then clip.frameEnd = math.max(1, newFe) end
+                            if feChanged and newFe then
+                                clip.frameEnd = math.max(1, newFe)
+                                anim.bSourceSelectionManual = true
+                            end
                             tImGui.TableNextColumn()
                             tImGui.PushItemWidth(-1)
                             local stepChanged, newStep = tImGui.InputInt('##clipStep-' .. i, clip.sampleStep or 1, 1, 10)
                             tImGui.PopItemWidth()
-                            if stepChanged and newStep then clip.sampleStep = math.max(1, newStep) end
+                            if stepChanged and newStep then
+                                clip.sampleStep = math.max(1, newStep)
+                                anim.bSourceSelectionManual = true
+                            end
                             if tImGui.IsItemHovered(0) then
                                 tImGui.BeginTooltip()
-                                tImGui.Text(tLang.L('blender_import_sample_step_tooltip'))
+                                tImGui.Text(sampleStepTooltip)
                                 tImGui.EndTooltip()
                             end
                             tImGui.TableNextColumn()
@@ -2498,46 +2710,57 @@ local function showBlenderAnimationSettingsPopup(st)
                 local nameChanged, newName = tImGui.InputText(tLang.L('blender_anim_engine_name'), anim.sAnimationName or 'Bake', 64, 0)
                 if nameChanged and newName then
                     anim.sAnimationName = newName
+                    anim.bSourceSelectionManual = true
                 end
+                tImGui.TextDisabled(tLang.L(presentationKeys.sourceRangeHelpKey))
 
-                local fsChanged, newFs = tImGui.InputInt(tLang.L('blender_import_frame_start'), anim.iFrameStart or 1, 1, 10)
+                local fsChanged, newFs = tImGui.InputInt(tLang.L(presentationKeys.frameStartKey), anim.iFrameStart or 1, 1, 10)
                 if fsChanged and newFs then
                     anim.iFrameStart = math.max(1, newFs)
+                    anim.bSourceSelectionManual = true
                 end
-                local feChanged, newFe = tImGui.InputInt(tLang.L('blender_import_frame_end'), anim.iFrameEnd or anim.iFrameStart or 1, 1, 10)
+                local feChanged, newFe = tImGui.InputInt(tLang.L(presentationKeys.frameEndKey), anim.iFrameEnd or anim.iFrameStart or 1, 1, 10)
                 if feChanged and newFe then
                     anim.iFrameEnd = math.max(1, newFe)
+                    anim.bSourceSelectionManual = true
                 end
                 local stepChanged, newStep = tImGui.InputInt(tLang.L('blender_import_sample_step'), anim.iSampleStep or 1, 1, 10)
                 if stepChanged and newStep then
                     anim.iSampleStep = math.max(1, newStep)
+                    anim.bSourceSelectionManual = true
                 end
                 if tImGui.IsItemHovered(0) then
                     tImGui.BeginTooltip()
-                    tImGui.Text(tLang.L('blender_import_sample_step_tooltip'))
+                    tImGui.Text(sampleStepTooltip)
                     tImGui.EndTooltip()
                 end
             end
 
-            local baked = 0
+            local samples = 0
             local clipsForEstimate = getSelectedBlenderClips(anim)
             if #clipsForEstimate > 0 then
                 for i = 1, #clipsForEstimate do
-                    baked = baked + getBakedFrameCount(clipsForEstimate[i].frameStart, clipsForEstimate[i].frameEnd, clipsForEstimate[i].sampleStep)
+                    samples = samples + getBakedFrameCount(clipsForEstimate[i].frameStart, clipsForEstimate[i].frameEnd, clipsForEstimate[i].sampleStep)
                 end
             else
-                baked = getBakedFrameCount(anim.iFrameStart, anim.iFrameEnd, anim.iSampleStep)
+                samples = getBakedFrameCount(anim.iFrameStart, anim.iFrameEnd, anim.iSampleStep)
             end
             local warnKey = nil
-            if baked > 800 then
+            if samples > 800 then
                 warnKey = 'blender_anim_warning_red_fmt'
-            elseif baked > 300 then
+            elseif samples > 300 then
                 warnKey = 'blender_anim_warning_yellow_fmt'
             end
-            tImGui.Text(string.format(tLang.L('blender_anim_estimate_fmt'), baked))
-            if warnKey then
+            if modeInfo.mode == 'skeletal' then
+                tImGui.Text(string.format(tLang.L('blender_anim_estimate_skeletal_fmt'), samples))
+            elseif modeInfo.unknown then
+                tImGui.Text(tLang.L('blender_anim_estimate_unknown_preference'))
+            else
+                tImGui.Text(string.format(tLang.L('blender_anim_estimate_baked_fmt'), samples))
+            end
+            if warnKey and modeInfo.mode ~= 'skeletal' and not modeInfo.unknown then
                 tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
-                tImGui.TextWrapped(string.format(tLang.L(warnKey), baked))
+                tImGui.TextWrapped(string.format(tLang.L(warnKey), samples))
                 tImGui.PopStyleColor()
             end
         end
@@ -2625,11 +2848,8 @@ function showBlenderImportDialog()
     local iW, iH = mbm.getRealSizeScreen()
     local maxW = math.max(420, iW - 40)
     local maxH = math.max(260, iH - 60)
-    local initialW = math.min(720, maxW)
-    local initialH = math.min(600, maxH)
     tImGui.SetNextWindowSizeConstraints({x=420, y=260}, {x=maxW, y=maxH})
-    tImGui.SetNextWindowSize({x=initialW, y=initialH}, tImGui.Flags('ImGuiCond_Appearing'))
-    local flags = 0
+    local flags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
     local isOpen, _ = tImGui.BeginPopupModal(tLang.L('blender_import_modal_title') .. '###blender_import_modal', false, flags)
     if not isOpen then return end
 
@@ -2776,9 +2996,10 @@ function showBlenderImportDialog()
     if (st.iLargeMeshMode or 1) == 2 then
         tImGui.TextDisabled(tLang.L('blender_import_large_mesh_vb_only_note'))
     end
-    st.bImportIncludeBones = tImGui.Checkbox(tLang.L('blender_import_include_bones'), st.bImportIncludeBones)
+    st.bImportPreferSkeletal = tImGui.Checkbox(tLang.L('blender_import_prefer_skeletal'), tBlender.getPreferSkeletal())
+    st.bImportIncludeBones = st.bImportPreferSkeletal
     tImGui.SameLine()
-    tImGui.HelpMarker(tLang.L('blender_import_include_bones_help'))
+    tImGui.HelpMarker(tLang.L('blender_import_prefer_skeletal_help'))
     tImGui.Separator()
     st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
     tImGui.BeginDisabled(not st.bImportPostProcess)
@@ -2852,6 +3073,23 @@ function showBlenderImportDialog()
         if estimate.warning then
             tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
             tImGui.TextWrapped(estimate.warning)
+            tImGui.PopStyleColor()
+        end
+        local ms = estimate.modeSummary or {}
+        if (ms.skeletalFiles or 0) > 0 then
+            tImGui.TextDisabled(string.format(tLang.L('blender_import_estimate_skeletal_summary_fmt'), ms.skeletalFiles or 0, ms.skeletalKeySamples or 0))
+        end
+        if (ms.bakedFiles or 0) > 0 then
+            tImGui.TextDisabled(string.format(tLang.L('blender_import_estimate_baked_summary_fmt'), ms.bakedFiles or 0, ms.bakedMeshFrames or 0))
+        end
+        if (ms.fallbackFiles or 0) > 0 then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(string.format(tLang.L('blender_import_estimate_fallback_summary_fmt'), ms.fallbackFiles or 0))
+            tImGui.PopStyleColor()
+        end
+        if (ms.unknownFiles or 0) > 0 then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(string.format(tLang.L('blender_import_estimate_unknown_summary_fmt'), ms.unknownFiles or 0))
             tImGui.PopStyleColor()
         end
         tImGui.TextDisabled(tLang.L('blender_import_multi_anim_note'))
@@ -3396,7 +3634,7 @@ function updatePreviewMesh()
     local loadPath = fileName
     if tEntry.modified then
         local ext = fileName:match('%.([^%.]+)$') or 'msh'
-        tEntry.previewPath = tEntry.previewPath or (os.tmpname() .. '.' .. ext)
+        tEntry.previewPath = tEntry.previewPath or tUtil.getTemporaryFilePath('.' .. ext)
         if meshD:save(tEntry.previewPath, false, false) then
             meshDebug:fakeRelease(fileName)
             meshDebug:fakeRelease(tEntry.previewPath)
@@ -4053,7 +4291,7 @@ function refreshFrameFilterPreview(tEntry, index)
 
     -- Save filtered mesh to a dedicated temp path
     local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
-    tEntry.framePreviewPath = tEntry.framePreviewPath or (os.tmpname() .. '.' .. ext)
+    tEntry.framePreviewPath = tEntry.framePreviewPath or tUtil.getTemporaryFilePath('.' .. ext)
     if not tempD:save(tEntry.framePreviewPath, false, false) then return end
     meshDebug:fakeRelease(tEntry.framePreviewPath)
 
@@ -4314,18 +4552,20 @@ local function indexOf(t, val)
     return 1
 end
 
--- Aggregates SECTION_VERTEX_SKIN_WEIGHTS summary stats (docs/mesh-v11-format.md Sec. 6f) by
+-- Aggregates canonical SECTION_SKELETAL_WEIGHTS summary stats by
 -- looping every frame-1 vertex, mirroring getMeshTotalVertices/getMeshTotalTriangles's own
 -- per-frame/per-subset aggregation idiom -- except this loop is per-VERTEX (thousands, not tens),
 -- so the caller MUST cache the result (tEntry.weightStats) rather than calling this every frame;
 -- see showMeshInfoTable's own cache-invalidation comment for where it gets cleared.
 local function computeWeightStats(meshD)
-    local okHas, has = dpCall(function() return meshD:hasVertexWeights() end)
+    local okHas, has = dpCall(function() return meshD:hasSkeletalVertexWeights() end)
     if not (okHas and has) then return { has = false } end
     local nVert = getMeshTotalVertices(meshD)
     local weighted, totalInfluences, maxInfluences = 0, 0, 0
     for i = 1, nVert do
-        local okGW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function() return meshD:getVertexWeight(i) end)
+        local okGW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function()
+            return meshD:getSkeletalVertexWeight(i)
+        end)
         if okGW and n1 then
             weighted = weighted + 1
             local infl = 1
@@ -4336,7 +4576,7 @@ local function computeWeightStats(meshD)
             if infl > maxInfluences then maxInfluences = infl end
         end
     end
-    local okBones, nBones = dpCall(function() return meshD:getTotalVertexWeightBones() end)
+    local okBones, nBones = dpCall(function() return meshD:getTotalSkeletalWeightBones() end)
     return {
         has = true,
         totalVertices = nVert,
@@ -4387,7 +4627,7 @@ function showMeshInfoTable(tEntry, index)
     local texList = getMeshTextures(meshD)
     if #texList > 0 then addRow('Textures', table.concat(texList, ', ')) end
 
-    -- SECTION_VERTEX_SKIN_WEIGHTS (docs/mesh-v11-format.md Sec. 6f) summary. Cached on tEntry
+    -- Canonical type-42 summary. Cached on tEntry
     -- (computeWeightStats loops every vertex -- thousands, unlike this table's other per-frame/
     -- per-subset stats above), invalidated only by onEdit() below (the same "Remove" action that
     -- can change it) and by import/reload (addMeshToTable never carries a stale tEntry forward).
@@ -4420,26 +4660,6 @@ function showMeshInfoTable(tEntry, index)
                 tImGui.TextWrapped(tRows[i][2])
             end
             tImGui.EndTable()
-        end
-    end
-
-    -- Editable: Remove Vertex Skin Weights (single mesh) -- mirrors the Normals node's own
-    -- removeNormals pattern (byte-savings toast computed before removal, then clear + invalidate
-    -- caches). The main use case (per direct user request): once the FBX exported with real
-    -- weights has done its job for an external animation tool, and this engine only ever supports
-    -- static-frame mesh (no runtime skinning consumer exists to use this data going forward), the
-    -- section can be dropped to reclaim file size.
-    if ws.has then
-        tImGui.Spacing()
-        if tImGui.Button(tLang.L('remove_vertex_weights') .. '##removeVertexWeights-' .. index) then
-            local shortName = tUtil.getShortName(tEntry.fileName)
-            local bytesSaved = ws.weightedVertices * 20 -- 4x u8 paletteIndex + 4x f32 weight per vertex
-            local okRemove = dpCall(function() meshD:removeVertexWeights() end)
-            if okRemove then
-                onEdit()
-                tUtil.showMessage(string.format('Removed vertex skin weights: %s\n%d vertices (~%s saved)',
-                    shortName, ws.weightedVertices, formatBytes(bytesSaved)), 5)
-            end
         end
     end
 
@@ -4992,16 +5212,21 @@ function transformCoversWholeMesh(frame, subset)
     return (frame or 0) == 0 and (subset or 0) == 0
 end
 
-function synchronizedScaleIsSupported(meshD, frame, subset, sx, sy, sz)
-    if not transformCoversWholeMesh(frame, subset) then return true end
-    local okTotal, totalBones = dpCall(function() return meshD:getTotalBone() end)
-    if not okTotal or totalBones == 0 then return true end
-    local tolerance = math.max(1, math.abs(sx), math.abs(sy), math.abs(sz)) * 0.000001
-    if sx <= 0 or math.abs(sx-sy) > tolerance or math.abs(sx-sz) > tolerance then
-        tUtil.showMessageWarn(tLang.L('bones_uniform_positive_scale_required'))
-        return false
+local function scaleGeometryOrSkeletalAsset(meshD, frame, subset, sx, sy, sz)
+    if transformCoversWholeMesh(frame, subset) then
+        local okReport, report = dpCall(function() return meshD:getSkeletonBindReport() end)
+        if okReport and report and report.canonical and (report.boneCount or 0) > 0 then
+            local tolerance = math.max(1, math.abs(sx), math.abs(sy), math.abs(sz)) * 0.000001
+            if sx <= 0 or math.abs(sx - sy) > tolerance or math.abs(sx - sz) > tolerance then
+                tUtil.showMessageWarn(tLang.L('bones_uniform_positive_scale_required'))
+                return false
+            end
+            local ok, err = dpCall(function() meshD:scaleSkeletalAsset(sx) end)
+            if not ok then tUtil.showMessageWarn(tostring(err)) end
+            return ok
+        end
     end
-    return true
+    return dpCall(function() meshD:scaleFrame(frame, sx, sy, sz, subset) end)
 end
 
 local function applyTranslateToBones(meshD, dx, dy, dz)
@@ -5121,22 +5346,20 @@ end
 -- position (onTouchMove, via onBonesEdit -- same call path the DragFloat X/Y/Z fields already use
 -- on every frame while being click-dragged in ImGui, so a full rebuild on every 3D-viewport drag
 -- frame too is consistent with existing, already-shipped behavior for this exact mutation).
+local getBoneList
 function rebuildBoneGizmo(tEntry, meshD, index)
     destroyBoneGizmo(tEntry)
     if tEntry.sOpenNode ~= 'bones' or index ~= iSelectedMeshIndex then return end
 
-    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
-    nBones = (okTotal and nBones) or 0
+    local boneList, nBones = getBoneList(meshD)
     if nBones == 0 then return end
 
     local tBones = {}
-    for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ = dpCall(function() return meshD:getBone(i) end)
-        if okG and name then
-            local wx, wy, wz = boneToWorld(meshD, x, y, z)
-            tBones[name] = { wx = wx, wy = wy, wz = wz, radius = radius or 1, parentName = parentName,
-                rotX = rotX or 0, rotY = rotY or 0, rotZ = rotZ or 0 }
-        end
+    for _, bone in ipairs(boneList) do
+        local wx, wy, wz = boneToWorld(meshD, bone.x, bone.y, bone.z)
+        tBones[bone.name] = { wx = wx, wy = wy, wz = wz, radius = bone.radius or 1,
+            parentName = bone.parentName, rotX = bone.rotX or 0, rotY = bone.rotY or 0,
+            rotZ = bone.rotZ or 0 }
     end
 
     local tHighlight = tEntry.tBoneHighlight or {}
@@ -5776,7 +5999,10 @@ end
 
 -- Dumps frame 1's raw geometry (all subsets, pooled into one combined vertex list with globally-
 -- offset indices, each subset keeping its own resolved texture path) plus the mesh's current bone
--- list (may be empty -- a mesh-only FBX is still a valid export) to jsonPath.
+-- list and sampled canonical skeletal clips (either may be empty -- a mesh-only FBX is still a
+-- valid export) to jsonPath. Animation poses are sampled by the engine itself so easing,
+-- quaternion interpolation, hierarchy composition, and scale use exactly the runtime evaluator
+-- instead of being reimplemented differently in the Blender bridge.
 local function writeMeshDebugJson(meshD, jsonPath)
     local okTF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     nFrames = (okTF and nFrames) or 0
@@ -5805,34 +6031,109 @@ local function writeMeshDebugJson(meshD, jsonPath)
         restoreLocale()
         return false, 'Failed to create file: ' .. jsonPath
     end
+    local function abortWrite(message)
+        f:close()
+        restoreLocale()
+        os.remove(jsonPath)
+        return false, message
+    end
 
-    f:write('{\n  "joints": [\n')
-    local okTB, nBones = dpCall(function() return meshD:getTotalBone() end)
-    nBones = (okTB and nBones) or 0
-    for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
-            dpCall(function() return meshD:getBone(i) end)
-        if okG and name then
-            f:write(string.format(
-                '    { "name": %s, "parent": %s, "x": %.6f, "y": %.6f, "z": %.6f, "radius": %.6f, ' ..
-                '"rotX": %.6f, "rotY": %.6f, "rotZ": %.6f, "scaleX": %.6f, "scaleY": %.6f, "scaleZ": %.6f, "length": %.6f }',
-                jsonStr(name), parentName and jsonStr(parentName) or 'null', x, y, z, radius,
-                rotX or 0, rotY or 0, rotZ or 0, scaleX or 1, scaleY or 1, scaleZ or 1, length or 0))
-            f:write(i < nBones and ',\n' or '\n')
+    f:write('{\n  "canonicalSkeleton": true,\n  "joints": [\n')
+    local okReport, bindReport = dpCall(function() return meshD:getSkeletonBindReport() end)
+    local reportBones = okReport and type(bindReport) == 'table' and bindReport.canonical == true
+        and bindReport.bones or {}
+    local nBones = #reportBones
+    for i, bone in ipairs(reportBones) do
+        local global = bone.globalBindMatrix or {}
+        local parentName = nil
+        if (bone.parentIndex or 0) > 0 and reportBones[bone.parentIndex] then
+            parentName = reportBones[bone.parentIndex].name
+        end
+        local matrixValues = {}
+        for m = 1, 16 do matrixValues[m] = string.format('%.9g', global[m] or 0) end
+        f:write(string.format(
+            '    { "name": %s, "parent": %s, "x": %.9g, "y": %.9g, "z": %.9g, ' ..
+            '"radius": %.9g, "length": %.9g, "globalBindMatrix": [%s] }',
+            jsonStr(bone.name), parentName and jsonStr(parentName) or 'null',
+            global[13] or 0, global[14] or 0, global[15] or 0,
+            bone.radius or 0, bone.length or 0, table.concat(matrixValues, ', ')))
+        f:write(i < nBones and ',\n' or '\n')
+    end
+    f:write('  ],\n')
+
+    local okAnimations, animations = dpCall(function() return meshD:getSkeletalAnimationReport() end)
+    if not okAnimations then
+        return abortWrite(string.format(tLang.L('bones_export_animation_report_failed_fmt'),
+            tostring(animations)))
+    end
+    animations = okAnimations and type(animations) == 'table' and animations or {}
+    local sampleRate = 30
+    local maxDuration = 0
+    for _, clip in ipairs(animations) do
+        maxDuration = math.max(maxDuration, tonumber(clip.duration) or 0)
+        for _, track in ipairs(clip.tracks or {}) do
+            local previousTime = nil
+            for _, key in ipairs(track.keys or {}) do
+                local keyTime = tonumber(key.time)
+                if previousTime and keyTime and keyTime > previousTime then
+                    local inferredRate = math.floor((1 / (keyTime - previousTime)) + 0.5)
+                    sampleRate = math.max(sampleRate, math.min(120, inferredRate))
+                end
+                previousTime = keyTime
+            end
         end
     end
-    f:write('  ],\n  "mesh": {\n    "vertices": [\n')
+    -- Bound explicitly requested export work as well: very long clips lower their sampling rate
+    -- instead of producing an unbounded JSON/FBX. Ordinary 24/30/60 FPS clips retain their source
+    -- cadence (up to 120 FPS), while a single clip remains capped at roughly 10k samples.
+    if maxDuration > 0 and maxDuration * sampleRate > 10000 then
+        sampleRate = math.max(1, math.floor(10000 / maxDuration))
+    end
+    f:write(string.format('  "animations": { "sampleRate": %d, "clips": [\n', sampleRate))
+    for clipIndex, clip in ipairs(animations) do
+        local duration = math.max(0, tonumber(clip.duration) or 0)
+        local sampleCount = math.ceil(duration * sampleRate)
+        f:write(string.format('    { "name": %s, "duration": %.9g, "loop": %s, "samples": [\n',
+            jsonStr(clip.name), duration, clip.loop and 'true' or 'false'))
+        for sampleIndex = 0, sampleCount do
+            local time = math.min(duration, sampleIndex / sampleRate)
+            local okPose, pose = dpCall(function()
+                return meshD:evaluateSkeletalAuthoringPose(clipIndex, time, 'lbs')
+            end)
+            if not okPose or type(pose) ~= 'table' or type(pose.bones) ~= 'table' or
+                    #pose.bones ~= nBones then
+                return abortWrite(string.format(tLang.L('bones_export_animation_sample_failed_fmt'),
+                    tostring(clip.name or clipIndex), time, tostring(pose)))
+            end
+            f:write(string.format('      { "time": %.9g, "globalMatrices": [', time))
+            for boneIndex, bone in ipairs(pose.bones) do
+                local matrix = bone.globalMatrix or {}
+                if #matrix ~= 16 then
+                    return abortWrite(string.format(tLang.L('bones_export_animation_sample_failed_fmt'),
+                        tostring(clip.name or clipIndex), time, 'invalid global matrix'))
+                end
+                local matrixValues = {}
+                for m = 1, 16 do matrixValues[m] = string.format('%.9g', matrix[m] or 0) end
+                f:write('[' .. table.concat(matrixValues, ', ') .. ']')
+                if boneIndex < nBones then f:write(', ') end
+            end
+            f:write('] }')
+            f:write(sampleIndex < sampleCount and ',\n' or '\n')
+        end
+        f:write('    ] }')
+        f:write(clipIndex < #animations and ',\n' or '\n')
+    end
+    f:write('  ] },\n  "mesh": {\n    "vertices": [\n')
 
-    -- Real per-vertex bone weights (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec. 6f),
-    -- when present, ride along on each vertex dict so blender_mesh_skeleton_export.py's build_mesh
-    -- can use the mesh's own originally-authored weights instead of inventing new ones via
-    -- ARMATURE_ENVELOPE. meshD:getVertexWeight() takes a GLOBAL (frame-wide, across every subset)
-    -- 1-based vertex index -- exactly (totalVerts + v) below, the same running-total convention the
-    -- index-list offset a few lines down already uses for the same reason.
-    local okHasW, hasWeights = dpCall(function() return meshD:hasVertexWeights() end)
+    -- Canonical type-42 weights ride along on each vertex so Blender can restore the authored
+    -- groups exactly. The API uses the same global, frame-wide, one-based vertex order written
+    -- below; no exploratory name palette is consulted.
+    local okHasW, hasWeights = dpCall(function() return meshD:hasSkeletalVertexWeights() end)
     hasWeights = okHasW and hasWeights
     local function weightJsonFragment(globalVertexIndex)
-        local okGW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function() return meshD:getVertexWeight(globalVertexIndex) end)
+        local okGW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function()
+            return meshD:getSkeletalVertexWeight(globalVertexIndex)
+        end)
         if not okGW or not n1 then return '' end
         local names, weights = {}, {}
         local function addSlot(n, w)
@@ -6169,7 +6470,7 @@ end
 -- Shared by showBonesNode (Up axis/Humanoid/bake/add-bone) and showBonesWindow (the table) -- both
 -- need the current skeleton's bone list read fresh every frame (tens of joints at most, same idiom
 -- as showFrameNode's per-frame subset read).
-local function getBoneList(meshD)
+getBoneList = function(meshD)
     local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
     nBones = (okTotal and nBones) or 0
     local tBones = {}
@@ -6181,7 +6482,41 @@ local function getBoneList(meshD)
                 rotX = rotX, rotY = rotY, rotZ = rotZ, scaleX = scaleX, scaleY = scaleY, scaleZ = scaleZ, length = length })
         end
     end
-    return tBones, nBones
+    if nBones > 0 then return tBones, nBones, false end
+
+    -- Canonical section 41 is intentionally not copied into the destructive legacy bone model.
+    -- Use the detached bind report as the read-only inspection source instead.
+    local okReport, report = dpCall(function() return meshD:getSkeletonBindReport() end)
+    if not okReport or type(report) ~= 'table' or report.canonical ~= true or type(report.bones) ~= 'table' then
+        return tBones, nBones, false
+    end
+    for i, bone in ipairs(report.bones) do
+        local global = bone.globalBindMatrix or {}
+        local parentName = nil
+        if (bone.parentIndex or 0) > 0 and report.bones[bone.parentIndex] then
+            parentName = report.bones[bone.parentIndex].name
+        end
+        local q = bone.localRotation or {}
+        local qx, qy, qz, qw = q.x or 0, q.y or 0, q.z or 0, q.w or 1
+        local yx = 2 * (qx * qy - qz * qw)
+        local yy = 1 - 2 * (qx * qx + qz * qz)
+        local yz = 2 * (qy * qz + qx * qw)
+        local zx = 2 * (qx * qz + qy * qw)
+        local zy = 2 * (qy * qz - qx * qw)
+        local zz = 1 - 2 * (qx * qx + qy * qy)
+        local rotX, rotY, rotZ = boneFrameToEuler( yx, yy, yz, zx, zy, zz)
+        table.insert(tBones, {
+            idx = i, name = bone.name, parentName = parentName,
+            x = global[13] or 0, y = global[14] or 0, z = global[15] or 0,
+            radius = bone.radius or 0, length = bone.length or 0,
+            rotX = rotX, rotY = rotY, rotZ = rotZ,
+            scaleX = bone.localScale and bone.localScale.x or 1,
+            scaleY = bone.localScale and bone.localScale.y or 1,
+            scaleZ = bone.localScale and bone.localScale.z or 1,
+            canonical = true,
+        })
+    end
+    return tBones, #tBones, true
 end
 
 -- Shared by every bone-mutating action in showBonesNode/showBonesWindow -- keeps the "no
@@ -6410,7 +6745,9 @@ function sweepStaleBoneGizmos()
         if tEntry.tArticulatedPivotGizmo and i ~= iSelectedMeshIndex then
             destroyArticulatedPivotGizmo(tEntry)
         end
-        if tEntry.bBonesWasOpen and i ~= iSelectedMeshIndex then
+        -- The legacy Bones product surface is retired. Clean any state left by a test or by a
+        -- scene reload without waiting for the removed node/window to run a close transition.
+        if tEntry.bBonesWasOpen or tEntry.tBoneGizmo then
             destroyBoneGizmo(tEntry)
             tEntry.bBonesWasOpen = false
         end
@@ -6418,10 +6755,11 @@ function sweepStaleBoneGizmos()
         -- currently selected mesh), so this only ever actually destroys something for the one entry
         -- that owned it, but every entry needs the flag cleared so a later reselect properly rebuilds
         -- rather than being skipped by the transition check in showBonesNode.
-        if tEntry.bGhostWasShown and i ~= iSelectedMeshIndex then
+        if tEntry.bGhostWasShown then
             destroyGhostMesh()
             tEntry.bGhostWasShown = false
         end
+        if tEntry.sOpenNode=='bones' then tEntry.sOpenNode=nil end
     end
 end
 
@@ -6587,7 +6925,11 @@ function showBonesNode(tEntry, meshD, index)
         tImGui.TextDisabled(tLang.L('bones_moved_to_window_label'))
         tImGui.HelpMarker(tLang.L('bones_transform_warning'))
 
-        local tBones, nBones = getBoneList(meshD)
+        local tBones, nBones, canonicalReadOnly = getBoneList(meshD)
+
+        if canonicalReadOnly then
+            tImGui.TextWrapped(tLang.L('bones_canonical_read_only'))
+        else
 
         tImGui.Separator()
         tEntry.iArmatureTemplateIndex = tEntry.iArmatureTemplateIndex or 1
@@ -6820,6 +7162,7 @@ function showBonesNode(tEntry, meshD, index)
         -- Export to FBX moved to File menu (next to Import via Blender) -- it isn't specific to
         -- bones (a bone-less mesh still exports fine), so it doesn't belong buried in this node.
 
+        end
         tImGui.TreePop()
     end
 end
@@ -7856,7 +8199,7 @@ function showBonesWindow()
         return
     end
 
-    local tBones = getBoneList(meshD)
+    local tBones, _, canonicalReadOnly = getBoneList(meshD)
     local tParentNames = { tLang.L('bones_root_label') }
     for _, b in ipairs(tBones) do table.insert(tParentNames, b.name) end
 
@@ -7873,6 +8216,7 @@ function showBonesWindow()
     end
 
     if #tBones > 0 then
+        if canonicalReadOnly then tImGui.BeginDisabled(true) end
         -- ScrollX + fixed-width columns (not the default stretch sizing) so a wide row (name +
         -- parent combo + 3 drag floats + remove button) scrolls horizontally within the panel
         -- instead of forcing the whole Mesh Tree window wider or clipping the rightmost columns.
@@ -8135,6 +8479,7 @@ function showBonesWindow()
             end
             tImGui.EndTable()
         end
+        if canonicalReadOnly then tImGui.EndDisabled() end
     else
         tImGui.TextDisabled(tLang.L('bones_none_label'))
     end
@@ -8422,7 +8767,7 @@ function splitCaptureDiscardBackup(tEntry)
 end
 
 function splitCaptureCreateBackup(tEntry, meshD)
-    local backupPath = os.tmpname() .. '.msh'
+    local backupPath = tUtil.getTemporaryFilePath('.msh')
     if not meshD:save(backupPath, false, false) then
         meshDebug:fakeRelease(backupPath)
         os.remove(backupPath)
@@ -8944,7 +9289,7 @@ function saveCapturedSplitAs(tEntry)
     local tempPath
     local sourceForCopy = sourceD
     if tEntry.modified then
-        tempPath = os.tmpname() .. '.msh'
+        tempPath = tUtil.getTemporaryFilePath('.msh')
         if not sourceD:save(tempPath, false, false) then
             tUtil.showMessageWarn('Could not prepare captured groups for saving.')
             return
@@ -10163,11 +10508,7 @@ function showMeshOptions(tEntry, index)
         if chg_sy then xf.sy = sy end
         if chg_sz then xf.sz = sz end
         if tImGui.Button(tLang.L("apply_scale") .. '##' .. index) then
-            local syncSkeleton = transformCoversWholeMesh(xf.frame, xf.subset)
-            local ok = synchronizedScaleIsSupported(meshD, xf.frame, xf.subset, xf.sx, xf.sy, xf.sz)
-                and dpCall(function()
-                    meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset, syncSkeleton)
-                end)
+            local ok = scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset, xf.sx, xf.sy, xf.sz)
             if ok then
                 rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
@@ -10203,11 +10544,8 @@ function showMeshOptions(tEntry, index)
                 tImGui.BeginDisabled(xf[field] <= 0 or currentSize <= 1e-7)
                 if tImGui.Button(tLang.L('apply_btn') .. '##xfExactApply' .. axis .. '-' .. index) then
                     local sxExact, syExact, szExact = computeExactAxisScale(currentSize, xf[field], axis)
-                    local syncSkeleton = transformCoversWholeMesh(xf.frame, xf.subset)
-                    local ok = synchronizedScaleIsSupported(meshD, xf.frame, xf.subset,
-                            sxExact, syExact, szExact) and dpCall(function()
-                            meshD:scaleFrame(xf.frame, sxExact, syExact, szExact, xf.subset, syncSkeleton)
-                        end)
+                    local ok = scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset,
+                        sxExact, syExact, szExact)
                     if ok then
                         rebuildBoneGizmo(tEntry, meshD, index)
                         cancelXformPreview()
@@ -10306,7 +10644,7 @@ function showMeshOptions(tEntry, index)
         local function buildXformPreview()
             cancelXformPreview()
             local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
-            tEntry.xfPreviewPath = tEntry.xfPreviewPath or (os.tmpname() .. '_xf.' .. ext)
+            tEntry.xfPreviewPath = tEntry.xfPreviewPath or tUtil.getTemporaryFilePath('_xf.' .. ext)
             if meshD:save(tEntry.xfPreviewPath, false, false) then
                 local cloneMeshD = meshDebug:new()
                 if cloneMeshD:load(tEntry.xfPreviewPath) then
@@ -10426,9 +10764,7 @@ function showMeshOptions(tEntry, index)
             if tImGui.Button(tLang.L("apply_transform") .. '##' .. index) then
                 local anyChange = false
                 local wholeMesh = transformCoversWholeMesh(xf.frame, xf.subset)
-                local scaleSupported = synchronizedScaleIsSupported(meshD, xf.frame, xf.subset,
-                    xf.sx, xf.sy, xf.sz)
-                if scaleSupported then
+                do
                     if xf.rx ~= 0 or xf.ry ~= 0 or xf.rz ~= 0 then
                         if dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end) then
                             if wholeMesh then applyRotationToBonesDeg(meshD, xf.rx, xf.ry, xf.rz) end
@@ -10436,9 +10772,8 @@ function showMeshOptions(tEntry, index)
                         end
                     end
                     if xf.sx ~= 1 or xf.sy ~= 1 or xf.sz ~= 1 then
-                        if dpCall(function()
-                            meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset, wholeMesh)
-                        end) then anyChange = true end
+                        if scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset,
+                            xf.sx, xf.sy, xf.sz) then anyChange = true end
                     end
                     if xf.dx ~= 0 or xf.dy ~= 0 or xf.dz ~= 0 then
                         if dpCall(function() meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end) then
@@ -11038,9 +11373,6 @@ function showMeshOptions(tEntry, index)
     -- Frame node: view/queue frame+subset edits (outside Animations)
     showFrameNode(tEntry, meshD, index)
 
-    -- Bones node: view/add/edit/remove the mesh's optional skeleton (diagnostic-only)
-    showBonesNode(tEntry, meshD, index)
-
     -- Articulated Animation node: persistent parts/pivots and named clips
     showArticulatedAnimationNode(tEntry, meshD, index)
 
@@ -11456,7 +11788,7 @@ function buildFilteredMeshForSave(tEntry)
     end
 
     local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
-    local tempPath = os.tmpname() .. '.' .. ext
+    local tempPath = tUtil.getTemporaryFilePath('.' .. ext)
     if not tEntry.meshDebug:save(tempPath, false, false) then
         restoreCheckedRemove()
         return nil
@@ -11629,7 +11961,7 @@ function exportSelectedFrameSubsets(tEntry)
     local sourcePath = tEntry.fileName
     local snapshotPath = nil
     if tEntry.modified then
-        snapshotPath = os.tmpname() .. '.msh'
+        snapshotPath = tUtil.getTemporaryFilePath('.msh')
         if not meshD:save(snapshotPath, false, false) then
             tUtil.showMessageWarn(string.format(tLang.L('save_failed_fmt'), tUtil.getShortName(tEntry.fileName)))
             return
@@ -11910,35 +12242,6 @@ local function applyAllRemoveNormals(sType)
     return summary
 end
 
--- Same pattern as applyAllRemoveNormals above, for SECTION_VERTEX_SKIN_WEIGHTS
--- (docs/mesh-v11-format.md Sec. 6f) -- see showMeshInfoTable's own single-mesh "Remove Vertex
--- Skin Weights" button for the underlying use case (reclaim file size once external animation
--- tooling has already consumed a batch of exported FBX files).
-local function applyAllRemoveVertexWeights(sType)
-    local totalVertices = 0
-    local totalBytesSaved = 0
-    local summary = runApplyAllOperation(sType, tLang.L('remove_vertex_weights'), function(tEntry)
-        local meshD = tEntry.meshDebug
-        local okHas, has = dpCall(function() return meshD:hasVertexWeights() end)
-        if not (okHas and has) then
-            return 'skipped'
-        end
-        local nVertices = getMeshTotalVertices(meshD)
-        totalVertices = totalVertices + nVertices
-        totalBytesSaved = totalBytesSaved + (nVertices * 20) -- 4x u8 paletteIndex + 4x f32 weight per vertex
-        dpCall(function() meshD:removeVertexWeights() end)
-        tEntry.weightStats = nil
-        tEntry.modified = true
-        return 'success'
-    end)
-    if totalVertices > 0 then
-        tApplyAllWin.lastResultText = tApplyAllWin.lastResultText
-            .. string.format('\n%d vertices, ~%s saved', totalVertices, formatBytes(totalBytesSaved))
-        tUtil.showMessage(tApplyAllWin.lastResultText, 8)
-    end
-    return summary
-end
-
 local function applyAllAddNormals(sType)
     local totalVertices = 0
     local summary = runApplyAllOperation(sType, tLang.L('add_normals'), function(tEntry)
@@ -12094,10 +12397,7 @@ local function applyAllTransform(sType, sMode)
                 applyRotationToBonesDeg(meshD, xf.rx, xf.ry, xf.rz)
             end
         elseif sMode == 'scale' then
-            local syncSkeleton = transformCoversWholeMesh(xf.frame, xf.subset)
-            ok = dpCall(function()
-                meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset, syncSkeleton)
-            end)
+            ok = scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset, xf.sx, xf.sy, xf.sz)
         elseif sMode == 'translate' then
             ok = dpCall(function() meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
             if ok and transformCoversWholeMesh(xf.frame, xf.subset) then
@@ -12134,10 +12434,7 @@ function applyAllScaleToExactSize(sType, axis)
             or (axis == 'Y' and (aabb.maxY - aabb.minY) or (aabb.maxZ - aabb.minZ))
         if currentSize <= 1e-7 then return 'skipped', tLang.L('exact_size_zero_axis') end
         local sx, sy, sz = computeExactAxisScale(currentSize, targetSize, axis)
-        local syncSkeleton = transformCoversWholeMesh(xf.frame, xf.subset)
-        local ok = dpCall(function()
-            return meshD:scaleFrame(xf.frame, sx, sy, sz, xf.subset, syncSkeleton)
-        end)
+        local ok = scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset, sx, sy, sz)
         if not ok then return 'failed', tLang.L('an_error_occurred') end
         rebuildBoneGizmo(tEntry, meshD, index)
         tEntry.modified = true
@@ -12683,13 +12980,6 @@ function showApplyAllWindow()
                     applyAllRecomputeNormalsBulk(win.selectedType)
                 end
                 tImGui.TextDisabled(tLang.L('apply_all_normals_scope_note'))
-                tImGui.TreePop()
-            end
-
-            if tImGui.TreeNodeEx(tLang.L('skin_weights_label') .. '##applyAllSkinWeights', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
-                if tImGui.Button(tLang.L('remove_vertex_weights') .. '##applyAllRemoveVertexWeights') then
-                    applyAllRemoveVertexWeights(win.selectedType)
-                end
                 tImGui.TreePop()
             end
 
@@ -13978,7 +14268,6 @@ function onLoop(delta)
     showMeshTreeWindow()
     showArticulatedPivotWindow()
     sweepStaleBoneGizmos()
-    showBonesWindow()
     showApplyAllWindow()
     showListTexturesWindow()
     showListMeshesWindow()

@@ -145,6 +145,15 @@ class MY_SCENE : public mbm::SCENE
     // Set via main()'s optional <mesh_file> <world> command-line arguments.
     std::string             cliMeshFile;
     RenderMode              cliMeshMode;
+    mbm::SKELETAL_SHADER_METHOD cliSkeletalMethod;
+    mbm::SKELETAL_EXECUTION_PATH cliSkeletalExecutionPath;
+    bool                    cliSkeletalExecutionPathSet;
+    bool                    testGlesDqsShader;
+    bool                    testGlesSkeletalParity;
+    bool                    testDirectX9SkeletalParity;
+    bool                    testMetalEditorShaders;
+    bool                    testMetalSkeletalParity;
+    bool                    automatedTestFailed;
 
     MY_SCENE();
     virtual ~MY_SCENE();

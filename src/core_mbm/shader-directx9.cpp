@@ -29,6 +29,8 @@
 #include "specific-directx9-buffer.h"
 #include "specific-directx9-shader.h"
 #include "specific-directx9-vertex.h"
+#include "skeletal-directx9-shader-source.h"
+#include "skeletal-gpu-lbs.h"
 #include <header-mesh.h>
 #include <draw-compatibility.h>
 #include <texture-manager.h>
@@ -63,17 +65,25 @@ namespace mbm
         ID3DXConstantTable *constantTableVS;
         D3DXHANDLE mvpMatrixHandle;
         D3DXHANDLE mvMatrixHandle;
+        D3DXHANDLE bonePaletteHandle;
+        uint32_t skeletalPaletteSize;
+        SKELETAL_SHADER_METHOD skeletalMethod;
         D3DXHANDLE samplerHandle0, samplerHandle1, samplerHandle2;
     };
 
-    static int makeDefaultProgramCacheKeyD3D9(const FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding)
+    static uint64_t makeDefaultProgramCacheKeyD3D9(const FVF_PROVIDE_BY_ENGINE fvf,
+                                                    const bool useReservedLightScaffolding,
+                                                    const uint32_t skeletalPaletteSize,
+                                                    const SKELETAL_SHADER_METHOD skeletalMethod)
     {
-        return (static_cast<int>(fvf) * 2) + (useReservedLightScaffolding ? 1 : 0);
+        return (static_cast<uint64_t>(skeletalMethod) << 56u) |
+               (static_cast<uint64_t>(skeletalPaletteSize) << 8u) |
+               (static_cast<uint64_t>(fvf) << 1u) | (useReservedLightScaffolding ? 1u : 0u);
     }
 
-    static std::unordered_map<int, DefaultProgramCacheEntryD3D9> &getDefaultProgramCacheD3D9()
+    static std::unordered_map<uint64_t, DefaultProgramCacheEntryD3D9> &getDefaultProgramCacheD3D9()
     {
-        static std::unordered_map<int, DefaultProgramCacheEntryD3D9> cache;
+        static std::unordered_map<uint64_t, DefaultProgramCacheEntryD3D9> cache;
         return cache;
     }
 
@@ -144,6 +154,31 @@ namespace mbm
             return false;
         return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
                pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static const float *resolveSkeletalPaletteD3D9(const D3D_PS_VS *shader, const float *rows,
+                                                    const uint32_t floatCount)
+    {
+        const uint32_t floatsPerBone = shader->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
+        if (rows)
+            return floatCount == shader->skeletalPaletteSize * floatsPerBone ? rows : nullptr;
+        static std::unordered_map<uint64_t, std::vector<float>> identities;
+        const uint64_t key = (static_cast<uint64_t>(shader->skeletalMethod) << 32u) | shader->skeletalPaletteSize;
+        auto found = identities.find(key);
+        if (found != identities.end()) return found->second.data();
+        std::vector<float> values(static_cast<size_t>(shader->skeletalPaletteSize) * floatsPerBone, 0.0f);
+        for (uint32_t bone = 0; bone < shader->skeletalPaletteSize; ++bone)
+        {
+            if (shader->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
+                values[(bone * 8u) + 3u] = 1.0f;
+            else
+            {
+                values[(bone * 12u) + 0u] = 1.0f;
+                values[(bone * 12u) + 5u] = 1.0f;
+                values[(bone * 12u) + 10u] = 1.0f;
+            }
+        }
+        return identities.emplace(key, std::move(values)).first->second.data();
     }
 
     static int getReservedLightModeD3D(const LIGHT_STATE &lightState, const LIGHT_TARGET target,
@@ -360,6 +395,7 @@ namespace mbm
         FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS),
         sizeStructVertexInBytes(0),
         pVertexBuffer(nullptr),
+        pSkinVertexBuffer(nullptr),
         pIndexBuffer(nullptr)
     {
 
@@ -375,6 +411,10 @@ namespace mbm
         if (pVertexBuffer)
             pVertexBuffer->Release();
         pVertexBuffer = nullptr;
+
+        if (pSkinVertexBuffer)
+            pSkinVertexBuffer->Release();
+        pSkinVertexBuffer = nullptr;
 
         if (pIndexBuffer)
             pIndexBuffer->Release();
@@ -715,17 +755,23 @@ namespace mbm
         // Find the max vertex count
         // and max size of index buffer
         UINT sizeIndexBuffer = 0;
+        uint32_t dynamicVertexCount = 0;
         for (uint32_t i = 0; i < totalSubsets; ++i)
         {
             const int ii = indexStartSubset[i];
+            if (ii < 0 || indexCountSubset[i] <= 0)
+                return false;
             sizeIndexBuffer += static_cast<UINT>(indexCountSubset[i]);
             for (int j = 0; j < indexCountSubset[i]; ++j)
             {
                 const uint16_t indexVertex = arrayIndices[ii + j];
-                sizeOfArrayVertex = std::max<uint16_t>(indexVertex, sizeOfArrayVertex);
+                dynamicVertexCount = std::max<uint32_t>(static_cast<uint32_t>(indexVertex) + 1u,
+                                                        dynamicVertexCount);
             }
         }
-        sizeOfArrayVertex += 1; //because index start from zero base
+        if (dynamicVertexCount == 0)
+            return false;
+        sizeOfArrayVertex = dynamicVertexCount;
         const std::vector<VEC3> vertex(sizeOfArrayVertex);
         const std::vector<VEC3> normal(hasNormal ? sizeOfArrayVertex : 0);
         const std::vector<VEC2> uv(hasUv ? sizeOfArrayVertex : 0);
@@ -792,7 +838,11 @@ namespace mbm
                                   const int* vertexStartSubset,
                                   const int* vertexCountSubset)// update when dynamic
     {
-        
+        if (!vertex || !vertexStartSubset || !vertexCountSubset)
+            return false;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (!backendBuffer || !backendBuffer->pVertexBuffer || backendBuffer->sizeStructVertexInBytes == 0)
+            return false;
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
             const uint32_t vertexStart = vertexStartSubset[i];
@@ -805,31 +855,18 @@ namespace mbm
             {
                 return false;
             }
-            const mbm::VEC3* pVertexStart = &vertex[vertexStart];
-            const mbm::VEC3* pNormalStart = normal ? &normal[vertexStart] : nullptr;
-            const mbm::VEC2* pUvStart     = uv     ? &uv[vertexStart]:      nullptr;
-            if (this->initializedIndexBuffer)
-            {
-                // TODO: for index buffer
-                ERROR_AT(__LINE__, __FILE__, "TODO: Update vertex not implemented for index buffer");
-                return false;
-            }
-            else
-            {
-                const D3D_VERTEX_CONVERTER d3d_converter(pVertexStart, normal, uv, vertexCount);
-                BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
-                void* pvertex = nullptr;
-                // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
-                // If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
-                {
-                    ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
-                    return false;
-                }
-                d3d_converter.copyTod3dVertexBuffer(pvertex);
-                backendBuffer->pVertexBuffer->Unlock();
-            }
         }
+        const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, this->sizeOfArrayVertex);
+        if (d3d_converter.getSizeOfStructureInBytes() != backendBuffer->sizeStructVertexInBytes)
+            return false;
+        void* pvertex = nullptr;
+        if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+            return false;
+        }
+        d3d_converter.copyTod3dVertexBuffer(pvertex);
+        backendBuffer->pVertexBuffer->Unlock();
         return true;
     }
 
@@ -962,6 +999,9 @@ namespace mbm
         constantTableVS(nullptr),
         mvpMatrixHandle(nullptr),
         mvMatrixHandle(nullptr),
+        bonePaletteHandle(nullptr),
+        skeletalPaletteSize(0),
+        skeletalMethod(SKELETAL_SHADER_METHOD::NONE),
         samplerHandle0(nullptr),
         samplerHandle1(nullptr),
         samplerHandle2(nullptr)
@@ -998,6 +1038,9 @@ namespace mbm
 
         mvpMatrixHandle = nullptr;
         mvMatrixHandle  = nullptr;
+        bonePaletteHandle = nullptr;
+        skeletalPaletteSize = 0;
+        skeletalMethod = SKELETAL_SHADER_METHOD::NONE;
         samplerHandle0  = nullptr;
         samplerHandle1  = nullptr;
         samplerHandle2  = nullptr;
@@ -1048,18 +1091,27 @@ namespace mbm
         this->vShader         = nullptr;
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
+    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
+                               mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
+                               const SKELETAL_SHADER_METHOD skeletalMethod)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
             return false;
         this->pShader             = ptrPshader;
         this->vShader             = ptrVshader;
+        if (skeletalPaletteSize > 0 && ptrVshader != nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "canonical DirectX9 skinning does not support a custom vertex shader");
+            return false;
+        }
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
 
         void *backendShaderSpecific = getBackendShaderSpecific();
         D3D_PS_VS *d3dPsVs = static_cast<D3D_PS_VS *>(backendShaderSpecific);
+        d3dPsVs->skeletalPaletteSize = skeletalPaletteSize;
+        d3dPsVs->skeletalMethod = skeletalPaletteSize > 0 ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
 
         // Fast path: an earlier instance already compiled+linked this exact (fvf,
         // useReservedLightScaffolding) combination -- every placement of the same mesh type after
@@ -1067,7 +1119,8 @@ namespace mbm
         // D3DXCompileShader/CreatePixelShader/CreateVertexShader calls entirely.
         if (this->usesPureDefaultShaderPair())
         {
-            const int key = makeDefaultProgramCacheKeyD3D9(fvf, useReservedLightScaffolding);
+            const uint64_t key = makeDefaultProgramCacheKeyD3D9(
+                fvf, useReservedLightScaffolding, skeletalPaletteSize, d3dPsVs->skeletalMethod);
             auto &cache = getDefaultProgramCacheD3D9();
             const auto found = cache.find(key);
             if (found != cache.end())
@@ -1083,6 +1136,9 @@ namespace mbm
                 d3dPsVs->constantTableVS  = entry.constantTableVS;
                 d3dPsVs->mvpMatrixHandle  = entry.mvpMatrixHandle;
                 d3dPsVs->mvMatrixHandle   = entry.mvMatrixHandle;
+                d3dPsVs->bonePaletteHandle = entry.bonePaletteHandle;
+                d3dPsVs->skeletalPaletteSize = entry.skeletalPaletteSize;
+                d3dPsVs->skeletalMethod = entry.skeletalMethod;
                 d3dPsVs->samplerHandle0   = entry.samplerHandle0;
                 d3dPsVs->samplerHandle1   = entry.samplerHandle1;
                 d3dPsVs->samplerHandle2   = entry.samplerHandle2;
@@ -1312,10 +1368,14 @@ namespace mbm
 
         std::string defaultCodeVs = "float4x4 mvpMatrix : register(c0);";
         if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += "float4x4 mvMatrix;";
+        if (skeletalPaletteSize > 0)
+            skeletal::appendDirectX9SkeletalFunctions(defaultCodeVs, skeletalPaletteSize, skeletalMethod);
         defaultCodeVs +=
             "struct VS_INPUT { float4 position : POSITION;";
         if (hasNormal) defaultCodeVs += " float3 normal : NORMAL;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
+        if (skeletalPaletteSize > 0)
+            defaultCodeVs += " float4 boneIndices : BLENDINDICES0; float4 boneWeights : BLENDWEIGHT0;";
         defaultCodeVs += " };"
             "struct VS_OUTPUT { float4 position : POSITION;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
@@ -1324,10 +1384,19 @@ namespace mbm
         else if (hasUV && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD1;";
         defaultCodeVs += " };"
             "VS_OUTPUT main(VS_INPUT input)"
-            "{ VS_OUTPUT output; output.position = mul(input.position, mvpMatrix);";
+            "{ VS_OUTPUT output;";
+        if (skeletalPaletteSize > 0)
+            skeletal::appendDirectX9SkeletalDeformation(defaultCodeVs, skeletalMethod,
+                                                         hasNormal && useReservedLightScaffolding);
+        else
+            defaultCodeVs += " float4 skinnedPosition=input.position;";
+        defaultCodeVs += " output.position = mul(skinnedPosition, mvpMatrix);";
         if (hasUV) defaultCodeVs += " output.texCoord = input.texCoord;";
-        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " output.normalView = mul(float4(input.normal, 0), mvMatrix).xyz;";
-        if (hasUV && useReservedLightScaffolding) defaultCodeVs += " output.positionView = mul(input.position, mvMatrix).xyz;";
+        if (hasNormal && useReservedLightScaffolding)
+            defaultCodeVs += skeletalPaletteSize > 0
+                ? " output.normalView = mul(float4(skinnedNormal,0),mvMatrix).xyz;"
+                : " output.normalView = mul(float4(input.normal,0),mvMatrix).xyz;";
+        if (hasUV && useReservedLightScaffolding) defaultCodeVs += " output.positionView = mul(skinnedPosition, mvMatrix).xyz;";
         defaultCodeVs += " return output; }";
 
         constexpr const char* mainFunction = "main";
@@ -1434,6 +1503,7 @@ namespace mbm
             d3dPsVs->constantTableVS->SetDefaults(pd3dDevice);
             d3dPsVs->mvpMatrixHandle = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
             d3dPsVs->mvMatrixHandle  = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvMatrix");
+            d3dPsVs->bonePaletteHandle = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "bonePalette");
 
             //D3DXCONSTANT_DESC desc;
             //UINT count = 1;
@@ -1460,6 +1530,9 @@ namespace mbm
             entry.constantTableVS  = d3dPsVs->constantTableVS;
             entry.mvpMatrixHandle  = d3dPsVs->mvpMatrixHandle;
             entry.mvMatrixHandle   = d3dPsVs->mvMatrixHandle;
+            entry.bonePaletteHandle = d3dPsVs->bonePaletteHandle;
+            entry.skeletalPaletteSize = d3dPsVs->skeletalPaletteSize;
+            entry.skeletalMethod = d3dPsVs->skeletalMethod;
             entry.samplerHandle0   = d3dPsVs->samplerHandle0;
             entry.samplerHandle1   = d3dPsVs->samplerHandle1;
             entry.samplerHandle2   = d3dPsVs->samplerHandle2;
@@ -1470,7 +1543,8 @@ namespace mbm
             if (entry.pd3dVertexShader) entry.pd3dVertexShader->AddRef();
             if (entry.constantTablePS)  entry.constantTablePS->AddRef();
             if (entry.constantTableVS)  entry.constantTableVS->AddRef();
-            const int key = makeDefaultProgramCacheKeyD3D9(fvf, useReservedLightScaffolding);
+            const uint64_t key = makeDefaultProgramCacheKeyD3D9(
+                fvf, useReservedLightScaffolding, skeletalPaletteSize, d3dPsVs->skeletalMethod);
             getDefaultProgramCacheD3D9()[key] = entry;
         }
 
@@ -1479,7 +1553,8 @@ namespace mbm
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
-                        const int32_t subsetIndex) const
+                        const int32_t subsetIndex, const float *skeletalPaletteRows,
+                        const uint32_t skeletalPaletteFloatCount) const
     {
         const ScopedRenderizableContextD3D scopedRenderizableContext(renderizableOwner);
         BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
@@ -1531,6 +1606,16 @@ namespace mbm
 
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvpMatrixHandle, pMvpMatrix);
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvMatrixHandle, pMatrixHandle);
+            if (d3dPsVs->skeletalPaletteSize > 0)
+            {
+                const float *palette = resolveSkeletalPaletteD3D9(
+                    d3dPsVs, skeletalPaletteRows, skeletalPaletteFloatCount);
+                const uint32_t floatsPerBone = d3dPsVs->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
+                if (!palette || !d3dPsVs->bonePaletteHandle ||
+                    FAILED(d3dPsVs->constantTableVS->SetFloatArray(pd3dDevice, d3dPsVs->bonePaletteHandle,
+                        palette, d3dPsVs->skeletalPaletteSize * floatsPerBone)))
+                    return false;
+            }
         }
         else
         {
@@ -1585,11 +1670,16 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF))))
+            const bool skeletal = d3dPsVs->skeletalPaletteSize > 0;
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
             };
+            if (skeletal && (!backendBuffer->pSkinVertexBuffer ||
+                FAILED(pd3dDevice->SetStreamSource(1, backendBuffer->pSkinVertexBuffer, 0,
+                                                   sizeof(skeletal::GPU_LBS_VERTEX)))))
+                return false;
 
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
                 backendBuffer->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
@@ -1696,11 +1786,16 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF));
+            const bool skeletal = d3dPsVs->skeletalPaletteSize > 0;
+            pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal));
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
                 backendBuffer->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
                 0,		//Posicao Em Bytes Do inicio  Do Stream Atual
                 backendBuffer->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
+                return false;
+            if (skeletal && (!backendBuffer->pSkinVertexBuffer ||
+                FAILED(pd3dDevice->SetStreamSource(1, backendBuffer->pSkinVertexBuffer, 0,
+                                                   sizeof(skeletal::GPU_LBS_VERTEX)))))
                 return false;
 
             // TextureAnimationEffect stays shared across subsets by design.

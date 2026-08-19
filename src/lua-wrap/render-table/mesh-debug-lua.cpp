@@ -25,7 +25,9 @@ extern "C"
 }
 
 #include <map>
+#include <cstdlib>
 #include <string>
+#include <vector>
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
 #include <lua-wrap/render-table/animation-lua.h>
@@ -1472,9 +1474,7 @@ namespace mbm
         return 0;
     }
 
-    // scaleFrame(frame, sx, sy, sz [,subset [,scaleSkeleton]]) -- frame/subset=0 means all.
-    // scaleSkeleton=true is valid only for a whole-mesh positive uniform bake; invalid requests
-    // throw before either geometry or skeleton is changed.
+    // scaleFrame(frame, sx, sy, sz [,subset]) -- frame/subset=0 means all.
     int onScaleFrameDebugLua(lua_State *lua)
     {
         const int       top         = lua_gettop(lua);
@@ -1486,10 +1486,18 @@ namespace mbm
         const float     sz          = top > 4 ? static_cast<float>(luaL_optnumber(lua, 5, 1.0)) : 1.0f;
         const int       subsetArg   = top > 5 ? luaL_optinteger(lua, 6, 0) : 0;
         const int       indexSubset = subsetArg <= 0 ? -1 : subsetArg - 1;
-        const bool      scaleSkeleton = top > 6 ? lua_toboolean(lua, 7) != 0 : false;
-        char            errorOut[255] = "";
-        if (!meshDebug->mesh.scaleFrame(indexFrame, indexSubset, sx, sy, sz, scaleSkeleton,
-                                        errorOut, static_cast<int>(sizeof(errorOut))))
+        meshDebug->mesh.scaleFrame(indexFrame, indexSubset, sx, sy, sz);
+        return 0;
+    }
+
+    // scaleSkeletalAsset(scale) -- atomically scales geometry, canonical bind/clip translations,
+    // bone display metadata, and physics bounds. Only a finite positive uniform factor is valid.
+    int onScaleSkeletalAssetDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const float scale = static_cast<float>(luaL_checknumber(lua, 2));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.scaleSkeletalAsset(scale, errorOut, static_cast<int>(sizeof(errorOut))))
             return lua_error_debug(lua, errorOut);
         return 0;
     }
@@ -2207,198 +2215,1093 @@ namespace mbm
         return 1;
     }
 
-    // Skeleton bindings (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
-    // diagnostic round-trip only, follows the exact same flat-multi-return convention as
-    // addAnim/getAnim above rather than a table, to stay consistent within this native class.
-    int onAddBoneDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
-        const char *    name        = luaL_checkstring(lua, 2);
-        const char *    parentName  = lua_isnil(lua, 3) ? nullptr : luaL_checkstring(lua, 3);
-        const float     x           = static_cast<float>(luaL_checknumber(lua, 4));
-        const float     y           = static_cast<float>(luaL_checknumber(lua, 5));
-        const float     z           = static_cast<float>(luaL_checknumber(lua, 6));
-        const float     radius      = static_cast<float>(luaL_checknumber(lua, 7));
-        // rotX/Y/Z, scaleX/Y/Z, length: optional trailing args (SECTION_FRAME_SKINNED sectionVersion
-        // 2), defaulting to "no orientation data" so older 7-arg Lua call sites keep working.
-        const float     rotX        = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
-        const float     rotY        = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
-        const float     rotZ        = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
-        const float     scaleX      = static_cast<float>(luaL_optnumber(lua, 11, 1.0));
-        const float     scaleY      = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
-        const float     scaleZ      = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
-        const float     length      = static_cast<float>(luaL_optnumber(lua, 14, 0.0));
-        char            errorOut[255] = "";
-        const int       ret = meshDebug->mesh.addBone(name, parentName, x, y, z, radius,
-                                                        rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length,
-                                                        errorOut, (int)sizeof(errorOut));
-        if (ret == 0)
-            return lua_error_debug(lua, errorOut);
-        lua_pushinteger(lua, ret);
-        return 1;
-    }
 
-    int onGetTotalBoneDebugLua(lua_State *lua)
+    namespace
     {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalBone()));
-        return 1;
-    }
-
-    int onGetBoneDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const int       index     = luaL_checkinteger(lua, 2) - 1;
-        const util::SKELETON_BONE_V11 *joint = index >= 0 ? meshDebug->mesh.getBone(static_cast<uint32_t>(index)) : nullptr;
-        if (joint == nullptr)
+        void pushSkeletonBindMatrix(lua_State *lua, const MATRIX &matrix)
         {
-            lua_print_line(lua, TYPE_LOG_ERROR, "invalid bone index");
-            lua_pushnil(lua);
-            return 1;
+            lua_createtable(lua, 16, 0);
+            for (int index = 0; index < 16; ++index)
+            {
+                lua_pushnumber(lua, matrix.p[index]);
+                lua_rawseti(lua, -2, index + 1);
+            }
         }
-        lua_pushstring(lua, joint->name.c_str());
-        lua_pushnumber(lua, joint->x);
-        lua_pushnumber(lua, joint->y);
-        lua_pushnumber(lua, joint->z);
-        lua_pushnumber(lua, joint->radius);
-        if (joint->parentName.empty())
-            lua_pushnil(lua);
-        else
-            lua_pushstring(lua, joint->parentName.c_str());
-        // Appended after parentName (sectionVersion 2) so every existing 6-value destructure
-        // (`name, x, y, z, radius, parentName = meshD:getBone(i)`) keeps working unchanged - Lua
-        // silently drops trailing return values a caller doesn't capture.
-        lua_pushnumber(lua, joint->rotX);
-        lua_pushnumber(lua, joint->rotY);
-        lua_pushnumber(lua, joint->rotZ);
-        lua_pushnumber(lua, joint->scaleX);
-        lua_pushnumber(lua, joint->scaleY);
-        lua_pushnumber(lua, joint->scaleZ);
-        lua_pushnumber(lua, joint->length);
-        return 13;
+
+        void pushSkeletonBindVector(lua_State *lua, const VEC3 &value)
+        {
+            lua_createtable(lua, 0, 3);
+            lua_pushnumber(lua, value.x); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, value.y); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, value.z); lua_setfield(lua, -2, "z");
+        }
+
+        void pushSkeletonBindId(lua_State *lua, const uint64_t id, const char *field)
+        {
+            char text[17] = "";
+            snprintf(text, sizeof(text), "%016llx", static_cast<unsigned long long>(id));
+            lua_pushstring(lua, text);
+            lua_setfield(lua, -2, field);
+        }
     }
 
-    int onUpdateBoneDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
-        const uint32_t  index      = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
-        const char *    name       = luaL_checkstring(lua, 3);
-        const char *    parentName = lua_isnil(lua, 4) ? nullptr : luaL_checkstring(lua, 4);
-        const float     x          = static_cast<float>(luaL_checknumber(lua, 5));
-        const float     y          = static_cast<float>(luaL_checknumber(lua, 6));
-        const float     z          = static_cast<float>(luaL_checknumber(lua, 7));
-        const float     radius     = static_cast<float>(luaL_checknumber(lua, 8));
-        // Optional trailing args, same convention/defaults as onAddBoneDebugLua. This is only a
-        // safety net for callers outside this repo -- every in-repo caller forwards the full tuple
-        // it read from getBone, since omitting these would silently reset a bone's orientation.
-        const float     rotX       = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
-        const float     rotY       = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
-        const float     rotZ       = static_cast<float>(luaL_optnumber(lua, 11, 0.0));
-        const float     scaleX     = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
-        const float     scaleY     = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
-        const float     scaleZ     = static_cast<float>(luaL_optnumber(lua, 14, 1.0));
-        const float     length     = static_cast<float>(luaL_optnumber(lua, 15, 0.0));
-        char            errorOut[255] = "";
-        const bool ret = meshDebug->mesh.updateBone(index, name, parentName, x, y, z, radius,
-                                                      rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length,
-                                                      errorOut, (int)sizeof(errorOut));
-        if (!ret)
-            return lua_error_debug(lua, errorOut);
-        lua_pushboolean(lua, 1);
-        return 1;
-    }
-
-    int onRemoveBoneDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug       = getMeshDebugFromRawTable(lua, 1, 1);
-        const uint32_t  index           = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
-        const bool      cascadeChildren = lua_gettop(lua) > 2 && lua_toboolean(lua, 3) != 0;
-        char            errorOut[255]   = "";
-        const bool ret = meshDebug->mesh.removeBone(index, cascadeChildren, errorOut, (int)sizeof(errorOut));
-        if (!ret)
-            return lua_error_debug(lua, errorOut);
-        lua_pushboolean(lua, 1);
-        return 1;
-    }
-
-    // Vertex skin weight bindings (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec. 6f) -
-    // editor/diagnostic + FBX re-export round-trip only, same scope as addBone/getBone above.
-    // vertexIndex is 1-based here (matching every other index in this file's Lua surface),
-    // converted to the 0-based convention MESH_MBM_DEBUG::setVertexWeight/getVertexWeight use
-    // internally. Each of the 4 (name, weight) slots must pass an explicit nil for "unused" - same
-    // convention as addBone's parentName - omitting a trailing argument entirely is not supported.
-    int onSetVertexWeightDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug    = getMeshDebugFromRawTable(lua, 1, 1);
-        const uint32_t  vertexIndex  = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
-        const char *    name0        = lua_isnil(lua, 3) ? nullptr : luaL_checkstring(lua, 3);
-        const float     w0           = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
-        const char *    name1        = lua_isnil(lua, 5) ? nullptr : luaL_checkstring(lua, 5);
-        const float     w1           = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
-        const char *    name2        = lua_isnil(lua, 7) ? nullptr : luaL_checkstring(lua, 7);
-        const float     w2           = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
-        const char *    name3        = lua_isnil(lua, 9) ? nullptr : luaL_checkstring(lua, 9);
-        const float     w3           = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
-        char            errorOut[255] = "";
-        const bool ret = meshDebug->mesh.setVertexWeight(vertexIndex, name0, w0, name1, w1, name2, w2, name3, w3,
-                                                           errorOut, (int)sizeof(errorOut));
-        if (!ret)
-            return lua_error_debug(lua, errorOut);
-        lua_pushboolean(lua, 1);
-        return 1;
-    }
-
-    // Returns 8 values (name1, w1, name2, w2, name3, w3, name4, w4), nil name for an unused slot -
-    // or a single nil if vertexIndex is out of range / has no weight data set at all (distinguish
-    // "no data anywhere" from "this specific vertex has zero influences" via hasVertexWeights()).
-    int onGetVertexWeightDebugLua(lua_State *lua)
+    int onGetSkeletonBindReportDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const int       indexArg  = static_cast<int>(luaL_checkinteger(lua, 2)) - 1;
-        if (indexArg < 0)
+        const bool includeDependencyImpact = lua_gettop(lua) < 2 || lua_toboolean(lua, 2) != 0;
+        SKELETON_BIND_SUMMARY summary;
+        if (!meshDebug->mesh.getSkeletonBindSummary(summary))
         {
             lua_pushnil(lua);
             return 1;
         }
-        const char *name0 = nullptr, *name1 = nullptr, *name2 = nullptr, *name3 = nullptr;
-        float       w0 = 0.0f, w1 = 0.0f, w2 = 0.0f, w3 = 0.0f;
-        const bool ok = meshDebug->mesh.getVertexWeight(static_cast<uint32_t>(indexArg),
-                                                          &name0, &w0, &name1, &w1, &name2, &w2, &name3, &w3);
-        if (!ok)
+
+        lua_createtable(lua, 0, 7);
+        lua_pushboolean(lua, summary.valid); lua_setfield(lua, -2, "valid");
+        lua_pushinteger(lua, summary.boneCount); lua_setfield(lua, -2, "boneCount");
+        lua_pushinteger(lua, summary.diagnosticCount); lua_setfield(lua, -2, "diagnosticCount");
+        lua_pushinteger(lua, summary.animationClipCount); lua_setfield(lua, -2, "animationClipCount");
+        lua_pushboolean(lua, summary.canonical);
+        lua_setfield(lua, -2, "canonical");
+        lua_pushnumber(lua, summary.maximumReconstructionError);
+        lua_setfield(lua, -2, "maximumReconstructionError");
+        lua_pushnumber(lua, summary.maximumBindIdentityError);
+        lua_setfield(lua, -2, "maximumBindIdentityError");
+
+        lua_createtable(lua, static_cast<int>(summary.boneCount), 0);
+        for (uint32_t index = 0; index < summary.boneCount; ++index)
         {
-            lua_pushnil(lua);
-            return 1;
+            SKELETON_BIND_BONE_INFO bone;
+            if (!meshDebug->mesh.getSkeletonBindBone(index, bone, includeDependencyImpact))
+                continue;
+            lua_createtable(lua, 0, 18);
+            lua_pushinteger(lua, bone.sourceIndex + 1); lua_setfield(lua, -2, "sourceIndex");
+            const char *boneName = meshDebug->mesh.getSkeletonBindBoneName(index);
+            lua_pushstring(lua, boneName ? boneName : ""); lua_setfield(lua, -2, "name");
+            pushSkeletonBindId(lua, bone.boneId, "boneId");
+            pushSkeletonBindId(lua, bone.parentBoneId, "parentBoneId");
+            lua_pushinteger(lua, bone.parentIndex + 1); lua_setfield(lua, -2, "parentIndex");
+            pushSkeletonBindVector(lua, bone.localTranslation); lua_setfield(lua, -2, "localTranslation");
+            lua_createtable(lua, 0, 4);
+            lua_pushnumber(lua, bone.localRotationX); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, bone.localRotationY); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, bone.localRotationZ); lua_setfield(lua, -2, "z");
+            lua_pushnumber(lua, bone.localRotationW); lua_setfield(lua, -2, "w");
+            lua_setfield(lua, -2, "localRotation");
+            pushSkeletonBindVector(lua, bone.localScale); lua_setfield(lua, -2, "localScale");
+            pushSkeletonBindMatrix(lua, bone.localBindMatrix); lua_setfield(lua, -2, "localBindMatrix");
+            pushSkeletonBindMatrix(lua, bone.globalBindMatrix); lua_setfield(lua, -2, "globalBindMatrix");
+            pushSkeletonBindMatrix(lua, bone.inverseGlobalBindMatrix);
+            lua_setfield(lua, -2, "inverseGlobalBindMatrix");
+            lua_pushnumber(lua, bone.radius); lua_setfield(lua, -2, "radius");
+            lua_pushnumber(lua, bone.length); lua_setfield(lua, -2, "length");
+            pushSkeletonBindVector(lua, bone.tailOffset); lua_setfield(lua, -2, "tailOffset");
+            lua_pushboolean(lua, bone.hasExplicitTail); lua_setfield(lua, -2, "hasExplicitTail");
+            lua_pushboolean(lua, bone.connectedToParent); lua_setfield(lua, -2, "connectedToParent");
+            lua_pushinteger(lua, bone.childCount); lua_setfield(lua, -2, "childCount");
+            lua_pushinteger(lua, bone.weightedVertexCount); lua_setfield(lua, -2, "weightedVertexCount");
+            lua_pushinteger(lua, bone.animationTrackCount); lua_setfield(lua, -2, "animationTrackCount");
+            lua_pushboolean(lua, bone.weightPaletteReferenced);
+            lua_setfield(lua, -2, "weightPaletteReferenced");
+            lua_pushboolean(lua, bone.hasNegativeScale); lua_setfield(lua, -2, "hasNegativeScale");
+            lua_pushboolean(lua, bone.hasShear); lua_setfield(lua, -2, "hasShear");
+            lua_rawseti(lua, -2, index + 1);
         }
-        if (name0) lua_pushstring(lua, name0); else lua_pushnil(lua);
-        lua_pushnumber(lua, w0);
-        if (name1) lua_pushstring(lua, name1); else lua_pushnil(lua);
-        lua_pushnumber(lua, w1);
-        if (name2) lua_pushstring(lua, name2); else lua_pushnil(lua);
-        lua_pushnumber(lua, w2);
-        if (name3) lua_pushstring(lua, name3); else lua_pushnil(lua);
-        lua_pushnumber(lua, w3);
+        lua_setfield(lua, -2, "bones");
+
+        lua_createtable(lua, static_cast<int>(summary.diagnosticCount), 0);
+        for (uint32_t index = 0; index < summary.diagnosticCount; ++index)
+        {
+            SKELETON_BIND_DIAGNOSTIC_INFO diagnostic;
+            if (!meshDebug->mesh.getSkeletonBindDiagnostic(index, diagnostic))
+                continue;
+            lua_createtable(lua, 0, 5);
+            lua_pushstring(lua, diagnostic.code ? diagnostic.code : "unknown");
+            lua_setfield(lua, -2, "code");
+            lua_pushinteger(lua, diagnostic.sourceIndex + 1); lua_setfield(lua, -2, "sourceIndex");
+            const char *boneName = meshDebug->mesh.getSkeletonBindBoneName(diagnostic.sourceIndex);
+            lua_pushstring(lua, boneName ? boneName : ""); lua_setfield(lua, -2, "boneName");
+            lua_pushnumber(lua, diagnostic.observedError); lua_setfield(lua, -2, "observedError");
+            lua_pushboolean(lua, diagnostic.fatal); lua_setfield(lua, -2, "fatal");
+            lua_rawseti(lua, -2, index + 1);
+        }
+        lua_setfield(lua, -2, "diagnostics");
+        return 1;
+    }
+
+    int onRenameSkeletalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        const char *name = luaL_checkstring(lua, 3);
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.renameSkeletalBone(static_cast<uint32_t>(index - 1), name,
+                                                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
+    int onReparentSkeletalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const lua_Integer parent = luaL_checkinteger(lua, 3);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        if (parent < 0) return luaL_error(lua, "canonical parent index must be zero (root) or one-based");
+        const bool preserveGlobal = lua_gettop(lua) < 4 || lua_toboolean(lua, 4) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.reparentSkeletalBone(static_cast<uint32_t>(index - 1),
+                                                  parent == 0 ? -1 : static_cast<int32_t>(parent - 1),
+                                                  preserveGlobal, errorOut,
+                                                  static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
+    int onSetSkeletalBoneBindDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 3)),
+                               static_cast<float>(luaL_checknumber(lua, 4)),
+                               static_cast<float>(luaL_checknumber(lua, 5)));
+        const float rotationX = static_cast<float>(luaL_checknumber(lua, 6));
+        const float rotationY = static_cast<float>(luaL_checknumber(lua, 7));
+        const float rotationZ = static_cast<float>(luaL_checknumber(lua, 8));
+        const float rotationW = static_cast<float>(luaL_checknumber(lua, 9));
+        const VEC3 scale(static_cast<float>(luaL_checknumber(lua, 10)),
+                         static_cast<float>(luaL_checknumber(lua, 11)),
+                         static_cast<float>(luaL_checknumber(lua, 12)));
+        const float radius = static_cast<float>(luaL_checknumber(lua, 13));
+        const float length = static_cast<float>(luaL_checknumber(lua, 14));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setSkeletalBoneBind(static_cast<uint32_t>(index - 1), translation,
+                rotationX, rotationY, rotationZ, rotationW, scale, radius, length,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
+    int onAddSkeletalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer parent = luaL_checkinteger(lua, 2);
+        if (parent < 0) return luaL_error(lua, "canonical parent index must be zero (root) or one-based");
+        const char *name = luaL_checkstring(lua, 3);
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 4)),
+                               static_cast<float>(luaL_checknumber(lua, 5)),
+                               static_cast<float>(luaL_checknumber(lua, 6)));
+        const float radius = static_cast<float>(luaL_checknumber(lua, 7));
+        const float length = static_cast<float>(luaL_checknumber(lua, 8));
+        const bool hasExplicitTail = lua_gettop(lua) < 9 || lua_toboolean(lua, 9) != 0;
+        const bool connectedToParent = lua_gettop(lua) >= 10 && lua_toboolean(lua, 10) != 0;
+        uint32_t newIndex = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalBone(parent == 0 ? -1 : static_cast<int32_t>(parent - 1),
+                name, translation, radius, length, hasExplicitTail, connectedToParent, &newIndex,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(newIndex + 1));
+        return 1;
+    }
+
+    int onSetSkeletalBoneTailDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        const VEC3 tailOffset(static_cast<float>(luaL_checknumber(lua, 3)),
+                              static_cast<float>(luaL_checknumber(lua, 4)),
+                              static_cast<float>(luaL_checknumber(lua, 5)));
+        const bool hasExplicitTail = lua_gettop(lua) < 6 || lua_toboolean(lua, 6) != 0;
+        const bool preserveOtherJoints = lua_gettop(lua) < 7 || lua_toboolean(lua, 7) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setSkeletalBoneTail(static_cast<uint32_t>(index - 1), tailOffset,
+                hasExplicitTail, preserveOtherJoints, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
+    int onSetSkeletalBoneHeadDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua,3)),
+                               static_cast<float>(luaL_checknumber(lua,4)),
+                               static_cast<float>(luaL_checknumber(lua,5)));
+        const bool preserveOtherJoints=lua_gettop(lua)<6||lua_toboolean(lua,6)!=0;
+        char errorOut[255]="";
+        if(!meshDebug->mesh.setSkeletalBoneHead(static_cast<uint32_t>(index-1),translation,
+                preserveOtherJoints,
+                errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        return 0;
+    }
+
+    int onTranslateSkeletalBoneSegmentDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua,3)),
+                               static_cast<float>(luaL_checknumber(lua,4)),
+                               static_cast<float>(luaL_checknumber(lua,5)));
+        const bool preserveOtherJoints=lua_gettop(lua)<6||lua_toboolean(lua,6)!=0;
+        char errorOut[255]="";
+        if(!meshDebug->mesh.translateSkeletalBoneSegment(static_cast<uint32_t>(index-1),translation,
+                preserveOtherJoints,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        return 0;
+    }
+
+    int onSetSkeletalBoneConnectedToParentDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        const bool connected=lua_toboolean(lua,3)!=0;
+        const bool preserveOtherJoints=lua_gettop(lua)<4||lua_toboolean(lua,4)!=0;
+        char errorOut[255]="";
+        if(!meshDebug->mesh.setSkeletalBoneConnectedToParent(static_cast<uint32_t>(index-1),
+                connected,preserveOtherJoints,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        return 0;
+    }
+
+    int onSetSkeletalBoneRadiusDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        const float radius=static_cast<float>(luaL_checknumber(lua,3));
+        const bool includeDescendants=lua_gettop(lua)>=4&&lua_toboolean(lua,4)!=0;
+        char errorOut[255]="";
+        if(!meshDebug->mesh.setSkeletalBoneRadius(static_cast<uint32_t>(index-1),radius,
+                includeDescendants,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        return 0;
+    }
+
+    int onInitializeSkeletalSkeletonDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 3)),
+                               static_cast<float>(luaL_checknumber(lua, 4)),
+                               static_cast<float>(luaL_checknumber(lua, 5)));
+        const float radius = static_cast<float>(luaL_checknumber(lua, 6));
+        const float length = static_cast<float>(luaL_checknumber(lua, 7));
+        const bool hasExplicitTail = lua_gettop(lua) < 8 || lua_toboolean(lua, 8) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.initializeSkeletalSkeleton(name, translation, radius, length,
+                hasExplicitTail,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
+    int onAddSkeletalBoneChainDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer parent = luaL_checkinteger(lua, 2);
+        if (parent < 0) return luaL_error(lua, "canonical parent index must be zero (root) or one-based");
+        const char *prefix = luaL_checkstring(lua, 3);
+        const lua_Integer count = luaL_checkinteger(lua, 4);
+        if (count <= 0) return luaL_error(lua, "canonical chain count must be positive");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 5)),
+                               static_cast<float>(luaL_checknumber(lua, 6)),
+                               static_cast<float>(luaL_checknumber(lua, 7)));
+        const float radius = static_cast<float>(luaL_checknumber(lua, 8));
+        const float length = static_cast<float>(luaL_checknumber(lua, 9));
+        uint32_t lastIndex = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalBoneChain(parent == 0 ? -1 : static_cast<int32_t>(parent - 1),
+                prefix, static_cast<uint32_t>(count), translation, radius, length, &lastIndex,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(lastIndex + 1));
+        return 1;
+    }
+
+    int onExtendSkeletalBoneTailDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        const lua_Integer count=luaL_checkinteger(lua,3);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        if(count<=0) return luaL_error(lua,"canonical extension count must be positive");
+        const float radius=static_cast<float>(luaL_checknumber(lua,4));
+        const float length=static_cast<float>(luaL_checknumber(lua,5));
+        uint32_t lastIndex=0;
+        char errorOut[255]="";
+        if(!meshDebug->mesh.extendSkeletalBoneTail(static_cast<uint32_t>(index-1),
+                static_cast<uint32_t>(count),radius,length,&lastIndex,errorOut,
+                static_cast<int>(sizeof(errorOut)))) return lua_error_debug(lua,errorOut);
+        lua_pushinteger(lua,static_cast<lua_Integer>(lastIndex+1));
+        return 1;
+    }
+
+    int onMirrorSkeletalBoneSubtreeDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const lua_Integer axis = luaL_checkinteger(lua, 3);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        if (axis < 1 || axis > 3) return luaL_error(lua, "canonical mirror axis must be 1 (X), 2 (Y), or 3 (Z)");
+        const char *prefix = luaL_checkstring(lua, 4);
+        uint32_t newRootIndex = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.mirrorSkeletalBoneSubtree(static_cast<uint32_t>(index - 1),
+                static_cast<uint32_t>(axis - 1), prefix, &newRootIndex,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(newRootIndex + 1));
+        return 1;
+    }
+
+    int onRemoveSkeletalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalBone(static_cast<uint32_t>(index - 1),
+                                                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
+    int onRemoveSkeletalBoneRemappedDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const lua_Integer replacement = luaL_checkinteger(lua, 3);
+        if (index <= 0 || replacement <= 0)
+            return luaL_error(lua, "canonical bone indices must be one-based");
+        const bool discardTracks = lua_toboolean(lua, 4) != 0;
+        const bool reparentChildren = lua_toboolean(lua, 5) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalBoneRemapped(static_cast<uint32_t>(index - 1),
+                static_cast<uint32_t>(replacement - 1), discardTracks, reparentChildren,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
+
+    int onSetSkeletalVertexWeightDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const uint32_t vertexIndex=static_cast<uint32_t>(luaL_checkinteger(lua,2)-1);
+        const char *names[4];
+        float weights[4];
+        for (int slot=0; slot<4; ++slot)
+        {
+            const int nameIndex=3+slot*2;
+            names[slot]=lua_isnil(lua,nameIndex) ? nullptr : luaL_checkstring(lua,nameIndex);
+            weights[slot]=static_cast<float>(luaL_optnumber(lua,nameIndex+1,0.0));
+        }
+        char errorOut[255]="";
+        if (!meshDebug->mesh.setSkeletalVertexWeight(vertexIndex,
+                names[0],weights[0],names[1],weights[1],names[2],weights[2],names[3],weights[3],
+                errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,1);
+        return 1;
+    }
+
+    int onGetSkeletalVertexWeightDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const int index=static_cast<int>(luaL_checkinteger(lua,2))-1;
+        if (index<0) { lua_pushnil(lua); return 1; }
+        const char *names[4]={nullptr,nullptr,nullptr,nullptr};
+        float weights[4]={0,0,0,0};
+        if (!meshDebug->mesh.getSkeletalVertexWeight(static_cast<uint32_t>(index),
+                &names[0],&weights[0],&names[1],&weights[1],&names[2],&weights[2],&names[3],&weights[3]))
+        { lua_pushnil(lua); return 1; }
+        for (int slot=0; slot<4; ++slot)
+        {
+            if (names[slot]) lua_pushstring(lua,names[slot]); else lua_pushnil(lua);
+            lua_pushnumber(lua,weights[slot]);
+        }
         return 8;
     }
 
-    int onHasVertexWeightsDebugLua(lua_State *lua)
+    int onSetSkeletalVertexWeightsBatchDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        lua_pushboolean(lua, meshDebug->mesh.hasVertexWeights() ? 1 : 0);
+        luaL_checktype(lua, 2, LUA_TTABLE);
+        const size_t editCount = lua_rawlen(lua, 2);
+        if (editCount == 0 || editCount > UINT32_MAX)
+            return luaL_error(lua, "canonical vertex weight batch must contain at least one edit");
+
+        std::vector<SKELETAL_VERTEX_WEIGHT_EDIT> edits(editCount);
+        for (size_t editIndex = 0; editIndex < editCount; ++editIndex)
+        {
+            lua_rawgeti(lua, 2, static_cast<lua_Integer>(editIndex + 1));
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            SKELETAL_VERTEX_WEIGHT_EDIT &edit = edits[editIndex];
+            lua_rawgeti(lua, -1, 1);
+            const lua_Integer vertexIndex = luaL_checkinteger(lua, -1);
+            if (vertexIndex <= 0) return luaL_error(lua, "canonical vertex index must be one-based");
+            edit.vertexIndex = static_cast<uint32_t>(vertexIndex - 1);
+            lua_pop(lua, 1);
+            for (int slot = 0; slot < 4; ++slot)
+            {
+                lua_rawgeti(lua, -1, 2 + slot * 2);
+                edit.boneNames[slot] = lua_isnil(lua, -1) ? nullptr : luaL_checkstring(lua, -1);
+                lua_pop(lua, 1);
+                lua_rawgeti(lua, -1, 3 + slot * 2);
+                edit.weights[slot] = static_cast<float>(luaL_optnumber(lua, -1, 0.0));
+                lua_pop(lua, 1);
+            }
+            lua_pop(lua, 1);
+        }
+
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setSkeletalVertexWeightsBatch(edits.data(),
+                static_cast<uint32_t>(edits.size()), errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
         return 1;
     }
 
-    int onGetTotalVertexWeightBonesDebugLua(lua_State *lua)
+    int onHasSkeletalVertexWeightsDebugLua(lua_State *lua)
     {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalVertexWeightBones()));
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        lua_pushboolean(lua,meshDebug->mesh.hasSkeletalVertexWeights());
         return 1;
     }
 
-    int onRemoveVertexWeightsDebugLua(lua_State *lua)
+    int onInitializeSkeletalVertexWeightsDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        meshDebug->mesh.removeVertexWeights();
-        return 0;
+        const lua_Integer boneIndex = luaL_checkinteger(lua, 2);
+        if (boneIndex <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        uint32_t vertexCount = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.initializeSkeletalVertexWeights(static_cast<uint32_t>(boneIndex - 1),
+                &vertexCount, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(vertexCount));
+        return 1;
+    }
+
+    int onRemoveSkeletalVertexWeightsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        uint32_t vertexCount = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalVertexWeights(&vertexCount, errorOut,
+                static_cast<int>(sizeof(errorOut)))) return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(vertexCount));
+        return 1;
+    }
+
+    int onRemoveAllSkeletalDataDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        uint32_t boneCount = 0, vertexCount = 0, clipCount = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeAllSkeletalData(&boneCount, &vertexCount, &clipCount,
+                errorOut, static_cast<int>(sizeof(errorOut)))) return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(boneCount));
+        lua_pushinteger(lua, static_cast<lua_Integer>(vertexCount));
+        lua_pushinteger(lua, static_cast<lua_Integer>(clipCount));
+        return 3;
+    }
+
+    int onGetSkeletalAnimationReportDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t clipCount = meshDebug->mesh.getTotalSkeletalClips();
+        lua_createtable(lua, static_cast<int>(clipCount), 0);
+        for (uint32_t clipIndex = 0; clipIndex < clipCount; ++clipIndex)
+        {
+            SKELETAL_CLIP_INFO clip;
+            if (!meshDebug->mesh.getSkeletalClip(clipIndex, clip)) continue;
+            lua_createtable(lua, 0, 7);
+            pushSkeletonBindId(lua, clip.clipId, "clipId");
+            lua_pushstring(lua, meshDebug->mesh.getSkeletalClipName(clipIndex)); lua_setfield(lua, -2, "name");
+            lua_pushnumber(lua, clip.duration); lua_setfield(lua, -2, "duration");
+            lua_pushboolean(lua, clip.loop); lua_setfield(lua, -2, "loop");
+            lua_createtable(lua, static_cast<int>(clip.trackCount), 0);
+            for (uint32_t trackIndex = 0; trackIndex < clip.trackCount; ++trackIndex)
+            {
+                SKELETAL_TRACK_INFO track;
+                if (!meshDebug->mesh.getSkeletalTrack(clipIndex, trackIndex, track)) continue;
+                lua_createtable(lua, 0, 6);
+                pushSkeletonBindId(lua, track.boneId, "boneId");
+                lua_pushinteger(lua, track.boneIndex + 1); lua_setfield(lua, -2, "boneIndex");
+                const char *boneName = meshDebug->mesh.getSkeletonBindBoneName(track.boneIndex);
+                lua_pushstring(lua, boneName ? boneName : ""); lua_setfield(lua, -2, "boneName");
+                lua_pushinteger(lua, track.channelMask); lua_setfield(lua, -2, "channelMask");
+                lua_createtable(lua, static_cast<int>(track.keyCount), 0);
+                for (uint32_t keyIndex = 0; keyIndex < track.keyCount; ++keyIndex)
+                {
+                    SKELETAL_KEY_INFO key;
+                    if (!meshDebug->mesh.getSkeletalKey(clipIndex, trackIndex, keyIndex, key)) continue;
+                    lua_createtable(lua, 0, 8);
+                    lua_pushnumber(lua, key.time); lua_setfield(lua, -2, "time");
+                    pushSkeletonBindVector(lua, key.localTranslation); lua_setfield(lua, -2, "translation");
+                    lua_createtable(lua, 0, 4);
+                    lua_pushnumber(lua, key.localRotationX); lua_setfield(lua, -2, "x");
+                    lua_pushnumber(lua, key.localRotationY); lua_setfield(lua, -2, "y");
+                    lua_pushnumber(lua, key.localRotationZ); lua_setfield(lua, -2, "z");
+                    lua_pushnumber(lua, key.localRotationW); lua_setfield(lua, -2, "w");
+                    lua_setfield(lua, -2, "rotation");
+                    pushSkeletonBindVector(lua, key.localScale); lua_setfield(lua, -2, "scale");
+                    lua_pushinteger(lua, key.easing); lua_setfield(lua, -2, "easing");
+                    lua_createtable(lua, 0, 4);
+                    lua_pushnumber(lua, key.bezierX1); lua_setfield(lua, -2, "x1");
+                    lua_pushnumber(lua, key.bezierY1); lua_setfield(lua, -2, "y1");
+                    lua_pushnumber(lua, key.bezierX2); lua_setfield(lua, -2, "x2");
+                    lua_pushnumber(lua, key.bezierY2); lua_setfield(lua, -2, "y2");
+                    lua_setfield(lua, -2, "bezier");
+                    lua_rawseti(lua, -2, keyIndex + 1);
+                }
+                lua_setfield(lua, -2, "keys");
+                lua_rawseti(lua, -2, trackIndex + 1);
+            }
+            lua_setfield(lua, -2, "tracks");
+            lua_rawseti(lua, -2, clipIndex + 1);
+        }
+        return 1;
+    }
+
+    int onAddSkeletalClipDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const float duration = static_cast<float>(luaL_checknumber(lua, 3));
+        const bool loop = lua_toboolean(lua, 4) != 0;
+        uint32_t index = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalClip(name, duration, loop, &index,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(index + 1));
+        return 1;
+    }
+
+    int onUpdateSkeletalClipDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical clip index must be one-based");
+        const char *name = luaL_checkstring(lua, 3);
+        const float duration = static_cast<float>(luaL_checknumber(lua, 4));
+        const bool loop = lua_toboolean(lua, 5) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateSkeletalClip(static_cast<uint32_t>(index - 1), name, duration, loop,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onRemoveSkeletalClipDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical clip index must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalClip(static_cast<uint32_t>(index - 1), errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onAddSkeletalTrackDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer bone = luaL_checkinteger(lua, 3);
+        const lua_Integer mask = luaL_checkinteger(lua, 4);
+        if (clip <= 0 || bone <= 0) return luaL_error(lua, "canonical clip and bone indices must be one-based");
+        uint32_t index = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalTrack(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(bone - 1), static_cast<uint8_t>(mask), &index,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(index + 1));
+        return 1;
+    }
+
+    int onUpdateSkeletalTrackChannelsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        const lua_Integer mask = luaL_checkinteger(lua, 4);
+        if (clip <= 0 || track <= 0) return luaL_error(lua, "canonical clip and track indices must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateSkeletalTrackChannels(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), static_cast<uint8_t>(mask), errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onRemoveSkeletalTrackDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        if (clip <= 0 || track <= 0) return luaL_error(lua, "canonical clip and track indices must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalTrack(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onAddSkeletalKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        const float time = static_cast<float>(luaL_checknumber(lua, 4));
+        if (clip <= 0 || track <= 0) return luaL_error(lua, "canonical clip and track indices must be one-based");
+        uint32_t index = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalKey(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), time, &index, errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(index + 1));
+        return 1;
+    }
+
+    int onUpdateSkeletalKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        const lua_Integer key = luaL_checkinteger(lua, 4);
+        if (clip <= 0 || track <= 0 || key <= 0)
+            return luaL_error(lua, "canonical clip, track, and key indices must be one-based");
+        const float time = static_cast<float>(luaL_checknumber(lua, 5));
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 6)),
+                               static_cast<float>(luaL_checknumber(lua, 7)),
+                               static_cast<float>(luaL_checknumber(lua, 8)));
+        const float qx = static_cast<float>(luaL_checknumber(lua, 9));
+        const float qy = static_cast<float>(luaL_checknumber(lua, 10));
+        const float qz = static_cast<float>(luaL_checknumber(lua, 11));
+        const float qw = static_cast<float>(luaL_checknumber(lua, 12));
+        const VEC3 scale(static_cast<float>(luaL_checknumber(lua, 13)),
+                         static_cast<float>(luaL_checknumber(lua, 14)),
+                         static_cast<float>(luaL_checknumber(lua, 15)));
+        const lua_Integer easing = luaL_checkinteger(lua, 16);
+        const float x1 = static_cast<float>(luaL_checknumber(lua, 17));
+        const float y1 = static_cast<float>(luaL_checknumber(lua, 18));
+        const float x2 = static_cast<float>(luaL_checknumber(lua, 19));
+        const float y2 = static_cast<float>(luaL_checknumber(lua, 20));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateSkeletalKey(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), static_cast<uint32_t>(key - 1), time,
+                translation, qx, qy, qz, qw, scale, static_cast<uint8_t>(easing),
+                x1, y1, x2, y2, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onRemoveSkeletalKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        const lua_Integer key = luaL_checkinteger(lua, 4);
+        if (clip <= 0 || track <= 0 || key <= 0)
+            return luaL_error(lua, "canonical clip, track, and key indices must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalKey(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), static_cast<uint32_t>(key - 1), errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onMoveSkeletalKeysDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        luaL_checktype(lua,3,LUA_TTABLE);
+        const lua_Integer itemCount=static_cast<lua_Integer>(lua_rawlen(lua,3));
+        if (itemCount<=0 || (itemCount%2)!=0)
+            return luaL_error(lua,"canonical key move references must contain track/key pairs");
+        std::vector<uint32_t> tracks;
+        std::vector<uint32_t> keys;
+        tracks.reserve(static_cast<size_t>(itemCount/2));
+        keys.reserve(static_cast<size_t>(itemCount/2));
+        for (lua_Integer item=1;item<=itemCount;item+=2)
+        {
+            lua_rawgeti(lua,3,item);
+            const lua_Integer track=luaL_checkinteger(lua,-1);
+            lua_pop(lua,1);
+            lua_rawgeti(lua,3,item+1);
+            const lua_Integer key=luaL_checkinteger(lua,-1);
+            lua_pop(lua,1);
+            if (track<=0 || key<=0)
+                return luaL_error(lua,"canonical track and key indices must be one-based");
+            tracks.push_back(static_cast<uint32_t>(track-1));
+            keys.push_back(static_cast<uint32_t>(key-1));
+        }
+        const float delta=static_cast<float>(luaL_checknumber(lua,4));
+        char errorOut[255]="";
+        if (!meshDebug->mesh.moveSkeletalKeys(static_cast<uint32_t>(clip-1),tracks.data(),
+                keys.data(),static_cast<uint32_t>(tracks.size()),delta,errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
+    int onDuplicateSkeletalKeysDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        luaL_checktype(lua,3,LUA_TTABLE);
+        const lua_Integer itemCount=static_cast<lua_Integer>(lua_rawlen(lua,3));
+        if (itemCount<=0 || (itemCount%2)!=0)
+            return luaL_error(lua,"canonical key duplicate references must contain track/key pairs");
+        std::vector<uint32_t> tracks;
+        std::vector<uint32_t> keys;
+        tracks.reserve(static_cast<size_t>(itemCount/2));
+        keys.reserve(static_cast<size_t>(itemCount/2));
+        for (lua_Integer item=1;item<=itemCount;item+=2)
+        {
+            lua_rawgeti(lua,3,item);
+            const lua_Integer track=luaL_checkinteger(lua,-1);
+            lua_pop(lua,1);
+            lua_rawgeti(lua,3,item+1);
+            const lua_Integer key=luaL_checkinteger(lua,-1);
+            lua_pop(lua,1);
+            if (track<=0 || key<=0)
+                return luaL_error(lua,"canonical track and key indices must be one-based");
+            tracks.push_back(static_cast<uint32_t>(track-1));
+            keys.push_back(static_cast<uint32_t>(key-1));
+        }
+        const float delta=static_cast<float>(luaL_checknumber(lua,4));
+        char errorOut[255]="";
+        if (!meshDebug->mesh.duplicateSkeletalKeys(static_cast<uint32_t>(clip-1),tracks.data(),
+                keys.data(),static_cast<uint32_t>(tracks.size()),delta,errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
+    int onPasteSkeletalKeysDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        luaL_checktype(lua,3,LUA_TTABLE);
+        const lua_Integer itemCount=static_cast<lua_Integer>(lua_rawlen(lua,3));
+        if (itemCount<=0) return luaL_error(lua,"canonical paste payload must not be empty");
+        std::vector<uint64_t> boneIds;
+        std::vector<uint8_t> channelMasks;
+        std::vector<SKELETAL_KEY_INFO> keys;
+        boneIds.reserve(static_cast<size_t>(itemCount));
+        channelMasks.reserve(static_cast<size_t>(itemCount));
+        keys.reserve(static_cast<size_t>(itemCount));
+        for (lua_Integer itemIndex=1;itemIndex<=itemCount;++itemIndex)
+        {
+            lua_rawgeti(lua,3,itemIndex);
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const auto integerAt=[lua](const int index)
+            {
+                lua_rawgeti(lua,-1,index);
+                const lua_Integer value=luaL_checkinteger(lua,-1);
+                lua_pop(lua,1);
+                return value;
+            };
+            const auto numberAt=[lua](const int index)
+            {
+                lua_rawgeti(lua,-1,index);
+                const float value=static_cast<float>(luaL_checknumber(lua,-1));
+                lua_pop(lua,1);
+                return value;
+            };
+            const lua_Integer mask=integerAt(2);
+            if (mask<=0 || mask>7) return luaL_error(lua,
+                "canonical paste channel mask must contain only T/R/S channels");
+            lua_rawgeti(lua,-1,1);
+            const char *boneIdText=luaL_checkstring(lua,-1);
+            char *boneIdEnd=nullptr;
+            const uint64_t boneId=static_cast<uint64_t>(std::strtoull(boneIdText,&boneIdEnd,16));
+            if (!boneIdText[0] || !boneIdEnd || *boneIdEnd!='\0')
+                return luaL_error(lua,"canonical paste bone ID must be hexadecimal");
+            lua_pop(lua,1);
+            boneIds.push_back(boneId);
+            channelMasks.push_back(static_cast<uint8_t>(mask));
+            SKELETAL_KEY_INFO key;
+            key.time=numberAt(3);
+            key.localTranslation=VEC3(numberAt(4),numberAt(5),numberAt(6));
+            key.localRotationX=numberAt(7);
+            key.localRotationY=numberAt(8);
+            key.localRotationZ=numberAt(9);
+            key.localRotationW=numberAt(10);
+            key.localScale=VEC3(numberAt(11),numberAt(12),numberAt(13));
+            key.easing=static_cast<uint8_t>(integerAt(14));
+            key.bezierX1=numberAt(15);
+            key.bezierY1=numberAt(16);
+            key.bezierX2=numberAt(17);
+            key.bezierY2=numberAt(18);
+            keys.push_back(key);
+            lua_pop(lua,1);
+        }
+        const float sourceMinimumTime=static_cast<float>(luaL_checknumber(lua,4));
+        const float insertionTime=static_cast<float>(luaL_checknumber(lua,5));
+        char errorOut[255]="";
+        if (!meshDebug->mesh.pasteSkeletalKeys(static_cast<uint32_t>(clip-1),boneIds.data(),
+                channelMasks.data(),keys.data(),static_cast<uint32_t>(keys.size()),
+                sourceMinimumTime,insertionTime,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
+    int onInsertSkeletalKeysRippleDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        luaL_checktype(lua,3,LUA_TTABLE);
+        const lua_Integer itemCount=static_cast<lua_Integer>(lua_rawlen(lua,3));
+        if (itemCount<=0 || (itemCount%2)!=0)
+            return luaL_error(lua,"canonical ripple references must contain track/key pairs");
+        std::vector<uint32_t> tracks;
+        std::vector<uint32_t> keys;
+        tracks.reserve(static_cast<size_t>(itemCount/2));
+        keys.reserve(static_cast<size_t>(itemCount/2));
+        for (lua_Integer item=1;item<=itemCount;item+=2)
+        {
+            lua_rawgeti(lua,3,item);
+            const lua_Integer track=luaL_checkinteger(lua,-1);
+            lua_pop(lua,1);
+            lua_rawgeti(lua,3,item+1);
+            const lua_Integer key=luaL_checkinteger(lua,-1);
+            lua_pop(lua,1);
+            if (track<=0 || key<=0)
+                return luaL_error(lua,"canonical track and key indices must be one-based");
+            tracks.push_back(static_cast<uint32_t>(track-1));
+            keys.push_back(static_cast<uint32_t>(key-1));
+        }
+        const float insertionTime=static_cast<float>(luaL_checknumber(lua,4));
+        char errorOut[255]="";
+        if (!meshDebug->mesh.insertSkeletalKeysRipple(static_cast<uint32_t>(clip-1),tracks.data(),
+                keys.data(),static_cast<uint32_t>(tracks.size()),insertionTime,errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
+    int onInsertSkeletalEmptyTimeDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        const float insertionTime=static_cast<float>(luaL_checknumber(lua,3));
+        const float duration=static_cast<float>(luaL_checknumber(lua,4));
+        char errorOut[255]="";
+        if (!meshDebug->mesh.insertSkeletalEmptyTime(static_cast<uint32_t>(clip-1),insertionTime,
+                duration,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
+    int onRemoveSkeletalTimeRangeDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        const float startTime=static_cast<float>(luaL_checknumber(lua,3));
+        const float duration=static_cast<float>(luaL_checknumber(lua,4));
+        uint32_t removedKeyCount=0;
+        char errorOut[255]="";
+        if (!meshDebug->mesh.removeSkeletalTimeRange(static_cast<uint32_t>(clip-1),startTime,
+                duration,&removedKeyCount,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushinteger(lua,static_cast<lua_Integer>(removedKeyCount));
+        return 1;
+    }
+
+    int onEvaluateSkeletalAuthoringPoseDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        if (clip <= 0) return luaL_error(lua, "canonical clip index must be one-based");
+        const float time = static_cast<float>(luaL_checknumber(lua, 3));
+        const char *methodName = luaL_checkstring(lua, 4);
+        const SKELETAL_SHADER_METHOD method = strcmp(methodName, "dqs") == 0
+            ? SKELETAL_SHADER_METHOD::DQS_RIGID : strcmp(methodName, "lbs") == 0
+            ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE;
+        const lua_Integer overrideIndex = luaL_optinteger(lua, 5, 0);
+        SKELETAL_KEY_INFO overrideLocal;
+        const SKELETAL_KEY_INFO *overridePtr = nullptr;
+        if (overrideIndex > 0)
+        {
+            overrideLocal.localTranslation = VEC3(static_cast<float>(luaL_checknumber(lua, 6)),
+                static_cast<float>(luaL_checknumber(lua, 7)), static_cast<float>(luaL_checknumber(lua, 8)));
+            overrideLocal.localRotationX = static_cast<float>(luaL_checknumber(lua, 9));
+            overrideLocal.localRotationY = static_cast<float>(luaL_checknumber(lua, 10));
+            overrideLocal.localRotationZ = static_cast<float>(luaL_checknumber(lua, 11));
+            overrideLocal.localRotationW = static_cast<float>(luaL_checknumber(lua, 12));
+            overrideLocal.localScale = VEC3(static_cast<float>(luaL_checknumber(lua, 13)),
+                static_cast<float>(luaL_checknumber(lua, 14)), static_cast<float>(luaL_checknumber(lua, 15)));
+            overridePtr = &overrideLocal;
+        }
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.evaluateSkeletalAuthoringPose(static_cast<uint32_t>(clip - 1), time,
+                overrideIndex > 0 ? static_cast<int32_t>(overrideIndex - 1) : -1,
+                overridePtr, method, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_createtable(lua, 0, 4);
+        lua_pushnumber(lua, time); lua_setfield(lua, -2, "time");
+        lua_pushstring(lua, methodName); lua_setfield(lua, -2, "method");
+        const uint32_t boneCount = meshDebug->mesh.getSkeletalAuthoringPoseBoneCount();
+        lua_createtable(lua, static_cast<int>(boneCount), 0);
+        for (uint32_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            SKELETAL_POSE_BONE_INFO bone;
+            if (!meshDebug->mesh.getSkeletalAuthoringPoseBone(boneIndex, bone)) continue;
+            lua_createtable(lua, 0, 5);
+            const char *name = meshDebug->mesh.getSkeletonBindBoneName(boneIndex);
+            lua_pushstring(lua, name ? name : ""); lua_setfield(lua, -2, "name");
+            pushSkeletonBindVector(lua, bone.localTranslation); lua_setfield(lua, -2, "localTranslation");
+            lua_createtable(lua, 0, 4);
+            lua_pushnumber(lua, bone.localRotationX); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, bone.localRotationY); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, bone.localRotationZ); lua_setfield(lua, -2, "z");
+            lua_pushnumber(lua, bone.localRotationW); lua_setfield(lua, -2, "w");
+            lua_setfield(lua, -2, "localRotation");
+            pushSkeletonBindVector(lua, bone.localScale); lua_setfield(lua, -2, "localScale");
+            pushSkeletonBindMatrix(lua, bone.globalMatrix); lua_setfield(lua, -2, "globalMatrix");
+            lua_rawseti(lua, -2, boneIndex + 1);
+        }
+        lua_setfield(lua, -2, "bones");
+        lua_createtable(lua, static_cast<int>(boneCount), 0);
+        for (uint32_t boneIndex=0; boneIndex<boneCount; ++boneIndex)
+        {
+            SKELETAL_POSE_BONE_INFO bone;
+            if (!meshDebug->mesh.getSkeletalAuthoringPoseBone(boneIndex,bone))
+                return luaL_error(lua,"failed to read canonical authoring bone identity");
+            char boneId[17]="";
+            snprintf(boneId,sizeof(boneId),"%016llx",static_cast<unsigned long long>(bone.boneId));
+            lua_pushstring(lua,boneId);
+            lua_rawseti(lua,-2,boneIndex+1);
+        }
+        lua_setfield(lua,-2,"boneIds");
+        const uint32_t paletteSize = meshDebug->mesh.getSkeletalAuthoringPaletteSize();
+        std::vector<float> palette(paletteSize);
+        if (!meshDebug->mesh.copySkeletalAuthoringPalette(palette.data(), paletteSize))
+            return luaL_error(lua, "failed to copy canonical authoring palette");
+        lua_createtable(lua, static_cast<int>(paletteSize), 0);
+        for (uint32_t index = 0; index < paletteSize; ++index)
+        { lua_pushnumber(lua, palette[index]); lua_rawseti(lua, -2, index + 1); }
+        lua_setfield(lua, -2, "palette");
+        return 1;
+    }
+
+    int onCommitSkeletalAuthoringKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        const lua_Integer bone=luaL_checkinteger(lua,3);
+        if (clip<=0 || bone<=0) return luaL_error(lua,"canonical clip and bone indices must be one-based");
+        SKELETAL_KEY_INFO local;
+        local.time=static_cast<float>(luaL_checknumber(lua,4));
+        const uint8_t channelMask=static_cast<uint8_t>(luaL_checkinteger(lua,5));
+        local.localTranslation=VEC3(static_cast<float>(luaL_checknumber(lua,6)),
+            static_cast<float>(luaL_checknumber(lua,7)),static_cast<float>(luaL_checknumber(lua,8)));
+        local.localRotationX=static_cast<float>(luaL_checknumber(lua,9));
+        local.localRotationY=static_cast<float>(luaL_checknumber(lua,10));
+        local.localRotationZ=static_cast<float>(luaL_checknumber(lua,11));
+        local.localRotationW=static_cast<float>(luaL_checknumber(lua,12));
+        local.localScale=VEC3(static_cast<float>(luaL_checknumber(lua,13)),
+            static_cast<float>(luaL_checknumber(lua,14)),static_cast<float>(luaL_checknumber(lua,15)));
+        bool created=false;
+        char errorOut[255]="";
+        if (!meshDebug->mesh.commitSkeletalAuthoringKey(static_cast<uint32_t>(clip-1),
+                static_cast<uint32_t>(bone-1),local.time,channelMask,local,&created,errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,created);
+        return 1;
+    }
+
+    int onCommitSkeletalAuthoringPoseDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        if (clip<=0) return luaL_error(lua,"canonical clip index must be one-based");
+        const float time=static_cast<float>(luaL_checknumber(lua,3));
+        luaL_checktype(lua,4,LUA_TTABLE);
+        const lua_Integer itemCount=static_cast<lua_Integer>(lua_rawlen(lua,4));
+        if (itemCount<=0) return luaL_error(lua,"canonical authoring pose must not be empty");
+        std::vector<uint64_t> boneIds;
+        std::vector<SKELETAL_KEY_INFO> locals;
+        boneIds.reserve(static_cast<size_t>(itemCount));
+        locals.reserve(static_cast<size_t>(itemCount));
+        for (lua_Integer itemIndex=1;itemIndex<=itemCount;++itemIndex)
+        {
+            lua_rawgeti(lua,4,itemIndex);
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            lua_rawgeti(lua,-1,1);
+            const char *boneIdText=luaL_checkstring(lua,-1);
+            char *boneIdEnd=nullptr;
+            const uint64_t boneId=static_cast<uint64_t>(std::strtoull(boneIdText,&boneIdEnd,16));
+            if (!boneIdText[0] || !boneIdEnd || *boneIdEnd!='\0')
+                return luaL_error(lua,"canonical authoring pose bone ID must be hexadecimal");
+            lua_pop(lua,1);
+            const auto numberAt=[lua](const int index)
+            {
+                lua_rawgeti(lua,-1,index);
+                const float value=static_cast<float>(luaL_checknumber(lua,-1));
+                lua_pop(lua,1);
+                return value;
+            };
+            SKELETAL_KEY_INFO local;
+            local.localTranslation=VEC3(numberAt(2),numberAt(3),numberAt(4));
+            local.localRotationX=numberAt(5);
+            local.localRotationY=numberAt(6);
+            local.localRotationZ=numberAt(7);
+            local.localRotationW=numberAt(8);
+            local.localScale=VEC3(numberAt(9),numberAt(10),numberAt(11));
+            boneIds.push_back(boneId);
+            locals.push_back(local);
+            lua_pop(lua,1);
+        }
+        char errorOut[255]="";
+        if (!meshDebug->mesh.commitSkeletalAuthoringPose(static_cast<uint32_t>(clip-1),time,
+                boneIds.data(),locals.data(),static_cast<uint32_t>(locals.size()),errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,true);
+        return 1;
+    }
+
+    int onGetTotalSkeletalWeightBonesDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        lua_pushinteger(lua,static_cast<lua_Integer>(meshDebug->mesh.getTotalSkeletalWeightBones()));
+        return 1;
     }
 
     int onNewIndexMeshDebug(lua_State *lua) // escrita
@@ -2485,6 +3388,7 @@ namespace mbm
                                           {"centralizeItself", onCentralizeItselfMeshDebugLua},
                                           {"rotateFrame", onRotateFrameDebugLua},
                                           {"scaleFrame", onScaleFrameDebugLua},
+                                          {"scaleSkeletalAsset", onScaleSkeletalAssetDebugLua},
                                           {"translateFrame", onTranslateFrameDebugLua},
                                           {"check", onCheckMeshDebugLua},
                                           {"getStride", onGetStrideMeshDebugLua},
@@ -2496,16 +3400,49 @@ namespace mbm
                                           {"copyAnimationsFromMesh", onCopyAnimationsFromMeshLua},
                                           {"updateAnim", onUpdateAnimationDebugLua},
                                           {"getAnim", onGetDetailAnimationDebugLua},
-                                          {"addBone", onAddBoneDebugLua},
-                                          {"getTotalBone", onGetTotalBoneDebugLua},
-                                          {"getBone", onGetBoneDebugLua},
-                                          {"updateBone", onUpdateBoneDebugLua},
-                                          {"removeBone", onRemoveBoneDebugLua},
-                                          {"setVertexWeight", onSetVertexWeightDebugLua},
-                                          {"getVertexWeight", onGetVertexWeightDebugLua},
-                                          {"hasVertexWeights", onHasVertexWeightsDebugLua},
-                                          {"getTotalVertexWeightBones", onGetTotalVertexWeightBonesDebugLua},
-                                          {"removeVertexWeights", onRemoveVertexWeightsDebugLua},
+                                          {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
+                                          {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
+                                          {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
+                                          {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
+                                          {"setSkeletalBoneTail", onSetSkeletalBoneTailDebugLua},
+                                          {"setSkeletalBoneHead", onSetSkeletalBoneHeadDebugLua},
+                                          {"translateSkeletalBoneSegment", onTranslateSkeletalBoneSegmentDebugLua},
+                                          {"setSkeletalBoneConnectedToParent", onSetSkeletalBoneConnectedToParentDebugLua},
+                                          {"setSkeletalBoneRadius", onSetSkeletalBoneRadiusDebugLua},
+                                          {"addSkeletalBone", onAddSkeletalBoneDebugLua},
+                                          {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
+                                          {"addSkeletalBoneChain", onAddSkeletalBoneChainDebugLua},
+                                          {"extendSkeletalBoneTail", onExtendSkeletalBoneTailDebugLua},
+                                          {"mirrorSkeletalBoneSubtree", onMirrorSkeletalBoneSubtreeDebugLua},
+                                          {"removeSkeletalBone", onRemoveSkeletalBoneDebugLua},
+                                          {"removeSkeletalBoneRemapped", onRemoveSkeletalBoneRemappedDebugLua},
+                                          {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
+                                          {"setSkeletalVertexWeightsBatch", onSetSkeletalVertexWeightsBatchDebugLua},
+                                          {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
+                                          {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},
+                                          {"initializeSkeletalVertexWeights", onInitializeSkeletalVertexWeightsDebugLua},
+                                          {"removeSkeletalVertexWeights", onRemoveSkeletalVertexWeightsDebugLua},
+                                          {"removeAllSkeletalData", onRemoveAllSkeletalDataDebugLua},
+                                          {"getSkeletalAnimationReport", onGetSkeletalAnimationReportDebugLua},
+                                          {"addSkeletalClip", onAddSkeletalClipDebugLua},
+                                          {"updateSkeletalClip", onUpdateSkeletalClipDebugLua},
+                                          {"removeSkeletalClip", onRemoveSkeletalClipDebugLua},
+                                          {"addSkeletalTrack", onAddSkeletalTrackDebugLua},
+                                          {"updateSkeletalTrackChannels", onUpdateSkeletalTrackChannelsDebugLua},
+                                          {"removeSkeletalTrack", onRemoveSkeletalTrackDebugLua},
+                                          {"addSkeletalKey", onAddSkeletalKeyDebugLua},
+                                          {"updateSkeletalKey", onUpdateSkeletalKeyDebugLua},
+                                          {"removeSkeletalKey", onRemoveSkeletalKeyDebugLua},
+                                          {"moveSkeletalKeys", onMoveSkeletalKeysDebugLua},
+                                          {"duplicateSkeletalKeys", onDuplicateSkeletalKeysDebugLua},
+                                          {"pasteSkeletalKeys", onPasteSkeletalKeysDebugLua},
+                                          {"insertSkeletalKeysRipple", onInsertSkeletalKeysRippleDebugLua},
+                                          {"insertSkeletalEmptyTime", onInsertSkeletalEmptyTimeDebugLua},
+                                          {"removeSkeletalTimeRange", onRemoveSkeletalTimeRangeDebugLua},
+                                          {"evaluateSkeletalAuthoringPose", onEvaluateSkeletalAuthoringPoseDebugLua},
+                                          {"commitSkeletalAuthoringKey", onCommitSkeletalAuthoringKeyDebugLua},
+                                          {"commitSkeletalAuthoringPose", onCommitSkeletalAuthoringPoseDebugLua},
+                                          {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},
                                           {"initializeArticulatedParts", onInitializeArticulatedPartsDebugLua},

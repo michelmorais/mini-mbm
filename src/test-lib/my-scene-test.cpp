@@ -18,6 +18,11 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "my-scene-test.h"
+#include "gles-skeletal-parity-tests.h"
+#include "directx9-skeletal-parity-tests.h"
+#if defined(USE_METAL)
+#include "metal-skeletal-parity-tests.h"
+#endif
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
@@ -82,6 +87,15 @@ MY_SCENE::MY_SCENE()
     testTimeoutSeconds = -1.0f;
     testElapsedSeconds = 0.0f;
     cliMeshMode        = RenderMode::NONE;
+    cliSkeletalMethod  = mbm::SKELETAL_SHADER_METHOD::LBS;
+    cliSkeletalExecutionPath = mbm::SKELETAL_EXECUTION_PATH::AUTO;
+    cliSkeletalExecutionPathSet = false;
+    testGlesDqsShader  = false;
+    testGlesSkeletalParity = false;
+    testDirectX9SkeletalParity = false;
+    testMetalEditorShaders = false;
+    testMetalSkeletalParity = false;
+    automatedTestFailed = false;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -141,6 +155,76 @@ void MY_SCENE::onInitScene()
     device->setColorClearBackGround(backgroundColor);
 
     util::addPath(__FILE__);
+
+#if defined(USE_OPENGL_ES)
+    if (testGlesDqsShader)
+    {
+        mbm::SHADER shader;
+        shader.setUseReservedLightDefault(true);
+        if (!shader.compileShader(nullptr, nullptr, mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV,
+                                  23, mbm::SKELETAL_SHADER_METHOD::DQS_RIGID))
+        {
+            ERROR_LOG("testLib: GLES rigid-DQS default shader compile failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: GLES rigid-DQS default shader compiled successfully for 23 bones");
+    }
+    if (testGlesSkeletalParity && !runGlesSkeletalParityTests())
+    {
+        ERROR_LOG("testLib: GLES skeletal CPU/GPU parity failed");
+        automatedTestFailed = true;
+        device->setRun(false);
+        return;
+    }
+#endif
+
+#if defined(USE_DIRECTX9)
+    if (testDirectX9SkeletalParity && !runDirectX9SkeletalParityTests())
+    {
+        ERROR_LOG("testLib: DirectX 9 skeletal CPU/GPU parity failed");
+        automatedTestFailed = true;
+        device->setRun(false);
+        return;
+    }
+#endif
+
+#if defined(USE_METAL)
+    if (testMetalSkeletalParity && !runMetalSkeletalParityTests())
+    {
+        ERROR_LOG("testLib: Metal skeletal CPU/GPU parity failed");
+        automatedTestFailed = true;
+        device->setRun(false);
+        return;
+    }
+    if (testMetalEditorShaders)
+    {
+        const char *shaderSources[] = {
+            "fragment float4 frag_main(VOut in [[stage_in]]) {"
+            "float t=clamp(in.uv.x,0.0f,1.0f);return float4(t,1.0f-t,0.25f,1.0f);}",
+            "fragment float4 frag_main(VOut in [[stage_in]]) {"
+            "float influence=clamp(in.uv.x,0.0f,1.0f);if(influence<=0.001f) discard_fragment();"
+            "return float4(1.0f,0.12f,0.05f,sqrt(influence)*0.65f);}"};
+        for (uint32_t index = 0; index < 2; ++index)
+        {
+            mbm::BASE_SHADER pixelShader;
+            pixelShader.loadShader(index == 0 ? "metal-editor-heat.ps" : "metal-editor-brush.ps",
+                                   shaderSources[index]);
+            mbm::SHADER shader;
+            if (!shader.compileShader(&pixelShader, nullptr,
+                                      mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV, 23,
+                                      mbm::SKELETAL_SHADER_METHOD::DQS_RIGID))
+            {
+                ERROR_LOG("testLib: Metal editor shader %u compile failed", index);
+                automatedTestFailed = true;
+                device->setRun(false);
+                return;
+            }
+        }
+        INFO_LOG("testLib: Metal editor heatmap/brush shaders compiled with skeletal DQS vertex stage");
+    }
+#endif
 
     this->fontDrawNoShader = new mbm::FONT_DRAW(this);
     float heightLetter   = 0;
@@ -740,11 +824,38 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             mesh = new mbm::MESH(this, is3d, is2dS);
             const bool isCustomMesh = !cliMeshFile.empty();
             const char* meshFile = isCustomMesh ? cliMeshFile.c_str() : "Crate.msh";
+            if (isCustomMesh && !mesh->setSkeletalSkinningMethod(cliSkeletalMethod))
+                ERROR_LOG("Failed to select skeletal skinning method [%s]", meshFile);
+            if (isCustomMesh && cliSkeletalExecutionPathSet &&
+                !mesh->setSkeletalExecutionPath(cliSkeletalExecutionPath))
+                ERROR_LOG("Failed to select skeletal execution path [%s]", meshFile);
             if (mesh->load(meshFile))
             {
                 if (!isCustomMesh)
                     mesh->setScale(mbm::VEC3(3.5f, 3.5f, 3.5f)); // tuned for the bundled Crate.msh fixture only
-                INFO_LOG("MESH loaded (%s) [%s]", modeToStr(mode), meshFile);
+                if (isCustomMesh && mesh->getTotalSkeletalAnimations() > 0)
+                {
+                    const char *animationName = mesh->getSkeletalAnimationName(0);
+                    if (!animationName || !mesh->playSkeletalAnimation(animationName))
+                        ERROR_LOG("Failed to start first skeletal animation [%s]", meshFile);
+                    else
+                        INFO_LOG("Skeletal animation started [%s]", animationName);
+                }
+                const char *status = nullptr, *reason = nullptr, *executionPath = nullptr, *executionStatus = nullptr;
+                const char *requestedExecutionPath = nullptr, *resolvedExecutionPath = nullptr;
+                const char *executionReason = nullptr;
+                uint32_t requiredBones = 0, capacity = 0;
+                mesh->getSkeletalSkinningReport(&status, &reason, &requiredBones, &capacity,
+                                                &executionPath, &executionStatus,
+                                                &requestedExecutionPath, &resolvedExecutionPath,
+                                                &executionReason);
+                INFO_LOG("MESH loaded (%s) [%s] skeletal execution=%s/%s status=%s reason=%s skinning=%s/%s",
+                         modeToStr(mode), meshFile,
+                         requestedExecutionPath ? requestedExecutionPath : "auto",
+                         resolvedExecutionPath ? resolvedExecutionPath : "gpu",
+                         executionStatus ? executionStatus : "unknown",
+                         executionReason ? executionReason : "unknown", status ? status : "unknown",
+                         reason ? reason : "unknown");
                 row.object = mesh;
             }
             else

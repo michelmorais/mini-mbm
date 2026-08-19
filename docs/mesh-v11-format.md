@@ -78,8 +78,6 @@ enum SECTION_TYPE : uint16_t
     SECTION_MATERIAL_TRANSFORM = 1,   // material + angle/pos + draw mode (replaces HEADER_MESH + INFO_DRAW_MODE)
     SECTION_ANIMATION          = 2,   // repeated: one per animation, in order, including its FX block
     SECTION_FRAME_STATIC       = 10,  // repeated: one per frame, in order
-    SECTION_FRAME_SKINNED      = 11,  // bundled joint hierarchy, see Sec. 6e — diagnostic/editor
-                                       // round-trip only, never consulted by rendering
     SECTION_ARTICULATED_PARTS  = 12,  // optional rigid-part identities, pivots, and hierarchy metadata
     SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
     SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / cube-complex / triangle bounding volumes
@@ -87,12 +85,15 @@ enum SECTION_TYPE : uint16_t
     SECTION_DETAIL_PARTICLE    = 22,
     SECTION_DETAIL_TILE        = 23,
     SECTION_EXTRA_PATHS        = 30,  // replaces legacy EXTRA_HEADER type==1 path-registration hint
-    SECTION_VERTEX_SKIN_WEIGHTS = 40, // bundled per-vertex bone weight palette, see Sec. 6g —
-                                       // editor/diagnostic + FBX re-export round-trip only, same
-                                       // scope as SECTION_FRAME_SKINNED (no GPU/CPU skinning
-                                       // consumer exists in this engine)
+    SECTION_SKELETAL_SKELETON  = 41,
+    SECTION_SKELETAL_WEIGHTS   = 42,
+    SECTION_SKELETAL_ANIMATION = 43,
 };
 ```
+
+Numeric types **11** and **40** are retired exploratory skeletal payloads documented historically
+in Secs. 6e and 6g. They are no longer `SECTION_TYPE` members, recognized by either loader, emitted
+by the writer, or represented by public payload structs/APIs.
 
 Note on unrecognized section types: despite what an earlier draft of this doc claimed, an
 unrecognized `type` is **not** actually a safe no-op for every reader — only the lightweight
@@ -117,17 +118,31 @@ a tile map has `SECTION_DETAIL_TILE`, and no other mesh type has any of the thre
 carries physics bounding volumes now; FONT/PARTICLE/TILE detail data moved to their own top-level
 sections in milestones 12/13, it's never nested inside `SECTION_DETAIL_PHYSICS`.
 
-`SECTION_FRAME_SKINNED` (Sec. 6e) persists a joint hierarchy — one optional section per mesh,
-independent of `SECTION_FRAME_STATIC` geometry (a mesh can have real frame data with no skeleton,
-a skeleton with no special geometry origin, or both, e.g. a skeleton fitted onto a mesh imported
-from elsewhere). It is not runtime skeletal animation — the engine has no GPU/CPU skinning
-anywhere — purely a diagnostic round-trip mechanism for `editor/mesh_debug.lua`'s Bones node.
+`SECTION_FRAME_SKINNED` (Sec. 6e) is the historical name for retired numeric type 11. Active
+loaders and writers no longer accept or emit it, and its enum member, payload structs, serializers,
+storage, and public Mesh Debug APIs have been removed. Runtime skeletal animation consumes the
+canonical sections 41–43 instead.
 
-`SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6g) persists real per-vertex bone weights — also one optional
-section per mesh, same "diagnostic/editor + FBX re-export round-trip only" scope as
-`SECTION_FRAME_SKINNED`, not consumed by any renderer. Unlike the skeleton section, it's tied to a
-specific `SECTION_FRAME_STATIC` frame's own vertex topology (frame 1, always) rather than being
-independent of geometry — skin weights only mean anything relative to one specific vertex layout.
+`SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6g) is the historical name for retired numeric type 40. Its
+name-palette weights were tied to frame 1 vertex topology, but are no longer accepted or persisted.
+Canonical type 42 is the only supported skeletal-weight representation.
+
+### Canonical skeletal-runtime section types — reader/writer rollout in progress
+
+The following values are present in `SECTION_TYPE`; all three have explicit read/validate support
+in both real loaders, `MESH_MBM_DEBUG::saveV11` round-trips canonical data, and the FBX importer
+produces them:
+
+```cpp
+SECTION_SKELETAL_SKELETON  = 41,
+SECTION_SKELETAL_WEIGHTS   = 42,
+SECTION_SKELETAL_ANIMATION = 43,
+```
+
+The skeleton section currently writes version 3 (versions 1 and 2 remain explicitly readable);
+weights and animation remain version 1. They form the sole skeletal family of the delivered runtime
+feature. The meanings of retired numeric types 11 and 40 remain documented below solely as
+historical format archaeology; coexistence is not a compatibility requirement.
 
 ## 5. Variable-length strings — replacing fixed char buffers
 
@@ -352,12 +367,10 @@ struct TILE_PROPERTY_V11
 
 ## 6e. `SECTION_FRAME_SKINNED` payload
 
-One optional section per mesh — present only when the editor (`editor/mesh_debug.lua`'s Bones
-node, via `meshDebug:addBone(...)`) has explicitly added a skeleton. Independent of `typeMesh` and
-independent of whether this mesh's `SECTION_FRAME_STATIC` geometry came from a hand-authored
-skeleton or an ordinary Blender import — a skeleton can be fitted onto any existing mesh's geometry.
-**Diagnostic/editor round-trip only — never consulted by rendering** (this engine has no GPU/CPU
-skinning anywhere).
+Retired exploratory payload, formerly authored by Mesh Debug through `meshDebug:addBone(...)`.
+Active loaders reject it and active writers never emit it. The layout below remains historical
+documentation until its remaining structs and serializer symbols are deleted. Runtime skinning
+uses the canonical skeleton, weights, and clips in sections 41–43.
 
 Bundled like `SECTION_DETAIL_TILE` (§6d): one section, an internal count prefix, followed by a
 flat run of entries — not repeated-per-item like `SECTION_ANIMATION`, since there is exactly one
@@ -527,6 +540,139 @@ stores the data for editing/re-export. An *older*, already-compiled engine binar
 for type `40` in either loader will still hard-fail on a file carrying this section (see the note
 in §4) — accepted as consistent with `SECTION_FRAME_SKINNED`'s own original rollout, not treated as
 a regression to fix retroactively.
+
+## 6h. Canonical skeletal-runtime persistence design and implementation status
+
+This section fixes the byte-level contract. Readers for types 41–43 are implemented, including
+shared `skeletonId`, frame-0 topology, palette, coverage, clip/track/key, and presence invariants.
+`MESH_MBM_DEBUG::saveV11` validates and emits an existing canonical 41–42–43 group in canonical
+order and includes it in `sectionCount`; it never promotes legacy editor data implicitly. The
+direct Blender/FBX path now creates types 41 and 42 directly from armature bind matrices and vertex
+groups, and type 43 from sampled parent-relative pose matrices. An armature import writes one REST
+bind-geometry frame; it does not duplicate sampled poses as static geometry.
+Every integer and float uses the existing V11 little-endian field serializers; records are written
+field-by-field and never struct-blitted. Strings use the length-prefixed UTF-8 encoding from §5.
+Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompressed bytes.
+
+### Shared identity and presence rules
+
+- `skeletonId` and every `boneId`/`clipId` are nonzero `uint64_t` values.
+- The three sections carry the same `skeletonId`; a mismatch is a fatal asset error.
+- At most one section of each of the three types may occur in a file.
+- Weights or animation require the skeleton section. A skeleton may exist without either.
+- If present, canonical order is skeleton, weights, animation. Readers must resolve by type rather
+  than relying on order because the current loader stages all payloads before dispatch.
+- Unknown section versions are fatal. A future version must receive explicit reader support.
+- `FILE_HEADER_V11.sectionCount` includes each emitted section normally; the V11 file magic and
+  `formatVersion` remain unchanged because section type/version provide the compatibility boundary.
+
+### `SECTION_SKELETAL_SKELETON = 41`, version 3
+
+```text
+uint64 skeletonId
+uint32 boneCount                  // at least 1 in version 1
+repeat boneCount times, in parent-before-child compiled order:
+    uint64 boneId
+    uint64 parentBoneId          // 0 only for a root
+    string name                  // required; unique within the skeleton in v1
+    float32 translation[3]       // parent-relative bind-local
+    float32 rotation[4]          // normalized quaternion x,y,z,w
+    float32 scale[3]
+    float32 radius               // authoring/display metadata
+    float32 length               // authoring head-to-tail length metadata
+    // version 2 only:
+    float32 tailOffset[3]        // explicit tail joint in this bone's local bind space
+    uint8 hasExplicitTail        // exactly 0 or 1
+    // version 3 only:
+    uint8 connectedToParent      // exactly 0 or 1; roots must use 0
+```
+
+IDs, not names or array positions, define identity and hierarchy. Every nonzero `parentBoneId` must
+refer to an earlier record. All numeric fields must be finite; quaternion, scale, hierarchy,
+local→global reconstruction, and inverse-bind validation use the Milestone-0 numerical policy.
+Global bind and inverse-global-bind matrices are derived and are not persisted.
+
+Version 1 ends after `length`. It remains readable and receives the non-authoritative fallback
+`tailOffset=(0,length,0)`, `hasExplicitTail=0`. Version 2 ends after `hasExplicitTail` and defaults
+`connectedToParent=0`; version 3 is always written. A version-3 transform
+joint may also deliberately use `hasExplicitTail=0`. Imported bones and explicitly authored bone
+segments set it to `1`. Bind TRS remains authoritative for hierarchy and skinning,
+while the local tail offset is authoritative for Bone Editor geometry and can follow animated poses.
+`connectedToParent=1` additionally states that this bone's head and its parent's tail are one
+authoring joint and must move together; hierarchy alone does not imply this constraint.
+
+### `SECTION_SKELETAL_WEIGHTS = 42`, version 1
+
+```text
+uint64 skeletonId
+uint32 frameIndex                // v1 requires 0 (SECTION_FRAME_STATIC frame 1)
+uint32 vertexCount               // must equal that frame's vertexCount
+uint32 paletteCount              // 0..65535 entries; largest valid uint16 index is 65534
+uint64 paletteBoneId[paletteCount]
+repeat vertexCount times:
+    uint16 paletteIndex[4]       // 0xFFFF = unused
+    float32 weight[4]
+```
+
+Palette bone IDs must be nonzero, unique, and present in the associated skeleton. Used indices must
+be in range; unused slots have weight exactly zero; effective weights are finite, nonnegative, and
+sum to one within tolerance. The v1 runtime section does not preserve partial/envelope-fallback
+semantics: conversion from legacy editor weights must resolve or explicitly reject every uncovered
+vertex rather than silently inventing an influence. Four influences remain fixed for the initial
+GPU contract, while `uint16` removes the legacy name palette's 254-entry ceiling.
+
+The Skeletal Animation Editor mutates an existing type-42 section transactionally through stable
+bone IDs. Its Lua-facing names are lookup labels only: unknown or duplicate bones, invalid sums,
+and incomplete canonical assets are rejected without creating a legacy section or changing the
+previous vertex record.
+
+### `SECTION_SKELETAL_ANIMATION = 43`, version 1
+
+```text
+uint64 skeletonId
+uint32 clipCount
+repeat clipCount times:
+    uint64 clipId
+    string name                  // required; unique within this section in v1
+    float32 duration
+    uint8 loop
+    uint8 reserved[3]            // zero
+    uint32 trackCount
+    repeat trackCount times:
+        uint64 boneId
+        uint8 channelMask        // bit 0=T, bit 1=R, bit 2=S; nonzero
+        uint8 reserved[3]        // zero
+        uint32 keyCount          // at least 1
+        repeat keyCount times:
+            float32 time
+            float32 translation[3]
+            float32 rotation[4]  // quaternion x,y,z,w
+            float32 scale[3]
+            uint8 easing         // 0 linear, 1 in, 2 out, 3 in-out, 4 smoothstep, 5 cubic Bézier
+            uint8 reserved[3]    // zero
+            float32 bezierX1, bezierY1, bezierX2, bezierY2
+```
+
+Track targets use `boneId`; one clip may contain at most one track per bone. Key times are finite,
+strictly increasing by more than `1e-6`, and within `[0,duration]`. Only channels selected by the
+mask affect sampling; absent channels/tracks use bind-local values. Quaternions are the functional
+rotation representation and use antipodal sign correction during interpolation. No Euler intent,
+player state, blend priority, fade, timeline selection, or backend data is persisted in version 1.
+
+### Rollout and old-reader behavior
+
+The completed rollout order was: field serializers and payload validators; parse support in
+`parse_v11_intermediate` and `MESH_MBM_DEBUG::loadV11`; corruption tests; then writer emission,
+`sectionCount` increments, and a save/reload section-order fixture. Existing binaries that predate
+types 41–43 will reject files containing them. This is an explicit feature-version boundary, not
+silent fallback.
+
+There is deliberately no legacy skeletal writer mode. Readers, writers, structs, enum members,
+storage, and public Mesh Debug APIs for retired numeric types 11 and 40 have been removed. A file
+carrying only those exploratory sections is rejected, not converted during ordinary loading. Its
+source FBX must be imported again to produce sections 41–43. A static-only writer remains valid for
+genuinely static meshes, but it must not disguise a skeletal asset by dropping its skeleton or
+animation merely to target an older binary.
 
 ## 7. Index width (§6 `indexWidth`)
 

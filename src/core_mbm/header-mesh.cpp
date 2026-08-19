@@ -764,30 +764,5 @@ namespace util
         type = 0;
     }
 
-    SKELETON_HEADER_V11::SKELETON_HEADER_V11() noexcept
-    {
-        jointCount = 0;
-    }
-
-    SKELETON_BONE_V11::SKELETON_BONE_V11() noexcept
-    {
-        x = y = z = 0.0f;
-        radius     = 0.0f;
-        rotX = rotY = rotZ = 0.0f;
-        scaleX = scaleY = scaleZ = 1.0f;
-        length = 0.0f;
-    }
-
-    VERTEX_SKIN_WEIGHTS_HEADER_V11::VERTEX_SKIN_WEIGHTS_HEADER_V11() noexcept
-    {
-        paletteCount = 0;
-        vertexCount  = 0;
-    }
-
-    VERTEX_BONE_WEIGHT_V11::VERTEX_BONE_WEIGHT_V11() noexcept
-    {
-        paletteIndex[0] = paletteIndex[1] = paletteIndex[2] = paletteIndex[3] = 0xFF;
-        weight[0] = weight[1] = weight[2] = weight[3] = 0.0f;
-    }
 
 }

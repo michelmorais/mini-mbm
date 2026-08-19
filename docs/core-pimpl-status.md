@@ -1,6 +1,6 @@
 # Core MBM PIMPL Status
 
-Updated: 2026-08-02
+Updated: 2026-08-18
 
 This document replaces the old milestone-style gap report. Its purpose is to describe the current PIMPL/header-hygiene status of `core_mbm`, the boundaries already established, and the rules for future work.
 
@@ -55,6 +55,9 @@ The following areas are already in the "treat as complete unless a bug/regressio
 - `HMD` right-eye buffer storage
 - `DEVICE` main accessor-backed state
 
+`RENDERIZABLE::alwaysOnTopPriority` follows this completed boundary: its integer storage remains in
+`RENDERIZABLE::Impl`; the public header exposes only narrow getter/setter methods.
+
 ### Low-risk render/header follow-up already done
 
 - `TEXTURE_VIEW`, `GIF_VIEW`, and `BACKGROUND` private runtime state moved behind `Impl`.
@@ -81,6 +84,11 @@ Only the areas below remain intentionally visible or intentionally deferred.
 `MESH_MBM::getTotalArticulatedAnimations()` and `getArticulatedAnimationName()` are narrow,
 read-only queries over existing `Impl`-owned clip metadata. They expose neither the clip container
 nor mutable storage and therefore preserve the completed PIMPL boundary.
+
+Runtime skeletal playback state also remains private. Automatic root-motion selection, raw pose
+history, neutralized final pose history, and discontinuity invalidation live in
+`SKELETAL_ANIMATION_PLAYER::Impl`; the public headers expose only narrow enable/disable/query and
+copy-out methods.
 
 ## Stop Rules
 
@@ -132,9 +140,54 @@ If the work is redesign-shaped, write the redesign plan first instead of treatin
 
 The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the branch is no longer tracking active gap burn-down. The useful output now is the current boundary/status, not the chronological milestone log.
 
-`MESH_MBM_DEBUG::Impl::skeleton` (`std::vector<util::SKELETON_BONE_V11>`, `SECTION_FRAME_SKINNED` persistence for `mesh_debug.lua`'s Bones node round-trip, added alongside `addBone`/`getBone`/`getTotalBone`) follows the standard Impl-only rule from "Repo Rule For Future Core Work" below — noted here explicitly so a future reader doesn't have to re-derive that this was a deliberate, rule-compliant addition rather than an oversight. `MESH_MBM::Impl` was deliberately NOT given an equivalent field (no runtime skinning consumer exists); the shared parse path merely tolerates and discards the section for that class.
+`MESH_MBM_DEBUG::Impl` no longer contains the exploratory section-11 skeleton or section-40
+name-palette weight storage. Their public structs/APIs, serializers, and enum members were removed
+with that storage. Active v11 loaders reject numeric types 11/40 and writers never emit them;
+runtime and editor skeletal paths consume only canonical sections 41–43.
 
-`updateBone`/`removeBone` (added for `mesh_debug.lua`'s general-purpose Bones editor node) are pure `MESH_MBM_DEBUG` methods operating only on the existing `impl->skeleton` field above — no new header-visible state, so the PIMPL boundary itself doesn't move. `updateBone`'s reparent path calls a small anonymous-namespace helper, `resortSkeletonParentFirst` (`src/core_mbm/mesh-manager.cpp`), kept as a private translation-unit function rather than a class method per the same rule, since it's pure vector-reordering logic with no need to touch `Impl` directly beyond the vector reference it's passed.
+The read-only bind-pose getters copy fixed value records directly from
+`Impl::canonicalSkeleton.compiled`, which is produced and validated during load. There is no
+separate refresh operation or duplicate compiled snapshot. Compiled vectors, maps, strings, and
+lookup storage remain private.
+
+The canonical type-41 reader stores its source records plus compiled hierarchy exclusively in
+`MESH_MBM::Impl` or `MESH_MBM_DEBUG::Impl`. Runtime and debug parse paths share validation, while no
+mutable canonical storage or lookup container is exposed through the public header.
+The skeletal-sharing compatibility report follows the same boundary: runtime and debug meshes expose
+only a narrow copy-out report over `Impl`-owned canonical skeletons. The first runtime pose-sharing
+slice keeps the follower/source relationship on `MESH` renderizables and borrows only the source
+instance's existing private `SKELETAL_ANIMATION_PLAYER::Impl` palette during draw; no palette vector,
+mutable bind data, lookup map, cached asset state, or backend handle is exposed or retained across
+the shader call.
+The type-42 reader follows the same boundary: its stable-ID palette and per-vertex four-influence
+records remain `Impl`-owned and are validated against the compiled type-41 skeleton and frame-1
+topology before being retained.
+Type-43 follows identically: canonical clips, tracks, keys, easing, and lookup validation remain
+private in `Impl`; the public mesh headers expose neither the vectors nor mutable animation state.
+The backend-neutral skeletal preparation cache follows that boundary as well. Resolved float bone-index/weight
+streams, method-specific palette counts, and readiness status live only in `MESH_MBM::Impl` via
+the private `skeletal-gpu-lbs.h` contract. No backend handle, mutable vector, or convenience accessor
+was added to the public mesh header. Each instance's selected LBS/rigid-DQS method and evaluated
+palette remain in `SKELETAL_ANIMATION_PLAYER::Impl`; public reports copy only scalar status/counts.
+The requested Auto/LBS/DQS policy, resolved backend method, and static resolution-reason pointer are
+also instance-private; Auto scans immutable canonical data before shader compilation.
+The requested GPU/CPU/Auto execution policy follows the same shape. The public surface exposes only
+scalar policy/report values; the one-shot resolution helper is private, and dynamic CPU buffers stay
+owned by the `MESH` instance rather than leaking mesh/cache/backend state through headers.
+A test-only private parity bridge copies canonical skeleton/weights/clips out of
+`MESH_MBM_DEBUG::Impl` into an internal structure. It is a friend solely to preserve the PIMPL
+boundary for numeric GLES tests: no mutable reference, backend handle, Lua binding, or public
+container accessor is introduced.
+Its uploaded vertex streams preserve the backend boundary: GLES2 bone-index/weight buffer handles
+and per-subset arrays live only in private `BUFFER_SPECIFIC` storage and are created through the
+private backend-neutral `skeletal-gpu-upload.h` bridge. OpenGL ES and DirectX9 provide the same
+private upload symbol from backend translation units. `BUFFER_GL`'s public layout/API did not acquire
+a graphics handle or a skeletal-data container.
+The corresponding shader integration adds only backend-neutral palette size and method compile
+parameters to the public `SHADER` operation. GLES attribute/uniform handles remain in private
+`GLES_PS_VS`; DirectX 9 declarations, streams, constant-table handles, and palette state remain in
+its private backend structures. Both default-program cache keys include skeletal method and palette
+size without exposing cache or backend program identity.
 
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade
@@ -143,3 +196,16 @@ duration/progress, per-play additive weight, and tie-break sequence remain priva
 `MESH_MBM::Impl` retains only cache-safe asset data (parts, authored clips, geometry, and scratch
 rendering storage); each `ANIMATION_MANAGER` instance owns a separate player, used by `MESH` and
 `SPRITE`, so cached assets never leak playback state between renderizable instances.
+Canonical skeletal playback follows the same ownership rule with its own opaque
+`SKELETAL_ANIMATION_PLAYER`. Active clip index, time, pause state, stable-ID layer mask, evaluated
+global transforms, and palette rows live
+in the renderizable instance's `ANIMATION_MANAGER::Impl`; the cached `MESH_MBM::Impl` keeps only
+validated type-41/42/43 asset data and GLES-ready immutable vertex inputs. Shader draw calls accept
+a transient pointer/count for the owning instance's palette without retaining or exposing it. The
+runtime-pose inspection API copies one bone's stable ID, parent index, and global matrix at a time.
+The named-bone gameplay query resolves that same private evaluated pose and copies decomposed TRS
+plus its matrix in model or renderizable-composed world space; neither query exposes a vector,
+mutable storage, lookup container, palette pointer, or backend handle.
+Root-motion extraction retains only the previous evaluated global matrices inside the opaque
+per-instance player and copies one named bone's translation delta; the history vector and validity
+state remain private and are invalidated at discontinuities.

@@ -19,6 +19,8 @@
 
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
+#include "private/skeletal-parity-asset.h"
+#include <skeletal-gpu-upload.h>
 #include <draw-compatibility.h>
 #include <shader-var-cfg.h>
 #include <texture-manager.h>
@@ -44,6 +46,8 @@
 #include <condition_variable>
 #include <atomic>
 #include <queue>
+#include <limits>
+#include <set>
 
 
 const bool is_any_mode_valid(const util::INFO_DRAW_MODE & info_mode,std::string & which_mode_is_invalid)noexcept
@@ -121,20 +125,11 @@ namespace mbm
         util::INFO_ANIMATION     infoAnimation;
         std::vector<std::string> extraPaths;
         std::vector<IntermediateFrameV11> frames;
-        // Parsed but intentionally unused by MESH_MBM - no runtime skinning consumer exists in
-        // this engine. finishLoadFromIntermediate() never reads this; it exists purely so the
-        // shared parse loop below (parse_v11_intermediate) can succeed on ANY mesh carrying a
-        // SECTION_FRAME_SKINNED section, including one loaded through the normal game/runtime
-        // path, not just through MESH_MBM_DEBUG::loadV11 (which has its own separate read loop
-        // that actually stores this into Impl::skeleton for editing).
-        std::vector<util::SKELETON_BONE_V11> skeleton;
-        // Same "parsed but intentionally unused by MESH_MBM" rationale as `skeleton` above, for
-        // SECTION_VERTEX_SKIN_WEIGHTS - see MESH_MBM_DEBUG::Impl::weightPalette/vertexWeights
-        // (mesh-manager-impl.h) for where a debug-path load actually keeps this.
-        std::vector<std::string> weightPalette;
-        std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
+        skeletal::CANONICAL_SKELETON canonicalSkeleton;
+        skeletal::CANONICAL_WEIGHTS canonicalWeights;
+        skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -171,10 +166,11 @@ namespace mbm
               positionOffset_deprecated(other.positionOffset_deprecated),
               angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
               extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
-              skeleton(std::move(other.skeleton)), weightPalette(std::move(other.weightPalette)),
-              vertexWeights(std::move(other.vertexWeights)),
               articulatedParts(std::move(other.articulatedParts)),
-              articulatedClips(std::move(other.articulatedClips))
+              articulatedClips(std::move(other.articulatedClips)),
+              canonicalSkeleton(std::move(other.canonicalSkeleton)),
+              canonicalWeights(std::move(other.canonicalWeights)),
+              canonicalAnimations(std::move(other.canonicalAnimations))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -195,11 +191,11 @@ namespace mbm
             info_mode      = other.info_mode;
             extraPaths     = std::move(other.extraPaths);
             frames         = std::move(other.frames);
-            skeleton       = std::move(other.skeleton);
-            weightPalette  = std::move(other.weightPalette);
-            vertexWeights  = std::move(other.vertexWeights);
             articulatedParts = std::move(other.articulatedParts);
             articulatedClips = std::move(other.articulatedClips);
+            canonicalSkeleton = std::move(other.canonicalSkeleton);
+            canonicalWeights = std::move(other.canonicalWeights);
+            canonicalAnimations = std::move(other.canonicalAnimations);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -684,79 +680,6 @@ namespace
         return tileInfo;
     }
 
-    // Parses one SECTION_FRAME_SKINNED payload (already staged as `tmp`) into `out`, shared by
-    // parse_v11_intermediate (MESH_MBM/async load path, which discards the result - no runtime
-    // skinning consumer exists) and MESH_MBM_DEBUG::loadV11 (which stores it for editing).
-    // Enforces parent-before-child ordering while reading: a non-empty parentName must match the
-    // `name` of a joint already read earlier in this same call, otherwise the file is rejected as
-    // malformed rather than silently accepted with a dangling/forward reference.
-    bool parse_skeleton_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<util::SKELETON_BONE_V11> &out,
-                                     const uint16_t sectionVersion)
-    {
-        util::SKELETON_HEADER_V11 v11Header;
-        if (!util::readSkeletonHeaderV11(tmp, v11Header))
-            return false;
-
-        out.clear();
-        out.reserve(v11Header.jointCount);
-        for (uint16_t i = 0; i < v11Header.jointCount; ++i)
-        {
-            util::SKELETON_BONE_V11 joint;
-            if (!util::readSkeletonBoneV11(tmp, joint, sectionVersion))
-                return false;
-            if (!joint.parentName.empty())
-            {
-                const bool parentSeen = std::any_of(out.begin(), out.end(),
-                    [&joint](const util::SKELETON_BONE_V11 &j) { return j.name == joint.parentName; });
-                if (!parentSeen)
-                    return false; // forward/dangling parent reference - malformed file
-            }
-            out.push_back(std::move(joint));
-        }
-        return true;
-    }
-
-    // Parses one SECTION_VERTEX_SKIN_WEIGHTS payload (already staged as `tmp`) into `outPalette`/
-    // `outWeights`, shared by parse_v11_intermediate (MESH_MBM/async load path, which discards the
-    // result - no runtime skinning consumer exists) and MESH_MBM_DEBUG::loadV11 (which stores it
-    // for editing/re-export). sectionVersion is accepted for symmetry with
-    // parse_skeleton_section_v11 and future-proofing, but this section has only ever had version 1
-    // so far - nothing branches on it yet.
-    bool parse_vertex_skin_weights_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<std::string> &outPalette,
-                                                std::vector<util::VERTEX_BONE_WEIGHT_V11> &outWeights,
-                                                const uint16_t /*sectionVersion*/)
-    {
-        util::VERTEX_SKIN_WEIGHTS_HEADER_V11 v11Header;
-        if (!util::readVertexSkinWeightsHeaderV11(tmp, v11Header))
-            return false;
-
-        outPalette.clear();
-        outPalette.reserve(v11Header.paletteCount);
-        for (uint32_t i = 0; i < v11Header.paletteCount; ++i)
-        {
-            std::string name;
-            if (!util::readStringV11(tmp, name))
-                return false;
-            outPalette.push_back(std::move(name));
-        }
-
-        outWeights.clear();
-        outWeights.reserve(v11Header.vertexCount);
-        for (uint32_t i = 0; i < v11Header.vertexCount; ++i)
-        {
-            util::VERTEX_BONE_WEIGHT_V11 entry;
-            if (!util::readVertexBoneWeightV11(tmp, entry))
-                return false;
-            for (int slot = 0; slot < 4; ++slot)
-            {
-                if (entry.paletteIndex[slot] != 0xFF && entry.paletteIndex[slot] >= outPalette.size())
-                    return false; // malformed file - palette index out of range
-            }
-            outWeights.push_back(entry);
-        }
-        return true;
-    }
-
     // Worker-thread-safe equivalent of MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic,
     // takes INFO_PHYSICS directly instead of going through `this->impl` (parse_v11_intermediate has
     // no MESH_MBM_DEBUG instance).
@@ -877,6 +800,167 @@ namespace
         return true;
     }
 
+    bool parse_canonical_skeleton_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
+                                               mbm::skeletal::CANONICAL_SKELETON &out)
+    {
+        if (sectionVersion != 1 && sectionVersion != 2 && sectionVersion != 3)
+            return false;
+        out = {};
+        uint32_t boneCount = 0;
+        if (!util::le_io::readU64LE(fp, out.skeletonId) || out.skeletonId == 0 ||
+            !util::le_io::readU32LE(fp, boneCount) || boneCount == 0)
+            return false;
+        out.sourceBones.reserve(boneCount);
+        for (uint32_t index = 0; index < boneCount; ++index)
+        {
+            mbm::skeletal::CANONICAL_BONE bone;
+            if (!util::le_io::readU64LE(fp, bone.boneId) ||
+                !util::le_io::readU64LE(fp, bone.parentBoneId) ||
+                !util::readStringV11(fp, bone.name) ||
+                !util::le_io::readF32LE(fp, bone.localBind.translation.x) ||
+                !util::le_io::readF32LE(fp, bone.localBind.translation.y) ||
+                !util::le_io::readF32LE(fp, bone.localBind.translation.z) ||
+                !util::le_io::readF32LE(fp, bone.localBind.rotation.x) ||
+                !util::le_io::readF32LE(fp, bone.localBind.rotation.y) ||
+                !util::le_io::readF32LE(fp, bone.localBind.rotation.z) ||
+                !util::le_io::readF32LE(fp, bone.localBind.rotation.w) ||
+                !util::le_io::readF32LE(fp, bone.localBind.scale.x) ||
+                !util::le_io::readF32LE(fp, bone.localBind.scale.y) ||
+                !util::le_io::readF32LE(fp, bone.localBind.scale.z) ||
+                !util::le_io::readF32LE(fp, bone.radius) ||
+                !util::le_io::readF32LE(fp, bone.length))
+                return false;
+            if (sectionVersion >= 2)
+            {
+                uint8_t explicitTail = 0;
+                if (!util::le_io::readF32LE(fp, bone.tailOffset.x) ||
+                    !util::le_io::readF32LE(fp, bone.tailOffset.y) ||
+                    !util::le_io::readF32LE(fp, bone.tailOffset.z) ||
+                    !util::le_io::readBytes(fp, &explicitTail, sizeof(explicitTail)) || explicitTail > 1)
+                    return false;
+                bone.hasExplicitTail = explicitTail != 0;
+                if (sectionVersion >= 3)
+                {
+                    uint8_t connected = 0;
+                    if (!util::le_io::readBytes(fp, &connected, sizeof(connected)) || connected > 1)
+                        return false;
+                    bone.connectedToParent = connected != 0;
+                    if (bone.parentBoneId == 0 && bone.connectedToParent) return false;
+                }
+            }
+            else
+            {
+                bone.tailOffset = mbm::VEC3(0.0f, bone.length, 0.0f);
+                bone.hasExplicitTail = false;
+            }
+            out.sourceBones.push_back(std::move(bone));
+        }
+        return fp.pos == fp.size && mbm::skeletal::compileCanonicalSkeleton(out.sourceBones, out.compiled);
+    }
+
+    bool parse_canonical_weights_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
+                                              const mbm::skeletal::CANONICAL_SKELETON &skeleton,
+                                              const uint32_t expectedVertexCount,
+                                              mbm::skeletal::CANONICAL_WEIGHTS &out)
+    {
+        if (sectionVersion != 1)
+            return false;
+        out = {};
+        uint32_t vertexCount = 0, paletteCount = 0;
+        if (!util::le_io::readU64LE(fp, out.skeletonId) ||
+            !util::le_io::readU32LE(fp, out.frameIndex) ||
+            !util::le_io::readU32LE(fp, vertexCount) ||
+            !util::le_io::readU32LE(fp, paletteCount) || paletteCount > 65535)
+            return false;
+        out.paletteBoneIds.resize(paletteCount);
+        for (uint64_t &boneId : out.paletteBoneIds)
+            if (!util::le_io::readU64LE(fp, boneId)) return false;
+        out.vertices.resize(vertexCount);
+        for (mbm::skeletal::CANONICAL_VERTEX_WEIGHT &vertex : out.vertices)
+        {
+            for (uint16_t &paletteIndex : vertex.paletteIndex)
+                if (!util::le_io::readU16LE(fp, paletteIndex)) return false;
+            for (float &weight : vertex.weight)
+                if (!util::le_io::readF32LE(fp, weight)) return false;
+        }
+        return fp.pos == fp.size &&
+            mbm::skeletal::validateCanonicalWeights(skeleton, out, expectedVertexCount);
+    }
+
+    bool read_zero_reserved3(util::MEM_CURSOR_V11 &fp)
+    {
+        uint8_t reserved[3] = {0, 0, 0};
+        return util::le_io::readBytes(fp, reserved, sizeof(reserved)) &&
+            reserved[0] == 0 && reserved[1] == 0 && reserved[2] == 0;
+    }
+
+    bool parse_canonical_animation_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
+                                                const mbm::skeletal::CANONICAL_SKELETON &skeleton,
+                                                mbm::skeletal::CANONICAL_ANIMATIONS &out)
+    {
+        if (sectionVersion != 1)
+            return false;
+        out = {};
+        uint32_t clipCount = 0;
+        if (!util::le_io::readU64LE(fp, out.skeletonId) ||
+            !util::le_io::readU32LE(fp, clipCount) || clipCount > (fp.size - fp.pos) / 22u)
+            return false;
+        out.clips.reserve(clipCount);
+        for (uint32_t clipIndex = 0; clipIndex < clipCount; ++clipIndex)
+        {
+            mbm::skeletal::SKELETAL_CLIP clip;
+            uint8_t loop = 0;
+            uint32_t trackCount = 0;
+            if (!util::le_io::readU64LE(fp, clip.clipId) || !util::readStringV11(fp, clip.name) ||
+                !util::le_io::readF32LE(fp, clip.duration) ||
+                !util::le_io::readBytes(fp, &loop, sizeof(loop)) || loop > 1 ||
+                !read_zero_reserved3(fp) || !util::le_io::readU32LE(fp, trackCount) ||
+                trackCount > (fp.size - fp.pos) / 16u)
+                return false;
+            clip.loop = loop != 0;
+            clip.tracks.reserve(trackCount);
+            for (uint32_t trackIndex = 0; trackIndex < trackCount; ++trackIndex)
+            {
+                mbm::skeletal::SKELETAL_TRACK track;
+                uint32_t keyCount = 0;
+                if (!util::le_io::readU64LE(fp, track.boneId) ||
+                    !util::le_io::readBytes(fp, &track.channelMask, sizeof(track.channelMask)) ||
+                    !read_zero_reserved3(fp) || !util::le_io::readU32LE(fp, keyCount) ||
+                    keyCount == 0 || keyCount > (fp.size - fp.pos) / 64u)
+                    return false;
+                track.keys.reserve(keyCount);
+                for (uint32_t keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+                {
+                    mbm::skeletal::SKELETAL_KEY key;
+                    uint8_t easing = 0;
+                    if (!util::le_io::readF32LE(fp, key.time) ||
+                        !util::le_io::readF32LE(fp, key.local.translation.x) ||
+                        !util::le_io::readF32LE(fp, key.local.translation.y) ||
+                        !util::le_io::readF32LE(fp, key.local.translation.z) ||
+                        !util::le_io::readF32LE(fp, key.local.rotation.x) ||
+                        !util::le_io::readF32LE(fp, key.local.rotation.y) ||
+                        !util::le_io::readF32LE(fp, key.local.rotation.z) ||
+                        !util::le_io::readF32LE(fp, key.local.rotation.w) ||
+                        !util::le_io::readF32LE(fp, key.local.scale.x) ||
+                        !util::le_io::readF32LE(fp, key.local.scale.y) ||
+                        !util::le_io::readF32LE(fp, key.local.scale.z) ||
+                        !util::le_io::readBytes(fp, &easing, sizeof(easing)) ||
+                        !read_zero_reserved3(fp) ||
+                        !util::le_io::readF32LE(fp, key.bezierX1) ||
+                        !util::le_io::readF32LE(fp, key.bezierY1) ||
+                        !util::le_io::readF32LE(fp, key.bezierX2) ||
+                        !util::le_io::readF32LE(fp, key.bezierY2))
+                        return false;
+                    key.easing = static_cast<mbm::skeletal::SKELETAL_EASING>(easing);
+                    track.keys.push_back(std::move(key));
+                }
+                clip.tracks.push_back(std::move(track));
+            }
+            out.clips.push_back(std::move(clip));
+        }
+        return fp.pos == fp.size && mbm::skeletal::validateCanonicalAnimations(skeleton, out);
+    }
+
     // Worker-thread-safe equivalent of MESH_MBM::loadV11's section loop - see the struct comment
     // above for the main-thread-only calls this deliberately omits (deferred to
     // MESH_MBM::finishLoadFromIntermediate instead). fileNamePath must already be a resolved path
@@ -924,6 +1008,33 @@ namespace
 
         const mbm::VEC2 *frame0Uv      = nullptr;
         int               frame0UvCount = 0;
+        bool              sawCanonicalSkeleton = false;
+        bool              sawCanonicalWeights = false;
+        bool              sawCanonicalAnimations = false;
+        uint32_t          canonicalFrame0VertexCount = UINT32_MAX;
+
+        // Canonical sections resolve by type, not file order. Pre-read the skeleton and frame-0
+        // topology so weights can appear anywhere in the staged section list.
+        for (const auto &staged : sections)
+        {
+            if (staged.header.type == util::SECTION_SKELETAL_SKELETON)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                if (sawCanonicalSkeleton || !parse_canonical_skeleton_section_v11(
+                        tmp, staged.header.sectionVersion, out.canonicalSkeleton))
+                { errorOut = "failed to parse SECTION_SKELETAL_SKELETON"; return false; }
+                sawCanonicalSkeleton = true;
+            }
+            else if (staged.header.type == util::SECTION_FRAME_STATIC &&
+                     canonicalFrame0VertexCount == UINT32_MAX)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                util::FRAME_HEADER_V11 header;
+                if (!util::readFrameHeaderV11(tmp, header))
+                { errorOut = "failed to inspect SECTION_FRAME_STATIC"; return false; }
+                canonicalFrame0VertexCount = header.vertexCount;
+            }
+        }
 
         for (const auto &staged : sections)
         {
@@ -1048,25 +1159,26 @@ namespace
                     frame0UvCount = static_cast<int>(out.frames[0].vertexCount);
                 }
             }
-            else if (staged.header.type == util::SECTION_FRAME_SKINNED)
+            else if (staged.header.type == util::SECTION_SKELETAL_SKELETON)
             {
-                if (!parse_skeleton_section_v11(tmp, out.skeleton, staged.header.sectionVersion))
-                {
-                    errorOut = "failed to parse SECTION_FRAME_SKINNED";
-                    return false;
-                }
+                // Parsed in the order-independent pre-pass above.
             }
-            else if (staged.header.type == util::SECTION_VERTEX_SKIN_WEIGHTS)
+            else if (staged.header.type == util::SECTION_SKELETAL_WEIGHTS)
             {
-                // Parsed but intentionally unused by MESH_MBM (see out.weightPalette/vertexWeights'
-                // own comment above) - purely so this shared parse loop can succeed on a mesh
-                // carrying this section through the normal game/runtime load path too, not just
-                // through MESH_MBM_DEBUG::loadV11.
-                if (!parse_vertex_skin_weights_section_v11(tmp, out.weightPalette, out.vertexWeights, staged.header.sectionVersion))
-                {
-                    errorOut = "failed to parse SECTION_VERTEX_SKIN_WEIGHTS";
-                    return false;
-                }
+                if (sawCanonicalWeights || !sawCanonicalSkeleton ||
+                    canonicalFrame0VertexCount == UINT32_MAX ||
+                    !parse_canonical_weights_section_v11(tmp, staged.header.sectionVersion,
+                        out.canonicalSkeleton, canonicalFrame0VertexCount, out.canonicalWeights))
+                { errorOut = "failed to parse SECTION_SKELETAL_WEIGHTS"; return false; }
+                sawCanonicalWeights = true;
+            }
+            else if (staged.header.type == util::SECTION_SKELETAL_ANIMATION)
+            {
+                if (sawCanonicalAnimations || !sawCanonicalSkeleton ||
+                    !parse_canonical_animation_section_v11(tmp, staged.header.sectionVersion,
+                        out.canonicalSkeleton, out.canonicalAnimations))
+                { errorOut = "failed to parse SECTION_SKELETAL_ANIMATION"; return false; }
+                sawCanonicalAnimations = true;
             }
             else
             {
@@ -1092,6 +1204,73 @@ namespace mbm
     {
         impl->activeClips.clear();
         impl->sequence = 0;
+    }
+
+    SKELETAL_ANIMATION_PLAYER::SKELETAL_ANIMATION_PLAYER()
+        : impl(std::make_unique<Impl>())
+    {
+    }
+
+    SKELETAL_ANIMATION_PLAYER::~SKELETAL_ANIMATION_PLAYER() = default;
+
+    void SKELETAL_ANIMATION_PLAYER::reset() noexcept
+    {
+        impl->clipIndex = UINT32_MAX;
+        impl->time = 0.0f;
+        impl->absoluteLayerClipIndex = UINT32_MAX;
+        impl->absoluteLayerTime = 0.0f;
+        impl->absoluteLayerWeight = 0.0f;
+        impl->absoluteLayerFadeStartWeight = 0.0f;
+        impl->absoluteLayerFadeTargetWeight = 0.0f;
+        impl->absoluteLayerFadeDuration = 0.0f;
+        impl->absoluteLayerFadeElapsed = 0.0f;
+        impl->absoluteLayerFadeActive = false;
+        impl->absoluteLayerActive = false;
+        impl->additiveLayer = false;
+        impl->crossFadeActive = false;
+        impl->layerPaused = false;
+        impl->layerBoneMask.clear();
+        impl->playbackSpeed = 1.0f;
+        impl->active = false;
+        impl->paused = false;
+        impl->baseCompletionNotified = false;
+        impl->layerCompletionNotified = false;
+        impl->paletteRows.clear();
+        impl->evaluatedGlobalTransforms.clear();
+        impl->previousEvaluatedGlobalTransforms.clear();
+        impl->rawEvaluatedGlobalTransforms.clear();
+        impl->previousRawEvaluatedGlobalTransforms.clear();
+        impl->evaluatedMotionDeltaValid = false;
+        impl->authoringPose = false;
+        impl->automaticRootMotionEnabled = false;
+        impl->automaticRootMotionApplyRotation = false;
+        impl->automaticRootMotionBoneName.clear();
+        impl->automaticRootMotionBoneId = 0;
+    }
+
+    void SKELETAL_ANIMATION_PLAYER::setSkinningMethod(const SKELETAL_SHADER_METHOD method) noexcept
+    {
+        impl->requestedSkinningMethod = method;
+        impl->resolvedSkinningMethod = method == SKELETAL_SHADER_METHOD::AUTO
+            ? SKELETAL_SHADER_METHOD::NONE : method;
+        impl->skinningResolutionReason = method == SKELETAL_SHADER_METHOD::AUTO
+            ? "not-resolved" : method == SKELETAL_SHADER_METHOD::DQS_RIGID
+            ? "explicit-dqs" : "explicit-lbs";
+    }
+
+    SKELETAL_SHADER_METHOD SKELETAL_ANIMATION_PLAYER::getSkinningMethod() const noexcept
+    {
+        return impl->requestedSkinningMethod;
+    }
+
+    SKELETAL_SHADER_METHOD SKELETAL_ANIMATION_PLAYER::getResolvedSkinningMethod() const noexcept
+    {
+        return impl->resolvedSkinningMethod;
+    }
+
+    const char *SKELETAL_ANIMATION_PLAYER::getSkinningResolutionReason() const noexcept
+    {
+        return impl->skinningResolutionReason;
     }
 
     struct MESH_MANAGER::Impl
@@ -1219,7 +1398,7 @@ namespace mbm
     }
 
 
-    constexpr BUFFER_MESH::BUFFER_MESH() noexcept : pBufferGL(nullptr), subset(nullptr), totalSubset(0)
+    BUFFER_MESH::BUFFER_MESH() noexcept : pBufferGL(nullptr), subset(nullptr), totalSubset(0)
     {
     }
     
@@ -1284,6 +1463,20 @@ namespace mbm
     MESH_MBM_DEBUG::~MESH_MBM_DEBUG()
     {
         this->release();
+    }
+
+    bool skeletal::copyCanonicalParityAsset(const MESH_MBM_DEBUG &mesh,
+                                             CANONICAL_PARITY_ASSET &out) noexcept
+    {
+        out = {};
+        if (!mesh.impl || mesh.impl->canonicalSkeleton.skeletonId == 0 ||
+            mesh.impl->canonicalWeights.skeletonId == 0 ||
+            mesh.impl->canonicalAnimations.skeletonId == 0)
+            return false;
+        out.skeleton = mesh.impl->canonicalSkeleton;
+        out.weights = mesh.impl->canonicalWeights;
+        out.animations = mesh.impl->canonicalAnimations;
+        return true;
     }
     
     uint32_t MESH_MBM_DEBUG::addBuffer(const int stride )
@@ -1521,15 +1714,16 @@ namespace mbm
                     }
                 }
             }
-            else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
+            else if (sectionHeader.type == util::SECTION_SKELETAL_SKELETON)
             {
                 if (hasSkeletonOut) *hasSkeletonOut = true;
                 if (totalBonesOut)
                 {
                     util::MEM_CURSOR_V11 tmpFp = stage_payload_as_cursor(payload);
-                    util::SKELETON_HEADER_V11 v11SkelHeader;
-                    if (util::readSkeletonHeaderV11(tmpFp, v11SkelHeader))
-                        *totalBonesOut = v11SkelHeader.jointCount;
+                    uint64_t skeletonId = 0;
+                    uint32_t boneCount = 0;
+                    if (util::le_io::readU64LE(tmpFp, skeletonId) && util::le_io::readU32LE(tmpFp, boneCount))
+                        *totalBonesOut = static_cast<uint16_t>(std::min<uint32_t>(boneCount, UINT16_MAX));
                 }
             }
         }
@@ -1886,6 +2080,23 @@ namespace mbm
         const int stride  = buf->headerFrame.stride;
         const int totalV  = buf->headerFrame.sizeVertexBuffer;
         const int totalI  = buf->headerFrame.sizeIndexBuffer;
+        // Canonical type-42 weights are stored in the same frame-global vertex order as the
+        // geometry. Keep that contract intact when an editor compacts the weighted frame (for
+        // example Mesh Debug's subset-filter preview). Refuse an already-inconsistent mutation
+        // instead of turning a recoverable in-memory problem into an unsavable mesh.
+        if (this->impl->canonicalWeights.skeletonId != 0 &&
+            this->impl->canonicalWeights.frameIndex == indexFrame)
+        {
+            const size_t weightStart = static_cast<size_t>(vStart);
+            const size_t weightCount = static_cast<size_t>(vCount);
+            if (weightStart > this->impl->canonicalWeights.vertices.size() ||
+                weightCount > this->impl->canonicalWeights.vertices.size() - weightStart)
+                return;
+            this->impl->canonicalWeights.vertices.erase(
+                this->impl->canonicalWeights.vertices.begin() + static_cast<ptrdiff_t>(weightStart),
+                this->impl->canonicalWeights.vertices.begin() +
+                    static_cast<ptrdiff_t>(weightStart + weightCount));
+        }
         // Compact position
         if (buf->position && vCount > 0 && (vStart + vCount) < totalV)
         {
@@ -2198,6 +2409,39 @@ namespace mbm
                 return log_util::onFailed(file,__FILE__, __LINE__, "Invalid mode [%s] for [%s]",which_mode.c_str(),fileOut);
         }
 
+        const bool hasCanonicalSkeleton = impl->canonicalSkeleton.skeletonId != 0;
+        const bool hasCanonicalWeights = impl->canonicalWeights.skeletonId != 0;
+        const bool hasCanonicalAnimations = impl->canonicalAnimations.skeletonId != 0;
+        if (hasCanonicalWeights || hasCanonicalAnimations)
+        {
+            if (!hasCanonicalSkeleton)
+                return log_util::onFailed(file, __FILE__, __LINE__,
+                                          "canonical weights or animations require a canonical skeleton [%s]", fileOut);
+        }
+        if (hasCanonicalSkeleton)
+        {
+            skeletal::COMPILED_SKELETON compiled;
+            if (!skeletal::compileCanonicalSkeleton(impl->canonicalSkeleton.sourceBones, compiled))
+                return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical skeleton [%s]", fileOut);
+
+            skeletal::CANONICAL_SKELETON skeleton = impl->canonicalSkeleton;
+            skeleton.compiled = std::move(compiled);
+            if (hasCanonicalWeights)
+            {
+                if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                    return log_util::onFailed(file, __FILE__, __LINE__, "canonical weight frame is out of range [%s]", fileOut);
+                const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+                uint32_t vertexCount = 0;
+                for (const util::SUBSET_DEBUG *subset : frame->subset)
+                    vertexCount += static_cast<uint32_t>(subset->vertexCount);
+                if (!skeletal::validateCanonicalWeights(skeleton, impl->canonicalWeights, vertexCount))
+                    return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical weights [%s]", fileOut);
+            }
+            if (hasCanonicalAnimations &&
+                !skeletal::validateCanonicalAnimations(skeleton, impl->canonicalAnimations))
+                return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical animations [%s]", fileOut);
+        }
+
         std::vector<std::string> ls_paths = this->getKnowPathsToExtraHeader();
 
         int totalBounding = static_cast<int>(this->impl->infoPhysics.lsCube.size())
@@ -2220,8 +2464,9 @@ namespace mbm
         fileHeader.backBufferWidth  = impl->backBufferWidth;
         fileHeader.backBufferHeight = impl->backBufferHeight;
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
-                                     + (impl->skeleton.empty() ? 0u : 1u)
-                                     + (impl->vertexWeights.empty() ? 0u : 1u)
+                                     + (hasCanonicalSkeleton ? 1u : 0u)
+                                     + (hasCanonicalWeights ? 1u : 0u)
+                                     + (hasCanonicalAnimations ? 1u : 0u)
                                      + (impl->articulatedParts.empty() ? 0u : 1u)
                                      + (impl->articulatedClips.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
@@ -2344,56 +2589,140 @@ namespace mbm
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_DETAIL_PHYSICS [%s]", fileOut);
         }
 
-        // SECTION_FRAME_SKINNED - optional joint hierarchy for editor/mesh_debug.lua's Bones node
-        // round-trip diagnostic; independent of typeMe and independent of whether this mesh's
-        // SECTION_FRAME_STATIC geometry came from a hand-authored skeleton or an ordinary Blender
-        // import ---------------------------
-        if (!impl->skeleton.empty())
+        // Canonical skeletal sections are emitted only from canonical data already loaded/imported.
+        // Legacy editor-only joints and name palettes are deliberately not converted here.
+        if (hasCanonicalSkeleton)
         {
             util::SECTION_HEADER_V11 sectionHeader;
-            sectionHeader.type = util::SECTION_FRAME_SKINNED;
-            sectionHeader.sectionVersion = 2; // adds rotX/Y/Z, scaleX/Y/Z, length - see SKELETON_BONE_V11
+            sectionHeader.type = util::SECTION_SKELETAL_SKELETON;
+            sectionHeader.sectionVersion = 3;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
-                util::SKELETON_HEADER_V11 skelHeader;
-                skelHeader.jointCount = static_cast<uint16_t>(this->impl->skeleton.size());
-                if (!util::writeSkeletonHeaderV11(fp, skelHeader))
+                const skeletal::CANONICAL_SKELETON &skeleton = this->impl->canonicalSkeleton;
+                if (!util::le_io::writeU64LE(fp, skeleton.skeletonId) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(skeleton.sourceBones.size())))
                     return false;
-                for (const auto &joint : this->impl->skeleton)
-                    if (!util::writeSkeletonBoneV11(fp, joint))
+                for (const skeletal::CANONICAL_BONE &bone : skeleton.sourceBones)
+                {
+                    const skeletal::LOCAL_TRANSFORM &local = bone.localBind;
+                    if (!util::le_io::writeU64LE(fp, bone.boneId) ||
+                        !util::le_io::writeU64LE(fp, bone.parentBoneId) ||
+                        !util::writeStringV11(fp, bone.name) ||
+                        !util::le_io::writeF32LE(fp, local.translation.x) ||
+                        !util::le_io::writeF32LE(fp, local.translation.y) ||
+                        !util::le_io::writeF32LE(fp, local.translation.z) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.x) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.y) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.z) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.w) ||
+                        !util::le_io::writeF32LE(fp, local.scale.x) ||
+                        !util::le_io::writeF32LE(fp, local.scale.y) ||
+                        !util::le_io::writeF32LE(fp, local.scale.z) ||
+                        !util::le_io::writeF32LE(fp, bone.radius) ||
+                        !util::le_io::writeF32LE(fp, bone.length) ||
+                        !util::le_io::writeF32LE(fp, bone.tailOffset.x) ||
+                        !util::le_io::writeF32LE(fp, bone.tailOffset.y) ||
+                        !util::le_io::writeF32LE(fp, bone.tailOffset.z))
                         return false;
+                    const uint8_t explicitTail = bone.hasExplicitTail ? 1 : 0;
+                    if (!util::le_io::writeBytes(fp, &explicitTail, sizeof(explicitTail))) return false;
+                    const uint8_t connected = bone.connectedToParent ? 1 : 0;
+                    if (!util::le_io::writeBytes(fp, &connected, sizeof(connected))) return false;
+                }
                 return true;
             });
             if (!ok)
-                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_FRAME_SKINNED [%s]", fileOut);
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_SKELETON [%s]", fileOut);
         }
 
-        // SECTION_VERTEX_SKIN_WEIGHTS - optional real per-vertex bone weight palette (bind-pose,
-        // frame 1 topology only) for editor/mesh_debug.lua's Mesh Info node + "Export to FBX", so
-        // export can use the mesh's own originally-authored weights instead of inventing new ones
-        // via Blender's ARMATURE_ENVELOPE approximation -------------------------------------------
-        if (!impl->vertexWeights.empty())
+        if (hasCanonicalWeights)
         {
             util::SECTION_HEADER_V11 sectionHeader;
-            sectionHeader.type = util::SECTION_VERTEX_SKIN_WEIGHTS;
+            sectionHeader.type = util::SECTION_SKELETAL_WEIGHTS;
             sectionHeader.sectionVersion = 1;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
-                util::VERTEX_SKIN_WEIGHTS_HEADER_V11 weightsHeader;
-                weightsHeader.paletteCount = static_cast<uint32_t>(this->impl->weightPalette.size());
-                weightsHeader.vertexCount  = static_cast<uint32_t>(this->impl->vertexWeights.size());
-                if (!util::writeVertexSkinWeightsHeaderV11(fp, weightsHeader))
+                const skeletal::CANONICAL_WEIGHTS &weights = this->impl->canonicalWeights;
+                if (!util::le_io::writeU64LE(fp, weights.skeletonId) ||
+                    !util::le_io::writeU32LE(fp, weights.frameIndex) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(weights.vertices.size())) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(weights.paletteBoneIds.size())))
                     return false;
-                for (const auto &boneName : this->impl->weightPalette)
-                    if (!util::writeStringV11(fp, boneName))
+                for (const uint64_t boneId : weights.paletteBoneIds)
+                    if (!util::le_io::writeU64LE(fp, boneId))
                         return false;
-                for (const auto &entry : this->impl->vertexWeights)
-                    if (!util::writeVertexBoneWeightV11(fp, entry))
-                        return false;
+                for (const skeletal::CANONICAL_VERTEX_WEIGHT &vertex : weights.vertices)
+                {
+                    for (uint8_t slot = 0; slot < 4; ++slot)
+                        if (!util::le_io::writeU16LE(fp, vertex.paletteIndex[slot]))
+                            return false;
+                    for (uint8_t slot = 0; slot < 4; ++slot)
+                        if (!util::le_io::writeF32LE(fp, vertex.weight[slot]))
+                            return false;
+                }
                 return true;
             });
             if (!ok)
-                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileOut);
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_WEIGHTS [%s]", fileOut);
+        }
+
+        if (hasCanonicalAnimations)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_SKELETAL_ANIMATION;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                const skeletal::CANONICAL_ANIMATIONS &animations = this->impl->canonicalAnimations;
+                const uint8_t reserved[3] = {0, 0, 0};
+                if (!util::le_io::writeU64LE(fp, animations.skeletonId) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(animations.clips.size())))
+                    return false;
+                for (const skeletal::SKELETAL_CLIP &clip : animations.clips)
+                {
+                    const uint8_t loop = clip.loop ? 1 : 0;
+                    if (!util::le_io::writeU64LE(fp, clip.clipId) || !util::writeStringV11(fp, clip.name) ||
+                        !util::le_io::writeF32LE(fp, clip.duration) ||
+                        !util::le_io::writeBytes(fp, &loop, 1) ||
+                        !util::le_io::writeBytes(fp, reserved, sizeof(reserved)) ||
+                        !util::le_io::writeU32LE(fp, static_cast<uint32_t>(clip.tracks.size())))
+                        return false;
+                    for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                    {
+                        if (!util::le_io::writeU64LE(fp, track.boneId) ||
+                            !util::le_io::writeBytes(fp, &track.channelMask, 1) ||
+                            !util::le_io::writeBytes(fp, reserved, sizeof(reserved)) ||
+                            !util::le_io::writeU32LE(fp, static_cast<uint32_t>(track.keys.size())))
+                            return false;
+                        for (const skeletal::SKELETAL_KEY &key : track.keys)
+                        {
+                            const uint8_t easing = static_cast<uint8_t>(key.easing);
+                            const skeletal::LOCAL_TRANSFORM &local = key.local;
+                            if (!util::le_io::writeF32LE(fp, key.time) ||
+                                !util::le_io::writeF32LE(fp, local.translation.x) ||
+                                !util::le_io::writeF32LE(fp, local.translation.y) ||
+                                !util::le_io::writeF32LE(fp, local.translation.z) ||
+                                !util::le_io::writeF32LE(fp, local.rotation.x) ||
+                                !util::le_io::writeF32LE(fp, local.rotation.y) ||
+                                !util::le_io::writeF32LE(fp, local.rotation.z) ||
+                                !util::le_io::writeF32LE(fp, local.rotation.w) ||
+                                !util::le_io::writeF32LE(fp, local.scale.x) ||
+                                !util::le_io::writeF32LE(fp, local.scale.y) ||
+                                !util::le_io::writeF32LE(fp, local.scale.z) ||
+                                !util::le_io::writeBytes(fp, &easing, 1) ||
+                                !util::le_io::writeBytes(fp, reserved, sizeof(reserved)) ||
+                                !util::le_io::writeF32LE(fp, key.bezierX1) ||
+                                !util::le_io::writeF32LE(fp, key.bezierY1) ||
+                                !util::le_io::writeF32LE(fp, key.bezierX2) ||
+                                !util::le_io::writeF32LE(fp, key.bezierY2))
+                                return false;
+                        }
+                    }
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_ANIMATION [%s]", fileOut);
         }
 
         // SECTION_ARTICULATED_PARTS - optional rigid-part identities and pivots -----------------------
@@ -2976,14 +3305,47 @@ namespace mbm
         int16_t hasNormalFlag  = HAS_NOR_NO;
         int16_t hasTextureFlag = HAS_TEX_NO;
         bool    sawFirstFrame  = false;
+        bool    sawCanonicalSkeleton = false;
+        bool    sawCanonicalWeights = false;
+        bool    sawCanonicalAnimations = false;
+        uint32_t canonicalFrame0VertexCount = UINT32_MAX;
         util::BUFFER_MESH_DEBUG *frame0 = nullptr;
 
-        for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
+        struct DebugStagedSection
         {
-            util::SECTION_HEADER_V11 sectionHeader;
+            util::SECTION_HEADER_V11 header;
             std::vector<uint8_t> payload;
-            if (!util::readSectionV11(fp, sectionHeader, payload))
+        };
+        std::vector<DebugStagedSection> sections(fileHeader.sectionCount);
+        for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
+            if (!util::readSectionV11(fp, sections[i].header, sections[i].payload))
                 return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read section %u [%s]", i, fileNamePath);
+
+        for (const DebugStagedSection &staged : sections)
+        {
+            if (staged.header.type == util::SECTION_SKELETAL_SKELETON)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                if (sawCanonicalSkeleton || !parse_canonical_skeleton_section_v11(
+                        tmp, staged.header.sectionVersion, impl->canonicalSkeleton))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_SKELETON [%s]", fileNamePath);
+                sawCanonicalSkeleton = true;
+            }
+            else if (staged.header.type == util::SECTION_FRAME_STATIC &&
+                     canonicalFrame0VertexCount == UINT32_MAX)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                util::FRAME_HEADER_V11 header;
+                if (!util::readFrameHeaderV11(tmp, header))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to inspect SECTION_FRAME_STATIC [%s]", fileNamePath);
+                canonicalFrame0VertexCount = header.vertexCount;
+            }
+        }
+
+        for (const DebugStagedSection &staged : sections)
+        {
+            const util::SECTION_HEADER_V11 &sectionHeader = staged.header;
+            const std::vector<uint8_t> &payload = staged.payload;
 
             if (sectionHeader.type == util::SECTION_MATERIAL_TRANSFORM)
             {
@@ -3103,17 +3465,28 @@ namespace mbm
                 }
                 this->impl->buffer.push_back(pBuffer);
             }
-            else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
+            else if (sectionHeader.type == util::SECTION_SKELETAL_SKELETON)
             {
-                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (!parse_skeleton_section_v11(tmp, impl->skeleton, sectionHeader.sectionVersion))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_FRAME_SKINNED [%s]", fileNamePath);
+                // Parsed in the order-independent pre-pass above.
             }
-            else if (sectionHeader.type == util::SECTION_VERTEX_SKIN_WEIGHTS)
+            else if (sectionHeader.type == util::SECTION_SKELETAL_WEIGHTS)
             {
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (!parse_vertex_skin_weights_section_v11(tmp, impl->weightPalette, impl->vertexWeights, sectionHeader.sectionVersion))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileNamePath);
+                if (sawCanonicalWeights || !sawCanonicalSkeleton ||
+                    canonicalFrame0VertexCount == UINT32_MAX ||
+                    !parse_canonical_weights_section_v11(tmp, sectionHeader.sectionVersion,
+                        impl->canonicalSkeleton, canonicalFrame0VertexCount, impl->canonicalWeights))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_WEIGHTS [%s]", fileNamePath);
+                sawCanonicalWeights = true;
+            }
+            else if (sectionHeader.type == util::SECTION_SKELETAL_ANIMATION)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (sawCanonicalAnimations || !sawCanonicalSkeleton ||
+                    !parse_canonical_animation_section_v11(tmp, sectionHeader.sectionVersion,
+                        impl->canonicalSkeleton, impl->canonicalAnimations))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_ANIMATION [%s]", fileNamePath);
+                sawCanonicalAnimations = true;
             }
             else
             {
@@ -3554,33 +3927,10 @@ namespace mbm
 
     void MESH_MBM_DEBUG::scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz)
     {
-        scaleFrame(indexFrame, indexSubset, sx, sy, sz, false, nullptr, 0);
-    }
-
-    bool MESH_MBM_DEBUG::scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy,
-                                    const float sz, const bool scaleSkeleton, char *errorOut, const int errorOutLen)
-    {
-        const bool hasSkeleton = !impl->skeleton.empty();
-        if (scaleSkeleton && hasSkeleton)
-        {
-            if (indexFrame >= 0 || indexSubset >= 0)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen,
-                    "skeleton synchronization requires all frames and all subsets");
-                return false;
-            }
-            const float tolerance = std::max(1.0f, std::max(std::abs(sx), std::max(std::abs(sy), std::abs(sz)))) * 0.000001f;
-            if (sx <= 0.0f || std::abs(sx - sy) > tolerance || std::abs(sx - sz) > tolerance)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen,
-                    "skeleton synchronization requires a positive uniform scale");
-                return false;
-            }
-        }
         if (indexFrame < 0)
         {
             for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
-                scaleFrame(static_cast<int>(i), indexSubset, sx, sy, sz, false, nullptr, 0);
+                scaleFrame(static_cast<int>(i), indexSubset, sx, sy, sz);
         }
         else if (indexFrame < static_cast<int>(this->impl->buffer.size()))
         {
@@ -3610,17 +3960,111 @@ namespace mbm
             }
         }
 
-        if (scaleSkeleton && hasSkeleton)
+    }
+
+    bool MESH_MBM_DEBUG::scaleSkeletalAsset(const float scale, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
         {
-            for (auto &joint : impl->skeleton)
+            if (errorOut && errorOutLen > 0)
+                snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (!std::isfinite(scale) || scale <= 0.0f)
+            return fail("skeletal asset scale must be finite and greater than zero");
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton to scale");
+
+        skeletal::CANONICAL_SKELETON scaledSkeleton;
+        skeletal::CANONICAL_ANIMATIONS scaledAnimations;
+        if (!skeletal::buildUniformlyScaledCanonicalAsset(impl->canonicalSkeleton,
+                                                           impl->canonicalAnimations,
+                                                           scale,
+                                                           scaledSkeleton,
+                                                           scaledAnimations))
+        {
+            if (!scaledSkeleton.compiled.diagnostics.empty())
             {
-                joint.x *= sx;
-                joint.y *= sy;
-                joint.z *= sz;
-                joint.radius *= sx;
-                joint.length *= sx;
+                const skeletal::DIAGNOSTIC &diagnostic = scaledSkeleton.compiled.diagnostics.front();
+                if (errorOut && errorOutLen > 0)
+                    snprintf(errorOut, errorOutLen, "scaled canonical skeleton is invalid: %s at bone %u ('%s'), error %.9g",
+                             skeletal::diagnosticCodeName(diagnostic.code), diagnostic.sourceIndex,
+                             diagnostic.boneName.c_str(), diagnostic.observedError);
+                return false;
+            }
+            return fail("scaled canonical animation would be invalid");
+        }
+
+        const auto validProduct = [scale](const float value)
+        {
+            return std::isfinite(value) && std::isfinite(value * scale);
+        };
+        for (const util::BUFFER_MESH_DEBUG *frame : impl->buffer)
+        {
+            const auto *positions = reinterpret_cast<const VEC3 *>(frame->position);
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+            {
+                const uint32_t end = static_cast<uint32_t>(subset->vertexStart + subset->vertexCount);
+                for (uint32_t vertex = static_cast<uint32_t>(subset->vertexStart); vertex < end; ++vertex)
+                {
+                    if (!validProduct(positions[vertex].x) || !validProduct(positions[vertex].y) ||
+                        !validProduct(positions[vertex].z))
+                        return fail("scaled mesh vertex would not be finite");
+                }
             }
         }
+        for (const CUBE *cube : impl->infoPhysics.lsCube)
+        {
+            if (!validProduct(cube->halfDim.x) || !validProduct(cube->halfDim.y) ||
+                !validProduct(cube->halfDim.z) || !validProduct(cube->absCenter.x) ||
+                !validProduct(cube->absCenter.y) || !validProduct(cube->absCenter.z))
+                return fail("scaled cube bounds would not be finite");
+        }
+        for (const SPHERE *sphere : impl->infoPhysics.lsSphere)
+        {
+            if (!validProduct(sphere->ray) || !validProduct(sphere->absCenter[0]) ||
+                !validProduct(sphere->absCenter[1]) || !validProduct(sphere->absCenter[2]))
+                return fail("scaled sphere bounds would not be finite");
+        }
+        for (const CUBE_COMPLEX *cube : impl->infoPhysics.lsCubeComplex)
+            for (const _VEC3_POINT &point : cube->p)
+                if (!validProduct(point.x) || !validProduct(point.y) || !validProduct(point.z))
+                    return fail("scaled complex-cube bounds would not be finite");
+        for (const TRIANGLE *triangle : impl->infoPhysics.lsTriangle)
+        {
+            for (const VEC3 &point : triangle->point)
+                if (!validProduct(point.x) || !validProduct(point.y) || !validProduct(point.z))
+                    return fail("scaled triangle bounds would not be finite");
+            if (!validProduct(triangle->position.x) || !validProduct(triangle->position.y))
+                return fail("scaled triangle position would not be finite");
+        }
+
+        scaleFrame(-1, -1, scale, scale, scale);
+        for (CUBE *cube : impl->infoPhysics.lsCube)
+        {
+            cube->halfDim.x *= scale; cube->halfDim.y *= scale; cube->halfDim.z *= scale;
+            cube->absCenter.x *= scale; cube->absCenter.y *= scale; cube->absCenter.z *= scale;
+        }
+        for (SPHERE *sphere : impl->infoPhysics.lsSphere)
+        {
+            sphere->ray *= scale;
+            sphere->absCenter[0] *= scale; sphere->absCenter[1] *= scale; sphere->absCenter[2] *= scale;
+        }
+        for (CUBE_COMPLEX *cube : impl->infoPhysics.lsCubeComplex)
+            for (_VEC3_POINT &point : cube->p)
+            {
+                point.x *= scale; point.y *= scale; point.z *= scale;
+            }
+        for (TRIANGLE *triangle : impl->infoPhysics.lsTriangle)
+        {
+            for (VEC3 &point : triangle->point)
+            {
+                point.x *= scale; point.y *= scale; point.z *= scale;
+            }
+            triangle->position.x *= scale; triangle->position.y *= scale;
+        }
+        impl->canonicalSkeleton = std::move(scaledSkeleton);
+        impl->canonicalAnimations = std::move(scaledAnimations);
         return true;
     }
 
@@ -3979,367 +4423,2632 @@ namespace mbm
         return infoHead->effectShader->getTextureAnimationEffectFileName();
     }
 
-    int MESH_MBM_DEBUG::addBone(const char *name, const char *parentName, const float x, const float y, const float z,
-                                 const float radius, const float rotX, const float rotY, const float rotZ,
-                                 const float scaleX, const float scaleY, const float scaleZ, const float length,
-                                 char *errorOut, const int errorOutLen)
-    {
-        if (!name || !name[0])
-        {
-            if (errorOut) snprintf(errorOut, errorOutLen, "bone name must not be empty");
-            return 0;
-        }
-        for (const auto &j : impl->skeleton)
-        {
-            if (j.name == name)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen, "duplicate bone name [%s]", name);
-                return 0;
-            }
-        }
-        const bool hasParent = parentName && parentName[0];
-        if (hasParent)
-        {
-            const bool parentFound = std::any_of(impl->skeleton.begin(), impl->skeleton.end(),
-                [parentName](const util::SKELETON_BONE_V11 &j) { return j.name == parentName; });
-            if (!parentFound)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen, "unknown parent bone [%s]", parentName);
-                return 0;
-            }
-        }
-        util::SKELETON_BONE_V11 joint;
-        joint.name       = name;
-        joint.parentName = hasParent ? parentName : "";
-        joint.x = x; joint.y = y; joint.z = z;
-        joint.radius = radius;
-        joint.rotX = rotX; joint.rotY = rotY; joint.rotZ = rotZ;
-        joint.scaleX = scaleX; joint.scaleY = scaleY; joint.scaleZ = scaleZ;
-        joint.length = length;
-        impl->skeleton.push_back(std::move(joint));
-        return static_cast<int>(impl->skeleton.size());
-    }
 
-    uint32_t MESH_MBM_DEBUG::getTotalBone() const noexcept
+    bool MESH_MBM_DEBUG::getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept
     {
-        return static_cast<uint32_t>(impl->skeleton.size());
-    }
-
-    const util::SKELETON_BONE_V11 *MESH_MBM_DEBUG::getBone(const uint32_t index) const noexcept
-    {
-        if (index < impl->skeleton.size())
-            return &impl->skeleton[index];
-        return nullptr;
-    }
-
-    namespace
-    {
-        // Re-sorts a skeleton vector so every joint's parent appears earlier than the joint itself,
-        // required by parse_skeleton_section_v11's on-load ordering check. Stable multi-pass (Kahn's
-        // algorithm style) rather than a single std::sort, so joints that don't need to move keep
-        // their relative order -- skeletons are small (tens of joints), so the O(n^2) worst case is
-        // not a concern.
-        void resortSkeletonParentFirst(std::vector<util::SKELETON_BONE_V11> &skeleton)
-        {
-            std::vector<util::SKELETON_BONE_V11> sorted;
-            sorted.reserve(skeleton.size());
-            std::vector<bool> placed(skeleton.size(), false);
-            bool progress = true;
-            while (sorted.size() < skeleton.size() && progress)
-            {
-                progress = false;
-                for (uint32_t i = 0; i < skeleton.size(); ++i)
-                {
-                    if (placed[i])
-                        continue;
-                    const util::SKELETON_BONE_V11 &j = skeleton[i];
-                    const bool parentReady = j.parentName.empty() ||
-                        std::any_of(sorted.begin(), sorted.end(),
-                                    [&j](const util::SKELETON_BONE_V11 &s) { return s.name == j.parentName; });
-                    if (parentReady)
-                    {
-                        sorted.push_back(skeleton[i]);
-                        placed[i] = true;
-                        progress = true;
-                    }
-                }
-            }
-            // Leftover entries (should not happen given updateBone's cycle guard) are appended as-is
-            // rather than dropped, so a bug here loses ordering guarantees but never loses data.
-            for (uint32_t i = 0; i < skeleton.size(); ++i)
-                if (!placed[i])
-                    sorted.push_back(skeleton[i]);
-            skeleton.swap(sorted);
-        }
-    }
-
-    bool MESH_MBM_DEBUG::updateBone(const uint32_t index, const char *name, const char *parentName,
-                                     const float x, const float y, const float z, const float radius,
-                                     const float rotX, const float rotY, const float rotZ,
-                                     const float scaleX, const float scaleY, const float scaleZ, const float length,
-                                     char *errorOut, const int errorOutLen)
-    {
-        if (index >= impl->skeleton.size())
-        {
-            if (errorOut)
-                snprintf(errorOut, errorOutLen, "bone index [%u] out of range -> total [%u]", index,
-                         static_cast<uint32_t>(impl->skeleton.size()));
+        if (impl->canonicalSkeleton.skeletonId == 0)
             return false;
-        }
-        if (!name || !name[0])
-        {
-            if (errorOut) snprintf(errorOut, errorOutLen, "bone name must not be empty");
-            return false;
-        }
-        for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
-        {
-            if (i != index && impl->skeleton[i].name == name)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen, "duplicate bone name [%s]", name);
-                return false;
-            }
-        }
-        const std::string oldName = impl->skeleton[index].name;
-        const bool        hasParent = parentName && parentName[0];
-        std::string       newParentName;
-        if (hasParent)
-        {
-            // covers both "parent == the new name being assigned" and "parent == its own current
-            // name" (renaming and self-parenting in the same call)
-            if (std::string(name) == parentName || oldName == parentName)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen, "bone [%s] cannot be its own parent", name);
-                return false;
-            }
-            const util::SKELETON_BONE_V11 *parentJoint = nullptr;
-            for (const auto &j : impl->skeleton)
-            {
-                if (j.name == parentName)
-                {
-                    parentJoint = &j;
-                    break;
-                }
-            }
-            if (parentJoint == nullptr)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen, "unknown parent bone [%s]", parentName);
-                return false;
-            }
-            // Cycle guard: walk up from the candidate parent toward the root. If this walk reaches
-            // this bone's current name, the candidate parent is a descendant of this bone, and
-            // reparenting would create a cycle.
-            std::string cursor = parentJoint->parentName;
-            uint32_t    guard  = 0;
-            while (!cursor.empty() && guard++ < impl->skeleton.size())
-            {
-                if (cursor == oldName)
-                {
-                    if (errorOut)
-                        snprintf(errorOut, errorOutLen, "reparenting [%s] under [%s] would create a cycle",
-                                 name, parentName);
-                    return false;
-                }
-                const util::SKELETON_BONE_V11 *next = nullptr;
-                for (const auto &j : impl->skeleton)
-                {
-                    if (j.name == cursor)
-                    {
-                        next = &j;
-                        break;
-                    }
-                }
-                if (next == nullptr)
-                    break;
-                cursor = next->parentName;
-            }
-            newParentName = parentName;
-        }
-        util::SKELETON_BONE_V11 &joint = impl->skeleton[index];
-        joint.name             = name;
-        joint.parentName       = newParentName;
-        joint.x                = x;
-        joint.y                = y;
-        joint.z                = z;
-        joint.radius            = radius;
-        joint.rotX              = rotX;
-        joint.rotY              = rotY;
-        joint.rotZ              = rotZ;
-        joint.scaleX            = scaleX;
-        joint.scaleY            = scaleY;
-        joint.scaleZ            = scaleZ;
-        joint.length            = length;
-        // Any other joint that referenced this one by its old name must be repointed to the new one.
-        if (oldName != name)
-        {
-            for (auto &j : impl->skeleton)
-                if (j.parentName == oldName)
-                    j.parentName = name;
-        }
-        resortSkeletonParentFirst(impl->skeleton);
+        const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
+        out.boneCount = static_cast<uint32_t>(report.bones.size());
+        out.diagnosticCount = static_cast<uint32_t>(report.diagnostics.size());
+        out.animationClipCount = static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
+        out.maximumReconstructionError = report.maximumReconstructionError;
+        out.maximumBindIdentityError = report.maximumBindIdentityError;
+        out.valid = !report.hasFatalDiagnostics();
+        out.canonical = true;
         return true;
     }
 
-    bool MESH_MBM_DEBUG::removeBone(const uint32_t index, const bool cascadeChildren, char *errorOut, const int errorOutLen)
+    bool MESH_MBM_DEBUG::getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out,
+                                              const bool includeDependencyImpact) const noexcept
     {
-        if (index >= impl->skeleton.size())
-        {
-            if (errorOut)
-                snprintf(errorOut, errorOutLen, "bone index [%u] out of range -> total [%u]", index,
-                         static_cast<uint32_t>(impl->skeleton.size()));
+        const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
+        if (impl->canonicalSkeleton.skeletonId == 0 || index >= report.bones.size())
             return false;
-        }
-        const std::string       name = impl->skeleton[index].name;
-        std::vector<std::string> children;
-        for (const auto &j : impl->skeleton)
-            if (j.parentName == name)
-                children.push_back(j.name);
-        if (!children.empty() && !cascadeChildren)
+        const skeletal::COMPILED_BONE &bone = report.bones[index];
+        out.boneId = bone.boneId;
+        out.parentBoneId = bone.parentBoneId;
+        out.parentIndex = bone.parentIndex;
+        out.sourceIndex = bone.sourceIndex;
+        out.localTranslation = bone.localBind.translation;
+        out.localRotationX = bone.localBind.rotation.x;
+        out.localRotationY = bone.localBind.rotation.y;
+        out.localRotationZ = bone.localBind.rotation.z;
+        out.localRotationW = bone.localBind.rotation.w;
+        out.localScale = bone.localBind.scale;
+        out.localBindMatrix = bone.localBindMatrix;
+        out.globalBindMatrix = bone.globalBindMatrix;
+        out.inverseGlobalBindMatrix = bone.inverseGlobalBindMatrix;
+        if (bone.sourceIndex < impl->canonicalSkeleton.sourceBones.size())
         {
-            if (errorOut)
-                snprintf(errorOut, errorOutLen,
-                         "bone [%s] has %u child bone(s); pass cascadeChildren=true to remove them too",
-                         name.c_str(), static_cast<uint32_t>(children.size()));
-            return false;
+            out.radius = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].radius;
+            out.length = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].length;
+            out.tailOffset = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].tailOffset;
+            out.hasExplicitTail = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].hasExplicitTail;
+            out.connectedToParent = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].connectedToParent;
         }
-        if (cascadeChildren)
+        out.childCount = 0;
+        for (const skeletal::CANONICAL_BONE &candidate : impl->canonicalSkeleton.sourceBones)
+            if (candidate.parentBoneId == bone.boneId) ++out.childCount;
+        out.weightPaletteReferenced = false;
+        out.weightedVertexCount = 0;
+        if (includeDependencyImpact)
         {
-            for (const auto &childName : children)
+            for (uint32_t paletteIndex = 0; paletteIndex < impl->canonicalWeights.paletteBoneIds.size(); ++paletteIndex)
             {
-                for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
-                {
-                    if (impl->skeleton[i].name == childName)
-                    {
-                        removeBone(i, true, nullptr, 0);
-                        break;
-                    }
-                }
-            }
-        }
-        for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
-        {
-            if (impl->skeleton[i].name == name)
-            {
-                impl->skeleton.erase(impl->skeleton.begin() + i);
+                if (impl->canonicalWeights.paletteBoneIds[paletteIndex] != bone.boneId) continue;
+                out.weightPaletteReferenced = true;
+                for (const skeletal::CANONICAL_VERTEX_WEIGHT &vertex : impl->canonicalWeights.vertices)
+                    for (uint32_t slot = 0; slot < 4; ++slot)
+                        if (vertex.paletteIndex[slot] == paletteIndex && vertex.weight[slot] > 0.0f)
+                        { ++out.weightedVertexCount; break; }
                 break;
             }
         }
+        out.animationTrackCount = 0;
+        if (includeDependencyImpact)
+            for (const skeletal::SKELETAL_CLIP &clip : impl->canonicalAnimations.clips)
+                for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                    if (track.boneId == bone.boneId) ++out.animationTrackCount;
+        out.hasNegativeScale = bone.hasNegativeScale;
+        out.hasShear = bone.hasShear;
         return true;
+    }
+
+    const char *MESH_MBM_DEBUG::getSkeletonBindBoneName(const uint32_t index) const noexcept
+    {
+        const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
+        if (impl->canonicalSkeleton.skeletonId == 0 || index >= report.bones.size())
+            return nullptr;
+        return report.bones[index].name.c_str();
     }
 
     namespace
     {
-        // Frame 1's own vertex count (sum of its subsets' vertexCount) - SECTION_VERTEX_SKIN_WEIGHTS
-        // always describes frame 1's topology only (skin weights are a bind-pose property, they
-        // don't vary per animation frame the way position/normal/uv per SECTION_FRAME_STATIC do).
-        // Returns 0 if there is no frame 0 buffer at all.
-        uint32_t computeFrame1VertexCountForWeights(const std::vector<util::BUFFER_MESH_DEBUG *> &buffer)
+        bool getSkeletalSharingCompatibilityImpl(
+            const skeletal::CANONICAL_SKELETON &leftSkeleton,
+            const skeletal::CANONICAL_SKELETON &rightSkeleton,
+            SKELETAL_SHARING_COMPATIBILITY &out) noexcept
         {
-            if (buffer.empty() || buffer[0] == nullptr)
-                return 0;
-            uint32_t total = 0;
-            for (const auto *sub : buffer[0]->subset)
-                total += static_cast<uint32_t>(sub->vertexCount);
-            return total;
-        }
-    }
-
-    bool MESH_MBM_DEBUG::setVertexWeight(const uint32_t vertexIndex,
-                                          const char *boneName0, const float weight0,
-                                          const char *boneName1, const float weight1,
-                                          const char *boneName2, const float weight2,
-                                          const char *boneName3, const float weight3,
-                                          char *errorOut, const int errorOutLen)
-    {
-        const uint32_t frame1VertexCount = computeFrame1VertexCountForWeights(impl->buffer);
-        if (frame1VertexCount == 0)
-        {
-            if (errorOut) snprintf(errorOut, errorOutLen, "mesh has no frame 1 geometry to attach weights to");
-            return false;
-        }
-        if (vertexIndex >= frame1VertexCount)
-        {
-            if (errorOut) snprintf(errorOut, errorOutLen, "vertex index [%u] out of range -> frame 1 total [%u]",
-                                    vertexIndex, frame1VertexCount);
-            return false;
-        }
-        // Grows/shrinks to match frame 1's current vertex count on first touch (or if the mesh's
-        // own geometry changed since); existing entries within the overlap are preserved.
-        if (impl->vertexWeights.size() != frame1VertexCount)
-            impl->vertexWeights.resize(frame1VertexCount);
-
-        const char *names[4]   = { boneName0, boneName1, boneName2, boneName3 };
-        const float weights[4] = { weight0, weight1, weight2, weight3 };
-        util::VERTEX_BONE_WEIGHT_V11 entry;
-        for (int slot = 0; slot < 4; ++slot)
-        {
-            if (!names[slot] || !names[slot][0])
+            out = SKELETAL_SHARING_COMPATIBILITY();
+            const skeletal::COMPILED_SKELETON &left = leftSkeleton.compiled;
+            const skeletal::COMPILED_SKELETON &right = rightSkeleton.compiled;
+            if (leftSkeleton.skeletonId == 0 || rightSkeleton.skeletonId == 0 ||
+                left.hasFatalDiagnostics() || right.hasFatalDiagnostics() ||
+                left.bones.empty() || right.bones.empty())
             {
-                entry.paletteIndex[slot] = 0xFF;
-                entry.weight[slot]       = 0.0f;
-                continue;
+                out.reason = "missing_skeleton";
+                out.boneCount = static_cast<uint32_t>(left.bones.size());
+                return false;
             }
-            uint32_t paletteIdx = static_cast<uint32_t>(impl->weightPalette.size());
-            for (uint32_t i = 0; i < impl->weightPalette.size(); ++i)
+            out.boneCount = static_cast<uint32_t>(left.bones.size());
+            if (left.bones.size() != right.bones.size())
             {
-                if (impl->weightPalette[i] == names[slot])
-                {
-                    paletteIdx = i;
-                    break;
-                }
+                out.reason = "bone_count_mismatch";
+                return false;
             }
-            if (paletteIdx == impl->weightPalette.size())
+            for (uint32_t index = 0; index < left.bones.size(); ++index)
             {
-                if (impl->weightPalette.size() >= 0xFFu)
+                const skeletal::COMPILED_BONE &leftBone = left.bones[index];
+                const skeletal::COMPILED_BONE &rightBone = right.bones[index];
+                out.boneIndex = index;
+                out.boneName = leftBone.name.c_str();
+                out.boneId = leftBone.boneId;
+                out.otherBoneId = rightBone.boneId;
+                if (leftBone.boneId != rightBone.boneId || leftBone.name != rightBone.name)
                 {
-                    if (errorOut) snprintf(errorOut, errorOutLen, "weight palette full (255 unique bones already referenced)");
+                    out.reason = "bone_identity_mismatch";
                     return false;
                 }
-                impl->weightPalette.push_back(names[slot]);
+                out.parentIndex = leftBone.parentIndex;
+                out.otherParentIndex = rightBone.parentIndex;
+                out.parentBoneId = leftBone.parentBoneId;
+                out.otherParentBoneId = rightBone.parentBoneId;
+                if (leftBone.parentIndex != rightBone.parentIndex ||
+                    leftBone.parentBoneId != rightBone.parentBoneId)
+                {
+                    out.reason = "hierarchy_mismatch";
+                    return false;
+                }
+                out.observedError = skeletal::maximumMatrixDifference(leftBone.localBindMatrix,
+                                                                      rightBone.localBindMatrix);
+                out.tolerance = skeletal::matrixComparisonTolerance(leftBone.localBindMatrix,
+                                                                    rightBone.localBindMatrix);
+                if (out.observedError > out.tolerance)
+                {
+                    out.reason = "bind_transform_mismatch";
+                    return false;
+                }
+                out.observedError = skeletal::maximumMatrixDifference(leftBone.globalBindMatrix,
+                                                                      rightBone.globalBindMatrix);
+                out.tolerance = skeletal::matrixComparisonTolerance(leftBone.globalBindMatrix,
+                                                                    rightBone.globalBindMatrix);
+                if (out.observedError > out.tolerance)
+                {
+                    out.reason = "bind_transform_mismatch";
+                    return false;
+                }
             }
-            entry.paletteIndex[slot] = static_cast<uint8_t>(paletteIdx);
-            entry.weight[slot]       = weights[slot];
+            out.compatible = true;
+            out.reason = "compatible";
+            out.boneIndex = UINT32_MAX;
+            out.boneName = nullptr;
+            out.observedError = 0.0f;
+            out.tolerance = 0.0f;
+            return true;
         }
-        impl->vertexWeights[vertexIndex] = entry;
-        return true;
     }
 
-    bool MESH_MBM_DEBUG::getVertexWeight(const uint32_t vertexIndex,
-                                          const char **boneName0, float *weight0,
-                                          const char **boneName1, float *weight1,
-                                          const char **boneName2, float *weight2,
-                                          const char **boneName3, float *weight3) const noexcept
+    bool MESH_MBM_DEBUG::getSkeletalSharingCompatibility(
+        const MESH_MBM_DEBUG &other, SKELETAL_SHARING_COMPATIBILITY &out) const noexcept
     {
-        if (vertexIndex >= impl->vertexWeights.size())
+        return getSkeletalSharingCompatibilityImpl(impl->canonicalSkeleton,
+                                                   other.impl->canonicalSkeleton, out);
+    }
+
+    bool MESH_MBM::getSkeletalSharingCompatibility(
+        const MESH_MBM &other, SKELETAL_SHARING_COMPATIBILITY &out) const noexcept
+    {
+        return getSkeletalSharingCompatibilityImpl(impl->canonicalSkeleton,
+                                                   other.impl->canonicalSkeleton, out);
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletonBindDiagnostic(const uint32_t index,
+                                                    SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept
+    {
+        const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
+        if (impl->canonicalSkeleton.skeletonId == 0 || index >= report.diagnostics.size())
             return false;
-        const util::VERTEX_BONE_WEIGHT_V11 &entry = impl->vertexWeights[vertexIndex];
-        const char **outNames[4] = { boneName0, boneName1, boneName2, boneName3 };
-        float *      outWeights[4] = { weight0, weight1, weight2, weight3 };
-        for (int slot = 0; slot < 4; ++slot)
+        const skeletal::DIAGNOSTIC &diagnostic = report.diagnostics[index];
+        out.code = skeletal::diagnosticCodeName(diagnostic.code);
+        out.sourceIndex = diagnostic.sourceIndex;
+        out.observedError = diagnostic.observedError;
+        out.fatal = diagnostic.fatal;
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalSkeletalClips() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalClip(const uint32_t clipIndex, SKELETAL_CLIP_INFO &out) const noexcept
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size()) return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[clipIndex];
+        out.clipId = clip.clipId;
+        out.duration = clip.duration;
+        out.trackCount = static_cast<uint32_t>(clip.tracks.size());
+        out.loop = clip.loop;
+        return true;
+    }
+
+    const char *MESH_MBM_DEBUG::getSkeletalClipName(const uint32_t clipIndex) const noexcept
+    {
+        return clipIndex < impl->canonicalAnimations.clips.size() ?
+            impl->canonicalAnimations.clips[clipIndex].name.c_str() : nullptr;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
+                                           SKELETAL_TRACK_INFO &out) const noexcept
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size()) return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[clipIndex];
+        if (trackIndex >= clip.tracks.size()) return false;
+        const skeletal::SKELETAL_TRACK &track = clip.tracks[trackIndex];
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(track.boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end()) return false;
+        out.boneId = track.boneId;
+        out.boneIndex = found->second;
+        out.keyCount = static_cast<uint32_t>(track.keys.size());
+        out.channelMask = track.channelMask;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                         const uint32_t keyIndex, SKELETAL_KEY_INFO &out) const noexcept
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size()) return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[clipIndex];
+        if (trackIndex >= clip.tracks.size() || keyIndex >= clip.tracks[trackIndex].keys.size()) return false;
+        const skeletal::SKELETAL_KEY &key = clip.tracks[trackIndex].keys[keyIndex];
+        out.time = key.time;
+        out.localTranslation = key.local.translation;
+        out.localRotationX = key.local.rotation.x;
+        out.localRotationY = key.local.rotation.y;
+        out.localRotationZ = key.local.rotation.z;
+        out.localRotationW = key.local.rotation.w;
+        out.localScale = key.local.scale;
+        out.easing = static_cast<uint8_t>(key.easing);
+        out.bezierX1 = key.bezierX1;
+        out.bezierY1 = key.bezierY1;
+        out.bezierX2 = key.bezierX2;
+        out.bezierY2 = key.bezierY2;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalClip(const char *name, const float duration, const bool loop,
+                                          uint32_t *newIndexOut, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
         {
-            const bool used = entry.paletteIndex[slot] != 0xFF &&
-                               entry.paletteIndex[slot] < impl->weightPalette.size();
-            if (outNames[slot])
-                *outNames[slot] = used ? impl->weightPalette[entry.paletteIndex[slot]].c_str() : nullptr;
-            if (outWeights[slot])
-                *outWeights[slot] = used ? entry.weight[slot] : 0.0f;
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0) return fail("mesh has no canonical skeleton");
+        if (!name || !name[0]) return fail("canonical clip name must not be empty");
+        if (!std::isfinite(duration) || duration < 0.0f)
+            return fail("canonical clip duration must be finite and non-negative");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        if (candidate.skeletonId == 0) candidate.skeletonId = impl->canonicalSkeleton.skeletonId;
+        for (const skeletal::SKELETAL_CLIP &clip : candidate.clips)
+            if (clip.name == name) return fail("canonical clip name must be unique");
+        uint64_t nextId = 1;
+        while (std::any_of(candidate.clips.begin(), candidate.clips.end(),
+                           [nextId](const skeletal::SKELETAL_CLIP &clip) { return clip.clipId == nextId; }))
+        {
+            if (nextId == std::numeric_limits<uint64_t>::max())
+                return fail("canonical clip ID space is exhausted");
+            ++nextId;
+        }
+        skeletal::SKELETAL_CLIP clip;
+        clip.clipId = nextId;
+        clip.name = name;
+        clip.duration = duration;
+        clip.loop = loop;
+        candidate.clips.push_back(std::move(clip));
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("new canonical clip would be invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->canonicalAnimations.clips.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateSkeletalClip(const uint32_t clipIndex, const char *name,
+                                             const float duration, const bool loop,
+                                             char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!name || !name[0]) return fail("canonical clip name must not be empty");
+        if (!std::isfinite(duration) || duration < 0.0f)
+            return fail("canonical clip duration must be finite and non-negative");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        for (uint32_t index = 0; index < candidate.clips.size(); ++index)
+            if (index != clipIndex && candidate.clips[index].name == name)
+                return fail("canonical clip name must be unique");
+        skeletal::SKELETAL_CLIP &clip = candidate.clips[clipIndex];
+        clip.name = name;
+        clip.duration = duration;
+        clip.loop = loop;
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("updated canonical clip would be invalid; duration may not exclude existing keys");
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalClip(const uint32_t clipIndex,
+                                             char *errorOut, const int errorOutLen)
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "canonical clip index is out of range");
+            return false;
+        }
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        candidate.clips.erase(candidate.clips.begin() + clipIndex);
+        if (candidate.clips.empty()) candidate = {};
+        else if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "remaining canonical clips would be invalid");
+            return false;
+        }
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalTrack(const uint32_t clipIndex, const uint32_t boneIndex,
+                                           const uint8_t channelMask, uint32_t *newIndexOut,
+                                           char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (boneIndex >= impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical track bone index is out of range");
+        if (channelMask == 0 || (channelMask & ~7u) != 0)
+            return fail("canonical track channel mask must contain only T/R/S channels");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip = candidate.clips[clipIndex];
+        const skeletal::COMPILED_BONE &bone = impl->canonicalSkeleton.compiled.bones[boneIndex];
+        for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+            if (track.boneId == bone.boneId)
+                return fail("canonical clip already has a track for this bone");
+        skeletal::SKELETAL_TRACK track;
+        track.boneId = bone.boneId;
+        track.channelMask = channelMask;
+        skeletal::SKELETAL_KEY bindKey;
+        bindKey.time = 0.0f;
+        bindKey.local = bone.localBind;
+        track.keys.push_back(bindKey);
+        clip.tracks.push_back(std::move(track));
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("new canonical track would be invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        if (newIndexOut)
+            *newIndexOut = static_cast<uint32_t>(impl->canonicalAnimations.clips[clipIndex].tracks.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateSkeletalTrackChannels(const uint32_t clipIndex,
+                                                      const uint32_t trackIndex,
+                                                      const uint8_t channelMask,
+                                                      char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size())
+            return fail("canonical track index is out of range");
+        if (channelMask == 0 || (channelMask & ~7u) != 0)
+            return fail("canonical track channel mask must contain only T/R/S channels");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        candidate.clips[clipIndex].tracks[trackIndex].channelMask = channelMask;
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("updated canonical track would be invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
+                                              char *errorOut, const int errorOutLen)
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size())
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "canonical track index is out of range");
+            return false;
+        }
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip = candidate.clips[clipIndex];
+        clip.tracks.erase(clip.tracks.begin() + trackIndex);
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "remaining canonical tracks would be invalid");
+            return false;
+        }
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                         const float time, uint32_t *newIndexOut,
+                                         char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size())
+            return fail("canonical track index is out of range");
+        const skeletal::SKELETAL_CLIP &sourceClip = impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(time) || time < 0.0f || time > sourceClip.duration)
+            return fail("canonical key time must be finite and inside the clip duration");
+        const skeletal::SKELETAL_TRACK &sourceTrack = sourceClip.tracks[trackIndex];
+        for (const skeletal::SKELETAL_KEY &key : sourceTrack.keys)
+            if (std::fabs(key.time - time) <= skeletal::KEY_TIME_TOLERANCE)
+                return fail("canonical track already has a key at this time");
+        skeletal::SKELETAL_POSE sampledPose;
+        if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, sourceClip, time, sampledPose))
+            return fail("canonical clip could not be sampled for key insertion");
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(sourceTrack.boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end() ||
+            found->second < 0 ||
+            static_cast<size_t>(found->second) >= sampledPose.localTransforms.size())
+            return fail("canonical track target could not be resolved");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_TRACK &track = candidate.clips[clipIndex].tracks[trackIndex];
+        skeletal::SKELETAL_KEY inserted;
+        inserted.time = time;
+        inserted.local = sampledPose.localTransforms[static_cast<size_t>(found->second)];
+        const auto position = std::lower_bound(track.keys.begin(), track.keys.end(), time,
+            [](const skeletal::SKELETAL_KEY &key, const float value) { return key.time < value; });
+        const uint32_t index = static_cast<uint32_t>(position - track.keys.begin());
+        track.keys.insert(position, inserted);
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("new canonical key would be invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        if (newIndexOut) *newIndexOut = index;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                            const uint32_t keyIndex, const float time,
+                                            const VEC3 &translation, const float rotationX,
+                                            const float rotationY, const float rotationZ,
+                                            const float rotationW, const VEC3 &scale,
+                                            const uint8_t easing, const float bezierX1,
+                                            const float bezierY1, const float bezierX2,
+                                            const float bezierY2, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size() ||
+            keyIndex >= impl->canonicalAnimations.clips[clipIndex].tracks[trackIndex].keys.size())
+            return fail("canonical key index is out of range");
+        const float quaternionNorm = std::sqrt(rotationX * rotationX + rotationY * rotationY +
+                                               rotationZ * rotationZ + rotationW * rotationW);
+        if (!std::isfinite(quaternionNorm) || quaternionNorm <= skeletal::QUATERNION_ZERO_EPSILON)
+            return fail("canonical key rotation quaternion must be nonzero and finite");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_TRACK &track = candidate.clips[clipIndex].tracks[trackIndex];
+        skeletal::SKELETAL_KEY edited = track.keys[keyIndex];
+        edited.time = time;
+        edited.local.translation = translation;
+        edited.local.rotation = {rotationX / quaternionNorm, rotationY / quaternionNorm,
+                                 rotationZ / quaternionNorm, rotationW / quaternionNorm};
+        edited.local.scale = scale;
+        edited.easing = static_cast<skeletal::SKELETAL_EASING>(easing);
+        edited.bezierX1 = bezierX1; edited.bezierY1 = bezierY1;
+        edited.bezierX2 = bezierX2; edited.bezierY2 = bezierY2;
+        track.keys.erase(track.keys.begin() + keyIndex);
+        const auto position = std::lower_bound(track.keys.begin(), track.keys.end(), time,
+            [](const skeletal::SKELETAL_KEY &key, const float value) { return key.time < value; });
+        track.keys.insert(position, edited);
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("updated canonical key would be invalid or collide with another key time");
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                            const uint32_t keyIndex, char *errorOut, const int errorOutLen)
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size() ||
+            keyIndex >= impl->canonicalAnimations.clips[clipIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "canonical key index is out of range");
+            return false;
+        }
+        if (impl->canonicalAnimations.clips[clipIndex].tracks[trackIndex].keys.size() <= 1)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "canonical track must retain at least one key");
+            return false;
+        }
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        candidate.clips[clipIndex].tracks[trackIndex].keys.erase(
+            candidate.clips[clipIndex].tracks[trackIndex].keys.begin() + keyIndex);
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "remaining canonical keys would be invalid");
+            return false;
+        }
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::moveSkeletalKeys(const uint32_t clipIndex,
+                                           const uint32_t *trackIndices,
+                                           const uint32_t *keyIndices,
+                                           const uint32_t keyCount,
+                                           const float timeDelta,
+                                           char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!trackIndices || !keyIndices || keyCount==0)
+            return fail("canonical key move selection must not be empty");
+        if (!std::isfinite(timeDelta)) return fail("canonical key move delta must be finite");
+
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        std::unordered_set<uint64_t> references;
+        references.reserve(keyCount);
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint32_t trackIndex=trackIndices[index];
+            const uint32_t keyIndex=keyIndices[index];
+            if (trackIndex>=sourceClip.tracks.size() ||
+                    keyIndex>=sourceClip.tracks[trackIndex].keys.size())
+                return fail("canonical key move index is out of range");
+            const uint64_t reference=(static_cast<uint64_t>(trackIndex)<<32u)|keyIndex;
+            if (!references.insert(reference).second)
+                return fail("canonical key move selection contains a duplicate reference");
+            const float movedTime=sourceClip.tracks[trackIndex].keys[keyIndex].time+timeDelta;
+            if (!std::isfinite(movedTime) || movedTime<0.0f || movedTime>sourceClip.duration)
+                return fail("canonical moved key time must remain inside the clip duration");
+        }
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint32_t> affectedTracks;
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            clip.tracks[trackIndices[index]].keys[keyIndices[index]].time+=timeDelta;
+            affectedTracks.insert(trackIndices[index]);
+        }
+        for (const uint32_t trackIndex:affectedTracks)
+        {
+            std::stable_sort(clip.tracks[trackIndex].keys.begin(),clip.tracks[trackIndex].keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("moved canonical keys would be invalid or collide with another key time");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::duplicateSkeletalKeys(const uint32_t clipIndex,
+                                                const uint32_t *trackIndices,
+                                                const uint32_t *keyIndices,
+                                                const uint32_t keyCount,
+                                                const float timeDelta,
+                                                char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!trackIndices || !keyIndices || keyCount==0)
+            return fail("canonical key duplicate selection must not be empty");
+        if (!std::isfinite(timeDelta)) return fail("canonical key duplicate delta must be finite");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        std::unordered_set<uint64_t> references;
+        references.reserve(keyCount);
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint32_t trackIndex=trackIndices[index];
+            const uint32_t keyIndex=keyIndices[index];
+            if (trackIndex>=sourceClip.tracks.size() ||
+                    keyIndex>=sourceClip.tracks[trackIndex].keys.size())
+                return fail("canonical key duplicate index is out of range");
+            const uint64_t reference=(static_cast<uint64_t>(trackIndex)<<32u)|keyIndex;
+            if (!references.insert(reference).second)
+                return fail("canonical key duplicate selection contains a duplicate reference");
+            const float newTime=sourceClip.tracks[trackIndex].keys[keyIndex].time+timeDelta;
+            if (!std::isfinite(newTime) || newTime<0.0f || newTime>sourceClip.duration)
+                return fail("canonical duplicated key time must remain inside the clip duration");
+        }
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint32_t> affectedTracks;
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            skeletal::SKELETAL_KEY copy=sourceClip.tracks[trackIndices[index]].keys[keyIndices[index]];
+            copy.time+=timeDelta;
+            clip.tracks[trackIndices[index]].keys.push_back(copy);
+            affectedTracks.insert(trackIndices[index]);
+        }
+        for (const uint32_t trackIndex:affectedTracks)
+        {
+            std::stable_sort(clip.tracks[trackIndex].keys.begin(),clip.tracks[trackIndex].keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("duplicated canonical keys would be invalid or collide with another key time");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::pasteSkeletalKeys(const uint32_t clipIndex, const uint64_t *boneIds,
+                                            const uint8_t *channelMasks,
+                                            const SKELETAL_KEY_INFO *keys,
+                                            const uint32_t keyCount,
+                                            const float sourceMinimumTime,
+                                            const float insertionTime,
+                                            char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical paste clip index is out of range");
+        if (!boneIds || !channelMasks || !keys || keyCount==0)
+            return fail("canonical paste payload must not be empty");
+        if (!std::isfinite(sourceMinimumTime) || !std::isfinite(insertionTime) ||
+                insertionTime<0.0f)
+            return fail("canonical paste times must be finite and nonnegative");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint32_t> affectedTracks;
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint64_t boneId=boneIds[index];
+            const uint8_t channelMask=channelMasks[index];
+            if (impl->canonicalSkeleton.compiled.indexById.find(boneId)==
+                    impl->canonicalSkeleton.compiled.indexById.end())
+                return fail("canonical paste bone ID does not exist in the destination skeleton");
+            if (channelMask==0 || (channelMask & ~7u)!=0)
+                return fail("canonical paste channel mask must contain only T/R/S channels");
+            const float destinationTime=insertionTime+(keys[index].time-sourceMinimumTime);
+            if (!std::isfinite(destinationTime) || destinationTime<0.0f ||
+                    destinationTime>clip.duration)
+                return fail("canonical pasted key time must remain inside the destination clip");
+            auto trackIt=std::find_if(clip.tracks.begin(),clip.tracks.end(),
+                [boneId](const skeletal::SKELETAL_TRACK &track){ return track.boneId==boneId; });
+            if (trackIt==clip.tracks.end())
+            {
+                skeletal::SKELETAL_TRACK track;
+                track.boneId=boneId;
+                track.channelMask=channelMask;
+                clip.tracks.push_back(std::move(track));
+                trackIt=clip.tracks.end()-1;
+            }
+            else if (trackIt->channelMask!=channelMask)
+                return fail("canonical paste destination track has a different channel mask");
+
+            const float quaternionNorm=std::sqrt(keys[index].localRotationX*
+                    keys[index].localRotationX+keys[index].localRotationY*
+                    keys[index].localRotationY+keys[index].localRotationZ*
+                    keys[index].localRotationZ+keys[index].localRotationW*
+                    keys[index].localRotationW);
+            if (!std::isfinite(quaternionNorm) ||
+                    quaternionNorm<=skeletal::QUATERNION_ZERO_EPSILON)
+                return fail("canonical pasted key rotation quaternion must be nonzero and finite");
+            skeletal::SKELETAL_KEY pasted;
+            pasted.time=destinationTime;
+            pasted.local.translation=keys[index].localTranslation;
+            pasted.local.rotation={keys[index].localRotationX/quaternionNorm,
+                keys[index].localRotationY/quaternionNorm,
+                keys[index].localRotationZ/quaternionNorm,
+                keys[index].localRotationW/quaternionNorm};
+            pasted.local.scale=keys[index].localScale;
+            pasted.easing=static_cast<skeletal::SKELETAL_EASING>(keys[index].easing);
+            pasted.bezierX1=keys[index].bezierX1;
+            pasted.bezierY1=keys[index].bezierY1;
+            pasted.bezierX2=keys[index].bezierX2;
+            pasted.bezierY2=keys[index].bezierY2;
+            trackIt->keys.push_back(pasted);
+            affectedTracks.insert(static_cast<uint32_t>(trackIt-clip.tracks.begin()));
+        }
+        for (const uint32_t trackIndex:affectedTracks)
+        {
+            std::stable_sort(clip.tracks[trackIndex].keys.begin(),clip.tracks[trackIndex].keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("pasted canonical keys would be invalid or collide at the destination");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::insertSkeletalKeysRipple(const uint32_t clipIndex,
+                                                   const uint32_t *trackIndices,
+                                                   const uint32_t *keyIndices,
+                                                   const uint32_t keyCount,
+                                                   const float insertionTime,
+                                                   char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!trackIndices || !keyIndices || keyCount==0)
+            return fail("canonical ripple selection must not be empty");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(insertionTime) || insertionTime<0.0f || insertionTime>sourceClip.duration)
+            return fail("canonical ripple insertion time must be inside the clip duration");
+        std::unordered_set<uint64_t> references;
+        references.reserve(keyCount);
+        float minimumTime=std::numeric_limits<float>::max();
+        float maximumTime=-std::numeric_limits<float>::max();
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint32_t trackIndex=trackIndices[index];
+            const uint32_t keyIndex=keyIndices[index];
+            if (trackIndex>=sourceClip.tracks.size() ||
+                    keyIndex>=sourceClip.tracks[trackIndex].keys.size())
+                return fail("canonical ripple key index is out of range");
+            const uint64_t reference=(static_cast<uint64_t>(trackIndex)<<32u)|keyIndex;
+            if (!references.insert(reference).second)
+                return fail("canonical ripple selection contains a duplicate reference");
+            const float time=sourceClip.tracks[trackIndex].keys[keyIndex].time;
+            minimumTime=std::min(minimumTime,time);
+            maximumTime=std::max(maximumTime,time);
+        }
+        const float span=maximumTime-minimumTime;
+        if (!std::isfinite(span) || span<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical ripple selection must span a positive duration");
+        const float shift=span+skeletal::KEY_TIME_TOLERANCE*2.0f;
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        clip.duration+=shift;
+        if (!std::isfinite(clip.duration))
+            return fail("canonical ripple insertion would make the clip duration invalid");
+        for (skeletal::SKELETAL_TRACK &track:clip.tracks)
+        {
+            for (skeletal::SKELETAL_KEY &key:track.keys)
+            {
+                if (key.time+skeletal::KEY_TIME_TOLERANCE>=insertionTime)
+                {
+                    key.time+=shift;
+                    if (!std::isfinite(key.time))
+                        return fail("canonical ripple shift would make a key time invalid");
+                }
+            }
+        }
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            skeletal::SKELETAL_KEY copy=sourceClip.tracks[trackIndices[index]].keys[keyIndices[index]];
+            copy.time=insertionTime+(copy.time-minimumTime);
+            clip.tracks[trackIndices[index]].keys.push_back(copy);
+        }
+        for (skeletal::SKELETAL_TRACK &track:clip.tracks)
+        {
+            std::stable_sort(track.keys.begin(),track.keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("ripple-inserted canonical keys would collide or be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::insertSkeletalEmptyTime(const uint32_t clipIndex,
+                                                  const float insertionTime,
+                                                  const float duration,
+                                                  char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(insertionTime) || insertionTime<0.0f || insertionTime>sourceClip.duration)
+            return fail("canonical empty-time insertion must be inside the clip duration");
+        if (!std::isfinite(duration) || duration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical empty-time duration must be positive and finite");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        clip.duration+=duration;
+        if (!std::isfinite(clip.duration))
+            return fail("canonical empty-time insertion would make the clip duration invalid");
+        for (skeletal::SKELETAL_TRACK &track:clip.tracks)
+        {
+            for (skeletal::SKELETAL_KEY &key:track.keys)
+            {
+                if (key.time+skeletal::KEY_TIME_TOLERANCE>=insertionTime)
+                {
+                    key.time+=duration;
+                    if (!std::isfinite(key.time))
+                        return fail("canonical empty-time insertion would make a key time invalid");
+                }
+            }
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("empty-time-inserted canonical keys would be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalTimeRange(const uint32_t clipIndex,
+                                                  const float startTime,
+                                                  const float duration,
+                                                  uint32_t *removedKeyCountOut,
+                                                  char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (removedKeyCountOut) *removedKeyCountOut=0;
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(startTime) || startTime<0.0f || startTime>=sourceClip.duration)
+            return fail("canonical time removal must begin inside the clip duration");
+        if (!std::isfinite(duration) || duration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical time-removal duration must be positive and finite");
+        const float endTime=std::min(sourceClip.duration,startTime+duration);
+        const float removedDuration=endTime-startTime;
+        if (!std::isfinite(endTime) || removedDuration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical time-removal interval must have a positive duration");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        uint32_t removedKeyCount=0;
+        for (skeletal::SKELETAL_TRACK &track:clip.tracks)
+        {
+            const size_t oldSize=track.keys.size();
+            track.keys.erase(std::remove_if(track.keys.begin(),track.keys.end(),
+                [startTime,endTime](const skeletal::SKELETAL_KEY &key)
+                {
+                    return key.time+skeletal::KEY_TIME_TOLERANCE>=startTime &&
+                           key.time<endTime-skeletal::KEY_TIME_TOLERANCE;
+                }),track.keys.end());
+            removedKeyCount+=static_cast<uint32_t>(oldSize-track.keys.size());
+            if (track.keys.empty())
+                return fail("canonical time removal would leave a track without keys");
+            for (skeletal::SKELETAL_KEY &key:track.keys)
+            {
+                if (key.time+skeletal::KEY_TIME_TOLERANCE>=endTime)
+                    key.time-=removedDuration;
+            }
+        }
+        clip.duration-=removedDuration;
+        if (!std::isfinite(clip.duration) || clip.duration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical time removal would leave an invalid clip duration");
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("time-removed canonical keys would collide or be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        if (removedKeyCountOut) *removedKeyCountOut=removedKeyCount;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::commitSkeletalAuthoringKey(const uint32_t clipIndex,
+                                                     const uint32_t boneIndex,
+                                                     const float time,
+                                                     const uint8_t channelMask,
+                                                     const SKELETAL_KEY_INFO &local,
+                                                     bool *createdKeyOut, char *errorOut,
+                                                     const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical authoring clip index is out of range");
+        if (boneIndex>=impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical authoring bone index is out of range");
+        if (channelMask==0 || (channelMask & ~7u)!=0)
+            return fail("canonical authoring key channels must contain only T/R/S");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(time) || time<0.0f || time>sourceClip.duration)
+            return fail("canonical authoring key time must be inside the clip duration");
+        const float quaternionNorm=std::sqrt(local.localRotationX*local.localRotationX+
+            local.localRotationY*local.localRotationY+local.localRotationZ*local.localRotationZ+
+            local.localRotationW*local.localRotationW);
+        if (!std::isfinite(quaternionNorm) || quaternionNorm<=skeletal::QUATERNION_ZERO_EPSILON)
+            return fail("canonical authoring key rotation must be nonzero and finite");
+
+        skeletal::LOCAL_TRANSFORM transform;
+        transform.translation=local.localTranslation;
+        transform.rotation={local.localRotationX/quaternionNorm,local.localRotationY/quaternionNorm,
+                            local.localRotationZ/quaternionNorm,local.localRotationW/quaternionNorm};
+        transform.scale=local.localScale;
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        const uint64_t boneId=impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        auto trackIt=std::find_if(clip.tracks.begin(),clip.tracks.end(),
+            [boneId](const skeletal::SKELETAL_TRACK &track){ return track.boneId==boneId; });
+        if (trackIt==clip.tracks.end())
+        {
+            skeletal::SKELETAL_TRACK track;
+            track.boneId=boneId;
+            track.channelMask=channelMask;
+            skeletal::SKELETAL_KEY bindKey;
+            bindKey.time=0.0f;
+            bindKey.local=impl->canonicalSkeleton.compiled.bones[boneIndex].localBind;
+            track.keys.push_back(bindKey);
+            clip.tracks.push_back(std::move(track));
+            trackIt=clip.tracks.end()-1;
+        }
+        else trackIt->channelMask|=channelMask;
+
+        auto keyIt=std::find_if(trackIt->keys.begin(),trackIt->keys.end(),[time](const skeletal::SKELETAL_KEY &key)
+        { return std::fabs(key.time-time)<=skeletal::KEY_TIME_TOLERANCE; });
+        const bool created=keyIt==trackIt->keys.end();
+        if (created)
+        {
+            skeletal::SKELETAL_KEY key;
+            key.time=time;
+            key.local=transform;
+            const auto position=std::lower_bound(trackIt->keys.begin(),trackIt->keys.end(),time,
+                [](const skeletal::SKELETAL_KEY &key,const float value){ return key.time<value; });
+            trackIt->keys.insert(position,key);
+        }
+        else keyIt->local=transform;
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("committed canonical authoring key would be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        if (createdKeyOut) *createdKeyOut=created;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::commitSkeletalAuthoringPose(const uint32_t clipIndex,
+                                                      const float time,
+                                                      const uint64_t *boneIds,
+                                                      const SKELETAL_KEY_INFO *locals,
+                                                      const uint32_t boneCount,
+                                                      char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical authoring pose clip index is out of range");
+        if (!boneIds || !locals || boneCount==0 ||
+                boneCount!=impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical authoring pose must contain every skeleton bone exactly once");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(time) || time<0.0f || time>sourceClip.duration)
+            return fail("canonical authoring pose time must be inside the clip duration");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint64_t> seenBoneIds;
+        seenBoneIds.reserve(boneCount);
+        for (uint32_t itemIndex=0;itemIndex<boneCount;++itemIndex)
+        {
+            const uint64_t boneId=boneIds[itemIndex];
+            if (!seenBoneIds.insert(boneId).second)
+                return fail("canonical authoring pose contains a duplicate bone ID");
+            const auto boneFound=impl->canonicalSkeleton.compiled.indexById.find(boneId);
+            if (boneFound==impl->canonicalSkeleton.compiled.indexById.end())
+                return fail("canonical authoring pose contains an unknown bone ID");
+            const SKELETAL_KEY_INFO &local=locals[itemIndex];
+            const float quaternionNorm=std::sqrt(local.localRotationX*local.localRotationX+
+                local.localRotationY*local.localRotationY+local.localRotationZ*local.localRotationZ+
+                local.localRotationW*local.localRotationW);
+            if (!std::isfinite(quaternionNorm) ||
+                    quaternionNorm<=skeletal::QUATERNION_ZERO_EPSILON)
+                return fail("canonical authoring pose rotation must be nonzero and finite");
+            skeletal::LOCAL_TRANSFORM transform;
+            transform.translation=local.localTranslation;
+            transform.rotation={local.localRotationX/quaternionNorm,
+                local.localRotationY/quaternionNorm,local.localRotationZ/quaternionNorm,
+                local.localRotationW/quaternionNorm};
+            transform.scale=local.localScale;
+            auto trackIt=std::find_if(clip.tracks.begin(),clip.tracks.end(),
+                [boneId](const skeletal::SKELETAL_TRACK &track){ return track.boneId==boneId; });
+            if (trackIt==clip.tracks.end())
+            {
+                skeletal::SKELETAL_TRACK track;
+                track.boneId=boneId;
+                track.channelMask=skeletal::SKELETAL_CHANNEL_TRANSLATION|
+                    skeletal::SKELETAL_CHANNEL_ROTATION|skeletal::SKELETAL_CHANNEL_SCALE;
+                skeletal::SKELETAL_KEY bindKey;
+                bindKey.time=0.0f;
+                bindKey.local=impl->canonicalSkeleton.compiled.bones[boneFound->second].localBind;
+                track.keys.push_back(bindKey);
+                clip.tracks.push_back(std::move(track));
+                trackIt=clip.tracks.end()-1;
+            }
+            else trackIt->channelMask|=skeletal::SKELETAL_CHANNEL_TRANSLATION|
+                skeletal::SKELETAL_CHANNEL_ROTATION|skeletal::SKELETAL_CHANNEL_SCALE;
+            auto keyIt=std::find_if(trackIt->keys.begin(),trackIt->keys.end(),
+                [time](const skeletal::SKELETAL_KEY &key)
+                { return std::fabs(key.time-time)<=skeletal::KEY_TIME_TOLERANCE; });
+            if (keyIt==trackIt->keys.end())
+            {
+                skeletal::SKELETAL_KEY key;
+                key.time=time;
+                key.local=transform;
+                const auto position=std::lower_bound(trackIt->keys.begin(),trackIt->keys.end(),time,
+                    [](const skeletal::SKELETAL_KEY &key,const float value)
+                    { return key.time<value; });
+                trackIt->keys.insert(position,key);
+            }
+            else keyIt->local=transform;
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("committed canonical authoring pose would be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::evaluateSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
+                                                        const int32_t overrideBoneIndex,
+                                                        const SKELETAL_KEY_INFO *overrideLocal,
+                                                        const SKELETAL_SHADER_METHOD method,
+                                                        char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [this, errorOut, errorOutLen](const char *message)
+        {
+            impl->authoringPose = {};
+            impl->authoringPaletteRows.clear();
+            impl->authoringPoseValid = false;
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+            return fail("canonical authoring clip index is out of range");
+        if (method != SKELETAL_SHADER_METHOD::LBS && method != SKELETAL_SHADER_METHOD::DQS_RIGID)
+            return fail("canonical authoring pose requires resolved LBS or DQS");
+        skeletal::SKELETAL_POSE pose;
+        if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled,
+                impl->canonicalAnimations.clips[clipIndex], time, pose))
+            return fail("canonical authoring pose could not be sampled");
+        if (overrideLocal)
+        {
+            if (overrideBoneIndex < 0 || static_cast<size_t>(overrideBoneIndex) >= pose.localTransforms.size())
+                return fail("canonical authoring override bone index is out of range");
+            const float norm = std::sqrt(overrideLocal->localRotationX * overrideLocal->localRotationX +
+                overrideLocal->localRotationY * overrideLocal->localRotationY +
+                overrideLocal->localRotationZ * overrideLocal->localRotationZ +
+                overrideLocal->localRotationW * overrideLocal->localRotationW);
+            if (!std::isfinite(norm) || norm <= skeletal::QUATERNION_ZERO_EPSILON)
+                return fail("canonical authoring override quaternion must be nonzero and finite");
+            skeletal::LOCAL_TRANSFORM &local = pose.localTransforms[static_cast<size_t>(overrideBoneIndex)];
+            local.translation = overrideLocal->localTranslation;
+            local.rotation = {overrideLocal->localRotationX / norm, overrideLocal->localRotationY / norm,
+                              overrideLocal->localRotationZ / norm, overrideLocal->localRotationW / norm};
+            local.scale = overrideLocal->localScale;
+            for (size_t boneIndex = 0; boneIndex < pose.localTransforms.size(); ++boneIndex)
+            {
+                const MATRIX localMatrix = skeletal::buildTrsMatrix(pose.localTransforms[boneIndex]);
+                const int32_t parent = impl->canonicalSkeleton.compiled.bones[boneIndex].parentIndex;
+                if (parent < 0) pose.globalTransforms[boneIndex] = localMatrix;
+                else MatrixMultiply(&pose.globalTransforms[boneIndex], &localMatrix,
+                                    &pose.globalTransforms[static_cast<size_t>(parent)]);
+            }
+        }
+        std::vector<float> rows;
+        if (method == SKELETAL_SHADER_METHOD::DQS_RIGID)
+        {
+            if (skeletal::buildDqsPalette(impl->canonicalSkeleton, pose, rows) !=
+                    skeletal::DQS_PALETTE_STATUS::READY)
+                return fail("canonical authoring pose is incompatible with rigid DQS");
+        }
+        else if (skeletal::buildLbsPalette(impl->canonicalSkeleton, pose, true, rows) !=
+                     skeletal::LBS_PALETTE_STATUS::READY)
+            return fail("canonical authoring pose is incompatible with compact LBS normals");
+        impl->authoringPose = std::move(pose);
+        impl->authoringPaletteRows = std::move(rows);
+        impl->authoringPoseValid = true;
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getSkeletalAuthoringPoseBoneCount() const noexcept
+    {
+        return impl->authoringPoseValid ? static_cast<uint32_t>(impl->authoringPose.localTransforms.size()) : 0;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalAuthoringPoseBone(const uint32_t boneIndex,
+                                                       SKELETAL_POSE_BONE_INFO &out) const noexcept
+    {
+        if (!impl->authoringPoseValid || boneIndex >= impl->authoringPose.localTransforms.size() ||
+            boneIndex >= impl->authoringPose.globalTransforms.size()) return false;
+        const skeletal::LOCAL_TRANSFORM &local = impl->authoringPose.localTransforms[boneIndex];
+        out.boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        out.localTranslation = local.translation;
+        out.localRotationX = local.rotation.x; out.localRotationY = local.rotation.y;
+        out.localRotationZ = local.rotation.z; out.localRotationW = local.rotation.w;
+        out.localScale = local.scale;
+        out.globalMatrix = impl->authoringPose.globalTransforms[boneIndex];
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getSkeletalAuthoringPaletteSize() const noexcept
+    {
+        return impl->authoringPoseValid ? static_cast<uint32_t>(impl->authoringPaletteRows.size()) : 0;
+    }
+
+    bool MESH_MBM_DEBUG::copySkeletalAuthoringPalette(float *rows, const uint32_t rowCount) const noexcept
+    {
+        if (!impl->authoringPoseValid || !rows || rowCount != impl->authoringPaletteRows.size()) return false;
+        std::copy(impl->authoringPaletteRows.begin(), impl->authoringPaletteRows.end(), rows);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::renameSkeletalBone(const uint32_t index, const char *name,
+                                             char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if (!name || !name[0])
+            return fail("canonical bone name must not be empty");
+        for (uint32_t other = 0; other < impl->canonicalSkeleton.sourceBones.size(); ++other)
+            if (other != index && impl->canonicalSkeleton.sourceBones[other].name == name)
+                return fail("canonical bone name must be unique");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        candidate.sourceBones[index].name = name;
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("renamed canonical skeleton would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after bone rename");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after bone rename");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::reparentSkeletalBone(const uint32_t index, const int32_t newParentIndex,
+                                               const bool preserveGlobalBind,
+                                               char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= source.size())
+            return fail("canonical bone index is out of range");
+        if (newParentIndex < -1 || newParentIndex >= static_cast<int32_t>(source.size()))
+            return fail("canonical parent index is out of range");
+        if (newParentIndex == static_cast<int32_t>(index))
+            return fail("canonical bone cannot be its own parent");
+
+        const uint64_t boneId = source[index].boneId;
+        const uint64_t newParentId = newParentIndex < 0 ? 0 : source[static_cast<uint32_t>(newParentIndex)].boneId;
+        uint64_t cursor = newParentId;
+        while (cursor != 0)
+        {
+            if (cursor == boneId)
+                return fail("canonical reparent would create a hierarchy cycle");
+            const auto found = impl->canonicalSkeleton.compiled.indexById.find(cursor);
+            if (found == impl->canonicalSkeleton.compiled.indexById.end())
+                return fail("canonical parent chain is invalid");
+            cursor = source[static_cast<uint32_t>(found->second)].parentBoneId;
+        }
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        edited.parentBoneId = newParentId;
+        edited.connectedToParent = false;
+        if (preserveGlobalBind)
+        {
+            MATRIX local = impl->canonicalSkeleton.compiled.bones[index].globalBindMatrix;
+            if (newParentIndex >= 0)
+            {
+                MATRIX inverseParent;
+                float determinant = 0.0f;
+                MatrixInverse(&inverseParent, &determinant,
+                    &impl->canonicalSkeleton.compiled.bones[static_cast<uint32_t>(newParentIndex)].globalBindMatrix);
+                if (!std::isfinite(determinant) || std::fabs(determinant) <= skeletal::SINGULAR_TOLERANCE)
+                    return fail("new canonical parent bind transform is not invertible");
+                MatrixMultiply(&local, &impl->canonicalSkeleton.compiled.bones[index].globalBindMatrix,
+                               &inverseParent);
+            }
+            bool hasNegativeScale = false, hasShear = false;
+            if (!skeletal::decomposeTrsMatrix(local, edited.localBind, hasNegativeScale, hasShear) || hasShear)
+                return fail("preserving global bind would require unsupported shear");
+        }
+
+        // Stable topological ordering: repeatedly append every bone whose parent is already placed.
+        std::vector<skeletal::CANONICAL_BONE> ordered;
+        ordered.reserve(candidate.sourceBones.size());
+        std::unordered_set<uint64_t> placed;
+        while (ordered.size() < candidate.sourceBones.size())
+        {
+            bool progress = false;
+            for (const skeletal::CANONICAL_BONE &bone : candidate.sourceBones)
+            {
+                if (placed.find(bone.boneId) != placed.end()) continue;
+                if (bone.parentBoneId == 0 || placed.find(bone.parentBoneId) != placed.end())
+                {
+                    ordered.push_back(bone);
+                    placed.insert(bone.boneId);
+                    progress = true;
+                }
+            }
+            if (!progress) return fail("canonical reparent could not produce parent-first ordering");
+        }
+        candidate.sourceBones = std::move(ordered);
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("reparented canonical skeleton would be invalid");
+
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after reparent");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after reparent");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalBoneBind(const uint32_t index, const VEC3 &translation,
+                                              const float rotationX, const float rotationY,
+                                              const float rotationZ, const float rotationW,
+                                              const VEC3 &scale, const float radius, const float length,
+                                              char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        const float values[] = {translation.x, translation.y, translation.z,
+                                rotationX, rotationY, rotationZ, rotationW,
+                                scale.x, scale.y, scale.z, radius, length};
+        for (const float value : values)
+            if (!std::isfinite(value)) return fail("canonical bone bind values must be finite");
+        if (radius < 0.0f || length < 0.0f)
+            return fail("canonical bone radius and length must not be negative");
+        const float quaternionNorm = std::sqrt(rotationX * rotationX + rotationY * rotationY +
+                                               rotationZ * rotationZ + rotationW * rotationW);
+        if (quaternionNorm <= skeletal::QUATERNION_ZERO_EPSILON)
+            return fail("canonical bone bind quaternion must not be zero");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        if (edited.connectedToParent)
+        {
+            const auto parent = candidate.compiled.indexById.find(edited.parentBoneId);
+            if (parent != candidate.compiled.indexById.end())
+            {
+                const VEC3 &parentTail = candidate.sourceBones[static_cast<uint32_t>(parent->second)].tailOffset;
+                if (std::fabs(translation.x-parentTail.x)>skeletal::MATRIX_TOLERANCE ||
+                    std::fabs(translation.y-parentTail.y)>skeletal::MATRIX_TOLERANCE ||
+                    std::fabs(translation.z-parentTail.z)>skeletal::MATRIX_TOLERANCE)
+                    edited.connectedToParent = false;
+            }
+        }
+        edited.localBind.translation = translation;
+        edited.localBind.rotation.x = rotationX / quaternionNorm;
+        edited.localBind.rotation.y = rotationY / quaternionNorm;
+        edited.localBind.rotation.z = rotationZ / quaternionNorm;
+        edited.localBind.rotation.w = rotationW / quaternionNorm;
+        edited.localBind.scale = scale;
+        edited.radius = radius;
+        edited.length = length;
+        const float oldLength = std::sqrt(edited.tailOffset.x * edited.tailOffset.x +
+                                          edited.tailOffset.y * edited.tailOffset.y +
+                                          edited.tailOffset.z * edited.tailOffset.z);
+        if (oldLength > skeletal::SINGULAR_TOLERANCE)
+        {
+            edited.tailOffset.x *= length / oldLength;
+            edited.tailOffset.y *= length / oldLength;
+            edited.tailOffset.z *= length / oldLength;
+        }
+        else edited.tailOffset = VEC3(0.0f, length, 0.0f);
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("edited canonical bone bind would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after bind edit");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after bind edit");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalBone(const int32_t parentIndex, const char *name,
+                                          const VEC3 &translation, const float radius, const float length,
+                                          const bool hasExplicitTail, const bool connectedToParent,
+                                          uint32_t *newIndexOut, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (parentIndex < -1 || parentIndex >= static_cast<int32_t>(source.size()))
+            return fail("canonical parent index is out of range");
+        if (!name || !name[0]) return fail("canonical bone name must not be empty");
+        if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+            !std::isfinite(translation.z) || !std::isfinite(radius) || !std::isfinite(length))
+            return fail("canonical bone values must be finite");
+        if (radius < 0.0f || length < 0.0f)
+            return fail("canonical bone radius and length must not be negative");
+        if (impl->canonicalSkeleton.compiled.indexByName.find(name) !=
+            impl->canonicalSkeleton.compiled.indexByName.end())
+            return fail("canonical bone name must be unique");
+
+        uint64_t boneId = 1;
+        while (impl->canonicalSkeleton.compiled.indexById.find(boneId) !=
+               impl->canonicalSkeleton.compiled.indexById.end())
+        {
+            if (boneId == std::numeric_limits<uint64_t>::max())
+                return fail("canonical bone ID space is exhausted");
+            ++boneId;
+        }
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE added;
+        added.boneId = boneId;
+        added.parentBoneId = parentIndex < 0 ? 0 : source[static_cast<uint32_t>(parentIndex)].boneId;
+        added.name = name;
+        added.localBind.translation = translation;
+        added.radius = radius;
+        added.length = length;
+        added.tailOffset = VEC3(0.0f, hasExplicitTail ? length : 0.0f, 0.0f);
+        if (hasExplicitTail && connectedToParent && parentIndex >= 0)
+        {
+            const VEC3 &parentTail = source[static_cast<uint32_t>(parentIndex)].tailOffset;
+            const float parentTailLength = std::sqrt(parentTail.x * parentTail.x +
+                                                     parentTail.y * parentTail.y +
+                                                     parentTail.z * parentTail.z);
+            if (parentTailLength > skeletal::SINGULAR_TOLERANCE)
+                added.tailOffset = VEC3(parentTail.x * length / parentTailLength,
+                                        parentTail.y * length / parentTailLength,
+                                        parentTail.z * length / parentTailLength);
+        }
+        added.hasExplicitTail = hasExplicitTail;
+        added.connectedToParent = parentIndex >= 0 && connectedToParent;
+        candidate.sourceBones.push_back(std::move(added));
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("added canonical bone would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after adding bone");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after adding bone");
+        impl->canonicalSkeleton = std::move(candidate);
+        if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->canonicalSkeleton.sourceBones.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalBoneTail(const uint32_t index, const VEC3 &tailOffset,
+                                              const bool hasExplicitTail,
+                                              const bool preserveOtherJoints,
+                                              char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if (!std::isfinite(tailOffset.x) || !std::isfinite(tailOffset.y) ||
+            !std::isfinite(tailOffset.z))
+            return fail("canonical bone tail must be finite");
+        const float length = std::sqrt(tailOffset.x * tailOffset.x + tailOffset.y * tailOffset.y +
+                                       tailOffset.z * tailOffset.z);
+        if (hasExplicitTail && length <= skeletal::SINGULAR_TOLERANCE)
+            return fail("explicit canonical bone tail must differ from its head");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        std::vector<MATRIX> oldGlobals;
+        oldGlobals.reserve(candidate.compiled.bones.size());
+        for (const skeletal::COMPILED_BONE &bone : candidate.compiled.bones)
+            oldGlobals.push_back(bone.globalBindMatrix);
+        std::vector<bool> movedConnectedChildren(candidate.sourceBones.size(), false);
+        std::vector<std::pair<uint32_t, VEC3>> connectedChildTails;
+        for (uint32_t childIndex = 0; childIndex < candidate.sourceBones.size(); ++childIndex)
+        {
+            const skeletal::CANONICAL_BONE &child = candidate.sourceBones[childIndex];
+            if (child.parentBoneId != edited.boneId || !child.connectedToParent) continue;
+            movedConnectedChildren[childIndex] = true;
+            if (!child.hasExplicitTail) continue;
+            VEC3 worldTail;
+            vec3TransformCoord(&worldTail, &child.tailOffset,
+                &impl->canonicalSkeleton.compiled.bones[childIndex].globalBindMatrix);
+            connectedChildTails.emplace_back(childIndex, worldTail);
+        }
+        edited.tailOffset = hasExplicitTail ? tailOffset : VEC3();
+        edited.length = hasExplicitTail ? length : 0.0f;
+        edited.hasExplicitTail = hasExplicitTail;
+        for (skeletal::CANONICAL_BONE &child : candidate.sourceBones)
+            if (child.parentBoneId == edited.boneId && child.connectedToParent)
+                child.localBind.translation = edited.tailOffset;
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("edited canonical tail would make the skeleton invalid");
+        for (const auto &saved : connectedChildTails)
+        {
+            MATRIX inverse;
+            float determinant = 0.0f;
+            MatrixInverse(&inverse, &determinant,
+                &candidate.compiled.bones[saved.first].globalBindMatrix);
+            if (!std::isfinite(determinant) || std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                return fail("connected child bind transform is not invertible");
+            vec3TransformCoord(&candidate.sourceBones[saved.first].tailOffset,&saved.second,&inverse);
+            const VEC3 &preservedOffset=candidate.sourceBones[saved.first].tailOffset;
+            candidate.sourceBones[saved.first].length=std::sqrt(
+                preservedOffset.x*preservedOffset.x+preservedOffset.y*preservedOffset.y+
+                preservedOffset.z*preservedOffset.z);
+            for (skeletal::CANONICAL_BONE &grandchild : candidate.sourceBones)
+                if (grandchild.parentBoneId==candidate.sourceBones[saved.first].boneId &&
+                    grandchild.connectedToParent)
+                    grandchild.localBind.translation=candidate.sourceBones[saved.first].tailOffset;
+        }
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("connected child tail preservation would make the skeleton invalid");
+        if (preserveOtherJoints)
+        {
+            for (uint32_t boneIndex = 0; boneIndex < candidate.sourceBones.size(); ++boneIndex)
+            {
+                if (boneIndex == index || movedConnectedChildren[boneIndex]) continue;
+                MATRIX local = oldGlobals[boneIndex];
+                const int32_t parentIndex = candidate.compiled.bones[boneIndex].parentIndex;
+                if (parentIndex >= 0)
+                {
+                    const uint32_t parent = static_cast<uint32_t>(parentIndex);
+                    const MATRIX &parentGlobal =
+                        (parent == index || movedConnectedChildren[parent])
+                            ? candidate.compiled.bones[parent].globalBindMatrix
+                            : oldGlobals[parent];
+                    MATRIX inverseParent;
+                    float determinant = 0.0f;
+                    MatrixInverse(&inverseParent, &determinant, &parentGlobal);
+                    if (!std::isfinite(determinant) ||
+                        std::fabs(determinant) <= skeletal::SINGULAR_TOLERANCE)
+                        return fail("preserved joint parent transform is not invertible");
+                    MatrixMultiply(&local, &oldGlobals[boneIndex], &inverseParent);
+                }
+                bool negativeScale = false;
+                bool shear = false;
+                if (!skeletal::decomposeTrsMatrix(local, candidate.sourceBones[boneIndex].localBind,
+                        negativeScale, shear) || shear)
+                    return fail("preserving other joints would require an invalid local transform");
+            }
+            if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+                return fail("other-joint preservation would make the skeleton invalid");
+        }
+        // Tail geometry and connected-child bind translations do not change skeleton IDs, weight
+        // palettes, vertex records, clip IDs, or track targets. Revalidating every vertex and clip
+        // on every mouse-move event is both redundant and prohibitively expensive.
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalBoneHead(const uint32_t index, const VEC3 &translation,
+                                              const bool preserveOtherJoints,
+                                              char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId==0) return fail("mesh has no canonical skeleton");
+        if (index>=impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if (!std::isfinite(translation.x)||!std::isfinite(translation.y)||!std::isfinite(translation.z))
+            return fail("canonical bone head must be finite");
+        skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE &edited=candidate.sourceBones[index];
+        std::vector<MATRIX> oldGlobals;
+        oldGlobals.reserve(candidate.compiled.bones.size());
+        for (const skeletal::COMPILED_BONE &bone:candidate.compiled.bones)
+            oldGlobals.push_back(bone.globalBindMatrix);
+        VEC3 oldWorldTail;
+        if (edited.hasExplicitTail)
+            vec3TransformCoord(&oldWorldTail,&edited.tailOffset,
+                &impl->canonicalSkeleton.compiled.bones[index].globalBindMatrix);
+        edited.localBind.translation=translation;
+        edited.connectedToParent=false;
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+            return fail("edited canonical head would make the skeleton invalid");
+        if (edited.hasExplicitTail)
+        {
+            MATRIX inverse;
+            float determinant=0.0f;
+            MatrixInverse(&inverse,&determinant,&candidate.compiled.bones[index].globalBindMatrix);
+            if (!std::isfinite(determinant)||std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                return fail("edited canonical head transform is not invertible");
+            vec3TransformCoord(&edited.tailOffset,&oldWorldTail,&inverse);
+            edited.length=std::sqrt(edited.tailOffset.x*edited.tailOffset.x+
+                                    edited.tailOffset.y*edited.tailOffset.y+
+                                    edited.tailOffset.z*edited.tailOffset.z);
+            for (skeletal::CANONICAL_BONE &child:candidate.sourceBones)
+                if (child.parentBoneId==edited.boneId&&child.connectedToParent)
+                    child.localBind.translation=edited.tailOffset;
+            if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("head edit tail preservation would make the skeleton invalid");
+        }
+        if (preserveOtherJoints)
+        {
+            for (uint32_t boneIndex=0;boneIndex<candidate.sourceBones.size();++boneIndex)
+            {
+                if (boneIndex==index) continue;
+                MATRIX local=oldGlobals[boneIndex];
+                const int32_t parentIndex=candidate.compiled.bones[boneIndex].parentIndex;
+                if (parentIndex>=0)
+                {
+                    const uint32_t parent=static_cast<uint32_t>(parentIndex);
+                    const MATRIX &parentGlobal=parent==index
+                        ? candidate.compiled.bones[parent].globalBindMatrix : oldGlobals[parent];
+                    MATRIX inverseParent;
+                    float determinant=0.0f;
+                    MatrixInverse(&inverseParent,&determinant,&parentGlobal);
+                    if (!std::isfinite(determinant)||
+                        std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                        return fail("preserved joint parent transform is not invertible");
+                    MatrixMultiply(&local,&oldGlobals[boneIndex],&inverseParent);
+                }
+                bool negativeScale=false;
+                bool shear=false;
+                if (!skeletal::decomposeTrsMatrix(local,candidate.sourceBones[boneIndex].localBind,
+                        negativeScale,shear)||shear)
+                    return fail("preserving other joints would require an invalid local transform");
+            }
+            if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("other-joint preservation would make the skeleton invalid");
+        }
+        impl->canonicalSkeleton=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::translateSkeletalBoneSegment(const uint32_t index,
+                                                       const VEC3 &translation,
+                                                       const bool preserveOtherJoints,
+                                                       char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if(errorOut&&errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if(impl->canonicalSkeleton.skeletonId==0) return fail("mesh has no canonical skeleton");
+        if(index>=impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if(!std::isfinite(translation.x)||!std::isfinite(translation.y)||
+            !std::isfinite(translation.z)) return fail("canonical segment translation must be finite");
+        if(!impl->canonicalSkeleton.sourceBones[index].hasExplicitTail)
+            return fail("canonical segment translation requires an explicit tail");
+
+        skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+        std::vector<MATRIX> oldGlobals;
+        oldGlobals.reserve(candidate.compiled.bones.size());
+        for(const skeletal::COMPILED_BONE &bone:candidate.compiled.bones)
+            oldGlobals.push_back(bone.globalBindMatrix);
+        std::vector<bool> movedConnectedChildren(candidate.sourceBones.size(),false);
+        std::vector<std::pair<uint32_t,VEC3>> connectedChildTails;
+        const uint64_t editedId=candidate.sourceBones[index].boneId;
+        for(uint32_t childIndex=0;childIndex<candidate.sourceBones.size();++childIndex)
+        {
+            const skeletal::CANONICAL_BONE &child=candidate.sourceBones[childIndex];
+            if(child.parentBoneId!=editedId||!child.connectedToParent) continue;
+            movedConnectedChildren[childIndex]=true;
+            if(child.hasExplicitTail)
+            {
+                VEC3 worldTail;
+                vec3TransformCoord(&worldTail,&child.tailOffset,&oldGlobals[childIndex]);
+                connectedChildTails.emplace_back(childIndex,worldTail);
+            }
+        }
+        candidate.sourceBones[index].localBind.translation=translation;
+        candidate.sourceBones[index].connectedToParent=false;
+        if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+            return fail("segment translation would make the skeleton invalid");
+
+        if(preserveOtherJoints)
+        {
+            for(const auto &saved:connectedChildTails)
+            {
+                MATRIX inverse;
+                float determinant=0.0f;
+                MatrixInverse(&inverse,&determinant,
+                    &candidate.compiled.bones[saved.first].globalBindMatrix);
+                if(!std::isfinite(determinant)||
+                    std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                    return fail("connected child bind transform is not invertible");
+                skeletal::CANONICAL_BONE &child=candidate.sourceBones[saved.first];
+                vec3TransformCoord(&child.tailOffset,&saved.second,&inverse);
+                child.length=std::sqrt(child.tailOffset.x*child.tailOffset.x+
+                    child.tailOffset.y*child.tailOffset.y+child.tailOffset.z*child.tailOffset.z);
+                for(skeletal::CANONICAL_BONE &grandchild:candidate.sourceBones)
+                    if(grandchild.parentBoneId==child.boneId&&grandchild.connectedToParent)
+                        grandchild.localBind.translation=child.tailOffset;
+            }
+            if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("connected child preservation would make the skeleton invalid");
+            for(uint32_t boneIndex=0;boneIndex<candidate.sourceBones.size();++boneIndex)
+            {
+                if(boneIndex==index||movedConnectedChildren[boneIndex]) continue;
+                MATRIX local=oldGlobals[boneIndex];
+                const int32_t parentIndex=candidate.compiled.bones[boneIndex].parentIndex;
+                if(parentIndex>=0)
+                {
+                    const uint32_t parent=static_cast<uint32_t>(parentIndex);
+                    const MATRIX &parentGlobal=(parent==index||movedConnectedChildren[parent])
+                        ? candidate.compiled.bones[parent].globalBindMatrix : oldGlobals[parent];
+                    MATRIX inverseParent;
+                    float determinant=0.0f;
+                    MatrixInverse(&inverseParent,&determinant,&parentGlobal);
+                    if(!std::isfinite(determinant)||
+                        std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                        return fail("preserved joint parent transform is not invertible");
+                    MatrixMultiply(&local,&oldGlobals[boneIndex],&inverseParent);
+                }
+                bool negativeScale=false;
+                bool shear=false;
+                if(!skeletal::decomposeTrsMatrix(local,candidate.sourceBones[boneIndex].localBind,
+                        negativeScale,shear)||shear)
+                    return fail("preserving other joints would require an invalid local transform");
+            }
+            if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("other-joint preservation would make the skeleton invalid");
+        }
+        impl->canonicalSkeleton=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalBoneConnectedToParent(const uint32_t index,
+                                                           const bool connected,
+                                                           const bool preserveOtherJoints,
+                                                           char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if(errorOut&&errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if(impl->canonicalSkeleton.skeletonId==0) return fail("mesh has no canonical skeleton");
+        if(index>=impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        const int32_t parentIndex=impl->canonicalSkeleton.compiled.bones[index].parentIndex;
+        if(connected&&parentIndex<0) return fail("canonical root cannot connect to a parent tail");
+        if(!connected)
+        {
+            skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+            candidate.sourceBones[index].connectedToParent=false;
+            if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("disconnected canonical skeleton would be invalid");
+            impl->canonicalSkeleton=std::move(candidate);
+            return true;
+        }
+        const skeletal::CANONICAL_BONE &parent=
+            impl->canonicalSkeleton.sourceBones[static_cast<uint32_t>(parentIndex)];
+        if(!parent.hasExplicitTail) return fail("canonical parent has no explicit tail");
+
+        skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+        std::vector<MATRIX> oldGlobals;
+        oldGlobals.reserve(candidate.compiled.bones.size());
+        for(const skeletal::COMPILED_BONE &bone:candidate.compiled.bones)
+            oldGlobals.push_back(bone.globalBindMatrix);
+        skeletal::CANONICAL_BONE &edited=candidate.sourceBones[index];
+        VEC3 oldWorldTail;
+        if(edited.hasExplicitTail)
+            vec3TransformCoord(&oldWorldTail,&edited.tailOffset,&oldGlobals[index]);
+        edited.localBind.translation=parent.tailOffset;
+        edited.connectedToParent=true;
+        if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+            return fail("connected canonical skeleton would be invalid");
+        if(edited.hasExplicitTail)
+        {
+            MATRIX inverse;
+            float determinant=0.0f;
+            MatrixInverse(&inverse,&determinant,&candidate.compiled.bones[index].globalBindMatrix);
+            if(!std::isfinite(determinant)||
+                std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                return fail("connected bone transform is not invertible");
+            vec3TransformCoord(&edited.tailOffset,&oldWorldTail,&inverse);
+            edited.length=std::sqrt(edited.tailOffset.x*edited.tailOffset.x+
+                edited.tailOffset.y*edited.tailOffset.y+edited.tailOffset.z*edited.tailOffset.z);
+            for(skeletal::CANONICAL_BONE &child:candidate.sourceBones)
+                if(child.parentBoneId==edited.boneId&&child.connectedToParent)
+                    child.localBind.translation=edited.tailOffset;
+            if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("connected tail preservation would make the skeleton invalid");
+        }
+        if(preserveOtherJoints)
+        {
+            for(uint32_t boneIndex=0;boneIndex<candidate.sourceBones.size();++boneIndex)
+            {
+                if(boneIndex==index) continue;
+                MATRIX local=oldGlobals[boneIndex];
+                const int32_t candidateParent=candidate.compiled.bones[boneIndex].parentIndex;
+                if(candidateParent>=0)
+                {
+                    const uint32_t parentBone=static_cast<uint32_t>(candidateParent);
+                    const MATRIX &parentGlobal=parentBone==index
+                        ? candidate.compiled.bones[parentBone].globalBindMatrix : oldGlobals[parentBone];
+                    MATRIX inverseParent;
+                    float determinant=0.0f;
+                    MatrixInverse(&inverseParent,&determinant,&parentGlobal);
+                    if(!std::isfinite(determinant)||
+                        std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                        return fail("preserved joint parent transform is not invertible");
+                    MatrixMultiply(&local,&oldGlobals[boneIndex],&inverseParent);
+                }
+                bool negativeScale=false;
+                bool shear=false;
+                if(!skeletal::decomposeTrsMatrix(local,candidate.sourceBones[boneIndex].localBind,
+                        negativeScale,shear)||shear)
+                    return fail("preserving other joints would require an invalid local transform");
+            }
+            if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("other-joint preservation would make the skeleton invalid");
+        }
+        impl->canonicalSkeleton=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalBoneRadius(const uint32_t index, const float radius,
+                                                const bool includeDescendants,
+                                                char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if(errorOut&&errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if(impl->canonicalSkeleton.skeletonId==0) return fail("mesh has no canonical skeleton");
+        if(index>=impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if(!std::isfinite(radius)||radius<=skeletal::SINGULAR_TOLERANCE)
+            return fail("canonical bone radius must be finite and positive");
+        skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+        std::unordered_set<uint64_t> affected;
+        affected.insert(candidate.sourceBones[index].boneId);
+        if(includeDescendants)
+        {
+            bool changed=true;
+            while(changed)
+            {
+                changed=false;
+                for(const skeletal::CANONICAL_BONE &bone:candidate.sourceBones)
+                    if(affected.find(bone.boneId)==affected.end()&&
+                        affected.find(bone.parentBoneId)!=affected.end())
+                    {
+                        affected.insert(bone.boneId);
+                        changed=true;
+                    }
+            }
+        }
+        for(skeletal::CANONICAL_BONE &bone:candidate.sourceBones)
+            if(affected.find(bone.boneId)!=affected.end()) bone.radius=radius;
+        if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+            return fail("radius edit would make the canonical skeleton invalid");
+        impl->canonicalSkeleton=std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalBoneChain(const int32_t parentIndex, const char *namePrefix,
+                                               const uint32_t count, const VEC3 &stepTranslation,
+                                               const float radius, const float length,
+                                               uint32_t *lastIndexOut,
+                                               char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (parentIndex < -1 || parentIndex >= static_cast<int32_t>(source.size()))
+            return fail("canonical chain parent index is out of range");
+        if (!namePrefix || !namePrefix[0]) return fail("canonical chain name prefix must not be empty");
+        if (count == 0 || count > 256) return fail("canonical chain count must be between 1 and 256");
+        if (!std::isfinite(stepTranslation.x) || !std::isfinite(stepTranslation.y) ||
+            !std::isfinite(stepTranslation.z) || !std::isfinite(radius) || !std::isfinite(length))
+            return fail("canonical chain values must be finite");
+        if (radius < 0.0f || length < 0.0f)
+            return fail("canonical chain radius and length must not be negative");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        uint64_t chainParentId = parentIndex < 0 ? 0 : source[static_cast<uint32_t>(parentIndex)].boneId;
+        uint64_t nextBoneId = 1;
+        for (uint32_t item = 1; item <= count; ++item)
+        {
+            const std::string name = std::string(namePrefix) + std::to_string(item);
+            if (candidate.compiled.indexByName.find(name) != candidate.compiled.indexByName.end() ||
+                std::any_of(candidate.sourceBones.begin(), candidate.sourceBones.end(),
+                    [&name](const skeletal::CANONICAL_BONE &bone) { return bone.name == name; }))
+                return fail("canonical chain would create a duplicate bone name");
+            while (candidate.compiled.indexById.find(nextBoneId) != candidate.compiled.indexById.end() ||
+                   std::any_of(candidate.sourceBones.begin(), candidate.sourceBones.end(),
+                    [nextBoneId](const skeletal::CANONICAL_BONE &bone) { return bone.boneId == nextBoneId; }))
+            {
+                if (nextBoneId == std::numeric_limits<uint64_t>::max())
+                    return fail("canonical bone ID space is exhausted");
+                ++nextBoneId;
+            }
+            skeletal::CANONICAL_BONE added;
+            added.boneId = nextBoneId;
+            added.parentBoneId = chainParentId;
+            added.name = name;
+            added.localBind.translation = stepTranslation;
+            added.radius = radius;
+            added.length = length;
+            added.tailOffset = VEC3(0.0f, length, 0.0f);
+            added.hasExplicitTail = true;
+            added.connectedToParent = chainParentId != 0;
+            chainParentId = added.boneId;
+            candidate.sourceBones.push_back(std::move(added));
+            if (item < count)
+            {
+                if (nextBoneId == std::numeric_limits<uint64_t>::max())
+                    return fail("canonical bone ID space is exhausted");
+                ++nextBoneId;
+            }
+        }
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("added canonical chain would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after adding chain");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after adding chain");
+        impl->canonicalSkeleton = std::move(candidate);
+        if (lastIndexOut) *lastIndexOut = static_cast<uint32_t>(impl->canonicalSkeleton.sourceBones.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::extendSkeletalBoneTail(const uint32_t index, const uint32_t count,
+                                                 const float radius, const float length,
+                                                 uint32_t *lastIndexOut,
+                                                 char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if(errorOut&&errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        const auto &source=impl->canonicalSkeleton.sourceBones;
+        if(impl->canonicalSkeleton.skeletonId==0) return fail("mesh has no canonical skeleton");
+        if(index>=source.size()) return fail("canonical extension bone index is out of range");
+        if(count==0||count>256) return fail("canonical extension count must be between 1 and 256");
+        if(!std::isfinite(radius)||!std::isfinite(length)||radius<0.0f||
+            length<=skeletal::SINGULAR_TOLERANCE)
+            return fail("canonical extension radius and length must be finite and positive");
+        const skeletal::CANONICAL_BONE &selected=source[index];
+        if(!selected.hasExplicitTail) return fail("canonical extension requires an explicit tail");
+        const float selectedLength=std::sqrt(selected.tailOffset.x*selected.tailOffset.x+
+            selected.tailOffset.y*selected.tailOffset.y+selected.tailOffset.z*selected.tailOffset.z);
+        if(selectedLength<=skeletal::SINGULAR_TOLERANCE)
+            return fail("canonical extension requires a nonzero tail direction");
+        const VEC3 newTail(selected.tailOffset.x*length/selectedLength,
+                           selected.tailOffset.y*length/selectedLength,
+                           selected.tailOffset.z*length/selectedLength);
+
+        skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+        uint64_t parentId=selected.boneId;
+        VEC3 head=selected.tailOffset;
+        uint64_t nextBoneId=1;
+        uint32_t nextName=1;
+        for(uint32_t item=0;item<count;++item)
+        {
+            while(candidate.compiled.indexById.find(nextBoneId)!=candidate.compiled.indexById.end()||
+                std::any_of(candidate.sourceBones.begin(),candidate.sourceBones.end(),
+                    [nextBoneId](const skeletal::CANONICAL_BONE &bone)
+                    { return bone.boneId==nextBoneId; }))
+            {
+                if(nextBoneId==std::numeric_limits<uint64_t>::max())
+                    return fail("canonical bone ID space is exhausted");
+                ++nextBoneId;
+            }
+            std::string name;
+            do name="Bone_"+std::to_string(nextName++);
+            while(candidate.compiled.indexByName.find(name)!=candidate.compiled.indexByName.end()||
+                std::any_of(candidate.sourceBones.begin(),candidate.sourceBones.end(),
+                    [&name](const skeletal::CANONICAL_BONE &bone){ return bone.name==name; }));
+            skeletal::CANONICAL_BONE added;
+            added.boneId=nextBoneId;
+            added.parentBoneId=parentId;
+            added.name=std::move(name);
+            added.localBind.translation=head;
+            added.radius=radius;
+            added.length=length;
+            added.tailOffset=newTail;
+            added.hasExplicitTail=true;
+            added.connectedToParent=true;
+            parentId=added.boneId;
+            head=newTail;
+            candidate.sourceBones.push_back(std::move(added));
+            if(nextBoneId<std::numeric_limits<uint64_t>::max()) ++nextBoneId;
+        }
+        if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+            return fail("extended canonical chain would be invalid");
+        if(impl->canonicalWeights.skeletonId!=0)
+        {
+            if(impl->canonicalWeights.frameIndex>=impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame=impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount=0;
+            for(const util::SUBSET_DEBUG *subset:frame->subset)
+                vertexCount+=static_cast<uint32_t>(subset->vertexCount);
+            if(!skeletal::validateCanonicalWeights(candidate,impl->canonicalWeights,vertexCount))
+                return fail("canonical weights would be invalid after extending tail");
+        }
+        if(impl->canonicalAnimations.skeletonId!=0&&
+            !skeletal::validateCanonicalAnimations(candidate,impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after extending tail");
+        impl->canonicalSkeleton=std::move(candidate);
+        if(lastIndexOut) *lastIndexOut=static_cast<uint32_t>(
+            impl->canonicalSkeleton.sourceBones.size()-1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::mirrorSkeletalBoneSubtree(const uint32_t index, const uint32_t axis,
+                                                    const char *namePrefix, uint32_t *newRootIndexOut,
+                                                    char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= source.size()) return fail("canonical mirror root index is out of range");
+        if (axis > 2) return fail("canonical mirror axis must be X, Y, or Z");
+        if (!namePrefix || !namePrefix[0]) return fail("canonical mirror name prefix must not be empty");
+        if (!impl->canonicalAnimations.clips.empty())
+            return fail("canonical subtree mirror requires an asset without animation clips");
+
+        std::vector<uint32_t> subtree;
+        std::unordered_set<uint64_t> subtreeIds;
+        subtreeIds.insert(source[index].boneId);
+        for (uint32_t candidateIndex = index; candidateIndex < source.size(); ++candidateIndex)
+        {
+            const skeletal::CANONICAL_BONE &candidate = source[candidateIndex];
+            if (subtreeIds.find(candidate.boneId) != subtreeIds.end() ||
+                subtreeIds.find(candidate.parentBoneId) != subtreeIds.end())
+            {
+                subtree.push_back(candidateIndex);
+                subtreeIds.insert(candidate.boneId);
+            }
+        }
+
+        MATRIX reflection;
+        MatrixIdentity(&reflection);
+        reflection.m[axis][axis] = -1.0f;
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        std::unordered_map<uint64_t, uint64_t> mirroredIds;
+        std::unordered_map<uint64_t, MATRIX> mirroredGlobals;
+        uint64_t nextBoneId = 1;
+        const uint32_t newRootIndex = static_cast<uint32_t>(candidate.sourceBones.size());
+        for (const uint32_t sourceIndex : subtree)
+        {
+            const skeletal::CANONICAL_BONE &original = source[sourceIndex];
+            const std::string mirroredName = std::string(namePrefix) + original.name;
+            if (std::any_of(candidate.sourceBones.begin(), candidate.sourceBones.end(),
+                [&mirroredName](const skeletal::CANONICAL_BONE &bone) { return bone.name == mirroredName; }))
+                return fail("canonical mirror would create a duplicate bone name");
+            while (std::any_of(candidate.sourceBones.begin(), candidate.sourceBones.end(),
+                [nextBoneId](const skeletal::CANONICAL_BONE &bone) { return bone.boneId == nextBoneId; }))
+            {
+                if (nextBoneId == std::numeric_limits<uint64_t>::max())
+                    return fail("canonical bone ID space is exhausted");
+                ++nextBoneId;
+            }
+            MATRIX temporary, mirroredGlobal;
+            MatrixMultiply(&temporary, &reflection,
+                           &impl->canonicalSkeleton.compiled.bones[sourceIndex].globalBindMatrix);
+            MatrixMultiply(&mirroredGlobal, &temporary, &reflection);
+            skeletal::CANONICAL_BONE mirrored = original;
+            if (axis == 0) mirrored.tailOffset.x = -mirrored.tailOffset.x;
+            else if (axis == 1) mirrored.tailOffset.y = -mirrored.tailOffset.y;
+            else mirrored.tailOffset.z = -mirrored.tailOffset.z;
+            mirrored.boneId = nextBoneId;
+            mirrored.name = mirroredName;
+            const auto mirroredParent = mirroredIds.find(original.parentBoneId);
+            mirrored.parentBoneId = mirroredParent == mirroredIds.end()
+                ? original.parentBoneId : mirroredParent->second;
+            MATRIX local = mirroredGlobal;
+            if (mirrored.parentBoneId != 0)
+            {
+                MATRIX parentGlobal, inverseParent;
+                const auto generatedParent = mirroredGlobals.find(mirrored.parentBoneId);
+                if (generatedParent != mirroredGlobals.end()) parentGlobal = generatedParent->second;
+                else
+                {
+                    const auto existingParent = impl->canonicalSkeleton.compiled.indexById.find(mirrored.parentBoneId);
+                    if (existingParent == impl->canonicalSkeleton.compiled.indexById.end())
+                        return fail("canonical mirror parent is missing");
+                    parentGlobal = impl->canonicalSkeleton.compiled.bones[existingParent->second].globalBindMatrix;
+                }
+                float determinant = 0.0f;
+                MatrixInverse(&inverseParent, &determinant, &parentGlobal);
+                if (!std::isfinite(determinant) || std::fabs(determinant) <= skeletal::SINGULAR_TOLERANCE)
+                    return fail("canonical mirror parent bind transform is not invertible");
+                MatrixMultiply(&local, &mirroredGlobal, &inverseParent);
+            }
+            bool negativeScale = false, shear = false;
+            if (!skeletal::decomposeTrsMatrix(local, mirrored.localBind, negativeScale, shear) || shear)
+                return fail("canonical mirrored bind would require unsupported shear");
+            mirroredIds.emplace(original.boneId, mirrored.boneId);
+            mirroredGlobals.emplace(mirrored.boneId, mirroredGlobal);
+            candidate.sourceBones.push_back(std::move(mirrored));
+            if (nextBoneId != std::numeric_limits<uint64_t>::max()) ++nextBoneId;
+        }
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("mirrored canonical subtree would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after subtree mirror");
+        }
+        impl->canonicalSkeleton = std::move(candidate);
+        if (newRootIndexOut) *newRootIndexOut = newRootIndex;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
+                                                     const float radius, const float length,
+                                                     const bool hasExplicitTail,
+                                                     char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->buffer.empty()) return fail("a loaded mesh is required to initialize a skeleton");
+        if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0 ||
+            impl->canonicalAnimations.skeletonId != 0)
+            return fail("mesh already contains canonical skeletal data");
+        if (!rootName || !rootName[0]) return fail("canonical root bone name must not be empty");
+        if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+            !std::isfinite(translation.z) || !std::isfinite(radius) || !std::isfinite(length))
+            return fail("canonical root bone values must be finite");
+        if (radius < 0.0f || length < 0.0f)
+            return fail("canonical root bone radius and length must not be negative");
+        skeletal::CANONICAL_SKELETON candidate;
+        candidate.skeletonId = 1;
+        skeletal::CANONICAL_BONE root;
+        root.boneId = 1;
+        root.name = rootName;
+        root.localBind.translation = translation;
+        root.radius = radius;
+        root.length = length;
+        root.tailOffset = VEC3(0.0f, hasExplicitTail ? length : 0.0f, 0.0f);
+        root.hasExplicitTail = hasExplicitTail;
+        candidate.sourceBones.push_back(std::move(root));
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("initial canonical skeleton would be invalid");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalBone(const uint32_t index,
+                                             char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= source.size()) return fail("canonical bone index is out of range");
+        if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
+        const uint64_t boneId = source[index].boneId;
+        for (const skeletal::CANONICAL_BONE &candidate : source)
+            if (candidate.parentBoneId == boneId)
+                return fail("canonical bone has children; choose an explicit descendant policy first");
+        for (const uint64_t paletteBoneId : impl->canonicalWeights.paletteBoneIds)
+            if (paletteBoneId == boneId)
+                return fail("canonical bone is referenced by the weight palette; remapping is required");
+        for (const skeletal::SKELETAL_CLIP &clip : impl->canonicalAnimations.clips)
+            for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                if (track.boneId == boneId)
+                    return fail("canonical bone is targeted by animation tracks; remapping is required");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        candidate.sourceBones.erase(candidate.sourceBones.begin() + index);
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("removed canonical skeleton would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after removing bone");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after removing bone");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalBoneRemapped(const uint32_t index,
+                                                     const uint32_t replacementIndex,
+                                                     const bool discardAnimationTracks,
+                                                     const bool reparentChildrenPreserveGlobal,
+                                                     char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= source.size() || replacementIndex >= source.size())
+            return fail("canonical bone or replacement index is out of range");
+        if (index == replacementIndex) return fail("replacement bone must differ from removed bone");
+        if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
+        const uint64_t removedId = source[index].boneId;
+        const uint64_t replacementId = source[replacementIndex].boneId;
+        bool hasChildren = false;
+        for (const skeletal::CANONICAL_BONE &candidate : source)
+            if (candidate.parentBoneId == removedId) hasChildren = true;
+        if (hasChildren && !reparentChildrenPreserveGlobal)
+            return fail("canonical bone has children; choose an explicit descendant policy first");
+
+        skeletal::CANONICAL_SKELETON skeletonCandidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_WEIGHTS weightsCandidate = impl->canonicalWeights;
+        skeletal::CANONICAL_ANIMATIONS animationsCandidate = impl->canonicalAnimations;
+        if (hasChildren)
+        {
+            std::vector<uint64_t> childIds;
+            for (const skeletal::CANONICAL_BONE &candidate : source)
+                if (candidate.parentBoneId == removedId) childIds.push_back(candidate.boneId);
+            for (skeletal::SKELETAL_CLIP &clip : animationsCandidate.clips)
+            {
+                skeletal::SKELETAL_TRACK removedTrack;
+                bool hasRemovedTrack = false;
+                for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                    if (track.boneId == removedId) { removedTrack = track; hasRemovedTrack = true; break; }
+                for (const uint64_t childId : childIds)
+                {
+                    skeletal::SKELETAL_TRACK childTrack;
+                    bool hasChildTrack = false;
+                    for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                        if (track.boneId == childId) { childTrack = track; hasChildTrack = true; break; }
+                    if (!hasRemovedTrack && !hasChildTrack) continue;
+                    std::set<float> sampleTimes = {0.0f, clip.duration};
+                    if (hasRemovedTrack) for (const skeletal::SKELETAL_KEY &key : removedTrack.keys)
+                        sampleTimes.insert(key.time);
+                    if (hasChildTrack) for (const skeletal::SKELETAL_KEY &key : childTrack.keys)
+                        sampleTimes.insert(key.time);
+                    skeletal::SKELETAL_TRACK baked;
+                    baked.boneId = childId;
+                    baked.channelMask = skeletal::SKELETAL_CHANNEL_TRANSLATION |
+                                        skeletal::SKELETAL_CHANNEL_ROTATION |
+                                        skeletal::SKELETAL_CHANNEL_SCALE;
+                    const uint32_t childIndex = static_cast<uint32_t>(
+                        impl->canonicalSkeleton.compiled.indexById.at(childId));
+                    for (const float time : sampleTimes)
+                    {
+                        skeletal::SKELETAL_POSE pose;
+                        if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, clip, time, pose))
+                            return fail("could not sample canonical clip while converting child tracks");
+                        MATRIX composed;
+                        const MATRIX childLocal = skeletal::buildTrsMatrix(pose.localTransforms[childIndex]);
+                        const MATRIX removedLocal = skeletal::buildTrsMatrix(pose.localTransforms[index]);
+                        MatrixMultiply(&composed, &childLocal, &removedLocal);
+                        skeletal::SKELETAL_KEY key;
+                        key.time = time;
+                        bool negativeScale = false, shear = false;
+                        if (!skeletal::decomposeTrsMatrix(composed, key.local, negativeScale, shear) || shear)
+                            return fail("converted child animation track would require unsupported shear");
+                        baked.keys.push_back(std::move(key));
+                    }
+                    bool replaced = false;
+                    for (skeletal::SKELETAL_TRACK &track : clip.tracks)
+                        if (track.boneId == childId) { track = baked; replaced = true; break; }
+                    if (!replaced) clip.tracks.push_back(std::move(baked));
+                }
+            }
+        }
+        int32_t removedPalette = -1, replacementPalette = -1;
+        for (uint32_t palette = 0; palette < weightsCandidate.paletteBoneIds.size(); ++palette)
+        {
+            if (weightsCandidate.paletteBoneIds[palette] == removedId) removedPalette = static_cast<int32_t>(palette);
+            if (weightsCandidate.paletteBoneIds[palette] == replacementId) replacementPalette = static_cast<int32_t>(palette);
+        }
+        if (removedPalette >= 0 && replacementPalette < 0)
+        {
+            weightsCandidate.paletteBoneIds[static_cast<uint32_t>(removedPalette)] = replacementId;
+        }
+        else if (removedPalette >= 0)
+        {
+            for (skeletal::CANONICAL_VERTEX_WEIGHT &vertex : weightsCandidate.vertices)
+            {
+                std::map<uint16_t, float> merged;
+                for (uint32_t slot = 0; slot < 4; ++slot)
+                {
+                    uint16_t palette = vertex.paletteIndex[slot];
+                    if (palette == UINT16_MAX || vertex.weight[slot] <= 0.0f) continue;
+                    if (palette == static_cast<uint16_t>(removedPalette))
+                        palette = static_cast<uint16_t>(replacementPalette);
+                    merged[palette] += vertex.weight[slot];
+                }
+                uint32_t slot = 0;
+                for (const auto &influence : merged)
+                {
+                    uint16_t palette = influence.first;
+                    if (palette > static_cast<uint16_t>(removedPalette)) --palette;
+                    vertex.paletteIndex[slot] = palette;
+                    vertex.weight[slot] = influence.second;
+                    ++slot;
+                }
+                while (slot < 4)
+                {
+                    vertex.paletteIndex[slot] = UINT16_MAX;
+                    vertex.weight[slot] = 0.0f;
+                    ++slot;
+                }
+            }
+            weightsCandidate.paletteBoneIds.erase(weightsCandidate.paletteBoneIds.begin() + removedPalette);
+        }
+
+        uint32_t removedTracks = 0;
+        for (skeletal::SKELETAL_CLIP &clip : animationsCandidate.clips)
+        {
+            const auto before = clip.tracks.size();
+            clip.tracks.erase(std::remove_if(clip.tracks.begin(), clip.tracks.end(),
+                [removedId](const skeletal::SKELETAL_TRACK &track) { return track.boneId == removedId; }),
+                clip.tracks.end());
+            removedTracks += static_cast<uint32_t>(before - clip.tracks.size());
+        }
+        if (removedTracks > 0 && !discardAnimationTracks)
+            return fail("canonical bone has animation tracks; explicit discard confirmation is required");
+
+        if (hasChildren)
+        {
+            const uint64_t newParentId = source[index].parentBoneId;
+            const int32_t newParentIndex = impl->canonicalSkeleton.compiled.bones[index].parentIndex;
+            for (uint32_t childIndex = 0; childIndex < skeletonCandidate.sourceBones.size(); ++childIndex)
+            {
+                skeletal::CANONICAL_BONE &child = skeletonCandidate.sourceBones[childIndex];
+                if (child.parentBoneId != removedId) continue;
+                MATRIX local = impl->canonicalSkeleton.compiled.bones[childIndex].globalBindMatrix;
+                if (newParentIndex >= 0)
+                {
+                    MATRIX inverseParent;
+                    float determinant = 0.0f;
+                    MatrixInverse(&inverseParent, &determinant,
+                        &impl->canonicalSkeleton.compiled.bones[static_cast<uint32_t>(newParentIndex)].globalBindMatrix);
+                    if (!std::isfinite(determinant) || std::fabs(determinant) <= skeletal::SINGULAR_TOLERANCE)
+                        return fail("new child parent bind transform is not invertible");
+                    MatrixMultiply(&local, &impl->canonicalSkeleton.compiled.bones[childIndex].globalBindMatrix,
+                                   &inverseParent);
+                }
+                bool negativeScale = false, shear = false;
+                if (!skeletal::decomposeTrsMatrix(local, child.localBind, negativeScale, shear) || shear)
+                    return fail("preserving child global bind would require unsupported shear");
+                child.parentBoneId = newParentId;
+            }
+        }
+        skeletonCandidate.sourceBones.erase(skeletonCandidate.sourceBones.begin() + index);
+        if (hasChildren)
+        {
+            std::vector<skeletal::CANONICAL_BONE> ordered;
+            std::unordered_set<uint64_t> placed;
+            ordered.reserve(skeletonCandidate.sourceBones.size());
+            while (ordered.size() < skeletonCandidate.sourceBones.size())
+            {
+                bool progress = false;
+                for (const skeletal::CANONICAL_BONE &candidate : skeletonCandidate.sourceBones)
+                {
+                    if (placed.find(candidate.boneId) != placed.end()) continue;
+                    if (candidate.parentBoneId == 0 || placed.find(candidate.parentBoneId) != placed.end())
+                    {
+                        ordered.push_back(candidate); placed.insert(candidate.boneId); progress = true;
+                    }
+                }
+                if (!progress) return fail("child reparent could not produce parent-first ordering");
+            }
+            skeletonCandidate.sourceBones = std::move(ordered);
+        }
+        if (!skeletal::compileCanonicalSkeleton(skeletonCandidate.sourceBones, skeletonCandidate.compiled))
+            return fail("remapped canonical skeleton would be invalid");
+        if (weightsCandidate.skeletonId != 0)
+        {
+            if (weightsCandidate.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[weightsCandidate.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(skeletonCandidate, weightsCandidate, vertexCount))
+                return fail("remapped canonical weights would be invalid");
+        }
+        if (animationsCandidate.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(skeletonCandidate, animationsCandidate))
+            return fail("remapped canonical animations would be invalid");
+        impl->canonicalSkeleton = std::move(skeletonCandidate);
+        impl->canonicalWeights = std::move(weightsCandidate);
+        impl->canonicalAnimations = std::move(animationsCandidate);
+        return true;
+    }
+
+
+
+    bool MESH_MBM_DEBUG::setSkeletalVertexWeight(const uint32_t vertexIndex,
+                                                  const char *boneName0, const float weight0,
+                                                  const char *boneName1, const float weight1,
+                                                  const char *boneName2, const float weight2,
+                                                  const char *boneName3, const float weight3,
+                                                  char *errorOut, const int errorOutLen)
+    {
+        const SKELETAL_VERTEX_WEIGHT_EDIT edit = {
+            vertexIndex,
+            {boneName0, boneName1, boneName2, boneName3},
+            {weight0, weight1, weight2, weight3}
+        };
+        return setSkeletalVertexWeightsBatch(&edit, 1, errorOut, errorOutLen);
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalVertexWeightsBatch(const SKELETAL_VERTEX_WEIGHT_EDIT *edits,
+                                                        const uint32_t editCount,
+                                                        char *errorOut, const int errorOutLen)
+    {
+        auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0 || impl->canonicalWeights.skeletonId == 0 ||
+            impl->canonicalWeights.skeletonId != impl->canonicalSkeleton.skeletonId)
+            return fail("mesh has no matching canonical skeleton and type-42 weights");
+        if (!edits || editCount == 0)
+            return fail("canonical vertex weight batch must contain at least one edit");
+
+        skeletal::CANONICAL_WEIGHTS candidateWeights = impl->canonicalWeights;
+        std::unordered_set<uint32_t> editedVertices;
+        for (uint32_t editIndex = 0; editIndex < editCount; ++editIndex)
+        {
+            const SKELETAL_VERTEX_WEIGHT_EDIT &edit = edits[editIndex];
+            if (edit.vertexIndex >= candidateWeights.vertices.size())
+                return fail("canonical vertex weight index out of range");
+            if (!editedVertices.insert(edit.vertexIndex).second)
+                return fail("canonical vertex weight batch contains a duplicate vertex index");
+
+            skeletal::CANONICAL_VERTEX_WEIGHT candidate;
+            float weightSum = 0.0f;
+            uint32_t influenceCount = 0;
+            for (int slot = 0; slot < 4; ++slot)
+            {
+                const char *name = edit.boneNames[slot];
+                const float value = edit.weights[slot];
+                if (!name || !name[0])
+                {
+                    if (value != 0.0f) return fail("unused canonical influence must have zero weight");
+                    continue;
+                }
+                if (!std::isfinite(value) || value <= 0.0f)
+                    return fail("canonical influence weight must be finite and positive");
+                const auto found = impl->canonicalSkeleton.compiled.indexByName.find(name);
+                if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+                    return fail("canonical influence references an unknown bone name");
+                const uint64_t boneId = impl->canonicalSkeleton.compiled.bones[found->second].boneId;
+                for (int previous = 0; previous < slot; ++previous)
+                    if (candidate.paletteIndex[previous] != UINT16_MAX &&
+                        candidateWeights.paletteBoneIds[candidate.paletteIndex[previous]] == boneId)
+                        return fail("canonical vertex contains a duplicate bone influence");
+                auto paletteIt = std::find(candidateWeights.paletteBoneIds.begin(),
+                                           candidateWeights.paletteBoneIds.end(), boneId);
+                if (paletteIt == candidateWeights.paletteBoneIds.end())
+                {
+                    if (candidateWeights.paletteBoneIds.size() >= UINT16_MAX)
+                        return fail("canonical weight palette is full");
+                    candidateWeights.paletteBoneIds.push_back(boneId);
+                    paletteIt = candidateWeights.paletteBoneIds.end() - 1;
+                }
+                candidate.paletteIndex[slot] = static_cast<uint16_t>(
+                    paletteIt - candidateWeights.paletteBoneIds.begin());
+                candidate.weight[slot] = value;
+                weightSum += value;
+                ++influenceCount;
+            }
+            if (influenceCount == 0 ||
+                std::fabs(weightSum - 1.0f) > skeletal::MATRIX_TOLERANCE)
+                return fail("canonical influence weights must sum to one");
+            candidateWeights.vertices[edit.vertexIndex] = candidate;
+        }
+
+        if (!skeletal::validateCanonicalWeights(impl->canonicalSkeleton, candidateWeights,
+                static_cast<uint32_t>(candidateWeights.vertices.size())))
+            return fail("canonical vertex weight batch would produce invalid type-42 weights");
+        impl->canonicalWeights = std::move(candidateWeights);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalVertexWeight(const uint32_t vertexIndex,
+                                                  const char **boneName0, float *weight0,
+                                                  const char **boneName1, float *weight1,
+                                                  const char **boneName2, float *weight2,
+                                                  const char **boneName3, float *weight3) const noexcept
+    {
+        if (vertexIndex>=impl->canonicalWeights.vertices.size()) return false;
+        const skeletal::CANONICAL_VERTEX_WEIGHT &entry=impl->canonicalWeights.vertices[vertexIndex];
+        const char **outNames[4]={boneName0,boneName1,boneName2,boneName3};
+        float *outWeights[4]={weight0,weight1,weight2,weight3};
+        for (int slot=0; slot<4; ++slot)
+        {
+            const bool used=entry.paletteIndex[slot]!=UINT16_MAX &&
+                entry.paletteIndex[slot]<impl->canonicalWeights.paletteBoneIds.size();
+            const char *name=nullptr;
+            if (used)
+            {
+                const uint64_t id=impl->canonicalWeights.paletteBoneIds[entry.paletteIndex[slot]];
+                const auto found=impl->canonicalSkeleton.compiled.indexById.find(id);
+                if (found==impl->canonicalSkeleton.compiled.indexById.end()) return false;
+                name=impl->canonicalSkeleton.compiled.bones[found->second].name.c_str();
+            }
+            if (outNames[slot]) *outNames[slot]=name;
+            if (outWeights[slot]) *outWeights[slot]=used ? entry.weight[slot] : 0.0f;
         }
         return true;
     }
 
-    bool MESH_MBM_DEBUG::hasVertexWeights() const noexcept
+    bool MESH_MBM_DEBUG::initializeSkeletalVertexWeights(const uint32_t boneIndex,
+                                                          uint32_t *vertexCountOut,
+                                                          char *errorOut, const int errorOutLen)
     {
-        return !impl->vertexWeights.empty();
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (boneIndex >= impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical rigid-bind bone index is out of range");
+        if (impl->canonicalWeights.skeletonId != 0)
+            return fail("mesh already contains canonical skeletal weights");
+        if (impl->buffer.empty() || !impl->buffer[0])
+            return fail("mesh has no frame-zero geometry for skeletal weights");
+        uint32_t vertexCount = 0;
+        for (const util::SUBSET_DEBUG *subset : impl->buffer[0]->subset)
+            vertexCount += static_cast<uint32_t>(subset->vertexCount);
+        if (vertexCount == 0) return fail("mesh frame zero has no vertices for skeletal weights");
+        skeletal::CANONICAL_WEIGHTS candidate;
+        candidate.skeletonId = impl->canonicalSkeleton.skeletonId;
+        candidate.frameIndex = 0;
+        candidate.paletteBoneIds.push_back(impl->canonicalSkeleton.sourceBones[boneIndex].boneId);
+        candidate.vertices.resize(vertexCount);
+        for (skeletal::CANONICAL_VERTEX_WEIGHT &vertex : candidate.vertices)
+        {
+            vertex.paletteIndex[0] = 0;
+            vertex.weight[0] = 1.0f;
+        }
+        if (!skeletal::validateCanonicalWeights(impl->canonicalSkeleton, candidate, vertexCount))
+            return fail("initial canonical skeletal weights would be invalid");
+        impl->canonicalWeights = std::move(candidate);
+        if (vertexCountOut) *vertexCountOut = vertexCount;
+        return true;
     }
 
-    uint32_t MESH_MBM_DEBUG::getTotalVertexWeightBones() const noexcept
+    bool MESH_MBM_DEBUG::hasSkeletalVertexWeights() const noexcept
     {
-        return static_cast<uint32_t>(impl->weightPalette.size());
+        return impl->canonicalWeights.skeletonId!=0 && !impl->canonicalWeights.vertices.empty();
     }
 
-    void MESH_MBM_DEBUG::removeVertexWeights() noexcept
+    bool MESH_MBM_DEBUG::removeSkeletalVertexWeights(uint32_t *vertexCountOut,
+                                                      char *errorOut, const int errorOutLen)
     {
-        impl->weightPalette.clear();
-        impl->vertexWeights.clear();
+        if (impl->canonicalWeights.skeletonId == 0)
+        {
+            if (errorOut && errorOutLen > 0)
+                snprintf(errorOut, errorOutLen, "%s", "mesh has no canonical skeletal weights");
+            return false;
+        }
+        if (vertexCountOut)
+            *vertexCountOut = static_cast<uint32_t>(impl->canonicalWeights.vertices.size());
+        impl->canonicalWeights = skeletal::CANONICAL_WEIGHTS();
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeAllSkeletalData(uint32_t *boneCountOut,
+                                                uint32_t *vertexCountOut,
+                                                uint32_t *clipCountOut,
+                                                char *errorOut, const int errorOutLen)
+    {
+        if (impl->canonicalSkeleton.skeletonId == 0)
+        {
+            if (errorOut && errorOutLen > 0)
+                snprintf(errorOut, errorOutLen, "%s", "mesh has no canonical skeleton");
+            return false;
+        }
+        if (boneCountOut)
+            *boneCountOut = static_cast<uint32_t>(impl->canonicalSkeleton.sourceBones.size());
+        if (vertexCountOut)
+            *vertexCountOut = static_cast<uint32_t>(impl->canonicalWeights.vertices.size());
+        if (clipCountOut)
+            *clipCountOut = static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
+        impl->canonicalAnimations = skeletal::CANONICAL_ANIMATIONS();
+        impl->canonicalWeights = skeletal::CANONICAL_WEIGHTS();
+        impl->canonicalSkeleton = skeletal::CANONICAL_SKELETON();
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalSkeletalWeightBones() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalWeights.paletteBoneIds.size());
     }
 
     uint32_t MESH_MBM_DEBUG::getTotalArticulatedParts() const noexcept
@@ -5059,7 +7768,9 @@ namespace mbm
         this->impl->infoAnimation.release();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
-        impl->skeleton.clear();
+        impl->canonicalSkeleton = {};
+        impl->canonicalWeights = {};
+        impl->canonicalAnimations = {};
     }
 
     void MESH_MBM_DEBUG::fillAtLeastOneBound()
@@ -5341,7 +8052,18 @@ namespace mbm
         this->impl->infoAnimation.release();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
-
+        impl->canonicalSkeleton = {};
+        impl->canonicalWeights = {};
+        impl->canonicalAnimations = {};
+        impl->gpuSkinningInput = {};
+        impl->skeletalBindPositions.clear();
+        impl->skeletalBindNormals.clear();
+        impl->skeletalBindUvs.clear();
+        impl->skeletalBindIndices.clear();
+        impl->skeletalBindFrameIndex = UINT32_MAX;
+        impl->skeletalBindHasNormals = false;
+        impl->skeletalBindHasUvs = false;
+        impl->skeletalBindHasIndices = false;
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
         impl->coordTexFrame_0 = nullptr;
@@ -5354,12 +8076,1103 @@ namespace mbm
         impl->hasNormTex[0]       = 0;
         impl->hasNormTex[1]       = 0;
         impl->depthUberImage      = 8;
+        impl->skeletalBindFrameIndex = UINT32_MAX;
         impl->sizeCoordTexFrame_0 = 0;
     }
     
     bool MESH_MBM::isLoaded() const
     {
         return this->impl->buffer != nullptr;
+    }
+
+    uint32_t MESH_MBM::getPreparedSkeletalPaletteSize(const SKELETAL_SHADER_METHOD method) const noexcept
+    {
+        return impl->gpuSkinningInput.supports(method) ? impl->gpuSkinningInput.requiredBoneCount : 0;
+    }
+
+    bool MESH_MBM::supportsGpuSkeletalPath(const SKELETAL_SHADER_METHOD method) const noexcept
+    {
+        return impl->gpuSkinningInput.supports(method);
+    }
+
+    void MESH_MBM::resolveSkeletalSkinningMethod(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (player.impl->requestedSkinningMethod != SKELETAL_SHADER_METHOD::AUTO)
+        {
+            player.impl->resolvedSkinningMethod = player.impl->requestedSkinningMethod;
+            player.impl->skinningResolutionReason = player.impl->requestedSkinningMethod ==
+                SKELETAL_SHADER_METHOD::DQS_RIGID ? "explicit-dqs" : "explicit-lbs";
+            return;
+        }
+
+        const skeletal::DQS_COMPATIBILITY_STATUS compatibility =
+            skeletal::getDqsCompatibility(impl->canonicalSkeleton, impl->canonicalAnimations);
+        player.impl->resolvedSkinningMethod = compatibility == skeletal::DQS_COMPATIBILITY_STATUS::RIGID
+            ? SKELETAL_SHADER_METHOD::DQS_RIGID : SKELETAL_SHADER_METHOD::LBS;
+        player.impl->skinningResolutionReason = skeletal::dqsCompatibilityStatusName(compatibility);
+    }
+
+    void MESH_MBM::getSkeletalSkinningReport(const SKELETAL_SHADER_METHOD method, const char **status,
+                                              uint32_t *requiredBoneCount,
+                                              uint32_t *effectiveBoneCapacity) const noexcept
+    {
+        if (status)
+        {
+            const skeletal::GPU_SKINNING_PREPARATION_STATUS selectedStatus =
+                impl->gpuSkinningInput.ready() && !impl->gpuSkinningInput.supports(method)
+                    ? skeletal::GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE
+                    : impl->gpuSkinningInput.status;
+            *status = skeletal::gpuSkinningPreparationStatusName(selectedStatus);
+        }
+        if (requiredBoneCount)
+            *requiredBoneCount = impl->gpuSkinningInput.requiredBoneCount;
+        if (effectiveBoneCapacity)
+            *effectiveBoneCapacity = method == SKELETAL_SHADER_METHOD::DQS_RIGID
+                ? impl->gpuSkinningInput.dqsBoneCapacity : impl->gpuSkinningInput.lbsBoneCapacity;
+    }
+
+    uint32_t MESH_MBM::getTotalSkeletalAnimations() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
+    }
+
+    const char *MESH_MBM::getSkeletalAnimationName(const uint32_t index) const noexcept
+    {
+        return index < impl->canonicalAnimations.clips.size()
+            ? impl->canonicalAnimations.clips[index].name.c_str() : nullptr;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationDuration(const uint32_t index, float *duration) const noexcept
+    {
+        if (!duration || index >= impl->canonicalAnimations.clips.size())
+            return false;
+        *duration = impl->canonicalAnimations.clips[index].duration;
+        return true;
+    }
+
+    bool MESH_MBM::playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const
+    {
+        if (impl->canonicalSkeleton.skeletonId == 0 ||
+            impl->canonicalAnimations.clips.empty() || !name || !name[0] ||
+            player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::NONE)
+            return false;
+        for (uint32_t i = 0; i < impl->canonicalAnimations.clips.size(); ++i)
+        {
+            if (impl->canonicalAnimations.clips[i].name == name)
+            {
+                const uint32_t previousClipIndex = player.impl->clipIndex;
+                const float previousTime = player.impl->time;
+                const bool previousActive = player.impl->active;
+                const bool previousPaused = player.impl->paused;
+                const bool previousCompletionNotified = player.impl->baseCompletionNotified;
+                const bool previousAuthoringPose = player.impl->authoringPose;
+                player.impl->clipIndex = i;
+                player.impl->time = 0.0f;
+                player.impl->active = true;
+                player.impl->paused = false;
+                player.impl->baseCompletionNotified = false;
+                player.impl->authoringPose = false;
+                if (updateSkeletalAnimation(player, 0.0f))
+                    return true;
+                player.impl->clipIndex = previousClipIndex;
+                player.impl->time = previousTime;
+                player.impl->active = previousActive;
+                player.impl->paused = previousPaused;
+                player.impl->baseCompletionNotified = previousCompletionNotified;
+                player.impl->authoringPose = previousAuthoringPose;
+                return false;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::hasActiveSkeletalAnimation(const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->active;
+    }
+
+    bool MESH_MBM::crossFadeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player,
+                                               const char *name, const float duration) const
+    {
+        if (!player.impl->active || player.impl->authoringPose || player.impl->crossFadeActive ||
+            !name || !name[0] ||
+            !std::isfinite(duration) || duration < 0.0f)
+            return false;
+        if (duration == 0.0f)
+            return playSkeletalAnimation(player, name);
+        uint32_t targetIndex = UINT32_MAX;
+        for (uint32_t index = 0; index < impl->canonicalAnimations.clips.size(); ++index)
+        {
+            if (impl->canonicalAnimations.clips[index].name == name)
+            {
+                targetIndex = index;
+                break;
+            }
+        }
+        if (targetIndex == UINT32_MAX)
+            return false;
+
+        const uint32_t previousIndex = player.impl->absoluteLayerClipIndex;
+        const float previousTime = player.impl->absoluteLayerTime;
+        const float previousWeight = player.impl->absoluteLayerWeight;
+        const float previousFadeStart = player.impl->absoluteLayerFadeStartWeight;
+        const float previousFadeTarget = player.impl->absoluteLayerFadeTargetWeight;
+        const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
+        const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+        const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
+        const bool previousCrossFade = player.impl->crossFadeActive;
+        const bool previousActive = player.impl->absoluteLayerActive;
+        const bool previousAdditive = player.impl->additiveLayer;
+        const bool previousLayerPaused = player.impl->layerPaused;
+        const bool previousCompletionNotified = player.impl->layerCompletionNotified;
+        const auto previousMask = player.impl->layerBoneMask;
+
+        player.impl->absoluteLayerClipIndex = targetIndex;
+        player.impl->absoluteLayerTime = 0.0f;
+        player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerFadeStartWeight = 0.0f;
+        player.impl->absoluteLayerFadeTargetWeight = 1.0f;
+        player.impl->absoluteLayerFadeDuration = duration;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = true;
+        player.impl->absoluteLayerActive = true;
+        player.impl->additiveLayer = false;
+        player.impl->crossFadeActive = true;
+        player.impl->layerPaused = false;
+        player.impl->layerCompletionNotified = false;
+        player.impl->layerBoneMask.clear();
+        if (updateSkeletalAnimation(player, 0.0f))
+            return true;
+
+        player.impl->absoluteLayerClipIndex = previousIndex;
+        player.impl->absoluteLayerTime = previousTime;
+        player.impl->absoluteLayerWeight = previousWeight;
+        player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
+        player.impl->absoluteLayerFadeTargetWeight = previousFadeTarget;
+        player.impl->absoluteLayerFadeDuration = previousFadeDuration;
+        player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
+        player.impl->absoluteLayerFadeActive = previousFadeActive;
+        player.impl->absoluteLayerActive = previousActive;
+        player.impl->additiveLayer = previousAdditive;
+        player.impl->crossFadeActive = previousCrossFade;
+        player.impl->layerPaused = previousLayerPaused;
+        player.impl->layerCompletionNotified = previousCompletionNotified;
+        player.impl->layerBoneMask = previousMask;
+        return false;
+    }
+
+    bool MESH_MBM::pauseSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active)
+            return false;
+        player.impl->paused = true;
+        player.impl->evaluatedMotionDeltaValid = false;
+        return true;
+    }
+
+    bool MESH_MBM::resumeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active)
+            return false;
+        player.impl->paused = false;
+        return true;
+    }
+
+    bool MESH_MBM::stopSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active)
+            return false;
+        player.impl->clipIndex = UINT32_MAX;
+        player.impl->time = 0.0f;
+        player.impl->absoluteLayerClipIndex = UINT32_MAX;
+        player.impl->absoluteLayerTime = 0.0f;
+        player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerFadeStartWeight = 0.0f;
+        player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+        player.impl->absoluteLayerFadeDuration = 0.0f;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = false;
+        player.impl->absoluteLayerActive = false;
+        player.impl->additiveLayer = false;
+        player.impl->crossFadeActive = false;
+        player.impl->layerPaused = false;
+        player.impl->layerBoneMask.clear();
+        player.impl->active = false;
+        player.impl->paused = false;
+        player.impl->baseCompletionNotified = false;
+        player.impl->layerCompletionNotified = false;
+        player.impl->paletteRows.clear();
+        player.impl->evaluatedGlobalTransforms.clear();
+        player.impl->previousEvaluatedGlobalTransforms.clear();
+        player.impl->rawEvaluatedGlobalTransforms.clear();
+        player.impl->previousRawEvaluatedGlobalTransforms.clear();
+        player.impl->evaluatedMotionDeltaValid = false;
+        player.impl->authoringPose = false;
+        return true;
+    }
+
+    bool MESH_MBM::seekSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float time) const
+    {
+        if (!player.impl->active || !std::isfinite(time) ||
+            player.impl->clipIndex >= impl->canonicalAnimations.clips.size())
+            return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
+        const float previousTime = player.impl->time;
+        const bool previousCompletionNotified = player.impl->baseCompletionNotified;
+        player.impl->time = std::max(0.0f, std::min(clip.duration, time));
+        if (player.impl->time < clip.duration)
+            player.impl->baseCompletionNotified = false;
+        if (updateSkeletalAnimation(player, 0.0f))
+            return true;
+        player.impl->time = previousTime;
+        player.impl->baseCompletionNotified = previousCompletionNotified;
+        return false;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player,
+                                             float *time) const noexcept
+    {
+        if (!time || !player.impl->active)
+            return false;
+        *time = player.impl->time;
+        return true;
+    }
+
+    bool MESH_MBM::setSkeletalAnimationPlaybackSpeed(SKELETAL_ANIMATION_PLAYER &player,
+                                                       const float speed) const noexcept
+    {
+        if (!std::isfinite(speed) || speed < 0.0f)
+            return false;
+        player.impl->playbackSpeed = speed;
+        if (speed == 0.0f)
+            player.impl->evaluatedMotionDeltaValid = false;
+        return true;
+    }
+
+    float MESH_MBM::getSkeletalAnimationPlaybackSpeed(
+        const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->playbackSpeed;
+    }
+
+    bool MESH_MBM::playSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                        const char *name, const float weight) const
+    {
+        return playSkeletalAnimationLayer(player, name, weight, false);
+    }
+
+    bool MESH_MBM::playSkeletalAnimationAdditiveLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                        const char *name, const float weight) const
+    {
+        return playSkeletalAnimationLayer(player, name, weight, true);
+    }
+
+    bool MESH_MBM::playSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                const char *name, const float weight,
+                                                const bool additive) const
+    {
+        if (!player.impl->active || player.impl->authoringPose || !name || !name[0] ||
+            !std::isfinite(weight) || weight < 0.0f || weight > 1.0f)
+            return false;
+        for (uint32_t index = 0; index < impl->canonicalAnimations.clips.size(); ++index)
+        {
+            if (impl->canonicalAnimations.clips[index].name == name)
+            {
+                const uint32_t previousIndex = player.impl->absoluteLayerClipIndex;
+                const float previousTime = player.impl->absoluteLayerTime;
+                const float previousWeight = player.impl->absoluteLayerWeight;
+                const float previousFadeStart = player.impl->absoluteLayerFadeStartWeight;
+                const float previousFadeTarget = player.impl->absoluteLayerFadeTargetWeight;
+                const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
+                const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+                const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
+                const bool previousActive = player.impl->absoluteLayerActive;
+                const bool previousAdditive = player.impl->additiveLayer;
+                const bool previousCrossFade = player.impl->crossFadeActive;
+                const bool previousLayerPaused = player.impl->layerPaused;
+                const bool previousCompletionNotified = player.impl->layerCompletionNotified;
+                player.impl->absoluteLayerClipIndex = index;
+                player.impl->absoluteLayerTime = 0.0f;
+                player.impl->absoluteLayerWeight = weight;
+                player.impl->absoluteLayerFadeStartWeight = weight;
+                player.impl->absoluteLayerFadeTargetWeight = weight;
+                player.impl->absoluteLayerFadeDuration = 0.0f;
+                player.impl->absoluteLayerFadeElapsed = 0.0f;
+                player.impl->absoluteLayerFadeActive = false;
+                player.impl->absoluteLayerActive = true;
+                player.impl->additiveLayer = additive;
+                player.impl->crossFadeActive = false;
+                player.impl->layerPaused = false;
+                player.impl->layerCompletionNotified = false;
+                if (updateSkeletalAnimation(player, 0.0f)) return true;
+                player.impl->absoluteLayerClipIndex = previousIndex;
+                player.impl->absoluteLayerTime = previousTime;
+                player.impl->absoluteLayerWeight = previousWeight;
+                player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
+                player.impl->absoluteLayerFadeTargetWeight = previousFadeTarget;
+                player.impl->absoluteLayerFadeDuration = previousFadeDuration;
+                player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
+                player.impl->absoluteLayerFadeActive = previousFadeActive;
+                player.impl->absoluteLayerActive = previousActive;
+                player.impl->additiveLayer = previousAdditive;
+                player.impl->crossFadeActive = previousCrossFade;
+                player.impl->layerPaused = previousLayerPaused;
+                player.impl->layerCompletionNotified = previousCompletionNotified;
+                return false;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::pauseSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        player.impl->layerPaused = true;
+        return true;
+    }
+
+    bool MESH_MBM::resumeSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        player.impl->layerPaused = false;
+        return true;
+    }
+
+    bool MESH_MBM::isSkeletalAnimationLayerPaused(
+        const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->active && player.impl->absoluteLayerActive && player.impl->layerPaused;
+    }
+
+    bool MESH_MBM::stopSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        const uint32_t previousIndex = player.impl->absoluteLayerClipIndex;
+        const float previousTime = player.impl->absoluteLayerTime;
+        const float previousWeight = player.impl->absoluteLayerWeight;
+        const float previousFadeStart = player.impl->absoluteLayerFadeStartWeight;
+        const float previousFadeTarget = player.impl->absoluteLayerFadeTargetWeight;
+        const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
+        const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+        const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
+        const bool previousAdditive = player.impl->additiveLayer;
+        const bool previousCrossFade = player.impl->crossFadeActive;
+        const bool previousLayerPaused = player.impl->layerPaused;
+        const bool previousCompletionNotified = player.impl->layerCompletionNotified;
+        player.impl->absoluteLayerClipIndex = UINT32_MAX;
+        player.impl->absoluteLayerTime = 0.0f;
+        player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerFadeStartWeight = 0.0f;
+        player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+        player.impl->absoluteLayerFadeDuration = 0.0f;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = false;
+        player.impl->absoluteLayerActive = false;
+        player.impl->additiveLayer = false;
+        player.impl->crossFadeActive = false;
+        player.impl->layerPaused = false;
+        player.impl->layerCompletionNotified = false;
+        if (updateSkeletalAnimation(player, 0.0f)) return true;
+        player.impl->absoluteLayerClipIndex = previousIndex;
+        player.impl->absoluteLayerTime = previousTime;
+        player.impl->absoluteLayerWeight = previousWeight;
+        player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
+        player.impl->absoluteLayerFadeTargetWeight = previousFadeTarget;
+        player.impl->absoluteLayerFadeDuration = previousFadeDuration;
+        player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
+        player.impl->absoluteLayerFadeActive = previousFadeActive;
+        player.impl->absoluteLayerActive = true;
+        player.impl->additiveLayer = previousAdditive;
+        player.impl->crossFadeActive = previousCrossFade;
+        player.impl->layerPaused = previousLayerPaused;
+        player.impl->layerCompletionNotified = previousCompletionNotified;
+        return false;
+    }
+
+    bool MESH_MBM::seekSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                        const float time) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive || !std::isfinite(time) ||
+            player.impl->absoluteLayerClipIndex >= impl->canonicalAnimations.clips.size())
+            return false;
+        const skeletal::SKELETAL_CLIP &clip =
+            impl->canonicalAnimations.clips[player.impl->absoluteLayerClipIndex];
+        const float previousTime = player.impl->absoluteLayerTime;
+        const bool previousCompletionNotified = player.impl->layerCompletionNotified;
+        player.impl->absoluteLayerTime = std::max(0.0f, std::min(clip.duration, time));
+        if (player.impl->absoluteLayerTime < clip.duration)
+            player.impl->layerCompletionNotified = false;
+        if (updateSkeletalAnimation(player, 0.0f)) return true;
+        player.impl->absoluteLayerTime = previousTime;
+        player.impl->layerCompletionNotified = previousCompletionNotified;
+        return false;
+    }
+
+    bool MESH_MBM::setSkeletalAnimationAbsoluteLayerWeight(SKELETAL_ANIMATION_PLAYER &player,
+                                                             const float weight) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive ||
+            !std::isfinite(weight) || weight < 0.0f || weight > 1.0f)
+            return false;
+        const float previousWeight = player.impl->absoluteLayerWeight;
+        const float previousFadeStart = player.impl->absoluteLayerFadeStartWeight;
+        const float previousFadeTarget = player.impl->absoluteLayerFadeTargetWeight;
+        const float previousFadeDuration = player.impl->absoluteLayerFadeDuration;
+        const float previousFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+        const bool previousFadeActive = player.impl->absoluteLayerFadeActive;
+        const bool previousCrossFade = player.impl->crossFadeActive;
+        player.impl->absoluteLayerWeight = weight;
+        player.impl->absoluteLayerFadeStartWeight = weight;
+        player.impl->absoluteLayerFadeTargetWeight = weight;
+        player.impl->absoluteLayerFadeDuration = 0.0f;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = false;
+        player.impl->crossFadeActive = false;
+        if (updateSkeletalAnimation(player, 0.0f)) return true;
+        player.impl->absoluteLayerWeight = previousWeight;
+        player.impl->absoluteLayerFadeStartWeight = previousFadeStart;
+        player.impl->absoluteLayerFadeTargetWeight = previousFadeTarget;
+        player.impl->absoluteLayerFadeDuration = previousFadeDuration;
+        player.impl->absoluteLayerFadeElapsed = previousFadeElapsed;
+        player.impl->absoluteLayerFadeActive = previousFadeActive;
+        player.impl->crossFadeActive = previousCrossFade;
+        return false;
+    }
+
+    bool MESH_MBM::fadeSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                        const float targetWeight,
+                                                        const float duration) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive ||
+            !std::isfinite(targetWeight) || targetWeight < 0.0f || targetWeight > 1.0f ||
+            !std::isfinite(duration) || duration < 0.0f)
+            return false;
+        if (duration == 0.0f)
+        {
+            if (targetWeight == 0.0f)
+                return stopSkeletalAnimationAbsoluteLayer(player);
+            return setSkeletalAnimationAbsoluteLayerWeight(player, targetWeight);
+        }
+        player.impl->absoluteLayerFadeStartWeight = player.impl->absoluteLayerWeight;
+        player.impl->absoluteLayerFadeTargetWeight = targetWeight;
+        player.impl->absoluteLayerFadeDuration = duration;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = true;
+        player.impl->crossFadeActive = false;
+        return true;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationAbsoluteLayerWeight(
+        const SKELETAL_ANIMATION_PLAYER &player, float *weight) const noexcept
+    {
+        if (!weight || !player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        *weight = player.impl->absoluteLayerWeight;
+        return true;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationAbsoluteLayerTime(
+        const SKELETAL_ANIMATION_PLAYER &player, float *time) const noexcept
+    {
+        if (!time || !player.impl->active || !player.impl->absoluteLayerActive)
+            return false;
+        *time = player.impl->absoluteLayerTime;
+        return true;
+    }
+
+    bool MESH_MBM::setSkeletalAnimationLayerBoneWeight(SKELETAL_ANIMATION_PLAYER &player,
+                                                         const uint64_t boneId,
+                                                         const float weight) const
+    {
+        return setSkeletalAnimationLayerBoneWeights(player, &boneId, &weight, 1);
+    }
+
+    bool MESH_MBM::setSkeletalAnimationLayerBoneWeights(SKELETAL_ANIMATION_PLAYER &player,
+                                                          const uint64_t *boneIds,
+                                                          const float *weights,
+                                                          const uint32_t count) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive ||
+            player.impl->crossFadeActive || !boneIds || !weights || count == 0)
+            return false;
+        std::unordered_set<uint64_t> uniqueIds;
+        auto candidate = player.impl->layerBoneMask;
+        for (uint32_t index = 0; index < count; ++index)
+        {
+            const uint64_t boneId = boneIds[index];
+            const float weight = weights[index];
+            if (boneId == 0 || !uniqueIds.insert(boneId).second || !std::isfinite(weight) ||
+                weight < 0.0f || weight > 1.0f ||
+                impl->canonicalSkeleton.compiled.indexById.find(boneId) ==
+                    impl->canonicalSkeleton.compiled.indexById.end())
+                return false;
+            if (weight == 1.0f)
+                candidate.erase(boneId);
+            else
+                candidate[boneId] = weight;
+        }
+        const auto previous = player.impl->layerBoneMask;
+        player.impl->layerBoneMask = std::move(candidate);
+        if (updateSkeletalAnimation(player, 0.0f))
+            return true;
+        player.impl->layerBoneMask = previous;
+        return false;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationLayerBoneWeight(
+        const SKELETAL_ANIMATION_PLAYER &player, const uint64_t boneId,
+        float *weight) const noexcept
+    {
+        if (!weight || !player.impl->active || !player.impl->absoluteLayerActive ||
+            player.impl->crossFadeActive || boneId == 0 ||
+            impl->canonicalSkeleton.compiled.indexById.find(boneId) ==
+                impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        const auto found = player.impl->layerBoneMask.find(boneId);
+        *weight = found == player.impl->layerBoneMask.end() ? 1.0f : found->second;
+        return true;
+    }
+
+    bool MESH_MBM::clearSkeletalAnimationLayerMask(SKELETAL_ANIMATION_PLAYER &player) const
+    {
+        if (!player.impl->active || !player.impl->absoluteLayerActive ||
+            player.impl->crossFadeActive)
+            return false;
+        const auto previous = player.impl->layerBoneMask;
+        player.impl->layerBoneMask.clear();
+        if (updateSkeletalAnimation(player, 0.0f))
+            return true;
+        player.impl->layerBoneMask = previous;
+        return false;
+    }
+
+    uint32_t MESH_MBM::getSkeletalAnimationPoseBoneCount(
+        const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->active && !player.impl->authoringPose &&
+            player.impl->evaluatedGlobalTransforms.size() ==
+                impl->canonicalSkeleton.compiled.bones.size()
+            ? static_cast<uint32_t>(player.impl->evaluatedGlobalTransforms.size()) : 0;
+    }
+
+    bool MESH_MBM::getSkeletalAnimationPoseBone(
+        const SKELETAL_ANIMATION_PLAYER &player, const uint32_t boneIndex,
+        SKELETAL_RUNTIME_POSE_BONE_INFO &out) const noexcept
+    {
+        if (boneIndex >= getSkeletalAnimationPoseBoneCount(player))
+            return false;
+        const skeletal::COMPILED_BONE &bone = impl->canonicalSkeleton.compiled.bones[boneIndex];
+        out.boneId = bone.boneId;
+        out.parentIndex = bone.parentIndex;
+        out.globalMatrix = player.impl->evaluatedGlobalTransforms[boneIndex];
+        return true;
+    }
+
+    bool MESH_MBM::getSkeletalBoneTransform(
+        const SKELETAL_ANIMATION_PLAYER &player, const char *boneName,
+        const MATRIX *modelMatrix, uint64_t *boneId, MATRIX *matrix, VEC3 *position,
+        float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
+    {
+        if (!boneName || !boneId || !matrix || !position || !rotation || !angle || !scale ||
+            getSkeletalAnimationPoseBoneCount(player) == 0)
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexByName.find(boneName);
+        if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+            return false;
+        const uint32_t boneIndex = found->second;
+        MATRIX result = player.impl->evaluatedGlobalTransforms[boneIndex];
+        if (modelMatrix)
+            MatrixMultiply(&result, &result, modelMatrix);
+        skeletal::LOCAL_TRANSFORM transform;
+        bool hasNegativeScale = false;
+        bool hasShear = false;
+        if (!skeletal::decomposeTrsMatrix(result, transform, hasNegativeScale, hasShear) || hasShear)
+            return false;
+        *boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        *matrix = result;
+        *position = transform.translation;
+        rotation[0] = transform.rotation.x;
+        rotation[1] = transform.rotation.y;
+        rotation[2] = transform.rotation.z;
+        rotation[3] = transform.rotation.w;
+        skeletal::LOCAL_TRANSFORM rotationOnly;
+        rotationOnly.rotation = transform.rotation;
+        MATRIX rotationMatrix = skeletal::buildTrsMatrix(rotationOnly);
+        const float clamped = std::max(-1.0f, std::min(1.0f, -rotationMatrix._13));
+        angle->y = std::asin(clamped);
+        if (std::fabs(rotationMatrix._13) > 0.999999f)
+        {
+            angle->x = 0.0f;
+            angle->z = std::atan2(-rotationMatrix._21, rotationMatrix._22);
+        }
+        else
+        {
+            angle->x = std::atan2(rotationMatrix._23, rotationMatrix._33);
+            angle->z = std::atan2(rotationMatrix._12, rotationMatrix._11);
+        }
+        *scale = transform.scale;
+        return true;
+    }
+
+    bool MESH_MBM::getSkeletalRootMotionDelta(
+        const SKELETAL_ANIMATION_PLAYER &player, const char *boneName,
+        const MATRIX *modelMatrix, uint64_t *boneId, VEC3 *translation) const noexcept
+    {
+        if (!boneName || !boneId || !translation || !player.impl->evaluatedMotionDeltaValid ||
+            player.impl->previousRawEvaluatedGlobalTransforms.size() !=
+                player.impl->rawEvaluatedGlobalTransforms.size())
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexByName.find(boneName);
+        if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+            return false;
+        const uint32_t boneIndex = found->second;
+        if (boneIndex >= player.impl->rawEvaluatedGlobalTransforms.size())
+            return false;
+        MATRIX previous = player.impl->previousRawEvaluatedGlobalTransforms[boneIndex];
+        MATRIX current = player.impl->rawEvaluatedGlobalTransforms[boneIndex];
+        if (modelMatrix)
+        {
+            MatrixMultiply(&previous, &previous, modelMatrix);
+            MatrixMultiply(&current, &current, modelMatrix);
+        }
+        *boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        *translation = VEC3(current._41 - previous._41, current._42 - previous._42,
+                            current._43 - previous._43);
+        return std::isfinite(translation->x) && std::isfinite(translation->y) &&
+            std::isfinite(translation->z);
+    }
+
+    bool MESH_MBM::hasSkeletalRenderPalette(const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->active && !player.impl->paletteRows.empty();
+    }
+
+    namespace
+    {
+        VEC3 transformSkeletalMotionDeltaToOwnerSpace(const RENDERIZABLE &owner,
+                                                      const VEC3 &delta) noexcept
+        {
+            VEC3 zero(0.0f, 0.0f, 0.0f);
+            MATRIX modelMatrix;
+            VEC3 position(0.0f, 0.0f, 0.0f);
+            const VEC3 &angle = owner.getAngle();
+            const VEC3 &scale = owner.getScale();
+            MatrixTranslationRotationScale(&modelMatrix, &position, &angle, &scale);
+            VEC3 origin;
+            VEC3 transformed;
+            vec3TransformCoord(&origin, &zero, &modelMatrix);
+            vec3TransformCoord(&transformed, &delta, &modelMatrix);
+            return VEC3(transformed.x - origin.x, transformed.y - origin.y,
+                        transformed.z - origin.z);
+        }
+
+        bool composeSkeletalMotionRotationIntoOwner(RENDERIZABLE &owner,
+                                                    const skeletal::QUATERNION &delta) noexcept
+        {
+            skeletal::LOCAL_TRANSFORM deltaTransform;
+            deltaTransform.rotation = delta;
+            const MATRIX deltaMatrix = skeletal::buildTrsMatrix(deltaTransform);
+            MATRIX ownerMatrix;
+            const VEC3 origin(0.0f, 0.0f, 0.0f);
+            const VEC3 scale(1.0f, 1.0f, 1.0f);
+            const VEC3 &ownerAngle = owner.getAngle();
+            MatrixTranslationRotationScale(&ownerMatrix, &origin, &ownerAngle, &scale);
+            MATRIX composed;
+            MatrixMultiply(&composed, &deltaMatrix, &ownerMatrix);
+            skeletal::LOCAL_TRANSFORM decomposed;
+            bool hasNegativeScale = false;
+            bool hasShear = false;
+            if (!skeletal::decomposeTrsMatrix(composed, decomposed, hasNegativeScale,
+                    hasShear) || hasShear)
+                return false;
+            skeletal::LOCAL_TRANSFORM rotationOnly;
+            rotationOnly.rotation = decomposed.rotation;
+            const MATRIX rotationMatrix = skeletal::buildTrsMatrix(rotationOnly);
+            VEC3 angle;
+            const float clamped = std::max(-1.0f, std::min(1.0f, -rotationMatrix._13));
+            angle.y = std::asin(clamped);
+            if (std::fabs(rotationMatrix._13) > 0.999999f)
+            {
+                angle.x = 0.0f;
+                angle.z = std::atan2(-rotationMatrix._21, rotationMatrix._22);
+            }
+            else
+            {
+                angle.x = std::atan2(rotationMatrix._23, rotationMatrix._33);
+                angle.z = std::atan2(rotationMatrix._12, rotationMatrix._11);
+            }
+            if (!std::isfinite(angle.x) || !std::isfinite(angle.y) || !std::isfinite(angle.z))
+                return false;
+            owner.setAngle(angle);
+            return true;
+        }
+    }
+
+    bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta,
+                                            RENDERIZABLE *owner,
+                                            OnEndAnimation onEndAnimation) const
+    {
+        if (player.impl->authoringPose)
+            return player.impl->active && !player.impl->paletteRows.empty();
+        if (!player.impl->active || !std::isfinite(delta) || delta < 0.0f ||
+            player.impl->clipIndex >= impl->canonicalAnimations.clips.size())
+            return false;
+        const float scaledDelta = delta * player.impl->playbackSpeed;
+        if (!std::isfinite(scaledDelta))
+            return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
+        const float previousBaseTime = player.impl->time;
+        const float previousLayerTime = player.impl->absoluteLayerTime;
+        float evaluatedBaseTime = player.impl->time;
+        float evaluatedLayerTime = player.impl->absoluteLayerTime;
+        float evaluatedLayerWeight = player.impl->absoluteLayerWeight;
+        float evaluatedFadeElapsed = player.impl->absoluteLayerFadeElapsed;
+        bool evaluatedFadeActive = player.impl->absoluteLayerFadeActive;
+        bool removeCompletedLayer = false;
+        bool promoteCrossFade = false;
+        bool notifyBaseCompletion = false;
+        bool notifyLayerCompletion = false;
+        if (!player.impl->paused && scaledDelta > 0.0f)
+        {
+            if (!skeletal::advanceSkeletalClipTime(clip, scaledDelta, evaluatedBaseTime))
+                return false;
+            notifyBaseCompletion = skeletal::shouldNotifySkeletalClipCompletion(
+                clip, scaledDelta, evaluatedBaseTime,
+                player.impl->baseCompletionNotified);
+        }
+        const skeletal::SKELETAL_CLIP *absoluteLayer = nullptr;
+        if (player.impl->absoluteLayerActive)
+        {
+            if (player.impl->absoluteLayerClipIndex >= impl->canonicalAnimations.clips.size())
+                return false;
+            absoluteLayer = &impl->canonicalAnimations.clips[player.impl->absoluteLayerClipIndex];
+            if (!player.impl->paused && !player.impl->layerPaused && scaledDelta > 0.0f)
+            {
+                if (!skeletal::advanceSkeletalClipTime(*absoluteLayer, scaledDelta,
+                        evaluatedLayerTime))
+                    return false;
+                notifyLayerCompletion = skeletal::shouldNotifySkeletalClipCompletion(
+                    *absoluteLayer, scaledDelta, evaluatedLayerTime,
+                    player.impl->layerCompletionNotified);
+                if (evaluatedFadeActive)
+                {
+                    bool fadeComplete = false;
+                    if (!skeletal::advanceSkeletalAbsoluteFade(
+                            player.impl->absoluteLayerFadeStartWeight,
+                            player.impl->absoluteLayerFadeTargetWeight,
+                            player.impl->absoluteLayerFadeDuration, scaledDelta,
+                            evaluatedFadeElapsed, evaluatedLayerWeight, fadeComplete))
+                        return false;
+                    if (fadeComplete)
+                    {
+                        evaluatedFadeActive = false;
+                        removeCompletedLayer = evaluatedLayerWeight == 0.0f;
+                        promoteCrossFade = player.impl->crossFadeActive &&
+                            evaluatedLayerWeight == 1.0f;
+                    }
+                }
+            }
+        }
+        const BUFFER_GL *buffer = impl->buffer && impl->totalFramesMesh > 0
+            ? impl->buffer[0].pBufferGL : nullptr;
+        const bool hasNormals = buffer &&
+            (buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+             buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        skeletal::SKELETAL_POSE pose;
+        if (absoluteLayer)
+        {
+            std::vector<float> boneMask;
+            if (!player.impl->layerBoneMask.empty())
+            {
+                boneMask.assign(impl->canonicalSkeleton.compiled.bones.size(), 1.0f);
+                for (const auto &entry : player.impl->layerBoneMask)
+                {
+                    const auto found = impl->canonicalSkeleton.compiled.indexById.find(entry.first);
+                    if (found == impl->canonicalSkeleton.compiled.indexById.end())
+                        return false;
+                    boneMask[static_cast<size_t>(found->second)] = entry.second;
+                }
+            }
+            const bool sampled = player.impl->additiveLayer
+                ? skeletal::sampleSkeletalClipsAdditiveMasked(impl->canonicalSkeleton.compiled,
+                    clip, evaluatedBaseTime, *absoluteLayer, evaluatedLayerTime,
+                    evaluatedLayerWeight, boneMask, pose)
+                : skeletal::sampleSkeletalClipsAbsoluteMasked(impl->canonicalSkeleton.compiled,
+                    clip, evaluatedBaseTime, *absoluteLayer, evaluatedLayerTime,
+                    evaluatedLayerWeight, boneMask, pose);
+            if (!sampled)
+                return false;
+        }
+        else if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, clip,
+                     evaluatedBaseTime, pose))
+            return false;
+        const skeletal::SKELETAL_POSE rawPose = pose;
+        const auto rootMotionBone = player.impl->automaticRootMotionEnabled
+            ? impl->canonicalSkeleton.compiled.indexByName.find(
+                  player.impl->automaticRootMotionBoneName)
+            : impl->canonicalSkeleton.compiled.indexByName.end();
+        if (rootMotionBone != impl->canonicalSkeleton.compiled.indexByName.end())
+        {
+            const size_t rootMotionIndex = static_cast<size_t>(rootMotionBone->second);
+            if (rootMotionIndex > UINT32_MAX ||
+                !skeletal::neutralizeSkeletalPoseLocalTransform(
+                    impl->canonicalSkeleton.compiled, static_cast<uint32_t>(rootMotionIndex),
+                    true, player.impl->automaticRootMotionApplyRotation, pose))
+                return false;
+        }
+        std::vector<float> paletteRows;
+        if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
+        {
+            if (skeletal::buildDqsPalette(impl->canonicalSkeleton, pose, paletteRows) !=
+                    skeletal::DQS_PALETTE_STATUS::READY)
+                return false;
+        }
+        else if (skeletal::buildLbsPalette(impl->canonicalSkeleton, pose, hasNormals,
+                     paletteRows) != skeletal::LBS_PALETTE_STATUS::READY)
+            return false;
+        player.impl->time = evaluatedBaseTime;
+        if (notifyBaseCompletion)
+            player.impl->baseCompletionNotified = true;
+        if (promoteCrossFade)
+        {
+            player.impl->clipIndex = player.impl->absoluteLayerClipIndex;
+            player.impl->time = evaluatedLayerTime;
+            player.impl->baseCompletionNotified =
+                player.impl->layerCompletionNotified || notifyLayerCompletion;
+            player.impl->absoluteLayerClipIndex = UINT32_MAX;
+            player.impl->absoluteLayerTime = 0.0f;
+            player.impl->absoluteLayerWeight = 0.0f;
+            player.impl->absoluteLayerFadeStartWeight = 0.0f;
+            player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+            player.impl->absoluteLayerFadeDuration = 0.0f;
+            player.impl->absoluteLayerFadeElapsed = 0.0f;
+            player.impl->absoluteLayerFadeActive = false;
+            player.impl->absoluteLayerActive = false;
+            player.impl->additiveLayer = false;
+            player.impl->crossFadeActive = false;
+            player.impl->layerPaused = false;
+            player.impl->layerCompletionNotified = false;
+            player.impl->layerBoneMask.clear();
+        }
+        else if (removeCompletedLayer)
+        {
+            player.impl->absoluteLayerClipIndex = UINT32_MAX;
+            player.impl->absoluteLayerTime = 0.0f;
+            player.impl->absoluteLayerWeight = 0.0f;
+            player.impl->absoluteLayerFadeStartWeight = 0.0f;
+            player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+            player.impl->absoluteLayerFadeDuration = 0.0f;
+            player.impl->absoluteLayerFadeElapsed = 0.0f;
+            player.impl->absoluteLayerFadeActive = false;
+            player.impl->absoluteLayerActive = false;
+            player.impl->additiveLayer = false;
+            player.impl->crossFadeActive = false;
+            player.impl->layerPaused = false;
+            player.impl->layerCompletionNotified = false;
+        }
+        else
+        {
+            player.impl->absoluteLayerTime = evaluatedLayerTime;
+            player.impl->absoluteLayerWeight = evaluatedLayerWeight;
+            player.impl->absoluteLayerFadeElapsed = evaluatedFadeElapsed;
+            player.impl->absoluteLayerFadeActive = evaluatedFadeActive;
+            if (notifyLayerCompletion)
+                player.impl->layerCompletionNotified = true;
+        }
+        player.impl->paletteRows = std::move(paletteRows);
+        const bool wrappedLoop = (clip.loop && evaluatedBaseTime < previousBaseTime) ||
+            (absoluteLayer && absoluteLayer->loop && evaluatedLayerTime < previousLayerTime);
+        player.impl->previousEvaluatedGlobalTransforms =
+            std::move(player.impl->evaluatedGlobalTransforms);
+        player.impl->evaluatedGlobalTransforms = std::move(pose.globalTransforms);
+        player.impl->previousRawEvaluatedGlobalTransforms =
+            std::move(player.impl->rawEvaluatedGlobalTransforms);
+        player.impl->rawEvaluatedGlobalTransforms = std::move(rawPose.globalTransforms);
+        player.impl->evaluatedMotionDeltaValid = !player.impl->paused && scaledDelta > 0.0f &&
+            !wrappedLoop && player.impl->previousRawEvaluatedGlobalTransforms.size() ==
+                player.impl->rawEvaluatedGlobalTransforms.size();
+        if (player.impl->automaticRootMotionEnabled)
+        {
+            const auto found = impl->canonicalSkeleton.compiled.indexByName.find(
+                player.impl->automaticRootMotionBoneName);
+            if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+                player.impl->evaluatedMotionDeltaValid = false;
+            else if (player.impl->evaluatedMotionDeltaValid && owner)
+            {
+                const uint32_t boneIndex = static_cast<uint32_t>(found->second);
+                const MATRIX &previous = player.impl->previousRawEvaluatedGlobalTransforms[boneIndex];
+                const MATRIX &current = player.impl->rawEvaluatedGlobalTransforms[boneIndex];
+                const VEC3 modelDelta(current._41 - previous._41, current._42 - previous._42,
+                                      current._43 - previous._43);
+                const VEC3 worldDelta = transformSkeletalMotionDeltaToOwnerSpace(*owner, modelDelta);
+                if (std::isfinite(worldDelta.x) && std::isfinite(worldDelta.y) &&
+                    std::isfinite(worldDelta.z))
+                {
+                    VEC3 position = owner->getPosition();
+                    position += worldDelta;
+                    owner->setPosition(position);
+                }
+                if (player.impl->automaticRootMotionApplyRotation)
+                {
+                    skeletal::QUATERNION rotationDelta;
+                    if (skeletal::computeSkeletalRootMotionRotationDelta(previous, current,
+                            rotationDelta))
+                        composeSkeletalMotionRotationIntoOwner(*owner, rotationDelta);
+                }
+            }
+        }
+        if (owner && onEndAnimation)
+        {
+            if (notifyBaseCompletion)
+                onEndAnimation(clip.name.c_str(), owner);
+            if (notifyLayerCompletion && absoluteLayer)
+            {
+                const std::string layerName = absoluteLayer->name;
+                onEndAnimation(layerName.c_str(), owner);
+            }
+        }
+        return true;
+    }
+
+    bool MESH_MBM::enableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player,
+                                                      const char *boneName,
+                                                      const bool applyRotation) const noexcept
+    {
+        if (!boneName || !boneName[0])
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexByName.find(boneName);
+        if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+            return false;
+        player.impl->automaticRootMotionEnabled = true;
+        player.impl->automaticRootMotionApplyRotation = applyRotation;
+        player.impl->automaticRootMotionBoneName = boneName;
+        player.impl->automaticRootMotionBoneId =
+            impl->canonicalSkeleton.compiled.bones[static_cast<size_t>(found->second)].boneId;
+        player.impl->evaluatedMotionDeltaValid = false;
+        return true;
+    }
+
+    bool MESH_MBM::disableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        player.impl->automaticRootMotionEnabled = false;
+        player.impl->automaticRootMotionApplyRotation = false;
+        player.impl->automaticRootMotionBoneName.clear();
+        player.impl->automaticRootMotionBoneId = 0;
+        player.impl->evaluatedMotionDeltaValid = false;
+        return true;
+    }
+
+    bool MESH_MBM::getAutomaticSkeletalRootMotionBone(const SKELETAL_ANIMATION_PLAYER &player,
+                                                       const char **boneName,
+                                                       uint64_t *boneId,
+                                                       bool *applyRotation) const noexcept
+    {
+        if (!boneName || !boneId || !player.impl->automaticRootMotionEnabled)
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexByName.find(
+            player.impl->automaticRootMotionBoneName);
+        if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+            return false;
+        *boneName = player.impl->automaticRootMotionBoneName.c_str();
+        *boneId = impl->canonicalSkeleton.compiled.bones[static_cast<size_t>(found->second)].boneId;
+        if (applyRotation)
+            *applyRotation = player.impl->automaticRootMotionApplyRotation;
+        return true;
+    }
+
+    bool MESH_MBM::setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
+                                                const SKELETAL_SHADER_METHOD method,
+                                                const float *rows, const uint32_t rowCount,
+                                                const uint64_t *orderedBoneIds,
+                                                const uint32_t boneIdCount,
+                                                const float time, char *errorOut,
+                                                const int errorOutLen) const noexcept
+    {
+        const auto fail=[errorOut,errorOutLen](const char *format,auto... values)
+        {
+            if (errorOut && errorOutLen>0)
+            {
+                if constexpr (sizeof...(values)==0) snprintf(errorOut,errorOutLen,"%s",format);
+                else snprintf(errorOut,errorOutLen,format,values...);
+            }
+            return false;
+        };
+        if (!rows) return fail("authoring palette rows are missing");
+        if (!orderedBoneIds) return fail("authoring ordered bone identities are missing");
+        if (!std::isfinite(time) || time<0.0f) return fail("authoring pose time is invalid");
+        if (method!=SKELETAL_SHADER_METHOD::LBS && method!=SKELETAL_SHADER_METHOD::DQS_RIGID)
+            return fail("authoring skinning method is invalid");
+        if (method!=player.impl->resolvedSkinningMethod)
+            return fail("authoring method does not match preview resolved method");
+        if (!impl->gpuSkinningInput.supports(method))
+        {
+            const skeletal::GPU_SKINNING_PREPARATION_STATUS selectedStatus=
+                impl->gpuSkinningInput.ready() ? skeletal::GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE :
+                impl->gpuSkinningInput.status;
+            return fail("preview skeletal input is not ready: %s (%s)",
+                skeletal::gpuSkinningPreparationStatusName(selectedStatus),impl->gpuSkinningInput.diagnostic);
+        }
+        const uint32_t stride = method == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
+        const uint32_t expected = static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size()) * stride;
+        if (rowCount!=expected)
+            return fail("authoring palette row count mismatch: got %u, expected %u",rowCount,expected);
+        if (boneIdCount!=impl->canonicalSkeleton.compiled.bones.size())
+            return fail("authoring bone count mismatch: got %u, expected %u",boneIdCount,
+                static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size()));
+        if (!std::all_of(rows,rows+rowCount,[](const float value){ return std::isfinite(value); }))
+            return fail("authoring palette contains a non-finite value");
+        for (uint32_t index=0; index<boneIdCount; ++index)
+            if (orderedBoneIds[index]!=impl->canonicalSkeleton.compiled.bones[index].boneId)
+                return fail("authoring bone identity mismatch at index %u: got %016llx, expected %016llx",index+1,
+                    static_cast<unsigned long long>(orderedBoneIds[index]),
+                    static_cast<unsigned long long>(impl->canonicalSkeleton.compiled.bones[index].boneId));
+        player.impl->paletteRows.assign(rows, rows + rowCount);
+        player.impl->clipIndex = UINT32_MAX;
+        player.impl->absoluteLayerClipIndex = UINT32_MAX;
+        player.impl->absoluteLayerTime = 0.0f;
+        player.impl->absoluteLayerWeight = 0.0f;
+        player.impl->absoluteLayerFadeStartWeight = 0.0f;
+        player.impl->absoluteLayerFadeTargetWeight = 0.0f;
+        player.impl->absoluteLayerFadeDuration = 0.0f;
+        player.impl->absoluteLayerFadeElapsed = 0.0f;
+        player.impl->absoluteLayerFadeActive = false;
+        player.impl->absoluteLayerActive = false;
+        player.impl->additiveLayer = false;
+        player.impl->crossFadeActive = false;
+        player.impl->layerPaused = false;
+        player.impl->layerBoneMask.clear();
+        player.impl->evaluatedGlobalTransforms.clear();
+        player.impl->previousEvaluatedGlobalTransforms.clear();
+        player.impl->rawEvaluatedGlobalTransforms.clear();
+        player.impl->previousRawEvaluatedGlobalTransforms.clear();
+        player.impl->evaluatedMotionDeltaValid = false;
+        player.impl->time = time;
+        player.impl->active = true;
+        player.impl->paused = true;
+        player.impl->baseCompletionNotified = false;
+        player.impl->layerCompletionNotified = false;
+        player.impl->authoringPose = true;
+        return true;
+    }
+
+    bool MESH_MBM::renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                                  const uint32_t indexFrame, const SHADER *shader,
+                                  const RENDERIZABLE *owner)
+    {
+        if (!player.impl->active || player.impl->paletteRows.empty() ||
+            indexFrame >= impl->totalFramesMesh || !impl->buffer ||
+            !impl->gpuSkinningInput.supports(player.impl->resolvedSkinningMethod))
+            return false;
+        DEVICE *device = DEVICE::getInstance();
+        device->setRenderMaterial(impl->material);
+        const bool rendered = shader->render(impl->buffer[indexFrame].pBufferGL, owner, -1,
+                                             player.impl->paletteRows.data(),
+                                             static_cast<uint32_t>(player.impl->paletteRows.size()));
+        device->clearRenderMaterial();
+        return rendered;
     }
 
     bool MESH_MBM::hasArticulatedAnimationData() const noexcept
@@ -6138,6 +9951,234 @@ namespace mbm
         }
         return false;
     }
+
+    bool MESH_MBM::canUseCpuSkeletalPath(const SKELETAL_SHADER_METHOD method,
+                                         const SKELETAL_ANIMATION_PLAYER *player,
+                                         const char **reason) const noexcept
+    {
+        if (method != SKELETAL_SHADER_METHOD::LBS && method != SKELETAL_SHADER_METHOD::DQS_RIGID)
+        {
+            if (reason) *reason = "cpu-method-unresolved";
+            return false;
+        }
+        if (impl->canonicalSkeleton.skeletonId == 0 || impl->canonicalWeights.skeletonId == 0)
+        {
+            if (reason) *reason = "no-skeletal-data";
+            return false;
+        }
+        if (impl->canonicalWeights.skeletonId != impl->canonicalSkeleton.skeletonId)
+        {
+            if (reason) *reason = "skeleton-weight-id-mismatch";
+            return false;
+        }
+        if (impl->skeletalBindFrameIndex == UINT32_MAX || impl->skeletalBindPositions.empty())
+        {
+            if (reason) *reason = "missing-bind-geometry";
+            return false;
+        }
+        if (impl->skeletalBindPositions.size() != impl->canonicalWeights.vertices.size())
+        {
+            if (reason) *reason = "weight-vertex-count-mismatch";
+            return false;
+        }
+        if (method == SKELETAL_SHADER_METHOD::DQS_RIGID)
+        {
+            // DQS needs stricter checks than LBS because it only accepts rigid transforms.
+            // An active player's evaluated pose and 8-float-per-bone palette have already passed
+            // that validation, so avoid rescanning every clip in the per-frame render path.
+            // Without an active pose, scan the skeleton and clips to report readiness truthfully.
+            const uint32_t boneCount =
+                static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size());
+            if (player && player->impl->active)
+            {
+                if (player->impl->evaluatedGlobalTransforms.size() != boneCount)
+                {
+                    if (reason) *reason = "cpu-dqs-missing-evaluated-pose";
+                    return false;
+                }
+                if (player->impl->paletteRows.size() != static_cast<size_t>(boneCount) * 8u)
+                {
+                    if (reason) *reason = "cpu-dqs-missing-evaluated-palette";
+                    return false;
+                }
+            }
+            else if (skeletal::getDqsCompatibility(impl->canonicalSkeleton, impl->canonicalAnimations) !=
+                         skeletal::DQS_COMPATIBILITY_STATUS::RIGID)
+            {
+                if (reason) *reason = "cpu-dqs-non-rigid-skeleton-or-clips";
+                return false;
+            }
+        }
+        if (reason) *reason = "ready";
+        return true;
+    }
+
+    bool MESH_MBM::renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                                     const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
+                                     std::vector<VEC3> &positions, std::vector<VEC3> &normals,
+                                     std::vector<VEC2> &uvs, bool &initialized,
+                                     const SHADER *pShader,
+                                     const RENDERIZABLE *renderizableOwner) const
+    {
+        const char *reason = nullptr;
+        const SKELETAL_SHADER_METHOD method = player.impl->resolvedSkinningMethod;
+        if (!canUseCpuSkeletalPath(method, &player, &reason) || !pShader ||
+            indexFrame != impl->skeletalBindFrameIndex ||
+            player.impl->paletteRows.empty())
+            return false;
+        const uint32_t vertexCount = static_cast<uint32_t>(impl->skeletalBindPositions.size());
+        const uint32_t floatsPerBone = method == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
+        if (player.impl->paletteRows.size() != impl->canonicalSkeleton.compiled.bones.size() * floatsPerBone)
+            return false;
+        if (!initialized)
+        {
+            dynamicBuffer.release();
+            const BUFFER_MESH &source = impl->buffer[indexFrame];
+            dynamicBuffer.totalSubset = source.totalSubset;
+            dynamicBuffer.subset = new util::SUBSET[source.totalSubset];
+            for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+            {
+                dynamicBuffer.subset[subsetIndex] = source.subset[subsetIndex];
+                dynamicBuffer.subset[subsetIndex].materialTextureSlotHeaders =
+                    source.subset[subsetIndex].materialTextureSlotHeaders;
+                dynamicBuffer.subset[subsetIndex].materialTextures =
+                    source.subset[subsetIndex].materialTextures;
+            }
+            dynamicBuffer.pBufferGL = new BUFFER_GL();
+            bool ok = false;
+            if (impl->skeletalBindHasIndices)
+            {
+                std::vector<int> indexStart(source.totalSubset);
+                std::vector<int> indexCount(source.totalSubset);
+                for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+                {
+                    indexStart[subsetIndex] = source.subset[subsetIndex].indexStart;
+                    indexCount[subsetIndex] = source.subset[subsetIndex].indexCount;
+                }
+                ok = dynamicBuffer.pBufferGL->loadBufferDynamic(impl->skeletalBindIndices.data(),
+                    source.totalSubset, indexStart.data(), indexCount.data(),
+                    impl->skeletalBindHasNormals, impl->skeletalBindHasUvs, &impl->info_mode);
+            }
+            else
+            {
+                std::vector<int> vertexStart(source.totalSubset);
+                std::vector<int> vertexCountSubset(source.totalSubset);
+                for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+                {
+                    vertexStart[subsetIndex] = source.subset[subsetIndex].vertexStart;
+                    vertexCountSubset[subsetIndex] = source.subset[subsetIndex].vertexCount;
+                }
+                ok = dynamicBuffer.pBufferGL->loadBuffer(impl->skeletalBindPositions.data(),
+                    impl->skeletalBindHasNormals ? impl->skeletalBindNormals.data() : nullptr,
+                    impl->skeletalBindHasUvs ? impl->skeletalBindUvs.data() : nullptr,
+                    vertexCount, source.totalSubset, vertexStart.data(), vertexCountSubset.data(),
+                    &impl->info_mode, true);
+            }
+            if (!ok)
+            {
+                dynamicBuffer.release();
+                return false;
+            }
+            for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+            {
+                dynamicBuffer.pBufferGL->setTextureByStage(source.pBufferGL->getTextureByStage(0, subsetIndex), 0, subsetIndex);
+                for (uint32_t stage = 1; stage <= 5; ++stage)
+                    dynamicBuffer.pBufferGL->setTextureByStage(source.pBufferGL->getTextureByStage(stage, subsetIndex), stage, subsetIndex);
+            }
+            positions.resize(vertexCount);
+            normals.resize(impl->skeletalBindHasNormals ? vertexCount : 0);
+            uvs = impl->skeletalBindUvs;
+            initialized = true;
+        }
+
+        if (method == SKELETAL_SHADER_METHOD::DQS_RIGID)
+        {
+            skeletal::SKELETAL_POSE pose;
+            if (player.impl->evaluatedGlobalTransforms.empty())
+            {
+                pose.globalTransforms.reserve(impl->canonicalSkeleton.compiled.bones.size());
+                for (const skeletal::COMPILED_BONE &bone : impl->canonicalSkeleton.compiled.bones)
+                    pose.globalTransforms.push_back(bone.globalBindMatrix);
+            }
+            else
+                pose.globalTransforms = player.impl->evaluatedGlobalTransforms;
+            if (!skeletal::skinVerticesDqsRigidReference(impl->canonicalSkeleton, impl->canonicalWeights,
+                    pose, impl->skeletalBindPositions,
+                    impl->skeletalBindHasNormals ? impl->skeletalBindNormals : std::vector<VEC3>(),
+                    positions, normals))
+                return false;
+        }
+        else
+        {
+            const float *palette = player.impl->paletteRows.data();
+            for (uint32_t vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+            {
+                const VEC3 &bindPosition = impl->skeletalBindPositions[vertexIndex];
+                VEC3 outPosition(0.0f, 0.0f, 0.0f);
+                VEC3 outNormal(0.0f, 0.0f, 0.0f);
+                const bool hasNormal = impl->skeletalBindHasNormals && vertexIndex < impl->skeletalBindNormals.size();
+                const VEC3 bindNormal = hasNormal ? impl->skeletalBindNormals[vertexIndex] : VEC3();
+                const skeletal::CANONICAL_VERTEX_WEIGHT &weight = impl->canonicalWeights.vertices[vertexIndex];
+                for (uint32_t slot = 0; slot < 4; ++slot)
+                {
+                    if (weight.paletteIndex[slot] == UINT16_MAX || weight.weight[slot] == 0.0f)
+                        continue;
+                    if (weight.paletteIndex[slot] >= impl->canonicalWeights.paletteBoneIds.size())
+                        return false;
+                    const uint64_t boneId = impl->canonicalWeights.paletteBoneIds[weight.paletteIndex[slot]];
+                    const auto found = impl->canonicalSkeleton.compiled.indexById.find(boneId);
+                    if (found == impl->canonicalSkeleton.compiled.indexById.end())
+                        return false;
+                    const float *rows = &palette[static_cast<size_t>(found->second) * 12u];
+                    const float w = weight.weight[slot];
+                    outPosition.x += (bindPosition.x * rows[0] + bindPosition.y * rows[1] +
+                                      bindPosition.z * rows[2] + rows[3]) * w;
+                    outPosition.y += (bindPosition.x * rows[4] + bindPosition.y * rows[5] +
+                                      bindPosition.z * rows[6] + rows[7]) * w;
+                    outPosition.z += (bindPosition.x * rows[8] + bindPosition.y * rows[9] +
+                                      bindPosition.z * rows[10] + rows[11]) * w;
+                    if (hasNormal)
+                    {
+                        outNormal.x += (bindNormal.x * rows[0] + bindNormal.y * rows[1] +
+                                        bindNormal.z * rows[2]) * w;
+                        outNormal.y += (bindNormal.x * rows[4] + bindNormal.y * rows[5] +
+                                        bindNormal.z * rows[6]) * w;
+                        outNormal.z += (bindNormal.x * rows[8] + bindNormal.y * rows[9] +
+                                        bindNormal.z * rows[10]) * w;
+                    }
+                }
+                positions[vertexIndex] = outPosition;
+                if (hasNormal)
+                {
+                    const float lenSq = outNormal.x * outNormal.x + outNormal.y * outNormal.y +
+                        outNormal.z * outNormal.z;
+                    if (lenSq > 0.00000001f)
+                    {
+                        const float invLen = 1.0f / std::sqrt(lenSq);
+                        outNormal.x *= invLen; outNormal.y *= invLen; outNormal.z *= invLen;
+                    }
+                    normals[vertexIndex] = outNormal;
+                }
+            }
+        }
+        std::vector<int> vertexStart(dynamicBuffer.totalSubset);
+        std::vector<int> vertexCountSubset(dynamicBuffer.totalSubset);
+        for (uint32_t subsetIndex = 0; subsetIndex < dynamicBuffer.totalSubset; ++subsetIndex)
+        {
+            vertexStart[subsetIndex] = dynamicBuffer.subset[subsetIndex].vertexStart;
+            vertexCountSubset[subsetIndex] = dynamicBuffer.subset[subsetIndex].vertexCount;
+        }
+        if (!dynamicBuffer.pBufferGL->updateDynamic(positions.data(),
+                normals.empty() ? nullptr : normals.data(),
+                uvs.empty() ? nullptr : uvs.data(),
+                vertexStart.data(), vertexCountSubset.data()))
+            return false;
+        DEVICE *device = DEVICE::getInstance();
+        device->setRenderMaterial(this->impl->material);
+        const bool ret = pShader->render(dynamicBuffer.pBufferGL, renderizableOwner);
+        device->clearRenderMaterial();
+        return ret;
+    }
     
     /*const bool drawSubset(    const uint32_t          indexFrame,
                                     std::vector<uint32_t>   &lsIndexSubset,
@@ -6236,6 +10277,28 @@ namespace mbm
         impl->infoAnimation.lsHeaderAnim = std::move(in.infoAnimation.lsHeaderAnim);
         impl->articulatedParts = std::move(in.articulatedParts);
         impl->articulatedClips = std::move(in.articulatedClips);
+        impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
+        impl->canonicalWeights = std::move(in.canonicalWeights);
+        impl->canonicalAnimations = std::move(in.canonicalAnimations);
+        if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0)
+        {
+            const skeletal::SKINNING_CAPABILITY capability =
+                skeletal::getMeasuredSkinningCapability();
+            const skeletal::GPU_SKINNING_PREPARATION_STATUS status = skeletal::prepareGpuSkinningInput(
+                impl->canonicalSkeleton, impl->canonicalWeights, capability, impl->gpuSkinningInput);
+            const uint64_t lbsPaletteBytes =
+                static_cast<uint64_t>(impl->gpuSkinningInput.requiredBoneCount) * 3u * 4u * sizeof(float);
+            const uint64_t dqsPaletteBytes =
+                static_cast<uint64_t>(impl->gpuSkinningInput.requiredBoneCount) * 2u * 4u * sizeof(float);
+            INFO_LOG("GPU skeletal input: status=%s vertices=%u lbs-bones=%u/%u "
+                     "lbs-palette-bytes=%llu dqs-bones=%u/%u dqs-palette-bytes=%llu [%s]",
+                     skeletal::gpuSkinningPreparationStatusName(status),
+                     static_cast<uint32_t>(impl->gpuSkinningInput.vertices.size()),
+                     impl->gpuSkinningInput.requiredBoneCount, impl->gpuSkinningInput.lbsBoneCapacity,
+                     static_cast<unsigned long long>(lbsPaletteBytes),
+                     impl->gpuSkinningInput.requiredBoneCount, impl->gpuSkinningInput.dqsBoneCapacity,
+                     static_cast<unsigned long long>(dqsPaletteBytes), fileNamePath);
+        }
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;
 
@@ -6288,6 +10351,27 @@ namespace mbm
             impl->buffer[currentFrame].pBufferGL = new BUFFER_GL();
             const bool hasIndex                  = frame.indexCount > 0;
             bool       loadOk                    = false;
+            if (impl->canonicalWeights.skeletonId != 0 &&
+                currentFrame == impl->canonicalWeights.frameIndex)
+            {
+                impl->skeletalBindFrameIndex = currentFrame;
+                impl->skeletalBindHasNormals = frame.hasNormal;
+                impl->skeletalBindHasUvs = frame.uv != nullptr;
+                impl->skeletalBindHasIndices = hasIndex;
+                impl->skeletalBindPositions.assign(frame.position.get(),
+                    frame.position.get() + frame.vertexCount);
+                impl->skeletalBindNormals.clear();
+                if (frame.hasNormal && frame.normal)
+                    impl->skeletalBindNormals.assign(frame.normal.get(),
+                        frame.normal.get() + frame.vertexCount);
+                impl->skeletalBindUvs.clear();
+                if (frame.uv)
+                    impl->skeletalBindUvs.assign(frame.uv.get(), frame.uv.get() + frame.vertexCount);
+                impl->skeletalBindIndices.clear();
+                if (hasIndex)
+                    impl->skeletalBindIndices.assign(frame.index.get(),
+                        frame.index.get() + frame.indexCount);
+            }
             if (hasIndex)
             {
                 auto indexStartSubset = new int[totalSubset];
@@ -6321,6 +10405,12 @@ namespace mbm
             }
             if (!loadOk)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
+
+            if (currentFrame == 0 && impl->gpuSkinningInput.ready() &&
+                !skeletal::uploadSkinVertexStream(impl->buffer[currentFrame].pBufferGL,
+                                                  impl->gpuSkinningInput))
+                return log_util::onFailed(nullptr, __FILE__, __LINE__,
+                                          "failed to upload GPU skinning vertex stream [%s]", fileNamePath);
 
             const std::vector<TEXTURE *>::size_type totalIdTexture =
                 (impl->buffer[currentFrame].pBufferGL->totalSubset > lsIdTexture.size())

@@ -44,6 +44,7 @@ namespace mbm
         bool        alwaysRenderize;
         bool        enableRender;
         bool        alwaysOnTop;
+        int         alwaysOnTopPriority;
         void *      userData;
         RENDER_STATE blend;
         VEC3        position;
@@ -69,6 +70,7 @@ namespace mbm
             alwaysRenderize(false),
             enableRender(true),
             alwaysOnTop(false),
+            alwaysOnTopPriority(0),
             userData(nullptr),
             position(0, 0, 0),
             scale(1, 1, 1),
@@ -321,6 +323,16 @@ namespace mbm
     void RENDERIZABLE::setAlwaysOnTop(const bool enabled) noexcept
     {
         this->impl->alwaysOnTop = enabled;
+    }
+
+    int RENDERIZABLE::getAlwaysOnTopPriority() const noexcept
+    {
+        return this->impl->alwaysOnTopPriority;
+    }
+
+    void RENDERIZABLE::setAlwaysOnTopPriority(const int priority) noexcept
+    {
+        this->impl->alwaysOnTopPriority = priority;
     }
 
     void * RENDERIZABLE::getUserData() const noexcept

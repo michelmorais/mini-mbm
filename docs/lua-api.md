@@ -471,7 +471,13 @@ obj.az  = 3.14     -- angle Z (radians)
 
 obj.visible      = false  -- hide the object (default true)
 obj.alwaysRender = true   -- render even when off-screen / outside frustum
+obj.alwaysOnTop = true    -- render in the category's overlay sub-pass
+obj.alwaysOnTopPriority = 1 -- higher populated layers appear above lower ones (default 0)
 ```
+
+`alwaysOnTopPriority` only affects objects whose `alwaysOnTop` property is true. Priorities render
+in ascending order, with depth cleared between populated layers. Objects at the same priority retain
+ordinary depth behavior against each other. The property does not affect render-to-texture captures.
 
 ### 6.3 Size & Bounds
 
@@ -535,7 +541,7 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
 | `obj:restartAnim` | `()` | — | Restart animation from frame 1 |
 | `obj:isEndedAnim` | `()` | bool | Whether a non-looping animation has finished |
-| `obj:onEndAnim` | `(callback)` | — | Call `callback(obj, animationName)` once when a non-looping frame animation or articulated clip ends |
+| `obj:onEndAnim` | `(callback)` | — | Call `callback(obj, animationName)` once when a non-looping frame, articulated, skeletal base, or skeletal layer clip ends through normal playback. Looping clips, pause, and an isolated seek do not emit completion. |
 | `obj:onEndFx` | `(callback)` | — | Call `callback()` when shader effect ends |
 | `obj:setTypeAnim` | `(type: int)` | — | Set animation loop type using `mbm.*` constants |
 | `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
@@ -565,6 +571,120 @@ composition, authoring, playback lifecycle, and examples.
 | `obj:disableArticulatedAnimation` | `(name)` | bool | Remove an active clip from pose composition |
 | `obj:seekArticulatedAnimation` | `(name, time)` | bool | Move an active clip's playback position to the specified time, clamped to `0..duration` |
 | `obj:getArticulatedAnimationTime` | `(name)` | number or nil | Current time for an active clip, or `nil` when it is inactive/unknown |
+
+#### Canonical skeletal playback (`mesh`, GPU/CPU LBS/DQS profile)
+
+These methods control type-43 skeletal clips on a loaded canonical type-41/42/43 `.msh`. Playback
+state and the evaluated GPU palette belong to the individual `mesh` instance even when several
+objects share the same cached asset and shader program. The surface supports one base clip plus one
+optional transient layer in explicit Absolute or bind-relative Additive mode. Each clip has independent time and authored loop/clamp behavior;
+global pause/resume freezes both, while the layer also has an independent pause. Local TRS poses are composed before one final LBS/DQS palette,
+and the layer is never serialized into the mesh asset. Choose `"lbs"` (the engine default),
+rigid `"dqs"`, or `"auto"` before `load`. Auto resolves once to DQS only when bind and every clip
+contain unit scale; otherwise it resolves to LBS. Changing method after load returns `false`, because
+the resolved method is part of the compiled default-shader variant. The Absolute layer supports a
+linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
+and fade. Per-bone masks, completion callbacks, and Metal are delivered; transition curves/queues
+and priorities remain future work. OpenGL ES, DirectX9, and Metal provide the current GPU paths.
+The default requested execution policy is `"auto"`, which prefers GPU and resolves once at load to
+CPU only when the loaded mesh's
+resolved LBS or rigid DQS method cannot fit the GPU path and the CPU path is ready. Execution auto
+does not change the LBS/DQS method. Explicit `"gpu"` is mandatory GPU with no fallback, and explicit
+`"cpu"` is mandatory CPU. The CPU path supports resolved LBS and rigid DQS through the same
+immutable bind-geometry to per-instance dynamic-buffer path. If neither GPU nor CPU can support the
+resolved method, the report keeps a GPU resolved path with an unavailable status/reason rather than
+changing method. LBS compact normals
+reject negative scale, shear, or non-uniform scale; rigid DQS rejects any scale/shear instead of
+silently switching to LBS.
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `obj:getTotalSkeletalAnimations` | `()` | int | Number of canonical skeletal clips |
+| `obj:getSkeletalAnimationName` | `(index: int)` | string or nil | Name of the 1-based clip |
+| `obj:getSkeletalAnimationDuration` | `(index: int)` | number or nil | Duration in seconds of the 1-based clip |
+| `obj:setSkeletalSkinningMethod` | `(method: "auto"|"lbs"|"dqs")` | bool | Select requested policy before `load`; returns `false` after the mesh is loaded |
+| `obj:getSkeletalSkinningMethod` | `()` | string | Requested method/policy |
+| `obj:getResolvedSkeletalSkinningMethod` | `()` | string | Actual compiled method (`"lbs"` or `"dqs"`), or `"unresolved"` before an Auto mesh is loaded |
+| `obj:setSkeletalExecutionPath` | `(path: "gpu"|"cpu"|"auto")` | bool | Select requested execution policy before `load`; default is `"auto"` |
+| `obj:getSkeletalExecutionPath` | `()` | string | Requested execution policy: `"gpu"`, `"cpu"`, or `"auto"` |
+| `obj:getResolvedSkeletalExecutionPath` | `()` | string | Actual immutable execution path after load: `"gpu"` or `"cpu"` |
+| `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, resolved-method maximum bones per draw, legacy `executionPath`, `requestedExecutionPath`, `resolvedExecutionPath`, `executionStatus`, and `executionReason`. Before load, default reports `requestedExecutionPath = "auto"`, provisional `resolvedExecutionPath = "gpu"`, `executionStatus = "not-loaded"`, and `executionReason = "not-loaded"`. After load, `executionPath` is always the actual resolved `"gpu"` or `"cpu"` path |
+| `obj:playSkeletalAnimation` | `(name)` | bool | Start or restart one clip at time zero |
+| `obj:crossFadeSkeletalAnimation` | `(name, duration)` | bool | Linearly transition from the active base pose to `name` starting at target time zero, then promote the target to the sole base clip. Duration must be finite and non-negative; zero is immediate play. A positive transition replaces any ordinary transient layer and uses an unmasked Absolute blend; requesting another cross-fade before promotion returns `false`. |
+| `obj:pauseSkeletalAnimation` | `()` | bool | Freeze the active clip and palette |
+| `obj:resumeSkeletalAnimation` | `()` | bool | Resume the active clip |
+| `obj:stopSkeletalAnimation` | `()` | bool | Stop the active clip and restore bind-pose deformation |
+| `obj:seekSkeletalAnimation` | `(time)` | bool | Seek the active clip, clamped to its duration |
+| `obj:getSkeletalAnimationTime` | `()` | number or nil | Current time, or `nil` when inactive |
+| `obj:setSkeletalAnimationPlaybackSpeed` | `(speed)` | bool | Set a finite non-negative per-instance multiplier shared by base clip, Absolute layer, and fade; `0` freezes temporal progress without changing pause state |
+| `obj:getSkeletalAnimationPlaybackSpeed` | `()` | number | Current multiplier; defaults to `1` |
+| `obj:playSkeletalAnimationAbsoluteLayer` | `(name, weight)` | bool | Start or replace the transient second clip at time zero with strict Absolute weight `0..1`; requires an active base clip |
+| `obj:playSkeletalAnimationAdditiveLayer` | `(name, weight)` | bool | Start or replace the transient second clip in bind-relative Additive local-TRS mode with strict weight `0..1`; requires an active base clip |
+| `obj:pauseSkeletalAnimationLayer` | `()` | bool | Freeze only the active layer's clip time and fade while the base may continue |
+| `obj:resumeSkeletalAnimationLayer` | `()` | bool | Resume independently paused layer time and fade |
+| `obj:isSkeletalAnimationLayerPaused` | `()` | bool | Whether an active layer is independently paused |
+| `obj:stopSkeletalAnimationAbsoluteLayer` | `()` | bool | Remove the transient Absolute or Additive layer while preserving the base clip; the historical method name is shared by both modes |
+| `obj:seekSkeletalAnimationAbsoluteLayer` | `(time)` | bool | Seek the active Absolute or Additive layer independently, clamped to its clip duration |
+| `obj:setSkeletalAnimationAbsoluteLayerWeight` | `(weight)` | bool | Change the active Absolute or Additive layer's strict weight `0..1` |
+| `obj:fadeSkeletalAnimationAbsoluteLayer` | `(targetWeight, duration)` | bool | Linearly animate the active Absolute or Additive layer from its current weight to a strict target `0..1`; duration must be non-negative, pause freezes progress, and reaching zero removes the layer |
+| `obj:getSkeletalAnimationAbsoluteLayerWeight` | `()` | number or nil | Current evaluated Absolute or Additive layer weight, or `nil` when no layer is active |
+| `obj:getSkeletalAnimationAbsoluteLayerTime` | `()` | number or nil | Current independent Absolute or Additive layer time, or `nil` when no layer is active |
+| `obj:setSkeletalAnimationLayerBoneWeight` | `(boneId, weight)` | bool | Set one active layer-mask multiplier using a nonzero hexadecimal stable bone ID and strict weight `0..1`; `1` restores the compatibility default |
+| `obj:setSkeletalAnimationLayerBoneWeights` | `(edits)` | bool | Atomically apply a nonempty array of `{boneId=hexString, weight=number}` edits; IDs must be unique and valid and every weight must be in `0..1`, otherwise the complete batch is rejected unchanged |
+| `obj:getSkeletalAnimationLayerBoneWeight` | `(boneId)` | number or nil | Get one active layer-mask multiplier; returns `1` for an unmasked valid bone and no value when the layer or identity is invalid |
+| `obj:clearSkeletalAnimationLayerMask` | `()` | bool | Atomically restore every active layer-mask multiplier to the all-ones compatibility default |
+| `obj:getSkeletalAnimationPose` | `()` | table or nil | Copy the active player's final evaluated global pose as ordered `{boneId, parentIndex, globalMatrix}` records; `parentIndex` is one-based with `0` for a root, and inactive/authoring-palette players return `nil`. If automatic root motion is enabled, this is the neutralized final pose, not the raw motion pose. |
+| `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, angle={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; `angle` is Euler XYZ in radians for `setAngle`, while `rotation` preserves the normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. If automatic root motion is enabled, this reads the neutralized final pose. |
+| `obj:getSkeletalRootMotionDelta` | `(boneName, space?)` | table or nil | Copy the named bone's raw translation delta between the two latest continuous evaluated poses as `{boneId, space, translation={x,y,z}}`. Space is `"model"` by default or `"world"`, where the current mesh rotation/scale is applied. Returns `nil` before the first advancing update and after pause, seek, direct play/stop, authoring-pose installation, or a loop wrap. The query does not consume the delta and continues to report the raw selected-bone delta even when automatic root motion is enabled. |
+| `obj:getSkeletalSharingCompatibility` | `(otherMesh)` | table | Read-only preflight for evaluated-pose/palette sharing between two loaded meshes. Returns `{compatible:boolean, reason:string, boneCount:int}` plus mismatch fields such as `boneIndex`, `boneName`, `boneId`, `otherBoneId`, parent IDs/indices, `observedError`, and `tolerance` when applicable. Strict compatibility requires both meshes to have canonical skeletons, equal bone count, exact ordered stable bone IDs and names, equal parent indices and parent IDs, and equivalent local/global bind matrices within the engine's scale-aware skeletal matrix tolerance. Clips, weights, geometry, and `skeletonId` do not need to match. Reason codes are `compatible`, `missing_skeleton`, `bone_count_mismatch`, `bone_identity_mismatch`, `hierarchy_mismatch`, and `bind_transform_mismatch`. |
+| `obj:enableSkeletalPoseSharing` | `(sourceMesh)` | bool | Make this loaded mesh a direct follower of another loaded compatible mesh. The follower keeps its own geometry, textures, render transform, and skin weights, but its skeletal draw uses the source mesh's already-evaluated per-instance palette. The call rejects self, unloaded source/follower, incompatible skeletons, follower chains, and converting a source that already has followers into a follower, without changing the existing sharing state. It does not start animation on the source and it does not copy palette data. |
+| `obj:disableSkeletalPoseSharing` | `()` | bool | Disable follower pose sharing. Returns `true`; it is valid to call when already disabled. |
+| `obj:getSkeletalPoseSharing` | `()` | table | Returns `{enabled:boolean, active:boolean, reason:string, sourceFile:string?}`. `enabled` means a source link exists. `active` means the source is still loaded, still compatible, has the same resolved skinning method, has the same skeletal execution path, and currently has an active evaluated pose/palette. Reasons are `disabled`, `not_loaded`, `source_not_loaded`, `skinning_method_mismatch`, `execution_path_mismatch`, `source_pose_inactive`, `active`, or a compatibility reason if the relationship became invalid. Source or follower reload/release/destruction clears the link to avoid dangling pointers. When enabled but inactive, the follower renders without shared skeletal deformation rather than CPU-deforming vertices. |
+| `obj:enableAutomaticSkeletalRootMotion` | `(boneName, applyRotation?)` | bool | Enable per-instance automatic root motion for a loaded mesh and valid canonical bone name. Each continuous advancing update applies that bone's raw translation delta to the mesh position in world space, then neutralizes that bone's local translation in the final evaluated/rendered pose so the motion is not doubled. When `applyRotation` is true, the same continuous update also applies the raw normalized-quaternion rotational delta to the mesh angle and neutralizes the selected bone's local rotation to bind in the final pose. The default/false path is translation-only for compatibility. Discontinuities invalidate history instead of moving or rotating the mesh. |
+| `obj:disableAutomaticSkeletalRootMotion` | `()` | bool | Disable automatic root motion and invalidate the root-motion delta history for this instance |
+| `obj:getAutomaticSkeletalRootMotionBone` | `()` | table or nil | Return `{name, boneId, applyRotation}` for the currently enabled automatic root-motion bone, or `nil` when disabled |
+| `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
+
+```lua
+local character = mesh:new("3d")
+assert(character:setSkeletalSkinningMethod("auto"))
+assert(character:setSkeletalExecutionPath("auto"))
+assert(character:load("character-walk.msh"))
+local report = character:getSkeletalSkinningReport()
+print(report.requestedMethod, report.resolvedMethod, report.resolutionReason,
+      report.requestedExecutionPath, report.resolvedExecutionPath, report.executionReason)
+assert(character:playSkeletalAnimation("Walk"))
+assert(character:enableAutomaticSkeletalRootMotion("mixamorig:Hips"))
+assert(character:crossFadeSkeletalAnimation("Run", 0.25))
+assert(character:setSkeletalAnimationPlaybackSpeed(0.5))
+assert(character:playSkeletalAnimationAbsoluteLayer("LookAround", 0.35))
+-- To use bind-relative deltas instead:
+-- assert(character:playSkeletalAnimationAdditiveLayer("LookAround", 0.35))
+character:seekSkeletalAnimationAbsoluteLayer(0.2)
+character:setSkeletalAnimationAbsoluteLayerWeight(0.5)
+character:fadeSkeletalAnimationAbsoluteLayer(1.0, 0.25)
+character:pauseSkeletalAnimationLayer()
+character:resumeSkeletalAnimationLayer()
+character:seekSkeletalAnimation(0.5)
+character:pauseSkeletalAnimation()
+character:resumeSkeletalAnimation()
+character:stopSkeletalAnimationAbsoluteLayer()
+
+-- Read the final hand pose each frame for an attachment such as a sword.
+local hand = character:getSkeletalBoneTransform("mixamorig:RightHand", "world")
+if hand then
+    sword:setPos(hand.position.x, hand.position.y, hand.position.z)
+    sword:setAngle(hand.angle.x, hand.angle.y, hand.angle.z)
+    -- hand.rotation preserves quaternion XYZW; hand.matrix preserves the complete transform.
+end
+
+-- Raw root-motion deltas remain available as a non-consuming query, even when automatic
+-- root motion is enabled.
+local rootDelta = character:getSkeletalRootMotionDelta("mixamorig:Hips", "world")
+if rootDelta then
+    print(rootDelta.translation.x, rootDelta.translation.y, rootDelta.translation.z)
+end
+```
 
 ### 6.7 Depth / Ordering
 
@@ -744,6 +864,10 @@ sh:createIndexed(vertices, indices, uvs, normals?)
 sh:createDynamicIndexed(vertices, indices, uvs)  -- updatable each frame
 sh:onRender(callback)  -- callback(sh) called every frame for dynamic update
 ```
+
+Indexed shapes use 16-bit vertex indices and therefore support at most 65,535 distinct vertices,
+but the triangle index list itself may contain more than 65,535 entries. The Lua binding validates
+that complete list with a 32-bit loop counter; large triangle collections do not wrap the validator.
 
 **Pitfall: `nickName` is a shared cache key, not a per-instance label or a "reload guard."** Every
 `create*` variant above ultimately resolves its geometry through the engine's mesh manager, keyed
@@ -1204,18 +1328,414 @@ with its predecessor, or `false` for the first subset or an invalid index. Artic
 occurrences are remapped automatically, so their stable IDs, tracks, pivots, and parent-child
 relationships remain attached to the same geometry.
 
-### Geometry scaling and the global skeleton
+### Geometry scaling
 
 ```lua
-meshD:scaleFrame(frame, sx, sy, sz [, subset [, scaleSkeleton]])
+meshD:scaleFrame(frame, sx, sy, sz [, subset])
 ```
 
-`frame=0` and `subset=0` mean all frames/subsets. Existing calls omit `scaleSkeleton` and modify
-geometry only. Passing `true` also bakes the mesh-wide skeleton into the scaled coordinate space,
-but only for all frames, all subsets, and a positive uniform scale (`sx == sy == sz`). Invalid
-skeleton-synchronization requests raise a Lua error before changing geometry. A synchronized bake
-scales bone position, radius, and length while intentionally preserving each bone's local
-`scaleX/Y/Z`; partial geometry transforms leave the one global skeleton unchanged.
+`frame=0` and `subset=0` mean all frames/subsets. The operation modifies geometry only. It never
+mutates the canonical bind skeleton; changing bind transforms requires an explicit canonical
+skeleton-authoring operation rather than an implicit side effect of vertex scaling.
+
+For a coordinate-unit change of a complete skeletal asset, use:
+
+```lua
+meshD:scaleSkeletalAsset(scale)
+```
+
+`scale` must be finite and greater than zero. The call transactionally scales every geometry
+frame, canonical bind-local translations, bone radius/length metadata, translation values in every
+skeletal clip key, and physics bounds; it recompiles inverse bind and validates skeleton/clips
+before committing. Weights, rotations, normals, and local scale channels are unchanged. Failure
+raises a Lua error without partially modifying the asset. Mesh Debug selects this operation
+automatically when its Transform node applies a positive uniform scale to all frames and subsets of
+a canonical skeletal mesh. Partial transforms remain geometry-only; negative or non-uniform
+whole-asset skeletal scaling is rejected.
+
+### Bind-pose diagnostics
+
+```lua
+local report = meshD:getSkeletonBindReport(includeDependencyImpact)
+```
+
+This read-only call inspects canonical section 41 directly. An asset without section 41 has no
+skeletal bind report; there is no exploratory-skeleton compatibility fallback.
+It returns a table with `canonical`, `valid`, `boneCount`, `diagnosticCount`, `animationClipCount`,
+`maximumReconstructionError`, `maximumBindIdentityError`, `bones`, and `diagnostics`. Each compiled
+bone contains its one-based `sourceIndex`, `name`, stable `boneId`/`parentBoneId` as 16-digit hex
+strings, one-based `parentIndex` (`0` for a root), local translation/quaternion/scale, row-major
+16-number `localBindMatrix`, `globalBindMatrix`, and `inverseGlobalBindMatrix`, plus
+`hasNegativeScale` and `hasShear`. IDs are strings because Lua numbers cannot preserve every
+`uint64` value exactly. Canonical bone entries also expose authoring metadata `radius`,
+`length`, bone-local `tailOffset={x,y,z}`, and `hasExplicitTail`; false means that the transform
+joint has no selectable bone segment. Version-1 assets also load in this state. The boolean
+`connectedToParent` separately preserves the authoring constraint between this head and
+the parent tail; it is not inferred merely from hierarchy or coincident positions.
+Removal-impact fields are `childCount`, `weightPaletteReferenced`, `weightedVertexCount`, and
+`animationTrackCount`.
+Diagnostics contain `code`, one-based `sourceIndex`, `boneName`,
+`observedError`, and `fatal`.
+`includeDependencyImpact` defaults to true. Passing false leaves the weight/track impact fields at
+zero/false and avoids their vertex scans, intended for high-frequency geometric editor previews;
+it does not omit transforms, matrices, hierarchy, tails, or diagnostics.
+
+The call never edits the skeleton and the report is a detached Lua snapshot. Mesh Debug and the
+Skeletal Animation Editor use it for canonical bind inspection. The exploratory bone and
+name-palette weight methods are no longer registered in Lua; only the canonical skeletal surface
+is available.
+
+```lua
+meshD:renameSkeletalBone(oneBasedBoneIndex, newName)
+```
+
+The new name must be nonempty and unique. The operation copies and recompiles section 41, then
+validates existing type-42 weights and type-43 animations before committing. Bone identity remains
+its stable `boneId`, so weight palette references and animation-track targets survive rename and
+save/reload without remapping. Failure raises a Lua error and preserves the previous skeleton.
+
+```lua
+meshD:reparentSkeletalBone(oneBasedBoneIndex, newParentIndex, preserveGlobalBind)
+```
+
+`newParentIndex=0` makes the bone a root; positive values are one-based bone indices.
+`preserveGlobalBind` defaults to `true`, deriving a new local TRS so the selected bone does not jump.
+Passing `false` preserves local TRS and lets its subtree move. Self-parenting, descendant cycles,
+non-invertible parents, and preserve-global results requiring shear are rejected. The candidate is
+stably reordered parent-first and sections 41–43 are revalidated before commit.
+
+```lua
+meshD:setSkeletalBoneBind(oneBasedBoneIndex,
+    tx, ty, tz, qx, qy, qz, qw, sx, sy, sz, radius, length)
+```
+
+Replaces the selected bone's parent-relative canonical bind TRS and authoring radius/length.
+The quaternion is normalized before storage. Quaternion zero, singular scale, non-finite values,
+negative radius/length, or a candidate that fails complete section 41–43 validation raises a Lua
+error without mutation. Bone and skeleton IDs remain unchanged. The operation deliberately moves
+the edited bone and its descendants; it does not compensate child-local transforms. Moving the
+head away from a parent tail clears `connectedToParent` rather than preserving a false constraint.
+
+```lua
+meshD:setSkeletalBoneTail(oneBasedBoneIndex, tailX, tailY, tailZ,
+    hasExplicitTail, preserveOtherJoints)
+```
+
+Replaces the Bone Editor endpoint in bone-local bind space. `hasExplicitTail` defaults to true;
+an explicit tail must differ from the head. Length metadata is recomputed, and every direct child
+marked `connectedToParent` receives the same parent-local head translation atomically. When
+`preserveOtherJoints` is omitted or true, the remaining joints are compensated so their global
+bind transforms do not move; false retains ordinary hierarchical propagation. Bind orientation is
+deliberately not inferred from this authoring geometry.
+
+```lua
+meshD:setSkeletalBoneHead(oneBasedBoneIndex, tx, ty, tz, preserveOtherJoints)
+```
+
+Moves the head using a parent-local translation while preserving an explicit tail in global bind
+space. The operation clears this bone's own `connectedToParent` constraint; children connected to
+its preserved tail remain attached. `preserveOtherJoints` defaults to true and compensates every
+other joint in global bind space; false lets descendants follow their hierarchy. This is the
+bind-authoring primitive used by direct head drag.
+
+```lua
+meshD:translateSkeletalBoneSegment(oneBasedBoneIndex, tx, ty, tz, preserveOtherJoints)
+```
+
+Moves an explicit bone segment to a new parent-local head translation while retaining its
+bone-local tail, so both endpoints receive the same rigid displacement. Connected child heads
+follow the moved tail. `preserveOtherJoints` defaults to true and compensates every joint outside
+the manipulated segment/shared endpoint; false lets the descendant hierarchy follow normally.
+
+```lua
+meshD:setSkeletalBoneConnectedToParent(oneBasedBoneIndex, connected,
+    preserveOtherJoints)
+```
+
+Explicitly connects or disconnects the bone head relative to its current parent. Disconnecting only
+clears the constraint and moves nothing. Connecting requires an explicit parent tail, moves the head
+to that tail, preserves the edited segment's global tail, and defaults to compensating every other
+joint globally. This operation does not change hierarchy; reparenting remains a separate contract.
+
+```lua
+meshD:setSkeletalBoneRadius(oneBasedBoneIndex, radius, includeDescendants)
+```
+
+Atomically sets a finite positive authoring/picking radius on the selected bone. When
+`includeDescendants` is true, every member of its descendant subtree receives the same value while
+ancestors and other branches remain unchanged. Radius is visual/editor metadata and does not alter
+canonical vertex weights.
+
+```lua
+local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length,
+    hasExplicitTail, connectedToParent)
+```
+
+Adds one canonical bone. `parentIndex=0` creates a root; positive values select a one-based existing
+parent. The returned index is one-based. The bone receives a new opaque nonzero stable ID, identity
+rotation/scale, and the supplied parent-relative translation and nonnegative radius/length. Empty or
+duplicate names, invalid parents, non-finite input, or a candidate that fails section 41–43 validation
+raises a Lua error without mutation. Existing weight palettes and animation tracks are unchanged.
+Both booleans are optional: `hasExplicitTail` defaults to true and `connectedToParent` to false.
+
+```lua
+local lastBoneIndex = meshD:addSkeletalBoneChain(parentIndex, namePrefix, count,
+    stepX, stepY, stepZ, radius, length)
+```
+
+Atomically appends between 1 and 256 linked canonical bones to root (`parentIndex=0`) or an existing
+one-based parent. Names are generated as `namePrefix1` through `namePrefixN`; each bone is parent of
+the next and receives the same parent-relative translation step, identity rotation/scale, metadata,
+and a new opaque stable ID. The returned one-based index identifies the last bone. Any duplicate
+generated name, invalid input, ID exhaustion, or failed 41–43 validation rejects the entire chain.
+
+```lua
+local lastBoneIndex = meshD:extendSkeletalBoneTail(oneBasedBoneIndex, count, radius, length)
+```
+
+Atomically adds between 1 and 256 explicitly connected segments from the selected tail. The first
+head uses the selected bone's exact tail; every new segment continues that tail's bone-local
+direction with the requested length. Collision-free `Bone_N` labels and stable IDs are allocated,
+and any validation failure rejects the complete extension rather than leaving a partial chain.
+
+```lua
+local mirroredRootIndex = meshD:mirrorSkeletalBoneSubtree(oneBasedBoneIndex,
+    axis, namePrefix)
+```
+
+Atomically duplicates the selected bone and all descendants. `axis` is `1` for global X, `2` for Y,
+or `3` for Z. Each global bind matrix is reflected across that origin plane by full matrix
+conjugation; local TRS is then derived against the original external parent or newly mirrored parent.
+Names become `namePrefix .. originalName`, metadata/hierarchy are copied, and every duplicate gets a
+new stable ID. Existing weights remain unchanged, so mirrored bones begin without influences. The
+first implementation rejects assets with canonical clips, duplicate names, singular parents, shear,
+or failed dependency validation. The returned one-based index selects the mirrored subtree root.
+
+```lua
+meshD:initializeSkeletalSkeleton(rootName, tx, ty, tz, radius, length)
+```
+
+Creates canonical section 41 with one root bone on a loaded mesh that has no skeleton, weights, or
+skeletal animations. The new skeleton and root receive stable nonzero IDs, identity rotation/scale,
+and the supplied translation and nonnegative metadata. It deliberately does not create section 42
+weights or section 43 clips. Existing skeletal data, an unloaded mesh, invalid values, or an empty
+name reject without mutation.
+
+```lua
+meshD:removeSkeletalBone(oneBasedBoneIndex)
+```
+
+Strictly removes one unreferenced leaf while retaining at least one skeleton bone. Removal is
+rejected if the bone has children, appears in the canonical weight palette, or is targeted by any
+animation track. It never reparents descendants, rewrites palettes, redistributes weights, or
+deletes tracks implicitly. The remaining section 41–43 candidate validates before commit; failure
+raises a Lua error without mutation.
+
+```lua
+local pose = meshD:evaluateSkeletalAuthoringPose(clipIndex, time, method)
+-- Optional final arguments override one sampled bone in local space:
+-- boneIndex, tx,ty,tz, qx,qy,qz,qw, sx,sy,sz
+```
+
+Evaluates the current unsaved canonical clip state with `method` equal to `"lbs"` or `"dqs"`.
+The detached result contains `bones` with local TRS and evaluated global matrices, the packed
+`palette`, and `boneIds` in exact palette order. Pass all three relevant values to
+`mesh:setSkeletalAuthoringPalette(method, pose.palette, time, pose.boneIds)`. The optional one-bone override is applied
+after sampling and before hierarchy/global reconstruction. This is an editor-preview bridge; it
+does not mutate keys or persist a pose. `boneIds` use the canonical 16-digit hexadecimal string
+representation; converting them to 32-bit numbers destroys stable identity.
+
+```lua
+local created = meshD:commitSkeletalAuthoringKey(clipIndex, boneIndex, time, channelMask,
+    tx,ty,tz, qx,qy,qz,qw, sx,sy,sz)
+meshD:commitSkeletalAuthoringPose(clipIndex, time, {
+    {hexBoneId, tx,ty,tz, qx,qy,qz,qw, sx,sy,sz},
+    ...
+})
+```
+
+Atomically commits an evaluated local pose to the selected canonical clip/bone. It creates the
+bone track when absent, unions the requested T/R/S `channelMask`, and creates or updates the key at
+`time`; `created` distinguishes insertion from update. The complete candidate animation validates
+before replacement, so failure cannot leave a track or channel half-created.
+
+`commitSkeletalAuthoringPose` is the complete-pose batch equivalent. Its detached input must contain
+exactly one local TRS for every stable bone ID in the destination skeleton. It creates missing
+tracks with T+R+S, unions T+R+S into existing tracks, and creates or updates one key per bone at
+`time`. Duplicate, missing, or unknown identities, invalid transforms, and an out-of-range time
+raise a Lua error without committing any bone. It returns `true` after one complete validation and
+atomic replacement.
+
+```lua
+meshD:removeSkeletalBoneRemapped(oneBasedBoneIndex, replacementBoneIndex,
+    discardAnimationTracks, reparentChildrenPreserveGlobal)
+```
+
+Removes a leaf while explicitly transferring its weight-palette reference to a different existing
+bone. If both bones influence a vertex, their weights are summed and duplicate slots are compacted;
+coverage remains normalized. Tracks targeting the removed identity are not retargeted because their
+local transforms have different semantics: they are deleted only when `discardAnimationTracks` is
+`true`, otherwise the operation rejects. With `reparentChildrenPreserveGlobal=true`, direct children
+are moved to the removed bone's parent (or become roots) and receive newly derived local TRS that
+preserves their global bind. For animated assets, each promoted child receives a full-TRS linear
+track baked at time zero, clip end, and the union of authored key times from the child and removed
+bone. Those authored samples preserve global pose; continuous interpolation between them may differ
+from the original composed curves. Skeleton, weights, and animations commit together only after
+complete validation, and a composition requiring shear rejects without mutation.
+
+### Canonical skeletal-weight editing
+
+```lua
+local present = meshD:hasSkeletalVertexWeights()
+local paletteSize = meshD:getTotalSkeletalWeightBones()
+local initializedVertexCount = meshD:initializeSkeletalVertexWeights(oneBasedBoneIndex)
+local removedVertexCount = meshD:removeSkeletalVertexWeights()
+local removedBoneCount, removedWeightedVertexCount, removedClipCount =
+    meshD:removeAllSkeletalData()
+local name1, weight1, name2, weight2, name3, weight3, name4, weight4 =
+    meshD:getSkeletalVertexWeight(vertexIndex)
+meshD:setSkeletalVertexWeightsBatch({
+    {vertexIndex, name1, weight1, name2, weight2, name3, weight3, name4, weight4},
+    ...
+})
+```
+
+These one-based vertex operations read and mutate canonical type-42 weights only. Bone names are
+accepted for editor ergonomics but are resolved immediately through the canonical skeleton and
+persisted as stable `boneId` palette entries. A set requires one to four unique, finite, positive
+influences whose sum is one; unused slots are `nil, 0`. Unknown names, invalid sums, duplicate
+influences, out-of-range vertices, or assets without matching type-41/type-42 sections raise a Lua
+error without modifying the previous vertex. The getter returns eight values, using `nil, 0` for
+unused slots, or a single `nil` for an invalid vertex. These methods never read, create, or update
+the exploratory sections 11/40.
+
+`setSkeletalVertexWeight(vertexIndex, name1, weight1, ..., name4, weight4)` remains registered as a
+deprecated compatibility wrapper. New code should use `setSkeletalVertexWeightsBatch`, including
+for one vertex, so validation and mutation always use the same atomic transaction boundary.
+
+`setSkeletalVertexWeightsBatch` applies one or more unique one-based vertex edits through a single
+detached type-42 candidate. Every row follows the scalar setter's influence contract. The complete
+candidate validates before replacement, so an invalid row, duplicate vertex index, unknown bone,
+or invalid final canonical collection raises a Lua error without applying any row. It returns
+`true` after one atomic commit. This is the backend transaction boundary for a future Paint Weights
+stroke; it does not implement brush math, picking, heatmaps, or Undo by itself.
+
+`initializeSkeletalVertexWeights` is the explicit bootstrap for a locally authored skeleton that
+does not yet have type-42 data. It creates complete frame-zero coverage and rigidly binds every
+vertex to the selected existing bone with weight `1.0`, returning the number of initialized
+vertices. It never guesses geometric influences and never replaces existing weights: an absent
+canonical skeleton, invalid bone index, empty frame-zero geometry, existing type-42 data, or an
+invalid resulting 41/42 contract raises a Lua error without mutation. Subsequent distribution and
+blending belong to Paint Weights.
+
+`removeSkeletalVertexWeights` removes the complete canonical type-42 section and returns its vertex
+count. It preserves the type-41 skeleton and every type-43 animation clip, allowing weights to be
+initialized again deliberately. An asset without canonical weights raises a Lua error without
+mutation.
+
+`removeAllSkeletalData` atomically removes the canonical skeleton, weights, and animation sections
+41-43 and returns their bone, weighted-vertex, and clip counts. Clips cannot survive without the
+skeleton identity they target. An asset without a canonical skeleton raises a Lua error without
+mutation.
+
+### Canonical skeletal-animation inspection
+
+```lua
+local clips = meshD:getSkeletalAnimationReport()
+```
+
+Returns a read-only snapshot of canonical type-43 data. Each clip contains hexadecimal `clipId`,
+`name`, `duration`, `loop`, and `tracks`. Each track contains hexadecimal `boneId`, one-based
+`boneIndex`, resolved `boneName`, numeric `channelMask` (`1` translation, `2` rotation, `4` scale),
+and `keys`. Every key exposes `time`, local `translation`, quaternion `rotation`, local `scale`,
+numeric `easing` (`0..5`), and the four normalized Cubic-Bezier control values in `bezier`.
+The returned tables are detached copies for editor inspection; modifying them does not mutate the
+mesh. An asset without type-43 clips returns an empty table.
+
+```lua
+local oneBasedClipIndex = meshD:addSkeletalClip(name, duration, loop)
+meshD:updateSkeletalClip(oneBasedClipIndex, name, duration, loop)
+meshD:removeSkeletalClip(oneBasedClipIndex)
+```
+
+These methods transactionally author the canonical clip container without editing tracks or keys.
+Creation requires a canonical skeleton, allocates a new nonzero opaque `clipId`, and rejects empty
+or duplicate names and non-finite/negative durations. Update preserves the stable ID and rejects a
+duration that would place any existing key beyond the clip end. Removal deletes the selected clip
+and all of its tracks/keys; removing the final clip clears type-43 storage entirely. Each operation
+validates the complete canonical animation collection before commit and raises a Lua error without
+mutation on failure.
+
+```lua
+local oneBasedTrackIndex = meshD:addSkeletalTrack(
+    oneBasedClipIndex, oneBasedBoneIndex, channelMask)
+meshD:updateSkeletalTrackChannels(oneBasedClipIndex, oneBasedTrackIndex, channelMask)
+meshD:removeSkeletalTrack(oneBasedClipIndex, oneBasedTrackIndex)
+```
+
+Track authoring uses stable bone identity internally; one-based bone indices are resolved only at
+the API boundary. `channelMask` must contain at least one of translation `1`, rotation `2`, or scale
+`4`, and a clip may contain at most one track per bone. Because canonical type-43 forbids empty
+tracks, creation inserts one key at time zero initialized from that bone's local bind TRS. Updating
+the mask preserves all stored key values and revalidates them under the newly enabled channels.
+Removal deletes the selected track and all its keys. All operations validate and commit atomically.
+
+```lua
+local oneBasedKeyIndex = meshD:addSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, time)
+meshD:updateSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, oneBasedKeyIndex,
+    time, tx, ty, tz, qx, qy, qz, qw, sx, sy, sz,
+    easing, bezierX1, bezierY1, bezierX2, bezierY2)
+meshD:removeSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, oneBasedKeyIndex)
+meshD:moveSkeletalKeys(oneBasedClipIndex,
+    {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
+meshD:duplicateSkeletalKeys(oneBasedClipIndex,
+    {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
+meshD:pasteSkeletalKeys(oneBasedDestinationClipIndex, {
+    {hexBoneId, channelMask, sourceTime,
+     tx, ty, tz, qx, qy, qz, qw, sx, sy, sz,
+     easing, bezierX1, bezierY1, bezierX2, bezierY2},
+    ...
+}, sourceMinimumTime, insertionTime)
+meshD:insertSkeletalKeysRipple(oneBasedClipIndex,
+    {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, insertionTime)
+meshD:insertSkeletalEmptyTime(oneBasedClipIndex, insertionTime, duration)
+local removedKeyCount = meshD:removeSkeletalTimeRange(
+    oneBasedClipIndex, startTime, duration)
+```
+
+Insertion requires a unique time inside the clip, samples the current canonical clip first, and
+stores the target bone's evaluated local TRS at that time; adding a key therefore does not alter the
+existing curve by itself. Keys remain strictly time-ordered. Update may change time, TRS, easing
+`0..5`, and Bezier controls; it normalizes a finite nonzero quaternion and atomically reorders the
+key when its time changes. Duplicate times, invalid transforms, unsupported easing/Bezier values,
+and times outside the clip reject without mutation. Removal is allowed only while the track retains
+at least one key.
+`moveSkeletalKeys` translates every referenced key by the same finite time delta. Pair indices refer
+to the ordering before the move. Duplicate references, out-of-range results, or collisions reject
+the candidate without mutation; affected tracks are sorted and the complete animation collection
+validates once before one atomic commit.
+`duplicateSkeletalKeys` uses the same pre-operation pair contract and copies complete key payloads
+into their source tracks at shifted times. Existing keys remain untouched. Duplicate references,
+out-of-range destinations, and collisions reject the entire candidate before commit.
+`pasteSkeletalKeys` accepts detached complete key payloads, so the source clip no longer needs to
+exist or remain unchanged. Each hexadecimal bone ID resolves against the destination skeleton. A
+matching destination track must have the same T/R/S mask; an absent track is created with the copied
+mask and pasted keys. Source times are offset so `sourceMinimumTime` lands at `insertionTime`.
+Unknown bones, incompatible masks, invalid transforms, out-of-range times, duplicate destinations,
+or any invalid complete animation candidate raise a Lua error and leave the destination untouched.
+The method returns `true` on one atomic commit.
+`insertSkeletalKeysRipple` requires a selection with a positive time span. It opens that amount of
+space across every track by shifting keys at or after `insertionTime`, then copies the selected keys
+with their earliest time aligned to the insertion point. The clip duration grows by the opened span
+(plus the canonical numerical separation needed between endpoint keys). Duplicate references,
+invalid results, and collisions reject the entire candidate atomically.
+`insertSkeletalEmptyTime` creates no keys. It grows the clip by the positive finite `duration` and
+shifts every existing key at or after `insertionTime` by exactly that duration across every track.
+The complete result validates and commits atomically.
+`removeSkeletalTimeRange` removes keys in the semi-open interval `[startTime, endTime)`, where the
+end is clamped to the current clip duration. Surviving keys at or after the end shift left by the
+effective removed duration and the clip shrinks equally. It returns the number of deleted keys and
+rejects atomically if any track would become empty or the resulting canonical clip would be invalid.
 
 ### 15.1 Articulated-animation authoring
 
@@ -1330,6 +1850,11 @@ A non-looping articulated clip invokes the same callback registered by `obj:onEn
 when it reaches its duration. The callback receives the renderizable object and the articulated
 clip name. Looping clips do not emit this completion callback. If multiple active clips finish in
 the same update, the callback is invoked once for each finished clip.
+
+Non-looping skeletal base and transient layer clips use that same callback and clip-name argument.
+They emit once when normal playback reaches the clamped end pose, including while the mesh is
+culled. Replay or seeking backward rearms completion; looping clips, pause, and seek alone do not
+emit it.
 
 ```lua
 car:playArticulatedAnimation("wheel_spin", 10, 0.5, 0.75)

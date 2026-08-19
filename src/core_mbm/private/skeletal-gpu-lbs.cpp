@@ -1,0 +1,253 @@
+/*-----------------------------------------------------------------------------------------------------------------------|
+| MIT License (MIT)                                                                                                      |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+|                                                                                                                        |
+| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
+| documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
+| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |
+| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |
+|                                                                                                                        |
+| The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |
+| the Software.                                                                                                          |
+|                                                                                                                        |
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE   |
+| WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR  |
+| COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
+| OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
+|-----------------------------------------------------------------------------------------------------------------------*/
+
+#include "skeletal-gpu-lbs.h"
+
+#include <cmath>
+#include <utility>
+
+namespace mbm::skeletal
+{
+    DQS_COMPATIBILITY_STATUS getDqsCompatibility(const CANONICAL_SKELETON &skeleton,
+                                                  const CANONICAL_ANIMATIONS &animations) noexcept
+    {
+        const auto isUnitScale = [](const VEC3 &scale) noexcept
+        {
+            return std::fabs(scale.x - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(scale.y - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(scale.z - 1.0f) <= MATRIX_TOLERANCE;
+        };
+        for (const CANONICAL_BONE &bone : skeleton.sourceBones)
+            if (!isUnitScale(bone.localBind.scale))
+                return DQS_COMPATIBILITY_STATUS::BIND_CONTAINS_SCALE;
+        for (const SKELETAL_CLIP &clip : animations.clips)
+            for (const SKELETAL_TRACK &track : clip.tracks)
+                if ((track.channelMask & SKELETAL_CHANNEL_SCALE) != 0)
+                    for (const SKELETAL_KEY &key : track.keys)
+                        if (!isUnitScale(key.local.scale))
+                            return DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE;
+        return DQS_COMPATIBILITY_STATUS::RIGID;
+    }
+
+    const char *dqsCompatibilityStatusName(const DQS_COMPATIBILITY_STATUS status) noexcept
+    {
+        switch (status)
+        {
+            case DQS_COMPATIBILITY_STATUS::RIGID: return "all-transforms-rigid";
+            case DQS_COMPATIBILITY_STATUS::BIND_CONTAINS_SCALE: return "bind-contains-scale";
+            case DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE: return "clip-contains-scale";
+        }
+        return "unknown";
+    }
+
+    GPU_SKINNING_PREPARATION_STATUS prepareGpuSkinningInput(const CANONICAL_SKELETON &skeleton,
+                                                       const CANONICAL_WEIGHTS &weights,
+                                                       const SKINNING_CAPABILITY &capability,
+                                                       GPU_SKINNING_INPUT &out) noexcept
+    {
+        out = {};
+        out.requiredBoneCount = static_cast<uint32_t>(skeleton.compiled.bones.size());
+        out.lbsBoneCapacity = capability.lbsMatrixPaletteBones;
+        out.dqsBoneCapacity = capability.dqsRigidPaletteBones;
+        out.effectiveBoneCapacity = std::max(out.lbsBoneCapacity, out.dqsBoneCapacity);
+        if (skeleton.skeletonId == 0 && weights.skeletonId == 0)
+            return out.status;
+        if (!capability.measured)
+        {
+            out.diagnostic="GPU skinning capability was not measured";
+            return out.status = GPU_SKINNING_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE;
+        }
+        if (!capability.hasRequiredVertexAttributes)
+        {
+            out.diagnostic="GPU vertex attributes are insufficient";
+            return out.status = GPU_SKINNING_PREPARATION_STATUS::INSUFFICIENT_VERTEX_ATTRIBUTES;
+        }
+        if (out.requiredBoneCount > out.lbsBoneCapacity && out.requiredBoneCount > out.dqsBoneCapacity)
+        {
+            out.diagnostic="skeleton exceeds both measured palette capacities";
+            return out.status = GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE;
+        }
+        if (skeleton.skeletonId == 0)
+        { out.diagnostic="canonical skeleton is missing"; return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        if (weights.skeletonId == 0)
+        { out.diagnostic="canonical vertex weights are missing"; return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        if (weights.skeletonId != skeleton.skeletonId)
+        { out.diagnostic="canonical skeleton/weight IDs differ"; return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        if (!validateCanonicalWeights(skeleton, weights, static_cast<uint32_t>(weights.vertices.size())))
+        { out.diagnostic="canonical vertex weights failed structural validation";
+            return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+        }
+
+        std::vector<int32_t> paletteBoneIndices(weights.paletteBoneIds.size(), -1);
+        for (size_t paletteIndex = 0; paletteIndex < weights.paletteBoneIds.size(); ++paletteIndex)
+        {
+            const auto found = skeleton.compiled.indexById.find(weights.paletteBoneIds[paletteIndex]);
+            if (found == skeleton.compiled.indexById.end())
+            {
+                out.diagnostic="canonical weight palette references an unknown bone";
+                return out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+            }
+            paletteBoneIndices[paletteIndex] = found->second;
+        }
+
+        out.vertices.resize(weights.vertices.size());
+        for (size_t vertexIndex = 0; vertexIndex < weights.vertices.size(); ++vertexIndex)
+        {
+            const CANONICAL_VERTEX_WEIGHT &source = weights.vertices[vertexIndex];
+            GPU_LBS_VERTEX &target = out.vertices[vertexIndex];
+            for (uint32_t slot = 0; slot < 4; ++slot)
+            {
+                if (source.paletteIndex[slot] == UINT16_MAX)
+                    continue;
+                if (source.paletteIndex[slot] >= paletteBoneIndices.size())
+                {
+                    out = {};
+                    out.status = GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+                    out.diagnostic="canonical vertex references an invalid palette slot";
+                    return out.status;
+                }
+                target.boneIndex[slot] = static_cast<float>(paletteBoneIndices[source.paletteIndex[slot]]);
+                target.weight[slot] = source.weight[slot];
+            }
+        }
+        out.diagnostic="ready";
+        return out.status = GPU_SKINNING_PREPARATION_STATUS::READY;
+    }
+
+    const char *gpuSkinningPreparationStatusName(const GPU_SKINNING_PREPARATION_STATUS status) noexcept
+    {
+        switch (status)
+        {
+            case GPU_SKINNING_PREPARATION_STATUS::NO_SKELETAL_DATA: return "no-skeletal-data";
+            case GPU_SKINNING_PREPARATION_STATUS::READY: return "ready";
+            case GPU_SKINNING_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE: return "capability-unavailable";
+            case GPU_SKINNING_PREPARATION_STATUS::INSUFFICIENT_VERTEX_ATTRIBUTES: return "insufficient-vertex-attributes";
+            case GPU_SKINNING_PREPARATION_STATUS::PALETTE_TOO_LARGE: return "palette-too-large";
+            case GPU_SKINNING_PREPARATION_STATUS::INVALID_CANONICAL_DATA: return "invalid-canonical-data";
+        }
+        return "unknown";
+    }
+
+    LBS_PALETTE_STATUS buildLbsPalette(const CANONICAL_SKELETON &skeleton,
+                                                   const SKELETAL_POSE &pose,
+                                                   const bool requireCompactNormalTransform,
+                                                   std::vector<float> &outRows) noexcept
+    {
+        outRows.clear();
+        const size_t boneCount = skeleton.compiled.bones.size();
+        if (skeleton.skeletonId == 0 || boneCount == 0 || pose.globalTransforms.size() != boneCount)
+            return LBS_PALETTE_STATUS::INVALID_POSE;
+        outRows.resize(boneCount * 12u);
+        for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            MATRIX skinMatrix;
+            MatrixMultiply(&skinMatrix,
+                           &skeleton.compiled.bones[boneIndex].inverseGlobalBindMatrix,
+                           &pose.globalTransforms[boneIndex]);
+            if (requireCompactNormalTransform)
+            {
+                LOCAL_TRANSFORM decomposed;
+                bool hasNegativeScale = false, hasShear = false;
+                if (!decomposeTrsMatrix(skinMatrix, decomposed, hasNegativeScale, hasShear) ||
+                    hasNegativeScale || hasShear ||
+                    std::fabs(decomposed.scale.x - decomposed.scale.y) > MATRIX_TOLERANCE ||
+                    std::fabs(decomposed.scale.x - decomposed.scale.z) > MATRIX_TOLERANCE)
+                {
+                    outRows.clear();
+                    return LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM;
+                }
+            }
+            float *rows = &outRows[boneIndex * 12u];
+            // The engine transforms row vectors. GLSL's dot-based decoder therefore receives the
+            // three output columns, including row-vector translation from _41/_42/_43.
+            rows[0] = skinMatrix._11; rows[1] = skinMatrix._21;
+            rows[2] = skinMatrix._31; rows[3] = skinMatrix._41;
+            rows[4] = skinMatrix._12; rows[5] = skinMatrix._22;
+            rows[6] = skinMatrix._32; rows[7] = skinMatrix._42;
+            rows[8] = skinMatrix._13; rows[9] = skinMatrix._23;
+            rows[10] = skinMatrix._33; rows[11] = skinMatrix._43;
+        }
+        return LBS_PALETTE_STATUS::READY;
+    }
+
+    LBS_PALETTE_STATUS sampleLbsPalette(const CANONICAL_SKELETON &skeleton,
+                                                    const SKELETAL_CLIP &clip, const float time,
+                                                    const bool requireCompactNormalTransform,
+                                                    std::vector<float> &outRows,
+                                                    SKELETAL_POSE *outPose) noexcept
+    {
+        SKELETAL_POSE sampled;
+        if (!sampleSkeletalClip(skeleton.compiled, clip, time, sampled))
+        {
+            outRows.clear();
+            return LBS_PALETTE_STATUS::INVALID_POSE;
+        }
+        const LBS_PALETTE_STATUS status = buildLbsPalette(
+            skeleton, sampled, requireCompactNormalTransform, outRows);
+        if (status == LBS_PALETTE_STATUS::READY && outPose)
+            *outPose = std::move(sampled);
+        return status;
+    }
+
+    DQS_PALETTE_STATUS buildDqsPalette(const CANONICAL_SKELETON &skeleton,
+                                                   const SKELETAL_POSE &pose,
+                                                   std::vector<float> &outRows) noexcept
+    {
+        outRows.clear();
+        const size_t boneCount = skeleton.compiled.bones.size();
+        if (skeleton.skeletonId == 0 || boneCount == 0 || pose.globalTransforms.size() != boneCount)
+            return DQS_PALETTE_STATUS::INVALID_POSE;
+        outRows.resize(boneCount * 8u);
+        for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            MATRIX skinMatrix;
+            MatrixMultiply(&skinMatrix,
+                           &skeleton.compiled.bones[boneIndex].inverseGlobalBindMatrix,
+                           &pose.globalTransforms[boneIndex]);
+            DUAL_QUATERNION dualQuaternion;
+            if (!rigidDualQuaternionFromMatrix(skinMatrix, dualQuaternion))
+            {
+                outRows.clear();
+                return DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM;
+            }
+            float *rows = &outRows[boneIndex * 8u];
+            rows[0] = dualQuaternion.real.x; rows[1] = dualQuaternion.real.y;
+            rows[2] = dualQuaternion.real.z; rows[3] = dualQuaternion.real.w;
+            rows[4] = dualQuaternion.dual.x; rows[5] = dualQuaternion.dual.y;
+            rows[6] = dualQuaternion.dual.z; rows[7] = dualQuaternion.dual.w;
+        }
+        return DQS_PALETTE_STATUS::READY;
+    }
+
+    DQS_PALETTE_STATUS sampleDqsPalette(const CANONICAL_SKELETON &skeleton,
+                                                    const SKELETAL_CLIP &clip, const float time,
+                                                    std::vector<float> &outRows,
+                                                    SKELETAL_POSE *outPose) noexcept
+    {
+        SKELETAL_POSE sampled;
+        if (!sampleSkeletalClip(skeleton.compiled, clip, time, sampled))
+        {
+            outRows.clear();
+            return DQS_PALETTE_STATUS::INVALID_POSE;
+        }
+        const DQS_PALETTE_STATUS status = buildDqsPalette(skeleton, sampled, outRows);
+        if (status == DQS_PALETTE_STATUS::READY && outPose)
+            *outPose = std::move(sampled);
+        return status;
+    }
+}

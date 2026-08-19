@@ -30,6 +30,7 @@
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <draw-compatibility.h>
+#include <skeletal-gles-shader-source.h>
 #include <header-mesh.h>
 #include <particle-control.h>
 
@@ -53,19 +54,30 @@ namespace mbm
     {
         GLuint programObject;
         GLint  positionHandle, texCoordHandle, normalHandle;
+        GLint  boneIndicesHandle, boneWeightsHandle;
         GLint  mvpMatrixHandle, mvMatrixHandle;
+        GLint  bonePaletteHandle;
+        uint32_t skeletalLbsPaletteSize;
+        SKELETAL_SHADER_METHOD skeletalMethod;
         GLint  samplerHandle0, samplerHandle1, samplerHandle2, samplerHandle3, samplerHandle4, samplerHandle5;
     };
 
-    static int makeDefaultProgramCacheKey(const FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding,
-                                           const bool canUsePointLight2D)
+    static uint64_t makeDefaultProgramCacheKey(const FVF_PROVIDE_BY_ENGINE fvf,
+                                                const bool useReservedLightScaffolding,
+                                                const bool canUsePointLight2D,
+                                                const uint32_t skeletalLbsPaletteSize,
+                                                const SKELETAL_SHADER_METHOD skeletalMethod)
     {
-        return (static_cast<int>(fvf) * 4) + (useReservedLightScaffolding ? 2 : 0) + (canUsePointLight2D ? 1 : 0);
+        return (static_cast<uint64_t>(skeletalMethod) << 56u) |
+               (static_cast<uint64_t>(skeletalLbsPaletteSize) << 8u) |
+               (static_cast<uint64_t>(fvf) << 2u) |
+               (useReservedLightScaffolding ? 2u : 0u) |
+               (canUsePointLight2D ? 1u : 0u);
     }
 
-    static std::unordered_map<int, DefaultProgramCacheEntry> &getDefaultProgramCache()
+    static std::unordered_map<uint64_t, DefaultProgramCacheEntry> &getDefaultProgramCache()
     {
-        static std::unordered_map<int, DefaultProgramCacheEntry> cache;
+        static std::unordered_map<uint64_t, DefaultProgramCacheEntry> cache;
         return cache;
     }
 
@@ -381,6 +393,94 @@ namespace mbm
         }
     }
 
+    static const std::vector<float> &getIdentityLbsPalette(const uint32_t boneCount)
+    {
+        static std::unordered_map<uint32_t, std::vector<float>> palettes;
+        auto found = palettes.find(boneCount);
+        if (found != palettes.end())
+            return found->second;
+        std::vector<float> values(static_cast<size_t>(boneCount) * 12u, 0.0f);
+        for (uint32_t bone = 0; bone < boneCount; ++bone)
+        {
+            values[(bone * 12u) + 0u] = 1.0f;
+            values[(bone * 12u) + 5u] = 1.0f;
+            values[(bone * 12u) + 10u] = 1.0f;
+        }
+        return palettes.emplace(boneCount, std::move(values)).first->second;
+    }
+
+    static const std::vector<float> &getIdentityDqsPalette(const uint32_t boneCount)
+    {
+        static std::unordered_map<uint32_t, std::vector<float>> palettes;
+        auto found = palettes.find(boneCount);
+        if (found != palettes.end())
+            return found->second;
+        std::vector<float> values(static_cast<size_t>(boneCount) * 8u, 0.0f);
+        for (uint32_t bone = 0; bone < boneCount; ++bone)
+            values[(bone * 8u) + 3u] = 1.0f;
+        return palettes.emplace(boneCount, std::move(values)).first->second;
+    }
+
+    static const float *resolveLbsPalette(const GLES_PS_VS *gles, const float *rows,
+                                          const uint32_t floatCount)
+    {
+        const uint32_t floatsPerBone = gles->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
+        if (rows)
+            return floatCount == gles->skeletalLbsPaletteSize * floatsPerBone ? rows : nullptr;
+        return gles->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID
+            ? getIdentityDqsPalette(gles->skeletalLbsPaletteSize).data()
+            : getIdentityLbsPalette(gles->skeletalLbsPaletteSize).data();
+    }
+
+    static bool bindAndUploadLbsIndexed(const GLES_PS_VS *gles, const BUFFER_SPECIFIC *buffer,
+                                        const float *paletteRows, const uint32_t paletteFloatCount)
+    {
+        if (gles->skeletalLbsPaletteSize == 0)
+            return true;
+        if (gles->boneIndicesHandle < 0 || gles->boneWeightsHandle < 0 ||
+            gles->bonePaletteHandle < 0 || !buffer->vboBoneIndicesIB || !buffer->vboBoneWeightsIB)
+            return false;
+        GLBindBuffer(GL_ARRAY_BUFFER, buffer->vboBoneIndicesIB);
+        GLEnableVertexAttribArray(gles->boneIndicesHandle);
+        GLVertexAttribPointer(gles->boneIndicesHandle, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
+        GLBindBuffer(GL_ARRAY_BUFFER, buffer->vboBoneWeightsIB);
+        GLEnableVertexAttribArray(gles->boneWeightsHandle);
+        GLVertexAttribPointer(gles->boneWeightsHandle, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
+        const float *palette = resolveLbsPalette(gles, paletteRows, paletteFloatCount);
+        if (!palette)
+            return false;
+        const uint32_t vectorsPerBone = gles->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 2u : 3u;
+        glUniform4fv(gles->bonePaletteHandle, static_cast<GLsizei>(gles->skeletalLbsPaletteSize * vectorsPerBone),
+                     palette);
+        return true;
+    }
+
+    static bool bindAndUploadLbsSubset(const GLES_PS_VS *gles, const BUFFER_SPECIFIC *buffer,
+                                       const uint32_t subset, const float *paletteRows,
+                                       const uint32_t paletteFloatCount)
+    {
+        if (gles->skeletalLbsPaletteSize == 0)
+            return true;
+        if (gles->boneIndicesHandle < 0 || gles->boneWeightsHandle < 0 ||
+            gles->bonePaletteHandle < 0 || subset >= buffer->skinSubsetCount ||
+            !buffer->vboBoneIndicesVB || !buffer->vboBoneWeightsVB ||
+            !buffer->vboBoneIndicesVB[subset] || !buffer->vboBoneWeightsVB[subset])
+            return false;
+        GLBindBuffer(GL_ARRAY_BUFFER, buffer->vboBoneIndicesVB[subset]);
+        GLEnableVertexAttribArray(gles->boneIndicesHandle);
+        GLVertexAttribPointer(gles->boneIndicesHandle, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
+        GLBindBuffer(GL_ARRAY_BUFFER, buffer->vboBoneWeightsVB[subset]);
+        GLEnableVertexAttribArray(gles->boneWeightsHandle);
+        GLVertexAttribPointer(gles->boneWeightsHandle, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
+        const float *palette = resolveLbsPalette(gles, paletteRows, paletteFloatCount);
+        if (!palette)
+            return false;
+        const uint32_t vectorsPerBone = gles->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 2u : 3u;
+        glUniform4fv(gles->bonePaletteHandle, static_cast<GLsizei>(gles->skeletalLbsPaletteSize * vectorsPerBone),
+                     palette);
+        return true;
+    }
+
     static GLenum getOpenGlEsModeDraw(const uint32_t mode_draw)
     {
         switch (mode_draw)
@@ -438,9 +538,11 @@ namespace mbm
         const int pos = gles->positionHandle;
         const int norm = useNormal && gles->normalHandle >= 0 ? gles->normalHandle : -1;
         const int tex = useTexCoord && gles->texCoordHandle >= 0 ? gles->texCoordHandle : -1;
+        const int boneIndices = gles->boneIndicesHandle;
+        const int boneWeights = gles->boneWeightsHandle;
         for (GLint a = 0; a < maxAttribs; ++a)
         {
-            if (a != pos && a != norm && a != tex)
+            if (a != pos && a != norm && a != tex && a != boneIndices && a != boneWeights)
                 glDisableVertexAttribArray(static_cast<GLuint>(a));
         }
     }
@@ -477,7 +579,12 @@ namespace mbm
         vboIndexSubsetIB(nullptr),
         vboVertexSubsetVB(nullptr),
         vboNormalSubsetVB(nullptr),
-        vboTextureSubsetVB(nullptr)
+        vboTextureSubsetVB(nullptr),
+        vboBoneIndicesIB(0),
+        vboBoneWeightsIB(0),
+        vboBoneIndicesVB(nullptr),
+        vboBoneWeightsVB(nullptr),
+        skinSubsetCount(0)
     {
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
     }
@@ -510,10 +617,49 @@ namespace mbm
         if (vboTextureSubsetVB)
             delete[] vboTextureSubsetVB;
         vboTextureSubsetVB = nullptr;
+
+        if (vboBoneIndicesIB)
+        {
+            GLDeleteBuffers(1, &vboBoneIndicesIB);
+        }
+        if (vboBoneWeightsIB)
+        {
+            GLDeleteBuffers(1, &vboBoneWeightsIB);
+        }
+        vboBoneIndicesIB = 0;
+        vboBoneWeightsIB = 0;
+        if (vboBoneIndicesVB)
+        {
+            GLDeleteBuffers(static_cast<GLsizei>(skinSubsetCount), vboBoneIndicesVB);
+            delete[] vboBoneIndicesVB;
+        }
+        if (vboBoneWeightsVB)
+        {
+            GLDeleteBuffers(static_cast<GLsizei>(skinSubsetCount), vboBoneWeightsVB);
+            delete[] vboBoneWeightsVB;
+        }
+        vboBoneIndicesVB = nullptr;
+        vboBoneWeightsVB = nullptr;
+        skinSubsetCount = 0;
     }
 
     void BUFFER_GL::release()
     {
+        if (this->vertexStartVB)
+            delete[] this->vertexStartVB;
+        if (this->vertexCountVB)
+            delete[] this->vertexCountVB;
+        if (this->indexStartIB)
+            delete[] this->indexStartIB;
+        if (this->indexCountIB)
+            delete[] this->indexCountIB;
+
+        this->vertexStartVB = nullptr;
+        this->vertexCountVB = nullptr;
+        this->indexStartIB = nullptr;
+        this->indexCountIB = nullptr;
+        this->sizeOfArrayVertex = 0;
+        this->initializedIndexBuffer = false;
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         backendBuffer->release();
         totalSubset   = 0;
@@ -636,10 +782,47 @@ namespace mbm
             return false;
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         this->totalSubset      = totalSubsets;
+        uint32_t vertexCount = 0;
+        for (uint32_t i = 0; i < totalSubsets; ++i)
+        {
+            const int indexStart = indexStartSubset[i];
+            const int indexCount = indexCountSubset[i];
+            if (indexStart < 0 || indexCount <= 0)
+            {
+                this->release();
+                return false;
+            }
+            for (int j = 0; j < indexCount; ++j)
+            {
+                const uint32_t candidate = static_cast<uint32_t>(arrayIndices[indexStart + j]) + 1u;
+                if (candidate > vertexCount)
+                    vertexCount = candidate;
+            }
+        }
+        if (vertexCount == 0)
+            return false;
+        GLGenBuffers(3, backendBuffer->vboVertNorTexIB);
+        if (backendBuffer->vboVertNorTexIB[0] == 0)
+        {
+            this->release();
+            return false;
+        }
         backendBuffer->vboIndexSubsetIB = new uint32_t[totalSubset];
         memset(backendBuffer->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
-        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
+        this->initializeIndexBufferControl(totalSubsets, vertexCount, indexStartSubset, indexCountSubset, info_draw_mode);
         this->fvf = (hasNormal && hasUv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV : (hasNormal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR : (hasUv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
+        GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
+        GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertexCount * sizeof(mbm::VEC3)), nullptr, GL_DYNAMIC_DRAW);
+        if (hasNormal)
+        {
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[1]);
+            GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertexCount * sizeof(mbm::VEC3)), nullptr, GL_DYNAMIC_DRAW);
+        }
+        if (hasUv)
+        {
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[2]);
+            GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertexCount * sizeof(mbm::VEC2)), nullptr, GL_DYNAMIC_DRAW);
+        }
         GLGenBuffers(static_cast<GLsizei>(this->totalSubset), backendBuffer->vboIndexSubsetIB);
         if (!backendBuffer->vboIndexSubsetIB[0])
         {
@@ -654,6 +837,7 @@ namespace mbm
         }
 
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        GLBindBuffer(GL_ARRAY_BUFFER, 0);
         return true;
     }
 
@@ -663,9 +847,36 @@ namespace mbm
                                   const int* vertexStartSubset,
                                   const int* vertexCountSubset)// update when dynamic
     {
+        if (!vertex || !vertexStartSubset || !vertexCountSubset)
+            return false;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (this->initializedIndexBuffer)
+        {
+            if (!backendBuffer->vboVertNorTexIB[0])
+                return false;
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
+            glBufferSubData(GL_ARRAY_BUFFER, 0,
+                            static_cast<GLsizeiptr>(sizeof(mbm::VEC3) * this->sizeOfArrayVertex),
+                            vertex);
+            if (normal && backendBuffer->vboVertNorTexIB[1] != 0)
+            {
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[1]);
+                glBufferSubData(GL_ARRAY_BUFFER, 0,
+                                static_cast<GLsizeiptr>(sizeof(mbm::VEC3) * this->sizeOfArrayVertex),
+                                normal);
+            }
+            if (uv && backendBuffer->vboVertNorTexIB[2] != 0)
+            {
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[2]);
+                glBufferSubData(GL_ARRAY_BUFFER, 0,
+                                static_cast<GLsizeiptr>(sizeof(mbm::VEC2) * this->sizeOfArrayVertex),
+                                uv);
+            }
+            GLBindBuffer(GL_ARRAY_BUFFER, 0);
+            return true;
+        }
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
-            BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
             const uint32_t vertexStart = vertexStartSubset[i];
             const uint32_t vertexCount = vertexCountSubset[i];
             if (vertexCount > this->sizeOfArrayVertex)
@@ -679,26 +890,17 @@ namespace mbm
             const mbm::VEC3* pVertexStart = &vertex[vertexStart];
             const mbm::VEC3* pNormalStart = normal ? &normal[vertexStart] : nullptr;
             const mbm::VEC2* pUvStart     = uv ? &uv[vertexStart]         : nullptr;
-            if (this->initializedIndexBuffer)
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
+            GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pVertexStart, GL_DYNAMIC_DRAW);
+            if (pNormalStart && backendBuffer->vboNormalSubsetVB[i] != 0)
             {
-                // TODO: for index buffer
-                ERROR_AT(__LINE__, __FILE__, "TODO: Update vertex not implemented for index buffer");
-                return false;
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboNormalSubsetVB[i]);
+                GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pNormalStart, GL_DYNAMIC_DRAW);
             }
-            else
+            if (pUvStart && backendBuffer->vboTextureSubsetVB[i] != 0)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
-                GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pVertexStart, GL_DYNAMIC_DRAW);
-                if (pNormalStart && backendBuffer->vboNormalSubsetVB[i] != 0)
-                {
-                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboNormalSubsetVB[i]);
-                    GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pNormalStart, GL_DYNAMIC_DRAW);
-                }
-                if (pUvStart && backendBuffer->vboTextureSubsetVB[i] != 0)
-                {
-                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboTextureSubsetVB[i]);
-                    GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC2) * vertexCount, pUvStart, GL_DYNAMIC_DRAW);
-                }
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboTextureSubsetVB[i]);
+                GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC2) * vertexCount, pUvStart, GL_DYNAMIC_DRAW);
             }
         }
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -858,8 +1060,13 @@ namespace mbm
         : positionHandle(-1),
           texCoordHandle(-1),
           normalHandle(-1),
+          boneIndicesHandle(-1),
+          boneWeightsHandle(-1),
           mvpMatrixHandle(-1),
           mvMatrixHandle(-1),
+          bonePaletteHandle(-1),
+          skeletalLbsPaletteSize(0),
+          skeletalMethod(SKELETAL_SHADER_METHOD::NONE),
           samplerHandle0(-1),
           samplerHandle1(-1),
           samplerHandle2(-1),
@@ -881,8 +1088,13 @@ namespace mbm
         positionHandle  = -1;
         texCoordHandle  = -1;
         normalHandle    = -1;
+        boneIndicesHandle = -1;
+        boneWeightsHandle = -1;
         mvpMatrixHandle = -1;
         mvMatrixHandle  = -1;
+        bonePaletteHandle = -1;
+        skeletalLbsPaletteSize = 0;
+        skeletalMethod = SKELETAL_SHADER_METHOD::NONE;
         samplerHandle0  = -1;
         samplerHandle1  = -1;
         samplerHandle2  = -1;
@@ -937,12 +1149,19 @@ namespace mbm
         return static_cast<const GLES_PS_VS*>(backendShaderSpecific)->programObject != 0;
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
+    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
+                               mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalLbsPaletteSize,
+                               const SKELETAL_SHADER_METHOD skeletalMethod)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
             return false;
         this->pShader             = ptrPshader;
         this->vShader            = ptrVshader;
+        if (skeletalLbsPaletteSize > 0 && ptrVshader != nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "canonical GLES2 skinning does not yet support a custom vertex shader");
+            return false;
+        }
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
@@ -950,6 +1169,9 @@ namespace mbm
 
         void *backendShaderSpecific = getBackendShaderSpecific();
         GLES_PS_VS *gles_shaderSpecific = static_cast<GLES_PS_VS *>(backendShaderSpecific);
+        gles_shaderSpecific->skeletalLbsPaletteSize = skeletalLbsPaletteSize;
+        gles_shaderSpecific->skeletalMethod = skeletalLbsPaletteSize > 0
+            ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
 
         // Fast path: an earlier instance already compiled+linked this exact (fvf,
         // useReservedLightScaffolding, canUsePointLight2D) combination -- every placement of the
@@ -958,7 +1180,9 @@ namespace mbm
         // getDefaultProgramCache() for why this matters on Windows specifically).
         if (this->usesPureDefaultShaderPair())
         {
-            const int key = makeDefaultProgramCacheKey(fvf, useReservedLightScaffolding, canUsePointLight2D);
+            const uint64_t key = makeDefaultProgramCacheKey(
+                fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize,
+                gles_shaderSpecific->skeletalMethod);
             auto &cache = getDefaultProgramCache();
             const auto found = cache.find(key);
             if (found != cache.end())
@@ -968,8 +1192,13 @@ namespace mbm
                 gles_shaderSpecific->positionHandle  = entry.positionHandle;
                 gles_shaderSpecific->texCoordHandle  = entry.texCoordHandle;
                 gles_shaderSpecific->normalHandle    = entry.normalHandle;
+                gles_shaderSpecific->boneIndicesHandle = entry.boneIndicesHandle;
+                gles_shaderSpecific->boneWeightsHandle = entry.boneWeightsHandle;
                 gles_shaderSpecific->mvpMatrixHandle = entry.mvpMatrixHandle;
                 gles_shaderSpecific->mvMatrixHandle  = entry.mvMatrixHandle;
+                gles_shaderSpecific->bonePaletteHandle = entry.bonePaletteHandle;
+                gles_shaderSpecific->skeletalLbsPaletteSize = entry.skeletalLbsPaletteSize;
+                gles_shaderSpecific->skeletalMethod = entry.skeletalMethod;
                 gles_shaderSpecific->samplerHandle0  = entry.samplerHandle0;
                 gles_shaderSpecific->samplerHandle1  = entry.samplerHandle1;
                 gles_shaderSpecific->samplerHandle2  = entry.samplerHandle2;
@@ -1220,14 +1449,30 @@ namespace mbm
         std::string defaultCodeVs = "attribute vec4 aPosition;";
         if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
+        if (skeletalLbsPaletteSize > 0)
+        {
+            defaultCodeVs += " attribute vec4 aBoneIndices; attribute vec4 aBoneWeights;";
+            skeletal::appendGlesSkeletalFunctions(defaultCodeVs, skeletalLbsPaletteSize, skeletalMethod);
+        }
         defaultCodeVs += " uniform mat4 mvpMatrix;";
         if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += " uniform mat4 mvMatrix;";
         if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " varying vec3 vNormalView;";
         if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
         if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " varying vec3 vPositionView;";
-        defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
-        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
-        if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz;";
+        defaultCodeVs += " void main() {";
+        if (skeletalLbsPaletteSize > 0)
+        {
+            skeletal::appendGlesSkeletalDeformation(defaultCodeVs, skeletalMethod,
+                                                     hasNormal && useReservedLightScaffolding);
+        }
+        else
+            defaultCodeVs += " vec4 skinnedPosition = aPosition;";
+        defaultCodeVs += " gl_Position = mvpMatrix * skinnedPosition;";
+        if (hasNormal && useReservedLightScaffolding)
+            defaultCodeVs += skeletalLbsPaletteSize > 0
+                ? " vNormalView = (mvMatrix * vec4(skinnedNormal, 0.0)).xyz;"
+                : " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
+        if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * skinnedPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
         if (gles_shaderSpecific->programObject)
@@ -1293,6 +1538,15 @@ namespace mbm
         {
             gles_shaderSpecific->texCoordHandle = -1;
         }
+        if (vertexShaderCode.find("aBoneIndices") != std::string::npos)
+        {
+            gles_shaderSpecific->boneIndicesHandle =
+                GLGetAttribLocation(gles_shaderSpecific->programObject, "aBoneIndices");
+            gles_shaderSpecific->boneWeightsHandle =
+                GLGetAttribLocation(gles_shaderSpecific->programObject, "aBoneWeights");
+            gles_shaderSpecific->bonePaletteHandle =
+                GLGetUniformLocation(gles_shaderSpecific->programObject, "bonePalette[0]");
+        }
         if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_DIFFUSE, textureNaming))
         {
             gles_shaderSpecific->samplerHandle0 = GLGetUniformLocation(
@@ -1337,15 +1591,22 @@ namespace mbm
             entry.positionHandle  = gles_shaderSpecific->positionHandle;
             entry.texCoordHandle  = gles_shaderSpecific->texCoordHandle;
             entry.normalHandle    = gles_shaderSpecific->normalHandle;
+            entry.boneIndicesHandle = gles_shaderSpecific->boneIndicesHandle;
+            entry.boneWeightsHandle = gles_shaderSpecific->boneWeightsHandle;
             entry.mvpMatrixHandle = gles_shaderSpecific->mvpMatrixHandle;
             entry.mvMatrixHandle  = gles_shaderSpecific->mvMatrixHandle;
+            entry.bonePaletteHandle = gles_shaderSpecific->bonePaletteHandle;
+            entry.skeletalLbsPaletteSize = gles_shaderSpecific->skeletalLbsPaletteSize;
+            entry.skeletalMethod = gles_shaderSpecific->skeletalMethod;
             entry.samplerHandle0  = gles_shaderSpecific->samplerHandle0;
             entry.samplerHandle1  = gles_shaderSpecific->samplerHandle1;
             entry.samplerHandle2  = gles_shaderSpecific->samplerHandle2;
             entry.samplerHandle3  = gles_shaderSpecific->samplerHandle3;
             entry.samplerHandle4  = gles_shaderSpecific->samplerHandle4;
             entry.samplerHandle5  = gles_shaderSpecific->samplerHandle5;
-            const int key = makeDefaultProgramCacheKey(fvf, useReservedLightScaffolding, canUsePointLight2D);
+            const uint64_t key = makeDefaultProgramCacheKey(
+                fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize,
+                gles_shaderSpecific->skeletalMethod);
             getDefaultProgramCache()[key] = entry;
             // Ownership of programObject now belongs to the cache for the rest of the process
             // lifetime -- this instance (the one that happened to trigger the compile) must not
@@ -1359,7 +1620,8 @@ namespace mbm
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
-                        const int32_t subsetIndex) const
+                        const int32_t subsetIndex, const float *skeletalPaletteRows,
+                        const uint32_t skeletalPaletteFloatCount) const
     {
         const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1394,6 +1656,9 @@ namespace mbm
                 GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             }
+            if (!bindAndUploadLbsIndexed(gles_shaderSpecific, backendBuffer,
+                                         skeletalPaletteRows, skeletalPaletteFloatCount))
+                return false;
             //-----------------------------------------------------------------------------------------------------------
             if (gles_shaderSpecific->mvpMatrixHandle != -1)
             {
@@ -1457,6 +1722,9 @@ namespace mbm
                     GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
                     GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
                 }
+                if (!bindAndUploadLbsSubset(gles_shaderSpecific, backendBuffer, i,
+                                            skeletalPaletteRows, skeletalPaletteFloatCount))
+                    return false;
                 //-----------------------------------------------------------------------------------------------------------
                 if (gles_shaderSpecific->mvpMatrixHandle != -1)
                 {

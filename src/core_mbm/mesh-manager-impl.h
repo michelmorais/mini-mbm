@@ -11,6 +11,8 @@
 #include <mesh-manager.h>
 #include <header-mesh.h>
 #include <physics.h>
+#include <skeletal-animation-foundation.h>
+#include <skeletal-gpu-lbs.h>
 #include <string>
 #include <vector>
 
@@ -47,6 +49,44 @@ namespace mbm
         uint64_t sequence = 0;
     };
 
+    struct SKELETAL_ANIMATION_PLAYER::Impl
+    {
+        uint32_t clipIndex = UINT32_MAX;
+        float time = 0.0f;
+        uint32_t absoluteLayerClipIndex = UINT32_MAX;
+        float absoluteLayerTime = 0.0f;
+        float absoluteLayerWeight = 0.0f;
+        float absoluteLayerFadeStartWeight = 0.0f;
+        float absoluteLayerFadeTargetWeight = 0.0f;
+        float absoluteLayerFadeDuration = 0.0f;
+        float absoluteLayerFadeElapsed = 0.0f;
+        bool absoluteLayerFadeActive = false;
+        bool absoluteLayerActive = false;
+        bool additiveLayer = false;
+        bool crossFadeActive = false;
+        bool layerPaused = false;
+        std::unordered_map<uint64_t, float> layerBoneMask;
+        float playbackSpeed = 1.0f;
+        bool active = false;
+        bool paused = false;
+        bool baseCompletionNotified = false;
+        bool layerCompletionNotified = false;
+        SKELETAL_SHADER_METHOD requestedSkinningMethod = SKELETAL_SHADER_METHOD::LBS;
+        SKELETAL_SHADER_METHOD resolvedSkinningMethod = SKELETAL_SHADER_METHOD::LBS;
+        const char *skinningResolutionReason = "explicit-lbs";
+        std::vector<float> paletteRows;
+        std::vector<MATRIX> evaluatedGlobalTransforms;
+        std::vector<MATRIX> previousEvaluatedGlobalTransforms;
+        std::vector<MATRIX> rawEvaluatedGlobalTransforms;
+        std::vector<MATRIX> previousRawEvaluatedGlobalTransforms;
+        bool evaluatedMotionDeltaValid = false;
+        bool authoringPose = false;
+        bool automaticRootMotionEnabled = false;
+        bool automaticRootMotionApplyRotation = false;
+        std::string automaticRootMotionBoneName;
+        uint64_t automaticRootMotionBoneId = 0;
+    };
+
     struct MESH_MBM::Impl
     {
         // Deprecated: no longer applied to a loaded renderizable's position/angle at load time
@@ -73,6 +113,18 @@ namespace mbm
         void *extraInfo;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
+        skeletal::CANONICAL_SKELETON canonicalSkeleton;
+        skeletal::CANONICAL_WEIGHTS canonicalWeights;
+        skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        skeletal::GPU_SKINNING_INPUT gpuSkinningInput;
+        std::vector<VEC3> skeletalBindPositions;
+        std::vector<VEC3> skeletalBindNormals;
+        std::vector<VEC2> skeletalBindUvs;
+        std::vector<uint16_t> skeletalBindIndices;
+        uint32_t skeletalBindFrameIndex = UINT32_MAX;
+        bool skeletalBindHasNormals = false;
+        bool skeletalBindHasUvs = false;
+        bool skeletalBindHasIndices = false;
     };
 
     struct MESH_MBM_DEBUG::Impl
@@ -97,16 +149,12 @@ namespace mbm
         std::string fileName;
         std::vector<int> lsBlendOperation;
         void *extraInfo;
-        // SECTION_FRAME_SKINNED (docs/mesh-v11-format.md Sec. 6e) - editor/diagnostic round-trip
-        // only, never consulted by rendering. See MESH_MBM_DEBUG::addBone/getBone/getTotalBone.
-        std::vector<util::SKELETON_BONE_V11> skeleton;
-        // SECTION_VERTEX_SKIN_WEIGHTS (docs/mesh-v11-format.md Sec. 6f) - editor/diagnostic + FBX
-        // re-export round-trip only, never consulted by rendering. weightPalette holds the unique
-        // bone names referenced by any entry in vertexWeights; vertexWeights[i].paletteIndex values
-        // index into weightPalette, not into `skeleton` above. Empty (both) means "no stored weight
-        // data" - see MESH_MBM_DEBUG::hasVertexWeights/setVertexWeight/getVertexWeight.
-        std::vector<std::string> weightPalette;
-        std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
+        skeletal::CANONICAL_SKELETON canonicalSkeleton;
+        skeletal::CANONICAL_WEIGHTS canonicalWeights;
+        skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        skeletal::SKELETAL_POSE authoringPose;
+        std::vector<float> authoringPaletteRows;
+        bool authoringPoseValid = false;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
     };

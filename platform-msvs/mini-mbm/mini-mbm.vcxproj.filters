@@ -19,7 +19,7 @@
     <Filter Include="Header Files\tinyfiledialogs">
       <UniqueIdentifier>{d87f23ab-8f43-4c4f-89ac-c15aaf021f6b}</UniqueIdentifier>
     </Filter>
-        <Filter Include="Source Files\src">
+    <Filter Include="Source Files\src">
       <UniqueIdentifier>{7ef09be2-030f-41d1-bf15-ee8538f41db7}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\lua-wrap">
@@ -47,6 +47,9 @@
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files\src</Filter>
+    </ClCompile>
+    <ClCompile Include="mbm_game_name.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

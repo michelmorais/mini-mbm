@@ -2,8 +2,8 @@
 """
 Blender headless exporter for mini-mbm's Mesh Debug tool: takes a JSON dump of a loaded mesh's raw
 geometry (and, optionally, its editor-authored/imported bone hierarchy) and produces a real FBX
-with a skinned armature, ready for upload to an auto-rigging/animation service (Mixamo or
-similar).
+with a skinned armature and one Blender Action per sampled canonical skeletal clip, ready for
+round-trip editing or upload to an auto-rigging/animation service (Mixamo or similar).
 
 This script's input comes from editor/mesh_debug.lua's own geometry -- which is in the ENGINE's
 own coordinate convention (Y-up), not Blender's native Z-up, ever since editor/blender_mesh_export.py's
@@ -28,6 +28,7 @@ import json
 import math
 import os
 import sys
+import warnings
 import traceback
 
 
@@ -84,6 +85,39 @@ def load_json(input_path: str) -> dict:
         return json.load(f)
 
 
+def canonical_matrix_to_blender(matrix_values: list[float],
+                                rotation_deg: tuple[float, float, float] | None,
+                                canonical: bool):
+    """Converts an engine row-vector global matrix back to Blender's column-vector space."""
+    from mathutils import Matrix
+
+    if len(matrix_values) != 16:
+        raise RuntimeError("Canonical animation matrix must contain exactly 16 values.")
+    canonical_matrix = Matrix([[float(matrix_values[column * 4 + row]) for column in range(4)]
+                               for row in range(4)])
+    restore = Matrix.Identity(4)
+    if canonical:
+        reflection = Matrix.Identity(4)
+        reflection[0][0] = -1.0
+        restore = reflection
+    if rotation_deg:
+        ax, ay, az = (math.radians(float(value)) for value in rotation_deg)
+        rotation = (Matrix.Rotation(az, 4, "Z") @ Matrix.Rotation(ay, 4, "Y") @
+                    Matrix.Rotation(ax, 4, "X"))
+        restore = rotation @ restore
+    return restore @ canonical_matrix @ restore.inverted()
+
+
+def retarget_sampled_global_to_reconstructed_bind(sampled_global, source_bind,
+                                                   reconstructed_bind):
+    """Transfers the source bone's animated skinning delta onto Blender's reconstructed rest.
+
+    Blender edit bones cannot retain scale in their rest matrices. Keeping an absolute sampled
+    matrix would therefore turn a source bind scale such as 0.01 into animation-only shrinkage.
+    """
+    return sampled_global @ source_bind.inverted_safe() @ reconstructed_bind
+
+
 def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None,
                 invert_u: bool = False, invert_v: bool = False):
     import bpy
@@ -93,10 +127,11 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
 
     # rotation_deg undoes the import side's own Z-up -> Y-up bake (see module docstring) so this
     # exported FBX comes out correctly oriented for Blender/Mixamo and for being re-imported later.
-    if rotation_deg:
-        positions = [rotate_point_deg(v["x"], v["y"], v["z"], *rotation_deg) for v in verts_data]
-    else:
-        positions = [(v["x"], v["y"], v["z"]) for v in verts_data]
+    canonical = data.get("canonicalSkeleton") is True
+    def restore_position(v):
+        position = (-v["x"], v["y"], v["z"]) if canonical else (v["x"], v["y"], v["z"])
+        return rotate_point_deg(*position, *rotation_deg) if rotation_deg else position
+    positions = [restore_position(v) for v in verts_data]
     # JSON indices are 1-based (written straight from Lua array indices); from_pydata expects
     # 0-based, and are already global across the whole vertex list (mesh_debug.lua's dumper
     # offsets each subset's indices when writing). Each face's originating subset index is kept
@@ -107,7 +142,8 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
     for subset_idx, subset in enumerate(subsets):
         idx = subset["indices"]
         for i in range(0, len(idx), 3):
-            faces.append((idx[i] - 1, idx[i + 1] - 1, idx[i + 2] - 1))
+            face = (idx[i] - 1, idx[i + 1] - 1, idx[i + 2] - 1)
+            faces.append((face[2], face[1], face[0]) if canonical else face)
             face_subset.append(subset_idx)
 
     mesh_data = bpy.data.meshes.new("MeshDebugMesh")
@@ -167,7 +203,12 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
     # show), so a material is required even when no texture is available.
     for subset_idx, subset in enumerate(subsets):
         mat = bpy.data.materials.new(name=f"MeshDebugMat_{subset_idx}")
-        mat.use_nodes = True
+        # Blender 5.x still requires this switch for node-backed materials, but warns that the
+        # property is scheduled for removal in 6.0. Keep compatibility without presenting that
+        # non-fatal API deprecation as an export failure in Mesh Debug's user-facing log.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            mat.use_nodes = True
         nodes = mat.node_tree.nodes
         links = mat.node_tree.links
         bsdf = nodes.get("Principled BSDF")
@@ -244,9 +285,10 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
     # Same rotation as build_mesh's positions -- bones and vertices must land in the same space.
     def joint_pos(name):
         j = joints[name]
+        position = (-j["x"], j["y"], j["z"]) if data.get("canonicalSkeleton") is True else (j["x"], j["y"], j["z"])
         if rotation_deg:
-            return rotate_point_deg(j["x"], j["y"], j["z"], *rotation_deg)
-        return (j["x"], j["y"], j["z"])
+            return rotate_point_deg(*position, *rotation_deg)
+        return position
 
     def dist(a, b):
         return sum((a[i] - b[i]) ** 2 for i in range(3)) ** 0.5
@@ -299,37 +341,32 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         # for the standard export undoes the Y-up bake back to Blender's own Z-up space.
         return (pos[0], pos[1], pos[2] + 0.01)
 
-    # sectionVersion 2 (editor/mesh_debug.lua, header-mesh.h SKELETON_BONE_V11) added real bone
-    # orientation (rotX/Y/Z, Euler degrees) + length, captured directly from Blender's own bone
-    # axis/roll at import time (extract_armature_joints in blender_mesh_export.py) -- when present,
-    # this replaces compute_tail's guesswork entirely with the source rig's actual data, including
-    # ROLL (twist around the bone's own axis), which position-only data could never provide no
-    # matter how good the tail-direction heuristic got. length > EPS is the "real data present"
-    # signal, not rotX==rotY==rotZ==0 -- an axis-aligned real bone legitimately has all-zero Euler
-    # angles, so length (only ever nonzero when this import path set it) is the reliable sentinel.
-    # A bone with no orientation data (old sectionVersion 1 files, or synthesized/hand-authored
-    # bones with no Blender-import provenance, e.g. "Apply Humanoid Armature") falls back to
-    # compute_tail exactly as before -- this preserves this session's already-verified-working
-    # behavior for legacy content.
+    # Canonical export supplies each bone's row-major global bind matrix. Its Y and Z basis rows
+    # give Blender the bone axis and roll directly, including the complete parent composition;
+    # this avoids converting canonical local quaternions back through an Euler hierarchy. Assets
+    # without a usable matrix/length keep the topology-based fallback for mesh-only robustness.
     EPS = 1e-6
 
     def has_orientation(name):
-        return float(joints[name].get("length", 0.0)) > EPS
+        matrix = joints[name].get("globalBindMatrix") or []
+        return len(matrix) == 16 and float(joints[name].get("length", 0.0)) > EPS
 
     def reconstruct_tail_and_roll(name, pos):
         j = joints[name]
         length = float(j["length"])
-        rot = (float(j.get("rotX", 0.0)), float(j.get("rotY", 0.0)), float(j.get("rotZ", 0.0)))
-        # Decode the bone's local Y (axis) and Z (roll) directions in the stored space, then apply
-        # the same rotation_deg the export already applies to positions, so orientation lands in
-        # the identical space as head/tail.
-        d_stored = rotate_point_deg(0.0, length, 0.0, *rot)
-        z_stored = rotate_point_deg(0.0, 0.0, 1.0, *rot)
-        if rotation_deg:
-            d_stored = rotate_point_deg(*d_stored, *rotation_deg)
-            z_stored = rotate_point_deg(*z_stored, *rotation_deg)
-        tail = (pos[0] + d_stored[0], pos[1] + d_stored[1], pos[2] + d_stored[2])
-        return tail, z_stored
+        # The engine matrix is row-vector/row-major; transpose it into Blender's column-vector
+        # convention. Canonical import changed coordinates by conjugation C*M*C^-1, so reverse it
+        # by the complete inverse conjugation R*B*R^-1. Transforming Y/Z alone is incorrect because
+        # the right-hand factor changes the matrix's local basis too (visible as 90-degree errors on
+        # real hips, feet, arms, and face bones).
+        blender_matrix = canonical_matrix_to_blender(
+            j["globalBindMatrix"], rotation_deg, data.get("canonicalSkeleton") is True)
+        y_stored = blender_matrix.to_3x3().col[1]
+        z_stored = blender_matrix.to_3x3().col[2]
+        y_stored.normalize()
+        z_stored.normalize()
+        tail = tuple(pos[index] + y_stored[index] * length for index in range(3))
+        return tail, tuple(z_stored)
 
     # Envelope-based binding (see bind_mesh_to_armature) sizes each bone's influence region from
     # head_radius/tail_radius, which Blender defaults to a small fixed value with no relation to
@@ -401,11 +438,8 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
 
 
 def apply_stored_vertex_weights_override(mesh_obj, verts_data: list[dict], debug: bool) -> None:
-    """Writes the mesh's own REAL, originally-authored (or editor Rigid-Bind-assigned) per-vertex
-    bone weights -- captured at import time by editor/blender_mesh_export.py's export_frame_subsets
-    (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec. 6f), or written directly by
-    mesh_debug.lua's Rigid Bind tool, and round-tripped here via writeMeshDebugJson's "boneNames"/
-    "weights" per-vertex fields -- directly into mesh_obj's vertex groups.
+    """Writes canonical type-42 per-vertex weights, round-tripped by writeMeshDebugJson's
+    "boneNames"/"weights" fields, directly into mesh_obj's vertex groups.
 
     Runs as a FINAL OVERRIDE PASS, after bind_mesh_to_armature has already run its
     ARMATURE_ENVELOPE geometric approximation (+ cleanup passes) for the WHOLE mesh -- previously
@@ -482,6 +516,148 @@ def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
     fixed = _resolve_left_right_crosstalk(mesh_obj)
     if fixed:
         debug_print(debug, f"resolved left/right envelope overlap on {fixed} vertices near the body midline")
+
+
+def build_animation_actions(data: dict, armature_obj, rotation_deg: tuple[float, float, float] | None,
+                            debug: bool) -> int:
+    """Creates one densely sampled Blender Action for every canonical mini-mbm clip.
+
+    Mesh Debug evaluates the source clips before writing JSON, so the matrices received here
+    already contain the engine's authoritative easing, quaternion interpolation, hierarchy, and
+    scale result. Keying every sampled pose avoids approximating those semantics with Blender
+    F-curve interpolation during the round trip.
+    """
+    import bpy
+
+    animation_data = data.get("animations") or {}
+    clips = animation_data.get("clips") or []
+    if not armature_obj or not clips:
+        return 0
+    joints = data.get("joints") or []
+    sample_rate = int(animation_data.get("sampleRate") or 30)
+    if sample_rate <= 0:
+        raise RuntimeError("Canonical animation sample rate must be positive.")
+
+    scene = bpy.context.scene
+    scene.render.fps = sample_rate
+    scene.render.fps_base = 1.0
+    scene.frame_start = 1
+    maximum_frame = 1
+    armature_obj.animation_data_create()
+    pose_bones = []
+    source_bind_by_name = {}
+    for joint in joints:
+        pose_bone = armature_obj.pose.bones.get(joint["name"])
+        if pose_bone is None:
+            raise RuntimeError(f"Canonical animation references missing bone '{joint['name']}'.")
+        pose_bone.rotation_mode = 'QUATERNION'
+        pose_bones.append(pose_bone)
+        source_bind_by_name[pose_bone.name] = canonical_matrix_to_blender(
+            joint["globalBindMatrix"], rotation_deg, data.get("canonicalSkeleton") is True)
+
+    for clip_index, clip in enumerate(clips):
+        samples = clip.get("samples") or []
+        if not samples:
+            continue
+        action_name = str(clip.get("name") or f"Clip_{clip_index + 1}")
+        action = bpy.data.actions.new(name=action_name)
+        action.use_fake_user = True
+        action["mini_mbm_loop"] = bool(clip.get("loop", True))
+        armature_obj.animation_data.action = action
+        previous_rotation = {}
+        curve_values = {}
+
+        def ensure_curve(data_path, array_index, group_name):
+            # Blender 5 layered Actions replaced Action.fcurves with this compatibility API.
+            # Older supported releases still expose the classic collection directly.
+            if hasattr(action, "fcurve_ensure_for_datablock"):
+                return action.fcurve_ensure_for_datablock(
+                    armature_obj, data_path, index=array_index, group_name=group_name)
+            return action.fcurves.new(data_path=data_path, index=array_index, action_group=group_name)
+
+        bone_curves = {}
+        for pose_bone in pose_bones:
+            channels = []
+            for property_name, component_count in (("location", 3),
+                                                    ("rotation_quaternion", 4),
+                                                    ("scale", 3)):
+                data_path = pose_bone.path_from_id(property_name)
+                for component in range(component_count):
+                    curve = ensure_curve(data_path, component, pose_bone.name)
+                    curve.keyframe_points.add(len(samples))
+                    curve_values[curve] = [0.0] * (len(samples) * 2)
+                    channels.append(curve)
+            bone_curves[pose_bone.name] = channels
+
+        for sample_index, sample in enumerate(samples):
+            frame = sample_index + 1
+            maximum_frame = max(maximum_frame, frame)
+            matrices = sample.get("globalMatrices") or []
+            if len(matrices) != len(pose_bones):
+                raise RuntimeError(
+                    f"Canonical clip '{action_name}' sample {sample_index} has {len(matrices)} "
+                    f"bone matrices; expected {len(pose_bones)}.")
+            # Convert every armature-space/global target to matrix_basis explicitly. Assigning
+            # PoseBone.matrix parent-before-child is not sufficient: Blender defers dependency-
+            # graph evaluation, so a child's setter can still observe its parent's PREVIOUS pose.
+            # On common FBX rigs whose armature carries scale 0.01, that reapplies 0.01 once per
+            # hierarchy level (0.01, 0.0001, 0.000001...) until deep bones become singular/NaN.
+            #
+            # For Blender's default full parent inheritance:
+            #   pose = parentPose * inverse(parentRest) * rest * basis
+            # Solving this equation directly makes every bone independent of deferred evaluation
+            # and avoids view-layer updates while constructing the Action.
+            target_by_name = {}
+            for pose_bone, matrix_values in zip(pose_bones, matrices):
+                sampled_global = canonical_matrix_to_blender(
+                    matrix_values, rotation_deg, data.get("canonicalSkeleton") is True)
+                source_bind = source_bind_by_name[pose_bone.name]
+                reconstructed_bind = pose_bone.bone.matrix_local
+                # Edit bones encode orientation and length but cannot retain scale in their rest
+                # matrices. A canonical FBX root commonly has bind scale 0.01; keying the sampled
+                # absolute global matrix against Blender's scale-1 rest pose therefore shrinks the
+                # whole character to 1% only while animated. Transfer the source skinning delta
+                # onto the reconstructed rest matrix instead:
+                #   target = sampledGlobal * inverse(sourceBind) * reconstructedBind
+                # At the canonical bind pose this reduces exactly to reconstructedBind.
+                target_by_name[pose_bone.name] = retarget_sampled_global_to_reconstructed_bind(
+                    sampled_global, source_bind, reconstructed_bind)
+            for pose_bone in pose_bones:
+                target = target_by_name[pose_bone.name]
+                rest = pose_bone.bone.matrix_local
+                if pose_bone.parent:
+                    parent_rest = pose_bone.parent.bone.matrix_local
+                    parent_target = target_by_name[pose_bone.parent.name]
+                    basis = (rest.inverted_safe() @ parent_rest @
+                             parent_target.inverted_safe() @ target)
+                else:
+                    basis = rest.inverted_safe() @ target
+                location, rotation, scale = basis.decompose()
+                prior = previous_rotation.get(pose_bone.name)
+                if prior is not None and prior.dot(rotation) < 0.0:
+                    rotation.negate()
+                previous_rotation[pose_bone.name] = rotation.copy()
+                # Fill F-Curve storage in bulk after all samples. Calling keyframe_insert for every
+                # channel repeatedly sorts and tags the growing Action, making a 1,342-frame clip
+                # take minutes. The solved local values are already final and need no dependency-
+                # graph evaluation here.
+                values = tuple(location) + tuple(rotation) + tuple(scale)
+                for curve, value in zip(bone_curves[pose_bone.name], values):
+                    coordinates = curve_values[curve]
+                    coordinates[sample_index * 2] = frame
+                    coordinates[sample_index * 2 + 1] = value
+
+        for curve, coordinates in curve_values.items():
+            curve.keyframe_points.foreach_set("co", coordinates)
+            curve.update()
+
+        debug_print(debug, f"animation action built: {action_name} ({len(samples)} samples at "
+                           f"{sample_rate} FPS)")
+
+    armature_obj.animation_data.action = None
+    scene.frame_end = maximum_frame
+    scene.frame_set(1)
+    return sum(1 for clip in clips if clip.get("samples"))
 
 
 def _compute_non_deforming_bone_names(armature_obj) -> set:
@@ -619,7 +795,8 @@ def _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj, exclude_names=fro
     return filled
 
 
-def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) -> None:
+def prepare_and_export(mesh_obj, armature_obj, output_path: str, animation_count: int,
+                       debug: bool) -> None:
     import bpy
     from mathutils import Vector
 
@@ -647,7 +824,12 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) ->
     bpy.ops.export_scene.fbx(
         filepath=output_path,
         use_selection=True,
-        bake_anim=False,
+        bake_anim=animation_count > 0,
+        bake_anim_use_all_actions=animation_count > 0,
+        bake_anim_use_nla_strips=False,
+        bake_anim_force_startend_keying=True,
+        bake_anim_step=1.0,
+        bake_anim_simplify_factor=0.0,
         add_leaf_bones=False,
         mesh_smooth_type='FACE',
         object_types=object_types,
@@ -689,9 +871,8 @@ def main() -> int:
         verts_data = data["mesh"]["vertices"]
         # ARMATURE_ENVELOPE binding (+ its cleanup passes) always runs first, for every vertex --
         # this is what gives the rest of the mesh (anything WITHOUT stored per-vertex data) normal
-        # deformation. SECTION_VERTEX_SKIN_WEIGHTS data (docs/mesh-v11-format.md Sec. 6f), when
-        # present on a vertex -- real, originally-authored weights, or an explicit Rigid Bind from
-        # mesh_debug.lua -- then OVERRIDES just that vertex's envelope-derived groups; see
+        # deformation. Canonical type-42 data, when present on a vertex, then OVERRIDES just that
+        # vertex's envelope-derived groups; see
         # apply_stored_vertex_weights_override's own docstring for why this two-pass order replaced
         # the previous mesh-wide either/or (which zeroed the rest of the mesh whenever only a prop
         # bone had real weights).
@@ -703,11 +884,13 @@ def main() -> int:
         debug_print(args.debug_steps, "no bones in input -- exporting mesh-only FBX")
 
     check_cancel_requested(args.cancel_file)
+    animation_count = build_animation_actions(data, armature_obj, rotation_deg, args.debug_steps)
+    check_cancel_requested(args.cancel_file)
     out_path = os.path.abspath(args.output)
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-    prepare_and_export(mesh_obj, armature_obj, out_path, args.debug_steps)
+    prepare_and_export(mesh_obj, armature_obj, out_path, animation_count, args.debug_steps)
 
     debug_print(args.debug_steps, "done")
     return 0

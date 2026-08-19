@@ -35,6 +35,11 @@ namespace mbm
         uint32_t *vboVertexSubsetVB;  // Vertex buffer do subset VB
         uint32_t *vboNormalSubsetVB;  // Normal buffer do subset VB
         uint32_t *vboTextureSubsetVB; // Textura buffer do subset VB
+        uint32_t vboBoneIndicesIB;
+        uint32_t vboBoneWeightsIB;
+        uint32_t *vboBoneIndicesVB;
+        uint32_t *vboBoneWeightsVB;
+        uint32_t skinSubsetCount;
         void release();
     };
 }

@@ -25,8 +25,13 @@ extern "C"
 }
 
 #include <lua-wrap/render-table/mesh-lua.h>
+
+#include <cstring>
+#include <cstdlib>
+#include <vector>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
+#include <core_mbm/mesh-manager.h>
 #include <render/mesh.h>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/scene.h>
@@ -181,6 +186,671 @@ namespace mbm
         return 1;
     }
 
+    int onGetTotalSkeletalAnimationsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(mesh->getTotalSkeletalAnimations()));
+        return 1;
+    }
+
+    int onGetSkeletalAnimationNameLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const char *name = index > 0
+            ? mesh->getSkeletalAnimationName(static_cast<uint32_t>(index - 1)) : nullptr;
+        if (name) lua_pushstring(lua, name); else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationDurationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        float duration = 0.0f;
+        if (index > 0 && mesh->getSkeletalAnimationDuration(static_cast<uint32_t>(index - 1), &duration))
+            lua_pushnumber(lua, duration);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
+    int onSetSkeletalSkinningMethodLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *method = luaL_checkstring(lua, 2);
+        SKELETAL_SHADER_METHOD selected;
+        if (std::strcmp(method, "lbs") == 0)
+            selected = SKELETAL_SHADER_METHOD::LBS;
+        else if (std::strcmp(method, "dqs") == 0)
+            selected = SKELETAL_SHADER_METHOD::DQS_RIGID;
+        else if (std::strcmp(method, "auto") == 0)
+            selected = SKELETAL_SHADER_METHOD::AUTO;
+        else
+            return luaL_error(lua, "skeletal skinning method must be 'lbs', 'dqs', or 'auto'");
+        lua_pushboolean(lua, mesh->setSkeletalSkinningMethod(selected) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalSkinningMethodLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const SKELETAL_SHADER_METHOD method = mesh->getSkeletalSkinningMethod();
+        lua_pushstring(lua, method == SKELETAL_SHADER_METHOD::AUTO ? "auto" :
+            method == SKELETAL_SHADER_METHOD::DQS_RIGID ? "dqs" : "lbs");
+        return 1;
+    }
+
+    int onGetResolvedSkeletalSkinningMethodLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const SKELETAL_SHADER_METHOD method = mesh->getResolvedSkeletalSkinningMethod();
+        lua_pushstring(lua, method == SKELETAL_SHADER_METHOD::NONE ? "unresolved" :
+            method == SKELETAL_SHADER_METHOD::DQS_RIGID ? "dqs" : "lbs");
+        return 1;
+    }
+
+    int onSetSkeletalExecutionPathLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *path = luaL_checkstring(lua, 2);
+        SKELETAL_EXECUTION_PATH selected;
+        if (std::strcmp(path, "gpu") == 0)
+            selected = SKELETAL_EXECUTION_PATH::GPU;
+        else if (std::strcmp(path, "cpu") == 0)
+            selected = SKELETAL_EXECUTION_PATH::CPU;
+        else if (std::strcmp(path, "auto") == 0)
+            selected = SKELETAL_EXECUTION_PATH::AUTO;
+        else
+            return luaL_error(lua, "skeletal execution path must be 'gpu', 'cpu', or 'auto'");
+        lua_pushboolean(lua, mesh->setSkeletalExecutionPath(selected) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalExecutionPathLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const SKELETAL_EXECUTION_PATH path = mesh->getSkeletalExecutionPath();
+        lua_pushstring(lua, path == SKELETAL_EXECUTION_PATH::AUTO ? "auto" :
+            path == SKELETAL_EXECUTION_PATH::CPU ? "cpu" : "gpu");
+        return 1;
+    }
+
+    int onGetResolvedSkeletalExecutionPathLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushstring(lua, mesh->getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU
+            ? "cpu" : "gpu");
+        return 1;
+    }
+
+    int onGetSkeletalSkinningReportLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *status = nullptr, *resolutionReason = nullptr;
+        uint32_t requiredBoneCount = 0, effectiveBoneCapacity = 0;
+        const char *executionPath = nullptr, *executionStatus = nullptr;
+        const char *requestedExecutionPath = nullptr, *resolvedExecutionPath = nullptr, *executionReason = nullptr;
+        mesh->getSkeletalSkinningReport(&status, &resolutionReason, &requiredBoneCount,
+                                        &effectiveBoneCapacity, &executionPath, &executionStatus,
+                                        &requestedExecutionPath, &resolvedExecutionPath, &executionReason);
+        lua_createtable(lua, 0, 12);
+        lua_pushstring(lua, status ? status : "unknown");
+        lua_setfield(lua, -2, "status");
+        lua_pushinteger(lua, static_cast<lua_Integer>(requiredBoneCount));
+        lua_setfield(lua, -2, "requiredBoneCount");
+        lua_pushinteger(lua, static_cast<lua_Integer>(effectiveBoneCapacity));
+        lua_setfield(lua, -2, "effectiveBoneCapacity");
+        const SKELETAL_SHADER_METHOD requested = mesh->getSkeletalSkinningMethod();
+        lua_pushstring(lua, requested == SKELETAL_SHADER_METHOD::AUTO ? "auto" :
+            requested == SKELETAL_SHADER_METHOD::DQS_RIGID ? "dqs" : "lbs");
+        lua_setfield(lua, -2, "requestedMethod");
+        const SKELETAL_SHADER_METHOD resolved = mesh->getResolvedSkeletalSkinningMethod();
+        lua_pushstring(lua, resolved == SKELETAL_SHADER_METHOD::NONE ? "unresolved" :
+            resolved == SKELETAL_SHADER_METHOD::DQS_RIGID ? "dqs" : "lbs");
+        lua_setfield(lua, -2, "resolvedMethod");
+        lua_pushstring(lua, resolutionReason ? resolutionReason : "unknown");
+        lua_setfield(lua, -2, "resolutionReason");
+        lua_pushstring(lua, executionPath ? executionPath : "gpu");
+        lua_setfield(lua, -2, "executionPath");
+        lua_pushstring(lua, requestedExecutionPath ? requestedExecutionPath : "auto");
+        lua_setfield(lua, -2, "requestedExecutionPath");
+        lua_pushstring(lua, resolvedExecutionPath ? resolvedExecutionPath : "gpu");
+        lua_setfield(lua, -2, "resolvedExecutionPath");
+        lua_pushstring(lua, executionStatus ? executionStatus : "unknown");
+        lua_setfield(lua, -2, "executionStatus");
+        lua_pushstring(lua, executionReason ? executionReason : "unknown");
+        lua_setfield(lua, -2, "executionReason");
+        return 1;
+    }
+
+    int onSetSkeletalAuthoringPaletteLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *methodName = luaL_checkstring(lua, 2);
+        const SKELETAL_SHADER_METHOD method = std::strcmp(methodName, "dqs") == 0
+            ? SKELETAL_SHADER_METHOD::DQS_RIGID : std::strcmp(methodName, "lbs") == 0
+            ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE;
+        luaL_checktype(lua, 3, LUA_TTABLE);
+        const size_t count = lua_rawlen(lua, 3);
+        std::vector<float> rows(count);
+        for (size_t index = 0; index < count; ++index)
+        {
+            lua_rawgeti(lua, 3, static_cast<lua_Integer>(index + 1));
+            rows[index] = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 1);
+        }
+        const float time = static_cast<float>(luaL_checknumber(lua, 4));
+        luaL_checktype(lua, 5, LUA_TTABLE);
+        const size_t boneCount=lua_rawlen(lua,5);
+        std::vector<uint64_t> boneIds(boneCount);
+        for (size_t index=0; index<boneCount; ++index)
+        {
+            lua_rawgeti(lua,5,static_cast<lua_Integer>(index+1));
+            const char *boneId=luaL_checkstring(lua,-1);
+            char *end=nullptr;
+            boneIds[index]=static_cast<uint64_t>(std::strtoull(boneId,&end,16));
+            if (!end || end==boneId || *end!='\0')
+                return luaL_error(lua,"ordered bone identity %d is not hexadecimal",static_cast<int>(index+1));
+            lua_pop(lua,1);
+        }
+        char errorOut[255]="";
+        const bool applied=mesh->setSkeletalAuthoringPalette(method, rows.data(),
+            static_cast<uint32_t>(rows.size()),boneIds.data(),
+            static_cast<uint32_t>(boneIds.size()),time,errorOut,static_cast<int>(sizeof(errorOut)));
+        lua_pushboolean(lua,applied);
+        if (applied) lua_pushnil(lua); else lua_pushstring(lua,errorOut);
+        return 2;
+    }
+
+    int onPlaySkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->playSkeletalAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onCrossFadeSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->crossFadeSkeletalAnimation(
+            luaL_checkstring(lua, 2), static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
+    int onPauseSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->pauseSkeletalAnimation() ? 1 : 0);
+        return 1;
+    }
+
+    int onResumeSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->resumeSkeletalAnimation() ? 1 : 0);
+        return 1;
+    }
+
+    int onStopSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->stopSkeletalAnimation() ? 1 : 0);
+        return 1;
+    }
+
+    int onSeekSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->seekSkeletalAnimation(
+            static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationTimeLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float time = 0.0f;
+        if (mesh->getSkeletalAnimationTime(&time)) lua_pushnumber(lua, time); else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onSetSkeletalAnimationPlaybackSpeedLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->setSkeletalAnimationPlaybackSpeed(
+            static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationPlaybackSpeedLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushnumber(lua, mesh->getSkeletalAnimationPlaybackSpeed());
+        return 1;
+    }
+
+    int onPlaySkeletalAnimationAbsoluteLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->playSkeletalAnimationAbsoluteLayer(
+            luaL_checkstring(lua, 2), static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
+    int onPlaySkeletalAnimationAdditiveLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->playSkeletalAnimationAdditiveLayer(
+            luaL_checkstring(lua, 2), static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
+    int onPauseSkeletalAnimationLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->pauseSkeletalAnimationLayer() ? 1 : 0);
+        return 1;
+    }
+
+    int onResumeSkeletalAnimationLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->resumeSkeletalAnimationLayer() ? 1 : 0);
+        return 1;
+    }
+
+    int onIsSkeletalAnimationLayerPausedLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->isSkeletalAnimationLayerPaused() ? 1 : 0);
+        return 1;
+    }
+
+    int onStopSkeletalAnimationAbsoluteLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->stopSkeletalAnimationAbsoluteLayer() ? 1 : 0);
+        return 1;
+    }
+
+    int onSeekSkeletalAnimationAbsoluteLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->seekSkeletalAnimationAbsoluteLayer(
+            static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0);
+        return 1;
+    }
+
+    int onSetSkeletalAnimationAbsoluteLayerWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->setSkeletalAnimationAbsoluteLayerWeight(
+            static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0);
+        return 1;
+    }
+
+    int onFadeSkeletalAnimationAbsoluteLayerLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->fadeSkeletalAnimationAbsoluteLayer(
+            static_cast<float>(luaL_checknumber(lua, 2)),
+            static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationAbsoluteLayerWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float weight = 0.0f;
+        if (mesh->getSkeletalAnimationAbsoluteLayerWeight(&weight)) lua_pushnumber(lua, weight);
+        else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationAbsoluteLayerTimeLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float time = 0.0f;
+        if (mesh->getSkeletalAnimationAbsoluteLayerTime(&time)) lua_pushnumber(lua, time);
+        else lua_pushnil(lua);
+        return 1;
+    }
+
+    uint64_t checkSkeletalBoneId(lua_State *lua, const int index)
+    {
+        const char *text = luaL_checkstring(lua, index);
+        char *end = nullptr;
+        const uint64_t id = static_cast<uint64_t>(std::strtoull(text, &end, 16));
+        if (!text[0] || !end || end[0] != '\0' || id == 0)
+            luaL_error(lua, "skeletal bone id must be a nonzero hexadecimal string");
+        return id;
+    }
+
+    int onSetSkeletalAnimationLayerBoneWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->setSkeletalAnimationLayerBoneWeight(
+            checkSkeletalBoneId(lua, 2), static_cast<float>(luaL_checknumber(lua, 3))) ? 1 : 0);
+        return 1;
+    }
+
+    int onSetSkeletalAnimationLayerBoneWeightsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        luaL_checktype(lua, 2, LUA_TTABLE);
+        const size_t count = lua_rawlen(lua, 2);
+        if (count == 0 || count > UINT32_MAX)
+            return luaL_error(lua, "skeletal layer mask batch must be a nonempty array");
+        std::vector<uint64_t> boneIds(count);
+        std::vector<float> weights(count);
+        for (size_t index = 0; index < count; ++index)
+        {
+            lua_rawgeti(lua, 2, static_cast<lua_Integer>(index + 1));
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            lua_getfield(lua, -1, "boneId");
+            boneIds[index] = checkSkeletalBoneId(lua, -1);
+            lua_pop(lua, 1);
+            lua_getfield(lua, -1, "weight");
+            weights[index] = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 2);
+        }
+        lua_pushboolean(lua, mesh->setSkeletalAnimationLayerBoneWeights(
+            boneIds.data(), weights.data(), static_cast<uint32_t>(count)) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationLayerBoneWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float weight = 0.0f;
+        if (!mesh->getSkeletalAnimationLayerBoneWeight(checkSkeletalBoneId(lua, 2), &weight))
+            return 0;
+        lua_pushnumber(lua, weight);
+        return 1;
+    }
+
+    int onClearSkeletalAnimationLayerMaskLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->clearSkeletalAnimationLayerMask() ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationPoseLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const uint32_t count = mesh->getSkeletalAnimationPoseBoneCount();
+        if (count == 0)
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, static_cast<int>(count), 0);
+        for (uint32_t index = 0; index < count; ++index)
+        {
+            uint64_t stableBoneId = 0;
+            int32_t parentIndex = -1;
+            MATRIX globalMatrix;
+            if (!mesh->getSkeletalAnimationPoseBone(index, &stableBoneId, &parentIndex,
+                                                     &globalMatrix))
+            {
+                lua_pop(lua, 1);
+                lua_pushnil(lua);
+                return 1;
+            }
+            lua_createtable(lua, 0, 3);
+            char boneId[17] = "";
+            snprintf(boneId, sizeof(boneId), "%016llx",
+                     static_cast<unsigned long long>(stableBoneId));
+            lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+            lua_pushinteger(lua, parentIndex + 1); lua_setfield(lua, -2, "parentIndex");
+            lua_createtable(lua, 16, 0);
+            for (int matrixIndex = 0; matrixIndex < 16; ++matrixIndex)
+            {
+                lua_pushnumber(lua, globalMatrix.p[matrixIndex]);
+                lua_rawseti(lua, -2, matrixIndex + 1);
+            }
+            lua_setfield(lua, -2, "globalMatrix");
+            lua_rawseti(lua, -2, index + 1);
+        }
+        return 1;
+    }
+
+    int onGetSkeletalBoneTransformLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *boneName = luaL_checkstring(lua, 2);
+        const char *space = luaL_optstring(lua, 3, "model");
+        const bool worldSpace = strcmp(space, "world") == 0;
+        if (!worldSpace && strcmp(space, "model") != 0)
+            return luaL_error(lua, "space must be 'model' or 'world'");
+
+        uint64_t stableBoneId = 0;
+        MATRIX matrix;
+        VEC3 position;
+        float rotation[4] = {};
+        VEC3 angle;
+        VEC3 scale;
+        if (!mesh->getSkeletalBoneTransform(boneName, worldSpace, &stableBoneId, &matrix,
+                                            &position, rotation, &angle, &scale))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+
+        lua_createtable(lua, 0, 7);
+        char boneId[17] = "";
+        snprintf(boneId, sizeof(boneId), "%016llx",
+                 static_cast<unsigned long long>(stableBoneId));
+        lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+        lua_pushstring(lua, space); lua_setfield(lua, -2, "space");
+
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, position.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, position.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, position.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "position");
+
+        lua_createtable(lua, 0, 4);
+        lua_pushnumber(lua, rotation[0]); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, rotation[1]); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, rotation[2]); lua_setfield(lua, -2, "z");
+        lua_pushnumber(lua, rotation[3]); lua_setfield(lua, -2, "w");
+        lua_setfield(lua, -2, "rotation");
+
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, angle.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, angle.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, angle.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "angle");
+
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, scale.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, scale.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, scale.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "scale");
+
+        lua_createtable(lua, 16, 0);
+        for (int index = 0; index < 16; ++index)
+        {
+            lua_pushnumber(lua, matrix.p[index]);
+            lua_rawseti(lua, -2, index + 1);
+        }
+        lua_setfield(lua, -2, "matrix");
+        return 1;
+    }
+
+    int onGetSkeletalRootMotionDeltaLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *boneName = luaL_checkstring(lua, 2);
+        const char *space = luaL_optstring(lua, 3, "model");
+        const bool worldSpace = strcmp(space, "world") == 0;
+        if (!worldSpace && strcmp(space, "model") != 0)
+            return luaL_error(lua, "space must be 'model' or 'world'");
+        uint64_t stableBoneId = 0;
+        VEC3 translation;
+        if (!mesh->getSkeletalRootMotionDelta(boneName, worldSpace, &stableBoneId,
+                                               &translation))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, 0, 3);
+        char boneId[17] = "";
+        snprintf(boneId, sizeof(boneId), "%016llx",
+                 static_cast<unsigned long long>(stableBoneId));
+        lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+        lua_pushstring(lua, space); lua_setfield(lua, -2, "space");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, translation.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, translation.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, translation.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "translation");
+        return 1;
+    }
+
+    static void pushHexBoneId(lua_State *lua, const uint64_t stableBoneId)
+    {
+        char boneId[17] = "";
+        snprintf(boneId, sizeof(boneId), "%016llx",
+                 static_cast<unsigned long long>(stableBoneId));
+        lua_pushstring(lua, boneId);
+    }
+
+    int onGetSkeletalSharingCompatibilityLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        MESH *other = getMeshFromRawTable(lua, 1, 2);
+        SKELETAL_SHARING_COMPATIBILITY report;
+        mesh->getSkeletalSharingCompatibility(*other, report);
+        lua_createtable(lua, 0, 12);
+        lua_pushboolean(lua, report.compatible ? 1 : 0);
+        lua_setfield(lua, -2, "compatible");
+        lua_pushstring(lua, report.reason ? report.reason : "missing_skeleton");
+        lua_setfield(lua, -2, "reason");
+        lua_pushinteger(lua, static_cast<lua_Integer>(report.boneCount));
+        lua_setfield(lua, -2, "boneCount");
+        if (report.boneIndex != UINT32_MAX)
+        {
+            lua_pushinteger(lua, static_cast<lua_Integer>(report.boneIndex + 1));
+            lua_setfield(lua, -2, "boneIndex");
+        }
+        if (report.boneName)
+        {
+            lua_pushstring(lua, report.boneName);
+            lua_setfield(lua, -2, "boneName");
+        }
+        if (report.boneId != 0)
+        {
+            pushHexBoneId(lua, report.boneId);
+            lua_setfield(lua, -2, "boneId");
+        }
+        if (report.otherBoneId != 0)
+        {
+            pushHexBoneId(lua, report.otherBoneId);
+            lua_setfield(lua, -2, "otherBoneId");
+        }
+        if (report.parentIndex != report.otherParentIndex)
+        {
+            lua_pushinteger(lua, static_cast<lua_Integer>(report.parentIndex + 1));
+            lua_setfield(lua, -2, "parentIndex");
+            lua_pushinteger(lua, static_cast<lua_Integer>(report.otherParentIndex + 1));
+            lua_setfield(lua, -2, "otherParentIndex");
+        }
+        if (report.parentBoneId != report.otherParentBoneId)
+        {
+            pushHexBoneId(lua, report.parentBoneId);
+            lua_setfield(lua, -2, "parentBoneId");
+            pushHexBoneId(lua, report.otherParentBoneId);
+            lua_setfield(lua, -2, "otherParentBoneId");
+        }
+        if (report.observedError != 0.0f || report.tolerance != 0.0f)
+        {
+            lua_pushnumber(lua, report.observedError);
+            lua_setfield(lua, -2, "observedError");
+            lua_pushnumber(lua, report.tolerance);
+            lua_setfield(lua, -2, "tolerance");
+        }
+        return 1;
+    }
+
+    int onEnableSkeletalPoseSharingLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        MESH *source = getMeshFromRawTable(lua, 1, 2);
+        lua_pushboolean(lua, mesh->enableSkeletalPoseSharing(*source) ? 1 : 0);
+        return 1;
+    }
+
+    int onDisableSkeletalPoseSharingLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->disableSkeletalPoseSharing() ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalPoseSharingLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const MESH *source = nullptr;
+        bool active = false;
+        const char *reason = "disabled";
+        const bool enabled = mesh->getSkeletalPoseSharing(&source, &active, &reason);
+        lua_createtable(lua, 0, 4);
+        lua_pushboolean(lua, enabled ? 1 : 0);
+        lua_setfield(lua, -2, "enabled");
+        lua_pushboolean(lua, active ? 1 : 0);
+        lua_setfield(lua, -2, "active");
+        lua_pushstring(lua, reason ? reason : "disabled");
+        lua_setfield(lua, -2, "reason");
+        if (source && source->getFileName())
+        {
+            lua_pushstring(lua, source->getFileName());
+            lua_setfield(lua, -2, "sourceFile");
+        }
+        return 1;
+    }
+
+    int onEnableAutomaticSkeletalRootMotionLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const bool applyRotation = lua_gettop(lua) >= 3 && lua_toboolean(lua, 3);
+        lua_pushboolean(lua, mesh->enableAutomaticSkeletalRootMotion(
+            luaL_checkstring(lua, 2), applyRotation) ? 1 : 0);
+        return 1;
+    }
+
+    int onDisableAutomaticSkeletalRootMotionLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->disableAutomaticSkeletalRootMotion() ? 1 : 0);
+        return 1;
+    }
+
+    int onGetAutomaticSkeletalRootMotionBoneLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *boneName = nullptr;
+        uint64_t stableBoneId = 0;
+        bool applyRotation = false;
+        if (!mesh->getAutomaticSkeletalRootMotionBone(&boneName, &stableBoneId,
+                &applyRotation))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, 0, 3);
+        char boneId[17] = "";
+        snprintf(boneId, sizeof(boneId), "%016llx",
+                 static_cast<unsigned long long>(stableBoneId));
+        lua_pushstring(lua, boneName); lua_setfield(lua, -2, "name");
+        lua_pushstring(lua, boneId); lua_setfield(lua, -2, "boneId");
+        lua_pushboolean(lua, applyRotation ? 1 : 0); lua_setfield(lua, -2, "applyRotation");
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -247,6 +917,51 @@ namespace mbm
                                                      {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
                                                      {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
                                                      {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
+                                                     {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
+                                                     {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
+                                                     {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
+                                                     {"setSkeletalSkinningMethod", onSetSkeletalSkinningMethodLua},
+                                                     {"getSkeletalSkinningMethod", onGetSkeletalSkinningMethodLua},
+                                                     {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
+                                                     {"setSkeletalExecutionPath", onSetSkeletalExecutionPathLua},
+                                                     {"getSkeletalExecutionPath", onGetSkeletalExecutionPathLua},
+                                                     {"getResolvedSkeletalExecutionPath", onGetResolvedSkeletalExecutionPathLua},
+                                                     {"getSkeletalSkinningReport", onGetSkeletalSkinningReportLua},
+                                                     {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
+                                                     {"crossFadeSkeletalAnimation", onCrossFadeSkeletalAnimationLua},
+                                                     {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
+                                                     {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
+                                                     {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
+                                                     {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
+                                                     {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
+                                                     {"setSkeletalAnimationPlaybackSpeed", onSetSkeletalAnimationPlaybackSpeedLua},
+                                                     {"getSkeletalAnimationPlaybackSpeed", onGetSkeletalAnimationPlaybackSpeedLua},
+                                                     {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
+                                                     {"playSkeletalAnimationAdditiveLayer", onPlaySkeletalAnimationAdditiveLayerLua},
+                                                     {"pauseSkeletalAnimationLayer", onPauseSkeletalAnimationLayerLua},
+                                                     {"resumeSkeletalAnimationLayer", onResumeSkeletalAnimationLayerLua},
+                                                     {"isSkeletalAnimationLayerPaused", onIsSkeletalAnimationLayerPausedLua},
+                                                     {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
+                                                     {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
+                                                     {"setSkeletalAnimationAbsoluteLayerWeight", onSetSkeletalAnimationAbsoluteLayerWeightLua},
+                                                     {"fadeSkeletalAnimationAbsoluteLayer", onFadeSkeletalAnimationAbsoluteLayerLua},
+                                                     {"getSkeletalAnimationAbsoluteLayerWeight", onGetSkeletalAnimationAbsoluteLayerWeightLua},
+                                                     {"getSkeletalAnimationAbsoluteLayerTime", onGetSkeletalAnimationAbsoluteLayerTimeLua},
+                                                     {"setSkeletalAnimationLayerBoneWeight", onSetSkeletalAnimationLayerBoneWeightLua},
+                                                     {"setSkeletalAnimationLayerBoneWeights", onSetSkeletalAnimationLayerBoneWeightsLua},
+                                                     {"getSkeletalAnimationLayerBoneWeight", onGetSkeletalAnimationLayerBoneWeightLua},
+                                                     {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
+                                                     {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
+                                                     {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
+                                                     {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
+                                                     {"getSkeletalSharingCompatibility", onGetSkeletalSharingCompatibilityLua},
+                                                     {"enableSkeletalPoseSharing", onEnableSkeletalPoseSharingLua},
+                                                     {"disableSkeletalPoseSharing", onDisableSkeletalPoseSharingLua},
+                                                     {"getSkeletalPoseSharing", onGetSkeletalPoseSharingLua},
+                                                     {"enableAutomaticSkeletalRootMotion", onEnableAutomaticSkeletalRootMotionLua},
+                                                     {"disableAutomaticSkeletalRootMotion", onDisableAutomaticSkeletalRootMotionLua},
+                                                     {"getAutomaticSkeletalRootMotionBone", onGetAutomaticSkeletalRootMotionBoneLua},
+                                                     {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                      {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
@@ -297,6 +1012,51 @@ namespace mbm
                                                          {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
                                                          {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
                                                          {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
+                                                         {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
+                                                         {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
+                                                         {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
+                                                         {"setSkeletalSkinningMethod", onSetSkeletalSkinningMethodLua},
+                                                         {"getSkeletalSkinningMethod", onGetSkeletalSkinningMethodLua},
+                                                         {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
+                                                         {"setSkeletalExecutionPath", onSetSkeletalExecutionPathLua},
+                                                         {"getSkeletalExecutionPath", onGetSkeletalExecutionPathLua},
+                                                         {"getResolvedSkeletalExecutionPath", onGetResolvedSkeletalExecutionPathLua},
+                                                         {"getSkeletalSkinningReport", onGetSkeletalSkinningReportLua},
+                                                         {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
+                                                         {"crossFadeSkeletalAnimation", onCrossFadeSkeletalAnimationLua},
+                                                         {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
+                                                         {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
+                                                         {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
+                                                         {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
+                                                         {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
+                                                         {"setSkeletalAnimationPlaybackSpeed", onSetSkeletalAnimationPlaybackSpeedLua},
+                                                         {"getSkeletalAnimationPlaybackSpeed", onGetSkeletalAnimationPlaybackSpeedLua},
+                                                         {"playSkeletalAnimationAbsoluteLayer", onPlaySkeletalAnimationAbsoluteLayerLua},
+                                                         {"playSkeletalAnimationAdditiveLayer", onPlaySkeletalAnimationAdditiveLayerLua},
+                                                         {"pauseSkeletalAnimationLayer", onPauseSkeletalAnimationLayerLua},
+                                                         {"resumeSkeletalAnimationLayer", onResumeSkeletalAnimationLayerLua},
+                                                         {"isSkeletalAnimationLayerPaused", onIsSkeletalAnimationLayerPausedLua},
+                                                         {"stopSkeletalAnimationAbsoluteLayer", onStopSkeletalAnimationAbsoluteLayerLua},
+                                                         {"seekSkeletalAnimationAbsoluteLayer", onSeekSkeletalAnimationAbsoluteLayerLua},
+                                                         {"setSkeletalAnimationAbsoluteLayerWeight", onSetSkeletalAnimationAbsoluteLayerWeightLua},
+                                                         {"fadeSkeletalAnimationAbsoluteLayer", onFadeSkeletalAnimationAbsoluteLayerLua},
+                                                         {"getSkeletalAnimationAbsoluteLayerWeight", onGetSkeletalAnimationAbsoluteLayerWeightLua},
+                                                         {"getSkeletalAnimationAbsoluteLayerTime", onGetSkeletalAnimationAbsoluteLayerTimeLua},
+                                                         {"setSkeletalAnimationLayerBoneWeight", onSetSkeletalAnimationLayerBoneWeightLua},
+                                                         {"setSkeletalAnimationLayerBoneWeights", onSetSkeletalAnimationLayerBoneWeightsLua},
+                                                         {"getSkeletalAnimationLayerBoneWeight", onGetSkeletalAnimationLayerBoneWeightLua},
+                                                         {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
+                                                         {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
+                                                         {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
+                                                         {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
+                                                         {"getSkeletalSharingCompatibility", onGetSkeletalSharingCompatibilityLua},
+                                                         {"enableSkeletalPoseSharing", onEnableSkeletalPoseSharingLua},
+                                                         {"disableSkeletalPoseSharing", onDisableSkeletalPoseSharingLua},
+                                                         {"getSkeletalPoseSharing", onGetSkeletalPoseSharingLua},
+                                                         {"enableAutomaticSkeletalRootMotion", onEnableAutomaticSkeletalRootMotionLua},
+                                                         {"disableAutomaticSkeletalRootMotion", onDisableAutomaticSkeletalRootMotionLua},
+                                                         {"getAutomaticSkeletalRootMotionBone", onGetAutomaticSkeletalRootMotionBoneLua},
+                                                         {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();

@@ -29,26 +29,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -190,6 +190,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\core_mbm\android-bridge.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-gles-shader-source.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-upload.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-directx9-shader-source.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-parity-asset.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-render-capability.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\skeletal-execution-policy.h" />
     <ClInclude Include="..\..\include\core_mbm\animation.h" />
     <ClInclude Include="..\..\include\core_mbm\audio-interface.h" />
     <ClInclude Include="..\..\include\core_mbm\blend.h" />
@@ -339,6 +347,12 @@
     <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
     <ClCompile Include="..\..\src\core_mbm\renderizable.cpp" />
     <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-animation-foundation.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-upload.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-render-capability.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-resource-directx9.cpp" />

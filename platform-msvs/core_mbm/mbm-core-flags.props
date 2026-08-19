@@ -11,4 +11,9 @@
          back to a solid white texture ("#FFFFFFFF"). -->
     <MbmCoreFeatureDefines>AUDIO_ENGINE_PORT_AUDIO;USE_TEXTURE_MISSING_DIALOG</MbmCoreFeatureDefines>
   </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+  </ItemDefinitionGroup>
 </Project>

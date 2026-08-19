@@ -19,6 +19,7 @@
 #include <texture-manager.h>
 #include "specific-metal-context.h"
 #include "specific-metal-buffer.h"
+#include "skeletal-metal-shader-source.h"
 #include <device.h>
 #include <util-interface.h>
 #include <particle-control.h>
@@ -31,6 +32,14 @@ static mbm::SPECIFIC_AUX_CONTEXT_DEVICE* getMetalCtx()
     mbm::DEVICE* dev = mbm::DEVICE::getInstance();
     return dev ? dev->getSpecificContextDevice() : nullptr;
 }
+
+// Vertex-buffer slots 4-18 are owned by uploadReservedLightBuffersMetal().
+// Keep the skeletal palette outside that range: setVertexBytes/setVertexBuffer
+// replaces an earlier binding at the same stage/index without reporting an error.
+static constexpr uint32_t METAL_RESERVED_LIGHT_LAST_VERTEX_BUFFER_INDEX = 18u;
+static constexpr uint32_t METAL_SKINNING_PALETTE_BUFFER_INDEX = 19u;
+static_assert(METAL_SKINNING_PALETTE_BUFFER_INDEX > METAL_RESERVED_LIGHT_LAST_VERTEX_BUFFER_INDEX,
+              "Metal skeletal palette must not overlap reserved lighting vertex buffers");
 
 static void packMetalShaderVar(float *buffer, const mbm::VAR_SHADER *var, const int32_t offset)
 {
@@ -404,9 +413,40 @@ static id<MTLDepthStencilState> getOrCreateNoDepthState(mbm::SPECIFIC_AUX_CONTEX
 @interface MBMPSOPair : NSObject
 @property (nonatomic, strong) id<MTLRenderPipelineState> standardPSO;
 @property (nonatomic, strong) id<MTLRenderPipelineState> additivePSO;
+@property (nonatomic, assign) uint32_t skeletalPaletteSize;
+@property (nonatomic, assign) mbm::SKELETAL_SHADER_METHOD skeletalMethod;
 @end
 @implementation MBMPSOPair
 @end
+
+static id<MTLBuffer> makeMetalSkeletalPalette(mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context,
+                                               MBMPSOPair *pair, const float *rows,
+                                               const uint32_t floatCount)
+{
+    if (!pair || pair.skeletalPaletteSize == 0)
+        return nil;
+    const uint32_t floatsPerBone = pair.skeletalMethod == mbm::SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
+    const uint32_t expected = pair.skeletalPaletteSize * floatsPerBone;
+    if (rows && floatCount != expected)
+        return nil;
+    if (rows)
+        return [context->mtlDevice newBufferWithBytes:rows length:expected * sizeof(float)
+                                               options:MTLResourceStorageModeShared];
+    std::vector<float> identity(expected, 0.0f);
+    for (uint32_t bone = 0; bone < pair.skeletalPaletteSize; ++bone)
+    {
+        if (pair.skeletalMethod == mbm::SKELETAL_SHADER_METHOD::DQS_RIGID)
+            identity[(bone * 8u) + 3u] = 1.0f;
+        else
+        {
+            identity[(bone * 12u) + 0u] = 1.0f;
+            identity[(bone * 12u) + 5u] = 1.0f;
+            identity[(bone * 12u) + 10u] = 1.0f;
+        }
+    }
+    return [context->mtlDevice newBufferWithBytes:identity.data() length:expected * sizeof(float)
+                                           options:MTLResourceStorageModeShared];
+}
 
 // Compile one MTLRenderPipelineState.  When additive==true the destination blend
 // factor for both RGB and alpha is MTLBlendFactorOne, matching OpenGL BLEND_ONE:
@@ -480,41 +520,10 @@ static NSString* patchVInStruct(NSString* vsStr, mbm::FVF_PROVIDE_BY_ENGINE fvf)
     return [vsStr stringByReplacingCharactersInRange:vinFullRange withString:vinStructForFVF(fvf)];
 }
 
-// compileShader() appends the PS fragment function from the shader-resource entry.
-static NSString* buildVertexHeader(mbm::FVF_PROVIDE_BY_ENGINE fvf)
-{
-    using F = mbm::FVF_PROVIDE_BY_ENGINE;
-    const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
-    const bool hasUV  = (fvf == F::FVF_POS_UV  || fvf == F::FVF_POS_NOR_UV);
-
-    NSMutableString* src = [NSMutableString stringWithString:
-        @"#include <metal_stdlib>\n"
-         "using namespace metal;\n"
-         "struct MbmUniforms { float4x4 mvp; float4x4 mv; float4 color; };\n"];
-
-    [src appendString:@"struct VIn { float3 pos [[attribute(0)]];"];
-    if (hasNor) [src appendString:@" float3 nor [[attribute(1)]];"];
-    if (hasNor && hasUV) [src appendString:@" float2 uv [[attribute(2)]];"];
-    else if (hasUV)      [src appendString:@" float2 uv [[attribute(1)]];"];
-    [src appendString:@" };\n"];
-    [src appendString:@"struct VOut { float4 pos [[position]]; float2 uv;"];
-    if (hasNor) [src appendString:@" float3 nor;"];
-    if (hasUV)  [src appendString:@" float3 positionView;"];
-    [src appendString:@" };\n"];
-
-    [src appendString:
-        @"vertex VOut vert_main(VIn in [[stage_in]], constant MbmUniforms& u [[buffer(1)]]) {\n"
-         "    VOut o;\n"
-         "    o.pos = u.mvp * float4(in.pos, 1.0f);\n"];
-    [src appendString: hasUV ? @"    o.uv = in.uv;\n" : @"    o.uv = float2(0.0f);\n"];
-    if (hasNor) [src appendString:@"    o.nor = (u.mv * float4(in.nor, 0.0f)).xyz;\n"];
-    if (hasUV)  [src appendString:@"    o.positionView = (u.mv * float4(in.pos, 1.0f)).xyz;\n"];
-    [src appendString: @"    return o;\n}\n"];
-    return src;
-}
-
 // Builds the MSL source for the default shader matching the given FVF.
-static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding)
+static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding,
+                                  const uint32_t skeletalPaletteSize,
+                                  const mbm::SKELETAL_SHADER_METHOD skeletalMethod)
 {
     using F = mbm::FVF_PROVIDE_BY_ENGINE;
     const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
@@ -530,7 +539,16 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
     if (hasNor) [src appendString:@" float3 nor [[attribute(1)]];"];
     if (hasNor && hasUV) [src appendString:@" float2 uv [[attribute(2)]];"];
     else if (hasUV)      [src appendString:@" float2 uv [[attribute(1)]];"];
+    if (skeletalPaletteSize > 0)
+        [src appendString:@" float4 boneIndices [[attribute(3)]]; float4 boneWeights [[attribute(4)]];"];
     [src appendString:@" };\n"];
+
+    if (skeletalPaletteSize > 0)
+    {
+        std::string skeletalFunctions;
+        mbm::skeletal::appendMetalSkeletalFunctions(skeletalFunctions, skeletalMethod);
+        [src appendString:[NSString stringWithUTF8String:skeletalFunctions.c_str()]];
+    }
 
     // vertex output struct
     [src appendString:@"struct VOut { float4 pos [[position]];"];
@@ -541,12 +559,29 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
 
     // vertex function
     [src appendString:
-        @"vertex VOut vert_main(VIn in [[stage_in]], constant Uniforms& u [[buffer(1)]]) {\n"
-         "  VOut out;\n"
-         "  out.pos = u.mvpMatrix * float4(in.pos, 1.0);\n"];
-    if (hasNor && useReservedLightScaffolding) [src appendString:@"  out.nor = (u.mvMatrix * float4(in.nor, 0.0)).xyz;\n"];
+        @"vertex VOut vert_main(VIn in [[stage_in]], constant Uniforms& u [[buffer(1)]]"];
+    if (skeletalPaletteSize > 0)
+        [src appendFormat:@", device const float4* bonePalette [[buffer(%u)]]",
+                          METAL_SKINNING_PALETTE_BUFFER_INDEX];
+    [src appendString:@") {\n  VOut out;\n"];
+    if (skeletalPaletteSize == 0)
+        [src appendString:@"  float4 skinnedPosition=float4(in.pos,1.0f);\n"];
+    else
+    {
+        std::string skeletalDeformation;
+        mbm::skeletal::appendMetalSkeletalDeformation(skeletalDeformation, skeletalMethod,
+                                                       hasNor && useReservedLightScaffolding);
+        [src appendString:[NSString stringWithUTF8String:skeletalDeformation.c_str()]];
+    }
+    [src appendString:@"  out.pos = u.mvpMatrix * skinnedPosition;\n"];
+    if (hasNor && useReservedLightScaffolding)
+    {
+        if (skeletalPaletteSize == 0)
+            [src appendString:@"  float3 skinnedNormal=in.nor;\n"];
+        [src appendString:@"  out.nor = (u.mvMatrix * float4(skinnedNormal,0.0f)).xyz;\n"];
+    }
     if (hasUV)  [src appendString:@"  out.uv = in.uv;\n"];
-    if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@"  out.positionView = (u.mvMatrix * float4(in.pos, 1.0)).xyz;\n"];
+    if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@"  out.positionView = (u.mvMatrix * skinnedPosition).xyz;\n"];
     [src appendString:@"  return out;\n}\n"];
 
     // fragment function
@@ -726,7 +761,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
 }
 
 // MTLVertexDescriptor for the interleaved vertex layout used by loadBuffer().
-static MTLVertexDescriptor* buildVtxDesc(mbm::FVF_PROVIDE_BY_ENGINE fvf)
+static MTLVertexDescriptor* buildVtxDesc(mbm::FVF_PROVIDE_BY_ENGINE fvf,
+                                         const bool skeletal)
 {
     using F = mbm::FVF_PROVIDE_BY_ENGINE;
     const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
@@ -754,6 +790,17 @@ static MTLVertexDescriptor* buildVtxDesc(mbm::FVF_PROVIDE_BY_ENGINE fvf)
     }
     vd.layouts[0].stride       = strideForFVF(fvf);
     vd.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+    if (skeletal)
+    {
+        vd.attributes[3].format = MTLVertexFormatFloat4;
+        vd.attributes[3].offset = 0;
+        vd.attributes[3].bufferIndex = 2;
+        vd.attributes[4].format = MTLVertexFormatFloat4;
+        vd.attributes[4].offset = 4 * sizeof(float);
+        vd.attributes[4].bufferIndex = 2;
+        vd.layouts[2].stride = 8 * sizeof(float);
+        vd.layouts[2].stepFunction = MTLVertexStepFunctionPerVertex;
+    }
     return vd;
 }
 
@@ -975,6 +1022,12 @@ namespace mbm
         uint8_t* dst = reinterpret_cast<uint8_t*>(backendBuffer->vertexBuffer.contents);
         if (!dst) return false; // buffer not CPU-accessible
 
+        if (this->initializedIndexBuffer)
+        {
+            buildInterleavedVB(dst, stride, vertex, normal, uv, this->sizeOfArrayVertex);
+            return true;
+        }
+
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
             const uint32_t vertexStart = (uint32_t)vertexStartSubset[i];
@@ -1062,14 +1115,20 @@ namespace mbm
     // reference and releases it normally via the existing, unmodified CFRelease in
     // SHADER::~SHADER()/releaseShader(). No new field or flag needed, same as the DirectX9 (COM
     // refcounted) case and unlike the OpenGL ES backend's raw, non-refcounted GLuint.
-    static int makeDefaultProgramCacheKeyMetal(const FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding)
+    static uint64_t makeDefaultProgramCacheKeyMetal(const FVF_PROVIDE_BY_ENGINE fvf,
+                                                     const bool useReservedLightScaffolding,
+                                                     const uint32_t skeletalPaletteSize,
+                                                     const SKELETAL_SHADER_METHOD skeletalMethod)
     {
-        return (static_cast<int>(fvf) * 2) + (useReservedLightScaffolding ? 1 : 0);
+        return static_cast<uint64_t>(fvf) |
+            (static_cast<uint64_t>(useReservedLightScaffolding ? 1u : 0u) << 8u) |
+            (static_cast<uint64_t>(skeletalMethod) << 16u) |
+            (static_cast<uint64_t>(skeletalPaletteSize) << 24u);
     }
 
-    static std::unordered_map<int, void*> &getDefaultProgramCacheMetal()
+    static std::unordered_map<uint64_t, void*> &getDefaultProgramCacheMetal()
     {
-        static std::unordered_map<int, void*> cache;
+        static std::unordered_map<uint64_t, void*> cache;
         return cache;
     }
 
@@ -1127,7 +1186,8 @@ namespace mbm
     }
 
     bool SHADER::compileShader(BASE_SHADER* ptrPshader, BASE_SHADER* ptrVshader,
-                               FVF_PROVIDE_BY_ENGINE fvf)
+                               FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
+                               const SKELETAL_SHADER_METHOD skeletalMethod)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE) return false;
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1138,6 +1198,11 @@ namespace mbm
 
         this->pShader = ptrPshader;
         this->vShader = ptrVshader;
+        if (skeletalPaletteSize > 0 && ptrVshader != nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "canonical Metal skinning does not yet support a custom vertex shader");
+            return false;
+        }
 
         // Fast path: an earlier instance already compiled+linked this exact (fvf,
         // useReservedLightScaffolding) combination -- every placement of the same mesh type after
@@ -1145,7 +1210,9 @@ namespace mbm
         // newLibraryWithSource:/PSO-compile calls entirely.
         if (this->usesPureDefaultShaderPair())
         {
-            const int key = makeDefaultProgramCacheKeyMetal(fvf, this->shouldCompileReservedLightDefault());
+            const uint64_t key = makeDefaultProgramCacheKeyMetal(
+                fvf, this->shouldCompileReservedLightDefault(), skeletalPaletteSize,
+                skeletalPaletteSize > 0 ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE);
             auto &cache = getDefaultProgramCacheMetal();
             const auto found = cache.find(key);
             if (found != cache.end())
@@ -1190,11 +1257,22 @@ namespace mbm
                     mslSrc = patchVInStruct(vsStr, fvf);
                 }
                 else if (hasPshader)
-                    // Fragment-only PS entry — prepend the auto-generated vertex preamble.
-                    mslSrc = [buildVertexHeader(fvf)
-                        stringByAppendingString:[NSString stringWithUTF8String:ptrPshader->getCode()]];
+                {
+                    // Fragment-only PS entry: keep the generated default vertex stage, including
+                    // canonical skinning when requested, and replace only its fragment stage.
+                    NSString *generated = defaultMSLSource(
+                        fvf, this->shouldCompileReservedLightDefault(), skeletalPaletteSize,
+                        skeletalMethod);
+                    NSRange fragRange = [generated rangeOfString:@"\nfragment "
+                                                         options:NSBackwardsSearch];
+                    if (fragRange.location != NSNotFound)
+                        generated = [generated substringToIndex:fragRange.location];
+                    mslSrc = [generated stringByAppendingString:
+                        [NSString stringWithUTF8String:ptrPshader->getCode()]];
+                }
                 else
-                    mslSrc = defaultMSLSource(fvf, this->shouldCompileReservedLightDefault());
+                    mslSrc = defaultMSLSource(fvf, this->shouldCompileReservedLightDefault(),
+                                              skeletalPaletteSize, skeletalMethod);
             }
             NSError* err = nil;
             id<MTLLibrary> lib = [ctx->mtlDevice newLibraryWithSource:mslSrc options:nil error:&err];
@@ -1211,12 +1289,14 @@ namespace mbm
                 ERROR_LOG("Metal: missing vert_main / frag_main.");
                 return false;
             }
-            MTLVertexDescriptor* vtxDesc    = buildVtxDesc(fvf);
+            MTLVertexDescriptor* vtxDesc    = buildVtxDesc(fvf, skeletalPaletteSize > 0);
             MTLPixelFormat      colorFmt    = ctx->metalLayer.pixelFormat;
 
             // Compile both blend-mode variants.  renderParticle() selects additivePSO;
             // render() / renderDynamic() select standardPSO.
             MBMPSOPair* pair = [MBMPSOPair new];
+            pair.skeletalPaletteSize = skeletalPaletteSize;
+            pair.skeletalMethod = skeletalPaletteSize > 0 ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
             pair.standardPSO = compileSinglePSO(ctx->mtlDevice, vertFn, fragFn,
                                                 vtxDesc, colorFmt, /*additive=*/false);
             pair.additivePSO = compileSinglePSO(ctx->mtlDevice, vertFn, fragFn,
@@ -1232,7 +1312,9 @@ namespace mbm
                 // regardless of which instances come and go; every future placement borrows it and
                 // takes its own +1 share on a cache hit (see the fast path near the top of this
                 // function).
-                const int key = makeDefaultProgramCacheKeyMetal(fvf, this->shouldCompileReservedLightDefault());
+                const uint64_t key = makeDefaultProgramCacheKeyMetal(
+                    fvf, this->shouldCompileReservedLightDefault(), skeletalPaletteSize,
+                    pair.skeletalMethod);
                 getDefaultProgramCacheMetal()[key] = (__bridge_retained void*)pair;
             }
         }
@@ -1240,7 +1322,8 @@ namespace mbm
     }
 
     bool SHADER::render(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner,
-                        const int32_t subsetIndex) const
+                        const int32_t subsetIndex, const float *skeletalPaletteRows,
+                        const uint32_t skeletalPaletteFloatCount) const
     {
         const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1265,6 +1348,18 @@ namespace mbm
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
             MBMPSOPair* pair = (__bridge MBMPSOPair*)backendShaderSpecific;
+            id<MTLBuffer> paletteBuffer = nil;
+            if (pair.skeletalPaletteSize > 0)
+            {
+                if (!backendBuffer->skinVertexBuffer)
+                    return false;
+                paletteBuffer = makeMetalSkeletalPalette(ctx, pair, skeletalPaletteRows,
+                                                         skeletalPaletteFloatCount);
+                if (!paletteBuffer)
+                    return false;
+                [enc setVertexBuffer:paletteBuffer offset:0
+                              atIndex:METAL_SKINNING_PALETTE_BUFFER_INDEX];
+            }
 
             // Select PSO based on blend state set by RENDER_STATE::set().
             // BLEND_ONE (2) = additive (src_alpha*src + 1*dst); all others = standard alpha.
@@ -1325,6 +1420,8 @@ namespace mbm
             {
                 if (!backendBuffer->vertexBuffer || !backendBuffer->indexBuffer) return false;
                 [enc setVertexBuffer:backendBuffer->vertexBuffer offset:0 atIndex:0];
+                if (pair.skeletalPaletteSize > 0)
+                    [enc setVertexBuffer:backendBuffer->skinVertexBuffer offset:0 atIndex:2];
                 const uint32_t firstSubset = subsetIndex >= 0 ? static_cast<uint32_t>(subsetIndex) : 0u;
                 const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
                 if (lastSubset > pBufferId->totalSubset) return false;
@@ -1372,6 +1469,12 @@ namespace mbm
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:backendBuffer->vertexBuffer offset:off atIndex:0];
+                    if (pair.skeletalPaletteSize > 0)
+                    {
+                        const NSUInteger skinOffset =
+                            (NSUInteger)pBufferId->vertexStartVB[i] * 8u * sizeof(float);
+                        [enc setVertexBuffer:backendBuffer->skinVertexBuffer offset:skinOffset atIndex:2];
+                    }
                     [enc drawPrimitives:prim
                             vertexStart:0
                             vertexCount:(NSUInteger)pBufferId->vertexCountVB[i]];

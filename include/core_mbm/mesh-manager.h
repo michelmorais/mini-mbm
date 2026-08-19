@@ -38,24 +38,39 @@ namespace util
 
 namespace mbm
 {
+    class MESH_MBM_DEBUG;
+    namespace skeletal
+    {
+        struct CANONICAL_PARITY_ASSET;
+        API_IMPL bool copyCanonicalParityAsset(const MESH_MBM_DEBUG &mesh,
+                                               CANONICAL_PARITY_ASSET &out) noexcept;
+    }
     class BUFFER_GL;
     class RENDERIZABLE;
     class RENDERIZABLE_TO_TARGET;
     class SHADER;
     class MESH_MBM;
     class ARTICULATED_ANIMATION_PLAYER;
+    class SKELETAL_ANIMATION_PLAYER;
     struct IMAGE_RESOURCE;
     // Defined in mesh-manager.cpp only - forward-declared here so MESH_MBM::finishLoadFromIntermediate
     // can be declared without exposing the type's layout in the public header, same PIMPL-style
     // pattern as MESH_MBM::Impl.
     struct MESH_LOAD_INTERMEDIATE_V11;
 
+    struct SKELETAL_VERTEX_WEIGHT_EDIT
+    {
+        uint32_t vertexIndex;
+        const char *boneNames[4];
+        float weights[4];
+    };
+
     struct BUFFER_MESH
     {
         BUFFER_GL *pBufferGL;
         util::SUBSET *  subset;
         uint32_t    totalSubset;
-        constexpr BUFFER_MESH() noexcept;
+        API_IMPL BUFFER_MESH() noexcept;
         API_IMPL virtual ~BUFFER_MESH();
         API_IMPL void release();
         API_IMPL BUFFER_GL *getRenderBuffer() const noexcept;
@@ -76,6 +91,142 @@ namespace mbm
       private:
         struct Impl;
         std::unique_ptr<Impl> impl;
+    };
+
+    class SKELETAL_ANIMATION_PLAYER
+    {
+        friend class MESH_MBM;
+      public:
+        API_IMPL SKELETAL_ANIMATION_PLAYER();
+        API_IMPL ~SKELETAL_ANIMATION_PLAYER();
+        API_IMPL void reset() noexcept;
+        API_IMPL void setSkinningMethod(SKELETAL_SHADER_METHOD method) noexcept;
+        API_IMPL SKELETAL_SHADER_METHOD getSkinningMethod() const noexcept;
+        API_IMPL SKELETAL_SHADER_METHOD getResolvedSkinningMethod() const noexcept;
+        API_IMPL const char *getSkinningResolutionReason() const noexcept;
+        SKELETAL_ANIMATION_PLAYER(const SKELETAL_ANIMATION_PLAYER &) = delete;
+        SKELETAL_ANIMATION_PLAYER &operator=(const SKELETAL_ANIMATION_PLAYER &) = delete;
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
+    };
+
+    // Read-only, copy-out view of the canonical bind-pose compiler. The compiled vectors and
+    // lookup tables remain private to MESH_MBM_DEBUG::Impl; these records expose only values that
+    // editor diagnostics need and are never consulted by rendering.
+    struct SKELETON_BIND_SUMMARY
+    {
+        uint32_t boneCount = 0;
+        uint32_t diagnosticCount = 0;
+        uint32_t animationClipCount = 0;
+        float maximumReconstructionError = 0.0f;
+        float maximumBindIdentityError = 0.0f;
+        bool valid = false;
+        bool canonical = false;
+    };
+
+    struct SKELETON_BIND_BONE_INFO
+    {
+        uint64_t boneId = 0;
+        uint64_t parentBoneId = 0;
+        int32_t parentIndex = -1;
+        uint32_t sourceIndex = 0;
+        VEC3 localTranslation;
+        float localRotationX = 0.0f;
+        float localRotationY = 0.0f;
+        float localRotationZ = 0.0f;
+        float localRotationW = 1.0f;
+        VEC3 localScale = VEC3(1.0f, 1.0f, 1.0f);
+        MATRIX localBindMatrix;
+        MATRIX globalBindMatrix;
+        MATRIX inverseGlobalBindMatrix;
+        float radius = 0.0f;
+        float length = 0.0f;
+        VEC3 tailOffset;
+        bool hasExplicitTail = false;
+        bool connectedToParent = false;
+        uint32_t childCount = 0;
+        uint32_t weightedVertexCount = 0;
+        uint32_t animationTrackCount = 0;
+        bool weightPaletteReferenced = false;
+        bool hasNegativeScale = false;
+        bool hasShear = false;
+    };
+
+    struct SKELETON_BIND_DIAGNOSTIC_INFO
+    {
+        const char *code = nullptr;
+        uint32_t sourceIndex = 0;
+        float observedError = 0.0f;
+        bool fatal = true;
+    };
+
+    struct SKELETAL_CLIP_INFO
+    {
+        uint64_t clipId = 0;
+        float duration = 0.0f;
+        uint32_t trackCount = 0;
+        bool loop = false;
+    };
+
+    struct SKELETAL_TRACK_INFO
+    {
+        uint64_t boneId = 0;
+        uint32_t boneIndex = 0;
+        uint32_t keyCount = 0;
+        uint8_t channelMask = 0;
+    };
+
+    struct SKELETAL_KEY_INFO
+    {
+        float time = 0.0f;
+        VEC3 localTranslation;
+        float localRotationX = 0.0f;
+        float localRotationY = 0.0f;
+        float localRotationZ = 0.0f;
+        float localRotationW = 1.0f;
+        VEC3 localScale = VEC3(1.0f, 1.0f, 1.0f);
+        uint8_t easing = 0;
+        float bezierX1 = 0.0f;
+        float bezierY1 = 0.0f;
+        float bezierX2 = 1.0f;
+        float bezierY2 = 1.0f;
+    };
+
+    struct SKELETAL_POSE_BONE_INFO
+    {
+        uint64_t boneId = 0;
+        VEC3 localTranslation;
+        float localRotationX = 0.0f;
+        float localRotationY = 0.0f;
+        float localRotationZ = 0.0f;
+        float localRotationW = 1.0f;
+        VEC3 localScale = VEC3(1.0f, 1.0f, 1.0f);
+        MATRIX globalMatrix;
+    };
+
+    struct SKELETAL_RUNTIME_POSE_BONE_INFO
+    {
+        uint64_t boneId = 0;
+        int32_t parentIndex = -1;
+        MATRIX globalMatrix;
+    };
+
+    struct SKELETAL_SHARING_COMPATIBILITY
+    {
+        bool compatible = false;
+        const char *reason = "missing_skeleton";
+        uint32_t boneCount = 0;
+        uint32_t boneIndex = UINT32_MAX;
+        const char *boneName = nullptr;
+        uint64_t boneId = 0;
+        uint64_t otherBoneId = 0;
+        int32_t parentIndex = -1;
+        int32_t otherParentIndex = -1;
+        uint64_t parentBoneId = 0;
+        uint64_t otherParentBoneId = 0;
+        float observedError = 0.0f;
+        float tolerance = 0.0f;
     };
 
     class MESH_MBM_DEBUG
@@ -161,13 +312,7 @@ namespace mbm
         API_IMPL void centralizeFrameItself(const int indexFrame, const int indexSubset);
         API_IMPL void rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ);
         API_IMPL void scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz);
-        // Optionally keeps the mesh-wide skeleton in the same coordinate space as a whole-mesh,
-        // positive uniform geometry bake. Skeleton synchronization is rejected for a single
-        // frame/subset or a non-uniform/negative scale because one global rest skeleton cannot
-        // represent those transformations faithfully. Bone-local scaleX/Y/Z are intentionally
-        // preserved: this is a coordinate-space bake, not a local bone-scale edit.
-        API_IMPL bool scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy,
-                                 const float sz, const bool scaleSkeleton, char *errorOut, const int errorOutLen);
+        API_IMPL bool scaleSkeletalAsset(const float scale, char *errorOut, const int errorOutLen);
         API_IMPL void translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz);
         API_IMPL bool addIndex(const uint32_t indexFrame, const uint32_t indexSubset,
                             const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,
@@ -180,63 +325,212 @@ namespace mbm
         API_IMPL const util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnim(const uint32_t index)const;
         API_IMPL const char *getAnimationEffectTexture(const uint32_t index) const noexcept;
         API_IMPL bool setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept;
-        // Skeleton accessors (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
-        // diagnostic round-trip only, never consulted by rendering. `parentName` must be nullptr/""
-        // (root) or already-added via a prior addBone call in this instance; addBone returns 0 and
-        // fills errorOut on any validation failure, else a 1-based joint index, mirroring
-        // addAnimation's contract. rotX/Y/Z (Euler degrees, world/armature space, engine's own
-        // X-then-Y-then-Z order) and scaleX/Y/Z (default 1,1,1) and length (default 0, meaning "no
-        // orientation data") are the fields SECTION_FRAME_SKINNED's sectionVersion 2 added - see
-        // SKELETON_BONE_V11's own comment in header-mesh.h.
-        API_IMPL int addBone(const char *name, const char *parentName, const float x, const float y, const float z,
-                              const float radius, const float rotX, const float rotY, const float rotZ,
-                              const float scaleX, const float scaleY, const float scaleZ, const float length,
-                              char *errorOut, const int errorOutLen);
-        API_IMPL uint32_t getTotalBone() const noexcept;
-        API_IMPL const util::SKELETON_BONE_V11 *getBone(const uint32_t index) const noexcept;
-        // Edits an existing bone in place (name/parent/position/radius/rotation/scale/length).
-        // Rejects an empty/duplicate name, an unknown parent, self-parenting, and any reparent that
-        // would create a cycle (the candidate parent is a descendant of `index`). On success,
-        // re-sorts the internal joint list so parent-before-child order still holds (required by
-        // the on-disk format), which callers relying on stable indices across calls must account for.
-        API_IMPL bool updateBone(const uint32_t index, const char *name, const char *parentName,
-                                  const float x, const float y, const float z, const float radius,
-                                  const float rotX, const float rotY, const float rotZ,
-                                  const float scaleX, const float scaleY, const float scaleZ, const float length,
-                                  char *errorOut, const int errorOutLen);
-        // Removes bone `index`. If other bones reference it as their parent, the call fails (errorOut
-        // explains how many) unless `cascadeChildren` is true, in which case the whole subtree rooted
-        // at `index` is removed.
-        API_IMPL bool removeBone(const uint32_t index, const bool cascadeChildren, char *errorOut, const int errorOutLen);
-        // Vertex skin weight accessors (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec.
-        // 6f) - editor/diagnostic + FBX re-export round-trip only, never consulted by rendering.
-        // vertexIndex is 0-based, against frame 1's own vertex order (this section always describes
-        // frame 1's topology, never any other frame's). Each of the 4 slots is independent: pass a
-        // nullptr/empty boneNameN to leave that slot unused. Bone names are resolved against (or
-        // added to) this instance's own weight palette - NOT SECTION_FRAME_SKINNED's bone list, so
-        // this works even for a mesh with no SECTION_FRAME_SKINNED data at all. Growing the vertex
-        // array itself only happens implicitly the first time any slot is set for a given
-        // vertexIndex; setVertexWeight fails (returns false, fills errorOut) if vertexIndex is out
-        // of range for frame 1's current vertex count.
-        API_IMPL bool setVertexWeight(const uint32_t vertexIndex,
-                                       const char *boneName0, const float weight0,
-                                       const char *boneName1, const float weight1,
-                                       const char *boneName2, const float weight2,
-                                       const char *boneName3, const float weight3,
+        API_IMPL bool getSkeletalSharingCompatibility(const MESH_MBM_DEBUG &other,
+                                                       SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
+        // Read-only views of the canonical skeleton compiled and validated during load.
+        API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
+        API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out,
+                                          const bool includeDependencyImpact = true) const noexcept;
+        API_IMPL const char *getSkeletonBindBoneName(const uint32_t index) const noexcept;
+        API_IMPL bool getSkeletonBindDiagnostic(const uint32_t index,
+                                                SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept;
+        API_IMPL uint32_t getTotalSkeletalClips() const noexcept;
+        API_IMPL bool getSkeletalClip(const uint32_t clipIndex, SKELETAL_CLIP_INFO &out) const noexcept;
+        API_IMPL const char *getSkeletalClipName(const uint32_t clipIndex) const noexcept;
+        API_IMPL bool getSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
+                                       SKELETAL_TRACK_INFO &out) const noexcept;
+        API_IMPL bool getSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                     const uint32_t keyIndex, SKELETAL_KEY_INFO &out) const noexcept;
+        API_IMPL bool addSkeletalClip(const char *name, const float duration, const bool loop,
+                                      uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
+        API_IMPL bool updateSkeletalClip(const uint32_t clipIndex, const char *name,
+                                         const float duration, const bool loop,
+                                         char *errorOut, const int errorOutLen);
+        API_IMPL bool removeSkeletalClip(const uint32_t clipIndex,
+                                         char *errorOut, const int errorOutLen);
+        API_IMPL bool addSkeletalTrack(const uint32_t clipIndex, const uint32_t boneIndex,
+                                       const uint8_t channelMask, uint32_t *newIndexOut,
                                        char *errorOut, const int errorOutLen);
-        // Returns false if vertexIndex is out of range or no weight data has been set for it yet.
-        // On success, fills up to 4 (boneName, weight) out-pairs - boneNameN is set to nullptr (not
-        // an empty string) for an unused slot, so a caller can tell "no 4th influence" apart from
-        // "4th influence is an empty-named bone" (which addBone's own empty-name rejection makes
-        // impossible anyway, but the distinction is kept for symmetry/clarity).
-        API_IMPL bool getVertexWeight(const uint32_t vertexIndex,
-                                       const char **boneName0, float *weight0,
-                                       const char **boneName1, float *weight1,
-                                       const char **boneName2, float *weight2,
-                                       const char **boneName3, float *weight3) const noexcept;
-        API_IMPL bool hasVertexWeights() const noexcept;
-        API_IMPL uint32_t getTotalVertexWeightBones() const noexcept; // weight palette size (unique bones referenced)
-        API_IMPL void removeVertexWeights() noexcept; // clears palette + all per-vertex weight data
+        API_IMPL bool updateSkeletalTrackChannels(const uint32_t clipIndex, const uint32_t trackIndex,
+                                                  const uint8_t channelMask,
+                                                  char *errorOut, const int errorOutLen);
+        API_IMPL bool removeSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
+                                          char *errorOut, const int errorOutLen);
+        API_IMPL bool addSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                     const float time, uint32_t *newIndexOut,
+                                     char *errorOut, const int errorOutLen);
+        API_IMPL bool updateSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                        const uint32_t keyIndex, const float time,
+                                        const VEC3 &translation, const float rotationX,
+                                        const float rotationY, const float rotationZ,
+                                        const float rotationW, const VEC3 &scale,
+                                        const uint8_t easing, const float bezierX1,
+                                        const float bezierY1, const float bezierX2,
+                                        const float bezierY2, char *errorOut, const int errorOutLen);
+        // Moves multiple existing keys by one time delta on a candidate copy. Track/key indices
+        // refer to the pre-move ordering; validation and commit are atomic.
+        API_IMPL bool moveSkeletalKeys(const uint32_t clipIndex, const uint32_t *trackIndices,
+                                       const uint32_t *keyIndices, const uint32_t keyCount,
+                                       const float timeDelta, char *errorOut, const int errorOutLen);
+        API_IMPL bool duplicateSkeletalKeys(const uint32_t clipIndex,
+                                            const uint32_t *trackIndices,
+                                            const uint32_t *keyIndices, const uint32_t keyCount,
+                                            const float timeDelta, char *errorOut,
+                                            const int errorOutLen);
+        // Pastes detached key payloads into one destination clip. Tracks are resolved by stable
+        // bone ID, missing tracks are created, and the complete candidate validates atomically.
+        API_IMPL bool pasteSkeletalKeys(const uint32_t clipIndex, const uint64_t *boneIds,
+                                        const uint8_t *channelMasks,
+                                        const SKELETAL_KEY_INFO *keys, const uint32_t keyCount,
+                                        const float sourceMinimumTime, const float insertionTime,
+                                        char *errorOut, const int errorOutLen);
+        API_IMPL bool insertSkeletalKeysRipple(const uint32_t clipIndex,
+                                               const uint32_t *trackIndices,
+                                               const uint32_t *keyIndices,
+                                               const uint32_t keyCount,
+                                               const float insertionTime, char *errorOut,
+                                               const int errorOutLen);
+        API_IMPL bool insertSkeletalEmptyTime(const uint32_t clipIndex,
+                                              const float insertionTime,
+                                              const float duration, char *errorOut,
+                                              const int errorOutLen);
+        API_IMPL bool removeSkeletalTimeRange(const uint32_t clipIndex,
+                                              const float startTime,
+                                              const float duration,
+                                              uint32_t *removedKeyCountOut,
+                                              char *errorOut, const int errorOutLen);
+        API_IMPL bool removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                        const uint32_t keyIndex, char *errorOut, const int errorOutLen);
+        API_IMPL bool commitSkeletalAuthoringKey(const uint32_t clipIndex, const uint32_t boneIndex,
+                                                 const float time, const uint8_t channelMask,
+                                                 const SKELETAL_KEY_INFO &local,
+                                                 bool *createdKeyOut, char *errorOut,
+                                                 const int errorOutLen);
+        API_IMPL bool commitSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
+                                                  const uint64_t *boneIds,
+                                                  const SKELETAL_KEY_INFO *locals,
+                                                  const uint32_t boneCount,
+                                                  char *errorOut, const int errorOutLen);
+        // Evaluates an editor-only pose from the unsaved canonical clip state. An optional local
+        // override is applied after sampling and before hierarchy/global/palette reconstruction.
+        API_IMPL bool evaluateSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
+                                                    const int32_t overrideBoneIndex,
+                                                    const SKELETAL_KEY_INFO *overrideLocal,
+                                                    const SKELETAL_SHADER_METHOD method,
+                                                    char *errorOut, const int errorOutLen);
+        API_IMPL uint32_t getSkeletalAuthoringPoseBoneCount() const noexcept;
+        API_IMPL bool getSkeletalAuthoringPoseBone(const uint32_t boneIndex,
+                                                   SKELETAL_POSE_BONE_INFO &out) const noexcept;
+        API_IMPL uint32_t getSkeletalAuthoringPaletteSize() const noexcept;
+        API_IMPL bool copySkeletalAuthoringPalette(float *rows, const uint32_t rowCount) const noexcept;
+        API_IMPL bool renameSkeletalBone(const uint32_t index, const char *name,
+                                         char *errorOut, const int errorOutLen);
+        // newParentIndex is -1 for a root or a zero-based compiled/source index otherwise.
+        API_IMPL bool reparentSkeletalBone(const uint32_t index, const int32_t newParentIndex,
+                                           const bool preserveGlobalBind,
+                                           char *errorOut, const int errorOutLen);
+        // Replaces one bone's parent-relative bind TRS and display metadata. Stable identity and
+        // hierarchy are preserved; the edited local transform deliberately moves its subtree.
+        API_IMPL bool setSkeletalBoneBind(const uint32_t index, const VEC3 &translation,
+                                          const float rotationX, const float rotationY,
+                                          const float rotationZ, const float rotationW,
+                                          const VEC3 &scale, const float radius, const float length,
+                                          char *errorOut, const int errorOutLen);
+        // Replaces explicit Bone Editor geometry and keeps explicitly connected child heads on the
+        // same parent-local point. preserveOtherJoints compensates every joint outside the edited
+        // shared joint in global bind space. Runtime bind orientation is not inferred from the tail.
+        API_IMPL bool setSkeletalBoneTail(const uint32_t index, const VEC3 &tailOffset,
+                                          const bool hasExplicitTail, const bool preserveOtherJoints,
+                                          char *errorOut, const int errorOutLen);
+        // Moves one transform head in parent-local space while preserving its explicit tail in
+        // global bind space. Connected children remain attached to that preserved tail;
+        // preserveOtherJoints compensates the remaining hierarchy in global bind space.
+        API_IMPL bool setSkeletalBoneHead(const uint32_t index, const VEC3 &translation,
+                                          const bool preserveOtherJoints,
+                                          char *errorOut, const int errorOutLen);
+        // Translates one complete authored segment by moving its transform head while retaining its
+        // bone-local tail. Connected child heads follow the tail; optional compensation preserves
+        // every other joint in global bind space.
+        API_IMPL bool translateSkeletalBoneSegment(const uint32_t index, const VEC3 &translation,
+                                                    const bool preserveOtherJoints,
+                                                    char *errorOut, const int errorOutLen);
+        // Connects/disconnects a bone head to/from its current parent's explicit tail. Connecting
+        // preserves this bone's global tail and can compensate all other global joint transforms.
+        API_IMPL bool setSkeletalBoneConnectedToParent(const uint32_t index, const bool connected,
+                                                        const bool preserveOtherJoints,
+                                                        char *errorOut, const int errorOutLen);
+        // Updates positive authoring/picking radius for one bone or its complete descendant subtree.
+        API_IMPL bool setSkeletalBoneRadius(const uint32_t index, const float radius,
+                                            const bool includeDescendants,
+                                            char *errorOut, const int errorOutLen);
+        // Adds a parent-first canonical transform with a new opaque stable ID. parentIndex is -1
+        // for root; hasExplicitTail distinguishes a selectable bone segment from a joint only.
+        API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,
+                                      const VEC3 &translation, const float radius, const float length,
+                                      const bool hasExplicitTail, const bool connectedToParent,
+                                      uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
+        // Atomically appends count parent-linked bones named prefix1..prefixN.
+        API_IMPL bool addSkeletalBoneChain(const int32_t parentIndex, const char *namePrefix,
+                                           const uint32_t count, const VEC3 &stepTranslation,
+                                           const float radius, const float length,
+                                           uint32_t *lastIndexOut, char *errorOut, const int errorOutLen);
+        // Atomically extends an explicit tail with connected segments that continue its direction.
+        API_IMPL bool extendSkeletalBoneTail(const uint32_t index, const uint32_t count,
+                                             const float radius, const float length,
+                                             uint32_t *lastIndexOut,
+                                             char *errorOut, const int errorOutLen);
+        // Duplicates a subtree by reflecting global bind matrices across axis 0=X, 1=Y, 2=Z.
+        API_IMPL bool mirrorSkeletalBoneSubtree(const uint32_t index, const uint32_t axis,
+                                                const char *namePrefix, uint32_t *newRootIndexOut,
+                                                char *errorOut, const int errorOutLen);
+        // Creates section 41 with one root transform on a loaded static mesh without skeletal data.
+        API_IMPL bool initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
+                                                 const float radius, const float length,
+                                                 const bool hasExplicitTail,
+                                                 char *errorOut, const int errorOutLen);
+        // Strict removal: only an unreferenced leaf may be deleted. No implicit remapping occurs.
+        API_IMPL bool removeSkeletalBone(const uint32_t index,
+                                         char *errorOut, const int errorOutLen);
+        // Removes an unbranched bone while explicitly transferring its palette entry and optionally
+        // deleting its tracks. The replacement is an existing zero-based bone index.
+        API_IMPL bool removeSkeletalBoneRemapped(const uint32_t index, const uint32_t replacementIndex,
+                                                 const bool discardAnimationTracks,
+                                                 const bool reparentChildrenPreserveGlobal,
+                                                 char *errorOut, const int errorOutLen);
+        // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
+        // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
+        // An asset without an existing canonical skeleton/weight section is rejected rather than
+        // promoted from, or mirrored into, the exploratory name-palette representation above.
+        // Deprecated compatibility wrapper. New editor code must use the atomic batch operation.
+        API_IMPL bool setSkeletalVertexWeight(const uint32_t vertexIndex,
+                                               const char *boneName0, const float weight0,
+                                               const char *boneName1, const float weight1,
+                                               const char *boneName2, const float weight2,
+                                               const char *boneName3, const float weight3,
+                                               char *errorOut, const int errorOutLen);
+        // Atomically validates and applies a detached set of unique vertex edits. The caller-owned
+        // records are consumed only for the duration of the call; no pointer or container is retained.
+        API_IMPL bool setSkeletalVertexWeightsBatch(const SKELETAL_VERTEX_WEIGHT_EDIT *edits,
+                                                     const uint32_t editCount,
+                                                     char *errorOut, const int errorOutLen);
+        API_IMPL bool getSkeletalVertexWeight(const uint32_t vertexIndex,
+                                               const char **boneName0, float *weight0,
+                                               const char **boneName1, float *weight1,
+                                               const char **boneName2, float *weight2,
+                                               const char **boneName3, float *weight3) const noexcept;
+        // Creates complete frame-zero type-42 weights rigidly bound to one existing bone.
+        API_IMPL bool initializeSkeletalVertexWeights(const uint32_t boneIndex,
+                                                       uint32_t *vertexCountOut,
+                                                       char *errorOut, const int errorOutLen);
+        // Removes only canonical type-42 weights, preserving the skeleton and animation clips.
+        API_IMPL bool removeSkeletalVertexWeights(uint32_t *vertexCountOut,
+                                                  char *errorOut, const int errorOutLen);
+        // Atomically removes the complete canonical 41-43 skeletal asset. Counts report impact.
+        API_IMPL bool removeAllSkeletalData(uint32_t *boneCountOut, uint32_t *vertexCountOut,
+                                            uint32_t *clipCountOut,
+                                            char *errorOut, const int errorOutLen);
+        API_IMPL bool hasSkeletalVertexWeights() const noexcept;
+        API_IMPL uint32_t getTotalSkeletalWeightBones() const noexcept;
         // Rigid/articulated animation authoring data. The storage remains PIMPL-owned; these
         // narrow operations are the editor-facing API and are also suitable for Lua bindings.
         API_IMPL uint32_t getTotalArticulatedParts() const noexcept;
@@ -314,6 +608,8 @@ namespace mbm
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
       private:
+        friend API_IMPL bool skeletal::copyCanonicalParityAsset(
+            const MESH_MBM_DEBUG &mesh, skeletal::CANONICAL_PARITY_ASSET &out) noexcept;
         void fillAtLeastOneBound();
         bool fillInSubsetDebug(const MESH_MBM* meshMemory,
                                const int currentFrame,
@@ -334,6 +630,8 @@ namespace mbm
     class MESH_MBM
     {
         friend class MESH_MANAGER;
+        friend class ANIMATION_MANAGER;
+        friend class MESH;
       public:
         API_IMPL BUFFER_MESH *getBuffer(const uint32_t index) const;
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
@@ -416,6 +714,98 @@ namespace mbm
         // below by reference; defined in mesh-manager.cpp only, same forward-declare-in-header
         // pattern as Impl.
         bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
+        uint32_t getPreparedSkeletalPaletteSize(SKELETAL_SHADER_METHOD method) const noexcept;
+        bool supportsGpuSkeletalPath(SKELETAL_SHADER_METHOD method) const noexcept;
+        void resolveSkeletalSkinningMethod(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        void getSkeletalSkinningReport(SKELETAL_SHADER_METHOD method, const char **status,
+                                       uint32_t *requiredBoneCount,
+                                       uint32_t *effectiveBoneCapacity) const noexcept;
+        bool canUseCpuSkeletalPath(SKELETAL_SHADER_METHOD method,
+                                   const SKELETAL_ANIMATION_PLAYER *player = nullptr,
+                                   const char **reason = nullptr) const noexcept;
+        bool renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                               const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
+                               std::vector<VEC3> &positions, std::vector<VEC3> &normals,
+                               std::vector<VEC2> &uvs, bool &initialized,
+                               const SHADER *pShader,
+                               const RENDERIZABLE *renderizableOwner = nullptr) const;
+        uint32_t getTotalSkeletalAnimations() const noexcept;
+        const char *getSkeletalAnimationName(uint32_t index) const noexcept;
+        bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;
+        bool playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const;
+        bool crossFadeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name,
+                                        float duration) const;
+        bool hasActiveSkeletalAnimation(const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool pauseSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool resumeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool stopSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool seekSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float time) const;
+        bool getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player, float *time) const noexcept;
+        bool setSkeletalAnimationPlaybackSpeed(SKELETAL_ANIMATION_PLAYER &player,
+                                               float speed) const noexcept;
+        float getSkeletalAnimationPlaybackSpeed(
+            const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool playSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                const char *name, float weight) const;
+        bool playSkeletalAnimationAdditiveLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                const char *name, float weight) const;
+        bool pauseSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool resumeSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool isSkeletalAnimationLayerPaused(
+            const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool stopSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player) const;
+        bool seekSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player, float time) const;
+        bool setSkeletalAnimationAbsoluteLayerWeight(SKELETAL_ANIMATION_PLAYER &player,
+                                                     float weight) const;
+        bool fadeSkeletalAnimationAbsoluteLayer(SKELETAL_ANIMATION_PLAYER &player,
+                                                float targetWeight, float duration) const;
+        bool getSkeletalAnimationAbsoluteLayerWeight(const SKELETAL_ANIMATION_PLAYER &player,
+                                                     float *weight) const noexcept;
+        bool getSkeletalAnimationAbsoluteLayerTime(const SKELETAL_ANIMATION_PLAYER &player,
+                                                   float *time) const noexcept;
+        bool setSkeletalAnimationLayerBoneWeight(SKELETAL_ANIMATION_PLAYER &player,
+                                                 uint64_t boneId, float weight) const;
+        bool setSkeletalAnimationLayerBoneWeights(SKELETAL_ANIMATION_PLAYER &player,
+                                                  const uint64_t *boneIds, const float *weights,
+                                                  uint32_t count) const;
+        bool getSkeletalAnimationLayerBoneWeight(const SKELETAL_ANIMATION_PLAYER &player,
+                                                 uint64_t boneId, float *weight) const noexcept;
+        bool clearSkeletalAnimationLayerMask(SKELETAL_ANIMATION_PLAYER &player) const;
+        uint32_t getSkeletalAnimationPoseBoneCount(
+            const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool getSkeletalAnimationPoseBone(const SKELETAL_ANIMATION_PLAYER &player,
+                                          uint32_t boneIndex,
+                                          SKELETAL_RUNTIME_POSE_BONE_INFO &out) const noexcept;
+        bool getSkeletalBoneTransform(const SKELETAL_ANIMATION_PLAYER &player,
+                                      const char *boneName, const MATRIX *modelMatrix,
+                                      uint64_t *boneId, MATRIX *matrix, VEC3 *position,
+                                      float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
+        bool getSkeletalRootMotionDelta(const SKELETAL_ANIMATION_PLAYER &player,
+                                        const char *boneName, const MATRIX *modelMatrix,
+                                        uint64_t *boneId, VEC3 *translation) const noexcept;
+        bool getSkeletalSharingCompatibility(const MESH_MBM &other,
+                                             SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
+        bool hasSkeletalRenderPalette(const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool enableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player,
+                                               const char *boneName,
+                                               bool applyRotation = false) const noexcept;
+        bool disableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool getAutomaticSkeletalRootMotionBone(const SKELETAL_ANIMATION_PLAYER &player,
+                                                const char **boneName,
+                                                uint64_t *boneId,
+                                                bool *applyRotation = nullptr) const noexcept;
+        bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
+                                         SKELETAL_SHADER_METHOD method, const float *rows,
+                                         uint32_t rowCount, const uint64_t *orderedBoneIds,
+                                         uint32_t boneIdCount, float time, char *errorOut,
+                                         int errorOutLen) const noexcept;
+        bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta,
+                                     RENDERIZABLE *owner = nullptr,
+                                     OnEndAnimation onEndAnimation = nullptr) const;
+        bool playSkeletalAnimationLayer(SKELETAL_ANIMATION_PLAYER &player, const char *name,
+                                        float weight, bool additive) const;
+        bool renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player, uint32_t indexFrame,
+                            const SHADER *shader, const RENDERIZABLE *owner);
 
         struct Impl;
         std::unique_ptr<Impl> impl;

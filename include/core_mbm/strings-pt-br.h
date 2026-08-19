@@ -25,7 +25,7 @@
 #define STR_PT_BR_FONT_MAKER           "Criador de fontes"
 #define STR_PT_BR_MESH_EDITOR          "Editor de Mesh"
 #define STR_PT_BR_MESH_DEBUG_EDITOR    "Editor de Mesh (debug)"
-#define STR_PT_BR_SKELETAL_ANIMATION_EDITOR "Editor de Animação Esquelética"
+#define STR_PT_BR_SKELETAL_ANIMATION_EDITOR "Editor de Anima" "\xE7" "\xE3" "o Esquel" "\xE9" "tica"
 #define STR_PT_BR_PARTICLE_EDITOR      "Editor de Part" "\xED" "culas"
 #define STR_PT_BR_PHYSICS_EDITOR       "Editor de F" "\xED" "sica"
 #define STR_PT_BR_SCENE_2D_EDITOR      "Editor de Cena 2D"

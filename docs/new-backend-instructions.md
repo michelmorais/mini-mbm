@@ -346,7 +346,7 @@ the source string at compile time based on the FVF.
 |---|---|
 | `BUFFER_GL::loadBuffer(VB, …)` | Static vertex-only meshes (lines, 2D quads) |
 | `BUFFER_GL::loadBuffer(IB, …)` | Static indexed meshes (`.msh` 3D models, sprites) |
-| `BUFFER_GL::loadBufferDynamic(…)` | Skinned / procedural meshes — creates writeable vertex buffer + static index buffer |
+| `BUFFER_GL::loadBufferDynamic(…)` | Pre-baked frame-animation / procedural meshes — creates writeable vertex buffer + static index buffer |
 | `BUFFER_GL::updateDynamic(…)` | Called every frame to rewrite vertex data into the buffer created by `loadBufferDynamic` |
 | `BUFFER_GL::loadParticleBuffer()` | Particle system — 6-index quad IB `{0,1,2,2,1,3}` shared for all particles |
 
@@ -363,6 +363,43 @@ For `loadBufferDynamic` + `updateDynamic` the key insight is that the vertex buf
 CPU-writable every frame.  On Metal use `MTLResourceStorageModeShared`; on Vulkan use a
 host-visible + host-coherent memory type; on D3D use `D3DUSAGE_DYNAMIC | D3DPOOL_DEFAULT`
 and `Lock/Unlock`.
+
+### Canonical GPU skeletal skinning
+
+Canonical type-41/42/43 skeletal meshes do **not** use `updateDynamic()` to rewrite deformed
+positions on the CPU. The shared runtime evaluates each instance's pose and produces an LBS or
+rigid-DQS palette; the backend keeps bind-pose geometry static and performs deformation in the
+default vertex shader.
+
+A backend that supports canonical skeletal rendering must implement all of these contracts:
+
+1. At graphics initialization, measure the vertex-shader palette and attribute/buffer capacity and
+   call `skeletal::setMeasuredSkinningCapability()`. OpenGL ES supplies uniform-vector and vertex-
+   attribute limits; DirectX 9 supplies `MaxVertexShaderConst` and the available declaration slots.
+   Do not publish a guessed capacity when the query or required input layout is unavailable.
+2. Implement `skeletal::uploadSkinVertexStream()` in a backend translation unit. Upload the shared
+   `GPU_SKINNING_INPUT` as four float bone indices plus four float weights parallel to frame-zero
+   vertices. Keep all GPU handles in private backend storage. The common fallback in
+   `skeletal-gpu-upload.cpp` returns `false` for a backend that has not implemented the path.
+3. Make `SHADER::compileShader(..., skeletalPaletteSize, skeletalMethod)` generate or select distinct
+   default vertex-shader variants for static, LBS, and rigid DQS draws. Include both method and exact
+   palette size in pipeline/program-cache identity. Reject canonical skeletal meshes using custom
+   vertex shaders until an explicit custom-skinning input contract exists.
+4. Bind the secondary influence stream and upload the per-instance palette passed to
+   `SHADER::render(..., skeletalPaletteRows, skeletalPaletteFloatCount)`. LBS consumes three
+   four-float rows per bone; rigid DQS consumes two. A null palette means bind identity, not an
+   uninitialized constant buffer.
+5. Deform position and normal before the existing lighting calculation. Compact LBS normals support
+   rigid or positive-uniform scale only because there is no inverse-transpose normal palette;
+   rigid DQS rejects scale and shear.
+6. Treat upload, shader compilation, layout, and capacity failures as explicit skeletal readiness
+   failures. Never silently draw an animated canonical mesh as an undeformed static mesh.
+
+Use `skeletal-gpu-lbs-opengl_es.cpp` plus `skeletal-gles-shader-source.h` as the uniform/VBO
+reference, and `skeletal-gpu-lbs-directx9.cpp` plus `skeletal-directx9-shader-source.h` as the
+constant/secondary-stream reference. Metal currently accepts but ignores the skeletal parameters in
+`shader-metal.mm`, and its generic upload fallback returns `false`; implementing this section is the
+remaining Metal runtime gate.
 
 ---
 
@@ -553,7 +590,7 @@ and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
 - [ ] **M4 — Culling + depth**: apply `mode_cull_face` + `mode_front_face_direction` per
       draw call; attach depth buffer to render pass.  Meshes should stop showing inner faces.
 - [ ] **M5 — Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.
-      Skinned meshes, line meshes, and text rendering require this.
+      Pre-baked frame animation, line meshes, and text rendering require this.
 - [ ] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
 - [ ] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
 - [ ] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
@@ -562,6 +599,10 @@ and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
 - [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
 - [ ] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
       `HMD.cpp` is platform-agnostic and builds on M7.
+- [ ] **M11 — Canonical skeletal GPU path**: measure capability, upload the secondary influence
+      stream, compile/cache LBS and rigid-DQS default variants, upload each instance palette before
+      lighting, and validate bind identity plus animated LBS/DQS against CPU references. Do not
+      reuse M5 as a CPU-deformation fallback.
 
 ---
 
@@ -703,7 +744,12 @@ placeholder.  This is a `blend.ps`-specific constraint; pixel shaders that use o
 | `src/core_mbm/texture-manager-metal.mm` | Metal | Texture upload using lodepng decode path |
 | `src/core_mbm/device-metal.mm` | Metal | `setProjectionMode`, `setDepthTest`, `clearDepth` |
 | `src/core_mbm/shader-opengl_es.cpp` | OpenGL ES | Reference for culling, winding, uniform upload |
-| `src/core_mbm/shader-directx9.cpp` | D3D9 | Reference for dynamic buffer lock/unlock pattern |
+| `src/core_mbm/shader-directx9.cpp` | D3D9 | Reference for dynamic buffers, skeletal declarations, HLSL variants, and palette constants |
+| `src/core_mbm/private/skeletal-gpu-upload.h` | All | Backend upload boundary for canonical influence streams |
+| `src/core_mbm/private/skeletal-gpu-lbs-opengl_es.cpp` | OpenGL ES | VBO implementation of the canonical influence stream |
+| `src/core_mbm/private/skeletal-gpu-lbs-directx9.cpp` | D3D9 | Secondary-stream implementation of canonical influences |
+| `src/core_mbm/private/skeletal-gles-shader-source.h` | OpenGL ES | Shared GLSL LBS/DQS deformation source |
+| `src/core_mbm/private/skeletal-directx9-shader-source.h` | D3D9 | Shared HLSL LBS/DQS deformation source |
 | `src/core_mbm/primitives.cpp` | All | `MatrixPerspectiveFovLH`, `MatrixLookAtLH`, `MatrixOrthoLH` |
 | `include/core_mbm/draw-compatibility.h` | All | `CULL_MODE`, `FACE_DIRECTION`, `MODE_DRAW` enum values |
 | `include/core_mbm/shader.h` | All | `BUFFER_GL`, `BASE_SHADER`, `SHADER`, `FVF_PROVIDE_BY_ENGINE` |

@@ -16,6 +16,29 @@ mbm.setColor(tUtil.tColorBackground.r,tUtil.tColorBackground.g,tUtil.tColorBackg
 
 tUtil.iWindowBottomMargin = 24
 
+-- Lua's Windows os.tmpname() may return a root-relative name (for example, \s1234),
+-- which is not writable for regular users. Anchor the generated basename in the
+-- configured temporary directory. On POSIX, os.tmpname() creates the base file,
+-- so remove it before returning the suffixed path used by the editors.
+tUtil.getTemporaryFilePath = function(suffix)
+    suffix = suffix or ''
+    local rawPath = os.tmpname()
+    if package.config:sub(1, 1) == '\\' then
+        local tempDir = os.getenv('TEMP') or os.getenv('TMP') or os.getenv('TMPDIR') or '.'
+        local fileName = rawPath:match('[^/\\]+$')
+        if not fileName or fileName == '' then
+            fileName = string.format('mini-mbm-%d-%06d', os.time(), math.random(0, 999999))
+        end
+        local last = tempDir:sub(-1)
+        if last ~= '\\' and last ~= '/' then
+            tempDir = tempDir .. '\\'
+        end
+        return tempDir .. fileName .. suffix
+    end
+    pcall(os.remove, rawPath)
+    return rawPath .. suffix
+end
+
 tUtil.getEditorWindowHeightLimit = function(iMenuBarHeight, y, max_height)
     local _, iH = mbm.getRealSizeScreen()
     local available_height = iH - iMenuBarHeight - (y or 0) - tUtil.iWindowBottomMargin

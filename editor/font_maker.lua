@@ -186,7 +186,7 @@ function loadNewFont(sNewFileName)
             local tNewFont        = font:new(fileName,iHeightFont,iSpace,iSpaceHeight,saveAsPng)
             setInitialParameters(fileName,tNewFont)
             tNewFont.sTextureName = mbm.getFullPath(tNewFont:getTexture())
-            tNewFont.sTmpFile     = string.format('%sFNT.png',os.tmpname ())
+            tNewFont.sTmpFile     = tUtil.getTemporaryFilePath('FNT.png')
             if mbm.is('linux') then
                 os.execute(string.format('mv %q %q',tNewFont.sTextureName, tNewFont.sTmpFile))
             elseif mbm.is('windows') then

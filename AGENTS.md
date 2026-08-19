@@ -29,7 +29,7 @@ Repo-local Codex skills live in `.agents/skills/`.
 - Use `new-plugin` when creating Lua/C++ plugins or plugin-helper-backed Lua bindings.
 - Use `new-editor-tool` when adding ImGui/Lua editor tools under `editor/`.
 - Use `new-platform-port` when adding a new `PLAT=` target or platform directory.
-- Use `doc-drift-check` when touching docs tied to implementation behavior, especially `docs/lua-api.md`, `docs/mesh-v11-format.md`, `docs/light.md`, and `docs/bones-armatures-and-fbx.md`.
+- Use `doc-drift-check` when touching docs tied to implementation behavior, especially `docs/lua-api.md`, `docs/mesh-v11-format.md`, `docs/light.md`, `docs/bones-armatures-and-fbx.md`, and `docs/realtime-skeletal-animation.md`.
 - Use `grill-me` when asked to stress-test a plan or design before implementation.
 
 ---
@@ -316,6 +316,8 @@ All plugins link against `plugin-helper`. It provides:
 - **Indentation**: 4 spaces (no tabs)
 - **Pointer style**: `TYPE *varName` (space before `*`, not after)
 - **Accessor reuse**: if a function uses the same getter/setter-backed object more than once, store it in a local variable or reference for that function scope (e.g., `CAMERA &camera = device->getCamera();`). Do not cache accessor-returned engine state as persistent object/member state unless ownership/lifetime is explicitly designed for it.
+- **Flat control flow with preserved performance**: keep new code's control flow as flat as practical. Prefer guard clauses and explicit mutually exclusive `if`/`else` branches over deep nesting or chained ternaries, while preserving behavior and performance, especially in hot paths. Do not flatten code by duplicating work, adding allocations, or introducing extra per-frame checks.
+- **Editor continuous-loop audit**: whenever adding or editing any editor, inspect every path reachable from `onLoop(delta)` and other per-frame callbacks for redundant continuous work that can unnecessarily increase CPU/GPU usage. ImGui drawing and genuinely frame-dependent updates may remain per-frame, but asset loading, rebuilding, serialization, animation `seek`, buffer uploads, allocations, full-data scans, and other expensive operations must run only when their inputs change, when explicitly requested, or when a measured cadence requires them. Prefer dirty flags, cached results, change detection, event-driven updates, or throttling, and verify that an idle editor does not continuously perform expensive work.
 - **Lua C functions**: always `extern "C"` with export macro; return `int`, take `lua_State *lua`
 - **License block**: MIT license in box-drawing-character frame at top of every file
 
@@ -443,6 +445,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 
 - **CMake ≥ 3.25.1** is required; `cmake_policy(SET CMP0054 NEW)` is set everywhere
 - **`-DUSE_ALL=1`** is the recommended common full-featured build flag — it enables Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled; Steam and Bullet3D remain explicit
+- **ImGui-visible text must use ASCII-safe punctuation and symbols.** The current editor font atlas supports Portuguese letters/accents, but do not put typographic glyphs such as `—`, `–`, `…`, `°`, `×`, or `→` in labels, tooltips, status messages, or dynamically rendered text; they may appear as `?`. Use `-`, `...`, `deg`, `x`, and `->` respectively. Comments and non-rendered documentation are not constrained by this rule.
 - **When touching `src/core_mbm/` or `include/core_mbm/`, preserve the current PIMPL/header-hygiene direction** — do not introduce new public mutable storage, backend handles, STL container exposure, or convenience accessors that leak `Impl`-owned state into public headers just to ship a feature. If a feature needs new internal state, prefer keeping it in `Impl`/`BackendData` or private translation-unit helpers, and update `docs/core-pimpl-status.md` when the work changes that boundary.
 - **When shipping a new feature, update `include/version/version.h`** — bump `MBM_VERSION` to reflect the new functionality, following the versioning notes already documented in that header.
 - **Plugin naming**: `CMAKE_SHARED_LIBRARY_PREFIX ""` removes the `lib` prefix so plugins load as `box2d.so` not `libbox2d.so`

@@ -37,6 +37,20 @@ namespace util
 
 namespace mbm
 {
+    enum class SKELETAL_SHADER_METHOD : uint8_t
+    {
+        NONE,
+        LBS,
+        DQS_RIGID,
+        AUTO
+    };
+
+    enum class SKELETAL_EXECUTION_PATH : uint8_t
+    {
+        GPU,
+        CPU,
+        AUTO
+    };
     class TEXTURE;
     class RENDERIZABLE;
     struct VAR_SHADER;
@@ -226,10 +240,15 @@ namespace mbm
         API_IMPL void setUseReservedLightDefault(bool enabled) noexcept;
         API_IMPL void releaseShader();
         API_IMPL void onRestore();
-        API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
+        API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader,
+                                    FVF_PROVIDE_BY_ENGINE fvf,
+                                    uint32_t skeletalPaletteSize = 0,
+                                    SKELETAL_SHADER_METHOD skeletalMethod = SKELETAL_SHADER_METHOD::LBS);
         API_IMPL bool isLoad() const noexcept;
         API_IMPL bool render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner = nullptr,
-                             const int32_t subsetIndex = -1) const;
+                             const int32_t subsetIndex = -1,
+                             const float *skeletalPaletteRows = nullptr,
+                             uint32_t skeletalPaletteFloatCount = 0) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
         API_IMPL bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
