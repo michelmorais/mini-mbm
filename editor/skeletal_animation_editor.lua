@@ -3083,11 +3083,19 @@ local function syncRuntimeComparisonPreview()
     if state.workspace~='runtime' or not swlHasRuntimeComparison() or not playback.playing or
             not playback.comparisonReady or
             not state.preview or not state.comparisonPreview then return end
+    local syncTolerance=0.0001
     local time=state.preview:getSkeletalAnimationTime()
-    if time then state.comparisonPreview:seekSkeletalAnimation(time) end
+    local comparisonTime=state.comparisonPreview:getSkeletalAnimationTime()
+    if time and (not comparisonTime or math.abs(time-comparisonTime)>syncTolerance) then
+        state.comparisonPreview:seekSkeletalAnimation(time)
+    end
     if playback.absoluteLayerActive then
         local layerTime=state.preview:getSkeletalAnimationAbsoluteLayerTime()
-        if layerTime then state.comparisonPreview:seekSkeletalAnimationAbsoluteLayer(layerTime) end
+        local comparisonLayerTime=state.comparisonPreview:getSkeletalAnimationAbsoluteLayerTime()
+        if layerTime and (not comparisonLayerTime or
+                math.abs(layerTime-comparisonLayerTime)>syncTolerance) then
+            state.comparisonPreview:seekSkeletalAnimationAbsoluteLayer(layerTime)
+        end
     end
 end
 
