@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal runtime preview, local animation, Paint Weights, transient composition, per-bone layer masks, and one wearable follower preview implemented**
-Last updated: **2026-08-18**
+Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal runtime preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Last updated: **2026-08-19**
 
 ## 1. Purpose
 
@@ -610,17 +610,18 @@ timeline: it does not expose tracks or edit keys. The mesh deformation uses the 
 matching active-backend LBS or DQS palette. When a clip layer is active, the optional mask skeleton
 follows the primary preview's final evaluated global transforms while retaining per-bone mask colors.
 In LBS/DQS comparison it intentionally does not duplicate the secondary instance.
-Runtime Preview can also load one optional secondary **wearable / follower** `.msh`. The editor
-loads it with the primary preview's resolved LBS or DQS method, runs
+Runtime Preview can also load multiple optional secondary **wearable / follower** `.msh` meshes.
+The editor loads each follower with the primary preview's resolved LBS or DQS method, runs
 `getSkeletalSharingCompatibility` against the primary runtime mesh, displays the compatibility
 reason and relevant mismatch fields, and only then calls `enableSkeletalPoseSharing(primary)`.
-When compatible, the follower keeps its own mesh, material, textures, and skin weights while
-rendering from the primary player's already evaluated pose. It mirrors the primary preview's
-editor transform and has its own visibility, unload, and replace controls. Rebuilding or reloading
-the primary preview, resetting the editor mesh, replacing the follower, leaving the scene, or
-destroying the editor safely unlinks and destroys the follower. This wearable is transient editor
-state and is not persisted; it is separate from the optional LBS/DQS comparison mesh and does not
-replace or reuse that comparison instance.
+When compatible, each follower keeps its own mesh, material, textures, and skin weights while
+rendering from the primary player's already evaluated pose. Followers mirror the primary preview's
+editor transform, including pose-stress offsets, and each has its own visibility and remove action.
+A remove-all action clears the whole transient collection. Rebuilding or reloading the primary
+preview, resetting the editor mesh, leaving the scene, or destroying the editor safely unlinks and
+destroys every follower. This composition is transient editor state and is not persisted; it is
+separate from the optional LBS/DQS comparison mesh and does not replace or reuse that comparison
+instance.
 Resolution details, per-instance capacity guidance, and the evaluated-gizmo scope are
 available as hover tooltips on their corresponding Runtime Preview report or control.
 Runtime Preview also provides a movable editor-only light window following Mesh Debug's controls:
@@ -1210,9 +1211,9 @@ The following are current editor limitations rather than regressions caused by r
   backend selector;
 - Runtime Skeletal Preview's evaluated mask gizmo follows the primary instance only; pose-stress
   comparison does not duplicate it for the secondary LBS/DQS instance;
-- Runtime Skeletal Preview supports one transient compatible wearable/follower sharing the primary
-  evaluated pose. Broader multi-follower authoring, persistence, and shared-player resource
-  management remain future work;
+- Runtime Skeletal Preview supports multiple transient compatible wearable/followers sharing the
+  primary evaluated pose. Persistence and shared-player authoring/resource management remain future
+  work;
 - no protected/exclusion volumes;
 - no topology-ring selection expansion;
 - abrupt-transition classification still follows stored triangle indices rather than adding welded

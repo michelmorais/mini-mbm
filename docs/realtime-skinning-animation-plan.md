@@ -1,8 +1,8 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.111**
+Document version: **9.112**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime LBS/DQS, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
-Last updated: **2026-08-18**
+Last updated: **2026-08-19**
 
 ## 1. Purpose
 
@@ -565,13 +565,13 @@ mutate assets, evaluate clips, or deform vertices.
   matrix tolerance. Clips, weights, geometry, and `skeletonId` are deliberately ignored when that
   structural/bind contract matches. The only stable reason codes are `compatible`,
   `missing_skeleton`, `bone_count_mismatch`, `bone_identity_mismatch`, `hierarchy_mismatch`, and
-  `bind_transform_mismatch`. A compatible loaded follower can now reference a loaded compatible
-  source with the same resolved skinning method and render with the source instance's already-evaluated palette while keeping its own
-  geometry, textures, transform, and skin weights. The link is transactional on enable, rejects self,
-  unloaded/incompatible cases, and follower chains, does not start or advance source animation, and is automatically
-  cleared when either side reloads/releases/destroys. If the source has no active evaluated
-  pose/palette, the follower remains linked but draws without shared skeletal deformation; no CPU
-  vertex deformation fallback is introduced.
+  `bind_transform_mismatch`. Compatible loaded followers can now reference one loaded compatible
+  source with the same resolved skinning method and render with the source instance's already-evaluated palette while keeping their own
+  geometry, textures, transform, and skin weights. Each link is transactional on enable, rejects
+  self, unloaded/incompatible cases, and follower chains, does not start or advance source animation,
+  and is automatically cleared when either side reloads/releases/destroys. If the source has no
+  active evaluated pose/palette, a follower remains linked but draws without shared skeletal
+  deformation; no CPU vertex deformation fallback is introduced.
 - The Skeletal Animation Editor now drives that same per-instance runtime player on its preview
   mesh. It exposes clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber;
   the deformation is therefore the real active-backend LBS/DQS result rather than an editor-side pose copy. The
@@ -886,6 +886,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.112 | 2026-08-19 | Extended the editor-facing runtime pose-sharing slice from one wearable preview to an ordered transient collection of direct followers sharing the same primary evaluated pose. This uses the existing one-source-to-many runtime contract without C++ changes; incompatible entries stay disabled with compatibility/status reporting, and loaded followers keep independent visibility/removal while remaining separate from LBS/DQS comparison and persistence. |
 | 9.111 | 2026-08-18 | Added the first real multi-mesh skeletal pose-sharing slice. A compatible loaded direct follower can render with a compatible source mesh's already-evaluated private palette while retaining its own geometry, textures, transform, and weights. Lua exposes enable/disable/query; enabling rejects self, unloaded, incompatible, method-mismatched, and chained relationships without changing existing state. Links are cleared on source or follower reload/release/destruction, inactive sources fall back to non-shared rendering, and no CPU vertex deformation path was added. |
 | 9.110 | 2026-08-18 | Added a read-only compatibility preflight for future multi-mesh evaluated-pose/palette sharing. It requires matching ordered canonical bone identity, hierarchy, and scale-aware local/global bind transforms while deliberately ignoring clips, weights, geometry, and `skeletonId`; no pose state is shared yet. |
 | 9.109 | 2026-08-18 | Made multiple-root canonical skeleton semantics explicit and executable. `parentIndex = -1` roots compose independently in bind and sampled global poses, multiple roots can animate simultaneously, LBS/DQS palette rows stay in compiled order across roots, and named root-motion neutralization affects only the selected root hierarchy. Multi-mesh skeleton sharing remains an open resource-ownership decision. |

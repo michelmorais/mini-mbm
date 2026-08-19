@@ -33,11 +33,7 @@ local state = {
     meshD = nil,
     preview = nil,
     comparisonPreview = nil,
-    wearablePreview = nil,
-    wearablePreviewPath = nil,
-    wearableCompatibility = nil,
-    wearableStatus = nil,
-    wearableVisible = true,
+    wearableFollowers = {},
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false, absoluteLayerSelected=1,
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
@@ -301,19 +297,30 @@ local function destroyObject(object)
     if object then pcall(function() object:destroy() end) end
 end
 
-function unloadRuntimeWearable()
-    if state.wearablePreview then
-        pcall(function() state.wearablePreview:disableSkeletalPoseSharing() end)
+local function destroyRuntimeWearableEntry(entry)
+    if entry and entry.preview then
+        pcall(function() entry.preview:disableSkeletalPoseSharing() end)
     end
-    destroyObject(state.wearablePreview)
-    state.wearablePreview=nil
-    state.wearablePreviewPath=nil
-    state.wearableCompatibility=nil
-    state.wearableStatus=nil
+    destroyObject(entry and entry.preview)
 end
 
-function mirrorRuntimeWearableTransform()
-    if not state.wearablePreview or not state.preview then return end
+function unloadRuntimeWearable(index)
+    local entry=state.wearableFollowers[index]
+    if not entry then return false end
+    destroyRuntimeWearableEntry(entry)
+    table.remove(state.wearableFollowers,index)
+    return true
+end
+
+function unloadAllRuntimeWearables()
+    for _,entry in ipairs(state.wearableFollowers) do
+        destroyRuntimeWearableEntry(entry)
+    end
+    state.wearableFollowers={}
+end
+
+function mirrorRuntimeWearableTransforms()
+    if not state.preview then return end
     local x=0
     if state.workspace=='runtime' and state.skeletalPreview.poseStress then
         local bounds=state.meshBounds
@@ -321,7 +328,9 @@ function mirrorRuntimeWearableTransform()
             bounds.maxZ-bounds.minZ) or 1
         x=-extent*0.65
     end
-    pcall(function() state.wearablePreview:setPos(x,0,0) end)
+    for _,entry in ipairs(state.wearableFollowers) do
+        if entry.preview then pcall(function() entry.preview:setPos(x,0,0) end) end
+    end
 end
 
 function formatRuntimeWearableReport(report)
@@ -340,37 +349,37 @@ function formatRuntimeWearableReport(report)
 end
 
 function loadRuntimeWearable(path)
-    unloadRuntimeWearable()
     if not path or path=='' or not state.preview then return false end
+    local entry=tWearable.newFollowerEntry(path)
+    state.wearableFollowers[#state.wearableFollowers+1]=entry
     local dir=fileDir(path)
     if dir then mbm.addPath(dir) end
     local method=tWearable.primarySkinningMethod(state.preview)
     if not method then
-        state.wearableStatus=tLang.L('swl_wearable_primary_method_unresolved')
+        entry.status=tLang.L('swl_wearable_primary_method_unresolved')
         return false
     end
     local wearable=mesh:new('3d')
     if not wearable:setSkeletalSkinningMethod(method) or not wearable:load(path) then
         destroyObject(wearable)
-        state.wearableStatus=string.format(tLang.L('swl_wearable_load_failed_fmt'),path)
+        entry.status=string.format(tLang.L('swl_wearable_load_failed_fmt'),path)
         return false
     end
     local report=wearable:getSkeletalSharingCompatibility(state.preview)
-    state.wearableCompatibility=report
+    entry.compatibility=report
     if not report or not report.compatible then
         destroyObject(wearable)
-        state.wearableStatus=formatRuntimeWearableReport(report)
+        entry.status=formatRuntimeWearableReport(report)
         return false
     end
     if not wearable:enableSkeletalPoseSharing(state.preview) then
         destroyObject(wearable)
-        state.wearableStatus=tLang.L('swl_wearable_share_failed')
+        entry.status=tLang.L('swl_wearable_share_failed')
         return false
     end
-    state.wearablePreview=wearable
-    state.wearablePreviewPath=path
-    state.wearableStatus=formatRuntimeWearableReport(report)
-    mirrorRuntimeWearableTransform()
+    entry.preview=wearable
+    entry.status=formatRuntimeWearableReport(report)
+    mirrorRuntimeWearableTransforms()
     applyWorkspaceVisibility()
     return true
 end
@@ -1093,10 +1102,12 @@ function applyWorkspaceVisibility()
         state.comparisonPreview.visible=state.meshVisible and runtimeWorkspace and
             state.skeletalPreview.poseStress
     end
-    if state.wearablePreview then
-        state.wearablePreview.visible=state.meshVisible and state.wearableVisible and runtimeWorkspace
-        mirrorRuntimeWearableTransform()
+    for _,entry in ipairs(state.wearableFollowers) do
+        if entry.preview then
+            entry.preview.visible=state.meshVisible and entry.visible and runtimeWorkspace
+        end
     end
+    mirrorRuntimeWearableTransforms()
     for _,marker in ipairs(state.paint.heatmapLines) do
         marker.visible=paintWorkspace and state.meshVisible and not state.paint.aabbCapture.active
     end
@@ -2787,7 +2798,7 @@ local function rebuildPreview(sourcePath)
     if sourcePath==nil and state.modified and state.meshD and rebuildRuntimePreviewFromMemory then
         return rebuildRuntimePreviewFromMemory()
     end
-    unloadRuntimeWearable()
+    unloadAllRuntimeWearables()
     destroyObject(state.preview)
     destroyObject(state.comparisonPreview)
     state.preview = nil
@@ -3071,41 +3082,58 @@ function showRuntimeWearableControls()
     tImGui.Separator()
     tImGui.Text(tLang.L('swl_wearable_preview'))
     showItemTooltip(tLang.L('swl_wearable_preview_help'))
-    local loadLabel=state.wearablePreview and 'swl_wearable_replace' or 'swl_wearable_load'
-    if tImGui.Button(tLang.L(loadLabel)..'##swlWearableLoad') then
-        local path=mbm.openFile(state.wearablePreviewPath or state.fileName or '', 'msh')
+    if tImGui.Button(tLang.L('swl_wearable_add')..'##swlWearableAdd') then
+        local last=state.wearableFollowers[#state.wearableFollowers]
+        local path=mbm.openFile((last and last.path) or state.fileName or '', 'msh')
         if path then
             if loadRuntimeWearable(path) then
                 setStatus(string.format(tLang.L('swl_wearable_loaded_fmt'),shortName(path)),false)
             else
-                setStatus(state.wearableStatus or tLang.L('swl_wearable_unavailable'),true)
+                local entry=state.wearableFollowers[#state.wearableFollowers]
+                setStatus((entry and entry.status) or tLang.L('swl_wearable_unavailable'),true)
             end
         end
     end
     tImGui.SameLine()
-    tImGui.BeginDisabled(state.wearablePreview==nil and state.wearablePreviewPath==nil)
-    if tImGui.Button(tLang.L('swl_wearable_unload')..'##swlWearableUnload') then
-        unloadRuntimeWearable()
+    tImGui.BeginDisabled(#state.wearableFollowers==0)
+    if tImGui.Button(tLang.L('swl_wearable_remove_all')..'##swlWearableRemoveAll') then
+        unloadAllRuntimeWearables()
         applyWorkspaceVisibility()
     end
     tImGui.EndDisabled()
-    local visible=tImGui.Checkbox(tLang.L('swl_wearable_visible'),state.wearableVisible)
-    if visible~=state.wearableVisible then
-        state.wearableVisible=visible
-        applyWorkspaceVisibility()
-    end
-    if state.wearablePreviewPath then
-        tImGui.TextDisabled(string.format(tLang.L('swl_wearable_file_fmt'),
-            shortName(state.wearablePreviewPath)))
-    end
-    if state.wearableStatus then
-        if state.wearablePreview then
-            tImGui.TextWrapped(state.wearableStatus)
-        else
-            tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},state.wearableStatus)
-        end
-    else
+    if #state.wearableFollowers==0 then
         tImGui.TextDisabled(tLang.L('swl_wearable_none'))
+        return
+    end
+    local removeIndex=nil
+    for index,entry in ipairs(state.wearableFollowers) do
+        tImGui.PushID(index)
+        tImGui.Separator()
+        tImGui.TextDisabled(string.format(tLang.L('swl_wearable_file_fmt'),
+            index,shortName(entry.path)))
+        local visible=tImGui.Checkbox(tLang.L('swl_wearable_visible'),entry.visible)
+        if visible~=entry.visible then
+            entry.visible=visible
+            applyWorkspaceVisibility()
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('swl_wearable_remove')..'##swlWearableRemove') then
+            removeIndex=index
+        end
+        if entry.status then
+            if entry.preview then
+                tImGui.TextWrapped(entry.status)
+            else
+                tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},entry.status)
+            end
+        else
+            tImGui.TextDisabled(tLang.L('swl_wearable_unavailable'))
+        end
+        tImGui.PopID()
+    end
+    if removeIndex then
+        unloadRuntimeWearable(removeIndex)
+        applyWorkspaceVisibility()
     end
 end
 
@@ -9933,7 +9961,7 @@ function onLoop(delta)
 end
 
 function onEndScene()
-    unloadRuntimeWearable()
+    unloadAllRuntimeWearables()
     destroyObject(state.preview)
     destroyObject(state.comparisonPreview)
     clearPaintVisuals()

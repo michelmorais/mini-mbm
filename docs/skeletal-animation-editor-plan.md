@@ -1,8 +1,8 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.101**
-Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, per-bone layer masks, and one wearable follower preview implemented**
-Last updated: **2026-08-18**
+Document version: **8.102**
+Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Last updated: **2026-08-19**
 
 ## 1. Purpose
 
@@ -554,15 +554,17 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
 
 1. Embedded versus referenced skeleton and clip resources and their exact binary section layout.
 2. First supported FBX animation-import scope after handedness and cluster-bind validation.
-3. Multi-mesh skeleton-sharing semantics beyond the first runtime follower slice.
+3. Persisted multi-mesh authoring semantics beyond transient runtime followers.
    Multiple roots are resolved: every `parentIndex = -1` canonical bone is an independent hierarchy
    root for bind, sampled global pose evaluation, Absolute/Additive composition, LBS/DQS palette
    generation, and named-root-motion neutralization. Root motion and attachment copy-outs operate on
    named bones in the evaluated per-instance pose. Runtime `MESH` instances can now opt a compatible
    loaded follower into using a compatible source's already-evaluated palette, with no source
    ownership transfer, no palette copy, no CPU vertex deformation fallback, and automatic unlink on
-   either side reload/release/destruction. Editor UI, shared skeleton/clip assets, source advancement
-   ordering, and authoring workflows remain open.
+   either side reload/release/destruction. Runtime Skeletal Preview can load multiple transient
+   direct followers against the same primary pose. Shared skeleton/clip assets, source advancement
+   ordering outside the current per-frame runtime contract, persistence, and authoring workflows
+   remain open.
 4. Whether initial LBS accepts non-uniform scale before the final normal-transform path exists.
 5. Exact shared service boundary with articulated-animation easing/player code.
 6. Transactional rename/remove/reparent remapping and snapshot/undo scope across skeleton, weights,
@@ -580,6 +582,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.102 | 2026-08-19 | Runtime Skeletal Preview now keeps an ordered transient collection of wearable/follower `.msh` meshes. Add loads another follower with the primary resolved skinning method, preflights compatibility, enables pose sharing only for compatible meshes, and keeps per-follower path, status, visibility, and remove controls plus a remove-all action. All followers mirror primary preview transforms including pose-stress offsets, are destroyed on primary rebuild/reset/scene end, remain separate from LBS/DQS comparison, and are not persisted. |
 | 8.101 | 2026-08-18 | Runtime Skeletal Preview can now load one transient secondary wearable/follower `.msh`, preflight it with `getSkeletalSharingCompatibility` against the primary preview mesh, report compatibility or mismatch details, and enable `enableSkeletalPoseSharing(primary)` only when valid. The follower mirrors the primary preview transform and resolved skinning method while retaining its own mesh/material/weights, has separate load/replace/unload/visibility controls, is destroyed on primary rebuild/reset/scene end, and remains distinct from the LBS/DQS comparison mesh. |
 | 8.100 | 2026-08-18 | Narrowed the remaining multi-mesh ownership question after the first runtime pose-sharing slice. Compatible loaded direct followers may borrow a source instance's already-evaluated private palette while preserving their own geometry and weights; links are non-owning, reject chains, and unlink on release/reload/destruction. Editor UI and shared authoring resources remain open. |
 | 8.99 | 2026-08-18 | Closed the multiple-root semantics gap for runtime/editor planning. Parentless canonical bones remain independent `parentIndex = -1` roots through bind, sampling, composition, LBS/DQS palette order, and named root-motion neutralization, with deterministic multi-root foundation coverage. Multi-mesh skeleton sharing stays open. |

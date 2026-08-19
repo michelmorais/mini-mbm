@@ -68,4 +68,19 @@ function M.primarySkinningMethod(primary)
     return nil
 end
 
+function M.newFollowerEntry(path)
+    return {path=path,compatibility=nil,status=nil,visible=true,preview=nil}
+end
+
+function M.countLoadedFollowers(followers)
+    if type(followers) ~= 'table' then return 0 end
+    local count = 0
+    for _,entry in ipairs(followers) do
+        if type(entry) == 'table' and entry.preview ~= nil then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 return M

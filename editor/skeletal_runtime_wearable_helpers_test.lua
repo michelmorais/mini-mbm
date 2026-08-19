@@ -53,4 +53,19 @@ local fallbackPrimary = {
 }
 assert(helper.primarySkinningMethod(fallbackPrimary) == 'lbs')
 
+local entry = helper.newFollowerEntry('/tmp/hat.msh')
+assert(entry.path == '/tmp/hat.msh')
+assert(entry.visible == true)
+assert(entry.preview == nil)
+
+local followers = {
+    entry,
+    helper.newFollowerEntry('/tmp/cape.msh'),
+    helper.newFollowerEntry('/tmp/boots.msh'),
+}
+followers[2].preview = {}
+followers[3].preview = false
+assert(helper.countLoadedFollowers(followers) == 2)
+assert(helper.countLoadedFollowers(nil) == 0)
+
 print('skeletal wearable helper tests passed')
