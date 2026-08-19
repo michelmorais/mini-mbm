@@ -35,7 +35,7 @@ local state = {
     comparisonPreview = nil,
     wearableFollowers = {},
     skeletalPreview = {clips={}, selected=1, method=1, execution=1, duration=0, playing=false, paused=false,
-        poseStress=false, comparisonReady=false, absoluteLayerSelected=1,
+        poseStress=false, gpuCpuCompare=false, comparisonReady=false, absoluteLayerSelected=1,
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
         absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, absoluteLayerPaused=false, speed=1,
         layerMaskWeights={},layerMaskSelected=1,layerMaskDescendants=true,
@@ -322,7 +322,8 @@ end
 function mirrorRuntimeWearableTransforms()
     if not state.preview then return end
     local x=0
-    if state.workspace=='runtime' and state.skeletalPreview.poseStress then
+    if state.workspace=='runtime' and
+            (state.skeletalPreview.poseStress or state.skeletalPreview.gpuCpuCompare) then
         local bounds=state.meshBounds
         local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
             bounds.maxZ-bounds.minZ) or 1
@@ -1089,7 +1090,8 @@ function applyWorkspaceVisibility()
                 not state.paint.aabbCapture.active)
         pcall(function()
             local x=0
-            if runtimeWorkspace and state.skeletalPreview.poseStress then
+            if runtimeWorkspace and
+                    (state.skeletalPreview.poseStress or state.skeletalPreview.gpuCpuCompare) then
                 local bounds=state.meshBounds
                 local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
                     bounds.maxZ-bounds.minZ) or 1
@@ -1100,7 +1102,7 @@ function applyWorkspaceVisibility()
     end
     if state.comparisonPreview then
         state.comparisonPreview.visible=state.meshVisible and runtimeWorkspace and
-            state.skeletalPreview.poseStress
+            (state.skeletalPreview.poseStress or state.skeletalPreview.gpuCpuCompare)
     end
     for _,entry in ipairs(state.wearableFollowers) do
         if entry.preview then
@@ -1274,7 +1276,8 @@ local function setWorkspace(workspace)
     if state.meshBounds then
         local bounds={}
         for key,value in pairs(state.meshBounds) do bounds[key]=value end
-        if workspace=='runtime' and state.skeletalPreview.poseStress then
+        if workspace=='runtime' and
+                (state.skeletalPreview.poseStress or state.skeletalPreview.gpuCpuCompare) then
             local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
                 bounds.maxZ-bounds.minZ)
             local separation=extent*0.65
@@ -2822,11 +2825,11 @@ local function rebuildPreview(sourcePath)
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     local separation=extent*0.65
-    local function loadRuntimePreview(method,x)
+    local function loadRuntimePreview(method,x,executionOverride)
         applyRuntimeLighting()
         local preview=mesh:new('3d')
         if not preview:setSkeletalSkinningMethod(method) then preview:destroy(); return nil end
-        local execution=playback.execution==2 and 'cpu' or 'gpu'
+        local execution=executionOverride or (playback.execution==2 and 'cpu' or 'gpu')
         if execution=='cpu' then
             if not preview:setSkeletalSkinningMethod('lbs') then preview:destroy(); return nil end
         end
@@ -2837,10 +2840,20 @@ local function rebuildPreview(sourcePath)
         preview.visible=state.meshVisible
         return preview
     end
+    if playback.gpuCpuCompare then
+        playback.method=2
+        playback.execution=1
+    end
     if playback.poseStress then
+        playback.execution=1
         state.preview=loadRuntimePreview('lbs',-separation)
         playback.previewX=-separation
         state.comparisonPreview=loadRuntimePreview('dqs',separation)
+        playback.comparisonReady=state.preview~=nil and state.comparisonPreview~=nil
+    elseif playback.gpuCpuCompare then
+        state.preview=loadRuntimePreview('lbs',-separation,'gpu')
+        playback.previewX=-separation
+        state.comparisonPreview=loadRuntimePreview('lbs',separation,'cpu')
         playback.comparisonReady=state.preview~=nil and state.comparisonPreview~=nil
     else
         local method=playback.method==1 and 'auto' or playback.method==3 and 'dqs' or 'lbs'
@@ -3058,9 +3071,14 @@ local function stopAbsoluteLayer()
     return true
 end
 
-local function syncPoseStressPreview()
+function swlHasRuntimeComparison()
     local playback=state.skeletalPreview
-    if state.workspace~='runtime' or not playback.poseStress or not playback.playing or
+    return playback.poseStress or playback.gpuCpuCompare
+end
+
+local function syncRuntimeComparisonPreview()
+    local playback=state.skeletalPreview
+    if state.workspace~='runtime' or not swlHasRuntimeComparison() or not playback.playing or
             not playback.comparisonReady or
             not state.preview or not state.comparisonPreview then return end
     local time=state.preview:getSkeletalAnimationTime()
@@ -3071,9 +3089,9 @@ local function syncPoseStressPreview()
     end
 end
 
-local function framePoseStressLayout()
+local function frameRuntimeComparisonLayout()
     if not state.meshBounds then return end
-    if not state.skeletalPreview.poseStress then frameCamera(state.meshBounds); return end
+    if not swlHasRuntimeComparison() then frameCamera(state.meshBounds); return end
     local bounds={}
     for key,value in pairs(state.meshBounds) do bounds[key]=value end
     local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ)
@@ -3164,15 +3182,33 @@ local function showSkeletalPreviewControls()
     local poseStress=tImGui.Checkbox(tLang.L('swl_pose_stress_compare'),playback.poseStress)
     if poseStress~=playback.poseStress then
         playback.poseStress=poseStress
+        if poseStress then
+            playback.gpuCpuCompare=false
+            playback.execution=1
+        end
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
         else rebuildPreview() end
-        framePoseStressLayout()
+        frameRuntimeComparisonLayout()
+    end
+    local gpuCpuCompare=tImGui.Checkbox(tLang.L('swl_gpu_cpu_compare'),playback.gpuCpuCompare)
+    if gpuCpuCompare~=playback.gpuCpuCompare then
+        playback.gpuCpuCompare=gpuCpuCompare
+        if gpuCpuCompare then
+            playback.poseStress=false
+            playback.method=2
+            playback.execution=1
+        end
+        if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
+        else rebuildPreview() end
+        frameRuntimeComparisonLayout()
     end
     if playback.poseStress then
         tImGui.TextWrapped(tLang.L('swl_pose_stress_layout'))
+    elseif playback.gpuCpuCompare then
+        tImGui.TextWrapped(tLang.L('swl_gpu_cpu_layout'))
     end
     local methods={tLang.L('swl_skinning_auto'),tLang.L('swl_skinning_lbs'),tLang.L('swl_skinning_dqs')}
-    tImGui.BeginDisabled(playback.poseStress)
+    tImGui.BeginDisabled(swlHasRuntimeComparison())
     tImGui.PushItemWidth(190)
     local methodChanged,method=tImGui.Combo(tLang.L('swl_skinning_method'),playback.method,methods,-1)
     tImGui.PopItemWidth()
@@ -3183,7 +3219,7 @@ local function showSkeletalPreviewControls()
         else rebuildPreview() end
     end
     local executions={tLang.L('swl_execution_gpu'),tLang.L('swl_execution_cpu_lbs')}
-    tImGui.BeginDisabled(playback.poseStress)
+    tImGui.BeginDisabled(swlHasRuntimeComparison())
     tImGui.PushItemWidth(190)
     local executionChanged,execution=tImGui.Combo(tLang.L('swl_execution_path'),playback.execution,executions,-1)
     tImGui.PopItemWidth()
@@ -3217,15 +3253,35 @@ local function showSkeletalPreviewControls()
     elseif executionPath=='gpu' then
         showItemTooltip(tLang.L('swl_execution_gpu_note'))
     end
-    if playback.poseStress and state.comparisonPreview then
-        local dqsReport=state.comparisonPreview:getSkeletalSkinningReport()
-        tImGui.Text(string.format(tLang.L('swl_pose_stress_reports'),lbsReport.status or 'unknown',
-            dqsReport.status or 'unknown'))
-        if playback.playing and not playback.comparisonReady then
-            tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_pose_stress_clip_rejected'))
+    if swlHasRuntimeComparison() and state.comparisonPreview then
+        local secondaryReport=state.comparisonPreview:getSkeletalSkinningReport()
+        if playback.gpuCpuCompare then
+            tImGui.Text(tLang.L('swl_gpu_cpu_primary_label'))
+            drawExecutionStatusIndicator(lbsReport.executionPath)
+            tImGui.SameLine()
+            tImGui.TextWrapped(string.format(tLang.L('swl_execution_report_fmt'),
+                lbsReport.executionPath or 'unknown',lbsReport.executionStatus or 'unknown'))
+            tImGui.Text(tLang.L('swl_gpu_cpu_secondary_label'))
+            drawExecutionStatusIndicator(secondaryReport.executionPath)
+            tImGui.SameLine()
+            tImGui.TextWrapped(string.format(tLang.L('swl_execution_report_fmt'),
+                secondaryReport.executionPath or 'unknown',
+                secondaryReport.executionStatus or 'unknown'))
+            tImGui.Text(string.format(tLang.L('swl_gpu_cpu_reports'),
+                lbsReport.executionStatus or 'unknown',
+                secondaryReport.executionStatus or 'unknown'))
+        else
+            local dqsReport=secondaryReport
+            tImGui.Text(string.format(tLang.L('swl_pose_stress_reports'),lbsReport.status or 'unknown',
+                dqsReport.status or 'unknown'))
+            if playback.playing and not playback.comparisonReady then
+                tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_pose_stress_clip_rejected'))
+            end
         end
-    elseif playback.poseStress then
-        tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_pose_stress_unavailable'))
+    elseif swlHasRuntimeComparison() then
+        tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},
+            tLang.L(playback.gpuCpuCompare and 'swl_gpu_cpu_unavailable' or
+                'swl_pose_stress_unavailable'))
     end
     showRuntimeWearableControls()
     if #playback.clips==0 then
@@ -8791,6 +8847,7 @@ local function showSkeletalAnimationInspection()
             if okSaved and saved then
                 state.skeletalPreview.method=authoringMethod
                 state.skeletalPreview.poseStress=false
+                state.skeletalPreview.gpuCpuCompare=false
                 clearAuthoringOverride()
                 state.authoringPose=nil
                 rebuildPreview(temporaryPath)
@@ -10002,7 +10059,7 @@ function onLoop(delta)
     showCameraPanel()
     showRuntimeLightWindow()
     showSkeletalTimelineWindow()
-    syncPoseStressPreview()
+    syncRuntimeComparisonPreview()
     if state.workspace=='runtime' and state.skeletalPreview.playing and
             state.skeletalPreview.layerMaskShowSkeleton then
         if not updateRuntimeSkeletonVisuals() then rebuildSkeletonVisuals() end

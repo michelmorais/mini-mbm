@@ -613,14 +613,14 @@ The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and
 matching active-backend LBS or DQS palette. When a clip layer is active, the optional mask skeleton
 follows the primary preview's final evaluated global transforms while retaining per-bone mask colors.
-In LBS/DQS comparison it intentionally does not duplicate the secondary instance.
+In LBS/DQS and GPU/CPU comparison it intentionally does not duplicate the secondary instance.
 Runtime Preview can also load multiple optional secondary **wearable / follower** `.msh` meshes.
 The editor loads each follower with the primary preview's resolved LBS or DQS method, runs
 `getSkeletalSharingCompatibility` against the primary runtime mesh, displays the compatibility
 reason and relevant mismatch fields, and only then calls `enableSkeletalPoseSharing(primary)`.
 When compatible, each follower keeps its own mesh, material, textures, and skin weights while
 rendering from the primary player's already evaluated pose. Followers mirror the primary preview's
-editor transform, including pose-stress offsets, and each has its own visibility and remove action.
+editor transform, including comparison offsets, and each has its own visibility and remove action.
 A remove-all action clears the whole transient collection. Rebuilding or reloading the primary
 preview, resetting the editor mesh, leaving the scene, or destroying the editor safely unlinks and
 destroys every follower. This composition is transient editor state and is not persisted; it is
@@ -730,6 +730,13 @@ LBS on the left and rigid DQS on the right. Both receive the same clip, restart,
 and bind-restoration commands; the right instance is re-seeked to the left instance's time each
 frame to avoid drift. The camera reframes both meshes automatically. This comparison is read-only,
 and a DQS pose rejection is reported while the LBS instance remains visible.
+Enable **Compare GPU / CPU** to reuse the same side-by-side preview and synchronization lifecycle
+for execution-path parity: the left instance is GPU LBS and the right instance is CPU LBS. This mode
+is mutually exclusive with LBS/DQS pose stress, constrains the runtime method to LBS, disables the
+normal method/execution selectors while active, and reports each side from its loaded
+`getSkeletalSkinningReport()` execution path rather than the requested combo state. Disabling it
+returns to the ordinary single-preview controls without writing method or execution changes into
+the mesh asset.
 
 The editor supports **Save**, **Save As**, and bounded 50-entry **Undo/Redo** across existing atomic
 bind, bone, weight, clip, track, key, timeline, and pose-authoring operations. New commits clear Redo;
@@ -1268,5 +1275,5 @@ Runtime Skeletal Preview identifies whether its player was built from the saved 
 in-memory canonical snapshot. **Refresh runtime preview from memory** serializes current unsaved
 skeleton, weights, and clips to a temporary MSH, constructs the real immutable-method runtime mesh
 and player from it, then removes the temporary file. Later editor mutations mark that snapshot stale
-until refreshed again. Method and pose-stress changes preserve an in-memory source by rebuilding a
+until refreshed again. Method and comparison changes preserve an in-memory source by rebuilding a
 fresh snapshot instead of silently returning to the saved file.
