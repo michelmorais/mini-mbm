@@ -23,8 +23,30 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 import unittest
+import warnings
 
 import blender_mesh_export as exporter
+import blender_mesh_skeleton_export as skeleton_exporter
+
+
+class DeprecatedUseNodesMaterial:
+    node_tree = SimpleNamespace()
+
+    @property
+    def use_nodes(self) -> bool:
+        warnings.warn("use_nodes is deprecated", DeprecationWarning, stacklevel=2)
+        return True
+
+
+class ScalarMatrix:
+    def __init__(self, value: float):
+        self.value = value
+
+    def __matmul__(self, other: "ScalarMatrix") -> "ScalarMatrix":
+        return ScalarMatrix(self.value * other.value)
+
+    def inverted_safe(self) -> "ScalarMatrix":
+        return ScalarMatrix(1.0 / self.value)
 
 
 def make_armature(name: str, bone_names: list[str]) -> SimpleNamespace:
@@ -116,6 +138,29 @@ class CanonicalSkeletalCapabilityTests(unittest.TestCase):
         self.assertIs(cap["available"], False)
         self.assertEqual(cap["armatureCount"], 0)
         self.assertIn("Mesh Sequence Cache", cap["reason"])
+
+
+class MaterialCompatibilityTests(unittest.TestCase):
+    def test_blender_use_nodes_deprecation_is_not_exposed_as_an_import_warning(self) -> None:
+        with warnings.catch_warnings(record=True) as observed:
+            warnings.simplefilter("always")
+            self.assertIs(exporter.material_uses_nodes(DeprecatedUseNodesMaterial()), True)
+
+        self.assertEqual(observed, [])
+
+
+class SkeletalRoundTripTransformTests(unittest.TestCase):
+    def test_absolute_source_bind_scale_is_removed_before_reconstructed_animation(self) -> None:
+        target = skeleton_exporter.retarget_sampled_global_to_reconstructed_bind(
+            ScalarMatrix(0.01), ScalarMatrix(0.01), ScalarMatrix(1.0))
+
+        self.assertAlmostEqual(target.value, 1.0)
+
+    def test_animation_delta_survives_bind_scale_normalization(self) -> None:
+        target = skeleton_exporter.retarget_sampled_global_to_reconstructed_bind(
+            ScalarMatrix(0.02), ScalarMatrix(0.01), ScalarMatrix(1.0))
+
+        self.assertAlmostEqual(target.value, 2.0)
 
 
 class CanonicalSkeletalExportModeTests(unittest.TestCase):

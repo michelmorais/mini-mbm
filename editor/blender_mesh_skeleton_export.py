@@ -28,6 +28,7 @@ import json
 import math
 import os
 import sys
+import warnings
 import traceback
 
 
@@ -105,6 +106,16 @@ def canonical_matrix_to_blender(matrix_values: list[float],
                     Matrix.Rotation(ax, 4, "X"))
         restore = rotation @ restore
     return restore @ canonical_matrix @ restore.inverted()
+
+
+def retarget_sampled_global_to_reconstructed_bind(sampled_global, source_bind,
+                                                   reconstructed_bind):
+    """Transfers the source bone's animated skinning delta onto Blender's reconstructed rest.
+
+    Blender edit bones cannot retain scale in their rest matrices. Keeping an absolute sampled
+    matrix would therefore turn a source bind scale such as 0.01 into animation-only shrinkage.
+    """
+    return sampled_global @ source_bind.inverted_safe() @ reconstructed_bind
 
 
 def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None,
@@ -192,7 +203,12 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
     # show), so a material is required even when no texture is available.
     for subset_idx, subset in enumerate(subsets):
         mat = bpy.data.materials.new(name=f"MeshDebugMat_{subset_idx}")
-        mat.use_nodes = True
+        # Blender 5.x still requires this switch for node-backed materials, but warns that the
+        # property is scheduled for removal in 6.0. Keep compatibility without presenting that
+        # non-fatal API deprecation as an export failure in Mesh Debug's user-facing log.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            mat.use_nodes = True
         nodes = mat.node_tree.nodes
         links = mat.node_tree.links
         bsdf = nodes.get("Principled BSDF")
@@ -529,12 +545,15 @@ def build_animation_actions(data: dict, armature_obj, rotation_deg: tuple[float,
     maximum_frame = 1
     armature_obj.animation_data_create()
     pose_bones = []
+    source_bind_by_name = {}
     for joint in joints:
         pose_bone = armature_obj.pose.bones.get(joint["name"])
         if pose_bone is None:
             raise RuntimeError(f"Canonical animation references missing bone '{joint['name']}'.")
         pose_bone.rotation_mode = 'QUATERNION'
         pose_bones.append(pose_bone)
+        source_bind_by_name[pose_bone.name] = canonical_matrix_to_blender(
+            joint["globalBindMatrix"], rotation_deg, data.get("canonicalSkeleton") is True)
 
     for clip_index, clip in enumerate(clips):
         samples = clip.get("samples") or []
@@ -545,27 +564,92 @@ def build_animation_actions(data: dict, armature_obj, rotation_deg: tuple[float,
         action.use_fake_user = True
         action["mini_mbm_loop"] = bool(clip.get("loop", True))
         armature_obj.animation_data.action = action
+        previous_rotation = {}
+        curve_values = {}
+
+        def ensure_curve(data_path, array_index, group_name):
+            # Blender 5 layered Actions replaced Action.fcurves with this compatibility API.
+            # Older supported releases still expose the classic collection directly.
+            if hasattr(action, "fcurve_ensure_for_datablock"):
+                return action.fcurve_ensure_for_datablock(
+                    armature_obj, data_path, index=array_index, group_name=group_name)
+            return action.fcurves.new(data_path=data_path, index=array_index, action_group=group_name)
+
+        bone_curves = {}
+        for pose_bone in pose_bones:
+            channels = []
+            for property_name, component_count in (("location", 3),
+                                                    ("rotation_quaternion", 4),
+                                                    ("scale", 3)):
+                data_path = pose_bone.path_from_id(property_name)
+                for component in range(component_count):
+                    curve = ensure_curve(data_path, component, pose_bone.name)
+                    curve.keyframe_points.add(len(samples))
+                    curve_values[curve] = [0.0] * (len(samples) * 2)
+                    channels.append(curve)
+            bone_curves[pose_bone.name] = channels
 
         for sample_index, sample in enumerate(samples):
             frame = sample_index + 1
             maximum_frame = max(maximum_frame, frame)
-            scene.frame_set(frame)
             matrices = sample.get("globalMatrices") or []
             if len(matrices) != len(pose_bones):
                 raise RuntimeError(
                     f"Canonical clip '{action_name}' sample {sample_index} has {len(matrices)} "
                     f"bone matrices; expected {len(pose_bones)}.")
-            # Joints arrive in canonical parent-before-child order. Assign the complete pose first,
-            # then key the decomposed pose-bone channels after Blender has resolved the hierarchy.
+            # Convert every armature-space/global target to matrix_basis explicitly. Assigning
+            # PoseBone.matrix parent-before-child is not sufficient: Blender defers dependency-
+            # graph evaluation, so a child's setter can still observe its parent's PREVIOUS pose.
+            # On common FBX rigs whose armature carries scale 0.01, that reapplies 0.01 once per
+            # hierarchy level (0.01, 0.0001, 0.000001...) until deep bones become singular/NaN.
+            #
+            # For Blender's default full parent inheritance:
+            #   pose = parentPose * inverse(parentRest) * rest * basis
+            # Solving this equation directly makes every bone independent of deferred evaluation
+            # and avoids view-layer updates while constructing the Action.
+            target_by_name = {}
             for pose_bone, matrix_values in zip(pose_bones, matrices):
-                pose_bone.matrix = canonical_matrix_to_blender(
+                sampled_global = canonical_matrix_to_blender(
                     matrix_values, rotation_deg, data.get("canonicalSkeleton") is True)
-            bpy.context.view_layer.update()
+                source_bind = source_bind_by_name[pose_bone.name]
+                reconstructed_bind = pose_bone.bone.matrix_local
+                # Edit bones encode orientation and length but cannot retain scale in their rest
+                # matrices. A canonical FBX root commonly has bind scale 0.01; keying the sampled
+                # absolute global matrix against Blender's scale-1 rest pose therefore shrinks the
+                # whole character to 1% only while animated. Transfer the source skinning delta
+                # onto the reconstructed rest matrix instead:
+                #   target = sampledGlobal * inverse(sourceBind) * reconstructedBind
+                # At the canonical bind pose this reduces exactly to reconstructedBind.
+                target_by_name[pose_bone.name] = retarget_sampled_global_to_reconstructed_bind(
+                    sampled_global, source_bind, reconstructed_bind)
             for pose_bone in pose_bones:
-                pose_bone.keyframe_insert(data_path="location", frame=frame, group=pose_bone.name)
-                pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=frame,
-                                          group=pose_bone.name)
-                pose_bone.keyframe_insert(data_path="scale", frame=frame, group=pose_bone.name)
+                target = target_by_name[pose_bone.name]
+                rest = pose_bone.bone.matrix_local
+                if pose_bone.parent:
+                    parent_rest = pose_bone.parent.bone.matrix_local
+                    parent_target = target_by_name[pose_bone.parent.name]
+                    basis = (rest.inverted_safe() @ parent_rest @
+                             parent_target.inverted_safe() @ target)
+                else:
+                    basis = rest.inverted_safe() @ target
+                location, rotation, scale = basis.decompose()
+                prior = previous_rotation.get(pose_bone.name)
+                if prior is not None and prior.dot(rotation) < 0.0:
+                    rotation.negate()
+                previous_rotation[pose_bone.name] = rotation.copy()
+                # Fill F-Curve storage in bulk after all samples. Calling keyframe_insert for every
+                # channel repeatedly sorts and tags the growing Action, making a 1,342-frame clip
+                # take minutes. The solved local values are already final and need no dependency-
+                # graph evaluation here.
+                values = tuple(location) + tuple(rotation) + tuple(scale)
+                for curve, value in zip(bone_curves[pose_bone.name], values):
+                    coordinates = curve_values[curve]
+                    coordinates[sample_index * 2] = frame
+                    coordinates[sample_index * 2 + 1] = value
+
+        for curve, coordinates in curve_values.items():
+            curve.keyframe_points.foreach_set("co", coordinates)
+            curve.update()
 
         debug_print(debug, f"animation action built: {action_name} ({len(samples)} samples at "
                            f"{sample_rate} FPS)")

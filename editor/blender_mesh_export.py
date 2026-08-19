@@ -21,6 +21,7 @@ import struct
 import sys
 import tempfile
 import traceback
+import warnings
 import zlib
 from typing import Any
 
@@ -42,6 +43,17 @@ TEXTURE_ROLE_NORMAL = 2
 TEXTURE_ROLE_SPECULAR = 3
 TEXTURE_ROLE_EMISSIVE = 4
 TEXTURE_ROLE_MASK = 5
+
+
+def material_uses_nodes(material: Any) -> bool:
+    if material is None:
+        return False
+    # Blender 5.x warns on this read even though the property remains the compatibility switch
+    # until Blender 6. Suppress only that API deprecation so Mesh Debug does not present a normal
+    # material inspection as an import/export failure.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return bool(getattr(material, "use_nodes", False))
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -283,7 +295,7 @@ def _resolve_texture_path(image: Any, image_user: Any, scene_frame: int,
 
 def get_material_texture_paths(material: Any, scene_frame: int,
                                output_dir: str | None = None) -> tuple[str, list[dict[str, Any]]]:
-    if material is None or not getattr(material, "use_nodes", False) or material.node_tree is None:
+    if not material_uses_nodes(material) or material.node_tree is None:
         return "", []
     image_nodes = [
         node for node in material.node_tree.nodes
@@ -399,7 +411,7 @@ def get_scene_fps(scene: Any) -> float:
 
 
 def get_material_texture_sequence_info(material: Any) -> list[dict[str, Any]]:
-    if material is None or not getattr(material, "use_nodes", False) or material.node_tree is None:
+    if not material_uses_nodes(material) or material.node_tree is None:
         return []
 
     out: list[dict[str, Any]] = []

@@ -330,7 +330,16 @@ the FBX fixes, but it is not the delivered runtime contract.
   Canonical type-43 clips are sampled through the engine's own authoring-pose evaluator and written
   to the intermediate JSON as parent-composed global matrices. Blender reconstructs one densely
   keyed Action per clip at the detected source cadence (normally at least 30 FPS and capped at 120
-  FPS; unusually long clips lower that rate to remain near 10,000 samples); FBX export enables
+  FPS; unusually long clips lower that rate to remain near 10,000 samples). Each sampled global
+  matrix first becomes a skinning delta against that bone's canonical global bind matrix; the
+  delta is applied to Blender's reconstructed rest matrix and only then solved into the bone's
+  local basis against the sampled parent hierarchy. This distinction is required because Blender
+  edit bones cannot preserve a source armature's rest scale: keying an absolute canonical scale
+  such as `0.01` against the reconstructed scale-1 rest pose makes the mesh correct in T-pose but
+  shrink to 1% while animated. Assigning global pose matrices through Blender's deferred dependency
+  graph would additionally reapply that scale at every bone depth. F-Curve points are populated in
+  bulk, so this remains finite explicit export work rather than repeated editor-loop evaluation.
+  FBX export enables
   animation baking only when those Actions exist. Consequently, MSH -> FBX -> MSH preserves
   multiple skeletal clips instead of returning only sections 41/42. FBX does not carry mini-mbm's
   loop flag as a standard playback contract, so re-import continues using the importer's normal
