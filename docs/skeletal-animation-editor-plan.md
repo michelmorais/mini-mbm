@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.100**
-Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, and per-bone layer masks implemented**
+Document version: **8.101**
+Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, per-bone layer masks, and one wearable follower preview implemented**
 Last updated: **2026-08-18**
 
 ## 1. Purpose
@@ -580,6 +580,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.101 | 2026-08-18 | Runtime Skeletal Preview can now load one transient secondary wearable/follower `.msh`, preflight it with `getSkeletalSharingCompatibility` against the primary preview mesh, report compatibility or mismatch details, and enable `enableSkeletalPoseSharing(primary)` only when valid. The follower mirrors the primary preview transform and resolved skinning method while retaining its own mesh/material/weights, has separate load/replace/unload/visibility controls, is destroyed on primary rebuild/reset/scene end, and remains distinct from the LBS/DQS comparison mesh. |
 | 8.100 | 2026-08-18 | Narrowed the remaining multi-mesh ownership question after the first runtime pose-sharing slice. Compatible loaded direct followers may borrow a source instance's already-evaluated private palette while preserving their own geometry and weights; links are non-owning, reject chains, and unlink on release/reload/destruction. Editor UI and shared authoring resources remain open. |
 | 8.99 | 2026-08-18 | Closed the multiple-root semantics gap for runtime/editor planning. Parentless canonical bones remain independent `parentIndex = -1` roots through bind, sampling, composition, LBS/DQS palette order, and named root-motion neutralization, with deterministic multi-root foundation coverage. Multi-mesh skeleton sharing stays open. |
 | 8.98 | 2026-08-18 | Extended automatic skeletal root motion with an optional rotation mode. Lua keeps translation-only behavior by default through `enableAutomaticSkeletalRootMotion(boneName, applyRotation?)`; when enabled, continuous updates apply normalized-quaternion rotation deltas to the renderizable angle and neutralize the selected bone's local rotation to bind in the final pose, while discontinuities and loop wraps still suppress teleport motion. |

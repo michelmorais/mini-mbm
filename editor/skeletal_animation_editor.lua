@@ -22,6 +22,7 @@
 
 tImGui = require "ImGui"
 tUtil = require "editor_utils"
+tWearable = require "skeletal_runtime_wearable_helpers"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -32,6 +33,11 @@ local state = {
     meshD = nil,
     preview = nil,
     comparisonPreview = nil,
+    wearablePreview = nil,
+    wearablePreviewPath = nil,
+    wearableCompatibility = nil,
+    wearableStatus = nil,
+    wearableVisible = true,
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false, absoluteLayerSelected=1,
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
@@ -293,6 +299,80 @@ end
 
 local function destroyObject(object)
     if object then pcall(function() object:destroy() end) end
+end
+
+function unloadRuntimeWearable()
+    if state.wearablePreview then
+        pcall(function() state.wearablePreview:disableSkeletalPoseSharing() end)
+    end
+    destroyObject(state.wearablePreview)
+    state.wearablePreview=nil
+    state.wearablePreviewPath=nil
+    state.wearableCompatibility=nil
+    state.wearableStatus=nil
+end
+
+function mirrorRuntimeWearableTransform()
+    if not state.wearablePreview or not state.preview then return end
+    local x=0
+    if state.workspace=='runtime' and state.skeletalPreview.poseStress then
+        local bounds=state.meshBounds
+        local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+            bounds.maxZ-bounds.minZ) or 1
+        x=-extent*0.65
+    end
+    pcall(function() state.wearablePreview:setPos(x,0,0) end)
+end
+
+function formatRuntimeWearableReport(report)
+    return tWearable.formatCompatibilityReport(report,{
+        unavailable=tLang.L('swl_wearable_compat_unavailable'),
+        compatibilityFmt=tLang.L('swl_wearable_compat_fmt'),
+        valid=tLang.L('swl_wearable_compat_valid'),
+        invalid=tLang.L('swl_wearable_compat_invalid'),
+        unknown=tLang.L('swl_wearable_compat_unknown'),
+        bonesFmt=tLang.L('swl_wearable_compat_bones_fmt'),
+        mismatchBoneFmt=tLang.L('swl_wearable_compat_mismatch_bone_fmt'),
+        boneIdsFmt=tLang.L('swl_wearable_compat_bone_ids_fmt'),
+        parentIndicesFmt=tLang.L('swl_wearable_compat_parent_indices_fmt'),
+        bindErrorFmt=tLang.L('swl_wearable_compat_bind_error_fmt'),
+    })
+end
+
+function loadRuntimeWearable(path)
+    unloadRuntimeWearable()
+    if not path or path=='' or not state.preview then return false end
+    local dir=fileDir(path)
+    if dir then mbm.addPath(dir) end
+    local method=tWearable.primarySkinningMethod(state.preview)
+    if not method then
+        state.wearableStatus=tLang.L('swl_wearable_primary_method_unresolved')
+        return false
+    end
+    local wearable=mesh:new('3d')
+    if not wearable:setSkeletalSkinningMethod(method) or not wearable:load(path) then
+        destroyObject(wearable)
+        state.wearableStatus=string.format(tLang.L('swl_wearable_load_failed_fmt'),path)
+        return false
+    end
+    local report=wearable:getSkeletalSharingCompatibility(state.preview)
+    state.wearableCompatibility=report
+    if not report or not report.compatible then
+        destroyObject(wearable)
+        state.wearableStatus=formatRuntimeWearableReport(report)
+        return false
+    end
+    if not wearable:enableSkeletalPoseSharing(state.preview) then
+        destroyObject(wearable)
+        state.wearableStatus=tLang.L('swl_wearable_share_failed')
+        return false
+    end
+    state.wearablePreview=wearable
+    state.wearablePreviewPath=path
+    state.wearableStatus=formatRuntimeWearableReport(report)
+    mirrorRuntimeWearableTransform()
+    applyWorkspaceVisibility()
+    return true
 end
 
 local function clearPaintVisuals()
@@ -984,7 +1064,7 @@ local function updateSkeletonVisibility()
     for _,object in pairs(state.skeletonGizmo.bones) do object.visible=shouldShowSkeleton() end
 end
 
-local function applyWorkspaceVisibility()
+function applyWorkspaceVisibility()
     local paintWorkspace=state.workspace=='paint'
     local runtimeWorkspace=state.workspace=='runtime'
     rebuildBoneEditorOrientationIndicator()
@@ -1012,6 +1092,10 @@ local function applyWorkspaceVisibility()
     if state.comparisonPreview then
         state.comparisonPreview.visible=state.meshVisible and runtimeWorkspace and
             state.skeletalPreview.poseStress
+    end
+    if state.wearablePreview then
+        state.wearablePreview.visible=state.meshVisible and state.wearableVisible and runtimeWorkspace
+        mirrorRuntimeWearableTransform()
     end
     for _,marker in ipairs(state.paint.heatmapLines) do
         marker.visible=paintWorkspace and state.meshVisible and not state.paint.aabbCapture.active
@@ -2703,6 +2787,7 @@ local function rebuildPreview(sourcePath)
     if sourcePath==nil and state.modified and state.meshD and rebuildRuntimePreviewFromMemory then
         return rebuildRuntimePreviewFromMemory()
     end
+    unloadRuntimeWearable()
     destroyObject(state.preview)
     destroyObject(state.comparisonPreview)
     state.preview = nil
@@ -2982,6 +3067,48 @@ local function framePoseStressLayout()
     frameCamera(bounds)
 end
 
+function showRuntimeWearableControls()
+    tImGui.Separator()
+    tImGui.Text(tLang.L('swl_wearable_preview'))
+    showItemTooltip(tLang.L('swl_wearable_preview_help'))
+    local loadLabel=state.wearablePreview and 'swl_wearable_replace' or 'swl_wearable_load'
+    if tImGui.Button(tLang.L(loadLabel)..'##swlWearableLoad') then
+        local path=mbm.openFile(state.wearablePreviewPath or state.fileName or '', 'msh')
+        if path then
+            if loadRuntimeWearable(path) then
+                setStatus(string.format(tLang.L('swl_wearable_loaded_fmt'),shortName(path)),false)
+            else
+                setStatus(state.wearableStatus or tLang.L('swl_wearable_unavailable'),true)
+            end
+        end
+    end
+    tImGui.SameLine()
+    tImGui.BeginDisabled(state.wearablePreview==nil and state.wearablePreviewPath==nil)
+    if tImGui.Button(tLang.L('swl_wearable_unload')..'##swlWearableUnload') then
+        unloadRuntimeWearable()
+        applyWorkspaceVisibility()
+    end
+    tImGui.EndDisabled()
+    local visible=tImGui.Checkbox(tLang.L('swl_wearable_visible'),state.wearableVisible)
+    if visible~=state.wearableVisible then
+        state.wearableVisible=visible
+        applyWorkspaceVisibility()
+    end
+    if state.wearablePreviewPath then
+        tImGui.TextDisabled(string.format(tLang.L('swl_wearable_file_fmt'),
+            shortName(state.wearablePreviewPath)))
+    end
+    if state.wearableStatus then
+        if state.wearablePreview then
+            tImGui.TextWrapped(state.wearableStatus)
+        else
+            tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},state.wearableStatus)
+        end
+    else
+        tImGui.TextDisabled(tLang.L('swl_wearable_none'))
+    end
+end
+
 local function showSkeletalPreviewControls()
     local playback=state.skeletalPreview
     local sourceKey=not state.runtimePreviewFromMemory and 'swl_runtime_source_file' or
@@ -3045,6 +3172,7 @@ local function showSkeletalPreviewControls()
     elseif playback.poseStress then
         tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_pose_stress_unavailable'))
     end
+    showRuntimeWearableControls()
     if #playback.clips==0 then
         tImGui.TextDisabled(tLang.L('swl_no_skeletal_clips'))
         return
@@ -9802,6 +9930,15 @@ function onLoop(delta)
         if not updateRuntimeSkeletonVisuals() then rebuildSkeletonVisuals() end
     end
     tUtil.showOverlayMessage()
+end
+
+function onEndScene()
+    unloadRuntimeWearable()
+    destroyObject(state.preview)
+    destroyObject(state.comparisonPreview)
+    clearPaintVisuals()
+    destroySkeletonVisuals()
+    clearRollback()
 end
 
 function onTouchDown(key, x, y)
