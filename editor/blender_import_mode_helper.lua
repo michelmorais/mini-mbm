@@ -99,6 +99,77 @@ local function normalizeLargeMeshMode(largeMeshMode)
     return 'fail'
 end
 
+local function getSourceFrameCount(src)
+    if type(src) ~= 'table' then return 1 end
+    local startFrame = floorInt(src.frameStart, 1)
+    local endFrame = floorInt(src.frameEnd, startFrame)
+    return math.max(1, math.abs(endFrame - startFrame) + 1)
+end
+
+local function isSceneRangeSource(src)
+    return type(src) == 'table' and tostring(src.kind or '') == 'scene_range'
+end
+
+local function isExplicitAnimationSource(src)
+    if type(src) ~= 'table' then return false end
+    local kind = tostring(src.kind or '')
+    return kind == 'action' or kind == 'nla'
+end
+
+function M.isExplicitSkeletalAnimationSource(src)
+    if not isExplicitAnimationSource(src) or getSourceFrameCount(src) <= 1 then
+        return false
+    end
+    if src.hasSkeletalAnimation == true or src.hasArmatureAnimation == true or src.isCanonicalArmatureSource == true then
+        return true
+    end
+
+    local objectType = tostring(src.objectType or src.type or ''):lower()
+    if objectType == 'armature' then
+        return true
+    end
+
+    local objectName = tostring(src.object or ''):lower()
+    if objectName:find('armature', 1, true) ~= nil then
+        return true
+    end
+
+    local reason = tostring(src.reason or ''):lower()
+    return reason:find('armature', 1, true) ~= nil
+end
+
+function M.selectDefaultAnimationSourceIndices(scanData, preferSkeletal, preserveManualSelection)
+    if preserveManualSelection then
+        return {}, 'manual_preserved'
+    end
+    if not preferSkeletal or type(scanData) ~= 'table' or type(scanData.sources) ~= 'table' then
+        return {}, 'none'
+    end
+
+    local cap = type(scanData.skeletalCapability) == 'table' and scanData.skeletalCapability or nil
+    local skeletalExplicitlyUnavailable = cap and cap.available == false
+    local selected = {}
+    if not skeletalExplicitlyUnavailable then
+        for i = 1, #scanData.sources do
+            if M.isExplicitSkeletalAnimationSource(scanData.sources[i]) then
+                selected[#selected + 1] = i
+            end
+        end
+        if #selected > 0 then
+            return selected, 'explicit_skeletal'
+        end
+    end
+
+    for i = 1, #scanData.sources do
+        local src = scanData.sources[i]
+        if isSceneRangeSource(src) and getSourceFrameCount(src) > 1 and tostring(src.confidence or '') ~= 'low' then
+            selected[1] = i
+            return selected, 'scene_range_fallback'
+        end
+    end
+    return {}, 'none'
+end
+
 function M.getVbOnlySkeletalFallbackReason()
     return 'VB-only large mesh mode cannot export canonical type-42 skin weights.'
 end
@@ -197,6 +268,29 @@ end
 
 function M.getAnimationToggleHelpKey()
     return 'blender_import_animation_toggle_help'
+end
+
+function M.getAnimationPresentationKeys(modeInfo)
+    modeInfo = modeInfo or {}
+    local out = {
+        sourceFramesColumnKey = 'blender_anim_col_source_frames',
+        sourceRangeHelpKey = 'blender_anim_source_range_help',
+        frameStartKey = 'blender_import_source_frame_start',
+        frameEndKey = 'blender_import_source_frame_end',
+    }
+    if modeInfo.mode == 'skeletal' then
+        out.selectedClipsTitleKey = 'blender_anim_selected_skeletal_clips_title'
+        out.sampleCountColumnKey = 'blender_anim_col_key_samples'
+        return out
+    end
+    if modeInfo.unknown then
+        out.selectedClipsTitleKey = 'blender_anim_selected_source_clips_title'
+        out.sampleCountColumnKey = 'blender_anim_col_samples'
+        return out
+    end
+    out.selectedClipsTitleKey = 'blender_anim_selected_baked_clips_title'
+    out.sampleCountColumnKey = 'blender_anim_col_mesh_frames'
+    return out
 end
 
 function M.summarizeModes(rows, getOptionsForRow, preferSkeletal, largeMeshMode)

@@ -44,6 +44,13 @@ duplicated mesh frames. The exception is `--large-mesh-mode vb_only`: that path 
 per triangle and intentionally does not emit canonical type-42 skin weights, so skeletal preference
 uses the same baked/static fallback even when the scan finds a usable armature.
 
+With that preference enabled, a direct Import first starts and waits for the same headless scan used
+by Configure. The default source selection then enables every explicit skeletal source discovered by
+the scan (Armature Actions and Armature/canonical NLA strips). The synthetic Blender scene range is
+only a fallback when no explicit skeletal source is available, because selecting it alongside an
+Action/NLA clip can duplicate or truncate animation ranges. Manual source choices are sticky:
+unchecking a source in Configure prevents later rescans/imports from re-enabling it automatically.
+
 If the scan reports no usable skeletal data, the same checked preference falls back to baked/static
 mesh frames and the UI reports the reason before import and in the result summary. This is expected
 for vertex-cache or mesh-sequence-cache assets with no armature/weights: their animation is geometry

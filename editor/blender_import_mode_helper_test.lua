@@ -46,6 +46,12 @@ assert(skeletalEstimate.targetFrames == 1)
 assert(skeletalEstimate.geometryFrames == 1)
 assert(skeletalEstimate.skeletalKeySamples == 10)
 assert(skeletalEstimate.bakedMeshFrames == 0)
+local skeletalKeys = helper.getAnimationPresentationKeys(skeletalMode)
+assert(skeletalKeys.selectedClipsTitleKey == 'blender_anim_selected_skeletal_clips_title')
+assert(skeletalKeys.sampleCountColumnKey == 'blender_anim_col_key_samples')
+assert(skeletalKeys.frameStartKey == 'blender_import_source_frame_start')
+assert(skeletalKeys.frameEndKey == 'blender_import_source_frame_end')
+assert(skeletalKeys.sourceFramesColumnKey == 'blender_anim_col_source_frames')
 
 local vbOnlyMode = helper.resolveImportMode(true, 'ready', skeletalScan, 'vb_only')
 assert(vbOnlyMode.mode == 'baked')
@@ -58,6 +64,9 @@ assert(vbOnlyEstimate.targetFrames == 10)
 assert(vbOnlyEstimate.geometryFrames == 10)
 assert(vbOnlyEstimate.bakedMeshFrames == 10)
 assert(vbOnlyEstimate.skeletalKeySamples == 0)
+local bakedKeys = helper.getAnimationPresentationKeys(vbOnlyMode)
+assert(bakedKeys.selectedClipsTitleKey == 'blender_anim_selected_baked_clips_title')
+assert(bakedKeys.sampleCountColumnKey == 'blender_anim_col_mesh_frames')
 
 local indexedMode = helper.resolveImportMode(true, 'ready', skeletalScan, 'fail')
 assert(indexedMode.mode == 'skeletal')
@@ -93,6 +102,9 @@ local unknownEstimate = helper.estimateFrames(unknownMode, options())
 assert(unknownEstimate.targetFrames == 10)
 assert(unknownEstimate.unknown == true)
 assert(helper.getAnimationToggleHelpKey() == 'blender_import_animation_toggle_help')
+local unknownKeys = helper.getAnimationPresentationKeys(unknownMode)
+assert(unknownKeys.selectedClipsTitleKey == 'blender_anim_selected_source_clips_title')
+assert(unknownKeys.sampleCountColumnKey == 'blender_anim_col_samples')
 
 local missingCapabilityMode = helper.resolveImportMode(true, 'ready', {})
 assert(missingCapabilityMode.mode == 'unknown_preference')
@@ -121,5 +133,88 @@ assert(vbOnlySummary.fallbackFiles == 2)
 assert(vbOnlySummary.unknownFiles == 1)
 assert(vbOnlySummary.skeletalKeySamples == 0)
 assert(vbOnlySummary.bakedMeshFrames == 20)
+
+local actionAndSceneScan = {
+    skeletalCapability = { available = true },
+    sources = {
+        {
+            kind = 'action',
+            name = 'Armature|Take 001|BaseLayer',
+            frameStart = 1,
+            frameEnd = 1342,
+            object = 'Armature',
+            objectType = 'ARMATURE',
+            reason = 'ARMATURE action',
+            confidence = 'medium',
+        },
+        {
+            kind = 'scene_range',
+            name = 'Scene range',
+            frameStart = 1,
+            frameEnd = 250,
+            reason = 'object/action animation',
+            confidence = 'high',
+        },
+    },
+}
+local selectedAction, selectedActionKind = helper.selectDefaultAnimationSourceIndices(actionAndSceneScan, true, false)
+assert(#selectedAction == 1)
+assert(selectedAction[1] == 1)
+assert(selectedActionKind == 'explicit_skeletal')
+
+local multiExplicitScan = {
+    skeletalCapability = { available = true },
+    sources = {
+        { kind = 'action', name = 'Idle', frameStart = 1, frameEnd = 30, hasSkeletalAnimation = true },
+        { kind = 'nla', name = 'Run', frameStart = 40, frameEnd = 80, hasArmatureAnimation = true },
+        { kind = 'scene_range', name = 'Scene range', frameStart = 1, frameEnd = 90, confidence = 'high' },
+    },
+}
+local selectedMulti = helper.selectDefaultAnimationSourceIndices(multiExplicitScan, true, false)
+assert(#selectedMulti == 2)
+assert(selectedMulti[1] == 1)
+assert(selectedMulti[2] == 2)
+
+local oldNlaScan = {
+    skeletalCapability = { available = true },
+    sources = {
+        { kind = 'nla', name = 'Walk strip', object = 'Armature', frameStart = 1, frameEnd = 45, reason = 'NLA strip' },
+        { kind = 'scene_range', name = 'Scene range', frameStart = 1, frameEnd = 45, confidence = 'high' },
+    },
+}
+local selectedOldNla = helper.selectDefaultAnimationSourceIndices(oldNlaScan, true, false)
+assert(#selectedOldNla == 1)
+assert(selectedOldNla[1] == 1)
+
+local sceneOnlyScan = {
+    skeletalCapability = { available = true },
+    sources = {
+        { kind = 'scene_range', name = 'Scene range', frameStart = 5, frameEnd = 60, confidence = 'high' },
+    },
+}
+local selectedScene, selectedSceneKind = helper.selectDefaultAnimationSourceIndices(sceneOnlyScan, true, false)
+assert(#selectedScene == 1)
+assert(selectedScene[1] == 1)
+assert(selectedSceneKind == 'scene_range_fallback')
+
+local unavailableFallbackScan = {
+    skeletalCapability = { available = false },
+    sources = {
+        { kind = 'action', name = 'MeshAction', frameStart = 1, frameEnd = 30, hasSkeletalAnimation = true },
+        { kind = 'scene_range', name = 'Scene range', frameStart = 1, frameEnd = 30, confidence = 'high' },
+    },
+}
+local selectedUnavailable, selectedUnavailableKind = helper.selectDefaultAnimationSourceIndices(unavailableFallbackScan, true, false)
+assert(#selectedUnavailable == 1)
+assert(selectedUnavailable[1] == 2)
+assert(selectedUnavailableKind == 'scene_range_fallback')
+
+local selectedOff, selectedOffKind = helper.selectDefaultAnimationSourceIndices(actionAndSceneScan, false, false)
+assert(#selectedOff == 0)
+assert(selectedOffKind == 'none')
+
+local selectedManual, selectedManualKind = helper.selectDefaultAnimationSourceIndices(actionAndSceneScan, true, true)
+assert(#selectedManual == 0)
+assert(selectedManualKind == 'manual_preserved')
 
 print('blender import mode helper tests passed')

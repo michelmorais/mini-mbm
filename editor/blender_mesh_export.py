@@ -678,6 +678,7 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
     animated_objects: list[dict[str, Any]] = []
     nla_sources: list[dict[str, Any]] = []
     mesh_stats: dict[str, Any] = {"available": False}
+    canonical_armature_obj = get_canonical_armature_object(scene)
 
     for obj in scene.objects:
         object_has_animation = bool(getattr(obj, "animation_data", None) and obj.animation_data.action)
@@ -691,6 +692,7 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
                     "action": str(action.name),
                     "frameStart": start,
                     "frameEnd": end,
+                    "isCanonicalArmatureSource": obj == canonical_armature_obj,
                 }
             )
 
@@ -701,10 +703,12 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
                     nla_sources.append(
                         {
                             "object": str(obj.name),
+                            "type": str(obj.type),
                             "track": str(getattr(track, "name", "")),
                             "name": str(getattr(strip, "name", "")),
                             "frameStart": int(getattr(strip, "frame_start", 1)),
                             "frameEnd": int(getattr(strip, "frame_end", 1)),
+                            "isCanonicalArmatureSource": obj == canonical_armature_obj,
                         }
                     )
 
@@ -784,6 +788,10 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
                 "frameEnd": item["frameEnd"],
                 "fps": fps,
                 "object": item["object"],
+                "objectType": item["type"],
+                "hasSkeletalAnimation": item["type"] == "ARMATURE" or item.get("isCanonicalArmatureSource") is True,
+                "hasArmatureAnimation": item["type"] == "ARMATURE",
+                "isCanonicalArmatureSource": item.get("isCanonicalArmatureSource") is True,
                 "confidence": "medium",
                 "reason": f"{item['type']} action",
             },
@@ -799,6 +807,10 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
                 "frameEnd": item["frameEnd"],
                 "fps": fps,
                 "object": item["object"],
+                "objectType": item["type"],
+                "hasSkeletalAnimation": item["type"] == "ARMATURE" or item.get("isCanonicalArmatureSource") is True,
+                "hasArmatureAnimation": item["type"] == "ARMATURE",
+                "isCanonicalArmatureSource": item.get("isCanonicalArmatureSource") is True,
                 "confidence": "medium",
                 "reason": "NLA strip",
             },
