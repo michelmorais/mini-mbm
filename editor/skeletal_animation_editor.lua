@@ -3205,7 +3205,6 @@ local function showSkeletalPreviewControls()
         playback.gpuCpuCompare=gpuCpuCompare
         if gpuCpuCompare then
             playback.poseStress=false
-            playback.method=2
             playback.execution=2
         end
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()

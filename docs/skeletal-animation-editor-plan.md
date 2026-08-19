@@ -390,6 +390,12 @@ Exit: a clip can be authored, saved, reopened, and sampled deterministically ins
 - Backend-neutral capability reporting is shared by the delivered OpenGL ES, DirectX 9, and Metal runtime
   paths. The editor follows the backend selected for the engine build rather than switching
   renderers at runtime. Metal numeric parity coverage remains separate follow-up work.
+- Windows/DirectX 9 manual reference (2026-08-19): the tested mesh requires 88 bones per draw,
+  while that device reports capacity for 82 LBS bones. Explicit LBS/GPU is therefore unavailable
+  and Auto execution correctly falls back to CPU without changing the resolved skinning method.
+  The same 88-bone mesh fits the larger DQS palette and runs on the GPU. After visually validating
+  every relevant clip, an application may explicitly select DQS while leaving execution on Auto;
+  this preserves DQS and lets the runtime choose GPU when supported or rigid-DQS CPU otherwise.
 - Side-by-side pose-stress comparison is now available with synchronized runtime LBS/DQS instances,
   mirrored playback/seek/bind restoration, separate readiness reporting, and automatic reframing.
 - The first numeric parity gate now compares two-bone LBS/DQS shader output with the CPU references
@@ -582,6 +588,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.104 | 2026-08-19 | Recorded the Windows/DirectX 9 manual reference case for plan closeout: an 88-bone mesh exceeds the measured 82-bone LBS per-draw capacity and falls back to CPU under Auto execution, while the same mesh fits DQS on GPU. Explicit DQS plus Auto execution is an application option after visual validation of every relevant clip. |
 | 8.103 | 2026-08-19 | Runtime Skeletal Preview no longer labels CPU as LBS-only. The explicit CPU path supports resolved LBS or rigid DQS when the loaded runtime report is ready, and GPU/CPU comparison uses the selected resolved method on both sides when safe while preserving GPU-only LBS/DQS pose-stress comparison. |
 | 8.102 | 2026-08-19 | Runtime Skeletal Preview now keeps an ordered transient collection of wearable/follower `.msh` meshes. Add loads another follower with the primary resolved skinning method, preflights compatibility, enables pose sharing only for compatible meshes, and keeps per-follower path, status, visibility, and remove controls plus a remove-all action. All followers mirror primary preview transforms including pose-stress offsets, are destroyed on primary rebuild/reset/scene end, remain separate from LBS/DQS comparison, and are not persisted. |
 | 8.101 | 2026-08-18 | Runtime Skeletal Preview can now load one transient secondary wearable/follower `.msh`, preflight it with `getSkeletalSharingCompatibility` against the primary preview mesh, report compatibility or mismatch details, and enable `enableSkeletalPoseSharing(primary)` only when valid. The follower mirrors the primary preview transform and resolved skinning method while retaining its own mesh/material/weights, has separate load/replace/unload/visibility controls, is destroyed on primary rebuild/reset/scene end, and remains distinct from the LBS/DQS comparison mesh. |
