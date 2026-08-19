@@ -23,13 +23,16 @@ document is the precise reference.
 
 **Mini MBM's status in one sentence:** canonical `.msh` assets store a stable-ID bind hierarchy,
 per-vertex weights, and local skeletal clips in sections 41-43; the OpenGL ES, DirectX9, and Metal
-runtimes evaluate those clips per mesh instance and deform vertices/normals with selectable LBS or rigid DQS.
+runtimes evaluate those clips per mesh instance and deform vertices/normals with selectable GPU LBS
+or rigid DQS, plus an explicit opt-in CPU-rendered LBS execution path.
 Static-frame swapping and articulated rigid-subset animation remain separate supported models.
 
 The Skeletal Animation Editor can create/edit the canonical skeleton and clips, paint and repair
 weights, preview the same runtime player, author transient per-bone animation-layer masks, and
 round-trip the result through the supported FBX workflow. Metal numeric parity coverage and Velocity Skinning remain
 pending; this backend limitation does not turn canonical skeletal data back into editor-only data.
+CPU execution is currently LBS-only, deforms from immutable bind geometry into per-instance dynamic
+buffers, and rejects DQS explicitly.
 
 ## How Real-Time Skeletal Animation Works (Other Engines)
 

@@ -24,6 +24,7 @@
 #include <mesh-manager.h>
 #include <device.h>
 #include <renderizable.h>
+#include <render/mesh.h>
 #include <util-interface.h>
 
 #include <map>
@@ -1126,8 +1127,12 @@ namespace mbm
         fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
         const SKELETAL_SHADER_METHOD skeletalMethod =
             getSkeletalAnimationPlayer().getResolvedSkinningMethod();
+        const MESH *meshRenderable = dynamic_cast<const MESH*>(renderizable);
+        const bool cpuSkeletal = meshRenderable &&
+            meshRenderable->getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU;
         if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf,
-                                    mesh->getPreparedSkeletalPaletteSize(skeletalMethod), skeletalMethod))
+                                    cpuSkeletal ? 0u : mesh->getPreparedSkeletalPaletteSize(skeletalMethod),
+                                    cpuSkeletal ? SKELETAL_SHADER_METHOD::NONE : skeletalMethod))
         {
             if(infoHead->effectShader && infoHead->effectShader->blendOperation != 0)
                 fx.blendOperation = infoHead->effectShader->blendOperation;

@@ -505,6 +505,7 @@
     6.80.1 Fixed the Skeletal Animation Editor shared skeleton-visibility control so weight-lab bone highlights cannot remain visible or reappear while the skeleton is hidden.
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
+    7.117.0 Added an explicit opt-in CPU skeletal execution path for canonical LBS meshes. GPU remains the default; CPU selection is per MESH before load, forces LBS, rejects DQS, deforms positions/normals from immutable bind geometry into per-instance dynamic buffers, exposes C++/Lua selection and reporting, and adds Runtime Skeletal Preview execution reporting.
     7.116.0 Expanded Runtime Skeletal Preview secondary wearable/follower loading from one transient follower to an ordered non-persistent collection. Add loads another .msh with the primary resolved LBS/DQS method, preflights compatibility, enables pose sharing only for compatible followers, gives each follower path/status/visibility/remove controls, mirrors primary preview transforms including pose-stress offsets, and removes all followers on primary rebuild/reset/scene end while keeping them separate from LBS/DQS comparison.
     7.115.0 Added Runtime Skeletal Preview secondary wearable/follower loading with compatibility reporting and runtime pose sharing against the primary preview mesh.
     7.114.0 Added the first skeletal pose-sharing runtime slice: a compatible loaded direct follower MESH can render with a compatible source MESH's already-evaluated private palette and same resolved skinning method while retaining its own geometry, weights, textures, and transform. Lua exposes enable/disable/query; self, unloaded, incompatible, method-mismatched, and chained cases reject without mutation, inactive sources fall back to non-shared rendering, and release/reload/destruction unlinks relationships.
@@ -518,7 +519,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.116.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.117.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

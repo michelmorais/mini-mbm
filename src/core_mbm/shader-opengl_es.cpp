@@ -645,6 +645,21 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
+        if (this->vertexStartVB)
+            delete[] this->vertexStartVB;
+        if (this->vertexCountVB)
+            delete[] this->vertexCountVB;
+        if (this->indexStartIB)
+            delete[] this->indexStartIB;
+        if (this->indexCountIB)
+            delete[] this->indexCountIB;
+
+        this->vertexStartVB = nullptr;
+        this->vertexCountVB = nullptr;
+        this->indexStartIB = nullptr;
+        this->indexCountIB = nullptr;
+        this->sizeOfArrayVertex = 0;
+        this->initializedIndexBuffer = false;
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         backendBuffer->release();
         totalSubset   = 0;
@@ -767,10 +782,47 @@ namespace mbm
             return false;
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         this->totalSubset      = totalSubsets;
+        uint32_t vertexCount = 0;
+        for (uint32_t i = 0; i < totalSubsets; ++i)
+        {
+            const int indexStart = indexStartSubset[i];
+            const int indexCount = indexCountSubset[i];
+            if (indexStart < 0 || indexCount <= 0)
+            {
+                this->release();
+                return false;
+            }
+            for (int j = 0; j < indexCount; ++j)
+            {
+                const uint32_t candidate = static_cast<uint32_t>(arrayIndices[indexStart + j]) + 1u;
+                if (candidate > vertexCount)
+                    vertexCount = candidate;
+            }
+        }
+        if (vertexCount == 0)
+            return false;
+        GLGenBuffers(3, backendBuffer->vboVertNorTexIB);
+        if (backendBuffer->vboVertNorTexIB[0] == 0)
+        {
+            this->release();
+            return false;
+        }
         backendBuffer->vboIndexSubsetIB = new uint32_t[totalSubset];
         memset(backendBuffer->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
-        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
+        this->initializeIndexBufferControl(totalSubsets, vertexCount, indexStartSubset, indexCountSubset, info_draw_mode);
         this->fvf = (hasNormal && hasUv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV : (hasNormal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR : (hasUv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
+        GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
+        GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertexCount * sizeof(mbm::VEC3)), nullptr, GL_DYNAMIC_DRAW);
+        if (hasNormal)
+        {
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[1]);
+            GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertexCount * sizeof(mbm::VEC3)), nullptr, GL_DYNAMIC_DRAW);
+        }
+        if (hasUv)
+        {
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[2]);
+            GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertexCount * sizeof(mbm::VEC2)), nullptr, GL_DYNAMIC_DRAW);
+        }
         GLGenBuffers(static_cast<GLsizei>(this->totalSubset), backendBuffer->vboIndexSubsetIB);
         if (!backendBuffer->vboIndexSubsetIB[0])
         {
@@ -785,6 +837,7 @@ namespace mbm
         }
 
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        GLBindBuffer(GL_ARRAY_BUFFER, 0);
         return true;
     }
 
@@ -794,9 +847,36 @@ namespace mbm
                                   const int* vertexStartSubset,
                                   const int* vertexCountSubset)// update when dynamic
     {
+        if (!vertex || !vertexStartSubset || !vertexCountSubset)
+            return false;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (this->initializedIndexBuffer)
+        {
+            if (!backendBuffer->vboVertNorTexIB[0])
+                return false;
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
+            glBufferSubData(GL_ARRAY_BUFFER, 0,
+                            static_cast<GLsizeiptr>(sizeof(mbm::VEC3) * this->sizeOfArrayVertex),
+                            vertex);
+            if (normal && backendBuffer->vboVertNorTexIB[1] != 0)
+            {
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[1]);
+                glBufferSubData(GL_ARRAY_BUFFER, 0,
+                                static_cast<GLsizeiptr>(sizeof(mbm::VEC3) * this->sizeOfArrayVertex),
+                                normal);
+            }
+            if (uv && backendBuffer->vboVertNorTexIB[2] != 0)
+            {
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[2]);
+                glBufferSubData(GL_ARRAY_BUFFER, 0,
+                                static_cast<GLsizeiptr>(sizeof(mbm::VEC2) * this->sizeOfArrayVertex),
+                                uv);
+            }
+            GLBindBuffer(GL_ARRAY_BUFFER, 0);
+            return true;
+        }
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
-            BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
             const uint32_t vertexStart = vertexStartSubset[i];
             const uint32_t vertexCount = vertexCountSubset[i];
             if (vertexCount > this->sizeOfArrayVertex)
@@ -810,26 +890,17 @@ namespace mbm
             const mbm::VEC3* pVertexStart = &vertex[vertexStart];
             const mbm::VEC3* pNormalStart = normal ? &normal[vertexStart] : nullptr;
             const mbm::VEC2* pUvStart     = uv ? &uv[vertexStart]         : nullptr;
-            if (this->initializedIndexBuffer)
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
+            GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pVertexStart, GL_DYNAMIC_DRAW);
+            if (pNormalStart && backendBuffer->vboNormalSubsetVB[i] != 0)
             {
-                // TODO: for index buffer
-                ERROR_AT(__LINE__, __FILE__, "TODO: Update vertex not implemented for index buffer");
-                return false;
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboNormalSubsetVB[i]);
+                GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pNormalStart, GL_DYNAMIC_DRAW);
             }
-            else
+            if (pUvStart && backendBuffer->vboTextureSubsetVB[i] != 0)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
-                GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pVertexStart, GL_DYNAMIC_DRAW);
-                if (pNormalStart && backendBuffer->vboNormalSubsetVB[i] != 0)
-                {
-                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboNormalSubsetVB[i]);
-                    GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pNormalStart, GL_DYNAMIC_DRAW);
-                }
-                if (pUvStart && backendBuffer->vboTextureSubsetVB[i] != 0)
-                {
-                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboTextureSubsetVB[i]);
-                    GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC2) * vertexCount, pUvStart, GL_DYNAMIC_DRAW);
-                }
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboTextureSubsetVB[i]);
+                GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC2) * vertexCount, pUvStart, GL_DYNAMIC_DRAW);
             }
         }
         GLBindBuffer(GL_ARRAY_BUFFER, 0);

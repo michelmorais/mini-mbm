@@ -585,9 +585,10 @@ contain unit scale; otherwise it resolves to LBS. Changing method after load ret
 the resolved method is part of the compiled default-shader variant. The Absolute layer supports a
 linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
 and fade. Per-bone masks, completion callbacks, and Metal are delivered; transition curves/queues
-and priorities remain future work. OpenGL ES, DirectX9, and Metal provide the current GPU paths. LBS compact
-normals reject negative scale, shear, or non-uniform scale;
-rigid DQS rejects any scale/shear.
+and priorities remain future work. OpenGL ES, DirectX9, and Metal provide the current GPU paths. An
+explicit opt-in CPU execution path is available for LBS only; it keeps the skinning method API
+separate from execution and rejects CPU+DQS rather than silently switching. LBS compact normals
+reject negative scale, shear, or non-uniform scale; rigid DQS rejects any scale/shear.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
@@ -597,7 +598,9 @@ rigid DQS rejects any scale/shear.
 | `obj:setSkeletalSkinningMethod` | `(method: "auto"|"lbs"|"dqs")` | bool | Select requested policy before `load`; returns `false` after the mesh is loaded |
 | `obj:getSkeletalSkinningMethod` | `()` | string | Requested method/policy |
 | `obj:getResolvedSkeletalSkinningMethod` | `()` | string | Actual compiled method (`"lbs"` or `"dqs"`), or `"unresolved"` before an Auto mesh is loaded |
-| `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, and resolved-method maximum bones per draw |
+| `obj:setSkeletalExecutionPath` | `(path: "gpu"|"cpu")` | bool | Select execution path before `load`; default is `"gpu"`. CPU is explicit LBS-only and returns `false` with requested `"dqs"` |
+| `obj:getSkeletalExecutionPath` | `()` | string | `"gpu"` or `"cpu"` |
+| `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, resolved-method maximum bones per draw, `executionPath`, and `executionStatus` |
 | `obj:playSkeletalAnimation` | `(name)` | bool | Start or restart one clip at time zero |
 | `obj:crossFadeSkeletalAnimation` | `(name, duration)` | bool | Linearly transition from the active base pose to `name` starting at target time zero, then promote the target to the sole base clip. Duration must be finite and non-negative; zero is immediate play. A positive transition replaces any ordinary transient layer and uses an unmasked Absolute blend; requesting another cross-fade before promotion returns `false`. |
 | `obj:pauseSkeletalAnimation` | `()` | bool | Freeze the active clip and palette |

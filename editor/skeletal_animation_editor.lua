@@ -34,7 +34,7 @@ local state = {
     preview = nil,
     comparisonPreview = nil,
     wearableFollowers = {},
-    skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
+    skeletalPreview = {clips={}, selected=1, method=1, execution=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false, absoluteLayerSelected=1,
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
         absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, absoluteLayerPaused=false, speed=1,
@@ -2826,6 +2826,11 @@ local function rebuildPreview(sourcePath)
         applyRuntimeLighting()
         local preview=mesh:new('3d')
         if not preview:setSkeletalSkinningMethod(method) then preview:destroy(); return nil end
+        local execution=playback.execution==2 and 'cpu' or 'gpu'
+        if execution=='cpu' then
+            if not preview:setSkeletalSkinningMethod('lbs') then preview:destroy(); return nil end
+        end
+        if not preview:setSkeletalExecutionPath(execution) then preview:destroy(); return nil end
         if not preview:load(sourcePath) then preview:destroy(); return nil end
         preview:setSkeletalAnimationPlaybackSpeed(playback.speed)
         preview:setPos(x,0,0)
@@ -3177,6 +3182,18 @@ local function showSkeletalPreviewControls()
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
         else rebuildPreview() end
     end
+    local executions={tLang.L('swl_execution_gpu'),tLang.L('swl_execution_cpu_lbs')}
+    tImGui.BeginDisabled(playback.poseStress)
+    tImGui.PushItemWidth(190)
+    local executionChanged,execution=tImGui.Combo(tLang.L('swl_execution_path'),playback.execution,executions,-1)
+    tImGui.PopItemWidth()
+    tImGui.EndDisabled()
+    if executionChanged then
+        playback.execution=execution
+        if playback.execution==2 then playback.method=2 end
+        if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
+        else rebuildPreview() end
+    end
     if not state.preview then
         tImGui.TextDisabled(tLang.L('swl_runtime_preview_unavailable'))
         return
@@ -3190,6 +3207,11 @@ local function showSkeletalPreviewControls()
     tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
         lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
     showItemTooltip(tLang.L('swl_lbs_capacity_note'))
+    tImGui.TextWrapped(string.format(tLang.L('swl_execution_report_fmt'),
+        lbsReport.executionPath or 'gpu',lbsReport.executionStatus or 'unknown'))
+    if (lbsReport.executionPath or 'gpu')=='cpu' then
+        showItemTooltip(tLang.L('swl_execution_cpu_note'))
+    end
     if playback.poseStress and state.comparisonPreview then
         local dqsReport=state.comparisonPreview:getSkeletalSkinningReport()
         tImGui.Text(string.format(tLang.L('swl_pose_stress_reports'),lbsReport.status or 'unknown',

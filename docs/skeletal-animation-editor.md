@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal runtime preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
 Last updated: **2026-08-19**
 
 ## 1. Purpose
@@ -11,8 +11,9 @@ weight repair, runtime LBS/DQS preview, and local clip/track/key/timeline author
 Mesh Debug into a general animation editor.
 
 For canonical skeletal meshes within the active backend's measured palette limit, the preview can
-play the same per-instance LBS or rigid-DQS deformation path used by the runtime. OpenGL ES,
-DirectX 9, and Metal are delivered; remaining numeric backend parity work is tracked in the
+play the same per-instance GPU LBS or rigid-DQS deformation path used by the runtime. It can also
+select the explicit CPU LBS execution path. OpenGL ES, DirectX 9, and Metal are delivered; remaining
+numeric backend parity work is tracked in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Paint Weights uses backend-native heatmap and brush shaders on all three delivered backends;
 Metal keeps generated skeletal deformation active when a fragment-only editor shader is applied.
@@ -603,7 +604,10 @@ changing it rebuilds the preview so the method is selected before mesh loading a
 Auto selects DQS only if bind and all clips use unit scale; otherwise it selects LBS and shows the
 reason. The panel reports requested/resolved methods and explains the limits directly: how many bones this mesh requires and the
 maximum accepted by the current device for one mesh draw. Multiple mesh instances are evaluated
-separately; the capacity is not a combined scene-wide bone budget. Bind restoration stops
+separately; the capacity is not a combined scene-wide bone budget. The Execution Path selector
+chooses GPU or CPU before loading the preview instance. CPU is explicit LBS-only in this slice, so
+choosing it forces the preview method to LBS and reports CPU readiness; DQS remains GPU-only.
+Bind restoration stops
 the active player; it does not assume that time zero of an authored clip is the bind pose.
 The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and

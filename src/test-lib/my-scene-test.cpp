@@ -84,6 +84,7 @@ MY_SCENE::MY_SCENE()
     testElapsedSeconds = 0.0f;
     cliMeshMode        = RenderMode::NONE;
     cliSkeletalMethod  = mbm::SKELETAL_SHADER_METHOD::LBS;
+    cliSkeletalExecutionPath = mbm::SKELETAL_EXECUTION_PATH::GPU;
     testGlesDqsShader  = false;
     testGlesSkeletalParity = false;
     testMetalEditorShaders = false;
@@ -801,6 +802,8 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             const char* meshFile = isCustomMesh ? cliMeshFile.c_str() : "Crate.msh";
             if (isCustomMesh && !mesh->setSkeletalSkinningMethod(cliSkeletalMethod))
                 ERROR_LOG("Failed to select skeletal skinning method [%s]", meshFile);
+            if (isCustomMesh && !mesh->setSkeletalExecutionPath(cliSkeletalExecutionPath))
+                ERROR_LOG("Failed to select skeletal execution path [%s]", meshFile);
             if (mesh->load(meshFile))
             {
                 if (!isCustomMesh)
@@ -813,7 +816,14 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
                     else
                         INFO_LOG("Skeletal animation started [%s]", animationName);
                 }
-                INFO_LOG("MESH loaded (%s) [%s]", modeToStr(mode), meshFile);
+                const char *status = nullptr, *reason = nullptr, *executionPath = nullptr, *executionStatus = nullptr;
+                uint32_t requiredBones = 0, capacity = 0;
+                mesh->getSkeletalSkinningReport(&status, &reason, &requiredBones, &capacity,
+                                                &executionPath, &executionStatus);
+                INFO_LOG("MESH loaded (%s) [%s] skeletal execution=%s status=%s skinning=%s/%s",
+                         modeToStr(mode), meshFile, executionPath ? executionPath : "gpu",
+                         executionStatus ? executionStatus : "unknown", status ? status : "unknown",
+                         reason ? reason : "unknown");
                 row.object = mesh;
             }
             else

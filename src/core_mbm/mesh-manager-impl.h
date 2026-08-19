@@ -117,6 +117,14 @@ namespace mbm
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
         skeletal::GPU_SKINNING_INPUT gpuSkinningInput;
+        std::vector<VEC3> skeletalBindPositions;
+        std::vector<VEC3> skeletalBindNormals;
+        std::vector<VEC2> skeletalBindUvs;
+        std::vector<uint16_t> skeletalBindIndices;
+        uint32_t skeletalBindFrameIndex = UINT32_MAX;
+        bool skeletalBindHasNormals = false;
+        bool skeletalBindHasUvs = false;
+        bool skeletalBindHasIndices = false;
     };
 
     struct MESH_MBM_DEBUG::Impl

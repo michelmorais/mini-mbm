@@ -34,7 +34,7 @@
 //        testLib --gles-dqs-shader-test
 //        testLib --gles-skeletal-parity-test
 //        testLib --metal-editor-shader-test
-//        testLib [seconds] [mesh_file] [world] [lbs|dqs|auto]
+//        testLib [seconds] [mesh_file] [world] [lbs|dqs|auto] [gpu|cpu]
 //   seconds    Exit on its own once this many seconds have elapsed in the
 //              render loop, instead of running forever. Meant for
 //              agent-driven / CI test runs, where nothing is present to
@@ -100,6 +100,11 @@ int main(int argc, char** argv)
                 game.myScene.cliSkeletalMethod = mbm::SKELETAL_SHADER_METHOD::DQS_RIGID;
             else if (strcmp(argv[4], "auto") == 0)
                 game.myScene.cliSkeletalMethod = mbm::SKELETAL_SHADER_METHOD::AUTO;
+        }
+        if (argc > 5)
+        {
+            if (strcmp(argv[5], "cpu") == 0)
+                game.myScene.cliSkeletalExecutionPath = mbm::SKELETAL_EXECUTION_PATH::CPU;
         }
     }
 	// this is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)

@@ -67,9 +67,13 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
         API_IMPL bool setSkeletalSkinningMethod(SKELETAL_SHADER_METHOD method) noexcept;
         API_IMPL SKELETAL_SHADER_METHOD getSkeletalSkinningMethod() const noexcept;
         API_IMPL SKELETAL_SHADER_METHOD getResolvedSkeletalSkinningMethod() const noexcept;
+        API_IMPL bool setSkeletalExecutionPath(SKELETAL_EXECUTION_PATH path) noexcept;
+        API_IMPL SKELETAL_EXECUTION_PATH getSkeletalExecutionPath() const noexcept;
         API_IMPL void getSkeletalSkinningReport(const char **status, const char **resolutionReason,
                                                 uint32_t *requiredBoneCount,
-                                                uint32_t *effectiveBoneCapacity) const noexcept;
+                                                uint32_t *effectiveBoneCapacity,
+                                                const char **executionPath = nullptr,
+                                                const char **executionStatus = nullptr) const noexcept;
     API_IMPL bool playSkeletalAnimation(const char *name);
     API_IMPL bool crossFadeSkeletalAnimation(const char *name, float duration);
     API_IMPL bool pauseSkeletalAnimation() noexcept;
@@ -129,6 +133,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
 
   private:
     struct SKELETAL_POSE_SHARING_STATE;
+    struct CPU_SKELETAL_RENDER_STATE;
     bool                     render() override;
     bool                     onRestoreDevice() override;
     bool                     isOnFrustum() override;
@@ -138,8 +143,12 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     bool                     canUseSkeletalPoseSharing(const char **reason) const noexcept;
     void                     detachSkeletalPoseSharingSource() noexcept;
     void                     detachSkeletalPoseSharingFollowers() noexcept;
+    bool                     renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                                               uint32_t frameIndex, SHADER *shader);
+    void                     releaseCpuSkeletalRenderState() noexcept;
     MESH_MBM *               mesh;
     SKELETAL_POSE_SHARING_STATE *skeletalPoseSharingState;
+    CPU_SKELETAL_RENDER_STATE *cpuSkeletalRenderState;
     };
 }
 

@@ -1398,7 +1398,7 @@ namespace mbm
     }
 
 
-    constexpr BUFFER_MESH::BUFFER_MESH() noexcept : pBufferGL(nullptr), subset(nullptr), totalSubset(0)
+    BUFFER_MESH::BUFFER_MESH() noexcept : pBufferGL(nullptr), subset(nullptr), totalSubset(0)
     {
     }
     
@@ -8056,6 +8056,14 @@ namespace mbm
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
         impl->gpuSkinningInput = {};
+        impl->skeletalBindPositions.clear();
+        impl->skeletalBindNormals.clear();
+        impl->skeletalBindUvs.clear();
+        impl->skeletalBindIndices.clear();
+        impl->skeletalBindFrameIndex = UINT32_MAX;
+        impl->skeletalBindHasNormals = false;
+        impl->skeletalBindHasUvs = false;
+        impl->skeletalBindHasIndices = false;
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
         impl->coordTexFrame_0 = nullptr;
@@ -8068,6 +8076,7 @@ namespace mbm
         impl->hasNormTex[0]       = 0;
         impl->hasNormTex[1]       = 0;
         impl->depthUberImage      = 8;
+        impl->skeletalBindFrameIndex = UINT32_MAX;
         impl->sizeCoordTexFrame_0 = 0;
     }
     
@@ -8138,7 +8147,9 @@ namespace mbm
 
     bool MESH_MBM::playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const
     {
-        if (!impl->gpuSkinningInput.supports(player.impl->resolvedSkinningMethod) || !name || !name[0])
+        if (impl->canonicalSkeleton.skeletonId == 0 ||
+            impl->canonicalAnimations.clips.empty() || !name || !name[0] ||
+            player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::NONE)
             return false;
         for (uint32_t i = 0; i < impl->canonicalAnimations.clips.size(); ++i)
         {
@@ -9147,7 +9158,8 @@ namespace mbm
                                   const RENDERIZABLE *owner)
     {
         if (!player.impl->active || player.impl->paletteRows.empty() ||
-            indexFrame >= impl->totalFramesMesh || !impl->buffer)
+            indexFrame >= impl->totalFramesMesh || !impl->buffer ||
+            !impl->gpuSkinningInput.supports(player.impl->resolvedSkinningMethod))
             return false;
         DEVICE *device = DEVICE::getInstance();
         device->setRenderMaterial(impl->material);
@@ -9934,6 +9946,178 @@ namespace mbm
         }
         return false;
     }
+
+    bool MESH_MBM::canUseCpuLbsSkeletalPath(const char **reason) const noexcept
+    {
+        if (impl->canonicalSkeleton.skeletonId == 0 || impl->canonicalWeights.skeletonId == 0)
+        {
+            if (reason) *reason = "no-skeletal-data";
+            return false;
+        }
+        if (impl->canonicalWeights.skeletonId != impl->canonicalSkeleton.skeletonId)
+        {
+            if (reason) *reason = "skeleton-weight-id-mismatch";
+            return false;
+        }
+        if (impl->skeletalBindFrameIndex == UINT32_MAX || impl->skeletalBindPositions.empty())
+        {
+            if (reason) *reason = "missing-bind-geometry";
+            return false;
+        }
+        if (impl->skeletalBindPositions.size() != impl->canonicalWeights.vertices.size())
+        {
+            if (reason) *reason = "weight-vertex-count-mismatch";
+            return false;
+        }
+        if (reason) *reason = "ready";
+        return true;
+    }
+
+    bool MESH_MBM::renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                                     const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
+                                     std::vector<VEC3> &positions, std::vector<VEC3> &normals,
+                                     std::vector<VEC2> &uvs, bool &initialized,
+                                     const SHADER *pShader,
+                                     const RENDERIZABLE *renderizableOwner) const
+    {
+        const char *reason = nullptr;
+        if (!canUseCpuLbsSkeletalPath(&reason) || !pShader ||
+            indexFrame != impl->skeletalBindFrameIndex ||
+            player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ||
+            player.impl->paletteRows.empty())
+            return false;
+        const uint32_t vertexCount = static_cast<uint32_t>(impl->skeletalBindPositions.size());
+        if (player.impl->paletteRows.size() != impl->canonicalSkeleton.compiled.bones.size() * 12u)
+            return false;
+        if (!initialized)
+        {
+            dynamicBuffer.release();
+            const BUFFER_MESH &source = impl->buffer[indexFrame];
+            dynamicBuffer.totalSubset = source.totalSubset;
+            dynamicBuffer.subset = new util::SUBSET[source.totalSubset];
+            for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+            {
+                dynamicBuffer.subset[subsetIndex] = source.subset[subsetIndex];
+                dynamicBuffer.subset[subsetIndex].materialTextureSlotHeaders =
+                    source.subset[subsetIndex].materialTextureSlotHeaders;
+                dynamicBuffer.subset[subsetIndex].materialTextures =
+                    source.subset[subsetIndex].materialTextures;
+            }
+            dynamicBuffer.pBufferGL = new BUFFER_GL();
+            bool ok = false;
+            if (impl->skeletalBindHasIndices)
+            {
+                std::vector<int> indexStart(source.totalSubset);
+                std::vector<int> indexCount(source.totalSubset);
+                for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+                {
+                    indexStart[subsetIndex] = source.subset[subsetIndex].indexStart;
+                    indexCount[subsetIndex] = source.subset[subsetIndex].indexCount;
+                }
+                ok = dynamicBuffer.pBufferGL->loadBufferDynamic(impl->skeletalBindIndices.data(),
+                    source.totalSubset, indexStart.data(), indexCount.data(),
+                    impl->skeletalBindHasNormals, impl->skeletalBindHasUvs, &impl->info_mode);
+            }
+            else
+            {
+                std::vector<int> vertexStart(source.totalSubset);
+                std::vector<int> vertexCountSubset(source.totalSubset);
+                for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+                {
+                    vertexStart[subsetIndex] = source.subset[subsetIndex].vertexStart;
+                    vertexCountSubset[subsetIndex] = source.subset[subsetIndex].vertexCount;
+                }
+                ok = dynamicBuffer.pBufferGL->loadBuffer(impl->skeletalBindPositions.data(),
+                    impl->skeletalBindHasNormals ? impl->skeletalBindNormals.data() : nullptr,
+                    impl->skeletalBindHasUvs ? impl->skeletalBindUvs.data() : nullptr,
+                    vertexCount, source.totalSubset, vertexStart.data(), vertexCountSubset.data(),
+                    &impl->info_mode, true);
+            }
+            if (!ok)
+            {
+                dynamicBuffer.release();
+                return false;
+            }
+            for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+            {
+                dynamicBuffer.pBufferGL->setTextureByStage(source.pBufferGL->getTextureByStage(0, subsetIndex), 0, subsetIndex);
+                for (uint32_t stage = 1; stage <= 5; ++stage)
+                    dynamicBuffer.pBufferGL->setTextureByStage(source.pBufferGL->getTextureByStage(stage, subsetIndex), stage, subsetIndex);
+            }
+            positions.resize(vertexCount);
+            normals.resize(impl->skeletalBindHasNormals ? vertexCount : 0);
+            uvs = impl->skeletalBindUvs;
+            initialized = true;
+        }
+
+        const float *palette = player.impl->paletteRows.data();
+        for (uint32_t vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+        {
+            const VEC3 &bindPosition = impl->skeletalBindPositions[vertexIndex];
+            VEC3 outPosition(0.0f, 0.0f, 0.0f);
+            VEC3 outNormal(0.0f, 0.0f, 0.0f);
+            const bool hasNormal = impl->skeletalBindHasNormals && vertexIndex < impl->skeletalBindNormals.size();
+            const VEC3 bindNormal = hasNormal ? impl->skeletalBindNormals[vertexIndex] : VEC3();
+            const skeletal::CANONICAL_VERTEX_WEIGHT &weight = impl->canonicalWeights.vertices[vertexIndex];
+            for (uint32_t slot = 0; slot < 4; ++slot)
+            {
+                if (weight.paletteIndex[slot] == UINT16_MAX || weight.weight[slot] == 0.0f)
+                    continue;
+                if (weight.paletteIndex[slot] >= impl->canonicalWeights.paletteBoneIds.size())
+                    return false;
+                const uint64_t boneId = impl->canonicalWeights.paletteBoneIds[weight.paletteIndex[slot]];
+                const auto found = impl->canonicalSkeleton.compiled.indexById.find(boneId);
+                if (found == impl->canonicalSkeleton.compiled.indexById.end())
+                    return false;
+                const float *rows = &palette[static_cast<size_t>(found->second) * 12u];
+                const float w = weight.weight[slot];
+                outPosition.x += (bindPosition.x * rows[0] + bindPosition.y * rows[1] +
+                                  bindPosition.z * rows[2] + rows[3]) * w;
+                outPosition.y += (bindPosition.x * rows[4] + bindPosition.y * rows[5] +
+                                  bindPosition.z * rows[6] + rows[7]) * w;
+                outPosition.z += (bindPosition.x * rows[8] + bindPosition.y * rows[9] +
+                                  bindPosition.z * rows[10] + rows[11]) * w;
+                if (hasNormal)
+                {
+                    outNormal.x += (bindNormal.x * rows[0] + bindNormal.y * rows[1] +
+                                    bindNormal.z * rows[2]) * w;
+                    outNormal.y += (bindNormal.x * rows[4] + bindNormal.y * rows[5] +
+                                    bindNormal.z * rows[6]) * w;
+                    outNormal.z += (bindNormal.x * rows[8] + bindNormal.y * rows[9] +
+                                    bindNormal.z * rows[10]) * w;
+                }
+            }
+            positions[vertexIndex] = outPosition;
+            if (hasNormal)
+            {
+                const float lenSq = outNormal.x * outNormal.x + outNormal.y * outNormal.y +
+                    outNormal.z * outNormal.z;
+                if (lenSq > 0.00000001f)
+                {
+                    const float invLen = 1.0f / std::sqrt(lenSq);
+                    outNormal.x *= invLen; outNormal.y *= invLen; outNormal.z *= invLen;
+                }
+                normals[vertexIndex] = outNormal;
+            }
+        }
+        std::vector<int> vertexStart(dynamicBuffer.totalSubset);
+        std::vector<int> vertexCountSubset(dynamicBuffer.totalSubset);
+        for (uint32_t subsetIndex = 0; subsetIndex < dynamicBuffer.totalSubset; ++subsetIndex)
+        {
+            vertexStart[subsetIndex] = dynamicBuffer.subset[subsetIndex].vertexStart;
+            vertexCountSubset[subsetIndex] = dynamicBuffer.subset[subsetIndex].vertexCount;
+        }
+        if (!dynamicBuffer.pBufferGL->updateDynamic(positions.data(),
+                normals.empty() ? nullptr : normals.data(),
+                uvs.empty() ? nullptr : uvs.data(),
+                vertexStart.data(), vertexCountSubset.data()))
+            return false;
+        DEVICE *device = DEVICE::getInstance();
+        device->setRenderMaterial(this->impl->material);
+        const bool ret = pShader->render(dynamicBuffer.pBufferGL, renderizableOwner);
+        device->clearRenderMaterial();
+        return ret;
+    }
     
     /*const bool drawSubset(    const uint32_t          indexFrame,
                                     std::vector<uint32_t>   &lsIndexSubset,
@@ -10098,6 +10282,27 @@ namespace mbm
             impl->buffer[currentFrame].pBufferGL = new BUFFER_GL();
             const bool hasIndex                  = frame.indexCount > 0;
             bool       loadOk                    = false;
+            if (impl->canonicalWeights.skeletonId != 0 &&
+                currentFrame == impl->canonicalWeights.frameIndex)
+            {
+                impl->skeletalBindFrameIndex = currentFrame;
+                impl->skeletalBindHasNormals = frame.hasNormal;
+                impl->skeletalBindHasUvs = frame.uv != nullptr;
+                impl->skeletalBindHasIndices = hasIndex;
+                impl->skeletalBindPositions.assign(frame.position.get(),
+                    frame.position.get() + frame.vertexCount);
+                impl->skeletalBindNormals.clear();
+                if (frame.hasNormal && frame.normal)
+                    impl->skeletalBindNormals.assign(frame.normal.get(),
+                        frame.normal.get() + frame.vertexCount);
+                impl->skeletalBindUvs.clear();
+                if (frame.uv)
+                    impl->skeletalBindUvs.assign(frame.uv.get(), frame.uv.get() + frame.vertexCount);
+                impl->skeletalBindIndices.clear();
+                if (hasIndex)
+                    impl->skeletalBindIndices.assign(frame.index.get(),
+                        frame.index.get() + frame.indexCount);
+            }
             if (hasIndex)
             {
                 auto indexStartSubset = new int[totalSubset];

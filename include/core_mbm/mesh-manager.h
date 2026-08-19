@@ -70,7 +70,7 @@ namespace mbm
         BUFFER_GL *pBufferGL;
         util::SUBSET *  subset;
         uint32_t    totalSubset;
-        constexpr BUFFER_MESH() noexcept;
+        API_IMPL BUFFER_MESH() noexcept;
         API_IMPL virtual ~BUFFER_MESH();
         API_IMPL void release();
         API_IMPL BUFFER_GL *getRenderBuffer() const noexcept;
@@ -719,6 +719,13 @@ namespace mbm
         void getSkeletalSkinningReport(SKELETAL_SHADER_METHOD method, const char **status,
                                        uint32_t *requiredBoneCount,
                                        uint32_t *effectiveBoneCapacity) const noexcept;
+        bool canUseCpuLbsSkeletalPath(const char **reason = nullptr) const noexcept;
+        bool renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                               const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
+                               std::vector<VEC3> &positions, std::vector<VEC3> &normals,
+                               std::vector<VEC2> &uvs, bool &initialized,
+                               const SHADER *pShader,
+                               const RENDERIZABLE *renderizableOwner = nullptr) const;
         uint32_t getTotalSkeletalAnimations() const noexcept;
         const char *getSkeletalAnimationName(uint32_t index) const noexcept;
         bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;

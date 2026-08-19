@@ -1028,6 +1028,12 @@ namespace mbm
         uint8_t* dst = reinterpret_cast<uint8_t*>(backendBuffer->vertexBuffer.contents);
         if (!dst) return false; // buffer not CPU-accessible
 
+        if (this->initializedIndexBuffer)
+        {
+            buildInterleavedVB(dst, stride, vertex, normal, uv, this->sizeOfArrayVertex);
+            return true;
+        }
+
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
             const uint32_t vertexStart = (uint32_t)vertexStartSubset[i];

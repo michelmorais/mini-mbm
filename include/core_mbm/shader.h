@@ -44,6 +44,12 @@ namespace mbm
         DQS_RIGID,
         AUTO
     };
+
+    enum class SKELETAL_EXECUTION_PATH : uint8_t
+    {
+        GPU,
+        CPU
+    };
     class TEXTURE;
     class RENDERIZABLE;
     struct VAR_SHADER;

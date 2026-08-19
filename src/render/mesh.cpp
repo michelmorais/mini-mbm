@@ -35,12 +35,23 @@ namespace mbm
         std::vector<MESH *> followers;
     };
 
+    struct MESH::CPU_SKELETAL_RENDER_STATE
+    {
+        BUFFER_MESH dynamicBuffer;
+        std::vector<VEC3> positions;
+        std::vector<VEC3> normals;
+        std::vector<VEC2> uvs;
+        SKELETAL_EXECUTION_PATH executionPath = SKELETAL_EXECUTION_PATH::GPU;
+        bool initialized = false;
+    };
+
     MESH::MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_MESH, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->skeletalPoseSharingState = new SKELETAL_POSE_SHARING_STATE();
+        this->cpuSkeletalRenderState = new CPU_SKELETAL_RENDER_STATE();
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
@@ -50,6 +61,8 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeRenderizable(this);
         this->release();
+        delete this->cpuSkeletalRenderState;
+        this->cpuSkeletalRenderState = nullptr;
         delete this->skeletalPoseSharingState;
         this->skeletalPoseSharingState = nullptr;
     }
@@ -59,10 +72,22 @@ namespace mbm
         this->detachSkeletalPoseSharingSource();
         this->detachSkeletalPoseSharingFollowers();
         this->releaseAnimation();
+        this->releaseCpuSkeletalRenderState();
         this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->resetArticulatedAnimationPlayer();
         this->resetSkeletalAnimationPlayer();
+    }
+
+    void MESH::releaseCpuSkeletalRenderState() noexcept
+    {
+        if (!cpuSkeletalRenderState)
+            return;
+        cpuSkeletalRenderState->dynamicBuffer.release();
+        cpuSkeletalRenderState->positions.clear();
+        cpuSkeletalRenderState->normals.clear();
+        cpuSkeletalRenderState->uvs.clear();
+        cpuSkeletalRenderState->initialized = false;
     }
     
     bool MESH::load(const char *fileName)
@@ -202,6 +227,9 @@ namespace mbm
                      method != SKELETAL_SHADER_METHOD::DQS_RIGID &&
                      method != SKELETAL_SHADER_METHOD::AUTO))
             return false;
+        if (getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU &&
+            method == SKELETAL_SHADER_METHOD::DQS_RIGID)
+            return false;
         getSkeletalAnimationPlayer().setSkinningMethod(method);
         return true;
     }
@@ -213,15 +241,56 @@ namespace mbm
 
     SKELETAL_SHADER_METHOD MESH::getResolvedSkeletalSkinningMethod() const noexcept
     {
+        if (getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU)
+            return SKELETAL_SHADER_METHOD::LBS;
         return getSkeletalAnimationPlayer().getResolvedSkinningMethod();
+    }
+
+    bool MESH::setSkeletalExecutionPath(const SKELETAL_EXECUTION_PATH path) noexcept
+    {
+        if (mesh)
+            return false;
+        if (path == SKELETAL_EXECUTION_PATH::CPU &&
+            getSkeletalAnimationPlayer().getSkinningMethod() == SKELETAL_SHADER_METHOD::DQS_RIGID)
+            return false;
+        if (path == SKELETAL_EXECUTION_PATH::CPU)
+            getSkeletalAnimationPlayer().setSkinningMethod(SKELETAL_SHADER_METHOD::LBS);
+        if (cpuSkeletalRenderState)
+        {
+            cpuSkeletalRenderState->initialized = false;
+            cpuSkeletalRenderState->executionPath = path;
+        }
+        return true;
+    }
+
+    SKELETAL_EXECUTION_PATH MESH::getSkeletalExecutionPath() const noexcept
+    {
+        return cpuSkeletalRenderState ? cpuSkeletalRenderState->executionPath : SKELETAL_EXECUTION_PATH::GPU;
     }
 
     void MESH::getSkeletalSkinningReport(const char **status, const char **resolutionReason,
                                          uint32_t *requiredBoneCount,
-                                         uint32_t *effectiveBoneCapacity) const noexcept
+                                         uint32_t *effectiveBoneCapacity,
+                                         const char **executionPath,
+                                         const char **executionStatus) const noexcept
     {
         if (resolutionReason)
             *resolutionReason = getSkeletalAnimationPlayer().getSkinningResolutionReason();
+        if (executionPath)
+            *executionPath = getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU ? "cpu" : "gpu";
+        if (executionStatus)
+        {
+            if (!mesh)
+                *executionStatus = "not-loaded";
+            else if (getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::GPU)
+                *executionStatus = "gpu-default";
+            else
+            {
+                const char *reason = nullptr;
+                *executionStatus = mesh->canUseCpuLbsSkeletalPath(&reason) ? "cpu-lbs-ready" :
+                    (reason ? reason : "cpu-lbs-unavailable");
+            }
+        }
         if (mesh)
             mesh->getSkeletalSkinningReport(getResolvedSkeletalSkinningMethod(), status,
                                              requiredBoneCount, effectiveBoneCapacity);
@@ -510,6 +579,11 @@ namespace mbm
             if (reason) *reason = "skinning_method_mismatch";
             return false;
         }
+        if (getSkeletalExecutionPath() != source->getSkeletalExecutionPath())
+        {
+            if (reason) *reason = "execution_path_mismatch";
+            return false;
+        }
         if (!source->mesh->hasSkeletalRenderPalette(source->getSkeletalAnimationPlayer()))
         {
             if (reason) *reason = "source_pose_inactive";
@@ -624,7 +698,13 @@ namespace mbm
             BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
             const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
-            const bool rendered = hasSkeletal
+            const bool useCpuSkeletal = hasSkeletal &&
+                getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU;
+            const bool rendered = useCpuSkeletal
+                ? this->renderCpuSkeletal(
+                    hasSharedSkeletal ? skeletalPoseSharingState->source->getSkeletalAnimationPlayer() :
+                    this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader)
+                : hasSkeletal
                 ? this->mesh->renderSkeletal(
                     hasSharedSkeletal ? skeletalPoseSharingState->source->getSkeletalAnimationPlayer() :
                     this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader, this)
@@ -638,9 +718,23 @@ namespace mbm
         }
         return false;
     }
+
+    bool MESH::renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                                 const uint32_t frameIndex, SHADER *shader)
+    {
+        if (!mesh || !cpuSkeletalRenderState)
+            return false;
+        return mesh->renderCpuSkeletal(player, frameIndex, cpuSkeletalRenderState->dynamicBuffer,
+                                       cpuSkeletalRenderState->positions,
+                                       cpuSkeletalRenderState->normals,
+                                       cpuSkeletalRenderState->uvs,
+                                       cpuSkeletalRenderState->initialized,
+                                       shader, this);
+    }
     
     bool MESH::onRestoreDevice()
     {
+        this->releaseCpuSkeletalRenderState();
 		this->mesh = nullptr;
         const char *internalFileName = this->getInternalFileName();
         const bool ret = this->load(internalFileName);

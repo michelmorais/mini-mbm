@@ -755,17 +755,23 @@ namespace mbm
         // Find the max vertex count
         // and max size of index buffer
         UINT sizeIndexBuffer = 0;
+        uint32_t dynamicVertexCount = 0;
         for (uint32_t i = 0; i < totalSubsets; ++i)
         {
             const int ii = indexStartSubset[i];
+            if (ii < 0 || indexCountSubset[i] <= 0)
+                return false;
             sizeIndexBuffer += static_cast<UINT>(indexCountSubset[i]);
             for (int j = 0; j < indexCountSubset[i]; ++j)
             {
                 const uint16_t indexVertex = arrayIndices[ii + j];
-                sizeOfArrayVertex = std::max<uint16_t>(indexVertex, sizeOfArrayVertex);
+                dynamicVertexCount = std::max<uint32_t>(static_cast<uint32_t>(indexVertex) + 1u,
+                                                        dynamicVertexCount);
             }
         }
-        sizeOfArrayVertex += 1; //because index start from zero base
+        if (dynamicVertexCount == 0)
+            return false;
+        sizeOfArrayVertex = dynamicVertexCount;
         const std::vector<VEC3> vertex(sizeOfArrayVertex);
         const std::vector<VEC3> normal(hasNormal ? sizeOfArrayVertex : 0);
         const std::vector<VEC2> uv(hasUv ? sizeOfArrayVertex : 0);
@@ -832,7 +838,11 @@ namespace mbm
                                   const int* vertexStartSubset,
                                   const int* vertexCountSubset)// update when dynamic
     {
-        
+        if (!vertex || !vertexStartSubset || !vertexCountSubset)
+            return false;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (!backendBuffer || !backendBuffer->pVertexBuffer || backendBuffer->sizeStructVertexInBytes == 0)
+            return false;
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
             const uint32_t vertexStart = vertexStartSubset[i];
@@ -845,31 +855,18 @@ namespace mbm
             {
                 return false;
             }
-            const mbm::VEC3* pVertexStart = &vertex[vertexStart];
-            const mbm::VEC3* pNormalStart = normal ? &normal[vertexStart] : nullptr;
-            const mbm::VEC2* pUvStart     = uv     ? &uv[vertexStart]:      nullptr;
-            if (this->initializedIndexBuffer)
-            {
-                // TODO: for index buffer
-                ERROR_AT(__LINE__, __FILE__, "TODO: Update vertex not implemented for index buffer");
-                return false;
-            }
-            else
-            {
-                const D3D_VERTEX_CONVERTER d3d_converter(pVertexStart, normal, uv, vertexCount);
-                BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
-                void* pvertex = nullptr;
-                // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
-                // If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
-                {
-                    ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
-                    return false;
-                }
-                d3d_converter.copyTod3dVertexBuffer(pvertex);
-                backendBuffer->pVertexBuffer->Unlock();
-            }
         }
+        const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, this->sizeOfArrayVertex);
+        if (d3d_converter.getSizeOfStructureInBytes() != backendBuffer->sizeStructVertexInBytes)
+            return false;
+        void* pvertex = nullptr;
+        if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+            return false;
+        }
+        d3d_converter.copyTod3dVertexBuffer(pvertex);
+        backendBuffer->pVertexBuffer->Unlock();
         return true;
     }
 
