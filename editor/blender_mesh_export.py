@@ -545,6 +545,127 @@ def validate_frame_vertex_limit(subsets: list[dict[str, Any]]) -> None:
         )
 
 
+def get_canonical_armature_object(scene: Any) -> Any | None:
+    return next(
+        (obj for obj in getattr(scene, "objects", []) if getattr(obj, "type", None) == "ARMATURE"),
+        None,
+    )
+
+
+def get_armature_bone_names(armature_obj: Any | None) -> set[str]:
+    bones = getattr(getattr(armature_obj, "data", None), "bones", None)
+    if not bones:
+        return set()
+    return {str(bone.name) for bone in bones}
+
+
+def mesh_uses_armature_modifier(mesh_obj: Any, armature_obj: Any) -> bool:
+    for mod in getattr(mesh_obj, "modifiers", []):
+        if getattr(mod, "type", None) == "ARMATURE" and getattr(mod, "object", None) == armature_obj:
+            return True
+    return False
+
+
+def mesh_has_effective_group_weights(mesh_obj: Any, allowed_group_names: set[str]) -> bool:
+    if not getattr(mesh_obj, "vertex_groups", None):
+        return False
+    if not allowed_group_names:
+        return False
+
+    group_names = {group.name for group in mesh_obj.vertex_groups}
+    if not group_names.intersection(allowed_group_names):
+        return False
+
+    for vertex in getattr(getattr(mesh_obj, "data", None), "vertices", []):
+        for weight in getattr(vertex, "groups", []):
+            if float(getattr(weight, "weight", 0.0) or 0.0) <= 0.0:
+                continue
+            try:
+                group_name = mesh_obj.vertex_groups[weight.group].name
+            except Exception:
+                continue
+            if group_name in allowed_group_names:
+                return True
+    return False
+
+
+def count_meshes_skinned_to_armature(scene: Any, armature_obj: Any, bone_names: set[str]) -> int:
+    skinned_mesh_count = 0
+    for obj in getattr(scene, "objects", []):
+        if getattr(obj, "type", None) != "MESH":
+            continue
+        if not mesh_uses_armature_modifier(obj, armature_obj):
+            continue
+        if mesh_has_effective_group_weights(obj, bone_names):
+            skinned_mesh_count += 1
+    return skinned_mesh_count
+
+
+def detect_canonical_skeletal_capability(scene: Any,
+                                         mesh_cache_objects: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    armature_count = sum(
+        1 for obj in getattr(scene, "objects", []) if getattr(obj, "type", None) == "ARMATURE"
+    )
+    armature_obj = get_canonical_armature_object(scene)
+    if armature_obj is None:
+        if mesh_cache_objects:
+            return {
+                "available": False,
+                "reason": "Mesh Sequence Cache animation has no armature for real-time skeletal import.",
+                "armatureCount": 0,
+                "boneCount": 0,
+                "skinnedMeshCount": 0,
+            }
+        return {
+            "available": False,
+            "reason": "No armature was found.",
+            "armatureCount": 0,
+            "boneCount": 0,
+            "skinnedMeshCount": 0,
+        }
+
+    bone_names = get_armature_bone_names(armature_obj)
+    if not bone_names:
+        return {
+            "available": False,
+            "reason": "The exporter-selected armature has no bones.",
+            "armatureCount": armature_count,
+            "boneCount": 0,
+            "skinnedMeshCount": 0,
+        }
+
+    skinned_mesh_count = count_meshes_skinned_to_armature(scene, armature_obj, bone_names)
+    if skinned_mesh_count <= 0:
+        return {
+            "available": False,
+            "reason": "The exporter-selected armature has bones, but no controlled mesh has usable matching skin weights.",
+            "armatureCount": armature_count,
+            "boneCount": len(bone_names),
+            "skinnedMeshCount": 0,
+        }
+
+    return {
+        "available": True,
+        "reason": "Exporter-selected armature has bones and usable mesh skin weights.",
+        "armatureCount": armature_count,
+        "boneCount": len(bone_names),
+        "skinnedMeshCount": skinned_mesh_count,
+    }
+
+
+def get_canonical_skeletal_export_fallback_reason(large_mesh_mode: str) -> str | None:
+    if large_mesh_mode == "vb_only":
+        return "VB-only large mesh mode cannot export canonical type-42 skin weights."
+    return None
+
+
+def can_export_canonical_skeletal(skeletal_capability: dict[str, Any] | None,
+                                  large_mesh_mode: str) -> bool:
+    if not skeletal_capability or skeletal_capability.get("available") is not True:
+        return False
+    return get_canonical_skeletal_export_fallback_reason(large_mesh_mode) is None
+
+
 def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
     source_path = os.path.abspath(args.input)
     debug_print(args.debug_steps, f"scan source: {source_path}")
@@ -726,6 +847,7 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
         "nlaStrips": nla_sources,
         "meshCacheIssues": mesh_cache_issues,
         "meshStats": mesh_stats,
+        "skeletalCapability": detect_canonical_skeletal_capability(scene, mesh_cache_objects),
     }
 
 
@@ -1416,7 +1538,7 @@ def extract_canonical_skeleton(scene: Any,
     """
     from mathutils import Matrix
 
-    armature_obj = next((obj for obj in scene.objects if obj.type == "ARMATURE"), None)
+    armature_obj = get_canonical_armature_object(scene)
     if armature_obj is None or not armature_obj.data.bones:
         return None
 
@@ -1905,7 +2027,22 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # written into SECTION_MATERIAL_TRANSFORM's angle field, which the engine no longer applies
         # at load time (see rotate_point_deg's own docstring).
         import_rotation_deg = (float(args.angle_x), float(args.angle_y), float(args.angle_z)) if args.post_process else None
-        canonical_skeleton = extract_canonical_skeleton(scene, import_rotation_deg) if args.include_bones else None
+        skeletal_capability = (detect_canonical_skeletal_capability(scene, mesh_cache_issues)
+                               if args.include_bones else None)
+        canonical_skeleton = None
+        skeletal_fallback_reason = get_canonical_skeletal_export_fallback_reason(args.large_mesh_mode)
+        if skeletal_capability and skeletal_capability.get("available") is True and skeletal_fallback_reason:
+            debug_print(
+                args.debug_steps,
+                f"canonical skeletal export unavailable: {skeletal_fallback_reason}; using baked/static path",
+            )
+        elif can_export_canonical_skeletal(skeletal_capability, args.large_mesh_mode):
+            canonical_skeleton = extract_canonical_skeleton(scene, import_rotation_deg)
+        elif skeletal_capability:
+            debug_print(
+                args.debug_steps,
+                f"canonical skeletal export unavailable: {skeletal_capability.get('reason', '')}; using baked/static path",
+            )
         canonical_clips = (extract_canonical_animations(scene, clips, fps, canonical_skeleton)
                            if canonical_skeleton and clips else [])
         # Embedded/packed textures (common in Mixamo downloads) get unpacked next to the output
@@ -1916,7 +2053,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # Real per-vertex weights only make sense alongside a real skeleton (--include-bones), and
         # only for the default indexed write path -- see build_canonical_weights_payload_v11's
         # own docstring for why vb_only mode is excluded.
-        capture_weights = bool(args.include_bones) and args.large_mesh_mode != "vb_only"
+        capture_weights = bool(canonical_skeleton) and args.large_mesh_mode != "vb_only"
         # Canonical type-42 weights are a bind-pose property tied to frame 1's topology, so only
         # the very first exported frame's subsets are retained for the canonical payload below.
         first_frame_subsets: list[dict[str, Any]] | None = None
@@ -1927,7 +2064,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
             subsets = export_frame_subsets(scene, import_rotation_deg, output_dir, capture_weights,
-                                           canonical_coordinates=bool(args.include_bones))
+                                           canonical_coordinates=bool(canonical_skeleton))
             if args.large_mesh_mode == "vb_only":
                 debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
             else:

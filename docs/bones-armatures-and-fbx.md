@@ -34,6 +34,24 @@ pending; this backend limitation does not turn canonical skeletal data back into
 CPU execution supports resolved LBS and rigid DQS, deforms from immutable bind geometry into
 per-instance dynamic buffers, and rejects non-rigid DQS explicitly.
 
+Mesh Debug's Blender importer exposes this as a preference, not a force switch: **Prefer real-time
+skeletal animation when available**. The headless scan inspects Blender scene data before import and
+marks skeletal import available only when the same exporter-selected armature used for canonical
+output has bones plus at least one mesh controlled by that armature through an Armature modifier
+with usable matching vertex-group weights. In that mode the importer writes one REST geometry frame
+and canonical sections 41/42/43; Sample step controls the number of sampled bone-track keys, not
+duplicated mesh frames. The exception is `--large-mesh-mode vb_only`: that path duplicates vertices
+per triangle and intentionally does not emit canonical type-42 skin weights, so skeletal preference
+uses the same baked/static fallback even when the scan finds a usable armature.
+
+If the scan reports no usable skeletal data, the same checked preference falls back to baked/static
+mesh frames and the UI reports the reason before import and in the result summary. This is expected
+for vertex-cache or mesh-sequence-cache assets with no armature/weights: their animation is geometry
+changing over time, so there is no real-time skeleton to extract. If the scan failed or has not run,
+the UI treats skeletal capability as unknown; the command still passes `--include-bones` so the
+exporter can try the preferred path and use its baked fallback if canonical skeletal export is not
+available.
+
 ## How Real-Time Skeletal Animation Works (Other Engines)
 
 This section describes the general, industry-standard model (Unity, Unreal, Godot, and FBX itself

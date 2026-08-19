@@ -30,6 +30,7 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 tBlender      =     require "blender_cli_wrapper"
+tImportMode   =     require "blender_import_mode_helper"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -414,7 +415,8 @@ function onInitScene()
         nImportAngleY = 0,
         nImportAngleZ = 0,
         iLargeMeshMode = 1,
-        bImportIncludeBones = true,
+        bImportPreferSkeletal = true,
+        bImportIncludeBones = true, -- legacy state name kept for older saved sessions
         tRunResults = {},
     }
     tMixamoGuideState = {
@@ -952,8 +954,7 @@ local function getSourceFrameCount(src)
 end
 
 local function getBakedFrameCount(frameStart, frameEnd, sampleStep)
-    local total = math.max(1, math.abs((frameEnd or 1) - (frameStart or 1)) + 1)
-    return math.floor((total - 1) / math.max(1, sampleStep or 1)) + 1
+    return tImportMode.getBakedFrameCount(frameStart, frameEnd, sampleStep)
 end
 
 local function formatLargeInt(value)
@@ -1002,23 +1003,42 @@ end
 local getEnabledBlenderSourceRows
 local getBlenderImportOptionsForRow
 
+tBlender.getPreferSkeletal = function()
+    if tBlenderImportState.bImportPreferSkeletal == nil then
+        tBlenderImportState.bImportPreferSkeletal = tBlenderImportState.bImportIncludeBones ~= false
+    end
+    tBlenderImportState.bImportIncludeBones = tBlenderImportState.bImportPreferSkeletal
+    return tBlenderImportState.bImportPreferSkeletal == true
+end
+
+tBlender.getRowImportMode = function(row)
+    local anim = row and row.anim
+    return tImportMode.resolveImportMode(
+        tBlender.getPreferSkeletal(),
+        anim and anim.scanStatus,
+        anim and anim.scanData,
+        tBlender.getLargeMeshModeArg())
+end
+
+tBlender.getImportModeReasonText = function(modeInfo)
+    if modeInfo and modeInfo.reasonCode == 'vb_only_no_canonical_weights' then
+        return tLang.L('blender_import_reason_vb_only_no_canonical_weights')
+    end
+    return modeInfo and modeInfo.reason or ''
+end
+
 local function getRowImportEstimate(row)
     local options = getBlenderImportOptionsForRow(row)
-    local targetFrames = 1
-    if tBlenderImportState.bImportIncludeBones then
-        targetFrames = 1 -- one REST bind frame; examined animation becomes canonical type-43 tracks
-    elseif options.bakeAnimation and type(options.animationClips) == 'table' and #options.animationClips > 0 then
-        targetFrames = 0
-        for i = 1, #options.animationClips do
-            local clip = options.animationClips[i]
-            targetFrames = targetFrames + getBakedFrameCount(clip.frameStart, clip.frameEnd, clip.sampleStep)
-        end
-    elseif options.bakeAnimation then
-        targetFrames = getBakedFrameCount(options.frameStart, options.frameEnd, options.sampleStep)
-    end
+    local modeInfo = tBlender.getRowImportMode(row)
+    local frameEstimate = tImportMode.estimateFrames(modeInfo, options)
+    local targetFrames = frameEstimate.targetFrames or 1
     local anim = row and row.anim
     local stats = anim and anim.scanData and anim.scanData.meshStats or nil
     local out = {
+        modeInfo = modeInfo,
+        bakedMeshFrames = frameEstimate.bakedMeshFrames or 0,
+        skeletalKeySamples = frameEstimate.skeletalKeySamples or 0,
+        unknownMode = frameEstimate.unknown == true,
         targetFrames = targetFrames,
         hasStats = type(stats) == 'table' and stats.available == true,
         verticesPerFrame = nil,
@@ -1030,7 +1050,11 @@ local function getRowImportEstimate(row)
         texturePaths = getTextureSearchPathCountFromScan(row),
         animationText = '',
     }
-    if options.bakeAnimation and type(options.animationClips) == 'table' and #options.animationClips > 1 then
+    if modeInfo.mode == 'skeletal' then
+        out.animationText = string.format(tLang.L('blender_anim_estimate_skeletal_fmt'), frameEstimate.skeletalKeySamples or 1)
+    elseif modeInfo.unknown then
+        out.animationText = tLang.L('blender_anim_estimate_unknown_preference')
+    elseif options.bakeAnimation and type(options.animationClips) == 'table' and #options.animationClips > 1 then
         out.animationText = string.format('%d clips', #options.animationClips)
     elseif options.bakeAnimation then
         out.animationText = string.format('%s %d..%d step %d', options.animationName or 'Bake', options.frameStart or 1, options.frameEnd or 1, options.sampleStep or 1)
@@ -1064,6 +1088,11 @@ local function getBlenderImportEstimateSummary()
     local statsMissing = 0
     local maxFrames = 0
     local vertexLimitExceeded = false
+    local modeSummary = tImportMode.summarizeModes(
+        rows,
+        getBlenderImportOptionsForRow,
+        tBlender.getPreferSkeletal(),
+        tBlender.getLargeMeshModeArg())
     for i = 1, #rows do
         local est = getRowImportEstimate(rows[i])
         targetFrames = targetFrames + est.targetFrames
@@ -1100,10 +1129,11 @@ local function getBlenderImportEstimateSummary()
         statsMissing = statsMissing,
         vertexLimitExceeded = vertexLimitExceeded,
         warning = warning,
+        modeSummary = modeSummary,
     }
 end
 
-local function getBlenderLargeMeshModeArg()
+tBlender.getLargeMeshModeArg = function()
     if (tBlenderImportState.iLargeMeshMode or 1) == 2 then
         return 'vb_only'
     end
@@ -1546,6 +1576,15 @@ local function validateBlenderScanData(tData)
         stats.error = tostring(stats.error or '')
     else
         tData.meshStats = { available = false, textureSearchPaths = {} }
+    end
+
+    if type(tData.skeletalCapability) == 'table' then
+        local cap = tData.skeletalCapability
+        cap.available = cap.available == true
+        cap.reason = tostring(cap.reason or '')
+        cap.armatureCount = math.max(0, math.floor(tonumber(cap.armatureCount or 0) or 0))
+        cap.boneCount = math.max(0, math.floor(tonumber(cap.boneCount or 0) or 0))
+        cap.skinnedMeshCount = math.max(0, math.floor(tonumber(cap.skinnedMeshCount or 0) or 0))
     end
 
     return true
@@ -2040,13 +2079,22 @@ local function buildBlenderImportSuccessSummary(row, outMsh, importOptions)
     else
         animationText = string.format(tLang.L('blender_import_summary_static_fmt'), (importOptions and importOptions.frameStart) or 1)
     end
-    return string.format(
+    local summary = string.format(
         tLang.L('blender_import_summary_fmt'),
         outMsh,
         frames,
         animationText,
         sizeText,
         textureText)
+    local modeInfo = importOptions and importOptions.modeInfo or nil
+    if modeInfo and modeInfo.mode == 'skeletal' then
+        summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_skeletal_fmt'), importOptions.skeletalKeySamples or 1)
+    elseif modeInfo and modeInfo.fallbackExpected then
+        summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_baked_fallback_fmt'), tBlender.getImportModeReasonText(modeInfo))
+    elseif modeInfo and modeInfo.unknown then
+        summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_unknown_preference_fmt'), modeInfo.reason or '')
+    end
+    return summary
 end
 
 local function blenderImportCoroutine()
@@ -2090,6 +2138,10 @@ local function blenderImportCoroutine()
         st.sProgressDetail = string.format(tLang.L('blender_import_progress_waiting_fmt'), tUtil.getShortName(src))
 
         local importOptions = getBlenderImportOptionsForRow(row)
+        local modeInfo = tBlender.getRowImportMode(row)
+        local rowEstimate = getRowImportEstimate(row)
+        importOptions.modeInfo = modeInfo
+        importOptions.skeletalKeySamples = rowEstimate.skeletalKeySamples or 0
         importOptions.debugSteps = st.bPrintDebugSteps
         importOptions.cancelFile = cancelFile
         importOptions.streamOutput = modeIntermediateOnly
@@ -2100,10 +2152,15 @@ local function blenderImportCoroutine()
         importOptions.importAngleX = st.nImportAngleX
         importOptions.importAngleY = st.nImportAngleY
         importOptions.importAngleZ = st.nImportAngleZ
-        importOptions.largeMeshMode = getBlenderLargeMeshModeArg()
-        importOptions.includeBones = st.bImportIncludeBones
+        importOptions.largeMeshMode = tBlender.getLargeMeshModeArg()
+        importOptions.includeBones = tBlender.getPreferSkeletal()
         local cmd = tBlender.buildBakeCmd(src, modeIntermediateOnly and outDir or outMsh, exporterPath, importOptions)
         if cmd then
+            if modeInfo.fallbackExpected then
+                blenderDebugPrint(st, 'skeletal preference fallback expected: %s', modeInfo.reason or '')
+            elseif modeInfo.unknown then
+                blenderDebugPrint(st, 'skeletal preference scan unknown: %s', modeInfo.reason or '')
+            end
             tBlender.launchCmdAsync(cmd, dbgLog)
             st.sCancelFile = cancelFile
             local startTime = os.time()
@@ -2111,8 +2168,7 @@ local function blenderImportCoroutine()
             local lastWaitLog = -1
             local lastLogLinePrinted = nil
             local lastProgressLine = nil
-            local expectedFrames = importOptions.includeBones and 1 or
-                (importOptions.bakeAnimation and getBakedFrameCount(importOptions.frameStart, importOptions.frameEnd, importOptions.sampleStep) or 1)
+            local expectedFrames = rowEstimate.targetFrames or 1
             local finished = false
             while not finished do
                 if st.bAbortRequested then
@@ -2353,6 +2409,8 @@ local function showBlenderAnimationSettingsPopup(st)
             scene.frameEnd or 1,
             tonumber(scene.fps or 0) or 0))
         local stats = scan.meshStats or {}
+        local modeInfo = tBlender.getRowImportMode(row)
+        local cap = modeInfo.capability or {}
         if stats.available then
             local rowEstimate = getRowImportEstimate(row)
             tImGui.TextDisabled(string.format(
@@ -2366,6 +2424,21 @@ local function showBlenderAnimationSettingsPopup(st)
                 formatBytes(rowEstimate.estimatedRawBytes or 0)))
         elseif stats.error and stats.error ~= '' then
             tImGui.TextDisabled(string.format(tLang.L('blender_anim_mesh_stats_unavailable_fmt'), stats.error))
+        end
+
+        if modeInfo.mode == 'skeletal' then
+            tImGui.TextDisabled(string.format(
+                tLang.L('blender_anim_skeletal_available_fmt'),
+                cap.boneCount or 0,
+                cap.skinnedMeshCount or 0))
+        elseif modeInfo.fallbackExpected then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(string.format(tLang.L('blender_anim_skeletal_fallback_fmt'), tBlender.getImportModeReasonText(modeInfo)))
+            tImGui.PopStyleColor()
+        elseif modeInfo.unknown then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(string.format(tLang.L('blender_anim_skeletal_unknown_fmt'), modeInfo.reason or ''))
+            tImGui.PopStyleColor()
         end
 
         local issues = scan.meshCacheIssues or {}
@@ -2422,13 +2495,21 @@ local function showBlenderAnimationSettingsPopup(st)
         end
 
         tImGui.Separator()
+        local modeInfo = tBlender.getRowImportMode(row)
+        local sampleStepTooltip = (modeInfo.mode == 'skeletal')
+            and tLang.L('blender_import_sample_step_skeletal_tooltip')
+            or tLang.L('blender_import_sample_step_baked_tooltip')
         local canBake = canBakeBlenderAnimation(anim)
         if not canBake then
             anim.bEnableAnimation = false
         end
         if not canBake then tImGui.BeginDisabled(true) end
-        anim.bEnableAnimation = tImGui.Checkbox(tLang.L('blender_import_bake_animation'), anim.bEnableAnimation)
+        anim.bEnableAnimation = tImGui.Checkbox(
+            tLang.L(tImportMode.getAnimationToggleLabelKey(modeInfo)),
+            anim.bEnableAnimation)
         if not canBake then tImGui.EndDisabled() end
+        tImGui.SameLine()
+        tImGui.HelpMarker(tLang.L(tImportMode.getAnimationToggleHelpKey()))
         if not canBake then
             tImGui.TextDisabled(tLang.L('blender_anim_bake_disabled_cache_issue'))
         end
@@ -2488,7 +2569,7 @@ local function showBlenderAnimationSettingsPopup(st)
                             if stepChanged and newStep then clip.sampleStep = math.max(1, newStep) end
                             if tImGui.IsItemHovered(0) then
                                 tImGui.BeginTooltip()
-                                tImGui.Text(tLang.L('blender_import_sample_step_tooltip'))
+                                tImGui.Text(sampleStepTooltip)
                                 tImGui.EndTooltip()
                             end
                             tImGui.TableNextColumn()
@@ -2517,30 +2598,36 @@ local function showBlenderAnimationSettingsPopup(st)
                 end
                 if tImGui.IsItemHovered(0) then
                     tImGui.BeginTooltip()
-                    tImGui.Text(tLang.L('blender_import_sample_step_tooltip'))
+                    tImGui.Text(sampleStepTooltip)
                     tImGui.EndTooltip()
                 end
             end
 
-            local baked = 0
+            local samples = 0
             local clipsForEstimate = getSelectedBlenderClips(anim)
             if #clipsForEstimate > 0 then
                 for i = 1, #clipsForEstimate do
-                    baked = baked + getBakedFrameCount(clipsForEstimate[i].frameStart, clipsForEstimate[i].frameEnd, clipsForEstimate[i].sampleStep)
+                    samples = samples + getBakedFrameCount(clipsForEstimate[i].frameStart, clipsForEstimate[i].frameEnd, clipsForEstimate[i].sampleStep)
                 end
             else
-                baked = getBakedFrameCount(anim.iFrameStart, anim.iFrameEnd, anim.iSampleStep)
+                samples = getBakedFrameCount(anim.iFrameStart, anim.iFrameEnd, anim.iSampleStep)
             end
             local warnKey = nil
-            if baked > 800 then
+            if samples > 800 then
                 warnKey = 'blender_anim_warning_red_fmt'
-            elseif baked > 300 then
+            elseif samples > 300 then
                 warnKey = 'blender_anim_warning_yellow_fmt'
             end
-            tImGui.Text(string.format(tLang.L('blender_anim_estimate_fmt'), baked))
+            if modeInfo.mode == 'skeletal' then
+                tImGui.Text(string.format(tLang.L('blender_anim_estimate_skeletal_fmt'), samples))
+            elseif modeInfo.unknown then
+                tImGui.Text(tLang.L('blender_anim_estimate_unknown_preference'))
+            else
+                tImGui.Text(string.format(tLang.L('blender_anim_estimate_baked_fmt'), samples))
+            end
             if warnKey then
                 tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
-                tImGui.TextWrapped(string.format(tLang.L(warnKey), baked))
+                tImGui.TextWrapped(string.format(tLang.L(warnKey), samples))
                 tImGui.PopStyleColor()
             end
         end
@@ -2779,9 +2866,10 @@ function showBlenderImportDialog()
     if (st.iLargeMeshMode or 1) == 2 then
         tImGui.TextDisabled(tLang.L('blender_import_large_mesh_vb_only_note'))
     end
-    st.bImportIncludeBones = tImGui.Checkbox(tLang.L('blender_import_include_bones'), st.bImportIncludeBones)
+    st.bImportPreferSkeletal = tImGui.Checkbox(tLang.L('blender_import_prefer_skeletal'), tBlender.getPreferSkeletal())
+    st.bImportIncludeBones = st.bImportPreferSkeletal
     tImGui.SameLine()
-    tImGui.HelpMarker(tLang.L('blender_import_include_bones_help'))
+    tImGui.HelpMarker(tLang.L('blender_import_prefer_skeletal_help'))
     tImGui.Separator()
     st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
     tImGui.BeginDisabled(not st.bImportPostProcess)
@@ -2855,6 +2943,23 @@ function showBlenderImportDialog()
         if estimate.warning then
             tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
             tImGui.TextWrapped(estimate.warning)
+            tImGui.PopStyleColor()
+        end
+        local ms = estimate.modeSummary or {}
+        if (ms.skeletalFiles or 0) > 0 then
+            tImGui.TextDisabled(string.format(tLang.L('blender_import_estimate_skeletal_summary_fmt'), ms.skeletalFiles or 0, ms.skeletalKeySamples or 0))
+        end
+        if (ms.bakedFiles or 0) > 0 then
+            tImGui.TextDisabled(string.format(tLang.L('blender_import_estimate_baked_summary_fmt'), ms.bakedFiles or 0, ms.bakedMeshFrames or 0))
+        end
+        if (ms.fallbackFiles or 0) > 0 then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(string.format(tLang.L('blender_import_estimate_fallback_summary_fmt'), ms.fallbackFiles or 0))
+            tImGui.PopStyleColor()
+        end
+        if (ms.unknownFiles or 0) > 0 then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(string.format(tLang.L('blender_import_estimate_unknown_summary_fmt'), ms.unknownFiles or 0))
             tImGui.PopStyleColor()
         end
         tImGui.TextDisabled(tLang.L('blender_import_multi_anim_note'))
