@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.116**
+Document version: **9.117**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime GPU LBS/DQS plus explicit/Auto CPU LBS/DQS fallback, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-19**
 
@@ -160,10 +160,12 @@ and interchange, but runtime data needs validated indices into a stable skeleton
 
 ### Deformation boundary
 
-CPU responsibilities include clip sampling, composition, hierarchy evaluation, bind validation, and
-palette construction. GPU responsibilities include per-vertex influence blending and position/normal
-deformation. A CPU deformation reference exists for tests and diagnostics, not as the intended
-high-volume runtime path.
+CPU responsibilities always include clip sampling, composition, hierarchy evaluation, bind
+validation, and palette construction. The normal GPU path performs per-vertex influence blending
+and position/normal deformation. The same reference LBS and rigid-DQS math also backs an explicit
+per-instance CPU execution path and Auto fallback; it updates dynamic geometry from immutable bind
+data when GPU execution cannot support the resolved method. CPU execution is functional runtime
+fallback, but GPU deformation remains the intended high-volume path.
 
 ## 6. Linear Blend Skinning
 
@@ -174,9 +176,10 @@ that basic DQS cannot represent.
 Known tradeoff: matrix blending can lose volume around large twists or bends, producing the familiar
 “candy-wrapper” collapse. Better weights help but do not eliminate the mathematical limitation.
 
-A compact rigid/affine palette commonly uses three `vec4` values per bone; a full `mat4` uses four.
-The final representation remains a technical-design decision because normal transformation and scale
-support affect the choice.
+The delivered LBS GPU representation uses three `vec4` values (48 bytes) per bone. Its compact
+normal path supports rigid or positive-uniform-scale transforms and rejects non-uniform scale or
+shear rather than silently producing incorrect normals. The CPU LBS path uses inverse-transpose
+normal matrices and therefore remains the explicit/Auto fallback for valid non-uniform scale.
 
 ## 7. Dual Quaternion Skinning
 
@@ -580,8 +583,10 @@ mutate assets, evaluate clips, or deform vertices.
   is not the Animation node timeline planned for editor Milestone 6.
 - The preview can explicitly stop its instance player to restore the identity/bind deformation;
   seeking to clip time zero is deliberately not used as a substitute. A read-only preparation
-  report exposes the selected GPU skinning method plus required and measured-capacity bone counts, so an
-  unavailable or oversized path is visible rather than inferred from a failed Play action.
+  report exposes requested/resolved method, required bones, effective per-draw capacity, and the
+  resolved method's actual palette byte use, so an unavailable or oversized path is visible rather
+  than inferred from a failed Play action. Capacity is the lower of the measured backend/device
+  limit and Mini MBM's operational ceiling.
 - Add GPU LBS and DQS incrementally against CPU references.
 - Rigid pose-to-DQS palette construction is now implemented privately as the first GPU-DQS gate.
   It converts each row-vector skin matrix into one real and one dual quaternion (two `vec4` values),
@@ -612,7 +617,7 @@ mutate assets, evaluate clips, or deform vertices.
   quantization-aware tolerance and `0.0039216` maximum normal error against `0.0098431` for both
   methods. The deformation declarations/statements are now emitted by one private source helper
   consumed by both the production default shader and this harness, eliminating the former copied
-  GLSL oracle. Applying the harness to a controlled subset of a real asset remains before Phase 4 closes.
+  GLSL oracle.
 - Real-asset parity now loads the committed Lorekeeper through `MESH_MBM_DEBUG`, copies its canonical
   data through a private read-only bridge, and deterministically selects the eight vertices with the
   strongest secondary influences (stable index tie-break). At the first clip's `t=0.37s`, LBS
@@ -645,6 +650,10 @@ mutate assets, evaluate clips, or deform vertices.
   implementation creates a shared per-draw palette buffer; a measured frame-ring allocator is a
   possible optimization, not part of the public contract. A five-second Apple M4 production-path smoke animated
   the committed 23-bone Lorekeeper fixture successfully under both LBS and rigid DQS.
+- A subsequent Apple M4 production-path smoke loaded and animated the locally supplied
+  `rp_manuel_animated_001_dancing.msh` through Auto-resolved GPU LBS: 88 bones, 13,111 vertices,
+  effective capacity 1,024 bones per draw, and a 4,224-byte LBS palette. The run exited normally
+  after three seconds and confirms the capacity/palette diagnostics against a larger real mesh.
 - Metal vertex-buffer ownership is an implementation invariant: slot 0 is geometry, slot 1 common
   uniforms, slot 2 canonical skin influences, slot 3 custom vertex uniforms, slots 4-18 reserved
   lighting/material data, and slot 19 the skeletal palette. Vertex and fragment indices are
@@ -699,7 +708,10 @@ mutate assets, evaluate clips, or deform vertices.
 
 ### Phase 8 — Backend modernization decision
 
-- Record measured GLES2, Metal, and DirectX 9 limits after the initial delivery.
+- Measured/effective limits are recorded and enforced: GLES2 retains device-query-derived uniform
+  limits (40 LBS/60 DQS at the API minimum), the tested DirectX 9 adapter provides 82 LBS/124 DQS,
+  and Metal applies Mini MBM's 1,024-bone operational ceiling below its much larger buffer transport
+  limit. Runtime Preview and terminal diagnostics expose per-mesh use against the effective limit.
 - Decide whether modern OpenGL offers sufficient incremental value or whether the renderer goals
   justify a separately planned Vulkan backend.
 - Keep the legacy backends available as reduced capability profiles where maintenance permits.
@@ -819,13 +831,17 @@ mutate assets, evaluate clips, or deform vertices.
 
 1. Which articulated easing/player services are extracted exactly, and which remain only
    UX-aligned?
-2. How are multi-mesh skeleton sharing and resource ownership represented?
+2. How should multi-mesh skeleton sharing evolve beyond the delivered direct-follower contract?
    Multiple roots are resolved: each `parentIndex = -1` bone is an independent hierarchy root for
    bind, sampling, composition, LBS/DQS palette generation, and named-root-motion neutralization.
    Root motion and attachment copy-outs are represented by named canonical bones on the evaluated
-   per-instance pose. Multi-mesh sharing remains open.
-3. Does the initial LBS runtime accept non-uniform scale, or preserve/report it until the normal
-   transformation path is delivered?
+   per-instance pose. The current runtime supports one compatible loaded source feeding multiple
+   direct followers with their own geometry, weights, textures, and transforms; follower chains,
+   persistent links, and broader shared resource ownership remain open.
+3. How should a future GPU LBS profile transport inverse-transpose normal transforms efficiently?
+   The current compact GPU profile accepts rigid and positive-uniform-scale transforms and rejects
+   non-uniform scale/shear. CPU LBS already handles valid non-uniform scale with inverse-transpose
+   normal matrices, so Auto may select that runtime path instead of weakening GPU correctness.
 
 ### Backend capability
 
@@ -888,7 +904,11 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.117 | 2026-08-19 | Audited the plan against the delivered runtime while validating macOS Metal. Updated the CPU deformation boundary and scale fallback, replaced the undecided LBS palette text with the delivered three-`vec4` contract, removed a stale real-asset GLES parity TODO, documented effective-capacity plus palette-byte reporting, closed the backend-limit recording task, reframed multi-mesh sharing around the delivered direct-follower contract, reordered displaced 9.113-9.115 history, and recorded a successful Apple M4 Auto/GPU LBS run of the 88-bone/13,111-vertex local dancing mesh at 88/1,024 bones and 4,224 palette bytes. |
 | 9.116 | 2026-08-19 | Replaced misleading skeletal capacity diagnostics with actual bone usage/limit and LBS/DQS palette byte cost required by the loaded mesh. An enforced engine-wide ceiling of 1,024 bones per draw bounds otherwise impractical Metal `maxBufferLength` results, while stricter measured OpenGL ES and DirectX 9 limits remain authoritative. Terminal and Runtime Preview now report the useful values together. |
+| 9.115 | 2026-08-19 | Corrected Auto skeletal execution semantics: the no-configuration requested policy is now Auto, Auto prefers GPU and falls back to CPU only when GPU cannot support the resolved method and CPU is ready, explicit GPU/CPU stay mandatory, reports distinguish requested/provisional/resolved execution, and Runtime Preview defaults to Auto while GPU/CPU comparison remains forced. |
+| 9.114 | 2026-08-19 | Extended the explicit per-MESH CPU execution path from LBS to rigid DQS. CPU DQS reuses the canonical reference math, deforms only from immutable bind geometry into per-instance dynamic buffers, reports `cpu-dqs-ready` when valid, and rejects non-rigid DQS with an execution reason instead of switching to LBS. Runtime Preview GPU/CPU comparison now uses the selected resolved method when safe. |
+| 9.113 | 2026-08-19 | Added an explicit per-MESH CPU execution path for canonical LBS. It uses the same final evaluated pose/palette as GPU LBS, deforms positions and normals from immutable bind geometry into per-instance dynamic buffers, exposes C++/Lua selection and reporting, and rejects CPU+DQS instead of silently falling back. Indexed dynamic vertex updates are now implemented for OpenGL ES, DirectX9, Metal, and the dummy backend metadata path, so indexed skeletal meshes do not fail before draw. |
 | 9.112 | 2026-08-19 | Extended the editor-facing runtime pose-sharing slice from one wearable preview to an ordered transient collection of direct followers sharing the same primary evaluated pose. This uses the existing one-source-to-many runtime contract without C++ changes; incompatible entries stay disabled with compatibility/status reporting, and loaded followers keep independent visibility/removal while remaining separate from LBS/DQS comparison and persistence. |
 | 9.111 | 2026-08-18 | Added the first real multi-mesh skeletal pose-sharing slice. A compatible loaded direct follower can render with a compatible source mesh's already-evaluated private palette while retaining its own geometry, textures, transform, and weights. Lua exposes enable/disable/query; enabling rejects self, unloaded, incompatible, method-mismatched, and chained relationships without changing existing state. Links are cleared on source or follower reload/release/destruction, inactive sources fall back to non-shared rendering, and no CPU vertex deformation path was added. |
 | 9.110 | 2026-08-18 | Added a read-only compatibility preflight for future multi-mesh evaluated-pose/palette sharing. It requires matching ordered canonical bone identity, hierarchy, and scale-aware local/global bind transforms while deliberately ignoring clips, weights, geometry, and `skeletonId`; no pose state is shared yet. |
@@ -1132,9 +1152,6 @@ remain required before choosing palette sizes or fallbacks.
 | 5.3 | 2026-08-13 | Fixed reverse-FBX canonical coordinate restoration after real Mixamo testing: undo X reflection, restore winding, and invert the bind-matrix coordinate change by full conjugation. A 67-bone source-axis comparison now has maximum error 1.28e-7. |
 | 5.2 | 2026-08-13 | Migrated reverse Mesh Debug → FBX interchange from exploratory sections 11/40 to canonical bind-report global matrices and type-42 weights, removing the last active editor/export consumer before C++ persistence deletion. |
 | 5.1 | 2026-08-13 | Began physical legacy deletion by removing sections 11/40 authoring methods from the registered Mesh Debug Lua surface. Confirmed the active FBX importer writes only canonical sections 41–43 and isolated its unused exploratory constants/builders. C++ persistence and the old reverse FBX-export path remain explicit deletion blockers. |
-| 9.115 | 2026-08-19 | Corrected Auto skeletal execution semantics: the no-configuration requested policy is now Auto, Auto prefers GPU and falls back to CPU only when GPU cannot support the resolved method and CPU is ready, explicit GPU/CPU stay mandatory, reports distinguish requested/provisional/resolved execution, and Runtime Preview defaults to Auto while GPU/CPU comparison remains forced. |
-| 9.114 | 2026-08-19 | Extended the explicit per-MESH CPU execution path from LBS to rigid DQS. CPU DQS reuses the canonical reference math, deforms only from immutable bind geometry into per-instance dynamic buffers, reports `cpu-dqs-ready` when valid, and rejects non-rigid DQS with an execution reason instead of switching to LBS. Runtime Preview GPU/CPU comparison now uses the selected resolved method when safe. |
-| 9.113 | 2026-08-19 | Added an explicit per-MESH CPU execution path for canonical LBS. It uses the same final evaluated pose/palette as GPU LBS, deforms positions and normals from immutable bind geometry into per-instance dynamic buffers, exposes C++/Lua selection and reporting, and rejects CPU+DQS instead of silently falling back. Indexed dynamic vertex updates are now implemented for OpenGL ES, DirectX9, Metal, and the dummy backend metadata path, so indexed skeletal meshes do not fail before draw. |
 | 5.0 | 2026-08-13 | Retired Mesh Debug's visible legacy Bone node/window and destructive section-40 removal controls. Mesh Info now reports canonical type-42 weights, while unreachable legacy code and persistence remain isolated for the next physical-deletion pass. A locally regenerated 67-bone Mixamo mesh successfully previewed both LBS and DQS on the measured 4096-vector device; this does not change the 40/60-bone GLES2-minimum limits. |
 | 4.9 | 2026-08-12 | Migrated Skin Weight Lab from exploratory name-palette weights to canonical type-42 mutation. Editor-facing names resolve to stable IDs, each update is validated transactionally, and no legacy weight section is created. The remaining section/API removal consumers are confined to Mesh Debug and interchange code. |
 | 4.8 | 2026-08-12 | Began Mesh Debug migration by making the Skeletal Animation Editor's bind gizmo consume only canonical bind-report bones. It derives hierarchy and joint positions from type-41 global bind matrices and deliberately gives legacy-only assets no skeleton. The remaining editor deletion blocker is Skin Weight Lab's exploratory name-palette weight API, which must be replaced by canonical type-42 mutation/rollback. |
