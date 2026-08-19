@@ -252,3 +252,6 @@ synthetic and real-asset vertices.
 - Numeric encoded/readback CPU/GPU comparison is automated for OpenGL ES. DirectX 9 and Metal have
   production-path, shader, and manual runtime evidence but no backend-specific encoded readback
   harness.
+
+Optional projects outside this accepted capability are tracked separately in the
+[Deferred Work Plan](realtime-skeletal-animation-future-work-plan.md).
