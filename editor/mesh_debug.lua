@@ -2848,11 +2848,8 @@ function showBlenderImportDialog()
     local iW, iH = mbm.getRealSizeScreen()
     local maxW = math.max(420, iW - 40)
     local maxH = math.max(260, iH - 60)
-    local initialW = math.min(720, maxW)
-    local initialH = math.min(600, maxH)
     tImGui.SetNextWindowSizeConstraints({x=420, y=260}, {x=maxW, y=maxH})
-    tImGui.SetNextWindowSize({x=initialW, y=initialH}, tImGui.Flags('ImGuiCond_Appearing'))
-    local flags = 0
+    local flags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
     local isOpen, _ = tImGui.BeginPopupModal(tLang.L('blender_import_modal_title') .. '###blender_import_modal', false, flags)
     if not isOpen then return end
 

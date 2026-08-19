@@ -39,7 +39,7 @@ local state = {
         absoluteLayerDuration=0, absoluteLayerWeight=0.5, absoluteLayerActive=false,
         absoluteLayerFadeDuration=0.25, absoluteLayerMode=1, absoluteLayerPaused=false, speed=1,
         layerMaskWeights={},layerMaskSelected=1,layerMaskDescendants=true,
-        layerMaskShowSkeleton=true,runtimePose=nil,previewX=0},
+        layerMaskShowSkeleton=false,runtimePose=nil,previewX=0},
     runtimeLight={enabled=false,
         ambientColor={r=0.16,g=0.16,b=0.2,a=1},
         directionalColor={r=1,g=0.96,b=0.88,a=1},
