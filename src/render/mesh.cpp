@@ -712,74 +712,83 @@ namespace mbm
             return false;
         const uint32_t indexAnimation = this->getIndexAnimation();
         ANIMATION *anim = this->getAnimation(indexAnimation);
-        if (anim)
+        if (!anim)
+            return false;
+
+        ARTICULATED_ANIMATION_PLAYER &articulatedPlayer = this->getArticulatedAnimationPlayer();
+        SKELETAL_ANIMATION_PLAYER &skeletalPlayer = this->getSkeletalAnimationPlayer();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        const CAMERA &camera = device->getCamera();
+        anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
+        this->mesh->updateArticulatedAnimations(articulatedPlayer, device->delta,
+                                                 this, this->getOnEndAnimation());
+        const bool hasSharedSkeletal = this->canUseSkeletalPoseSharing(nullptr);
+        const bool hasSkeletal = hasSharedSkeletal ||
+            this->mesh->hasActiveSkeletalAnimation(skeletalPlayer);
+        if (!hasSharedSkeletal && hasSkeletal && !this->mesh->updateSkeletalAnimation(
+                skeletalPlayer, device->delta, this, this->getOnEndAnimation()))
+            return false;
+        const VEC3 &position = this->getPosition();
+        const VEC3 &angle = this->getAngle();
+        const VEC3 &scale = this->getScale();
+        const MATRIX *viewMatrix = nullptr;
+        const MATRIX *perspectiveMatrix = nullptr;
+        if (this->is3DObject())
         {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            const CAMERA &camera = device->getCamera();
-            anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
-            this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
-                                                     this, this->getOnEndAnimation());
-            const bool hasSharedSkeletal = this->canUseSkeletalPoseSharing(nullptr);
-            const bool hasSkeletal = hasSharedSkeletal ||
-                this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer());
-            if (!hasSharedSkeletal && hasSkeletal && !this->mesh->updateSkeletalAnimation(
-                    this->getSkeletalAnimationPlayer(), device->delta, this, this->getOnEndAnimation()))
-                return false;
-            const VEC3 &position = this->getPosition();
-            const VEC3 &angle = this->getAngle();
-            const VEC3 &scale = this->getScale();
-            const MATRIX *viewMatrix = nullptr;
-            const MATRIX *perspectiveMatrix = nullptr;
-            if (this->is3DObject())
-            {
-                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
-                viewMatrix = &camera.matrixView;
-                perspectiveMatrix = &camera.matrixPerspective;
-            }
-            else if (this->is2dScreenObject())
-            {
-                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
-                                    position.y * camera.scaleScreen2d.y, position.z);
-                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
-                SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
-                viewMatrix = &camera.matrixView2d;
-                perspectiveMatrix = &camera.matrixPerspective2d;
-            }
-            else
-            {
-                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
-                viewMatrix = &camera.matrixView2d;
-                perspectiveMatrix = &camera.matrixPerspective2d;
-            }
-            FX &fx = anim->getFx();
-            this->setBlendState(anim->getBlendState());
-            fx.shader.update();
-            fx.setBlendOp();
-            BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
-            fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
-            const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
-            const bool useCpuSkeletal = hasSkeletal &&
-                getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU;
-            const bool rendered = useCpuSkeletal
-                ? this->renderCpuSkeletal(
-                    hasSharedSkeletal ? skeletalPoseSharingState->source->getSkeletalAnimationPlayer() :
-                    this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader)
-                : hasSkeletal
-                ? this->mesh->renderSkeletal(
-                    hasSharedSkeletal ? skeletalPoseSharingState->source->getSkeletalAnimationPlayer() :
-                    this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader, this)
-                : this->mesh->hasActiveArticulatedAnimations(this->getArticulatedAnimationPlayer())
-                ? this->mesh->renderArticulatedStatic(this->getArticulatedAnimationPlayer(), frameIndex, &fx.shader,
-                                                      *viewMatrix, *perspectiveMatrix, this)
-                : this->mesh->render(frameIndex, &fx.shader, this);
-            if (!rendered)
-                return false;
-            return true;
+            MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+            SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
+            viewMatrix = &camera.matrixView;
+            perspectiveMatrix = &camera.matrixPerspective;
         }
-        return false;
+        else if (this->is2dScreenObject())
+        {
+            VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                                position.y * camera.scaleScreen2d.y, position.z);
+            device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+            MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+            SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
+            viewMatrix = &camera.matrixView2d;
+            perspectiveMatrix = &camera.matrixPerspective2d;
+        }
+        else
+        {
+            MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+            SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
+            viewMatrix = &camera.matrixView2d;
+            perspectiveMatrix = &camera.matrixPerspective2d;
+        }
+        FX &fx = anim->getFx();
+        this->setBlendState(anim->getBlendState());
+        fx.shader.update();
+        fx.setBlendOp();
+        BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
+        fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+        const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
+        bool rendered = false;
+        if (hasSkeletal)
+        {
+            const SKELETAL_ANIMATION_PLAYER *renderSkeletalPlayer = nullptr;
+            if (hasSharedSkeletal)
+                renderSkeletalPlayer = &skeletalPoseSharingState->source->getSkeletalAnimationPlayer();
+            else
+                renderSkeletalPlayer = &skeletalPlayer;
+            if (getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU)
+                rendered = this->renderCpuSkeletal(*renderSkeletalPlayer, frameIndex, &fx.shader);
+            else
+                rendered = this->mesh->renderSkeletal(*renderSkeletalPlayer, frameIndex, &fx.shader, this);
+        }
+        else if (this->mesh->hasActiveArticulatedAnimations(articulatedPlayer))
+        {
+            rendered = this->mesh->renderArticulatedStatic(articulatedPlayer, frameIndex,
+                                                           &fx.shader, *viewMatrix, *perspectiveMatrix, this);
+        }
+        else
+        {
+            rendered = this->mesh->render(frameIndex, &fx.shader, this);
+        }
+        if (!rendered)
+            return false;
+        return true;
     }
 
     bool MESH::renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,

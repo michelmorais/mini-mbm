@@ -316,6 +316,7 @@ All plugins link against `plugin-helper`. It provides:
 - **Indentation**: 4 spaces (no tabs)
 - **Pointer style**: `TYPE *varName` (space before `*`, not after)
 - **Accessor reuse**: if a function uses the same getter/setter-backed object more than once, store it in a local variable or reference for that function scope (e.g., `CAMERA &camera = device->getCamera();`). Do not cache accessor-returned engine state as persistent object/member state unless ownership/lifetime is explicitly designed for it.
+- **Flat control flow with preserved performance**: keep new code's control flow as flat as practical. Prefer guard clauses and explicit mutually exclusive `if`/`else` branches over deep nesting or chained ternaries, while preserving behavior and performance, especially in hot paths. Do not flatten code by duplicating work, adding allocations, or introducing extra per-frame checks.
 - **Lua C functions**: always `extern "C"` with export macro; return `int`, take `lua_State *lua`
 - **License block**: MIT license in box-drawing-character frame at top of every file
 
