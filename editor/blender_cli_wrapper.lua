@@ -296,11 +296,19 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         for i = 1, #options.animationClips do
             local clip = options.animationClips[i]
             if type(clip) == 'table' then
-                table.insert(args, '--animation-clip')
+                local hasExplicitSource = clip.sourceKind and clip.sourceKind ~= '' and
+                    clip.sourceObject and clip.sourceObject ~= '' and
+                    clip.sourceAction ~= nil
+                table.insert(args, hasExplicitSource and '--animation-source' or '--animation-clip')
                 table.insert(args, shellQuote(clip.name or ('Bake ' .. i)))
                 table.insert(args, tostring(math.max(1, math.floor(tonumber(clip.frameStart or 1) or 1))))
                 table.insert(args, tostring(math.max(1, math.floor(tonumber(clip.frameEnd or clip.frameStart or 1) or 1))))
                 table.insert(args, tostring(math.max(1, math.floor(tonumber(clip.sampleStep or 1) or 1))))
+                if hasExplicitSource then
+                    table.insert(args, shellQuote(clip.sourceKind))
+                    table.insert(args, shellQuote(clip.sourceObject))
+                    table.insert(args, shellQuote(clip.sourceAction))
+                end
             end
         end
     end

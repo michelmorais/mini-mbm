@@ -50,6 +50,9 @@ the scan (Armature Actions and Armature/canonical NLA strips). The synthetic Ble
 only a fallback when no explicit skeletal source is available, because selecting it alongside an
 Action/NLA clip can duplicate or truncate animation ranges. Manual source choices are sticky:
 unchecking a source in Configure prevents later rescans/imports from re-enabling it automatically.
+FBX takes that Blender imports as detached `bpy.data.actions` are also inspected: every Action with
+pose-bone curves matching the selected canonical armature is exposed as its own source and is
+activated explicitly while its clip is sampled, rather than silently reusing only the active take.
 
 If the scan reports no usable skeletal data, the same checked preference falls back to baked/static
 mesh frames and the UI reports the reason before import and in the result summary. This is expected
@@ -324,6 +327,14 @@ the FBX fixes, but it is not the delivered runtime contract.
   override layered on top of envelope binding, not a mesh-wide either/or (see Pitfalls: "Weights are
   independent of the skeleton" for why the earlier either/or design silently zeroed the rest of a
   character whenever only a prop bone had real weights).
+  Canonical type-43 clips are sampled through the engine's own authoring-pose evaluator and written
+  to the intermediate JSON as parent-composed global matrices. Blender reconstructs one densely
+  keyed Action per clip at the detected source cadence (normally at least 30 FPS and capped at 120
+  FPS; unusually long clips lower that rate to remain near 10,000 samples); FBX export enables
+  animation baking only when those Actions exist. Consequently, MSH -> FBX -> MSH preserves
+  multiple skeletal clips instead of returning only sections 41/42. FBX does not carry mini-mbm's
+  loop flag as a standard playback contract, so re-import continues using the importer's normal
+  looping default.
 
 ### Scaling geometry and its skeleton
 

@@ -2,8 +2,8 @@
 """
 Blender headless exporter for mini-mbm's Mesh Debug tool: takes a JSON dump of a loaded mesh's raw
 geometry (and, optionally, its editor-authored/imported bone hierarchy) and produces a real FBX
-with a skinned armature, ready for upload to an auto-rigging/animation service (Mixamo or
-similar).
+with a skinned armature and one Blender Action per sampled canonical skeletal clip, ready for
+round-trip editing or upload to an auto-rigging/animation service (Mixamo or similar).
 
 This script's input comes from editor/mesh_debug.lua's own geometry -- which is in the ENGINE's
 own coordinate convention (Y-up), not Blender's native Z-up, ever since editor/blender_mesh_export.py's
@@ -82,6 +82,29 @@ def check_cancel_requested(cancel_file: str) -> None:
 def load_json(input_path: str) -> dict:
     with open(input_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def canonical_matrix_to_blender(matrix_values: list[float],
+                                rotation_deg: tuple[float, float, float] | None,
+                                canonical: bool):
+    """Converts an engine row-vector global matrix back to Blender's column-vector space."""
+    from mathutils import Matrix
+
+    if len(matrix_values) != 16:
+        raise RuntimeError("Canonical animation matrix must contain exactly 16 values.")
+    canonical_matrix = Matrix([[float(matrix_values[column * 4 + row]) for column in range(4)]
+                               for row in range(4)])
+    restore = Matrix.Identity(4)
+    if canonical:
+        reflection = Matrix.Identity(4)
+        reflection[0][0] = -1.0
+        restore = reflection
+    if rotation_deg:
+        ax, ay, az = (math.radians(float(value)) for value in rotation_deg)
+        rotation = (Matrix.Rotation(az, 4, "Z") @ Matrix.Rotation(ay, 4, "Y") @
+                    Matrix.Rotation(ax, 4, "X"))
+        restore = rotation @ restore
+    return restore @ canonical_matrix @ restore.inverted()
 
 
 def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None,
@@ -313,28 +336,15 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         return len(matrix) == 16 and float(joints[name].get("length", 0.0)) > EPS
 
     def reconstruct_tail_and_roll(name, pos):
-        from mathutils import Matrix
         j = joints[name]
         length = float(j["length"])
-        matrix = [float(value) for value in j["globalBindMatrix"]]
         # The engine matrix is row-vector/row-major; transpose it into Blender's column-vector
         # convention. Canonical import changed coordinates by conjugation C*M*C^-1, so reverse it
         # by the complete inverse conjugation R*B*R^-1. Transforming Y/Z alone is incorrect because
         # the right-hand factor changes the matrix's local basis too (visible as 90-degree errors on
         # real hips, feet, arms, and face bones).
-        canonical_matrix = Matrix([[matrix[column * 4 + row] for column in range(4)]
-                                   for row in range(4)])
-        restore = Matrix.Identity(4)
-        if data.get("canonicalSkeleton") is True:
-            reflection = Matrix.Identity(4)
-            reflection[0][0] = -1.0
-            restore = reflection
-        if rotation_deg:
-            ax, ay, az = (math.radians(float(value)) for value in rotation_deg)
-            rotation = (Matrix.Rotation(az, 4, "Z") @ Matrix.Rotation(ay, 4, "Y") @
-                        Matrix.Rotation(ax, 4, "X"))
-            restore = rotation @ restore
-        blender_matrix = restore @ canonical_matrix @ restore.inverted()
+        blender_matrix = canonical_matrix_to_blender(
+            j["globalBindMatrix"], rotation_deg, data.get("canonicalSkeleton") is True)
         y_stored = blender_matrix.to_3x3().col[1]
         z_stored = blender_matrix.to_3x3().col[2]
         y_stored.normalize()
@@ -492,6 +502,80 @@ def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
         debug_print(debug, f"resolved left/right envelope overlap on {fixed} vertices near the body midline")
 
 
+def build_animation_actions(data: dict, armature_obj, rotation_deg: tuple[float, float, float] | None,
+                            debug: bool) -> int:
+    """Creates one densely sampled Blender Action for every canonical mini-mbm clip.
+
+    Mesh Debug evaluates the source clips before writing JSON, so the matrices received here
+    already contain the engine's authoritative easing, quaternion interpolation, hierarchy, and
+    scale result. Keying every sampled pose avoids approximating those semantics with Blender
+    F-curve interpolation during the round trip.
+    """
+    import bpy
+
+    animation_data = data.get("animations") or {}
+    clips = animation_data.get("clips") or []
+    if not armature_obj or not clips:
+        return 0
+    joints = data.get("joints") or []
+    sample_rate = int(animation_data.get("sampleRate") or 30)
+    if sample_rate <= 0:
+        raise RuntimeError("Canonical animation sample rate must be positive.")
+
+    scene = bpy.context.scene
+    scene.render.fps = sample_rate
+    scene.render.fps_base = 1.0
+    scene.frame_start = 1
+    maximum_frame = 1
+    armature_obj.animation_data_create()
+    pose_bones = []
+    for joint in joints:
+        pose_bone = armature_obj.pose.bones.get(joint["name"])
+        if pose_bone is None:
+            raise RuntimeError(f"Canonical animation references missing bone '{joint['name']}'.")
+        pose_bone.rotation_mode = 'QUATERNION'
+        pose_bones.append(pose_bone)
+
+    for clip_index, clip in enumerate(clips):
+        samples = clip.get("samples") or []
+        if not samples:
+            continue
+        action_name = str(clip.get("name") or f"Clip_{clip_index + 1}")
+        action = bpy.data.actions.new(name=action_name)
+        action.use_fake_user = True
+        action["mini_mbm_loop"] = bool(clip.get("loop", True))
+        armature_obj.animation_data.action = action
+
+        for sample_index, sample in enumerate(samples):
+            frame = sample_index + 1
+            maximum_frame = max(maximum_frame, frame)
+            scene.frame_set(frame)
+            matrices = sample.get("globalMatrices") or []
+            if len(matrices) != len(pose_bones):
+                raise RuntimeError(
+                    f"Canonical clip '{action_name}' sample {sample_index} has {len(matrices)} "
+                    f"bone matrices; expected {len(pose_bones)}.")
+            # Joints arrive in canonical parent-before-child order. Assign the complete pose first,
+            # then key the decomposed pose-bone channels after Blender has resolved the hierarchy.
+            for pose_bone, matrix_values in zip(pose_bones, matrices):
+                pose_bone.matrix = canonical_matrix_to_blender(
+                    matrix_values, rotation_deg, data.get("canonicalSkeleton") is True)
+            bpy.context.view_layer.update()
+            for pose_bone in pose_bones:
+                pose_bone.keyframe_insert(data_path="location", frame=frame, group=pose_bone.name)
+                pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=frame,
+                                          group=pose_bone.name)
+                pose_bone.keyframe_insert(data_path="scale", frame=frame, group=pose_bone.name)
+
+        debug_print(debug, f"animation action built: {action_name} ({len(samples)} samples at "
+                           f"{sample_rate} FPS)")
+
+    armature_obj.animation_data.action = None
+    scene.frame_end = maximum_frame
+    scene.frame_set(1)
+    return sum(1 for clip in clips if clip.get("samples"))
+
+
 def _compute_non_deforming_bone_names(armature_obj) -> set:
     """Identifies "root-motion"/"pass-through" bones that should never receive real vertex weight:
     a top-level root (no parent) whose ONLY purpose is connecting the world origin to the first
@@ -627,7 +711,8 @@ def _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj, exclude_names=fro
     return filled
 
 
-def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) -> None:
+def prepare_and_export(mesh_obj, armature_obj, output_path: str, animation_count: int,
+                       debug: bool) -> None:
     import bpy
     from mathutils import Vector
 
@@ -655,7 +740,12 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) ->
     bpy.ops.export_scene.fbx(
         filepath=output_path,
         use_selection=True,
-        bake_anim=False,
+        bake_anim=animation_count > 0,
+        bake_anim_use_all_actions=animation_count > 0,
+        bake_anim_use_nla_strips=False,
+        bake_anim_force_startend_keying=True,
+        bake_anim_step=1.0,
+        bake_anim_simplify_factor=0.0,
         add_leaf_bones=False,
         mesh_smooth_type='FACE',
         object_types=object_types,
@@ -710,11 +800,13 @@ def main() -> int:
         debug_print(args.debug_steps, "no bones in input -- exporting mesh-only FBX")
 
     check_cancel_requested(args.cancel_file)
+    animation_count = build_animation_actions(data, armature_obj, rotation_deg, args.debug_steps)
+    check_cancel_requested(args.cancel_file)
     out_path = os.path.abspath(args.output)
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-    prepare_and_export(mesh_obj, armature_obj, out_path, args.debug_steps)
+    prepare_and_export(mesh_obj, armature_obj, out_path, animation_count, args.debug_steps)
 
     debug_print(args.debug_steps, "done")
     return 0

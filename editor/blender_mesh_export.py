@@ -58,6 +58,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--sample-step", type=int, default=1)
     parser.add_argument("--animation-name", default="Bake")
     parser.add_argument("--animation-clip", action="append", nargs=4, metavar=("NAME", "START", "END", "STEP"))
+    parser.add_argument("--animation-source", action="append", nargs=7,
+                        metavar=("NAME", "START", "END", "STEP", "KIND", "OBJECT", "ACTION"))
     parser.add_argument("--post-process", action="store_true")
     parser.add_argument("--invert-u", action="store_true")
     parser.add_argument("--invert-v", action="store_true")
@@ -426,6 +428,31 @@ def action_frame_range(action: Any) -> tuple[int, int]:
     return int(frame_range[0]), int(frame_range[1])
 
 
+def iter_action_fcurves(action: Any):
+    """Supports both legacy Actions and Blender 4.4+ layered Action channel bags."""
+    legacy = getattr(action, "fcurves", None)
+    if legacy is not None:
+        yield from legacy
+        return
+    for layer in getattr(action, "layers", []):
+        for strip in getattr(layer, "strips", []):
+            for channel_bag in getattr(strip, "channelbags", []):
+                yield from getattr(channel_bag, "fcurves", [])
+
+
+def action_animates_pose_bones(action: Any, allowed_bone_names: set[str] | None = None) -> bool:
+    prefix = 'pose.bones["'
+    for curve in iter_action_fcurves(action):
+        data_path = str(getattr(curve, "data_path", ""))
+        if not data_path.startswith(prefix):
+            continue
+        end_quote = data_path.find('"]', len(prefix))
+        bone_name = data_path[len(prefix):end_quote] if end_quote >= 0 else ""
+        if allowed_bone_names is None or bone_name in allowed_bone_names:
+            return True
+    return False
+
+
 def append_unique_source(sources: list[dict[str, Any]], source: dict[str, Any]) -> None:
     key = (
         source.get("kind"),
@@ -744,6 +771,26 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
                     }
                 )
 
+    # FBX takes commonly import as detached bpy.data.actions: Blender activates only one Action on
+    # the armature and creates no NLA strips for the others. Discover every pose-bone Action so a
+    # multi-clip FBX does not silently expose only whichever take happened to become active.
+    if canonical_armature_obj is not None:
+        canonical_bone_names = get_armature_bone_names(canonical_armature_obj)
+        for action in bpy.data.actions:
+            if not action_animates_pose_bones(action, canonical_bone_names):
+                continue
+            start, end = action_frame_range(action)
+            animated_objects.append(
+                {
+                    "object": str(canonical_armature_obj.name),
+                    "type": "ARMATURE",
+                    "action": str(action.name),
+                    "frameStart": start,
+                    "frameEnd": end,
+                    "isCanonicalArmatureSource": True,
+                }
+            )
+
     mesh_cache_issues = get_mesh_cache_issues(scene)
     has_mesh_cache_issue = len(mesh_cache_issues) > 0
     sources: list[dict[str, Any]] = []
@@ -1038,6 +1085,21 @@ def normalize_frame_range(frame_start: int, frame_end: int) -> tuple[int, int]:
 
 def parse_animation_clips(args: argparse.Namespace, scene: Any) -> list[dict[str, Any]]:
     clips: list[dict[str, Any]] = []
+    if args.animation_source:
+        for raw in args.animation_source:
+            name = str(raw[0] or "Bake")
+            frame_start, frame_end = normalize_frame_range(int(raw[1]), int(raw[2]))
+            clips.append(
+                {
+                    "name": name,
+                    "frameStart": frame_start,
+                    "frameEnd": frame_end,
+                    "sampleStep": max(1, int(raw[3])),
+                    "sourceKind": str(raw[4] or ""),
+                    "sourceObject": str(raw[5] or ""),
+                    "sourceAction": str(raw[6] or ""),
+                }
+            )
     if args.animation_clip:
         for raw in args.animation_clip:
             name = str(raw[0] or "Bake")
@@ -1051,6 +1113,7 @@ def parse_animation_clips(args: argparse.Namespace, scene: Any) -> list[dict[str
                     "sampleStep": step,
                 }
             )
+    if clips:
         return clips
 
     if args.bake_animation:
@@ -1070,6 +1133,19 @@ def parse_animation_clips(args: argparse.Namespace, scene: Any) -> list[dict[str
             }
         )
     return clips
+
+
+def activate_animation_source(scene: Any, clip: dict[str, Any]) -> None:
+    if clip.get("sourceKind") != "action":
+        return
+    obj = scene.objects.get(str(clip.get("sourceObject") or ""))
+    action = bpy.data.actions.get(str(clip.get("sourceAction") or ""))
+    if obj is None or action is None:
+        raise RuntimeError(
+            f"Animation source is unavailable: object='{clip.get('sourceObject', '')}' "
+            f"action='{clip.get('sourceAction', '')}'.")
+    obj.animation_data_create()
+    obj.animation_data.action = action
 
 
 def clip_frame_numbers(clip: dict[str, Any]) -> list[int]:
@@ -1114,6 +1190,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     fps = get_scene_fps(scene)
     if clips:
         for clip in clips:
+            activate_animation_source(scene, clip)
             target_start = len(frames_out) + 1
             debug_print(
                 args.debug_steps,
@@ -1179,6 +1256,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
     if clips:
         out_index = 0
         for clip in clips:
+            activate_animation_source(scene, clip)
             target_start = len(frames_manifest) + 1
             debug_print(
                 args.debug_steps,
@@ -1713,6 +1791,7 @@ def extract_canonical_animations(scene: Any, clips: list[dict[str, Any]], fps: f
     pose_by_name = {bone.name: bone for bone in armature_obj.pose.bones}
     result: list[dict[str, Any]] = []
     for clip in clips:
+        activate_animation_source(scene, clip)
         frames = clip_frame_numbers(clip)
         if not frames:
             continue
@@ -2112,6 +2191,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             }]
         elif clips:
             for clip in clips:
+                activate_animation_source(scene, clip)
                 target_start = len(frame_paths) + 1
                 debug_print(
                     args.debug_steps,

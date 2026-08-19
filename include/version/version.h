@@ -505,6 +505,7 @@
     6.80.1 Fixed the Skeletal Animation Editor shared skeleton-visibility control so weight-lab bone highlights cannot remain visible or reappear while the skeleton is hidden.
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
+    7.123.0 Mesh Debug FBX export now preserves canonical type-43 skeletal animation: the engine samples every clip into global bone poses, Blender rebuilds one Action per clip, and animated FBX baking keeps multiple clips available on re-import instead of returning bind data alone.
     7.122.1 Runtime Skeletal Preview GPU/CPU and LBS/DQS comparisons now seek the secondary animation only when its clock actually drifts, avoiding redundant pose evaluation every frame while preserving base and absolute-layer synchronization.
     7.122.0 Mesh Debug Blender import now preflights animation scans on direct import and auto-selects all explicit armature animation sources for skeletal import, using scene range only as fallback.
     7.121.0 Added per-file Blender importer skeletal-capability detection in Mesh Debug. The import option now prefers real-time skeletal animation only when an armature with bones and usable skin weights is available, reports baked fallback reasons for mesh-cache/static sources, keeps --include-bones as a robust CLI preference, and fixes estimates to distinguish REST geometry frames, skeletal key samples, and baked mesh frames.
@@ -526,7 +527,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.122.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.123.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

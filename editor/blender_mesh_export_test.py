@@ -134,5 +134,30 @@ class CanonicalSkeletalExportModeTests(unittest.TestCase):
         self.assertIn("type-42 skin weights", reason or "")
 
 
+class SkeletalActionSourceTests(unittest.TestCase):
+    def test_detects_matching_pose_bone_curves_in_layered_actions(self) -> None:
+        curves = [SimpleNamespace(data_path='pose.bones["Root"].rotation_quaternion')]
+        channel_bag = SimpleNamespace(fcurves=curves)
+        strip = SimpleNamespace(channelbags=[channel_bag])
+        layer = SimpleNamespace(strips=[strip])
+        action = SimpleNamespace(layers=[layer])
+
+        self.assertIs(exporter.action_animates_pose_bones(action, {"Root"}), True)
+        self.assertIs(exporter.action_animates_pose_bones(action, {"Other"}), False)
+
+    def test_parses_explicit_action_source_identity(self) -> None:
+        args = exporter.parse_args([
+            "--input", "character.fbx", "--output", "character.msh",
+            "--animation-source", "Walk", "1", "30", "1", "action", "Armature", "WalkAction",
+        ])
+
+        clips = exporter.parse_animation_clips(args, SimpleNamespace())
+
+        self.assertEqual(len(clips), 1)
+        self.assertEqual(clips[0]["sourceKind"], "action")
+        self.assertEqual(clips[0]["sourceObject"], "Armature")
+        self.assertEqual(clips[0]["sourceAction"], "WalkAction")
+
+
 if __name__ == "__main__":
     unittest.main()

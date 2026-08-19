@@ -1162,6 +1162,8 @@ local function makeBlenderClipFromSource(src, index, previous)
     clip.sourceIndex = index or clip.sourceIndex or 0
     clip.sourceName = tostring(src.name or ('Source ' .. tostring(index or 0)))
     clip.kind = tostring(src.kind or '')
+    clip.sourceObject = tostring(src.object or '')
+    clip.sourceAction = tostring(src.action or src.name or '')
     clip.reason = tostring(src.reason or src.confidence or '')
     clip.name = tostring(clip.name or src.name or ('Bake ' .. tostring(index or 0)))
     clip.frameStart = math.max(1, math.floor(tonumber(clip.frameStart or frameStart) or frameStart))
@@ -1212,6 +1214,9 @@ local function getSelectedBlenderClips(anim)
                 frameEnd = math.max(1, clip.frameEnd or clip.frameStart or 1),
                 sampleStep = math.max(1, clip.sampleStep or 1),
                 sourceIndex = clip.sourceIndex or i,
+                sourceKind = clip.kind or '',
+                sourceObject = clip.sourceObject or '',
+                sourceAction = clip.sourceAction or '',
             }
         end
     end
@@ -5997,7 +6002,10 @@ end
 
 -- Dumps frame 1's raw geometry (all subsets, pooled into one combined vertex list with globally-
 -- offset indices, each subset keeping its own resolved texture path) plus the mesh's current bone
--- list (may be empty -- a mesh-only FBX is still a valid export) to jsonPath.
+-- list and sampled canonical skeletal clips (either may be empty -- a mesh-only FBX is still a
+-- valid export) to jsonPath. Animation poses are sampled by the engine itself so easing,
+-- quaternion interpolation, hierarchy composition, and scale use exactly the runtime evaluator
+-- instead of being reimplemented differently in the Blender bridge.
 local function writeMeshDebugJson(meshD, jsonPath)
     local okTF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     nFrames = (okTF and nFrames) or 0
@@ -6026,6 +6034,12 @@ local function writeMeshDebugJson(meshD, jsonPath)
         restoreLocale()
         return false, 'Failed to create file: ' .. jsonPath
     end
+    local function abortWrite(message)
+        f:close()
+        restoreLocale()
+        os.remove(jsonPath)
+        return false, message
+    end
 
     f:write('{\n  "canonicalSkeleton": true,\n  "joints": [\n')
     local okReport, bindReport = dpCall(function() return meshD:getSkeletonBindReport() end)
@@ -6048,7 +6062,71 @@ local function writeMeshDebugJson(meshD, jsonPath)
             bone.radius or 0, bone.length or 0, table.concat(matrixValues, ', ')))
         f:write(i < nBones and ',\n' or '\n')
     end
-    f:write('  ],\n  "mesh": {\n    "vertices": [\n')
+    f:write('  ],\n')
+
+    local okAnimations, animations = dpCall(function() return meshD:getSkeletalAnimationReport() end)
+    if not okAnimations then
+        return abortWrite(string.format(tLang.L('bones_export_animation_report_failed_fmt'),
+            tostring(animations)))
+    end
+    animations = okAnimations and type(animations) == 'table' and animations or {}
+    local sampleRate = 30
+    local maxDuration = 0
+    for _, clip in ipairs(animations) do
+        maxDuration = math.max(maxDuration, tonumber(clip.duration) or 0)
+        for _, track in ipairs(clip.tracks or {}) do
+            local previousTime = nil
+            for _, key in ipairs(track.keys or {}) do
+                local keyTime = tonumber(key.time)
+                if previousTime and keyTime and keyTime > previousTime then
+                    local inferredRate = math.floor((1 / (keyTime - previousTime)) + 0.5)
+                    sampleRate = math.max(sampleRate, math.min(120, inferredRate))
+                end
+                previousTime = keyTime
+            end
+        end
+    end
+    -- Bound explicitly requested export work as well: very long clips lower their sampling rate
+    -- instead of producing an unbounded JSON/FBX. Ordinary 24/30/60 FPS clips retain their source
+    -- cadence (up to 120 FPS), while a single clip remains capped at roughly 10k samples.
+    if maxDuration > 0 and maxDuration * sampleRate > 10000 then
+        sampleRate = math.max(1, math.floor(10000 / maxDuration))
+    end
+    f:write(string.format('  "animations": { "sampleRate": %d, "clips": [\n', sampleRate))
+    for clipIndex, clip in ipairs(animations) do
+        local duration = math.max(0, tonumber(clip.duration) or 0)
+        local sampleCount = math.ceil(duration * sampleRate)
+        f:write(string.format('    { "name": %s, "duration": %.9g, "loop": %s, "samples": [\n',
+            jsonStr(clip.name), duration, clip.loop and 'true' or 'false'))
+        for sampleIndex = 0, sampleCount do
+            local time = math.min(duration, sampleIndex / sampleRate)
+            local okPose, pose = dpCall(function()
+                return meshD:evaluateSkeletalAuthoringPose(clipIndex, time, 'lbs')
+            end)
+            if not okPose or type(pose) ~= 'table' or type(pose.bones) ~= 'table' or
+                    #pose.bones ~= nBones then
+                return abortWrite(string.format(tLang.L('bones_export_animation_sample_failed_fmt'),
+                    tostring(clip.name or clipIndex), time, tostring(pose)))
+            end
+            f:write(string.format('      { "time": %.9g, "globalMatrices": [', time))
+            for boneIndex, bone in ipairs(pose.bones) do
+                local matrix = bone.globalMatrix or {}
+                if #matrix ~= 16 then
+                    return abortWrite(string.format(tLang.L('bones_export_animation_sample_failed_fmt'),
+                        tostring(clip.name or clipIndex), time, 'invalid global matrix'))
+                end
+                local matrixValues = {}
+                for m = 1, 16 do matrixValues[m] = string.format('%.9g', matrix[m] or 0) end
+                f:write('[' .. table.concat(matrixValues, ', ') .. ']')
+                if boneIndex < nBones then f:write(', ') end
+            end
+            f:write('] }')
+            f:write(sampleIndex < sampleCount and ',\n' or '\n')
+        end
+        f:write('    ] }')
+        f:write(clipIndex < #animations and ',\n' or '\n')
+    end
+    f:write('  ] },\n  "mesh": {\n    "vertices": [\n')
 
     -- Canonical type-42 weights ride along on each vertex so Blender can restore the authored
     -- groups exactly. The API uses the same global, frame-wide, one-based vertex order written
