@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.103**
-Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Document version: **8.107**
+Status: **Closed - five skeletal workflows, canonical local/imported authoring, Paint Weights, and runtime LBS/DQS preview are implemented and accepted on the delivered backends**
 Last updated: **2026-08-19**
 
 ## 1. Purpose
@@ -85,8 +85,8 @@ the Animation node and the same concepts already familiar from articulated anima
 ### Local skeleton and local animation
 
 The user starts from a mesh, creates a hierarchy and bind pose, authors weights in Paint Weights,
-creates clips, and validates them locally. This is a required eventual capability, but follows the
-first milestone that validates imported/existing skeletons.
+creates clips, and validates them locally. This workflow is implemented; imported/existing skeleton
+validation remains the preferred starting point when trustworthy source data already exists.
 
 ### Mixamo round-trip
 
@@ -276,10 +276,11 @@ The editor must consume them rather than infer runtime meaning from Mesh Debug f
   invalid diagnostics;
 - bind/pose checks use the centralized numerical policy and report the worst observed error.
 
-The remaining persistence/import gates are: embedded versus referenced resources, exact new binary
-layout, FBX handedness conversion, FBX cluster-bind agreement, root motion/attachments/sharing, and
-transactional rename/remove/reparent behavior. None may be inferred from current name-based editor
-mutation behavior.
+The closure gates are delivered: canonical sections 41-43 have an exact versioned binary layout;
+FBX import/export applies the audited handedness and bind conversions; stable-ID root motion,
+attachments/direct followers, and transactional rename/remove/reparent behavior are implemented.
+Persisted shared skeleton/clip resources and multi-mesh authoring remain optional future extensions,
+not missing prerequisites of the standalone editor.
 
 ## 11. Delivery milestones
 
@@ -306,14 +307,15 @@ permanent legacy API or reader.
 
 - Add the canonical skeleton/weight readers and FBX import conversion required by the permanent
   editor data path. Do not build the shell around the temporary Mesh Debug bone representation.
-- Introduce the six-worktree navigation defined in Section 2 and enforce mutual exclusion.
-- Move the accepted Skin Weight Lab GUI/state into its node without behavior regression.
+- Introduce the five-worktree navigation defined in Section 2 and enforce mutual exclusion.
+- Move the accepted weight-authoring behavior into Paint Weights without regression; the former
+  Skin Weight Lab worktree is retired.
 - Establish shared asset, viewport, camera, selection, status, and modified-state services.
 - Show unavailable nodes with capability explanations while their data/runtime support is absent.
 - Keep mesh visibility shared. Scope skeleton visualization by worktree and gate every selection
-  volume, analyzed marker, heatmap, diagnostic overlay, and weight operation to Skin Weight Lab.
+  volume, analyzed marker, heatmap, diagnostic overlay, and weight operation to Paint Weights.
 
-Exit: all accepted Skin Weight Lab tests still pass inside the new navigation.
+Exit: accepted weight-authoring tests pass inside the five-worktree navigation.
 
 ### Milestone 2 — Skeleton inspection and bind validation
 
@@ -378,9 +380,9 @@ Exit: a clip can be authored, saved, reopened, and sampled deterministically ins
 ### Milestone 7 — Shared LBS/DQS preview
 
 - Preview clips with the shared runtime pose evaluator and deformation implementation.
-- The first GLES2 LBS slice is implemented in the existing Skin Weight Lab preview: canonical clip
-  selection, play/restart, pause/resume, and bounded seek call the runtime `mesh` player directly.
-  It deliberately adds no tracks, keyframes, or timeline and leaves the bind diagnostic gizmo static.
+- The initial GLES2 LBS slice was delivered in the former Skin Weight Lab preview. Its canonical
+  clip selection, play/restart, pause/resume, and bounded seek now live in Runtime Skeletal Preview
+  and call the runtime `mesh` player directly.
 - Bind-pose restoration now stops the player instead of assuming the clip's zero-time pose is bind.
 - LBS/rigid-DQS choice is exposed by rebuilding the preview with the selected method before load;
   the panel reports that method's preparation status, required bones, and measured per-draw capacity.
@@ -389,30 +391,36 @@ Exit: a clip can be authored, saved, reopened, and sampled deterministically ins
   one-time resolution reason; explicit DQS remains available for strict validation.
 - Backend-neutral capability reporting is shared by the delivered OpenGL ES, DirectX 9, and Metal runtime
   paths. The editor follows the backend selected for the engine build rather than switching
-  renderers at runtime. Metal numeric parity coverage remains separate follow-up work.
-- Windows/DirectX 9 manual reference (2026-08-19): the tested mesh requires 88 bones per draw,
-  while that device reports capacity for 82 LBS bones. Explicit LBS/GPU is therefore unavailable
-  and Auto execution correctly falls back to CPU without changing the resolved skinning method.
-  The same 88-bone mesh fits the larger DQS palette and runs on the GPU. After visually validating
-  every relevant clip, an application may explicitly select DQS while leaving execution on Auto;
-  this preserves DQS and lets the runtime choose GPU when supported or rigid-DQS CPU otherwise.
+  renderers at runtime. Encoded Metal readback parity remains useful runtime-plan follow-up
+  coverage, but is not an editor closure gate after production-path Metal validation.
+- Windows/DirectX 9 manual reference (2026-08-19): the tested 12,216-vertex mesh requires 88 bones
+  per draw. The device reports LBS 88/82 (4,224 palette bytes) and DQS 88/124 (2,816 palette bytes).
+  The shared GPU input status is `ready` because DQS fits; it does not mean that both methods fit.
+  Explicit LBS/GPU is unavailable and Auto execution correctly falls back to CPU without changing
+  the resolved skinning method, while DQS runs on the GPU. After visually validating every relevant
+  clip, an application may explicitly select DQS while leaving execution on Auto; this preserves
+  DQS and lets the runtime choose GPU when supported or rigid-DQS CPU otherwise.
 - Windows/OpenGL ES manual reference on the same device and mesh (2026-08-19): the active
-  OpenGL ES/ANGLE context reports capacity for 1362 LBS bones per draw, so the required 88-bone
-  LBS palette fits and resolves to GPU execution. This value is a runtime measurement from that
-  backend/driver, not a portable Windows limit; capability must still be queried on each target.
+  OpenGL ES 3.0/ANGLE context reports LBS 88/1024 (4,224 palette bytes) and DQS 88/1024
+  (2,816 palette bytes), so either palette fits and LBS resolves to GPU execution. The effective
+  1024 value includes the engine's current per-draw safety ceiling over the backend/driver
+  measurement; capability must still be queried on each target.
 - Side-by-side pose-stress comparison is now available with synchronized runtime LBS/DQS instances,
   mirrored playback/seek/bind restoration, separate readiness reporting, and automatic reframing.
-- The first numeric parity gate now compares two-bone LBS/DQS shader output with the CPU references
-  through GLES2-compatible RGBA8 readback. The harness now consumes the same private deformation
-  source generator as the production default shader. A real-asset subset is still required before
-  declaring this milestone complete.
-- Eight stable mixed-influence vertices from the Lorekeeper now pass CPU/GPU LBS and DQS position/
-  normal comparison at a fixed authored clip time. Remaining Milestone-7 work is final acceptance
-  review and any richer overlay/heat-map UX, not basic numeric or side-by-side runtime parity.
+- The first numeric parity gate compares two-bone LBS/DQS shader output with the CPU references
+  through GLES2-compatible RGBA8 readback. The harness consumes the same private deformation
+  source generator as the production default shader.
+- Eight stable mixed-influence vertices from the Lorekeeper pass CPU/GPU LBS and DQS position/
+  normal comparison at a fixed authored clip time. Manual Windows acceptance also confirms LBS and
+  DQS through GPU and CPU execution on both DirectX 9 and OpenGL ES/ANGLE. Milestone 7 is closed;
+  richer overlay/heat-map UX is optional refinement rather than missing parity work.
 
 Exit: editor and runtime produce matching reference vertices/normals for the same clip and time.
 
 ### Milestone 8 — Mesh Debug migration
+
+This milestone is complete. The bullets below retain the delivery sequence; statements about
+temporary consumers or deletion gates describe intermediate slices superseded by later bullets.
 
 - Retain or relocate only genuinely mesh-debug/interchange operations.
 - Remove duplicated Skeleton/weight authoring after the new workflows reach parity and fixtures pass.
@@ -474,12 +482,12 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    the same transaction, normalization, Undo, and save/reload guarantees. **Implemented:** it
    reduces existing selected-bone influence, redistributes through normalization, ignores zero
    influence, and preserves a sole rigid influence rather than inventing a replacement bone.
-5. Only after both brush directions are stable, migrate selected Skin Weight Lab operations into
-   **Weight Tools** and **Repair / Diagnostics**. A later **Influence Distribution** view may report
-   dominant-weight concentration, active influence count, and weak-weight contamination, but must
-   not label a deformation good or bad without pose-stress evidence.
+5. After both brush directions stabilized, migrate selected Skin Weight Lab operations into
+   **Weight Tools** and **Repair / Diagnostics**. The delivered **Influence Distribution** view
+   reports dominant-weight concentration, active influence count, and weak-weight contamination,
+   but does not label a deformation good or bad without pose-stress evidence.
 
-   **Started:** Weight Tools now includes whole-mesh Clean Weak Influences with a configurable
+   **Delivered:** Weight Tools includes whole-mesh Clean Weak Influences with a configurable
    threshold, strongest-influence preservation, deterministic normalization, one atomic batch, and
    one Undo entry. Normalize All and Limit Four are not duplicated because canonical type-42
    validation already enforces both invariants.
@@ -506,14 +514,15 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    an unbounded single repair. One atomic batch plus Undo entry reports edge counts before and after.
 
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
-contract, undoable per stroke, and persistent across save/reload.
+contract, undoable per stroke, and persistent across save/reload. **Accepted.**
 
-Current delivery: items 1 and 4 plus the transaction core of items 2-3 are implemented. Paint/Add,
+Delivered: items 1-4 and their shared transaction contract are implemented. Paint/Add,
 Erase/Subtract, and selected-bone Smooth use a
 cached vertex BVH, bounded quarter-radius interpolation between ordinary surface hits, local per-stroke accumulation,
 deterministic four-influence normalization, one atomic batch on release, one Undo snapshot, and Esc
-cancellation. Interactive deformation quality remains; save/reload acceptance is closed by an
-executable atomic-batch round-trip that verifies complete four-slot and two-slot edited records.
+cancellation. Save/reload acceptance is closed by an executable atomic-batch round-trip that
+verifies complete four-slot and two-slot edited records; artistic deformation quality remains an
+asset-specific authoring judgment rather than unfinished editor behavior.
 
 ## 12. Validation fixtures and acceptance
 
@@ -560,11 +569,18 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
 - corrective blend shapes and muscle simulation;
 - claiming all FBX animation features are supported before measured import coverage exists.
 
-## 15. Open decisions
+## 15. Resolved decisions and deferred extensions
 
-1. Embedded versus referenced skeleton and clip resources and their exact binary section layout.
-2. First supported FBX animation-import scope after handedness and cluster-bind validation.
-3. Persisted multi-mesh authoring semantics beyond transient runtime followers.
+The initial editor decisions are closed. Canonical skeletons, weights, and clips use embedded
+versioned sections 41-43; FBX skeletal import/export has a measured handedness/bind contract;
+compact LBS accepts its supported scale contract while rigid DQS reports incompatible scale;
+canonical pose/easing services are shared below the editor; rename/remove/reparent and Undo operate
+transactionally across skeleton, weights, and clips; and useful armature/interchange work remains
+separate from the canonical editor surface.
+
+The following extensions are intentionally deferred and do not block this plan:
+
+1. Persisted multi-mesh authoring semantics beyond transient runtime followers.
    Multiple roots are resolved: every `parentIndex = -1` canonical bone is an independent hierarchy
    root for bind, sampled global pose evaluation, Absolute/Additive composition, LBS/DQS palette
    generation, and named-root-motion neutralization. Root motion and attachment copy-outs operate on
@@ -574,24 +590,33 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
    either side reload/release/destruction. Runtime Skeletal Preview can load multiple transient
    direct followers against the same primary pose. Shared skeleton/clip assets, source advancement
    ordering outside the current per-frame runtime contract, persistence, and authoring workflows
-   remain open.
-4. Whether initial LBS accepts non-uniform scale before the final normal-transform path exists.
-5. Exact shared service boundary with articulated-animation easing/player code.
-6. Transactional rename/remove/reparent remapping and snapshot/undo scope across skeleton, weights,
-   and clips.
-7. Template versioning and compatibility with existing armature Lua files.
-8. Which Mesh Debug interchange controls remain after migration.
+   remain deferred.
+2. Richer multi-layer queues, priorities, serialization, and non-linear-animation policy beyond the
+   delivered transient Absolute/Additive layer and stable-ID per-bone mask.
+3. Renderer modernization and Velocity Skinning tracked by the Real-Time Skinning Animation Plan.
+4. Additional Metal encoded/readback numeric parity coverage beyond delivered production-path
+   validation.
 
-## 16. Handoff readiness
+## 16. Closure
 
-Milestone 0 and the exclusive worktree shell are implemented. Skeleton mutation and clip persistence must
-not outrun the data/correctness gates in Section 10. Each later milestone requires an executable
-verification plan tied to both synthetic fixtures and the alien rat.
+This editor plan is closed. All ten delivery milestones (0-9) have implementation evidence, canonical
+data/correctness coverage, and real-asset validation. Windows manual acceptance confirms both LBS
+and DQS with GPU and CPU execution on DirectX 9 and OpenGL ES/ANGLE; macOS Metal production-path
+validation is recorded in the companion runtime plan. Deferred items in Section 15 are independent
+future features and should begin in a new versioned plan rather than reopening this delivery.
+
+Closure audit limitation: the Windows `libTest --skeletal-foundation-tests` target compiles cleanly,
+but its fixture paths are hard-coded under POSIX `/tmp`. On Windows they resolve to `C:\tmp`, so the
+suite fails at fixture creation before exercising the assertions unless that external directory is
+prepared. Making the harness use the platform temporary directory is separate test-infrastructure
+work; these fixture-write failures are not treated as runtime LBS/DQS failures or as passed tests.
 
 ## 17. Change log
 
 | Version | Date | Change |
 |---|---|---|
+| 8.107 | 2026-08-19 | Closed the plan after a code/document audit and manual Windows acceptance. Corrected stale six-worktree/Skin Weight Lab language, closed Milestone 7 with LBS/DQS GPU/CPU validation on DirectX 9 and OpenGL ES/ANGLE, marked Paint Weights and Mesh Debug migration accepted, replaced already-resolved open decisions with explicit future extensions, and moved remaining renderer/Metal-readback work outside the editor closure gate. The Windows foundation harness compiled cleanly but exposed a separate portability issue: hard-coded `/tmp` fixture paths fail before assertions on Windows. |
+| 8.106 | 2026-08-19 | Revalidated the Windows reference after the cross-backend 1024-bone safety ceiling. DirectX 9 reports LBS 88/82 and DQS 88/124 for the 12,216-vertex mesh, with shared input `ready` because DQS fits; OpenGL ES 3.0/ANGLE reports both methods as 88/1024, so LBS runs on GPU. Recorded the matching 4,224-byte LBS and 2,816-byte DQS palettes. |
 | 8.105 | 2026-08-19 | Added the matching Windows/OpenGL ES result for the 88-bone reference mesh: the active OpenGL ES/ANGLE context reports an LBS capacity of 1362 bones per draw, so LBS executes on GPU. The measured value is backend/driver-specific rather than a portable Windows guarantee. |
 | 8.104 | 2026-08-19 | Recorded the Windows/DirectX 9 manual reference case for plan closeout: an 88-bone mesh exceeds the measured 82-bone LBS per-draw capacity and falls back to CPU under Auto execution, while the same mesh fits DQS on GPU. Explicit DQS plus Auto execution is an application option after visual validation of every relevant clip. |
 | 8.103 | 2026-08-19 | Runtime Skeletal Preview no longer labels CPU as LBS-only. The explicit CPU path supports resolved LBS or rigid DQS when the loaded runtime report is ready, and GPU/CPU comparison uses the selected resolved method on both sides when safe while preserving GPU-only LBS/DQS pose-stress comparison. |
