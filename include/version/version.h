@@ -506,6 +506,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
     7.124.1 Fixed Runtime Skeletal Preview GPU/CPU comparison forcing LBS after CPU DQS support was added. Comparison now preserves the selected Auto/LBS/DQS method, resolves Auto once on the GPU instance, and loads the CPU instance with that same resolved method, so high-bone-count rigid meshes can compare DQS GPU against DQS CPU instead of producing an unavailable invisible LBS GPU side.
+    7.124.2 Replaced misleading GPU skeletal capacity diagnostics with actual usage/limit and per-draw palette byte cost for the loaded mesh. A real engine-wide operational ceiling of 1024 bones per draw bounds otherwise impractical Metal maxBufferLength-derived results; stricter measured OpenGL ES and DirectX 9 limits remain authoritative.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -531,7 +532,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.124.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.124.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

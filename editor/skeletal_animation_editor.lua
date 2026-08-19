@@ -3235,6 +3235,13 @@ local function showSkeletalPreviewControls()
             (lbsReport.resolvedMethod or 'unknown'):upper()))
         showItemTooltip(string.format(tLang.L('swl_skinning_reason_fmt'),
             lbsReport.resolutionReason or 'unknown'))
+        local requiredBoneCount=lbsReport.requiredBoneCount or 0
+        local resolvedMethod=lbsReport.resolvedMethod or 'unknown'
+        local paletteBytesPerBone=resolvedMethod=='dqs' and 32 or 48
+        tImGui.TextWrapped(string.format(tLang.L('swl_palette_usage_fmt'),
+            resolvedMethod:upper(),requiredBoneCount,paletteBytesPerBone,
+            requiredBoneCount*paletteBytesPerBone))
+        showItemTooltip(tLang.L('swl_palette_usage_note'))
     end
     local executions={tLang.L('swl_execution_auto'),tLang.L('swl_execution_gpu'),tLang.L('swl_execution_cpu')}
     tImGui.BeginDisabled(swlHasRuntimeComparison())

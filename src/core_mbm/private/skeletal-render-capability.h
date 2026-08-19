@@ -27,6 +27,7 @@ namespace mbm::skeletal
     constexpr uint32_t GPU_LBS_VECTORS_PER_BONE = 3;
     constexpr uint32_t GPU_DQS_VECTORS_PER_BONE = 2;
     constexpr uint32_t GPU_SKELETAL_VERTEX_ATTRIBUTES = 5;
+    constexpr uint32_t GPU_MAX_BONES_PER_DRAW = 1024;
 
     struct SKINNING_CAPABILITY
     {

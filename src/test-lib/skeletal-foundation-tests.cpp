@@ -1780,6 +1780,11 @@ namespace
         const SKINNING_CAPABILITY unavailable = calculateSkinningCapability(0, 0);
         expect(!unavailable.measured && unavailable.lbsMatrixPaletteBones == 0,
                "zero GPU capability results must remain unmeasured rather than claiming support");
+        const SKINNING_CAPABILITY oversizedTransport =
+            calculateSkinningCapability(UINT32_MAX, 31);
+        expect(oversizedTransport.lbsMatrixPaletteBones == GPU_MAX_BONES_PER_DRAW &&
+                   oversizedTransport.dqsRigidPaletteBones == GPU_MAX_BONES_PER_DRAW,
+               "GPU skinning capability must enforce the operational per-draw bone ceiling");
     }
 
     void testGles2LbsInputPreparation()

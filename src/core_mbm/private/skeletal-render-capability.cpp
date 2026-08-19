@@ -18,6 +18,7 @@
 
 #include "skeletal-render-capability.h"
 
+#include <algorithm>
 #include <mutex>
 
 namespace mbm::skeletal
@@ -40,8 +41,10 @@ namespace mbm::skeletal
             result.hasRequiredVertexAttributes)
         {
             const uint32_t available = maxVertexShaderVectors - result.reservedVertexShaderVectors;
-            result.lbsMatrixPaletteBones = available / GPU_LBS_VECTORS_PER_BONE;
-            result.dqsRigidPaletteBones = available / GPU_DQS_VECTORS_PER_BONE;
+            result.lbsMatrixPaletteBones = std::min(
+                available / GPU_LBS_VECTORS_PER_BONE, GPU_MAX_BONES_PER_DRAW);
+            result.dqsRigidPaletteBones = std::min(
+                available / GPU_DQS_VECTORS_PER_BONE, GPU_MAX_BONES_PER_DRAW);
         }
         return result;
     }

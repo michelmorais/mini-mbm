@@ -10286,10 +10286,18 @@ namespace mbm
                 skeletal::getMeasuredSkinningCapability();
             const skeletal::GPU_SKINNING_PREPARATION_STATUS status = skeletal::prepareGpuSkinningInput(
                 impl->canonicalSkeleton, impl->canonicalWeights, capability, impl->gpuSkinningInput);
-            INFO_LOG("GPU skeletal input: status=%s bones=%u lbs-capacity=%u dqs-capacity=%u vertices=%u [%s]",
-                     skeletal::gpuSkinningPreparationStatusName(status), impl->gpuSkinningInput.requiredBoneCount,
-                     impl->gpuSkinningInput.lbsBoneCapacity, impl->gpuSkinningInput.dqsBoneCapacity,
-                     static_cast<uint32_t>(impl->gpuSkinningInput.vertices.size()), fileNamePath);
+            const uint64_t lbsPaletteBytes =
+                static_cast<uint64_t>(impl->gpuSkinningInput.requiredBoneCount) * 3u * 4u * sizeof(float);
+            const uint64_t dqsPaletteBytes =
+                static_cast<uint64_t>(impl->gpuSkinningInput.requiredBoneCount) * 2u * 4u * sizeof(float);
+            INFO_LOG("GPU skeletal input: status=%s vertices=%u lbs-bones=%u/%u "
+                     "lbs-palette-bytes=%llu dqs-bones=%u/%u dqs-palette-bytes=%llu [%s]",
+                     skeletal::gpuSkinningPreparationStatusName(status),
+                     static_cast<uint32_t>(impl->gpuSkinningInput.vertices.size()),
+                     impl->gpuSkinningInput.requiredBoneCount, impl->gpuSkinningInput.lbsBoneCapacity,
+                     static_cast<unsigned long long>(lbsPaletteBytes),
+                     impl->gpuSkinningInput.requiredBoneCount, impl->gpuSkinningInput.dqsBoneCapacity,
+                     static_cast<unsigned long long>(dqsPaletteBytes), fileNamePath);
         }
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;

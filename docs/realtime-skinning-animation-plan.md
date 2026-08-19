@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.115**
+Document version: **9.116**
 Status: **Canonical import, OpenGL ES, DirectX 9, and Metal runtime GPU LBS/DQS plus explicit/Auto CPU LBS/DQS fallback, local animation, Paint Weights, transient composition, and per-bone layer masks implemented; modern non-Metal backends and Velocity Skinning pending**
 Last updated: **2026-08-19**
 
@@ -638,9 +638,10 @@ mutate assets, evaluate clips, or deform vertices.
 - The Metal palette uses vertex-buffer slot 19, outside the reserved lighting range 4-18. Metal API
   validation caught and verified the fix for the original slot-4 collision, where `LightEnabled`
   replaced the palette with four bytes and visibly distorted every canonical skeletal mesh.
-- Metal capability reporting derives palette capacity from the device's maximum buffer length
-  rather than legacy shader-uniform limits. This is a hard transport ceiling, not a claim that a
-  skeleton near that size has acceptable allocation cost or frame performance. The current safe
+- Metal capability reporting derives transport capacity from the device's maximum buffer length
+  rather than legacy shader-uniform limits, then applies Mini MBM's operational ceiling of 1,024
+  bones per draw to both LBS and DQS. This is an enforced engine limit rather than a claim that the
+  complete device buffer should be consumed by one skeleton. The current safe
   implementation creates a shared per-draw palette buffer; a measured frame-ring allocator is a
   possible optimization, not part of the public contract. A five-second Apple M4 production-path smoke animated
   the committed 23-bone Lorekeeper fixture successfully under both LBS and rigid DQS.
@@ -887,6 +888,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.116 | 2026-08-19 | Replaced misleading skeletal capacity diagnostics with actual bone usage/limit and LBS/DQS palette byte cost required by the loaded mesh. An enforced engine-wide ceiling of 1,024 bones per draw bounds otherwise impractical Metal `maxBufferLength` results, while stricter measured OpenGL ES and DirectX 9 limits remain authoritative. Terminal and Runtime Preview now report the useful values together. |
 | 9.112 | 2026-08-19 | Extended the editor-facing runtime pose-sharing slice from one wearable preview to an ordered transient collection of direct followers sharing the same primary evaluated pose. This uses the existing one-source-to-many runtime contract without C++ changes; incompatible entries stay disabled with compatibility/status reporting, and loaded followers keep independent visibility/removal while remaining separate from LBS/DQS comparison and persistence. |
 | 9.111 | 2026-08-18 | Added the first real multi-mesh skeletal pose-sharing slice. A compatible loaded direct follower can render with a compatible source mesh's already-evaluated private palette while retaining its own geometry, textures, transform, and weights. Lua exposes enable/disable/query; enabling rejects self, unloaded, incompatible, method-mismatched, and chained relationships without changing existing state. Links are cleared on source or follower reload/release/destruction, inactive sources fall back to non-shared rendering, and no CPU vertex deformation path was added. |
 | 9.110 | 2026-08-18 | Added a read-only compatibility preflight for future multi-mesh evaluated-pose/palette sharing. It requires matching ordered canonical bone identity, hierarchy, and scale-aware local/global bind transforms while deliberately ignoring clips, weights, geometry, and `skeletonId`; no pose state is shared yet. |
