@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.99**
+Document version: **8.100**
 Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, and per-bone layer masks implemented**
 Last updated: **2026-08-18**
 
@@ -554,11 +554,15 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
 
 1. Embedded versus referenced skeleton and clip resources and their exact binary section layout.
 2. First supported FBX animation-import scope after handedness and cluster-bind validation.
-3. Multi-mesh skeleton-sharing semantics and resource ownership.
+3. Multi-mesh skeleton-sharing semantics beyond the first runtime follower slice.
    Multiple roots are resolved: every `parentIndex = -1` canonical bone is an independent hierarchy
    root for bind, sampled global pose evaluation, Absolute/Additive composition, LBS/DQS palette
    generation, and named-root-motion neutralization. Root motion and attachment copy-outs operate on
-   named bones in the evaluated per-instance pose. Multi-mesh sharing remains open.
+   named bones in the evaluated per-instance pose. Runtime `MESH` instances can now opt a compatible
+   loaded follower into using a compatible source's already-evaluated palette, with no source
+   ownership transfer, no palette copy, no CPU vertex deformation fallback, and automatic unlink on
+   either side reload/release/destruction. Editor UI, shared skeleton/clip assets, source advancement
+   ordering, and authoring workflows remain open.
 4. Whether initial LBS accepts non-uniform scale before the final normal-transform path exists.
 5. Exact shared service boundary with articulated-animation easing/player code.
 6. Transactional rename/remove/reparent remapping and snapshot/undo scope across skeleton, weights,
@@ -576,6 +580,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.100 | 2026-08-18 | Narrowed the remaining multi-mesh ownership question after the first runtime pose-sharing slice. Compatible loaded direct followers may borrow a source instance's already-evaluated private palette while preserving their own geometry and weights; links are non-owning, reject chains, and unlink on release/reload/destruction. Editor UI and shared authoring resources remain open. |
 | 8.99 | 2026-08-18 | Closed the multiple-root semantics gap for runtime/editor planning. Parentless canonical bones remain independent `parentIndex = -1` roots through bind, sampling, composition, LBS/DQS palette order, and named root-motion neutralization, with deterministic multi-root foundation coverage. Multi-mesh skeleton sharing stays open. |
 | 8.98 | 2026-08-18 | Extended automatic skeletal root motion with an optional rotation mode. Lua keeps translation-only behavior by default through `enableAutomaticSkeletalRootMotion(boneName, applyRotation?)`; when enabled, continuous updates apply normalized-quaternion rotation deltas to the renderizable angle and neutralize the selected bone's local rotation to bind in the final pose, while discontinuities and loop wraps still suppress teleport motion. |
 | 8.97 | 2026-08-18 | Added automatic translation-only root motion for runtime mesh instances. Lua can enable, disable, and query a named canonical bone; each continuous advancing update applies the raw bone translation delta to the mesh position in world space, neutralizes that bone's local translation in the final rendered pose, preserves non-consuming raw-delta queries, and treats play/seek/stop/pause/loop wrap/authoring palettes as discontinuities. |

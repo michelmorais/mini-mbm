@@ -24,15 +24,23 @@
 #include <file-util.h>
 #include <core_mbm/scene.h>
 
+#include <algorithm>
+#include <vector>
 
 namespace mbm
 {
+    struct MESH::SKELETAL_POSE_SHARING_STATE
+    {
+        MESH *source = nullptr;
+        std::vector<MESH *> followers;
+    };
 
     MESH::MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_MESH, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->setIndexAnimation(0);
         this->mesh                  = nullptr;
+        this->skeletalPoseSharingState = new SKELETAL_POSE_SHARING_STATE();
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
@@ -42,10 +50,14 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeRenderizable(this);
         this->release();
+        delete this->skeletalPoseSharingState;
+        this->skeletalPoseSharingState = nullptr;
     }
     
     void MESH::release()
     {
+        this->detachSkeletalPoseSharingSource();
+        this->detachSkeletalPoseSharingFollowers();
         this->releaseAnimation();
         this->setIndexAnimation(0);
         this->mesh                  = nullptr;
@@ -428,6 +440,103 @@ namespace mbm
         return mesh->getSkeletalSharingCompatibility(*other.mesh, out);
     }
 
+    bool MESH::enableSkeletalPoseSharing(MESH &source) noexcept
+    {
+        if (&source == this || !mesh || !source.mesh)
+            return false;
+        // This first slice is deliberately one level deep. A mesh cannot become a follower while
+        // other meshes follow it, and a follower cannot be used as another source.
+        if (!skeletalPoseSharingState->followers.empty() ||
+            source.skeletalPoseSharingState->source)
+            return false;
+        SKELETAL_SHARING_COMPATIBILITY report;
+        if (!mesh->getSkeletalSharingCompatibility(*source.mesh, report) || !report.compatible)
+            return false;
+        if (getResolvedSkeletalSkinningMethod() != source.getResolvedSkeletalSkinningMethod())
+            return false;
+        if (skeletalPoseSharingState->source == &source)
+            return true;
+        detachSkeletalPoseSharingSource();
+        skeletalPoseSharingState->source = &source;
+        source.skeletalPoseSharingState->followers.push_back(this);
+        return true;
+    }
+
+    bool MESH::disableSkeletalPoseSharing() noexcept
+    {
+        detachSkeletalPoseSharingSource();
+        return true;
+    }
+
+    bool MESH::getSkeletalPoseSharing(const MESH **source, bool *active,
+                                      const char **reason) const noexcept
+    {
+        if (source)
+            *source = skeletalPoseSharingState->source;
+        const bool sharingActive = canUseSkeletalPoseSharing(reason);
+        if (active)
+            *active = sharingActive;
+        return skeletalPoseSharingState->source != nullptr;
+    }
+
+    bool MESH::canUseSkeletalPoseSharing(const char **reason) const noexcept
+    {
+        MESH *source = skeletalPoseSharingState->source;
+        if (!source)
+        {
+            if (reason) *reason = "disabled";
+            return false;
+        }
+        if (!mesh)
+        {
+            if (reason) *reason = "not_loaded";
+            return false;
+        }
+        if (!source->mesh)
+        {
+            if (reason) *reason = "source_not_loaded";
+            return false;
+        }
+        SKELETAL_SHARING_COMPATIBILITY report;
+        if (!mesh->getSkeletalSharingCompatibility(*source->mesh, report) ||
+            !report.compatible)
+        {
+            if (reason) *reason = report.reason ? report.reason : "incompatible";
+            return false;
+        }
+        if (getResolvedSkeletalSkinningMethod() !=
+            source->getResolvedSkeletalSkinningMethod())
+        {
+            if (reason) *reason = "skinning_method_mismatch";
+            return false;
+        }
+        if (!source->mesh->hasSkeletalRenderPalette(source->getSkeletalAnimationPlayer()))
+        {
+            if (reason) *reason = "source_pose_inactive";
+            return false;
+        }
+        if (reason) *reason = "active";
+        return true;
+    }
+
+    void MESH::detachSkeletalPoseSharingSource() noexcept
+    {
+        MESH *source = skeletalPoseSharingState->source;
+        if (!source)
+            return;
+        auto &followers = source->skeletalPoseSharingState->followers;
+        followers.erase(std::remove(followers.begin(), followers.end(), this), followers.end());
+        skeletalPoseSharingState->source = nullptr;
+    }
+
+    void MESH::detachSkeletalPoseSharingFollowers() noexcept
+    {
+        for (MESH *follower : skeletalPoseSharingState->followers)
+            if (follower && follower->skeletalPoseSharingState->source == this)
+                follower->skeletalPoseSharingState->source = nullptr;
+        skeletalPoseSharingState->followers.clear();
+    }
+
     bool MESH::enableAutomaticSkeletalRootMotion(const char *boneName,
                                                  const bool applyRotation) noexcept
     {
@@ -473,10 +582,11 @@ namespace mbm
             anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
             this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
                                                      this, this->getOnEndAnimation());
-            const bool hasSkeletal = this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer());
-            if (hasSkeletal && !this->mesh->updateSkeletalAnimation(
-                    this->getSkeletalAnimationPlayer(), device->delta, this,
-                    this->getOnEndAnimation()))
+            const bool hasSharedSkeletal = this->canUseSkeletalPoseSharing(nullptr);
+            const bool hasSkeletal = hasSharedSkeletal ||
+                this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer());
+            if (!hasSharedSkeletal && hasSkeletal && !this->mesh->updateSkeletalAnimation(
+                    this->getSkeletalAnimationPlayer(), device->delta, this, this->getOnEndAnimation()))
                 return false;
             const VEC3 &position = this->getPosition();
             const VEC3 &angle = this->getAngle();
@@ -515,7 +625,9 @@ namespace mbm
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
             const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
             const bool rendered = hasSkeletal
-                ? this->mesh->renderSkeletal(this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader, this)
+                ? this->mesh->renderSkeletal(
+                    hasSharedSkeletal ? skeletalPoseSharingState->source->getSkeletalAnimationPlayer() :
+                    this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader, this)
                 : this->mesh->hasActiveArticulatedAnimations(this->getArticulatedAnimationPlayer())
                 ? this->mesh->renderArticulatedStatic(this->getArticulatedAnimationPlayer(), frameIndex, &fx.shader,
                                                       *viewMatrix, *perspectiveMatrix, this)
@@ -560,10 +672,12 @@ namespace mbm
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
                 this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
                                                          this, this->getOnEndAnimation());
-                if (this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer()))
+                const bool hasSharedSkeletal = this->canUseSkeletalPoseSharing(nullptr);
+                if (!hasSharedSkeletal &&
+                    this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer()))
                     this->mesh->updateSkeletalAnimation(this->getSkeletalAnimationPlayer(),
-                                                         device->delta, this,
-                                                         this->getOnEndAnimation());
+                                                        device->delta, this,
+                                                        this->getOnEndAnimation());
             }
             return ret;
         }

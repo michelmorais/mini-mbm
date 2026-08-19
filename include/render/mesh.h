@@ -109,6 +109,10 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
                                              VEC3 *translation) const noexcept;
     API_IMPL bool getSkeletalSharingCompatibility(const MESH &other,
                                                   SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
+    API_IMPL bool enableSkeletalPoseSharing(MESH &source) noexcept;
+    API_IMPL bool disableSkeletalPoseSharing() noexcept;
+    API_IMPL bool getSkeletalPoseSharing(const MESH **source, bool *active,
+                                         const char **reason) const noexcept;
     API_IMPL bool enableAutomaticSkeletalRootMotion(const char *boneName,
                                                     bool applyRotation = false) noexcept;
     API_IMPL bool disableAutomaticSkeletalRootMotion() noexcept;
@@ -124,13 +128,18 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
   private:
+    struct SKELETAL_POSE_SHARING_STATE;
     bool                     render() override;
     bool                     onRestoreDevice() override;
     bool                     isOnFrustum() override;
     const mbm::INFO_PHYSICS *getInfoPhysics() const override;
     const MESH_MBM *         getMesh() const override;
     bool                     isLoaded() const override;
+    bool                     canUseSkeletalPoseSharing(const char **reason) const noexcept;
+    void                     detachSkeletalPoseSharingSource() noexcept;
+    void                     detachSkeletalPoseSharingFollowers() noexcept;
     MESH_MBM *               mesh;
+    SKELETAL_POSE_SHARING_STATE *skeletalPoseSharingState;
     };
 }
 

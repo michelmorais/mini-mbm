@@ -8729,6 +8729,11 @@ namespace mbm
             std::isfinite(translation->z);
     }
 
+    bool MESH_MBM::hasSkeletalRenderPalette(const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->active && !player.impl->paletteRows.empty();
+    }
+
     namespace
     {
         VEC3 transformSkeletalMotionDeltaToOwnerSpace(const RENDERIZABLE &owner,

@@ -775,6 +775,7 @@ namespace mbm
                                         uint64_t *boneId, VEC3 *translation) const noexcept;
         bool getSkeletalSharingCompatibility(const MESH_MBM &other,
                                              SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
+        bool hasSkeletalRenderPalette(const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool enableAutomaticSkeletalRootMotion(SKELETAL_ANIMATION_PLAYER &player,
                                                const char *boneName,
                                                bool applyRotation = false) const noexcept;

@@ -154,8 +154,11 @@ The canonical type-41 reader stores its source records plus compiled hierarchy e
 `MESH_MBM::Impl` or `MESH_MBM_DEBUG::Impl`. Runtime and debug parse paths share validation, while no
 mutable canonical storage or lookup container is exposed through the public header.
 The skeletal-sharing compatibility report follows the same boundary: runtime and debug meshes expose
-only a narrow copy-out report over `Impl`-owned canonical skeletons, with no pose/palette sharing and
-no public access to vectors, maps, mutable bind data, or backend handles.
+only a narrow copy-out report over `Impl`-owned canonical skeletons. The first runtime pose-sharing
+slice keeps the follower/source relationship on `MESH` renderizables and borrows only the source
+instance's existing private `SKELETAL_ANIMATION_PLAYER::Impl` palette during draw; no palette vector,
+mutable bind data, lookup map, cached asset state, or backend handle is exposed or retained across
+the shader call.
 The type-42 reader follows the same boundary: its stable-ID palette and per-vertex four-influence
 records remain `Impl`-owned and are validated against the compiled type-41 skeleton and frame-1
 topology before being retained.

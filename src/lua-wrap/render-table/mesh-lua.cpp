@@ -729,6 +729,43 @@ namespace mbm
         return 1;
     }
 
+    int onEnableSkeletalPoseSharingLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        MESH *source = getMeshFromRawTable(lua, 1, 2);
+        lua_pushboolean(lua, mesh->enableSkeletalPoseSharing(*source) ? 1 : 0);
+        return 1;
+    }
+
+    int onDisableSkeletalPoseSharingLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->disableSkeletalPoseSharing() ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalPoseSharingLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const MESH *source = nullptr;
+        bool active = false;
+        const char *reason = "disabled";
+        const bool enabled = mesh->getSkeletalPoseSharing(&source, &active, &reason);
+        lua_createtable(lua, 0, 4);
+        lua_pushboolean(lua, enabled ? 1 : 0);
+        lua_setfield(lua, -2, "enabled");
+        lua_pushboolean(lua, active ? 1 : 0);
+        lua_setfield(lua, -2, "active");
+        lua_pushstring(lua, reason ? reason : "disabled");
+        lua_setfield(lua, -2, "reason");
+        if (source && source->getFileName())
+        {
+            lua_pushstring(lua, source->getFileName());
+            lua_setfield(lua, -2, "sourceFile");
+        }
+        return 1;
+    }
+
     int onEnableAutomaticSkeletalRootMotionLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -868,6 +905,9 @@ namespace mbm
                                                      {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
                                                      {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
                                                      {"getSkeletalSharingCompatibility", onGetSkeletalSharingCompatibilityLua},
+                                                     {"enableSkeletalPoseSharing", onEnableSkeletalPoseSharingLua},
+                                                     {"disableSkeletalPoseSharing", onDisableSkeletalPoseSharingLua},
+                                                     {"getSkeletalPoseSharing", onGetSkeletalPoseSharingLua},
                                                      {"enableAutomaticSkeletalRootMotion", onEnableAutomaticSkeletalRootMotionLua},
                                                      {"disableAutomaticSkeletalRootMotion", onDisableAutomaticSkeletalRootMotionLua},
                                                      {"getAutomaticSkeletalRootMotionBone", onGetAutomaticSkeletalRootMotionBoneLua},
@@ -957,6 +997,9 @@ namespace mbm
                                                          {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
                                                          {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
                                                          {"getSkeletalSharingCompatibility", onGetSkeletalSharingCompatibilityLua},
+                                                         {"enableSkeletalPoseSharing", onEnableSkeletalPoseSharingLua},
+                                                         {"disableSkeletalPoseSharing", onDisableSkeletalPoseSharingLua},
+                                                         {"getSkeletalPoseSharing", onGetSkeletalPoseSharingLua},
                                                          {"enableAutomaticSkeletalRootMotion", onEnableAutomaticSkeletalRootMotionLua},
                                                          {"disableAutomaticSkeletalRootMotion", onDisableAutomaticSkeletalRootMotionLua},
                                                          {"getAutomaticSkeletalRootMotionBone", onGetAutomaticSkeletalRootMotionBoneLua},
