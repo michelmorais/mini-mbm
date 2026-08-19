@@ -28,12 +28,17 @@ platform scope, fixtures, performance budget, and versioned acceptance criteria.
 
 ### 3.1 DirectX 9 and Metal encoded parity
 
-Add backend-native capture/readback tests that compare GPU-deformed positions and normals with the
-existing CPU LBS/DQS references. Reuse the production shader generation and deterministic synthetic
-and real-asset vertex selection used by the OpenGL ES harness.
+The shared cross-platform test contract is implemented and compiled by the Linux/macOS CMake and
+Windows Visual Studio test targets. It owns deterministic synthetic and Lorekeeper LBS/DQS cases,
+CPU references, common RGBA8 encoding/tolerances, comparison, and reporting. Foundation tests also
+use the platform temporary directory rather than assuming POSIX `/tmp`.
 
-Acceptance: both methods pass documented numeric tolerances on each backend without maintaining a
-second handwritten shader implementation.
+Remaining work is limited to backend-native DirectX 9 and Metal shader capture/readback callbacks.
+Each callback receives the same prepared case and encoding and returns two RGBA8 arrays, leaving no
+backend-specific fixture selection or tolerance policy.
+
+Acceptance: both methods pass the shared numeric tolerances on each backend while consuming the
+production skeletal shader logic and without maintaining another CPU oracle or comparator.
 
 ### 3.2 Multi-layer composition
 
@@ -102,4 +107,3 @@ Starting one project does not imply starting the others. A future merge should m
 project into its own implementation plan and remove it from this deferred list after its capability
 is delivered and documented in
 [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md).
-

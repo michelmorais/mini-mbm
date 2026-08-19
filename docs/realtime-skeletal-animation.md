@@ -223,9 +223,10 @@ The complete user workflow is documented in the
 
 Deterministic foundation tests cover canonical validation, sampling, easing, hierarchy evaluation,
 bind identity, LBS/DQS reference deformation, antipodality, scale rejection, composition, masks,
-root motion, execution policy, and sharing compatibility. The OpenGL ES parity harness additionally
-captures encoded GPU positions/normals and compares them numerically with CPU LBS/DQS references on
-synthetic and real-asset vertices.
+root motion, execution policy, sharing compatibility, and the shared skeletal-parity case contract.
+The parity suite builds backend-neutral synthetic and real-asset LBS/DQS inputs, CPU references,
+RGBA8 encoding, tolerances, comparison, and reporting once. The OpenGL ES capture backend executes
+all four shared cases and reads encoded GPU positions/normals for comparison.
 
 ## 11. Current Capability Boundaries
 
@@ -249,9 +250,9 @@ synthetic and real-asset vertices.
   it is not a claim that every FBX animation/deformer feature is supported.
 - Velocity Skinning, compute skinning, and a new modern OpenGL/Vulkan renderer are not part of the
   implemented skeletal capability.
-- Numeric encoded/readback CPU/GPU comparison is automated for OpenGL ES. DirectX 9 and Metal have
-  production-path, shader, and manual runtime evidence but no backend-specific encoded readback
-  harness.
+- Numeric encoded/readback CPU/GPU comparison is automated for OpenGL ES. DirectX 9 and Metal use
+  the same compiled shared cases/comparator but still need their backend-native shader capture and
+  readback callbacks. They already have production-path, shader, and manual runtime evidence.
 
 Optional projects outside this accepted capability are tracked separately in the
 [Deferred Work Plan](realtime-skeletal-animation-future-work-plan.md).

@@ -42,6 +42,9 @@
     <ClCompile Include="..\..\src\test-lib\skeletal-foundation-tests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\test-lib\skeletal-parity-tests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\test-lib\gles-skeletal-parity-tests.h">
@@ -57,6 +60,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test-lib\skeletal-foundation-tests.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test-lib\skeletal-parity-tests.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

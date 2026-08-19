@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "skeletal-foundation-tests.h"
+#include "skeletal-parity-tests.h"
 
 #include <skeletal-animation-foundation.h>
 #include <skeletal-execution-policy.h>
@@ -30,8 +31,10 @@
 
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <limits>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace
@@ -40,6 +43,25 @@ namespace
     using namespace mbm::skeletal;
 
     int failures = 0;
+
+    class TEMPORARY_FIXTURE_PATH
+    {
+      public:
+        explicit TEMPORARY_FIXTURE_PATH(const char *fileName)
+        {
+            std::error_code error;
+            const std::filesystem::path directory = std::filesystem::temp_directory_path(error);
+            value = error ? std::string(fileName) : (directory / fileName).string();
+        }
+
+        operator const char *() const noexcept
+        {
+            return value.c_str();
+        }
+
+      private:
+        std::string value;
+    };
 
     void expect(const bool condition, const char *message)
     {
@@ -731,12 +753,12 @@ namespace
 
     void testSkeletalSharingCompatibility()
     {
-        const char *basePath = "/tmp/mini-mbm-skeletal-sharing-base.msh";
-        const char *samePath = "/tmp/mini-mbm-skeletal-sharing-same.msh";
-        const char *countPath = "/tmp/mini-mbm-skeletal-sharing-count.msh";
-        const char *identityPath = "/tmp/mini-mbm-skeletal-sharing-identity.msh";
-        const char *hierarchyPath = "/tmp/mini-mbm-skeletal-sharing-hierarchy.msh";
-        const char *bindPath = "/tmp/mini-mbm-skeletal-sharing-bind.msh";
+        const TEMPORARY_FIXTURE_PATH basePath("mini-mbm-skeletal-sharing-base.msh");
+        const TEMPORARY_FIXTURE_PATH samePath("mini-mbm-skeletal-sharing-same.msh");
+        const TEMPORARY_FIXTURE_PATH countPath("mini-mbm-skeletal-sharing-count.msh");
+        const TEMPORARY_FIXTURE_PATH identityPath("mini-mbm-skeletal-sharing-identity.msh");
+        const TEMPORARY_FIXTURE_PATH hierarchyPath("mini-mbm-skeletal-sharing-hierarchy.msh");
+        const TEMPORARY_FIXTURE_PATH bindPath("mini-mbm-skeletal-sharing-bind.msh");
         expect(writeSkeletalSharingFixture(basePath, 100, 20, 10, "child", 2.0f, true) &&
                    writeSkeletalSharingFixture(samePath, 200, 20, 10, "child", 2.0f, true) &&
                    writeSkeletalSharingFixture(countPath, 300, 20, 10, "child", 2.0f, false) &&
@@ -764,9 +786,9 @@ namespace
 
     void testCanonicalSkeletonReader()
     {
-        const char *validPath = "/tmp/mini-mbm-canonical-skeleton-valid.msh";
-        const char *invalidPath = "/tmp/mini-mbm-canonical-skeleton-invalid.msh";
-        const char *duplicatePath = "/tmp/mini-mbm-canonical-skeleton-duplicate.msh";
+        const TEMPORARY_FIXTURE_PATH validPath("mini-mbm-canonical-skeleton-valid.msh");
+        const TEMPORARY_FIXTURE_PATH invalidPath("mini-mbm-canonical-skeleton-invalid.msh");
+        const TEMPORARY_FIXTURE_PATH duplicatePath("mini-mbm-canonical-skeleton-duplicate.msh");
         expect(writeCanonicalSkeletonFixture(validPath, false, 1), "canonical fixture must write");
         MESH_MBM_DEBUG mesh;
         expect(mesh.loadV11(validPath), "both-loader canonical skeleton reader must accept valid payload");
@@ -780,7 +802,7 @@ namespace
         expect(!mesh.loadV11(invalidPath), "canonical reader must reject zero bind quaternion");
         expect(writeCanonicalSkeletonFixture(duplicatePath, false, 2), "duplicate canonical fixture must write");
         expect(!mesh.loadV11(duplicatePath), "canonical reader must reject duplicate skeleton sections");
-        const char *reparentPath = "/tmp/mini-mbm-canonical-skeleton-reparent.msh";
+        const TEMPORARY_FIXTURE_PATH reparentPath("mini-mbm-canonical-skeleton-reparent.msh");
         expect(writeCanonicalSkeletonFixture(reparentPath, false, 1, true) && mesh.loadV11(reparentPath),
                "canonical reparent fixture must load");
         SKELETON_BIND_BONE_INFO before, after;
@@ -830,8 +852,8 @@ namespace
                    mesh.getSkeletonBindBone(0, after) && after.parentIndex == -1 &&
                    maximumMatrixDifference(before.globalBindMatrix, after.globalBindMatrix) <= MATRIX_TOLERANCE,
                "child-bearing removal must promote children while preserving global bind");
-        const char *initializedPath = "/tmp/mini-mbm-initial-skeleton.msh";
-        const char *jointOnlyPath = "/tmp/mini-mbm-joint-only-skeleton.msh";
+        const TEMPORARY_FIXTURE_PATH initializedPath("mini-mbm-initial-skeleton.msh");
+        const TEMPORARY_FIXTURE_PATH jointOnlyPath("mini-mbm-joint-only-skeleton.msh");
         MESH_MBM_DEBUG jointOnlyMesh;
         expect(jointOnlyMesh.loadV11("src/test-lib/Crate.msh") &&
                    jointOnlyMesh.initializeSkeletalSkeleton("joint",VEC3(0,0,0),0.1f,0.0f,false,
@@ -1170,9 +1192,9 @@ namespace
 
     void testCanonicalWeightReader()
     {
-        const char *valid = "/tmp/mini-mbm-canonical-weights-valid.msh";
-        const char *wrongId = "/tmp/mini-mbm-canonical-weights-id.msh";
-        const char *badSum = "/tmp/mini-mbm-canonical-weights-sum.msh";
+        const TEMPORARY_FIXTURE_PATH valid("mini-mbm-canonical-weights-valid.msh");
+        const TEMPORARY_FIXTURE_PATH wrongId("mini-mbm-canonical-weights-id.msh");
+        const TEMPORARY_FIXTURE_PATH badSum("mini-mbm-canonical-weights-sum.msh");
         MESH_MBM_DEBUG mesh;
         expect(writeCanonicalWeightedFixture(valid,100,1.0f,100,10,0,true) && mesh.loadV11(valid),
                "canonical weight reader must resolve sections independent of file order");
@@ -1199,7 +1221,7 @@ namespace
                                                 &name3,&weight3) && name0 && std::string(name0)=="root",
                "rejected canonical editor mutation must preserve the previous vertex weights");
 
-        const char *batchFixture = "/tmp/mini-mbm-canonical-weights-batch.msh";
+        const TEMPORARY_FIXTURE_PATH batchFixture("mini-mbm-canonical-weights-batch.msh");
         MESH_MBM_DEBUG batchMesh;
         expect(writeCanonicalWeightedFixture(batchFixture, 100, 1.0f, 100, 10, 0, true) &&
                    batchMesh.loadV11(batchFixture) &&
@@ -1239,7 +1261,7 @@ namespace
         expect(!batchMesh.setSkeletalVertexWeightsBatch(duplicateBatch, 2, editError,
                     static_cast<int>(sizeof(editError))),
                "canonical batch mutation must reject duplicate vertex indices");
-        const char *batchReloadPath = "/tmp/mini-mbm-canonical-weights-batch-edited.msh";
+        const TEMPORARY_FIXTURE_PATH batchReloadPath("mini-mbm-canonical-weights-batch-edited.msh");
         MESH_MBM_DEBUG batchReloaded;
         expect(batchMesh.saveV11(batchReloadPath, false, false, false, editError,
                     static_cast<int>(sizeof(editError))) && batchReloaded.loadV11(batchReloadPath),
@@ -1263,7 +1285,7 @@ namespace
                "two-influence canonical batch edit must survive save and reload exactly");
         std::remove(batchFixture);
         std::remove(batchReloadPath);
-        const char *edited="/tmp/mini-mbm-canonical-weights-edited.msh";
+        const TEMPORARY_FIXTURE_PATH edited("mini-mbm-canonical-weights-edited.msh");
         MESH_MBM_DEBUG reloaded;
         expect(mesh.saveV11(edited,false,false,false,editError,static_cast<int>(sizeof(editError))) &&
                    reloaded.loadV11(edited) && reloaded.getSkeletalVertexWeight(0,&name0,&weight0,
@@ -1280,9 +1302,9 @@ namespace
 
     void testCanonicalAnimationReader()
     {
-        const char *wrongId = "/tmp/mini-mbm-canonical-animation-id.msh";
-        const char *unknownBone = "/tmp/mini-mbm-canonical-animation-bone.msh";
-        const char *badEasing = "/tmp/mini-mbm-canonical-animation-easing.msh";
+        const TEMPORARY_FIXTURE_PATH wrongId("mini-mbm-canonical-animation-id.msh");
+        const TEMPORARY_FIXTURE_PATH unknownBone("mini-mbm-canonical-animation-bone.msh");
+        const TEMPORARY_FIXTURE_PATH badEasing("mini-mbm-canonical-animation-easing.msh");
         MESH_MBM_DEBUG mesh;
         expect(writeCanonicalWeightedFixture(wrongId, 100, 1.0f, 101) && !mesh.loadV11(wrongId),
                "canonical animation reader must reject skeletonId mismatch");
@@ -1295,8 +1317,8 @@ namespace
 
     void testCanonicalWriterRoundTrip()
     {
-        const char *source = "/tmp/mini-mbm-canonical-writer-source.msh";
-        const char *roundTrip = "/tmp/mini-mbm-canonical-writer-round-trip.msh";
+        const TEMPORARY_FIXTURE_PATH source("mini-mbm-canonical-writer-source.msh");
+        const TEMPORARY_FIXTURE_PATH roundTrip("mini-mbm-canonical-writer-round-trip.msh");
         MESH_MBM_DEBUG mesh;
         char error[512] = "";
         expect(writeCanonicalWeightedFixture(source, 100, 1.0f, 100, 10, 0, true) && mesh.loadV11(source),
@@ -1450,7 +1472,7 @@ namespace
                    editedTrack.keyCount==2 &&
                    clipEditMesh.removeSkeletalClip(pasteClipIndex,error,sizeof(error)-1),
                "detached skeletal key paste must create missing tracks, preserve payloads, and reject incompatible candidates atomically");
-        const char *trackRoundTrip="/tmp/mini-mbm-canonical-track-round-trip.msh";
+        const TEMPORARY_FIXTURE_PATH trackRoundTrip("mini-mbm-canonical-track-round-trip.msh");
         MESH_MBM_DEBUG trackReload;
         expect(clipEditMesh.saveV11(trackRoundTrip,false,false,false,error,sizeof(error)-1) &&
                    trackReload.loadV11(trackRoundTrip) &&
@@ -1472,7 +1494,7 @@ namespace
                    clipEditMesh.getTotalSkeletalClips()==1,
                "canonical track edits must survive save/reload and remove complete key ownership");
         std::remove(trackRoundTrip);
-        const char *emptyAnimationPath="/tmp/mini-mbm-canonical-no-clips.msh";
+        const TEMPORARY_FIXTURE_PATH emptyAnimationPath("mini-mbm-canonical-no-clips.msh");
         MESH_MBM_DEBUG emptyAnimationReload;
         expect(clipEditMesh.removeSkeletalClip(0,error,sizeof(error)-1) &&
                    clipEditMesh.getTotalSkeletalClips()==0 &&
@@ -1534,7 +1556,7 @@ namespace
                    std::fabs(remappedWeight-1.0f)<=MATRIX_TOLERANCE,
                "referenced leaf removal must preserve normalized vertex coverage on replacement");
         MESH_MBM_DEBUG animatedHierarchy;
-        const char *convertedHierarchy = "/tmp/mini-mbm-converted-child-tracks.msh";
+        const TEMPORARY_FIXTURE_PATH convertedHierarchy("mini-mbm-converted-child-tracks.msh");
         CANONICAL_PARITY_ASSET beforeConversion, afterConversion;
         expect(animatedHierarchy.loadV11(source) &&
                    animatedHierarchy.addSkeletalBone(0,"animated-child",VEC3(0,1,0),0.1f,1.0f,true,false,
@@ -1999,6 +2021,33 @@ namespace
                    std::string(resolution.reason) == "auto-cpu-unavailable",
                "Auto execution total failure must have a deterministic fallback reason");
     }
+
+    void testSkeletalParityCaseContract()
+    {
+        std::vector<test::SKELETAL_PARITY_CASE> cases;
+        std::string error;
+        expect(test::buildSkeletalParityCases(cases, error) && cases.size() == 4,
+               "shared skeletal parity fixture builder must produce four backend-neutral cases");
+        if (cases.size() != 4)
+            return;
+        expect(cases[0].fixtureName == "synthetic" &&
+                   cases[0].method == SKELETAL_SHADER_METHOD::LBS &&
+                   cases[0].positions.size() == 2 && cases[0].paletteSize == 2,
+               "shared skeletal parity cases must begin with deterministic synthetic LBS");
+        expect(cases[1].fixtureName == "synthetic" &&
+                   cases[1].method == SKELETAL_SHADER_METHOD::DQS_RIGID &&
+                   cases[1].positions.size() == 2 && cases[1].paletteSize == 2,
+               "shared skeletal parity cases must include deterministic synthetic DQS");
+        expect(cases[2].fixtureName == "Lorekeeper" &&
+                   cases[2].method == SKELETAL_SHADER_METHOD::LBS &&
+                   cases[2].positions.size() == 8 && cases[2].sourceVertexIndices.size() == 8,
+               "shared skeletal parity cases must include the real-asset LBS subset");
+        expect(cases[3].fixtureName == "Lorekeeper" &&
+                   cases[3].method == SKELETAL_SHADER_METHOD::DQS_RIGID &&
+                   cases[3].positions.size() == 8 && cases[3].sourceVertexIndices ==
+                       cases[2].sourceVertexIndices,
+               "shared skeletal parity cases must use the same real vertices for LBS and DQS");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -2023,6 +2072,7 @@ int runSkeletalFoundationTests()
     testSkinningCapability();
     testGles2LbsInputPreparation();
     testSkeletalExecutionPolicyResolution();
+    testSkeletalParityCaseContract();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;
