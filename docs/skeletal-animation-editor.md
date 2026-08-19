@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
 Last updated: **2026-08-19**
 
 ## 1. Purpose
@@ -12,7 +12,7 @@ Mesh Debug into a general animation editor.
 
 For canonical skeletal meshes within the active backend's measured palette limit, the preview can
 play the same per-instance GPU LBS or rigid-DQS deformation path used by the runtime. It can also
-select the explicit CPU LBS execution path. OpenGL ES, DirectX 9, and Metal are delivered; remaining
+select the explicit CPU execution path for resolved LBS or rigid DQS. OpenGL ES, DirectX 9, and Metal are delivered; remaining
 numeric backend parity work is tracked in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Paint Weights uses backend-native heatmap and brush shaders on all three delivered backends;
@@ -605,8 +605,9 @@ Auto selects DQS only if bind and all clips use unit scale; otherwise it selects
 reason. The panel reports requested/resolved methods and explains the limits directly: how many bones this mesh requires and the
 maximum accepted by the current device for one mesh draw. Multiple mesh instances are evaluated
 separately; the capacity is not a combined scene-wide bone budget. The Execution Path selector
-chooses GPU or CPU before loading the preview instance. CPU is explicit LBS-only in this slice, so
-choosing it forces the preview method to LBS and reports CPU readiness; DQS remains GPU-only.
+chooses GPU or CPU before loading the preview instance. CPU is explicit and supports resolved LBS
+or rigid DQS when the loaded report says `cpu-lbs-ready` or `cpu-dqs-ready`; invalid non-rigid DQS
+content reports an unavailable reason rather than changing method.
 Bind restoration stops
 the active player; it does not assume that time zero of an authored clip is the bind pose.
 The slider is a lightweight playback scrubber, not the future Animation-node
@@ -615,9 +616,10 @@ matching active-backend LBS or DQS palette. When a clip layer is active, the opt
 follows the primary preview's final evaluated global transforms while retaining per-bone mask colors.
 In LBS/DQS and GPU/CPU comparison it intentionally does not duplicate the secondary instance.
 Runtime Preview can also load multiple optional secondary **wearable / follower** `.msh` meshes.
-The editor loads each follower with the primary preview's resolved LBS or DQS method, runs
-`getSkeletalSharingCompatibility` against the primary runtime mesh, displays the compatibility
-reason and relevant mismatch fields, and only then calls `enableSkeletalPoseSharing(primary)`.
+The editor loads each follower with the primary preview's resolved LBS or DQS method and the same
+GPU or CPU execution path, runs `getSkeletalSharingCompatibility` against the primary runtime mesh,
+displays the compatibility reason and relevant mismatch fields, and only then calls
+`enableSkeletalPoseSharing(primary)`.
 When compatible, each follower keeps its own mesh, material, textures, and skin weights while
 rendering from the primary player's already evaluated pose. Followers mirror the primary preview's
 editor transform, including comparison offsets, and each has its own visibility and remove action.
@@ -731,9 +733,9 @@ and bind-restoration commands; the right instance is re-seeked to the left insta
 frame to avoid drift. The camera reframes both meshes automatically. This comparison is read-only,
 and a DQS pose rejection is reported while the LBS instance remains visible.
 Enable **Compare GPU / CPU** to reuse the same side-by-side preview and synchronization lifecycle
-for execution-path parity: the left instance is GPU LBS and the right instance is CPU LBS. This mode
-is mutually exclusive with LBS/DQS pose stress, constrains the runtime method to LBS, disables the
-normal method/execution selectors while active, and reports each side from its loaded
+for execution-path parity: the left instance is GPU and the right instance is CPU using the same
+resolved method selected before load. This mode is mutually exclusive with LBS/DQS pose stress,
+disables the normal method/execution selectors while active, and reports each side from its loaded
 `getSkeletalSkinningReport()` execution path rather than the requested combo state. Disabling it
 returns to the ordinary single-preview controls without writing method or execution changes into
 the mesh asset.

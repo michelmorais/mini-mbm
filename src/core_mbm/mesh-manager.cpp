@@ -9947,8 +9947,15 @@ namespace mbm
         return false;
     }
 
-    bool MESH_MBM::canUseCpuLbsSkeletalPath(const char **reason) const noexcept
+    bool MESH_MBM::canUseCpuSkeletalPath(const SKELETAL_SHADER_METHOD method,
+                                         const SKELETAL_ANIMATION_PLAYER *player,
+                                         const char **reason) const noexcept
     {
+        if (method != SKELETAL_SHADER_METHOD::LBS && method != SKELETAL_SHADER_METHOD::DQS_RIGID)
+        {
+            if (reason) *reason = "cpu-method-unresolved";
+            return false;
+        }
         if (impl->canonicalSkeleton.skeletonId == 0 || impl->canonicalWeights.skeletonId == 0)
         {
             if (reason) *reason = "no-skeletal-data";
@@ -9969,6 +9976,34 @@ namespace mbm
             if (reason) *reason = "weight-vertex-count-mismatch";
             return false;
         }
+        if (method == SKELETAL_SHADER_METHOD::DQS_RIGID)
+        {
+            // DQS needs stricter checks than LBS because it only accepts rigid transforms.
+            // An active player's evaluated pose and 8-float-per-bone palette have already passed
+            // that validation, so avoid rescanning every clip in the per-frame render path.
+            // Without an active pose, scan the skeleton and clips to report readiness truthfully.
+            const uint32_t boneCount =
+                static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size());
+            if (player && player->impl->active)
+            {
+                if (player->impl->evaluatedGlobalTransforms.size() != boneCount)
+                {
+                    if (reason) *reason = "cpu-dqs-missing-evaluated-pose";
+                    return false;
+                }
+                if (player->impl->paletteRows.size() != static_cast<size_t>(boneCount) * 8u)
+                {
+                    if (reason) *reason = "cpu-dqs-missing-evaluated-palette";
+                    return false;
+                }
+            }
+            else if (skeletal::getDqsCompatibility(impl->canonicalSkeleton, impl->canonicalAnimations) !=
+                         skeletal::DQS_COMPATIBILITY_STATUS::RIGID)
+            {
+                if (reason) *reason = "cpu-dqs-non-rigid-skeleton-or-clips";
+                return false;
+            }
+        }
         if (reason) *reason = "ready";
         return true;
     }
@@ -9981,13 +10016,14 @@ namespace mbm
                                      const RENDERIZABLE *renderizableOwner) const
     {
         const char *reason = nullptr;
-        if (!canUseCpuLbsSkeletalPath(&reason) || !pShader ||
+        const SKELETAL_SHADER_METHOD method = player.impl->resolvedSkinningMethod;
+        if (!canUseCpuSkeletalPath(method, &player, &reason) || !pShader ||
             indexFrame != impl->skeletalBindFrameIndex ||
-            player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ||
             player.impl->paletteRows.empty())
             return false;
         const uint32_t vertexCount = static_cast<uint32_t>(impl->skeletalBindPositions.size());
-        if (player.impl->paletteRows.size() != impl->canonicalSkeleton.compiled.bones.size() * 12u)
+        const uint32_t floatsPerBone = method == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
+        if (player.impl->paletteRows.size() != impl->canonicalSkeleton.compiled.bones.size() * floatsPerBone)
             return false;
         if (!initialized)
         {
@@ -10050,54 +10086,74 @@ namespace mbm
             initialized = true;
         }
 
-        const float *palette = player.impl->paletteRows.data();
-        for (uint32_t vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+        if (method == SKELETAL_SHADER_METHOD::DQS_RIGID)
         {
-            const VEC3 &bindPosition = impl->skeletalBindPositions[vertexIndex];
-            VEC3 outPosition(0.0f, 0.0f, 0.0f);
-            VEC3 outNormal(0.0f, 0.0f, 0.0f);
-            const bool hasNormal = impl->skeletalBindHasNormals && vertexIndex < impl->skeletalBindNormals.size();
-            const VEC3 bindNormal = hasNormal ? impl->skeletalBindNormals[vertexIndex] : VEC3();
-            const skeletal::CANONICAL_VERTEX_WEIGHT &weight = impl->canonicalWeights.vertices[vertexIndex];
-            for (uint32_t slot = 0; slot < 4; ++slot)
+            skeletal::SKELETAL_POSE pose;
+            if (player.impl->evaluatedGlobalTransforms.empty())
             {
-                if (weight.paletteIndex[slot] == UINT16_MAX || weight.weight[slot] == 0.0f)
-                    continue;
-                if (weight.paletteIndex[slot] >= impl->canonicalWeights.paletteBoneIds.size())
-                    return false;
-                const uint64_t boneId = impl->canonicalWeights.paletteBoneIds[weight.paletteIndex[slot]];
-                const auto found = impl->canonicalSkeleton.compiled.indexById.find(boneId);
-                if (found == impl->canonicalSkeleton.compiled.indexById.end())
-                    return false;
-                const float *rows = &palette[static_cast<size_t>(found->second) * 12u];
-                const float w = weight.weight[slot];
-                outPosition.x += (bindPosition.x * rows[0] + bindPosition.y * rows[1] +
-                                  bindPosition.z * rows[2] + rows[3]) * w;
-                outPosition.y += (bindPosition.x * rows[4] + bindPosition.y * rows[5] +
-                                  bindPosition.z * rows[6] + rows[7]) * w;
-                outPosition.z += (bindPosition.x * rows[8] + bindPosition.y * rows[9] +
-                                  bindPosition.z * rows[10] + rows[11]) * w;
+                pose.globalTransforms.reserve(impl->canonicalSkeleton.compiled.bones.size());
+                for (const skeletal::COMPILED_BONE &bone : impl->canonicalSkeleton.compiled.bones)
+                    pose.globalTransforms.push_back(bone.globalBindMatrix);
+            }
+            else
+                pose.globalTransforms = player.impl->evaluatedGlobalTransforms;
+            if (!skeletal::skinVerticesDqsRigidReference(impl->canonicalSkeleton, impl->canonicalWeights,
+                    pose, impl->skeletalBindPositions,
+                    impl->skeletalBindHasNormals ? impl->skeletalBindNormals : std::vector<VEC3>(),
+                    positions, normals))
+                return false;
+        }
+        else
+        {
+            const float *palette = player.impl->paletteRows.data();
+            for (uint32_t vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+            {
+                const VEC3 &bindPosition = impl->skeletalBindPositions[vertexIndex];
+                VEC3 outPosition(0.0f, 0.0f, 0.0f);
+                VEC3 outNormal(0.0f, 0.0f, 0.0f);
+                const bool hasNormal = impl->skeletalBindHasNormals && vertexIndex < impl->skeletalBindNormals.size();
+                const VEC3 bindNormal = hasNormal ? impl->skeletalBindNormals[vertexIndex] : VEC3();
+                const skeletal::CANONICAL_VERTEX_WEIGHT &weight = impl->canonicalWeights.vertices[vertexIndex];
+                for (uint32_t slot = 0; slot < 4; ++slot)
+                {
+                    if (weight.paletteIndex[slot] == UINT16_MAX || weight.weight[slot] == 0.0f)
+                        continue;
+                    if (weight.paletteIndex[slot] >= impl->canonicalWeights.paletteBoneIds.size())
+                        return false;
+                    const uint64_t boneId = impl->canonicalWeights.paletteBoneIds[weight.paletteIndex[slot]];
+                    const auto found = impl->canonicalSkeleton.compiled.indexById.find(boneId);
+                    if (found == impl->canonicalSkeleton.compiled.indexById.end())
+                        return false;
+                    const float *rows = &palette[static_cast<size_t>(found->second) * 12u];
+                    const float w = weight.weight[slot];
+                    outPosition.x += (bindPosition.x * rows[0] + bindPosition.y * rows[1] +
+                                      bindPosition.z * rows[2] + rows[3]) * w;
+                    outPosition.y += (bindPosition.x * rows[4] + bindPosition.y * rows[5] +
+                                      bindPosition.z * rows[6] + rows[7]) * w;
+                    outPosition.z += (bindPosition.x * rows[8] + bindPosition.y * rows[9] +
+                                      bindPosition.z * rows[10] + rows[11]) * w;
+                    if (hasNormal)
+                    {
+                        outNormal.x += (bindNormal.x * rows[0] + bindNormal.y * rows[1] +
+                                        bindNormal.z * rows[2]) * w;
+                        outNormal.y += (bindNormal.x * rows[4] + bindNormal.y * rows[5] +
+                                        bindNormal.z * rows[6]) * w;
+                        outNormal.z += (bindNormal.x * rows[8] + bindNormal.y * rows[9] +
+                                        bindNormal.z * rows[10]) * w;
+                    }
+                }
+                positions[vertexIndex] = outPosition;
                 if (hasNormal)
                 {
-                    outNormal.x += (bindNormal.x * rows[0] + bindNormal.y * rows[1] +
-                                    bindNormal.z * rows[2]) * w;
-                    outNormal.y += (bindNormal.x * rows[4] + bindNormal.y * rows[5] +
-                                    bindNormal.z * rows[6]) * w;
-                    outNormal.z += (bindNormal.x * rows[8] + bindNormal.y * rows[9] +
-                                    bindNormal.z * rows[10]) * w;
+                    const float lenSq = outNormal.x * outNormal.x + outNormal.y * outNormal.y +
+                        outNormal.z * outNormal.z;
+                    if (lenSq > 0.00000001f)
+                    {
+                        const float invLen = 1.0f / std::sqrt(lenSq);
+                        outNormal.x *= invLen; outNormal.y *= invLen; outNormal.z *= invLen;
+                    }
+                    normals[vertexIndex] = outNormal;
                 }
-            }
-            positions[vertexIndex] = outPosition;
-            if (hasNormal)
-            {
-                const float lenSq = outNormal.x * outNormal.x + outNormal.y * outNormal.y +
-                    outNormal.z * outNormal.z;
-                if (lenSq > 0.00000001f)
-                {
-                    const float invLen = 1.0f / std::sqrt(lenSq);
-                    outNormal.x *= invLen; outNormal.y *= invLen; outNormal.z *= invLen;
-                }
-                normals[vertexIndex] = outNormal;
             }
         }
         std::vector<int> vertexStart(dynamicBuffer.totalSubset);

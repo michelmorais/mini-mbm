@@ -719,7 +719,9 @@ namespace mbm
         void getSkeletalSkinningReport(SKELETAL_SHADER_METHOD method, const char **status,
                                        uint32_t *requiredBoneCount,
                                        uint32_t *effectiveBoneCapacity) const noexcept;
-        bool canUseCpuLbsSkeletalPath(const char **reason = nullptr) const noexcept;
+        bool canUseCpuSkeletalPath(SKELETAL_SHADER_METHOD method,
+                                   const SKELETAL_ANIMATION_PLAYER *player = nullptr,
+                                   const char **reason = nullptr) const noexcept;
         bool renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
                                const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
                                std::vector<VEC3> &positions, std::vector<VEC3> &normals,

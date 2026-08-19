@@ -227,9 +227,6 @@ namespace mbm
                      method != SKELETAL_SHADER_METHOD::DQS_RIGID &&
                      method != SKELETAL_SHADER_METHOD::AUTO))
             return false;
-        if (getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU &&
-            method == SKELETAL_SHADER_METHOD::DQS_RIGID)
-            return false;
         getSkeletalAnimationPlayer().setSkinningMethod(method);
         return true;
     }
@@ -241,8 +238,6 @@ namespace mbm
 
     SKELETAL_SHADER_METHOD MESH::getResolvedSkeletalSkinningMethod() const noexcept
     {
-        if (getSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU)
-            return SKELETAL_SHADER_METHOD::LBS;
         return getSkeletalAnimationPlayer().getResolvedSkinningMethod();
     }
 
@@ -250,11 +245,6 @@ namespace mbm
     {
         if (mesh)
             return false;
-        if (path == SKELETAL_EXECUTION_PATH::CPU &&
-            getSkeletalAnimationPlayer().getSkinningMethod() == SKELETAL_SHADER_METHOD::DQS_RIGID)
-            return false;
-        if (path == SKELETAL_EXECUTION_PATH::CPU)
-            getSkeletalAnimationPlayer().setSkinningMethod(SKELETAL_SHADER_METHOD::LBS);
         if (cpuSkeletalRenderState)
         {
             cpuSkeletalRenderState->initialized = false;
@@ -287,8 +277,12 @@ namespace mbm
             else
             {
                 const char *reason = nullptr;
-                *executionStatus = mesh->canUseCpuLbsSkeletalPath(&reason) ? "cpu-lbs-ready" :
-                    (reason ? reason : "cpu-lbs-unavailable");
+                const SKELETAL_SHADER_METHOD method = getResolvedSkeletalSkinningMethod();
+                if (mesh->canUseCpuSkeletalPath(method, &getSkeletalAnimationPlayer(), &reason))
+                    *executionStatus = method == SKELETAL_SHADER_METHOD::DQS_RIGID
+                        ? "cpu-dqs-ready" : "cpu-lbs-ready";
+                else
+                    *executionStatus = reason ? reason : "cpu-skeletal-unavailable";
             }
         }
         if (mesh)

@@ -24,15 +24,15 @@ document is the precise reference.
 **Mini MBM's status in one sentence:** canonical `.msh` assets store a stable-ID bind hierarchy,
 per-vertex weights, and local skeletal clips in sections 41-43; the OpenGL ES, DirectX9, and Metal
 runtimes evaluate those clips per mesh instance and deform vertices/normals with selectable GPU LBS
-or rigid DQS, plus an explicit opt-in CPU-rendered LBS execution path.
+or rigid DQS, plus an explicit opt-in CPU-rendered LBS/DQS execution path.
 Static-frame swapping and articulated rigid-subset animation remain separate supported models.
 
 The Skeletal Animation Editor can create/edit the canonical skeleton and clips, paint and repair
 weights, preview the same runtime player, author transient per-bone animation-layer masks, and
 round-trip the result through the supported FBX workflow. Metal numeric parity coverage and Velocity Skinning remain
 pending; this backend limitation does not turn canonical skeletal data back into editor-only data.
-CPU execution is currently LBS-only, deforms from immutable bind geometry into per-instance dynamic
-buffers, and rejects DQS explicitly.
+CPU execution supports resolved LBS and rigid DQS, deforms from immutable bind geometry into
+per-instance dynamic buffers, and rejects non-rigid DQS explicitly.
 
 ## How Real-Time Skeletal Animation Works (Other Engines)
 
@@ -112,8 +112,8 @@ is a weighted sum, and real-time engines cap the influence count for a bounded, 
   very constrained engines, or as a fallback for skeletons too large/exotic for a GPU path.
 
 Mini MBM implements GPU skinning in its OpenGL ES, DirectX9, and Metal default shader paths. All
-upload the per-instance canonical palette each frame; Metal uses explicit influence and palette buffers, and
-there is no general CPU-deformed rendering fallback.
+upload the per-instance canonical palette each frame; Metal uses explicit influence and palette buffers.
+CPU skinning is an explicit pre-load execution path, not an automatic fallback.
 
 ### Animation clips and retargeting
 
@@ -223,8 +223,8 @@ fade state, evaluated local/global pose, and final GPU palette. LBS accepts the 
 normal scale constraints; rigid DQS rejects scale/shear and `auto` selects the compatible method.
 
 The OpenGL ES, DirectX9, and Metal backends compile the LBS or DQS shader variant and upload the palette
-before lighting is evaluated. CPU
-pose/reference math and editor previews exist, but there is no general CPU-deformed rendering fallback.
+before lighting is evaluated. CPU pose/reference math, editor previews, and explicit CPU execution
+exist, but no automatic CPU fallback is performed.
 
 The old `SECTION_FRAME_SKINNED`, `SECTION_VERTEX_SKIN_WEIGHTS`, `SKELETON_BONE_V11`, and Mesh Debug
 bone APIs were exploratory interchange/editor infrastructure. They are not an accepted runtime

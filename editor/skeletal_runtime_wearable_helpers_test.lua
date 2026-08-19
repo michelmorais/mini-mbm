@@ -44,14 +44,19 @@ assert(mismatch:find('Bone IDs: 0x1 vs 0x2', 1, false) ~= nil)
 local primary = {
     getResolvedSkeletalSkinningMethod=function() return 'dqs' end,
     getSkeletalSkinningMethod=function() return 'auto' end,
+    getSkeletalExecutionPath=function() return 'cpu' end,
 }
 assert(helper.primarySkinningMethod(primary) == 'dqs')
+assert(helper.primaryExecutionPath(primary) == 'cpu')
 
 local fallbackPrimary = {
     getResolvedSkeletalSkinningMethod=function() return 'unresolved' end,
     getSkeletalSkinningMethod=function() return 'lbs' end,
+    getSkeletalExecutionPath=function() return 'bogus' end,
 }
 assert(helper.primarySkinningMethod(fallbackPrimary) == 'lbs')
+assert(helper.primaryExecutionPath(fallbackPrimary) == 'gpu')
+assert(helper.primaryExecutionPath(nil) == 'gpu')
 
 local entry = helper.newFollowerEntry('/tmp/hat.msh')
 assert(entry.path == '/tmp/hat.msh')

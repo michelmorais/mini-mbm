@@ -68,6 +68,13 @@ function M.primarySkinningMethod(primary)
     return nil
 end
 
+function M.primaryExecutionPath(primary)
+    if not primary or not primary.getSkeletalExecutionPath then return 'gpu' end
+    local path = primary:getSkeletalExecutionPath()
+    if path == 'cpu' or path == 'gpu' then return path end
+    return 'gpu'
+end
+
 function M.newFollowerEntry(path)
     return {path=path,compatibility=nil,status=nil,visible=true,preview=nil}
 end

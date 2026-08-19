@@ -572,7 +572,7 @@ composition, authoring, playback lifecycle, and examples.
 | `obj:seekArticulatedAnimation` | `(name, time)` | bool | Move an active clip's playback position to the specified time, clamped to `0..duration` |
 | `obj:getArticulatedAnimationTime` | `(name)` | number or nil | Current time for an active clip, or `nil` when it is inactive/unknown |
 
-#### Canonical skeletal playback (`mesh`, GPU LBS/DQS profile)
+#### Canonical skeletal playback (`mesh`, GPU/CPU LBS/DQS profile)
 
 These methods control type-43 skeletal clips on a loaded canonical type-41/42/43 `.msh`. Playback
 state and the evaluated GPU palette belong to the individual `mesh` instance even when several
@@ -586,9 +586,10 @@ the resolved method is part of the compiled default-shader variant. The Absolute
 linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
 and fade. Per-bone masks, completion callbacks, and Metal are delivered; transition curves/queues
 and priorities remain future work. OpenGL ES, DirectX9, and Metal provide the current GPU paths. An
-explicit opt-in CPU execution path is available for LBS only; it keeps the skinning method API
-separate from execution and rejects CPU+DQS rather than silently switching. LBS compact normals
-reject negative scale, shear, or non-uniform scale; rigid DQS rejects any scale/shear.
+explicit opt-in CPU execution path supports resolved LBS and rigid DQS through the same immutable
+bind-geometry to per-instance dynamic-buffer path; GPU remains the default. LBS compact normals
+reject negative scale, shear, or non-uniform scale; rigid DQS rejects any scale/shear instead of
+silently switching to LBS.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
@@ -598,9 +599,9 @@ reject negative scale, shear, or non-uniform scale; rigid DQS rejects any scale/
 | `obj:setSkeletalSkinningMethod` | `(method: "auto"|"lbs"|"dqs")` | bool | Select requested policy before `load`; returns `false` after the mesh is loaded |
 | `obj:getSkeletalSkinningMethod` | `()` | string | Requested method/policy |
 | `obj:getResolvedSkeletalSkinningMethod` | `()` | string | Actual compiled method (`"lbs"` or `"dqs"`), or `"unresolved"` before an Auto mesh is loaded |
-| `obj:setSkeletalExecutionPath` | `(path: "gpu"|"cpu")` | bool | Select execution path before `load`; default is `"gpu"`. CPU is explicit LBS-only and returns `false` with requested `"dqs"` |
+| `obj:setSkeletalExecutionPath` | `(path: "gpu"|"cpu")` | bool | Select execution path before `load`; default is `"gpu"`. CPU is explicit and works with resolved LBS or rigid DQS when valid |
 | `obj:getSkeletalExecutionPath` | `()` | string | `"gpu"` or `"cpu"` |
-| `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, resolved-method maximum bones per draw, `executionPath`, and `executionStatus` |
+| `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, resolved-method maximum bones per draw, `executionPath`, and `executionStatus` (`gpu-default`, `cpu-lbs-ready`, `cpu-dqs-ready`, or a clear unavailable reason) |
 | `obj:playSkeletalAnimation` | `(name)` | bool | Start or restart one clip at time zero |
 | `obj:crossFadeSkeletalAnimation` | `(name, duration)` | bool | Linearly transition from the active base pose to `name` starting at target time zero, then promote the target to the sole base clip. Duration must be finite and non-negative; zero is immediate play. A positive transition replaces any ordinary transient layer and uses an unmasked Absolute blend; requesting another cross-fade before promotion returns `false`. |
 | `obj:pauseSkeletalAnimation` | `()` | bool | Freeze the active clip and palette |
@@ -631,7 +632,7 @@ reject negative scale, shear, or non-uniform scale; rigid DQS rejects any scale/
 | `obj:getSkeletalSharingCompatibility` | `(otherMesh)` | table | Read-only preflight for evaluated-pose/palette sharing between two loaded meshes. Returns `{compatible:boolean, reason:string, boneCount:int}` plus mismatch fields such as `boneIndex`, `boneName`, `boneId`, `otherBoneId`, parent IDs/indices, `observedError`, and `tolerance` when applicable. Strict compatibility requires both meshes to have canonical skeletons, equal bone count, exact ordered stable bone IDs and names, equal parent indices and parent IDs, and equivalent local/global bind matrices within the engine's scale-aware skeletal matrix tolerance. Clips, weights, geometry, and `skeletonId` do not need to match. Reason codes are `compatible`, `missing_skeleton`, `bone_count_mismatch`, `bone_identity_mismatch`, `hierarchy_mismatch`, and `bind_transform_mismatch`. |
 | `obj:enableSkeletalPoseSharing` | `(sourceMesh)` | bool | Make this loaded mesh a direct follower of another loaded compatible mesh. The follower keeps its own geometry, textures, render transform, and skin weights, but its skeletal draw uses the source mesh's already-evaluated per-instance palette. The call rejects self, unloaded source/follower, incompatible skeletons, follower chains, and converting a source that already has followers into a follower, without changing the existing sharing state. It does not start animation on the source and it does not copy palette data. |
 | `obj:disableSkeletalPoseSharing` | `()` | bool | Disable follower pose sharing. Returns `true`; it is valid to call when already disabled. |
-| `obj:getSkeletalPoseSharing` | `()` | table | Returns `{enabled:boolean, active:boolean, reason:string, sourceFile:string?}`. `enabled` means a source link exists. `active` means the source is still loaded, still compatible, has the same resolved skinning method, and currently has an active evaluated pose/palette. Reasons are `disabled`, `not_loaded`, `source_not_loaded`, `skinning_method_mismatch`, `source_pose_inactive`, `active`, or a compatibility reason if the relationship became invalid. Source or follower reload/release/destruction clears the link to avoid dangling pointers. When enabled but inactive, the follower renders without shared skeletal deformation rather than CPU-deforming vertices. |
+| `obj:getSkeletalPoseSharing` | `()` | table | Returns `{enabled:boolean, active:boolean, reason:string, sourceFile:string?}`. `enabled` means a source link exists. `active` means the source is still loaded, still compatible, has the same resolved skinning method, has the same skeletal execution path, and currently has an active evaluated pose/palette. Reasons are `disabled`, `not_loaded`, `source_not_loaded`, `skinning_method_mismatch`, `execution_path_mismatch`, `source_pose_inactive`, `active`, or a compatibility reason if the relationship became invalid. Source or follower reload/release/destruction clears the link to avoid dangling pointers. When enabled but inactive, the follower renders without shared skeletal deformation rather than CPU-deforming vertices. |
 | `obj:enableAutomaticSkeletalRootMotion` | `(boneName, applyRotation?)` | bool | Enable per-instance automatic root motion for a loaded mesh and valid canonical bone name. Each continuous advancing update applies that bone's raw translation delta to the mesh position in world space, then neutralizes that bone's local translation in the final evaluated/rendered pose so the motion is not doubled. When `applyRotation` is true, the same continuous update also applies the raw normalized-quaternion rotational delta to the mesh angle and neutralizes the selected bone's local rotation to bind in the final pose. The default/false path is translation-only for compatibility. Discontinuities invalidate history instead of moving or rotating the mesh. |
 | `obj:disableAutomaticSkeletalRootMotion` | `()` | bool | Disable automatic root motion and invalidate the root-motion delta history for this instance |
 | `obj:getAutomaticSkeletalRootMotionBone` | `()` | table or nil | Return `{name, boneId, applyRotation}` for the currently enabled automatic root-motion bone, or `nil` when disabled |

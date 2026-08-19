@@ -505,6 +505,7 @@
     6.80.1 Fixed the Skeletal Animation Editor shared skeleton-visibility control so weight-lab bone highlights cannot remain visible or reappear while the skeleton is hidden.
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
+    7.119.0 Extended explicit CPU skeletal execution from LBS to rigid DQS. CPU DQS reuses the canonical reference math, deforms immutable bind geometry into per-instance dynamic buffers, reports cpu-dqs-ready when valid, rejects non-rigid DQS through executionStatus/reason instead of switching to LBS, and lets Runtime Skeletal Preview GPU/CPU comparison use the selected resolved method when safe.
     7.118.0 Added Runtime Skeletal Preview GPU/CPU comparison mode. It reuses the side-by-side comparison lifecycle with GPU LBS on the left and CPU LBS on the right, stays mutually exclusive with LBS/DQS pose stress, constrains preview-only method/execution controls coherently, keeps playback/layer/mask/seek synchronization, preserves wearable follower policy, and labels each side from the loaded preview's actual execution report.
     7.117.1 Added a compact Runtime Skeletal Preview execution-status dot next to the loaded preview report: green for GPU, orange for CPU, with localized hover help, driven by the active preview report rather than the execution combo selection.
     7.117.0 Added an explicit opt-in CPU skeletal execution path for canonical LBS meshes. GPU remains the default; CPU selection is per MESH before load, forces LBS, rejects DQS, deforms positions/normals from immutable bind geometry into per-instance dynamic buffers, exposes C++/Lua selection and reporting, and adds Runtime Skeletal Preview execution reporting.
@@ -521,7 +522,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.118.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.119.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

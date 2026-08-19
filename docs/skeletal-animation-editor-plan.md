@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.102**
+Document version: **8.103**
 Status: **Five active skeletal workflows, OpenGL ES/DirectX 9/Metal preview, transient two-clip composition, per-bone layer masks, and multiple wearable follower previews implemented**
 Last updated: **2026-08-19**
 
@@ -582,6 +582,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.103 | 2026-08-19 | Runtime Skeletal Preview no longer labels CPU as LBS-only. The explicit CPU path supports resolved LBS or rigid DQS when the loaded runtime report is ready, and GPU/CPU comparison uses the selected resolved method on both sides when safe while preserving GPU-only LBS/DQS pose-stress comparison. |
 | 8.102 | 2026-08-19 | Runtime Skeletal Preview now keeps an ordered transient collection of wearable/follower `.msh` meshes. Add loads another follower with the primary resolved skinning method, preflights compatibility, enables pose sharing only for compatible meshes, and keeps per-follower path, status, visibility, and remove controls plus a remove-all action. All followers mirror primary preview transforms including pose-stress offsets, are destroyed on primary rebuild/reset/scene end, remain separate from LBS/DQS comparison, and are not persisted. |
 | 8.101 | 2026-08-18 | Runtime Skeletal Preview can now load one transient secondary wearable/follower `.msh`, preflight it with `getSkeletalSharingCompatibility` against the primary preview mesh, report compatibility or mismatch details, and enable `enableSkeletalPoseSharing(primary)` only when valid. The follower mirrors the primary preview transform and resolved skinning method while retaining its own mesh/material/weights, has separate load/replace/unload/visibility controls, is destroyed on primary rebuild/reset/scene end, and remains distinct from the LBS/DQS comparison mesh. |
 | 8.100 | 2026-08-18 | Narrowed the remaining multi-mesh ownership question after the first runtime pose-sharing slice. Compatible loaded direct followers may borrow a source instance's already-evaluated private palette while preserving their own geometry and weights; links are non-owning, reject chains, and unlink on release/reload/destruction. Editor UI and shared authoring resources remain open. |

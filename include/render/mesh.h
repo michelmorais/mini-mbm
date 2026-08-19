@@ -64,16 +64,16 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL uint32_t getTotalSkeletalAnimations() const noexcept;
     API_IMPL const char *getSkeletalAnimationName(uint32_t index) const noexcept;
     API_IMPL bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;
-        API_IMPL bool setSkeletalSkinningMethod(SKELETAL_SHADER_METHOD method) noexcept;
-        API_IMPL SKELETAL_SHADER_METHOD getSkeletalSkinningMethod() const noexcept;
-        API_IMPL SKELETAL_SHADER_METHOD getResolvedSkeletalSkinningMethod() const noexcept;
-        API_IMPL bool setSkeletalExecutionPath(SKELETAL_EXECUTION_PATH path) noexcept;
-        API_IMPL SKELETAL_EXECUTION_PATH getSkeletalExecutionPath() const noexcept;
-        API_IMPL void getSkeletalSkinningReport(const char **status, const char **resolutionReason,
-                                                uint32_t *requiredBoneCount,
-                                                uint32_t *effectiveBoneCapacity,
-                                                const char **executionPath = nullptr,
-                                                const char **executionStatus = nullptr) const noexcept;
+    API_IMPL bool setSkeletalSkinningMethod(SKELETAL_SHADER_METHOD method) noexcept;
+    API_IMPL SKELETAL_SHADER_METHOD getSkeletalSkinningMethod() const noexcept;
+    API_IMPL SKELETAL_SHADER_METHOD getResolvedSkeletalSkinningMethod() const noexcept;
+    API_IMPL bool setSkeletalExecutionPath(SKELETAL_EXECUTION_PATH path) noexcept;
+    API_IMPL SKELETAL_EXECUTION_PATH getSkeletalExecutionPath() const noexcept;
+    API_IMPL void getSkeletalSkinningReport(const char **status, const char **resolutionReason,
+                                            uint32_t *requiredBoneCount,
+                                            uint32_t *effectiveBoneCapacity,
+                                            const char **executionPath = nullptr,
+                                            const char **executionStatus = nullptr) const noexcept;
     API_IMPL bool playSkeletalAnimation(const char *name);
     API_IMPL bool crossFadeSkeletalAnimation(const char *name, float duration);
     API_IMPL bool pauseSkeletalAnimation() noexcept;

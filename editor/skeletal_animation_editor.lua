@@ -361,7 +361,10 @@ function loadRuntimeWearable(path)
         return false
     end
     local wearable=mesh:new('3d')
-    if not wearable:setSkeletalSkinningMethod(method) or not wearable:load(path) then
+    local execution=tWearable.primaryExecutionPath(state.preview)
+    if not wearable:setSkeletalSkinningMethod(method) or
+            not wearable:setSkeletalExecutionPath(execution) or
+            not wearable:load(path) then
         destroyObject(wearable)
         entry.status=string.format(tLang.L('swl_wearable_load_failed_fmt'),path)
         return false
@@ -2830,9 +2833,6 @@ local function rebuildPreview(sourcePath)
         local preview=mesh:new('3d')
         if not preview:setSkeletalSkinningMethod(method) then preview:destroy(); return nil end
         local execution=executionOverride or (playback.execution==2 and 'cpu' or 'gpu')
-        if execution=='cpu' then
-            if not preview:setSkeletalSkinningMethod('lbs') then preview:destroy(); return nil end
-        end
         if not preview:setSkeletalExecutionPath(execution) then preview:destroy(); return nil end
         if not preview:load(sourcePath) then preview:destroy(); return nil end
         preview:setSkeletalAnimationPlaybackSpeed(playback.speed)
@@ -2841,7 +2841,6 @@ local function rebuildPreview(sourcePath)
         return preview
     end
     if playback.gpuCpuCompare then
-        playback.method=2
         playback.execution=1
     end
     if playback.poseStress then
@@ -2851,9 +2850,12 @@ local function rebuildPreview(sourcePath)
         state.comparisonPreview=loadRuntimePreview('dqs',separation)
         playback.comparisonReady=state.preview~=nil and state.comparisonPreview~=nil
     elseif playback.gpuCpuCompare then
-        state.preview=loadRuntimePreview('lbs',-separation,'gpu')
+        local method=playback.method==1 and 'auto' or playback.method==3 and 'dqs' or 'lbs'
+        state.preview=loadRuntimePreview(method,-separation,'gpu')
         playback.previewX=-separation
-        state.comparisonPreview=loadRuntimePreview('lbs',separation,'cpu')
+        local report=state.preview and state.preview:getSkeletalSkinningReport() or nil
+        local resolved=report and report.resolvedMethod or method
+        state.comparisonPreview=loadRuntimePreview(resolved,separation,'cpu')
         playback.comparisonReady=state.preview~=nil and state.comparisonPreview~=nil
     else
         local method=playback.method==1 and 'auto' or playback.method==3 and 'dqs' or 'lbs'
@@ -3218,7 +3220,7 @@ local function showSkeletalPreviewControls()
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
         else rebuildPreview() end
     end
-    local executions={tLang.L('swl_execution_gpu'),tLang.L('swl_execution_cpu_lbs')}
+    local executions={tLang.L('swl_execution_gpu'),tLang.L('swl_execution_cpu')}
     tImGui.BeginDisabled(swlHasRuntimeComparison())
     tImGui.PushItemWidth(190)
     local executionChanged,execution=tImGui.Combo(tLang.L('swl_execution_path'),playback.execution,executions,-1)
@@ -3226,7 +3228,6 @@ local function showSkeletalPreviewControls()
     tImGui.EndDisabled()
     if executionChanged then
         playback.execution=execution
-        if playback.execution==2 then playback.method=2 end
         if state.runtimePreviewFromMemory then rebuildRuntimePreviewFromMemory()
         else rebuildPreview() end
     end
