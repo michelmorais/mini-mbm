@@ -83,6 +83,21 @@ The macOS Metal implementation uses an `NSWindow` + `CAMetalLayer` setup.
 > The OpenGL ES backend is **not available** on macOS — Metal is the only render
 > backend used on this platform.
 
+### Optional Metal skeletal numeric parity test
+
+On a macOS machine or CI runner with an available Metal GPU and graphical session, build
+`testLib` and run the native RGBA8 skeletal readback suite from the repository root:
+
+```sh
+cmake --build build/macos_debug --target testLib -j$(sysctl -n hw.logicalcpu)
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --metal-skeletal-parity-test
+```
+
+The command exercises the shared synthetic and Lorekeeper LBS/DQS cases through the production
+Metal deformation source. All four cases must report `PASS`, the process must exit with status zero,
+and any Metal API validation message must be treated as a test failure. This test is optional for
+build-only runners because Metal device creation is unavailable without GPU access.
+
 ---
 
 ## Audio Backend — AVFoundation
