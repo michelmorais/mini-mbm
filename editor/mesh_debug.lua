@@ -31,6 +31,7 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 tBlender      =     require "blender_cli_wrapper"
 tImportMode   =     require "blender_import_mode_helper"
+tXformGizmo   =     require "mesh_debug_transform_gizmo"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -3467,6 +3468,8 @@ function removeMeshFromTable(index)
     local wasSelected = (iSelectedMeshIndex == index)
     local removed = table.remove(tLoadedMeshes, index)
     if removed then
+        if removed.tXformPreviewMesh then removed.tXformPreviewMesh:destroy() end
+        tXformGizmo.destroy(removed)
         if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
         splitCaptureDiscardBackup(removed)
         destroySplitCaptureIslandMarkers(removed)
@@ -5544,6 +5547,12 @@ function getTransformBounds(tEntry, meshD, frame, subset)
     local bounds = nil
     if aabb then
         bounds = {
+            minX = aabb.minX,
+            minY = aabb.minY,
+            minZ = aabb.minZ,
+            maxX = aabb.maxX,
+            maxY = aabb.maxY,
+            maxZ = aabb.maxZ,
             width = aabb.maxX - aabb.minX,
             height = aabb.maxY - aabb.minY,
             depth = aabb.maxZ - aabb.minZ,
@@ -9914,13 +9923,14 @@ function showMeshOptions(tEntry, index)
         tEntry.fnBuildXformPreview = nil
         tEntry.tXformSubsetDrag = nil
         tEntry.bXformOrbiting = nil
+        tXformGizmo.destroy(tEntry)
         if tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
     end
 
     if openNode(tEntry, 'transform', tLang.L("transform"), 0, 'transform-' .. index) then
         -- Shared targeting state for every operation in this node. A selected subset is the
         -- centralization anchor; all subsets in each targeted frame move by the same offset.
-        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false, previewTint=true, enableSubsetDrag=false, subsetVisibility={} }
+        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false, previewTint=true, enableSubsetDrag=false, modernGizmo=true, snapAxes={x=false,y=false,z=false}, snapStep=0, subsetVisibility={} }
         local xf = tEntry.tXformUI
         xf.subset = xf.subset or 0
         xf.targetWidth = xf.targetWidth or 0
@@ -9931,6 +9941,9 @@ function showMeshOptions(tEntry, index)
         if xf.autoPreview == nil then xf.autoPreview = false end
         if xf.previewTint == nil then xf.previewTint = true end
         if xf.enableSubsetDrag == nil then xf.enableSubsetDrag = false end
+        if xf.modernGizmo == nil then xf.modernGizmo = true end
+        xf.snapAxes = xf.snapAxes or {x=false,y=false,z=false}
+        xf.snapStep = math.max(0,xf.snapStep or 0)
         xf.subsetVisibility = xf.subsetVisibility or {}
 
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
@@ -9964,6 +9977,7 @@ function showMeshOptions(tEntry, index)
                 tEntry.tXformPreviewMesh = nil
             end
             tEntry.bXformSubsetFilterActive = false
+            tXformGizmo.destroy(tEntry)
             if tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
         end
 
@@ -10173,6 +10187,21 @@ function showMeshOptions(tEntry, index)
             tImGui.TextDisabled(tLang.L('drag_target_subset_select_help'))
         elseif xf.enableSubsetDrag then
             tImGui.TextWrapped(tLang.L('drag_target_subset_help'))
+            tImGui.Text(tLang.L('drag_target_subset_axis_constraint'))
+            for axisIndex, axis in ipairs({'x','y','z'}) do
+                if axisIndex > 1 then tImGui.SameLine() end
+                xf.snapAxes[axis] = tImGui.Checkbox('Snap ' .. axis:upper() ..
+                    '##xfSnap' .. axis .. '-' .. index, xf.snapAxes[axis])
+            end
+            tImGui.PushItemWidth(100)
+            local snapChanged, snapStep = tImGui.InputFloat(tLang.L('drag_target_subset_snap_step') ..
+                '##xfSnapStep-' .. index, xf.snapStep, 0, 0, '%.6g',
+                tImGui.Flags('ImGuiInputTextFlags_None'))
+            tImGui.PopItemWidth()
+            if snapChanged then xf.snapStep = math.max(0,snapStep) end
+            tImGui.TextWrapped(tLang.L('drag_target_subset_snap_help'))
+            xf.modernGizmo = tImGui.Checkbox(tLang.L('modern_gizmo') ..
+                '##xfModernGizmo-' .. index, xf.modernGizmo)
         else
             iCountNewLine = 2
         end
@@ -10286,6 +10315,7 @@ function showMeshOptions(tEntry, index)
         end
 
         if not tEntry.tXformPreviewMesh then
+            tXformGizmo.destroy(tEntry)
             if not xf.autoPreview then
                 if tImGui.Button(tLang.L("preview_transform") .. '##' .. index) then
                     buildXformPreview()
@@ -10337,6 +10367,10 @@ function showMeshOptions(tEntry, index)
             end
             tImGui.PopStyleColor(1)
         end
+
+        local showModernGizmo = bCameraMode3D and xf.enableSubsetDrag and xf.modernGizmo and
+            tEntry.tXformPreviewMesh and not tEntry.bXformSubsetFilterActive
+        tXformGizmo.rebuild(tEntry,showModernGizmo and exactBounds or nil,xf,showModernGizmo)
 
         -- Subset visibility is a preview-only filter. It is available for one concrete frame;
         -- frame 0 targets all frames and may have a different subset layout in each frame.
@@ -13102,6 +13136,7 @@ function showMeshTreeWindow()
                         tEntry.tXformPreviewMesh:destroy()
                         tEntry.tXformPreviewMesh = nil
                     end
+                    tXformGizmo.destroy(tEntry)
                     destroyTransformSubsetHoverMarker(tEntry)
                     destroySplitCaptureIslandMarkers(tEntry)
                 end
@@ -13907,6 +13942,13 @@ function onTouchDown(key, x, y)
             if tEntry.sOpenNode == 'transform' and tEntry.tXformPreviewMesh and
                     xf and xf.enableSubsetDrag and not tEntry.bXformSubsetFilterActive and
                     xf.frame > 0 and xf.subset > 0 then
+                if key == 0 and bCameraMode3D and xf.modernGizmo then
+                    local gizmoAxis = tXformGizmo.hitTest(tEntry,x,y)
+                    if gizmoAxis and tXformGizmo.beginDrag(tEntry,gizmoAxis,x,y,xf) then
+                        camera2d.mx, camera2d.my = x, y
+                        return
+                    end
+                end
                 if key == 0 and bCameraMode3D then
                     tEntry.bXformOrbiting = true
                     camera2d.mx, camera2d.my = x, y
@@ -14035,16 +14077,27 @@ function onTouchMove(key, x, y)
                 if tDragEntry.tXformPreviewMesh then
                     tDragEntry.tXformPreviewMesh:setAngle(math.rad(xfDrag.deltaRx), math.rad(xfDrag.deltaRy), math.rad(xfDrag.deltaRz))
                 end
+            elseif xfDrag.mode == 'gizmo_translate' then
+                local deltaX, deltaY, deltaZ = tXformGizmo.updateDrag(xfDrag,x,y,
+                    (tDragEntry.tXformUI or {}).snapStep)
+                if deltaX and tDragEntry.tXformPreviewMesh then
+                    tDragEntry.tXformPreviewMesh:setPos(deltaX,deltaY,deltaZ)
+                    tXformGizmo.setDragOffset(tDragEntry,deltaX,deltaY,deltaZ)
+                end
             else
                 local wx, wy, wz = rayPlaneHit(x, y, xfDrag.planePoint, xfDrag.planeNormal)
                 if wx then
                     xfDrag.deltaX = wx - xfDrag.startX
                     xfDrag.deltaY = wy - xfDrag.startY
                     xfDrag.deltaZ = wz - xfDrag.startZ
+                    local xf = tDragEntry.tXformUI
+                    xfDrag.deltaX, xfDrag.deltaY, xfDrag.deltaZ = tXformGizmo.snapFreeDelta(
+                        xfDrag.deltaX,xfDrag.deltaY,xfDrag.deltaZ,xf.snapAxes,xf.snapStep)
                     -- The drag preview contains only the selected subset, so moving its render
                     -- object is equivalent to moving that subset and does not touch vertex data.
                     if tDragEntry.tXformPreviewMesh then
                         tDragEntry.tXformPreviewMesh:setPos(xfDrag.deltaX, xfDrag.deltaY, xfDrag.deltaZ)
+                        tXformGizmo.setDragOffset(tDragEntry,xfDrag.deltaX,xfDrag.deltaY,xfDrag.deltaZ)
                     end
                 end
             end
