@@ -6901,10 +6901,21 @@ local function showBindBoneHierarchy(report)
         end
     end
 
-    local visited={}
+    -- Structural reachability must not depend on which TreeNode happens to be expanded this frame.
+    -- Otherwise valid children hidden under a collapsed parent look "unvisited" to the malformed-data
+    -- fallback below and are incorrectly rendered again as parallel roots.
+    local structurallyReachable={}
+    local function markSubtree(index)
+        if structurallyReachable[index] then return end
+        structurallyReachable[index]=true
+        for _,childIndex in ipairs(children[index] or {}) do markSubtree(childIndex) end
+    end
+    for _,rootIndex in ipairs(roots) do markSubtree(rootIndex) end
+
+    local rendered={}
     local function showNode(index)
-        if visited[index] then return end
-        visited[index]=true
+        if rendered[index] then return end
+        rendered[index]=true
         local bone=bones[index]
         local findings=diagnosticsByBone[index]
         local prefix=findings and '! ' or ''
@@ -6929,8 +6940,9 @@ local function showBindBoneHierarchy(report)
         end
     end
     for _,rootIndex in ipairs(roots) do showNode(rootIndex) end
-    -- Defensive display for malformed snapshots; canonical validation should make this empty.
-    for index=1,#bones do if not visited[index] then showNode(index) end end
+    -- Defensive display for genuinely malformed/orphaned snapshots; valid descendants remain hidden
+    -- with their collapsed parent instead of being flattened into this root level.
+    for index=1,#bones do if not structurallyReachable[index] then showNode(index) end end
     state.bindTreeOpenAll=false
 end
 

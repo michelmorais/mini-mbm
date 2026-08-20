@@ -515,6 +515,9 @@ parent-to-child bone segment in cyan in the bind-pose gizmo, and updates one sep
 local TRS, radius/length, and bind matrices. The selected-bone panel permits an explicit rename.
 The same read-only selection is available directly in the viewport: a left click on a bind joint or
 parent-to-child segment selects the corresponding bone and synchronizes the hierarchy/details panel.
+Collapsing a parent hides its complete descendant subtree. Structural reachability is computed
+independently from the nodes rendered in the current frame, so hidden valid children are never
+mistaken for malformed orphan roots and redrawn in parallel at the top level.
 Clicking and dragging empty viewport space continues to orbit the camera; Bind Pose Contract does
 not turn this selection path into direct manipulation.
 Empty or duplicate names are rejected transactionally; weights and animation tracks continue
