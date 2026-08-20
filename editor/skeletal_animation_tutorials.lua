@@ -65,11 +65,17 @@ end
 
 function M.renderMenu(gui,lang)
     if not gui.BeginMenu(lang.L('swl_tutorial_menu')) then return end
+    local openedTutorial=nil
     for _,tutorial in ipairs(M.items) do
         local selected=M.activeId==tutorial.id
         local pressed,checked=gui.MenuItem(lang.L(tutorial.menuKey),nil,selected)
         if pressed then
-            if checked==false and selected then M.close() else M.open(tutorial.id) end
+            if checked==false and selected then
+                M.close()
+            else
+                M.open(tutorial.id)
+                openedTutorial=tutorial
+            end
         end
     end
     if M.activeId then
@@ -77,6 +83,7 @@ function M.renderMenu(gui,lang)
         if gui.MenuItem(lang.L('swl_tutorial_close')) then M.close() end
     end
     gui.EndMenu()
+    return openedTutorial
 end
 
 function M.renderWindow(gui,lang,leftPanelRight,hasMesh)
@@ -166,6 +173,38 @@ M.register({
             requiresMesh=true},
         {titleKey='swl_tutorial_1_step_8_title',bodyKey='swl_tutorial_1_step_8_body',
             checkKey='swl_tutorial_1_step_8_check'},
+    },
+})
+
+M.register({
+    id='tutorial_2',
+    menuKey='swl_tutorial_2_menu',
+    titleKey='swl_tutorial_2_title',
+    introKey='swl_tutorial_2_intro',
+    assetFactory='worm_cylinder',
+    steps={
+        {titleKey='swl_tutorial_2_step_1_title',bodyKey='swl_tutorial_2_step_1_body',
+            checkKey='swl_tutorial_2_step_1_check'},
+        {titleKey='swl_tutorial_2_step_2_title',bodyKey='swl_tutorial_2_step_2_body',
+            checkKey='swl_tutorial_2_step_2_check',workspace='bone_editor',focus='bone_create',
+            requiresMesh=true},
+        {titleKey='swl_tutorial_2_step_3_title',bodyKey='swl_tutorial_2_step_3_body',
+            checkKey='swl_tutorial_2_step_3_check',workspace='bind',focus='bind_hierarchy',
+            requiresMesh=true},
+        {titleKey='swl_tutorial_2_step_4_title',bodyKey='swl_tutorial_2_step_4_body',
+            checkKey='swl_tutorial_2_step_4_check',workspace='bone_editor',focus='bone_weights',
+            requiresMesh=true},
+        {titleKey='swl_tutorial_2_step_5_title',bodyKey='swl_tutorial_2_step_5_body',
+            checkKey='swl_tutorial_2_step_5_check',workspace='paint',focus='paint_mask',
+            requiresMesh=true},
+        {titleKey='swl_tutorial_2_step_6_title',bodyKey='swl_tutorial_2_step_6_body',
+            checkKey='swl_tutorial_2_step_6_check',workspace='animation',focus='animation_clip',
+            requiresMesh=true},
+        {titleKey='swl_tutorial_2_step_7_title',bodyKey='swl_tutorial_2_step_7_body',
+            checkKey='swl_tutorial_2_step_7_check',workspace='runtime',focus='runtime_preview',
+            requiresMesh=true},
+        {titleKey='swl_tutorial_2_step_8_title',bodyKey='swl_tutorial_2_step_8_body',
+            checkKey='swl_tutorial_2_step_8_check'},
     },
 })
 

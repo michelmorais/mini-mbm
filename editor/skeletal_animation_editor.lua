@@ -27,6 +27,7 @@ tMaskTopology = require "skeletal_mask_topology"
 tArmatureTemplates = require "skeletal_armature_templates"
 tAnimationImport = require "skeletal_animation_import"
 tTutorials = require "skeletal_animation_tutorials"
+tTutorialAssets = require "skeletal_animation_tutorial_assets"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -6250,7 +6251,17 @@ local function showMenu()
         end
         tImGui.EndMenu()
     end
-    tTutorials.renderMenu(tImGui,tLang)
+    local openedTutorial=tTutorials.renderMenu(tImGui,tLang)
+    if openedTutorial and openedTutorial.assetFactory=='worm_cylinder' then
+        local path,err,info=tTutorialAssets.createWormCylinder(tUtil)
+        if path and loadMesh(path) then
+            setStatus(string.format(tLang.L('swl_tutorial_2_asset_loaded_fmt'),
+                info.vertices,info.triangles),false,true)
+        else
+            setStatus(string.format(tLang.L('swl_tutorial_2_asset_failed_fmt'),
+                tostring(err or path or 'unknown error')),true,true)
+        end
+    end
     if tImGui.BeginMenu(tLang.L('menu_edit')) then
         local undoEntry=state.undoStack[#state.undoStack]
         local redoEntry=state.redoStack[#state.redoStack]
@@ -9826,6 +9837,7 @@ local function showBoneEditor()
     if previousSegmentTool~=state.boneEditorSegmentTool then applyWorkspaceVisibility() end
     tImGui.TextWrapped(tLang.L('swl_bone_editor_segment_tool_help'))
     tImGui.Separator()
+    tImGui.Text(tLang.L('swl_bone_editor_new_head_position'))
     tImGui.PushItemWidth(190)
     for _,field in ipairs({{'X','x'},{'Y','y'},{'Z','z'}}) do
         local changed,value=tImGui.InputFloat(field[1]..'##swlBoneEditor'..field[2],
@@ -9838,6 +9850,7 @@ local function showBoneEditor()
         tImGui.Flags('ImGuiInputTextFlags_None'))
     if lengthChanged then state.boneEditorLength=length end
     tImGui.PopItemWidth()
+    tImGui.TextWrapped(tLang.L('swl_bone_editor_new_head_position_help'))
     local function addRootItem(hasExplicitTail)
         local snapshot=stageRollbackSnapshot()
         local ok,newIndex=false,nil
@@ -9939,6 +9952,18 @@ local function showBoneEditor()
             'swl_bone_editor_selected_tail' or 'swl_bone_editor_selected_head'
         tImGui.TextWrapped(string.format(tLang.L(selectionKey),state.boneEditorSelection.boneName))
         local selectedBone=getBones()[state.boneEditorSelection.boneIndex]
+        local headPoint,tailPoint=nil,nil
+        if selectedBone then
+            headPoint,tailPoint=getBoneEditorEndpoints(selectedBone,1)
+            tImGui.Separator()
+            tImGui.Text(tLang.L('swl_bone_editor_joint_positions'))
+            tImGui.Text(string.format(tLang.L('swl_bone_editor_head_position_fmt'),
+                headPoint.x,headPoint.y,headPoint.z))
+            if selectedBone.hasExplicitTail then
+                tImGui.Text(string.format(tLang.L('swl_bone_editor_tail_position_fmt'),
+                    tailPoint.x,tailPoint.y,tailPoint.z))
+            end
+        end
         local tail=selectedBone and selectedBone.hasExplicitTail and selectedBone.tailOffset or nil
         if tail then
             local tx,ty,tz=tail.x or 0,tail.y or 0,tail.z or 0
@@ -9953,7 +9978,6 @@ local function showBoneEditor()
                     nx,ny,nz))
                 tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_angles_fmt'),
                     inclination,azimuth))
-                local headPoint,tailPoint=getBoneEditorEndpoints(selectedBone,1)
                 local worldLength=math.sqrt((tailPoint.x-headPoint.x)^2+
                     (tailPoint.y-headPoint.y)^2+(tailPoint.z-headPoint.z)^2)
                 tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_length_fmt'),worldLength))

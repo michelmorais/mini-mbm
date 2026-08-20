@@ -480,6 +480,28 @@ without adding tutorial-specific rendering branches to the main editor. A step m
 optional `checkKey`; the window renders this after Previous/Next as a distinct expected-result and
 diagnostic checklist rather than repeating the primary instruction.
 
+**Tutorial 2 - Bending Cylinder** is an asset-backed exercise. Selecting it creates a capped,
+vertical cylinder with 12 height divisions and a checker texture built from two hexadecimal RGBA
+colors, saves both the `.msh` and `.png` through `tUtil.getTemporaryFilePath()`, and immediately
+loads the generated mesh. The same path helper uses the configured temporary directory on Windows
+and `os.tmpname()` storage on POSIX platforms, so the tutorial does not write generated assets into
+the repository. The guide then covers a centered four-bone chain, automatic smooth weights,
+weight-transition inspection, and a looping side-to-side S bend. Generated files are disposable;
+**Save As** preserves the MSH, but a portable project copy must replace or retain the separately
+generated temporary PNG.
+
+Asset-backed tutorials declare `assetFactory` in the same data record as their steps. Menu
+activation is returned to the editor once, where the named factory in
+`editor/skeletal_animation_tutorial_assets.lua` performs generation and the ordinary `loadMesh()`
+boundary resets editor state. No geometry, texture generation, loading, or serialization runs from
+the per-frame tutorial window path.
+
+In Bone Editor, the X/Y/Z creation fields are explicitly labeled as the new independent bone's
+head position and are consumed when **Add Bone** is clicked; they are not a post-creation move
+command. Selecting an existing bone reports its global bind head and explicit-tail positions beside
+the existing local direction, visual rotation, and visual length. This readout reuses the already
+resolved skeleton endpoints and performs no mesh scan, buffer rebuild, or serialization.
+
 After loading a skeleton, open **Bind Pose Contract** to inspect the canonical conversion without
 editing the source asset. The panel reports global-to-local TRS reconstruction error, bind-identity
 error, fatal/warning diagnostics, stable bone IDs, local quaternion TRS, and the local, global, and
