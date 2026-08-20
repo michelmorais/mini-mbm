@@ -95,7 +95,7 @@ function M.rebuild(entry,bounds,transform,visible)
     local cy=(minY+maxY)*0.5
     local cz=(minZ+maxZ)*0.5
     local extent=math.max(maxX-minX,maxY-minY,maxZ-minZ)
-    local length=math.max(extent*0.14,0.05)
+    local length=math.max(extent * 0.33,0.05)
     local fingerprint=string.format('%.6g|%.6g|%.6g|%.6g',cx,cy,cz,length)
     local gizmo=entry.tXformModernGizmo or {axes={}}
     entry.tXformModernGizmo=gizmo
