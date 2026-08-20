@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
-Status: **Armature Templates, Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
-Last updated: **2026-08-19**
+Status: **Armature Templates, Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation and offline same-topology clip import, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Last updated: **2026-08-20**
 
 ## 1. Purpose
 
@@ -693,10 +693,28 @@ and none of these diagnostic values are serialized.
 Open **Create / Edit Animations** to inspect the canonical type-43 structure before editing is
 enabled. The node selects a named clip and displays its stable ID, duration, looping policy, tracks,
 target bone identity, T/R/S channel mask, and every key's time, local quaternion TRS, easing, and
-Cubic-Bezier controls. Selecting a track synchronizes the editor's selected bone index. This first
-Milestone-6 surface is deliberately read-only: it has no timeline, key insertion/removal, or clip
-mutation yet, so imported animation cannot be changed accidentally while the authoring transaction
-model is still being introduced.
+Cubic-Bezier controls. Selecting a track synchronizes the editor's selected bone index. Clips,
+tracks, keys, poses, and timeline operations are editable through the transaction model described
+below.
+
+**Import Animation from MSH...**, located before the clip selector, opens a separate adjustment
+window. It loads one animated source MSH, lets the user select a source clip and assign a unique
+destination name, and imports only canonical type-43 animation data. The target geometry,
+materials, skeleton identities, and vertex weights remain unchanged. Common bone-name prefixes are
+detected generically from delimiters such as `:`, `|`, `_`, and `-`; the operation does not contain
+RenderPeople- or Mixamo-specific prefixes. After prefix removal, every normalized bone name must be
+unique and present on both sides, the bone counts must match, and mapped parent relationships must
+be identical. Incompatible sources are rejected before target mutation.
+
+For a compatible skeleton, keys are adapted offline from the source bind-local TRS to the target
+bind-local TRS. Translation deltas use the corresponding bone-length ratio, root translation uses
+the measured skeleton-height ratio, rotation preserves the source bind-relative quaternion delta,
+and scale preserves its bind-relative ratio. Key times, channel masks, easing, Bezier controls,
+duration, and looping policy are retained. Import creates one destination clip and pastes all keys
+through the canonical batch API. The editor's whole-asset snapshot restores the original target if
+either stage fails, and a successful import participates in Undo/Redo. This is deliberately a
+narrow offline same-topology retarget workflow for combining separately exported animations; it is
+not runtime retargeting or arbitrary humanoid semantic mapping.
 
 The same node can create an empty clip and update the selected clip's name, duration, and loop
 policy. Clip IDs remain unchanged when properties are edited. A duration reduction that would

@@ -25,6 +25,7 @@ tUtil = require "editor_utils"
 tWearable = require "skeletal_runtime_wearable_helpers"
 tMaskTopology = require "skeletal_mask_topology"
 tArmatureTemplates = require "skeletal_armature_templates"
+tAnimationImport = require "skeletal_animation_import"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -90,6 +91,8 @@ local state = {
     animationTimelineSnapEnabled = false,
     animationTimelineSnapStep = 1/30,
     animationReport = nil,
+    animationImport = {open=false,path='',sourceMesh=nil,sourceBind=nil,sourceClips={},
+        sourceClip=1,newName='',analysis=nil,error=nil,keyCount=0,confirmed=false},
     runtimePreviewFromMemory = false,
     runtimePreviewMemoryDirty = false,
     animationPlayback = {playing=false,paused=false,speed=1},
@@ -3533,6 +3536,9 @@ local function loadMesh(path)
     state.animationTrackEdits={}
     state.animationNewKeyTimes={}
     state.animationKeyEdits={}
+    destroyObject(state.animationImport.sourceMesh)
+    state.animationImport={open=false,path='',sourceMesh=nil,sourceBind=nil,sourceClips={},
+        sourceClip=1,newName='',analysis=nil,error=nil,keyCount=0,confirmed=false}
     state.animationKeyClipboard=nil
     state.animationBonePoseClipboard=nil
     state.animationSkeletonPoseClipboard=nil
@@ -8835,6 +8841,10 @@ local function showSkeletalAnimationInspection()
         clips=ok and type(report)=='table' and report or {}
         state.animationReport=clips
     end
+    if tImGui.Button(tLang.L('swl_animation_import_msh')..'##swlAnimationImportMsh') then
+        state.animationImport.open=true
+    end
+    showItemTooltip(tLang.L('swl_animation_import_msh_help'))
     if #clips==0 then
         state.animationTimelineClip=nil
         tImGui.TextDisabled(tLang.L('swl_animation_no_clips'))
@@ -9314,6 +9324,133 @@ local function showSkeletalAnimationInspection()
     end
     tImGui.EndDisabled()
     showRollbackControls('swlAnimationRevert')
+end
+
+-- Deliberately global: the main editor chunk is at Lua 5.4's 200-local compilation ceiling.
+function swlShowAnimationImportWindow()
+    local import=state.animationImport
+    if not import.open or not state.meshD then return end
+    tImGui.SetNextWindowSize({x=610,y=430},tImGui.Flags('ImGuiCond_Once'))
+    local flags=tImGui.Flags('ImGuiWindowFlags_NoCollapse')
+    local opened=tImGui.Begin(tLang.L('swl_animation_import_window')..'##swlAnimationImportWindow',
+        false,flags)
+    if opened then
+        tImGui.TextWrapped(tLang.L('swl_animation_import_help'))
+        if tImGui.Button(tLang.L('swl_animation_import_choose')..'##swlAnimationImportChoose') then
+            local path=mbm.openFile(import.path~='' and import.path or state.fileName or '','msh')
+            if path then
+                destroyObject(import.sourceMesh)
+                import.sourceMesh=nil; import.path=path; import.sourceClips={}; import.analysis=nil
+                import.error=nil; import.sourceClip=1; import.keyCount=0; import.confirmed=false
+                local source=meshDebug:new()
+                local loaded,loadResult=safeCall(function() return source:load(path) end)
+                if loaded and loadResult then
+                    import.sourceMesh=source
+                    local bindOk,sourceBind=safeCall(function()
+                        return source:getSkeletonBindReport(false)
+                    end)
+                    local clipsOk,sourceClips=safeCall(function()
+                        return source:getSkeletalAnimationReport()
+                    end)
+                    if bindOk and clipsOk and type(sourceClips)=='table' and #sourceClips>0 then
+                        import.sourceBind=sourceBind; import.sourceClips=sourceClips
+                        import.analysis,import.error=tAnimationImport.analyze(state.bindReport,sourceBind)
+                        local clip=sourceClips[1]
+                        import.newName=tAnimationImport.defaultClipName(path,clip.name)
+                        for _,track in ipairs(clip.tracks or {}) do
+                            import.keyCount=import.keyCount+#(track.keys or {})
+                        end
+                    else
+                        import.error='invalid_source_animation'
+                    end
+                else
+                    destroyObject(source)
+                    import.error='load_failed'
+                end
+            end
+        end
+        tImGui.SameLine()
+        tImGui.TextDisabled(import.path~='' and shortName(import.path) or
+            tLang.L('swl_animation_import_no_source'))
+        if import.analysis then
+            local sourcePrefix=import.analysis.sourcePrefix~='' and import.analysis.sourcePrefix or
+                tLang.L('swl_animation_import_no_prefix')
+            local targetPrefix=import.analysis.targetPrefix~='' and import.analysis.targetPrefix or
+                tLang.L('swl_animation_import_no_prefix')
+            tImGui.TextWrapped(string.format(tLang.L('swl_animation_import_mapping_fmt'),
+                import.analysis.boneCount,sourcePrefix,targetPrefix,import.analysis.heightRatio or 1))
+            local names={}
+            for index,clip in ipairs(import.sourceClips) do names[index]=clip.name or ('Clip '..index) end
+            tImGui.PushItemWidth(330)
+            local clipChanged,sourceClip=tImGui.Combo(tLang.L('swl_animation_import_source_clip'),
+                import.sourceClip,names,-1)
+            tImGui.PopItemWidth()
+            if clipChanged then
+                import.sourceClip=sourceClip; import.confirmed=false; import.keyCount=0
+                local clip=import.sourceClips[sourceClip]
+                import.newName=tAnimationImport.defaultClipName(import.path,clip and clip.name)
+                for _,track in ipairs(clip and clip.tracks or {}) do
+                    import.keyCount=import.keyCount+#(track.keys or {})
+                end
+            end
+            local clip=import.sourceClips[import.sourceClip]
+            if clip then
+                tImGui.TextWrapped(string.format(tLang.L('swl_animation_import_clip_fmt'),
+                    clip.duration or 0,#(clip.tracks or {}),import.keyCount))
+            end
+            tImGui.PushItemWidth(330)
+            local nameChanged,newName=tImGui.InputText(
+                tLang.L('swl_animation_import_name')..'##swlAnimationImportName',import.newName,
+                tImGui.Flags('ImGuiInputTextFlags_None'))
+            tImGui.PopItemWidth()
+            if nameChanged then import.newName=newName; import.confirmed=false end
+            import.confirmed=tImGui.Checkbox(tLang.L('swl_animation_import_confirm')..
+                '##swlAnimationImportConfirm',import.confirmed)
+            local trimmed=(import.newName or ''):match('^%s*(.-)%s*$')
+            local duplicate=false
+            for _,targetClip in ipairs(state.animationReport or {}) do
+                if targetClip.name==trimmed then duplicate=true break end
+            end
+            if duplicate then tImGui.TextColored({r=1,g=0.4,b=0.3,a=1},
+                tLang.L('swl_animation_import_duplicate')) end
+            tImGui.BeginDisabled(not clip or trimmed=='' or duplicate or not import.confirmed)
+            if tImGui.Button(tLang.L('swl_animation_import_apply')..'##swlAnimationImportApply') then
+                local payload,payloadError=tAnimationImport.buildPayload(import.analysis,clip)
+                if not payload then
+                    setStatus(string.format(tLang.L('swl_animation_import_failed_fmt'),
+                        tostring(payloadError)),true)
+                else
+                    local snapshot=stageRollbackSnapshot('swl_animation_import_history')
+                    local imported,newIndex=false,nil
+                    if snapshot then imported,newIndex=safeCall(function()
+                        local index=state.meshD:addSkeletalClip(trimmed,clip.duration,clip.loop==true)
+                        state.meshD:pasteSkeletalKeys(index,payload,0,0)
+                        return index
+                    end) end
+                    if imported then
+                        commitRollbackSnapshot(snapshot,'swl_animation_import_history')
+                        state.modified=true; refreshBindReport()
+                        state.animationClipSelected=newIndex; state.animationEditClipId=nil
+                        state.animationTimelineClip=nil; state.authoringTime=0
+                        clearAuthoringOverride(); import.confirmed=false; import.open=false
+                        setStatus(string.format(tLang.L('swl_animation_imported_fmt'),trimmed),false)
+                    elseif snapshot then
+                        restoreHistoryEntry(snapshot)
+                        discardRollbackSnapshot(snapshot)
+                    end
+                end
+            end
+            tImGui.EndDisabled()
+        elseif import.error then
+            tImGui.TextColored({r=1,g=0.4,b=0.3,a=1},string.format(
+                tLang.L('swl_animation_import_incompatible_fmt'),tostring(import.error)))
+        end
+        tImGui.Separator()
+        if tImGui.Button(tLang.L('swl_animation_import_close')..'##swlAnimationImportClose') then
+            import.open=false
+        end
+    end
+    tImGui.End()
 end
 
 local function nextSimpleBoneName()
@@ -10302,6 +10439,7 @@ function onLoop(delta)
     showPanel()
     showCameraPanel()
     showRuntimeLightWindow()
+    swlShowAnimationImportWindow()
     showSkeletalTimelineWindow()
     syncRuntimeComparisonPreview()
     if state.workspace=='runtime' and state.skeletalPreview.playing and
@@ -10315,6 +10453,7 @@ function onEndScene()
     unloadAllRuntimeWearables()
     destroyObject(state.preview)
     destroyObject(state.comparisonPreview)
+    destroyObject(state.animationImport.sourceMesh)
     clearPaintVisuals()
     destroySkeletonVisuals()
     clearRollback()
