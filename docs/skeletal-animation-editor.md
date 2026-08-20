@@ -518,6 +518,11 @@ parent-to-child segment selects the corresponding bone and synchronizes the hier
 Collapsing a parent hides its complete descendant subtree. Structural reachability is computed
 independently from the nodes rendered in the current frame, so hidden valid children are never
 mistaken for malformed orphan roots and redrawn in parallel at the top level.
+The bind viewport distinguishes two related structures: solid parent-to-child links express
+hierarchical inheritance, while thin non-selectable head-to-tail lines and endpoint joints retain
+every bone's explicit authored extent. A four-bone connected chain therefore shows all four bone
+extents even though it has only three parent-child relationships; the two representations may
+overlap where a child head is connected exactly to its parent's tail.
 Clicking and dragging empty viewport space continues to orbit the camera; Bind Pose Contract does
 not turn this selection path into direct manipulation.
 Empty or duplicate names are rejected transactionally; weights and animation tracks continue

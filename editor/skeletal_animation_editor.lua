@@ -1351,10 +1351,10 @@ rebuildSkeletonVisuals=function()
             'swl_bone_joint_',1,0,1,0.85)
         sphere:setScale(radius,radius,radius)
         state.skeletonGizmo.spheres[bone.name]=sphere
-        if state.workspace=='animation' and bone.hasExplicitTail then
+        if (state.workspace=='bind' or state.workspace=='animation') and bone.hasExplicitTail then
             local head,tailPoint=getBoneEditorEndpoints(bone,extent)
             local tail=createBoneShape(tailPoint.x,tailPoint.y,tailPoint.z,unitSphereVerts(),
-                'swl_animation_reference_tail_',1,0,1,0.6)
+                'swl_explicit_reference_tail_',1,0,1,0.6)
             tail:setScale(radius,radius,radius)
             state.skeletonGizmo.referenceTails[bone.boneId]=tail
             local headVisualZ,tailVisualZ=visualZ(head.z),visualZ(tailPoint.z)
@@ -7018,6 +7018,7 @@ local function showBindPoseDiagnostics()
     end
     if report.bones and tImGui.TreeNode(string.format('%s (%d)##swlBindBones',
             tLang.L('swl_bind_compiled_bones'),#report.bones)) then
+        tImGui.TextWrapped(tLang.L('swl_bind_viewport_segments_help'))
         if tImGui.Button(tLang.L('swl_expand_all')..'##swlBindExpandAll') then
             state.bindTreeOpenAll=true
         end

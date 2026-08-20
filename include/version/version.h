@@ -540,6 +540,7 @@
     7.136.2 Corrected the tutorial naming sequence to match the actual editor: Bone Editor keeps automatically assigned names, while Bind Pose Contract performs renaming. Tutorial 2 now assigns worm_root through worm_03 only in its Bind step, and Tutorial 1 explicitly reinforces the same boundary.
     7.137.0 Clarified Bone Editor position semantics and made them inspectable: the creation inputs are now labeled as the new independent bone head position required before Add Bone, selected bones report global head/tail coordinates beside orientation and length, and Tutorial 2 uses exact input and expected-chain coordinates instead of implying an approximate post-creation move.
     7.137.1 Fixed collapsed Bind Pose Contract hierarchies flattening hidden descendants into parallel roots. Structural reachability is now independent from per-frame expanded rendering, so a collapsed parent hides its valid complete subtree while the defensive fallback remains limited to genuinely malformed/orphaned bones.
+    7.138.0 Made Bind Pose Contract retain every explicit bone extent in the viewport. It now supplements parent-to-child hierarchy links with non-selectable head-to-tail reference lines and tail joints, so a four-bone chain visibly keeps four authored segments while still exposing its three inheritance relationships.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -565,7 +566,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.137.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.138.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
