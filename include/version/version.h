@@ -529,6 +529,10 @@
     7.131.5 Documented the intentional Visual Tail Orientation persistence boundary: direct MSH saves retain editor endpoints, while an MSH-to-FBX-to-MSH round-trip restores tails reconstructed from the unchanged bind axes and may be visually normalized again.
     7.132.0 Added Undoable offline animation import from MSH to Create / Edit Animations. It detects generic bone-name prefixes, requires identical normalized names and hierarchy, adapts source keys relative to the target bind pose and proportions, and preserves target geometry, skeleton identities, and weights.
     7.132.1 Rebuilds Runtime Skeletal Preview once from canonical editor memory after a successful MSH animation import, making the new clip available immediately without requiring Save.
+    7.133.0 Added a read-only Paint Weights view that displays persistent mask markers over the original textured mesh, reports AABB capture counts and the required apply step when capture ends, improves Bone Editor head/tail terminology and Portuguese hierarchy labels, and raises the default independent-bone length from 1 to 10.
+    7.134.0 Made Create / Edit Animations retain explicit bone tails and head-to-tail segments as persistent non-selectable pose references, preserving the Bone Editor armature shape without treating authoring endpoints as animatable transforms.
+    7.134.1 Clarified the Animation Auto Key tooltip with the explicit manual Create / update key action required to commit a temporary pose when Auto Key is disabled.
+    7.134.2 Added an inline channel-aware instruction beneath the temporary-pose warning that names the exact Create / update key button required to finish the edit.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -554,7 +558,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.132.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.134.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

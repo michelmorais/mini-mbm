@@ -101,7 +101,7 @@ local state = {
     rotationGizmo = {rings={},origin=nil,radius=nil,drag=nil},
     scaleGizmo = {axes={},origin=nil,length=nil,drag=nil},
     boneEditorPosition = {x=0,y=0,z=0},
-    boneEditorLength = 1,
+    boneEditorLength = 10,
     boneEditorExtendCount = 1,
     boneEditorPreserveOtherJoints = true,
     boneEditorSnapAxes = {x=false,y=false,z=false},
@@ -135,7 +135,7 @@ local state = {
     workspace = 'none',
     meshVisible = true,
     skeletonAlwaysOnTop = true,
-    skeletonGizmo = {spheres={}, bones={}},
+    skeletonGizmo = {spheres={}, bones={}, referenceTails={}, referenceSegments={}},
     skeletonGizmoGeneration = 0,
     markersAlwaysOnTop = true,
     info = nil,
@@ -749,7 +749,9 @@ end
 local function destroySkeletonVisuals(preserveTranslationGizmo)
     for _,object in pairs(state.skeletonGizmo.spheres) do destroyObject(object) end
     for _,object in pairs(state.skeletonGizmo.bones) do destroyObject(object) end
-    state.skeletonGizmo={spheres={},bones={}}
+    for _,object in pairs(state.skeletonGizmo.referenceTails) do destroyObject(object) end
+    for _,object in pairs(state.skeletonGizmo.referenceSegments) do destroyObject(object) end
+    state.skeletonGizmo={spheres={},bones={},referenceTails={},referenceSegments={}}
     if not preserveTranslationGizmo then
         for _,object in pairs(state.translationGizmo.axes) do destroyObject(object) end
         state.translationGizmo={axes={},boneIndex=nil,poseKey=nil,drag=nil}
@@ -1085,6 +1087,12 @@ local function updateSkeletonVisibility()
         object.visible=shouldShowSkeleton()
     end
     for _,object in pairs(state.skeletonGizmo.bones) do object.visible=shouldShowSkeleton() end
+    for _,object in pairs(state.skeletonGizmo.referenceTails) do
+        object.visible=shouldShowSkeleton()
+    end
+    for _,object in pairs(state.skeletonGizmo.referenceSegments) do
+        object.visible=shouldShowSkeleton()
+    end
 end
 
 function applyWorkspaceVisibility()
@@ -1341,6 +1349,22 @@ rebuildSkeletonVisuals=function()
             'swl_bone_joint_',1,0,1,0.85)
         sphere:setScale(radius,radius,radius)
         state.skeletonGizmo.spheres[bone.name]=sphere
+        if state.workspace=='animation' and bone.hasExplicitTail then
+            local head,tailPoint=getBoneEditorEndpoints(bone,extent)
+            local tail=createBoneShape(tailPoint.x,tailPoint.y,tailPoint.z,unitSphereVerts(),
+                'swl_animation_reference_tail_',1,0,1,0.6)
+            tail:setScale(radius,radius,radius)
+            state.skeletonGizmo.referenceTails[bone.boneId]=tail
+            local headVisualZ,tailVisualZ=visualZ(head.z),visualZ(tailPoint.z)
+            local segment=line:new('3d',head.x,head.y,headVisualZ)
+            segment:add({0,0,0,tailPoint.x-head.x,tailPoint.y-head.y,
+                tailVisualZ-headVisualZ})
+            segment:setColor(1,0,1,0.65)
+            segment.visible=shouldShowSkeleton()
+            segment.alwaysOnTop=state.skeletonAlwaysOnTop
+            segment.alwaysOnTopPriority=1
+            state.skeletonGizmo.referenceSegments[bone.boneId]=segment
+        end
         if state.workspace=='bone_editor' or state.workspace=='paint' then
             if bone.hasExplicitTail then
                 local head,tailPoint=getBoneEditorEndpoints(bone,extent)
@@ -1400,6 +1424,17 @@ local function updateAnimationSkeletonVisuals()
         local sphere=state.skeletonGizmo.spheres[bone.name]
         if not sphere then return false end
         sphere:setPos(bone.x,bone.y,visualZ(bone.z))
+        if bone.hasExplicitTail then
+            local _,tailPoint=getBoneEditorEndpoints(bone,1)
+            local tail=state.skeletonGizmo.referenceTails[bone.boneId]
+            local segment=state.skeletonGizmo.referenceSegments[bone.boneId]
+            if not tail or not segment then return false end
+            local headVisualZ,tailVisualZ=visualZ(bone.z),visualZ(tailPoint.z)
+            tail:setPos(tailPoint.x,tailPoint.y,tailVisualZ)
+            segment:set({0,0,0,tailPoint.x-bone.x,tailPoint.y-bone.y,
+                tailVisualZ-headVisualZ},1)
+            segment:setPos(bone.x,bone.y,headVisualZ)
+        end
         if bone.parentName then
             local parent=byName[bone.parentName]
             local link=state.skeletonGizmo.bones[bone.boneId]
@@ -2065,14 +2100,17 @@ local function setPaintAabbCaptureActive(active)
         capture.dragPlane,capture.dragOffset=nil,nil
         rebuildPaintAabbCaptureBox()
         capture.result={}
+        local capturedCount=0
         local cache=state.paint.geometry
         if cache and capture.bounds then
             for _,vertex in pairs(cache.vertices) do
                 if pointInsideAABB(vertex.point,capture.bounds) then
                     capture.result[vertex.globalIndex]=true
+                    capturedCount=capturedCount+1
                 end
             end
         end
+        setStatus(string.format(tLang.L('swl_paint_aabb_capture_ready_fmt'),capturedCount),false,true)
     end
     applyWorkspaceVisibility()
 end
@@ -2662,6 +2700,9 @@ rebuildPaintHeatmap = function()
     if not bone then return end
     state.paint.boneId=bone.boneId
     state.boneIndex=state.paint.boneIndex
+    -- This read-only view owns no heatmap geometry. Workspace visibility restores the ordinary
+    -- textured preview underneath the already-cached persistent mask markers.
+    if state.paint.visualizationMode==5 then return end
     local cache=state.paint.geometry or buildPaintGeometryCache()
     if not cache then return end
     local weights={}
@@ -3543,7 +3584,7 @@ local function loadMesh(path)
     state.animationBonePoseClipboard=nil
     state.animationSkeletonPoseClipboard=nil
     state.boneEditorPosition={x=0,y=0,z=0}
-    state.boneEditorLength=1
+    state.boneEditorLength=10
     state.boneEditorSelectedIndex=nil
     state.boneEditorSelection=nil
     state.boneEditorReorientTailsConfirmed=false
@@ -7079,6 +7120,8 @@ local function showPaintWeights()
         state.paint.visualizationMode,3)
     state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_abrupt'),
         state.paint.visualizationMode,4)
+    state.paint.visualizationMode=tImGui.RadioButton(tLang.L('swl_paint_show_mask_original'),
+        state.paint.visualizationMode,5)
     if state.paint.visualizationMode~=previousVisualizationMode then
         state.paint.limitInfluencesConfirmed=false
         state.paint.heatmapDirty=true
@@ -7086,7 +7129,7 @@ local function showPaintWeights()
         rebuildPaintCursor(nil)
         applyWorkspaceVisibility()
     end
-    if state.paint.visualizationMode~=1 then
+    if state.paint.visualizationMode>=2 and state.paint.visualizationMode<=4 then
         local diagnosticMask=tImGui.Checkbox(tLang.L('swl_paint_diagnostics_use_mask'),
             state.paint.diagnosticsUseMask)
         if diagnosticMask~=state.paint.diagnosticsUseMask then
@@ -7225,6 +7268,8 @@ local function showPaintWeights()
                 safetyReport.unsafeFaces,safetyReport.unsafeFaceSamples,
                 safetyReport.seamVertices,safetyReport.synchronizedSeams))
         end
+    elseif state.paint.visualizationMode==5 then
+        tImGui.TextWrapped(tLang.L('swl_paint_show_mask_original_help'))
     end
     if state.paint.visualizationMode==1 then
         tImGui.Separator()
@@ -9007,14 +9052,16 @@ local function showSkeletalAnimationInspection()
             tLang.L('swl_animation_auto_key')..'##swlAnimationAutoKey',state.animationAutoKey)
         showItemTooltip(tLang.L('swl_animation_auto_key_help'))
         if state.authoringOverride then
-            tImGui.TextColored({r=1,g=0.75,b=0.15,a=1},
-                tLang.L('swl_animation_temporary_pose'))
             local rotationOverride=state.authoringOverride.channelMask==2
             local scaleOverride=state.authoringOverride.channelMask==4
-            if tImGui.Button(tLang.L(scaleOverride and
-                    'swl_animation_commit_scale_key' or rotationOverride and
-                    'swl_animation_commit_rotation_key' or
-                    'swl_animation_commit_translation_key')..'##swlCommitAuthoringKey') then
+            local commitKey=scaleOverride and 'swl_animation_commit_scale_key' or
+                rotationOverride and 'swl_animation_commit_rotation_key' or
+                'swl_animation_commit_translation_key'
+            tImGui.TextColored({r=1,g=0.75,b=0.15,a=1},
+                tLang.L('swl_animation_temporary_pose'))
+            tImGui.TextColored({r=1,g=0.75,b=0.15,a=1},string.format(
+                tLang.L('swl_animation_temporary_pose_commit_help_fmt'),tLang.L(commitKey)))
+            if tImGui.Button(tLang.L(commitKey)..'##swlCommitAuthoringKey') then
                 commitAuthoringOverride()
             end
             if tImGui.Button(tLang.L('swl_animation_discard_temporary_pose')..

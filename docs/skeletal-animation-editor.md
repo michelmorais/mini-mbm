@@ -139,8 +139,10 @@ contextual or visible as applicable. **Brush Operations** appears
 only for Selected Bone Heatmap. Influence Distribution and Weak Influence Contamination are
 read-only: the cursor is hidden and right-drag cannot start a stroke. Weak Contamination alone shows
 its shared threshold and the contextual **Weight Tools / Clean Weak Influences** action below the
-diagnostic statistics. Diagnostic visualization is one explicit four-value radio group: Selected
-Bone Heatmap, Influence Distribution, Weak Influence Contamination, or Abrupt Weight Transitions.
+diagnostic statistics. Visualization is one explicit five-value radio group: Selected Bone Heatmap,
+Influence Distribution, Weak Influence Contamination, Abrupt Weight Transitions, or Show Mask on
+Original Mesh. The last mode restores the ordinary textured preview beneath the persistent orange
+mask markers and builds no heatmap geometry, providing a read-only topology/material inspection view.
 
 Target Bone and viewport bone picking are also contextual: they are exposed only in Selected Bone
 Heatmap, where a particular bone actually drives visualization and brush edits. The three
@@ -317,9 +319,9 @@ Viewport translation updates only their existing `setPos` values; it does not de
 render objects on each mouse-move frame. Hover changes only visibility. Geometry is rebuilt solely
 when Min, Max, or Size actually changes the volume dimensions.
 Turning capture off performs one point-inside-box pass over the cached frame-1 vertices, destroys
-the box, restores the previous editor visualization, and retains the captured vertex set. Separate
-Replace/Add/Remove actions then apply that result to the session mask without touching weights or
-Undo history.
+the box, restores the previous editor visualization, retains the captured vertex set, and reports
+its count plus the required apply step. Separate Replace/Add/Remove actions then apply that result
+to the session mask without touching weights or Undo history.
 
 Implementation trap: Lua's `condition and value_if_true or value_if_false` idiom cannot represent
 `nil` as `value_if_true`. An expression such as `mode == "remove" and nil or true` always evaluates
@@ -933,6 +935,10 @@ X/Y/Z rings at the evaluated joint; dragging a ring applies a normalized quatern
 shared in-memory pose, so the deformed mesh and evaluated skeleton update together without changing
 the bind pose or clip. Mouse release remains temporary. The user must explicitly create/update the
 rotation key (channel R), or discard the temporary pose.
+Animation also retains each explicit authoring tail and its head-to-tail segment as a non-selectable
+reference that follows the evaluated bone matrix. Real transform joints and parent-to-child links
+remain the only animation-picking targets, but the visible armature no longer loses its Bone Editor
+shape merely because the workspace changed.
 During interactive Move/Rotate preview, Animation uses persistent joint shapes and parent-child line
 segments. Pose refresh updates their positions and dynamic line buffers in place; it does not destroy
 and recreate the complete skeleton for every mouse event. A structural selection/load change still
@@ -1072,7 +1078,7 @@ scale-proportional `DragFloat` interaction for quick visual adjustment.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments use the same canonical asset and history boundary.
 
-Viewport picking distinguishes the initial joint, final joint, and bone segment. A selected joint
+Viewport picking distinguishes the head (initial joint), tail (final joint), and bone segment. A selected joint
 highlights only that endpoint; selecting the segment highlights the segment and both endpoints.
 Clicking empty viewport space clears the selection and remains available for camera orbit. This
 selection feeds the delivered move/rotate, snapping, connection, radius, and structural operations.
