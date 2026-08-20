@@ -838,7 +838,11 @@ current visual length. Every bone that owns a connected child is skipped so no j
 transform moves.
 The complete operation is transactional and Undoable. It changes only explicit `tailOffset` and
 `length`: bind rotations, weights, animation tracks, and the bone axes reconstructed during
-MSH-to-FBX export from global bind matrices remain unchanged.
+MSH-to-FBX export from global bind matrices remain unchanged. Consequently, saving and reopening
+the edited MSH preserves these visual tails, but an MSH -> FBX -> MSH round-trip does not: FBX
+export reconstructs the armature from the unchanged bind axes, and FBX import then captures those
+Blender bone tails as the new explicit endpoints. Running **Visual tail orientation** again after
+that round-trip is the expected workflow, not repair of damaged animation data.
 
 Extending a selected explicit tail creates a child whose local head is exactly that tail offset and
 sets `connectedToParent=true`. This explicit constraint is what later joint dragging will use to

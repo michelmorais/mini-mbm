@@ -526,6 +526,7 @@
     7.131.2 Fixed Visual Tail Orientation result handling: the editor now distinguishes safeCall success, operation success, and the numeric changed-tail count, preventing a Lua format error and the resulting unbalanced ImGui frame abort.
     7.131.3 Fixed saved meshes losing skeletal playback after Visual Tail Orientation repeatedly decomposed unrelated bind transforms through preserveOtherJoints. The editor-only batch now skips every connected-child owner and mutates only independent tailOffset/length data, leaving all local bind transforms untouched.
     7.131.4 Debug builds now log why playSkeletalAnimation returned false, including missing data/name/method/clip and first-frame clip-sampling or LBS/DQS palette diagnostics. Release behavior and the bool API remain unchanged.
+    7.131.5 Documented the intentional Visual Tail Orientation persistence boundary: direct MSH saves retain editor endpoints, while an MSH-to-FBX-to-MSH round-trip restores tails reconstructed from the unchanged bind axes and may be visually normalized again.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -551,7 +552,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.131.4" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.131.5" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
