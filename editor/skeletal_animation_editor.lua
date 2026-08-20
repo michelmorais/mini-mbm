@@ -8962,7 +8962,8 @@ local function showSkeletalAnimationInspection()
             state.animationRemoveConfirmed=false
         end
         tImGui.PushItemWidth(190)
-        local timeChanged,time=tImGui.SliderFloat('Tempo da pose##swlAuthoringTime',
+        local timeChanged,time=tImGui.SliderFloat(tLang.L('swl_animation_pose_time')..
+            '##swlAuthoringTime',
             state.authoringTime,0,math.max(clip.duration or 0,0),'%.3f s')
         tImGui.PopItemWidth()
         if timeChanged then

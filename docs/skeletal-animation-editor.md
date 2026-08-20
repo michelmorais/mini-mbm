@@ -489,7 +489,9 @@ colors, saves both the `.msh` and `.png` through `tUtil.getTemporaryFilePath()`,
 loads the generated mesh. The same path helper uses the configured temporary directory on Windows
 and `os.tmpname()` storage on POSIX platforms, so the tutorial does not write generated assets into
 the repository. The guide then covers a centered four-bone chain, automatic smooth weights,
-weight-transition inspection, and a looping side-to-side S bend. Generated files are disposable;
+weight-transition inspection, and a looping side-to-side S bend. Clip/rotation-track setup and
+Auto Key pose authoring at explicit playhead times are separate steps, bringing Tutorial 2 to nine
+steps. Generated files are disposable;
 **Save As** preserves the MSH, but a portable project copy must replace or retain the separately
 generated temporary PNG.
 
