@@ -26,6 +26,7 @@ tWearable = require "skeletal_runtime_wearable_helpers"
 tMaskTopology = require "skeletal_mask_topology"
 tArmatureTemplates = require "skeletal_armature_templates"
 tAnimationImport = require "skeletal_animation_import"
+tTutorials = require "skeletal_animation_tutorials"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -3235,6 +3236,7 @@ function showRuntimeWearableControls()
 end
 
 local function showSkeletalPreviewControls()
+    if tTutorials.consumeFocus('runtime_preview') then tImGui.SetScrollHereY(0.15) end
     local playback=state.skeletalPreview
     local sourceKey=not state.runtimePreviewFromMemory and 'swl_runtime_source_file' or
         state.runtimePreviewMemoryDirty and 'swl_runtime_source_memory_stale' or
@@ -6248,6 +6250,7 @@ local function showMenu()
         end
         tImGui.EndMenu()
     end
+    tTutorials.renderMenu(tImGui,tLang)
     if tImGui.BeginMenu(tLang.L('menu_edit')) then
         local undoEntry=state.undoStack[#state.undoStack]
         local redoEntry=state.redoStack[#state.redoStack]
@@ -6921,6 +6924,7 @@ local function showBindBoneHierarchy(report)
 end
 
 local function showBindPoseDiagnostics()
+    if tTutorials.consumeFocus('bind_hierarchy') then tImGui.SetScrollHereY(0.15) end
     local report=state.bindReport
     if not report then
         tImGui.TextDisabled(tLang.L('swl_bind_report_unavailable'))
@@ -7294,6 +7298,7 @@ local function showPaintWeights()
     if state.paint.visualizationMode==1 then
         tImGui.Separator()
         showSectionTitle('swl_paint_brush_section')
+        if tTutorials.consumeFocus('paint_mask') then tImGui.SetScrollHereY(0.2) end
         local capture=state.paint.aabbCapture
         local captureActive=tImGui.Checkbox(tLang.L('swl_paint_aabb_capture_start'),
             capture.active)
@@ -9343,6 +9348,7 @@ local function showSkeletalAnimationInspection()
         end
         tImGui.EndChild()
     end
+    if tTutorials.consumeFocus('animation_clip') then tImGui.SetScrollHereY(0.8) end
     tImGui.Separator()
     tImGui.PushItemWidth(190)
     local newNameChanged,newName=tImGui.InputText(tLang.L('swl_animation_clip_name')..'##swlNewClipName',
@@ -9753,6 +9759,7 @@ showArmatureTemplate=function()
 end
 
 local function showBoneEditor()
+    if tTutorials.consumeFocus('bone_create') then tImGui.SetScrollHereY(0.15) end
     local previousRemovePreview=state.boneEditorRemovePreviewIndex
     state.boneEditorRemovePreviewIndex=nil
     tImGui.TextWrapped(tLang.L('swl_bone_editor_help'))
@@ -10139,8 +10146,13 @@ local function showBoneEditor()
         end
     end
     tImGui.Separator()
+    local tutorialWeightsFocus=tTutorials.consumeFocus('bone_weights')
+    if tutorialWeightsFocus then
+        tImGui.SetNextItemOpen(true,tImGui.Flags('ImGuiCond_Always'))
+    end
     if tImGui.TreeNode(tLang.L('swl_bone_editor_weight_asset_actions')..
             '##swlBoneEditorWeightAssetActions') then
+        if tutorialWeightsFocus then tImGui.SetScrollHereY(0.65) end
         local bones=getBones()
         local targetIndex=state.boneEditorSelection and state.boneEditorSelection.boneIndex or
             math.max(1,math.min(state.boneIndex,#bones))
@@ -10488,6 +10500,13 @@ function onLoop(delta)
     updateAuthoringPlayback(delta)
     showMenu()
     showPanel()
+    local tutorialNavigation=tTutorials.renderWindow(tImGui,tLang,state.leftPanelRight,
+        state.meshD~=nil)
+    if tutorialNavigation then
+        setWorkspace(tutorialNavigation.workspace)
+        tTutorials.requestFocus(tutorialNavigation.focus)
+        setStatus(tLang.L(tutorialNavigation.statusKey),false,true)
+    end
     showCameraPanel()
     showRuntimeLightWindow()
     swlShowAnimationImportWindow()

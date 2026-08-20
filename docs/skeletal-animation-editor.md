@@ -465,6 +465,21 @@ Use **File > Open Mesh** to load a `.msh` file. The mesh should contain a frame-
 canonical vertex skin weights for all bone-dependent workflows. Meshes without bones or weights may
 still be inspected through AABB and material-subset selection.
 
+The main menu places **Tutorial** between **File** and **Edit**. **Tutorial 1** opens a persistent
+standalone guide that remains visible while the user changes
+worktrees. Its data lives in `editor/skeletal_animation_tutorials.lua`: each registered tutorial has
+a stable ID, localized menu/window keys, and an ordered list of localized steps with an optional
+target worktree and focus anchor. Clicking a step selects its instructions; **Open the required
+worktree** switches the editor through the ordinary workspace boundary, repeats the guidance in
+status feedback, and on the following frame scrolls to the declared section. Collapsible anchored
+sections open automatically.
+Steps that require an asset disable navigation until a mesh is loaded. File-only steps remain
+instructions rather than opening native dialogs implicitly. The module exposes `register()` so
+future tutorials reuse the same menu, window, navigation, Previous/Next controls, and lifecycle
+without adding tutorial-specific rendering branches to the main editor. A step may also declare an
+optional `checkKey`; the window renders this after Previous/Next as a distinct expected-result and
+diagnostic checklist rather than repeating the primary instruction.
+
 After loading a skeleton, open **Bind Pose Contract** to inspect the canonical conversion without
 editing the source asset. The panel reports global-to-local TRS reconstruction error, bind-identity
 error, fatal/warning diagnostics, stable bone IDs, local quaternion TRS, and the local, global, and
