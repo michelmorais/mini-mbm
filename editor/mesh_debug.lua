@@ -9345,6 +9345,59 @@ function showFrameNode(tEntry, meshD, index)
         if v then anyChecked = true; break end
     end
 
+    local mergeGroups = {}
+    for _, sub in ipairs(allSubsets) do
+        if tEntry.tCheckedRemove[sub.f * 100 + sub.s] then
+            mergeGroups[sub.f] = mergeGroups[sub.f] or {}
+            table.insert(mergeGroups[sub.f],sub.s)
+        end
+    end
+    local canMergeSelected = #tEntry.tPendingOps == 0
+    if canMergeSelected then
+        canMergeSelected = false
+        for _, subsets in pairs(mergeGroups) do
+            if #subsets >= 2 then canMergeSelected = true; break end
+        end
+    end
+    tImGui.BeginDisabled(not canMergeSelected)
+    if tImGui.Button(tLang.L('merge_selected_subsets') .. '##fnmerge-' .. index) then
+        local mergedFrames, mergeFailed = 0, false
+        for f = 1, nFrames do
+            local subsets = mergeGroups[f]
+            if subsets and #subsets >= 2 then
+                local okMerge, merged = dpCall(function() return meshD:mergeSubsets(f,subsets) end)
+                if okMerge and merged then
+                    mergedFrames = mergedFrames + 1
+                else
+                    mergeFailed = true
+                    break
+                end
+            end
+        end
+        if mergedFrames > 0 then
+            tEntry.modified = true
+            tEntry.tCheckedRemove = {}
+            tEntry.tFrameSelection = {}
+            tEntry.bFrameSelectionDirty = true
+            tEntry.tTransformBoundsCache = nil
+            tEntry.bPhysicsVizDirty = true
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+            tUtil.showMessage(string.format(tLang.L('merge_selected_subsets_done_fmt'),mergedFrames))
+        end
+        if mergeFailed then tUtil.showMessageWarn(tLang.L('merge_selected_subsets_failed')) end
+        tImGui.EndDisabled()
+        tImGui.TreePop()
+        return
+    end
+    tImGui.EndDisabled()
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.PushTextWrapPos(400)
+        tImGui.Text(tLang.L('merge_selected_subsets_help'))
+        tImGui.PopTextWrapPos()
+        tImGui.EndTooltip()
+    end
+
     -- Remove selected: queue all checked items, then clear tCheckedRemove
     if anyChecked then
         if tImGui.Button(tLang.L('remove_selected') .. '##fnrm-' .. index) then

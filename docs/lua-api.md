@@ -1328,6 +1328,18 @@ with its predecessor, or `false` for the first subset or an invalid index. Artic
 occurrences are remapped automatically, so their stable IDs, tracks, pivots, and parent-child
 relationships remain attached to the same geometry.
 
+To merge two or more subsets from one frame, use:
+
+```lua
+local merged = meshD:mergeSubsets(frame, {subset1, subset2, ...})
+```
+
+Both the frame and subset indices are one-based. The call returns `true` when at least two unique,
+valid subsets were merged, or `false` without mutation otherwise. The resulting subset occupies the
+first selected subset's position and keeps its primary/material-role textures. Selected geometry is
+appended in the existing subset order. Vertex data, indices, canonical weights, and articulated Part
+references are remapped automatically.
+
 ### Geometry scaling
 
 ```lua
