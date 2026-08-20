@@ -195,14 +195,15 @@ The detailed coordinate, bind, skin-cluster, and interchange contracts are docum
 
 ## 9. Skeletal Animation Editor
 
-The standalone editor contains five mutually exclusive worktrees:
+The standalone editor contains six mutually exclusive worktrees:
 
 | Worktree | Capabilities |
 |---|---|
+| Armature Template | Apply the canonical No Fingers (23) preset or extract/import validated skeleton-only Lua armatures, recalculate height from explicit bone heads/tails, fit uniformly to the target mesh with bottom-center alignment, replace transactionally, and hand off to Bone Editor for adjustment and weights |
 | Bone Editor | Create and edit joints/bones, hierarchy, head/tail/connectivity, bind transforms, chains, mirroring where compatible, referenced removal, and transactional Undo/Redo |
 | Bind Pose Contract | Inspect canonical hierarchy, stable IDs, local/global/inverse-bind transforms, validation findings, and bind skeleton selection |
 | Runtime Skeletal Preview | Run the actual backend player, select LBS/DQS and GPU/CPU policies, compare LBS against DQS or GPU against CPU, inspect evaluated skeleton/masks, root motion, and transient wearable followers |
-| Create / Edit Animations | Create/edit clips, tracks and T/R/S keys; manipulate poses; use easing, timeline selection/drag/duplicate/ripple/time editing, playback, clipboards, and Undo/Redo |
+| Create / Edit Animations | Create/edit clips, tracks and T/R/S keys; import and bind-relative-retarget clips offline from compatible same-topology MSH skeletons with generic prefix detection; manipulate poses; use easing, timeline selection/drag/duplicate/ripple/time editing, playback, clipboards, and Undo/Redo |
 | Paint Weights | Paint/add/replace/rigid brushes, masks and regional tools, smoothing, influence limiting/cleanup, seam and normal diagnostics/repair, pose-safety checks, heatmaps, and persistent canonical type-42 output |
 
 The editor preview uses the same runtime pose evaluation and deformation path as a game. Secondary
@@ -241,7 +242,9 @@ production default shaders.
   arbitrary layer stack, priority queue, or non-linear-animation system.
 - Pose sharing is direct, runtime-only, and non-persistent; there are no follower chains or shared
   serialized skeleton/clip resource objects.
-- The engine does not retarget clips between different skeletons or proportions.
+- The runtime does not retarget clips. The editor provides only an offline, name-normalized,
+  same-topology MSH clip import with bind-relative adaptation; it is not arbitrary humanoid semantic
+  mapping and rejects missing, ambiguous, or differently parented bones.
 - Bone-subtree mirroring does not mirror animation tracks and is therefore restricted to assets
   without clips.
 - Paint Weights has no protected/exclusion volumes, welded diagnostic topology, or automatic

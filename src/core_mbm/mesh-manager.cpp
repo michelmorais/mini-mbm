@@ -48,6 +48,7 @@
 #include <queue>
 #include <limits>
 #include <set>
+#include <memory>
 
 
 const bool is_any_mode_valid(const util::INFO_DRAW_MODE & info_mode,std::string & which_mode_is_invalid)noexcept
@@ -2177,6 +2178,185 @@ namespace mbm
                 part.subsetIndex = previousSubsetIndex;
             else if (part.subsetIndex == previousSubsetIndex)
                 part.subsetIndex = indexSubset;
+        }
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::mergeSubsets(uint32_t indexFrame, const std::vector<uint32_t> &subsetIndices)
+    {
+        if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()) || subsetIndices.size() < 2)
+            return false;
+        util::BUFFER_MESH_DEBUG *buf = this->impl->buffer[indexFrame];
+        if (!buf || buf->subset.size() < 2)
+            return false;
+
+        std::vector<bool> selected(buf->subset.size(), false);
+        uint32_t firstSelected = UINT32_MAX;
+        size_t selectedCount = 0;
+        for (const uint32_t subsetIndex : subsetIndices)
+        {
+            if (subsetIndex >= buf->subset.size())
+                return false;
+            if (!selected[subsetIndex])
+            {
+                selected[subsetIndex] = true;
+                firstSelected = std::min(firstSelected, subsetIndex);
+                ++selectedCount;
+            }
+        }
+        if (selectedCount < 2)
+            return false;
+
+        const int stride = buf->headerFrame.stride;
+        int totalVertices = 0;
+        int totalIndices = 0;
+        for (const util::SUBSET_DEBUG *subset : buf->subset)
+        {
+            if (!subset || subset->vertexStart < 0 || subset->vertexCount < 0 ||
+                subset->indexStart < 0 || subset->indexCount < 0)
+                return false;
+            totalVertices = std::max(totalVertices, subset->vertexStart + subset->vertexCount);
+            totalIndices = std::max(totalIndices, subset->indexStart + subset->indexCount);
+        }
+        if (stride <= 0 || totalVertices < 0 || totalIndices < 0 || !buf->position)
+            return false;
+
+        std::vector<float> positions;
+        std::vector<float> normals;
+        std::vector<float> uvs;
+        std::vector<uint16_t> indices;
+        positions.reserve(static_cast<size_t>(totalVertices * stride));
+        if (buf->normal) normals.reserve(static_cast<size_t>(totalVertices * 3));
+        if (buf->uv) uvs.reserve(static_cast<size_t>(totalVertices * 2));
+        if (buf->indexBuffer) indices.reserve(static_cast<size_t>(totalIndices));
+
+        const bool reorderWeights = this->impl->canonicalWeights.skeletonId != 0 &&
+                                    this->impl->canonicalWeights.frameIndex == indexFrame;
+        std::vector<skeletal::CANONICAL_VERTEX_WEIGHT> reorderedWeights;
+        if (reorderWeights)
+        {
+            if (this->impl->canonicalWeights.vertices.size() != static_cast<size_t>(totalVertices))
+                return false;
+            reorderedWeights.reserve(static_cast<size_t>(totalVertices));
+        }
+
+        std::vector<util::SUBSET_DEBUG *> newSubsets;
+        std::vector<uint32_t> oldToNew(buf->subset.size(), UINT32_MAX);
+        newSubsets.reserve(buf->subset.size() - selectedCount + 1);
+
+        auto appendSubsetGeometry = [&](const uint32_t oldIndex, util::SUBSET_DEBUG *target) -> bool {
+            const util::SUBSET_DEBUG *source = buf->subset[oldIndex];
+            if (!source || source->vertexStart < 0 || source->vertexCount < 0 ||
+                source->vertexStart + source->vertexCount > totalVertices ||
+                source->indexStart < 0 || source->indexCount < 0 ||
+                source->indexStart + source->indexCount > totalIndices)
+                return false;
+            const int newVertexStart = target->vertexStart + target->vertexCount;
+            positions.insert(positions.end(), buf->position + source->vertexStart * stride,
+                             buf->position + (source->vertexStart + source->vertexCount) * stride);
+            if (buf->normal)
+                normals.insert(normals.end(), buf->normal + source->vertexStart * 3,
+                               buf->normal + (source->vertexStart + source->vertexCount) * 3);
+            if (buf->uv)
+                uvs.insert(uvs.end(), buf->uv + source->vertexStart * 2,
+                           buf->uv + (source->vertexStart + source->vertexCount) * 2);
+            if (reorderWeights)
+                reorderedWeights.insert(reorderedWeights.end(),
+                    this->impl->canonicalWeights.vertices.begin() + source->vertexStart,
+                    this->impl->canonicalWeights.vertices.begin() + source->vertexStart + source->vertexCount);
+            if (buf->indexBuffer)
+            {
+                for (int i = 0; i < source->indexCount; ++i)
+                {
+                    const int localIndex = static_cast<int>(buf->indexBuffer[source->indexStart + i]) - source->vertexStart;
+                    if (localIndex < 0 || localIndex >= source->vertexCount)
+                        return false;
+                    indices.push_back(static_cast<uint16_t>(newVertexStart + localIndex));
+                }
+            }
+            target->vertexCount += source->vertexCount;
+            target->indexCount += source->indexCount;
+            return true;
+        };
+
+        bool valid = true;
+        for (uint32_t oldIndex = 0; oldIndex < buf->subset.size() && valid; ++oldIndex)
+        {
+            if (selected[oldIndex] && oldIndex != firstSelected)
+                continue;
+            auto *target = new util::SUBSET_DEBUG();
+            *target = *buf->subset[oldIndex];
+            target->vertexStart = static_cast<int>(positions.size() / static_cast<size_t>(stride));
+            target->vertexCount = 0;
+            target->indexStart = static_cast<int>(indices.size());
+            target->indexCount = 0;
+            const uint32_t newIndex = static_cast<uint32_t>(newSubsets.size());
+            newSubsets.push_back(target);
+            if (oldIndex == firstSelected)
+            {
+                for (uint32_t selectedIndex = 0; selectedIndex < selected.size() && valid; ++selectedIndex)
+                {
+                    if (selected[selectedIndex])
+                    {
+                        oldToNew[selectedIndex] = newIndex;
+                        valid = appendSubsetGeometry(selectedIndex, target);
+                    }
+                }
+            }
+            else
+            {
+                oldToNew[oldIndex] = newIndex;
+                valid = appendSubsetGeometry(oldIndex, target);
+            }
+        }
+        if (!valid || positions.size() != static_cast<size_t>(totalVertices * stride) ||
+            (buf->indexBuffer && indices.size() != static_cast<size_t>(totalIndices)))
+        {
+            for (util::SUBSET_DEBUG *subset : newSubsets) delete subset;
+            return false;
+        }
+
+        auto newPositions = std::make_unique<float[]>(positions.size());
+        std::copy(positions.begin(), positions.end(), newPositions.get());
+        std::unique_ptr<float[]> newNormals;
+        if (buf->normal)
+        {
+            newNormals = std::make_unique<float[]>(normals.size());
+            std::copy(normals.begin(), normals.end(), newNormals.get());
+        }
+        std::unique_ptr<float[]> newUvs;
+        if (buf->uv)
+        {
+            newUvs = std::make_unique<float[]>(uvs.size());
+            std::copy(uvs.begin(), uvs.end(), newUvs.get());
+        }
+        std::unique_ptr<uint16_t[]> newIndices;
+        if (buf->indexBuffer)
+        {
+            newIndices = std::make_unique<uint16_t[]>(indices.size());
+            std::copy(indices.begin(), indices.end(), newIndices.get());
+        }
+
+        delete[] buf->position;
+        delete[] buf->normal;
+        delete[] buf->uv;
+        delete[] buf->indexBuffer;
+        for (util::SUBSET_DEBUG *subset : buf->subset) delete subset;
+        buf->position = newPositions.release();
+        buf->normal = newNormals.release();
+        buf->uv = newUvs.release();
+        buf->indexBuffer = newIndices.release();
+        buf->subset = std::move(newSubsets);
+        buf->headerFrame.totalSubset = static_cast<int>(buf->subset.size());
+        buf->headerFrame.sizeVertexBuffer = totalVertices;
+        buf->headerFrame.sizeIndexBuffer = totalIndices;
+        if (reorderWeights)
+            this->impl->canonicalWeights.vertices = std::move(reorderedWeights);
+
+        for (auto &part : this->impl->articulatedParts)
+        {
+            if (part.frameIndex == indexFrame && part.subsetIndex < oldToNew.size())
+                part.subsetIndex = oldToNew[part.subsetIndex];
         }
         return true;
     }
@@ -8152,10 +8332,34 @@ namespace mbm
 
     bool MESH_MBM::playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const
     {
-        if (impl->canonicalSkeleton.skeletonId == 0 ||
-            impl->canonicalAnimations.clips.empty() || !name || !name[0] ||
-            player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::NONE)
+        if (impl->canonicalSkeleton.skeletonId == 0)
+        {
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+            WARN_LOG("playSkeletalAnimation failed: mesh has no canonical skeleton");
+#endif
             return false;
+        }
+        if (impl->canonicalAnimations.clips.empty())
+        {
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+            WARN_LOG("playSkeletalAnimation failed: mesh has no canonical animation clips");
+#endif
+            return false;
+        }
+        if (!name || !name[0])
+        {
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+            WARN_LOG("playSkeletalAnimation failed: clip name is empty");
+#endif
+            return false;
+        }
+        if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::NONE)
+        {
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+            WARN_LOG("playSkeletalAnimation failed for clip [%s]: skinning method is unresolved", name);
+#endif
+            return false;
+        }
         for (uint32_t i = 0; i < impl->canonicalAnimations.clips.size(); ++i)
         {
             if (impl->canonicalAnimations.clips[i].name == name)
@@ -8180,9 +8384,52 @@ namespace mbm
                 player.impl->paused = previousPaused;
                 player.impl->baseCompletionNotified = previousCompletionNotified;
                 player.impl->authoringPose = previousAuthoringPose;
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+                const BUFFER_GL *buffer = impl->buffer && impl->totalFramesMesh > 0
+                    ? impl->buffer[0].pBufferGL : nullptr;
+                const bool hasNormals = buffer &&
+                    (buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+                     buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+                skeletal::SKELETAL_POSE diagnosticPose;
+                const skeletal::SKELETAL_CLIP &diagnosticClip = impl->canonicalAnimations.clips[i];
+                if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled,
+                        diagnosticClip, 0.0f, diagnosticPose))
+                {
+                    WARN_LOG("playSkeletalAnimation failed for clip [%s]: initial clip sampling failed", name);
+                }
+                else
+                {
+                    std::vector<float> diagnosticRows;
+                    if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
+                    {
+                        const skeletal::DQS_PALETTE_STATUS status = skeletal::buildDqsPalette(
+                            impl->canonicalSkeleton, diagnosticPose, diagnosticRows);
+                        const char *reason = status == skeletal::DQS_PALETTE_STATUS::INVALID_POSE
+                            ? "invalid initial DQS pose"
+                            : status == skeletal::DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM
+                                ? "initial DQS pose contains a non-rigid transform"
+                                : "initial composed pose/player state evaluation failed";
+                        WARN_LOG("playSkeletalAnimation failed for clip [%s]: %s", name, reason);
+                    }
+                    else
+                    {
+                        const skeletal::LBS_PALETTE_STATUS status = skeletal::buildLbsPalette(
+                            impl->canonicalSkeleton, diagnosticPose, hasNormals, diagnosticRows);
+                        const char *reason = status == skeletal::LBS_PALETTE_STATUS::INVALID_POSE
+                            ? "invalid initial LBS pose"
+                            : status == skeletal::LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM
+                                ? "initial LBS pose has an unsupported normal transform"
+                                : "initial composed pose/player state evaluation failed";
+                        WARN_LOG("playSkeletalAnimation failed for clip [%s]: %s", name, reason);
+                    }
+                }
+#endif
                 return false;
             }
         }
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+        WARN_LOG("playSkeletalAnimation failed: clip [%s] was not found", name);
+#endif
         return false;
     }
 
@@ -10333,7 +10580,11 @@ namespace mbm
                 subset.vertexCount = subsetIn.vertexCount;
                 subset.indexStart  = subsetIn.indexStart;
                 subset.indexCount  = subsetIn.indexCount;
-                subset.texture     = textureManager->load(subsetIn.primaryTexturePath.c_str(), subsetIn.hasAlphaColor);
+                // Do not load texture named "default", they are meant to be null/empty and will be replaced by the renderizable's material texture at render time.
+                if(strcasecmp(subsetIn.primaryTexturePath.c_str(), "default") != 0)
+                {
+                    subset.texture     = textureManager->load(subsetIn.primaryTexturePath.c_str(), subsetIn.hasAlphaColor);
+                }
                 lsIdTexture.push_back(subset.texture);
 
                 for (const auto &extraSlot : subsetIn.extraSlots)

@@ -1,6 +1,6 @@
 ---
 name: new-editor-tool
-description: "Step-by-step workflow for creating a new Lua-based editor tool in mini-mbm. Use when: adding a new editor to the editor/ directory, creating an ImGui-backed interactive tool, wiring a new editor into the launcher menu, using editor_utils.lua / lang/language.lua patterns, saving/loading editor state as Lua code."
+description: "Workflow for creating or extending Lua-based editor tools in mini-mbm. Use when: adding a new editor or worktree under editor/, modifying a large existing editor such as skeletal_animation_editor.lua, creating ImGui-backed interactive tools, wiring editors into the launcher, using editor_utils.lua / lang/language.lua patterns, or saving/loading editor state as Lua code."
 ---
 
 # New Editor Tool — mini-mbm
@@ -8,6 +8,7 @@ description: "Step-by-step workflow for creating a new Lua-based editor tool in 
 ## When to Use
 
 - Creating a new Lua script in `editor/` that becomes a full editor tool
+- Adding a worktree or substantial feature to an existing editor
 - Adding a new entry to the launcher's application menu
 - Building any ImGui-backed interactive tool (asset browser, converter, visualizer, etc.)
 - Adding localized strings to `editor/lang/language.lua`
@@ -34,6 +35,40 @@ editor/
 ```
 
 The launcher (e.g. `platform-linux/main-lua.cpp`) presents a selection dialog listing all registered editor scripts. To appear in that list your script must be **added to the `default_applications` array** — see Step 5.
+
+## Lua 5.4 local-variable ceiling
+
+Lua 5.4 permits at most 200 active local variables in one function prototype. A script's top-level
+chunk is itself a function, so every top-level `local`, including each `local function`, consumes a
+slot while it remains in scope. Large editors can reach this compiler limit before any code runs;
+`editor/skeletal_animation_editor.lua` is already at or near that ceiling.
+
+When extending a large editor:
+
+1. Run `loadfile()` against the main script immediately after adding declarations; do not wait for
+   an engine launch to discover `too many local variables (limit is 200)`.
+2. Prefer extracting cohesive helpers, constants, template data, and pure calculations into a small
+   Lua module under `editor/`, then import one module table with `require`. This trades many locals
+   in the main chunk for one and makes the extracted logic independently testable.
+3. Keep editor-owned state in an existing state table instead of adding many top-level state locals.
+4. Do not evade the limit by turning ordinary temporary or per-instance values into globals.
+   A deliberately named global callback/helper is acceptable only as a narrow compatibility measure
+   when extraction is impractical; check for collisions and document the reason.
+5. Do not assume a `do ... end` block is a general architectural fix. It can shorten lexical
+   lifetime, but reusable helpers should normally live in a module rather than depend on fragile
+   local-slot accounting.
+6. Remember that locals inside a separate function prototype have their own limit. The immediate
+   risk in a monolithic editor is normally the accumulation of top-level declarations.
+
+Use the bundled Lua interpreter for the fast compile check:
+
+```sh
+bin/debug/linux_x86/lua-5.4.1.exe -e \
+  "assert(loadfile('editor/skeletal_animation_editor.lua'))"
+```
+
+If the feature has extracted pure logic, require and exercise that module in the same preflight
+before running the real editor through the `engine-testing` skill.
 
 ---
 
@@ -877,3 +912,5 @@ Before committing a new editor tool, verify:
 - [ ] Mouse input guards `tImGui.IsAnyWindowHovered()` before world interaction
 - [ ] Added to `default_applications[]` in all relevant `main-lua.cpp` files
 - [ ] Editor tested on Linux debug build (`-DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug`)
+- [ ] Main editor script passes `loadfile()` and new top-level locals did not exhaust Lua's 200-local limit
+- [ ] Cohesive helpers/data added to a large editor were extracted into a `require` module where practical

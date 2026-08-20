@@ -1616,6 +1616,29 @@ namespace mbm
         return 1;
     }
 
+    int onMergeSubsetsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer frame = luaL_checkinteger(lua, 2);
+        luaL_checktype(lua, 3, LUA_TTABLE);
+        std::vector<uint32_t> subsetIndices;
+        const lua_Integer total = static_cast<lua_Integer>(lua_rawlen(lua, 3));
+        subsetIndices.reserve(static_cast<size_t>(total));
+        for (lua_Integer i = 1; i <= total; ++i)
+        {
+            lua_rawgeti(lua, 3, i);
+            const lua_Integer subset = luaL_checkinteger(lua, -1);
+            lua_pop(lua, 1);
+            if (subset <= 0)
+                return luaL_error(lua, "Subset indices must be one-based positive integers");
+            subsetIndices.push_back(static_cast<uint32_t>(subset - 1));
+        }
+        const bool merged = frame > 0 && meshDebug->mesh.mergeSubsets(
+            static_cast<uint32_t>(frame - 1), subsetIndices);
+        lua_pushboolean(lua, merged ? 1 : 0);
+        return 1;
+    }
+
     int onCopyFrameFromDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug    = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3380,6 +3403,7 @@ namespace mbm
                                           {"addSubSet", onAddSubsetDebugLua},
                                           {"removeSubset", onRemoveSubsetDebugLua},
                                           {"moveSubsetUp", onMoveSubsetUpDebugLua},
+                                          {"mergeSubsets", onMergeSubsetsDebugLua},
                                           {"copyFrameFrom", onCopyFrameFromDebugLua},
                                           {"copySubsetFrom", onCopySubsetFromDebugLua},
                                           {"addAnim", onAddAnimationDebugLua},

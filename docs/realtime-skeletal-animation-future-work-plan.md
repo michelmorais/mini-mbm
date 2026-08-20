@@ -17,9 +17,8 @@ platform scope, fixtures, performance budget, and versioned acceptance criteria.
 | Order | Project | Reason |
 |---|---|---|
 | 1 | Lua/prefab skeletal-sharing workflows | Keeps body/wearable composition in game code while reusing the existing transient runtime sharing |
-| 2 | Skeleton-to-skeleton retargeting | Adds a new animation-data transformation boundary and needs dedicated fixtures |
-| 3 | Editor refinements | Keeps optional authoring aids separate and driven by concrete editor needs |
-| 4 | Lightweight secondary motion | Keeps optional appendage motion bounded above the accepted skeletal pose contract |
+| 2 | Editor refinements | Keeps optional authoring aids separate and driven by concrete editor needs |
+| 3 | Lightweight secondary motion | Keeps optional appendage motion bounded above the accepted skeletal pose contract |
 
 ## 3. Deferred Projects
 
@@ -33,16 +32,7 @@ Acceptance: direct source/follower setup remains explicit, compatibility failure
 reload and destruction are handled safely by the game workflow, and compatible followers do not
 duplicate pose evaluation or palette copies.
 
-### 3.2 Animation retargeting
-
-Add an explicit offline/editor operation for applying a clip to a different compatible skeleton.
-Define bone mapping, bind-space correction, proportion handling, missing/extra bones, root motion,
-scale policy, and error reporting. Do not treat FBX round-trip bind reconstruction as retargeting.
-
-Acceptance: source and destination remain independent assets; named reference poses and clips match
-expected global transforms within tolerance; unsupported mappings fail without partial mutation.
-
-### 3.3 Editor refinements
+### 3.2 Editor refinements
 
 Candidate independent tools are animation-aware subtree mirroring, protected/exclusion volumes, and
 welded diagnostic topology.
@@ -51,7 +41,7 @@ Acceptance: every tool is transactional and Undoable, expensive analysis is even
 editor cost remains bounded, and each addition has reproducible fixtures for its concrete authoring
 case.
 
-### 3.4 Lightweight secondary motion
+### 3.3 Lightweight secondary motion
 
 Keep Velocity Skinning only as a research reference and possible source of ideas, not as a planned
 feature or compatibility target. A small procedural secondary-bone chain for a tail, hair, or a

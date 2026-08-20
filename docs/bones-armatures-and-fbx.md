@@ -291,7 +291,7 @@ the FBX fixes, but it is not the delivered runtime contract.
   already used), and attaches up to 4 `(boneName, weight)` pairs to each captured vertex.
 - **Inspect/edit** (`editor/mesh_debug.lua`'s Bones node/window): a plain table of bones
   (name/parent/x/y/z/radius/length/roll + a Highlight checkbox), DragFloat-editable, plus bake
-  Rotate/Scale/Translate for the whole skeleton, an **Armature Template** system (see below), and
+  Rotate/Scale/Translate for the whole skeleton and
   Mesh Info's own read-only weight summary (weighted-vertex count, bones referenced, avg/max
   influences). A `length ≤ ~1e-6` bone (e.g. one added via "+ Add Bone"/"+ Add Child Bone", which
   never carry real orientation data) is flagged inline with a warning — `length > EPS` is the same
@@ -361,18 +361,6 @@ can introduce reflection or shear that the canonical local TRS and rigid DQS con
 faithfully represent. Since Mesh Debug-to-FBX export reads canonical global bind matrices and
 canonical weights, a successfully committed uniform asset scale reaches Blender in the same scaled
 coordinate space instead of exporting a small armature inside enlarged geometry.
-
-### Armature Templates — reusable named skeletons
-
-`editor/mesh_debug.lua`'s `ARMATURE_TEMPLATES` (currently one entry, `ARMATURE_STANDARD_SKELETON_65`
-— a real 33-bone Mixamo rig extracted verbatim from a user-rigged reference character) lets a user
-stamp a *complete, real* skeleton (full position/rotation/scale/length per bone) onto an arbitrary
-target mesh, fit by **uniform scale + reposition only** (`applyArmatureTemplate`) — never per-axis
-stretching, which would corrupt the stored `rotX/Y/Z` (a real 3D direction, only meaningful under
-uniform scaling). `exportArmatureToFile`/`loadArmatureFromFile` let a user save a hand-fitted
-skeleton (after manually nudging bone positions to match a *specific* mesh's own limb proportions,
-since a uniform scale-fit alone only gets the reference's proportions, not the target's) and reuse it
-on other meshes without a source-code change.
 
 ## Pitfalls and Lessons Learned
 
@@ -466,7 +454,8 @@ otherwise have produced *correct* fresh weights. The result, confirmed via direc
 exported FBX whose vertex groups don't match any bone in its own armature — every vertex gets zero
 real deform weight (the mesh is invisible) while the skeleton, structurally valid on its own, still
 animates fine, which is a very confusing combination to debug from the Mixamo side alone. Fix:
-`applyArmatureTemplate` clears existing vertex weights itself whenever it replaces the skeleton.
+Any canonical operation that replaces the complete skeleton must also invalidate existing vertex
+weights before commit.
 **Lesson:** any future code path that does a *wholesale* skeleton replacement (not just editing
 individual bones) must treat existing weight data as invalidated, even though the format's own
 by-name independence is otherwise a deliberate, correct design choice.
@@ -646,9 +635,7 @@ OLD aim) and reapply that same angle to the newly-computed aim, in both the per-
 Bones-node **Recompute All** batch action — length updates to the real geometric distance to the
 bone's child (or continuation from its parent), aim direction updates to match, but roll rides along
 unchanged unless the user deliberately adjusts the Roll field afterward. This also made it safe to add
-a "recompute even if Length is already set" option to Recompute All, for the "applied a
-borrowed/Mixamo armature template, then manually dragged joints to fit this specific mesh" workflow
-— `applyArmatureTemplate` only does a uniform scale + reposition (see above), and repositioning a
+a "recompute even if Length is already set" option to Recompute All. Repositioning a
 joint via the X/Y/Z drag fields never updates its Length/rotation on its own, so a template's bones
 can end up with a real but geometrically stale Length; forcing Recompute across all of them is no
 longer destructive to roll the way it would have been before this fix.

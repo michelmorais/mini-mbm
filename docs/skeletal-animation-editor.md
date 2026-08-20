@@ -1,12 +1,12 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
-Last updated: **2026-08-19**
+Status: **Armature Templates, Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation and offline same-topology clip import, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Last updated: **2026-08-20**
 
 ## 1. Purpose
 
 The Skeletal Animation Editor is the standalone Mini MBM tool for inspecting and editing skeletal
-mesh data. Its implemented worktrees cover bind diagnostics, direct bone editing, canonical type-42
+mesh data. Its implemented worktrees cover reusable armature application, bind diagnostics, direct bone editing, canonical type-42
 weight repair, runtime LBS/DQS preview, and local clip/track/key/timeline authoring without expanding
 Mesh Debug into a general animation editor.
 
@@ -19,12 +19,51 @@ boundaries are documented in
 Paint Weights uses backend-native heatmap and brush shaders on all three delivered backends;
 Metal keeps generated skeletal deformation active when a fragment-only editor shader is applied.
 
-The editor is organized into five mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
+The editor is organized into six mutually exclusive worktrees: **Armature Template**, **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Create / Edit Animations**, and **Paint Weights**. Create / Edit
 Animations and direct brush-based weight authoring are active.
 No worktree is selected initially. Loading or replacing an asset returns to this neutral state,
 enables the ordinary textured mesh, and keeps skeletons, heatmaps, cursors, capture volumes, and
 diagnostic overlays hidden until the user explicitly opens a worktree.
+
+### Armature Template worktree
+
+**Armature Template** starts a new rig directly in the same editor where it will be adjusted,
+weighted, and animated. The user selects the built-in **No Fingers (23)** template or imports a
+canonical Armature Lua file, then explicitly confirms
+application. The editor recalculates the template skeleton's real vertical extent from every bone
+head and oriented tail, then fits that measured height to the loaded mesh with one uniform scale and
+bottom-center alignment. The adapted skeleton therefore has the target mesh height; the mesh
+geometry is not stretched or otherwise changed.
+
+Applying a template replaces all existing canonical skeletal data, including weights and clips, as
+one Undoable transaction. Validation or API failure restores the complete pre-application snapshot,
+so a partial hierarchy is never left behind. Application deliberately does not guess skin weights.
+The worktree points to **Bone Editor**, where the user can adjust the fitted bones and explicitly run
+the existing automatic initial-weight generator, then continue to **Create / Edit Animations**.
+This is armature authoring for one target mesh, not animation retargeting between two live skeletons.
+**Extract Armature...** writes a sandbox-loadable `mini-mbm-armature-1` Lua table from the current
+canonical skeleton. It contains the parent-first hierarchy, parent-local bind TRS, explicit local
+tail offsets, connection flags, radius, and length. It deliberately excludes geometry, materials,
+textures, type-42 vertex weights, and type-43 animation clips. **Import Armature...** accepts only
+that validated table schema, fits it through the same height/anchor rule, and uses the existing
+confirmation, Undo, and rollback transaction. Lua files execute with an empty environment while
+loading. Invalid, non-finite, duplicate-name, non-parent-first, or singular-scale data is rejected
+before mutation.
+
+The built-in **No Fingers (23)** entry now comes from the canonical Lorekeeper MSH supplied for
+this correction. Unlike its legacy Euler/length-only predecessor, it retains the imported local
+bind quaternion and explicit `tailOffset` for every bone. For example, `upperarm.l` now owns the
+endpoint that coincides with `lowerarm.l` instead of reconstructing a misleading local-`+Y`
+segment.
+The four remaining legacy presets were removed because their global Euler/length-only records do
+not preserve canonical explicit tails. Additional presets should be created with **Extract
+Armature...** and consumed with **Import Armature...**, so the ComboBox never offers data known to
+be structurally incomplete.
+
+Leaving **Runtime Skeletal Preview** automatically stops its base/layer playback and restores the
+shared preview to bind pose. Consequently, entering Armature Template can show the useful static
+bind skeleton without carrying an animated pose or advancing playback in the background.
 The runtime and Runtime Skeletal Preview expose transient two-clip Absolute and Additive composition.
 Its product boundaries and relationship to the canonical runtime are defined in
 [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md).
@@ -654,10 +693,30 @@ and none of these diagnostic values are serialized.
 Open **Create / Edit Animations** to inspect the canonical type-43 structure before editing is
 enabled. The node selects a named clip and displays its stable ID, duration, looping policy, tracks,
 target bone identity, T/R/S channel mask, and every key's time, local quaternion TRS, easing, and
-Cubic-Bezier controls. Selecting a track synchronizes the editor's selected bone index. This first
-Milestone-6 surface is deliberately read-only: it has no timeline, key insertion/removal, or clip
-mutation yet, so imported animation cannot be changed accidentally while the authoring transaction
-model is still being introduced.
+Cubic-Bezier controls. Selecting a track synchronizes the editor's selected bone index. Clips,
+tracks, keys, poses, and timeline operations are editable through the transaction model described
+below.
+
+**Import Animation from MSH...**, located before the clip selector, opens a separate adjustment
+window. It loads one animated source MSH, lets the user select a source clip and assign a unique
+destination name, and imports only canonical type-43 animation data. The target geometry,
+materials, skeleton identities, and vertex weights remain unchanged. Common bone-name prefixes are
+detected generically from delimiters such as `:`, `|`, `_`, and `-`; the operation does not contain
+RenderPeople- or Mixamo-specific prefixes. After prefix removal, every normalized bone name must be
+unique and present on both sides, the bone counts must match, and mapped parent relationships must
+be identical. Incompatible sources are rejected before target mutation.
+
+For a compatible skeleton, keys are adapted offline from the source bind-local TRS to the target
+bind-local TRS. Translation deltas use the corresponding bone-length ratio, root translation uses
+the measured skeleton-height ratio, rotation preserves the source bind-relative quaternion delta,
+and scale preserves its bind-relative ratio. Key times, channel masks, easing, Bezier controls,
+duration, and looping policy are retained. Import creates one destination clip and pastes all keys
+through the canonical batch API. The editor's whole-asset snapshot restores the original target if
+either stage fails, and a successful import participates in Undo/Redo. After commit, the editor
+rebuilds the runtime preview once from the updated in-memory canonical MSH, so the imported clip is
+available in Runtime Skeletal Preview without requiring a persistent Save first. This is deliberately a
+narrow offline same-topology retarget workflow for combining separately exported animations; it is
+not runtime retargeting or arbitrary humanoid semantic mapping.
 
 The same node can create an empty clip and update the selected clip's name, duration, and loop
 policy. Clip IDs remain unchanged when properties are edited. A duration reduction that would
@@ -791,6 +850,19 @@ tail is initialized at that length along local +Y. Length defaults to 1. **Add J
 the hierarchy transform and therefore has no selectable tail or segment; **Add Bone** creates the
 explicit endpoint and segment. Imported FBX bones retain Blender's actual head and tail even when
 coordinate conversion changes the visual aim axis.
+
+**Visual tail orientation** is an explicit editor-only normalization for rigs whose authored FBX
+bone axes do not follow their hierarchy positions. A bone with one child points to that child's
+head; leaves and safe multi-child branches continue their incoming direction while retaining their
+current visual length. Every bone that owns a connected child is skipped so no joint or bind
+transform moves.
+The complete operation is transactional and Undoable. It changes only explicit `tailOffset` and
+`length`: bind rotations, weights, animation tracks, and the bone axes reconstructed during
+MSH-to-FBX export from global bind matrices remain unchanged. Consequently, saving and reopening
+the edited MSH preserves these visual tails, but an MSH -> FBX -> MSH round-trip does not: FBX
+export reconstructs the armature from the unchanged bind axes, and FBX import then captures those
+Blender bone tails as the new explicit endpoints. Running **Visual tail orientation** again after
+that round-trip is the expected workflow, not repair of damaged animation data.
 
 Extending a selected explicit tail creates a child whose local head is exactly that tail offset and
 sets `connectedToParent=true`. This explicit constraint is what later joint dragging will use to
