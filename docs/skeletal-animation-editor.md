@@ -1,12 +1,12 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Status: **Armature Templates, Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
 Last updated: **2026-08-19**
 
 ## 1. Purpose
 
 The Skeletal Animation Editor is the standalone Mini MBM tool for inspecting and editing skeletal
-mesh data. Its implemented worktrees cover bind diagnostics, direct bone editing, canonical type-42
+mesh data. Its implemented worktrees cover reusable armature application, bind diagnostics, direct bone editing, canonical type-42
 weight repair, runtime LBS/DQS preview, and local clip/track/key/timeline authoring without expanding
 Mesh Debug into a general animation editor.
 
@@ -19,12 +19,31 @@ boundaries are documented in
 Paint Weights uses backend-native heatmap and brush shaders on all three delivered backends;
 Metal keeps generated skeletal deformation active when a fragment-only editor shader is applied.
 
-The editor is organized into five mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
+The editor is organized into six mutually exclusive worktrees: **Armature Template**, **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Create / Edit Animations**, and **Paint Weights**. Create / Edit
 Animations and direct brush-based weight authoring are active.
 No worktree is selected initially. Loading or replacing an asset returns to this neutral state,
 enables the ordinary textured mesh, and keeps skeletons, heatmaps, cursors, capture volumes, and
 diagnostic overlays hidden until the user explicitly opens a worktree.
+
+### Armature Template worktree
+
+**Armature Template** starts a new rig directly in the same editor where it will be adjusted,
+weighted, and animated. The user selects one of the five built-in templates and explicitly confirms
+application. The editor recalculates the template skeleton's real vertical extent from every bone
+head and oriented tail, then fits that measured height to the loaded mesh with one uniform scale and
+bottom-center alignment. The adapted skeleton therefore has the target mesh height; the mesh
+geometry is not stretched or otherwise changed.
+
+Applying a template replaces all existing canonical skeletal data, including weights and clips, as
+one Undoable transaction. Validation or API failure restores the complete pre-application snapshot,
+so a partial hierarchy is never left behind. Application deliberately does not guess skin weights.
+The worktree points to **Bone Editor**, where the user can adjust the fitted bones and explicitly run
+the existing automatic initial-weight generator, then continue to **Create / Edit Animations**.
+This is armature authoring for one target mesh, not animation retargeting between two live skeletons.
+Leaving **Runtime Skeletal Preview** automatically stops its base/layer playback and restores the
+shared preview to bind pose. Consequently, entering Armature Template can show the useful static
+bind skeleton without carrying an animated pose or advancing playback in the background.
 The runtime and Runtime Skeletal Preview expose transient two-clip Absolute and Additive composition.
 Its product boundaries and relationship to the canonical runtime are defined in
 [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md).

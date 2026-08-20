@@ -24,6 +24,7 @@ tImGui = require "ImGui"
 tUtil = require "editor_utils"
 tWearable = require "skeletal_runtime_wearable_helpers"
 tMaskTopology = require "skeletal_mask_topology"
+tArmatureTemplates = require "skeletal_armature_templates"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -125,6 +126,8 @@ local state = {
     boneEditorRadius = 0,
     boneEditorRadiusSubtree = false,
     boneEditorRotationGuide = nil,
+    armatureTemplateSelected = 1,
+    armatureTemplateConfirmed = false,
     workspace = 'none',
     meshVisible = true,
     skeletonAlwaysOnTop = true,
@@ -242,7 +245,8 @@ end
 local cameraMove = {forward=0, right=0, vertical=0}
 
 local function shouldShowSkeleton()
-    return state.workspace=='bind' or state.workspace=='bone_editor' or state.workspace=='animation' or
+    return state.workspace=='bind' or state.workspace=='bone_editor' or
+        state.workspace=='armature_template' or state.workspace=='animation' or
         (state.workspace=='runtime' and state.skeletalPreview.playing and
             state.skeletalPreview.layerMaskShowSkeleton) or
         (state.workspace=='paint' and state.paint.showSkeleton and
@@ -1261,6 +1265,19 @@ local function setWorkspace(workspace)
     -- before its removal must return to the supported visual authoring workflow.
     if workspace=='weights' then workspace='paint' end
     if state.workspace==workspace then return end
+    if state.workspace=='runtime' and workspace~='runtime' then
+        pcall(function() if state.preview then state.preview:stopSkeletalAnimation() end end)
+        pcall(function()
+            if state.comparisonPreview then state.comparisonPreview:stopSkeletalAnimation() end
+        end)
+        local playback=state.skeletalPreview
+        playback.playing=false
+        playback.paused=false
+        playback.absoluteLayerActive=false
+        playback.absoluteLayerPaused=false
+        playback.runtimePose=nil
+        playback.comparisonReady=false
+    end
     if state.workspace=='animation' and workspace~='animation' then
         pcall(function() if state.preview then state.preview:stopSkeletalAnimation() end end)
         state.authoringPose=nil
@@ -3527,6 +3544,8 @@ local function loadMesh(path)
     state.boneEditorAutomaticWeightsConfirmed=false
     state.boneEditorRemoveWeightsConfirmed=false
     state.boneEditorRemoveAllConfirmed=false
+    state.armatureTemplateSelected=1
+    state.armatureTemplateConfirmed=false
     state.authoringTime=0
     state.authoringPose=nil
     state.authoringPoseKey=nil
@@ -9432,6 +9451,83 @@ local function generateAutomaticBoneWeights()
     return true
 end
 
+applySelectedArmatureTemplate=function()
+    local template=tArmatureTemplates.items[state.armatureTemplateSelected]
+    local fitted,fitError=tArmatureTemplates.fit(template,state.meshBounds)
+    if not fitted then
+        setStatus(tLang.L(fitError=='invalid_bounds' and 'swl_armature_template_invalid_bounds' or
+            'swl_armature_template_invalid'),true)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_apply_armature_template')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local callOk,applied,applyResult,adaptedHeight=pcall(tArmatureTemplates.apply,state.meshD,template,
+        state.meshBounds)
+    if not callOk or not applied then
+        restoreHistoryEntry(snapshot)
+        discardRollbackSnapshot(snapshot)
+        local reason=callOk and applyResult or applied
+        setStatus(tostring(reason or tLang.L('swl_armature_template_invalid')),true)
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_apply_armature_template')
+    state.modified=true
+    state.armatureTemplateConfirmed=false
+    state.boneIndex=1
+    state.boneEditorSelectedIndex=nil
+    state.boneEditorSelection=nil
+    clearPaintVisuals()
+    state.topologyAdjacency=nil
+    state.coincidentSeams=nil
+    state.paint.geometry=nil
+    state.paint.heatmapDirty=true
+    refreshBindReport()
+    state.allowedBones={}
+    for _,bone in ipairs(getBones()) do state.allowedBones[bone.name]=true end
+    rebuildPreview()
+    buildPaintGeometryCache()
+    rebuildSkeletonVisuals()
+    applyWorkspaceVisibility()
+    setStatus(string.format(tLang.L('swl_armature_template_applied_fmt'),template.label,applyResult,
+        adaptedHeight or 0),false)
+    return true
+end
+
+showArmatureTemplate=function()
+    tImGui.TextWrapped(tLang.L('swl_armature_template_help'))
+    tImGui.PushItemWidth(230)
+    local changed,selected=tImGui.Combo(tLang.L('swl_armature_template_select'),
+        state.armatureTemplateSelected,tArmatureTemplates.labels,-1)
+    tImGui.PopItemWidth()
+    if changed then
+        state.armatureTemplateSelected=selected
+        state.armatureTemplateConfirmed=false
+    end
+    local template=tArmatureTemplates.items[state.armatureTemplateSelected]
+    if template then
+        tImGui.TextWrapped(string.format(tLang.L('swl_armature_template_summary_fmt'),
+            template.label,#template.bones))
+    end
+    local bones=getBones()
+    if #bones>0 then
+        tImGui.TextColored({r=1,g=0.55,b=0.15,a=1},
+            string.format(tLang.L('swl_armature_template_replace_fmt'),#bones))
+    end
+    state.armatureTemplateConfirmed=tImGui.Checkbox(
+        tLang.L('swl_armature_template_confirm'),state.armatureTemplateConfirmed)
+    tImGui.BeginDisabled(not state.armatureTemplateConfirmed or not template)
+    if tImGui.Button(tLang.L('swl_armature_template_apply')) then
+        applySelectedArmatureTemplate()
+    end
+    tImGui.EndDisabled()
+    tImGui.Separator()
+    tImGui.TextWrapped(tLang.L('swl_armature_template_next_steps'))
+    if #getBones()>0 and tImGui.Button(tLang.L('swl_armature_template_open_bone_editor')) then
+        setWorkspace('bone_editor')
+    end
+    showRollbackControls('swlArmatureTemplateRevert')
+end
+
 local function showBoneEditor()
     local previousRemovePreview=state.boneEditorRemovePreviewIndex
     state.boneEditorRemovePreviewIndex=nil
@@ -9967,6 +10063,11 @@ local function showPanel()
                 tImGui.Separator()
             end
             tImGui.Text(tLang.L('swl_workspaces'))
+            if openWorkspaceNode('armature_template',tLang.L('swl_armature_template_workspace'),
+                    '##swlArmatureTemplateWorkspace') then
+                showArmatureTemplate()
+                tImGui.TreePop()
+            end
             if openWorkspaceNode('bone_editor',tLang.L('swl_bone_editor_workspace'),
                     '##swlBoneEditorWorkspace') then
                 showBoneEditor()

@@ -291,7 +291,7 @@ the FBX fixes, but it is not the delivered runtime contract.
   already used), and attaches up to 4 `(boneName, weight)` pairs to each captured vertex.
 - **Inspect/edit** (`editor/mesh_debug.lua`'s Bones node/window): a plain table of bones
   (name/parent/x/y/z/radius/length/roll + a Highlight checkbox), DragFloat-editable, plus bake
-  Rotate/Scale/Translate for the whole skeleton, an **Armature Template** system (see below), and
+  Rotate/Scale/Translate for the whole skeleton and
   Mesh Info's own read-only weight summary (weighted-vertex count, bones referenced, avg/max
   influences). A `length ≤ ~1e-6` bone (e.g. one added via "+ Add Bone"/"+ Add Child Bone", which
   never carry real orientation data) is flagged inline with a warning — `length > EPS` is the same
