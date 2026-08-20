@@ -6,6 +6,39 @@ learned while porting to Metal.
 
 ---
 
+## Project direction and complexity gate
+
+Mini MBM is intentionally a lightweight engine. A newer API, fashionable architecture, or broader
+theoretical capability is not sufficient reason to add a rendering backend. Before designing or
+implementing one, actively try to disprove that it is needed. Prefer keeping the current backend,
+making a small platform-specific improvement, accepting a documented limit, or using an existing
+fallback when any of those choices satisfies the concrete game or platform requirement.
+
+Reasonable future investigations include a newer DirectX path for Windows or a more capable OpenGL
+path for Linux. Metal already provides the modern macOS/iOS path. Preserve the validated DirectX 9,
+OpenGL ES, and Metal implementations unless a separately approved platform plan explicitly changes
+their support status. Vulkan is not a current objective: its explicit pipelines, resource
+management, synchronization, testing surface, and ongoing maintenance are a high-risk expansion for
+this engine. References to Vulkan in this document illustrate backend portability hazards; they do
+not constitute a roadmap commitment.
+
+Any modernization proposal must first provide a concrete use case and compare the smallest viable
+alternatives. It must document and measure at least:
+
+- coexistence with existing backends and the cost of duplicate rendering paths;
+- supported platforms, devices, drivers, and fallback behavior;
+- shader, visual, render-to-texture, and CPU/GPU skeletal parity;
+- resource lifetime, device loss/recovery, and CPU/GPU synchronization;
+- new dependencies, build complexity, binary size, and startup/runtime cost;
+- regression coverage, test-matrix growth, and long-term maintenance ownership.
+
+Reject the proposal when its benefit is speculative, its complexity is disproportionate, or a
+smaller solution preserves the engine's practical capabilities. If approved, scope it as an
+independent platform/renderer project with explicit acceptance criteria; do not introduce it as a
+side effect of a gameplay, editor, shader, or skeletal-animation feature.
+
+---
+
 ## 1. Repository layout
 
 ```

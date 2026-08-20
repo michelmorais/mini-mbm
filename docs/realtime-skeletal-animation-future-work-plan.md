@@ -16,34 +16,24 @@ platform scope, fixtures, performance budget, and versioned acceptance criteria.
 
 | Order | Project | Reason |
 |---|---|---|
-| 1 | Multi-layer composition and persistence | Extends the existing base-plus-one-layer contract used by games |
-| 2 | Persistent shared skeletal resources | Formalizes body/wearable ownership beyond transient direct followers |
-| 3 | Skeleton-to-skeleton retargeting | Adds a new animation-data transformation boundary and needs dedicated fixtures |
-| 4 | Extended scale and palette support | Requires shader/palette contract changes and backend-specific measurement |
-| 5 | Editor and FBX refinements | Should be driven by concrete authoring assets rather than DCC feature parity |
-| 6 | Renderer modernization and secondary deformation | Separate research/architecture work, not a skinning correctness requirement |
+| 1 | Lua/prefab skeletal-sharing workflows | Keeps body/wearable composition in game code while reusing the existing transient runtime sharing |
+| 2 | Skeleton-to-skeleton retargeting | Adds a new animation-data transformation boundary and needs dedicated fixtures |
+| 3 | Editor refinements | Keeps optional authoring aids separate and driven by concrete editor needs |
+| 4 | Lightweight secondary motion | Keeps optional appendage motion bounded above the accepted skeletal pose contract |
 
 ## 3. Deferred Projects
 
-### 3.1 Multi-layer composition
+### 3.1 Lua/prefab skeletal-sharing workflows
 
-Generalize the current base plus one transient Absolute/Additive layer into an explicitly bounded
-layer stack. Define priority, ordering, queues, transition curves, masks, pause/time ownership, and
-serialization separately from canonical source clips.
+Keep body/wearable relationships outside the engine's persisted mesh format and ownership model.
+Provide optional Lua examples or a game-level prefab convention that reconstructs direct transient
+followers with the existing skeletal-pose-sharing API after the source and followers are loaded.
 
-Acceptance: deterministic composition order, bounded runtime cost, transactional mutations, stable
-save/reload semantics, Lua/editor coverage, and no extra skinning draw per layer.
+Acceptance: direct source/follower setup remains explicit, compatibility failures are reported,
+reload and destruction are handled safely by the game workflow, and compatible followers do not
+duplicate pose evaluation or palette copies.
 
-### 3.2 Persistent skeletal sharing
-
-Define reusable skeleton/clip resource ownership and persisted body/wearable relationships beyond
-the current direct runtime follower. Decide whether follower chains remain forbidden and how source
-advancement order is guaranteed across scenes and asynchronous loading.
-
-Acceptance: explicit lifetime ownership, compatibility/version rules, deterministic load order,
-safe reload/destruction, and no duplicated pose evaluation or palette copy for compatible followers.
-
-### 3.3 Animation retargeting
+### 3.2 Animation retargeting
 
 Add an explicit offline/editor operation for applying a clip to a different compatible skeleton.
 Define bone mapping, bind-space correction, proportion handling, missing/extra bones, root motion,
@@ -52,39 +42,29 @@ scale policy, and error reporting. Do not treat FBX round-trip bind reconstructi
 Acceptance: source and destination remain independent assets; named reference poses and clips match
 expected global transforms within tolerance; unsupported mappings fail without partial mutation.
 
-### 3.4 Extended deformation and palette capacity
+### 3.3 Editor refinements
 
-Evaluate these independent additions:
-
-- inverse-transpose GPU normal palettes for non-uniform LBS scale;
-- two-phase or another explicit DQS scale/stretch model;
-- palette partitioning or another transport for skeletons above the effective per-draw limit;
-- buffer/texture-backed palettes or compute deformation where a backend justifies them.
-
-Acceptance: no silent scale/shear approximation, measured memory/draw cost, CPU reference parity,
-and unchanged canonical clip/weight semantics unless a new format version is explicitly required.
-
-### 3.5 Editor and interchange refinements
-
-Candidate independent tools are animation-aware subtree mirroring, protected/exclusion volumes,
-welded diagnostic topology, bounded automatic weight generation, richer pose-stress/antipodality
-diagnostics, and custom-tail authoring.
-
-FBX coverage should expand only through named source fixtures that demonstrate a missing armature,
-Action/NLA, deformer, or transform case. The objective is measured interoperability, not universal
-FBX or Blender feature parity.
+Candidate independent tools are animation-aware subtree mirroring, protected/exclusion volumes, and
+welded diagnostic topology.
 
 Acceptance: every tool is transactional and Undoable, expensive analysis is event/dirty-driven, idle
-editor cost remains bounded, and import/export additions have reproducible round-trip fixtures.
+editor cost remains bounded, and each addition has reproducible fixtures for its concrete authoring
+case.
 
-### 3.6 Renderer modernization and secondary deformation
+### 3.4 Lightweight secondary motion
 
-Evaluate modern OpenGL versus Vulkan as a renderer-wide decision. Velocity Skinning, corrective
-shapes, bulge compensation, muscle effects, and procedural/physical tail motion remain optional
-secondary deformation projects built above the accepted LBS/DQS pose contract.
+Keep Velocity Skinning only as a research reference and possible source of ideas, not as a planned
+feature or compatibility target. A small procedural secondary-bone chain for a tail, hair, or a
+similar appendage may be evaluated independently when a concrete game needs it. Keep that candidate
+bounded to a simple deterministic spring/damping model with explicit reset and pause behavior; do
+not turn it into a general soft-body system, collision solver, muscle simulation, or complex physics
+framework.
 
-Acceptance: these features remain capability-driven and optional; legacy OpenGL ES and DirectX 9 do
-not define modern limits, and no secondary effect destabilizes ordinary bind, playback, or skinning.
+Acceptance: a secondary-motion feature must remain optional, bounded in state and per-frame cost,
+stable across pause/reset and fixed or variable frame steps, and must not destabilize ordinary bind,
+playback, root motion, or LBS/DQS skinning. Backend modernization policy belongs to
+[Implementing a New Rendering Backend](new-backend-instructions.md#project-direction-and-complexity-gate),
+not to the skeletal-animation roadmap.
 
 ## 4. Planning Rule
 
