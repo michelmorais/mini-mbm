@@ -90,7 +90,7 @@ function M.renderWindow(gui,lang,leftPanelRight,hasMesh)
     local tutorial=M.activeId and M.byId[M.activeId] or nil
     if not tutorial then return nil end
     local screenWidth,screenHeight=mbm.getRealSizeScreen()
-    local x=math.max(0,math.min((leftPanelRight or 440)+10,screenWidth-380))
+    local x=math.max(0,screenWidth-380)
     gui.SetNextWindowPos({x=x,y=28},gui.Flags('ImGuiCond_Once'))
     gui.SetNextWindowSize({x=370,y=math.max(420,math.min(650,screenHeight-40))},
         gui.Flags('ImGuiCond_Once'))

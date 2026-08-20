@@ -543,6 +543,8 @@
     7.138.0 Made Bind Pose Contract retain every explicit bone extent in the viewport. It now supplements parent-to-child hierarchy links with non-selectable head-to-tail reference lines and tail joints, so a four-bone chain visibly keeps four authored segments while still exposing its three inheritance relationships.
     7.138.1 Reworked Tutorial 2 smooth-weight generation around the actual observable workflow: it explicitly keeps the default three topology iterations, names the confirmation and generation controls, explains that Bone Editor visuals do not change when only weights are created, and checks the generated cylinder's exact 257-vertex, 4-bone, 3-iteration, 43-seam-group status instead of prematurely asking for heatmap judgment.
     7.138.2 Made Tutorial 2's weight-inspection and repair boundary explicit. Step 5 now identifies selected-bone heatmaps and influence distribution as read-only, names the Abrupt Weight Transitions radio option, records the 0.35/0.50/3/0.20 defaults, identifies Smooth Detected Transitions as the only mutating action with Undo, and checks the before-to-after abrupt-edge status.
+    7.138.3 Corrected Tutorial 2's expected weight diagnostics after validating its generated cylinder: influence concentration is warm at both ends and transitions through green to cyan near the center, while Abrupt Weight Transitions is uniformly blue with zero edges at threshold 0.35. Smooth Detected Transitions is now explicitly conditional and should not be run for that expected result.
+    7.139.0 Expanded Tutorial 2 clip authoring into the actual control sequence: Add empty clip with one-second looping duration, three rotation-only tracks, automatic bind keys at time zero, a beginner definition of keyframes, and matching 0/1 poses around an opposite midpoint for a continuous loop. Tutorial windows now initially open at the top-right screen edge while remaining draggable.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -568,7 +570,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.138.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.139.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

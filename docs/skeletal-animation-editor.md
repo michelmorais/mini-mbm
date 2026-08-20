@@ -479,6 +479,9 @@ future tutorials reuse the same menu, window, navigation, Previous/Next controls
 without adding tutorial-specific rendering branches to the main editor. A step may also declare an
 optional `checkKey`; the window renders this after Previous/Next as a distinct expected-result and
 diagnostic checklist rather than repeating the primary instruction.
+The tutorial window initially opens at the top-right edge of the screen, independently from the
+left worktree panel and even when that places it over the camera gizmo. `ImGuiCond_Once` preserves
+ordinary user dragging afterward instead of forcing the position every frame.
 
 **Tutorial 2 - Bending Cylinder** is an asset-backed exercise. Selecting it creates a capped,
 vertical cylinder with 12 height divisions and a checker texture built from two hexadecimal RGBA
