@@ -115,6 +115,7 @@ local state = {
     boneEditorRemoveReparentChildren = false,
     boneEditorRemoveDiscardTracks = false,
     boneEditorRemoveConfirmed = false,
+    boneEditorReorientTailsConfirmed = false,
     boneEditorInitializeWeightsConfirmed = false,
     boneEditorInitializeWeightsBoneId = nil,
     boneEditorAutomaticWeightsConfirmed = false,
@@ -3539,6 +3540,7 @@ local function loadMesh(path)
     state.boneEditorLength=1
     state.boneEditorSelectedIndex=nil
     state.boneEditorSelection=nil
+    state.boneEditorReorientTailsConfirmed=false
     state.boneEditorInitializeWeightsConfirmed=false
     state.boneEditorInitializeWeightsBoneId=nil
     state.boneEditorAutomaticWeightsConfirmed=false
@@ -9566,6 +9568,38 @@ local function showBoneEditor()
     local previousRemovePreview=state.boneEditorRemovePreviewIndex
     state.boneEditorRemovePreviewIndex=nil
     tImGui.TextWrapped(tLang.L('swl_bone_editor_help'))
+    tImGui.Separator()
+    if tImGui.TreeNode(tLang.L('swl_bone_editor_reorient_tails_section')..
+            '##swlBoneEditorReorientTails') then
+        tImGui.TextWrapped(tLang.L('swl_bone_editor_reorient_tails_help'))
+        state.boneEditorReorientTailsConfirmed=tImGui.Checkbox(
+            tLang.L('swl_bone_editor_reorient_tails_confirm')..
+                '##swlBoneEditorReorientTailsConfirm',
+            state.boneEditorReorientTailsConfirmed)
+        tImGui.BeginDisabled(not state.boneEditorReorientTailsConfirmed or #getBones()==0)
+        if tImGui.Button(tLang.L('swl_bone_editor_reorient_tails_apply')..
+                '##swlBoneEditorReorientTailsApply') then
+            local snapshot=stageRollbackSnapshot()
+            local callOk,operationOk,count=false,false,0
+            if snapshot then
+                callOk,operationOk,count=safeCall(function()
+                    return tArmatureTemplates.reorientVisualTails(state.meshD,getBones())
+                end)
+            end
+            if callOk and operationOk then
+                commitRollbackSnapshot(snapshot,'swl_bone_editor_reorient_tails_history')
+                state.boneEditorReorientTailsConfirmed=false
+                state.modified=true
+                refreshBindReport()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                setStatus(string.format(tLang.L('swl_bone_editor_reorient_tails_applied_fmt'),
+                    tonumber(count) or 0),false)
+            elseif snapshot then discardRollbackSnapshot(snapshot) end
+        end
+        tImGui.EndDisabled()
+        tImGui.TreePop()
+    end
     tImGui.Separator()
     state.boneEditorPreserveOtherJoints=tImGui.Checkbox(
         tLang.L('swl_bone_editor_preserve_other_joints')..'##swlBonePreserveJoints',

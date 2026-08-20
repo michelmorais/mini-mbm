@@ -831,6 +831,15 @@ the hierarchy transform and therefore has no selectable tail or segment; **Add B
 explicit endpoint and segment. Imported FBX bones retain Blender's actual head and tail even when
 coordinate conversion changes the visual aim axis.
 
+**Visual tail orientation** is an explicit editor-only normalization for rigs whose authored FBX
+bone axes do not follow their hierarchy positions. A bone with one child points to that child's
+head; leaves and safe multi-child branches continue their incoming direction while retaining their
+current visual length. Every bone that owns a connected child is skipped so no joint or bind
+transform moves.
+The complete operation is transactional and Undoable. It changes only explicit `tailOffset` and
+`length`: bind rotations, weights, animation tracks, and the bone axes reconstructed during
+MSH-to-FBX export from global bind matrices remain unchanged.
+
 Extending a selected explicit tail creates a child whose local head is exactly that tail offset and
 sets `connectedToParent=true`. This explicit constraint is what later joint dragging will use to
 move the shared parent tail and child head together; ordinary parenthood does not imply connection.

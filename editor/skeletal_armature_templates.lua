@@ -283,10 +283,78 @@ local function loadFile(path)
     return template
 end
 
+-- Reorients only the explicit authoring endpoints used by the Bone Editor. Bind rotations,
+-- weights, and animation tracks deliberately remain untouched, so this is not an FBX rig-axis
+-- conversion. Targets are computed before mutation and preserve every existing joint position.
+local function reorientVisualTails(meshD,bones)
+    if not meshD or type(bones)~='table' or #bones==0 then return false,'invalid_skeleton' end
+    local byName,children={},{}
+    for index,bone in ipairs(bones) do
+        byName[bone.name]={bone=bone,index=index}
+        if bone.parentName then
+            children[bone.parentName]=children[bone.parentName] or {}
+            children[bone.parentName][#children[bone.parentName]+1]=bone
+        end
+    end
+    local targets={}
+    for index,bone in ipairs(bones) do
+        if bone.hasExplicitTail and bone.globalMatrix then
+            local descendants=children[bone.name] or {}
+            local hasConnectedChild=false
+            for _,child in ipairs(descendants) do
+                if child.connectedToParent then hasConnectedChild=true break end
+            end
+            local dx,dy,dz
+            if not hasConnectedChild and #descendants==1 then
+                dx,dy,dz=descendants[1].x-bone.x,descendants[1].y-bone.y,
+                    descendants[1].z-bone.z
+            elseif not hasConnectedChild and bone.parentName then
+                local parent=byName[bone.parentName]
+                if parent then
+                    dx,dy,dz=bone.x-parent.bone.x,bone.y-parent.bone.y,bone.z-parent.bone.z
+                    local incoming=math.sqrt(dx*dx+dy*dy+dz*dz)
+                    local tail=bone.tailOffset or {x=0,y=bone.length or 0,z=0}
+                    local m=bone.globalMatrix
+                    local wx=(m[1] or 1)*tail.x+(m[5] or 0)*tail.y+(m[9] or 0)*tail.z
+                    local wy=(m[2] or 0)*tail.x+(m[6] or 1)*tail.y+(m[10] or 0)*tail.z
+                    local wz=(m[3] or 0)*tail.x+(m[7] or 0)*tail.y+(m[11] or 1)*tail.z
+                    local visual=math.sqrt(wx*wx+wy*wy+wz*wz)
+                    if incoming>1e-8 and visual>1e-8 then
+                        local scale=visual/incoming
+                        dx,dy,dz=dx*scale,dy*scale,dz*scale
+                    else dx=nil end
+                end
+            end
+            local worldLength=dx and math.sqrt(dx*dx+dy*dy+dz*dz) or 0
+            if worldLength>1e-8 then
+                local m=bone.globalMatrix
+                local a,b,c=m[1] or 1,m[5] or 0,m[9] or 0
+                local d,e,f=m[2] or 0,m[6] or 1,m[10] or 0
+                local g,h,i=m[3] or 0,m[7] or 0,m[11] or 1
+                local determinant=a*(e*i-f*h)-b*(d*i-f*g)+c*(d*h-e*g)
+                if math.abs(determinant)>1e-12 then
+                    targets[#targets+1]={index=index,
+                        x=((e*i-f*h)*dx+(c*h-b*i)*dy+(b*f-c*e)*dz)/determinant,
+                        y=((f*g-d*i)*dx+(a*i-c*g)*dy+(c*d-a*f)*dz)/determinant,
+                        z=((d*h-e*g)*dx+(b*g-a*h)*dy+(a*e-b*d)*dz)/determinant}
+                end
+            end
+        end
+    end
+    for _,target in ipairs(targets) do
+        -- Connected-child owners were excluded above, so changing this endpoint cannot move a
+        -- joint. Avoid preserveOtherJoints here: it decomposes/rebuilds unrelated local binds and
+        -- repeated whole-rig use can accumulate enough float error to break palette evaluation.
+        meshD:setSkeletalBoneTail(target.index,target.x,target.y,target.z,true,false)
+    end
+    return true,#targets
+end
+
 local ARMATURE_LABELS={}
 for index,template in ipairs(ARMATURE_TEMPLATES) do
     ARMATURE_LABELS[index]=template.label
 end
 
 return {items=ARMATURE_TEMPLATES,labels=ARMATURE_LABELS,fit=fit,apply=apply,
-    fromReport=fromReport,serialize=serialize,saveFile=saveFile,loadFile=loadFile}
+    fromReport=fromReport,serialize=serialize,saveFile=saveFile,loadFile=loadFile,
+    reorientVisualTails=reorientVisualTails}

@@ -8332,10 +8332,34 @@ namespace mbm
 
     bool MESH_MBM::playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const
     {
-        if (impl->canonicalSkeleton.skeletonId == 0 ||
-            impl->canonicalAnimations.clips.empty() || !name || !name[0] ||
-            player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::NONE)
+        if (impl->canonicalSkeleton.skeletonId == 0)
+        {
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+            WARN_LOG("playSkeletalAnimation failed: mesh has no canonical skeleton");
+#endif
             return false;
+        }
+        if (impl->canonicalAnimations.clips.empty())
+        {
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+            WARN_LOG("playSkeletalAnimation failed: mesh has no canonical animation clips");
+#endif
+            return false;
+        }
+        if (!name || !name[0])
+        {
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+            WARN_LOG("playSkeletalAnimation failed: clip name is empty");
+#endif
+            return false;
+        }
+        if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::NONE)
+        {
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+            WARN_LOG("playSkeletalAnimation failed for clip [%s]: skinning method is unresolved", name);
+#endif
+            return false;
+        }
         for (uint32_t i = 0; i < impl->canonicalAnimations.clips.size(); ++i)
         {
             if (impl->canonicalAnimations.clips[i].name == name)
@@ -8360,9 +8384,52 @@ namespace mbm
                 player.impl->paused = previousPaused;
                 player.impl->baseCompletionNotified = previousCompletionNotified;
                 player.impl->authoringPose = previousAuthoringPose;
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+                const BUFFER_GL *buffer = impl->buffer && impl->totalFramesMesh > 0
+                    ? impl->buffer[0].pBufferGL : nullptr;
+                const bool hasNormals = buffer &&
+                    (buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+                     buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+                skeletal::SKELETAL_POSE diagnosticPose;
+                const skeletal::SKELETAL_CLIP &diagnosticClip = impl->canonicalAnimations.clips[i];
+                if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled,
+                        diagnosticClip, 0.0f, diagnosticPose))
+                {
+                    WARN_LOG("playSkeletalAnimation failed for clip [%s]: initial clip sampling failed", name);
+                }
+                else
+                {
+                    std::vector<float> diagnosticRows;
+                    if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
+                    {
+                        const skeletal::DQS_PALETTE_STATUS status = skeletal::buildDqsPalette(
+                            impl->canonicalSkeleton, diagnosticPose, diagnosticRows);
+                        const char *reason = status == skeletal::DQS_PALETTE_STATUS::INVALID_POSE
+                            ? "invalid initial DQS pose"
+                            : status == skeletal::DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM
+                                ? "initial DQS pose contains a non-rigid transform"
+                                : "initial composed pose/player state evaluation failed";
+                        WARN_LOG("playSkeletalAnimation failed for clip [%s]: %s", name, reason);
+                    }
+                    else
+                    {
+                        const skeletal::LBS_PALETTE_STATUS status = skeletal::buildLbsPalette(
+                            impl->canonicalSkeleton, diagnosticPose, hasNormals, diagnosticRows);
+                        const char *reason = status == skeletal::LBS_PALETTE_STATUS::INVALID_POSE
+                            ? "invalid initial LBS pose"
+                            : status == skeletal::LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM
+                                ? "initial LBS pose has an unsupported normal transform"
+                                : "initial composed pose/player state evaluation failed";
+                        WARN_LOG("playSkeletalAnimation failed for clip [%s]: %s", name, reason);
+                    }
+                }
+#endif
                 return false;
             }
         }
+#if defined _DEBUG || defined DEBUG || defined _DEBUG_
+        WARN_LOG("playSkeletalAnimation failed: clip [%s] was not found", name);
+#endif
         return false;
     }
 
