@@ -9433,7 +9433,11 @@ function swlShowAnimationImportWindow()
                         state.animationClipSelected=newIndex; state.animationEditClipId=nil
                         state.animationTimelineClip=nil; state.authoringTime=0
                         clearAuthoringOverride(); import.confirmed=false; import.open=false
-                        setStatus(string.format(tLang.L('swl_animation_imported_fmt'),trimmed),false)
+                        local previewRefreshed=rebuildRuntimePreviewFromMemory()
+                        setStatus(string.format(tLang.L(previewRefreshed and
+                            'swl_animation_imported_fmt' or
+                            'swl_animation_imported_preview_failed_fmt'),trimmed),
+                            not previewRefreshed)
                     elseif snapshot then
                         restoreHistoryEntry(snapshot)
                         discardRollbackSnapshot(snapshot)

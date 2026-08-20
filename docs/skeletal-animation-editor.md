@@ -712,7 +712,9 @@ the measured skeleton-height ratio, rotation preserves the source bind-relative 
 and scale preserves its bind-relative ratio. Key times, channel masks, easing, Bezier controls,
 duration, and looping policy are retained. Import creates one destination clip and pastes all keys
 through the canonical batch API. The editor's whole-asset snapshot restores the original target if
-either stage fails, and a successful import participates in Undo/Redo. This is deliberately a
+either stage fails, and a successful import participates in Undo/Redo. After commit, the editor
+rebuilds the runtime preview once from the updated in-memory canonical MSH, so the imported clip is
+available in Runtime Skeletal Preview without requiring a persistent Save first. This is deliberately a
 narrow offline same-topology retarget workflow for combining separately exported animations; it is
 not runtime retargeting or arbitrary humanoid semantic mapping.
 
