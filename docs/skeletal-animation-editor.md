@@ -514,8 +514,10 @@ inverse-global bind matrices. Root parent indices are displayed as `0`; stable I
 strings so their full 64-bit identity is preserved through Lua.
 
 Bones are navigated as their actual parent/child hierarchy rather than as a flat source-order list.
-Multiple roots are shown as separate top-level nodes, nodes with diagnostics are marked in orange,
-and **Expand all** opens the complete hierarchy. Selecting a node highlights its joint and incoming
+Multiple roots are shown as separate top-level nodes, and nodes with diagnostics are marked in
+orange. **Keep expanded** is persistent while checked and forces every hierarchy TreeNode open on
+each frame. Unchecking it does not collapse the tree; it restores ordinary independent open/close
+interaction from the current state. Selecting a node highlights its joint and incoming
 parent-to-child bone segment in cyan in the bind-pose gizmo, and updates one separate technical panel with that bone's identity, parent,
 local TRS, radius/length, and bind matrices. The selected-bone panel permits an explicit rename.
 The same read-only selection is available directly in the viewport: a left click on a bind joint or
@@ -801,6 +803,10 @@ skeleton from the same evaluated global transforms. Consequently the mesh and sk
 same pose while editing. Mouse picking, translation/rotation/uniform-scale gizmos, explicit commit,
 Auto Key, playback, and the graphical timeline build on this contract; numeric key fields remain
 precise diagnostic/fallback controls rather than the intended primary UX.
+The **Pose time** scrubber is a duration-clamped `DragFloat`, not a coarse full-width slider.
+Dragging seeks continuously, while Ctrl+click or double-click enables exact numeric entry. A change
+pauses active authoring playback and refreshes the same in-memory pose used by timeline seeking.
+Tutorial 2's dedicated pose step focuses this control directly.
 Move, Rotate, Scale, and Auto Key keep their detailed guidance in hover tooltips so the Animation
 panel remains readable at its standard width.
 Bone selection is now viewport-driven as well as tree/track-driven. Clicking either an evaluated

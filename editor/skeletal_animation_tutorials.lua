@@ -202,7 +202,7 @@ M.register({
             requiresMesh=true},
         {titleKey='swl_tutorial_2_step_7_keys_title',bodyKey='swl_tutorial_2_step_7_keys_body',
             checkKey='swl_tutorial_2_step_7_keys_check',workspace='animation',
-            focus='animation_clip',requiresMesh=true},
+            focus='animation_pose',requiresMesh=true},
         {titleKey='swl_tutorial_2_step_7_title',bodyKey='swl_tutorial_2_step_7_body',
             checkKey='swl_tutorial_2_step_7_check',workspace='runtime',focus='runtime_preview',
             requiresMesh=true},

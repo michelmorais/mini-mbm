@@ -142,7 +142,7 @@ local state = {
     markersAlwaysOnTop = true,
     info = nil,
     bindReport = nil,
-    bindTreeOpenAll = false,
+    bindTreeKeepExpanded = false,
     bindRenameBoneId = nil,
     bindRenameName = '',
     bindReparentBoneId = nil,
@@ -6922,7 +6922,7 @@ local function showBindBoneHierarchy(report)
         local label=string.format('%s%s##swlHierarchyBone%d',prefix,bone.name or '?',index)
         local flags=state.boneIndex==index and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or
             tImGui.Flags('ImGuiTreeNodeFlags_None')
-        if state.bindTreeOpenAll then
+        if state.bindTreeKeepExpanded then
             tImGui.SetNextItemOpen(true,tImGui.Flags('ImGuiCond_Always'))
         end
         if findings then tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'),
@@ -6943,7 +6943,6 @@ local function showBindBoneHierarchy(report)
     -- Defensive display for genuinely malformed/orphaned snapshots; valid descendants remain hidden
     -- with their collapsed parent instead of being flattened into this root level.
     for index=1,#bones do if not structurallyReachable[index] then showNode(index) end end
-    state.bindTreeOpenAll=false
 end
 
 local function showBindPoseDiagnostics()
@@ -7019,9 +7018,9 @@ local function showBindPoseDiagnostics()
     if report.bones and tImGui.TreeNode(string.format('%s (%d)##swlBindBones',
             tLang.L('swl_bind_compiled_bones'),#report.bones)) then
         tImGui.TextWrapped(tLang.L('swl_bind_viewport_segments_help'))
-        if tImGui.Button(tLang.L('swl_expand_all')..'##swlBindExpandAll') then
-            state.bindTreeOpenAll=true
-        end
+        state.bindTreeKeepExpanded=tImGui.Checkbox(
+            tLang.L('swl_keep_expanded')..'##swlBindKeepExpanded',
+            state.bindTreeKeepExpanded)
         tImGui.TextDisabled(tLang.L('swl_hierarchy_scroll_hint'))
         tImGui.BeginChild('##swlBindHierarchyScroll',{x=0,y=300},true)
         showBindBoneHierarchy(report)
@@ -8961,14 +8960,16 @@ local function showSkeletalAnimationInspection()
             state.animationClipLoop=clip.loop==true
             state.animationRemoveConfirmed=false
         end
+        if tTutorials.consumeFocus('animation_pose') then tImGui.SetScrollHereY(0.15) end
         tImGui.PushItemWidth(190)
-        local timeChanged,time=tImGui.SliderFloat(tLang.L('swl_animation_pose_time')..
-            '##swlAuthoringTime',
-            state.authoringTime,0,math.max(clip.duration or 0,0),'%.3f s')
+        local clipDuration=math.max(clip.duration or 0,0)
+        local timeChanged,time=tImGui.DragFloat(tLang.L('swl_animation_pose_time')..
+            '##swlAuthoringTime',state.authoringTime,0.001,0,clipDuration,'%.3f s')
         tImGui.PopItemWidth()
+        showItemTooltip(tLang.L('swl_animation_pose_time_help'))
         if timeChanged then
             if state.animationPlayback.playing then state.animationPlayback.paused=true end
-            state.authoringTime=time
+            state.authoringTime=math.max(0,math.min(clipDuration,time))
             clearAuthoringOverride()
         end
         refreshAuthoringPose(clip)

@@ -546,6 +546,7 @@
     7.138.3 Corrected Tutorial 2's expected weight diagnostics after validating its generated cylinder: influence concentration is warm at both ends and transitions through green to cyan near the center, while Abrupt Weight Transitions is uniformly blue with zero edges at threshold 0.35. Smooth Detected Transitions is now explicitly conditional and should not be run for that expected result.
     7.139.0 Expanded Tutorial 2 clip authoring into the actual control sequence: Add empty clip with one-second looping duration, three rotation-only tracks, automatic bind keys at time zero, a beginner definition of keyframes, and matching 0/1 poses around an opposite midpoint for a continuous loop. Tutorial windows now initially open at the top-right screen edge while remaining draggable.
     7.140.0 Split Tutorial 2's complex animation lesson into clip/track setup and a new dedicated timeline-pose step, increasing the guide to nine steps. The setup uses the actual Selection Bone (Proximity) label and verifies three rotation-only tracks with automatic time-zero keys; the new step promotes Auto Key and Rotate to primary instructions and explains exact playhead movement through the localized Pose time control or empty-timeline clicks at 0/0.5/1 seconds.
+    7.141.0 Replaced Bind Pose Contract's one-shot Expand all button with a persistent Keep expanded checkbox that forces every hierarchy node open only while checked and restores ordinary per-node interaction when cleared. Animation Pose time is now a duration-clamped DragFloat with fine dragging and exact Ctrl/double-click numeric entry; Tutorial 2's timeline step targets and explains the new control directly.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -571,7 +572,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.140.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.141.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
