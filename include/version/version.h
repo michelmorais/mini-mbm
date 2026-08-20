@@ -544,7 +544,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.128.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.129.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

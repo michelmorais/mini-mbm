@@ -3472,6 +3472,7 @@ function removeMeshFromTable(index)
         tXformGizmo.destroy(removed)
         if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
         splitCaptureDiscardBackup(removed)
+        transformDiscardUndo(removed)
         destroySplitCaptureIslandMarkers(removed)
         destroyTransformSubsetHoverMarker(removed)
         destroyNormalVisualization(removed)
@@ -8334,6 +8335,69 @@ function splitCaptureCreateBackup(tEntry, meshD)
     }
 end
 
+function transformDiscardUndo(tEntry)
+    local undo = tEntry and tEntry.tTransformUndo
+    if not undo then return end
+    meshDebug:fakeRelease(undo.path)
+    os.remove(undo.path)
+    tEntry.tTransformUndo = nil
+end
+
+function transformCreateUndo(tEntry, meshD)
+    local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
+    local path = tUtil.getTemporaryFilePath('_transform_undo.' .. ext)
+    if not meshD:save(path, false, false) then
+        meshDebug:fakeRelease(path)
+        os.remove(path)
+        return nil
+    end
+    return {path=path, modified=tEntry.modified == true, info=splitCaptureCopyTable(tEntry.info)}
+end
+
+function transformApplyUndoable(tEntry, meshD, action)
+    local pending = transformCreateUndo(tEntry, meshD)
+    if not pending then
+        tUtil.showMessageWarn(tLang.L('transform_undo_snapshot_failed'))
+        return false
+    end
+    local ok, result = dpCall(action)
+    if not ok or result == false then
+        meshDebug:fakeRelease(pending.path)
+        os.remove(pending.path)
+        return false
+    end
+    transformDiscardUndo(tEntry)
+    tEntry.tTransformUndo = pending
+    return true
+end
+
+function transformRestoreUndo(tEntry, index)
+    local undo = tEntry.tTransformUndo
+    if not undo then return false end
+    local restored = meshDebug:new()
+    if not restored:load(undo.path) then
+        tUtil.showMessageWarn(tLang.L('transform_undo_failed'))
+        return false
+    end
+    if tEntry.tXformPreviewMesh then tEntry.tXformPreviewMesh:destroy(); tEntry.tXformPreviewMesh = nil end
+    tXformGizmo.destroy(tEntry)
+    destroyTransformSubsetHoverMarker(tEntry)
+    destroyNormalVisualization(tEntry)
+    destroyPhysicsVisualization(tEntry)
+    tEntry.meshDebug = restored
+    tEntry.modified = undo.modified
+    tEntry.info = undo.info
+    tEntry.tTransformBoundsCache = nil
+    tEntry.bNormalsVizDirty = true
+    tEntry.bPhysicsVizDirty = true
+    tEntry.xfLastPreviewFP = nil
+    transformDiscardUndo(tEntry)
+    if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    rebuildBoneGizmo(tEntry, restored, index)
+    tUtil.showMessage(tLang.L('transform_undo_success'), 5)
+    return true
+end
+
 function splitCaptureRevert(tEntry, index)
     local backup = tEntry.tSplitCaptureBackup
     if not backup then return end
@@ -10003,17 +10067,21 @@ function showMeshOptions(tEntry, index)
             -- Only a whole-mesh bake may move the one global skeleton.
             local boneReferenceFrame = xf.frame > 0 and xf.frame or 1
             local aabb = computeMeshAABB(meshD, boneReferenceFrame, xf.subset)
-            meshD:centralize(xf.frame, xf.subset)
-            if aabb and transformCoversWholeMesh(xf.frame, xf.subset) then
-                local offX, offY, offZ = computeCentralizeOffset(aabb)
-                applyTranslateToBones(meshD, -offX, -offY, -offZ)
+            local ok = transformApplyUndoable(tEntry, meshD, function()
+                meshD:centralize(xf.frame, xf.subset)
+                if aabb and transformCoversWholeMesh(xf.frame, xf.subset) then
+                    local offX, offY, offZ = computeCentralizeOffset(aabb)
+                    applyTranslateToBones(meshD, -offX, -offY, -offZ)
+                end
+            end)
+            if ok then
                 rebuildBoneGizmo(tEntry, meshD, index)
+                tEntry.modified = true
+                tEntry.tTransformBoundsCache = nil
+                tEntry.bPhysicsVizDirty = true
+                if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+                tUtil.showMessage(string.format('Centralized: %s', shortName))
             end
-            tEntry.modified = true
-            tEntry.tTransformBoundsCache = nil
-            tEntry.bPhysicsVizDirty = true
-            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
-            tUtil.showMessage(string.format('Centralized: %s', shortName))
         end
 
         -- Rotate/Scale/Translate with per-frame/per-subset targeting
@@ -10070,13 +10138,16 @@ function showMeshOptions(tEntry, index)
             xf.subset = ns
         end
         if tImGui.Button(tLang.L("centralize_itself") .. '##' .. index) then
-            meshD:centralizeItself(xf.frame, xf.subset)
-            cancelXformPreview()
-            tEntry.modified = true
-            tEntry.tTransformBoundsCache = nil
-            tEntry.bPhysicsVizDirty = true
-            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
-            tUtil.showMessage(string.format('%s: %s', tLang.L("centralize_itself"), shortName))
+            local ok = transformApplyUndoable(tEntry, meshD,
+                function() meshD:centralizeItself(xf.frame, xf.subset) end)
+            if ok then
+                cancelXformPreview()
+                tEntry.modified = true
+                tEntry.tTransformBoundsCache = nil
+                tEntry.bPhysicsVizDirty = true
+                if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+                tUtil.showMessage(string.format('%s: %s', tLang.L("centralize_itself"), shortName))
+            end
         end
 
         -- Rotation
@@ -10089,7 +10160,8 @@ function showMeshOptions(tEntry, index)
         if chg_ry then xf.ry = ry end
         if chg_rz then xf.rz = rz end
         if tImGui.Button(tLang.L("apply_rotation") .. '##' .. index) then
-            local ok = dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end)
+            local ok = transformApplyUndoable(tEntry, meshD,
+                function() return meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end)
             if ok then
                 if transformCoversWholeMesh(xf.frame, xf.subset) then
                     applyRotationToBonesDeg(meshD, xf.rx, xf.ry, xf.rz)
@@ -10115,7 +10187,9 @@ function showMeshOptions(tEntry, index)
         if chg_sy then xf.sy = sy end
         if chg_sz then xf.sz = sz end
         if tImGui.Button(tLang.L("apply_scale") .. '##' .. index) then
-            local ok = scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset, xf.sx, xf.sy, xf.sz)
+            local ok = transformApplyUndoable(tEntry, meshD, function()
+                return scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset, xf.sx, xf.sy, xf.sz)
+            end)
             if ok then
                 rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
@@ -10151,8 +10225,10 @@ function showMeshOptions(tEntry, index)
                 tImGui.BeginDisabled(xf[field] <= 0 or currentSize <= 1e-7)
                 if tImGui.Button(tLang.L('apply_btn') .. '##xfExactApply' .. axis .. '-' .. index) then
                     local sxExact, syExact, szExact = computeExactAxisScale(currentSize, xf[field], axis)
-                    local ok = scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset,
-                        sxExact, syExact, szExact)
+                    local ok = transformApplyUndoable(tEntry, meshD, function()
+                        return scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset,
+                            sxExact, syExact, szExact)
+                    end)
                     if ok then
                         rebuildBoneGizmo(tEntry, meshD, index)
                         cancelXformPreview()
@@ -10194,7 +10270,8 @@ function showMeshOptions(tEntry, index)
         if chg_dy then xf.dy = dy end
         if chg_dz then xf.dz = dz end
         if tImGui.Button(tLang.L("apply_translate") .. '##' .. index) then
-            local ok = dpCall(function() meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
+            local ok = transformApplyUndoable(tEntry, meshD,
+                function() return meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
             if ok then
                 if transformCoversWholeMesh(xf.frame, xf.subset) then
                     applyTranslateToBones(meshD, xf.dx, xf.dy, xf.dz)
@@ -10387,7 +10464,10 @@ function showMeshOptions(tEntry, index)
             if tImGui.Button(tLang.L("apply_transform") .. '##' .. index) then
                 local anyChange = false
                 local wholeMesh = transformCoversWholeMesh(xf.frame, xf.subset)
-                do
+                local pendingUndo = transformCreateUndo(tEntry, meshD)
+                if not pendingUndo then
+                    tUtil.showMessageWarn(tLang.L('transform_undo_snapshot_failed'))
+                else
                     if xf.rx ~= 0 or xf.ry ~= 0 or xf.rz ~= 0 then
                         if dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end) then
                             if wholeMesh then applyRotationToBonesDeg(meshD, xf.rx, xf.ry, xf.rz) end
@@ -10408,6 +10488,8 @@ function showMeshOptions(tEntry, index)
                 cancelXformPreview()
                 tEntry.xfLastPreviewFP = nil
                 if anyChange then
+                    transformDiscardUndo(tEntry)
+                    tEntry.tTransformUndo = pendingUndo
                     local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
                     tUtil.showMessage(string.format(tLang.L("transform_applied_fmt"), target))
                     xf.rx = 0; xf.ry = 0; xf.rz = 0
@@ -10416,6 +10498,9 @@ function showMeshOptions(tEntry, index)
                     onEdit()
                     tEntry.tTransformBoundsCache = nil
                     tEntry.bPhysicsVizDirty = true
+                elseif pendingUndo then
+                    meshDebug:fakeRelease(pendingUndo.path)
+                    os.remove(pendingUndo.path)
                 end
             end
             tImGui.PopStyleColor(1)
@@ -10472,6 +10557,23 @@ function showMeshOptions(tEntry, index)
             end
         else
             destroyTransformSubsetHoverMarker(tEntry, 'transform')
+        end
+
+        tImGui.Spacing()
+        tImGui.Separator()
+        tImGui.BeginDisabled(tEntry.tTransformUndo == nil)
+        local undoTransform = tImGui.Button(tLang.L('transform_undo_last') .. '##xfUndo-' .. index)
+        tImGui.EndDisabled()
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(400)
+            tImGui.Text(tLang.L('transform_undo_help'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
+        if undoTransform and transformRestoreUndo(tEntry, index) then
+            tImGui.TreePop()
+            return
         end
 
         tImGui.TreePop()
