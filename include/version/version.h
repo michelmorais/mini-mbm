@@ -519,6 +519,8 @@
     7.127.2 Made Mesh Debug's modern transform gizmo derive its center and size from the selected subset after applying the pending preview rotation, scale, and translation.
     7.127.3 Increased Mesh Debug's modern transform gizmo length from 14 percent to 33 percent of the selected subset's largest transformed dimension.
     7.128.0 Added Mesh Debug Frame-worktree merging for selected subsets, with native geometry/index/weight compaction, articulated-Part remapping, and first-selected material retention.
+    7.130.0 Added canonical Armature Lua extraction/import to the Armature Template worktree. The validated sandbox-loaded mini-mbm-armature-1 format preserves parent-local bind TRS, explicit tails, connectivity, radius, and length while deliberately excluding geometry, weights, and clips; import reuses confirmed transactional fitting and rollback. Replaced No Fingers (23) with the canonical 23-bone skeleton extracted from the newly converted Lorekeeper.msh, fixing upper-arm and other endpoint axes lost by the legacy Euler/length-only template.
+    7.130.1 Removed the four remaining legacy Armature presets from the Skeletal Animation Editor ComboBox and rejected non-mini-mbm-armature-1 templates at the fitting boundary. No Fingers (23) is now the sole built-in preset; future reusable armatures should use the canonical Extract/Import Armature workflow.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -544,7 +546,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.129.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.130.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

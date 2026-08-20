@@ -199,7 +199,7 @@ The standalone editor contains six mutually exclusive worktrees:
 
 | Worktree | Capabilities |
 |---|---|
-| Armature Template | Apply one of five reusable hierarchies after recalculating real skeleton height from bone heads/tails, then fit it uniformly to the target mesh with bottom-center alignment, transactional replacement, and an explicit handoff to Bone Editor for adjustment and weights |
+| Armature Template | Apply the canonical No Fingers (23) preset or extract/import validated skeleton-only Lua armatures, recalculate height from explicit bone heads/tails, fit uniformly to the target mesh with bottom-center alignment, replace transactionally, and hand off to Bone Editor for adjustment and weights |
 | Bone Editor | Create and edit joints/bones, hierarchy, head/tail/connectivity, bind transforms, chains, mirroring where compatible, referenced removal, and transactional Undo/Redo |
 | Bind Pose Contract | Inspect canonical hierarchy, stable IDs, local/global/inverse-bind transforms, validation findings, and bind skeleton selection |
 | Runtime Skeletal Preview | Run the actual backend player, select LBS/DQS and GPU/CPU policies, compare LBS against DQS or GPU against CPU, inspect evaluated skeleton/masks, root motion, and transient wearable followers |

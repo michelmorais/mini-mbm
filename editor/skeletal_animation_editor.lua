@@ -9451,8 +9451,8 @@ local function generateAutomaticBoneWeights()
     return true
 end
 
-applySelectedArmatureTemplate=function()
-    local template=tArmatureTemplates.items[state.armatureTemplateSelected]
+applySelectedArmatureTemplate=function(templateOverride)
+    local template=templateOverride or tArmatureTemplates.items[state.armatureTemplateSelected]
     local fitted,fitError=tArmatureTemplates.fit(template,state.meshBounds)
     if not fitted then
         setStatus(tLang.L(fitError=='invalid_bounds' and 'swl_armature_template_invalid_bounds' or
@@ -9493,6 +9493,31 @@ applySelectedArmatureTemplate=function()
     return true
 end
 
+extractCurrentArmature=function()
+    local report=state.meshD and state.meshD:getSkeletonBindReport(false) or nil
+    local label=state.fileName and tUtil.getBaseFileName(state.fileName) or 'Extracted Armature'
+    local template,extractError=tArmatureTemplates.fromReport(report,label)
+    if not template then setStatus(tostring(extractError or
+        tLang.L('swl_armature_extract_failed')),true); return false end
+    local defaultPath=(state.fileName or 'armature'):gsub('%.[^./\\]+$','')..'.lua'
+    local path=mbm.saveFile(defaultPath,'lua')
+    if not path then return false end
+    local saved,saveError=tArmatureTemplates.saveFile(path,template)
+    if not saved then setStatus(tostring(saveError or
+        tLang.L('swl_armature_extract_failed')),true); return false end
+    setStatus(string.format(tLang.L('swl_armature_extracted_fmt'),#template.bones,path),false)
+    return true
+end
+
+importArmatureFile=function()
+    local path=mbm.openFile(state.fileName or '', 'lua')
+    if not path then return false end
+    local template,loadError=tArmatureTemplates.loadFile(path)
+    if not template then setStatus(tostring(loadError or
+        tLang.L('swl_armature_import_failed')),true); return false end
+    return applySelectedArmatureTemplate(template)
+end
+
 showArmatureTemplate=function()
     tImGui.TextWrapped(tLang.L('swl_armature_template_help'))
     tImGui.PushItemWidth(230)
@@ -9519,6 +9544,15 @@ showArmatureTemplate=function()
     if tImGui.Button(tLang.L('swl_armature_template_apply')) then
         applySelectedArmatureTemplate()
     end
+    tImGui.EndDisabled()
+    tImGui.Separator()
+    tImGui.TextWrapped(tLang.L('swl_armature_file_help'))
+    tImGui.BeginDisabled(#bones==0)
+    if tImGui.Button(tLang.L('swl_armature_extract')) then extractCurrentArmature() end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not state.armatureTemplateConfirmed)
+    if tImGui.Button(tLang.L('swl_armature_import')) then importArmatureFile() end
     tImGui.EndDisabled()
     tImGui.Separator()
     tImGui.TextWrapped(tLang.L('swl_armature_template_next_steps'))

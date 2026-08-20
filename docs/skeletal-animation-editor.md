@@ -29,7 +29,8 @@ diagnostic overlays hidden until the user explicitly opens a worktree.
 ### Armature Template worktree
 
 **Armature Template** starts a new rig directly in the same editor where it will be adjusted,
-weighted, and animated. The user selects one of the five built-in templates and explicitly confirms
+weighted, and animated. The user selects the built-in **No Fingers (23)** template or imports a
+canonical Armature Lua file, then explicitly confirms
 application. The editor recalculates the template skeleton's real vertical extent from every bone
 head and oriented tail, then fits that measured height to the loaded mesh with one uniform scale and
 bottom-center alignment. The adapted skeleton therefore has the target mesh height; the mesh
@@ -41,6 +42,25 @@ so a partial hierarchy is never left behind. Application deliberately does not g
 The worktree points to **Bone Editor**, where the user can adjust the fitted bones and explicitly run
 the existing automatic initial-weight generator, then continue to **Create / Edit Animations**.
 This is armature authoring for one target mesh, not animation retargeting between two live skeletons.
+**Extract Armature...** writes a sandbox-loadable `mini-mbm-armature-1` Lua table from the current
+canonical skeleton. It contains the parent-first hierarchy, parent-local bind TRS, explicit local
+tail offsets, connection flags, radius, and length. It deliberately excludes geometry, materials,
+textures, type-42 vertex weights, and type-43 animation clips. **Import Armature...** accepts only
+that validated table schema, fits it through the same height/anchor rule, and uses the existing
+confirmation, Undo, and rollback transaction. Lua files execute with an empty environment while
+loading. Invalid, non-finite, duplicate-name, non-parent-first, or singular-scale data is rejected
+before mutation.
+
+The built-in **No Fingers (23)** entry now comes from the canonical Lorekeeper MSH supplied for
+this correction. Unlike its legacy Euler/length-only predecessor, it retains the imported local
+bind quaternion and explicit `tailOffset` for every bone. For example, `upperarm.l` now owns the
+endpoint that coincides with `lowerarm.l` instead of reconstructing a misleading local-`+Y`
+segment.
+The four remaining legacy presets were removed because their global Euler/length-only records do
+not preserve canonical explicit tails. Additional presets should be created with **Extract
+Armature...** and consumed with **Import Armature...**, so the ComboBox never offers data known to
+be structurally incomplete.
+
 Leaving **Runtime Skeletal Preview** automatically stops its base/layer playback and restores the
 shared preview to bind pose. Consequently, entering Armature Template can show the useful static
 bind skeleton without carrying an animated pose or advancing playback in the background.
