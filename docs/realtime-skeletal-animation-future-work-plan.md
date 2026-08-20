@@ -16,14 +16,35 @@ platform scope, fixtures, performance budget, and versioned acceptance criteria.
 
 | Order | Project | Reason |
 |---|---|---|
-| 1 | Lua/prefab skeletal-sharing workflows | Keeps body/wearable composition in game code while reusing the existing transient runtime sharing |
-| 2 | Skeleton-to-skeleton retargeting | Adds a new animation-data transformation boundary and needs dedicated fixtures |
+| 1 | Armature Template application | Brings the existing reusable armature concept into the canonical Skeletal Animation Editor workflow |
+| 2 | Lua/prefab skeletal-sharing workflows | Keeps body/wearable composition in game code while reusing the existing transient runtime sharing |
 | 3 | Editor refinements | Keeps optional authoring aids separate and driven by concrete editor needs |
 | 4 | Lightweight secondary motion | Keeps optional appendage motion bounded above the accepted skeletal pose contract |
 
 ## 3. Deferred Projects
 
-### 3.1 Lua/prefab skeletal-sharing workflows
+### 3.1 Armature Template application
+
+Add an offline Skeletal Animation Editor action that lets the user select a built-in Armature
+Template and apply it to the currently loaded target mesh. Fit the complete hierarchy by uniform
+scale and bottom-center repositioning from the template reference AABB to the target mesh AABB;
+never stretch the rig independently per axis. Create canonical section 41 directly, using the
+template's hierarchy, bind transforms, and authoring metadata. Do not revive the former Mesh Debug
+Lua-file export/import workflow and do not describe this operation as skeleton-to-skeleton
+animation retargeting.
+
+Applying a template replaces existing canonical skeleton, weights, and clips only after explicit
+confirmation. The complete replacement must be one Undoable transaction. After a successful apply,
+the editor may offer its existing automatic-weight generator as a separate explicit next action;
+template application itself must not silently guess vertex weights. The first version does not copy
+clips from another mesh, map between two different rigs, or adapt individual limb proportions.
+
+Acceptance: every built-in template produces a valid parent-first canonical skeleton, preserves its
+orientation under uniform fitting, fails without partial mutation, leaves the target geometry
+unchanged, refreshes bind/preview state only after commit, and round-trips through save/reload with
+deterministic bind matrices.
+
+### 3.2 Lua/prefab skeletal-sharing workflows
 
 Keep body/wearable relationships outside the engine's persisted mesh format and ownership model.
 Provide optional Lua examples or a game-level prefab convention that reconstructs direct transient
@@ -32,15 +53,6 @@ followers with the existing skeletal-pose-sharing API after the source and follo
 Acceptance: direct source/follower setup remains explicit, compatibility failures are reported,
 reload and destruction are handled safely by the game workflow, and compatible followers do not
 duplicate pose evaluation or palette copies.
-
-### 3.2 Animation retargeting
-
-Add an explicit offline/editor operation for applying a clip to a different compatible skeleton.
-Define bone mapping, bind-space correction, proportion handling, missing/extra bones, root motion,
-scale policy, and error reporting. Do not treat FBX round-trip bind reconstruction as retargeting.
-
-Acceptance: source and destination remain independent assets; named reference poses and clips match
-expected global transforms within tolerance; unsupported mappings fail without partial mutation.
 
 ### 3.3 Editor refinements
 
