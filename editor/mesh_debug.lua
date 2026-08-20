@@ -11363,9 +11363,9 @@ end
 
 -- Every texture path actually referenced by a mesh entry: primary + material-role
 -- (normal/specular/emissive/mask) textures per frame/subset, plus per-animation FX textures.
--- Used by "Save All to Folder" to also copy each mesh's textures alongside the exported .msh --
--- getMeshTextures() (used by the Info node's texture-remap UI) only looks at primary textures,
--- which would silently skip normal/specular/emissive/mask/FX textures here.
+-- Used by "Save All to Folder" and "List Textures" so both operations account for every texture
+-- referenced by the mesh. getMeshTextures() remains limited to primary textures because the Info
+-- node uses it for the primary-texture remap UI.
 local function getMeshAllUsedTextures(tEntry)
     local meshD = tEntry.meshDebug
     local seen = {}
@@ -13249,7 +13249,7 @@ local function buildListTexturesData()
     win.usedList = {}
     for _, tE in ipairs(tLoadedMeshes) do
         if tE.meshDebug then
-            local texList = getMeshTextures(tE.meshDebug)
+            local texList = getMeshAllUsedTextures(tE)
             for _, tex in ipairs(texList) do
                 local bn = tUtil.getBaseFileName(tex)
                 if bn and bn ~= '' and not win.usedSet[bn] then
