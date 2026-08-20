@@ -10513,7 +10513,11 @@ namespace mbm
                 subset.vertexCount = subsetIn.vertexCount;
                 subset.indexStart  = subsetIn.indexStart;
                 subset.indexCount  = subsetIn.indexCount;
-                subset.texture     = textureManager->load(subsetIn.primaryTexturePath.c_str(), subsetIn.hasAlphaColor);
+                // Do not load texture named "default", they are meant to be null/empty and will be replaced by the renderizable's material texture at render time.
+                if(strcasecmp(subsetIn.primaryTexturePath.c_str(), "default") != 0)
+                {
+                    subset.texture     = textureManager->load(subsetIn.primaryTexturePath.c_str(), subsetIn.hasAlphaColor);
+                }
                 lsIdTexture.push_back(subset.texture);
 
                 for (const auto &extraSlot : subsetIn.extraSlots)
