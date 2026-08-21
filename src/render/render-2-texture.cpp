@@ -665,7 +665,7 @@ namespace mbm
             mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);
         #elif defined(USE_DIRECTX9) || defined(USE_DIRECTX11) || defined(USE_METAL)
             mbm::fillVertexQuadTexture(_position, uv, width, height, normal, true);
-        #elif defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
+        #elif defined(USE_DUMMY_BACK_END_ENGINE) || defined(USE_DIRECTX11)
             //just to be able to compile the dummy backend, but this function is not used in this backend, so the flip parameter is not relevant
             mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);
         #else

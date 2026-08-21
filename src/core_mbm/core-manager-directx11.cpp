@@ -21,7 +21,7 @@
 
 #include "specific-directx11-context.h"
 #include "skeletal-render-capability.h"
-#include "specific-dummy-render-target.h"
+#include "specific-directx11-render-target.h"
 #include <core-manager.h>
 #include <device.h>
 #include <scene.h>
@@ -266,7 +266,7 @@ namespace mbm
             RENDERIZABLE_TO_TARGET *renderTarget = device->getRenderTarget(i);
             if (!renderTarget || !renderTarget->isOnFrustum())
                 continue;
-            RENDER2TARGET_DUMMY *target = static_cast<RENDER2TARGET_DUMMY *>(renderTarget->getRenderTargetSpecificConfig());
+            RENDER2TARGET_DIRECTX11 *target = static_cast<RENDER2TARGET_DIRECTX11 *>(renderTarget->getRenderTargetSpecificConfig());
             if (!target || !target->renderTargetView || !target->depthView)
             {
                 succeeded = false;

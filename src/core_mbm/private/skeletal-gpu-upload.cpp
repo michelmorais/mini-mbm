@@ -15,7 +15,7 @@
 #if defined(USE_DIRECTX11)
 
 #include "skeletal-gpu-upload.h"
-#include "specific-dummy-buffer.h"
+#include "specific-directx11-buffer.h"
 #include "specific-directx11-context.h"
 #include <core_mbm/device.h>
 #include <core_mbm/shader.h>

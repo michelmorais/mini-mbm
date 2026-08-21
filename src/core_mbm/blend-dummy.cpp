@@ -19,26 +19,16 @@
 
 #include <blend.h>
 
-#if defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
+#if defined (USE_DUMMY_BACK_END_ENGINE)
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 #include <shader-fx.h>
-#if defined(USE_DIRECTX11)
-#include "specific-directx11-context.h"
-#include <device.h>
-#endif
 
 namespace mbm
 {
     void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
     {
-#if defined(USE_DIRECTX11)
-        if (blendState < BLEND_DISABLE || blendState > BLEND_INVDESTCOLOR)
-            return;
-        SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
-        context->currentBlendState = static_cast<int>(blendState);
-        context->applyBlendState();
-#else
+
         switch (blendState)
         {
             case BLEND_DISABLE:
@@ -62,31 +52,16 @@ namespace mbm
             case BLEND_INVDESTCOLOR: ;break;
             default:{}
         }
-#endif
     }
 
     void FX::setBlendDefaultOp()
     {
-#if defined(USE_DIRECTX11)
-        SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
-        context->currentBlendOperation = 1;
-        context->applyBlendState();
-#else
         REMINDER_TODO
-#endif
     }
 
     void FX::setBlendOp()
     {
-#if defined(USE_DIRECTX11)
-        if (blendOperation < 1 || blendOperation > 5)
-            return;
-        SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
-        context->currentBlendOperation = blendOperation;
-        context->applyBlendState();
-#else
         REMINDER_TODO
-#endif
     }
 }
 

@@ -414,10 +414,16 @@
     <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-buffer.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-buffer.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-context.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-render-target.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-render-target.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\specific-metal-buffer.h">
@@ -653,10 +659,16 @@
     <ClCompile Include="..\..\src\render\render-2-texture-dummy.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\render\render-2-texture-directx11.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\blend-directx9.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\blend-dummy.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\blend-directx11.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\core-manager-directx9.cpp">
@@ -683,16 +695,25 @@
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-dummy.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager-directx11.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-directx9.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-dummy.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-directx11.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\texture-manager-directx9.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\texture-manager-dummy.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\texture-manager-directx11.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\specific-directx9.cpp">
@@ -744,6 +765,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-dummy.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-directx11.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\specific-dummy.cpp">

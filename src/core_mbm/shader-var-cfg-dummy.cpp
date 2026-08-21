@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#if defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
+#if defined (USE_DUMMY_BACK_END_ENGINE)
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
@@ -51,21 +51,14 @@ namespace mbm
             break;
         }
 
-#if defined(USE_DIRECTX11)
-        ptrHandleVar = new int32_t(-1);
-#else
-        ptrHandleVar = nullptr;
+        ptrHandleVar = nullptr; // to be implemented in the specific back-end engine
         REMINDER_TODO
-#endif
     }
 
     VAR_SHADER::~VAR_SHADER()
     {
-#if defined(USE_DIRECTX11)
-        delete static_cast<int32_t *>(ptrHandleVar);
-#else
+        //delete static_cast<YOUR_TYPE*>(ptrHandleVar);
         REMINDER_TODO
-#endif
     }
 
 }

@@ -247,8 +247,10 @@
     <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-shader.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-vertex.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-buffer.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-buffer.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-context.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-render-target.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-render-target.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-metal-buffer.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-metal-context.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-metal-render-target.h" />
@@ -361,6 +363,7 @@
     <ClCompile Include="..\..\src\core_mbm\shader-resource-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-dummy.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
@@ -380,6 +383,7 @@
     <ClCompile Include="..\..\src\core_mbm\vigenere.cpp" />
     <ClCompile Include="..\..\src\core_mbm\blend-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\blend-dummy.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\blend-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-dummy.cpp" />
@@ -388,10 +392,13 @@
     <ClCompile Include="..\..\src\core_mbm\device-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-dummy.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-dummy.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-dummy.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\texture-manager-directx11.cpp" />
     <ClCompile Include="..\..\src\platform\win32-platform.cpp" />
     <ClCompile Include="..\..\src\render\background.cpp" />
     <ClCompile Include="..\..\src\render\font.cpp" />
@@ -402,6 +409,7 @@
     <ClCompile Include="..\..\src\render\particle.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-directx9.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-dummy.cpp" />
+    <ClCompile Include="..\..\src\render\render-2-texture-directx11.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\renderizable-clone.cpp" />

@@ -27,7 +27,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX9'">USE_DIRECTX9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX11'">USE_DIRECTX11;MBM_DIRECTX11_FOUNDATION_STUBS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX11'">USE_DIRECTX11;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='OpenGLES'">USE_OPENGL_ES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions>SUPPORTED_MAX_LIGHTS=$(MbmSupportedMaxLights);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>

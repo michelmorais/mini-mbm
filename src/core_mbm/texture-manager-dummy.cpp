@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#if defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
+#if defined (USE_DUMMY_BACK_END_ENGINE)
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
@@ -29,70 +29,11 @@
 #include <util-interface.h>
 #include <device.h>
 
-#if defined(USE_DIRECTX11)
-#include "specific-directx11-context.h"
-#include "specific-dummy-render-target.h"
-#include <d3d11.h>
-#include <vector>
-#endif
-
 namespace mbm
 {
-#if defined(USE_DIRECTX11)
-    namespace
-    {
-        bool createTextureView(const uint8_t *pixels, const uint32_t width, const uint32_t height,
-                               const uint16_t channel, ID3D11ShaderResourceView **view)
-        {
-            if (!pixels || !width || !height || (channel != 3 && channel != 4))
-                return false;
-            std::vector<uint8_t> rgba;
-            const uint8_t *uploadPixels = pixels;
-            if (channel == 3)
-            {
-                rgba.resize(static_cast<size_t>(width) * height * 4u);
-                for (size_t source = 0, destination = 0; destination < rgba.size(); source += 3, destination += 4)
-                {
-                    rgba[destination] = pixels[source];
-                    rgba[destination + 1] = pixels[source + 1];
-                    rgba[destination + 2] = pixels[source + 2];
-                    rgba[destination + 3] = 255;
-                }
-                uploadPixels = rgba.data();
-            }
-            D3D11_TEXTURE2D_DESC description = {};
-            description.Width = width;
-            description.Height = height;
-            description.MipLevels = 1;
-            description.ArraySize = 1;
-            description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-            description.SampleDesc.Count = 1;
-            description.Usage = D3D11_USAGE_IMMUTABLE;
-            description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-            D3D11_SUBRESOURCE_DATA initialData = {};
-            initialData.pSysMem = uploadPixels;
-            initialData.SysMemPitch = width * 4u;
-            ID3D11Device *device = DEVICE::getInstance()->getSpecificContextDevice()->device;
-            ID3D11Texture2D *texture = nullptr;
-            HRESULT result = device->CreateTexture2D(&description, &initialData, &texture);
-            if (SUCCEEDED(result))
-                result = device->CreateShaderResourceView(texture, nullptr, view);
-            if (texture)
-                texture->Release();
-            return SUCCEEDED(result);
-        }
-    }
-#endif
-
     void TEXTURE::release()
     {
-#if defined(USE_DIRECTX11)
-        ID3D11ShaderResourceView *view = static_cast<ID3D11ShaderResourceView *>(getBackendTexturePointer());
-        if (view)
-            view->Release();
-#else
         REMINDER_TODO
-#endif
         setBackendTexturePointer(nullptr);
         width           = 0;
         height          = 0;
@@ -117,14 +58,7 @@ namespace mbm
         this->width  = w;
         this->height = h;
         this->setAlphaChannelEnabled(hasAlpha ? true : false);
-#if defined(USE_DIRECTX11)
-        ID3D11ShaderResourceView *view = nullptr;
-        if (!createTextureView(img, w, h, channel, &view))
-            return false;
-        setBackendTexturePointer(view);
-#else
         REMINDER_TODO
-#endif
         return true;
     }
     
@@ -138,28 +72,12 @@ namespace mbm
         const int  channel    = 4;
         const bool alpha      = true;
 
-#if defined(USE_DIRECTX11)
-        ID3D11ShaderResourceView *view = nullptr;
-        if (!createTextureView(reinterpret_cast<const uint8_t *>(image->data), image->width, image->height,
-                               channel, &view))
-            return false;
-        setBackendTexturePointer(view);
-#else
         REMINDER_TODO
-#endif
         return true;
     }
 
     TEXTURE* TEXTURE_MANAGER::loadNativeEngine(const char* fileName, const bool forceAlpha) // load native engine (e.g.: Directx LoadTextureFromFile, Metal). Implemented specific
     {
-#if defined(USE_DIRECTX11)
-        (void)fileName;
-        (void)forceAlpha;
-        // DirectX 11 has no separate native file decoder. The common texture path already
-        // attempted decoding before reaching this fallback, so never manufacture/cache a
-        // TEXTURE without a shader-resource view here.
-        return nullptr;
-#else
         if (fileName == nullptr)
             return nullptr;
         std::string fileNameBase = util::getBaseName(fileName);
@@ -176,20 +94,17 @@ namespace mbm
         cacheTexture(fileNameBase, tex);
         REMINDER_TODO
         return tex;
-#endif
     }
 
     TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, 
                                                         const char *nickName,
                                                         const bool enableAlpha)
     {
-        if (!renderToTarget || !nickName)
-            return nullptr;
         std::string fileNameBase    = util::getBaseName(nickName);
         const auto width            = static_cast<int>(renderToTarget->getRenderTargetWidth());
         const auto height           = static_cast<int>(renderToTarget->getRenderTargetHeight());
         
-        if (fileNameBase.size() == 0 || width <= 0 || height <= 0)
+        if (fileNameBase.size() == 0)
             return nullptr;
         const uint32_t maxTextureSize = getMaxTextureSize();
         if (static_cast<uint32_t>(width) > maxTextureSize || static_cast<uint32_t>(height) > maxTextureSize)
@@ -202,54 +117,7 @@ namespace mbm
             return texture;
         texture = new TEXTURE();
 
-#if defined(USE_DIRECTX11)
-        RENDER2TARGET_DUMMY *target = static_cast<RENDER2TARGET_DUMMY *>(renderToTarget->getRenderTargetSpecificConfig());
-        SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
-        if (!target || !context || !context->device)
-        {
-            delete texture;
-            return nullptr;
-        }
-        target->release();
-        D3D11_TEXTURE2D_DESC colorDescription = {};
-        colorDescription.Width = static_cast<UINT>(width);
-        colorDescription.Height = static_cast<UINT>(height);
-        colorDescription.MipLevels = 1;
-        colorDescription.ArraySize = 1;
-        colorDescription.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        colorDescription.SampleDesc.Count = 1;
-        colorDescription.Usage = D3D11_USAGE_DEFAULT;
-        colorDescription.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-        ID3D11Texture2D *colorTexture = nullptr;
-        HRESULT result = context->device->CreateTexture2D(&colorDescription, nullptr, &colorTexture);
-        if (SUCCEEDED(result))
-            result = context->device->CreateRenderTargetView(colorTexture, nullptr, &target->renderTargetView);
-        ID3D11ShaderResourceView *textureView = nullptr;
-        if (SUCCEEDED(result))
-            result = context->device->CreateShaderResourceView(colorTexture, nullptr, &textureView);
-        if (colorTexture)
-            colorTexture->Release();
-
-        D3D11_TEXTURE2D_DESC depthDescription = colorDescription;
-        depthDescription.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-        depthDescription.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-        if (SUCCEEDED(result))
-            result = context->device->CreateTexture2D(&depthDescription, nullptr, &target->depthTexture);
-        if (SUCCEEDED(result))
-            result = context->device->CreateDepthStencilView(target->depthTexture, nullptr, &target->depthView);
-        if (FAILED(result))
-        {
-            if (textureView)
-                textureView->Release();
-            target->release();
-            delete texture;
-            ERROR_AT(__LINE__, __FILE__, "failed to create DirectX11 render target (HRESULT=0x%08lx)", result);
-            return nullptr;
-        }
-        texture->setBackendTexturePointer(textureView);
-#else
         REMINDER_TODO
-#endif
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
         texture->setAlphaChannelEnabled(enableAlpha);

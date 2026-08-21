@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
+#if defined (USE_DUMMY_BACK_END_ENGINE)
 #ifndef DUMMY_SPECIFIC_H
 #define DUMMY_SPECIFIC_H
 

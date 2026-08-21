@@ -16,21 +16,27 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_DUMMY_BACK_END_ENGINE)
-#ifndef DUMMY_BUFFER_SPECIFIC_H
-#define DUMMY_BUFFER_SPECIFIC_H
+#if defined(USE_DIRECTX11)
+#ifndef DIRECTX11_BUFFER_SPECIFIC_H
+#define DIRECTX11_BUFFER_SPECIFIC_H
 
-#include <specific-dummy.h>
+#include <d3d11.h>
 
 namespace mbm
 {
     struct BUFFER_SPECIFIC
     {
+        ID3D11Buffer *vertexBuffer;
+        ID3D11Buffer *skinVertexBuffer;
+        ID3D11Buffer *indexBuffer;
+        UINT vertexStride;
+        bool dynamicVertexBuffer;
         BUFFER_SPECIFIC() noexcept;
         ~BUFFER_SPECIFIC();
         void release();
     };
 }
 
-#endif // DUMMY_BUFFER_SPECIFIC_H
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // DIRECTX11_BUFFER_SPECIFIC_H
+#endif // USE_DIRECTX11
+

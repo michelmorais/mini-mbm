@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -16,21 +16,42 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_DUMMY_BACK_END_ENGINE)
-#ifndef DUMMY_BUFFER_SPECIFIC_H
-#define DUMMY_BUFFER_SPECIFIC_H
 
-#include <specific-dummy.h>
+#include <blend.h>
+
+#if defined(USE_DIRECTX11)
+
+#include <shader-fx.h>
+#include "specific-directx11-context.h"
+#include <device.h>
 
 namespace mbm
 {
-    struct BUFFER_SPECIFIC
+    void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
     {
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        void release();
-    };
+        if (blendState < BLEND_DISABLE || blendState > BLEND_INVDESTCOLOR)
+            return;
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
+        context->currentBlendState = static_cast<int>(blendState);
+        context->applyBlendState();
+    }
+
+    void FX::setBlendDefaultOp()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
+        context->currentBlendOperation = 1;
+        context->applyBlendState();
+    }
+
+    void FX::setBlendOp()
+    {
+        if (blendOperation < 1 || blendOperation > 5)
+            return;
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
+        context->currentBlendOperation = blendOperation;
+        context->applyBlendState();
+    }
 }
 
-#endif // DUMMY_BUFFER_SPECIFIC_H
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // USE_DIRECTX11
+

@@ -16,21 +16,27 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_DUMMY_BACK_END_ENGINE)
-#ifndef DUMMY_BUFFER_SPECIFIC_H
-#define DUMMY_BUFFER_SPECIFIC_H
+#if defined(USE_DIRECTX11)
+#ifndef DIRECTX11_RENDER_TARGET_SPECIFIC_H
+#define DIRECTX11_RENDER_TARGET_SPECIFIC_H
 
-#include <specific-dummy.h>
+#include <d3d11.h>
 
 namespace mbm
 {
-    struct BUFFER_SPECIFIC
+    struct RENDER2TARGET_DIRECTX11
     {
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        void release();
+        ID3D11RenderTargetView *renderTargetView = nullptr;
+        ID3D11Texture2D *depthTexture = nullptr;
+        ID3D11DepthStencilView *depthView = nullptr;
+        void release() noexcept;
+        RENDER2TARGET_DIRECTX11() noexcept = default;
+        ~RENDER2TARGET_DIRECTX11();
+        RENDER2TARGET_DIRECTX11(const RENDER2TARGET_DIRECTX11&) = delete;
+        RENDER2TARGET_DIRECTX11& operator=(const RENDER2TARGET_DIRECTX11&) = delete;
     };
 }
 
-#endif // DUMMY_BUFFER_SPECIFIC_H
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // DIRECTX11_RENDER_TARGET_SPECIFIC_H
+#endif // USE_DIRECTX11
+

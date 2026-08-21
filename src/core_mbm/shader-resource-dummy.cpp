@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined(USE_DUMMY_BACK_END_ENGINE) && !defined(USE_DIRECTX11)
+#if defined(USE_DUMMY_BACK_END_ENGINE)
 
 #include <core_mbm/core-exports.h>
 #include <string>
