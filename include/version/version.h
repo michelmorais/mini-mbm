@@ -550,6 +550,29 @@
     7.142.0 Added the Skeletal Animation Editor About menu using the established Mesh Debug pattern: editor and MBM Engine documentation links with Windows/Linux/macOS browser launching, plus a Version submenu reporting the running engine and ImGui versions.
     7.142.1 Wrapped the Animation Pose time tooltip at a bounded width and corrected Tutorial 2's runtime step to refresh the preview from current editor memory before selecting and playing the newly authored unsaved worm_sway clip.
     7.142.2 Added a wrapped Apply clip properties tooltip explaining the affected name, duration, and loop fields, the preserved clip ID/tracks/keys, and the validation rules for unique names and existing key times.
+    7.143.0 Added the DirectX 11 Windows backend foundation with explicit CMake/MSBuild selection, D3D11 device and swap-chain creation, back-buffer/depth targets, resize, clear, present, debug-layer support, and documented Visual Studio 2026 machine setup. Render types remain milestone-scoped foundation stubs until their D3D11 ports land.
+    7.144.0 Added the first DirectX 11 geometry path with safe dummy-buffer initialization, feature-level-aware texture limits, static/dynamic vertex buffers, 16-bit index buffers, a basic HLSL vertex/pixel pipeline, and an automated SHAPE_MESH quad smoke test.
+    7.145.0 Added the first DirectX 11 texture path with RGB/RGBA upload, shader-resource and sampler binding, solid-color shape rendering, and ImGui DX11 renderer integration; Debug Win32 uses DX11 while Release Win32 remains the DX9 comparison baseline.
+    7.146.0 Added cached DirectX 11 blend states matching the established DirectX 9/OpenGL ES source-alpha, destination-factor, and blend-operation semantics, restoring transparent texture composition for fonts, tiles, sprites, and backgrounds.
+    7.147.0 Added the DirectX 11 internal LINE_MESH constant-color pipeline with a cached color constant buffer and an automated red-line smoke path alongside the existing textured quad test; general custom shaders remain a later milestone.
+    7.148.0 Added DirectX 11 PARTICLE and STEERED_PARTICLE rendering with dynamic indexed quads, texture sampling, per-particle/group color and alpha, custom PARTICLE RGB-expression compilation, temporary depth disable/restore, and automated smoke coverage for both paths.
+    7.153.0 Validated DirectX 11 HMD rendering through its stereo render-target path and added it to the automated backend smoke test.
+    7.154.0 Added canonical DirectX 11 GPU skeletal rendering with measured capacity, a secondary influence stream, LBS and rigid-DQS generated shaders, per-draw constant-buffer palettes, and automated synthetic plus Lorekeeper CPU/GPU parity validation.
+    7.155.0 Added DirectX 11 generated default material lighting for 3D and 2D-world rendering with view-space directional light, per-object nearest point lights, normal maps, material ambient/diffuse/specular/emissive contributions, skeletal-before-lighting integration, and an automated visual fixture.
+    7.156.0 Added DirectX 11 reserved-light reflection and per-object upload for custom HLSL shaders, including packed scalar/array handling alongside CFG constants, generated vertex-lighting varyings, corrected DirectionalColor reservation, updated built-in combined directional/point lighting, and an automated skeletal visual fixture.
+    7.157.0 Added DirectX 11 mesh GPU-buffer readback for MESH_MBM_DEBUG with staging-resource copies, indexed subset preservation, interleaved position/normal/UV extraction, dynamic-shape CPU fallback, font offsets, and byte-exact v11 fixture parity.
+    7.158.0 Added cached DirectX 11 rasterizer states honoring per-buffer front/back/no-culling compatibility and CW/CCW front-face direction across regular, particle, and steered-particle draws, with automated validation of all six mappings.
+    7.159.0 Added DirectX 11 reflection, CFG updates, reserved-value uploads, and slot binding for multiple constant buffers in each custom HLSL shader stage, with the custom-lighting smoke fixture split across independent light and material buffers.
+    7.160.0 Completed the DirectX 11 shader-profile contract with accurate vs_4_0/ps_4_0 defaults, functional setVSVersion/setPSVersion compile overrides, and an automated vs_4_1/ps_4_1 pipeline smoke test.
+    7.161.0 Fixed the DirectX 11 native texture fallback so a failed common decode returns nullptr instead of manufacturing and caching a TEXTURE without a shader-resource view, with an automated rejection/cache regression test.
+    7.162.0 Implemented the missing DirectX 11 CORE_MANAGER::getScreenSize API using the primary Windows monitor metrics, including null-output safety and an automated link/runtime parity test.
+    7.163.0 Established the DirectX 11 Dear ImGui plugin path through the real Lua engine, DX11 renderer backend, and Win32 platform backend, with a self-terminating console-hidden widget smoke scene and explicit success sentinel.
+    7.169.0 Added automated DirectX 11 validation for all six pixel-shader texture stages, including the animation-effect slot's established FX binding path and exact native shader-resource-view checks.
+    7.170.0 Added a single Windows runner that builds libTest for DirectX 11 and executes the complete automated DX11 regression matrix with fail-fast reporting.
+    7.170.1 Removed obsolete dummy-backend TODO diagnostics from implemented DirectX 11 shader and texture paths, and explicitly delimited the expected errors emitted by the invalid-texture regression test.
+    7.171.0 Added fail-fast DirectX 11 debug-layer validation to every automated DX11 test and fixed the exposed API warnings with native Shader Model 4 signatures for tint/scale, particle, steered-particle, and the custom-lighting fixture.
+    7.172.0 Added post-teardown DirectX 11 live-object validation to every automated DX11 test and corrected testLib destruction order so scene-owned GPU resources are released before the engine device.
+    7.172.1 Consolidated the DirectX 11 delivery documentation, reproducible acceptance matrix, current backend status, and teardown guidance.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -575,7 +598,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.142.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.172.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

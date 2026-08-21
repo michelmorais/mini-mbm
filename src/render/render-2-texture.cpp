@@ -659,13 +659,13 @@ namespace mbm
     void RENDER_2_TEXTURE::fillvertexQuad(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width, const float height)
     {
         // OpenGL ES: FBO row-0 at bottom → uvOriginBottomLeft=false (V=0 samples bottom).
-        // DirectX9 / Metal: texture row-0 at top → uvOriginBottomLeft=true (V=0 samples top).
-        // Without the flip the captured content appears upside-down on DX9/Metal.
+        // DirectX / Metal: texture row-0 at top → uvOriginBottomLeft=true (V=0 samples top).
+        // Without the flip the captured content appears upside-down on DirectX/Metal.
         #if defined (USE_OPENGL_ES)
             mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);
-        #elif defined(USE_DIRECTX9) || defined(USE_METAL)
+        #elif defined(USE_DIRECTX9) || defined(USE_DIRECTX11) || defined(USE_METAL)
             mbm::fillVertexQuadTexture(_position, uv, width, height, normal, true);
-        #elif defined(USE_DUMMY_BACK_END_ENGINE) // In the dummy backend, we don't have a real texture, so we can choose either way. We choose false to avoid confusion when debugging, but it doesn't matter.
+        #elif defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
             //just to be able to compile the dummy backend, but this function is not used in this backend, so the flip parameter is not relevant
             mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);
         #else

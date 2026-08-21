@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#if defined (USE_DUMMY_BACK_END_ENGINE)
+#if defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
@@ -29,6 +29,10 @@
 #include <lodepng/lodepng.h>
 #include <texture-manager.h>
 #include <util-interface.h>
+#if defined(USE_DIRECTX11)
+#include "specific-directx11-context.h"
+#include <device.h>
+#endif
 
 namespace mbm
 {
@@ -36,15 +40,15 @@ namespace mbm
     RENDERIZABLE_TO_TARGET::RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
         RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
     {
-        REMINDER_TODO
+        this->setRenderTargetSpecificConfig(new RENDER2TARGET_DUMMY());
         this->setRenderTargetClearColor(COLOR(255, 255, 255)); // alpha em 0 significa transparente
         this->setRenderTargetSize(0, 0);
     }
 
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
-        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        REMINDER_TODO
+        delete static_cast<RENDER2TARGET_DUMMY *>(this->getRenderTargetSpecificConfig());
+        this->setRenderTargetSpecificConfig(nullptr);
     }
 
     FVF_PROVIDE_BY_ENGINE RENDERIZABLE_TO_TARGET::getFvfFromBuffer() const noexcept
@@ -59,9 +63,21 @@ namespace mbm
 
     void RENDER2TARGET_DUMMY::release() noexcept
     {
+#if defined(USE_DIRECTX11)
+        if (depthView)
+            depthView->Release();
+        if (depthTexture)
+            depthTexture->Release();
+        if (renderTargetView)
+            renderTargetView->Release();
+        depthView = nullptr;
+        depthTexture = nullptr;
+        renderTargetView = nullptr;
+#else
         if(pRenderSurface)
             pRenderSurface = nullptr;
         REMINDER_TODO
+#endif
     }
 
     bool RENDER_2_TEXTURE::saveAsPNG(const char* newFileOutNamePNG, const int x, const int y, const int _width, const int _height)
@@ -84,8 +100,61 @@ namespace mbm
 
         const int channel = renderTargetTexture->hasAlphaChannel() ? 4 : 3;
         const int sizeImage = _width * _height * channel;
-        REMINDER_TODO
         std::vector<uint8_t> imageData(sizeImage);
+#if defined(USE_DIRECTX11)
+        RENDER2TARGET_DUMMY *target = static_cast<RENDER2TARGET_DUMMY *>(getRenderTargetSpecificConfig());
+        if (!target || !target->renderTargetView)
+            return log_util::fail(__LINE__, __FILE__, "DirectX11 render target view is null");
+        ID3D11Resource *renderTargetResource = nullptr;
+        target->renderTargetView->GetResource(&renderTargetResource);
+        ID3D11Texture2D *renderTargetTexture2d = nullptr;
+        HRESULT result = renderTargetResource ?
+            renderTargetResource->QueryInterface(__uuidof(ID3D11Texture2D),
+                reinterpret_cast<void **>(&renderTargetTexture2d)) : E_FAIL;
+        if (renderTargetResource)
+            renderTargetResource->Release();
+        if (FAILED(result) || !renderTargetTexture2d)
+            return log_util::fail(__LINE__, __FILE__, "failed to access DirectX11 render target texture");
+
+        D3D11_TEXTURE2D_DESC description = {};
+        renderTargetTexture2d->GetDesc(&description);
+        description.Usage = D3D11_USAGE_STAGING;
+        description.BindFlags = 0;
+        description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        description.MiscFlags = 0;
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
+        ID3D11Texture2D *stagingTexture = nullptr;
+        result = context->device->CreateTexture2D(&description, nullptr, &stagingTexture);
+        if (SUCCEEDED(result))
+        {
+            context->immediateContext->CopyResource(stagingTexture, renderTargetTexture2d);
+            D3D11_MAPPED_SUBRESOURCE mapped = {};
+            result = context->immediateContext->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mapped);
+            if (SUCCEEDED(result))
+            {
+                const uint8_t *source = static_cast<const uint8_t *>(mapped.pData);
+                for (int row = 0; row < _height; ++row)
+                {
+                    const uint8_t *sourceRow = source + static_cast<size_t>(y + row) * mapped.RowPitch +
+                        static_cast<size_t>(x) * 4u;
+                    uint8_t *destinationRow = imageData.data() + static_cast<size_t>(row) * _width * channel;
+                    for (int column = 0; column < _width; ++column)
+                    {
+                        memcpy(destinationRow + static_cast<size_t>(column) * channel,
+                               sourceRow + static_cast<size_t>(column) * 4u, channel);
+                    }
+                }
+                context->immediateContext->Unmap(stagingTexture, 0);
+            }
+        }
+        if (stagingTexture)
+            stagingTexture->Release();
+        renderTargetTexture2d->Release();
+        if (FAILED(result))
+            return log_util::fail(__LINE__, __FILE__, "DirectX11 render-target readback failed (HRESULT=0x%08lx)", result);
+#else
+        REMINDER_TODO
+#endif
 
         // Encode and save PNG
         std::vector<unsigned char> png;

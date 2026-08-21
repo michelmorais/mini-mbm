@@ -17,9 +17,9 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined (USE_DIRECTX9)
+#if defined(USE_DIRECTX9) || defined(USE_DIRECTX11)
 
-#include <core_mbm/core-exports.h>
+#include <core_mbm/shader-resource.h>
 #include <core_mbm/light.h>
 #include <string>
 #include <stdio.h>
@@ -35,6 +35,7 @@ namespace mbm
             "int HasNormalMap;\n"
             "float4 AmbientColor;\n"
             "float3 LightDirectionView;\n"
+            "float4 DirectionalColor;\n"
             "float3 LightPositionView[" + supportedMaxLights + "];\n"
             "float LightRadius[" + supportedMaxLights + "];\n"
             "float4 LightColor[" + supportedMaxLights + "];\n"
@@ -55,26 +56,23 @@ namespace mbm
             "    float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
             "    float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
             "    float3 specular = float3(0, 0, 0);\n"
+            "    float3 normalView = LightMode == 1 ? normalize(normalViewIn) : float3(0, 0, 1);\n"
+            "    if (LightMode == 2 && HasNormalMap != 0) normalView = normalize((tex2D(TextureNormal, texCoord).xyz * 2.0f) - 1.0f);\n"
+            "    float3 viewDir = normalize(-positionViewIn);\n"
             "    if (LightMode == 1)\n"
             "    {\n"
-            "        float3 normalView = normalize(normalViewIn);\n"
-            "        float3 viewDir = normalize(-positionViewIn);\n"
             "        float3 lightTravel = normalize(LightDirectionView);\n"
             "        float diffuse = max(dot(normalView, -lightTravel), 0);\n"
-            "        light += LightColor[0].rgb * diffuse;\n"
+            "        light += DirectionalColor.rgb * diffuse;\n"
             "        if (diffuse > 0.0f && MaterialPower > 0.0f)\n"
             "        {\n"
             "            float3 lightDir = normalize(-lightTravel);\n"
             "            float3 halfDir = normalize(lightDir + viewDir);\n"
             "            float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);\n"
-            "            specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;\n"
+            "            specular += DirectionalColor.rgb * MaterialSpecular.rgb * spec;\n"
             "        }\n"
             "    }\n"
-            "    else\n"
-            "    {\n"
-            "        float3 normalView = float3(0, 0, 1);\n"
-            "        if (HasNormalMap != 0) normalView = normalize((tex2D(TextureNormal, texCoord).xyz * 2.0f) - 1.0f);\n"
-            "        for (int i = 0; i < " + supportedMaxLights + "; ++i)\n"
+            "    for (int i = 0; i < " + supportedMaxLights + "; ++i)\n"
             "        {\n"
             "            if (i >= LightCount) break;\n"
             "            float3 toLight = LightPositionView[i] - positionViewIn;\n"
@@ -94,7 +92,6 @@ namespace mbm
             "                    specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;\n"
             "                }\n"
             "            }\n"
-            "        }\n"
             "    }\n"
             "    light = saturate(light);\n"
             "    float3 litColor = saturate((base * light) + MaterialEmissive.rgb + specular);\n"
@@ -193,6 +190,17 @@ namespace mbm
         // tint **********************
         "tint.ps",
 
+#if defined(USE_DIRECTX11)
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "cbuffer TintValues : register(b0) { float3 color; float padding; };\n"
+        "struct PS_INPUT { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+        "float4 main(PS_INPUT input) : SV_TARGET\n"
+        "{\n"
+        "   float4 tex = TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord);\n"
+        "   return float4(max(tex.r, color.r), max(tex.g, color.g), max(tex.b, color.b), tex.a);\n"
+        "}\n",
+#else
         "sampler2D TextureDiffuse : register(s0);\n"
         "float3 color;\n"
         "struct PS_INPUT\n"
@@ -205,6 +213,7 @@ namespace mbm
         "   float4 tex = tex2D(TextureDiffuse, input.vTexCoord.xy);\n"
         "   return float4(max(tex.r, color.r), max(tex.g, color.g), max(tex.b, color.b), tex.a);\n"
         "}\n",
+#endif
 
         "[ps-tint.ps] = tint.ps\n"
         "[ps-tint.ps][rgb][color]           = min 0.0 0.0 0.0     max 1.0 1.0 1.0     default 1.0 0.0 0.0 \n",
@@ -1793,6 +1802,19 @@ kLitTexturedPixelShaderD3D9.c_str(),
 
 //Escala simples **********************
 "scale.vs",
+#if defined(USE_DIRECTX11)
+"cbuffer ScaleValues : register(b0) { row_major float4x4 mvpMatrix; float2 scale; float2 padding; };\n"
+"struct VS_INPUT { float3 position : POSITION; float2 uv : TEXCOORD0; };\n"
+"struct VS_OUTPUT { float4 position : SV_POSITION; float2 uv : TEXCOORD0; };\n"
+"VS_OUTPUT main(VS_INPUT input)\n"
+"{\n"
+"    VS_OUTPUT output;\n"
+"    input.position.xy *= scale;\n"
+"    output.position = mul(float4(input.position, 1.0), mvpMatrix);\n"
+"    output.uv = input.uv;\n"
+"    return output;\n"
+"}\n",
+#else
 "struct VS_OUTPUT\n"
 "{\n"
 "	float4 pos : POSITION;\n"
@@ -1812,6 +1834,7 @@ kLitTexturedPixelShaderD3D9.c_str(),
 "	return ret;\n"
 "}\n",
 
+#endif
 "[vs-scale.vs] = scale.vs\n"
 "[vs-scale.vs][vector2][scale]       = min -10.0 -10.0         max 10.0  10.0                default 1.0 1.0\n",
 //Escala simples **********************
@@ -1962,6 +1985,22 @@ kLitTexturedPixelShaderD3D9.c_str(),
 
     API_IMPL const char* getParticlePSCode()
     {
+#if defined(USE_DIRECTX11)
+        static const char* psParticleCode =
+            "cbuffer ParticleValues : register(b0) { float4 color; float enableAlphaFromColor; float3 padding; };\n"
+            "Texture2D TextureDiffuse : register(t0);\n"
+            "SamplerState DiffuseSampler : register(s0);\n"
+            "struct PSInput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+            "float4 main(PSInput input) : SV_TARGET\n"
+            "{\n"
+            "    float4 texColor = TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord);\n"
+            "    float4 outColor;\n"
+            "    if (enableAlphaFromColor > 0.5) outColor.a = color.a; else outColor.a = texColor.a;\n"
+            "    outColor.rgb = color.rgb ? texColor.rgb;\n"
+            "    #\n"
+            "    return outColor;\n"
+            "}\n";
+#else
         static const char* psParticleCode = 
             "float4 color : register(c0);\n"
             "float enableAlphaFromColor : register(c1);\n"
@@ -1981,11 +2020,25 @@ kLitTexturedPixelShaderD3D9.c_str(),
             "    #\n"
             "    return outColor;\n"
             "}\n";
+#endif
         return psParticleCode;
     }
 
     const char* getParticleVSCode()
     {
+#if defined(USE_DIRECTX11)
+        static const char* vsParticleCode =
+            "cbuffer Matrices : register(b0) { row_major float4x4 mvpMatrix; };\n"
+            "struct VSInput { float3 position : POSITION; float2 uv : TEXCOORD0; };\n"
+            "struct VSOutput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+            "VSOutput main(VSInput input)\n"
+            "{\n"
+            "    VSOutput output;\n"
+            "    output.position = mul(float4(input.position, 1.0), mvpMatrix);\n"
+            "    output.vTexCoord = input.uv;\n"
+            "    return output;\n"
+            "}\n";
+#else
         static const char* vsParticleCode =
             "float4x4 mvpMatrix : register(c0);\n"
             "\n"
@@ -2008,11 +2061,28 @@ kLitTexturedPixelShaderD3D9.c_str(),
             "    output.vTexCoord = input.aTextCoord;\n"
             "    return output;\n"
             "}\n";
+#endif
         return vsParticleCode;
     }
 
     const char* getSteeredParticlePSCode(bool hasColor)
     {
+#if defined(USE_DIRECTX11)
+        if (hasColor)
+        {
+            return
+                "cbuffer ParticleValues : register(b0) { float4 color; };\n"
+                "Texture2D TextureDiffuse : register(t0);\n"
+                "SamplerState DiffuseSampler : register(s0);\n"
+                "struct PSInput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+                "float4 main(PSInput input) : SV_TARGET { return color * TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord); }\n";
+        }
+        return
+            "Texture2D TextureDiffuse : register(t0);\n"
+            "SamplerState DiffuseSampler : register(s0);\n"
+            "struct PSInput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+            "float4 main(PSInput input) : SV_TARGET { return TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord); }\n";
+#else
         if (hasColor)
         {
             return  "float4 color   : register(c4);"
@@ -2040,9 +2110,23 @@ kLitTexturedPixelShaderD3D9.c_str(),
                     "    return texColor;"
                     "}";
         }
+#endif
     }
     const char* getSteeredParticleVSCode()
     {
+#if defined(USE_DIRECTX11)
+        return
+            "cbuffer Matrices : register(b0) { row_major float4x4 mvpMatrix; };\n"
+            "struct VSInput { float3 position : POSITION; float2 uv : TEXCOORD0; };\n"
+            "struct VSOutput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+            "VSOutput main(VSInput input)\n"
+            "{\n"
+            "    VSOutput output;\n"
+            "    output.position = mul(float4(input.position, 1.0), mvpMatrix);\n"
+            "    output.vTexCoord = input.uv;\n"
+            "    return output;\n"
+            "}\n";
+#else
         return "float4x4 mvpMatrix : register(c0);"
                 ""
                 "struct VSInput {"
@@ -2061,10 +2145,16 @@ kLitTexturedPixelShaderD3D9.c_str(),
                 "    o.vTexCoord = input.aTextCoord;"
                 "    return o;"
                 "}";
+#endif
     }
 
+#if defined(USE_DIRECTX11)
+    static std::string PS_Vesrion("ps_4_0");
+    static std::string VS_Vesrion("vs_4_0");
+#else
     static std::string PS_Vesrion("ps_2_0");
     static std::string VS_Vesrion("vs_2_0");
+#endif
 
     const char* getPSVersion()
     {

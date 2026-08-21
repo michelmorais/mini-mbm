@@ -36,7 +36,7 @@ endif()
 # OPENGLES2_INCLUDE_DIR is populated when include_directories() is called.
 # On Windows+GLES the headers live in third-party/gles which is not a system
 # path, so this early invocation is essential.
-if(WIN32 AND NOT USE_DIRECTX9)
+if(WIN32 AND NOT (USE_DIRECTX9 OR USE_DIRECTX11))
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../src/cmake-modules/")
     include(FindOpenGLES2)
 endif()
@@ -151,7 +151,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     # DirectX9 needs no find_* step — its headers ship with MinGW/Windows SDK.
     # For OpenGL ES builds, locate the bundled ANGLE headers and import libs.
-    if(NOT USE_DIRECTX9)
+    if(NOT (USE_DIRECTX9 OR USE_DIRECTX11))
         include(FindOpenGLES2)
     endif()
     # Threads: needed by Lua and the engine on MinGW.
@@ -312,6 +312,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     # ── Graphics backend ─────────────────────────────────────────────────────
     if(USE_DIRECTX9)
         target_link_libraries(core_mbm d3d9 d3dcompiler)
+    elseif(USE_DIRECTX11)
+        target_link_libraries(core_mbm d3d11 dxgi d3dcompiler)
     else()
         # OpenGL ES emulation (Imagination PowerVR pre-built import libs)
         target_link_libraries(core_mbm

@@ -14,10 +14,10 @@ implementing one, actively try to disprove that it is needed. Prefer keeping the
 making a small platform-specific improvement, accepting a documented limit, or using an existing
 fallback when any of those choices satisfies the concrete game or platform requirement.
 
-Reasonable future investigations include a newer DirectX path for Windows or a more capable OpenGL
-path for Linux. Metal already provides the modern macOS/iOS path. Preserve the validated DirectX 9,
-OpenGL ES, and Metal implementations unless a separately approved platform plan explicitly changes
-their support status. Vulkan is not a current objective: its explicit pipelines, resource
+DirectX 11 now provides the newer native Windows path, while Metal provides the modern macOS/iOS
+path. A more capable OpenGL path for Linux remains a reasonable future investigation. Preserve the
+validated DirectX 9, DirectX 11, OpenGL ES, and Metal implementations unless a separately approved
+platform plan explicitly changes their support status. Vulkan is not a current objective: its explicit pipelines, resource
 management, synchronization, testing surface, and ongoing maintenance are a high-risk expansion for
 this engine. References to Vulkan in this document illustrate backend portability hazards; they do
 not constitute a roadmap commitment.
@@ -527,6 +527,8 @@ Required steps:
 1. `createTextureRenderTarget(w, h)` — create an off-screen color texture +
    depth texture, store in `SPECIFIC_AUX_CONTEXT_DEVICE` or private render-target config via
    `RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig()`.
+   Before binding the texture as an output, unbind it from shader-resource slots; APIs such as
+   DirectX reject simultaneous input/output binding of the same resource.
 2. `CORE_MANAGER::renderToTargets()` — iterate render targets with
    `device->getTotalRenderTargets()` and `device->getRenderTarget(index)`,
    begin a secondary render pass for each target, render its object list, end the pass.
@@ -619,7 +621,9 @@ and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
 - [ ] **M2 — Textures**: `TEXTURE::loadFromData`, `TEXTURE::loadFromResourceData`,
       `TEXTURE::release`.  PNG images should decode and display.
 - [ ] **M3 — Shaders + static buffers**: `compileShader`, `loadBuffer(VB)`,
-      `loadBuffer(IB)`, `render`.  3D meshes and 2D quads should draw correctly.
+      `loadBuffer(IB)`, `render`, and the backend mapping for `RENDER_STATE::set`/blend
+      operations. 3D meshes and 2D quads should draw correctly, and transparent texels in
+      fonts, tiles, sprites, and backgrounds must composite instead of rendering black.
 - [ ] **M4 — Culling + depth**: apply `mode_cull_face` + `mode_front_face_direction` per
       draw call; attach depth buffer to render pass.  Meshes should stop showing inner faces.
 - [ ] **M5 — Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.

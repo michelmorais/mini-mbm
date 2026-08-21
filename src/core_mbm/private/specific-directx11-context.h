@@ -16,32 +16,60 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
-#ifndef DUMMY_BUFFER_SPECIFIC_H
-#define DUMMY_BUFFER_SPECIFIC_H
-
-#include <specific-dummy.h>
 
 #if defined(USE_DIRECTX11)
+#ifndef DIRECTX11_SPECIFIC_CONTEXT_H
+#define DIRECTX11_SPECIFIC_CONTEXT_H
+
+#include <platform/win32-platform.h>
+#include <core-exports.h>
 #include <d3d11.h>
+#include <d3d11sdklayers.h>
+#include <dxgi.h>
+#include <cstdint>
+
+#if !defined(__MINGW32__)
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "dxgi.lib")
 #endif
 
 namespace mbm
 {
-    struct BUFFER_SPECIFIC
+    class CORE_MANAGER;
+
+    struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
-#if defined(USE_DIRECTX11)
-        ID3D11Buffer *vertexBuffer;
-        ID3D11Buffer *skinVertexBuffer;
-        ID3D11Buffer *indexBuffer;
-        UINT vertexStride;
-        bool dynamicVertexBuffer;
-#endif
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        void release();
+        WINDOW window;
+        DWORD idIcon;
+        WIN_EVENT_BY_PASS *win32_EventByPass;
+        WIN_JOYSTICK_BY_PASS *win32_joystickByPass;
+        ID3D11Device *device;
+        ID3D11DeviceContext *immediateContext;
+        IDXGISwapChain *swapChain;
+        ID3D11RenderTargetView *backBufferView;
+        ID3D11Texture2D *depthTexture;
+        ID3D11DepthStencilView *depthView;
+        ID3D11DepthStencilState *depthEnabledState;
+        ID3D11DepthStencilState *depthDisabledState;
+        ID3D11BlendState *blendStates[11][5];
+        ID3D11RasterizerState *rasterizerStates[3][2];
+        int currentBlendState;
+        int currentBlendOperation;
+        D3D_FEATURE_LEVEL featureLevel;
+
+        SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
+        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+        ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
+
+        bool createBackBufferTargets(UINT width, UINT height) noexcept;
+        void releaseBackBufferTargets() noexcept;
+        void release() noexcept;
+        void applyBlendState() noexcept;
+        API_IMPL bool applyRasterizerState(uint32_t cullMode, uint32_t frontFaceDirection) noexcept;
+        void initializeWin32Callbacks(CORE_MANAGER *coreManager);
     };
 }
 
-#endif // DUMMY_BUFFER_SPECIFIC_H
-#endif // USE_DUMMY_BACK_END_ENGINE || MBM_DIRECTX11_FOUNDATION_STUBS
+#endif
+#endif

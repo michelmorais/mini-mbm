@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined (USE_DUMMY_BACK_END_ENGINE)
+#if defined(USE_DUMMY_BACK_END_ENGINE) && !defined(USE_DIRECTX11)
 
 #include <core_mbm/core-exports.h>
 #include <string>
@@ -610,14 +610,37 @@ namespace mbm
 
     API_IMPL const char* getParticlePSCode()
     {
-        static const char* psParticleCode = "TODO";
+        static const char* psParticleCode =
+            "cbuffer ParticleValues : register(b0) { float4 color; float enableAlphaFromColor; float3 padding; };\n"
+            "Texture2D TextureDiffuse : register(t0);\n"
+            "SamplerState DiffuseSampler : register(s0);\n"
+            "struct PSInput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+            "float4 main(PSInput input) : SV_TARGET\n"
+            "{\n"
+            "    float4 texColor = TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord);\n"
+            "    float4 outColor;\n"
+            "    if (enableAlphaFromColor > 0.5) outColor.a = color.a; else outColor.a = texColor.a;\n"
+            "    outColor.rgb = color.rgb ? texColor.rgb;\n"
+            "    #\n"
+            "    return outColor;\n"
+            "}\n";
 
         return psParticleCode;
     }
 
     const char* getParticleVSCode()
     {
-        static const char* vsParticleCode = "TODO";
+        static const char* vsParticleCode =
+            "cbuffer Matrices : register(b0) { row_major float4x4 mvp; };\n"
+            "struct VSInput { float3 position : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0; };\n"
+            "struct VSOutput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+            "VSOutput main(VSInput input)\n"
+            "{\n"
+            "    VSOutput output;\n"
+            "    output.position = mul(float4(input.position, 1.0), mvp);\n"
+            "    output.vTexCoord = input.uv;\n"
+            "    return output;\n"
+            "}\n";
 
         return vsParticleCode;
     }
@@ -626,16 +649,35 @@ namespace mbm
     {
         if (hasColor)
         {
-            return  "TODO";
+            return
+                "cbuffer ParticleValues : register(b0) { float4 color; };\n"
+                "Texture2D TextureDiffuse : register(t0);\n"
+                "SamplerState DiffuseSampler : register(s0);\n"
+                "struct PSInput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+                "float4 main(PSInput input) : SV_TARGET { return color * TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord); }\n";
         }
         else
         {
-            return  "TODO";
+            return
+                "Texture2D TextureDiffuse : register(t0);\n"
+                "SamplerState DiffuseSampler : register(s0);\n"
+                "struct PSInput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+                "float4 main(PSInput input) : SV_TARGET { return TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord); }\n";
         }
     }
     const char* getSteeredParticleVSCode()
     {
-        return "TODO";
+        return
+            "cbuffer Matrices : register(b0) { row_major float4x4 mvp; };\n"
+            "struct VSInput { float3 position : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0; };\n"
+            "struct VSOutput { float4 position : SV_POSITION; float2 vTexCoord : TEXCOORD0; };\n"
+            "VSOutput main(VSInput input)\n"
+            "{\n"
+            "    VSOutput output;\n"
+            "    output.position = mul(float4(input.position, 1.0), mvp);\n"
+            "    output.vTexCoord = input.uv;\n"
+            "    return output;\n"
+            "}\n";
     }
 
     static std::string PS_Vesrion("TODO_version_ps");

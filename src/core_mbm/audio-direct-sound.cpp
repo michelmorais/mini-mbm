@@ -34,6 +34,8 @@
         #include "specific-opengl_es-windows-context.h"
     #elif defined (USE_DIRECTX9)
         #include "specific-directx9-context.h"
+    #elif defined (USE_DIRECTX11)
+        #include "specific-directx11-context.h"
     #elif defined (USE_DUMMY_BACK_END_ENGINE)
         #include "specific-dummy-context.h"
     #endif

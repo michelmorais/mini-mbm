@@ -290,6 +290,8 @@ The current shipped lighting implementation covers:
 - default lit/unlit shader classification for engine-generated shaders
 - built-in lit pixel shaders
 - diffuse, emissive, and specular material contribution
+- DirectX 11 generated default shaders for `3d` and `2dw`, including material, normal-map,
+  directional/point-light, and skeletal-before-lighting integration
 
 Current intentional exclusions or limitations:
 
@@ -310,7 +312,7 @@ Reason:
 
 - shader arrays need a fixed upper bound
 - DirectX 9 constant/register limits are real
-- a shared engine contract across OpenGL ES, DirectX 9, and Metal needs a bounded layout
+- a shared engine contract across OpenGL ES, DirectX 9, DirectX 11, and Metal needs a bounded layout
 
 So the engine design should distinguish:
 
@@ -440,7 +442,8 @@ but it does not currently generate a smaller shader variant.
 
 ## Reserved Shader Inputs
 
-The engine uploads these reserved light names automatically when the active shader declares them:
+The engine uploads these reserved light values automatically through each backend's supported
+reserved-input path:
 
 - `LightEnabled`: integer, `1` when target lighting is enabled, otherwise `0`
 - `LightCount`: integer active-light count for the current draw within the validated capacity
@@ -460,8 +463,11 @@ The engine uploads these reserved light names automatically when the active shad
 - `MaterialEmissive`: `vec4` / `float4`
 - `MaterialPower`: `float`
 
-OpenGL ES and DirectX 9 look up these names directly as optional uniforms/constants. Metal shaders
-use fixed optional argument buffer slots with the same argument names:
+OpenGL ES and DirectX 9 look up these names directly as optional uniforms/constants. DirectX 11
+packs their equivalent values into the generated default pixel shader's `ReservedLight` constant
+buffer at slot `b2`. For custom HLSL it reflects the reserved names in the stage's constant buffer,
+preserves any CFG-controlled values sharing that buffer, and uploads lighting per object/subset.
+Metal shaders use fixed optional argument buffer slots with the same argument names:
 
 ```metal
 constant int    &LightEnabled      [[buffer(4)]]
@@ -480,8 +486,7 @@ constant float4 &DirectionalColor  [[buffer(18)]]
 ```
 
 Custom shader CFG variables cannot use these reserved names; they are owned by the engine.
-Current runtime upload sources material from the active mesh material. Per-subset material upload
-is still a future expansion once that data is threaded through the render path.
+Current runtime upload sources material from the active mesh/subset material path.
 
 ## Default Lit Shader Behavior
 
@@ -570,7 +575,7 @@ Custom shaders stay authoritative:
 When classified as lit, the default shader uses the reserved material/light values described above.
 When classified as unlit, it keeps the cheaper unlit path even if normals or UVs exist.
 
-Canonical OpenGL ES and DirectX9 skeletal meshes use variants of the same default vertex shader. LBS skinning is
+Canonical OpenGL ES, DirectX 9, DirectX 11, and Metal skeletal meshes use variants of the same default vertex shader. LBS skinning is
 applied to the bind position and normal before `mvpMatrix`/`mvMatrix`, so the lighting pipeline still
 receives view-space `vPositionView` and `vNormalView` with the same meanings documented here. The
 initial compact palette stores only three affine `vec4` values per bone; its normal transform is
@@ -584,7 +589,7 @@ before loading; `auto` resolves once to DQS only when the bind and every clip us
 back visibly to LBS otherwise. The resolved choice compiles the matching default shader and uploads
 the matching per-instance palette. It cannot be switched after load without rebuilding the instance.
 Each backend generates its LBS/DQS declarations and deformation statements from a private source
-helper. OpenGL ES shares that helper with its numeric CPU/GPU parity harness; DirectX9 uses the same
+helper. OpenGL ES shares that helper with its numeric CPU/GPU parity harness; DirectX 9 and DirectX 11 use the same
 canonical palette layout and per-vertex influence stream in generated HLSL.
 
 Current default-lit shading behavior:
@@ -650,7 +655,7 @@ Reasonable first-pass ranges:
 
 ## Built-in Lit Shader Resources
 
-The engine now exposes two explicit built-in lit pixel shaders on every active backend:
+The engine exposes two explicit built-in lit pixel shaders on backends with reserved-name reflection:
 
 - `lit textured.ps`
 - `lit solid.ps`
@@ -672,6 +677,9 @@ Use `lit textured.ps` for normal-capable geometry that also has UVs and a stage-
 
 These built-ins require a vertex format with normals. They are intended for `FVF_POS_NOR_UV` and
 `FVF_POS_NOR` style meshes; objects without normals should keep using the unlit/default path.
+
+DirectX 11 supports these standalone pixel-shader resources through reflected reserved-light
+constants and supplies the normal/position varyings from its generated default vertex shader.
 
 ## Material Texture Slots
 

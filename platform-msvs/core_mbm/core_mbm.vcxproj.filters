@@ -393,6 +393,9 @@
     <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-context.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-context.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-d3dx.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
@@ -659,10 +662,16 @@
     <ClCompile Include="..\..\src\core_mbm\core-manager-directx9.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\core-manager-directx11.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\core-manager-dummy.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\device-directx9.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\device-directx11.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\device-dummy.cpp">
@@ -687,6 +696,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\specific-directx9.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\specific-directx11.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\specific-opengl_es.cpp">
@@ -790,6 +802,7 @@
     <None Include="..\copy-dlls.bat">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="..\mbm-backend.user.props" />
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />
   </ItemGroup>

@@ -16,17 +16,26 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_DUMMY_BACK_END_ENGINE)
+#if defined(USE_DUMMY_BACK_END_ENGINE) || defined(MBM_DIRECTX11_FOUNDATION_STUBS)
 #ifndef DUMMY_RENDER_TARGET_SPECIFIC_H
 #define DUMMY_RENDER_TARGET_SPECIFIC_H
 
 #include <specific-dummy.h>
+#if defined(USE_DIRECTX11)
+#include <d3d11.h>
+#endif
 
 namespace mbm
 {
     struct RENDER2TARGET_DUMMY
     {
+#if defined(USE_DIRECTX11)
+        ID3D11RenderTargetView *renderTargetView = nullptr;
+        ID3D11Texture2D *depthTexture = nullptr;
+        ID3D11DepthStencilView *depthView = nullptr;
+#else
         void *pRenderSurface = nullptr;
+#endif
         void release() noexcept;
         RENDER2TARGET_DUMMY() noexcept = default;
         ~RENDER2TARGET_DUMMY();
@@ -36,4 +45,4 @@ namespace mbm
 }
 
 #endif // DUMMY_RENDER_TARGET_SPECIFIC_H
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // USE_DUMMY_BACK_END_ENGINE || MBM_DIRECTX11_FOUNDATION_STUBS

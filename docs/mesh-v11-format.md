@@ -109,6 +109,13 @@ Sections of repeated kinds (`SECTION_ANIMATION`, `SECTION_FRAME_STATIC`) appear 
 ascending index order; nothing in the envelope encodes "which animation/frame index is this," the
 order in the file is the index, same as today.
 
+`MESH_MBM_DEBUG::loadDebugFromMemory()` is a runtime/editor extraction path, not another v11 file
+reader. On DirectX 11 it copies GPU vertex/index buffers into staging resources, maps them for CPU
+read, deinterleaves position/normal/UV data, and preserves the runtime subset ranges. Indexed
+frames recover `sizeVertexBuffer` from the single global `BUFFER_GL` vertex count; they must not
+sum per-subset maximum indices because subsets may share the same global vertices. The automated
+DX11 fixture compares the extracted Crate frame byte-for-byte with `MESH_MBM_DEBUG::loadV11()`.
+
 `SECTION_DETAIL_PHYSICS` is the one section every mesh type gets — the writer always emits it (a
 mesh with no explicit bounding shapes gets one synthesized so the section is never missing), *not*
 conditioned on `typeMesh`. Only `SECTION_DETAIL_FONT`/`_PARTICLE`/`_TILE` presence is implied by

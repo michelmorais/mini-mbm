@@ -79,17 +79,17 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\src\core_mbm;..\..\src\core_mbm\private;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\src\core_mbm;..\..\src\core_mbm\private;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;$(MbmLegacyDirectXInclude)..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
     <CodeAnalysisRuleSet>C:\Program Files (x86)\Microsoft Visual Studio 14.0\Team Tools\Static Analysis Tools\Rule Sets\NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <RunCodeAnalysis>false</RunCodeAnalysis>
-    <LibraryPath>C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Lib\x86;$(LibraryPath);$(Outdir);$(SolutionDir)..\third-party\gles\libs;$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
+    <LibraryPath>$(MbmLegacyDirectXLibX86)$(LibraryPath);$(Outdir);$(SolutionDir)..\third-party\gles\libs;$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
     <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
     <CustomBuildAfterTargets>
     </CustomBuildAfterTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\src\core_mbm;..\..\src\core_mbm\private;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;..\..\third-party\rapidxml;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Lib\x86;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(Outdir);$(SolutionDir)..\third-party\gles\libs;$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\src\core_mbm;..\..\src\core_mbm\private;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;$(MbmLegacyDirectXInclude)..\..\third-party\rapidxml;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(MbmLegacyDirectXLibX86)$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(Outdir);$(SolutionDir)..\third-party\gles\libs;$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\src\core_mbm;..\..\src\core_mbm\private;..\..\include\plusWindows;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
@@ -194,6 +194,7 @@
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gles-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-upload.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-directx9-shader-source.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-context.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-parity-asset.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-render-capability.h" />
@@ -367,6 +368,7 @@
     <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
     <ClCompile Include="..\..\src\core_mbm\specific-android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\specific-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\specific-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\specific-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\specific-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />
@@ -379,8 +381,10 @@
     <ClCompile Include="..\..\src\core_mbm\blend-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\blend-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\core-manager-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\device-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-dummy.cpp" />
@@ -424,6 +428,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\copy-dlls.bat" />
+    <None Include="..\mbm-backend.user.props" />
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />
   </ItemGroup>

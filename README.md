@@ -441,7 +441,6 @@ The engine abstracts all graphics API calls behind a backend interface, selected
 | **OpenGL ES 2.0** | Windows, Linux, macOS, Android | ✅ Stable | `-DUSE_OPENGL_ES=1` |
 | **DirectX 9** | Windows | ✅ Stable | `-DUSE_DIRECTX9=1` |
 | **Dummy** | All | ✅ Stable (headless/testing) | `-DUSE_DUMMY_BACK_END_ENGINE=1` |
-| **Vulkan** | — | 🚧 Planned | `-DUSE_VULKAN=1` |
 | **Metal** | macOS, iOS | ✅ Stable | `-DUSE_METAL=1` |
 
 Each backend implements platform-specific versions of: core manager, device, blend, shader, shader resources, mesh manager, texture manager, and render-to-texture. For example, the OpenGL ES backend provides EGL + GLES2 via X11 (Linux/macOS), Win32 (Windows), and JNI (Android).
@@ -736,7 +735,7 @@ Plugin flags default to `OFF` and require Lua. `-DUSE_ALL=1` enables Lua, VR, Bo
 | Platform | Requirements |
 |---|---|
 | **Linux** | C++17 compiler (GCC or Clang), CMake ≥ 3.25.1, X11 dev libraries, EGL/GLES2 dev libraries, PortAudio dev library |
-| **Windows** | Visual Studio 2022, DirectX 9 SDK (for DX9 backend) or EGL/GLES2 (for OpenGL ES backend) |
+| **Windows** | Visual Studio 2026 with Desktop development with C++, MSVC x64/x86 tools, and Windows 11 SDK >= 10.0.26100.0. The standalone June 2010 DirectX SDK is legacy and is not used by the Direct3D 11 backend. |
 | **Android** | Android NDK (`NDK_ROOT` env var), CMake ≥ 3.25.1, C++17-capable NDK toolchain |
 | **macOS** | Xcode command-line tools, CMake ≥ 3.25.1; X11 libraries only if selecting the OpenGL ES path |
 
@@ -784,9 +783,11 @@ sudo update-alternatives --set c++ /usr/bin/clang++
 
 ### Windows (Visual Studio)
 
-Open the solution file `platform-msvs/mini-mbm.sln` in **Visual Studio 2022**.
+Open the solution file `platform-msvs/mini-mbm.sln` in **Visual Studio 2026**.
 
-The backend defaults to **DirectX 9** for `Debug|Win32`. To switch, edit `platform-msvs/mbm-backend.props` and set `MbmBackend` to `DirectX9` or `OpenGLES`.
+On a new machine, use Visual Studio Installer to select **Desktop development with C++**, the current MSVC x64/x86 tools, and Windows 11 SDK 10.0.26100.0 or newer stable. Installing the optional Windows **Graphics Tools** feature is recommended for Direct3D diagnostics.
+
+The backend defaults to **DirectX 11** for `Debug|Win32` and **DirectX 9** for `Release|Win32`, which keeps a convenient comparison baseline. To switch, edit `platform-msvs/mbm-backend.props` and set `MbmBackend` to `DirectX9`, `DirectX11`, or `OpenGLES`. DirectX 11 currently supports the device/swap-chain lifecycle, basic geometry with per-buffer cull/front-face rasterizer state, RGB/RGBA texture upload, shader-resource/sampler binding with pixel-perfect nearest filtering, solid-color shapes, alpha/destination blend modes, custom pixel/vertex shaders with reflected CFG and reserved-light variables, the internal constant-color `LINE_MESH` shader, textured `PARTICLE`/`STEERED_PARTICLE` dynamic quads, render-to-texture capture/display with cropped PNG readback, mesh GPU-buffer readback for editor/debug workflows, canonical GPU skeletal animation with LBS and rigid DQS, and default/custom material lighting for `3d` and `2dw`. The automated Debug matrix also rejects Direct3D API warnings/errors and live child resources after engine teardown; see `platform-msvs/README.md` for the delivery checklist.
 
 **From command line (MSBuild):**
 ```cmd
@@ -965,7 +966,6 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_LUA=1` | `OFF` | Embed Lua 5.4.1 scripting engine |
 | `-DUSE_OPENGL_ES=1` | Auto | OpenGL ES 2.0 backend (auto-enabled on Linux/Android; selectable on Windows/macOS) |
 | `-DUSE_DIRECTX9=1` | Auto | DirectX 9 backend (auto-enabled on Windows) |
-| `-DUSE_VULKAN=1` | `OFF` | Vulkan backend (planned) |
 | `-DUSE_METAL=1` | Auto on Apple | Metal backend (macOS, iOS) |
 | `-DUSE_DUMMY_BACK_END_ENGINE=1` | `OFF` | Headless/dummy rendering backend |
 | `-DUSE_VR=1` | `ON` (Linux/Win) | VR class support |
@@ -1346,7 +1346,6 @@ O motor utiliza seus próprios formatos binários otimizados para assets de jogo
 | **OpenGL ES 2.0** | Windows, Linux, macOS, Android | ✅ Estável | `-DUSE_OPENGL_ES=1` |
 | **DirectX 9** | Windows | ✅ Estável | `-DUSE_DIRECTX9=1` |
 | **Dummy** | Todas | ✅ Estável (headless/testes) | `-DUSE_DUMMY_BACK_END_ENGINE=1` |
-| **Vulkan** | — | 🚧 Planejado | `-DUSE_VULKAN=1` |
 | **Metal** | macOS, iOS | ✅ Estável | `-DUSE_METAL=1` |
 
 O backend OpenGL ES utiliza EGL + GLES2 via X11 (Linux/macOS), Win32 (Windows) e NativeActivity (Android).

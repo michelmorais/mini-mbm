@@ -187,6 +187,9 @@
     <ClCompile Include="..\..\src\test-lib\directx9-skeletal-parity-tests.cpp">
       <ExcludedFromBuild Condition="'$(MbmBackend)'!='DirectX9'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\src\test-lib\directx11-skeletal-parity-tests.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBackend)'!='DirectX11'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\src\test-lib\main.cpp" />
     <ClCompile Include="..\..\src\test-lib\my-scene-test.cpp" />
     <ClCompile Include="..\..\src\test-lib\skeletal-foundation-tests.cpp" />
@@ -195,6 +198,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\src\test-lib\gles-skeletal-parity-tests.h" />
     <ClInclude Include="..\..\src\test-lib\directx9-skeletal-parity-tests.h" />
+    <ClInclude Include="..\..\src\test-lib\directx11-skeletal-parity-tests.h" />
     <ClInclude Include="..\..\include\core_mbm\path-manager.h" />
     <ClInclude Include="..\..\src\test-lib\my-scene-test.h" />
     <ClInclude Include="..\..\src\test-lib\skeletal-foundation-tests.h" />
