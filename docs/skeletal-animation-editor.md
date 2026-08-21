@@ -1436,3 +1436,7 @@ Tutorial 2's runtime-preview step explicitly performs this refresh before select
 `worm_sway`, because a newly authored unsaved clip is not available in the previously constructed
 runtime player. Its check asks the user to confirm the current-memory source line as well as clip
 availability and playback.
+
+The **Apply clip properties** tooltip identifies the exact transaction boundary: it applies the
+edited name, duration, and loop flag while preserving the clip ID, tracks, and keys. It also warns
+that names must be non-empty and unique and that duration cannot end before an existing key.

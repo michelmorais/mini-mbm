@@ -549,6 +549,7 @@
     7.141.0 Replaced Bind Pose Contract's one-shot Expand all button with a persistent Keep expanded checkbox that forces every hierarchy node open only while checked and restores ordinary per-node interaction when cleared. Animation Pose time is now a duration-clamped DragFloat with fine dragging and exact Ctrl/double-click numeric entry; Tutorial 2's timeline step targets and explains the new control directly.
     7.142.0 Added the Skeletal Animation Editor About menu using the established Mesh Debug pattern: editor and MBM Engine documentation links with Windows/Linux/macOS browser launching, plus a Version submenu reporting the running engine and ImGui versions.
     7.142.1 Wrapped the Animation Pose time tooltip at a bounded width and corrected Tutorial 2's runtime step to refresh the preview from current editor memory before selecting and playing the newly authored unsaved worm_sway clip.
+    7.142.2 Added a wrapped Apply clip properties tooltip explaining the affected name, duration, and loop fields, the preserved clip ID/tracks/keys, and the validation rules for unique names and existing key times.
     7.124.0 Runtime Skeletal Preview now starts with the evaluated skeleton hidden, and Mesh Debug's Blender import modal automatically sizes itself within the available screen bounds so its action buttons remain reachable.
     7.123.2 Fixed animation-only mesh shrinkage after MSH -> FBX -> MSH by transferring each sampled global pose as a delta from the canonical bind onto Blender's scale-normalized reconstructed rest pose.
     7.123.1 Fixed invalid animated MSH -> FBX -> MSH output for scaled armatures by solving sampled global poses directly into local bone bases instead of recursively compounding deferred parent scale; Action F-Curves are populated in bulk and Blender 5 use_nodes deprecation noise is suppressed.
@@ -574,7 +575,7 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
 */
-#define MBM_VERSION "7.142.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.142.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

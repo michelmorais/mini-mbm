@@ -9163,6 +9163,7 @@ local function showSkeletalAnimationInspection()
                 setStatus(tLang.L('swl_animation_clip_updated'),false)
             elseif snapshot then discardRollbackSnapshot(snapshot) end
         end
+        showItemTooltip(tLang.L('swl_animation_apply_clip_help'),true,400)
         tImGui.EndDisabled()
         state.animationRemoveConfirmed=tImGui.Checkbox(
             tLang.L('swl_animation_confirm_remove_clip')..'##swlClipRemoveConfirm',
