@@ -6290,17 +6290,50 @@ local function showMenu()
         tLang.renderLanguageSubmenu()
         tImGui.EndMenu()
     end
+    if tImGui.BeginMenu(tLang.L('menu_about')) then
+        local pressed=tImGui.MenuItem(tLang.L('swl_about_editor'),nil,false)
+        if pressed then
+            if mbm.is('windows') then
+                os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
+            elseif mbm.is('linux') then
+                os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
+            elseif mbm.is('macos') then
+                os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
+            end
+        end
+        pressed=tImGui.MenuItem(tLang.L('mbm_engine'),nil,false)
+        if pressed then
+            if mbm.is('windows') then
+                os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
+            elseif mbm.is('linux') then
+                os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
+            elseif mbm.is('macos') then
+                os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
+            end
+        end
+        if tImGui.BeginMenu(tLang.L('menu_version')) then
+            tImGui.TextDisabled(string.format('%s\nIMGUI: %s',mbm.get('version'),
+                tImGui.GetVersion()))
+            tImGui.EndMenu()
+        end
+        tImGui.EndMenu()
+    end
     tImGui.EndMainMenuBar()
 end
 
-showItemTooltip=function(text,allowWhenDisabled)
+showItemTooltip=function(text,allowWhenDisabled,wrapWidth)
     local flags=allowWhenDisabled and
         tImGui.Flags('ImGuiHoveredFlags_AllowWhenDisabled') or 0
     if tImGui.IsItemHovered(flags) then
         tImGui.BeginTooltip()
-        -- Tooltip windows have no reliable wrap width in this ImGui binding.
-        -- Localized tooltip strings use explicit line breaks instead.
-        tImGui.Text(text)
+        if wrapWidth then
+            tImGui.PushTextWrapPos(wrapWidth)
+            tImGui.TextWrapped(text)
+            tImGui.PopTextWrapPos()
+        else
+            -- Most localized tooltip strings use explicit line breaks.
+            tImGui.Text(text)
+        end
         tImGui.EndTooltip()
     end
 end
@@ -8966,7 +8999,7 @@ local function showSkeletalAnimationInspection()
         local timeChanged,time=tImGui.DragFloat(tLang.L('swl_animation_pose_time')..
             '##swlAuthoringTime',state.authoringTime,0.001,0,clipDuration,'%.3f s')
         tImGui.PopItemWidth()
-        showItemTooltip(tLang.L('swl_animation_pose_time_help'))
+        showItemTooltip(tLang.L('swl_animation_pose_time_help'),false,400)
         if timeChanged then
             if state.animationPlayback.playing then state.animationPlayback.paused=true end
             state.authoringTime=math.max(0,math.min(clipDuration,time))

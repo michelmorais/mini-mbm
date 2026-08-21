@@ -483,6 +483,12 @@ The tutorial window initially opens at the top-right edge of the screen, indepen
 left worktree panel and even when that places it over the camera gizmo. `ImGuiCond_Once` preserves
 ordinary user dragging afterward instead of forcing the position every frame.
 
+The **About** menu follows Mesh Debug's desktop pattern. **Skeletal Animation Editor** opens the
+prepared `editors.html#skeletal-animation-editor` documentation anchor, **Mbm Engine** opens the
+documentation root, and the **Version** submenu reports both the running engine version and ImGui
+version. Browser launching uses `start` on Windows, `sensible-browser` on Linux, and `open` on
+macOS, and occurs only when the corresponding menu item is clicked.
+
 **Tutorial 2 - Bending Cylinder** is an asset-backed exercise. Selecting it creates a capped,
 vertical cylinder with 12 height divisions and a checker texture built from two hexadecimal RGBA
 colors, saves both the `.msh` and `.png` through `tUtil.getTemporaryFilePath()`, and immediately
@@ -1425,3 +1431,8 @@ skeleton, weights, and clips to a temporary MSH, constructs the real immutable-m
 and player from it, then removes the temporary file. Later editor mutations mark that snapshot stale
 until refreshed again. Method and comparison changes preserve an in-memory source by rebuilding a
 fresh snapshot instead of silently returning to the saved file.
+
+Tutorial 2's runtime-preview step explicitly performs this refresh before selecting and playing
+`worm_sway`, because a newly authored unsaved clip is not available in the previously constructed
+runtime player. Its check asks the user to confirm the current-memory source line as well as clip
+availability and playback.
