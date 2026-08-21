@@ -465,6 +465,54 @@ Use **File > Open Mesh** to load a `.msh` file. The mesh should contain a frame-
 canonical vertex skin weights for all bone-dependent workflows. Meshes without bones or weights may
 still be inspected through AABB and material-subset selection.
 
+The main menu places **Tutorial** between **File** and **Edit**. **Tutorial 1** opens a persistent
+standalone guide that remains visible while the user changes
+worktrees. Its data lives in `editor/skeletal_animation_tutorials.lua`: each registered tutorial has
+a stable ID, localized menu/window keys, and an ordered list of localized steps with an optional
+target worktree and focus anchor. Clicking a step selects its instructions; **Open the required
+worktree** switches the editor through the ordinary workspace boundary, repeats the guidance in
+status feedback, and on the following frame scrolls to the declared section. Collapsible anchored
+sections open automatically.
+Steps that require an asset disable navigation until a mesh is loaded. File-only steps remain
+instructions rather than opening native dialogs implicitly. The module exposes `register()` so
+future tutorials reuse the same menu, window, navigation, Previous/Next controls, and lifecycle
+without adding tutorial-specific rendering branches to the main editor. A step may also declare an
+optional `checkKey`; the window renders this after Previous/Next as a distinct expected-result and
+diagnostic checklist rather than repeating the primary instruction.
+The tutorial window initially opens at the top-right edge of the screen, independently from the
+left worktree panel and even when that places it over the camera gizmo. `ImGuiCond_Once` preserves
+ordinary user dragging afterward instead of forcing the position every frame.
+
+The **About** menu follows Mesh Debug's desktop pattern. **Skeletal Animation Editor** opens the
+prepared `editors.html#skeletal-animation-editor` documentation anchor, **Mbm Engine** opens the
+documentation root, and the **Version** submenu reports both the running engine version and ImGui
+version. Browser launching uses `start` on Windows, `sensible-browser` on Linux, and `open` on
+macOS, and occurs only when the corresponding menu item is clicked.
+
+**Tutorial 2 - Bending Cylinder** is an asset-backed exercise. Selecting it creates a capped,
+vertical cylinder with 12 height divisions and a checker texture built from two hexadecimal RGBA
+colors, saves both the `.msh` and `.png` through `tUtil.getTemporaryFilePath()`, and immediately
+loads the generated mesh. The same path helper uses the configured temporary directory on Windows
+and `os.tmpname()` storage on POSIX platforms, so the tutorial does not write generated assets into
+the repository. The guide then covers a centered four-bone chain, automatic smooth weights,
+weight-transition inspection, and a looping side-to-side S bend. Clip/rotation-track setup and
+Auto Key pose authoring at explicit playhead times are separate steps, bringing Tutorial 2 to nine
+steps. Generated files are disposable;
+**Save As** preserves the MSH, but a portable project copy must replace or retain the separately
+generated temporary PNG.
+
+Asset-backed tutorials declare `assetFactory` in the same data record as their steps. Menu
+activation is returned to the editor once, where the named factory in
+`editor/skeletal_animation_tutorial_assets.lua` performs generation and the ordinary `loadMesh()`
+boundary resets editor state. No geometry, texture generation, loading, or serialization runs from
+the per-frame tutorial window path.
+
+In Bone Editor, the X/Y/Z creation fields are explicitly labeled as the new independent bone's
+head position and are consumed when **Add Bone** is clicked; they are not a post-creation move
+command. Selecting an existing bone reports its global bind head and explicit-tail positions beside
+the existing local direction, visual rotation, and visual length. This readout reuses the already
+resolved skeleton endpoints and performs no mesh scan, buffer rebuild, or serialization.
+
 After loading a skeleton, open **Bind Pose Contract** to inspect the canonical conversion without
 editing the source asset. The panel reports global-to-local TRS reconstruction error, bind-identity
 error, fatal/warning diagnostics, stable bone IDs, local quaternion TRS, and the local, global, and
@@ -472,12 +520,22 @@ inverse-global bind matrices. Root parent indices are displayed as `0`; stable I
 strings so their full 64-bit identity is preserved through Lua.
 
 Bones are navigated as their actual parent/child hierarchy rather than as a flat source-order list.
-Multiple roots are shown as separate top-level nodes, nodes with diagnostics are marked in orange,
-and **Expand all** opens the complete hierarchy. Selecting a node highlights its joint and incoming
+Multiple roots are shown as separate top-level nodes, and nodes with diagnostics are marked in
+orange. **Keep expanded** is persistent while checked and forces every hierarchy TreeNode open on
+each frame. Unchecking it does not collapse the tree; it restores ordinary independent open/close
+interaction from the current state. Selecting a node highlights its joint and incoming
 parent-to-child bone segment in cyan in the bind-pose gizmo, and updates one separate technical panel with that bone's identity, parent,
 local TRS, radius/length, and bind matrices. The selected-bone panel permits an explicit rename.
 The same read-only selection is available directly in the viewport: a left click on a bind joint or
 parent-to-child segment selects the corresponding bone and synchronizes the hierarchy/details panel.
+Collapsing a parent hides its complete descendant subtree. Structural reachability is computed
+independently from the nodes rendered in the current frame, so hidden valid children are never
+mistaken for malformed orphan roots and redrawn in parallel at the top level.
+The bind viewport distinguishes two related structures: solid parent-to-child links express
+hierarchical inheritance, while thin non-selectable head-to-tail lines and endpoint joints retain
+every bone's explicit authored extent. A four-bone connected chain therefore shows all four bone
+extents even though it has only three parent-child relationships; the two representations may
+overlap where a child head is connected exactly to its parent's tail.
 Clicking and dragging empty viewport space continues to orbit the camera; Bind Pose Contract does
 not turn this selection path into direct manipulation.
 Empty or duplicate names are rejected transactionally; weights and animation tracks continue
@@ -751,6 +809,10 @@ skeleton from the same evaluated global transforms. Consequently the mesh and sk
 same pose while editing. Mouse picking, translation/rotation/uniform-scale gizmos, explicit commit,
 Auto Key, playback, and the graphical timeline build on this contract; numeric key fields remain
 precise diagnostic/fallback controls rather than the intended primary UX.
+The **Pose time** scrubber is a duration-clamped `DragFloat`, not a coarse full-width slider.
+Dragging seeks continuously, while Ctrl+click or double-click enables exact numeric entry. A change
+pauses active authoring playback and refreshes the same in-memory pose used by timeline seeking.
+Tutorial 2's dedicated pose step focuses this control directly.
 Move, Rotate, Scale, and Auto Key keep their detailed guidance in hover tooltips so the Animation
 panel remains readable at its standard width.
 Bone selection is now viewport-driven as well as tree/track-driven. Clicking either an evaluated
@@ -1369,3 +1431,12 @@ skeleton, weights, and clips to a temporary MSH, constructs the real immutable-m
 and player from it, then removes the temporary file. Later editor mutations mark that snapshot stale
 until refreshed again. Method and comparison changes preserve an in-memory source by rebuilding a
 fresh snapshot instead of silently returning to the saved file.
+
+Tutorial 2's runtime-preview step explicitly performs this refresh before selecting and playing
+`worm_sway`, because a newly authored unsaved clip is not available in the previously constructed
+runtime player. Its check asks the user to confirm the current-memory source line as well as clip
+availability and playback.
+
+The **Apply clip properties** tooltip identifies the exact transaction boundary: it applies the
+edited name, duration, and loop flag while preserving the clip ID, tracks, and keys. It also warns
+that names must be non-empty and unique and that duration cannot end before an existing key.

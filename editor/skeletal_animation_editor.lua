@@ -26,6 +26,8 @@ tWearable = require "skeletal_runtime_wearable_helpers"
 tMaskTopology = require "skeletal_mask_topology"
 tArmatureTemplates = require "skeletal_armature_templates"
 tAnimationImport = require "skeletal_animation_import"
+tTutorials = require "skeletal_animation_tutorials"
+tTutorialAssets = require "skeletal_animation_tutorial_assets"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -140,7 +142,7 @@ local state = {
     markersAlwaysOnTop = true,
     info = nil,
     bindReport = nil,
-    bindTreeOpenAll = false,
+    bindTreeKeepExpanded = false,
     bindRenameBoneId = nil,
     bindRenameName = '',
     bindReparentBoneId = nil,
@@ -1349,10 +1351,10 @@ rebuildSkeletonVisuals=function()
             'swl_bone_joint_',1,0,1,0.85)
         sphere:setScale(radius,radius,radius)
         state.skeletonGizmo.spheres[bone.name]=sphere
-        if state.workspace=='animation' and bone.hasExplicitTail then
+        if (state.workspace=='bind' or state.workspace=='animation') and bone.hasExplicitTail then
             local head,tailPoint=getBoneEditorEndpoints(bone,extent)
             local tail=createBoneShape(tailPoint.x,tailPoint.y,tailPoint.z,unitSphereVerts(),
-                'swl_animation_reference_tail_',1,0,1,0.6)
+                'swl_explicit_reference_tail_',1,0,1,0.6)
             tail:setScale(radius,radius,radius)
             state.skeletonGizmo.referenceTails[bone.boneId]=tail
             local headVisualZ,tailVisualZ=visualZ(head.z),visualZ(tailPoint.z)
@@ -3235,6 +3237,7 @@ function showRuntimeWearableControls()
 end
 
 local function showSkeletalPreviewControls()
+    if tTutorials.consumeFocus('runtime_preview') then tImGui.SetScrollHereY(0.15) end
     local playback=state.skeletalPreview
     local sourceKey=not state.runtimePreviewFromMemory and 'swl_runtime_source_file' or
         state.runtimePreviewMemoryDirty and 'swl_runtime_source_memory_stale' or
@@ -6248,6 +6251,17 @@ local function showMenu()
         end
         tImGui.EndMenu()
     end
+    local openedTutorial=tTutorials.renderMenu(tImGui,tLang)
+    if openedTutorial and openedTutorial.assetFactory=='worm_cylinder' then
+        local path,err,info=tTutorialAssets.createWormCylinder(tUtil)
+        if path and loadMesh(path) then
+            setStatus(string.format(tLang.L('swl_tutorial_2_asset_loaded_fmt'),
+                info.vertices,info.triangles),false,true)
+        else
+            setStatus(string.format(tLang.L('swl_tutorial_2_asset_failed_fmt'),
+                tostring(err or path or 'unknown error')),true,true)
+        end
+    end
     if tImGui.BeginMenu(tLang.L('menu_edit')) then
         local undoEntry=state.undoStack[#state.undoStack]
         local redoEntry=state.redoStack[#state.redoStack]
@@ -6276,17 +6290,50 @@ local function showMenu()
         tLang.renderLanguageSubmenu()
         tImGui.EndMenu()
     end
+    if tImGui.BeginMenu(tLang.L('menu_about')) then
+        local pressed=tImGui.MenuItem(tLang.L('swl_about_editor'),nil,false)
+        if pressed then
+            if mbm.is('windows') then
+                os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
+            elseif mbm.is('linux') then
+                os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
+            elseif mbm.is('macos') then
+                os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
+            end
+        end
+        pressed=tImGui.MenuItem(tLang.L('mbm_engine'),nil,false)
+        if pressed then
+            if mbm.is('windows') then
+                os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
+            elseif mbm.is('linux') then
+                os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
+            elseif mbm.is('macos') then
+                os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
+            end
+        end
+        if tImGui.BeginMenu(tLang.L('menu_version')) then
+            tImGui.TextDisabled(string.format('%s\nIMGUI: %s',mbm.get('version'),
+                tImGui.GetVersion()))
+            tImGui.EndMenu()
+        end
+        tImGui.EndMenu()
+    end
     tImGui.EndMainMenuBar()
 end
 
-showItemTooltip=function(text,allowWhenDisabled)
+showItemTooltip=function(text,allowWhenDisabled,wrapWidth)
     local flags=allowWhenDisabled and
         tImGui.Flags('ImGuiHoveredFlags_AllowWhenDisabled') or 0
     if tImGui.IsItemHovered(flags) then
         tImGui.BeginTooltip()
-        -- Tooltip windows have no reliable wrap width in this ImGui binding.
-        -- Localized tooltip strings use explicit line breaks instead.
-        tImGui.Text(text)
+        if wrapWidth then
+            tImGui.PushTextWrapPos(wrapWidth)
+            tImGui.TextWrapped(text)
+            tImGui.PopTextWrapPos()
+        else
+            -- Most localized tooltip strings use explicit line breaks.
+            tImGui.Text(text)
+        end
         tImGui.EndTooltip()
     end
 end
@@ -6887,17 +6934,28 @@ local function showBindBoneHierarchy(report)
         end
     end
 
-    local visited={}
+    -- Structural reachability must not depend on which TreeNode happens to be expanded this frame.
+    -- Otherwise valid children hidden under a collapsed parent look "unvisited" to the malformed-data
+    -- fallback below and are incorrectly rendered again as parallel roots.
+    local structurallyReachable={}
+    local function markSubtree(index)
+        if structurallyReachable[index] then return end
+        structurallyReachable[index]=true
+        for _,childIndex in ipairs(children[index] or {}) do markSubtree(childIndex) end
+    end
+    for _,rootIndex in ipairs(roots) do markSubtree(rootIndex) end
+
+    local rendered={}
     local function showNode(index)
-        if visited[index] then return end
-        visited[index]=true
+        if rendered[index] then return end
+        rendered[index]=true
         local bone=bones[index]
         local findings=diagnosticsByBone[index]
         local prefix=findings and '! ' or ''
         local label=string.format('%s%s##swlHierarchyBone%d',prefix,bone.name or '?',index)
         local flags=state.boneIndex==index and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or
             tImGui.Flags('ImGuiTreeNodeFlags_None')
-        if state.bindTreeOpenAll then
+        if state.bindTreeKeepExpanded then
             tImGui.SetNextItemOpen(true,tImGui.Flags('ImGuiCond_Always'))
         end
         if findings then tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'),
@@ -6915,12 +6973,13 @@ local function showBindBoneHierarchy(report)
         end
     end
     for _,rootIndex in ipairs(roots) do showNode(rootIndex) end
-    -- Defensive display for malformed snapshots; canonical validation should make this empty.
-    for index=1,#bones do if not visited[index] then showNode(index) end end
-    state.bindTreeOpenAll=false
+    -- Defensive display for genuinely malformed/orphaned snapshots; valid descendants remain hidden
+    -- with their collapsed parent instead of being flattened into this root level.
+    for index=1,#bones do if not structurallyReachable[index] then showNode(index) end end
 end
 
 local function showBindPoseDiagnostics()
+    if tTutorials.consumeFocus('bind_hierarchy') then tImGui.SetScrollHereY(0.15) end
     local report=state.bindReport
     if not report then
         tImGui.TextDisabled(tLang.L('swl_bind_report_unavailable'))
@@ -6991,9 +7050,10 @@ local function showBindPoseDiagnostics()
     end
     if report.bones and tImGui.TreeNode(string.format('%s (%d)##swlBindBones',
             tLang.L('swl_bind_compiled_bones'),#report.bones)) then
-        if tImGui.Button(tLang.L('swl_expand_all')..'##swlBindExpandAll') then
-            state.bindTreeOpenAll=true
-        end
+        tImGui.TextWrapped(tLang.L('swl_bind_viewport_segments_help'))
+        state.bindTreeKeepExpanded=tImGui.Checkbox(
+            tLang.L('swl_keep_expanded')..'##swlBindKeepExpanded',
+            state.bindTreeKeepExpanded)
         tImGui.TextDisabled(tLang.L('swl_hierarchy_scroll_hint'))
         tImGui.BeginChild('##swlBindHierarchyScroll',{x=0,y=300},true)
         showBindBoneHierarchy(report)
@@ -7294,6 +7354,7 @@ local function showPaintWeights()
     if state.paint.visualizationMode==1 then
         tImGui.Separator()
         showSectionTitle('swl_paint_brush_section')
+        if tTutorials.consumeFocus('paint_mask') then tImGui.SetScrollHereY(0.2) end
         local capture=state.paint.aabbCapture
         local captureActive=tImGui.Checkbox(tLang.L('swl_paint_aabb_capture_start'),
             capture.active)
@@ -8932,13 +8993,16 @@ local function showSkeletalAnimationInspection()
             state.animationClipLoop=clip.loop==true
             state.animationRemoveConfirmed=false
         end
+        if tTutorials.consumeFocus('animation_pose') then tImGui.SetScrollHereY(0.15) end
         tImGui.PushItemWidth(190)
-        local timeChanged,time=tImGui.SliderFloat('Tempo da pose##swlAuthoringTime',
-            state.authoringTime,0,math.max(clip.duration or 0,0),'%.3f s')
+        local clipDuration=math.max(clip.duration or 0,0)
+        local timeChanged,time=tImGui.DragFloat(tLang.L('swl_animation_pose_time')..
+            '##swlAuthoringTime',state.authoringTime,0.001,0,clipDuration,'%.3f s')
         tImGui.PopItemWidth()
+        showItemTooltip(tLang.L('swl_animation_pose_time_help'),false,400)
         if timeChanged then
             if state.animationPlayback.playing then state.animationPlayback.paused=true end
-            state.authoringTime=time
+            state.authoringTime=math.max(0,math.min(clipDuration,time))
             clearAuthoringOverride()
         end
         refreshAuthoringPose(clip)
@@ -9099,6 +9163,7 @@ local function showSkeletalAnimationInspection()
                 setStatus(tLang.L('swl_animation_clip_updated'),false)
             elseif snapshot then discardRollbackSnapshot(snapshot) end
         end
+        showItemTooltip(tLang.L('swl_animation_apply_clip_help'),true,400)
         tImGui.EndDisabled()
         state.animationRemoveConfirmed=tImGui.Checkbox(
             tLang.L('swl_animation_confirm_remove_clip')..'##swlClipRemoveConfirm',
@@ -9343,6 +9408,7 @@ local function showSkeletalAnimationInspection()
         end
         tImGui.EndChild()
     end
+    if tTutorials.consumeFocus('animation_clip') then tImGui.SetScrollHereY(0.8) end
     tImGui.Separator()
     tImGui.PushItemWidth(190)
     local newNameChanged,newName=tImGui.InputText(tLang.L('swl_animation_clip_name')..'##swlNewClipName',
@@ -9753,6 +9819,7 @@ showArmatureTemplate=function()
 end
 
 local function showBoneEditor()
+    if tTutorials.consumeFocus('bone_create') then tImGui.SetScrollHereY(0.15) end
     local previousRemovePreview=state.boneEditorRemovePreviewIndex
     state.boneEditorRemovePreviewIndex=nil
     tImGui.TextWrapped(tLang.L('swl_bone_editor_help'))
@@ -9819,6 +9886,7 @@ local function showBoneEditor()
     if previousSegmentTool~=state.boneEditorSegmentTool then applyWorkspaceVisibility() end
     tImGui.TextWrapped(tLang.L('swl_bone_editor_segment_tool_help'))
     tImGui.Separator()
+    tImGui.Text(tLang.L('swl_bone_editor_new_head_position'))
     tImGui.PushItemWidth(190)
     for _,field in ipairs({{'X','x'},{'Y','y'},{'Z','z'}}) do
         local changed,value=tImGui.InputFloat(field[1]..'##swlBoneEditor'..field[2],
@@ -9831,6 +9899,7 @@ local function showBoneEditor()
         tImGui.Flags('ImGuiInputTextFlags_None'))
     if lengthChanged then state.boneEditorLength=length end
     tImGui.PopItemWidth()
+    tImGui.TextWrapped(tLang.L('swl_bone_editor_new_head_position_help'))
     local function addRootItem(hasExplicitTail)
         local snapshot=stageRollbackSnapshot()
         local ok,newIndex=false,nil
@@ -9932,6 +10001,18 @@ local function showBoneEditor()
             'swl_bone_editor_selected_tail' or 'swl_bone_editor_selected_head'
         tImGui.TextWrapped(string.format(tLang.L(selectionKey),state.boneEditorSelection.boneName))
         local selectedBone=getBones()[state.boneEditorSelection.boneIndex]
+        local headPoint,tailPoint=nil,nil
+        if selectedBone then
+            headPoint,tailPoint=getBoneEditorEndpoints(selectedBone,1)
+            tImGui.Separator()
+            tImGui.Text(tLang.L('swl_bone_editor_joint_positions'))
+            tImGui.Text(string.format(tLang.L('swl_bone_editor_head_position_fmt'),
+                headPoint.x,headPoint.y,headPoint.z))
+            if selectedBone.hasExplicitTail then
+                tImGui.Text(string.format(tLang.L('swl_bone_editor_tail_position_fmt'),
+                    tailPoint.x,tailPoint.y,tailPoint.z))
+            end
+        end
         local tail=selectedBone and selectedBone.hasExplicitTail and selectedBone.tailOffset or nil
         if tail then
             local tx,ty,tz=tail.x or 0,tail.y or 0,tail.z or 0
@@ -9946,7 +10027,6 @@ local function showBoneEditor()
                     nx,ny,nz))
                 tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_angles_fmt'),
                     inclination,azimuth))
-                local headPoint,tailPoint=getBoneEditorEndpoints(selectedBone,1)
                 local worldLength=math.sqrt((tailPoint.x-headPoint.x)^2+
                     (tailPoint.y-headPoint.y)^2+(tailPoint.z-headPoint.z)^2)
                 tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_length_fmt'),worldLength))
@@ -10139,8 +10219,13 @@ local function showBoneEditor()
         end
     end
     tImGui.Separator()
+    local tutorialWeightsFocus=tTutorials.consumeFocus('bone_weights')
+    if tutorialWeightsFocus then
+        tImGui.SetNextItemOpen(true,tImGui.Flags('ImGuiCond_Always'))
+    end
     if tImGui.TreeNode(tLang.L('swl_bone_editor_weight_asset_actions')..
             '##swlBoneEditorWeightAssetActions') then
+        if tutorialWeightsFocus then tImGui.SetScrollHereY(0.65) end
         local bones=getBones()
         local targetIndex=state.boneEditorSelection and state.boneEditorSelection.boneIndex or
             math.max(1,math.min(state.boneIndex,#bones))
@@ -10488,6 +10573,13 @@ function onLoop(delta)
     updateAuthoringPlayback(delta)
     showMenu()
     showPanel()
+    local tutorialNavigation=tTutorials.renderWindow(tImGui,tLang,state.leftPanelRight,
+        state.meshD~=nil)
+    if tutorialNavigation then
+        setWorkspace(tutorialNavigation.workspace)
+        tTutorials.requestFocus(tutorialNavigation.focus)
+        setStatus(tLang.L(tutorialNavigation.statusKey),false,true)
+    end
     showCameraPanel()
     showRuntimeLightWindow()
     swlShowAnimationImportWindow()
