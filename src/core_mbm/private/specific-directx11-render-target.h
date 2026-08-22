@@ -39,4 +39,3 @@ namespace mbm
 
 #endif // DIRECTX11_RENDER_TARGET_SPECIFIC_H
 #endif // USE_DIRECTX11
-

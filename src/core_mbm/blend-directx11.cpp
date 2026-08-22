@@ -54,4 +54,3 @@ namespace mbm
 }
 
 #endif // USE_DIRECTX11
-

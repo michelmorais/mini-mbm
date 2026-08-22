@@ -5,7 +5,7 @@ This file tracks intentional follow-up work that should not be mixed into an act
 ## Explicit blend-state API
 
 `BLEND_DISABLE` is a legacy and misleading name. Its established behavior on DirectX 9,
-OpenGL ES, and DirectX 11 is the engine's default alpha composition
+DirectX 11, OpenGL ES, and Metal use the engine's default alpha composition
 (`SRC_ALPHA`, `INV_SRC_ALPHA`), not disabled blending.
 
 After the DirectX 11 backend delivery:

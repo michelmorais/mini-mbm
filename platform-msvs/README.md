@@ -76,8 +76,9 @@ All projects live under `platform-msvs/` and build into the shared `bin/` and
 
 ## Selecting the Graphics Backend
 
-The backend is controlled by `platform-msvs/mbm-backend.props`, which is imported
-by every project in the solution. Edit the `<MbmBackend>` property to switch:
+The shared defaults are controlled by `platform-msvs/mbm-backend.props`, which is
+imported by every project in the solution. To switch without modifying those defaults,
+set the `<MbmBackend>` property in `platform-msvs/mbm-backend.user.props`:
 
 ```xml
 <!-- DirectX 9 -->
@@ -211,7 +212,7 @@ msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /m /
 rem Override backend
 msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal
 
-rem DirectX 11 basic geometry backend
+rem DirectX 11 backend
 msbuild platform-msvs\mini-mbm.sln /t:core_mbm /p:Configuration=Debug /p:Platform=x86 /p:MbmBackend=DirectX11 /m /v:minimal
 
 rem Build a single project
@@ -229,12 +230,12 @@ Windows graphics backends. Build the selected backend and run its matching comma
 directory:
 
 ```cmd
-rem DirectX 9 (Release|Win32 default)
+rem DirectX 9 (explicit backend selection)
 msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal
 cd platform-msvs\Debug
 libTest.exe --directx9-skeletal-parity-test
 
-rem OpenGL ES through ANGLE (Release|Win32 default)
+rem OpenGL ES through ANGLE (explicit backend selection)
 msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=OpenGLES /m /v:minimal
 cd platform-msvs\Release
 libTest.exe --gles-skeletal-parity-test

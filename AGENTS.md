@@ -5,7 +5,7 @@
 Mini MBM is a **lightweight, cross-platform 2D/3D game engine** written in C++17, licensed under MIT. It targets **Windows, Linux, macOS, Android, and iOS** and exposes an optional **Lua 5.4 scripting layer**. Primary focus is 2D game development; 3D is supported. Shipped games: *Tower Defense Monster* and *Spaceship Combat* (both on Google Play).
 
 Key features:
-- Multiple render backends: **OpenGL ES** (Linux/Android/macOS fallback), **DirectX 9** (Windows), **Metal** (macOS/iOS)
+- Multiple render backends: **OpenGL ES** (Linux/Android/macOS fallback), **DirectX 9** and **DirectX 11** (Windows), **Metal** (macOS/iOS)
 - Audio backends: **PortAudio** (Linux/Windows), **AVFoundation** (macOS/iOS), **OpenSL** (Android)
 - Asset types: sprite (`.spt`), mesh (`.mbm`), texture, GIF, background, font, particle, tile map, shape mesh, line mesh, render-to-texture, HMD/VR
 - Plugin architecture — optional features compiled as shared libraries loaded at runtime
@@ -305,7 +305,7 @@ All plugins link against `plugin-helper`. It provides:
 - **Methods**: `camelCase` (e.g., `initGraphics`, `getIdScene`, `isOnFrustum`)
 - **Lua C callbacks**: `on<Action>Lua` (e.g., `onLoadSpriteLua`, `onSetPixelShaderLua`)
 - **File names**: `kebab-case` (e.g., `core-manager.h`, `my-scene.cpp`, `plugin-helper.h`)
-- **Platform-specific defines**: `ANDROID`, `_WIN32`, `__linux__`, `USE_METAL`, `USE_OPENGL_ES`, `USE_DIRECTX9`
+- **Platform-specific defines**: `ANDROID`, `_WIN32`, `__linux__`, `USE_METAL`, `USE_OPENGL_ES`, `USE_DIRECTX9`, `USE_DIRECTX11`
 
 ### C++ style
 - **`API_IMPL`** macro on all public engine API methods (resolves to `__attribute__((visibility("default")))` or `__declspec(dllexport/import)`)

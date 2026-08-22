@@ -153,7 +153,6 @@ namespace mbm
             return log_util::fail(__LINE__, __FILE__, "PNG encoding error  [%s]", lodepng_error_text(errorPNG));
         return true;
     }
-    
+
 };
 #endif // USE_DIRECTX11
-

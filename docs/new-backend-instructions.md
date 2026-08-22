@@ -51,6 +51,7 @@ third-party/          ← Lodepng, miniz, stb (platform-neutral, link as-is)
 Each backend is selected by a preprocessor define, e.g.:
 - `USE_OPENGL_ES` — OpenGL ES 2.0 (Linux, Android, legacy Apple)
 - `USE_DIRECTX9`  — Direct3D 9 (Windows MSVS)
+- `USE_DIRECTX11` — Direct3D 11 (Windows MSVS/CMake)
 - `USE_METAL`     — Apple Metal (macOS / iOS)
 - `USE_DUMMY_BACK_END_ENGINE` — stub template for new backends (start here)
 
@@ -552,9 +553,9 @@ Required steps:
 > When the captured texture is displayed as a 2-D quad, the V coordinate must
 > match the render-target's row origin:
 > - **OpenGL ES** — FBO row 0 is at the *bottom* → `uvOriginBottomLeft = false`
-> - **Metal / DirectX9** — texture row 0 is at the *top* → `uvOriginBottomLeft = true`  
+> - **Metal / DirectX9 / DirectX11** — texture row 0 is at the *top* → `uvOriginBottomLeft = true`
 > See `RENDER_2_TEXTURE::fillvertexQuad()` in `render-2-texture.cpp` —
-> add your backend's define to the existing `#if defined(USE_DIRECTX9) || defined(USE_METAL)` guard.
+> add your backend's define to the existing DirectX/Metal guard.
 
 ---
 
@@ -784,9 +785,15 @@ placeholder.  This is a `blend.ps`-specific constraint; pixel shaders that use o
 | `src/core_mbm/device-metal.mm` | Metal | `setProjectionMode`, `setDepthTest`, `clearDepth` |
 | `src/core_mbm/shader-opengl_es.cpp` | OpenGL ES | Reference for culling, winding, uniform upload |
 | `src/core_mbm/shader-directx9.cpp` | D3D9 | Reference for dynamic buffers, skeletal declarations, HLSL variants, and palette constants |
+| `src/core_mbm/shader-directx11.cpp` | D3D11 | Shader compilation, reflected CFG variables, buffers, input layouts, and render states |
+| `src/core_mbm/shader-resource-directx11.cpp` | D3D11 | Native HLSL shader resources without the DirectX 9 compatibility path |
+| `src/core_mbm/core-manager-directx11.cpp` | D3D11 | Device/swap-chain lifecycle, frame rendering, and render-target orchestration |
+| `src/core_mbm/texture-manager-directx11.cpp` | D3D11 | RGB/RGBA texture upload and shader-resource creation |
+| `src/core_mbm/device-directx11.cpp` | D3D11 | Projection, depth, viewport, and backend capability reporting |
 | `src/core_mbm/private/skeletal-gpu-upload.h` | All | Backend upload boundary for canonical influence streams |
 | `src/core_mbm/private/skeletal-gpu-lbs-opengl_es.cpp` | OpenGL ES | VBO implementation of the canonical influence stream |
 | `src/core_mbm/private/skeletal-gpu-lbs-directx9.cpp` | D3D9 | Secondary-stream implementation of canonical influences |
+| `src/core_mbm/private/skeletal-gpu-lbs-directx11.cpp` | D3D11 | Secondary-stream implementation of canonical influences |
 | `src/core_mbm/private/skeletal-gles-shader-source.h` | OpenGL ES | Shared GLSL LBS/DQS deformation source |
 | `src/core_mbm/private/skeletal-directx9-shader-source.h` | D3D9 | Shared HLSL LBS/DQS deformation source |
 | `src/core_mbm/primitives.cpp` | All | `MatrixPerspectiveFovLH`, `MatrixLookAtLH`, `MatrixOrthoLH` |

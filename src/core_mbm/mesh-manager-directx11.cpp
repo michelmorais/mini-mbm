@@ -47,7 +47,7 @@ namespace mbm
         const std::map<int, float>& lsLetterChangedValuesByCurFrameX,
         const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
         util::HEADER_FRAME* headerFrame,
-        util::BUFFER_MESH_DEBUG* pBuffer)//need to be implemented by specific backend engine 
+        util::BUFFER_MESH_DEBUG* pBuffer)//need to be implemented by specific backend engine
     {
         if (!meshMemory || !headerFrame || !pBuffer)
             return log_util::onFailed(nullptr, __FILE__, __LINE__, "invalid DirectX11 mesh debug readback arguments");
@@ -175,4 +175,3 @@ namespace mbm
 } //namespace mbm
 
 #endif // USE_DIRECTX11
-

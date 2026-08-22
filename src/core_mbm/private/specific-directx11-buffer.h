@@ -39,4 +39,3 @@ namespace mbm
 
 #endif // DIRECTX11_BUFFER_SPECIFIC_H
 #endif // USE_DIRECTX11
-

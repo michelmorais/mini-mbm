@@ -112,7 +112,7 @@ namespace mbm
         setBackendTexturePointer(view);
         return true;
     }
-    
+
     bool TEXTURE::loadFromResourceData(const IMAGE_RESOURCE *image)
     {
         if (image == nullptr)
@@ -141,7 +141,7 @@ namespace mbm
         return nullptr;
     }
 
-    TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, 
+    TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget,
                                                         const char *nickName,
                                                         const bool enableAlpha)
     {
@@ -150,7 +150,7 @@ namespace mbm
         std::string fileNameBase    = util::getBaseName(nickName);
         const auto width            = static_cast<int>(renderToTarget->getRenderTargetWidth());
         const auto height           = static_cast<int>(renderToTarget->getRenderTargetHeight());
-        
+
         if (fileNameBase.size() == 0 || width <= 0 || height <= 0)
             return nullptr;
         const uint32_t maxTextureSize = getMaxTextureSize();
@@ -218,4 +218,3 @@ namespace mbm
 }
 
 #endif // USE_DIRECTX11
-

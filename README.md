@@ -440,6 +440,7 @@ The engine abstracts all graphics API calls behind a backend interface, selected
 |---|---|---|---|
 | **OpenGL ES 2.0** | Windows, Linux, macOS, Android | ✅ Stable | `-DUSE_OPENGL_ES=1` |
 | **DirectX 9** | Windows | ✅ Stable | `-DUSE_DIRECTX9=1` |
+| **DirectX 11** | Windows | ✅ Stable | `-DUSE_DIRECTX11=1` |
 | **Dummy** | All | ✅ Stable (headless/testing) | `-DUSE_DUMMY_BACK_END_ENGINE=1` |
 | **Metal** | macOS, iOS | ✅ Stable | `-DUSE_METAL=1` |
 
@@ -735,7 +736,7 @@ Plugin flags default to `OFF` and require Lua. `-DUSE_ALL=1` enables Lua, VR, Bo
 | Platform | Requirements |
 |---|---|
 | **Linux** | C++17 compiler (GCC or Clang), CMake ≥ 3.25.1, X11 dev libraries, EGL/GLES2 dev libraries, PortAudio dev library |
-| **Windows** | Visual Studio 2026 with Desktop development with C++, MSVC x64/x86 tools, and Windows 11 SDK >= 10.0.26100.0. The standalone June 2010 DirectX SDK is legacy and is not used by the Direct3D 11 backend. |
+| **Windows** | Visual Studio 2026 with Desktop development with C++, MSVC x64/x86 tools, and Windows 11 SDK >= 10.0.26100.0. Direct3D 11 uses the Windows SDK; the standalone June 2010 DirectX SDK is required only by the existing Direct3D 9/D3DX configuration. |
 | **Android** | Android NDK (`NDK_ROOT` env var), CMake ≥ 3.25.1, C++17-capable NDK toolchain |
 | **macOS** | Xcode command-line tools, CMake ≥ 3.25.1; X11 libraries only if selecting the OpenGL ES path |
 
@@ -787,7 +788,7 @@ Open the solution file `platform-msvs/mini-mbm.sln` in **Visual Studio 2026**.
 
 On a new machine, use Visual Studio Installer to select **Desktop development with C++**, the current MSVC x64/x86 tools, and Windows 11 SDK 10.0.26100.0 or newer stable. Installing the optional Windows **Graphics Tools** feature is recommended for Direct3D diagnostics.
 
-The backend defaults to **DirectX 11** for `Debug|Win32` and **DirectX 9** for `Release|Win32`, which keeps a convenient comparison baseline. To switch, edit `platform-msvs/mbm-backend.props` and set `MbmBackend` to `DirectX9`, `DirectX11`, or `OpenGLES`. DirectX 11 currently supports the device/swap-chain lifecycle, basic geometry with per-buffer cull/front-face rasterizer state, RGB/RGBA texture upload, shader-resource/sampler binding with pixel-perfect nearest filtering, solid-color shapes, alpha/destination blend modes, custom pixel/vertex shaders with reflected CFG and reserved-light variables, the internal constant-color `LINE_MESH` shader, textured `PARTICLE`/`STEERED_PARTICLE` dynamic quads, render-to-texture capture/display with cropped PNG readback, mesh GPU-buffer readback for editor/debug workflows, canonical GPU skeletal animation with LBS and rigid DQS, and default/custom material lighting for `3d` and `2dw`. The automated Debug matrix also rejects Direct3D API warnings/errors and live child resources after engine teardown; see `platform-msvs/README.md` for the delivery checklist.
+The backend defaults to **DirectX 11** for `Debug|Win32` and **DirectX 9** for `Release|Win32`, which keeps a convenient comparison baseline. To switch without changing the shared defaults, set `MbmBackend` to `DirectX9`, `DirectX11`, or `OpenGLES` in `platform-msvs/mbm-backend.user.props`, or pass `/p:MbmBackend=<backend>` to MSBuild. DirectX 11 currently supports the device/swap-chain lifecycle, basic geometry with per-buffer cull/front-face rasterizer state, RGB/RGBA texture upload, shader-resource/sampler binding with pixel-perfect nearest filtering, solid-color shapes, alpha/destination blend modes, custom pixel/vertex shaders with reflected CFG and reserved-light variables, the internal constant-color `LINE_MESH` shader, textured `PARTICLE`/`STEERED_PARTICLE` dynamic quads, render-to-texture capture/display with cropped PNG readback, mesh GPU-buffer readback for editor/debug workflows, canonical GPU skeletal animation with LBS and rigid DQS, and default/custom material lighting for `3d` and `2dw`. The automated Debug matrix also rejects Direct3D API warnings/errors and live child resources after engine teardown; see `platform-msvs/README.md` for the delivery checklist.
 
 **From command line (MSBuild):**
 ```cmd
@@ -966,6 +967,7 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_LUA=1` | `OFF` | Embed Lua 5.4.1 scripting engine |
 | `-DUSE_OPENGL_ES=1` | Auto | OpenGL ES 2.0 backend (auto-enabled on Linux/Android; selectable on Windows/macOS) |
 | `-DUSE_DIRECTX9=1` | Auto | DirectX 9 backend (auto-enabled on Windows) |
+| `-DUSE_DIRECTX11=1` | `OFF` | DirectX 11 backend (selectable on Windows) |
 | `-DUSE_METAL=1` | Auto on Apple | Metal backend (macOS, iOS) |
 | `-DUSE_DUMMY_BACK_END_ENGINE=1` | `OFF` | Headless/dummy rendering backend |
 | `-DUSE_VR=1` | `ON` (Linux/Win) | VR class support |
@@ -1345,6 +1347,7 @@ O motor utiliza seus próprios formatos binários otimizados para assets de jogo
 |---|---|---|---|
 | **OpenGL ES 2.0** | Windows, Linux, macOS, Android | ✅ Estável | `-DUSE_OPENGL_ES=1` |
 | **DirectX 9** | Windows | ✅ Estável | `-DUSE_DIRECTX9=1` |
+| **DirectX 11** | Windows | ✅ Estável | `-DUSE_DIRECTX11=1` |
 | **Dummy** | Todas | ✅ Estável (headless/testes) | `-DUSE_DUMMY_BACK_END_ENGINE=1` |
 | **Metal** | macOS, iOS | ✅ Estável | `-DUSE_METAL=1` |
 

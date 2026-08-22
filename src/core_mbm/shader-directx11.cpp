@@ -478,7 +478,7 @@ namespace mbm
         }
     }
 
-    BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept 
+    BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept
         : vertexBuffer(nullptr), skinVertexBuffer(nullptr), indexBuffer(nullptr), vertexStride(sizeof(D3D11_VERTEX)), dynamicVertexBuffer(false)
     {
     }
@@ -523,7 +523,7 @@ namespace mbm
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if(backendBuffer)
         {
-            // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+            // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided.
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
@@ -840,7 +840,7 @@ namespace mbm
             delete shaderData;
             setBackendShaderSpecific(nullptr);
         }
-        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided.
     }
 
     void SHADER::onRestore()
