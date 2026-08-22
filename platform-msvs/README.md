@@ -30,6 +30,10 @@ Direct3D 11 backend. Direct3D 11 headers and libraries are part of the Windows
 SDK. That legacy SDK remains relevant only to the existing Direct3D 9/D3DX
 configuration.
 
+If the DirectX 9 SDK is installed in a non-default location, set
+`MbmDirectX9SdkRoot` in `platform-msvs/mbm-backend.user.props`. DirectX 11 does
+not read this property.
+
 ---
 
 ## Opening the Solution
@@ -98,7 +102,7 @@ Default assignments:
 You can override without editing the file by passing `/p:MbmBackend=DirectX9`,
 `DirectX11`, or `OpenGLES` on the MSBuild command line (see below).
 
-> **DirectX 11 milestone status:** device, swap chain, back buffer, depth buffer,
+> **DirectX 11 backend status:** device, swap chain, back buffer, depth buffer,
 > resize, clear, present, static/dynamic vertex buffers, 16-bit index buffers,
 > and the basic HLSL geometry pipeline are implemented. A `SHAPE_MESH` rectangle
 > is exercised by the automated smoke test. RGBA/RGB uploads, shader-resource views,

@@ -20,8 +20,9 @@
     <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)|$(Platform)'=='Release|Win32'">DirectX9</MbmBackend>
     <MbmBackend Condition="'$(MbmBackend)'==''">OpenGLES</MbmBackend>
     <MbmSupportedMaxLights Condition="'$(MbmSupportedMaxLights)'==''">4</MbmSupportedMaxLights>
-    <MbmLegacyDirectXInclude Condition="'$(MbmBackend)'=='DirectX9'">C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include;</MbmLegacyDirectXInclude>
-    <MbmLegacyDirectXLibX86 Condition="'$(MbmBackend)'=='DirectX9'">C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86;</MbmLegacyDirectXLibX86>
+    <MbmDirectX9SdkRoot Condition="'$(MbmDirectX9SdkRoot)'==''">C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)</MbmDirectX9SdkRoot>
+    <MbmDirectX9SdkInclude Condition="'$(MbmBackend)'=='DirectX9'">$(MbmDirectX9SdkRoot)\Include;</MbmDirectX9SdkInclude>
+    <MbmDirectX9SdkLibX86 Condition="'$(MbmBackend)'=='DirectX9'">$(MbmDirectX9SdkRoot)\Lib\x86;</MbmDirectX9SdkLibX86>
   </PropertyGroup>
 
   <ItemDefinitionGroup>

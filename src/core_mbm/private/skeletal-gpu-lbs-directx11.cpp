@@ -42,16 +42,4 @@ namespace mbm::skeletal
     }
 }
 
-#elif !defined(USE_OPENGL_ES) && !defined(USE_DIRECTX9) && !defined(USE_METAL)
-
-#include "skeletal-gpu-upload.h"
-
-namespace mbm::skeletal
-{
-    bool uploadSkinVertexStream(BUFFER_GL *, const GPU_SKINNING_INPUT &) noexcept
-    {
-        return false;
-    }
-}
-
 #endif

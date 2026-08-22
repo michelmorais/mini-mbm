@@ -988,7 +988,7 @@ namespace mbm
             vertexEntryPoint = "main";
             pixelEntryPoint = "main";
         }
-        UINT compileFlags = D3DCOMPILE_ENABLE_BACKWARDS_COMPATIBILITY;
+        UINT compileFlags = 0;
 #if defined(_DEBUG)
         compileFlags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
@@ -1428,4 +1428,3 @@ namespace mbm
 }
 
 #endif // USE_DIRECTX11
-

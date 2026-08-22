@@ -413,7 +413,9 @@ A backend that supports canonical skeletal rendering must implement all of these
 2. Implement `skeletal::uploadSkinVertexStream()` in a backend translation unit. Upload the shared
    `GPU_SKINNING_INPUT` as four float bone indices plus four float weights parallel to frame-zero
    vertices. Keep all GPU handles in private backend storage. The common fallback in
-   `skeletal-gpu-upload.cpp` returns `false` for a backend that has not implemented the path.
+   The common `skeletal-gpu-lbs.cpp` fallback returns `false` when no graphics backend implements
+   the path; real implementations use backend-specific translation units such as
+   `skeletal-gpu-lbs-directx11.cpp`.
 3. Make `SHADER::compileShader(..., skeletalPaletteSize, skeletalMethod)` generate or select distinct
    default vertex-shader variants for static, LBS, and rigid DQS draws. Include both method and exact
    palette size in pipeline/program-cache identity. Reject canonical skeletal meshes using custom

@@ -24,6 +24,7 @@
 #include <texture-manager.h>
 #include <audio-interface.h>
 #include <mesh-manager.h>
+#include <cstdio>
 
 namespace mbm
 {
@@ -83,7 +84,49 @@ namespace mbm
 
     const char *DEVICE::getBackendEngineVersion() const noexcept
     {
-        return "11";
+        static char description[320] = "Direct3D 11";
+        static bool initialized = false;
+        if (initialized)
+            return description;
+
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getSpecificContextDevice();
+        if (!context || !context->device)
+            return description;
+        initialized = true;
+
+        const char *featureLevel = "unknown feature level";
+        switch (context->device->GetFeatureLevel())
+        {
+            case D3D_FEATURE_LEVEL_9_1: featureLevel = "9_1"; break;
+            case D3D_FEATURE_LEVEL_9_2: featureLevel = "9_2"; break;
+            case D3D_FEATURE_LEVEL_9_3: featureLevel = "9_3"; break;
+            case D3D_FEATURE_LEVEL_10_0: featureLevel = "10_0"; break;
+            case D3D_FEATURE_LEVEL_10_1: featureLevel = "10_1"; break;
+            case D3D_FEATURE_LEVEL_11_0: featureLevel = "11_0"; break;
+            case D3D_FEATURE_LEVEL_11_1: featureLevel = "11_1"; break;
+            default: break;
+        }
+
+        char adapterName[192] = "unknown adapter";
+        IDXGIDevice *dxgiDevice = nullptr;
+        IDXGIAdapter *adapter = nullptr;
+        if (SUCCEEDED(context->device->QueryInterface(__uuidof(IDXGIDevice),
+                                                      reinterpret_cast<void **>(&dxgiDevice))) &&
+            dxgiDevice && SUCCEEDED(dxgiDevice->GetAdapter(&adapter)) && adapter)
+        {
+            DXGI_ADAPTER_DESC adapterDescription = {};
+            if (SUCCEEDED(adapter->GetDesc(&adapterDescription)))
+                WideCharToMultiByte(CP_UTF8, 0, adapterDescription.Description, -1,
+                                    adapterName, static_cast<int>(sizeof(adapterName)), nullptr, nullptr);
+        }
+        if (adapter)
+            adapter->Release();
+        if (dxgiDevice)
+            dxgiDevice->Release();
+
+        std::snprintf(description, sizeof(description), "Direct3D 11 - Feature Level %s - %s",
+                      featureLevel, adapterName);
+        return description;
     }
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)

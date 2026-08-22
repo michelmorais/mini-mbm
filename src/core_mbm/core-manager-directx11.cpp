@@ -231,6 +231,7 @@ namespace mbm
 
     void CORE_MANAGER::endRender()
     {
+        // Direct3D 11 has no BeginScene/EndScene pair. swapBuffers() presents the queued commands.
     }
 
     void CORE_MANAGER::swapBuffers()

@@ -17,6 +17,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "skeletal-gpu-lbs.h"
+#include "skeletal-gpu-upload.h"
 
 #include <cmath>
 #include <utility>
@@ -251,3 +252,13 @@ namespace mbm::skeletal
         return status;
     }
 }
+
+#if !defined(USE_OPENGL_ES) && !defined(USE_DIRECTX9) && !defined(USE_DIRECTX11) && !defined(USE_METAL)
+namespace mbm::skeletal
+{
+    bool uploadSkinVertexStream(BUFFER_GL *, const GPU_SKINNING_INPUT &) noexcept
+    {
+        return false;
+    }
+}
+#endif

@@ -10,6 +10,9 @@
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-upload.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\shader-resource-directx-common.inl">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-directx9-shader-source.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
@@ -126,7 +129,7 @@
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx9.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-upload.cpp">
+    <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx11.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.cpp">
@@ -741,6 +744,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-resource-directx9.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-resource-directx11.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-resource-opengl_es.cpp">
