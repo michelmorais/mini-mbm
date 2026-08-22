@@ -195,7 +195,16 @@ namespace mbm
         engineDevice->setBackBufferWidth(static_cast<float>(width));
         engineDevice->setBackBufferHeight(static_cast<float>(height));
         context->window.disableRender(windowHandle);
-        INFO_LOG("DirectX11 initialized: feature level 0x%x", static_cast<unsigned int>(context->featureLevel));
+        const char *featureLevelName = "unknown";
+        switch (context->featureLevel)
+        {
+            case D3D_FEATURE_LEVEL_10_0: featureLevelName = "10_0"; break;
+            case D3D_FEATURE_LEVEL_10_1: featureLevelName = "10_1"; break;
+            case D3D_FEATURE_LEVEL_11_0: featureLevelName = "11_0"; break;
+            default: break;
+        }
+        INFO_LOG("DirectX11 initialized: Feature Level %s (0x%x)", featureLevelName,
+                 static_cast<unsigned int>(context->featureLevel));
         if (engineDevice->isVerbose())
         {
             MINIZ::showVersion();

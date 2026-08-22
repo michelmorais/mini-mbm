@@ -600,8 +600,9 @@
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
     7.174.0 Completed the DirectX 11 delivery cleanup: isolated DX9/DX11 shader-resource translation units, removed legacy HLSL compiler compatibility mode, clarified backend-specific skeletal upload files, improved Direct3D adapter diagnostics, and made the optional June 2010 SDK property explicitly DirectX9-only.
     7.174.1 Fixed skeletal editor overlay shaders selecting GLSL ES on DirectX 11; the editor now emits native HLSL with `SV_TARGET` while preserving DirectX 9 `COLOR0` compatibility.
+    7.174.2 Made the DirectX 11 initialization log report the readable feature-level name alongside its native hexadecimal enum value.
 */
-#define MBM_VERSION "7.174.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.174.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
