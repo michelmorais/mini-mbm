@@ -2162,9 +2162,17 @@ local function ensurePaintHeatmapShader()
             return float4(color,1.0f);
         }
         ]=]
-    elseif mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') then
-        local outputSemantic=mbm.get('USE_DIRECTX11') and 'SV_TARGET' or 'COLOR0'
-        code=string.format([[
+    elseif mbm.get('USE_DIRECTX11') then
+        -- Consume the generated DirectX 11 vertex output through an explicit stage-input struct.
+        -- This keeps SV_POSITION and the per-vertex weight/scope UV semantic paired exactly like
+        -- the engine's built-in DirectX 11 pixel shaders on every driver.
+        code=[[
+        struct PSInput
+        {
+            float4 position : SV_POSITION;
+            float2 texCoord : TEXCOORD0;
+        };
+
         float3 heatColor(float value)
         {
             float t=saturate(value);
@@ -2181,13 +2189,38 @@ local function ensurePaintHeatmapShader()
             return lerp(c4,c5,(t-0.8)/0.2);
         }
 
-        float4 main(float2 texCoord : TEXCOORD0) : %s
+        float4 main(PSInput input) : SV_TARGET
+        {
+            if(input.texCoord.y<0.5)
+                return float4(0.12,0.13,0.15,1.0);
+            return float4(heatColor(input.texCoord.x),1.0);
+        }
+        ]]
+    elseif mbm.get('USE_DIRECTX9') then
+        code=[[
+        float3 heatColor(float value)
+        {
+            float t=saturate(value);
+            float3 c0=float3(0.10,0.25,1.00);
+            float3 c1=float3(0.00,0.85,1.00);
+            float3 c2=float3(0.10,1.00,0.25);
+            float3 c3=float3(1.00,0.90,0.00);
+            float3 c4=float3(1.00,0.45,0.00);
+            float3 c5=float3(1.00,0.10,0.00);
+            if(t<0.2) return lerp(c0,c1,t/0.2);
+            if(t<0.4) return lerp(c1,c2,(t-0.2)/0.2);
+            if(t<0.6) return lerp(c2,c3,(t-0.4)/0.2);
+            if(t<0.8) return lerp(c3,c4,(t-0.6)/0.2);
+            return lerp(c4,c5,(t-0.8)/0.2);
+        }
+
+        float4 main(float2 texCoord : TEXCOORD0) : COLOR0
         {
             if(texCoord.y<0.5)
                 return float4(0.12,0.13,0.15,1.0);
             return float4(heatColor(texCoord.x),1.0);
         }
-        ]],outputSemantic)
+        ]]
     else
         code=[[
         precision mediump float;
@@ -2236,10 +2269,26 @@ local function ensurePaintBrushFootprintShader()
             return float4(color,sqrt(influence)*0.65f);
         }
         ]=]
-    elseif mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') then
-        local outputSemantic=mbm.get('USE_DIRECTX11') and 'SV_TARGET' or 'COLOR0'
-        code=string.format([[
-        float4 main(float2 texCoord : TEXCOORD0) : %s
+    elseif mbm.get('USE_DIRECTX11') then
+        code=[[
+        struct PSInput
+        {
+            float4 position : SV_POSITION;
+            float2 texCoord : TEXCOORD0;
+        };
+
+        float4 main(PSInput input) : SV_TARGET
+        {
+            float influence=saturate(input.texCoord.x);
+            if(influence<=0.001) discard;
+            float3 color=input.texCoord.y<0.5 ? float3(1.00,0.25,0.05) :
+                (input.texCoord.y<1.25 ? float3(0.00,0.85,1.00) : float3(1.00,0.75,0.05));
+            return float4(color,sqrt(influence)*0.65);
+        }
+        ]]
+    elseif mbm.get('USE_DIRECTX9') then
+        code=[[
+        float4 main(float2 texCoord : TEXCOORD0) : COLOR0
         {
             float influence=saturate(texCoord.x);
             if(influence<=0.001) discard;
@@ -2248,7 +2297,7 @@ local function ensurePaintBrushFootprintShader()
                 (texCoord.y<1.25 ? float3(0.00,0.85,1.00) : float3(1.00,0.75,0.05)));
             return float4(color,sqrt(influence)*0.65);
         }
-        ]],outputSemantic)
+        ]]
     else
         code=[[
         precision mediump float;

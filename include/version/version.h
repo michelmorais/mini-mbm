@@ -602,8 +602,9 @@
     7.174.1 Fixed skeletal editor overlay shaders selecting GLSL ES on DirectX 11; the editor now emits native HLSL with `SV_TARGET` while preserving DirectX 9 `COLOR0` compatibility.
     7.174.2 Made the DirectX 11 initialization log report the readable feature-level name alongside its native hexadecimal enum value.
     7.174.3 Exposed `USE_DIRECTX11` through `mbm.get()` so Lua editors select native DirectX 11 HLSL instead of falling through to OpenGL ES GLSL.
+    7.174.4 Fixed DirectX 11 skeletal-editor heatmap and brush overlays by matching their pixel-stage input signature to the generated vertex shader, preserving the weight/scope UV channel when switching bones and diagnostic views.
 */
-#define MBM_VERSION "7.174.3" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.174.4" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
