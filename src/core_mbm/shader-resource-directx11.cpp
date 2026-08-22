@@ -354,12 +354,13 @@ namespace mbm
         //font *********************
         "font.ps",
 
-        "float3 colorFont			: register(C0);\n"
-        "sampler2D TextureDiffuse	: register(S0);\n"
-
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "cbuffer FontValues : register(b0) { float3 colorFont; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "struct PSInput { float4 position : SV_POSITION; float2 uv : TEXCOORD0; };\n"
+        "float4 main(PSInput input) : SV_TARGET\n"
         "{\n"
-        "	float4 color = tex2D( TextureDiffuse, uv );\n"
+        "	float4 color = TextureDiffuse.Sample(DiffuseSampler, input.uv);\n"
         "	float3 c2 = float3(1.0 - colorFont.r,1.0 - colorFont.g,1.0 - colorFont.b);\n"
         "	color.rgb -= c2;\n"
         "	return color;\n"

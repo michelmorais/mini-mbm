@@ -773,6 +773,10 @@ fnt:getTexture()              -- returns texture name string
 fnt:getTotal()                -- count of text objects created from this font
 ```
 
+If the font's animation or shader cannot be prepared, `fnt:add()` returns no value and leaves the
+parent font and its previously created text objects valid. Callers that retain the result may test
+it for `nil`; a shader compilation failure must not expose a partially initialized text object.
+
 **`fnt:add`'s 2nd argument is a coordinate-type string, not `x`** (`onAddTextFontLua`,
 `font-lua.cpp`): the C++ binding reads argument position 3 (the 2nd argument after `text`) via
 `getTypeWordRenderizableLua` and only reads positions 4/5/6 as `x`/`y`/`z` if that 3rd Lua argument

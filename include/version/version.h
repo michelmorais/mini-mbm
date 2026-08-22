@@ -603,8 +603,9 @@
     7.174.2 Made the DirectX 11 initialization log report the readable feature-level name alongside its native hexadecimal enum value.
     7.174.3 Exposed `USE_DIRECTX11` through `mbm.get()` so Lua editors select native DirectX 11 HLSL instead of falling through to OpenGL ES GLSL.
     7.174.4 Fixed DirectX 11 skeletal-editor heatmap and brush overlays by matching their pixel-stage input signature to the generated vertex shader, preserving the weight/scope UV channel when switching bones and diagnostic views.
+    7.174.5 Replaced the DirectX 11 font shader's DX9-only tex2D path with native Texture2D sampling and made FONT_DRAW animation setup transactional, preventing shader failures from deleting a TEXT_DRAW that addText and its Lua binding still accessed.
 */
-#define MBM_VERSION "7.174.4" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.174.5" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

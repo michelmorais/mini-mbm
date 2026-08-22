@@ -1456,6 +1456,11 @@ example `TEXCOORD0`). Do not rely on a lone pixel-shader function parameter for 
 value; validate editor overlays with deliberately non-geometric UV data so original mesh UVs or
 undefined stage inputs are immediately visible.
 
+Also load a bitmap font and add text through both C++ and Lua during backend acceptance. The
+built-in `font.ps` must use the backend's native texture/sampler syntax (DirectX 11 requires
+`Texture2D.Sample`, not `tex2D`), and an intentionally rejected font shader must make `addText()` /
+`fnt:add()` fail cleanly without deleting a text object that the caller is still initializing.
+
 ---
 
 ## B3. `mbm.is()` / `mbm.get()` — adding a new platform string

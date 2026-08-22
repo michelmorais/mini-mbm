@@ -143,7 +143,7 @@ namespace mbm
         std::string texture_file_name_created;
         API_IMPL void onStop();
       private:
-        void fillAnimation(TEXT_DRAW *text);
+        bool fillAnimation(TEXT_DRAW *text);
         static bool OnRestoreFont(FONT_DRAW *that, TEXT_DRAW *TEXT_DRAW_ptr);
         bool OnRestore(TEXT_DRAW *whatText);
         bool isLoaded() const;
