@@ -282,7 +282,7 @@ mbm.addShader({
 **`mbm.get(what)` accepted values:**  
 `"version"` (full version string), `"mbm"`, `"lua"`, `"audio"`, `"opengl"`, `"directx"`,  
 `"backend_engine"` / `"engine"`, `"exe"`, `"debug"`,  
-`"USE_VR"`, `"USE_OPENGL_ES"`, `"USE_DIRECTX9"`, `"USE_METAL"`,  
+`"USE_VR"`, `"USE_OPENGL_ES"`, `"USE_DIRECTX9"`, `"USE_DIRECTX11"`, `"USE_METAL"`,
 `"USE_EDITOR_FEATURES"`,   
 `"windows"`, `"linux"`, `"macos"`, `"android"`, `"ios"` (returns bool like `mbm.is`)
 

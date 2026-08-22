@@ -640,6 +640,8 @@ and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
       emit its native shader language and profile semantics. In particular, DirectX 11 must
       never fall through to GLSL ES containing `precision`, `varying`, `texture2D`, or
       `gl_FragColor`; its pixel outputs use `SV_TARGET`, while legacy DirectX 9 uses `COLOR0`.
+      Verify that `mbm.get('USE_<BACKEND>')` is exposed by the Lua dispatcher and returns true
+      on the new backend, because editors use these runtime keys to select native shader source.
 - [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
 - [ ] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
       `HMD.cpp` is platform-agnostic and builds on M7.

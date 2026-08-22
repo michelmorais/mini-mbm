@@ -601,8 +601,9 @@
     7.174.0 Completed the DirectX 11 delivery cleanup: isolated DX9/DX11 shader-resource translation units, removed legacy HLSL compiler compatibility mode, clarified backend-specific skeletal upload files, improved Direct3D adapter diagnostics, and made the optional June 2010 SDK property explicitly DirectX9-only.
     7.174.1 Fixed skeletal editor overlay shaders selecting GLSL ES on DirectX 11; the editor now emits native HLSL with `SV_TARGET` while preserving DirectX 9 `COLOR0` compatibility.
     7.174.2 Made the DirectX 11 initialization log report the readable feature-level name alongside its native hexadecimal enum value.
+    7.174.3 Exposed `USE_DIRECTX11` through `mbm.get()` so Lua editors select native DirectX 11 HLSL instead of falling through to OpenGL ES GLSL.
 */
-#define MBM_VERSION "7.174.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.174.3" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
