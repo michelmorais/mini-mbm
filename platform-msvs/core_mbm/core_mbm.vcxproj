@@ -193,7 +193,6 @@
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gles-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-upload.h" />
-    <ClInclude Include="..\..\src\core_mbm\private\shader-resource-directx-common.inl" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-directx9-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-context.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.h" />
