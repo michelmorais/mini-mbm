@@ -599,8 +599,9 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
     7.174.0 Completed the DirectX 11 delivery cleanup: isolated DX9/DX11 shader-resource translation units, removed legacy HLSL compiler compatibility mode, clarified backend-specific skeletal upload files, improved Direct3D adapter diagnostics, and made the optional June 2010 SDK property explicitly DirectX9-only.
+    7.174.1 Fixed skeletal editor overlay shaders selecting GLSL ES on DirectX 11; the editor now emits native HLSL with `SV_TARGET` while preserving DirectX 9 `COLOR0` compatibility.
 */
-#define MBM_VERSION "7.174.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.174.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

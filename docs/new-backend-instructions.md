@@ -636,6 +636,10 @@ and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
 - [ ] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
       `VAR_SHADER` constructor with backend handle.  See §15 for the shader catalogue
       and §A2 for Metal-specific notes (PSO variants, FVF attribute patching).
+      Audit editor-generated shaders as well as engine defaults: every backend branch must
+      emit its native shader language and profile semantics. In particular, DirectX 11 must
+      never fall through to GLSL ES containing `precision`, `varying`, `texture2D`, or
+      `gl_FragColor`; its pixel outputs use `SV_TARGET`, while legacy DirectX 9 uses `COLOR0`.
 - [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
 - [ ] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
       `HMD.cpp` is platform-agnostic and builds on M7.

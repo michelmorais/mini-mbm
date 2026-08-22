@@ -2162,8 +2162,9 @@ local function ensurePaintHeatmapShader()
             return float4(color,1.0f);
         }
         ]=]
-    elseif mbm.get('USE_DIRECTX9') then
-        code=[[
+    elseif mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') then
+        local outputSemantic=mbm.get('USE_DIRECTX11') and 'SV_TARGET' or 'COLOR0'
+        code=string.format([[
         float3 heatColor(float value)
         {
             float t=saturate(value);
@@ -2180,13 +2181,13 @@ local function ensurePaintHeatmapShader()
             return lerp(c4,c5,(t-0.8)/0.2);
         }
 
-        float4 main(float2 texCoord : TEXCOORD0) : COLOR0
+        float4 main(float2 texCoord : TEXCOORD0) : %s
         {
             if(texCoord.y<0.5)
                 return float4(0.12,0.13,0.15,1.0);
             return float4(heatColor(texCoord.x),1.0);
         }
-        ]]
+        ]],outputSemantic)
     else
         code=[[
         precision mediump float;
@@ -2235,9 +2236,10 @@ local function ensurePaintBrushFootprintShader()
             return float4(color,sqrt(influence)*0.65f);
         }
         ]=]
-    elseif mbm.get('USE_DIRECTX9') then
-        code=[[
-        float4 main(float2 texCoord : TEXCOORD0) : COLOR0
+    elseif mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') then
+        local outputSemantic=mbm.get('USE_DIRECTX11') and 'SV_TARGET' or 'COLOR0'
+        code=string.format([[
+        float4 main(float2 texCoord : TEXCOORD0) : %s
         {
             float influence=saturate(texCoord.x);
             if(influence<=0.001) discard;
@@ -2246,7 +2248,7 @@ local function ensurePaintBrushFootprintShader()
                 (texCoord.y<1.25 ? float3(0.00,0.85,1.00) : float3(1.00,0.75,0.05)));
             return float4(color,sqrt(influence)*0.65);
         }
-        ]]
+        ]],outputSemantic)
     else
         code=[[
         precision mediump float;
