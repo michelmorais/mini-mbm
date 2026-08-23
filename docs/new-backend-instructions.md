@@ -1455,7 +1455,7 @@ end
 
 Never hardcode GLSL in Lua editor scripts. For particle shaders always call `mbm.getParticleShaderCode()` and substitute the operator placeholder `?` before passing the result to `mbm.addShader()`.
 
-For DirectX 11 editor pixel shaders, declare an explicit input structure containing
+For every DirectX 11 pixel shader, including built-ins and editor shaders, declare an explicit input structure containing
 `SV_POSITION` and every interpolated semantic consumed from the generated vertex shader (for
 example `TEXCOORD0`). Do not rely on a lone pixel-shader function parameter for an interpolated
 value; validate editor overlays with deliberately non-geometric UV data so original mesh UVs or

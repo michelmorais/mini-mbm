@@ -117,6 +117,7 @@ namespace mbm
         "\n"
         "struct PS_INPUT\n"
         "{\n"
+        "    float4 position : SV_POSITION;\n"
         "    float2 vTexCoord : TEXCOORD0;\n"
         "};\n"
         "\n"
@@ -162,8 +163,8 @@ namespace mbm
         "}\n",
 
         "[edge-gradient-magnitude.ps] = edge gradient magnitude.ps\n"
-        "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n"
-        "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n",
+        "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n"
+        "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n",
 
         //AlphaIt *********************
         "alpharit.ps",
@@ -671,9 +672,14 @@ namespace mbm
         "cbuffer BrightExtractValues : register(b0) { float threshold; };\n"
         "Texture2D TextureDiffuse : register(t0);\n"
         "SamplerState DiffuseSampler : register(s0);\n"
-        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
+        "struct BRIGHT_EXTRACT_PS_INPUT\n"
         "{\n"
-        "	float4 originalColor = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
+        "    float4 position : SV_POSITION;\n"
+        "    float2 vTexCoord : TEXCOORD0;\n"
+        "};\n"
+        "float4 main(BRIGHT_EXTRACT_PS_INPUT input) : SV_Target\n"
+        "{\n"
+        "	float4 originalColor = TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord);\n"
         // Undo pre-multiplied alpha.
     "	float3 rgb = originalColor.rgb / originalColor.a;\n"
         // Adjust RGB to keep only values brighter than the specified threshold.

@@ -576,8 +576,9 @@
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
     7.174.18 Added the complete native DirectX 11 Windows backend, including geometry, textures, blending, particles, render-to-texture, HMD, custom and built-in HLSL shaders without DirectX 9 compatibility mode, material lighting, canonical GPU skeletal animation, editor integration, Direct3D diagnostics, resource-lifecycle validation, and the automated regression runner.
     7.174.19 Fixed DirectX 11 Sprite Maker animation previews rendering upside down by applying the established top-origin render-target V orientation to both the animated quad and its ImGui frame previews.
+    7.174.20 Fixed DirectX 11 bright-extract and edge-gradient pixel-stage input signatures, and restored the edge-gradient CFG variable order expected by existing binary assets across all backends.
 */
-#define MBM_VERSION "7.174.19" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.174.20" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

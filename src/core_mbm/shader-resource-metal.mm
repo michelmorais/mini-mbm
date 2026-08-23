@@ -116,8 +116,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv        = in.uv;
-    float2 imageSize = float2(f[0], f[1]);
-    float  tolerance = f[2];
+    float  tolerance = f[0];
+    float2 imageSize = float2(f[1], f[2]);
 
     float4 col = TextureDiffuse.sample(samp, uv);
     if (col.a == 0.0f) discard_fragment();
@@ -140,8 +140,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
 }
 )msl",
     "[edge-gradient-magnitude.ps] = edge gradient magnitude.ps\n"
-    "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n"
-    "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n",
+    "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n"
+    "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n",
 
     // ---- pie ----------------------------------------------------------------
     "pie.ps",

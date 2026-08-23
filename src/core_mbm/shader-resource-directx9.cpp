@@ -158,8 +158,8 @@ namespace mbm
         "}\n",
 
         "[edge-gradient-magnitude.ps] = edge gradient magnitude.ps\n"
-        "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n"
-        "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n",
+        "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n"
+        "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n",
 
         //AlphaIt *********************
         "alpharit.ps",
