@@ -642,6 +642,10 @@ and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
       `gl_FragColor`; its pixel outputs use `SV_TARGET`, while legacy DirectX 9 uses `COLOR0`.
       Verify that `mbm.get('USE_<BACKEND>')` is exposed by the Lua dispatcher and returns true
       on the new backend, because editors use these runtime keys to select native shader source.
+      For DirectX 11, run `libTest --directx11-builtin-shader-test`: it compiles every built-in
+      resource independently without compatibility flags. The initial copied-DX9 catalogue baseline
+      was 8/57 and the native catalogue now passes 57/57; keep this command in the regular
+      regression runner so compatibility regressions fail delivery.
 - [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
 - [ ] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
       `HMD.cpp` is platform-agnostic and builds on M7.
@@ -792,7 +796,7 @@ placeholder.  This is a `blend.ps`-specific constraint; pixel shaders that use o
 | `src/core_mbm/shader-opengl_es.cpp` | OpenGL ES | Reference for culling, winding, uniform upload |
 | `src/core_mbm/shader-directx9.cpp` | D3D9 | Reference for dynamic buffers, skeletal declarations, HLSL variants, and palette constants |
 | `src/core_mbm/shader-directx11.cpp` | D3D11 | Shader compilation, reflected CFG variables, buffers, input layouts, and render states |
-| `src/core_mbm/shader-resource-directx11.cpp` | D3D11 | Native HLSL shader resources without the DirectX 9 compatibility path |
+| `src/core_mbm/shader-resource-directx11.cpp` | D3D11 | Backend-specific HLSL resources; all 57/57 entries compile natively (from an initial copied-DX9 baseline of 8/57), enforced by `--directx11-builtin-shader-test` in the regular regression runner |
 | `src/core_mbm/core-manager-directx11.cpp` | D3D11 | Device/swap-chain lifecycle, frame rendering, and render-target orchestration |
 | `src/core_mbm/texture-manager-directx11.cpp` | D3D11 | RGB/RGBA texture upload and shader-resource creation |
 | `src/core_mbm/device-directx11.cpp` | D3D11 | Projection, depth, viewport, and backend capability reporting |

@@ -169,6 +169,7 @@ namespace
 //        testLib --directx9-skeletal-parity-test
 //        testLib --directx11-foundation-test
 //        testLib --directx11-shader-profile-test
+//        testLib --directx11-builtin-shader-test
 //        testLib --directx11-texture-failure-test
 //        testLib --directx11-screen-size-test
 //        testLib --directx11-resize-test
@@ -205,10 +206,14 @@ static int runTestLib(int argc, char **argv
 {
     if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)
         return runSkeletalFoundationTests();
-
     GAME game;
 #if defined(USE_DIRECTX11)
-    if (argc == 2 && std::strcmp(argv[1], "--directx11-rasterizer-test") == 0)
+    if (argc == 2 && std::strcmp(argv[1], "--directx11-builtin-shader-test") == 0)
+    {
+        game.myScene.testDirectX11BuiltinShaders = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--directx11-rasterizer-test") == 0)
     {
         game.myScene.testDirectX11Rasterizer = true;
         game.myScene.testTimeoutSeconds = 1.0f;

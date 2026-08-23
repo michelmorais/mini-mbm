@@ -604,8 +604,21 @@
     7.174.3 Exposed `USE_DIRECTX11` through `mbm.get()` so Lua editors select native DirectX 11 HLSL instead of falling through to OpenGL ES GLSL.
     7.174.4 Fixed DirectX 11 skeletal-editor heatmap and brush overlays by matching their pixel-stage input signature to the generated vertex shader, preserving the weight/scope UV channel when switching bones and diagnostic views.
     7.174.5 Replaced the DirectX 11 font shader's DX9-only tex2D path with native Texture2D sampling and made FONT_DRAW animation setup transactional, preventing shader failures from deleting a TEXT_DRAW that addText and its Lua binding still accessed.
+    7.174.6 Added a standalone DirectX 11 built-in shader catalogue compiler test, recording the copied-DX9 migration baseline and establishing 57/57 native compilation without compatibility flags as the delivery gate.
+    7.174.7 Migrated the DirectX 11 outline and built-in lit pixel shaders to native constant buffers, texture sampling, and output semantics without DirectX 9 compiler compatibility.
+    7.174.8 Migrated eight simple DirectX 11 single-texture effects to native HLSL resources, advancing the built-in shader catalogue gate to 19/57.
+    7.174.9 Migrated seven DirectX 11 neighborhood-filter shaders to native HLSL resources, advancing the built-in shader catalogue gate to 26/57.
+    7.174.10 Migrated four DirectX 11 color and bounds effects to native HLSL resources, advancing the built-in shader catalogue gate to 30/57.
+    7.174.11 Migrated seven DirectX 11 geometric distortion effects to native HLSL resources, advancing the built-in shader catalogue gate to 37/57.
+    7.174.12 Migrated the DirectX 11 pie, glass-tile, and tone-mapping effects to native HLSL resources, advancing the built-in shader catalogue gate to 40/57.
+    7.174.13 Migrated the DirectX 11 Poisson filter to native HLSL resources, advancing the built-in shader catalogue gate to 41/57.
+    7.174.14 Migrated the DirectX 11 old-movie effect to native HLSL and moved its configurable reciprocal calculation into the pixel entry point, advancing the catalogue gate to 42/57.
+    7.174.15 Migrated three DirectX 11 sampling filters to native HLSL resources, advancing the built-in shader catalogue gate to 45/57.
+    7.174.16 Migrated the DirectX 11 night-vision and frosty-outline filters to native HLSL resources, advancing the built-in shader catalogue gate to 47/57.
+    7.174.17 Migrated the DirectX 11 blend, multi-texture, and texture-map filters to native HLSL resources, advancing the built-in shader catalogue gate to 50/57.
+    7.174.18 Completed the 57/57 native DirectX 11 built-in shader catalogue and promoted its compiler gate into the regular regression suite.
 */
-#define MBM_VERSION "7.174.5" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.174.18" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

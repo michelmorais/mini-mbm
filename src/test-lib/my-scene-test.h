@@ -153,6 +153,7 @@ class MY_SCENE : public mbm::SCENE
     bool                    testGlesSkeletalParity;
     bool                    testDirectX9SkeletalParity;
     bool                    testDirectX11Foundation;
+    bool                    testDirectX11BuiltinShaders;
     bool                    testDirectX11ShaderProfiles;
     bool                    testDirectX11TextureFailure;
     bool                    testDirectX11ScreenSize;

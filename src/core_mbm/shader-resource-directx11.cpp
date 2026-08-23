@@ -26,38 +26,42 @@
 
 namespace mbm
 {
-    static std::string buildLitTexturedPixelShaderD3D9()
+    static std::string buildLitTexturedPixelShaderD3D11()
     {
         const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
         return
-            "int LightEnabled;\n"
-            "int LightMode;\n"
-            "int HasNormalMap;\n"
-            "float4 AmbientColor;\n"
-            "float3 LightDirectionView;\n"
-            "float4 DirectionalColor;\n"
-            "float3 LightPositionView[" + supportedMaxLights + "];\n"
-            "float LightRadius[" + supportedMaxLights + "];\n"
-            "float4 LightColor[" + supportedMaxLights + "];\n"
-            "int LightCount;\n"
-            "float4 MaterialDiffuse;\n"
-            "float4 MaterialAmbient;\n"
-            "float4 MaterialSpecular;\n"
-            "float4 MaterialEmissive;\n"
-            "float MaterialPower;\n"
-            "sampler2D TextureDiffuse : register(s0);\n"
-            "sampler2D TextureNormal : register(s2);\n"
-            "\n"
-            "float4 main(float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2) : COLOR\n"
+            "cbuffer LitTexturedValues : register(b0)\n"
             "{\n"
-            "    float4 texColor = tex2D(TextureDiffuse, texCoord);\n"
+            "    int LightEnabled;\n"
+            "    int LightMode;\n"
+            "    int HasNormalMap;\n"
+            "    int LightCount;\n"
+            "    float4 AmbientColor;\n"
+            "    float3 LightDirectionView;\n"
+            "    float4 DirectionalColor;\n"
+            "    float3 LightPositionView[" + supportedMaxLights + "];\n"
+            "    float LightRadius[" + supportedMaxLights + "];\n"
+            "    float4 LightColor[" + supportedMaxLights + "];\n"
+            "    float4 MaterialDiffuse;\n"
+            "    float4 MaterialAmbient;\n"
+            "    float4 MaterialSpecular;\n"
+            "    float4 MaterialEmissive;\n"
+            "    float MaterialPower;\n"
+            "};\n"
+            "Texture2D TextureDiffuse : register(t0);\n"
+            "Texture2D TextureNormal : register(t2);\n"
+            "SamplerState DiffuseSampler : register(s0);\n"
+            "\n"
+            "float4 main(float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2) : SV_Target\n"
+            "{\n"
+            "    float4 texColor = TextureDiffuse.Sample(DiffuseSampler, texCoord);\n"
             "    if (LightEnabled == 0 || LightMode == 0)\n"
             "        return texColor;\n"
             "    float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
             "    float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
             "    float3 specular = float3(0, 0, 0);\n"
             "    float3 normalView = LightMode == 1 ? normalize(normalViewIn) : float3(0, 0, 1);\n"
-            "    if (LightMode == 2 && HasNormalMap != 0) normalView = normalize((tex2D(TextureNormal, texCoord).xyz * 2.0f) - 1.0f);\n"
+            "    if (LightMode == 2 && HasNormalMap != 0) normalView = normalize((TextureNormal.Sample(DiffuseSampler, texCoord).xyz * 2.0f) - 1.0f);\n"
             "    float3 viewDir = normalize(-positionViewIn);\n"
             "    if (LightMode == 1)\n"
             "    {\n"
@@ -99,7 +103,7 @@ namespace mbm
             "}\n";
     }
 
-    static const std::string kLitTexturedPixelShaderD3D9 = buildLitTexturedPixelShaderD3D9();
+    static const std::string kLitTexturedPixelShaderD3D11 = buildLitTexturedPixelShaderD3D11();
     static const char* resourceShader[] = {// Organized in groups of 3: filename, shader code, and CFG configurations.
 
 
@@ -107,9 +111,9 @@ namespace mbm
 
         "edge gradient magnitude.ps",
 
-        "sampler2D TextureDiffuse : register(s0);\n"
-        "float2 imageSize;\n"
-        "float tolerance;\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "cbuffer EdgeGradientValues : register(b0) { float2 imageSize; float tolerance; };\n"
         "\n"
         "struct PS_INPUT\n"
         "{\n"
@@ -131,14 +135,14 @@ namespace mbm
         "    pixel_Left = (uv.xy + float2((-offsetTexture.x), 0.000000));\n"
         "    pixel_Top = (uv.xy + float2(0.000000, offsetTexture.y));\n"
         "    pixel_Bottom = (uv.xy + float2(0.000000, (-offsetTexture.y)));\n"
-        "    gradient = float2(length((tex2D(TextureDiffuse, pixel_Right).xyz - tex2D(TextureDiffuse, pixel_Left).xyz)), length((tex2D(TextureDiffuse, pixel_Top).xyz - tex2D(TextureDiffuse, pixel_Bottom).xyz)));\n"
+        "    gradient = float2(length(TextureDiffuse.Sample(DiffuseSampler, pixel_Right).xyz - TextureDiffuse.Sample(DiffuseSampler, pixel_Left).xyz), length(TextureDiffuse.Sample(DiffuseSampler, pixel_Top).xyz - TextureDiffuse.Sample(DiffuseSampler, pixel_Bottom).xyz));\n"
         "    a = length(gradient);\n"
         "    return float4(a, a, a, 1.00000);\n"
         "}\n"
         "\n"
-        "float4 main(PS_INPUT input) : COLOR0\n"
+        "float4 main(PS_INPUT input) : SV_Target\n"
         "{\n"
-        "   float a = tex2D(TextureDiffuse, input.vTexCoord).a;\n"
+        "   float a = TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord).a;\n"
         "   if (a == 0.0)\n"
         "   {\n"
         "       clip(-1);\n"
@@ -164,14 +168,12 @@ namespace mbm
         //AlphaIt *********************
         "alpharit.ps",
 
-        "float alpha : register(C0); \n"
-        "float ray : register(C1); \n"
-        "float2 center : register(C2); \n"
-        "float2 prop : register(C3); \n"
-        "sampler2D TextureDiffuse : register(S0); \n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR \n"
+        "cbuffer AlpharitValues : register(b0) { float alpha; float ray; float2 center; float2 prop; }; \n"
+        "Texture2D TextureDiffuse : register(t0); \n"
+        "SamplerState DiffuseSampler : register(s0); \n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target \n"
         "{ \n"
-        "	float4 color = tex2D(TextureDiffuse, uv); \n"
+        "	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv); \n"
         "	float2 v2    = float2((uv.x - center.x) / prop.x,(uv.y - center.y) / prop.y) ;\n"
         "	float dist   = length(v2); \n"
         "	if(dist < ray) \n"
@@ -206,12 +208,12 @@ namespace mbm
         // color it **********************
         "color it.ps",
 
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float3 color : register(C0);\n"
-        "float enable : register(C1);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR \n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "cbuffer ColorItValues : register(b0) { float3 color; float enable; };\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target \n"
         "{\n"
-        "   float4 c = tex2D( TextureDiffuse, uv.xy );\n"
+        "   float4 c = TextureDiffuse.Sample(DiffuseSampler, uv.xy);\n"
         "   if(enable > 0.5)\n"
         "      return float4(color.r,color.g,color.b,c.a);\n"
         "   else\n"
@@ -225,17 +227,16 @@ namespace mbm
 
         "pie.ps",
 
-        "sampler2D TextureDiffuse : register(s0);\n"
-        "float clockwise          : register(c0);\n"
-        "float angle_start_in_deg : register(c1);\n"
-        "float percent            : register(c2);\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "cbuffer PieValues : register(b0) { float clockwise; float angle_start_in_deg; float percent; };\n"
         "\n"
         "struct PS_INPUT\n"
         "{\n"
         "    float2 vTexCoord : TEXCOORD0;\n"
         "};\n"
         "\n"
-        "float4 main(PS_INPUT input) : COLOR0\n"
+        "float4 main(PS_INPUT input) : SV_Target\n"
         "{\n"
         "    // Normalize fragment angle to [0, 1) where 0 = east / 3-o'clock, clockwise.\n"
         "    float2 c       = input.vTexCoord - 0.5;\n"
@@ -251,7 +252,7 @@ namespace mbm
         "        delta = fmod(start01 - a01 + 1.0, 1.0);\n"
         "\n"
         "    if (delta < percent)\n"
-        "        return tex2D(TextureDiffuse, input.vTexCoord);\n"
+        "        return TextureDiffuse.Sample(DiffuseSampler, input.vTexCoord);\n"
         "    else\n"
         "        return float4(0, 0, 0, 0);\n"
         "}\n",
@@ -267,8 +268,9 @@ namespace mbm
 
         "luminance.ps",
 
-        "sampler2D TextureDiffuse : register(s0);\n"
-        "float4 color;\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "cbuffer LuminanceValues : register(b0) { float4 color; };\n"
         "\n"
         "struct PS_INPUT\n"
         "{\n"
@@ -282,7 +284,7 @@ namespace mbm
         "    float4 xlat_var_output;\n"
         "    float4 white = float4(1.00000, 1.00000, 1.00000, 1.00000);\n"
         "\n"
-        "    texColor = tex2D(TextureDiffuse, uv);\n"
+        "    texColor = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "    luminance = dot(texColor, float4(0.212600, 0.715200, 0.0722000, 0.000000));\n"
         "    xlat_var_output = float4(0.000000, 0.000000, 0.000000, 0.000000);\n"
         "    if ((luminance < 0.500000)){\n"
@@ -295,7 +297,7 @@ namespace mbm
         "    return xlat_var_output;\n"
         "}\n"
         "\n"
-        "float4 main(PS_INPUT input) : COLOR0\n"
+        "float4 main(PS_INPUT input) : SV_Target\n"
         "{\n"
         "    return xlat_main(input.vTexCoord);\n"
         "}\n",
@@ -306,26 +308,25 @@ namespace mbm
         //blend *********************
         "blend.ps",
 
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "sampler2D TextureAnimationEffect : register(S1);\n"
-        "float3 colorAdd : register(C0);\n"
-        "float4 junctionRemove : register(c1);\n"
-        "float invertSample : register(C2);\n"
-        "float disableSample1 : register(C3);\n\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "Texture2D TextureAnimationEffect : register(t1);\n"
+        "SamplerState AnimationEffectSampler : register(s1);\n"
+        "cbuffer BlendValues : register(b0) { float3 colorAdd; float4 junctionRemove; float invertSample; float disableSample1; };\n\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
         "	float4 c0,c1;\n"
         "	float4 output;\n"
         "	float4 original;\n"
         "	if (invertSample > 0.5)\n"
         "	{\n"
-        "		c0 = tex2D(TextureAnimationEffect, uv.xy);//TextureAnimationEffect precisa ter alpha\n"
-        "		c1 = tex2D(TextureDiffuse, uv.xy);//TextureDiffuse nao precisa ter alpha\n"
+        "		c0 = TextureAnimationEffect.Sample(AnimationEffectSampler, uv.xy);//TextureAnimationEffect precisa ter alpha\n"
+        "		c1 = TextureDiffuse.Sample(DiffuseSampler, uv.xy);//TextureDiffuse nao precisa ter alpha\n"
         "	}\n"
         "	else\n"
         "	{\n"
-        "		c0 = tex2D(TextureDiffuse, uv.xy);//TextureDiffuse nao precisa ter alpha\n"
-        "		c1 = tex2D(TextureAnimationEffect, uv.xy);//TextureAnimationEffect precisa ter alpha\n"
+        "		c0 = TextureDiffuse.Sample(DiffuseSampler, uv.xy);//TextureDiffuse nao precisa ter alpha\n"
+        "		c1 = TextureAnimationEffect.Sample(AnimationEffectSampler, uv.xy);//TextureAnimationEffect precisa ter alpha\n"
         "	}\n"
         "	if(disableSample1 > 0.5)\n"
         "	{\n"
@@ -373,14 +374,12 @@ namespace mbm
         //Color Keying *********************
         "color keying.ps",
 
-        "float4 colorSrc : register(C0);\n"
-        "float4 colorDst : register(C1);\n"
-        "float tolerance : register(C2);\n"
-        "float granThen : register(C3);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "cbuffer ColorKeyingValues : register(b0) { float4 colorSrc; float4 colorDst; float tolerance; float granThen; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
-        "	float4 color = tex2D(TextureDiffuse, uv);\n"
+        "	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "	if (color.a == 0.0)\n"
         "		return color;\n"
         "	if (granThen > 0.5f)\n"
@@ -410,11 +409,12 @@ namespace mbm
         //transparent *********************
         "transparent.ps",
 
-        "float alpha : register(C0);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "cbuffer TransparentValues : register(b0) { float alpha; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
-        "	float4 color = tex2D(TextureDiffuse, uv);\n"
+        "	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "	color.a -= alpha;\n"
         "	return color;\n"
         "}\n",
@@ -426,9 +426,8 @@ namespace mbm
         //outline *************************
         "outline.ps",
 
-        "float3 color : register(C0);\n"
-        "float thickness : register(C1);\n"
-        "float4 main(float3 normalView : TEXCOORD0, float3 positionView : TEXCOORD1) : COLOR\n"
+        "cbuffer OutlineValues : register(b0) { float3 color; float thickness; };\n"
+        "float4 main(float3 normalView : TEXCOORD0, float3 positionView : TEXCOORD1) : SV_Target\n"
         "{\n"
         "    float facing = abs(dot(normalize(normalView), normalize(-positionView)));\n"
         "    if (facing > thickness) discard;\n"
@@ -443,14 +442,14 @@ namespace mbm
         //saturate *********************
         "saturate.ps",
 
-        "float3 color : register(C0);\n"
+        "cbuffer SaturateValues : register(b0) { float3 color; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
         "\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
         "	float4 c1;\n"
-        "	c1 = tex2D(TextureDiffuse, uv.xy);\n"
+        "	c1 = TextureDiffuse.Sample(DiffuseSampler, uv.xy);\n"
         "	c1.rgb *= color.rgb;\n"
         "	return c1;\n"
         "}\n",
@@ -462,10 +461,10 @@ namespace mbm
         //Night Vision **********************
         "night vision.ps",
 
-        "sampler TextureDiffuse : register(s0);\n"
-        "float fInverseViewportWidth;\n"
-        "float fInverseViewportHeight;\n"
-        "const float4 samples[9] =\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "cbuffer NightVisionValues : register(b0) { float fInverseViewportWidth; float fInverseViewportHeight; };\n"
+        "static const float4 samples[9] =\n"
         "{\n"
         "	-1.0,\n"
         "	-1.0,\n"
@@ -505,13 +504,13 @@ namespace mbm
         "	4.0 / 16.0\n"
         "};\n"
         "\n"
-        "float4 main(float2 uv : TEXCOORD0, float4 color0 : COLOR0) : COLOR\n"
+        "float4 main(float2 uv : TEXCOORD0, float4 color0 : COLOR0) : SV_Target\n"
         "{\n"
-        "	float4 col = tex2D(TextureDiffuse, uv);\n"
+        "	float4 col = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "	for (int i = 0; i < 9; ++i)\n"
         "	{\n"
         "		float2 offset = float2(samples[i].x * fInverseViewportWidth, samples[i].y * fInverseViewportHeight);\n"
-        "		float4 newColor = tex2D(TextureDiffuse, uv + offset);\n"
+        "		float4 newColor = TextureDiffuse.Sample(DiffuseSampler, uv + offset);\n"
         "		col += samples[i].w * newColor;\n"
         "	}\n"
         "	col = 0.299 * col.r + 0.587 * col.g + 0.184 * col.b;\n"
@@ -530,12 +529,12 @@ namespace mbm
         //Night Vision blur **********************
         "night vision blur.ps",
 
-        "sampler TextureDiffuse;\n"
-        "float brightness : register(C0);\n"
-        "float contrast : register(C1);\n"
-        "float4 main(float2 texCoord : TEXCOORD0) : COLOR0\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "cbuffer NightVisionBlurValues : register(b0) { float brightness; float contrast; };\n"
+        "float4 main(float2 texCoord : TEXCOORD0) : SV_Target\n"
         "{\n"
-        "	float4 pixelColor = tex2D(TextureDiffuse, texCoord);\n"
+        "	float4 pixelColor = TextureDiffuse.Sample(DiffuseSampler, texCoord);\n"
         "	float4 color0 = pixelColor;\n"
         "	pixelColor = 0.299 * pixelColor.r + 0.587 * pixelColor.g + 0.184 * pixelColor.b;\n"
         "	pixelColor.rgb /= pixelColor.a;\n"
@@ -553,22 +552,23 @@ namespace mbm
         //Multi textura **********************
         "multi textura.ps",
 
-        "float gamma : register(C0);\n"
-
-        "sampler2D TextureDiffuse;\n"
-        "sampler2D TextureAnimationEffect;\n"
+        "cbuffer MultiTextureValues : register(b0) { float gamma; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "Texture2D TextureAnimationEffect : register(t1);\n"
+        "SamplerState AnimationEffectSampler : register(s1);\n"
         "\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
         "	float4 color1;\n"
         "	float4 color2;\n"
         "	float4 blendColor;\n"
         "\n"
         "	// Get the pixel color from the first texture.\n"
-        "	color1 = tex2D(TextureDiffuse, uv.xy);\n"
+        "	color1 = TextureDiffuse.Sample(DiffuseSampler, uv.xy);\n"
         "\n"
         "	// Get the pixel color from the second texture.\n"
-        "	color2 = tex2D(TextureAnimationEffect, uv.xy);\n"
+        "	color2 = TextureAnimationEffect.Sample(AnimationEffectSampler, uv.xy);\n"
         "\n"
         "	// Blend the two pixels together and multiply by the gamma value.\n"
         "	blendColor = color1 * color2 * gamma;\n"
@@ -586,21 +586,21 @@ namespace mbm
         //Wave **********************
         "wave.ps",
 
-        "sampler2D TextureDiffuse : register(s0);\n"
-        "float effectTime : register(C0);\n"
-        "float sizeWave: register(C1);\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "cbuffer WaveValues : register(b0) { float effectTime; float sizeWave; };\n"
         "float dist(float a, float b, float c, float d)\n"
         "{\n"
         "   return sqrt((a - c) * (a - c) + (b - d) * (b - d));\n"
         "}\n"
-        "float4 main(float2 uv : TEXCOORD0) : COLOR0\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{   \n"
         "   float4 Color = 0;\n"
         "   float f = sin(dist(uv.x + effectTime, uv.y, 0.128, 0.128)*sizeWave)\n"
         "				  + sin(dist(uv.x, uv.y, 0.64, 0.64)*sizeWave)\n"
         "				  + sin(dist(uv.x, uv.y + effectTime / 7, 0.192, 0.64)*sizeWave);\n"
         "  uv.xy = uv.xy+((f/sizeWave));\n"
-        "   Color= tex2D( TextureDiffuse , uv.xy);\n"
+        "   Color = TextureDiffuse.Sample(DiffuseSampler, uv.xy);\n"
         "   return Color;   \n"
         "}\n",
 
@@ -612,14 +612,14 @@ namespace mbm
         //Bands **********************
         "bands.ps",
 
-        "float bandDensity : register(C0);\n"
-        "float bandIntensity : register(C1);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
+        "cbuffer BandsValues : register(b0) { float bandDensity; float bandIntensity; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
         "\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
         "	float4 color;\n"
-        "	color = tex2D(TextureDiffuse, uv.xy);\n"
+        "	color = TextureDiffuse.Sample(DiffuseSampler, uv.xy);\n"
         "	color.rgb += tan(uv.x * bandDensity) * bandIntensity;\n"
         "	return color;\n"
         "}\n",
@@ -632,22 +632,20 @@ namespace mbm
         //Bloom **********************
         "bloom.ps",
 
-        "float BloomIntensity : register(C0);\n"
-        "float BaseIntensity : register(C1);\n"
-        "float BloomSaturation : register(C2);\n"
-        "float BaseSaturation : register(C3);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
+        "cbuffer BloomValues : register(b0) { float BloomIntensity; float BaseIntensity; float BloomSaturation; float BaseSaturation; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
         "float3 AdjustSaturation(float3 color, float saturation)\n"
         "{\n"
         "	float grey = dot(color, float3(0.3, 0.59, 0.11));\n"
         "	return lerp(grey, color.rgb, saturation);\n"
         "}\n"
 
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
         "	float BloomThreshold = 0.25f;\n"
 
-        "	float4 color = tex2D(TextureDiffuse, uv);\n"
+        "	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "	float3 base = color.rgb / color.a;\n"
         "	float3 bloom = saturate((base - BloomThreshold) / (1 - BloomThreshold));\n"
         // Adjust color saturation and intensity.
@@ -670,11 +668,12 @@ namespace mbm
         //Bright Extract **********************
         "bright extract.ps",
 
-        "float threshold : register(C0);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "cbuffer BrightExtractValues : register(b0) { float threshold; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
-        "	float4 originalColor = tex2D(TextureDiffuse, uv);\n"
+        "	float4 originalColor = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         // Undo pre-multiplied alpha.
     "	float3 rgb = originalColor.rgb / originalColor.a;\n"
         // Adjust RGB to keep only values brighter than the specified threshold.
@@ -690,19 +689,17 @@ namespace mbm
         //Color Tone **********************
         "color tone.ps",
 
-        "float desaturation : register(C0);\n"
-        "float toned : register(C1);\n"
-        "float4 lightColor : register(C2);\n"
-        "float4 darkColor : register(C3);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "cbuffer ColorToneValues : register(b0) { float desaturation; float toned; float4 lightColor; float4 darkColor; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
-        "	float4 color = tex2D(TextureDiffuse, uv);\n"
-        "	float3 scnColor = lightColor * (color.rgb / color.a);\n"
+        "	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
+        "	float3 scnColor = lightColor.rgb * (color.rgb / color.a);\n"
         "	float gray = dot(float3(0.3, 0.59, 0.11), scnColor);\n"
 
         "	float3 muted = lerp(scnColor, gray.xxx, desaturation);\n"
-        "	float3 middle = lerp(darkColor, lightColor, gray);\n"
+        "	float3 middle = lerp(darkColor.rgb, lightColor.rgb, gray);\n"
 
         "	scnColor = lerp(muted, middle, toned);\n"
         "	return float4(scnColor * color.a, color.a);\n"
@@ -718,12 +715,12 @@ namespace mbm
         //Brightness **********************
         "brightness.ps",
 
-        "float brightness : register(C0);\n"
-        "float contrast : register(C1);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "cbuffer BrightnessValues : register(b0) { float brightness; float contrast; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
-        "	float4 pixelColor = tex2D(TextureDiffuse, uv);\n"
+        "	float4 pixelColor = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "	pixelColor.rgb /= pixelColor.a;\n"
         // Apply contrast.
     "	pixelColor.rgb = ((pixelColor.rgb - 0.5f) * max(contrast, 0)) + 0.5f;\n"
@@ -742,13 +739,13 @@ namespace mbm
         //Blur Directional **********************
         "blur directional.ps",
 
-        "float angle : register(C0);\n"
-        "float blurAmount : register(C1);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
+        "cbuffer BlurDirectionalValues : register(b0) { float angle; float blurAmount; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
         "\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
-        "	float4 color = tex2D(TextureDiffuse, uv);\n"
+        "	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "	float4 c = 0;\n"
         "	float rad = angle * 0.0174533f;\n"
         "	float xOffset = cos(rad);\n"
@@ -757,7 +754,7 @@ namespace mbm
         "	{\n"
         "		uv.x = uv.x - blurAmount * xOffset;\n"
         "		uv.y = uv.y - blurAmount * yOffset;\n"
-        "		c += tex2D(TextureDiffuse, uv);\n"
+        "		c += TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "	}\n"
         "	c /= 16;\n"
         "	return c;\n"
@@ -771,12 +768,12 @@ namespace mbm
         //Embossed **********************
         "embossed.ps",
 
-        "float amount : register(C0);\n"
-        "float width : register(C1);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "cbuffer EmbossedValues : register(b0) { float amount; float width; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
-        "	float4 color = tex2D(TextureDiffuse, uv);\n"
+        "	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
         "	if (color.a == 0.0)\n"
         "		return color;\n"
         "	float4 outC =\n"
@@ -786,8 +783,8 @@ namespace mbm
         "		0.5,\n"
         "		1.0\n"
         "	};\n"
-        "	outC -= tex2D(TextureDiffuse, uv - width) * amount;\n"
-        "	outC += tex2D(TextureDiffuse, uv + width) * amount;\n"
+        "	outC -= TextureDiffuse.Sample(DiffuseSampler, uv - width) * amount;\n"
+        "	outC += TextureDiffuse.Sample(DiffuseSampler, uv + width) * amount;\n"
         "	outC.rgb = (outC.r + outC.g + outC.b) / 3.0f;\n"
         "	return outC;\n"
         "}\n",
@@ -800,10 +797,10 @@ namespace mbm
         //Frosty out line **********************
         "frosty out line.ps",
 
-        "float width : register(C0);\n"
-        "float height : register(C1);\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float4 main(float2 middle : TEXCOORD) : COLOR\n"
+        "cbuffer FrostyOutlineValues : register(b0) { float width; float height; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 middle : TEXCOORD0) : SV_Target\n"
         "{\n"
         "	float2 topLeft;\n"
         "	float2 left;\n"
@@ -830,18 +827,18 @@ namespace mbm
         "	bottomRight.x = middle.x + 1/width;\n"
         "	bottomRight.y = middle.y + 1/height;\n"
 
-        "	float4 m = tex2D (TextureDiffuse , middle);\n"
-        "	float4 tl = tex2D (TextureDiffuse, topLeft);\n"
-        "	float4 l = tex2D (TextureDiffuse, left);\n"
-        "	float4 bl = tex2D (TextureDiffuse, bottomLeft);\n"
-        "	float4 t = tex2D (TextureDiffuse, top);\n"
-        "	float4 b = tex2D (TextureDiffuse, bottom);\n"
-        "	float4 tr = tex2D (TextureDiffuse, topRight);\n"
-        "	float4 r = tex2D (TextureDiffuse, right);\n"
-        "	float4 br = tex2D (TextureDiffuse, bottomRight);\n"
+        "	float4 m = TextureDiffuse.Sample(DiffuseSampler, middle);\n"
+        "	float4 tl = TextureDiffuse.Sample(DiffuseSampler, topLeft);\n"
+        "	float4 l = TextureDiffuse.Sample(DiffuseSampler, left);\n"
+        "	float4 bl = TextureDiffuse.Sample(DiffuseSampler, bottomLeft);\n"
+        "	float4 t = TextureDiffuse.Sample(DiffuseSampler, top);\n"
+        "	float4 b = TextureDiffuse.Sample(DiffuseSampler, bottom);\n"
+        "	float4 tr = TextureDiffuse.Sample(DiffuseSampler, topRight);\n"
+        "	float4 r = TextureDiffuse.Sample(DiffuseSampler, right);\n"
+        "	float4 br = TextureDiffuse.Sample(DiffuseSampler, bottomRight);\n"
 
         "	float4 color = (-tl-t-tr) + (-l+8*m-r) + (-bl-b-br);\n"
-        "	float4 color2 = tex2D(TextureDiffuse,middle);\n"
+        "	float4 color2 = TextureDiffuse.Sample(DiffuseSampler, middle);\n"
         "	float avg=color.r+color.g+color.b;\n"
         "	avg/=3;\n"
         "	color.rgb=avg;\n"
@@ -857,16 +854,14 @@ namespace mbm
         //Glass Tile **********************
         "glass tile.ps",
 
-        "float tiles : register(C0);\n"
-        "float bevelWidth : register(C1);\n"
-        "float4 groutColor : register(C2);\n"
-        "float offset: register(C3);\n"
-        "sampler2D TextureDiffuse : register(s0);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "cbuffer GlassTileValues : register(b0) { float tiles; float bevelWidth; float4 groutColor; float offset; };\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
         "	float2 newUV1;\n"
         "	newUV1.xy = uv.xy + tan((tiles*2.5)*uv.xy + offset)*(bevelWidth/100);\n"
-        "	float4 c1 = tex2D(TextureDiffuse, newUV1); \n"
+        "	float4 c1 = TextureDiffuse.Sample(DiffuseSampler, newUV1); \n"
         "	if(newUV1.x<0 || newUV1.x>1 || newUV1.y<0 || newUV1.y>1)\n"
         "	{\n"
         "		c1 = groutColor;\n"
@@ -885,8 +880,7 @@ namespace mbm
         //Poisson **********************
         "poisson.ps",
 
-        "float poisson : register(C0);\n"
-        "float2 inputSize : register(C1);\n"
+        "cbuffer PoissonValues : register(b0) { float poisson; float2 inputSize; };\n"
 
         "static const float2 poissonArray[12] = \n"
         "{\n"
@@ -903,17 +897,18 @@ namespace mbm
         "		float2(-0.32194f, -0.932615f),\n"
         "		float2(-0.791559f, -0.59771f)\n"
         "};\n"
-        "sampler2D TextureDiffuse : register(S0);\n"
-        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "Texture2D TextureDiffuse : register(t0);\n"
+        "SamplerState DiffuseSampler : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
         "{\n"
         "	float4 cOut;\n"
         // center tap
-    "	cOut = tex2D(TextureDiffuse, uv);\n"
+    "	cOut = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
     "	for(int tap = 0; tap < 12; tap++)\n"
     "	{\n"
     "		float2 coord= uv.xy + (poissonArray[tap] / inputSize * poisson);\n"
         // Sample pixel
-"		cOut += tex2D(TextureDiffuse, coord);\n"
+"		cOut += TextureDiffuse.Sample(DiffuseSampler, coord);\n"
 "	}\n"
 
 "	return(cOut / 13.0f);\n"
@@ -927,10 +922,11 @@ namespace mbm
 //Invert Color **********************
 "invert color.ps",
 
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"   float4 color = tex2D( TextureDiffuse, uv );\n"
+"   float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "   float4 invertedColor = float4(color.a - color.rgb, color.a);\n"
 "   return invertedColor;\n"
 "}\n",
@@ -941,11 +937,12 @@ namespace mbm
 //out of bounds **********************
 "out of bounds.ps",
 
-"sampler2D TextureDiffuse : register(S0);\n"
-"float3 color : register(C1);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"cbuffer OutOfBoundsValues : register(b0) { float3 color; };\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"   float4 colorRet = tex2D( TextureDiffuse, uv );\n"
+"   float4 colorRet = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "   if(uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1)\n"
 "      colorRet.rgb *= color.rgb;\n"
 "   return colorRet;\n"
@@ -958,18 +955,15 @@ namespace mbm
 //Light streak **********************
 "light streak.ps",
 
-"float brightThreshold : register(C0);\n"
-"float scale : register(C1);\n"
-"float attenuation : register(C2);\n"
-"float2 direction : register(C3);\n"
-"float2 inputSize : register(C4);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer LightStreakValues : register(b0) { float brightThreshold; float scale; float attenuation; float2 direction; float2 inputSize; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
 "	const static int numSamples = 2;\n"
 "	int Iteration = 1;\n"
 
-"	float4 pixelColor = tex2D(TextureDiffuse, uv);\n"
+"	float4 pixelColor = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	float3 rgb = pixelColor.rgb / pixelColor.a;\n"
 "	float3 bright = saturate((rgb - brightThreshold) / (1 - brightThreshold));\n"
 
@@ -981,7 +975,7 @@ namespace mbm
 "	{\n"
 "		float weight = pow(attenuation, weightIter * sample);\n"
 "		float2 texCoord = uv + (direction * weightIter * float2(sample, sample) / inputSize);\n"
-"		float4 sampleColor = tex2D(TextureDiffuse, texCoord);\n"
+"		float4 sampleColor = TextureDiffuse.Sample(DiffuseSampler, texCoord);\n"
 "		rgb += saturate(weight) * sampleColor.rgb / sampleColor.a;\n"
 "	}\n"
 
@@ -998,14 +992,12 @@ namespace mbm
 //Magnifying glass **********************
 "magnifying glass.ps",
 
-"float2 center : register(C0);\n"
-"float radius : register(C1);\n"
-"float magnification : register(C2);\n"
-"float aspectRatio : register(C4);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer MagnifyingGlassValues : register(b0) { float2 center; float radius; float magnification; float aspectRatio; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse, uv);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	float2 centerToPixel = uv - center;\n"
 "	float dist = length(centerToPixel / float2(1, aspectRatio));\n"
 "	float2 samplePoint = uv;\n"
@@ -1013,7 +1005,7 @@ namespace mbm
 "	{\n"
 "		samplePoint = center + centerToPixel / magnification;\n"
 "	}\n"
-"	return tex2D(TextureDiffuse, samplePoint);\n"
+"	return TextureDiffuse.Sample(DiffuseSampler, samplePoint);\n"
 "}\n",
 
 "[ps-magnifying-glass.ps] = magnifying glass.ps\n"
@@ -1026,14 +1018,13 @@ namespace mbm
 //Old Movie **********************
 "old movie.ps",
 
-"float scratchAmount : register(C0);\n"
-"float noiseAmount : register(C1);\n"
-"float frame : register(C4);\n"
-"static float ScratchAmountInv = 1.0 / scratchAmount;\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer OldMovieValues : register(b0) { float scratchAmount; float noiseAmount; float frame; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse, uv);\n"
+"	float ScratchAmountInv = 1.0 / scratchAmount;\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	float2 sc = frame * float2(0.001f, 0.4f);\n"
 "	sc.x = frac(uv.x + sc.x);\n"
 "	float scratch = sc.r;\n"
@@ -1042,7 +1033,7 @@ namespace mbm
 "	scratch = max(0, scratch);\n"
 "	color.rgb += scratch.rrr;\n"
 "	float2 rCoord = (uv) * 0.33;\n"
-"	float3 rand = tex2D(TextureDiffuse, rCoord);\n"
+"	float3 rand = TextureDiffuse.Sample(DiffuseSampler, rCoord).rgb;\n"
 "	if (noiseAmount > rand.r)\n"
 "	{\n"
 "		color.rgb = 0.1 + rand.b * 0.4;\n"
@@ -1063,12 +1054,10 @@ namespace mbm
 //Pinch mouse **********************
 "pinch mouse.ps",
 
-"float2 center : register(C0);"
-"float radius : register(C1);"
-"float strength : register(C2);"
-"float aspectRatio : register(C3);"
-"sampler2D TextureDiffuse : register(S0);"
-"float4 main(float2 uv : TEXCOORD) : COLOR"
+"cbuffer PinchMouseValues : register(b0) { float2 center; float radius; float strength; float aspectRatio; };"
+"Texture2D TextureDiffuse : register(t0);"
+"SamplerState DiffuseSampler : register(s0);"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target"
 "{"
 "	float2 newCenter;"
 "	newCenter.x = 1.0-(center.x / 794.0);"
@@ -1079,7 +1068,7 @@ namespace mbm
 "	float dist = length(scaledDir);"
 "	float range = saturate(1 - (dist / (abs(-sin(radius * 8) * radius) + 0.00000001F)));"
 "	float2 samplePoint = uv + dir * range * strength;"
-"	return tex2D(TextureDiffuse, samplePoint);"
+"	return TextureDiffuse.Sample(DiffuseSampler, samplePoint);"
 "}",
 
 "[ps-pinch-mouse.ps] = pinch mouse.ps\n"
@@ -1093,12 +1082,10 @@ namespace mbm
 //Pinch **********************
 "pinch.ps",
 
-"float2 center : register(C0);\n"
-"float radius : register(C1);\n"
-"float strength : register(C2);\n"
-"float aspectRatio : register(C3);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer PinchValues : register(b0) { float2 center; float radius; float strength; float aspectRatio; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
 "	float2 dir = center - uv;\n"
 "	float2 scaledDir = dir;\n"
@@ -1106,7 +1093,7 @@ namespace mbm
 "	float dist = length(scaledDir);\n"
 "	float range = saturate(1 - (dist / (abs(-sin(radius * 8) * radius) + 0.00000001F)));\n"
 "	float2 samplePoint = uv + dir * range * strength;\n"
-"	return tex2D(TextureDiffuse, samplePoint);\n"
+"	return TextureDiffuse.Sample(DiffuseSampler, samplePoint);\n"
 "}\n",
 
 "[ps-pinch.ps] = pinch.ps\n"
@@ -1119,13 +1106,10 @@ namespace mbm
 //Ripple **********************
 "ripple.ps",
 
-"float2 center : register(C0);\n"
-"float amplitude : register(C1);\n"
-"float frequency: register(C2);\n"
-"float phase: register(C3);\n"
-"float aspectRatio : register(C4);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer RippleValues : register(b0) { float2 center; float amplitude; float frequency; float phase; float aspectRatio; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
 
 "	float2 dir = uv - center;" // vector from center to pixel
@@ -1142,7 +1126,7 @@ namespace mbm
 
 "	dist += amplitude * wave.x * falloff;\n"
 "	float2 samplePoint = center + dist * dir;\n"
-"	float4 color = tex2D(TextureDiffuse, samplePoint);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, samplePoint);\n"
 
 "	float lighting = 1 - amplitude * 0.2 * (1 - saturate(wave.y * falloff));\n"
 "	color.rgb *= lighting;\n"
@@ -1160,15 +1144,15 @@ namespace mbm
 //Sharpen **********************
 "sharpen.ps",
 
-"float amount : register(C0);\n"
-"float2 inputSize : register(C1);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer SharpenValues : register(b0) { float amount; float2 inputSize; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
 "	float2 offset = 1 / inputSize;\n"
-"	float4 color = tex2D(TextureDiffuse, uv);\n"
-"	color.rgb += tex2D(TextureDiffuse, uv - offset) * amount;\n"
-"	color.rgb -= tex2D(TextureDiffuse, uv + offset) * amount;\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
+"	color.rgb += TextureDiffuse.Sample(DiffuseSampler, uv - offset).rgb * amount;\n"
+"	color.rgb -= TextureDiffuse.Sample(DiffuseSampler, uv + offset).rgb * amount;\n"
 "	return color;\n"
 "}\n",
 
@@ -1181,20 +1165,19 @@ namespace mbm
 //Sketch **********************
 "sketch.ps",
 
-"float brushSize : register(C0);\n"
-"sampler Image : register(s0);\n"
-"float4 main(float2 texCoord: TEXCOORD,uniform float scale,uniform float pixelSize) : COLOR\n"
+"cbuffer SketchValues : register(b0) { float brushSize; };\n"
+"Texture2D Image : register(t0);\n"
+"SamplerState ImageSampler : register(s0);\n"
+"float4 main(float2 texCoord : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D( Image, texCoord );  \n"
+"	float4 color = Image.Sample(ImageSampler, texCoord);  \n"
 "	float2 samples[4] = {0, -1,	-1, 0, 1, 0, 0, 1 };\n"
 "	float4 laplace = -4 * color;\n"
 
 "	for (int i = 0; i < 4; ++i)\n"
 "	{\n"
-"		laplace += tex2D(Image, texCoord + brushSize * samples[i]);\n"
-"		laplace.r=laplace.rgb;\n"
-"		laplace.g=laplace.rgb;\n"
-"		laplace.b=laplace.rgb;\n"
+"		laplace += Image.Sample(ImageSampler, texCoord + brushSize * samples[i]);\n"
+"		laplace.rgb = laplace.rrr;\n"
 "	}\n"
 
 "	laplace =(1/ laplace);\n"
@@ -1226,19 +1209,16 @@ namespace mbm
 //Smooth Magnify **********************
 "smooth magnify.ps",
 
-"float2 center : register(C0);\n"
-"float innerRadius: register(C1);\n"
-"float outerRadius : register(C2);\n"
-"float magnification : register(C3);\n"
-"float aspectRatio : register(C4);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer SmoothMagnifyValues : register(b0) { float2 center; float innerRadius; float outerRadius; float magnification; float aspectRatio; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
 "	float2 centerToPixel = uv - center;\n"
 "	float dist = length(centerToPixel / float2(1, aspectRatio));\n"
 "	float ratio = smoothstep(innerRadius, max(innerRadius, outerRadius), dist);\n"
 "	float2 samplePoint = lerp(center + centerToPixel / magnification, uv, ratio);\n"
-"	return tex2D(TextureDiffuse, samplePoint);\n"
+"	return TextureDiffuse.Sample(DiffuseSampler, samplePoint);\n"
 "}\n",
 
 "[ps-smooth-magnify.ps] = smooth magnify.ps\n"
@@ -1253,11 +1233,10 @@ namespace mbm
 //Spiral **********************
 "spiral.ps",
 
-"float2 center : register(C0);\n"
-"float spiralStrength : register(C1);\n"
-"float aspectRatio : register(C2);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer SpiralValues : register(b0) { float2 center; float spiralStrength; float aspectRatio; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
 "	float2 dir = uv - center;\n"
 "	dir.y /= aspectRatio;\n"
@@ -1271,7 +1250,7 @@ namespace mbm
 
 "	float2 samplePoint = center + newDir * dist;\n"
 "	bool isValid = all(samplePoint >= 0 && samplePoint <= 1);\n"
-"	return isValid ? tex2D(TextureDiffuse, samplePoint) : float4(0, 0, 0, 0);\n"
+"	return isValid ? TextureDiffuse.Sample(DiffuseSampler, samplePoint) : float4(0, 0, 0, 0);\n"
 "}\n",
 
 "[ps-spiral.ps] = spiral.ps\n"
@@ -1284,18 +1263,12 @@ namespace mbm
 //Tone Mapping **********************
 "tone mapping.ps",
 
-"float defog : register(C0);\n"
-"float4 fogColor : register(C1);\n"
-"float exposure : register(C2);\n"
-"float gamma : register(C3);\n"
-"float2 vignetteCenter : register(C4);\n"
-"float vignetteRadius : register(C5);\n"
-"float vignetteAmount : register(C6);\n"
-"float blueShift : register(C7);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer ToneMappingValues : register(b0) { float defog; float4 fogColor; float exposure; float gamma; float2 vignetteCenter; float vignetteRadius; float vignetteAmount; float blueShift; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 c = tex2D(TextureDiffuse, uv);\n"
+"	float4 c = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	c.rgb = max(0, c.rgb - defog * fogColor.rgb);\n"
 "	c.rgb *= pow(2.0f, exposure);\n"
 "	c.rgb = pow(c.rgb, gamma);\n"
@@ -1324,11 +1297,12 @@ namespace mbm
 //Toon **********************
 "toon.ps",
 
-"float levels : register(C0);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer ToonValues : register(b0) { float levels; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D( TextureDiffuse, uv );\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	color.rgb /= color.a;\n"
 
 "	int result = floor(levels);\n"
@@ -1346,10 +1320,11 @@ namespace mbm
 //Fade **********************
 "fade.ps",
 
-"float progress : register(C0);\n"
-"\n"
-"sampler2D TextureDiffuse : register(s0);\n"
-"sampler2D TextureAnimationEffect : register(s1);\n"
+"cbuffer FadeValues : register(b0) { float progress; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"Texture2D TextureAnimationEffect : register(t1);\n"
+"SamplerState AnimationEffectSampler : register(s1);\n"
 "\n"
 "struct PS_INPUT\n"
 "{\n"
@@ -1359,13 +1334,13 @@ namespace mbm
 "\n"
 "float4 Fade(float2 uv, float progress, float4 c2)\n"
 "{\n"
-"	float4 c1 = tex2D(TextureAnimationEffect, uv);\n"
+"	float4 c1 = TextureAnimationEffect.Sample(AnimationEffectSampler, uv);\n"
 "	return lerp(c1, c2, progress);\n"
 "}\n"
 "\n"
-"float4 main(PS_INPUT input) : COlOR\n"
+"float4 main(PS_INPUT input) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse, input.uv);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, input.uv);\n"
 "	return Fade(input.uv, progress / 100.0, color);\n"
 "}\n",
 
@@ -1376,9 +1351,11 @@ namespace mbm
 //Fade Radial **********************
 "fade radial.ps",
 
-"float progress : register(C0);\n"
-"sampler2D TextureDiffuse : register(s0);\n"
-"sampler2D TextureAnimationEffect : register(s1);\n"
+"cbuffer FadeRadialValues : register(b0) { float progress; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"Texture2D TextureAnimationEffect : register(t1);\n"
+"SamplerState AnimationEffectSampler : register(s1);\n"
 "static const int count = 24;\n"
 "\n"
 "float4 RadialBlur(float4 color, float progress, float2 uv)\n"
@@ -1391,15 +1368,15 @@ namespace mbm
 "	float s = progress * 0.02;\n"
 "	for (int i = 0; i < count; ++i)\n"
 "	{\n"
-"		c1 += tex2D(TextureAnimationEffect, uv - normToUV * s * i);\n"
+"		c1 += TextureAnimationEffect.Sample(AnimationEffectSampler, uv - normToUV * s * i);\n"
 "	}\n"
 "	c1 /= count;\n"
 "	return lerp(c1, color, progress);\n"
 "}\n"
 "\n"
-"float4 main(float2 uv : TEXCOORD) : COlOR\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse, uv);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	return RadialBlur(color, progress / 100, uv);\n"
 "}\n",
 
@@ -1411,9 +1388,11 @@ namespace mbm
 //Fade Ripple **********************
 "fade ripple.ps",
 
-"float progress : register(C0);\n"
-"sampler2D TextureDiffuse : register(s0);\n"
-"sampler2D TextureAnimationEffect : register(s1);\n"
+"cbuffer FadeRippleValues : register(b0) { float progress; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"Texture2D TextureAnimationEffect : register(t1);\n"
+"SamplerState AnimationEffectSampler : register(s1);\n"
 "\n"
 "float4 Ripple(float progress,float2 uv)\n"
 "{\n"
@@ -1429,13 +1408,12 @@ namespace mbm
 "	float offset2 = (1.0 - progress) * wave * amplitude;\n"
 "	float2 newUV1 = center + normToUV * (distanceFromCenter + offset1);\n"
 "	float2 newUV2 = center + normToUV * (distanceFromCenter + offset2);\n"
-"	float4 c1 = tex2D(TextureAnimationEffect, newUV1);\n"
-"	float4 c2 = tex2D(TextureDiffuse, newUV2);\n"
+"	float4 c1 = TextureAnimationEffect.Sample(AnimationEffectSampler, newUV1);\n"
+"	float4 c2 = TextureDiffuse.Sample(DiffuseSampler, newUV2);\n"
 "	return lerp(c1, c2, progress);\n"
 "}\n"
-"float4 main(float2 uv : TEXCOORD) : COlOR\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse,uv);\n"
 "	return Ripple(progress / 100,uv);\n"
 "}\n",
 
@@ -1446,13 +1424,15 @@ namespace mbm
 //Fade Saturate **********************
 "fade saturate.ps",
 
-"float progress : register(C0);\n"
-"sampler2D TextureDiffuse : register(s0);\n"
-"sampler2D TextureAnimationEffect : register(s1);\n"
+"cbuffer FadeSaturateValues : register(b0) { float progress; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"Texture2D TextureAnimationEffect : register(t1);\n"
+"SamplerState AnimationEffectSampler : register(s1);\n"
 "\n"
 "float4 Saturate(float2 uv, float progress,float4 c2)\n"
 "{\n"
-"	float4 c1 = tex2D(TextureAnimationEffect, uv);\n"
+"	float4 c1 = TextureAnimationEffect.Sample(AnimationEffectSampler, uv);\n"
 "	c1 = saturate(c1 * (2 * progress + 1));\n"
 "	if (progress > 0.8)\n"
 "	{\n"
@@ -1464,9 +1444,9 @@ namespace mbm
 "		return c1;\n"
 "	}\n"
 "}\n"
-"float4 main(float2 uv : TEXCOORD) : COlOR\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse,uv);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler,uv);\n"
 "	return Saturate(uv, progress / 100,color);\n"
 "}\n",
 
@@ -1478,10 +1458,11 @@ namespace mbm
 //Fade Twist **********************
 "fade twist.ps",
 
-"float progress : register(C0);\n"
-"float twistAmount : register(C1);\n"
-"sampler2D TextureDiffuse : register(s0);\n"
-"sampler2D TextureAnimationEffect : register(s1);\n"
+"cbuffer FadeTwistValues : register(b0) { float progress; float twistAmount; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"Texture2D TextureAnimationEffect : register(t1);\n"
+"SamplerState AnimationEffectSampler : register(s1);\n"
 "\n"
 "static const float4 vzero =\n"
 "{\n"
@@ -1491,12 +1472,12 @@ namespace mbm
 "	0\n"
 "};\n"
 "\n"
-"float4 SampleWithBorder(float4 border, sampler2D tex, float2 uv)\n"
+"float4 SampleAnimationEffectWithBorder(float4 border, float2 uv)\n"
 "{\n"
 "	if (any(saturate(uv) - uv))\n"
 "		return border;\n"
 "	else\n"
-"		return tex2D(tex, uv);\n"
+"		return TextureAnimationEffect.Sample(AnimationEffectSampler, uv);\n"
 "}\n"
 "\n"
 "float4 Swirl(float2 uv, float progress, float4 color)\n"
@@ -1511,13 +1492,13 @@ namespace mbm
 "	sincos(angle, newUV.y, newUV.x);\n"
 "	newUV *= distanceFromCenter;\n"
 "	newUV += center;\n"
-"	float4 c1 = SampleWithBorder(vzero, TextureAnimationEffect, newUV);\n"
+"	float4 c1 = SampleAnimationEffectWithBorder(vzero, newUV);\n"
 "	return lerp(c1, color, progress);\n"
 "}\n"
 "\n"
-"float4 main(float2 uv : TEXCOORD) : COlOR\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse, uv);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	return Swirl(uv, progress / 100, color);\n"
 "}\n",
 
@@ -1529,12 +1510,13 @@ namespace mbm
 //Fade Twist Grid **********************
 "fade twist grid.ps",
 
-"float progress : register(C0);\n"
-"float twistAmount : register(C1);\n"
-"sampler2D TextureDiffuse : register(s0);\n"
-"sampler2D TextureAnimationEffect : register(s1);\n"
+"cbuffer FadeTwistGridValues : register(b0) { float progress; float twistAmount; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"Texture2D TextureAnimationEffect : register(t1);\n"
+"SamplerState AnimationEffectSampler : register(s1);\n"
 "\n"
-"float4 SampleWithBorder(float4 border, sampler2D tex, float2 uv)\n"
+"float4 SampleAnimationEffectWithBorder(float4 border, float2 uv)\n"
 "{\n"
 "	if (any(saturate(uv) - uv))\n"
 "	{\n"
@@ -1542,7 +1524,7 @@ namespace mbm
 "	}\n"
 "	else\n"
 "	{\n"
-"		return tex2D(tex, uv);\n"
+"		return TextureAnimationEffect.Sample(AnimationEffectSampler, uv);\n"
 "	}\n"
 "}\n"
 "float4 SwirlGrid(float2 uv, float progress,float4 color)\n"
@@ -1572,12 +1554,12 @@ namespace mbm
 "	newUV2 += center;\n"
 "	newUV2 *= cellsize;\n"
 "	newUV2 += cell * cellsize;\n"
-"	float4 c1 = tex2D(TextureAnimationEffect, newUV2);\n"
+"	float4 c1 = TextureAnimationEffect.Sample(AnimationEffectSampler, newUV2);\n"
 "	return lerp(c1, color, progress);\n"
 "}\n"
-"float4 main(float2 uv : TEXCOORD) : COlOR\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse,uv);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler,uv);\n"
 "	return SwirlGrid(uv, progress / 100,color);\n"
 "}\n",
 
@@ -1589,11 +1571,13 @@ namespace mbm
 //Fade Wave **********************
 "fade wave.ps",
 
-"float progress : register(C0);\n"
-"sampler2D TextureDiffuse : register(s0);\n"
-"sampler2D TextureAnimationEffect : register(s1);\n"
+"cbuffer FadeWaveValues : register(b0) { float progress; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"Texture2D TextureAnimationEffect : register(t1);\n"
+"SamplerState AnimationEffectSampler : register(s1);\n"
 "\n"
-"float4 SampleWithBorder(float4 border, sampler2D tex, float2 uv)\n"
+"float4 SampleAnimationEffectWithBorder(float4 border, float2 uv)\n"
 "{\n"
 "	if (any(saturate(uv) - uv))\n"
 "	{\n"
@@ -1601,7 +1585,7 @@ namespace mbm
 "	}\n"
 "	else\n"
 "	{\n"
-"		return tex2D(tex, uv);\n"
+"		return TextureAnimationEffect.Sample(AnimationEffectSampler, uv);\n"
 "	}\n"
 "}\n"
 "float4 Wave(float2 uv, float progress,float4 color)\n"
@@ -1610,13 +1594,13 @@ namespace mbm
 "	float phase = 14;\n"
 "	float freq = 20;\n"
 "	float2 newUV = uv + float2(mag * progress * sin(freq * uv.y + phase * progress), 0);\n"
-"	float4 c1 = SampleWithBorder(0, TextureAnimationEffect, newUV);\n"
+"	float4 c1 = SampleAnimationEffectWithBorder(0, newUV);\n"
 "	return lerp(c1, color, progress);\n"
 "}\n"
 "\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse, uv);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	return Wave(uv, progress / 100,color);\n"
 "}\n",
 
@@ -1628,18 +1612,18 @@ namespace mbm
 //Blur com Zoom **********************
 "blur zoom.ps",
 
-"float2 center : register(C0);\n"
-"float blurAmount : register(C1);\n"
-"sampler2D TextureDiffuse : register(S0);\n"
-"float4 main(float2 uv : TEXCOORD) : COLOR\n"
+"cbuffer BlurZoomValues : register(b0) { float2 center; float blurAmount; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse, uv);\n"
+"	float4 color = TextureDiffuse.Sample(DiffuseSampler, uv);\n"
 "	float4 c = 0;\n"
 "	uv -= center;\n"
 "	for (int i = 0; i < 15; ++i)\n"
 "	{\n"
 "		float scale = 1.0 + blurAmount * (i / 14.0);\n"
-"		c += tex2D(TextureDiffuse, uv * scale + center);\n"
+"		c += TextureDiffuse.Sample(DiffuseSampler, uv * scale + center);\n"
 "	}\n"
 "	c /= 15;\n"
 "	return c;\n"
@@ -1654,21 +1638,18 @@ namespace mbm
 //Texture Map **********************
 "texture map.ps",
 
-"sampler2D TextureDiffuse : register(s0);\n"
-"sampler2D TextureAnimationEffect : register(s2);\n"
-"float horizontalSize : register(c0);\n"
-"float verticalSize : register(c3);\n"
-"float verticalOffset : register(C1);\n"
-"float horizontalOffset : register(C4);\n"
-"float strength : register(c5);\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"Texture2D TextureAnimationEffect : register(t2);\n"
+"SamplerState AnimationEffectSampler : register(s2);\n"
+"cbuffer TextureMapValues : register(b0) { float horizontalSize; float verticalSize; float verticalOffset; float horizontalOffset; float strength; };\n"
 "\n"
-"float4 main(float2 uv : TEXCOORD) : COlOR\n"
+"float4 main(float2 uv : TEXCOORD0) : SV_Target\n"
 "{\n"
-"	float4 color = tex2D(TextureDiffuse, uv);\n"
 "	float horzOffset = frac(uv.x / horizontalSize + min(1, horizontalOffset));\n"
 "	float vOffset = frac(uv.y / verticalSize + min(1, verticalOffset));\n"
-"	float2 offset = tex2D(TextureAnimationEffect, float2(horzOffset, vOffset)).xy * strength - (strength / 8);\n"
-"	float4 c1 = tex2D(TextureDiffuse, frac(uv + offset));\n"
+"	float2 offset = TextureAnimationEffect.Sample(AnimationEffectSampler, float2(horzOffset, vOffset)).xy * strength - (strength / 8);\n"
+"	float4 c1 = TextureDiffuse.Sample(DiffuseSampler, frac(uv + offset));\n"
 "	return c1;\n"
 "}\n",
 
@@ -1682,7 +1663,7 @@ namespace mbm
 
 //Lit Textured **********************
 "lit textured.ps",
-kLitTexturedPixelShaderD3D9.c_str(),
+kLitTexturedPixelShaderD3D11.c_str(),
 
 "[ps-lit-textured.ps] = lit textured.ps\n",
 //Lit Textured **********************
@@ -1690,18 +1671,21 @@ kLitTexturedPixelShaderD3D9.c_str(),
 //Lit Solid **********************
 "lit solid.ps",
 
-"int LightEnabled;\n"
-"int LightMode;\n"
-"float4 AmbientColor;\n"
-"float3 LightDirectionView;\n"
-"float4 LightColor;\n"
-"float4 MaterialDiffuse;\n"
-"float4 MaterialAmbient;\n"
-"float4 MaterialSpecular;\n"
-"float4 MaterialEmissive;\n"
-"float MaterialPower;\n"
+"cbuffer LitSolidValues : register(b0)\n"
+"{\n"
+"    int LightEnabled;\n"
+"    int LightMode;\n"
+"    float4 AmbientColor;\n"
+"    float3 LightDirectionView;\n"
+"    float4 LightColor;\n"
+"    float4 MaterialDiffuse;\n"
+"    float4 MaterialAmbient;\n"
+"    float4 MaterialSpecular;\n"
+"    float4 MaterialEmissive;\n"
+"    float MaterialPower;\n"
+"};\n"
 "\n"
-"float4 main(float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2) : COLOR\n"
+"float4 main(float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2) : SV_Target\n"
 "{\n"
 "    float4 baseColor = float4(1,1,1,1);\n"
 "    if (LightEnabled == 0 || LightMode != 1)\n"

@@ -90,7 +90,8 @@ $tests = @(
     "--directx11-blend-state-test",
     "--directx11-sampler-state-test",
     "--directx11-texture-upload-test",
-    "--directx11-texture-stage-test"
+    "--directx11-texture-stage-test",
+    "--directx11-builtin-shader-test"
 )
 
 $passed = 0

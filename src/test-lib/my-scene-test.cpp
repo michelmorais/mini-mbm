@@ -19,6 +19,7 @@
 
 #include "my-scene-test.h"
 #include "directx11-skeletal-parity-tests.h"
+#include "directx11-builtin-shader-tests.h"
 #include "gles-skeletal-parity-tests.h"
 #include "directx9-skeletal-parity-tests.h"
 #if defined(USE_METAL)
@@ -105,6 +106,7 @@ MY_SCENE::MY_SCENE()
     testGlesSkeletalParity = false;
     testDirectX9SkeletalParity = false;
     testDirectX11Foundation = false;
+    testDirectX11BuiltinShaders = false;
     testDirectX11ShaderProfiles = false;
     testDirectX11TextureFailure = false;
     testDirectX11ScreenSize = false;
@@ -189,6 +191,12 @@ void MY_SCENE::onInitScene()
     util::addPath(__FILE__);
 
 #if defined(USE_DIRECTX11)
+    if (testDirectX11BuiltinShaders)
+    {
+        automatedTestFailed = runDirectX11BuiltinShaderTests() != 0;
+        device->setRun(false);
+        return;
+    }
     if (testDirectX11TextureStages)
     {
         texture = new mbm::TEXTURE_VIEW(this, false, true);

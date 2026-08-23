@@ -678,8 +678,10 @@ Use `lit textured.ps` for normal-capable geometry that also has UVs and a stage-
 These built-ins require a vertex format with normals. They are intended for `FVF_POS_NOR_UV` and
 `FVF_POS_NOR` style meshes; objects without normals should keep using the unlit/default path.
 
-DirectX 11 supports these standalone pixel-shader resources through reflected reserved-light
-constants and supplies the normal/position varyings from its generated default vertex shader.
+DirectX 11 implements these standalone pixel-shader resources with native `Texture2D`,
+`SamplerState`, constant-buffer reflection, and `SV_Target` semantics. It supplies the
+normal/position varyings from its generated default vertex shader without enabling the DirectX 9
+shader-compatibility compiler flag.
 
 ## Material Texture Slots
 
