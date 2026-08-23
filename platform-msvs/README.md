@@ -84,10 +84,10 @@ set the `<MbmBackend>` property in `platform-msvs/mbm-backend.user.props`:
 <!-- DirectX 9 -->
 <MbmBackend>DirectX9</MbmBackend>
 
-<!-- DirectX 11 (default for Debug|Win32) -->
+<!-- DirectX 11 (default for Release) -->
 <MbmBackend>DirectX11</MbmBackend>
 
-<!-- OpenGL ES 2.0 (default for all other configurations) -->
+<!-- OpenGL ES 2.0 (default for Debug) -->
 <MbmBackend>OpenGLES</MbmBackend>
 ```
 
@@ -95,88 +95,13 @@ Default assignments:
 
 | Configuration | Default backend |
 |---|---|
-| `Debug\|Win32` | **DirectX 11** |
-| `Release\|Win32` | **DirectX 9** |
-| `Debug\|x64` | OpenGL ES |
-| `Release\|x64` | OpenGL ES |
+| `Debug\|Win32` | **OpenGL ES** |
+| `Release\|Win32` | **DirectX 11** |
+| `Debug\|x64` | **OpenGL ES** |
+| `Release\|x64` | **DirectX 11** |
 
 You can override without editing the file by passing `/p:MbmBackend=DirectX9`,
 `DirectX11`, or `OpenGLES` on the MSBuild command line (see below).
-
-> **DirectX 11 backend status:** device, swap chain, back buffer, depth buffer,
-> resize, clear, present, static/dynamic vertex buffers, 16-bit index buffers,
-> and the basic HLSL geometry pipeline are implemented. A `SHAPE_MESH` rectangle
-> is exercised by the automated smoke test. RGBA/RGB uploads, shader-resource views,
-> sampling, solid-color shape textures, and the engine's alpha/destination blend modes are
-> implemented. The internal `LINE_MESH` constant-color shader is also available. Generated default
-> material lighting supports `3d` and `2dw`, including directional and nearest point lights, material
-> contributions, normal maps, and skeletal deformation before lighting. Custom HLSL shaders that
-> explicitly declare reserved-light inputs receive the same per-object values. Canonical skeletal rendering supports GPU LBS and rigid DQS
-> with per-draw constant-buffer palettes and a secondary influence stream. Custom HLSL pixel/vertex shaders now compile with
-> reflected CFG variables across multiple constant buffers per shader stage and texture stages 0-5. Pixel-perfect draws select an independent
-> nearest-neighbor/wrap sampler and restore the default linear/clamp sampler afterward. Render-to-texture uses dedicated
-> color/depth targets, exposes captured color as a shader resource, and supports cropped PNG readback. `PARTICLE` and
-> `STEERED_PARTICLE` support textured dynamic quads, per-particle/group color, alpha, and the
-> established temporary depth-disable behavior through native Shader Model 4 signatures on DirectX 11.
-> `MESH_MBM_DEBUG::loadDebugFromMemory()` reads back
-> indexed/interleaved DX11 buffers for editor and diagnostic workflows. Cached rasterizer states
-> honor each buffer's `CULL_FRONT`, `CULL_BACK`, `CULL_FRONT_AND_BACK`, `CW`, and `CCW` settings.
-> DirectX 11 reports `vs_4_0`/`ps_4_0` as its default shader profiles and honors runtime
-> `setVSVersion()`/`setPSVersion()` overrides when compiling generated and custom shaders.
-> Failed common texture decodes return `nullptr` on DirectX 11 and are never represented or cached
-> as texture objects without a shader-resource view.
-> The public `CORE_MANAGER::getScreenSize()` contract is implemented for DirectX 11 and reports
-> the primary Windows monitor dimensions.
-> The `--directx11-resize-test` testLib mode drives the regular queued window-resize event and
-> verifies the recreated back-buffer/depth views, viewport dimensions, and scene notification.
-> The `--directx11-depth-state-test` mode verifies the native enabled/disabled depth-stencil
-> states and exercises depth-only and color/depth clears under the DirectX debug layer.
-> The `--directx11-blend-state-test` mode verifies all 55 combinations of the 11 legacy
-> destination blend modes and five blend operations against their native DirectX 11 states.
-> The `--directx11-sampler-state-test` mode renders a textured fixture and verifies all six
-> pixel-shader sampler slots in both default filtered/clamp and pixel-perfect point/wrap modes.
-> The `--directx11-texture-upload-test` mode uploads asymmetric 2x2 RGB and RGBA fixtures,
-> reads both native textures back through staging resources, and verifies every RGBA byte.
-> The `--directx11-texture-stage-test` mode renders six distinct textures through one buffer
-> and verifies the exact shader-resource view bound at each pixel-shader slot from 0 through 5.
-> The standalone `--directx11-builtin-shader-test` mode compiles every entry returned by
-> `getShaderEngineBuiltIn()` independently with the active `ps_4_0`/`vs_4_0` profile and no
-> DirectX 9 compatibility flags. The mode is a required entry in the regular
-> regression runner so no shader can silently regain a dependency on DirectX 9 compatibility.
-> Run `powershell -ExecutionPolicy Bypass -File platform-msvs/run-directx11-tests.ps1` from the
-> repository root to build the DirectX 11 `libTest` target and execute the complete automated
-> DX11 regression matrix. The runner stops at the first failure and reports the completed count.
-> In Debug builds, every test also drains the Direct3D debug-layer message queue and fails on API
-> warnings, errors, or corruption messages; Windows Graphics Tools must therefore be installed.
-> After each test, the harness destroys the scene and engine, requests a detailed live-object report,
-> and fails if any Direct3D 11 child resource remains alive. The diagnostic references that keep the
-> device itself available long enough to produce that report are expected and are not counted as leaks.
-> The Dear ImGui plugin is wired to the DX11 renderer and Win32 platform backend. Its reproducible
-> Lua smoke scene is `src/test-lib/directx11-imgui-smoke.lua`; it hides the console, renders widgets
-> for three seconds, prints `DIRECTX11_IMGUI_SMOKE_OK`, and exits automatically.
-
-### DirectX 11 delivery acceptance checklist
-
-Run these checks from a clean repository root before accepting a DirectX 11 delivery:
-
-1. Install the prerequisites listed above, including Windows Graphics Tools for Debug validation.
-2. Run `powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-directx11-tests.ps1`.
-   Acceptance requires every test to pass, including the complete built-in shader gate, with no
-   Direct3D warning/error/corruption message and no live child object after teardown.
-3. Build the established comparison backend:
-   `msbuild platform-msvs/mini-mbm.sln /t:libTest /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal`.
-4. Build the complete DirectX 11 solution, not only `libTest`:
-   `msbuild platform-msvs/mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /p:MbmBackend=DirectX11 /m /v:minimal`.
-5. Run `src/test-lib/directx11-imgui-smoke.lua` through the DirectX 11 `mini-mbm` build:
-   `cd platform-msvs/Debug` followed by
-   `mini_mbm.exe --scene ../../src/test-lib/directx11-imgui-smoke.lua --disable_select_monitor --nosplash -w 640 -h 480`.
-   Require exit code zero and the `DIRECTX11_IMGUI_SMOKE_OK` sentinel. This is a runtime
-   plugin/editor integration check and is intentionally separate from the native `libTest` matrix.
-6. Manually compare `libTest` against DirectX 9 for the visual rows that cannot be reduced to native
-   state/readback assertions, then verify at least one established game with DirectX 11.
-
-The solution currently has complete acceptance coverage for `x86`. The `x64` configurations are not
-release gates because the bundled Windows audio/runtime dependencies are not fully supported there.
 
 The same property sheet also defines the lighting compile-time cap:
 
@@ -197,10 +122,10 @@ The solution exposes four configurations:
 
 | Configuration | Platform | Notes |
 |---|---|---|
-| `Debug` | `Win32` (x86) | Debug symbols, no optimization. DirectX 11 backend by default. |
-| `Release` | `Win32` (x86) | Full optimization. DirectX 9 comparison backend by default. |
+| `Debug` | `Win32` (x86) | Debug symbols, no optimization. OpenGL ES backend by default. |
+| `Release` | `Win32` (x86) | Full optimization. DirectX 11 backend by default. |
 | `Debug` | `x64` | Debug symbols. OpenGL ES backend by default. |
-| `Release` | `x64` | Full optimization. OpenGL ES backend by default. |
+| `Release` | `x64` | Full optimization. DirectX 11 backend by default. |
 
 ---
 

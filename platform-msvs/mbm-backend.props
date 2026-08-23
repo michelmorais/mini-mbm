@@ -15,9 +15,9 @@
           Condition="Exists('$(MSBuildThisFileDirectory)mbm-backend.user.props')" />
 
   <PropertyGroup Label="MbmBackendDefaults">
-    <!-- Debug|Win32 exercises DirectX11; Release|Win32 remains the DirectX9 comparison baseline. -->
-    <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)|$(Platform)'=='Debug|Win32'">DirectX11</MbmBackend>
-    <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)|$(Platform)'=='Release|Win32'">DirectX9</MbmBackend>
+    <!-- Use OpenGL ES while developing and DirectX 11 for production Windows builds. -->
+    <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)'=='Debug'">OpenGLES</MbmBackend>
+    <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)'=='Release'">DirectX11</MbmBackend>
     <MbmBackend Condition="'$(MbmBackend)'==''">OpenGLES</MbmBackend>
     <MbmSupportedMaxLights Condition="'$(MbmSupportedMaxLights)'==''">4</MbmSupportedMaxLights>
     <MbmDirectX9SdkRoot Condition="'$(MbmDirectX9SdkRoot)'==''">C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)</MbmDirectX9SdkRoot>
