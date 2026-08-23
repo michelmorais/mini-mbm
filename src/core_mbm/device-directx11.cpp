@@ -124,7 +124,7 @@ namespace mbm
         if (dxgiDevice)
             dxgiDevice->Release();
 
-        std::snprintf(description, sizeof(description), "Direct3D 11 - Feature Level %s - %s",
+        std::snprintf(description, sizeof(description), "\nDirect3D 11 - Feature Level %s - %s",
                       featureLevel, adapterName);
         return description;
     }
