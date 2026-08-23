@@ -141,8 +141,7 @@ You can override without editing the file by passing `/p:MbmBackend=DirectX9`,
 > and verifies the exact shader-resource view bound at each pixel-shader slot from 0 through 5.
 > The standalone `--directx11-builtin-shader-test` mode compiles every entry returned by
 > `getShaderEngineBuiltIn()` independently with the active `ps_4_0`/`vs_4_0` profile and no
-> DirectX 9 compatibility flags. The initial copied-DX9 baseline was `8/57`; after migrating the
-> full built-in catalogue now passes `57/57`. The mode is a required entry in the regular `16/16`
+> DirectX 9 compatibility flags. The mode is a required entry in the regular
 > regression runner so no shader can silently regain a dependency on DirectX 9 compatibility.
 > Run `powershell -ExecutionPolicy Bypass -File platform-msvs/run-directx11-tests.ps1` from the
 > repository root to build the DirectX 11 `libTest` target and execute the complete automated
@@ -162,8 +161,8 @@ Run these checks from a clean repository root before accepting a DirectX 11 deli
 
 1. Install the prerequisites listed above, including Windows Graphics Tools for Debug validation.
 2. Run `powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-directx11-tests.ps1`.
-   Acceptance requires `16/16 tests`, including the `57/57` built-in shader gate, no Direct3D
-   warning/error/corruption message, and no live child object after teardown.
+   Acceptance requires every test to pass, including the complete built-in shader gate, with no
+   Direct3D warning/error/corruption message and no live child object after teardown.
 3. Build the established comparison backend:
    `msbuild platform-msvs/mini-mbm.sln /t:libTest /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal`.
 4. Build the complete DirectX 11 solution, not only `libTest`:
@@ -173,7 +172,7 @@ Run these checks from a clean repository root before accepting a DirectX 11 deli
    `mini_mbm.exe --scene ../../src/test-lib/directx11-imgui-smoke.lua --disable_select_monitor --nosplash -w 640 -h 480`.
    Require exit code zero and the `DIRECTX11_IMGUI_SMOKE_OK` sentinel. This is a runtime
    plugin/editor integration check and is intentionally separate from the native `libTest` matrix.
-7. Manually compare `libTest` against DirectX 9 for the visual rows that cannot be reduced to native
+6. Manually compare `libTest` against DirectX 9 for the visual rows that cannot be reduced to native
    state/readback assertions, then verify at least one established game with DirectX 11.
 
 The solution currently has complete acceptance coverage for `x86`. The `x64` configurations are not

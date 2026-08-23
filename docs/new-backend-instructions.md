@@ -613,27 +613,27 @@ float ey = device->getBackBufferHeight() - os_y;  // both in logical points — 
 
 ---
 
-## 14. Milestone checklist
+## 14. Implementation checklist
 
 Implement features in this order to reach a testable state as early as possible.
-For each milestone, check the Metal implementation in `src/core_mbm/shader-metal.mm`
+For each item, check the Metal implementation in `src/core_mbm/shader-metal.mm`
 and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
 
-- [ ] **M1 — Window + clear screen**: `initGraphics`, `beginRender`, `endRender`,
+- [ ] **Window + clear screen**: `initGraphics`, `beginRender`, `endRender`,
       `swapBuffers`, background color.  Run testLib; a coloured window should appear.
-- [ ] **M2 — Textures**: `TEXTURE::loadFromData`, `TEXTURE::loadFromResourceData`,
+- [ ] **Textures**: `TEXTURE::loadFromData`, `TEXTURE::loadFromResourceData`,
       `TEXTURE::release`.  PNG images should decode and display.
-- [ ] **M3 — Shaders + static buffers**: `compileShader`, `loadBuffer(VB)`,
+- [ ] **Shaders + static buffers**: `compileShader`, `loadBuffer(VB)`,
       `loadBuffer(IB)`, `render`, and the backend mapping for `RENDER_STATE::set`/blend
       operations. 3D meshes and 2D quads should draw correctly, and transparent texels in
       fonts, tiles, sprites, and backgrounds must composite instead of rendering black.
-- [ ] **M4 — Culling + depth**: apply `mode_cull_face` + `mode_front_face_direction` per
+- [ ] **Culling + depth**: apply `mode_cull_face` + `mode_front_face_direction` per
       draw call; attach depth buffer to render pass.  Meshes should stop showing inner faces.
-- [ ] **M5 — Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.
+- [ ] **Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.
       Pre-baked frame animation, line meshes, and text rendering require this.
-- [ ] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
-- [ ] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
-- [ ] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
+- [ ] **Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
+- [ ] **Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
+- [ ] **Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
       `VAR_SHADER` constructor with backend handle.  See §15 for the shader catalogue
       and §A2 for Metal-specific notes (PSO variants, FVF attribute patching).
       Audit editor-generated shaders as well as engine defaults: every backend branch must
@@ -643,16 +643,15 @@ and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
       Verify that `mbm.get('USE_<BACKEND>')` is exposed by the Lua dispatcher and returns true
       on the new backend, because editors use these runtime keys to select native shader source.
       For DirectX 11, run `libTest --directx11-builtin-shader-test`: it compiles every built-in
-      resource independently without compatibility flags. The initial copied-DX9 catalogue baseline
-      was 8/57 and the native catalogue now passes 57/57; keep this command in the regular
-      regression runner so compatibility regressions fail delivery.
-- [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
-- [ ] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
-      `HMD.cpp` is platform-agnostic and builds on M7.
-- [ ] **M11 — Canonical skeletal GPU path**: measure capability, upload the secondary influence
+      resource independently without compatibility flags. Keep this command in the regular
+      regression runner so any compatibility regression fails delivery.
+- [ ] **Fluid particles**: `renderParticle(FLUID_GROUP*)`.
+- [ ] **Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
+      `HMD.cpp` is platform-agnostic and builds on render-to-texture support.
+- [ ] **Canonical skeletal GPU path**: measure capability, upload the secondary influence
       stream, compile/cache LBS and rigid-DQS default variants, upload each instance palette before
       lighting, and validate bind identity plus animated LBS/DQS against CPU references. Do not
-      reuse M5 as a CPU-deformation fallback.
+      reuse the dynamic-buffer path as a CPU-deformation fallback.
 
 ---
 
@@ -759,7 +758,7 @@ When translating the built-in catalogue to MSL:
 | `[[buffer(1)]]` | `Uniforms` struct: `{ float4x4 mvp; float4x4 mv; float4 color; }` |
 | `[[buffer(2)]]` | custom `FragUniforms` struct (per-shader; produced from `VAR_SHADER` list) |
 
-**Custom uniforms (M8):** each built-in shader that has `[type][varName]` lines in
+**Custom uniforms:** each built-in shader that has `[type][varName]` lines in
 its CFG string needs a matching `struct FragUniforms` in its MSL source.  The fields
 must appear **in the same order** as the CFG variable declarations so that
 `VAR_SHADER::ptrHandleVar` (which stores a byte offset into this struct) works
@@ -796,7 +795,7 @@ placeholder.  This is a `blend.ps`-specific constraint; pixel shaders that use o
 | `src/core_mbm/shader-opengl_es.cpp` | OpenGL ES | Reference for culling, winding, uniform upload |
 | `src/core_mbm/shader-directx9.cpp` | D3D9 | Reference for dynamic buffers, skeletal declarations, HLSL variants, and palette constants |
 | `src/core_mbm/shader-directx11.cpp` | D3D11 | Shader compilation, reflected CFG variables, buffers, input layouts, and render states |
-| `src/core_mbm/shader-resource-directx11.cpp` | D3D11 | Backend-specific HLSL resources; all 57/57 entries compile natively (from an initial copied-DX9 baseline of 8/57), enforced by `--directx11-builtin-shader-test` in the regular regression runner |
+| `src/core_mbm/shader-resource-directx11.cpp` | D3D11 | Backend-specific HLSL resources; every entry compiles natively, enforced by `--directx11-builtin-shader-test` in the regular regression runner |
 | `src/core_mbm/core-manager-directx11.cpp` | D3D11 | Device/swap-chain lifecycle, frame rendering, and render-target orchestration |
 | `src/core_mbm/texture-manager-directx11.cpp` | D3D11 | RGB/RGBA texture upload and shader-resource creation |
 | `src/core_mbm/device-directx11.cpp` | D3D11 | Projection, depth, viewport, and backend capability reporting |
@@ -1239,7 +1238,7 @@ check in `render()`.
 | `src/core_mbm/blend-metal.mm` | `RENDER_STATE::set()` stores blend state; `setBlendOp()` documented no-op |
 | `src/core_mbm/shader-metal.mm` | `render()` and `renderDynamic()` select PSO via `currentBlendState` |
 
-**M8 additional notes (Metal):**
+**Additional custom-shader notes (Metal):**
 - `VAR_SHADER` fields must appear **in CFG declaration order** so byte-offset handles computed by `VAR_SHADER::ptrHandleVar` are correct — but nothing enforced this until `CFG_FROM_MEMORY::insertionOrder` was added; see §A5 Bug 2 for the real bug this caused (a silently rotated/wrong-hue uniform, only on Metal).
 - Prewritten VS programs (`scale.vs`, `simple texture.vs`) hardcode `uv [[attribute(1)]]`. For `FVF_POS_NOR_UV` meshes the normal sits at slot 1 and UV at slot 2 — call `patchVInStruct(vsStr, fvf)` in `compileShader` to rewrite the `struct VIn` block. That rewrite also **renames every field** to `pos`/`nor`/`uv` regardless of what the original source used — always write prewritten VS bodies against those exact names; see §A5 Bug 1 for the compile error this caused when `outline.vs` used `normal` instead.
 - **Known issue — `blend.ps + scale.vs` invisible when scale > 0.5** (seen on both OpenGL ES and Metal): `blend.ps` always samples `TextureAnimationEffect`; if only one texture is bound the blend formula collapses to transparent. Always bind a 1×1 white placeholder when using `blend.ps` with a single-texture object.
