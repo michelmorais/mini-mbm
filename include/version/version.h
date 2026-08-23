@@ -578,8 +578,9 @@
     7.174.19 Fixed DirectX 11 Sprite Maker animation previews rendering upside down by applying the established top-origin render-target V orientation to both the animated quad and its ImGui frame previews.
     7.174.20 Fixed DirectX 11 pixel-stage input signatures (including legacy shader normalization), restored the edge-gradient CFG order expected by existing binary assets across all backends, and documented cross-backend CFG schema invariance.
     7.175.0 Added the cross-backend spotlight overlay built-in shader for tutorial and coach-mark focus effects.
+    7.175.1 Fixed DirectX 11 offscreen render targets ignoring alwaysRender during the capture pass, which left Scene Editor 3D mesh-selector thumbnails black.
 */
-#define MBM_VERSION "7.175.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.175.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

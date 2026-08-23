@@ -274,7 +274,10 @@ namespace mbm
         for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
             RENDERIZABLE_TO_TARGET *renderTarget = device->getRenderTarget(i);
-            if (!renderTarget || !renderTarget->isOnFrustum())
+            // Frustum preparation owns this flag and also folds in alwaysRender. Calling
+            // isOnFrustum() again here would discard that override, unlike the other backends,
+            // and skip offscreen render targets used as editor thumbnail generators.
+            if (!renderTarget || !renderTarget->getIsObjectOnFrustum())
                 continue;
             RENDER2TARGET_DIRECTX11 *target = static_cast<RENDER2TARGET_DIRECTX11 *>(renderTarget->getRenderTargetSpecificConfig());
             if (!target || !target->renderTargetView || !target->depthView)

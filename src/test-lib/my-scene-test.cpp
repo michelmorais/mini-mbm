@@ -678,6 +678,10 @@ void MY_SCENE::onInitScene()
             return;
         }
         render2Texture = new mbm::RENDER_2_TEXTURE(this, false, true);
+        // Match editor thumbnail generators: keep the display quad offscreen while forcing
+        // the capture pass to run. This guards each backend against bypassing alwaysRender.
+        render2Texture->setPosition(mbm::VEC3(0.0f, -1000000.0f, 0.0f));
+        render2Texture->setAlwaysRenderize(true);
         render2Texture->setRenderTargetClearColor(mbm::COLOR(
             static_cast<uint8_t>(17), static_cast<uint8_t>(34),
             static_cast<uint8_t>(51), static_cast<uint8_t>(68)));
