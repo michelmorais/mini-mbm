@@ -577,8 +577,9 @@
     7.174.18 Added the complete native DirectX 11 Windows backend, including geometry, textures, blending, particles, render-to-texture, HMD, custom and built-in HLSL shaders without DirectX 9 compatibility mode, material lighting, canonical GPU skeletal animation, editor integration, Direct3D diagnostics, resource-lifecycle validation, and the automated regression runner.
     7.174.19 Fixed DirectX 11 Sprite Maker animation previews rendering upside down by applying the established top-origin render-target V orientation to both the animated quad and its ImGui frame previews.
     7.174.20 Fixed DirectX 11 pixel-stage input signatures (including legacy shader normalization), restored the edge-gradient CFG order expected by existing binary assets across all backends, and documented cross-backend CFG schema invariance.
+    7.175.0 Added the cross-backend spotlight overlay built-in shader for tutorial and coach-mark focus effects.
 */
-#define MBM_VERSION "7.174.20" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.175.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

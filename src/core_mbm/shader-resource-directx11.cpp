@@ -995,6 +995,31 @@ namespace mbm
 "[ps-light-streak.ps][vector2][attenuation]    = min 1.0 1.0       max 1000.0 1000.0       default 800.0 600.0\n",
 //Light streak **********************
 
+//Spotlight overlay **********************
+"spotlight overlay.ps",
+
+"cbuffer SpotlightOverlayValues : register(b0) { float2 center; float radius; float2 screenSize; };\n"
+"Texture2D TextureDiffuse : register(t0);\n"
+"SamplerState DiffuseSampler : register(s0);\n"
+"struct SPOTLIGHT_OVERLAY_PS_INPUT\n"
+"{\n"
+"    float4 position : SV_POSITION;\n"
+"    float2 uv : TEXCOORD0;\n"
+"};\n"
+"float4 main(SPOTLIGHT_OVERLAY_PS_INPUT input) : SV_Target\n"
+"{\n"
+"    float4 color = TextureDiffuse.Sample(DiffuseSampler, input.uv);\n"
+"    float2 normalizedCenter = center / screenSize;\n"
+"    if (length(input.uv - normalizedCenter) < radius)\n"
+"        color.a = 0.0;\n"
+"    return color;\n"
+"}\n",
+
+"[ps-spotlight-overlay.ps] = spotlight overlay.ps\n"
+"[ps-spotlight-overlay.ps][vector2][center] = min -16384 -16384 max 16384 16384 default 0 0\n"
+"[ps-spotlight-overlay.ps][float][radius] = min 0.0 max 1.0 default 0.1\n"
+"[ps-spotlight-overlay.ps][vector2][screenSize] = min 1 1 max 16384 16384 default 1280 720\n",
+
 //Magnifying glass **********************
 "magnifying glass.ps",
 
