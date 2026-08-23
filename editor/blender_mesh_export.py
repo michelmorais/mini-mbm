@@ -1095,6 +1095,37 @@ def normalize_frame_range(frame_start: int, frame_end: int) -> tuple[int, int]:
     return frame_start, frame_end
 
 
+def make_animation_clip_names_unique(clips: list[dict[str, Any]]) -> None:
+    """Disambiguate selected Action/NLA aliases before canonical IDs are derived.
+
+    glTF imports commonly expose the same take both as a detached Action and as an NLA strip.
+    Canonical v11 animations require unique names and IDs, while both aliases otherwise arrive as
+    e.g. ``Running``. Preserve ordinary names and qualify only collisions.
+    """
+    totals: dict[str, int] = {}
+    for clip in clips:
+        name = str(clip.get("name") or "Bake")
+        totals[name] = totals.get(name, 0) + 1
+
+    used: set[str] = set()
+    occurrence: dict[str, int] = {}
+    for clip in clips:
+        original = str(clip.get("name") or "Bake")
+        occurrence[original] = occurrence.get(original, 0) + 1
+        candidate = original
+        if totals[original] > 1:
+            kind = str(clip.get("sourceKind") or "").strip().upper()
+            suffix = kind if kind else str(occurrence[original])
+            candidate = f"{original} ({suffix})"
+        serial = 2
+        unique = candidate
+        while unique in used:
+            unique = f"{candidate} {serial}"
+            serial += 1
+        clip["name"] = unique
+        used.add(unique)
+
+
 def parse_animation_clips(args: argparse.Namespace, scene: Any) -> list[dict[str, Any]]:
     clips: list[dict[str, Any]] = []
     if args.animation_source:
@@ -1126,6 +1157,7 @@ def parse_animation_clips(args: argparse.Namespace, scene: Any) -> list[dict[str
                 }
             )
     if clips:
+        make_animation_clip_names_unique(clips)
         return clips
 
     if args.bake_animation:
@@ -1629,6 +1661,11 @@ def stable_id(domain: str, value: str) -> int:
     return result or 1
 
 
+def geometric_mean_scale(scale: Any) -> float:
+    product = abs(float(scale.x) * float(scale.y) * float(scale.z))
+    return product ** (1.0 / 3.0)
+
+
 def extract_canonical_skeleton(scene: Any,
                                rotation_deg: tuple[float, float, float] | None = None) -> dict[str, Any] | None:
     """Extract parent-relative bind-local TRS directly from Blender's armature.
@@ -1696,12 +1733,21 @@ def extract_canonical_skeleton(scene: Any,
         if float(scale.x) < 0.0 or float(scale.y) < 0.0 or float(scale.z) < 0.0:
             raise RuntimeError(f"canonical bone '{name}' has unsupported negative bind scale")
         rotation.normalize()
-        world_head = coordinate_change @ (armature_obj.matrix_world @ bone.head_local)
-        world_tail = coordinate_change @ (armature_obj.matrix_world @ bone.tail_local)
-        length = float((world_tail - world_head).length)
+        source_world_head = coordinate_change @ (armature_obj.matrix_world @ bone.head_local)
+        source_world_tail = coordinate_change @ (armature_obj.matrix_world @ bone.tail_local)
+        source_axis = source_world_tail - source_world_head
+        source_length = float(source_axis.length)
+        _, _, global_scale = world_bind.decompose()
+        authoring_scale = geometric_mean_scale(global_scale)
+        length = source_length * authoring_scale
         # Persist the actual second joint in bone-local bind space. A fixed local +Y assumption is
         # invalid after an arbitrary import basis rotation, even though the conjugated bind matrix
         # itself remains exactly correct for skinning.
+        world_head = world_bind.translation
+        if source_length > 1.0e-8:
+            world_tail = world_head + source_axis.normalized() * length
+        else:
+            world_tail = world_head.copy()
         tail_local = world_bind.inverted_safe() @ world_tail
         records.append({
             "boneId": ids[name],

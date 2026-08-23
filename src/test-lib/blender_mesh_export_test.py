@@ -21,9 +21,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
+import sys
 import unittest
 import warnings
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "editor"))
 
 import blender_mesh_export as exporter
 import blender_mesh_skeleton_export as skeleton_exporter
@@ -47,6 +51,13 @@ class ScalarMatrix:
 
     def inverted_safe(self) -> "ScalarMatrix":
         return ScalarMatrix(1.0 / self.value)
+
+
+class VectorScale:
+    def __init__(self, x: float, y: float, z: float):
+        self.x = x
+        self.y = y
+        self.z = z
 
 
 def make_armature(name: str, bone_names: list[str]) -> SimpleNamespace:
@@ -150,6 +161,9 @@ class MaterialCompatibilityTests(unittest.TestCase):
 
 
 class SkeletalRoundTripTransformTests(unittest.TestCase):
+    def test_authoring_metadata_uses_inherited_uniform_bind_scale(self) -> None:
+        self.assertAlmostEqual(exporter.geometric_mean_scale(VectorScale(0.01, 0.01, 0.01)), 0.01)
+
     def test_absolute_source_bind_scale_is_removed_before_reconstructed_animation(self) -> None:
         target = skeleton_exporter.retarget_sampled_global_to_reconstructed_bind(
             ScalarMatrix(0.01), ScalarMatrix(0.01), ScalarMatrix(1.0))
@@ -203,6 +217,28 @@ class SkeletalActionSourceTests(unittest.TestCase):
         self.assertEqual(clips[0]["sourceObject"], "Armature")
         self.assertEqual(clips[0]["sourceAction"], "WalkAction")
 
+    def test_disambiguates_action_and_nla_aliases_for_canonical_clip_identity(self) -> None:
+        args = exporter.parse_args([
+            "--input", "character.glb", "--output", "character.msh",
+            "--animation-source", "Running", "1", "16", "1", "action", "Armature", "Running",
+            "--animation-source", "Running", "1", "16", "1", "nla", "Armature", "Running",
+        ])
+
+        clips = exporter.parse_animation_clips(args, SimpleNamespace())
+
+        self.assertEqual([clip["name"] for clip in clips], ["Running (ACTION)", "Running (NLA)"])
+
+    def test_keeps_non_colliding_clip_names_unchanged(self) -> None:
+        args = exporter.parse_args([
+            "--input", "character.glb", "--output", "character.msh",
+            "--animation-source", "Running", "1", "16", "1", "action", "Armature", "Running",
+            "--animation-source", "Walking", "1", "25", "1", "nla", "Armature", "Walking",
+        ])
+
+        clips = exporter.parse_animation_clips(args, SimpleNamespace())
+
+        self.assertEqual([clip["name"] for clip in clips], ["Running", "Walking"])
+
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(argv=[sys.argv[0]])

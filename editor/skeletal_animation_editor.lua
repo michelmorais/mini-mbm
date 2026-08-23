@@ -28,6 +28,7 @@ tArmatureTemplates = require "skeletal_armature_templates"
 tAnimationImport = require "skeletal_animation_import"
 tTutorials = require "skeletal_animation_tutorials"
 tTutorialAssets = require "skeletal_animation_tutorial_assets"
+tSkeletalVisual = require "skeletal_animation_visual"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -1346,13 +1347,14 @@ rebuildSkeletonVisuals=function()
     local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
     for _,bone in ipairs(bones) do
-        local radius=math.max(bone.radius or 0,extent*0.006,0.001)
+        local radius=tSkeletalVisual.getJointDisplayRadius(bone.radius,extent)
         local sphere=createBoneShape(bone.x,bone.y,bone.z,unitSphereVerts(),
             'swl_bone_joint_',1,0,1,0.85)
         sphere:setScale(radius,radius,radius)
         state.skeletonGizmo.spheres[bone.name]=sphere
         if (state.workspace=='bind' or state.workspace=='animation') and bone.hasExplicitTail then
             local head,tailPoint=getBoneEditorEndpoints(bone,extent)
+            tailPoint=tSkeletalVisual.getTailDisplayPoint(head,tailPoint,extent)
             local tail=createBoneShape(tailPoint.x,tailPoint.y,tailPoint.z,unitSphereVerts(),
                 'swl_explicit_reference_tail_',1,0,1,0.6)
             tail:setScale(radius,radius,radius)
@@ -1370,6 +1372,7 @@ rebuildSkeletonVisuals=function()
         if state.workspace=='bone_editor' or state.workspace=='paint' then
             if bone.hasExplicitTail then
                 local head,tailPoint=getBoneEditorEndpoints(bone,extent)
+                tailPoint=tSkeletalVisual.getTailDisplayPoint(head,tailPoint,extent)
                 local tx,ty,tz=tailPoint.x,tailPoint.y,tailPoint.z
                 if state.workspace=='bone_editor' then
                     local tail=createBoneShape(tx,ty,tz,unitSphereVerts(),
@@ -1387,7 +1390,7 @@ rebuildSkeletonVisuals=function()
             local parent=bone.parentName and byName[bone.parentName]
             if parent then
             local dx,dy,dz=bone.x-parent.x,bone.y-parent.y,bone.z-parent.z
-            local parentRadius=math.max(parent.radius or 0,extent*0.006,0.001)
+            local parentRadius=tSkeletalVisual.getJointDisplayRadius(parent.radius,extent)
             if dx*dx+dy*dy+dz*dz>0.000001 then
                 local link
                 if state.workspace=='animation' or state.workspace=='runtime' then

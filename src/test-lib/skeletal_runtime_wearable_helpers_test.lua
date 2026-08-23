@@ -18,6 +18,10 @@
 |------------------------------------------------------------------------------------------------------------------------|
 ]]--
 
+local source=debug.getinfo(1,'S').source
+local testDirectory=source:sub(1,1)=='@' and source:sub(2):match('^(.*[/\\\\])') or ''
+package.path=testDirectory..'../../editor/?.lua;'..package.path
+
 local helper = require "skeletal_runtime_wearable_helpers"
 
 local compatible = helper.formatCompatibilityReport({
