@@ -521,44 +521,39 @@ namespace mbm
     bool PARTICLE::render()
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        if (this->control.getTotalAlive())
-        {
-            const CAMERA &camera = device->getCamera();
-            const VEC3 &position = this->getPosition();
-            const VEC3 &angle = this->getAngle();
-            const VEC3 &scale = this->getScale();
-            if (this->is3DObject())
-            {
-                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
-            }
-            else if (this->is2dScreenObject())
-            {
-                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
-                    position.y * camera.scaleScreen2d.y, position.z);
-                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
-                SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
-            }
-            else
-            {
-                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
-            }
-            
-            const util::STAGE_PARTICLE* sPart = control.getStageParticle();
-            if (sPart)
-            {
-                
-                this->control.updateAnimationParticle(this, this->getAnimation(),device->delta);
-                return this->renderParticle(sPart);
-            }
-        }
-        else 
+        if (!this->control.getTotalAlive())
         {
             this->control.updateAnimationParticle(this, this->getAnimation(), device->delta);
+            return true;
         }
-        return false;
+        const CAMERA &camera = device->getCamera();
+        const VEC3 &position = this->getPosition();
+        const VEC3 &angle = this->getAngle();
+        const VEC3 &scale = this->getScale();
+        if (this->is3DObject())
+        {
+            MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+            SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
+        }
+        else if (this->is2dScreenObject())
+        {
+            VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                position.y * camera.scaleScreen2d.y, position.z);
+            device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+            MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+            SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
+        }
+        else
+        {
+            MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+            SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
+        }
+
+        const util::STAGE_PARTICLE* sPart = control.getStageParticle();
+        if (!sPart)
+            return false;
+        this->control.updateAnimationParticle(this, this->getAnimation(),device->delta);
+        return this->renderParticle(sPart);
     }
 
     void PARTICLE::onEndAnimationParticleControl(void * that, const char* nameAnimation)

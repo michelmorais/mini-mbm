@@ -32,6 +32,9 @@
     #include "imgui_stdlib.h"
 #elif defined USE_DIRECTX9
     #include "imgui_impl_dx9.h"
+#elif defined USE_DIRECTX11
+    #include <d3d11.h>
+    #include "imgui_impl_dx11.h"
 #elif defined USE_METAL
     #include "imgui_metal_bridge.h"
 #elif defined USE_DUMMY_BACK_END_ENGINE
@@ -1538,6 +1541,14 @@ public:
     #endif
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_Init(static_cast<IDirect3DDevice9*>(_renderDevice));
+#elif defined USE_DIRECTX11
+            {
+                ID3D11Device *device = static_cast<ID3D11Device *>(_renderDevice);
+                ID3D11DeviceContext *deviceContext = nullptr;
+                device->GetImmediateContext(&deviceContext);
+                ImGui_ImplDX11_Init(device, deviceContext);
+                deviceContext->Release();
+            }
 #elif defined USE_METAL
             ImGui_Metal_Init(_renderDevice);  // _renderDevice = id<MTLDevice> as void*
 #elif defined USE_DUMMY_BACK_END_ENGINE
@@ -2050,6 +2061,8 @@ public:
     #endif
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_NewFrame();
+#elif defined USE_DIRECTX11
+            ImGui_ImplDX11_NewFrame();
 #elif defined USE_METAL
             // Metal NewFrame is called in onRender() after beginRender() has set up currentPassDescriptor.
             // Calling it here (before beginRender) would give a nil descriptor → sampleCount=0 → GPU crash.
@@ -2094,6 +2107,8 @@ public:
     #endif
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_RenderDrawData(draw_data);
+#elif defined USE_DIRECTX11
+            ImGui_ImplDX11_RenderDrawData(draw_data);
 #elif defined USE_METAL
             ImGui_Metal_NewFrame();       // must be called after beginRender() so currentPassDescriptor is valid
             ImGui_Metal_RenderDrawData(draw_data);
@@ -2115,6 +2130,8 @@ public:
     #endif
 #elif defined USE_DIRECTX9
         ImGui_ImplDX9_Shutdown();
+#elif defined USE_DIRECTX11
+        ImGui_ImplDX11_Shutdown();
 #elif defined USE_METAL
         ImGui_Metal_Shutdown();
 #elif defined USE_DUMMY_BACK_END_ENGINE

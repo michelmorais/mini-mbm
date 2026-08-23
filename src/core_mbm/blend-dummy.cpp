@@ -28,7 +28,7 @@ namespace mbm
 {
     void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
     {
-        
+
         switch (blendState)
         {
             case BLEND_DISABLE:

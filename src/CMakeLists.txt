@@ -43,7 +43,7 @@ if (USE_LUA)
             endif()
             set(LIB_MINIMBM_LUA_HEADER  ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         endif()
-        if(NOT USE_DIRECTX9)
+        if(NOT (USE_DIRECTX9 OR USE_DIRECTX11))
             include(FindOpenGLES2)
         endif()
         set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Windows.cpp)
@@ -111,7 +111,7 @@ else()
             set(MAIN                ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main-mingw.cpp)
             set(LIB_MINIMBM_LUA_HEADER ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         endif()
-        if(NOT USE_DIRECTX9)
+        if(NOT (USE_DIRECTX9 OR USE_DIRECTX11))
             include(FindOpenGLES2)
         endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
@@ -573,7 +573,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
         # Graphics backend DLLs — D3DCompiler is needed by both DirectX9 and OpenGL ES.
         list(APPEND _ENGINE_RT_DLLS "$ENV{SystemRoot}/System32/D3DCompiler_47.dll")
-        if(NOT USE_DIRECTX9)
+        if(NOT (USE_DIRECTX9 OR USE_DIRECTX11))
             list(APPEND _ENGINE_RT_DLLS
                 "${THIRD_PARTY}/gles/bin/libEGL.dll"
                 "${THIRD_PARTY}/gles/bin/libGLESv2.dll")
@@ -737,7 +737,7 @@ cd /d \"%~dp0\"\r\n\
             list(APPEND _WIN_DLL_LIST "${THIRD_PARTY}/portaudio/Windows/bin/portaudio_x86.dll")
         endif()
         # dsound is a system DLL — no file to copy.
-        if(USE_DIRECTX9)
+        if(USE_DIRECTX9 OR USE_DIRECTX11)
             # Always use the system D3DCompiler_47.dll — it matches the process bitness.
             list(APPEND _WIN_DLL_LIST "$ENV{SystemRoot}/System32/D3DCompiler_47.dll")
         else()

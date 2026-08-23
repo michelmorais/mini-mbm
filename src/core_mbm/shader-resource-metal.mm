@@ -116,8 +116,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv        = in.uv;
-    float2 imageSize = float2(f[0], f[1]);
-    float  tolerance = f[2];
+    float  tolerance = f[0];
+    float2 imageSize = float2(f[1], f[2]);
 
     float4 col = TextureDiffuse.sample(samp, uv);
     if (col.a == 0.0f) discard_fragment();
@@ -140,8 +140,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
 }
 )msl",
     "[edge-gradient-magnitude.ps] = edge gradient magnitude.ps\n"
-    "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n"
-    "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n",
+    "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n"
+    "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n",
 
     // ---- pie ----------------------------------------------------------------
     "pie.ps",
@@ -870,6 +870,29 @@ fragment float4 frag_main(VOut in [[stage_in]],
 }
 )msl",
     "[ps-invert-color.ps] = invert color.ps\n",
+
+    // ---- spotlight overlay -------------------------------------------------
+    "spotlight overlay.ps",
+    R"msl(
+fragment float4 frag_main(VOut in [[stage_in]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    sampler          samp [[sampler(0)]],
+    constant float*  f [[buffer(2)]])
+{
+    float2 center = float2(f[0], f[1]);
+    float radius = f[2];
+    float2 screenSize = float2(f[3], f[4]);
+    float4 color = TextureDiffuse.sample(samp, in.uv);
+    float2 normalizedCenter = center / screenSize;
+    if (length(in.uv - normalizedCenter) < radius)
+        color.a = 0.0f;
+    return color;
+}
+)msl",
+    "[ps-spotlight-overlay.ps] = spotlight overlay.ps\n"
+    "[ps-spotlight-overlay.ps][vector2][center] = min -16384 -16384 max 16384 16384 default 0 0\n"
+    "[ps-spotlight-overlay.ps][float][radius] = min 0.0 max 1.0 default 0.1\n"
+    "[ps-spotlight-overlay.ps][vector2][screenSize] = min 1 1 max 16384 16384 default 1280 720\n",
 
     // ---- magnifying glass ---------------------------------------------------
     "magnifying glass.ps",

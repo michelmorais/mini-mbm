@@ -1551,6 +1551,12 @@ namespace mbm
                             //update resize event only
                             *event_onresize = *event;
                         }
+                        else
+                        {
+                            // Queue empty: coalescing would drop the event. Add it instead.
+                            impl->lastEvent = *event;
+                            impl->events.push_back(*event);
+                        }
                         impl->mutexEvents.unlock();
                         return;
                     }
@@ -1562,6 +1568,12 @@ namespace mbm
                         {
                             //update move event only
                             *event_onmove = *event;
+                        }
+                        else
+                        {
+                            // Queue empty: coalescing would drop the event. Add it instead.
+                            impl->lastEvent = *event;
+                            impl->events.push_back(*event);
                         }
                         impl->mutexEvents.unlock();
                         return;

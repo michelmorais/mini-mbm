@@ -574,8 +574,12 @@
     7.107.0 Integrated non-looping skeletal base and layer completion with the existing onEndAnim callback, with one-shot per-player delivery, culled advancement, and replay/backward-seek rearming.
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
+    7.174.18 Added the complete native DirectX 11 Windows backend, including geometry, textures, blending, particles, render-to-texture, HMD, custom and built-in HLSL shaders without DirectX 9 compatibility mode, material lighting, canonical GPU skeletal animation, editor integration, Direct3D diagnostics, resource-lifecycle validation, and the automated regression runner.
+    7.174.19 Fixed DirectX 11 Sprite Maker animation previews rendering upside down by applying the established top-origin render-target V orientation to both the animated quad and its ImGui frame previews.
+    7.174.20 Fixed DirectX 11 pixel-stage input signatures (including legacy shader normalization), restored the edge-gradient CFG order expected by existing binary assets across all backends, and documented cross-backend CFG schema invariance.
+    7.175.0 Added the cross-backend spotlight overlay built-in shader for tutorial and coach-mark focus effects.
 */
-#define MBM_VERSION "7.142.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.175.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

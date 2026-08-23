@@ -43,7 +43,7 @@ namespace mbm
 
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
-        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided.
         REMINDER_TODO
     }
 

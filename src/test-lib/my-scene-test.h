@@ -35,6 +35,7 @@
 #include <render/font.h>
 #include <render/HMD.h>
 #include <core_mbm/mesh-manager.h> // mesh debug
+#include <core_mbm/shader-resource.h>
 #include <render/tile.h>
 #include <vector>
 #include <string>
@@ -151,6 +152,27 @@ class MY_SCENE : public mbm::SCENE
     bool                    testGlesDqsShader;
     bool                    testGlesSkeletalParity;
     bool                    testDirectX9SkeletalParity;
+    bool                    testDirectX11Foundation;
+    bool                    testDirectX11BuiltinShaders;
+    bool                    testDirectX11ShaderProfiles;
+    bool                    testDirectX11TextureFailure;
+    bool                    testDirectX11ScreenSize;
+    bool                    testDirectX11Resize;
+    bool                    testDirectX11ResizeRequested;
+    bool                    testDirectX11ResizeNotified;
+    bool                    testDirectX11SkeletalParity;
+    bool                    testDirectX11Lighting;
+    bool                    testDirectX11CustomLighting;
+    bool                    testDirectX11MeshReadback;
+    bool                    testDirectX11Rasterizer;
+    bool                    testDirectX11DepthState;
+    bool                    testDirectX11BlendState;
+    bool                    testDirectX11SamplerState;
+    int                     testDirectX11SamplerPhase;
+    bool                    testDirectX11TextureUpload;
+    bool                    testDirectX11TextureStages;
+    int                     testDirectX11TextureStagePhase;
+    mbm::TEXTURE*           testDirectX11StageTextures[6];
     bool                    testMetalEditorShaders;
     bool                    testMetalSkeletalParity;
     bool                    automatedTestFailed;

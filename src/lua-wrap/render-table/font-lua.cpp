@@ -447,41 +447,20 @@ namespace mbm
         VEC3 *      drawPosition = nullptr;
         if (top > 2)
         {
-            for (int i = 3; i <= top; ++i)
-            {
-                switch (i)
-                {
-                    case 3: // is2d
-                    {
-                        bool is2dw = false;
-                        bool is2ds = false;
-                        bool is3d = false;
-                        getTypeWordRenderizableLua(lua,i,is2dw,is2ds,is3d);
-                        draw              = font->addText(text, is2dw | is2ds, is2ds);
-                        if (draw)
-                            drawPosition = &draw->getPosition();
-                    }
-                    break;
-                    case 4: // x
-                    {
-                        drawPosition->x = luaL_checknumber(lua, i);
-                    }
-                    break;
-                    case 5: // y
-                    {
-                        drawPosition->y = luaL_checknumber(lua, i);
-                    }
-                    break;
-                    case 6: // z
-                    {
-                        drawPosition->z = luaL_checknumber(lua, i);
-                    }
-                    break;
-                    default: {
-                    }
-                    break;
-                }
-            }
+            bool is2dw = false;
+            bool is2ds = false;
+            bool is3d = false;
+            getTypeWordRenderizableLua(lua, 3, is2dw, is2ds, is3d);
+            draw = font->addText(text, is2dw | is2ds, is2ds);
+            if (!draw)
+                return 0;
+            drawPosition = &draw->getPosition();
+            if (top > 3)
+                drawPosition->x = luaL_checknumber(lua, 4);
+            if (top > 4)
+                drawPosition->y = luaL_checknumber(lua, 5);
+            if (top > 5)
+                drawPosition->z = luaL_checknumber(lua, 6);
         }
         else
         {

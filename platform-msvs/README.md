@@ -1,6 +1,6 @@
 # Windows Platform — Visual Studio Project Notes
 
-The Windows port uses a pre-configured **Visual Studio 2022** solution located at
+The Windows port uses a pre-configured **Visual Studio 2026** solution located at
 `platform-msvs/mini-mbm.sln`. All project files and third-party libraries are
 checked into the repository — no additional CMake configure step is needed.
 
@@ -14,8 +14,25 @@ checked into the repository — no additional CMake configure step is needed.
 
 | Tool | Minimum version | Notes |
 |---|---|---|
-| **Visual Studio 2022** | 17.x | Community edition is sufficient |
-| **Desktop development with C++ workload** | — | Installs MSVC, Windows SDK, and DirectX headers |
+| **Visual Studio 2026** | Current stable | Community edition is sufficient |
+| **Desktop development with C++ workload** | - | Installs the MSVC x64/x86 build tools |
+| **Windows 11 SDK** | 10.0.26100.0 or newer stable | Provides Direct3D 11, DXGI, HLSL compiler headers, and x86/x64 import libraries |
+
+For a new development machine, open **Visual Studio Installer**, choose
+**Modify** for Visual Studio 2026, select **Desktop development with C++**, and
+confirm that the current MSVC x64/x86 tools and a Windows 11 SDK version at
+least 10.0.26100.0 are selected under **Individual components**. The optional
+Windows **Graphics Tools** feature is recommended for the Direct3D debug layer
+and graphics diagnostics.
+
+Do not install the legacy standalone **DirectX SDK (June 2010)** for the
+Direct3D 11 backend. Direct3D 11 headers and libraries are part of the Windows
+SDK. That legacy SDK remains relevant only to the existing Direct3D 9/D3DX
+configuration.
+
+If the DirectX 9 SDK is installed in a non-default location, set
+`MbmDirectX9SdkRoot` in `platform-msvs/mbm-backend.user.props`. DirectX 11 does
+not read this property.
 
 ---
 
@@ -44,7 +61,7 @@ All projects live under `platform-msvs/` and build into the shared `bin/` and
 | **core_mbm** | `core_mbm/` | Foundational engine library (device, scene, input, camera, animation, audio) |
 | **lua5.4** | `lua5.4/` | Lua 5.4.1 static library |
 | **lsqlite3** | `lsqlite3/` | SQLite3 Lua bindings (used by the Asset Packager) |
-| **ImGui** | `imGui/` | Dear ImGui plugin with DirectX 9, OpenGL 3, and Win32 backends — powers all built-in editors |
+| **ImGui** | `imGui/` | Dear ImGui plugin with DirectX 9, DirectX 11, OpenGL 3, and Win32 backends — powers all built-in editors |
 | **box2d** | `box2d/` | Box2D 2.4.1 physics plugin |
 | **box2dLiquidFun** | `box2d-liquid-fun/` | LiquidFun 2.3.1 fluid simulation plugin |
 | **bullet3d** | `bullet2.8/` | Bullet 2.84 3D physics plugin |
@@ -59,14 +76,18 @@ All projects live under `platform-msvs/` and build into the shared `bin/` and
 
 ## Selecting the Graphics Backend
 
-The backend is controlled by `platform-msvs/mbm-backend.props`, which is imported
-by every project in the solution. Edit the `<MbmBackend>` property to switch:
+The shared defaults are controlled by `platform-msvs/mbm-backend.props`, which is
+imported by every project in the solution. To switch without modifying those defaults,
+set the `<MbmBackend>` property in `platform-msvs/mbm-backend.user.props`:
 
 ```xml
-<!-- DirectX 9 (default for Debug|Win32) -->
+<!-- DirectX 9 -->
 <MbmBackend>DirectX9</MbmBackend>
 
-<!-- OpenGL ES 2.0 (default for all other configurations) -->
+<!-- DirectX 11 (default for Release) -->
+<MbmBackend>DirectX11</MbmBackend>
+
+<!-- OpenGL ES 2.0 (default for Debug) -->
 <MbmBackend>OpenGLES</MbmBackend>
 ```
 
@@ -74,13 +95,13 @@ Default assignments:
 
 | Configuration | Default backend |
 |---|---|
-| `Debug\|Win32` | **DirectX 9** |
-| `Release\|Win32` | OpenGL ES |
-| `Debug\|x64` | OpenGL ES |
-| `Release\|x64` | OpenGL ES |
+| `Debug\|Win32` | **OpenGL ES** |
+| `Release\|Win32` | **DirectX 11** |
+| `Debug\|x64` | **OpenGL ES** |
+| `Release\|x64` | **DirectX 11** |
 
-You can override without editing the file by passing `/p:MbmBackend=DirectX9` (or
-`OpenGLES`) on the MSBuild command line (see below).
+You can override without editing the file by passing `/p:MbmBackend=DirectX9`,
+`DirectX11`, or `OpenGLES` on the MSBuild command line (see below).
 
 The same property sheet also defines the lighting compile-time cap:
 
@@ -101,10 +122,10 @@ The solution exposes four configurations:
 
 | Configuration | Platform | Notes |
 |---|---|---|
-| `Debug` | `Win32` (x86) | Debug symbols, no optimization. DirectX 9 backend by default. |
-| `Release` | `Win32` (x86) | Full optimization. OpenGL ES backend by default. |
+| `Debug` | `Win32` (x86) | Debug symbols, no optimization. OpenGL ES backend by default. |
+| `Release` | `Win32` (x86) | Full optimization. DirectX 11 backend by default. |
 | `Debug` | `x64` | Debug symbols. OpenGL ES backend by default. |
-| `Release` | `x64` | Full optimization. OpenGL ES backend by default. |
+| `Release` | `x64` | Full optimization. DirectX 11 backend by default. |
 
 ---
 
@@ -119,6 +140,9 @@ msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /m /
 
 rem Override backend
 msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal
+
+rem DirectX 11 backend
+msbuild platform-msvs\mini-mbm.sln /t:core_mbm /p:Configuration=Debug /p:Platform=x86 /p:MbmBackend=DirectX11 /m /v:minimal
 
 rem Build a single project
 msbuild platform-msvs\core_mbm\core_mbm.vcxproj /p:Configuration=Debug /p:Platform=x86 /m
@@ -135,12 +159,12 @@ Windows graphics backends. Build the selected backend and run its matching comma
 directory:
 
 ```cmd
-rem DirectX 9 (Debug|Win32 default)
+rem DirectX 9 (explicit backend selection)
 msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal
 cd platform-msvs\Debug
 libTest.exe --directx9-skeletal-parity-test
 
-rem OpenGL ES through ANGLE (Release|Win32 default)
+rem OpenGL ES through ANGLE (explicit backend selection)
 msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=OpenGLES /m /v:minimal
 cd platform-msvs\Release
 libTest.exe --gles-skeletal-parity-test
@@ -240,6 +264,7 @@ To select the graphics backend explicitly, add one of:
 | Flag | Backend |
 |---|---|
 | `-DUSE_DIRECTX9=1` | DirectX 9 (adds `D3DCompiler_47.dll`) |
+| `-DUSE_DIRECTX11=1` | DirectX 11 backend (Windows SDK; generated default material lighting, skeletal animation, render-to-texture, particles, geometry, and RGB/RGBA texture sampling are available) |
 | `-DUSE_OPENGL_ES=1` | OpenGL ES emulation (adds `libEGL.dll`, `libGLESv2.dll`) |
 
 After the build, run the engine directly from the repo root:
@@ -436,7 +461,7 @@ after building the solution.
 
 | Tool | Required for | Download |
 |---|---|---|
-| Visual Studio 2022 (built solution) | Everything | — |
+| Visual Studio 2026 (built solution) | Everything | - |
 | `cmake` in `PATH` | MSI generation | https://cmake.org/download/ |
 | [NSIS](https://nsis.sourceforge.io) | `*-windows-setup.exe` | https://nsis.sourceforge.io |
 | [WiX v4](https://wixtoolset.org) or [WiX v3](https://github.com/wixtoolset/wix3/releases) | `*-windows.msi` | `dotnet tool install --global wix` |

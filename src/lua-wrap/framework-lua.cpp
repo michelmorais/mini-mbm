@@ -1441,6 +1441,11 @@ namespace mbm
                 const bool is_Directx9 = strcasecmp(device->getBackendEngineName(), "Directx9") == 0;
                 lua_pushboolean(lua, is_Directx9 ? 1 : 0);
             }
+            else if (strcasecmp(what, "USE_DIRECTX11") == 0)
+            {
+                const bool isDirectX11 = strcasecmp(device->getBackendEngineName(), "DirectX11") == 0;
+                lua_pushboolean(lua, isDirectX11 ? 1 : 0);
+            }
             else if (strcasecmp(what, "USE_METAL") == 0)
             {
                 const bool is_metal = strcasecmp(device->getBackendEngineName(), "Metal") == 0;

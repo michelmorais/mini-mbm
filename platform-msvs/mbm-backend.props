@@ -4,23 +4,36 @@
     Shared backend selection for the whole solution.
     Import this .props from every project that must agree on the active graphics backend.
 
-    You can override by defining $(MbmBackend) before importing this file (e.g. in a .user.props):
+    You can override the defaults in mbm-backend.user.props:
       - MbmBackend=DirectX9
+      - MbmBackend=DirectX11
       - MbmBackend=OpenGLES
   -->
 
+  <!-- Load the optional per-developer selection before applying the solution defaults. -->
+  <Import Project="$(MSBuildThisFileDirectory)mbm-backend.user.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)mbm-backend.user.props')" />
+
   <PropertyGroup Label="MbmBackendDefaults">
-    <!-- Keep current solution convention: Debug|Win32 defaults to DirectX9, everything else defaults to OpenGLES -->
-    <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)|$(Platform)'=='Debug|Win32'">DirectX9</MbmBackend>
+    <!-- Use OpenGL ES while developing and DirectX 11 for production Windows builds. -->
+    <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)'=='Debug'">OpenGLES</MbmBackend>
+    <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)'=='Release'">DirectX11</MbmBackend>
     <MbmBackend Condition="'$(MbmBackend)'==''">OpenGLES</MbmBackend>
     <MbmSupportedMaxLights Condition="'$(MbmSupportedMaxLights)'==''">4</MbmSupportedMaxLights>
+    <MbmDirectX9SdkRoot Condition="'$(MbmDirectX9SdkRoot)'==''">C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)</MbmDirectX9SdkRoot>
+    <MbmDirectX9SdkInclude Condition="'$(MbmBackend)'=='DirectX9'">$(MbmDirectX9SdkRoot)\Include;</MbmDirectX9SdkInclude>
+    <MbmDirectX9SdkLibX86 Condition="'$(MbmBackend)'=='DirectX9'">$(MbmDirectX9SdkRoot)\Lib\x86;</MbmDirectX9SdkLibX86>
   </PropertyGroup>
 
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX9'">USE_DIRECTX9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX11'">USE_DIRECTX11;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='OpenGLES'">USE_OPENGL_ES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions>SUPPORTED_MAX_LIGHTS=$(MbmSupportedMaxLights);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies Condition="'$(MbmBackend)'=='DirectX11'">d3d11.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
 </Project>

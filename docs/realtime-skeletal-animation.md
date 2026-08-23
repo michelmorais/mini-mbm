@@ -1,7 +1,7 @@
 # Real-Time Skeletal Animation and Editor
 
-Status: **Implemented and validated on OpenGL ES, DirectX 9, and Metal**
-Last verified: **2026-08-19**
+Status: **Implemented and validated on OpenGL ES, DirectX 9, DirectX 11, and Metal**
+Last verified: **2026-08-21**
 
 ## 1. Scope
 
@@ -112,14 +112,16 @@ of 1,024 bones per draw; a smaller measured backend/device limit remains authori
 |---|---|
 | OpenGL ES | Measured vertex-uniform vectors minus the engine reserve, divided by 3 for LBS or 2 for DQS, capped at 1,024 |
 | DirectX 9 | Measured Shader Model 3 vertex constants minus the engine reserve, divided by 3 or 2, capped at 1,024 |
+| DirectX 11 | 4,096 constant-buffer vectors minus the engine reserve, divided by 3 or 2, capped at 1,024 |
 | Metal | Buffer-backed palette capacity derived from `maxBufferLength`, capped operationally at 1,024 |
 
 A report such as `lbs-bones=88/1024` means that the loaded draw uses 88 bones and the effective
 limit for that method on the active backend is 1,024. `status=ready` describes the shared canonical
 GPU input; method-specific support must still be read from the LBS and DQS usage/limit fields.
 
-Generated default vertex shaders implement skeletal deformation before lighting on all three
-backends. Fragment-only custom shaders preserve generated skeletal deformation. A custom vertex
+Generated default vertex shaders implement skeletal deformation before lighting on every backend
+whose reserved lighting path is available; DirectX 11 feeds the deformed position and normal into
+its generated default material-lighting path. Fragment-only custom shaders preserve generated skeletal deformation. A custom vertex
 shader has no canonical skeletal input contract and is rejected explicitly for a skeletal mesh.
 
 ## 5. Playback and Composition
@@ -219,6 +221,7 @@ The complete user workflow is documented in the
 |---|---|
 | Linux/OpenGL ES | Mesa OpenGL ES 3.2, 12,216 vertices and 88 bones: LBS `88/1024`, 4,224 bytes; DQS `88/1024`, 2,816 bytes; both methods visually accepted |
 | Windows/DirectX 9 | The 88-bone reference exceeds the measured 82-bone LBS limit and uses Auto CPU fallback; it fits the 124-bone DQS limit and runs DQS on GPU; GPU and CPU execution were visually accepted. The native encoded/readback parity harness passes synthetic and Lorekeeper LBS/DQS positions and normals against the shared CPU references |
+| Windows/DirectX 11 | LBS and rigid DQS use a secondary influence vertex stream plus a per-draw constant-buffer palette, both capped operationally at 1,024 bones. The native encoded/readback parity harness passes synthetic and Lorekeeper LBS/DQS positions and normals against the shared CPU references |
 | Windows/OpenGL ES/ANGLE | The same 88-bone reference reports LBS and DQS `88/1024`; GPU and CPU execution were visually accepted. Native RGBA8 readback passes all four shared synthetic/Lorekeeper LBS/DQS parity cases on OpenGL ES 3.0 through ANGLE's Direct3D 11 backend |
 | macOS/Metal | Apple M4 production-path LBS/DQS validation passed with the committed Lorekeeper; an 88-bone, 13,111-vertex real mesh also ran Auto-resolved GPU LBS at `88/1024` with a 4,224-byte palette; native RGBA8 readback passes all four shared synthetic/Lorekeeper LBS/DQS parity cases with Metal API validation enabled |
 
@@ -226,7 +229,7 @@ Deterministic foundation tests cover canonical validation, sampling, easing, hie
 bind identity, LBS/DQS reference deformation, antipodality, scale rejection, composition, masks,
 root motion, execution policy, sharing compatibility, and the shared skeletal-parity case contract.
 The parity suite builds backend-neutral synthetic and real-asset LBS/DQS inputs, CPU references,
-RGBA8 encoding, tolerances, comparison, and reporting once. The OpenGL ES, DirectX 9, and native
+RGBA8 encoding, tolerances, comparison, and reporting once. The OpenGL ES, DirectX 9, DirectX 11, and native
 Metal capture backends execute all four shared cases and read encoded GPU positions/normals for
 comparison. DirectX 9 and Metal use the same generated LBS/DQS deformation source as their
 production default shaders.
@@ -255,7 +258,7 @@ production default shaders.
   it is not a claim that every FBX animation/deformer feature is supported.
 - Velocity Skinning, compute skinning, and a new modern OpenGL/Vulkan renderer are not part of the
   implemented skeletal capability.
-- Numeric encoded/readback CPU/GPU comparison is automated for OpenGL ES, DirectX 9, and Metal.
+- Numeric encoded/readback CPU/GPU comparison is automated for OpenGL ES, DirectX 9, DirectX 11, and Metal.
 
 Optional projects outside this accepted capability are tracked separately in the
 [Deferred Work Plan](realtime-skeletal-animation-future-work-plan.md).

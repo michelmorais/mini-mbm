@@ -180,8 +180,8 @@ boundary for numeric GLES tests: no mutable reference, backend handle, Lua bindi
 container accessor is introduced.
 Its uploaded vertex streams preserve the backend boundary: GLES2 bone-index/weight buffer handles
 and per-subset arrays live only in private `BUFFER_SPECIFIC` storage and are created through the
-private backend-neutral `skeletal-gpu-upload.h` bridge. OpenGL ES and DirectX9 provide the same
-private upload symbol from backend translation units. `BUFFER_GL`'s public layout/API did not acquire
+private backend-neutral `skeletal-gpu-upload.h` bridge. OpenGL ES, DirectX9, DirectX11, and Metal
+provide the same private upload symbol from backend translation units. `BUFFER_GL`'s public layout/API did not acquire
 a graphics handle or a skeletal-data container.
 The corresponding shader integration adds only backend-neutral palette size and method compile
 parameters to the public `SHADER` operation. GLES attribute/uniform handles remain in private

@@ -282,7 +282,7 @@ mbm.addShader({
 **`mbm.get(what)` accepted values:**  
 `"version"` (full version string), `"mbm"`, `"lua"`, `"audio"`, `"opengl"`, `"directx"`,  
 `"backend_engine"` / `"engine"`, `"exe"`, `"debug"`,  
-`"USE_VR"`, `"USE_OPENGL_ES"`, `"USE_DIRECTX9"`, `"USE_METAL"`,  
+`"USE_VR"`, `"USE_OPENGL_ES"`, `"USE_DIRECTX9"`, `"USE_DIRECTX11"`, `"USE_METAL"`,
 `"USE_EDITOR_FEATURES"`,   
 `"windows"`, `"linux"`, `"macos"`, `"android"`, `"ios"` (returns bool like `mbm.is`)
 
@@ -772,6 +772,10 @@ fnt:getSizeLetter()
 fnt:getTexture()              -- returns texture name string
 fnt:getTotal()                -- count of text objects created from this font
 ```
+
+If the font's animation or shader cannot be prepared, `fnt:add()` returns no value and leaves the
+parent font and its previously created text objects valid. Callers that retain the result may test
+it for `nil`; a shader compilation failure must not expose a partially initialized text object.
 
 **`fnt:add`'s 2nd argument is a coordinate-type string, not `x`** (`onAddTextFontLua`,
 `font-lua.cpp`): the C++ binding reads argument position 3 (the 2nd argument after `text`) via

@@ -18,17 +18,29 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "my-scene-test.h"
+#include "directx11-skeletal-parity-tests.h"
+#include "directx11-builtin-shader-tests.h"
 #include "gles-skeletal-parity-tests.h"
 #include "directx9-skeletal-parity-tests.h"
 #if defined(USE_METAL)
 #include "metal-skeletal-parity-tests.h"
 #endif
 #include <core_mbm/texture-manager.h>
+#include <core_mbm/mesh-manager.h>
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>
+#include <core_mbm/light.h>
+#if defined(USE_DIRECTX11)
+#include <specific-directx11-context.h>
+#include <core_mbm/draw-compatibility.h>
+#endif
+#if defined(_WIN32)
+#include <core_mbm/platform-win32.h>
+#endif
 #include <cstdio>
 #include <cstdarg>
+#include <cstring>
 #include <cmath>
 #include <random>
 
@@ -93,6 +105,28 @@ MY_SCENE::MY_SCENE()
     testGlesDqsShader  = false;
     testGlesSkeletalParity = false;
     testDirectX9SkeletalParity = false;
+    testDirectX11Foundation = false;
+    testDirectX11BuiltinShaders = false;
+    testDirectX11ShaderProfiles = false;
+    testDirectX11TextureFailure = false;
+    testDirectX11ScreenSize = false;
+    testDirectX11Resize = false;
+    testDirectX11ResizeRequested = false;
+    testDirectX11ResizeNotified = false;
+    testDirectX11SkeletalParity = false;
+    testDirectX11Lighting = false;
+    testDirectX11CustomLighting = false;
+    testDirectX11MeshReadback = false;
+    testDirectX11Rasterizer = false;
+    testDirectX11DepthState = false;
+    testDirectX11BlendState = false;
+    testDirectX11SamplerState = false;
+    testDirectX11SamplerPhase = 0;
+    testDirectX11TextureUpload = false;
+    testDirectX11TextureStages = false;
+    testDirectX11TextureStagePhase = 0;
+    for (mbm::TEXTURE *&stageTexture : testDirectX11StageTextures)
+        stageTexture = nullptr;
     testMetalEditorShaders = false;
     testMetalSkeletalParity = false;
     automatedTestFailed = false;
@@ -155,6 +189,593 @@ void MY_SCENE::onInitScene()
     device->setColorClearBackGround(backgroundColor);
 
     util::addPath(__FILE__);
+
+#if defined(USE_DIRECTX11)
+    if (testDirectX11BuiltinShaders)
+    {
+        automatedTestFailed = runDirectX11BuiltinShaderTests() != 0;
+        device->setRun(false);
+        return;
+    }
+    if (testDirectX11TextureStages)
+    {
+        texture = new mbm::TEXTURE_VIEW(this, false, true);
+        bool valid = texture->load("wooden-box.jpg", 256.0f, 256.0f, true);
+        mbm::BUFFER_GL *buffer = valid ? texture->getFrame() : nullptr;
+        testDirectX11StageTextures[0] = valid ? texture->getTexture() : nullptr;
+        static const uint8_t stagePixels[5][4] = {
+            { 13, 17, 19, 23 }, { 29, 31, 37, 41 }, { 43, 47, 53, 59 },
+            { 61, 67, 71, 73 }, { 79, 83, 89, 97 }
+        };
+        mbm::TEXTURE_MANAGER *textureManager = mbm::TEXTURE_MANAGER::getInstance();
+        for (uint32_t stage = 1; valid && stage < 6; ++stage)
+        {
+            char nickname[48] = {};
+            snprintf(nickname, sizeof(nickname), "directx11-stage-%u-smoke", stage);
+            testDirectX11StageTextures[stage] = textureManager->load(
+                1, 1, stagePixels[stage - 1], nickname, 8, 4, true);
+            valid = buffer && testDirectX11StageTextures[stage];
+            if (valid)
+            {
+                buffer->setTextureByStage(testDirectX11StageTextures[stage], stage, 0);
+                if (stage == 1)
+                    texture->getAnimation()->getFx().textureAnimationEffect = testDirectX11StageTextures[stage];
+            }
+        }
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 six-stage texture fixture setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 six-stage texture fixture started");
+        return;
+    }
+    if (testDirectX11TextureUpload)
+    {
+        static const uint8_t rgbPixels[] = {
+            1, 2, 3,       17, 31, 47,
+            63, 79, 95,    127, 191, 251
+        };
+        static const uint8_t expectedRgbAsRgba[] = {
+            1, 2, 3, 255,       17, 31, 47, 255,
+            63, 79, 95, 255,    127, 191, 251, 255
+        };
+        static const uint8_t rgbaPixels[] = {
+            5, 7, 11, 13,       19, 23, 29, 31,
+            37, 41, 43, 47,     53, 59, 61, 67
+        };
+        mbm::TEXTURE_MANAGER *textureManager = mbm::TEXTURE_MANAGER::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        mbm::TEXTURE *rgbTexture = textureManager->load(
+            2, 2, rgbPixels, "directx11-rgb-upload-smoke", 8, 3, false);
+        mbm::TEXTURE *rgbaTexture = textureManager->load(
+            2, 2, rgbaPixels, "directx11-rgba-upload-smoke", 8, 4, true);
+        auto matchesGpuTexture = [context](mbm::TEXTURE *source, const uint8_t *expected) -> bool
+        {
+            if (!context || !context->device || !context->immediateContext || !source || !expected)
+                return false;
+            ID3D11ShaderResourceView *view =
+                static_cast<ID3D11ShaderResourceView *>(source->getBackendTexturePointer());
+            if (!view)
+                return false;
+            ID3D11Resource *resource = nullptr;
+            ID3D11Texture2D *gpuTexture = nullptr;
+            ID3D11Texture2D *stagingTexture = nullptr;
+            view->GetResource(&resource);
+            HRESULT result = resource ? resource->QueryInterface(
+                __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&gpuTexture)) : E_FAIL;
+            D3D11_TEXTURE2D_DESC description = {};
+            if (SUCCEEDED(result))
+            {
+                gpuTexture->GetDesc(&description);
+                result = description.Width == 2 && description.Height == 2 && description.MipLevels == 1 &&
+                         description.Format == DXGI_FORMAT_R8G8B8A8_UNORM ? S_OK : E_FAIL;
+            }
+            if (SUCCEEDED(result))
+            {
+                description.Usage = D3D11_USAGE_STAGING;
+                description.BindFlags = 0;
+                description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+                description.MiscFlags = 0;
+                result = context->device->CreateTexture2D(&description, nullptr, &stagingTexture);
+            }
+            D3D11_MAPPED_SUBRESOURCE mapped = {};
+            if (SUCCEEDED(result))
+            {
+                context->immediateContext->CopyResource(stagingTexture, gpuTexture);
+                result = context->immediateContext->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mapped);
+            }
+            bool matches = SUCCEEDED(result);
+            for (uint32_t row = 0; matches && row < 2; ++row)
+            {
+                const uint8_t *gpuRow = static_cast<const uint8_t *>(mapped.pData) + mapped.RowPitch * row;
+                matches = memcmp(gpuRow, expected + row * 8u, 8u) == 0;
+            }
+            if (SUCCEEDED(result))
+                context->immediateContext->Unmap(stagingTexture, 0);
+            if (stagingTexture)
+                stagingTexture->Release();
+            if (gpuTexture)
+                gpuTexture->Release();
+            if (resource)
+                resource->Release();
+            return matches;
+        };
+        const bool valid = rgbTexture && rgbaTexture && !rgbTexture->hasAlphaChannel() &&
+                           rgbaTexture->hasAlphaChannel() &&
+                           matchesGpuTexture(rgbTexture, expectedRgbAsRgba) &&
+                           matchesGpuTexture(rgbaTexture, rgbaPixels);
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 RGB/RGBA texture upload readback failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 RGB/RGBA texture upload readback passed");
+        device->setRun(false);
+        return;
+    }
+    if (testDirectX11SamplerState)
+    {
+        texture = new mbm::TEXTURE_VIEW(this, false, true);
+        if (!texture->load("wooden-box.jpg", 256.0f, 256.0f, true))
+        {
+            ERROR_LOG("testLib: DirectX 11 sampler-state fixture failed to load");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        device->enableFilteringAfterPixelPerfect();
+        INFO_LOG("testLib: DirectX 11 sampler-state fixture started");
+        return;
+    }
+    if (testDirectX11BlendState)
+    {
+        static const D3D11_BLEND expectedDestination[] = {
+            D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_ZERO, D3D11_BLEND_ONE, D3D11_BLEND_SRC_COLOR,
+            D3D11_BLEND_INV_SRC_COLOR, D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA,
+            D3D11_BLEND_DEST_ALPHA, D3D11_BLEND_INV_DEST_ALPHA, D3D11_BLEND_DEST_COLOR,
+            D3D11_BLEND_INV_DEST_COLOR
+        };
+        static const D3D11_BLEND_OP expectedOperation[] = {
+            D3D11_BLEND_OP_ADD, D3D11_BLEND_OP_SUBTRACT, D3D11_BLEND_OP_REV_SUBTRACT,
+            D3D11_BLEND_OP_MIN, D3D11_BLEND_OP_MAX
+        };
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        mbm::RENDER_STATE renderState;
+        mbm::FX blendFx;
+        bool valid = context && context->immediateContext;
+        for (int stateIndex = mbm::BLEND_DISABLE;
+             valid && stateIndex <= mbm::BLEND_INVDESTCOLOR; ++stateIndex)
+        {
+            for (int operationIndex = 1; valid && operationIndex <= 5; ++operationIndex)
+            {
+                renderState.set(static_cast<mbm::BLEND_STATE>(stateIndex));
+                blendFx.blendOperation = operationIndex;
+                blendFx.setBlendOp();
+                ID3D11BlendState *activeState = nullptr;
+                FLOAT blendFactor[4] = {};
+                UINT sampleMask = 0;
+                context->immediateContext->OMGetBlendState(&activeState, blendFactor, &sampleMask);
+                D3D11_BLEND_DESC description = {};
+                if (activeState)
+                    activeState->GetDesc(&description);
+                const D3D11_RENDER_TARGET_BLEND_DESC &target = description.RenderTarget[0];
+                valid = activeState && target.BlendEnable == TRUE &&
+                        target.SrcBlend == D3D11_BLEND_SRC_ALPHA &&
+                        target.DestBlend == expectedDestination[stateIndex] &&
+                        target.BlendOp == expectedOperation[operationIndex - 1] &&
+                        target.SrcBlendAlpha == D3D11_BLEND_ONE &&
+                        target.DestBlendAlpha == D3D11_BLEND_INV_SRC_ALPHA &&
+                        target.BlendOpAlpha == D3D11_BLEND_OP_ADD &&
+                        target.RenderTargetWriteMask == D3D11_COLOR_WRITE_ENABLE_ALL &&
+                        sampleMask == 0xffffffffu;
+                if (activeState)
+                    activeState->Release();
+            }
+        }
+        renderState.set(mbm::BLEND_DISABLE);
+        blendFx.setBlendDefaultOp();
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 legacy blend-state mapping failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 legacy blend-state mapping passed all 55 cases");
+        device->setRun(false);
+        return;
+    }
+    if (testDirectX11DepthState)
+    {
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        bool valid = context && context->immediateContext && context->depthEnabledState &&
+                     context->depthDisabledState && context->depthView;
+        D3D11_DEPTH_STENCIL_DESC disabledDescription = {};
+        D3D11_DEPTH_STENCIL_DESC enabledDescription = {};
+        ID3D11DepthStencilState *activeState = nullptr;
+        UINT stencilReference = 0;
+        if (valid)
+        {
+            device->setDepthTest(false);
+            context->immediateContext->OMGetDepthStencilState(&activeState, &stencilReference);
+            valid = activeState != nullptr;
+            if (valid)
+                activeState->GetDesc(&disabledDescription);
+            valid = valid && activeState == context->depthDisabledState && disabledDescription.DepthEnable == FALSE &&
+                    disabledDescription.StencilEnable == FALSE && stencilReference == 0;
+            if (activeState)
+                activeState->Release();
+            activeState = nullptr;
+        }
+        if (valid)
+        {
+            device->setDepthTest(true);
+            context->immediateContext->OMGetDepthStencilState(&activeState, &stencilReference);
+            valid = activeState != nullptr;
+            if (valid)
+                activeState->GetDesc(&enabledDescription);
+            valid = valid && activeState == context->depthEnabledState && enabledDescription.DepthEnable == TRUE &&
+                    enabledDescription.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ALL &&
+                    enabledDescription.DepthFunc == D3D11_COMPARISON_LESS_EQUAL &&
+                    enabledDescription.StencilEnable == TRUE && stencilReference == 0;
+            if (activeState)
+                activeState->Release();
+            activeState = nullptr;
+        }
+        if (valid)
+        {
+            device->clearDepth();
+            device->clearDepthColored();
+        }
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 depth/stencil-state contract failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 depth enable/disable and clear contract passed");
+        device->setRun(false);
+        return;
+    }
+    if (testDirectX11Resize)
+    {
+#if defined(_WIN32)
+        mbm::hideConsoleWindow();
+#endif
+    }
+    if (testDirectX11Rasterizer)
+    {
+        struct RASTERIZER_CASE
+        {
+            uint32_t cullMode;
+            uint32_t frontFace;
+            D3D11_CULL_MODE expectedCull;
+            BOOL expectedCounterClockwise;
+        };
+        const RASTERIZER_CASE cases[] = {
+            { util::CULL_FRONT, util::CW, D3D11_CULL_FRONT, FALSE },
+            { util::CULL_FRONT, util::CCW, D3D11_CULL_FRONT, TRUE },
+            { util::CULL_BACK, util::CW, D3D11_CULL_BACK, FALSE },
+            { util::CULL_BACK, util::CCW, D3D11_CULL_BACK, TRUE },
+            { util::CULL_FRONT_AND_BACK, util::CW, D3D11_CULL_NONE, FALSE },
+            { util::CULL_FRONT_AND_BACK, util::CCW, D3D11_CULL_NONE, TRUE }
+        };
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        bool valid = context && context->immediateContext;
+        for (const RASTERIZER_CASE &testCase : cases)
+        {
+            valid = valid && context->applyRasterizerState(testCase.cullMode, testCase.frontFace);
+            ID3D11RasterizerState *state = nullptr;
+            if (valid)
+                context->immediateContext->RSGetState(&state);
+            D3D11_RASTERIZER_DESC description = {};
+            if (state)
+            {
+                state->GetDesc(&description);
+                state->Release();
+            }
+            valid = valid && state && description.CullMode == testCase.expectedCull &&
+                    description.FrontCounterClockwise == testCase.expectedCounterClockwise &&
+                    description.DepthClipEnable == TRUE;
+        }
+        if (context)
+            context->applyRasterizerState(util::CULL_BACK, util::CW);
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 rasterizer-state mapping failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 rasterizer-state mapping passed all six cases");
+        return;
+    }
+    if (testDirectX11MeshReadback)
+    {
+        mesh = new mbm::MESH(this, true, false);
+        mbm::MESH_MBM_DEBUG expected;
+        mbm::MESH_MBM *runtimeMesh = nullptr;
+        bool valid = mesh->load("Crate.msh") && expected.loadV11("Crate.msh");
+        if (valid)
+            runtimeMesh = mbm::MESH_MANAGER::getInstance()->getIfExists("Crate.msh");
+        valid = valid && runtimeMesh && meshDebug.loadDebugFromMemory(runtimeMesh) &&
+                expected.getTotalFrames() == meshDebug.getTotalFrames();
+        for (uint32_t frame = 0; valid && frame < expected.getTotalFrames(); ++frame)
+        {
+            const util::BUFFER_MESH_DEBUG *source = expected.getFrameBuffer(frame);
+            const util::BUFFER_MESH_DEBUG *readback = meshDebug.getFrameBuffer(frame);
+            valid = source && readback &&
+                source->headerFrame.sizeVertexBuffer == readback->headerFrame.sizeVertexBuffer &&
+                source->headerFrame.sizeIndexBuffer == readback->headerFrame.sizeIndexBuffer &&
+                source->subset.size() == readback->subset.size();
+            if (!valid)
+                break;
+            const size_t vertexCount = static_cast<size_t>(source->headerFrame.sizeVertexBuffer);
+            valid = memcmp(source->position, readback->position, vertexCount * sizeof(float) * 3u) == 0;
+            if (valid && source->normal)
+                valid = readback->normal &&
+                    memcmp(source->normal, readback->normal, vertexCount * sizeof(float) * 3u) == 0;
+            if (valid && source->uv)
+                valid = readback->uv &&
+                    memcmp(source->uv, readback->uv, vertexCount * sizeof(float) * 2u) == 0;
+            const size_t indexCount = static_cast<size_t>(source->headerFrame.sizeIndexBuffer);
+            if (valid && indexCount)
+                valid = readback->indexBuffer &&
+                    memcmp(source->indexBuffer, readback->indexBuffer,
+                           indexCount * sizeof(uint16_t)) == 0;
+        }
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 mesh GPU readback parity failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 mesh GPU readback parity passed");
+        return;
+    }
+    if (testDirectX11Lighting || testDirectX11CustomLighting)
+    {
+#if defined(_WIN32)
+        mbm::hideConsoleWindow();
+#endif
+        const mbm::COLOR ambient(0.15f, 0.18f, 0.22f, 1.0f);
+        const mbm::COLOR warm(1.0f, 0.45f, 0.2f, 1.0f);
+        const mbm::COLOR cool(0.2f, 0.5f, 1.0f, 1.0f);
+        mbm::resetLight(mbm::LIGHT_TARGET_3D);
+        mbm::resetLight(mbm::LIGHT_TARGET_2DW);
+        mbm::setLightEnabled(mbm::LIGHT_TARGET_3D, true);
+        mbm::setAmbientLight(mbm::LIGHT_TARGET_3D, ambient);
+        mbm::setDirectionalLight(mbm::LIGHT_TARGET_3D, mbm::VEC3(0.0f, -1.0f, -1.0f), cool);
+        mbm::addPointLight(mbm::LIGHT_TARGET_3D, mbm::VEC3(-150.0f, 300.0f, -150.0f), 700.0f, warm);
+        mbm::addPointLight(mbm::LIGHT_TARGET_3D, mbm::VEC3(180.0f, 220.0f, -80.0f), 550.0f, cool);
+        mbm::setLightEnabled(mbm::LIGHT_TARGET_2DW, true);
+        mbm::setAmbientLight(mbm::LIGHT_TARGET_2DW, ambient);
+        mbm::addPointLight(mbm::LIGHT_TARGET_2DW, mbm::VEC3(-80.0f, 0.0f, 120.0f), 420.0f, warm);
+        mbm::addPointLight(mbm::LIGHT_TARGET_2DW, mbm::VEC3(120.0f, 0.0f, 120.0f), 360.0f, cool);
+        mesh = new mbm::MESH(this, true, false);
+        texture = new mbm::TEXTURE_VIEW(this, false, false);
+        if (!mesh->setSkeletalSkinningMethod(mbm::SKELETAL_SHADER_METHOD::LBS) ||
+            !mesh->setSkeletalExecutionPath(mbm::SKELETAL_EXECUTION_PATH::GPU) ||
+            !mesh->load("Lorekeeper-walk.msh") || !texture->load("wooden-box.jpg", 260.0f, 260.0f))
+        {
+            ERROR_LOG("testLib: DirectX 11 lighting setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        mesh->setPosition(mbm::VEC3(-180.0f, 180.0f, 0.0f));
+        texture->setPosition(mbm::VEC3(260.0f, 180.0f, 0.0f));
+        const char *animationName = mesh->getSkeletalAnimationName(0);
+        if (animationName)
+            mesh->playSkeletalAnimation(animationName);
+        if (testDirectX11CustomLighting)
+        {
+            mbm::SHADER_CFG customLightShader("directx11-custom-reserved-light.ps");
+            customLightShader.codeShader =
+                "cbuffer LightValues:register(b2){int LightEnabled;int LightCount;int LightMode;int HasNormalMap;"
+                "float4 AmbientColor;float3 LightDirectionView;float4 DirectionalColor;"
+                "float3 LightPositionView[4];float LightRadius[4];float4 LightColor[4];};"
+                "cbuffer MaterialValues:register(b3){"
+                "float4 MaterialDiffuse;float4 MaterialAmbient;float4 MaterialSpecular;"
+                "float4 MaterialEmissive;float MaterialPower;};Texture2D TextureDiffuse:register(t0);"
+                "SamplerState DiffuseSampler:register(s0);struct PSInput{float4 position:SV_POSITION;"
+                "float2 uv:TEXCOORD0;float3 normalIn:TEXCOORD1;float3 positionIn:TEXCOORD2;};"
+                "float4 main(PSInput input):SV_TARGET{float2 uv=input.uv;float3 normalIn=input.normalIn;"
+                "float3 positionIn=input.positionIn;float4 tex=TextureDiffuse.Sample(DiffuseSampler,uv);"
+                "if(LightEnabled==0||LightMode==0)return tex;"
+                "float3 n=normalize(normalIn);float3 v=normalize(-positionIn);"
+                "float3 illumination=AmbientColor.rgb*MaterialAmbient.rgb;float3 specular=0;"
+                "if(LightMode==1){float3 travel=normalize(LightDirectionView);float d=max(dot(n,-travel),0);"
+                "illumination+=DirectionalColor.rgb*d;if(d>0&&MaterialPower>0){"
+                "float3 h=normalize(-travel+v);specular+=DirectionalColor.rgb*MaterialSpecular.rgb*"
+                "pow(max(dot(n,h),0),MaterialPower);}}"
+                "for(int i=0;i<4;++i){if(i>=LightCount)break;float3 toLight=LightPositionView[i]-positionIn;"
+                "float distanceToLight=length(toLight);if(LightRadius[i]>0.0001){"
+                "float3 l=toLight/max(distanceToLight,0.0001);float d=max(dot(n,l),0);"
+                "float attenuation=1-saturate(distanceToLight/LightRadius[i]);attenuation*=attenuation;"
+                "illumination+=LightColor[i].rgb*d*attenuation;}}"
+                "float3 result=saturate(tex.rgb*MaterialDiffuse.rgb*saturate(illumination)+"
+                "MaterialEmissive.rgb+specular);return float4(result,tex.a*MaterialDiffuse.a);}";
+            mbm::FX *fx = mesh->getFx();
+            if (!fx || !fx->loadNewShader(&customLightShader, nullptr,
+                                           mbm::TYPE_ANIMATION_PAUSED, 1.0f,
+                                           mbm::TYPE_ANIMATION_PAUSED, 1.0f,
+                                           mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV))
+            {
+                ERROR_LOG("testLib: DirectX 11 custom reserved-light shader setup failed");
+                automatedTestFailed = true;
+                device->setRun(false);
+                return;
+            }
+            INFO_LOG("testLib: DirectX 11 custom reserved-light shader smoke test started");
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 3D/2DW directional and multi-point lighting smoke test started");
+        return;
+    }
+    if (testDirectX11TextureFailure)
+    {
+        mbm::TEXTURE_MANAGER *textureManager = mbm::TEXTURE_MANAGER::getInstance();
+        INFO_LOG("testLib: BEGIN expected invalid-texture error diagnostics");
+        mbm::TEXTURE *first = textureManager->load("my-scene-test.cpp", true);
+        mbm::TEXTURE *second = textureManager->load("my-scene-test.cpp", true);
+        INFO_LOG("testLib: END expected invalid-texture error diagnostics");
+        if (first || second || textureManager->existTexture("my-scene-test.cpp"))
+        {
+            ERROR_LOG("testLib: DirectX 11 invalid native texture was returned or cached");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 invalid native texture rejection passed");
+        device->setRun(false);
+        return;
+    }
+    if (testDirectX11ScreenSize)
+    {
+        int expectedWidth = 0;
+        int expectedHeight = 0;
+        int actualWidth = 0;
+        int actualHeight = 0;
+        util::getDisplayMetrics(&expectedWidth, &expectedHeight);
+        device->getCoreManager()->getScreenSize(&actualWidth, &actualHeight);
+        if (actualWidth <= 0 || actualHeight <= 0 ||
+            actualWidth != expectedWidth || actualHeight != expectedHeight)
+        {
+            ERROR_LOG("testLib: DirectX 11 screen-size query mismatch expected=%dx%d actual=%dx%d",
+                      expectedWidth, expectedHeight, actualWidth, actualHeight);
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 screen-size query passed (%dx%d)", actualWidth, actualHeight);
+        device->setRun(false);
+        return;
+    }
+    if (testDirectX11Foundation)
+    {
+        if (testDirectX11ShaderProfiles &&
+            (strcmp(mbm::getVSVersion(), "vs_4_1") != 0 || strcmp(mbm::getPSVersion(), "ps_4_1") != 0))
+        {
+            ERROR_LOG("testLib: DirectX 11 shader profile override was not preserved");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        shape = new mbm::SHAPE_MESH(this, false, true);
+        if (!shape->loadRectangle("directx11-basic-quad", 240.0f, 160.0f, false, 2))
+        {
+            ERROR_LOG("testLib: DirectX 11 basic quad buffer/shader setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        render2Texture = new mbm::RENDER_2_TEXTURE(this, false, true);
+        render2Texture->setRenderTargetClearColor(mbm::COLOR(
+            static_cast<uint8_t>(17), static_cast<uint8_t>(34),
+            static_cast<uint8_t>(51), static_cast<uint8_t>(68)));
+        if (!render2Texture->load(320, 240, 320, 240, "directx11-render-target-smoke", true) ||
+            !render2Texture->addObject2Render(shape))
+        {
+            ERROR_LOG("testLib: DirectX 11 render-to-texture setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        mbm::SHADER_CFG *tintShader = device->getShaderConfig().getShader("tint.ps");
+        mbm::SHADER_CFG *scaleShader = device->getShaderConfig().getShader("scale.vs");
+        mbm::FX *renderTargetFx = render2Texture->getFx();
+        if (!tintShader || !scaleShader || !renderTargetFx ||
+            !renderTargetFx->loadNewShader(tintShader, scaleShader,
+                mbm::TYPE_ANIMATION_PAUSED, 1.0f, mbm::TYPE_ANIMATION_PAUSED, 1.0f,
+                mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_UV))
+        {
+            ERROR_LOG("testLib: DirectX 11 custom pixel shader setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        line = new mbm::LINE_MESH(this, false, true);
+        std::vector<mbm::VEC3> linePoints = {
+            mbm::VEC3(-120.0f, -100.0f, 0.0f),
+            mbm::VEC3(120.0f, 100.0f, 0.0f)
+        };
+        if (line->add(std::move(linePoints)) == 0xffffffffu)
+        {
+            ERROR_LOG("testLib: DirectX 11 line buffer/shader setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        particle = new mbm::PARTICLE(this, false, true);
+        if (!particle->load("particle.png", nullptr, nullptr, 32, true) ||
+            !particle->addParticle(32, true) || particle->addStage() == 0xffffffffu)
+        {
+            ERROR_LOG("testLib: DirectX 11 particle buffer/shader setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        particle->restartAnimationParticle();
+        if (!render2Texture->addObject2Render(particle))
+        {
+            ERROR_LOG("testLib: DirectX 11 particle render-to-texture setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        hmd = new mbm::HMD(this);
+        if (!hmd->load() || !hmd->addObject2Render(shape) || !hmd->addObject2Render(particle))
+        {
+            ERROR_LOG("testLib: DirectX 11 HMD render-target setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        mbm::INFO_PHYSICS particlePhysics;
+        particlePhysics.lsCube.push_back(new mbm::CUBE(200.0f, 200.0f, 200.0f));
+        mbm::COLOR steeredColor(1.0f, 0.0f, 0.0f, 1.0f);
+        steeredParticle = new mbm::STEERED_PARTICLE(this, false, true, false, nullptr);
+        if (!steeredParticle->load("particle.png", &steeredColor, &particlePhysics))
+        {
+            ERROR_LOG("testLib: DirectX 11 steered-particle buffer/shader setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        const uint32_t steeredGroup = steeredParticle->addGroup(&steeredColor);
+        if (steeredGroup == 0 || !steeredParticle->addParticle(32, steeredGroup - 1u))
+        {
+            ERROR_LOG("testLib: DirectX 11 steered-particle buffer/shader setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        steeredParticle->setRadiusScale(2.0f);
+        mbm::FLUID_GROUP *group = steeredParticle->getParticleGroup(steeredGroup - 1u);
+        if (group)
+            group->aSizeParticle = 20.0f;
+        steeredParticle->restartAnimationParticle();
+        steeredParticle->restartAnimation();
+        randomSteeredParticlePositions();
+        INFO_LOG("testLib: DirectX 11 custom shaders, render-to-texture, HMD, line, and particles smoke test started");
+        return;
+    }
+    if (testDirectX11SkeletalParity && !runDirectX11SkeletalParityTests())
+    {
+        ERROR_LOG("testLib: DirectX 11 skeletal CPU/GPU parity failed");
+        automatedTestFailed = true;
+        device->setRun(false);
+        return;
+    }
+#endif
 
 #if defined(USE_OPENGL_ES)
     if (testGlesDqsShader)
@@ -263,11 +884,176 @@ void MY_SCENE::onInitScene()
 void MY_SCENE::onLoop()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
+#if defined(USE_DIRECTX11)
+    if (testDirectX11TextureStages)
+    {
+        if (testDirectX11TextureStagePhase == 0)
+        {
+            testDirectX11TextureStagePhase = 1;
+            return;
+        }
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        ID3D11ShaderResourceView *activeViews[6] = {};
+        bool valid = context && context->immediateContext;
+        uint32_t mismatchMask = valid ? 0u : 0x3fu;
+        if (valid)
+            context->immediateContext->PSGetShaderResources(0, 6, activeViews);
+        for (uint32_t stage = 0; stage < 6; ++stage)
+        {
+            ID3D11ShaderResourceView *expected = testDirectX11StageTextures[stage] ?
+                static_cast<ID3D11ShaderResourceView *>(
+                    testDirectX11StageTextures[stage]->getBackendTexturePointer()) : nullptr;
+            const bool stageValid = activeViews[stage] && activeViews[stage] == expected;
+            if (!stageValid)
+                mismatchMask |= 1u << stage;
+            valid = valid && stageValid;
+            if (activeViews[stage])
+                activeViews[stage]->Release();
+        }
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 texture stages 0-5 binding failed; mismatch mask 0x%02x",
+                mismatchMask);
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 texture stages 0-5 binding passed");
+        device->setRun(false);
+        return;
+    }
+    if (testDirectX11SamplerState)
+    {
+        if (testDirectX11SamplerPhase == 0)
+        {
+            testDirectX11SamplerPhase = 1;
+            return;
+        }
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        ID3D11SamplerState *samplers[6] = {};
+        bool valid = context && context->immediateContext;
+        if (valid)
+            context->immediateContext->PSGetSamplers(0, 6, samplers);
+        const D3D11_FILTER expectedFilter = testDirectX11SamplerPhase == 1 ?
+            D3D11_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT : D3D11_FILTER_MIN_MAG_MIP_POINT;
+        const D3D11_TEXTURE_ADDRESS_MODE expectedAddress = testDirectX11SamplerPhase == 1 ?
+            D3D11_TEXTURE_ADDRESS_CLAMP : D3D11_TEXTURE_ADDRESS_WRAP;
+        for (ID3D11SamplerState *sampler : samplers)
+        {
+            D3D11_SAMPLER_DESC description = {};
+            if (sampler)
+                sampler->GetDesc(&description);
+            valid = valid && sampler && description.Filter == expectedFilter &&
+                    description.AddressU == expectedAddress && description.AddressV == expectedAddress &&
+                    description.AddressW == expectedAddress && description.MaxLOD == D3D11_FLOAT32_MAX;
+            if (sampler)
+                sampler->Release();
+        }
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 sampler-state binding failed in phase %d",
+                      testDirectX11SamplerPhase);
+            automatedTestFailed = true;
+            device->enableFilteringAfterPixelPerfect();
+            device->setRun(false);
+            return;
+        }
+        if (testDirectX11SamplerPhase == 1)
+        {
+            device->disableFilteringForPixelPerfect();
+            testDirectX11SamplerPhase = 2;
+            return;
+        }
+        device->enableFilteringAfterPixelPerfect();
+        INFO_LOG("testLib: DirectX 11 default and pixel-perfect sampler bindings passed all six slots");
+        device->setRun(false);
+        return;
+    }
+    if (testDirectX11Resize && !testDirectX11ResizeRequested)
+    {
+        testDirectX11ResizeRequested = true;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        RECT windowRect = {};
+        RECT clientRect = {};
+        const HWND windowHandle = context ? context->window.getHwnd() : nullptr;
+        const bool measured = windowHandle && GetWindowRect(windowHandle, &windowRect) &&
+                              GetClientRect(windowHandle, &clientRect);
+        const int borderWidth = measured ? (windowRect.right - windowRect.left) - clientRect.right : 0;
+        const int borderHeight = measured ? (windowRect.bottom - windowRect.top) - clientRect.bottom : 0;
+        if (!measured || !SetWindowPos(windowHandle, nullptr, 0, 0, 960 + borderWidth, 640 + borderHeight,
+                                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE))
+        {
+            ERROR_LOG("testLib: failed to request a 960x640 DirectX 11 client-area resize");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: DirectX 11 window resize requested for a 960x640 client area");
+        return;
+    }
+    if (testDirectX11Resize &&
+        static_cast<int>(device->getBackBufferWidth()) == 960 &&
+        static_cast<int>(device->getBackBufferHeight()) == 640)
+    {
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        ID3D11RenderTargetView *renderTarget = nullptr;
+        ID3D11DepthStencilView *depthView = nullptr;
+        D3D11_VIEWPORT viewport = {};
+        UINT viewportCount = 1;
+        bool valid = context && context->immediateContext && context->backBufferView && context->depthView &&
+                     testDirectX11ResizeNotified;
+        if (valid)
+        {
+            context->immediateContext->OMGetRenderTargets(1, &renderTarget, &depthView);
+            context->immediateContext->RSGetViewports(&viewportCount, &viewport);
+            valid = renderTarget == context->backBufferView && depthView == context->depthView &&
+                    viewportCount == 1 && static_cast<int>(viewport.Width) == 960 &&
+                    static_cast<int>(viewport.Height) == 640;
+        }
+        if (renderTarget)
+            renderTarget->Release();
+        if (depthView)
+            depthView->Release();
+        if (!valid)
+        {
+            ERROR_LOG("testLib: DirectX 11 resize state validation failed");
+            automatedTestFailed = true;
+        }
+        else
+        {
+            INFO_LOG("testLib: DirectX 11 resize passed (back buffer, depth buffer, viewport, and scene callback)");
+        }
+        device->setRun(false);
+        return;
+    }
+#endif
     if (testTimeoutSeconds >= 0.0f)
     {
         testElapsedSeconds += device->delta;
+#if defined(USE_DIRECTX11)
+        if (testDirectX11Foundation)
+        {
+            if (testElapsedSeconds < testTimeoutSeconds * 0.5f)
+                device->disableFilteringForPixelPerfect();
+            else
+                device->enableFilteringAfterPixelPerfect();
+        }
+#endif
         if (testElapsedSeconds >= testTimeoutSeconds)
         {
+#if defined(USE_DIRECTX11)
+            if (testDirectX11Resize)
+            {
+                ERROR_LOG("testLib: DirectX 11 resize event timed out");
+                automatedTestFailed = true;
+            }
+            if (testDirectX11Foundation && render2Texture &&
+                !render2Texture->saveAsPNG("directx11-render-target-smoke.png", 96, 72, 128, 96))
+            {
+                ERROR_LOG("testLib: DirectX 11 render-target PNG readback failed");
+                automatedTestFailed = true;
+            }
+#endif
             INFO_LOG("testLib: test timeout of %.2fs reached, quitting.", testTimeoutSeconds);
             // setRun(false) lets CORE_MANAGER::onLoop's while(device->isRunning())
             // exit cleanly at the top of its next iteration. mbm::DEVICE::quit()
@@ -642,6 +1428,10 @@ void MY_SCENE::onInfoDeviceJoystick(int, int, const char *,const char *)
 
 void MY_SCENE::onResizeWindow()
 {
+#if defined(USE_DIRECTX11)
+    if (testDirectX11Resize)
+        testDirectX11ResizeNotified = true;
+#endif
     INFO_LOG("No resize window implementation for this scene");
 }
 
@@ -1849,5 +2639,4 @@ GAME::GAME()
 }
 GAME::~GAME()
 {
-    mbm::DEVICE::quit();
 }

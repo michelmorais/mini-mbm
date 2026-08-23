@@ -103,8 +103,9 @@ as applicable) rather than writing a standalone `main()`. Assets (`.msh`, `.spt`
 
 If you ever need to stop the loop from inside scene code, use `device->setRun(false)`
 (`include/core_mbm/device.h`), **not** `mbm::DEVICE::quit()`. `DEVICE::quit()` immediately
-`delete`s the DEVICE singleton — it's a one-shot teardown call meant to run exactly once, from
-`GAME::~GAME()`, after `onLoop()` has already returned. Calling it mid-frame from inside
+`delete`s the DEVICE singleton — it's a one-shot teardown call performed by
+`CORE_MANAGER::~CORE_MANAGER()`, after the derived game and its scene-owned render resources have
+already been destroyed. Calling it mid-frame from inside
 `onLoop()` frees the device out from under `CORE_MANAGER::onLoop()`'s own loop, which then
 segfaults on its next `device->` dereference in the same frame. This is exactly how the
 `<seconds>` timeout is implemented correctly — copy that pattern, don't call `quit()` early.
@@ -306,6 +307,13 @@ so it never throws in the first place, not defending around it after the fact.
 
 ### Visually verifying the render, without mouse input
 
+On Windows, hide the engine's console window before taking any automated screenshot so it cannot
+cover the render window. Prefer exercising the engine's own `mbm::hideConsoleWindow()`
+(`include/core_mbm/platform-win32.h`) from a test-only launch path or fixture after initialization;
+for a Lua scene, call the exposed `mbm.hideConsoleWindow()` equivalent. Keep the console visible
+for ordinary non-visual runs where its live diagnostics are useful, and capture logs separately
+when a visual test also needs diagnostic evidence.
+
 This sandbox has a real X display (`echo $DISPLAY`, `/tmp/.X11-unix` — check, don't assume it's
 headless) and ImageMagick's `import`/`convert` are installed, even though no input-automation tool
 is. That's enough to *see* drawing-code output, just not to *click* on it:
@@ -362,4 +370,5 @@ timeout -s KILL 15 ./bin/debug/linux_x86/mini-mbm \
 | Trying to click through testLib's menu to load a specific mesh for an agent-driven check | Pass it as `testLib <seconds> <mesh_file> <world>` instead — no mouse interaction needed |
 | Trying to reach a new editor widget through the full editor tool (file dialogs, menu clicks) | Path C: isolate it in a throwaway scene under `editor/` that calls the function directly with mock data |
 | Assuming a Lua widget "looks right" from code review alone, or claiming interactive UI is verified when only rendering was checked | Screenshot it (Path C) when the logic involves geometry/drawing/depth — and say plainly if click/drag interaction wasn't actually exercised |
+| Taking a Windows screenshot while the console can overlap the render window | Implicitly call the engine's `hideConsoleWindow` path for the visual fixture before capture, while redirecting diagnostics to a separate log |
 | Leaving a scratch scene file behind under `editor/` after a Path C smoke test | `rm` it before finishing — `git status` should show only the real feature files changed |

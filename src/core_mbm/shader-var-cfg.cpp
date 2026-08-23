@@ -35,6 +35,7 @@ namespace mbm
             "LightMode",
             "AmbientColor",
             "LightDirectionView",
+            "DirectionalColor",
             "LightPositionView",
             "LightRadius",
             "LightColor",

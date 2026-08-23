@@ -158,8 +158,8 @@ namespace mbm
     "}\n",
 
     "[edge-gradient-magnitude.ps] = edge gradient magnitude.ps\n"
-    "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n"
-    "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n",
+    "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n"
+    "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n",
 
     // gaussian *********************
 
@@ -1301,6 +1301,29 @@ namespace mbm
 
     "[ps-invert-color.ps] = invert color.ps\n",
     // Invert Color **********************
+
+    // Spotlight overlay **********************
+    "spotlight overlay.ps",
+
+    "precision mediump float;\n"
+    "uniform sampler2D TextureDiffuse;\n"
+    "uniform vec2 center;\n"
+    "uniform float radius;\n"
+    "uniform vec2 screenSize;\n"
+    "varying vec2 vTexCoord;\n"
+    "void main()\n"
+    "{\n"
+    "    vec4 color = texture2D(TextureDiffuse, vTexCoord);\n"
+    "    vec2 normalizedCenter = center / screenSize;\n"
+    "    if (length(vTexCoord - normalizedCenter) < radius)\n"
+    "        color.a = 0.0;\n"
+    "    gl_FragColor = color;\n"
+    "}\n",
+
+    "[ps-spotlight-overlay.ps] = spotlight overlay.ps\n"
+    "[ps-spotlight-overlay.ps][vector2][center] = min -16384 -16384 max 16384 16384 default 0 0\n"
+    "[ps-spotlight-overlay.ps][float][radius] = min 0.0 max 1.0 default 0.1\n"
+    "[ps-spotlight-overlay.ps][vector2][screenSize] = min 1 1 max 16384 16384 default 1280 720\n",
 
     // Magnifying glass **********************
     "magnifying glass.ps",

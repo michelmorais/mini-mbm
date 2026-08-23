@@ -1043,8 +1043,12 @@ namespace mbm
     {
         VEC3    pos(position.x, position.y, 1);
         auto text = new TEXT_DRAW(this->idScene, _is2dFont == false, isScreen2d, newText, pos, FONT_DRAW::OnRestoreFont, this);
+        if (!this->fillAnimation(text))
+        {
+            delete text;
+            return nullptr;
+        }
         this->lsText.push_back(text);
-        this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
@@ -1058,8 +1062,12 @@ namespace mbm
     {
         auto text =
             new TEXT_DRAW(this->idScene, _is2dFont == false, isScreen2d, newText, FONT_DRAW::OnRestoreFont, this);
+        if (!this->fillAnimation(text))
+        {
+            delete text;
+            return nullptr;
+        }
         this->lsText.push_back(text);
-        this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
@@ -1074,8 +1082,12 @@ namespace mbm
     {
         auto text = new TEXT_DRAW(this->idScene, _is2dFont == false, isScreen2d, newText, position,
                                         FONT_DRAW::OnRestoreFont, this);
+        if (!this->fillAnimation(text))
+        {
+            delete text;
+            return nullptr;
+        }
         this->lsText.push_back(text);
-        this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
@@ -1133,7 +1145,13 @@ namespace mbm
             for (auto & i : this->lsText)
             {
                 i->releaseAnimation();
-                this->fillAnimation(i);
+                if (!this->fillAnimation(i))
+                {
+                    for (TEXT_DRAW *text : this->lsText)
+                        text->releaseAnimation();
+                    this->mesh = nullptr;
+                    return false;
+                }
             }
             char strTemp[255]             = "";
             this->fileName = fileNameMbmOrTtf;
@@ -1159,10 +1177,10 @@ namespace mbm
         this->mesh = nullptr;
     }
     
-    void FONT_DRAW::fillAnimation(TEXT_DRAW *text)
+    bool FONT_DRAW::fillAnimation(TEXT_DRAW *text)
     {
         if (text == nullptr || this->mesh == nullptr)
-            return;
+            return false;
         text->setFontMesh(this->mesh);
         const INFO_BOUND_FONT * infoFont = mesh->getInfoFont();
         text->setSpaceXCharacter(infoFont->spaceXCharacter);
@@ -1174,13 +1192,14 @@ namespace mbm
             util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->getAnimationHeader(i);
             if (!text->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
             {
-                this->release();
                 ERROR_AT(__LINE__,__FILE__, "error on add animation!!");
-                return; // mesh is now null; do not continue iterating
+                text->releaseAnimation();
+                return false;
             }
         }
         // carregamos a TextureAnimationEffect legacy associada a esta animacao
         text->populateTextureAnimationEffectFromMesh(this->mesh);
+        return true;
     }
     
     bool FONT_DRAW::OnRestoreFont(FONT_DRAW *that, TEXT_DRAW *TEXT_DRAW_ptr)

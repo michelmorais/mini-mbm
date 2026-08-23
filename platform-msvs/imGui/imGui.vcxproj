@@ -178,6 +178,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies Condition="'$(MbmBackend)'=='DirectX9'">d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(MbmBackend)'=='DirectX11'">d3d11.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -185,6 +186,8 @@
     <ClInclude Include="..\..\plugins\imGui\imgui-lua.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui.h" />
     <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_dx9.h" />
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_dx11.h" />
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_dx12.h" />
     <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_opengl3.h" />
     <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_win32.h" />
@@ -201,6 +204,9 @@
     <ClCompile Include="..\..\plugins\imGui\imgui_draw.cpp" />
     <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_dx9.cpp">
       <ExcludedFromBuild Condition="'$(MbmBackend)'!='DirectX9'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_dx11.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBackend)'!='DirectX11'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_opengl3.cpp">
       <ExcludedFromBuild Condition="'$(MbmBackend)'!='OpenGLES'">true</ExcludedFromBuild>

@@ -17,9 +17,9 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined (USE_DIRECTX9)
+#if defined(USE_DIRECTX9)
 
-#include <core_mbm/core-exports.h>
+#include <core_mbm/shader-resource.h>
 #include <core_mbm/light.h>
 #include <string>
 #include <stdio.h>
@@ -35,6 +35,7 @@ namespace mbm
             "int HasNormalMap;\n"
             "float4 AmbientColor;\n"
             "float3 LightDirectionView;\n"
+            "float4 DirectionalColor;\n"
             "float3 LightPositionView[" + supportedMaxLights + "];\n"
             "float LightRadius[" + supportedMaxLights + "];\n"
             "float4 LightColor[" + supportedMaxLights + "];\n"
@@ -55,26 +56,23 @@ namespace mbm
             "    float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
             "    float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
             "    float3 specular = float3(0, 0, 0);\n"
+            "    float3 normalView = LightMode == 1 ? normalize(normalViewIn) : float3(0, 0, 1);\n"
+            "    if (LightMode == 2 && HasNormalMap != 0) normalView = normalize((tex2D(TextureNormal, texCoord).xyz * 2.0f) - 1.0f);\n"
+            "    float3 viewDir = normalize(-positionViewIn);\n"
             "    if (LightMode == 1)\n"
             "    {\n"
-            "        float3 normalView = normalize(normalViewIn);\n"
-            "        float3 viewDir = normalize(-positionViewIn);\n"
             "        float3 lightTravel = normalize(LightDirectionView);\n"
             "        float diffuse = max(dot(normalView, -lightTravel), 0);\n"
-            "        light += LightColor[0].rgb * diffuse;\n"
+            "        light += DirectionalColor.rgb * diffuse;\n"
             "        if (diffuse > 0.0f && MaterialPower > 0.0f)\n"
             "        {\n"
             "            float3 lightDir = normalize(-lightTravel);\n"
             "            float3 halfDir = normalize(lightDir + viewDir);\n"
             "            float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);\n"
-            "            specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;\n"
+            "            specular += DirectionalColor.rgb * MaterialSpecular.rgb * spec;\n"
             "        }\n"
             "    }\n"
-            "    else\n"
-            "    {\n"
-            "        float3 normalView = float3(0, 0, 1);\n"
-            "        if (HasNormalMap != 0) normalView = normalize((tex2D(TextureNormal, texCoord).xyz * 2.0f) - 1.0f);\n"
-            "        for (int i = 0; i < " + supportedMaxLights + "; ++i)\n"
+            "    for (int i = 0; i < " + supportedMaxLights + "; ++i)\n"
             "        {\n"
             "            if (i >= LightCount) break;\n"
             "            float3 toLight = LightPositionView[i] - positionViewIn;\n"
@@ -94,7 +92,6 @@ namespace mbm
             "                    specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;\n"
             "                }\n"
             "            }\n"
-            "        }\n"
             "    }\n"
             "    light = saturate(light);\n"
             "    float3 litColor = saturate((base * light) + MaterialEmissive.rgb + specular);\n"
@@ -161,8 +158,8 @@ namespace mbm
         "}\n",
 
         "[edge-gradient-magnitude.ps] = edge gradient magnitude.ps\n"
-        "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n"
-        "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n",
+        "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n"
+        "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n",
 
         //AlphaIt *********************
         "alpharit.ps",
@@ -268,7 +265,7 @@ namespace mbm
         "[ps-pie.ps][float][percent]            = min 0.0    max 1.0   default 0.5 \n",
 
         // pie *********************
-            
+
         // luminance *********************
 
         "luminance.ps",
@@ -999,6 +996,31 @@ namespace mbm
 "[ps-light-streak.ps][vector2][direction]      = min -1.0 -1.0     max 1.0 1.0             default 0.5 1.0\n"
 "[ps-light-streak.ps][vector2][attenuation]    = min 1.0 1.0       max 1000.0 1000.0       default 800.0 600.0\n",
 //Light streak **********************
+
+//Spotlight overlay **********************
+"spotlight overlay.ps",
+
+"sampler2D TextureDiffuse : register(s0);\n"
+"float2 center : register(C0);\n"
+"float radius : register(C1);\n"
+"float2 screenSize : register(C2);\n"
+"struct PS_INPUT\n"
+"{\n"
+"    float2 uv : TEXCOORD0;\n"
+"};\n"
+"float4 main(PS_INPUT input) : COLOR0\n"
+"{\n"
+"    float4 color = tex2D(TextureDiffuse, input.uv);\n"
+"    float2 normalizedCenter = center / screenSize;\n"
+"    if (length(input.uv - normalizedCenter) < radius)\n"
+"        color.a = 0.0;\n"
+"    return color;\n"
+"}\n",
+
+"[ps-spotlight-overlay.ps] = spotlight overlay.ps\n"
+"[ps-spotlight-overlay.ps][vector2][center] = min -16384 -16384 max 16384 16384 default 0 0\n"
+"[ps-spotlight-overlay.ps][float][radius] = min 0.0 max 1.0 default 0.1\n"
+"[ps-spotlight-overlay.ps][vector2][screenSize] = min 1 1 max 16384 16384 default 1280 720\n",
 
 //Magnifying glass **********************
 "magnifying glass.ps",
@@ -1962,7 +1984,7 @@ kLitTexturedPixelShaderD3D9.c_str(),
 
     API_IMPL const char* getParticlePSCode()
     {
-        static const char* psParticleCode = 
+        static const char* psParticleCode =
             "float4 color : register(c0);\n"
             "float enableAlphaFromColor : register(c1);\n"
             "sampler2D TextureDiffuse : register(s0);\n"
