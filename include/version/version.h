@@ -575,8 +575,9 @@
     7.106.0 Added engine-order Euler XYZ radians to the named skeletal-bone gameplay transform while retaining its normalized quaternion and matrix; moved Runtime Preview's evaluated-skeleton checkbox to the first controls and made it independent of second-clip activation.
     7.105.0 Added a read-only named skeletal-bone gameplay transform query in model or renderizable-composed world space, with Lua copy-out position, normalized quaternion rotation, scale, and matrix from the active player's final evaluated pose.
     7.174.18 Added the complete native DirectX 11 Windows backend, including geometry, textures, blending, particles, render-to-texture, HMD, custom and built-in HLSL shaders without DirectX 9 compatibility mode, material lighting, canonical GPU skeletal animation, editor integration, Direct3D diagnostics, resource-lifecycle validation, and the automated regression runner.
+    7.174.19 Fixed DirectX 11 Sprite Maker animation previews rendering upside down by applying the established top-origin render-target V orientation to both the animated quad and its ImGui frame previews.
 */
-#define MBM_VERSION "7.174.18" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.174.19" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

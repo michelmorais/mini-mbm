@@ -3470,7 +3470,7 @@ function getShapeViewForAnim(tFrame)
         local tVertex  = {-x,-y,  -x,y,  x,-y,  x,y}
         local tIndex   = {1,2,3, 3,2,4}
         local tUv
-        if mbm.get('USE_DIRECTX9') or mbm.get('USE_METAL') then
+        if mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') or mbm.get('USE_METAL') then
             tUv = {0,1, 0,0, 1,1, 1,0}
         else
             tUv = {0,0, 0,1, 1,0, 1,1}
@@ -3673,7 +3673,7 @@ function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
     local sy              = new_width / tFrame.width  * tFrame.height
     local size            = {x = math.min(new_width,iW), y = math.min(sy,iH) }
     local tTextureInfo, _ = getTextureInfoForAnimImage(tFrame, iNumImage)
-    local bFlipV          = mbm.get('USE_DIRECTX9') or mbm.get('USE_METAL')
+    local bFlipV          = mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') or mbm.get('USE_METAL')
     tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col,bFlipV)
     applyZoomFrameAnimation()
     tImGui.HelpMarker(tLang.L("help_control_scroll_zoom"))

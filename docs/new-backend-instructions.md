@@ -633,6 +633,8 @@ and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
       Pre-baked frame animation, line meshes, and text rendering require this.
 - [ ] **Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
 - [ ] **Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
+      Verify both ordinary engine quads and editor previews that expose the render-target texture
+      directly through ImGui; top-origin backends must apply the same V-orientation policy in both paths.
 - [ ] **Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
       `VAR_SHADER` constructor with backend handle.  See §15 for the shader catalogue
       and §A2 for Metal-specific notes (PSO variants, FVF attribute patching).
