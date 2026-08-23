@@ -38,6 +38,7 @@
 #include <d3dcompiler.h>
 #include <d3d11shader.h>
 #include <algorithm>
+#include <cctype>
 #include <unordered_map>
 #include <vector>
 
@@ -72,6 +73,40 @@ namespace mbm
             float materialEmissive[4] = {};
             float materialPower[4] = {};
         };
+
+        std::string normalizePixelEntrySignatureD3D11(const char *source)
+        {
+            std::string normalized = source ? source : "";
+            size_t name = normalized.find("main");
+            while (name != std::string::npos)
+            {
+                const bool startsIdentifier = name > 0 &&
+                    (std::isalnum(static_cast<unsigned char>(normalized[name - 1])) || normalized[name - 1] == '_');
+                size_t open = name + 4u;
+                while (open < normalized.size() &&
+                       std::isspace(static_cast<unsigned char>(normalized[open])))
+                    ++open;
+                if (!startsIdentifier && open < normalized.size() && normalized[open] == '(')
+                {
+                    const size_t close = normalized.find(')', open + 1u);
+                    if (close == std::string::npos)
+                        return normalized;
+                    if (normalized.find("SV_POSITION") == std::string::npos)
+                    {
+                        size_t firstParameter = open + 1u;
+                        while (firstParameter < close &&
+                               std::isspace(static_cast<unsigned char>(normalized[firstParameter])))
+                            ++firstParameter;
+                        const char *separator = firstParameter == close ? "" : ", ";
+                        normalized.insert(open + 1u,
+                            std::string("float4 mbmPixelPosition : SV_POSITION") + separator);
+                    }
+                    return normalized;
+                }
+                name = normalized.find("main", name + 4u);
+            }
+            return normalized;
+        }
 
         struct D3D11_SHADER_DATA
         {
@@ -988,6 +1023,9 @@ namespace mbm
             vertexEntryPoint = "main";
             pixelEntryPoint = "main";
         }
+        const std::string normalizedPixelShaderSource = strcmp(pixelEntryPoint, "main") == 0 ?
+            normalizePixelEntrySignatureD3D11(pixelShaderSource) : std::string(pixelShaderSource);
+        pixelShaderSource = normalizedPixelShaderSource.c_str();
         UINT compileFlags = 0;
 #if defined(_DEBUG)
         compileFlags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;

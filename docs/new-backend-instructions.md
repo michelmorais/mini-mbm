@@ -674,6 +674,15 @@ A `nullptr, nullptr, nullptr` sentinel terminates the list.  The CFG string is
 **100 % backend-independent** — the same text is used by all backends; never change it
 for a single backend.
 
+Treat the CFG variable list as a persisted binary schema. Mesh, sprite, font, tile, and other
+assets store shader variable values by index rather than by variable name. Consequently, every
+backend implementation of the same shader key must declare the exact same CFG variables in the
+same name, type, and order. Use the OpenGL ES catalogue as the compatibility reference when
+adding another backend. Once an asset may have been saved with a shader, do not reorder, remove,
+or insert variables into that shader's existing CFG list; introduce a new shader key/version when
+the schema must change. This also applies to temporary/editor shaders if they can be embedded in
+an asset that outlives the current process or branch.
+
 **Variable declaration syntax** (in the CFG string, third element of each triple):
 
 ```
@@ -1460,6 +1469,12 @@ For every DirectX 11 pixel shader, including built-ins and editor shaders, decla
 example `TEXCOORD0`). Do not rely on a lone pixel-shader function parameter for an interpolated
 value; validate editor overlays with deliberately non-geometric UV data so original mesh UVs or
 undefined stage inputs are immediately visible.
+
+The DirectX 11 compiler normalizes legacy `main` signatures that omit `SV_POSITION`, so shaders
+already embedded in persistent assets remain usable. New shader source must still declare the
+complete input contract explicitly. OpenGL ES is not a literal reference for the position field:
+fragment position is implicit there, while DirectX 11 requires the system-value semantic to keep
+the remaining interpolator registers aligned.
 
 Also load a bitmap font and add text through both C++ and Lua during backend acceptance. The
 built-in `font.ps` must use the backend's native texture/sampler syntax (DirectX 11 requires
