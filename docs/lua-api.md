@@ -1088,7 +1088,8 @@ world:destroy()
 
 ## 11. Plugin: box2dLiquidFun
 
-2D fluid simulation (LiquidFun). Load with:
+2D fluid simulation using LiquidFun 1.1.0, an extended branch of Box2D 2.3.0. This is separate
+from the standalone `box2d` plugin, which uses the newer Box2D 2.4.1. Load with:
 ```lua
 local lf = require "box2dLiquidFun"
 ```

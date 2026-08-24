@@ -781,19 +781,11 @@ function main_menu_font_maker()
         if tImGui.BeginMenu(tLang.L("menu_about")) then
             local pressed = tImGui.MenuItem(tLang.L("font_maker_editor"), nil, false)
             if pressed then
-                if mbm.is('windows') then
-                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker"')
-                elseif mbm.is('linux') then
-                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker"')
-                end
+                tLang.openDocumentation("editors.html#font-maker")
             end
             pressed = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
-                if mbm.is('windows') then
-                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
-                elseif mbm.is('linux') then
-                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
-                end
+                tLang.openDocumentation()
             end
             if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'), tImGui.GetVersion()))

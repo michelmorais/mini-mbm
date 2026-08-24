@@ -1021,23 +1021,11 @@ function mainMenuShader()
         if tImGui.BeginMenu(tLang.L("menu_about")) then
             local pressed,checked = tImGui.MenuItem(tLang.L("shader_editor"), nil, false)
             if pressed then
-                if mbm.is('windows') then
-                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor"')
-                elseif mbm.is('linux') then
-                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor"')
-                elseif mbm.is('macos') then
-                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor"')
-                end
+                tLang.openDocumentation("editors.html#shader-editor")
             end
             local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
-                if mbm.is('windows') then
-                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
-                elseif mbm.is('linux') then
-                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
-                elseif mbm.is('macos') then
-                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
-                end
+                tLang.openDocumentation()
             end
 
             if tImGui.BeginMenu(tLang.L("menu_version")) then

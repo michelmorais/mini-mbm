@@ -6347,23 +6347,11 @@ local function showMenu()
     if tImGui.BeginMenu(tLang.L('menu_about')) then
         local pressed=tImGui.MenuItem(tLang.L('swl_about_editor'),nil,false)
         if pressed then
-            if mbm.is('windows') then
-                os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
-            elseif mbm.is('linux') then
-                os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
-            elseif mbm.is('macos') then
-                os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#skeletal-animation-editor"')
-            end
+            tLang.openDocumentation("editors.html#skeletal-animation-editor")
         end
         pressed=tImGui.MenuItem(tLang.L('mbm_engine'),nil,false)
         if pressed then
-            if mbm.is('windows') then
-                os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
-            elseif mbm.is('linux') then
-                os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
-            elseif mbm.is('macos') then
-                os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
-            end
+            tLang.openDocumentation()
         end
         if tImGui.BeginMenu(tLang.L('menu_version')) then
             tImGui.TextDisabled(string.format('%s\nIMGUI: %s',mbm.get('version'),

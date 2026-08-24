@@ -3218,8 +3218,14 @@ function main_menu_3d()
         end
 
         if tImGui.BeginMenu(tLang.L('menu_about')) then
-            tImGui.MenuItem(tLang.L('scene_editor_3d'))
-            tImGui.MenuItem(tLang.L('mbm_engine'))
+            local pressed = tImGui.MenuItem(tLang.L('scene_editor_3d'))
+            if pressed then
+                tLang.openDocumentation("editors.html#scene-editor-3d")
+            end
+            pressed = tImGui.MenuItem(tLang.L('mbm_engine'))
+            if pressed then
+                tLang.openDocumentation()
+            end
             if tImGui.BeginMenu(tLang.L('menu_version')) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'), tImGui.GetVersion()))
                 tImGui.EndMenu()

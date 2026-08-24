@@ -5197,6 +5197,28 @@ function M.getLanguage()
     return M.current
 end
 
+local documentationBaseUrls = {
+    en = "https://mbm-documentation.readthedocs.io/en/latest/",
+    pt_br = "https://mbm-documentation-pt-br.readthedocs.io/pt-br/latest/",
+}
+
+function M.getDocumentationUrl(relativePath)
+    local baseUrl = documentationBaseUrls[M.current] or documentationBaseUrls.en
+    local path = relativePath or ""
+    return baseUrl .. path:gsub("^/+", "")
+end
+
+function M.openDocumentation(relativePath)
+    local url = M.getDocumentationUrl(relativePath)
+    if mbm.is("windows") then
+        os.execute('start "" "' .. url .. '"')
+    elseif mbm.is("linux") then
+        os.execute('sensible-browser "' .. url .. '"')
+    elseif mbm.is("macos") then
+        os.execute('open "' .. url .. '"')
+    end
+end
+
 function M.L(key)
     local t = M[M.current] or M.en
     return t[key] or M.en[key] or key

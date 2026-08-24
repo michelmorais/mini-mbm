@@ -4037,23 +4037,11 @@ function main_menu_texture_packer()
         if tImGui.BeginMenu(tLang.L("menu_about")) then
             local pressed,checked = tImGui.MenuItem(tLang.L("texture_packer_editor"), nil, false)
             if pressed then
-                if mbm.is('windows') then
-                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#texture-packer-editor"')
-                elseif mbm.is('linux') then
-                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#texture-packer-editor"')
-                elseif mbm.is('macos') then
-                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#texture-packer-editor"')
-                end
+                tLang.openDocumentation("editors.html#texture-packer-editor")
             end
             local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
-                if mbm.is('windows') then
-                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
-                elseif mbm.is('linux') then
-                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
-                elseif mbm.is('macos') then
-                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
-                end
+                tLang.openDocumentation()
             end
 
             if tImGui.BeginMenu(tLang.L("menu_version")) then

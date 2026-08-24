@@ -59,7 +59,7 @@ mingw32-make -j...        # Windows MinGW
 | `-DUSE_VR=1` | Enable VR class (default on Linux/Windows, off on Android) |
 | `-DAUDIO=portaudio\|avfoundation\|opensl\|none` | Audio backend. `portaudio` is the default for Linux/Windows; `avfoundation` for macOS/iOS; `opensl` for Android |
 | `-DUSE_BOX2D=1` | Box2D 2.4.1 physics plugin |
-| `-DUSE_BOX2D_LIQUID_FUN=1` | LiquidFun 2.3.1 fluid physics plugin |
+| `-DUSE_BOX2D_LIQUID_FUN=1` | LiquidFun 1.1.0 fluid physics plugin, based on Box2D 2.3.0 |
 | `-DUSE_BULLET3D=1` | Bullet 2.84 3D physics plugin |
 | `-DUSE_IMGUI=1` | Dear ImGui plugin (required for editor tools) |
 | `-DUSE_LSQLITE3=1` | SQLite3 Lua bindings |
@@ -111,7 +111,7 @@ mini-mbm/
 ├── plugins/                  Optional plugin shared libraries
 │   ├── plugin-helper/        Shared Lua helper utilities used by all plugins
 │   ├── box2d/                Box2D 2.4.1 Lua bindings
-│   ├── box2d-liquid-fun-lua/ LiquidFun 2.3.1 Lua bindings
+│   ├── box2d-liquid-fun-lua/ LiquidFun 1.1.0 / Box2D 2.3.0 Lua bindings
 │   ├── bullet3d/             Bullet 2.84 Lua bindings
 │   ├── imGui/                Dear ImGui plugin (powers all editor tools)
 │   └── tiled/                Tiled-map plugin with tile_editor
@@ -396,7 +396,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 | lua | 5.4.1 | Scripting engine |
 | portaudio | — | Audio (Linux/Windows) |
 | box2d | 2.4.1 | 2D physics |
-| box2d-liquid-fun | 2.3.1 | 2D fluid simulation |
+| box2d-liquid-fun | LiquidFun 1.1.0 / Box2D 2.3.0 | 2D fluid simulation |
 | bullet | 2.84 | 3D physics |
 | stb | — | Image loading helpers |
 | lodepng | — | PNG loading |
