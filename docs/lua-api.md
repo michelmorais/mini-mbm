@@ -15,6 +15,7 @@ Engine version: see `mbm.get("mbm")` at runtime.
 6. [Common Renderizable Methods](#6-common-renderizable-methods)
 7. [Render Types — Type-Specific Methods](#7-render-types--type-specific-methods)
 8. [vec2 / vec3 Objects](#8-vec2--vec3-objects)
+8b. [Audio Object](#8b-audio-object)
 9. [mbm Constants](#9-mbm-constants)
 10. [Plugin: box2d](#10-plugin-box2d)
 11. [Plugin: box2dLiquidFun](#11-plugin-box2dliquidfun)
@@ -381,6 +382,8 @@ Obtained via `local cam = mbm.getCamera("2d")` or `mbm.getCamera("3d")`.
 | `cam:getFocus` | `()` | vec3 | Get look-at target |
 | `cam:setUp` | `(x, y, z?)` | — | Set up vector |
 | `cam:getUp` | `()` | vec3 | Get up vector |
+| `cam:scaleToScreen` | `(width, height, axis?)` | — | 2D camera only. Fit the logical design size to the current screen; `axis` accepts `"x"`, `"y"`, or `"xy"` |
+| `cam:getNormal` | `(direction: "R"|"L"|"U"|"D"|"B"|"F")` | vec3 | 3D camera only. Return the current camera-relative direction vector |
 | `cam:setAngleOfView` | `(degrees)` | — | 3D camera only. Field-of-view angle |
 | `cam:setFar` | `(distance)` | — | 3D camera only. Far clip plane distance — objects beyond this are culled. **Default is only 1000**, easy to exceed in a normal 3D scene (was entirely undocumented before) |
 | `cam:setNear` | `(distance)` | — | 3D camera only. Near clip plane distance |
@@ -974,11 +977,42 @@ local r = v * scalar
 local r = v / scalar
 
 v:length()         -- magnitude
-v:normalize()      -- returns normalized copy
+v:normalize()      -- normalize v in place; returns nothing
 v:dot(other)       -- dot product
 v:cross(other)     -- cross product (vec3 only)
-v:distance(other)  -- distance to another vector
+v:lerp(a, b, t)    -- write the linear interpolation of a and b into v
+v2:azimuth()       -- angle of v in radians; vec2 only
+v2:azimuth(other)  -- angle of v - other in radians; vec2 only
 ```
+
+---
+
+## 8b. Audio Object
+
+Create audio with `audio:new(file, inMemory?, play?, loop?)`. It returns an audio object or `nil`
+when the file cannot be loaded. `inMemory`, `play`, and `loop` default to `false`.
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `audio:play` | `(loop?)` | bool | Start or resume playback; `loop` defaults to `false` |
+| `audio:pause` | `()` | bool | Pause playback |
+| `audio:stop` | `()` | bool | Stop playback |
+| `audio:setVolume` | `(volume)` | bool | Set volume |
+| `audio:getVolume` | `()` | number | Get volume |
+| `audio:setPan` | `(pan)` | bool | Set stereo pan |
+| `audio:getPan` | `()` | number | Get stereo pan |
+| `audio:setPitch` | `(pitch)` | bool | Set playback pitch |
+| `audio:getPitch` | `()` | number | Get playback pitch |
+| `audio:isPlaying` | `()` | bool | Whether playback is active |
+| `audio:isPaused` | `()` | bool | Whether playback is paused |
+| `audio:reset` | `()` | bool | Reset playback state |
+| `audio:getLen` | `()` | int | Get the sound length reported by the backend |
+| `audio:setPosition` | `(position: int)` | bool | Seek to a backend position |
+| `audio:onEnd` | `(callback)` | — | Register `callback(audio, fileName)`; Lua execution is queued on the scene thread |
+| `audio:getName` | `()` | string | Get the loaded file name |
+| `audio:setPersistent` | `(persistent: bool)` | — | Keep or release the sound across scene teardown according to manager policy |
+| `audio:isPersistent` | `()` | bool | Whether the sound is persistent |
+| `audio:destroy` | `()` | — | Immediately release the object; later garbage collection is a no-op |
 
 ---
 
