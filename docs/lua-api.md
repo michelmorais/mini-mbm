@@ -1127,7 +1127,7 @@ in doubt rather than assuming a Dear ImGui C++ signature carries over as-is.
 - **`Checkbox`** returns only the resulting value, not `(changed, value)`: `local v = tImGui.Checkbox(label, value)`. Detect a toggle yourself with `if v ~= value then ... end`.
 - **`ColorEdit3` / `ColorEdit4` / `ColorPicker3` / `ColorPicker4`** take AND return a single `{r,g,b,*a}` **table** (0.0-1.0 per channel), never separate r,g,b[,a] numbers in either direction. Passing scalars throws `"Expected table [tRgb]"` — this crashed an editor mid-session because a table field (`color.r`) was passed instead of the table itself.
 - **`Combo`**'s `currentIdx` argument and returned index are **1-based** (Lua array convention) — the binding does the `-1`/`+1` conversion against ImGui's native 0-based index internally. Passing a 0-based index (e.g. `i-1` from a manual lookup loop) renders the combo with nothing selected.
-- **`ListBox`** does **not** do that conversion — its index is **0-based**, unlike `Combo`. The two widgets are inconsistent with each other; don't assume one from the other.
+- **`ListBox` has an asymmetric index contract in the current binding:** pass `currentIdx` as a **1-based** Lua index, but read the returned index as **0-based**. `Combo` is 1-based in both directions. For `ListBox`, use the additionally returned selected item string when possible, or add 1 before indexing a Lua array with the returned index.
 - **`GetWindowSize` / `GetWindowPos` / `GetItemRectMin` / `GetItemRectMax` / `GetItemRectSize`** each return a single `{x,y}` table, not two numbers. Use `GetWindowWidth()`/`GetWindowHeight()` if you just need plain numbers.
 - **Don't use `IsAnyWindowHovered()`/`IsAnyItemHovered()` to decide whether a click/scroll/drag should reach your game scene instead of the UI.** Use **`GetWantCaptureMouse()`** (and `GetWantCaptureKeyboard()` for keyboard) instead. Three reasons, all hit in practice on the same editor, repeatedly, across several tabs before being root-caused:
   1. `IsWindowHovered(ImGuiHoveredFlags_AnyWindow)` (what `IsAnyWindowHovered()` wraps) is designed to be queried about a *specific* window from inside that window's `Begin()`/`End()` block; using it as a global "is the UI in front of the mouse anywhere" check is a repurposing of a per-window API, not its intended use. Dear ImGui's own header comment on `IsWindowHovered` says as much: *"If you are trying to check whether your mouse should be dispatched to Dear ImGui or to your app, you should use the `io.WantCaptureMouse` boolean for that!"*
@@ -1158,16 +1158,17 @@ Common `ImGuiWindowFlags_*`:
 ### Layout
 
 ```lua
-tImGui.SetNextWindowPos(x, y, cond?)    -- cond: "Always", "Once", "Appearing"
-tImGui.SetNextWindowSize(w, h, cond?)
-tImGui.SetNextWindowSizeConstraints(minW, minH, maxW, maxH)
+tImGui.SetNextWindowPos({x=x, y=y}, cond?, {x=pivotX, y=pivotY}?)
+tImGui.SetNextWindowSize({x=w, y=h}, cond?)
+tImGui.SetNextWindowSizeConstraints({x=minW, y=minH}, {x=maxW, y=maxH})
+-- cond is an ImGuiCond_* integer, normally built with tImGui.Flags("ImGuiCond_Once")
 
 tImGui.SameLine(offsetX?, spacing?)
 tImGui.Separator()
 tImGui.Spacing()
 tImGui.NewLine()
-tImGui.Columns(n?, id?, border?)
-tImGui.NextColumn()
+-- Columns()/NextColumn() were removed from this binding with ImGui 1.92+.
+-- Use BeginTable()/TableNextColumn()/EndTable(); see the Tables section below.
 tImGui.PushItemWidth(w)
 tImGui.PopItemWidth()
 ```
@@ -1176,10 +1177,10 @@ tImGui.PopItemWidth()
 
 ```lua
 tImGui.Text("label")
-tImGui.TextColored(r, g, b, a, "text")    -- 0.0–1.0 floats
+tImGui.TextColored({r=r, g=g, b=b, a=a}, "text")    -- channels: 0.0–1.0
 tImGui.TextWrapped("long text ...")
 
-local pressed = tImGui.Button("label", w?, h?)
+local pressed = tImGui.Button("label", {x=w, y=h}?)
 local pressed = tImGui.SmallButton("label")
 local v = tImGui.Checkbox("label", bool_value)   -- returns only the new/current value, not a separate changed flag
 -- detect a toggle yourself: `if v ~= bool_value then ... end`
@@ -1196,8 +1197,9 @@ local c, v = tImGui.DragFloat("label", value, speed?, min?, max?)
 local c, v = tImGui.DragInt("label", value, speed?, min?, max?)
 
 -- Input
-local c, s = tImGui.InputText("label", str, maxLen?)
-local c, s = tImGui.InputTextMultiline("label", str, maxLen?, w?, h?)
+local c, s = tImGui.InputText("label", str, flags?)
+local c, s = tImGui.InputTextMultiline("label", str, {x=w, y=h}?, flags?)
+-- The binding grows its internal buffer automatically; there is no maxLen argument.
 local c, v = tImGui.InputFloat("label", value, step?, stepFast?)
 local c, v = tImGui.InputInt("label", value, step?, stepFast?)
 
@@ -1217,8 +1219,9 @@ local c, tRgba = tImGui.ColorPicker4("label", {r=1,g=1,b=1,a=1})
 -- native 0-based index internally, so index 0 (or any 0-based value) reads as "no selection"
 -- and renders the combo box empty.
 local c, idx = tImGui.Combo("label", currentIdx, {"item1","item2",...})   -- idx: 1-based
--- Combo and ListBox are consistent with each other here
-local c, idx = tImGui.ListBox("label", currentIdx, {"item1","item2",...}, h?)   -- idx: 1-based
+-- ListBox is asymmetric in the current binding: currentIdx is 1-based, returned idx is
+-- 0-based. It also returns the selected item string as a third result.
+local c, idx0, item = tImGui.ListBox("label", currentIdx1, {"item1","item2",...}, h?)
 
 -- Tree / collapsing
 local open = tImGui.TreeNode("label")
@@ -1275,8 +1278,8 @@ end
 ### Image
 
 ```lua
-tImGui.Image(textureName, w, h, u0?, v0?, u1?, v1?)
-local pressed = tImGui.ImageButton(textureName, w, h)
+tImGui.Image(textureName, {x=w, y=h}?, {x=u0, y=v0}?, {x=u1, y=v1}?, bgColor?, tintColor?, flipV?)
+local pressed = tImGui.ImageButton("id", textureName, {x=w, y=h}?, {x=u0, y=v0}?, {x=u1, y=v1}?, bgColor?, tintColor?, flipV?)
 ```
 
 ### Utility

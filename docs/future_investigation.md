@@ -80,3 +80,16 @@ headless regression check (numeric self-test asserts on-axis accuracy and `getPi
 direction agreement, prints `TO3D_SELFTEST PASS`/`FAIL`, safe to run under `timeout -s KILL` per the
 `engine-testing` skill's Path B). See the comment header in that file for full run instructions and
 controls.
+
+
+Ultimas documentações "erradas" e algumas corrigidas:
+
+
+| Afirmação documentada | Documento | Implementação | Veredito |
+|---|---|---|---|
+| `Columns`/`NextColumn` estão disponíveis | `lua-api.md:1169` | API removida e não registrada em `imgui-lua.cpp:5708,6968` | documentação desatualizada |
+| Posição/tamanho recebem números separados | `lua-api.md:1161` | recebem tabelas `ImVec2`; posição também aceita pivô | documentação desatualizada |
+| `TextColored` recebe RGBA separado | `lua-api.md:1179` | recebe tabela de cor + texto | documentação desatualizada |
+| `InputText` recebe `maxLen`; multiline recebe `maxLen,w,h` | `lua-api.md:1199` | buffers são automáticos; recebem flags e, no multiline, uma tabela de tamanho | documentação desatualizada |
+| `ListBox` é integralmente 0-based ou 1-based | `lua-api.md:1130,1220` | entrada é 1-based, mas retorno atual é 0-based | documentação contraditória; o comportamento do código será explicitado |
+| `Button` e imagens recebem largura/altura separados | `lua-api.md:1182,1280` | tamanhos e UVs usam tabelas; `ImageButton` também exige ID | documentação desatualizada |
