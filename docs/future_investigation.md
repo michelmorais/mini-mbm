@@ -93,3 +93,9 @@ Ultimas documentações "erradas" e algumas corrigidas:
 | `InputText` recebe `maxLen`; multiline recebe `maxLen,w,h` | `lua-api.md:1199` | buffers são automáticos; recebem flags e, no multiline, uma tabela de tamanho | documentação desatualizada |
 | `ListBox` é integralmente 0-based ou 1-based | `lua-api.md:1130,1220` | entrada é 1-based, mas retorno atual é 0-based | documentação contraditória; o comportamento do código será explicitado |
 | `Button` e imagens recebem largura/altura separados | `lua-api.md:1182,1280` | tamanhos e UVs usam tabelas; `ImageButton` também exige ID | documentação desatualizada |
+
+| Alegação | Documentação | Implementação | Veredito |
+|---|---|---|---|
+| `InputTextMultiline` aceita flags | `docs/lua-api.md` | `onInputTextMultilineImGuiLua` valida pelo `inputTextFlagsMap` | Correto |
+| `WordWrap` existe para multilinha | ainda não documentado | Dear ImGui vendorizado define e implementa a flag | Recurso existente |
+| Lua consegue solicitar `WordWrap` | não documentado | a flag está ausente do `inputTextFlagsMap` | Bug do binding |
