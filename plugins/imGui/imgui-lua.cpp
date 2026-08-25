@@ -859,7 +859,8 @@ static const std::map<std::string,int> inputTextFlagsMap = {
         {"ImGuiInputTextFlags_Password",                      ImGuiInputTextFlags_Password},
         {"ImGuiInputTextFlags_NoUndoRedo",                    ImGuiInputTextFlags_NoUndoRedo},
         {"ImGuiInputTextFlags_CharsScientific",               ImGuiInputTextFlags_CharsScientific},
-        {"ImGuiInputTextFlags_CallbackResize",                ImGuiInputTextFlags_CallbackResize}
+        {"ImGuiInputTextFlags_CallbackResize",                ImGuiInputTextFlags_CallbackResize},
+        {"ImGuiInputTextFlags_WordWrap",                      ImGuiInputTextFlags_WordWrap}
 };
 
 static const std::map<std::string,int> sliderFlagsMap = {

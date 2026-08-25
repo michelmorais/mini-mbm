@@ -1200,6 +1200,12 @@ local c, v = tImGui.DragInt("label", value, speed?, min?, max?)
 local c, s = tImGui.InputText("label", str, flags?)
 local c, s = tImGui.InputTextMultiline("label", str, {x=w, y=h}?, flags?)
 -- The binding grows its internal buffer automatically; there is no maxLen argument.
+-- Word wrapping is available for editable multiline text:
+local c, s = tImGui.InputTextMultiline("label", str, {x=w, y=h},
+    tImGui.Flags("ImGuiInputTextFlags_WordWrap"))
+-- WordWrap is a Dear ImGui beta feature limited to InputTextMultiline and incompatible
+-- with ImGuiInputTextFlags_Password. Cursor movement and selection are not yet well tested;
+-- long-word wrapping may be visually suboptimal, and it is slower than a regular text field.
 local c, v = tImGui.InputFloat("label", value, step?, stepFast?)
 local c, v = tImGui.InputInt("label", value, step?, stepFast?)
 
