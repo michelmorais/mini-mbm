@@ -405,7 +405,7 @@ function onInitScene()
         iProgress = 0,
         iTotal = 0,
         sProgressDetail = '',
-        iTimeoutSecs = 120,
+        iTimeoutSecs = 600,
         bAbortRequested = false,
         sCancelFile = '',
         customBlenderPath = '',

@@ -59,6 +59,9 @@ loop advances progress and completion; `job:cancel()` writes the exporter cancel
 Direct MSH output is first flushed to a temporary sibling and atomically renamed; the shared job
 therefore treats appearance of the final output path as completion even if Blender does not flush
 its trailing `done` log line.
+Mesh Debug initializes this workflow with V inversion, an X-axis rotation of
+-90 degrees, and a 600-second inactivity timeout; users may still override these
+values in its import configuration.
 The module launches Blender as the format reader/exporter, but it never launches another Mini MBM
 instance and owns no ImGui or transaction state. Mesh Debug supplies its scan-derived animation
 options and keeps its existing UI around this shared job. Other engine-based editors can use the
