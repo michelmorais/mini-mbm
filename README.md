@@ -675,7 +675,7 @@ Mini MBM ships with a set of **Lua-based visual editors** (in the `editor/` fold
 | **Texture Packer** | `texture_packer.lua` | Pack multiple textures into optimized sprite sheet files for efficient rendering and memory usage. |
 | **Tilemap Editor** | `tilemap_editor.lua` | Design 2D tile-based levels with multiple layers, brush tools, and brick palette management. |
 | **Physics Editor** | `physic_editor.lua` | Edit physics collision shapes (bounding volumes) for sprites and meshes. Integrates with Box2D for shape testing. |
-| **Mesh Debug** | `mesh_debug.lua` | Batch mesh operations: load engine binary files (`.msh`, `.spt`, `.fnt`, `.tile`, `.ptl`), add/remove normals, centralize, batch process entire folders. |
+| **Mesh Debug** | `mesh_debug.lua` | Batch mesh operations plus asynchronous GLB/FBX import through Blender: load native assets, add/remove normals, centralize, and batch process folders. |
 | **Asset Packager** | `asset_packager.lua` | Create and edit asset packages (SQLite3 databases) containing textures, music, scripts, and other resources for distribution. |
 
 Shared utilities are provided by `editor_utils.lua` (window positioning, color themes, image filters, overlays) and `lang/language.lua` (localization: English / Portuguese BR).
@@ -1495,7 +1495,7 @@ O Mini MBM inclui um conjunto de **editores visuais baseados em Lua** (na pasta 
 | **Texture Packer** | `texture_packer.lua` | Empacota múltiplas texturas em sprite sheets otimizadas. |
 | **Tilemap Editor** | `tilemap_editor.lua` | Edita níveis 2D baseados em tiles com múltiplas camadas e ferramentas de brush. |
 | **Physics Editor** | `physic_editor.lua` | Edita shapes de colisão física para sprites e meshes. Integra com Box2D. |
-| **Mesh Debug** | `mesh_debug.lua` | Operações em lote em arquivos binários do motor (`.msh`, `.spt`, `.fnt`, `.tile`, `.ptl`): carregar, adicionar/remover normais, centralizar. |
+| **Mesh Debug** | `mesh_debug.lua` | Operações em lote e importação assíncrona de GLB/FBX via Blender: carregar assets nativos, adicionar/remover normais, centralizar e processar pastas. |
 | **Asset Packager** | `asset_packager.lua` | Cria pacotes de assets (bancos SQLite3) com texturas, música, scripts e outros recursos. |
 
 ---

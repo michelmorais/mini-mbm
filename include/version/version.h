@@ -581,7 +581,7 @@
     7.175.1 Fixed DirectX 11 offscreen render targets ignoring alwaysRender during the capture pass, which left Scene Editor 3D mesh-selector thumbnails black.
     7.175.2 Exposed Dear ImGui's beta multiline input WordWrap flag through the typed Lua flag binding.
 */
-#define MBM_VERSION "7.175.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.176.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

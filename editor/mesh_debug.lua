@@ -30,6 +30,7 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 tBlender      =     require "blender_cli_wrapper"
+tMeshImporter =     require "blender_mesh_importer"
 tImportMode   =     require "blender_import_mode_helper"
 tXformGizmo   =     require "mesh_debug_transform_gizmo"
 
@@ -2258,14 +2259,30 @@ local function blenderImportCoroutine()
         importOptions.importAngleZ = st.nImportAngleZ
         importOptions.largeMeshMode = tBlender.getLargeMeshModeArg()
         importOptions.includeBones = tBlender.getPreferSkeletal()
-        local cmd = tBlender.buildBakeCmd(src, modeIntermediateOnly and outDir or outMsh, exporterPath, importOptions)
+        local importerJob, importerError = nil, nil
+        local cmd = nil
+        if modeIntermediateOnly then
+            cmd = tBlender.buildBakeCmd(src, outDir, exporterPath, importOptions)
+        else
+            importerJob, importerError = tMeshImporter.start({
+                wrapper = tBlender,
+                input = src,
+                output = outMsh,
+                log = dbgLog,
+                cancelFile = cancelFile,
+                timeout = st.iTimeoutSecs,
+                expectedFrames = rowEstimate.targetFrames or 1,
+                options = importOptions,
+            })
+            cmd = importerJob and true or nil
+        end
         if cmd then
             if modeInfo.fallbackExpected then
                 blenderDebugPrint(st, 'skeletal preference fallback expected: %s', modeInfo.reason or '')
             elseif modeInfo.unknown then
                 blenderDebugPrint(st, 'skeletal preference scan unknown: %s', modeInfo.reason or '')
             end
-            tBlender.launchCmdAsync(cmd, dbgLog)
+            if modeIntermediateOnly then tBlender.launchCmdAsync(cmd, dbgLog) end
             st.sCancelFile = cancelFile
             local startTime = os.time()
             local lastActivityTime = startTime
@@ -2275,8 +2292,9 @@ local function blenderImportCoroutine()
             local expectedFrames = rowEstimate.targetFrames or 1
             local finished = false
             while not finished do
+                if importerJob then importerJob:update() end
                 if st.bAbortRequested then
-                    writeTextFile(cancelFile, 'cancel\n')
+                    if importerJob then importerJob:cancel() else writeTextFile(cancelFile, 'cancel\n') end
                     failed = failed + 1
                     lastErr = tLang.L('blender_import_status_canceled')
                     blenderDebugPrint(st, 'abort requested: %s', src)
@@ -2428,9 +2446,10 @@ local function blenderImportCoroutine()
                 end
             end
         else
-            timedOut = timedOut + 1
-            blenderDebugPrint(st, 'failed to build command for: %s', src)
-            pushBlenderRunResult(src, 'timed_out', tLang.L('blender_import_status_timed_out'))
+            failed = failed + 1
+            lastErr = importerError or tLang.L('blender_import_status_timed_out')
+            blenderDebugPrint(st, 'failed to start import for %s: %s', src, lastErr)
+            pushBlenderRunResult(src, 'failed', lastErr)
         end
         st.iProgress = i
         st.sCancelFile = ''
