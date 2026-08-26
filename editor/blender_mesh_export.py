@@ -576,6 +576,10 @@ def split_subset_for_uint16_indices(subset: dict[str, Any]) -> list[dict[str, An
             {
                 "name": str(subset.get("name") or "Subset"),
                 "texture": str(subset.get("texture") or ""),
+                # Every chunk remains the same material subset. Preserve its semantic texture
+                # slots; dropping them here made large/vb_only imports retain Diffuse while
+                # silently losing Normal, Specular, Emissive and Mask in the final MSH.
+                "extraTextures": [dict(extra) for extra in (subset.get("extraTextures") or [])],
                 "vertices": current_vertices,
                 "indices": current_indices,
             }
