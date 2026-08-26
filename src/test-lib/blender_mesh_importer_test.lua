@@ -40,6 +40,13 @@ local wrapper = {
         assert(exporterPath:match('/editor/blender_mesh_export%.py$'))
         assert(options.directMshOutput == true)
         assert(options.largeMeshMode == 'vb_only')
+        assert(options.uniformScale == 100)
+        assert(options.normalizeTextures == true)
+        assert(options.includeTextureDiffuse == true)
+        assert(options.includeTextureNormal == true)
+        assert(options.includeTextureSpecular == true)
+        assert(options.includeTextureEmissive == true)
+        assert(options.includeTextureMask == false)
         return 'mock-command'
     end,
     setDebugEnabled = function() end,
@@ -51,10 +58,19 @@ local wrapper = {
 local completed = false
 local job = assert(importer.start({
     wrapper = wrapper, input = input, output = output, log = log, cancelFile = cancel,
-    options = {largeMeshMode = 'vb_only'}, onComplete = function(path) completed = path == output end,
+    options = {largeMeshMode = 'vb_only', uniformScale = 100, normalizeTextures = true,
+        includeTextureDiffuse = true, includeTextureNormal = true, includeTextureSpecular = true,
+        includeTextureEmissive = true, includeTextureMask = false},
+    onComplete = function(path) completed = path == output end,
 }))
 assert(job.status == 'running')
 assert(launched.command == 'mock-command' and launched.log == log)
+
+file = assert(io.open(log, 'wb'))
+file:write('[blender_export] export frame: 1\n[blender_export] applying uniform scale: 100\n')
+file:close()
+assert(job:update() == 'running')
+assert(job.progress == 0.6 and job.phase == 'scaling')
 
 file = assert(io.open(output, 'wb'))
 file:write('msh')

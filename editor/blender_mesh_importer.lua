@@ -61,12 +61,13 @@ local function writeText(path, content)
 end
 
 local function progressFromLog(content)
-    local progress = {sourceFrame = nil, framesExported = nil, writing = false, done = false}
+    local progress = {sourceFrame = nil, framesExported = nil, scaling = false, writing = false, done = false}
     for line in tostring(content or ''):gmatch('[^\r\n]+') do
         local frame = line:match('%[blender_export%]%s+export frame:%s+(%d+)')
         if frame then progress.sourceFrame = tonumber(frame) end
         local exported = line:match('%[blender_export%]%s+frames exported:%s+(%d+)')
         if exported then progress.framesExported = tonumber(exported) end
+        if line:find('[blender_export] applying uniform scale:', 1, true) then progress.scaling = true end
         if line:find('[blender_export] writing output', 1, true) then progress.writing = true end
         if line:find('[blender_export] done', 1, true) then progress.done = true end
     end
@@ -114,19 +115,23 @@ function Job:update()
         return self.status
     end
     local progress = progressFromLog(content)
-    if progress.sourceFrame then
-        self.progress = math.max(0, math.min(0.9, progress.sourceFrame / math.max(1, self.expectedFrames)))
-        self.phase = 'frame'
-        self.sourceFrame = progress.sourceFrame
-        self.detail = string.format('Frame %d / %d', progress.sourceFrame, self.expectedFrames)
-    elseif progress.framesExported then
+    if progress.framesExported then
         self.progress = 0.9
         self.phase = 'exported'
         self.framesExported = progress.framesExported
     elseif progress.writing then
-        self.progress = 0.95
+        self.progress = 0.9
         self.phase = 'writing'
         self.detail = 'Writing MSH'
+    elseif progress.scaling then
+        self.progress = math.max(self.progress or 0, 0.6)
+        self.phase = 'scaling'
+        self.detail = 'Applying uniform scale'
+    elseif progress.sourceFrame then
+        self.progress = math.max(0, math.min(0.9, progress.sourceFrame / math.max(1, self.expectedFrames)))
+        self.phase = 'frame'
+        self.sourceFrame = progress.sourceFrame
+        self.detail = string.format('Frame %d / %d', progress.sourceFrame, self.expectedFrames)
     end
     -- Direct MSH export atomically renames its fully flushed temporary file to
     -- self.output. Seeing the final path is therefore a safe completion signal,
@@ -175,6 +180,13 @@ function M.start(config)
     local importOptions = {
         directMshOutput = true,
         includeBones = options.includeBones ~= false,
+        uniformScale = options.uniformScale,
+        normalizeTextures = options.normalizeTextures == true,
+        includeTextureDiffuse = options.includeTextureDiffuse,
+        includeTextureNormal = options.includeTextureNormal,
+        includeTextureSpecular = options.includeTextureSpecular,
+        includeTextureEmissive = options.includeTextureEmissive,
+        includeTextureMask = options.includeTextureMask,
         largeMeshMode = options.largeMeshMode or 'fail',
         debugSteps = options.debugSteps == true,
         cancelFile = cancelFile,

@@ -322,6 +322,20 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, '--include-bones')
     end
 
+    if options.uniformScale and tonumber(options.uniformScale) then
+        table.insert(args, '--uniform-scale')
+        table.insert(args, tostring(options.uniformScale))
+    end
+
+    if options.normalizeTextures then table.insert(args, '--normalize-textures') end
+    for _, role in ipairs({'diffuse', 'normal', 'specular', 'emissive', 'mask'}) do
+        local key = 'includeTexture' .. role:sub(1, 1):upper() .. role:sub(2)
+        if options[key] == false then
+            table.insert(args, '--exclude-texture-role')
+            table.insert(args, role)
+        end
+    end
+
     if options.importPostProcess then
         table.insert(args, '--post-process')
         if options.importInvertU then
