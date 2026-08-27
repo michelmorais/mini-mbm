@@ -300,6 +300,7 @@ mbm.addShader({
 | `mbm.getSplash` | `()` | renderizable\|nil | Get the splash-screen renderizable (if active) |
 | `mbm.executeInThread` | `(command: string)` | — | Execute a command through the legacy desktop background launcher (not Android/iOS) |
 | `mbm.executeProcessAsync` | `(options: table)` | process job\|nil, error? | Start an executable directly on Windows, Linux, or macOS. `options.executable` is required, `options.arguments` is an optional string array, and `options.hidden` defaults to `true` on Windows. The job exposes `isRunning()`, `getExitCode()`, `cancel()`, and `destroy()`. |
+| `mbm.getExecutablePath` | `()` | string\|nil | Return the absolute path of the running executable on Windows, Linux, or macOS. This is independent of the current working directory and is unavailable on Android/iOS. |
 | `mbm.generateImageResourceHeaderFromPng` | `(pngFile, headerFile)` | bool | Convert PNG to a C++ `static-resource` header |
 | `mbm.setMinMaxWindowSize` | `(minX, minY, maxX, maxY)` | — | Set window size constraints |
 

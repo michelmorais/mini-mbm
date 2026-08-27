@@ -76,6 +76,7 @@
 #elif defined _WIN32
     #include <windows.h>
 #elif defined(__APPLE__) && !defined(ANDROID)
+    #include <mach-o/dyld.h>
     #include <spawn.h>
     #include <signal.h>
     #include <sys/wait.h>
@@ -110,6 +111,34 @@ extern char **environ;
 namespace mbm 
 {
 #if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+    static int onGetExecutablePath(lua_State *lua)
+    {
+#if defined _WIN32
+        std::vector<char> path(32768, '\0');
+        const DWORD length = GetModuleFileNameA(nullptr, path.data(), static_cast<DWORD>(path.size()));
+        if (length == 0 || length >= path.size())
+            lua_pushnil(lua);
+        else
+            lua_pushlstring(lua, path.data(), length);
+#elif defined(__APPLE__)
+        uint32_t size = 0;
+        _NSGetExecutablePath(nullptr, &size);
+        std::vector<char> path(size + 1, '\0');
+        if (_NSGetExecutablePath(path.data(), &size) != 0)
+            lua_pushnil(lua);
+        else
+            lua_pushstring(lua, path.data());
+#else
+        std::vector<char> path(4096, '\0');
+        const ssize_t length = readlink("/proc/self/exe", path.data(), path.size() - 1);
+        if (length <= 0)
+            lua_pushnil(lua);
+        else
+            lua_pushlstring(lua, path.data(), static_cast<size_t>(length));
+#endif
+        return 1;
+    }
+
     namespace
     {
         constexpr const char *PROCESS_JOB_METATABLE = "mbmProcessJob";
@@ -3415,6 +3444,9 @@ namespace mbm
             {"showConsole", onShowConsoleMbm},
             {"addPath", onAddPathSourceMbm},
             {"getPathEngine", onGetPathSourceMbm},
+#if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+            {"getExecutablePath", onGetExecutablePath},
+#endif
             {"getFullPath", onGetFullPath},
             {"getAllPaths", onGetAllPath },
             {"to2dw", ontransform2dS2dWMbm},
