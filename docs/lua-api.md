@@ -298,7 +298,8 @@ mbm.addShader({
 | Function | Signature | Returns | Description |
 |---|---|---|---|
 | `mbm.getSplash` | `()` | renderizable\|nil | Get the splash-screen renderizable (if active) |
-| `mbm.executeInThread` | `(func)` | — | Execute a Lua function in a background thread (not Android) |
+| `mbm.executeInThread` | `(command: string)` | — | Execute a command through the legacy desktop background launcher (not Android/iOS) |
+| `mbm.executeProcessAsync` | `(options: table)` | process job\|nil, error? | Start an executable directly on Windows, Linux, or macOS. `options.executable` is required, `options.arguments` is an optional string array, and `options.hidden` defaults to `true` on Windows. The job exposes `isRunning()`, `getExitCode()`, `cancel()`, and `destroy()`. |
 | `mbm.generateImageResourceHeaderFromPng` | `(pngFile, headerFile)` | bool | Convert PNG to a C++ `static-resource` header |
 | `mbm.setMinMaxWindowSize` | `(minX, minY, maxX, maxY)` | — | Set window size constraints |
 
