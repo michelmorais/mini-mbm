@@ -45,14 +45,25 @@ function onInitScene()
     local skeletal = meshDebug:new()
     assert(skeletal:load('Lorekeeper-walk.msh'))
     local skeletalVertices, skeletalTriangles = totals(skeletal)
-    local rejected, rejection = skeletal:simplify(0.5)
-    assert(rejected == nil and rejection:find('skeletal'))
-    local afterVertices, afterTriangles = totals(skeletal)
-    assert(afterVertices == skeletalVertices and afterTriangles == skeletalTriangles)
+    local skeletalReport, skeletalError = skeletal:simplify(0.8)
+    assert(skeletalReport, skeletalError)
+    assert(skeletalReport.skinWeightAware == true)
+    assert(skeletalReport.poseSampledError == false)
+    assert(skeletalReport.resultTriangleCount < skeletalTriangles)
+    assert(skeletal:check())
+    assert(skeletal:save('/tmp/mbm_simplified_lorekeeper.msh', false, false, true))
+
+    local skeletalRestored = meshDebug:new()
+    assert(skeletalRestored:load('/tmp/mbm_simplified_lorekeeper.msh'))
+    assert(skeletalRestored:check())
+    local skeletalRestoredVertices, skeletalRestoredTriangles = totals(skeletalRestored)
+    assert(skeletalRestoredVertices == skeletalReport.resultVertexCount)
+    assert(skeletalRestoredTriangles == skeletalReport.resultTriangleCount)
 
     print('info', 'green', string.format(
-        'SIMPLIFY SMOKETEST OK source=%d/%d result=%d/%d error=%.6g',
+        'SIMPLIFY SMOKETEST OK static=%d/%d->%d/%d skeletal=%d/%d->%d/%d error=%.6g',
         beforeVertices, beforeTriangles, restoredVertices, restoredTriangles,
+        skeletalVertices, skeletalTriangles, skeletalRestoredVertices, skeletalRestoredTriangles,
         report.maximumGeometricError))
 end
 

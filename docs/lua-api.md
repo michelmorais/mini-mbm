@@ -1400,12 +1400,16 @@ local report, err = meshD:simplify(targetTriangleRatio)
 quadric-error edge collapses independently inside each material subset, preserves open boundaries,
 UV seams, hard-normal splits, material metadata, and authored physics metadata, and commits only
 after the complete candidate is valid. On success it returns a detached table containing
-`sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`, and
-`maximumGeometricError`. On failure it returns `nil, error` without modifying the mesh.
+`sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`,
+`maximumGeometricError`, `skinWeightAware`, and `poseSampledError`. On failure it returns
+`nil, error` without modifying the mesh.
 
-The first implementation accepts only one-frame, indexed, 3D triangle-list meshes without
-canonical skeletal data or articulated animation. Those cases are rejected explicitly until their
-attribute-preservation paths are implemented.
+The implementation accepts one-frame, indexed, 3D triangle-list meshes. For canonical skeletal
+assets, every collapse blends the source influences, keeps the strongest four, normalizes them,
+and preserves the skeleton and animation clips. In this path `skinWeightAware` is true and
+`poseSampledError` is false: the reported geometric error is measured in bind pose and does not
+claim pose-sampled animation quality. Incomplete canonical data, multi-frame geometry, and
+articulated animation are rejected explicitly.
 
 ### Geometry scaling
 

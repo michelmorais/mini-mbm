@@ -2077,11 +2077,19 @@ namespace mbm
             return fail("simplification currently supports only triangle-list draw mode");
         if (impl->buffer.size() != 1)
             return fail("simplification currently supports exactly one geometry frame");
-        if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0 ||
-            impl->canonicalAnimations.skeletonId != 0)
-            return fail("simplification of canonical skeletal assets is not implemented yet");
         if (!impl->articulatedParts.empty() || !impl->articulatedClips.empty())
             return fail("simplification of articulated assets is not implemented yet");
+
+        const bool hasCanonicalData = impl->canonicalSkeleton.skeletonId != 0 ||
+                                      impl->canonicalWeights.skeletonId != 0 ||
+                                      impl->canonicalAnimations.skeletonId != 0;
+        const bool hasCanonicalWeights = impl->canonicalWeights.skeletonId != 0;
+        if (hasCanonicalData && (impl->canonicalSkeleton.skeletonId == 0 || !hasCanonicalWeights))
+            return fail("canonical skeletal simplification requires both a skeleton and skin weights");
+        if (hasCanonicalWeights &&
+            (impl->canonicalWeights.skeletonId != impl->canonicalSkeleton.skeletonId ||
+             impl->canonicalWeights.frameIndex != 0))
+            return fail("canonical skin weights do not reference frame zero and the active skeleton");
 
         util::BUFFER_MESH_DEBUG *frame = impl->buffer[0];
         if (!frame || !frame->position || !frame->indexBuffer || frame->subset.empty())
@@ -2099,12 +2107,23 @@ namespace mbm
         std::vector<VEC3> normals;
         std::vector<VEC2> uvs;
         std::vector<uint16_t> indices;
+        std::vector<skeletal::CANONICAL_VERTEX_WEIGHT> weights;
+        skeletal::CANONICAL_WEIGHTS simplifiedWeights;
         float maximumError = 0.0f;
 
         const auto *sourcePositions = reinterpret_cast<const VEC3 *>(frame->position);
         const auto *sourceNormals = reinterpret_cast<const VEC3 *>(frame->normal);
         const auto *sourceUvs = reinterpret_cast<const VEC2 *>(frame->uv);
         report.sourceVertexCount = static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer);
+        if (hasCanonicalWeights)
+        {
+            if (impl->canonicalWeights.vertices.size() != report.sourceVertexCount ||
+                !skeletal::validateCanonicalWeights(impl->canonicalSkeleton, impl->canonicalWeights,
+                                                    report.sourceVertexCount))
+                return fail("canonical skin weights are invalid for the source geometry");
+            weights.reserve(report.sourceVertexCount);
+            report.skinWeightAware = true;
+        }
         for (const util::SUBSET_DEBUG *subset : frame->subset)
         {
             if (!subset || subset->vertexStart < 0 || subset->vertexCount <= 0 || subset->indexStart < 0 ||
@@ -2114,6 +2133,7 @@ namespace mbm
 
             mesh_simplifier::INPUT input;
             std::unordered_map<uint32_t, uint32_t> localByGlobal;
+            std::vector<uint32_t> globalByLocal;
             localByGlobal.reserve(static_cast<size_t>(subset->vertexCount));
             input.indices.reserve(static_cast<size_t>(subset->indexCount));
             for (int i = 0; i < subset->indexCount; ++i)
@@ -2126,6 +2146,7 @@ namespace mbm
                 {
                     const uint32_t localIndex = static_cast<uint32_t>(input.positions.size());
                     found = localByGlobal.emplace(globalIndex, localIndex).first;
+                    globalByLocal.push_back(globalIndex);
                     input.positions.push_back(sourcePositions[globalIndex]);
                     if (sourceNormals) input.normals.push_back(sourceNormals[globalIndex]);
                     if (sourceUvs) input.uvs.push_back(sourceUvs[globalIndex]);
@@ -2151,6 +2172,9 @@ namespace mbm
                 result.mesh.normals = std::move(input.normals);
                 result.mesh.uvs = std::move(input.uvs);
                 result.mesh.indices = std::move(input.indices);
+                result.mesh.sourceContributions.reserve(result.mesh.positions.size());
+                for (uint32_t i = 0; i < result.mesh.positions.size(); ++i)
+                    result.mesh.sourceContributions.push_back({{i, 1.0f}});
             }
 
             if (positions.size() + result.mesh.positions.size() > UINT16_MAX)
@@ -2161,10 +2185,55 @@ namespace mbm
             uvs.insert(uvs.end(), result.mesh.uvs.begin(), result.mesh.uvs.end());
             for (const uint32_t index : result.mesh.indices)
                 indices.push_back(static_cast<uint16_t>(outputBase + index));
+            if (hasCanonicalWeights)
+            {
+                for (const auto &contributions : result.mesh.sourceContributions)
+                {
+                    std::unordered_map<uint32_t, double> merged;
+                    for (const auto &contribution : contributions)
+                    {
+                        if (contribution.first >= globalByLocal.size())
+                            return fail("simplifier produced an invalid source-vertex contribution");
+                        const skeletal::CANONICAL_VERTEX_WEIGHT &sourceWeight =
+                            impl->canonicalWeights.vertices[globalByLocal[contribution.first]];
+                        for (uint32_t slot = 0; slot < 4; ++slot)
+                            if (sourceWeight.weight[slot] > 0.0f)
+                                merged[sourceWeight.paletteIndex[slot]] +=
+                                    static_cast<double>(sourceWeight.weight[slot]) * contribution.second;
+                    }
+                    std::vector<std::pair<uint32_t, double>> ranked(merged.begin(), merged.end());
+                    std::sort(ranked.begin(), ranked.end(), [](const auto &left, const auto &right)
+                    {
+                        return left.second > right.second ||
+                               (left.second == right.second && left.first < right.first);
+                    });
+                    if (ranked.size() > 4) ranked.resize(4);
+                    double total = 0.0;
+                    for (const auto &entry : ranked) total += entry.second;
+                    if (!(total > 0.0) || !std::isfinite(total))
+                        return fail("collapsed vertex has no valid canonical skin influence");
+                    skeletal::CANONICAL_VERTEX_WEIGHT outputWeight = {};
+                    for (uint32_t slot = 0; slot < ranked.size(); ++slot)
+                    {
+                        outputWeight.paletteIndex[slot] = ranked[slot].first;
+                        outputWeight.weight[slot] = static_cast<float>(ranked[slot].second / total);
+                    }
+                    weights.push_back(outputWeight);
+                }
+            }
             maximumError = std::max(maximumError, result.mesh.maximumError);
             report.sourceTriangleCount += sourceTriangles;
             report.resultTriangleCount += static_cast<uint32_t>(result.mesh.indices.size() / 3);
             results.push_back(std::move(result));
+        }
+
+        if (hasCanonicalWeights)
+        {
+            simplifiedWeights = impl->canonicalWeights;
+            simplifiedWeights.vertices = weights;
+            if (!skeletal::validateCanonicalWeights(impl->canonicalSkeleton, simplifiedWeights,
+                                                    static_cast<uint32_t>(positions.size())))
+                return fail("simplified canonical skin weights failed validation");
         }
 
         std::unique_ptr<float[]> newPositions(new float[positions.size() * 3]);
@@ -2196,6 +2265,8 @@ namespace mbm
             subset->indexCount = static_cast<int>(results[i].mesh.indices.size());
         }
         report.maximumGeometricError = maximumError;
+        if (hasCanonicalWeights)
+            impl->canonicalWeights = std::move(simplifiedWeights);
         return true;
     }
 

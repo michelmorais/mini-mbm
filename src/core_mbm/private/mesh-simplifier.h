@@ -19,6 +19,7 @@
 #include <core_mbm/primitives.h>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace mbm::mesh_simplifier
@@ -37,6 +38,7 @@ namespace mbm::mesh_simplifier
         std::vector<VEC3> normals;
         std::vector<VEC2> uvs;
         std::vector<uint32_t> indices;
+        std::vector<std::vector<std::pair<uint32_t, float>>> sourceContributions;
         float maximumError = 0.0f;
     };
 

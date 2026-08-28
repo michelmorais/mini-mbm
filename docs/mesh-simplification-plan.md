@@ -6,7 +6,7 @@ Add polygon reduction without changing mini-mbm's 16-bit vertex-index contract. 
 related, but separate, entry points:
 
 1. Reduce large static GLB/FBX assets in Blender before the importer creates MSH subsets.
-2. Add one future `MESH_MBM_DEBUG::simplify()` API for an existing MSH, with internal paths that
+2. Provide one `MESH_MBM_DEBUG::simplify()` API for an existing MSH, with internal paths that
    preserve static, skeletal, and animated data as applicable.
 
 `remesh` is reserved for a future operation that rebuilds topology and reprojects attributes.
@@ -50,8 +50,9 @@ symmetry, and carefully validated skeletal decimation. They are not part of Stag
 
 ## Stage 2: `MESH_MBM_DEBUG::simplify()`
 
-Status: the first static indexed slice is implemented in MBM_VERSION 7.178.0. Skeletal weights,
-articulated animation, and multi-frame geometry remain later slices.
+Status: static indexed simplification is implemented in MBM_VERSION 7.178.0. Canonical skeletal
+weights and animation preservation are implemented in MBM_VERSION 7.179.0 using bind-pose error.
+Pose-sampled quality, articulated animation, and multi-frame geometry remain later slices.
 
 The public surface is one method. Asset inspection selects private implementation paths; callers do
 not choose separate static/skinned/frame-animation methods.
@@ -96,7 +97,7 @@ must not guess whether existing `INFO_PHYSICS` entries are disposable.
 - Unsupported skeletal or animated inputs fail before output replacement with a clear reason.
 - Cancellation, timeout, debug logging, and atomic output behavior continue to work.
 
-### Future MSH Simplification
+### MSH Simplification
 
 - Triangle reduction reaches the requested target within a documented tolerance.
 - All indices, subset ranges, weights, animation references, and physics bounds validate.

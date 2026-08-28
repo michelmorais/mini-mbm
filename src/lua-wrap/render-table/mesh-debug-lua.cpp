@@ -205,6 +205,8 @@ namespace mbm
         lua_pushinteger(lua, report.sourceTriangleCount); lua_setfield(lua, -2, "sourceTriangleCount");
         lua_pushinteger(lua, report.resultTriangleCount); lua_setfield(lua, -2, "resultTriangleCount");
         lua_pushnumber(lua, report.maximumGeometricError); lua_setfield(lua, -2, "maximumGeometricError");
+        lua_pushboolean(lua, report.skinWeightAware); lua_setfield(lua, -2, "skinWeightAware");
+        lua_pushboolean(lua, report.poseSampledError); lua_setfield(lua, -2, "poseSampledError");
         return 1;
     }
 

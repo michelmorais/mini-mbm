@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -135,6 +136,9 @@ namespace mbm::mesh_simplifier
         std::vector<VEC3> positions = input.positions;
         std::vector<VEC3> normals = input.normals;
         std::vector<VEC2> uvs = input.uvs;
+        std::vector<std::vector<std::pair<uint32_t, float>>> contributions(positions.size());
+        for (uint32_t i = 0; i < contributions.size(); ++i)
+            contributions[i].push_back({i, 1.0f});
         std::vector<TRIANGLE> triangles;
         triangles.reserve(input.indices.size() / 3);
         for (size_t i = 0; i < input.indices.size(); i += 3)
@@ -214,6 +218,12 @@ namespace mbm::mesh_simplifier
                 positions[candidate.a] = candidate.position;
                 if (!normals.empty()) normals[candidate.a] = normalized(normals[candidate.a] + normals[candidate.b]);
                 if (!uvs.empty()) uvs[candidate.a] = (uvs[candidate.a] + uvs[candidate.b]) * 0.5f;
+                for (auto &entry : contributions[candidate.a]) entry.second *= 0.5f;
+                for (auto entry : contributions[candidate.b])
+                {
+                    entry.second *= 0.5f;
+                    contributions[candidate.a].push_back(entry);
+                }
                 maximumCost = std::max(maximumCost, std::max(0.0, candidate.cost));
             }
             std::vector<TRIANGLE> next;
@@ -238,6 +248,7 @@ namespace mbm::mesh_simplifier
                     output.positions.push_back(positions[vertex]);
                     if (!normals.empty()) output.normals.push_back(normals[vertex]);
                     if (!uvs.empty()) output.uvs.push_back(uvs[vertex]);
+                    output.sourceContributions.push_back(contributions[vertex]);
                 }
         output.indices.reserve(triangles.size() * 3);
         for (const TRIANGLE &triangle : triangles)

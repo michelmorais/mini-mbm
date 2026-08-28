@@ -72,6 +72,8 @@ namespace mbm
         uint32_t sourceTriangleCount = 0;
         uint32_t resultTriangleCount = 0;
         float maximumGeometricError = 0.0f;
+        bool skinWeightAware = false;
+        bool poseSampledError = false;
     };
 
     struct BUFFER_MESH
