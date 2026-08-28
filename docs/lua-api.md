@@ -1390,6 +1390,23 @@ first selected subset's position and keeps its primary/material-role textures. S
 appended in the existing subset order. Vertex data, indices, canonical weights, and articulated Part
 references are remapped automatically.
 
+### Triangle simplification
+
+```lua
+local report, err = meshD:simplify(targetTriangleRatio)
+```
+
+`targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
+quadric-error edge collapses independently inside each material subset, preserves open boundaries,
+UV seams, hard-normal splits, material metadata, and authored physics metadata, and commits only
+after the complete candidate is valid. On success it returns a detached table containing
+`sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`, and
+`maximumGeometricError`. On failure it returns `nil, error` without modifying the mesh.
+
+The first implementation accepts only one-frame, indexed, 3D triangle-list meshes without
+canonical skeletal data or articulated animation. Those cases are rejected explicitly until their
+attribute-preservation paths are implemented.
+
 ### Geometry scaling
 
 ```lua

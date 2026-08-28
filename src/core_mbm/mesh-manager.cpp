@@ -20,6 +20,7 @@
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
 #include "private/skeletal-parity-asset.h"
+#include "private/mesh-simplifier.h"
 #include <skeletal-gpu-upload.h>
 #include <draw-compatibility.h>
 #include <shader-var-cfg.h>
@@ -2056,6 +2057,146 @@ namespace mbm
     {
         calculateNormals();
         impl->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
+    }
+
+    bool MESH_MBM_DEBUG::simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
+                                  char *errorOut, const int errorOutLen)
+    {
+        report = {};
+        auto fail = [errorOut, errorOutLen](const std::string &message)
+        {
+            if (errorOut && errorOutLen > 0)
+                snprintf(errorOut, static_cast<size_t>(errorOutLen), "%s", message.c_str());
+            return false;
+        };
+        if (!std::isfinite(targetTriangleRatio) || targetTriangleRatio <= 0.0f || targetTriangleRatio >= 1.0f)
+            return fail("target triangle ratio must be finite, greater than zero, and smaller than one");
+        if (impl->typeMe != util::TYPE_MESH_3D)
+            return fail("simplification currently supports only 3D meshes");
+        if (impl->info_mode.mode_draw != util::MODE_DRAW_TRIANGLES)
+            return fail("simplification currently supports only triangle-list draw mode");
+        if (impl->buffer.size() != 1)
+            return fail("simplification currently supports exactly one geometry frame");
+        if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0 ||
+            impl->canonicalAnimations.skeletonId != 0)
+            return fail("simplification of canonical skeletal assets is not implemented yet");
+        if (!impl->articulatedParts.empty() || !impl->articulatedClips.empty())
+            return fail("simplification of articulated assets is not implemented yet");
+
+        util::BUFFER_MESH_DEBUG *frame = impl->buffer[0];
+        if (!frame || !frame->position || !frame->indexBuffer || frame->subset.empty())
+            return fail("simplification requires a non-empty indexed mesh");
+
+        struct SUBSET_RESULT
+        {
+            mesh_simplifier::OUTPUT mesh;
+            int vertexStart = 0;
+            int indexStart = 0;
+        };
+        std::vector<SUBSET_RESULT> results;
+        results.reserve(frame->subset.size());
+        std::vector<VEC3> positions;
+        std::vector<VEC3> normals;
+        std::vector<VEC2> uvs;
+        std::vector<uint16_t> indices;
+        float maximumError = 0.0f;
+
+        const auto *sourcePositions = reinterpret_cast<const VEC3 *>(frame->position);
+        const auto *sourceNormals = reinterpret_cast<const VEC3 *>(frame->normal);
+        const auto *sourceUvs = reinterpret_cast<const VEC2 *>(frame->uv);
+        report.sourceVertexCount = static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer);
+        for (const util::SUBSET_DEBUG *subset : frame->subset)
+        {
+            if (!subset || subset->vertexStart < 0 || subset->vertexCount <= 0 || subset->indexStart < 0 ||
+                subset->indexCount < 3 || subset->indexCount % 3 != 0 ||
+                subset->indexStart + subset->indexCount > frame->headerFrame.sizeIndexBuffer)
+                return fail("subset ranges are invalid for indexed triangle simplification");
+
+            mesh_simplifier::INPUT input;
+            std::unordered_map<uint32_t, uint32_t> localByGlobal;
+            localByGlobal.reserve(static_cast<size_t>(subset->vertexCount));
+            input.indices.reserve(static_cast<size_t>(subset->indexCount));
+            for (int i = 0; i < subset->indexCount; ++i)
+            {
+                const uint32_t globalIndex = frame->indexBuffer[subset->indexStart + i];
+                if (globalIndex >= static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer))
+                    return fail("subset index is outside the frame vertex buffer");
+                auto found = localByGlobal.find(globalIndex);
+                if (found == localByGlobal.end())
+                {
+                    const uint32_t localIndex = static_cast<uint32_t>(input.positions.size());
+                    found = localByGlobal.emplace(globalIndex, localIndex).first;
+                    input.positions.push_back(sourcePositions[globalIndex]);
+                    if (sourceNormals) input.normals.push_back(sourceNormals[globalIndex]);
+                    if (sourceUvs) input.uvs.push_back(sourceUvs[globalIndex]);
+                }
+                input.indices.push_back(found->second);
+            }
+
+            const uint32_t sourceTriangles = static_cast<uint32_t>(input.indices.size() / 3);
+            const uint32_t targetTriangles = std::max<uint32_t>(1,
+                static_cast<uint32_t>(std::floor(sourceTriangles * targetTriangleRatio)));
+            SUBSET_RESULT result;
+            result.vertexStart = static_cast<int>(positions.size());
+            result.indexStart = static_cast<int>(indices.size());
+            if (targetTriangles < sourceTriangles)
+            {
+                std::string simplifyError;
+                if (!mesh_simplifier::simplify(input, targetTriangles, result.mesh, simplifyError))
+                    return fail(std::string("subset simplification failed: ") + simplifyError);
+            }
+            else
+            {
+                result.mesh.positions = std::move(input.positions);
+                result.mesh.normals = std::move(input.normals);
+                result.mesh.uvs = std::move(input.uvs);
+                result.mesh.indices = std::move(input.indices);
+            }
+
+            if (positions.size() + result.mesh.positions.size() > UINT16_MAX)
+                return fail("simplified frame still exceeds the uint16 vertex-index limit");
+            const uint32_t outputBase = static_cast<uint32_t>(positions.size());
+            positions.insert(positions.end(), result.mesh.positions.begin(), result.mesh.positions.end());
+            normals.insert(normals.end(), result.mesh.normals.begin(), result.mesh.normals.end());
+            uvs.insert(uvs.end(), result.mesh.uvs.begin(), result.mesh.uvs.end());
+            for (const uint32_t index : result.mesh.indices)
+                indices.push_back(static_cast<uint16_t>(outputBase + index));
+            maximumError = std::max(maximumError, result.mesh.maximumError);
+            report.sourceTriangleCount += sourceTriangles;
+            report.resultTriangleCount += static_cast<uint32_t>(result.mesh.indices.size() / 3);
+            results.push_back(std::move(result));
+        }
+
+        std::unique_ptr<float[]> newPositions(new float[positions.size() * 3]);
+        std::unique_ptr<float[]> newNormals(sourceNormals ? new float[normals.size() * 3] : nullptr);
+        std::unique_ptr<float[]> newUvs(sourceUvs ? new float[uvs.size() * 2] : nullptr);
+        std::unique_ptr<uint16_t[]> newIndices(new uint16_t[indices.size()]);
+        memcpy(newPositions.get(), positions.data(), positions.size() * sizeof(VEC3));
+        if (newNormals) memcpy(newNormals.get(), normals.data(), normals.size() * sizeof(VEC3));
+        if (newUvs) memcpy(newUvs.get(), uvs.data(), uvs.size() * sizeof(VEC2));
+        memcpy(newIndices.get(), indices.data(), indices.size() * sizeof(uint16_t));
+
+        delete[] frame->position;
+        delete[] frame->normal;
+        delete[] frame->uv;
+        delete[] frame->indexBuffer;
+        frame->position = newPositions.release();
+        frame->normal = newNormals.release();
+        frame->uv = newUvs.release();
+        frame->indexBuffer = newIndices.release();
+        frame->headerFrame.sizeVertexBuffer = static_cast<int>(positions.size());
+        frame->headerFrame.sizeIndexBuffer = static_cast<int>(indices.size());
+        report.resultVertexCount = static_cast<uint32_t>(positions.size());
+        for (size_t i = 0; i < results.size(); ++i)
+        {
+            util::SUBSET_DEBUG *subset = frame->subset[i];
+            subset->vertexStart = results[i].vertexStart;
+            subset->indexStart = results[i].indexStart;
+            subset->vertexCount = static_cast<int>(results[i].mesh.positions.size());
+            subset->indexCount = static_cast<int>(results[i].mesh.indices.size());
+        }
+        report.maximumGeometricError = maximumError;
+        return true;
     }
 
     void MESH_MBM_DEBUG::removeBuffer(uint32_t indexFrame)

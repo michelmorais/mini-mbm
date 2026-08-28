@@ -581,8 +581,9 @@
     7.175.1 Fixed DirectX 11 offscreen render targets ignoring alwaysRender during the capture pass, which left Scene Editor 3D mesh-selector thumbnails black.
     7.175.2 Exposed Dear ImGui's beta multiline input WordWrap flag through the typed Lua flag binding.
     7.177.0 Added opt-in static GLB/FBX polygon reduction to Mesh Debug's Blender importer. Blender Decimate runs before material bucketing and uint16 chunking, while armatures, shape keys, and animated geometry are rejected for this first stage.
+    7.178.0 Added atomic quadric-error triangle simplification to MESH_MBM_DEBUG and meshDebug:simplify for one-frame static indexed 3D meshes, preserving material, UV/normal seam, boundary, and authored physics domains.
 */
-#define MBM_VERSION "7.177.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.178.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

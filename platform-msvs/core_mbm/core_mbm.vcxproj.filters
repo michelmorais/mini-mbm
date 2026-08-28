@@ -19,6 +19,9 @@
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-parity-asset.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\mesh-simplifier.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-render-capability.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
@@ -118,6 +121,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-animation-foundation.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\private\mesh-simplifier.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.cpp">

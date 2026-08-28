@@ -187,6 +187,27 @@ namespace mbm
         return 1;
     }
 
+    int onSimplifyMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const float ratio = static_cast<float>(luaL_checknumber(lua, 2));
+        MESH_SIMPLIFY_REPORT report;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.simplify(ratio, report, errorOut, static_cast<int>(sizeof(errorOut))))
+        {
+            lua_pushnil(lua);
+            lua_pushstring(lua, errorOut);
+            return 2;
+        }
+        lua_newtable(lua);
+        lua_pushinteger(lua, report.sourceVertexCount); lua_setfield(lua, -2, "sourceVertexCount");
+        lua_pushinteger(lua, report.resultVertexCount); lua_setfield(lua, -2, "resultVertexCount");
+        lua_pushinteger(lua, report.sourceTriangleCount); lua_setfield(lua, -2, "sourceTriangleCount");
+        lua_pushinteger(lua, report.resultTriangleCount); lua_setfield(lua, -2, "resultTriangleCount");
+        lua_pushnumber(lua, report.maximumGeometricError); lua_setfield(lua, -2, "maximumGeometricError");
+        return 1;
+    }
+
     int onSaveMeshDebugLua(lua_State *lua)
     {
         const int       top           = lua_gettop(lua);
@@ -3368,6 +3389,7 @@ namespace mbm
     {
         luaL_Reg regFrameMeshMethods[] = {{"fakeRelease", onFakeReleaseMeshManagerLua},
                                           {"load", onLoadMeshDebugLua},
+                                          {"simplify", onSimplifyMeshDebugLua},
                                           {"save", onSaveMeshDebugLua},
                                           {"setType", onSetTypeMeshDebugLua},
                                           {"getType", onGetTypeMeshDebugLua},

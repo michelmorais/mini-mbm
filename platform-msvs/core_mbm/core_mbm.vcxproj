@@ -197,6 +197,7 @@
     <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-context.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-parity-asset.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\mesh-simplifier.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-render-capability.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-execution-policy.h" />
     <ClInclude Include="..\..\include\core_mbm\animation.h" />
@@ -342,6 +343,7 @@
     <ClCompile Include="..\..\src\core_mbm\image-resource.cpp" />
     <ClCompile Include="..\..\src\core_mbm\log-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\mesh-simplifier.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\order-render.cpp" />
     <ClCompile Include="..\..\src\core_mbm\parse-launcher-args.cpp" />

@@ -65,6 +65,15 @@ namespace mbm
         float weights[4];
     };
 
+    struct MESH_SIMPLIFY_REPORT
+    {
+        uint32_t sourceVertexCount = 0;
+        uint32_t resultVertexCount = 0;
+        uint32_t sourceTriangleCount = 0;
+        uint32_t resultTriangleCount = 0;
+        float maximumGeometricError = 0.0f;
+    };
+
     struct BUFFER_MESH
     {
         BUFFER_GL *pBufferGL;
@@ -291,6 +300,11 @@ namespace mbm
         API_IMPL void calculateUV();
         API_IMPL void removeNormals();
         API_IMPL void addNormals();
+        // Simplifies one static indexed triangle frame atomically. Material subsets remain
+        // independent simplification domains; skeletal, articulated, multi-frame, and non-triangle
+        // assets are rejected until their preservation paths are implemented.
+        API_IMPL bool simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
+                               char *errorOut, const int errorOutLen);
         API_IMPL void removeBuffer(uint32_t indexFrame);
         API_IMPL void removeAnimation(uint32_t index);
         // Writes the v11 section/TLV format (docs/mesh-v11-format.md): material+transform, frames,
