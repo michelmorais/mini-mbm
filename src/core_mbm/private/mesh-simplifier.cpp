@@ -54,7 +54,15 @@ namespace mbm::mesh_simplifier
 
         struct TRIANGLE { uint32_t a, b, c; };
         struct EDGE_INFO { uint32_t count = 0; };
-        struct CANDIDATE { uint32_t a, b; VEC3 position; double cost; uint32_t removedTriangles; };
+        struct CANDIDATE
+        {
+            uint32_t a, b;
+            VEC3 position;
+            double cost;
+            double geometricCost;
+            double poseCost;
+            uint32_t removedTriangles;
+        };
 
         uint64_t edgeKey(uint32_t a, uint32_t b)
         {
@@ -132,10 +140,14 @@ namespace mbm::mesh_simplifier
         if ((!input.normals.empty() && input.normals.size() != input.positions.size()) ||
             (!input.uvs.empty() && input.uvs.size() != input.positions.size()))
         { errorOut = "vertex attribute counts do not match positions"; return false; }
+        for (const std::vector<VEC3> &sample : input.deformationDeltas)
+            if (sample.size() != input.positions.size())
+            { errorOut = "pose-sample vertex count does not match positions"; return false; }
 
         std::vector<VEC3> positions = input.positions;
         std::vector<VEC3> normals = input.normals;
         std::vector<VEC2> uvs = input.uvs;
+        std::vector<std::vector<VEC3>> deformationDeltas = input.deformationDeltas;
         std::vector<std::vector<std::pair<uint32_t, float>>> contributions(positions.size());
         for (uint32_t i = 0; i < contributions.size(); ++i)
             contributions[i].push_back({i, 1.0f});
@@ -152,6 +164,7 @@ namespace mbm::mesh_simplifier
         { errorOut = "target triangle count must be smaller than the source count"; return false; }
 
         double maximumCost = 0.0;
+        double maximumPoseCost = 0.0;
         while (triangles.size() > targetTriangleCount)
         {
             std::vector<QUADRIC> quadrics(positions.size());
@@ -186,7 +199,12 @@ namespace mbm::mesh_simplifier
                 QUADRIC combined = quadrics[a]; combined += quadrics[b];
                 VEC3 point;
                 if (!solveOptimal(combined, point)) point = (positions[a] + positions[b]) * 0.5f;
-                CANDIDATE candidate{a, b, point, combined.evaluate(point), entry.second.count};
+                double poseCost = 0.0;
+                for (const std::vector<VEC3> &sample : deformationDeltas)
+                    poseCost = std::max(poseCost, lengthSquared(sample[a] - sample[b]));
+                const double geometricCost = combined.evaluate(point);
+                CANDIDATE candidate{a, b, point, geometricCost + poseCost,
+                                    geometricCost, poseCost, entry.second.count};
                 if (std::isfinite(candidate.cost) && preservesOrientation(candidate, positions, triangles, adjacent))
                     candidates.push_back(candidate);
             }
@@ -218,13 +236,16 @@ namespace mbm::mesh_simplifier
                 positions[candidate.a] = candidate.position;
                 if (!normals.empty()) normals[candidate.a] = normalized(normals[candidate.a] + normals[candidate.b]);
                 if (!uvs.empty()) uvs[candidate.a] = (uvs[candidate.a] + uvs[candidate.b]) * 0.5f;
+                for (std::vector<VEC3> &sample : deformationDeltas)
+                    sample[candidate.a] = (sample[candidate.a] + sample[candidate.b]) * 0.5f;
                 for (auto &entry : contributions[candidate.a]) entry.second *= 0.5f;
                 for (auto entry : contributions[candidate.b])
                 {
                     entry.second *= 0.5f;
                     contributions[candidate.a].push_back(entry);
                 }
-                maximumCost = std::max(maximumCost, std::max(0.0, candidate.cost));
+                maximumCost = std::max(maximumCost, std::max(0.0, candidate.geometricCost));
+                maximumPoseCost = std::max(maximumPoseCost, std::max(0.0, candidate.poseCost));
             }
             std::vector<TRIANGLE> next;
             next.reserve(triangles.size());
@@ -254,6 +275,7 @@ namespace mbm::mesh_simplifier
         for (const TRIANGLE &triangle : triangles)
         { output.indices.push_back(compact[triangle.a]); output.indices.push_back(compact[triangle.b]); output.indices.push_back(compact[triangle.c]); }
         output.maximumError = static_cast<float>(std::sqrt(maximumCost));
+        output.maximumPoseError = static_cast<float>(std::sqrt(maximumPoseCost));
         return true;
     }
 }

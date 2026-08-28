@@ -583,8 +583,9 @@
     7.177.0 Added opt-in static GLB/FBX polygon reduction to Mesh Debug's Blender importer. Blender Decimate runs before material bucketing and uint16 chunking, while armatures, shape keys, and animated geometry are rejected for this first stage.
     7.178.0 Added atomic quadric-error triangle simplification to MESH_MBM_DEBUG and meshDebug:simplify for one-frame static indexed 3D meshes, preserving material, UV/normal seam, boundary, and authored physics domains.
     7.179.0 Extended mesh simplification to canonical skeletal assets with collapse-aware four-influence weight blending while preserving skeletons and animation clips.
+    7.180.0 Added pose-sampled skeletal simplification quality, using bounded animation displacement divergence to avoid collapsing vertices that deform differently.
 */
-#define MBM_VERSION "7.179.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.180.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

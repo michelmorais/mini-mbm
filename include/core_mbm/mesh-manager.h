@@ -74,6 +74,9 @@ namespace mbm
         float maximumGeometricError = 0.0f;
         bool skinWeightAware = false;
         bool poseSampledError = false;
+        uint32_t sampledPoseCount = 0;
+        uint32_t sampledClipCount = 0;
+        float maximumPoseError = 0.0f;
     };
 
     struct BUFFER_MESH

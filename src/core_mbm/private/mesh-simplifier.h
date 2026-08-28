@@ -30,6 +30,7 @@ namespace mbm::mesh_simplifier
         std::vector<VEC3> normals;
         std::vector<VEC2> uvs;
         std::vector<uint32_t> indices;
+        std::vector<std::vector<VEC3>> deformationDeltas;
     };
 
     struct OUTPUT
@@ -40,6 +41,7 @@ namespace mbm::mesh_simplifier
         std::vector<uint32_t> indices;
         std::vector<std::vector<std::pair<uint32_t, float>>> sourceContributions;
         float maximumError = 0.0f;
+        float maximumPoseError = 0.0f;
     };
 
     bool simplify(const INPUT &input, uint32_t targetTriangleCount, OUTPUT &output,

@@ -2109,7 +2109,9 @@ namespace mbm
         std::vector<uint16_t> indices;
         std::vector<skeletal::CANONICAL_VERTEX_WEIGHT> weights;
         skeletal::CANONICAL_WEIGHTS simplifiedWeights;
+        std::vector<std::vector<VEC3>> deformationDeltas;
         float maximumError = 0.0f;
+        float maximumPoseError = 0.0f;
 
         const auto *sourcePositions = reinterpret_cast<const VEC3 *>(frame->position);
         const auto *sourceNormals = reinterpret_cast<const VEC3 *>(frame->normal);
@@ -2123,6 +2125,45 @@ namespace mbm
                 return fail("canonical skin weights are invalid for the source geometry");
             weights.reserve(report.sourceVertexCount);
             report.skinWeightAware = true;
+
+            if (!impl->canonicalAnimations.clips.empty())
+            {
+                if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,
+                                                           impl->canonicalAnimations))
+                    return fail("canonical animations are invalid for pose-sampled simplification");
+                static constexpr uint32_t MAX_POSE_SAMPLES = 24;
+                const uint32_t sampledClips = std::min<uint32_t>(MAX_POSE_SAMPLES,
+                    static_cast<uint32_t>(impl->canonicalAnimations.clips.size()));
+                const uint32_t samplesPerClip = MAX_POSE_SAMPLES / sampledClips;
+                const uint32_t extraSamples = MAX_POSE_SAMPLES % sampledClips;
+                std::vector<VEC3> bindPositions(sourcePositions,
+                    sourcePositions + report.sourceVertexCount);
+                for (uint32_t clipIndex = 0; clipIndex < sampledClips; ++clipIndex)
+                {
+                    const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[clipIndex];
+                    const uint32_t clipSamples = samplesPerClip + (clipIndex < extraSamples ? 1u : 0u);
+                    for (uint32_t sampleIndex = 0; sampleIndex < clipSamples; ++sampleIndex)
+                    {
+                        const float time = clip.duration * static_cast<float>(sampleIndex + 1) /
+                                           static_cast<float>(clipSamples + 1);
+                        skeletal::SKELETAL_POSE pose;
+                        std::vector<VEC3> skinnedPositions;
+                        std::vector<VEC3> skinnedNormals;
+                        if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, clip, time, pose) ||
+                            !skeletal::skinVerticesLbsReference(impl->canonicalSkeleton,
+                                impl->canonicalWeights, pose, bindPositions, {},
+                                skinnedPositions, skinnedNormals))
+                            return fail("failed to evaluate a canonical animation pose for simplification");
+                        std::vector<VEC3> &sample = deformationDeltas.emplace_back();
+                        sample.reserve(report.sourceVertexCount);
+                        for (uint32_t vertex = 0; vertex < report.sourceVertexCount; ++vertex)
+                            sample.push_back(skinnedPositions[vertex] - bindPositions[vertex]);
+                    }
+                }
+                report.poseSampledError = !deformationDeltas.empty();
+                report.sampledPoseCount = static_cast<uint32_t>(deformationDeltas.size());
+                report.sampledClipCount = sampledClips;
+            }
         }
         for (const util::SUBSET_DEBUG *subset : frame->subset)
         {
@@ -2132,6 +2173,7 @@ namespace mbm
                 return fail("subset ranges are invalid for indexed triangle simplification");
 
             mesh_simplifier::INPUT input;
+            input.deformationDeltas.resize(deformationDeltas.size());
             std::unordered_map<uint32_t, uint32_t> localByGlobal;
             std::vector<uint32_t> globalByLocal;
             localByGlobal.reserve(static_cast<size_t>(subset->vertexCount));
@@ -2150,6 +2192,9 @@ namespace mbm
                     input.positions.push_back(sourcePositions[globalIndex]);
                     if (sourceNormals) input.normals.push_back(sourceNormals[globalIndex]);
                     if (sourceUvs) input.uvs.push_back(sourceUvs[globalIndex]);
+                    for (size_t sampleIndex = 0; sampleIndex < deformationDeltas.size(); ++sampleIndex)
+                        input.deformationDeltas[sampleIndex].push_back(
+                            deformationDeltas[sampleIndex][globalIndex]);
                 }
                 input.indices.push_back(found->second);
             }
@@ -2222,6 +2267,7 @@ namespace mbm
                 }
             }
             maximumError = std::max(maximumError, result.mesh.maximumError);
+            maximumPoseError = std::max(maximumPoseError, result.mesh.maximumPoseError);
             report.sourceTriangleCount += sourceTriangles;
             report.resultTriangleCount += static_cast<uint32_t>(result.mesh.indices.size() / 3);
             results.push_back(std::move(result));
@@ -2265,6 +2311,7 @@ namespace mbm
             subset->indexCount = static_cast<int>(results[i].mesh.indices.size());
         }
         report.maximumGeometricError = maximumError;
+        report.maximumPoseError = maximumPoseError;
         if (hasCanonicalWeights)
             impl->canonicalWeights = std::move(simplifiedWeights);
         return true;

@@ -207,6 +207,9 @@ namespace mbm
         lua_pushnumber(lua, report.maximumGeometricError); lua_setfield(lua, -2, "maximumGeometricError");
         lua_pushboolean(lua, report.skinWeightAware); lua_setfield(lua, -2, "skinWeightAware");
         lua_pushboolean(lua, report.poseSampledError); lua_setfield(lua, -2, "poseSampledError");
+        lua_pushinteger(lua, report.sampledPoseCount); lua_setfield(lua, -2, "sampledPoseCount");
+        lua_pushinteger(lua, report.sampledClipCount); lua_setfield(lua, -2, "sampledClipCount");
+        lua_pushnumber(lua, report.maximumPoseError); lua_setfield(lua, -2, "maximumPoseError");
         return 1;
     }
 
