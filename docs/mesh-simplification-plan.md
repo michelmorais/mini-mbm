@@ -75,6 +75,11 @@ Collapse ranking combines bind-pose quadric error with the maximum difference be
 animated displacement of the endpoints. The report exposes sampling coverage and separate bind-pose
 and pose-space errors; assets without clips continue to report bind-pose-only quality.
 
+The unconstrained QEM optimum is projected onto its source edge segment before a collapse. This
+prevents an otherwise valid quadratic solution from creating a distant spike outside the source
+geometry. A final finite-coordinate and source-bounds check is also applied to the complete detached
+candidate before commit; the bounds check is a defensive validator, not the primary correction.
+
 ## Mesh Debug Editor Integration
 
 The editor entry belongs under the existing Frame node because that area already owns structural

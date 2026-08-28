@@ -2117,6 +2117,18 @@ namespace mbm
         const auto *sourceNormals = reinterpret_cast<const VEC3 *>(frame->normal);
         const auto *sourceUvs = reinterpret_cast<const VEC2 *>(frame->uv);
         report.sourceVertexCount = static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer);
+        VEC3 sourceMinimum = sourcePositions[0];
+        VEC3 sourceMaximum = sourcePositions[0];
+        for (uint32_t vertex = 1; vertex < report.sourceVertexCount; ++vertex)
+        {
+            const VEC3 &position = sourcePositions[vertex];
+            sourceMinimum.x = std::min(sourceMinimum.x, position.x);
+            sourceMinimum.y = std::min(sourceMinimum.y, position.y);
+            sourceMinimum.z = std::min(sourceMinimum.z, position.z);
+            sourceMaximum.x = std::max(sourceMaximum.x, position.x);
+            sourceMaximum.y = std::max(sourceMaximum.y, position.y);
+            sourceMaximum.z = std::max(sourceMaximum.z, position.z);
+        }
         if (hasCanonicalWeights)
         {
             if (impl->canonicalWeights.vertices.size() != report.sourceVertexCount ||
@@ -2272,6 +2284,17 @@ namespace mbm
             report.resultTriangleCount += static_cast<uint32_t>(result.mesh.indices.size() / 3);
             results.push_back(std::move(result));
         }
+
+        const float boundsScale = std::max({sourceMaximum.x - sourceMinimum.x,
+                                            sourceMaximum.y - sourceMinimum.y,
+                                            sourceMaximum.z - sourceMinimum.z, 1.0f});
+        const float boundsTolerance = boundsScale * 1.0e-5f;
+        for (const VEC3 &position : positions)
+            if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
+                position.x < sourceMinimum.x - boundsTolerance || position.x > sourceMaximum.x + boundsTolerance ||
+                position.y < sourceMinimum.y - boundsTolerance || position.y > sourceMaximum.y + boundsTolerance ||
+                position.z < sourceMinimum.z - boundsTolerance || position.z > sourceMaximum.z + boundsTolerance)
+                return fail("simplified vertex escaped the source geometry bounds");
 
         if (hasCanonicalWeights)
         {

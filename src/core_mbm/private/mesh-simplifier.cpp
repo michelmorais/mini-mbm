@@ -198,7 +198,21 @@ namespace mbm::mesh_simplifier
                 if (boundary[a] != boundary[b] || (boundary[a] && entry.second.count != 1)) continue;
                 QUADRIC combined = quadrics[a]; combined += quadrics[b];
                 VEC3 point;
-                if (!solveOptimal(combined, point)) point = (positions[a] + positions[b]) * 0.5f;
+                if (solveOptimal(combined, point))
+                {
+                    const VEC3 edge = positions[b] - positions[a];
+                    const double edgeLengthSquared = lengthSquared(edge);
+                    if (edgeLengthSquared > 1.0e-20)
+                    {
+                        const double projected = dot(point - positions[a], edge) / edgeLengthSquared;
+                        const float t = static_cast<float>(std::max(0.0, std::min(1.0, projected)));
+                        point = positions[a] + edge * t;
+                    }
+                    else
+                        point = positions[a];
+                }
+                else
+                    point = (positions[a] + positions[b]) * 0.5f;
                 double poseCost = 0.0;
                 for (const std::vector<VEC3> &sample : deformationDeltas)
                     poseCost = std::max(poseCost, lengthSquared(sample[a] - sample[b]));
