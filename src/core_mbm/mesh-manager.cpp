@@ -2060,7 +2060,8 @@ namespace mbm
     }
 
     bool MESH_MBM_DEBUG::simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
-                                  char *errorOut, const int errorOutLen)
+                                  char *errorOut, const int errorOutLen,
+                                  const int targetSubsetIndex)
     {
         report = {};
         auto fail = [errorOut, errorOutLen](const std::string &message)
@@ -2094,6 +2095,9 @@ namespace mbm
         util::BUFFER_MESH_DEBUG *frame = impl->buffer[0];
         if (!frame || !frame->position || !frame->indexBuffer || frame->subset.empty())
             return fail("simplification requires a non-empty indexed mesh");
+        if (targetSubsetIndex < -1 ||
+            targetSubsetIndex >= static_cast<int>(frame->subset.size()))
+            return fail("target subset index is outside frame zero");
 
         struct SUBSET_RANGE
         {
@@ -2227,6 +2231,9 @@ namespace mbm
                 subset->indexCount < 3 || subset->indexCount % 3 != 0 ||
                 subset->indexStart + subset->indexCount > frame->headerFrame.sizeIndexBuffer)
                 return fail("subset ranges are invalid for indexed triangle simplification");
+            report.sourceTriangleCount += static_cast<uint32_t>(subset->indexCount / 3);
+            if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
+                continue;
 
             std::unordered_map<uint32_t, uint32_t> localByGlobal;
             localByGlobal.reserve(static_cast<size_t>(subset->vertexCount));
@@ -2284,9 +2291,13 @@ namespace mbm
                 static_cast<size_t>(subset->indexCount / 3), subsetIndex);
         }
 
-        report.sourceTriangleCount = static_cast<uint32_t>(input.indices.size() / 3);
-        const uint32_t targetTriangles = std::max<uint32_t>(static_cast<uint32_t>(frame->subset.size()),
-            static_cast<uint32_t>(std::floor(report.sourceTriangleCount * targetTriangleRatio)));
+        const uint32_t activeSourceTriangles = static_cast<uint32_t>(input.indices.size() / 3);
+        if (activeSourceTriangles < 2)
+            return fail("target simplification scope requires at least two triangles");
+        const uint32_t minimumTriangles = targetSubsetIndex < 0
+            ? static_cast<uint32_t>(frame->subset.size()) : 1u;
+        const uint32_t targetTriangles = std::max<uint32_t>(minimumTriangles,
+            static_cast<uint32_t>(std::floor(activeSourceTriangles * targetTriangleRatio)));
         mesh_simplifier::OUTPUT simplified;
         std::string simplifyError;
         if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError))
@@ -2321,11 +2332,40 @@ namespace mbm
         for (uint32_t subsetIndex = 0; subsetIndex < subsetLogicalIndices.size(); ++subsetIndex)
         {
             const std::vector<uint32_t> &groupIndices = subsetLogicalIndices[subsetIndex];
-            if (groupIndices.empty())
-                return fail("simplification would remove every triangle from a material subset");
             SUBSET_RANGE &range = results[subsetIndex];
             range.vertexStart = static_cast<int>(positions.size());
             range.indexStart = static_cast<int>(indices.size());
+            if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
+            {
+                const util::SUBSET_DEBUG *sourceSubset = frame->subset[subsetIndex];
+                std::unordered_map<uint32_t, uint32_t> copiedByGlobal;
+                copiedByGlobal.reserve(static_cast<size_t>(sourceSubset->vertexCount));
+                for (int i = 0; i < sourceSubset->indexCount; ++i)
+                {
+                    const uint32_t globalIndex = frame->indexBuffer[sourceSubset->indexStart + i];
+                    if (globalIndex >= report.sourceVertexCount)
+                        return fail("subset index is outside the frame vertex buffer");
+                    auto copied = copiedByGlobal.find(globalIndex);
+                    if (copied == copiedByGlobal.end())
+                    {
+                        if (positions.size() >= UINT16_MAX)
+                            return fail("simplified frame still exceeds the uint16 vertex-index limit");
+                        const uint32_t outputIndex = static_cast<uint32_t>(positions.size());
+                        copied = copiedByGlobal.emplace(globalIndex, outputIndex).first;
+                        positions.push_back(sourcePositions[globalIndex]);
+                        if (sourceNormals) normals.push_back(sourceNormals[globalIndex]);
+                        if (sourceUvs) uvs.push_back(sourceUvs[globalIndex]);
+                        if (hasCanonicalWeights)
+                            weights.push_back(impl->canonicalWeights.vertices[globalIndex]);
+                    }
+                    indices.push_back(static_cast<uint16_t>(copied->second));
+                }
+                range.vertexCount = static_cast<int>(positions.size()) - range.vertexStart;
+                range.indexCount = static_cast<int>(indices.size()) - range.indexStart;
+                continue;
+            }
+            if (groupIndices.empty())
+                return fail("simplification would remove every triangle from a material subset");
             std::unordered_map<uint32_t, uint32_t> physicalByLogical;
             physicalByLogical.reserve(groupIndices.size());
             for (const uint32_t logicalOutput : groupIndices)

@@ -191,9 +191,17 @@ namespace mbm
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
         const float ratio = static_cast<float>(luaL_checknumber(lua, 2));
+        int targetSubsetIndex = -1;
+        if (lua_gettop(lua) >= 3 && !lua_isnil(lua, 3))
+        {
+            const lua_Integer requestedSubset = luaL_checkinteger(lua, 3);
+            targetSubsetIndex = requestedSubset > 0
+                ? static_cast<int>(requestedSubset - 1) : -2;
+        }
         MESH_SIMPLIFY_REPORT report;
         char errorOut[255] = "";
-        if (!meshDebug->mesh.simplify(ratio, report, errorOut, static_cast<int>(sizeof(errorOut))))
+        if (!meshDebug->mesh.simplify(ratio, report, errorOut,
+                                      static_cast<int>(sizeof(errorOut)), targetSubsetIndex))
         {
             lua_pushnil(lua);
             lua_pushstring(lua, errorOut);

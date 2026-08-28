@@ -1393,13 +1393,17 @@ references are remapped automatically.
 ### Triangle simplification
 
 ```lua
-local report, err = meshD:simplify(targetTriangleRatio)
+local report, err = meshD:simplify(targetTriangleRatio [, targetSubset])
 ```
 
 `targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
-quadric-error edge collapses independently inside each material subset, preserves open boundaries,
-UV seams, hard-normal splits, material metadata, and authored physics metadata, and commits only
-after the complete candidate is valid. On success it returns a detached table containing
+quadric-error edge collapses, preserves open boundaries, UV seams, hard-normal splits, material
+metadata, and authored physics metadata, and commits only after the complete candidate is valid.
+Without `targetSubset`, the complete frame is processed as one virtual topology: coincident seams
+may connect different material subsets for topology decisions, while triangle material IDs remain
+unchanged. `targetSubset` is an optional one-based subset index. When present, only that subset is
+reduced; every other subset retains the same rendered positions, normals, UVs, texture assignment,
+triangle order, and canonical weights. On success the call returns a detached table containing
 `sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`,
 `maximumGeometricError`, `skinWeightAware`, `poseSampledError`, `sampledPoseCount`,
 `sampledClipCount`, and `maximumPoseError`. On failure it returns `nil, error` without modifying

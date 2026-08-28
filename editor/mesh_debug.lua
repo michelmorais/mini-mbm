@@ -3387,7 +3387,7 @@ function addMeshToTable(fileName)
         bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
-        tSimplifyState       = {ratio = 0.9, report = nil},
+        tSimplifyState       = {ratio = 0.9, scopeIndex = 1, report = nil},
         tSimplifyBackup      = nil,
         tCheckedRemove       = tCheckedRm,
         bShowFramePick       = false,
@@ -8405,15 +8405,17 @@ function simplifyRestoreBackup(tEntry, index)
     return true
 end
 
-function simplifyApplyWholeMesh(tEntry, meshD, index)
+function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
     local pendingBackup = simplifyCreateBackup(tEntry, meshD)
     if not pendingBackup then
         tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
         return false
     end
+    local targetSubset = (simplifyState.scopeIndex or 1) > 1
+        and (simplifyState.scopeIndex - 1) or nil
     local okSimplify, report, simplifyError = dpCall(function()
-        return meshD:simplify(simplifyState.ratio)
+        return meshD:simplify(simplifyState.ratio, targetSubset)
     end)
     if not okSimplify or not report then
         meshDebug:fakeRelease(pendingBackup.path)
@@ -9494,14 +9496,35 @@ function showFrameNode(tEntry, meshD, index)
 
     tImGui.Separator()
 
-    local simplifyState = tEntry.tSimplifyState or {ratio = 0.9, report = nil}
+    local simplifyState = tEntry.tSimplifyState or {ratio = 0.9, scopeIndex = 1, report = nil}
     tEntry.tSimplifyState = simplifyState
     if tImGui.TreeNodeEx(tLang.L('simplify_geometry') .. '##simplify-' .. index, 0) then
-        local sourceTriangles = 0
+        local scopeLabels = {tLang.L('simplify_scope_entire_mesh')}
         for _, subset in ipairs(allSubsets) do
-            sourceTriangles = sourceTriangles + math.floor((subset.indexCount or 0) / 3)
+            if subset.f == 1 then
+                table.insert(scopeLabels, string.format(tLang.L('simplify_scope_subset_fmt'),
+                    subset.s, subset.texName))
+            end
         end
-        tImGui.Text(tLang.L('simplify_scope') .. ': ' .. tLang.L('simplify_scope_entire_mesh'))
+        simplifyState.scopeIndex = math.max(1,
+            math.min(simplifyState.scopeIndex or 1, #scopeLabels))
+        tImGui.PushItemWidth(240)
+        local scopeChanged, scopeIndex = tImGui.Combo(
+            tLang.L('simplify_scope') .. '##simplifyScope-' .. index,
+            simplifyState.scopeIndex, scopeLabels, -1)
+        if scopeChanged and scopeIndex then
+            simplifyState.scopeIndex = scopeIndex
+            simplifyState.report = nil
+        end
+        tImGui.PopItemWidth()
+
+        local sourceTriangles = 0
+        local selectedSubset = (simplifyState.scopeIndex or 1) - 1
+        for _, subset in ipairs(allSubsets) do
+            if subset.f == 1 and (selectedSubset == 0 or subset.s == selectedSubset) then
+                sourceTriangles = sourceTriangles + math.floor((subset.indexCount or 0) / 3)
+            end
+        end
         tImGui.PushItemWidth(180)
         local ratioChanged, ratio = tImGui.SliderFloat(
             tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
@@ -9519,7 +9542,7 @@ function showFrameNode(tEntry, meshD, index)
         end
         tImGui.BeginDisabled(not canSimplify)
         if tImGui.Button(tLang.L('simplify_apply') .. '##simplifyApply-' .. index) then
-            simplifyApplyWholeMesh(tEntry, meshD, index)
+            simplifyApply(tEntry, meshD, index)
         end
         tImGui.EndDisabled()
         if tEntry.tSimplifyBackup then
