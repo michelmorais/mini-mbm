@@ -52,7 +52,7 @@ namespace mbm::mesh_simplifier
             }
         };
 
-        struct TRIANGLE { uint32_t a, b, c; };
+        struct TRIANGLE { uint32_t a, b, c, group; };
         struct EDGE_INFO { uint32_t count = 0; };
         struct CANDIDATE
         {
@@ -165,6 +165,8 @@ namespace mbm::mesh_simplifier
         if ((!input.normals.empty() && input.normals.size() != input.positions.size()) ||
             (!input.uvs.empty() && input.uvs.size() != input.positions.size()))
         { errorOut = "vertex attribute counts do not match positions"; return false; }
+        if (!input.triangleGroups.empty() && input.triangleGroups.size() != input.indices.size() / 3)
+        { errorOut = "triangle-group count does not match triangles"; return false; }
         for (const std::vector<VEC3> &sample : input.deformationDeltas)
             if (sample.size() != input.positions.size())
             { errorOut = "pose-sample vertex count does not match positions"; return false; }
@@ -183,7 +185,9 @@ namespace mbm::mesh_simplifier
             if (input.indices[i] >= positions.size() || input.indices[i+1] >= positions.size() ||
                 input.indices[i+2] >= positions.size())
             { errorOut = "triangle index is out of range"; return false; }
-            triangles.push_back({input.indices[i], input.indices[i+1], input.indices[i+2]});
+            const size_t triangleIndex = i / 3;
+            triangles.push_back({input.indices[i], input.indices[i+1], input.indices[i+2],
+                input.triangleGroups.empty() ? 0u : input.triangleGroups[triangleIndex]});
         }
         if (targetTriangleCount == 0 || targetTriangleCount >= triangles.size())
         { errorOut = "target triangle count must be smaller than the source count"; return false; }
@@ -336,8 +340,14 @@ namespace mbm::mesh_simplifier
                     output.sourceContributions.push_back(contributions[vertex]);
                 }
         output.indices.reserve(triangles.size() * 3);
+        output.triangleGroups.reserve(triangles.size());
         for (const TRIANGLE &triangle : triangles)
-        { output.indices.push_back(compact[triangle.a]); output.indices.push_back(compact[triangle.b]); output.indices.push_back(compact[triangle.c]); }
+        {
+            output.indices.push_back(compact[triangle.a]);
+            output.indices.push_back(compact[triangle.b]);
+            output.indices.push_back(compact[triangle.c]);
+            output.triangleGroups.push_back(triangle.group);
+        }
         output.maximumError = static_cast<float>(std::sqrt(maximumCost));
         output.maximumPoseError = static_cast<float>(std::sqrt(maximumPoseCost));
         return true;

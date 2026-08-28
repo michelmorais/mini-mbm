@@ -586,8 +586,9 @@
     7.180.0 Added pose-sampled skeletal simplification quality and edge-constrained QEM placement, preventing animation-incompatible collapses and distant vertex spikes.
     7.181.0 Added Mesh Debug Editor controls for whole-mesh simplification under Frame, with ratio estimates, quality reports, Save As workflow, and rollback.
     7.182.0 Preserved manifold topology during mesh simplification with the edge-collapse link condition and non-overlapping triangle batches.
+    7.183.0 Simplified a complete mesh frame through one virtual cross-subset topology while preserving material IDs, intra-subset UV/normal seams, canonical weights, contiguous subset ranges, and uint16 indices.
 */
-#define MBM_VERSION "7.182.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.183.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

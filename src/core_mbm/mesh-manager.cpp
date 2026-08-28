@@ -2095,14 +2095,40 @@ namespace mbm
         if (!frame || !frame->position || !frame->indexBuffer || frame->subset.empty())
             return fail("simplification requires a non-empty indexed mesh");
 
-        struct SUBSET_RESULT
+        struct SUBSET_RANGE
         {
-            mesh_simplifier::OUTPUT mesh;
             int vertexStart = 0;
             int indexStart = 0;
+            int vertexCount = 0;
+            int indexCount = 0;
         };
-        std::vector<SUBSET_RESULT> results;
-        results.reserve(frame->subset.size());
+        struct POSITION_KEY
+        {
+            uint32_t x = 0;
+            uint32_t y = 0;
+            uint32_t z = 0;
+
+            bool operator==(const POSITION_KEY &other) const noexcept
+            {
+                return x == other.x && y == other.y && z == other.z;
+            }
+        };
+        struct POSITION_KEY_HASH
+        {
+            size_t operator()(const POSITION_KEY &key) const noexcept
+            {
+                size_t value = static_cast<size_t>(key.x) * 0x9e3779b1u;
+                value ^= static_cast<size_t>(key.y) + 0x9e3779b9u + (value << 6) + (value >> 2);
+                value ^= static_cast<size_t>(key.z) + 0x9e3779b9u + (value << 6) + (value >> 2);
+                return value;
+            }
+        };
+        struct LOGICAL_SOURCE
+        {
+            std::unordered_map<uint32_t, uint32_t> globalBySubset;
+            std::vector<uint32_t> globals;
+        };
+        std::vector<SUBSET_RANGE> results(frame->subset.size());
         std::vector<VEC3> positions;
         std::vector<VEC3> normals;
         std::vector<VEC2> uvs;
@@ -2110,8 +2136,6 @@ namespace mbm
         std::vector<skeletal::CANONICAL_VERTEX_WEIGHT> weights;
         skeletal::CANONICAL_WEIGHTS simplifiedWeights;
         std::vector<std::vector<VEC3>> deformationDeltas;
-        float maximumError = 0.0f;
-        float maximumPoseError = 0.0f;
 
         const auto *sourcePositions = reinterpret_cast<const VEC3 *>(frame->position);
         const auto *sourceNormals = reinterpret_cast<const VEC3 *>(frame->normal);
@@ -2177,19 +2201,35 @@ namespace mbm
                 report.sampledClipCount = sampledClips;
             }
         }
-        for (const util::SUBSET_DEBUG *subset : frame->subset)
+        auto positionKey = [](const VEC3 &position)
         {
+            POSITION_KEY key;
+            const float x = position.x == 0.0f ? 0.0f : position.x;
+            const float y = position.y == 0.0f ? 0.0f : position.y;
+            const float z = position.z == 0.0f ? 0.0f : position.z;
+            memcpy(&key.x, &x, sizeof(uint32_t));
+            memcpy(&key.y, &y, sizeof(uint32_t));
+            memcpy(&key.z, &z, sizeof(uint32_t));
+            return key;
+        };
+
+        mesh_simplifier::INPUT input;
+        input.deformationDeltas.resize(deformationDeltas.size());
+        input.indices.reserve(static_cast<size_t>(frame->headerFrame.sizeIndexBuffer));
+        input.triangleGroups.reserve(static_cast<size_t>(frame->headerFrame.sizeIndexBuffer / 3));
+        std::vector<LOGICAL_SOURCE> logicalSources;
+        std::unordered_map<POSITION_KEY, std::vector<uint32_t>, POSITION_KEY_HASH> logicalByPosition;
+        logicalByPosition.reserve(report.sourceVertexCount);
+        for (uint32_t subsetIndex = 0; subsetIndex < frame->subset.size(); ++subsetIndex)
+        {
+            const util::SUBSET_DEBUG *subset = frame->subset[subsetIndex];
             if (!subset || subset->vertexStart < 0 || subset->vertexCount <= 0 || subset->indexStart < 0 ||
                 subset->indexCount < 3 || subset->indexCount % 3 != 0 ||
                 subset->indexStart + subset->indexCount > frame->headerFrame.sizeIndexBuffer)
                 return fail("subset ranges are invalid for indexed triangle simplification");
 
-            mesh_simplifier::INPUT input;
-            input.deformationDeltas.resize(deformationDeltas.size());
             std::unordered_map<uint32_t, uint32_t> localByGlobal;
-            std::vector<uint32_t> globalByLocal;
             localByGlobal.reserve(static_cast<size_t>(subset->vertexCount));
-            input.indices.reserve(static_cast<size_t>(subset->indexCount));
             for (int i = 0; i < subset->indexCount; ++i)
             {
                 const uint32_t globalIndex = frame->indexBuffer[subset->indexStart + i];
@@ -2198,92 +2238,195 @@ namespace mbm
                 auto found = localByGlobal.find(globalIndex);
                 if (found == localByGlobal.end())
                 {
-                    const uint32_t localIndex = static_cast<uint32_t>(input.positions.size());
-                    found = localByGlobal.emplace(globalIndex, localIndex).first;
-                    globalByLocal.push_back(globalIndex);
-                    input.positions.push_back(sourcePositions[globalIndex]);
-                    if (sourceNormals) input.normals.push_back(sourceNormals[globalIndex]);
-                    if (sourceUvs) input.uvs.push_back(sourceUvs[globalIndex]);
-                    for (size_t sampleIndex = 0; sampleIndex < deformationDeltas.size(); ++sampleIndex)
-                        input.deformationDeltas[sampleIndex].push_back(
-                            deformationDeltas[sampleIndex][globalIndex]);
+                    const POSITION_KEY key = positionKey(sourcePositions[globalIndex]);
+                    std::vector<uint32_t> &candidates = logicalByPosition[key];
+                    uint32_t logicalIndex = UINT32_MAX;
+                    for (const uint32_t candidate : candidates)
+                    {
+                        if (logicalSources[candidate].globalBySubset.find(subsetIndex) ==
+                            logicalSources[candidate].globalBySubset.end())
+                        {
+                            logicalIndex = candidate;
+                            break;
+                        }
+                    }
+                    if (logicalIndex == UINT32_MAX)
+                    {
+                        logicalIndex = static_cast<uint32_t>(input.positions.size());
+                        input.positions.push_back(sourcePositions[globalIndex]);
+                        logicalSources.emplace_back();
+                        candidates.push_back(logicalIndex);
+                        for (size_t sampleIndex = 0; sampleIndex < deformationDeltas.size(); ++sampleIndex)
+                            input.deformationDeltas[sampleIndex].push_back(
+                                deformationDeltas[sampleIndex][globalIndex]);
+                    }
+                    else
+                    {
+                        const float oldCount = static_cast<float>(logicalSources[logicalIndex].globals.size());
+                        const float newCount = oldCount + 1.0f;
+                        for (size_t sampleIndex = 0; sampleIndex < deformationDeltas.size(); ++sampleIndex)
+                        {
+                            VEC3 &logicalDelta = input.deformationDeltas[sampleIndex][logicalIndex];
+                            const VEC3 &sourceDelta = deformationDeltas[sampleIndex][globalIndex];
+                            logicalDelta.x = (logicalDelta.x * oldCount + sourceDelta.x) / newCount;
+                            logicalDelta.y = (logicalDelta.y * oldCount + sourceDelta.y) / newCount;
+                            logicalDelta.z = (logicalDelta.z * oldCount + sourceDelta.z) / newCount;
+                        }
+                    }
+                    LOGICAL_SOURCE &logicalSource = logicalSources[logicalIndex];
+                    logicalSource.globalBySubset.emplace(subsetIndex, globalIndex);
+                    logicalSource.globals.push_back(globalIndex);
+                    found = localByGlobal.emplace(globalIndex, logicalIndex).first;
                 }
                 input.indices.push_back(found->second);
             }
-
-            const uint32_t sourceTriangles = static_cast<uint32_t>(input.indices.size() / 3);
-            const uint32_t targetTriangles = std::max<uint32_t>(1,
-                static_cast<uint32_t>(std::floor(sourceTriangles * targetTriangleRatio)));
-            SUBSET_RESULT result;
-            result.vertexStart = static_cast<int>(positions.size());
-            result.indexStart = static_cast<int>(indices.size());
-            if (targetTriangles < sourceTriangles)
-            {
-                std::string simplifyError;
-                if (!mesh_simplifier::simplify(input, targetTriangles, result.mesh, simplifyError))
-                    return fail(std::string("subset simplification failed: ") + simplifyError);
-            }
-            else
-            {
-                result.mesh.positions = std::move(input.positions);
-                result.mesh.normals = std::move(input.normals);
-                result.mesh.uvs = std::move(input.uvs);
-                result.mesh.indices = std::move(input.indices);
-                result.mesh.sourceContributions.reserve(result.mesh.positions.size());
-                for (uint32_t i = 0; i < result.mesh.positions.size(); ++i)
-                    result.mesh.sourceContributions.push_back({{i, 1.0f}});
-            }
-
-            if (positions.size() + result.mesh.positions.size() > UINT16_MAX)
-                return fail("simplified frame still exceeds the uint16 vertex-index limit");
-            const uint32_t outputBase = static_cast<uint32_t>(positions.size());
-            positions.insert(positions.end(), result.mesh.positions.begin(), result.mesh.positions.end());
-            normals.insert(normals.end(), result.mesh.normals.begin(), result.mesh.normals.end());
-            uvs.insert(uvs.end(), result.mesh.uvs.begin(), result.mesh.uvs.end());
-            for (const uint32_t index : result.mesh.indices)
-                indices.push_back(static_cast<uint16_t>(outputBase + index));
-            if (hasCanonicalWeights)
-            {
-                for (const auto &contributions : result.mesh.sourceContributions)
-                {
-                    std::unordered_map<uint32_t, double> merged;
-                    for (const auto &contribution : contributions)
-                    {
-                        if (contribution.first >= globalByLocal.size())
-                            return fail("simplifier produced an invalid source-vertex contribution");
-                        const skeletal::CANONICAL_VERTEX_WEIGHT &sourceWeight =
-                            impl->canonicalWeights.vertices[globalByLocal[contribution.first]];
-                        for (uint32_t slot = 0; slot < 4; ++slot)
-                            if (sourceWeight.weight[slot] > 0.0f)
-                                merged[sourceWeight.paletteIndex[slot]] +=
-                                    static_cast<double>(sourceWeight.weight[slot]) * contribution.second;
-                    }
-                    std::vector<std::pair<uint32_t, double>> ranked(merged.begin(), merged.end());
-                    std::sort(ranked.begin(), ranked.end(), [](const auto &left, const auto &right)
-                    {
-                        return left.second > right.second ||
-                               (left.second == right.second && left.first < right.first);
-                    });
-                    if (ranked.size() > 4) ranked.resize(4);
-                    double total = 0.0;
-                    for (const auto &entry : ranked) total += entry.second;
-                    if (!(total > 0.0) || !std::isfinite(total))
-                        return fail("collapsed vertex has no valid canonical skin influence");
-                    skeletal::CANONICAL_VERTEX_WEIGHT outputWeight = {};
-                    for (uint32_t slot = 0; slot < ranked.size(); ++slot)
-                    {
-                        outputWeight.paletteIndex[slot] = ranked[slot].first;
-                        outputWeight.weight[slot] = static_cast<float>(ranked[slot].second / total);
-                    }
-                    weights.push_back(outputWeight);
-                }
-            }
-            maximumError = std::max(maximumError, result.mesh.maximumError);
-            maximumPoseError = std::max(maximumPoseError, result.mesh.maximumPoseError);
-            report.sourceTriangleCount += sourceTriangles;
-            report.resultTriangleCount += static_cast<uint32_t>(result.mesh.indices.size() / 3);
-            results.push_back(std::move(result));
+            input.triangleGroups.insert(input.triangleGroups.end(),
+                static_cast<size_t>(subset->indexCount / 3), subsetIndex);
         }
+
+        report.sourceTriangleCount = static_cast<uint32_t>(input.indices.size() / 3);
+        const uint32_t targetTriangles = std::max<uint32_t>(static_cast<uint32_t>(frame->subset.size()),
+            static_cast<uint32_t>(std::floor(report.sourceTriangleCount * targetTriangleRatio)));
+        mesh_simplifier::OUTPUT simplified;
+        std::string simplifyError;
+        if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError))
+            return fail(std::string("frame simplification failed: ") + simplifyError);
+        if (simplified.triangleGroups.size() != simplified.indices.size() / 3 ||
+            simplified.sourceContributions.size() != simplified.positions.size())
+            return fail("frame simplification returned inconsistent topology metadata");
+
+        std::vector<std::vector<uint32_t>> subsetLogicalIndices(frame->subset.size());
+        for (size_t triangle = 0; triangle < simplified.triangleGroups.size(); ++triangle)
+        {
+            const uint32_t group = simplified.triangleGroups[triangle];
+            if (group >= subsetLogicalIndices.size())
+                return fail("frame simplification returned an invalid subset group");
+            std::vector<uint32_t> &groupIndices = subsetLogicalIndices[group];
+            groupIndices.push_back(simplified.indices[triangle * 3]);
+            groupIndices.push_back(simplified.indices[triangle * 3 + 1]);
+            groupIndices.push_back(simplified.indices[triangle * 3 + 2]);
+        }
+
+        auto sourceGlobalsForSubset = [&logicalSources](const uint32_t logicalIndex,
+                                                        const uint32_t subsetIndex,
+                                                        std::vector<uint32_t> &fallback)
+        {
+            fallback.clear();
+            const LOGICAL_SOURCE &source = logicalSources[logicalIndex];
+            const auto found = source.globalBySubset.find(subsetIndex);
+            if (found != source.globalBySubset.end()) fallback.push_back(found->second);
+            else fallback = source.globals;
+        };
+        std::vector<uint32_t> attributeGlobals;
+        for (uint32_t subsetIndex = 0; subsetIndex < subsetLogicalIndices.size(); ++subsetIndex)
+        {
+            const std::vector<uint32_t> &groupIndices = subsetLogicalIndices[subsetIndex];
+            if (groupIndices.empty())
+                return fail("simplification would remove every triangle from a material subset");
+            SUBSET_RANGE &range = results[subsetIndex];
+            range.vertexStart = static_cast<int>(positions.size());
+            range.indexStart = static_cast<int>(indices.size());
+            std::unordered_map<uint32_t, uint32_t> physicalByLogical;
+            physicalByLogical.reserve(groupIndices.size());
+            for (const uint32_t logicalOutput : groupIndices)
+            {
+                if (logicalOutput >= simplified.positions.size())
+                    return fail("frame simplification returned an invalid vertex index");
+                auto physical = physicalByLogical.find(logicalOutput);
+                if (physical == physicalByLogical.end())
+                {
+                    if (positions.size() >= UINT16_MAX)
+                        return fail("simplified frame still exceeds the uint16 vertex-index limit");
+                    const uint32_t physicalIndex = static_cast<uint32_t>(positions.size());
+                    physical = physicalByLogical.emplace(logicalOutput, physicalIndex).first;
+                    positions.push_back(simplified.positions[logicalOutput]);
+
+                    VEC3 blendedNormal(0.0f, 0.0f, 0.0f);
+                    VEC2 blendedUv(0.0f, 0.0f);
+                    double attributeTotal = 0.0;
+                    std::unordered_map<uint32_t, double> mergedWeights;
+                    for (const auto &contribution : simplified.sourceContributions[logicalOutput])
+                    {
+                        if (contribution.first >= logicalSources.size() || contribution.second <= 0.0f)
+                            continue;
+                        sourceGlobalsForSubset(contribution.first, subsetIndex, attributeGlobals);
+                        if (attributeGlobals.empty()) continue;
+                        const double perSource = static_cast<double>(contribution.second) /
+                                                 static_cast<double>(attributeGlobals.size());
+                        for (const uint32_t globalIndex : attributeGlobals)
+                        {
+                            if (sourceNormals)
+                            {
+                                blendedNormal.x += sourceNormals[globalIndex].x * static_cast<float>(perSource);
+                                blendedNormal.y += sourceNormals[globalIndex].y * static_cast<float>(perSource);
+                                blendedNormal.z += sourceNormals[globalIndex].z * static_cast<float>(perSource);
+                            }
+                            if (sourceUvs)
+                            {
+                                blendedUv.x += sourceUvs[globalIndex].x * static_cast<float>(perSource);
+                                blendedUv.y += sourceUvs[globalIndex].y * static_cast<float>(perSource);
+                            }
+                            if (hasCanonicalWeights)
+                            {
+                                const skeletal::CANONICAL_VERTEX_WEIGHT &sourceWeight =
+                                    impl->canonicalWeights.vertices[globalIndex];
+                                for (uint32_t slot = 0; slot < 4; ++slot)
+                                    if (sourceWeight.weight[slot] > 0.0f)
+                                        mergedWeights[sourceWeight.paletteIndex[slot]] +=
+                                            static_cast<double>(sourceWeight.weight[slot]) * perSource;
+                            }
+                        }
+                        attributeTotal += contribution.second;
+                    }
+                    if (!(attributeTotal > 0.0) || !std::isfinite(attributeTotal))
+                        return fail("collapsed vertex has no valid source attributes");
+                    if (sourceNormals)
+                    {
+                        const float length = std::sqrt(blendedNormal.x * blendedNormal.x +
+                                                       blendedNormal.y * blendedNormal.y +
+                                                       blendedNormal.z * blendedNormal.z);
+                        if (length > 1.0e-8f)
+                        {
+                            blendedNormal.x /= length;
+                            blendedNormal.y /= length;
+                            blendedNormal.z /= length;
+                        }
+                        normals.push_back(blendedNormal);
+                    }
+                    if (sourceUvs)
+                    {
+                        blendedUv.x /= static_cast<float>(attributeTotal);
+                        blendedUv.y /= static_cast<float>(attributeTotal);
+                        uvs.push_back(blendedUv);
+                    }
+                    if (hasCanonicalWeights)
+                    {
+                        std::vector<std::pair<uint32_t, double>> ranked(mergedWeights.begin(), mergedWeights.end());
+                        std::sort(ranked.begin(), ranked.end(), [](const auto &left, const auto &right)
+                        {
+                            return left.second > right.second ||
+                                   (left.second == right.second && left.first < right.first);
+                        });
+                        if (ranked.size() > 4) ranked.resize(4);
+                        double total = 0.0;
+                        for (const auto &entry : ranked) total += entry.second;
+                        if (!(total > 0.0) || !std::isfinite(total))
+                            return fail("collapsed vertex has no valid canonical skin influence");
+                        skeletal::CANONICAL_VERTEX_WEIGHT outputWeight = {};
+                        for (uint32_t slot = 0; slot < ranked.size(); ++slot)
+                        {
+                            outputWeight.paletteIndex[slot] = ranked[slot].first;
+                            outputWeight.weight[slot] = static_cast<float>(ranked[slot].second / total);
+                        }
+                        weights.push_back(outputWeight);
+                    }
+                }
+                indices.push_back(static_cast<uint16_t>(physical->second));
+            }
+            range.vertexCount = static_cast<int>(positions.size()) - range.vertexStart;
+            range.indexCount = static_cast<int>(indices.size()) - range.indexStart;
+        }
+        report.resultTriangleCount = static_cast<uint32_t>(indices.size() / 3);
 
         const float boundsScale = std::max({sourceMaximum.x - sourceMinimum.x,
                                             sourceMaximum.y - sourceMinimum.y,
@@ -2330,11 +2473,11 @@ namespace mbm
             util::SUBSET_DEBUG *subset = frame->subset[i];
             subset->vertexStart = results[i].vertexStart;
             subset->indexStart = results[i].indexStart;
-            subset->vertexCount = static_cast<int>(results[i].mesh.positions.size());
-            subset->indexCount = static_cast<int>(results[i].mesh.indices.size());
+            subset->vertexCount = results[i].vertexCount;
+            subset->indexCount = results[i].indexCount;
         }
-        report.maximumGeometricError = maximumError;
-        report.maximumPoseError = maximumPoseError;
+        report.maximumGeometricError = simplified.maximumError;
+        report.maximumPoseError = simplified.maximumPoseError;
         if (hasCanonicalWeights)
             impl->canonicalWeights = std::move(simplifiedWeights);
         return true;

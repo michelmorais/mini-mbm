@@ -30,6 +30,7 @@ namespace mbm::mesh_simplifier
         std::vector<VEC3> normals;
         std::vector<VEC2> uvs;
         std::vector<uint32_t> indices;
+        std::vector<uint32_t> triangleGroups;
         std::vector<std::vector<VEC3>> deformationDeltas;
     };
 
@@ -39,6 +40,7 @@ namespace mbm::mesh_simplifier
         std::vector<VEC3> normals;
         std::vector<VEC2> uvs;
         std::vector<uint32_t> indices;
+        std::vector<uint32_t> triangleGroups;
         std::vector<std::vector<std::pair<uint32_t, float>>> sourceContributions;
         float maximumError = 0.0f;
         float maximumPoseError = 0.0f;

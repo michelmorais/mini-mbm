@@ -86,6 +86,17 @@ the operation fails atomically instead of creating non-manifold edges or apparen
 The detached result is scanned once more before output compaction, and any edge referenced by more
 than two triangles rejects the operation as a defensive invariant check.
 
+Whole-frame simplification uses one virtual topology across all material subsets. Vertices with
+bit-identical positions may be paired across different subsets so a material seam is treated as an
+interior topological edge, but coincident vertices inside the same subset remain separate to retain
+authored UV and hard-normal seams. Every triangle carries its original subset identifier through
+the collapse sequence. The detached result is then expanded back into contiguous per-subset vertex
+and index ranges, with normals, UVs, and canonical weights blended in the target subset's attribute
+domain. No material assignment is merged, and the final frame still must fit the existing 16-bit
+vertex-index contract. The reduction target is calculated once for the complete frame rather than
+rounded independently per subset; removing every triangle from any subset rejects the operation
+atomically.
+
 ## Mesh Debug Editor Integration
 
 The editor entry is implemented under the existing Frame node in MBM_VERSION 7.181.0 because that
