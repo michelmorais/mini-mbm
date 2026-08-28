@@ -3387,7 +3387,8 @@ function addMeshToTable(fileName)
         bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
-        tSimplifyState       = {ratio = 0.9, scope = 'frame', selectedSubsets = {}, report = nil},
+        tSimplifyState       = {ratio = 0.9, scope = 'frame', selectedSubsets = {},
+                                virtualFrame = false, report = nil},
         tSimplifyBackup      = nil,
         tCheckedRemove       = tCheckedRm,
         bShowFramePick       = false,
@@ -8405,6 +8406,54 @@ function simplifyRestoreBackup(tEntry, index)
     return true
 end
 
+function simplifyVirtualSubsetBatch(workingMesh, backupPath, targets, ratio)
+    local isolatedMesh = meshDebug:new()
+    if not isolatedMesh:load(backupPath) then
+        return nil, tLang.L('simplify_virtual_copy_failed')
+    end
+    local selected = {}
+    for _, subset in ipairs(targets) do selected[subset] = true end
+    local totalSubsets = isolatedMesh:getTotalSubset(1)
+    for subset = totalSubsets, 1, -1 do
+        if not selected[subset] then isolatedMesh:removeSubset(1, subset) end
+    end
+    if isolatedMesh:getTotalSubset(1) ~= #targets then
+        return nil, tLang.L('simplify_virtual_copy_failed')
+    end
+    local report, simplifyError = isolatedMesh:simplify(ratio)
+    if not report then return nil, simplifyError end
+
+    for i = #targets, 1, -1 do workingMesh:removeSubset(1, targets[i]) end
+    for isolatedSubset, targetPosition in ipairs(targets) do
+        local beforeCount = workingMesh:getTotalSubset(1)
+        workingMesh:copySubsetFrom(1, isolatedMesh, 1, isolatedSubset)
+        local currentPosition = workingMesh:getTotalSubset(1)
+        if currentPosition ~= beforeCount + 1 then
+            return nil, tLang.L('simplify_virtual_rebuild_failed')
+        end
+        while currentPosition > targetPosition do
+            if not workingMesh:moveSubsetUp(1, currentPosition) then
+                return nil, tLang.L('simplify_virtual_rebuild_failed')
+            end
+            currentPosition = currentPosition - 1
+        end
+    end
+    if not workingMesh:check() then
+        return nil, tLang.L('simplify_virtual_rebuild_failed')
+    end
+    return report
+end
+
+function simplifyGeometryTotals(meshD)
+    local vertices, triangles = 0, 0
+    local totalSubsets = meshD:getTotalSubset(1)
+    for subset = 1, totalSubsets do
+        vertices = vertices + meshD:getTotalVertex(1, subset)
+        triangles = triangles + math.floor(meshD:getTotalIndex(1, subset) / 3)
+    end
+    return vertices, triangles
+end
+
 function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
     local pendingBackup = simplifyCreateBackup(tEntry, meshD)
@@ -8427,11 +8476,14 @@ function simplifyApply(tEntry, meshD, index)
         end
         table.sort(targets)
     end
+    local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh)
     local aggregateReport = nil
-    for _, targetSubset in ipairs(targets) do
+    local useVirtualFrame = simplifyState.scope == 'subsets' and
+        simplifyState.virtualFrame == true and #targets >= 2
+    if useVirtualFrame then
         local okSimplify, report, simplifyError = dpCall(function()
-            if targetSubset == 'frame' then return workingMesh:simplify(simplifyState.ratio) end
-            return workingMesh:simplify(simplifyState.ratio, targetSubset)
+            return simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
+                targets, simplifyState.ratio)
         end)
         if not okSimplify or not report then
             meshDebug:fakeRelease(pendingBackup.path)
@@ -8440,17 +8492,37 @@ function simplifyApply(tEntry, meshD, index)
                 tostring(simplifyError or tLang.L('unknown_error'))), 6)
             return false
         end
-        if not aggregateReport then
-            aggregateReport = splitCaptureCopyTable(report)
-        else
-            aggregateReport.resultVertexCount = report.resultVertexCount
-            aggregateReport.resultTriangleCount = report.resultTriangleCount
-            aggregateReport.maximumGeometricError = math.max(
-                aggregateReport.maximumGeometricError or 0, report.maximumGeometricError or 0)
-            aggregateReport.maximumPoseError = math.max(
-                aggregateReport.maximumPoseError or 0, report.maximumPoseError or 0)
+        aggregateReport = splitCaptureCopyTable(report)
+    else
+        for _, targetSubset in ipairs(targets) do
+            local okSimplify, report, simplifyError = dpCall(function()
+                if targetSubset == 'frame' then return workingMesh:simplify(simplifyState.ratio) end
+                return workingMesh:simplify(simplifyState.ratio, targetSubset)
+            end)
+            if not okSimplify or not report then
+                meshDebug:fakeRelease(pendingBackup.path)
+                os.remove(pendingBackup.path)
+                tUtil.showMessageWarn(string.format(tLang.L('simplify_failed_fmt'),
+                    tostring(simplifyError or tLang.L('unknown_error'))), 6)
+                return false
+            end
+            if not aggregateReport then
+                aggregateReport = splitCaptureCopyTable(report)
+            else
+                aggregateReport.resultVertexCount = report.resultVertexCount
+                aggregateReport.resultTriangleCount = report.resultTriangleCount
+                aggregateReport.maximumGeometricError = math.max(
+                    aggregateReport.maximumGeometricError or 0, report.maximumGeometricError or 0)
+                aggregateReport.maximumPoseError = math.max(
+                    aggregateReport.maximumPoseError or 0, report.maximumPoseError or 0)
+            end
         end
     end
+    local resultVertices, resultTriangles = simplifyGeometryTotals(workingMesh)
+    aggregateReport.sourceVertexCount = sourceVertices
+    aggregateReport.sourceTriangleCount = sourceTriangles
+    aggregateReport.resultVertexCount = resultVertices
+    aggregateReport.resultTriangleCount = resultTriangles
     simplifyDiscardBackup(tEntry)
     tEntry.tSimplifyBackup = pendingBackup
     simplifyState.report = aggregateReport
@@ -9243,7 +9315,7 @@ end
 
 function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local simplifyState = tEntry.tSimplifyState or {
-        ratio = 0.9, scope = 'frame', selectedSubsets = {}, report = nil
+        ratio = 0.9, scope = 'frame', selectedSubsets = {}, virtualFrame = false, report = nil
     }
     tEntry.tSimplifyState = simplifyState
     simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
@@ -9252,15 +9324,15 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         return false
     end
 
-    if tImGui.RadioButton(tLang.L('simplify_scope_frame') .. '##simplifyFrame-' .. index,
-                          simplifyState.scope == 'frame') then
-        simplifyState.scope = 'frame'
-        simplifyState.report = nil
-    end
+    local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
+    scopeIndex = tImGui.RadioButton(
+        tLang.L('simplify_scope_frame') .. '##simplifyFrame-' .. index, scopeIndex, 1)
     tImGui.SameLine()
-    if tImGui.RadioButton(tLang.L('simplify_scope_subsets') .. '##simplifySubsets-' .. index,
-                          simplifyState.scope == 'subsets') then
-        simplifyState.scope = 'subsets'
+    scopeIndex = tImGui.RadioButton(
+        tLang.L('simplify_scope_subsets') .. '##simplifySubsets-' .. index, scopeIndex, 2)
+    local selectedScope = scopeIndex == 2 and 'subsets' or 'frame'
+    if selectedScope ~= simplifyState.scope then
+        simplifyState.scope = selectedScope
         simplifyState.report = nil
     end
 
@@ -9289,6 +9361,26 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 end
             end
         end
+        tImGui.BeginDisabled(selectedCount < 2)
+        local virtualFrame = tImGui.Checkbox(
+            tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
+            simplifyState.virtualFrame == true)
+        if virtualFrame ~= simplifyState.virtualFrame then
+            simplifyState.virtualFrame = virtualFrame
+            simplifyState.report = nil
+        end
+        tImGui.EndDisabled()
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(420)
+            tImGui.Text(tLang.L('simplify_virtual_frame_tooltip'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
+        if simplifyState.virtualFrame and selectedCount >= 2 then
+            estimatedTriangles = math.max(selectedCount,
+                math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
+        end
     else
         for _, subset in ipairs(allSubsets) do
             if subset.f == 1 then
@@ -9308,12 +9400,16 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         simplifyState.ratio = ratio
         simplifyState.report = nil
         if simplifyState.scope == 'subsets' then
-            estimatedTriangles = 0
-            for _, subset in ipairs(allSubsets) do
-                if subset.f == 1 and simplifyState.selectedSubsets[subset.s] then
-                    local triangles = math.floor((subset.indexCount or 0) / 3)
-                    estimatedTriangles = estimatedTriangles + math.max(1,
-                        math.floor(triangles * ratio))
+            if simplifyState.virtualFrame and selectedCount >= 2 then
+                estimatedTriangles = math.max(selectedCount, math.floor(sourceTriangles * ratio))
+            else
+                estimatedTriangles = 0
+                for _, subset in ipairs(allSubsets) do
+                    if subset.f == 1 and simplifyState.selectedSubsets[subset.s] then
+                        local triangles = math.floor((subset.indexCount or 0) / 3)
+                        estimatedTriangles = estimatedTriangles + math.max(1,
+                            math.floor(triangles * ratio))
+                    end
                 end
             end
         else

@@ -104,8 +104,13 @@ structural frame/subset operations. MBM_VERSION 7.181.0 introduced the explicit 
 scope, target ratio, source-to-target triangle counts, skeletal quality notice, simplification
 report, existing `Save As` flow, and rollback. MBM_VERSION 7.184.0 adds explicit `Frame` and
 `Subsets` radio scopes for one-frame meshes. The subset scope provides its own checkbox list and
-does not reuse the visibility/removal selection. Lua calls the native API once for each checked
-subset on a detached working copy; the C++ API still handles exactly one optional subset per call.
+does not reuse the visibility/removal selection. By default, Lua calls the native API once for each
+checked subset on a detached working copy; the C++ API still handles exactly one optional subset
+per call. With at least two subsets checked, `Treat selected subsets as virtual frame` is available:
+Lua isolates those subsets, invokes the existing whole-frame simplification once so their shared
+material seams participate in one topology, and rebuilds them at their original subset positions.
+The general `copySubsetFrom` primitive preserves compatible canonical weights during that rebuild
+and rejects incompatible skeletal palettes before geometry mutation.
 The panel is placed after the Frame node's Split Start Capture controls and separated from them by
 an explicit divider.
 Only after every call succeeds does the editor replace the live mesh, preserving batch atomicity.

@@ -588,8 +588,10 @@
     7.182.0 Preserved manifold topology during mesh simplification with the edge-collapse link condition and non-overlapping triangle batches.
     7.183.0 Simplified a complete mesh frame through one virtual cross-subset topology while preserving material IDs, intra-subset UV/normal seams, canonical weights, contiguous subset ranges, and uint16 indices.
     7.184.0 Added one-subset simplification to the native and Lua APIs plus Frame/Subsets radio scopes in Mesh Debug; the editor applies checked subsets individually on a detached copy while preserving unselected data and committing the complete Lua batch atomically.
+    7.184.1 Fixed Mesh Debug's simplification scope radio buttons passing booleans to the plugin's integer RadioButton binding, which raised a Lua error and left the ImGui window stack unbalanced.
+    7.185.0 Added optional virtual-frame simplification for multiple checked subsets in Mesh Debug, isolating and rebuilding them in Lua while preserving material order; fixed copySubsetFrom to append compatible canonical weights or reject before mutation.
 */
-#define MBM_VERSION "7.184.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.185.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

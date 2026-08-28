@@ -2895,6 +2895,25 @@ namespace mbm
         const int srcICount  = srcSub->indexCount;
         const int tgtOldV    = tgtBuf->headerFrame.sizeVertexBuffer;
         const int tgtOldI    = tgtBuf->headerFrame.sizeIndexBuffer;
+        const bool copyCanonicalWeights = this->impl->canonicalWeights.skeletonId != 0 &&
+            this->impl->canonicalWeights.frameIndex == targetFrame;
+        std::vector<skeletal::CANONICAL_VERTEX_WEIGHT> sourceWeights;
+        if (copyCanonicalWeights)
+        {
+            if (src.impl->canonicalWeights.skeletonId == 0 ||
+                src.impl->canonicalWeights.frameIndex != srcFrame ||
+                this->impl->canonicalWeights.skeletonId != src.impl->canonicalWeights.skeletonId ||
+                this->impl->canonicalWeights.paletteBoneIds != src.impl->canonicalWeights.paletteBoneIds ||
+                this->impl->canonicalWeights.vertices.size() != static_cast<size_t>(tgtOldV) ||
+                src.impl->canonicalWeights.vertices.size() !=
+                    static_cast<size_t>(srcBuf->headerFrame.sizeVertexBuffer) ||
+                srcVStart < 0 || srcVCount < 0 ||
+                static_cast<size_t>(srcVStart + srcVCount) > src.impl->canonicalWeights.vertices.size())
+                return 0;
+            sourceWeights.insert(sourceWeights.end(),
+                src.impl->canonicalWeights.vertices.begin() + srcVStart,
+                src.impl->canonicalWeights.vertices.begin() + srcVStart + srcVCount);
+        }
         // Append vertex data
         if (srcVCount > 0)
         {
@@ -2956,6 +2975,9 @@ namespace mbm
         newSub->indexCount  = srcICount;
         tgtBuf->subset.push_back(newSub);
         tgtBuf->headerFrame.totalSubset = static_cast<int>(tgtBuf->subset.size());
+        if (copyCanonicalWeights)
+            this->impl->canonicalWeights.vertices.insert(
+                this->impl->canonicalWeights.vertices.end(), sourceWeights.begin(), sourceWeights.end());
         return static_cast<uint32_t>(tgtBuf->subset.size());
     }
 
