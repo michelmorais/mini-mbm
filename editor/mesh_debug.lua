@@ -3387,7 +3387,7 @@ function addMeshToTable(fileName)
         bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
-        tSimplifyState       = {ratio = 0.9, scopeIndex = 1, report = nil},
+        tSimplifyState       = {ratio = 0.9, scope = 'frame', selectedSubsets = {}, report = nil},
         tSimplifyBackup      = nil,
         tCheckedRemove       = tCheckedRm,
         bShowFramePick       = false,
@@ -8412,21 +8412,49 @@ function simplifyApply(tEntry, meshD, index)
         tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
         return false
     end
-    local targetSubset = (simplifyState.scopeIndex or 1) > 1
-        and (simplifyState.scopeIndex - 1) or nil
-    local okSimplify, report, simplifyError = dpCall(function()
-        return meshD:simplify(simplifyState.ratio, targetSubset)
-    end)
-    if not okSimplify or not report then
+    local workingMesh = meshDebug:new()
+    if not workingMesh:load(pendingBackup.path) then
         meshDebug:fakeRelease(pendingBackup.path)
         os.remove(pendingBackup.path)
-        tUtil.showMessageWarn(string.format(tLang.L('simplify_failed_fmt'),
-            tostring(simplifyError or tLang.L('unknown_error'))), 6)
+        tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
         return false
+    end
+    local targets = {'frame'}
+    if simplifyState.scope == 'subsets' then
+        targets = {}
+        for subset, selected in pairs(simplifyState.selectedSubsets or {}) do
+            if selected then table.insert(targets, subset) end
+        end
+        table.sort(targets)
+    end
+    local aggregateReport = nil
+    for _, targetSubset in ipairs(targets) do
+        local okSimplify, report, simplifyError = dpCall(function()
+            if targetSubset == 'frame' then return workingMesh:simplify(simplifyState.ratio) end
+            return workingMesh:simplify(simplifyState.ratio, targetSubset)
+        end)
+        if not okSimplify or not report then
+            meshDebug:fakeRelease(pendingBackup.path)
+            os.remove(pendingBackup.path)
+            tUtil.showMessageWarn(string.format(tLang.L('simplify_failed_fmt'),
+                tostring(simplifyError or tLang.L('unknown_error'))), 6)
+            return false
+        end
+        if not aggregateReport then
+            aggregateReport = splitCaptureCopyTable(report)
+        else
+            aggregateReport.resultVertexCount = report.resultVertexCount
+            aggregateReport.resultTriangleCount = report.resultTriangleCount
+            aggregateReport.maximumGeometricError = math.max(
+                aggregateReport.maximumGeometricError or 0, report.maximumGeometricError or 0)
+            aggregateReport.maximumPoseError = math.max(
+                aggregateReport.maximumPoseError or 0, report.maximumPoseError or 0)
+        end
     end
     simplifyDiscardBackup(tEntry)
     tEntry.tSimplifyBackup = pendingBackup
-    simplifyState.report = report
+    simplifyState.report = aggregateReport
+    tEntry.meshDebug = workingMesh
     tEntry.modified = true
     tEntry.tTransformBoundsCache = nil
     tEntry.bNormalsVizDirty = true
@@ -8434,9 +8462,9 @@ function simplifyApply(tEntry, meshD, index)
     destroyNormalVisualization(tEntry)
     destroyPhysicsVisualization(tEntry)
     if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
-    rebuildBoneGizmo(tEntry, meshD, index)
+    rebuildBoneGizmo(tEntry, workingMesh, index)
     tUtil.showMessage(string.format(tLang.L('simplify_success_fmt'),
-        report.sourceTriangleCount, report.resultTriangleCount), 5)
+        aggregateReport.sourceTriangleCount, aggregateReport.resultTriangleCount), 5)
     return true
 end
 
@@ -9213,6 +9241,126 @@ function showSplitCapture(tEntry, meshD, index)
     end
 end
 
+function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
+    local simplifyState = tEntry.tSimplifyState or {
+        ratio = 0.9, scope = 'frame', selectedSubsets = {}, report = nil
+    }
+    tEntry.tSimplifyState = simplifyState
+    simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
+    simplifyState.selectedSubsets = simplifyState.selectedSubsets or {}
+    if not tImGui.TreeNodeEx(tLang.L('simplify_geometry') .. '##simplify-' .. index, 0) then
+        return false
+    end
+
+    if tImGui.RadioButton(tLang.L('simplify_scope_frame') .. '##simplifyFrame-' .. index,
+                          simplifyState.scope == 'frame') then
+        simplifyState.scope = 'frame'
+        simplifyState.report = nil
+    end
+    tImGui.SameLine()
+    if tImGui.RadioButton(tLang.L('simplify_scope_subsets') .. '##simplifySubsets-' .. index,
+                          simplifyState.scope == 'subsets') then
+        simplifyState.scope = 'subsets'
+        simplifyState.report = nil
+    end
+
+    local sourceTriangles = 0
+    local selectedCount = 0
+    local estimatedTriangles = 0
+    if simplifyState.scope == 'subsets' then
+        tImGui.Text(tLang.L('simplify_select_subsets'))
+        for _, subset in ipairs(allSubsets) do
+            if subset.f == 1 then
+                local selected = simplifyState.selectedSubsets[subset.s] == true
+                local label = string.format(tLang.L('simplify_scope_subset_fmt'),
+                    subset.s, subset.texName)
+                local newSelected = tImGui.Checkbox(label .. '##simplifySubset-' .. index .. '-' .. subset.s,
+                    selected)
+                if newSelected ~= selected then
+                    simplifyState.selectedSubsets[subset.s] = newSelected
+                    simplifyState.report = nil
+                end
+                if simplifyState.selectedSubsets[subset.s] then
+                    local triangles = math.floor((subset.indexCount or 0) / 3)
+                    sourceTriangles = sourceTriangles + triangles
+                    estimatedTriangles = estimatedTriangles + math.max(1,
+                        math.floor(triangles * (simplifyState.ratio or 0.9)))
+                    selectedCount = selectedCount + 1
+                end
+            end
+        end
+    else
+        for _, subset in ipairs(allSubsets) do
+            if subset.f == 1 then
+                sourceTriangles = sourceTriangles + math.floor((subset.indexCount or 0) / 3)
+                selectedCount = selectedCount + 1
+            end
+        end
+        estimatedTriangles = math.max(selectedCount,
+            math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
+    end
+
+    tImGui.PushItemWidth(180)
+    local ratioChanged, ratio = tImGui.SliderFloat(
+        tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
+        simplifyState.ratio or 0.9, 0.05, 0.95, '%.2f')
+    if ratioChanged and ratio then
+        simplifyState.ratio = ratio
+        simplifyState.report = nil
+        if simplifyState.scope == 'subsets' then
+            estimatedTriangles = 0
+            for _, subset in ipairs(allSubsets) do
+                if subset.f == 1 and simplifyState.selectedSubsets[subset.s] then
+                    local triangles = math.floor((subset.indexCount or 0) / 3)
+                    estimatedTriangles = estimatedTriangles + math.max(1,
+                        math.floor(triangles * ratio))
+                end
+            end
+        else
+            estimatedTriangles = math.max(selectedCount, math.floor(sourceTriangles * ratio))
+        end
+    end
+    tImGui.PopItemWidth()
+    tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'), sourceTriangles, estimatedTriangles))
+    tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
+
+    local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
+    local canSimplify = nFrames == 1 and sourceTriangles > 1 and
+        #tEntry.tPendingOps == 0 and hasSelection
+    if not canSimplify then
+        local messageKey = nFrames ~= 1 and 'simplify_requires_one_frame'
+            or (#tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
+            or 'simplify_select_at_least_one_subset')
+        tImGui.TextDisabled(tLang.L(messageKey))
+    end
+    local applied = false
+    tImGui.BeginDisabled(not canSimplify)
+    if tImGui.Button(tLang.L('simplify_apply') .. '##simplifyApply-' .. index) then
+        applied = simplifyApply(tEntry, meshD, index)
+    end
+    tImGui.EndDisabled()
+    if tEntry.tSimplifyBackup then
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('simplify_revert') .. '##simplifyRevert-' .. index) then
+            simplifyRestoreBackup(tEntry, index)
+            applied = true
+        end
+    end
+    local report = simplifyState.report
+    if report then
+        tImGui.Text(string.format(tLang.L('simplify_report_geometry_fmt'),
+            report.sourceVertexCount, report.resultVertexCount,
+            report.sourceTriangleCount, report.resultTriangleCount))
+        if report.skinWeightAware then
+            tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
+                report.sampledPoseCount or 0, report.sampledClipCount or 0,
+                report.maximumPoseError or 0))
+        end
+    end
+    tImGui.TreePop()
+    return applied
+end
+
 -- ---------------------------------------------------------------------------
 -- Frame tree node: view/queue removals, open Frame Pick
 -- ---------------------------------------------------------------------------
@@ -9494,82 +9642,6 @@ function showFrameNode(tEntry, meshD, index)
         end
     end
 
-    tImGui.Separator()
-
-    local simplifyState = tEntry.tSimplifyState or {ratio = 0.9, scopeIndex = 1, report = nil}
-    tEntry.tSimplifyState = simplifyState
-    if tImGui.TreeNodeEx(tLang.L('simplify_geometry') .. '##simplify-' .. index, 0) then
-        local scopeLabels = {tLang.L('simplify_scope_entire_mesh')}
-        for _, subset in ipairs(allSubsets) do
-            if subset.f == 1 then
-                table.insert(scopeLabels, string.format(tLang.L('simplify_scope_subset_fmt'),
-                    subset.s, subset.texName))
-            end
-        end
-        simplifyState.scopeIndex = math.max(1,
-            math.min(simplifyState.scopeIndex or 1, #scopeLabels))
-        tImGui.PushItemWidth(240)
-        local scopeChanged, scopeIndex = tImGui.Combo(
-            tLang.L('simplify_scope') .. '##simplifyScope-' .. index,
-            simplifyState.scopeIndex, scopeLabels, -1)
-        if scopeChanged and scopeIndex then
-            simplifyState.scopeIndex = scopeIndex
-            simplifyState.report = nil
-        end
-        tImGui.PopItemWidth()
-
-        local sourceTriangles = 0
-        local selectedSubset = (simplifyState.scopeIndex or 1) - 1
-        for _, subset in ipairs(allSubsets) do
-            if subset.f == 1 and (selectedSubset == 0 or subset.s == selectedSubset) then
-                sourceTriangles = sourceTriangles + math.floor((subset.indexCount or 0) / 3)
-            end
-        end
-        tImGui.PushItemWidth(180)
-        local ratioChanged, ratio = tImGui.SliderFloat(
-            tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
-            simplifyState.ratio or 0.9, 0.05, 0.95, '%.2f')
-        if ratioChanged and ratio then simplifyState.ratio = ratio end
-        tImGui.PopItemWidth()
-        local targetTriangles = math.max(1, math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
-        tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'), sourceTriangles, targetTriangles))
-        tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
-
-        local canSimplify = nFrames == 1 and sourceTriangles > 1 and #tEntry.tPendingOps == 0
-        if not canSimplify then
-            tImGui.TextDisabled(tLang.L(nFrames ~= 1 and 'simplify_requires_one_frame'
-                or 'simplify_unavailable_pending_ops'))
-        end
-        tImGui.BeginDisabled(not canSimplify)
-        if tImGui.Button(tLang.L('simplify_apply') .. '##simplifyApply-' .. index) then
-            simplifyApply(tEntry, meshD, index)
-        end
-        tImGui.EndDisabled()
-        if tEntry.tSimplifyBackup then
-            tImGui.SameLine()
-            if tImGui.Button(tLang.L('simplify_revert') .. '##simplifyRevert-' .. index) then
-                simplifyRestoreBackup(tEntry, index)
-                tImGui.TreePop()
-                tImGui.TreePop()
-                return
-            end
-        end
-        local report = simplifyState.report
-        if report then
-            tImGui.Text(string.format(tLang.L('simplify_report_geometry_fmt'),
-                report.sourceVertexCount, report.resultVertexCount,
-                report.sourceTriangleCount, report.resultTriangleCount))
-            if report.skinWeightAware then
-                tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
-                    report.sampledPoseCount or 0, report.sampledClipCount or 0,
-                    report.maximumPoseError or 0))
-            end
-        end
-        tImGui.TreePop()
-    end
-
-    tImGui.Separator()
-
     -- Pending ops list
     if #tEntry.tPendingOps > 0 then
         tImGui.Text(tLang.L('pending_ops') .. ':')
@@ -9758,6 +9830,11 @@ function showFrameNode(tEntry, meshD, index)
     tEntry.tSplitCapture = tEntry.tSplitCapture or {active=false, initialized=false}
     tEntry.tSplitCaptures = tEntry.tSplitCaptures or {}
     showSplitCapture(tEntry, meshD, index)
+    tImGui.Separator()
+    if showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets) then
+        tImGui.TreePop()
+        return
+    end
 
     -- Save As (visible after Execute, when mesh is modified in-memory)
     if tEntry.modified then
