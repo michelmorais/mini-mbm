@@ -584,8 +584,9 @@
     7.178.0 Added atomic quadric-error triangle simplification to MESH_MBM_DEBUG and meshDebug:simplify for one-frame static indexed 3D meshes, preserving material, UV/normal seam, boundary, and authored physics domains.
     7.179.0 Extended mesh simplification to canonical skeletal assets with collapse-aware four-influence weight blending while preserving skeletons and animation clips.
     7.180.0 Added pose-sampled skeletal simplification quality and edge-constrained QEM placement, preventing animation-incompatible collapses and distant vertex spikes.
+    7.181.0 Added Mesh Debug Editor controls for whole-mesh simplification under Frame, with ratio estimates, quality reports, Save As workflow, and rollback.
 */
-#define MBM_VERSION "7.180.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.181.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -3387,6 +3387,8 @@ function addMeshToTable(fileName)
         bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
+        tSimplifyState       = {ratio = 0.9, report = nil},
+        tSimplifyBackup      = nil,
         tCheckedRemove       = tCheckedRm,
         bShowFramePick       = false,
         tImportMeshD         = nil,
@@ -3512,6 +3514,7 @@ function removeMeshFromTable(index)
         tXformGizmo.destroy(removed)
         if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
         splitCaptureDiscardBackup(removed)
+        simplifyDiscardBackup(removed)
         transformDiscardUndo(removed)
         destroySplitCaptureIslandMarkers(removed)
         destroyTransformSubsetHoverMarker(removed)
@@ -8356,6 +8359,85 @@ function splitCaptureDiscardBackup(tEntry)
     tEntry.tSplitCaptureBackup = nil
 end
 
+function simplifyDiscardBackup(tEntry)
+    local backup = tEntry and tEntry.tSimplifyBackup
+    if not backup then return end
+    meshDebug:fakeRelease(backup.path)
+    os.remove(backup.path)
+    tEntry.tSimplifyBackup = nil
+end
+
+function simplifyCreateBackup(tEntry, meshD)
+    local path = tUtil.getTemporaryFilePath('_simplify_undo.msh')
+    if not meshD:save(path, false, false) then
+        meshDebug:fakeRelease(path)
+        os.remove(path)
+        return nil
+    end
+    return {
+        path = path,
+        modified = tEntry.modified == true,
+        info = splitCaptureCopyTable(tEntry.info),
+    }
+end
+
+function simplifyRestoreBackup(tEntry, index)
+    local backup = tEntry.tSimplifyBackup
+    if not backup then return false end
+    local restored = meshDebug:new()
+    if not restored:load(backup.path) then
+        tUtil.showMessageWarn(tLang.L('simplify_revert_failed'))
+        return false
+    end
+    destroyNormalVisualization(tEntry)
+    destroyPhysicsVisualization(tEntry)
+    tEntry.meshDebug = restored
+    tEntry.modified = backup.modified
+    tEntry.info = backup.info
+    tEntry.tSimplifyState.report = nil
+    tEntry.tTransformBoundsCache = nil
+    tEntry.bNormalsVizDirty = true
+    tEntry.bPhysicsVizDirty = true
+    simplifyDiscardBackup(tEntry)
+    if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    rebuildBoneGizmo(tEntry, restored, index)
+    tUtil.showMessage(tLang.L('simplify_revert_success'), 5)
+    return true
+end
+
+function simplifyApplyWholeMesh(tEntry, meshD, index)
+    local simplifyState = tEntry.tSimplifyState
+    local pendingBackup = simplifyCreateBackup(tEntry, meshD)
+    if not pendingBackup then
+        tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
+        return false
+    end
+    local okSimplify, report, simplifyError = dpCall(function()
+        return meshD:simplify(simplifyState.ratio)
+    end)
+    if not okSimplify or not report then
+        meshDebug:fakeRelease(pendingBackup.path)
+        os.remove(pendingBackup.path)
+        tUtil.showMessageWarn(string.format(tLang.L('simplify_failed_fmt'),
+            tostring(simplifyError or tLang.L('unknown_error'))), 6)
+        return false
+    end
+    simplifyDiscardBackup(tEntry)
+    tEntry.tSimplifyBackup = pendingBackup
+    simplifyState.report = report
+    tEntry.modified = true
+    tEntry.tTransformBoundsCache = nil
+    tEntry.bNormalsVizDirty = true
+    tEntry.bPhysicsVizDirty = true
+    destroyNormalVisualization(tEntry)
+    destroyPhysicsVisualization(tEntry)
+    if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    rebuildBoneGizmo(tEntry, meshD, index)
+    tUtil.showMessage(string.format(tLang.L('simplify_success_fmt'),
+        report.sourceTriangleCount, report.resultTriangleCount), 5)
+    return true
+end
+
 function splitCaptureCreateBackup(tEntry, meshD)
     local backupPath = tUtil.getTemporaryFilePath('.msh')
     if not meshD:save(backupPath, false, false) then
@@ -9156,12 +9238,14 @@ function showFrameNode(tEntry, meshD, index)
         for s = 1, (okS and nSubs or 0) do
             local okT, tex = dpCall(function() return meshD:getTexture(f, s) end)
             local okV, vertexCount = dpCall(function() return meshD:getTotalVertex(f, s) end)
+            local okI, indexCount = dpCall(function() return meshD:getTotalIndex(f, s) end)
             local texName = (okT and tex and tex ~= '') and (' [' .. tUtil.getShortName(tex) .. ']') or ''
             table.insert(allSubsets, {
                 f = f,
                 s = s,
                 texName = texName,
                 vertexCount = okV and vertexCount or nil,
+                indexCount = okI and indexCount or nil,
             })
         end
     end
@@ -9406,6 +9490,59 @@ function showFrameNode(tEntry, meshD, index)
         if not tEntry.modified then
             tEntry.bAutoRefreshPreview = autoVal
         end
+    end
+
+    tImGui.Separator()
+
+    local simplifyState = tEntry.tSimplifyState or {ratio = 0.9, report = nil}
+    tEntry.tSimplifyState = simplifyState
+    if tImGui.TreeNodeEx(tLang.L('simplify_geometry') .. '##simplify-' .. index, 0) then
+        local sourceTriangles = 0
+        for _, subset in ipairs(allSubsets) do
+            sourceTriangles = sourceTriangles + math.floor((subset.indexCount or 0) / 3)
+        end
+        tImGui.Text(tLang.L('simplify_scope') .. ': ' .. tLang.L('simplify_scope_entire_mesh'))
+        tImGui.PushItemWidth(180)
+        local ratioChanged, ratio = tImGui.SliderFloat(
+            tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
+            simplifyState.ratio or 0.9, 0.05, 0.95, '%.2f')
+        if ratioChanged and ratio then simplifyState.ratio = ratio end
+        tImGui.PopItemWidth()
+        local targetTriangles = math.max(1, math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
+        tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'), sourceTriangles, targetTriangles))
+        tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
+
+        local canSimplify = nFrames == 1 and sourceTriangles > 1 and #tEntry.tPendingOps == 0
+        if not canSimplify then
+            tImGui.TextDisabled(tLang.L(nFrames ~= 1 and 'simplify_requires_one_frame'
+                or 'simplify_unavailable_pending_ops'))
+        end
+        tImGui.BeginDisabled(not canSimplify)
+        if tImGui.Button(tLang.L('simplify_apply') .. '##simplifyApply-' .. index) then
+            simplifyApplyWholeMesh(tEntry, meshD, index)
+        end
+        tImGui.EndDisabled()
+        if tEntry.tSimplifyBackup then
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('simplify_revert') .. '##simplifyRevert-' .. index) then
+                simplifyRestoreBackup(tEntry, index)
+                tImGui.TreePop()
+                tImGui.TreePop()
+                return
+            end
+        end
+        local report = simplifyState.report
+        if report then
+            tImGui.Text(string.format(tLang.L('simplify_report_geometry_fmt'),
+                report.sourceVertexCount, report.resultVertexCount,
+                report.sourceTriangleCount, report.resultTriangleCount))
+            if report.skinWeightAware then
+                tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
+                    report.sampledPoseCount or 0, report.sampledClipCount or 0,
+                    report.maximumPoseError or 0))
+            end
+        end
+        tImGui.TreePop()
     end
 
     tImGui.Separator()
