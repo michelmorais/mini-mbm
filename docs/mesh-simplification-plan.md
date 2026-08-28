@@ -1,0 +1,98 @@
+# Mesh Simplification Plan
+
+## Purpose
+
+Add polygon reduction without changing mini-mbm's 16-bit vertex-index contract. The work has two
+related, but separate, entry points:
+
+1. Reduce large static GLB/FBX assets in Blender before the importer creates MSH subsets.
+2. Add one future `MESH_MBM_DEBUG::simplify()` API for an existing MSH, with internal paths that
+   preserve static, skeletal, and animated data as applicable.
+
+`remesh` is reserved for a future operation that rebuilds topology and reprojects attributes.
+The planned operation is decimation/simplification derived from the existing topology.
+
+## Invariants
+
+- Engine and editor index buffers remain `uint16_t`; this work does not add 32-bit runtime indices.
+- Material boundaries remain semantic subset boundaries.
+- Technical chunks created only to satisfy the 65,535-vertex limit are produced after reduction.
+- A failed or unsupported simplification must not partially mutate or overwrite the input asset.
+- Canonical weights remain frame-zero, frame-global, one record per exported vertex, with at most
+  four finite nonnegative influences normalized to one.
+- Skeleton identities, hierarchy, clips, and animation tracks are not silently removed.
+- UV seams, hard normals, material boundaries, and open boundaries must have explicit preservation
+  policies rather than incidental behavior.
+- Results must be deterministic for the same input and options.
+
+## Stage 1: Blender Pre-import Reduction
+
+The Blender importer gets an opt-in "Reduce polygons before import" option. Reduction runs after
+Blender imports the source and before `export_frame_subsets()` triangulates, separates materials,
+deduplicates loop attributes, and calls `split_subset_for_uint16_indices()`.
+
+Initial scope:
+
+- static visible mesh objects only;
+- Blender Decimate modifier in Collapse mode;
+- ratio-based input, with the UI showing the approximate retained percentage;
+- no armatures, skin weights, shape keys, mesh-cache animation, animated mesh objects, or baked
+  geometry clips;
+- reject unsupported scenes with an actionable error instead of ignoring the option;
+- do not alter the source GLB/FBX on disk.
+
+The imported Blender scene is a disposable conversion workspace, so the exporter may add temporary
+modifiers there. The exporter still reads only evaluated meshes and writes the MSH after successful
+validation.
+
+Later Blender-importer extensions may add a global target-face budget, per-object allocation,
+symmetry, and carefully validated skeletal decimation. They are not part of Stage 1.
+
+## Future Stage: `MESH_MBM_DEBUG::simplify()`
+
+The public surface is one method. Asset inspection selects private implementation paths; callers do
+not choose separate static/skinned/frame-animation methods.
+
+The implementation should:
+
+1. Build a detached candidate topology.
+2. Simplify indexed triangles with an explicit error metric and preservation options.
+3. Produce an old-to-new vertex mapping.
+4. Rebuild positions, indices, normals, UVs, subsets, and physics bounds.
+5. If canonical weights exist, merge influences, retain the strongest four, and normalize them.
+6. If geometry animation has multiple frames, apply one compatible collapse sequence to every
+   frame or reject the operation.
+7. Validate the complete candidate with the existing MSH and skeletal validators.
+8. Commit atomically only after every validation succeeds.
+
+Pose-sampled skinning error is a later quality stage. A bind-pose-only implementation must say so in
+its report and must not claim animation-quality preservation.
+
+## Test Assets
+
+- `/home/michel/Downloads/rp_sophia_animated_003_idling_FBX/rp_sophia_animated_003_idling.msh`
+  validates canonical skeleton, weights, and idle animation preservation.
+- `/home/michel/Downloads/From-mixamo-Walking.msh` validates a second skeletal source and weight
+  distribution.
+- `/home/michel/Downloads/Meshy_AI_Grumblechain_0828120116_texture.glb` is the high-density static
+  Blender-import stress test and remains GLB so reduction occurs before MSH chunking.
+
+## Acceptance Criteria
+
+### Blender Stage 1
+
+- The option is disabled by default and does not change existing imports.
+- A ratio strictly greater than zero and at most one reaches Blender unchanged.
+- Reduction happens before material bucketing and `uint16_t` chunking.
+- Static GLB/FBX output has fewer triangles at ratios below one and remains loadable as MSH.
+- Material textures and extra texture roles survive the operation.
+- Unsupported skeletal or animated inputs fail before output replacement with a clear reason.
+- Cancellation, timeout, debug logging, and atomic output behavior continue to work.
+
+### Future MSH Simplification
+
+- Triangle reduction reaches the requested target within a documented tolerance.
+- All indices, subset ranges, weights, animation references, and physics bounds validate.
+- Skeletal test assets load and animate after simplification with no invalid weights.
+- The original object remains unchanged on any failure.
+- Idle editor frames perform no simplification or other expensive repeated work.

@@ -417,6 +417,8 @@ function onInitScene()
         nImportAngleY = 0,
         nImportAngleZ = 0,
         iLargeMeshMode = 1,
+        bReducePolygons = false,
+        nReducePolygonRatio = 0.5,
         bImportPreferSkeletal = true,
         bImportIncludeBones = true, -- legacy state name kept for older saved sessions
         tRunResults = {},
@@ -2173,6 +2175,10 @@ local function buildBlenderImportSuccessSummary(row, outMsh, importOptions)
         sizeText,
         textureText)
     local modeInfo = importOptions and importOptions.modeInfo or nil
+    if importOptions and importOptions.decimateRatio then
+        summary = summary .. '\n' .. string.format(
+            tLang.L('blender_import_summary_decimate_fmt'), importOptions.decimateRatio * 100.0)
+    end
     if modeInfo and modeInfo.mode == 'skeletal' then
         summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_skeletal_fmt'), importOptions.skeletalKeySamples or 1)
     elseif modeInfo and modeInfo.fallbackExpected then
@@ -2258,6 +2264,9 @@ local function blenderImportCoroutine()
         importOptions.importAngleY = st.nImportAngleY
         importOptions.importAngleZ = st.nImportAngleZ
         importOptions.largeMeshMode = tBlender.getLargeMeshModeArg()
+        if st.bReducePolygons then
+            importOptions.decimateRatio = math.max(0.01, math.min(1.0, tonumber(st.nReducePolygonRatio) or 0.5))
+        end
         importOptions.includeBones = tBlender.getPreferSkeletal()
         local importerJob, importerError = nil, nil
         local cmd = nil
@@ -3016,6 +3025,18 @@ function showBlenderImportDialog()
     if (st.iLargeMeshMode or 1) == 2 then
         tImGui.TextDisabled(tLang.L('blender_import_large_mesh_vb_only_note'))
     end
+    st.bReducePolygons = tImGui.Checkbox(tLang.L('blender_import_reduce_polygons'), st.bReducePolygons)
+    tImGui.SameLine()
+    tImGui.HelpMarker(tLang.L('blender_import_reduce_polygons_help'))
+    tImGui.BeginDisabled(not st.bReducePolygons)
+    tImGui.PushItemWidth(180)
+    local reduceChanged, newReduceRatio = tImGui.SliderFloat(
+        tLang.L('blender_import_reduce_ratio'), st.nReducePolygonRatio or 0.5, 0.01, 1.0, '%.2f')
+    if reduceChanged and newReduceRatio then
+        st.nReducePolygonRatio = math.max(0.01, math.min(1.0, newReduceRatio))
+    end
+    tImGui.PopItemWidth()
+    tImGui.EndDisabled()
     st.bImportPreferSkeletal = tImGui.Checkbox(tLang.L('blender_import_prefer_skeletal'), tBlender.getPreferSkeletal())
     st.bImportIncludeBones = st.bImportPreferSkeletal
     tImGui.SameLine()

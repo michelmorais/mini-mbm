@@ -61,12 +61,13 @@ local function writeText(path, content)
 end
 
 local function progressFromLog(content)
-    local progress = {sourceFrame = nil, framesExported = nil, scaling = false, writing = false, done = false}
+    local progress = {sourceFrame = nil, framesExported = nil, decimating = false, scaling = false, writing = false, done = false}
     for line in tostring(content or ''):gmatch('[^\r\n]+') do
         local frame = line:match('%[blender_export%]%s+export frame:%s+(%d+)')
         if frame then progress.sourceFrame = tonumber(frame) end
         local exported = line:match('%[blender_export%]%s+frames exported:%s+(%d+)')
         if exported then progress.framesExported = tonumber(exported) end
+        if line:find('[blender_export] decimate:', 1, true) then progress.decimating = true end
         if line:find('[blender_export] applying uniform scale:', 1, true) then progress.scaling = true end
         if line:find('[blender_export] writing output', 1, true) then progress.writing = true end
         if line:find('[blender_export] done', 1, true) then progress.done = true end
@@ -132,6 +133,10 @@ function Job:update()
         self.phase = 'frame'
         self.sourceFrame = progress.sourceFrame
         self.detail = string.format('Frame %d / %d', progress.sourceFrame, self.expectedFrames)
+    elseif progress.decimating then
+        self.progress = math.max(self.progress or 0, 0.4)
+        self.phase = 'decimating'
+        self.detail = 'Reducing polygons'
     end
     -- Direct MSH export atomically renames its fully flushed temporary file to
     -- self.output. Seeing the final path is therefore a safe completion signal,
@@ -188,6 +193,7 @@ function M.start(config)
         includeTextureEmissive = options.includeTextureEmissive,
         includeTextureMask = options.includeTextureMask,
         largeMeshMode = options.largeMeshMode or 'fail',
+        decimateRatio = options.decimateRatio,
         debugSteps = options.debugSteps == true,
         cancelFile = cancelFile,
         importPostProcess = options.importPostProcess == true,

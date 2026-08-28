@@ -580,8 +580,9 @@
     7.175.0 Added the cross-backend spotlight overlay built-in shader for tutorial and coach-mark focus effects.
     7.175.1 Fixed DirectX 11 offscreen render targets ignoring alwaysRender during the capture pass, which left Scene Editor 3D mesh-selector thumbnails black.
     7.175.2 Exposed Dear ImGui's beta multiline input WordWrap flag through the typed Lua flag binding.
+    7.177.0 Added opt-in static GLB/FBX polygon reduction to Mesh Debug's Blender importer. Blender Decimate runs before material bucketing and uint16 chunking, while armatures, shape keys, and animated geometry are rejected for this first stage.
 */
-#define MBM_VERSION "7.176.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.177.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

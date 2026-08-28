@@ -40,6 +40,7 @@ local wrapper = {
         assert(exporterPath:match('/editor/blender_mesh_export%.py$'))
         assert(options.directMshOutput == true)
         assert(options.largeMeshMode == 'vb_only')
+        assert(options.decimateRatio == 0.25)
         assert(options.uniformScale == 100)
         assert(options.normalizeTextures == true)
         assert(options.includeTextureDiffuse == true)
@@ -58,7 +59,7 @@ local wrapper = {
 local completed = false
 local job = assert(importer.start({
     wrapper = wrapper, input = input, output = output, log = log, cancelFile = cancel,
-    options = {largeMeshMode = 'vb_only', uniformScale = 100, normalizeTextures = true,
+    options = {largeMeshMode = 'vb_only', decimateRatio = 0.25, uniformScale = 100, normalizeTextures = true,
         includeTextureDiffuse = true, includeTextureNormal = true, includeTextureSpecular = true,
         includeTextureEmissive = true, includeTextureMask = false},
     onComplete = function(path) completed = path == output end,

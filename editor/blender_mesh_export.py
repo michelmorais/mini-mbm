@@ -79,6 +79,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--angle-y", type=float, default=0.0)
     parser.add_argument("--angle-z", type=float, default=0.0)
     parser.add_argument("--large-mesh-mode", choices=("fail", "vb_only"), default="fail")
+    parser.add_argument("--decimate-ratio", type=float, default=None)
     parser.add_argument("--include-bones", action="store_true")
     parser.add_argument("--uniform-scale", type=float, default=1.0)
     parser.add_argument("--normalize-textures", action="store_true")
@@ -1137,6 +1138,78 @@ def import_source(input_path: str) -> None:
     raise RuntimeError(f"Unsupported source extension: {ext}")
 
 
+def get_decimation_ratio(args: argparse.Namespace) -> float | None:
+    ratio = getattr(args, "decimate_ratio", None)
+    if ratio is None:
+        return None
+    ratio = float(ratio)
+    if not math.isfinite(ratio) or ratio <= 0.0 or ratio > 1.0:
+        raise RuntimeError("Decimate ratio must be finite, greater than zero, and at most one.")
+    return ratio
+
+
+def get_static_decimation_rejection(scene: Any, args: argparse.Namespace) -> str | None:
+    if get_decimation_ratio(args) is None:
+        return None
+    if bool(getattr(args, "bake_animation", False)) or getattr(args, "animation_clip", None) or \
+            getattr(args, "animation_source", None):
+        return "polygon reduction supports static imports only; baked animation was requested"
+
+    for obj in getattr(scene, "objects", []):
+        object_type = getattr(obj, "type", None)
+        if object_type == "ARMATURE":
+            return "polygon reduction supports static imports only; the scene contains an armature"
+        if object_type != "MESH" or not obj.visible_get():
+            continue
+
+        animation_data = getattr(obj, "animation_data", None)
+        if animation_data is not None:
+            if getattr(animation_data, "action", None) is not None:
+                return f"polygon reduction supports static imports only; mesh '{obj.name}' is animated"
+            if any(not getattr(track, "mute", False) for track in getattr(animation_data, "nla_tracks", [])):
+                return f"polygon reduction supports static imports only; mesh '{obj.name}' has NLA animation"
+
+        shape_keys = getattr(getattr(obj, "data", None), "shape_keys", None)
+        if shape_keys is not None:
+            return f"polygon reduction supports static imports only; mesh '{obj.name}' has shape keys"
+
+        for modifier in getattr(obj, "modifiers", []):
+            modifier_type = getattr(modifier, "type", None)
+            if modifier_type == "ARMATURE":
+                return f"polygon reduction supports static imports only; mesh '{obj.name}' uses an armature modifier"
+            if modifier_type in ("MESH_CACHE", "MESH_SEQUENCE_CACHE"):
+                return f"polygon reduction supports static imports only; mesh '{obj.name}' uses mesh-cache animation"
+    return None
+
+
+def prepare_static_decimation(scene: Any, args: argparse.Namespace) -> int:
+    ratio = get_decimation_ratio(args)
+    if ratio is None:
+        return 0
+
+    rejection = get_static_decimation_rejection(scene, args)
+    if rejection:
+        raise RuntimeError(rejection)
+    if ratio == 1.0:
+        return 0
+
+    modified = 0
+    for obj in getattr(scene, "objects", []):
+        if getattr(obj, "type", None) != "MESH" or not obj.visible_get():
+            continue
+        modifier = obj.modifiers.new(name="mini-mbm import decimate", type="DECIMATE")
+        modifier.decimate_type = "COLLAPSE"
+        modifier.ratio = ratio
+        if hasattr(modifier, "use_collapse_triangulate"):
+            modifier.use_collapse_triangulate = True
+        modified += 1
+
+    if modified == 0:
+        raise RuntimeError("polygon reduction found no visible mesh objects")
+    debug_print(args.debug_steps, f"decimate: ratio={ratio:g} objects={modified}")
+    return modified
+
+
 def normalize_frame_range(frame_start: int, frame_end: int) -> tuple[int, int]:
     frame_start = max(1, int(frame_start))
     frame_end = max(1, int(frame_end))
@@ -1270,6 +1343,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    prepare_static_decimation(scene, args)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -1335,6 +1409,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    prepare_static_decimation(scene, args)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -2226,6 +2301,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    prepare_static_decimation(scene, args)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)

@@ -318,6 +318,13 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, tostring(options.largeMeshMode))
     end
 
+    if options.decimateRatio ~= nil then
+        local ratio = tonumber(options.decimateRatio)
+        assert(ratio and ratio > 0 and ratio <= 1, 'decimateRatio must be greater than zero and at most one')
+        table.insert(args, '--decimate-ratio')
+        table.insert(args, tostring(ratio))
+    end
+
     if options.includeBones then
         table.insert(args, '--include-bones')
     end
