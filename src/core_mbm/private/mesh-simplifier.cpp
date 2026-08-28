@@ -129,6 +129,31 @@ namespace mbm::mesh_simplifier
             }
             return true;
         }
+
+        bool preservesTopology(const uint32_t a, const uint32_t b, const uint32_t edgeTriangleCount,
+                               const std::vector<TRIANGLE> &triangles,
+                               const std::vector<std::vector<uint32_t>> &adjacent)
+        {
+            std::unordered_set<uint32_t> neighborsA;
+            std::unordered_set<uint32_t> neighborsB;
+            auto collect = [&triangles](const uint32_t vertex, const uint32_t other,
+                                        const std::vector<uint32_t> &triangleIndices,
+                                        std::unordered_set<uint32_t> &out)
+            {
+                for (const uint32_t triangleIndex : triangleIndices)
+                {
+                    const TRIANGLE &triangle = triangles[triangleIndex];
+                    for (const uint32_t item : {triangle.a, triangle.b, triangle.c})
+                        if (item != vertex && item != other) out.insert(item);
+                }
+            };
+            collect(a, b, adjacent[a], neighborsA);
+            collect(b, a, adjacent[b], neighborsB);
+            uint32_t sharedNeighborCount = 0;
+            for (const uint32_t neighbor : neighborsA)
+                if (neighborsB.find(neighbor) != neighborsB.end()) ++sharedNeighborCount;
+            return sharedNeighborCount == edgeTriangleCount;
+        }
     }
 
     bool simplify(const INPUT &input, const uint32_t targetTriangleCount, OUTPUT &output,
@@ -196,6 +221,7 @@ namespace mbm::mesh_simplifier
                 const uint32_t a = static_cast<uint32_t>(entry.first >> 32u);
                 const uint32_t b = static_cast<uint32_t>(entry.first);
                 if (boundary[a] != boundary[b] || (boundary[a] && entry.second.count != 1)) continue;
+                if (!preservesTopology(a, b, entry.second.count, triangles, adjacent)) continue;
                 QUADRIC combined = quadrics[a]; combined += quadrics[b];
                 VEC3 point;
                 if (solveOptimal(combined, point))
@@ -228,13 +254,26 @@ namespace mbm::mesh_simplifier
             const size_t needed = triangles.size() - targetTriangleCount;
             size_t predicted = 0;
             std::vector<bool> used(positions.size(), false);
+            std::vector<bool> usedTriangles(triangles.size(), false);
             std::vector<CANDIDATE> selected;
             for (const CANDIDATE &candidate : candidates)
             {
                 if (used[candidate.a] || used[candidate.b]) continue;
+                bool overlapsSelectedTriangle = false;
+                for (const uint32_t vertex : {candidate.a, candidate.b})
+                    for (const uint32_t triangleIndex : adjacent[vertex])
+                        if (usedTriangles[triangleIndex])
+                        {
+                            overlapsSelectedTriangle = true;
+                            break;
+                        }
+                if (overlapsSelectedTriangle) continue;
                 if (candidate.removedTriangles >= triangles.size()) continue;
                 if (!selected.empty() && predicted + candidate.removedTriangles > needed) continue;
                 used[candidate.a] = used[candidate.b] = true;
+                for (const uint32_t vertex : {candidate.a, candidate.b})
+                    for (const uint32_t triangleIndex : adjacent[vertex])
+                        usedTriangles[triangleIndex] = true;
                 selected.push_back(candidate);
                 predicted += candidate.removedTriangles;
                 if (predicted >= needed) break;
@@ -275,6 +314,17 @@ namespace mbm::mesh_simplifier
         }
 
         std::vector<uint32_t> compact(positions.size(), UINT32_MAX);
+        std::unordered_map<uint64_t, uint32_t> finalEdgeCounts;
+        finalEdgeCounts.reserve(triangles.size() * 2);
+        for (const TRIANGLE &triangle : triangles)
+            for (const uint64_t key : {edgeKey(triangle.a, triangle.b), edgeKey(triangle.b, triangle.c),
+                                       edgeKey(triangle.c, triangle.a)})
+                if (++finalEdgeCounts[key] > 2)
+                {
+                    errorOut = "simplified topology contains a non-manifold edge";
+                    output = {};
+                    return false;
+                }
         for (const TRIANGLE &triangle : triangles)
             for (const uint32_t vertex : {triangle.a, triangle.b, triangle.c})
                 if (compact[vertex] == UINT32_MAX)

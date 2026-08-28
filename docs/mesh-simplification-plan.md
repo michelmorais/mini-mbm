@@ -79,6 +79,12 @@ The unconstrained QEM optimum is projected onto its source edge segment before a
 prevents an otherwise valid quadratic solution from creating a distant spike outside the source
 geometry. A final finite-coordinate and source-bounds check is also applied to the complete detached
 candidate before commit; the bounds check is a defensive validator, not the primary correction.
+Each collapse must also satisfy the manifold link condition. Candidates within one batch may not
+touch the same triangle, so orientation checks performed separately cannot interfere when the batch
+is committed. If these topology and orientation constraints prevent reaching an aggressive target,
+the operation fails atomically instead of creating non-manifold edges or apparent holes.
+The detached result is scanned once more before output compaction, and any edge referenced by more
+than two triangles rejects the operation as a defensive invariant check.
 
 ## Mesh Debug Editor Integration
 
