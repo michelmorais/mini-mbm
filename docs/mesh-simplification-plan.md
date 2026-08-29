@@ -111,8 +111,9 @@ Lua isolates those subsets, invokes the existing whole-frame simplification once
 material seams participate in one topology, and rebuilds them at their original subset positions.
 The general `copySubsetFrom` primitive preserves compatible canonical weights during that rebuild
 and rejects incompatible skeletal palettes before geometry mutation.
-The panel is placed after the Frame node's Split Start Capture controls and separated from them by
-an explicit divider.
+The always-visible panel is placed after the Frame node's Split Start Capture controls, separated
+from them by an explicit divider, and introduced by a plain `Simplify Geometry` label rather than
+another nested tree node.
 Only after every call succeeds does the editor replace the live mesh, preserving batch atomicity.
 Unselected subsets retain identical rendered vertex attributes, triangle order, textures, and
 canonical weights; frame-global buffers and weights are remapped and validated by every call. A

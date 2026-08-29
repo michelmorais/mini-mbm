@@ -9320,9 +9320,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tEntry.tSimplifyState = simplifyState
     simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
     simplifyState.selectedSubsets = simplifyState.selectedSubsets or {}
-    if not tImGui.TreeNodeEx(tLang.L('simplify_geometry') .. '##simplify-' .. index, 0) then
-        return false
-    end
+    tImGui.Text(tLang.L('simplify_geometry'))
 
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
     scopeIndex = tImGui.RadioButton(
@@ -9453,7 +9451,6 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 report.maximumPoseError or 0))
         end
     end
-    tImGui.TreePop()
     return applied
 end
 
