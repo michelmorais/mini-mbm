@@ -1,7 +1,7 @@
 # Default Shader Program Cache (Windows-only 400-mesh fill freeze)
 
-Status: **implemented** (see `MBM_VERSION` 6.26.0 in `include/version/version.h` for the shipped
-entry). Written up separately here because the diagnostic path (several disproven hypotheses before
+Status: **implemented** in version 6.26.0. Written up separately here because the diagnostic path
+(several disproven hypotheses before
 the real cause) and the per-backend ownership design are worth preserving for whoever touches
 `SHADER::compileShader` next.
 
