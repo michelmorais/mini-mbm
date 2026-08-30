@@ -1392,6 +1392,9 @@ references are remapped automatically.
 
 ### Triangle simplification
 
+See also [Mesh Simplification](mesh-simplification.md) for the maintained workflow, safety
+invariants, Mesh Debug integration, and importer relationship.
+
 ```lua
 local report, err = meshD:simplify(targetTriangleRatio [, targetSubset [, targetFrame [, preserveDetails]]])
 ```
