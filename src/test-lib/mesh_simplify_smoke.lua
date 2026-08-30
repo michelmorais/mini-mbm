@@ -14,11 +14,12 @@
 
 local started = nil
 
-local function totals(asset)
+local function totals(asset, frame)
+    frame = frame or 1
     local vertices, triangles = 0, 0
-    for subset = 1, asset:getTotalSubset(1) do
-        vertices = vertices + asset:getTotalVertex(1, subset)
-        triangles = triangles + math.floor(asset:getTotalIndex(1, subset) / 3)
+    for subset = 1, asset:getTotalSubset(frame) do
+        vertices = vertices + asset:getTotalVertex(frame, subset)
+        triangles = triangles + math.floor(asset:getTotalIndex(frame, subset) / 3)
     end
     return vertices, triangles
 end
@@ -45,6 +46,28 @@ function onInitScene()
     assert(restoredVertices == report.resultVertexCount)
     assert(restoredTriangles == report.resultTriangleCount)
 
+    local multiFrame = meshDebug:new()
+    assert(multiFrame:load('Crate.msh'))
+    assert(multiFrame:copyFrameFrom(multiFrame, 1) == 2)
+    local frame1Vertices, frame1Triangles = totals(multiFrame, 1)
+    local frame2Vertices, frame2Triangles = totals(multiFrame, 2)
+    local frameReport, frameError = multiFrame:simplify(0.5, nil, 2)
+    assert(frameReport, frameError)
+    local frame1AfterVertices, frame1AfterTriangles = totals(multiFrame, 1)
+    local frame2AfterVertices, frame2AfterTriangles = totals(multiFrame, 2)
+    assert(frame1AfterVertices == frame1Vertices and frame1AfterTriangles == frame1Triangles)
+    assert(frameReport.sourceVertexCount == frame2Vertices)
+    assert(frameReport.sourceTriangleCount == frame2Triangles)
+    assert(frame2AfterVertices == frameReport.resultVertexCount)
+    assert(frame2AfterTriangles == frameReport.resultTriangleCount)
+    assert(multiFrame:check())
+    assert(multiFrame:save('/tmp/mbm_simplified_selected_frame.msh', false, false, true))
+    local multiFrameRestored = meshDebug:new()
+    assert(multiFrameRestored:load('/tmp/mbm_simplified_selected_frame.msh'))
+    assert(multiFrameRestored:getTotalFrame() == 2)
+    assert(totals(multiFrameRestored, 1) == frame1Vertices)
+    assert(totals(multiFrameRestored, 2) == frame2AfterVertices)
+
     local skeletal = meshDebug:new()
     assert(skeletal:load('Lorekeeper-walk.msh'))
     local skeletalVertices, skeletalTriangles = totals(skeletal)
@@ -67,8 +90,9 @@ function onInitScene()
     assert(skeletalRestoredTriangles == skeletalReport.resultTriangleCount)
 
     print('info', 'green', string.format(
-        'SIMPLIFY SMOKETEST OK static=%d/%d->%d/%d skeletal=%d/%d->%d/%d error=%.6g',
+        'SIMPLIFY SMOKETEST OK static=%d/%d->%d/%d frame2=%d/%d->%d/%d skeletal=%d/%d->%d/%d error=%.6g',
         beforeVertices, beforeTriangles, restoredVertices, restoredTriangles,
+        frame2Vertices, frame2Triangles, frame2AfterVertices, frame2AfterTriangles,
         skeletalVertices, skeletalTriangles, skeletalRestoredVertices, skeletalRestoredTriangles,
         report.maximumGeometricError))
 end

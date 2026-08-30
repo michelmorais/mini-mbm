@@ -591,8 +591,11 @@
     7.184.1 Fixed Mesh Debug's simplification scope radio buttons passing booleans to the plugin's integer RadioButton binding, which raised a Lua error and left the ImGui window stack unbalanced.
     7.185.0 Added optional virtual-frame simplification for multiple checked subsets in Mesh Debug, isolating and rebuilding them in Lua while preserving material order; fixed copySubsetFrom to append compatible canonical weights or reject before mutation.
     7.185.1 Made Mesh Debug's Simplify Geometry controls always visible after Split Start Capture under a plain label instead of a nested tree node.
+    7.186.0 Added independent selected-frame simplification for non-skeletal multi-frame meshes to the native API, Lua binding, and Mesh Debug frame/subset scopes while preserving every unselected frame.
+    7.186.1 Replaced Mesh Debug's selected-frame simplification radio list with a compact combo box while retaining radio buttons for the Frame/Subsets scope.
+    7.186.2 Kept Mesh Debug's simplification frame combo at a compact fixed width independent of the surrounding panel width.
 */
-#define MBM_VERSION "7.185.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.186.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

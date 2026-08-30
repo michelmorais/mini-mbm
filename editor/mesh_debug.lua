@@ -8406,10 +8406,14 @@ function simplifyRestoreBackup(tEntry, index)
     return true
 end
 
-function simplifyVirtualSubsetBatch(workingMesh, backupPath, targets, ratio)
+function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, targets, ratio)
     local isolatedMesh = meshDebug:new()
     if not isolatedMesh:load(backupPath) then
         return nil, tLang.L('simplify_virtual_copy_failed')
+    end
+    local totalFrames = isolatedMesh:getTotalFrame()
+    for frame = totalFrames, 1, -1 do
+        if frame ~= targetFrame then isolatedMesh:removeFrame(frame) end
     end
     local selected = {}
     for _, subset in ipairs(targets) do selected[subset] = true end
@@ -8423,16 +8427,16 @@ function simplifyVirtualSubsetBatch(workingMesh, backupPath, targets, ratio)
     local report, simplifyError = isolatedMesh:simplify(ratio)
     if not report then return nil, simplifyError end
 
-    for i = #targets, 1, -1 do workingMesh:removeSubset(1, targets[i]) end
+    for i = #targets, 1, -1 do workingMesh:removeSubset(targetFrame, targets[i]) end
     for isolatedSubset, targetPosition in ipairs(targets) do
-        local beforeCount = workingMesh:getTotalSubset(1)
-        workingMesh:copySubsetFrom(1, isolatedMesh, 1, isolatedSubset)
-        local currentPosition = workingMesh:getTotalSubset(1)
+        local beforeCount = workingMesh:getTotalSubset(targetFrame)
+        workingMesh:copySubsetFrom(targetFrame, isolatedMesh, 1, isolatedSubset)
+        local currentPosition = workingMesh:getTotalSubset(targetFrame)
         if currentPosition ~= beforeCount + 1 then
             return nil, tLang.L('simplify_virtual_rebuild_failed')
         end
         while currentPosition > targetPosition do
-            if not workingMesh:moveSubsetUp(1, currentPosition) then
+            if not workingMesh:moveSubsetUp(targetFrame, currentPosition) then
                 return nil, tLang.L('simplify_virtual_rebuild_failed')
             end
             currentPosition = currentPosition - 1
@@ -8444,18 +8448,19 @@ function simplifyVirtualSubsetBatch(workingMesh, backupPath, targets, ratio)
     return report
 end
 
-function simplifyGeometryTotals(meshD)
+function simplifyGeometryTotals(meshD, frame)
     local vertices, triangles = 0, 0
-    local totalSubsets = meshD:getTotalSubset(1)
+    local totalSubsets = meshD:getTotalSubset(frame)
     for subset = 1, totalSubsets do
-        vertices = vertices + meshD:getTotalVertex(1, subset)
-        triangles = triangles + math.floor(meshD:getTotalIndex(1, subset) / 3)
+        vertices = vertices + meshD:getTotalVertex(frame, subset)
+        triangles = triangles + math.floor(meshD:getTotalIndex(frame, subset) / 3)
     end
     return vertices, triangles
 end
 
 function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
+    local targetFrame = simplifyState.selectedFrame or 1
     local pendingBackup = simplifyCreateBackup(tEntry, meshD)
     if not pendingBackup then
         tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
@@ -8476,14 +8481,14 @@ function simplifyApply(tEntry, meshD, index)
         end
         table.sort(targets)
     end
-    local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh)
+    local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh, targetFrame)
     local aggregateReport = nil
     local useVirtualFrame = simplifyState.scope == 'subsets' and
         simplifyState.virtualFrame == true and #targets >= 2
     if useVirtualFrame then
         local okSimplify, report, simplifyError = dpCall(function()
             return simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
-                targets, simplifyState.ratio)
+                targetFrame, targets, simplifyState.ratio)
         end)
         if not okSimplify or not report then
             meshDebug:fakeRelease(pendingBackup.path)
@@ -8496,8 +8501,10 @@ function simplifyApply(tEntry, meshD, index)
     else
         for _, targetSubset in ipairs(targets) do
             local okSimplify, report, simplifyError = dpCall(function()
-                if targetSubset == 'frame' then return workingMesh:simplify(simplifyState.ratio) end
-                return workingMesh:simplify(simplifyState.ratio, targetSubset)
+                if targetSubset == 'frame' then
+                    return workingMesh:simplify(simplifyState.ratio, nil, targetFrame)
+                end
+                return workingMesh:simplify(simplifyState.ratio, targetSubset, targetFrame)
             end)
             if not okSimplify or not report then
                 meshDebug:fakeRelease(pendingBackup.path)
@@ -9315,11 +9322,13 @@ end
 
 function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local simplifyState = tEntry.tSimplifyState or {
-        ratio = 0.9, scope = 'frame', selectedSubsets = {}, virtualFrame = false, report = nil
+        ratio = 0.9, scope = 'frame', selectedFrame = 1,
+        selectedSubsets = {}, virtualFrame = false, report = nil
     }
     tEntry.tSimplifyState = simplifyState
     simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
     simplifyState.selectedSubsets = simplifyState.selectedSubsets or {}
+    simplifyState.selectedFrame = math.max(1, math.min(nFrames, simplifyState.selectedFrame or 1))
     tImGui.Text(tLang.L('simplify_geometry'))
 
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
@@ -9334,13 +9343,33 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         simplifyState.report = nil
     end
 
+    if nFrames > 1 then
+        if simplifyState.frameOptionsCount ~= nFrames then
+            simplifyState.frameOptions = {}
+            for frame = 1, nFrames do
+                simplifyState.frameOptions[frame] = tostring(frame)
+            end
+            simplifyState.frameOptionsCount = nFrames
+        end
+        tImGui.SetNextItemWidth(90)
+        local frameChanged, selectedFrame = tImGui.Combo(
+            tLang.L('simplify_select_frame') .. '##simplifyTargetFrame-' .. index,
+            simplifyState.selectedFrame, simplifyState.frameOptions, -1)
+        if frameChanged and selectedFrame ~= simplifyState.selectedFrame then
+            simplifyState.selectedFrame = selectedFrame
+            simplifyState.selectedSubsets = {}
+            simplifyState.report = nil
+        end
+    end
+    local targetFrame = simplifyState.selectedFrame
+
     local sourceTriangles = 0
     local selectedCount = 0
     local estimatedTriangles = 0
     if simplifyState.scope == 'subsets' then
         tImGui.Text(tLang.L('simplify_select_subsets'))
         for _, subset in ipairs(allSubsets) do
-            if subset.f == 1 then
+            if subset.f == targetFrame then
                 local selected = simplifyState.selectedSubsets[subset.s] == true
                 local label = string.format(tLang.L('simplify_scope_subset_fmt'),
                     subset.s, subset.texName)
@@ -9381,7 +9410,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         end
     else
         for _, subset in ipairs(allSubsets) do
-            if subset.f == 1 then
+            if subset.f == targetFrame then
                 sourceTriangles = sourceTriangles + math.floor((subset.indexCount or 0) / 3)
                 selectedCount = selectedCount + 1
             end
@@ -9403,7 +9432,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             else
                 estimatedTriangles = 0
                 for _, subset in ipairs(allSubsets) do
-                    if subset.f == 1 and simplifyState.selectedSubsets[subset.s] then
+                    if subset.f == targetFrame and simplifyState.selectedSubsets[subset.s] then
                         local triangles = math.floor((subset.indexCount or 0) / 3)
                         estimatedTriangles = estimatedTriangles + math.max(1,
                             math.floor(triangles * ratio))
@@ -9419,12 +9448,11 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
 
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
-    local canSimplify = nFrames == 1 and sourceTriangles > 1 and
+    local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
         #tEntry.tPendingOps == 0 and hasSelection
     if not canSimplify then
-        local messageKey = nFrames ~= 1 and 'simplify_requires_one_frame'
-            or (#tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
-            or 'simplify_select_at_least_one_subset')
+        local messageKey = #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
+            or 'simplify_select_at_least_one_subset'
         tImGui.TextDisabled(tLang.L(messageKey))
     end
     local applied = false

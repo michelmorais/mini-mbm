@@ -198,10 +198,18 @@ namespace mbm
             targetSubsetIndex = requestedSubset > 0
                 ? static_cast<int>(requestedSubset - 1) : -2;
         }
+        int targetFrameIndex = 0;
+        if (lua_gettop(lua) >= 4 && !lua_isnil(lua, 4))
+        {
+            const lua_Integer requestedFrame = luaL_checkinteger(lua, 4);
+            targetFrameIndex = requestedFrame > 0
+                ? static_cast<int>(requestedFrame - 1) : -1;
+        }
         MESH_SIMPLIFY_REPORT report;
         char errorOut[255] = "";
         if (!meshDebug->mesh.simplify(ratio, report, errorOut,
-                                      static_cast<int>(sizeof(errorOut)), targetSubsetIndex))
+                                      static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
+                                      targetFrameIndex))
         {
             lua_pushnil(lua);
             lua_pushstring(lua, errorOut);

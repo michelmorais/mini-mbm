@@ -308,10 +308,12 @@ namespace mbm
         // Simplifies one indexed triangle frame atomically. targetSubsetIndex=-1 processes the
         // complete virtual cross-subset topology; otherwise only that zero-based material subset
         // is reduced and every other subset is copied without changing its vertex attributes.
-        // Articulated, multi-frame, and non-triangle assets remain unsupported.
+        // targetFrameIndex selects the zero-based geometry frame. Multi-frame skeletal and
+        // articulated assets remain unsupported.
         API_IMPL bool simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
                                char *errorOut, const int errorOutLen,
-                               const int targetSubsetIndex = -1);
+                               const int targetSubsetIndex = -1,
+                               const int targetFrameIndex = 0);
         API_IMPL void removeBuffer(uint32_t indexFrame);
         API_IMPL void removeAnimation(uint32_t index);
         // Writes the v11 section/TLV format (docs/mesh-v11-format.md): material+transform, frames,

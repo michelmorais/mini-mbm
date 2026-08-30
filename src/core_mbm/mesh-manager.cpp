@@ -2061,7 +2061,7 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
                                   char *errorOut, const int errorOutLen,
-                                  const int targetSubsetIndex)
+                                  const int targetSubsetIndex, const int targetFrameIndex)
     {
         report = {};
         auto fail = [errorOut, errorOutLen](const std::string &message)
@@ -2076,8 +2076,8 @@ namespace mbm
             return fail("simplification currently supports only 3D meshes");
         if (impl->info_mode.mode_draw != util::MODE_DRAW_TRIANGLES)
             return fail("simplification currently supports only triangle-list draw mode");
-        if (impl->buffer.size() != 1)
-            return fail("simplification currently supports exactly one geometry frame");
+        if (targetFrameIndex < 0 || targetFrameIndex >= static_cast<int>(impl->buffer.size()))
+            return fail("target frame index is outside the mesh");
         if (!impl->articulatedParts.empty() || !impl->articulatedClips.empty())
             return fail("simplification of articulated assets is not implemented yet");
 
@@ -2085,6 +2085,8 @@ namespace mbm
                                       impl->canonicalWeights.skeletonId != 0 ||
                                       impl->canonicalAnimations.skeletonId != 0;
         const bool hasCanonicalWeights = impl->canonicalWeights.skeletonId != 0;
+        if (impl->buffer.size() > 1 && hasCanonicalData)
+            return fail("selected-frame simplification does not support multi-frame skeletal assets");
         if (hasCanonicalData && (impl->canonicalSkeleton.skeletonId == 0 || !hasCanonicalWeights))
             return fail("canonical skeletal simplification requires both a skeleton and skin weights");
         if (hasCanonicalWeights &&
@@ -2092,12 +2094,12 @@ namespace mbm
              impl->canonicalWeights.frameIndex != 0))
             return fail("canonical skin weights do not reference frame zero and the active skeleton");
 
-        util::BUFFER_MESH_DEBUG *frame = impl->buffer[0];
+        util::BUFFER_MESH_DEBUG *frame = impl->buffer[static_cast<size_t>(targetFrameIndex)];
         if (!frame || !frame->position || !frame->indexBuffer || frame->subset.empty())
             return fail("simplification requires a non-empty indexed mesh");
         if (targetSubsetIndex < -1 ||
             targetSubsetIndex >= static_cast<int>(frame->subset.size()))
-            return fail("target subset index is outside frame zero");
+            return fail("target subset index is outside the selected frame");
 
         struct SUBSET_RANGE
         {

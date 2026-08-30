@@ -1393,7 +1393,7 @@ references are remapped automatically.
 ### Triangle simplification
 
 ```lua
-local report, err = meshD:simplify(targetTriangleRatio [, targetSubset])
+local report, err = meshD:simplify(targetTriangleRatio [, targetSubset [, targetFrame]])
 ```
 
 `targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
@@ -1403,21 +1403,25 @@ Without `targetSubset`, the complete frame is processed as one virtual topology:
 may connect different material subsets for topology decisions, while triangle material IDs remain
 unchanged. `targetSubset` is an optional one-based subset index. When present, only that subset is
 reduced; every other subset retains the same rendered positions, normals, UVs, texture assignment,
-triangle order, and canonical weights. On success the call returns a detached table containing
+triangle order, and canonical weights. `targetFrame` is an optional one-based geometry-frame index
+and defaults to frame 1. A selected frame in a non-skeletal multi-frame mesh is simplified without
+changing any other frame. On success the call returns a detached table containing
 `sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`,
 `maximumGeometricError`, `skinWeightAware`, `poseSampledError`, `sampledPoseCount`,
 `sampledClipCount`, and `maximumPoseError`. On failure it returns `nil, error` without modifying
 the mesh.
 
-The implementation accepts one-frame, indexed, 3D triangle-list meshes. For canonical skeletal
-assets, every collapse blends the source influences, keeps the strongest four, normalizes them,
+For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
+
+The implementation accepts indexed, 3D triangle-list meshes. Multi-frame skeletal and articulated
+assets remain unsupported. For one-frame canonical skeletal assets, every collapse blends the
+source influences, keeps the strongest four, normalizes them,
 and preserves the skeleton and animation clips. When clips exist, up to 24 poses are distributed
 across up to 24 clips. Edge-collapse ranking includes the maximum difference between the sampled
 animated displacement of both endpoints. In this path `skinWeightAware` and `poseSampledError` are
 true, while `sampledPoseCount`, `sampledClipCount`, and `maximumPoseError` describe the coverage and
 observed pose-space cost. Assets with weights but no clips remain weight-aware with
-`poseSampledError=false`. Incomplete canonical data, multi-frame geometry, and articulated
-animation are rejected explicitly.
+`poseSampledError=false`. Incomplete canonical data is rejected explicitly.
 
 ### Geometry scaling
 
