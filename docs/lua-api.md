@@ -931,10 +931,20 @@ character.z = 0   -- renders after background, before trees
 ### 7.11 render2texture
 
 ```lua
-local rt = render2texture:new(width, height, channels?)
--- After rendering, use rt as a texture name string:
-someSprite:setTexture(rt:getName())
+local rt = render2texture:new(type, x?, y?, z?)
+local ok, textureName, textureInfo = rt:create(width, height, hasAlpha?, name?)
 ```
+
+`type` follows the normal render-object convention: `"2dw"`, `"2ds"`, or `"3d"`. The optional
+position defaults to `(0, 0, 0)`. `create` defaults to the current back-buffer dimensions when
+width/height are omitted, enables alpha by default, and generates an internal texture name when
+`name` is omitted. It returns `success`, the texture name, and a texture-info object; on failure it
+returns `false, nil, nil`.
+
+Objects are assigned to the off-screen pass with `rt:add(object)` and removed with
+`rt:remove(object)`. `rt:clear()` removes all assigned objects, `rt:release()` releases the target,
+and `rt:save(fileName, x?, y?, width?, height?)` writes a rectangular region to PNG. The omitted
+region defaults to the complete render target, and the method returns a boolean success value.
 
 `rt:getCamera(type)` (`type` is `"2d"` or `"3d"`) returns a camera object independent of the main
 scene camera (`mbm.getCamera`), with its own `setPos`/`getPos`/`setFocus`/`getFocus`/`setScale`/

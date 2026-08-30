@@ -119,6 +119,15 @@ automatically (no `-DAUDIO=` flag needed).
 > `.wav` file of the same base name in the same directory. Keep both `.ogg` and
 > `.wav` versions of your sounds to stay compatible with both Android and macOS.
 
+### Current AVFoundation limitations
+
+- Volume, pan, play, pause, resume, stop, looping, and end-of-stream notification are implemented.
+- Pitch changes are not implemented; `setPitch()` returns failure and `getPitch()` returns `1.0`.
+- Seeking is not implemented; `setPosition()` returns failure. Use `stop()` followed by `play()` to
+  restart from the beginning.
+- `getLength()` currently reports the decoded frame count, not milliseconds. Do not use it as a
+  duration in milliseconds until that API contract is corrected.
+
 ---
 
 ## Launching the Editor Tools
@@ -127,15 +136,15 @@ After a build with `-DUSE_ALL=1`, launch the engine without arguments to open th
 **launcher dialog** listing all built-in Lua editors:
 
 ```sh
-./bin/debug/macos/mini-mbm
+./bin/debug/arm64/mini-mbm
 ```
 
 Or launch a specific editor directly:
 
 ```sh
-./bin/debug/macos/mini-mbm --scene editor/sprite_maker.lua
-./bin/debug/macos/mini-mbm --scene editor/scene_editor2d.lua
-./bin/debug/macos/mini-mbm --scene editor/font_maker.lua
+./bin/debug/arm64/mini-mbm --scene editor/sprite_maker.lua
+./bin/debug/arm64/mini-mbm --scene editor/scene_editor2d.lua
+./bin/debug/arm64/mini-mbm --scene editor/font_maker.lua
 ```
 
 ---
@@ -158,10 +167,40 @@ make -j$(sysctl -n hw.logicalcpu)
 
 ## Game Delivery — .app Bundle and .dmg
 
-The macOS build supports per-game packaging via the same `-DGAME_ASSETS_DIR`
+### Distribution workflows and current status
+
+macOS distribution is not limited to the CMake/Makefile packager described below. A game has
+already been released with Mini-MBM using an Xcode-based packaging workflow. That production
+precedent confirms that the engine can be distributed on macOS, but it does not validate every
+packaging path in this repository.
+
+The workflows must be evaluated separately:
+
+| Workflow | Status |
+|---|---|
+| Xcode packaging used by an existing released game | Proven in production for that game and its configuration; the exact project/signing setup is not stored in this repository |
+| CMake/Makefile standard delivery (`GAME_ASSETS_DIR`, section below) | Experimental: builds the bundle skeleton, but is not currently self-contained; see the warning below |
+| CMake-generated Xcode project with `MAS_DELIVERY=1` | Implemented, but requires an application-specific Archive, sandbox, signing, and App Store validation pass |
+
+> **Important - current CMake standard-delivery limitation:** the generated `.app` copies the
+> engine executable and `distribution.dylib`, but does not yet copy all runtime libraries and Lua
+> plugin `.dylib` files. The executable also retains the build-tree `LC_RPATH`. Consequently, do
+> not treat this CMake-generated bundle as portable or ready for signing/notarization until its
+> dependencies use bundle-relative install names (for example,
+> `@executable_path/../Frameworks`) and all required libraries are embedded. This limitation does
+> not apply retroactively to the separate Xcode workflow already used to release a game.
+
+The normal Makefile build also inherits the active SDK's deployment target unless
+`CMAKE_OSX_DEPLOYMENT_TARGET` is supplied. Set and verify an explicit target for distributable
+builds; otherwise a build made with a new SDK may require that same recent macOS release. The
+current output layout is `arm64`, and this workflow does not produce an Intel or universal binary
+automatically.
+
+The macOS build contains a per-game packaging path via the same `-DGAME_ASSETS_DIR`
 workflow as Linux (AppImage) and Windows (GameDir). The build produces a
-self-contained **`.app` bundle** automatically after `make`. An optional
-`make macdmg` step wraps it into a distributable **`.dmg`** disk image.
+**`.app` bundle skeleton** automatically after `make`. An optional
+`make macdmg` step wraps it into a **`.dmg`** disk image. Creating the disk image does not by itself
+make the incomplete bundle portable or ready for distribution.
 
 ### How it works
 
@@ -270,8 +309,8 @@ make macdmg
 
 ### Code Signing and Notarization (for sharing outside your Mac)
 
-If you want to distribute your game to other macOS users, sign and notarize the
-generated `.app` and `.dmg`.
+After first making the bundle self-contained and validating it on a clean machine, sign and
+notarize the generated `.app` and `.dmg` before distributing them to other macOS users.
 
 Prerequisites:
 
@@ -299,7 +338,10 @@ xcrun notarytool store-credentials "$NOTARY_PROFILE" \
     --password "xxxx-xxxx-xxxx-xxxx"
 ```
 
-Sign nested runtime libraries and app:
+Sign every nested runtime library from the inside out, then sign the app. The command below only
+shows `distribution.dylib`; a corrected self-contained bundle must repeat this step for every
+embedded library and plugin. Do not use `codesign --deep` as a substitute for signing each nested
+code object explicitly.
 
 ```sh
 codesign --force --options runtime --timestamp --sign "$IDENTITY" \
@@ -367,11 +409,6 @@ When delivery is configured, CMake prints:
 ---
 
 ## Mac App Store Delivery (`-DMAS_DELIVERY=1`)
-
-This mode produces an Xcode project suitable for archiving and submitting to the
-**Mac App Store**.  Assets are embedded directly in the `.app` bundle; no
-`.asset` archive extraction happens at runtime.  All plugins are linked
-statically so no user-space dylibs are loaded (required by the App Store sandbox).
 
 ### Monitor / Resolution / Fullscreen Launcher
 
@@ -501,13 +538,13 @@ Minimal `ExportOptions.plist` for App Store:
 
 ### Entitlements (`platform-macos/mini-mbm.entitlements`)
 
-The provided entitlements file enables the App Sandbox with read-only user
-file access.  Edit it before submission if your game needs additional
-capabilities (e.g. outbound networking):
+The provided entitlements file enables the App Sandbox, read-only user-selected file access, and
+outbound networking. Review it before submission and remove capabilities the game does not need;
+add any other application-specific capabilities explicitly.
 
 ```xml
 <key>com.apple.security.network.client</key>
-<true/>   <!-- enable if needed -->
+<true/>   <!-- currently enabled; remove if the game does not need networking -->
 ```
 
 ### Important differences from standard delivery
