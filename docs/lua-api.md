@@ -1429,6 +1429,9 @@ invalid faces in the committed result. `degenerateTriangleCount`, `nonManifoldEd
 intentional and are not classified as a defect by themselves.
 `detailPenalizedCandidateCount` counts detail-sensitive candidate evaluations across all passes,
 while `detailPenalizedCollapseCount` counts how many committed collapses carried that penalty.
+`clearanceRejectedCollapseCount` counts candidates rejected because the generated point would
+reduce its distance to a nearby triangle from another subset by more than 25%. The check uses a
+local spatial grid and repeats against available geometry/pose deformation samples.
 On failure the call returns `nil, error` without modifying the mesh.
 
 For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.

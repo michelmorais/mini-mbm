@@ -54,6 +54,22 @@ namespace mbm::mesh_simplifier
 
         struct TRIANGLE { uint32_t a, b, c, group; };
         struct EDGE_INFO { uint32_t count = 0; };
+        struct CELL_KEY
+        {
+            int x, y, z;
+            bool operator==(const CELL_KEY &other) const
+            { return x == other.x && y == other.y && z == other.z; }
+        };
+        struct CELL_KEY_HASH
+        {
+            size_t operator()(const CELL_KEY &key) const
+            {
+                size_t value = static_cast<size_t>(key.x) * 73856093u;
+                value ^= static_cast<size_t>(key.y) * 19349663u;
+                value ^= static_cast<size_t>(key.z) * 83492791u;
+                return value;
+            }
+        };
         struct CANDIDATE
         {
             uint32_t a, b;
@@ -84,6 +100,42 @@ namespace mbm::mesh_simplifier
         {
             const double length = std::sqrt(lengthSquared(v));
             return length > 1.0e-20 ? v * static_cast<float>(1.0 / length) : VEC3(0.0f, 0.0f, 0.0f);
+        }
+
+        double pointTriangleDistanceSquared(const VEC3 &point, const VEC3 &a,
+                                            const VEC3 &b, const VEC3 &c)
+        {
+            const VEC3 ab = b - a, ac = c - a, ap = point - a;
+            const double d1 = dot(ab, ap), d2 = dot(ac, ap);
+            if (d1 <= 0.0 && d2 <= 0.0) return lengthSquared(ap);
+            const VEC3 bp = point - b;
+            const double d3 = dot(ab, bp), d4 = dot(ac, bp);
+            if (d3 >= 0.0 && d4 <= d3) return lengthSquared(bp);
+            const double vc = d1 * d4 - d3 * d2;
+            if (vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0)
+            {
+                const double v = d1 / (d1 - d3);
+                return lengthSquared(point - (a + ab * static_cast<float>(v)));
+            }
+            const VEC3 cp = point - c;
+            const double d5 = dot(ab, cp), d6 = dot(ac, cp);
+            if (d6 >= 0.0 && d5 <= d6) return lengthSquared(cp);
+            const double vb = d5 * d2 - d1 * d6;
+            if (vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0)
+            {
+                const double w = d2 / (d2 - d6);
+                return lengthSquared(point - (a + ac * static_cast<float>(w)));
+            }
+            const double va = d3 * d6 - d5 * d4;
+            if (va <= 0.0 && d4 - d3 >= 0.0 && d5 - d6 >= 0.0)
+            {
+                const double w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+                return lengthSquared(point - (b + (c - b) * static_cast<float>(w)));
+            }
+            const double denominator = 1.0 / (va + vb + vc);
+            const double v = vb * denominator, w = vc * denominator;
+            return lengthSquared(point - (a + ab * static_cast<float>(v) +
+                                           ac * static_cast<float>(w)));
         }
 
         bool solveOptimal(const QUADRIC &q, VEC3 &out)
@@ -214,6 +266,7 @@ namespace mbm::mesh_simplifier
             std::vector<std::vector<uint32_t>> adjacent(positions.size());
             std::vector<VEC3> triangleNormals(triangles.size());
             std::unordered_map<uint64_t, EDGE_INFO> edges;
+            std::unordered_map<CELL_KEY, std::vector<uint32_t>, CELL_KEY_HASH> triangleGrid;
             edges.reserve(triangles.size() * 2);
             for (uint32_t i = 0; i < triangles.size(); ++i)
             {
@@ -227,6 +280,24 @@ namespace mbm::mesh_simplifier
                 { quadrics[vertex].addPlane(normal.x, normal.y, normal.z, d); adjacent[vertex].push_back(i); }
                 for (const uint64_t key : {edgeKey(triangle.a,triangle.b), edgeKey(triangle.b,triangle.c), edgeKey(triangle.c,triangle.a)})
                     ++edges[key].count;
+            }
+            const double cellSize = std::max(sourceDiagonal / 96.0, 1.0e-6);
+            auto cellCoordinate = [cellSize](const float value)
+            { return static_cast<int>(std::floor(static_cast<double>(value) / cellSize)); };
+            for (uint32_t i = 0; i < triangles.size(); ++i)
+            {
+                const TRIANGLE &triangle = triangles[i];
+                const VEC3 &a = positions[triangle.a], &b = positions[triangle.b], &c = positions[triangle.c];
+                const int minX = cellCoordinate(std::min(a.x, std::min(b.x, c.x)));
+                const int minY = cellCoordinate(std::min(a.y, std::min(b.y, c.y)));
+                const int minZ = cellCoordinate(std::min(a.z, std::min(b.z, c.z)));
+                const int maxX = cellCoordinate(std::max(a.x, std::max(b.x, c.x)));
+                const int maxY = cellCoordinate(std::max(a.y, std::max(b.y, c.y)));
+                const int maxZ = cellCoordinate(std::max(a.z, std::max(b.z, c.z)));
+                for (int x = minX; x <= maxX; ++x)
+                    for (int y = minY; y <= maxY; ++y)
+                        for (int z = minZ; z <= maxZ; ++z)
+                            triangleGrid[{x, y, z}].push_back(i);
             }
 
             std::vector<bool> boundary(positions.size(), false);
@@ -302,6 +373,49 @@ namespace mbm::mesh_simplifier
             std::vector<bool> used(positions.size(), false);
             std::vector<bool> usedTriangles(triangles.size(), false);
             std::vector<CANDIDATE> selected;
+            auto preservesClearance = [&](const CANDIDATE &candidate)
+            {
+                const uint32_t groupA = triangles[adjacent[candidate.a].front()].group;
+                const uint32_t groupB = triangles[adjacent[candidate.b].front()].group;
+                const CELL_KEY pointCell{cellCoordinate(candidate.position.x),
+                                         cellCoordinate(candidate.position.y),
+                                         cellCoordinate(candidate.position.z)};
+                std::unordered_set<uint32_t> inspected;
+                for (int x = pointCell.x - 1; x <= pointCell.x + 1; ++x)
+                    for (int y = pointCell.y - 1; y <= pointCell.y + 1; ++y)
+                        for (int z = pointCell.z - 1; z <= pointCell.z + 1; ++z)
+                        {
+                            const auto found = triangleGrid.find({x, y, z});
+                            if (found == triangleGrid.end()) continue;
+                            for (const uint32_t triangleIndex : found->second)
+                            {
+                                if (!inspected.insert(triangleIndex).second) continue;
+                                const TRIANGLE &other = triangles[triangleIndex];
+                                if (other.group == groupA || other.group == groupB) continue;
+                                auto violatesSample = [&](const std::vector<VEC3> *sample)
+                                {
+                                    auto displaced = [&](const uint32_t vertex)
+                                    { return sample ? positions[vertex] + (*sample)[vertex] : positions[vertex]; };
+                                    const VEC3 otherA = displaced(other.a), otherB = displaced(other.b),
+                                               otherC = displaced(other.c);
+                                    const VEC3 sourceA = displaced(candidate.a);
+                                    const VEC3 sourceB = displaced(candidate.b);
+                                    const VEC3 collapsed = sourceA * (1.0f - candidate.interpolation) +
+                                                           sourceB * candidate.interpolation;
+                                    const double sourceDistance = std::min(
+                                        pointTriangleDistanceSquared(sourceA, otherA, otherB, otherC),
+                                        pointTriangleDistanceSquared(sourceB, otherA, otherB, otherC));
+                                    return sourceDistance > 1.0e-16 &&
+                                        pointTriangleDistanceSquared(collapsed, otherA, otherB, otherC) <
+                                        sourceDistance * 0.5625;
+                                };
+                                if (violatesSample(nullptr)) return false;
+                                for (const std::vector<VEC3> &sample : deformationDeltas)
+                                    if (violatesSample(&sample)) return false;
+                            }
+                        }
+                return true;
+            };
             for (const CANDIDATE &candidate : candidates)
             {
                 if (used[candidate.a] || used[candidate.b]) continue;
@@ -316,6 +430,8 @@ namespace mbm::mesh_simplifier
                 if (overlapsSelectedTriangle) continue;
                 if (candidate.removedTriangles >= triangles.size()) continue;
                 if (!selected.empty() && predicted + candidate.removedTriangles > needed) continue;
+                if (!preservesClearance(candidate))
+                { ++output.clearanceRejectedCollapseCount; continue; }
                 used[candidate.a] = used[candidate.b] = true;
                 for (const uint32_t vertex : {candidate.a, candidate.b})
                     for (const uint32_t triangleIndex : adjacent[vertex])

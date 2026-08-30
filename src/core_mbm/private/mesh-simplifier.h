@@ -57,6 +57,7 @@ namespace mbm::mesh_simplifier
         uint32_t connectedComponentCount = 0;
         uint32_t detailPenalizedCandidateCount = 0;
         uint32_t detailPenalizedCollapseCount = 0;
+        uint32_t clearanceRejectedCollapseCount = 0;
     };
 
     bool simplify(const INPUT &input, uint32_t targetTriangleCount, OUTPUT &output,

@@ -98,6 +98,7 @@ function onInitScene()
     assert(report.connectedComponentCount > 0)
     assert(report.detailPenalizedCandidateCount > 0)
     assert(report.detailPenalizedCollapseCount > 0)
+    assert(report.clearanceRejectedCollapseCount >= 0)
     assert(source:check())
     assert(source:save('/tmp/mbm_simplified_crate.msh', false, false, true))
 

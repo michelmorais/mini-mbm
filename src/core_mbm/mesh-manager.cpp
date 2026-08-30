@@ -2863,6 +2863,7 @@ namespace mbm
         report.connectedComponentCount = simplified.connectedComponentCount;
         report.detailPenalizedCandidateCount = simplified.detailPenalizedCandidateCount;
         report.detailPenalizedCollapseCount = simplified.detailPenalizedCollapseCount;
+        report.clearanceRejectedCollapseCount = simplified.clearanceRejectedCollapseCount;
         if (hasCanonicalWeights)
             impl->canonicalWeights = std::move(simplifiedWeights);
         return true;

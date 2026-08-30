@@ -241,6 +241,7 @@ namespace mbm
         lua_pushinteger(lua, report.connectedComponentCount); lua_setfield(lua, -2, "connectedComponentCount");
         lua_pushinteger(lua, report.detailPenalizedCandidateCount); lua_setfield(lua, -2, "detailPenalizedCandidateCount");
         lua_pushinteger(lua, report.detailPenalizedCollapseCount); lua_setfield(lua, -2, "detailPenalizedCollapseCount");
+        lua_pushinteger(lua, report.clearanceRejectedCollapseCount); lua_setfield(lua, -2, "clearanceRejectedCollapseCount");
         return 1;
     }
 

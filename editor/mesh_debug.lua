@@ -8619,7 +8619,8 @@ function simplifyApply(tEntry, meshD, index)
                     'topologyRejectedCollapseCount', 'orientationRejectedCollapseCount',
                     'invalidRejectedCollapseCount', 'degenerateTriangleCount',
                     'nonManifoldEdgeCount', 'connectedComponentCount',
-                    'detailPenalizedCandidateCount', 'detailPenalizedCollapseCount'
+                    'detailPenalizedCandidateCount', 'detailPenalizedCollapseCount',
+                    'clearanceRejectedCollapseCount'
                 }) do
                     aggregateReport[field] = (aggregateReport[field] or 0) + (report[field] or 0)
                 end
@@ -8656,7 +8657,8 @@ function simplifyApply(tEntry, meshD, index)
         aggregateReport.orientationRejectedCollapseCount or 0,
         aggregateReport.invalidRejectedCollapseCount or 0,
         aggregateReport.detailPenalizedCollapseCount or 0,
-        aggregateReport.detailPenalizedCandidateCount or 0))
+        aggregateReport.detailPenalizedCandidateCount or 0,
+        aggregateReport.clearanceRejectedCollapseCount or 0))
     return true
 end
 
@@ -9638,6 +9640,8 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 report.detailPenalizedCollapseCount or 0,
                 report.detailPenalizedCandidateCount or 0))
         end
+        tImGui.Text(string.format(tLang.L('simplify_report_clearance_fmt'),
+            report.clearanceRejectedCollapseCount or 0))
         if report.skinWeightAware then
             tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
                 report.sampledPoseCount or 0, report.sampledClipCount or 0,

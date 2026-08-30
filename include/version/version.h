@@ -606,8 +606,9 @@
     7.190.1 Added a human-readable face count to Mesh Debug's Mesh Info panel, retaining the exact count alongside K, M, B, or T notation.
     7.191.0 Added post-simplification quality diagnostics with relative error classification, achieved reduction, committed-collapse totals, and boundary/topology/orientation/invalid candidate protection counters in the native report, Lua API, Mesh Debug UI, and terminal.
     7.192.0 Added default-on detail-preserving simplification that softly penalizes collapses near sharp edges and strong normal variation, with an editor toggle, Lua/native control, and diagnostic counters.
+    7.193.0 Preserved clearance between nearby disconnected subsets during simplification using spatially queried triangle-distance checks across reference geometry and deformation samples, with editor and terminal diagnostics.
 */
-#define MBM_VERSION "7.192.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.193.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

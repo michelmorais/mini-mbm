@@ -115,6 +115,12 @@ The report distinguishes penalized candidate evaluations from penalized collapse
 actually committed. Disabling the option restores pure geometry/pose QEM ranking without removing
 the hard boundary, topology, orientation, or frame-bounds protections.
 
+Inter-subset clearance is a default hard protection. A spatial grid finds triangles from other
+material subsets near each generated collapse point. The candidate is rejected when its distance
+to one of those triangles falls below 75% of the smaller endpoint distance, both in reference
+geometry and in every available deformation sample. This targets layered geometry such as clothes
+over a body without treating intentionally disconnected components as a single welded surface.
+
 Whole-frame simplification uses one virtual topology across all material subsets. Vertices with
 bit-identical positions may be paired across different subsets so a material seam is treated as an
 interior topological edge, but coincident vertices inside the same subset remain separate to retain

@@ -91,6 +91,7 @@ namespace mbm
         uint32_t connectedComponentCount = 0;
         uint32_t detailPenalizedCandidateCount = 0;
         uint32_t detailPenalizedCollapseCount = 0;
+        uint32_t clearanceRejectedCollapseCount = 0;
     };
 
     struct BUFFER_MESH
