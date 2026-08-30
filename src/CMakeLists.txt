@@ -1546,7 +1546,8 @@ echo '--- DMG ready: '\"\$DMG\"
     # ── Mac App Store delivery (Xcode generator + -DMAS_DELIVERY=1) ───────────
     # Build with:
     #   mkdir -p <builddir> && cd <builddir>
-    #   cmake ~/mini-mbm -G Xcode -DPLAT=MacOs -DUSE_LUA=1 -DUSE_ALL=1 \
+    #   cmake ~/mini-mbm -G Xcode -DPLAT=MacOs -DUSE_LUA=1 \
+    #       -DUSE_BOX2D=1 -DUSE_BOX2D_LIQUID_FUN=0 \
     #       -DMAS_DELIVERY=1 \
     #       -DMAS_BUNDLE_ID=com.yourcompany.yourgame \
     #       [-DMAS_APP_NAME="My Game"] \
@@ -1595,7 +1596,7 @@ echo '--- DMG ready: '\"\$DMG\"
             # unless a universal (arm64 + x86_64) binary is provided.
             # macOS 12.0 (Monterey) was released October 2021 and covers all
             # Apple Silicon and modern Intel Macs — a safe floor for new submissions.
-            XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET       "12.0"
+            XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET       "${CMAKE_OSX_DEPLOYMENT_TARGET}"
             XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
             # Reset CONFIGURATION_BUILD_DIR to the Xcode default so that the
             # .dSYM bundle lands beside the .app in the archive SYMROOT rather

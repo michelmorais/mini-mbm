@@ -166,8 +166,42 @@ automatically (no `-DAUDIO=` flag needed).
 - Pitch changes are not implemented; `setPitch()` returns failure and `getPitch()` returns `1.0`.
 - Seeking is not implemented; `setPosition()` returns failure. Use `stop()` followed by `play()` to
   restart from the beginning.
-- `getLength()` currently reports the decoded frame count, not milliseconds. Do not use it as a
-  duration in milliseconds until that API contract is corrected.
+- `getLength()` reports the decoded duration in milliseconds.
+
+### Automated audio and plugin smoke tests
+
+The macOS smoke scripts use the real Metal window and exit on their own. Run them from the
+repository root with Metal validation enabled. The audio fixture directory may contain spaces and
+Unicode characters; pass it through `--addpath`:
+
+```sh
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
+    --addpath="/path/to/audio fixtures" \
+    --scene src/test-lib/macos-avfoundation-smoke.lua
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
+    --scene src/test-lib/macos-common-plugins-smoke.lua
+```
+
+Box2D and LiquidFun must be tested in separate build configurations:
+
+```sh
+# Box2D 2.4.1 configuration
+cmake -S . -B build/macos_box2d_debug \
+    -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug \
+    -DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_LIQUID_FUN=0 \
+    -DUSE_TEXTURE_MISSING_DIALOG=0
+
+# LiquidFun / Box2D 2.3 configuration
+cmake -S . -B build/macos_liquidfun_debug \
+    -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug \
+    -DUSE_LUA=1 -DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1 \
+    -DUSE_TEXTURE_MISSING_DIALOG=0
+```
+
+The local CMake configurations share `bin/<type>/arm64` as their output directory. Switching
+between them does not remove a plugin produced by the previous configuration, so verify or clean
+that output deliberately before claiming an exclusive-plugin test. Distribution builds avoid this
+ambiguity by selecting one static physics plugin in the Xcode configuration.
 
 ---
 
@@ -416,7 +450,11 @@ cmake ~/mini-mbm \
     -G Xcode \
     -DPLAT=MacOs \
     -DUSE_LUA=1 \
-    -DUSE_ALL=1 \
+    -DUSE_IMGUI=1 \
+    -DUSE_LSQLITE3=1 \
+    -DUSE_TILEMAP=1 \
+    -DUSE_BOX2D=1 \
+    -DUSE_BOX2D_LIQUID_FUN=0 \
     -DMAS_DELIVERY=1 \
     -DMAS_BUNDLE_ID=com.mini.mbm.tower-defense \
     -DMAS_APP_NAME="Tower Defense Monsters" \
@@ -424,6 +462,11 @@ cmake ~/mini-mbm \
     -DGAME_ICON_PNG=/Users/michel/tower-defense/propaganda/1024x1024-icon.png \
     -DCMAKE_BUILD_TYPE=Release
 ```
+
+The example selects Box2D 2.4.1. A game that needs LiquidFun must instead pass
+`-DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1`. These plugins contain conflicting Box2D symbols and
+cannot coexist in the statically linked macOS application. Do not use `USE_ALL=1` for a release
+configuration when the physics choice needs to be explicit.
 
 | Flag | Required | Description |
 |---|---|---|
@@ -446,7 +489,7 @@ cmake ~/mini-mbm \
    `Contents/Resources/assets/` (preserving directory structure).
 5. Runs `sips` to generate all required macOS icon sizes and writes an
    `Assets.xcassets/AppIcon.appiconset/Contents.json` for Xcode to compile.
-6. Statically links all enabled plugins (ImGui, Box2D, Bullet, lsqlite3, Tiled)
+6. Statically links all enabled plugins (ImGui, one of Box2D or LiquidFun, Bullet, lsqlite3, Tiled)
    into the executable — no dylib loading at runtime.
 7. Wires `platform-macos/mini-mbm.entitlements` for App Sandbox compliance.
 

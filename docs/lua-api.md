@@ -1018,7 +1018,7 @@ when the file cannot be loaded. `inMemory`, `play`, and `loop` default to `false
 | `audio:isPlaying` | `()` | bool | Whether playback is active |
 | `audio:isPaused` | `()` | bool | Whether playback is paused |
 | `audio:reset` | `()` | bool | Reset playback state |
-| `audio:getLen` | `()` | int | Get the sound length reported by the backend |
+| `audio:getLen` | `()` | int | Get the sound duration in milliseconds |
 | `audio:setPosition` | `(position: int)` | bool | Seek to a backend position |
 | `audio:onEnd` | `(callback)` | — | Register `callback(audio, fileName)`; Lua execution is queued on the scene thread |
 | `audio:getName` | `()` | string | Get the loaded file name |
@@ -1071,13 +1071,14 @@ Access as `mbm.CONSTANT_NAME`.
 
 2D rigid-body physics. Load with:
 ```lua
-local box2d = require "box2d"
+require "box2d" -- registers the global box2d factory
 ```
 
 ```lua
 local world = box2d:new()
 world:setGravity(0, -10)
-world:step(delta)                               -- advance physics (call in onLoop())
+world:pause()                                   -- optional: stop automatic simulation
+world:start()                                   -- resume automatic simulation
 
 -- Add bodies (pass a renderizable as the shape source)
 world:addDynamicBody(renderizable, density?, friction?, restitution?)
@@ -1093,7 +1094,8 @@ world:setContactListener(
 )
 
 world:getWorldManifolds(body)   -- returns contact manifold table
-world:destroy()
+-- Simulation advances through the plugin's engine callback. The world is released with its
+-- Lua scene/userdata; there are no world:step() or world:destroy() methods.
 ```
 
 ---
@@ -1103,20 +1105,19 @@ world:destroy()
 2D fluid simulation using LiquidFun 1.1.0, an extended branch of Box2D 2.3.0. This is separate
 from the standalone `box2d` plugin, which uses the newer Box2D 2.4.1. Load with:
 ```lua
-local lf = require "box2dLiquidFun"
+require "box2dLiquidFun" -- registers the global box2dLiquidFun factory
 ```
 
 ```lua
-local world = lf:new()
+local world = box2dLiquidFun:new()
 world:setGravity(0, -10)
-world:step(delta)
 
 local fluid = world:createFluid(
     {type="rectangle", center={x=0, y=100, z=0}, width=200, height=100},
     {particleRadius=5, density=1.0, damping=0.2}
 )
 local fluidShader = fluid:getShader()   -- returns shader config table
-world:destroy()
+-- Simulation and world lifetime follow the same automatic plugin lifecycle as box2d.
 ```
 
 ---

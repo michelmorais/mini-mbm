@@ -234,14 +234,17 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
                    interleaved:YES
                    channelLayout:layout];
 
-        const AVAudioFrameCount frameCount = (AVAudioFrameCount)(totalSamples / channels);
+        // stb_vorbis returns the number of samples per channel (audio frames),
+        // while the output array contains frameCount * channels interleaved shorts.
+        const AVAudioFrameCount frameCount = static_cast<AVAudioFrameCount>(totalSamples);
         pcmBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format
                                                   frameCapacity:frameCount];
         pcmBuffer.frameLength = frameCount;
 
         // int16ChannelData[0] holds all interleaved samples for interleaved formats
         int16_t *dst = (int16_t *)pcmBuffer.int16ChannelData[0];
-        memcpy(dst, samples, (size_t)totalSamples * sizeof(short));
+        memcpy(dst, samples,
+               static_cast<size_t>(totalSamples) * static_cast<size_t>(channels) * sizeof(short));
         free(samples);
 
     } else {
@@ -464,9 +467,12 @@ float AUDIO::getPitch()
 
 int AUDIO::getLength()
 {
-    return (backend && backend->buffer)
-               ? (int)backend->buffer.frameLength
-               : 0;
+    if (!backend || !backend->buffer || backend->buffer.format.sampleRate <= 0.0)
+        return 0;
+    const double milliseconds =
+        static_cast<double>(backend->buffer.frameLength) * 1000.0 /
+        backend->buffer.format.sampleRate;
+    return static_cast<int>(milliseconds + 0.5);
 }
 
 bool AUDIO::reset()

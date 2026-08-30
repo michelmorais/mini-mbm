@@ -489,7 +489,7 @@ mbm.STAGE_1  mbm.STAGE_2
 ## Plugin: box2d — 2D Physics
 
 ```lua
-local box2d = require "box2d"
+require "box2d"
 local world = box2d:new()
 world:setGravity(0, -10)
 
@@ -498,10 +498,8 @@ world:addStaticBody(ground_sprite)
 world:addDynamicBody(player_sprite, density?, friction?, restitution?)
 world:addKinematicBody(platform_sprite)
 
--- Per-frame: advance physics
-function onLoop(delta)
-    world:step(delta)
-end
+-- Physics advances automatically through the plugin's engine callback.
+-- Use world:pause() and world:start() to control simulation.
 
 -- Collision callbacks:
 world:setContactListener(
@@ -512,7 +510,7 @@ world:setContactListener(
 )
 
 world:getWorldManifolds(body)  -- → contact manifold table
-world:destroy()
+-- The world is released with its Lua scene/userdata; no explicit destroy method is registered.
 ```
 
 ---
@@ -710,7 +708,7 @@ mbm.loadScene("results.lua")
 ### Pattern: Box2D physics
 
 ```lua
-local box2d = require "box2d"
+require "box2d"
 local world, ground_body, player_body
 
 function onInitScene()
@@ -726,9 +724,7 @@ function onInitScene()
     world:addDynamicBody(ball, 1.0, 0.3, 0.5)
 end
 
-function onLoop(delta)
-    world:step(delta)
-end
+-- No onLoop step is required; the plugin advances physics automatically.
 ```
 
 ---
