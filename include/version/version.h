@@ -604,8 +604,9 @@
     7.189.1 Isolated articulated Parts by partId during whole-frame simplification so independently transformed subsets cannot share cross-Part collapses and develop animated cracks or missing faces.
     7.190.0 Locked all open-boundary vertices during simplification, preferring atomic target rejection over silhouette changes or cracks between independently duplicated UV and hard-normal seam sides.
     7.190.1 Added a human-readable face count to Mesh Debug's Mesh Info panel, retaining the exact count alongside K, M, B, or T notation.
+    7.191.0 Added post-simplification quality diagnostics with relative error classification, achieved reduction, committed-collapse totals, and boundary/topology/orientation/invalid candidate protection counters in the native report, Lua API, Mesh Debug UI, and terminal.
 */
-#define MBM_VERSION "7.190.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.191.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

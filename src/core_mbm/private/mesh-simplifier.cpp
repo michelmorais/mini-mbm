@@ -195,6 +195,18 @@ namespace mbm::mesh_simplifier
 
         double maximumCost = 0.0;
         double maximumPoseCost = 0.0;
+        VEC3 minimum = positions.front();
+        VEC3 maximum = positions.front();
+        for (const VEC3 &position : positions)
+        {
+            minimum.x = std::min(minimum.x, position.x);
+            minimum.y = std::min(minimum.y, position.y);
+            minimum.z = std::min(minimum.z, position.z);
+            maximum.x = std::max(maximum.x, position.x);
+            maximum.y = std::max(maximum.y, position.y);
+            maximum.z = std::max(maximum.z, position.z);
+        }
+        const double sourceDiagonal = std::sqrt(lengthSquared(maximum - minimum));
         while (triangles.size() > targetTriangleCount)
         {
             std::vector<QUADRIC> quadrics(positions.size());
@@ -225,8 +237,10 @@ namespace mbm::mesh_simplifier
             {
                 const uint32_t a = static_cast<uint32_t>(entry.first >> 32u);
                 const uint32_t b = static_cast<uint32_t>(entry.first);
-                if (boundary[a] || boundary[b]) continue;
-                if (!preservesTopology(a, b, entry.second.count, triangles, adjacent)) continue;
+                if (boundary[a] || boundary[b])
+                { ++output.boundaryRejectedCollapseCount; continue; }
+                if (!preservesTopology(a, b, entry.second.count, triangles, adjacent))
+                { ++output.topologyRejectedCollapseCount; continue; }
                 QUADRIC combined = quadrics[a]; combined += quadrics[b];
                 VEC3 point;
                 float interpolation = 0.5f;
@@ -254,8 +268,11 @@ namespace mbm::mesh_simplifier
                 const double geometricCost = combined.evaluate(point);
                 CANDIDATE candidate{a, b, point, interpolation, geometricCost + poseCost,
                                     geometricCost, poseCost, entry.second.count};
-                if (std::isfinite(candidate.cost) && preservesOrientation(candidate, positions, triangles, adjacent))
-                    candidates.push_back(candidate);
+                if (!std::isfinite(candidate.cost))
+                { ++output.invalidRejectedCollapseCount; continue; }
+                if (!preservesOrientation(candidate, positions, triangles, adjacent))
+                { ++output.orientationRejectedCollapseCount; continue; }
+                candidates.push_back(candidate);
             }
             std::sort(candidates.begin(), candidates.end(), [](const CANDIDATE &a, const CANDIDATE &b)
             { return a.cost < b.cost || (a.cost == b.cost && edgeKey(a.a,a.b) < edgeKey(b.a,b.b)); });
@@ -294,6 +311,7 @@ namespace mbm::mesh_simplifier
             for (uint32_t i = 0; i < replacement.size(); ++i) replacement[i] = i;
             for (const CANDIDATE &candidate : selected)
             {
+                ++output.collapseCount;
                 replacement[candidate.b] = candidate.a;
                 positions[candidate.a] = candidate.position;
                 const float aWeight = 1.0f - candidate.interpolation;
@@ -336,10 +354,42 @@ namespace mbm::mesh_simplifier
                                        edgeKey(triangle.c, triangle.a)})
                 if (++finalEdgeCounts[key] > 2)
                 {
+                    ++output.nonManifoldEdgeCount;
                     errorOut = "simplified topology contains a non-manifold edge";
                     output = {};
                     return false;
                 }
+        std::vector<std::vector<uint32_t>> finalAdjacentVertices(positions.size());
+        std::vector<bool> finalUsedVertices(positions.size(), false);
+        for (const TRIANGLE &triangle : triangles)
+        {
+            if (triangle.a == triangle.b || triangle.b == triangle.c || triangle.c == triangle.a)
+            { ++output.degenerateTriangleCount; continue; }
+            finalUsedVertices[triangle.a] = finalUsedVertices[triangle.b] = finalUsedVertices[triangle.c] = true;
+            finalAdjacentVertices[triangle.a].push_back(triangle.b);
+            finalAdjacentVertices[triangle.a].push_back(triangle.c);
+            finalAdjacentVertices[triangle.b].push_back(triangle.a);
+            finalAdjacentVertices[triangle.b].push_back(triangle.c);
+            finalAdjacentVertices[triangle.c].push_back(triangle.a);
+            finalAdjacentVertices[triangle.c].push_back(triangle.b);
+        }
+        std::vector<bool> visited(positions.size(), false);
+        std::vector<uint32_t> pending;
+        for (uint32_t start = 0; start < positions.size(); ++start)
+        {
+            if (!finalUsedVertices[start] || visited[start]) continue;
+            ++output.connectedComponentCount;
+            pending.push_back(start);
+            visited[start] = true;
+            while (!pending.empty())
+            {
+                const uint32_t vertex = pending.back();
+                pending.pop_back();
+                for (const uint32_t neighbor : finalAdjacentVertices[vertex])
+                    if (!visited[neighbor])
+                    { visited[neighbor] = true; pending.push_back(neighbor); }
+            }
+        }
         for (const TRIANGLE &triangle : triangles)
             for (const uint32_t vertex : {triangle.a, triangle.b, triangle.c})
                 if (compact[vertex] == UINT32_MAX)
@@ -364,6 +414,9 @@ namespace mbm::mesh_simplifier
         }
         output.maximumError = static_cast<float>(std::sqrt(maximumCost));
         output.maximumPoseError = static_cast<float>(std::sqrt(maximumPoseCost));
+        const double maximumAbsoluteError = std::max(std::sqrt(maximumCost), std::sqrt(maximumPoseCost));
+        output.maximumRelativeError = sourceDiagonal > 1.0e-20
+            ? static_cast<float>(maximumAbsoluteError / sourceDiagonal) : 0.0f;
         return true;
     }
 }

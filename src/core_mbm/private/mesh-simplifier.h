@@ -45,6 +45,15 @@ namespace mbm::mesh_simplifier
         std::vector<std::vector<VEC3>> deformationDeltas;
         float maximumError = 0.0f;
         float maximumPoseError = 0.0f;
+        float maximumRelativeError = 0.0f;
+        uint32_t collapseCount = 0;
+        uint32_t boundaryRejectedCollapseCount = 0;
+        uint32_t topologyRejectedCollapseCount = 0;
+        uint32_t orientationRejectedCollapseCount = 0;
+        uint32_t invalidRejectedCollapseCount = 0;
+        uint32_t degenerateTriangleCount = 0;
+        uint32_t nonManifoldEdgeCount = 0;
+        uint32_t connectedComponentCount = 0;
     };
 
     bool simplify(const INPUT &input, uint32_t targetTriangleCount, OUTPUT &output,

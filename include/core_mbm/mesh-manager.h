@@ -80,6 +80,15 @@ namespace mbm
         bool geometryFrameAware = false;
         uint32_t geometryFrameCount = 0;
         float maximumFrameError = 0.0f;
+        float maximumRelativeError = 0.0f;
+        uint32_t collapseCount = 0;
+        uint32_t boundaryRejectedCollapseCount = 0;
+        uint32_t topologyRejectedCollapseCount = 0;
+        uint32_t orientationRejectedCollapseCount = 0;
+        uint32_t invalidRejectedCollapseCount = 0;
+        uint32_t degenerateTriangleCount = 0;
+        uint32_t nonManifoldEdgeCount = 0;
+        uint32_t connectedComponentCount = 0;
     };
 
     struct BUFFER_MESH

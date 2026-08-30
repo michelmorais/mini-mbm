@@ -229,6 +229,15 @@ namespace mbm
         lua_pushboolean(lua, report.geometryFrameAware); lua_setfield(lua, -2, "geometryFrameAware");
         lua_pushinteger(lua, report.geometryFrameCount); lua_setfield(lua, -2, "geometryFrameCount");
         lua_pushnumber(lua, report.maximumFrameError); lua_setfield(lua, -2, "maximumFrameError");
+        lua_pushnumber(lua, report.maximumRelativeError); lua_setfield(lua, -2, "maximumRelativeError");
+        lua_pushinteger(lua, report.collapseCount); lua_setfield(lua, -2, "collapseCount");
+        lua_pushinteger(lua, report.boundaryRejectedCollapseCount); lua_setfield(lua, -2, "boundaryRejectedCollapseCount");
+        lua_pushinteger(lua, report.topologyRejectedCollapseCount); lua_setfield(lua, -2, "topologyRejectedCollapseCount");
+        lua_pushinteger(lua, report.orientationRejectedCollapseCount); lua_setfield(lua, -2, "orientationRejectedCollapseCount");
+        lua_pushinteger(lua, report.invalidRejectedCollapseCount); lua_setfield(lua, -2, "invalidRejectedCollapseCount");
+        lua_pushinteger(lua, report.degenerateTriangleCount); lua_setfield(lua, -2, "degenerateTriangleCount");
+        lua_pushinteger(lua, report.nonManifoldEdgeCount); lua_setfield(lua, -2, "nonManifoldEdgeCount");
+        lua_pushinteger(lua, report.connectedComponentCount); lua_setfield(lua, -2, "connectedComponentCount");
         return 1;
     }
 

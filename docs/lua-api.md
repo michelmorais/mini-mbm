@@ -1415,7 +1415,15 @@ may differ. On success the call returns a detached table containing
 `sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`,
 `maximumGeometricError`, `skinWeightAware`, `poseSampledError`, `sampledPoseCount`,
 `sampledClipCount`, `maximumPoseError`, `geometryFrameAware`, `geometryFrameCount`, and
-`maximumFrameError`. On failure it returns `nil, error` without modifying the mesh.
+`maximumFrameError`. Quality diagnostics also include `maximumRelativeError` (the greatest
+geometric or sampled deformation error divided by the source bounding-box diagonal),
+`collapseCount`, `boundaryRejectedCollapseCount`, `topologyRejectedCollapseCount`,
+`orientationRejectedCollapseCount`, and `invalidRejectedCollapseCount`. Rejection counters measure
+protected candidates evaluated across simplification passes; they are observability data, not
+invalid faces in the committed result. `degenerateTriangleCount`, `nonManifoldEdgeCount`, and
+`connectedComponentCount` summarize the committed topology; multiple connected components can be
+intentional and are not classified as a defect by themselves. On failure the call returns
+`nil, error` without modifying the mesh.
 
 For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
 `meshD:simplify(0.5, nil, 0)` simplifies every compatible geometry frame with shared collapses.

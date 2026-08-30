@@ -99,6 +99,15 @@ the operation fails atomically instead of creating non-manifold edges or apparen
 The detached result is scanned once more before output compaction, and any edge referenced by more
 than two triangles rejects the operation as a defensive invariant check.
 
+Successful reports expose the number of committed collapses and candidate rejections caused by
+open boundaries, topology, orientation, or non-finite costs. They also expose the maximum geometric
+or sampled-deformation error relative to the source bounding-box diagonal. Mesh Debug classifies
+that relative error as Good up to 3%, Attention through 10%, and Risky above 10%. Candidate rejection
+counts describe protections exercised during the search and do not mean the committed mesh contains
+invalid faces. The committed result also reports degenerate-face and non-manifold-edge counts plus
+its connected-component count; multiple components are informational because articulated or
+intentionally separated geometry can contain them legitimately.
+
 Whole-frame simplification uses one virtual topology across all material subsets. Vertices with
 bit-identical positions may be paired across different subsets so a material seam is treated as an
 interior topological edge, but coincident vertices inside the same subset remain separate to retain

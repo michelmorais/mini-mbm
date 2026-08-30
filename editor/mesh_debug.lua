@@ -8536,6 +8536,17 @@ function simplifyShowFailure(errorValue)
     tUtil.showMessageWarn(message, 6)
 end
 
+function simplifyQualityLevel(report)
+    local relativeError = math.max(0, tonumber(report and report.maximumRelativeError) or 0)
+    if relativeError <= 0.03 then return 'good' end
+    if relativeError <= 0.10 then return 'attention' end
+    return 'risky'
+end
+
+function simplifyQualityLabel(report)
+    return tLang.L('simplify_quality_' .. simplifyQualityLevel(report))
+end
+
 function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
     local sourceFrame = simplifyState.sharedFrames and 1 or (simplifyState.selectedFrame or 1)
@@ -8599,6 +8610,16 @@ function simplifyApply(tEntry, meshD, index)
                     aggregateReport.maximumGeometricError or 0, report.maximumGeometricError or 0)
                 aggregateReport.maximumPoseError = math.max(
                     aggregateReport.maximumPoseError or 0, report.maximumPoseError or 0)
+                aggregateReport.maximumRelativeError = math.max(
+                    aggregateReport.maximumRelativeError or 0, report.maximumRelativeError or 0)
+                for _, field in ipairs({
+                    'collapseCount', 'boundaryRejectedCollapseCount',
+                    'topologyRejectedCollapseCount', 'orientationRejectedCollapseCount',
+                    'invalidRejectedCollapseCount', 'degenerateTriangleCount',
+                    'nonManifoldEdgeCount', 'connectedComponentCount'
+                }) do
+                    aggregateReport[field] = (aggregateReport[field] or 0) + (report[field] or 0)
+                end
             end
         end
     end
@@ -8621,6 +8642,16 @@ function simplifyApply(tEntry, meshD, index)
     rebuildBoneGizmo(tEntry, workingMesh, index)
     tUtil.showMessage(string.format(tLang.L('simplify_success_fmt'),
         aggregateReport.sourceTriangleCount, aggregateReport.resultTriangleCount), 5)
+    local reduction = aggregateReport.sourceTriangleCount > 0 and
+        (1 - aggregateReport.resultTriangleCount / aggregateReport.sourceTriangleCount) * 100 or 0
+    print(string.format(tLang.L('simplify_terminal_quality_fmt'),
+        simplifyQualityLabel(aggregateReport), reduction,
+        (aggregateReport.maximumRelativeError or 0) * 100,
+        aggregateReport.collapseCount or 0,
+        aggregateReport.boundaryRejectedCollapseCount or 0,
+        aggregateReport.topologyRejectedCollapseCount or 0,
+        aggregateReport.orientationRejectedCollapseCount or 0,
+        aggregateReport.invalidRejectedCollapseCount or 0))
     return true
 end
 
@@ -9566,9 +9597,21 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     end
     local report = simplifyState.report
     if report then
+        local reduction = report.sourceTriangleCount > 0 and
+            (1 - report.resultTriangleCount / report.sourceTriangleCount) * 100 or 0
         tImGui.Text(string.format(tLang.L('simplify_report_geometry_fmt'),
             report.sourceVertexCount, report.resultVertexCount,
             report.sourceTriangleCount, report.resultTriangleCount))
+        tImGui.Text(string.format(tLang.L('simplify_report_quality_fmt'),
+            simplifyQualityLabel(report), reduction, (report.maximumRelativeError or 0) * 100))
+        tImGui.TextWrapped(string.format(tLang.L('simplify_report_rejections_fmt'),
+            report.collapseCount or 0, report.boundaryRejectedCollapseCount or 0,
+            report.topologyRejectedCollapseCount or 0,
+            report.orientationRejectedCollapseCount or 0,
+            report.invalidRejectedCollapseCount or 0))
+        tImGui.Text(string.format(tLang.L('simplify_report_structure_fmt'),
+            report.degenerateTriangleCount or 0, report.nonManifoldEdgeCount or 0,
+            report.connectedComponentCount or 0))
         if report.skinWeightAware then
             tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
                 report.sampledPoseCount or 0, report.sampledClipCount or 0,

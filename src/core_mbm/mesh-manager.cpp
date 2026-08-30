@@ -2850,6 +2850,15 @@ namespace mbm
         report.maximumGeometricError = simplified.maximumError;
         if (simplifyAllFrames) report.maximumFrameError = simplified.maximumPoseError;
         else report.maximumPoseError = simplified.maximumPoseError;
+        report.maximumRelativeError = simplified.maximumRelativeError;
+        report.collapseCount = simplified.collapseCount;
+        report.boundaryRejectedCollapseCount = simplified.boundaryRejectedCollapseCount;
+        report.topologyRejectedCollapseCount = simplified.topologyRejectedCollapseCount;
+        report.orientationRejectedCollapseCount = simplified.orientationRejectedCollapseCount;
+        report.invalidRejectedCollapseCount = simplified.invalidRejectedCollapseCount;
+        report.degenerateTriangleCount = simplified.degenerateTriangleCount;
+        report.nonManifoldEdgeCount = simplified.nonManifoldEdgeCount;
+        report.connectedComponentCount = simplified.connectedComponentCount;
         if (hasCanonicalWeights)
             impl->canonicalWeights = std::move(simplifiedWeights);
         return true;
