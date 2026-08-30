@@ -193,6 +193,9 @@ class MY_SCENE : public mbm::SCENE
     float                   testMacOSObservedY;
     bool                    testMacOSClose;
     bool                    testMacOSCloseRequested;
+    bool                    testMacOSMinimize;
+    int                     testMacOSMinimizePhase;
+    bool                    testMacOSMinimizeCompleted;
     mbm::CORE_MANAGER*      testCoreManager;
     bool                    automatedTestFailed;
 

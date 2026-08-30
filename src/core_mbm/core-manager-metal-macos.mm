@@ -586,10 +586,6 @@ namespace mbm
                 [NSApp sendEvent:event];
             }
 
-            // If the window was closed by the delegate, stop the engine.
-            if (ctx->window && ![ctx->window isVisible])
-                device->setRun(false);
-
             // Poll for window resize every frame (catches programmatic resizes too).
             if (ctx->window && ctx->metalLayer)
             {

@@ -147,4 +147,31 @@ bool requestMacOSWindowClose()
     return true;
 }
 
+bool requestMacOSWindowMinimize()
+{
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device ? device->getSpecificContextDevice() : nullptr;
+    if (!context || !context->window)
+        return false;
+    [context->window miniaturize:nil];
+    return true;
+}
+
+bool requestMacOSWindowRestore()
+{
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device ? device->getSpecificContextDevice() : nullptr;
+    if (!context || !context->window)
+        return false;
+    [context->window deminiaturize:nil];
+    return true;
+}
+
+bool isMacOSWindowMinimized()
+{
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device ? device->getSpecificContextDevice() : nullptr;
+    return context && context->window && context->window.miniaturized;
+}
+
 #endif

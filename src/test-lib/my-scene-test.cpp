@@ -153,6 +153,9 @@ MY_SCENE::MY_SCENE()
     testMacOSObservedY = -1.0f;
     testMacOSClose = false;
     testMacOSCloseRequested = false;
+    testMacOSMinimize = false;
+    testMacOSMinimizePhase = 0;
+    testMacOSMinimizeCompleted = false;
     testCoreManager = nullptr;
     automatedTestFailed = false;
 }
@@ -988,6 +991,38 @@ void MY_SCENE::onLoop()
         }
         return;
     }
+    if (testMacOSMinimize)
+    {
+        if (testMacOSMinimizePhase == 0)
+        {
+            testMacOSMinimizePhase = 1;
+            if (!requestMacOSWindowMinimize())
+            {
+                ERROR_LOG("testLib: failed to minimize the macOS window");
+                automatedTestFailed = true;
+                device->setRun(false);
+            }
+            return;
+        }
+        if (testMacOSMinimizePhase == 1 && isMacOSWindowMinimized())
+        {
+            testMacOSMinimizePhase = 2;
+            if (!requestMacOSWindowRestore())
+            {
+                ERROR_LOG("testLib: failed to restore the macOS window");
+                automatedTestFailed = true;
+                device->setRun(false);
+            }
+            return;
+        }
+        if (testMacOSMinimizePhase == 2 && !isMacOSWindowMinimized())
+        {
+            testMacOSMinimizeCompleted = true;
+            INFO_LOG("testLib: macOS minimize/restore lifecycle validation passed");
+            device->setRun(false);
+            return;
+        }
+    }
     if (testMacOSResize && !testMacOSResizeRequested)
     {
         testMacOSResizeRequested = true;
@@ -1183,6 +1218,11 @@ void MY_SCENE::onLoop()
             if (testMacOSClose)
             {
                 ERROR_LOG("testLib: macOS window close timed out");
+                automatedTestFailed = true;
+            }
+            if (testMacOSMinimize)
+            {
+                ERROR_LOG("testLib: macOS minimize/restore validation timed out");
                 automatedTestFailed = true;
             }
             if (testMacOSResize)

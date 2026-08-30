@@ -108,6 +108,7 @@ MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --metal-render-to-texture-test
 MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-resize-test
 MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-input-test
 MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-close-test
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-minimize-test
 ```
 
 The render-target test validates known RGBA pixels after a Metal offscreen clear and GPU readback.
@@ -115,7 +116,8 @@ The resize test requests a 960x640 logical content area and verifies the engine 
 the `CAMetalLayer` backing scale, and its pixel-sized drawable. The input test posts deterministic
 AppKit events and verifies a normal key, Shift, Control, Option, Command, Caps Lock state,
 three mouse buttons, movement, both scroll directions, double-click, and logical coordinates. The
-close test exercises the window delegate and normal engine teardown. All commands exit
+close test exercises the window delegate and normal engine teardown. The minimize test verifies
+that minimizing does not terminate the engine and that the window can be restored. All commands exit
 automatically; any Metal API validation message or nonzero process status is a failure.
 
 The resize harness validates the current display's scale. Moving a live window between displays
@@ -130,7 +132,7 @@ Run a Debug build with `MTL_DEBUG_LAYER=1` and verify the following on real hard
 - Toggle Caps Lock twice and confirm text/input code observes the enabled and disabled states.
 - Drag with left, right, and an additional mouse button; verify motion remains in logical window
   coordinates on Retina displays. Test both discrete-wheel and trackpad scrolling.
-- Resize continuously, minimize and restore, then enter and leave native fullscreen. Rendering must
+- Resize continuously, then enter and leave native fullscreen. Rendering must
   resume at the correct size without flicker, stretched frames, or Metal validation messages.
 - With two displays, move the window between them. When their backing scales differ, the drawable
   pixel size must update while the engine's logical dimensions and pointer coordinates stay stable.
