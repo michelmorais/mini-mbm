@@ -298,7 +298,9 @@ mbm.addShader({
 | Function | Signature | Returns | Description |
 |---|---|---|---|
 | `mbm.getSplash` | `()` | renderizable\|nil | Get the splash-screen renderizable (if active) |
-| `mbm.executeInThread` | `(func)` | — | Execute a Lua function in a background thread (not Android) |
+| `mbm.executeInThread` | `(command: string)` | — | Execute a command through the legacy desktop background launcher (not Android/iOS) |
+| `mbm.executeProcessAsync` | `(options: table)` | process job\|nil, error? | Start an executable directly on Windows, Linux, or macOS. `options.executable` is required, `options.arguments` is an optional string array, and `options.hidden` defaults to `true` on Windows. The job exposes `isRunning()`, `getExitCode()`, `cancel()`, and `destroy()`. |
+| `mbm.getExecutablePath` | `()` | string\|nil | Return the absolute path of the running executable on Windows, Linux, or macOS. This is independent of the current working directory and is unavailable on Android/iOS. |
 | `mbm.generateImageResourceHeaderFromPng` | `(pngFile, headerFile)` | bool | Convert PNG to a C++ `static-resource` header |
 | `mbm.setMinMaxWindowSize` | `(minX, minY, maxX, maxY)` | — | Set window size constraints |
 
@@ -1387,6 +1389,77 @@ valid subsets were merged, or `false` without mutation otherwise. The resulting 
 first selected subset's position and keeps its primary/material-role textures. Selected geometry is
 appended in the existing subset order. Vertex data, indices, canonical weights, and articulated Part
 references are remapped automatically.
+
+### Triangle simplification
+
+See also [Mesh Simplification](mesh-simplification.md) for the maintained workflow, safety
+invariants, Mesh Debug integration, and importer relationship.
+
+```lua
+local report, err = meshD:simplify(targetTriangleRatio [, targetSubset [, targetFrame [, preserveDetails]]])
+```
+
+`targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
+quadric-error edge collapses, preserves open boundaries, UV seams, hard-normal splits, material
+metadata, and authored physics metadata, and commits only after the complete candidate is valid.
+Vertices touching an open edge are locked rather than merely constrained to slide along that edge;
+assets dominated by open or duplicated seam boundaries may therefore stop before the requested
+ratio and fail atomically instead of producing cracks.
+Without `targetSubset`, the complete frame is processed as one virtual topology: coincident seams
+may connect different material subsets for topology decisions, while triangle material IDs remain
+unchanged. `targetSubset` is an optional one-based subset index. When present, only that subset is
+reduced; every other subset retains the same rendered positions, normals, UVs, texture assignment,
+triangle order, and canonical weights. `targetFrame` is an optional one-based geometry-frame index
+and defaults to frame 1. A selected frame in a non-skeletal multi-frame mesh is simplified without
+changing any other frame. Passing `targetFrame=0` uses frame 1 as the reference and applies one
+shared collapse sequence to every compatible geometry frame. All frames must have identical
+vertex/index counts, index values, attribute presence, subset count, and subset ranges; positions
+may differ.
+`preserveDetails` defaults to `true`. When enabled, strong local normal variation adds a
+scale-relative penalty to the collapse cost, causing flat regions to be reduced before sharp edges
+and curved details without turning those features into rigid constraints. On success the call
+returns a detached table containing
+`sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`,
+`maximumGeometricError`, `skinWeightAware`, `poseSampledError`, `sampledPoseCount`,
+`sampledClipCount`, `maximumPoseError`, `geometryFrameAware`, `geometryFrameCount`, and
+`maximumFrameError`. Quality diagnostics also include `maximumRelativeError` (the greatest
+geometric or sampled deformation error divided by the source bounding-box diagonal),
+`collapseCount`, `boundaryRejectedCollapseCount`, `topologyRejectedCollapseCount`,
+`orientationRejectedCollapseCount`, and `invalidRejectedCollapseCount`. Rejection counters measure
+protected candidates evaluated across simplification passes; they are observability data, not
+invalid faces in the committed result. `degenerateTriangleCount`, `nonManifoldEdgeCount`, and
+`connectedComponentCount` summarize the committed topology; multiple connected components can be
+intentional and are not classified as a defect by themselves.
+`detailPenalizedCandidateCount` counts detail-sensitive candidate evaluations across all passes,
+while `detailPenalizedCollapseCount` counts how many committed collapses carried that penalty.
+`clearanceRejectedCollapseCount` counts candidates rejected because the generated point would
+reduce its distance to a nearby triangle from another subset by more than 25%. The check uses a
+local spatial grid and repeats against available geometry/pose deformation samples.
+On failure the call returns `nil, error` without modifying the mesh.
+
+For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
+`meshD:simplify(0.5, nil, 0)` simplifies every compatible geometry frame with shared collapses.
+
+The implementation accepts indexed or non-indexed 3D triangle-list meshes. Non-indexed triangle
+vertices are internally joined only when position, normal, and UV attributes match exactly; this
+recovers usable adjacency without crossing authored UV or hard-normal seams. A successful
+non-indexed simplification produces an indexed result using the engine's existing `uint16_t`
+contract. Shared multi-frame simplification uses the maximum deformation difference across frames
+in collapse ranking, then reconstructs each frame from the same compact topology. The projected
+edge interpolation factor is applied consistently to positions, attributes, weights, and every
+frame deformation sample, keeping reconstructed vertices on their corresponding deformed edges.
+Multi-frame skeletal assets remain unsupported. Articulated Parts and animation clips are preserved
+because they reference stable frame/subset occurrences and `partId` values rather than vertex
+indices. Different articulated Parts are kept in separate topology domains, so coincident vertices
+from independently transformed subsets are never collapsed together. For one-frame canonical skeletal assets,
+every collapse blends the
+source influences, keeps the strongest four, normalizes them,
+and preserves the skeleton and animation clips. When clips exist, up to 24 poses are distributed
+across up to 24 clips. Edge-collapse ranking includes the maximum difference between the sampled
+animated displacement of both endpoints. In this path `skinWeightAware` and `poseSampledError` are
+true, while `sampledPoseCount`, `sampledClipCount`, and `maximumPoseError` describe the coverage and
+observed pose-space cost. Assets with weights but no clips remain weight-aware with
+`poseSampledError=false`. Incomplete canonical data is rejected explicitly.
 
 ### Geometry scaling
 

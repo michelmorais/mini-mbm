@@ -20,6 +20,7 @@
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
 #include "private/skeletal-parity-asset.h"
+#include "private/mesh-simplifier.h"
 #include <skeletal-gpu-upload.h>
 #include <draw-compatibility.h>
 #include <shader-var-cfg.h>
@@ -2058,6 +2059,816 @@ namespace mbm
         impl->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
     }
 
+    bool MESH_MBM_DEBUG::simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
+                                  char *errorOut, const int errorOutLen,
+                                  const int targetSubsetIndex, const int targetFrameIndex,
+                                  const bool preserveDetails)
+    {
+        report = {};
+        auto fail = [errorOut, errorOutLen](const std::string &message)
+        {
+            if (errorOut && errorOutLen > 0)
+                snprintf(errorOut, static_cast<size_t>(errorOutLen), "%s", message.c_str());
+            return false;
+        };
+        if (!std::isfinite(targetTriangleRatio) || targetTriangleRatio <= 0.0f || targetTriangleRatio >= 1.0f)
+            return fail("target triangle ratio must be finite, greater than zero, and smaller than one");
+        if (impl->typeMe != util::TYPE_MESH_3D)
+            return fail("simplification currently supports only 3D meshes");
+        if (impl->info_mode.mode_draw != util::MODE_DRAW_TRIANGLES)
+            return fail("simplification currently supports only triangle-list draw mode");
+        const bool simplifyAllFrames = targetFrameIndex == -1;
+        const int referenceFrameIndex = simplifyAllFrames ? 0 : targetFrameIndex;
+        if (referenceFrameIndex < 0 || referenceFrameIndex >= static_cast<int>(impl->buffer.size()))
+            return fail("target frame index is outside the mesh");
+        const bool hasCanonicalData = impl->canonicalSkeleton.skeletonId != 0 ||
+                                      impl->canonicalWeights.skeletonId != 0 ||
+                                      impl->canonicalAnimations.skeletonId != 0;
+        const bool hasCanonicalWeights = impl->canonicalWeights.skeletonId != 0;
+        if (impl->buffer.size() > 1 && hasCanonicalData)
+            return fail("selected-frame simplification does not support multi-frame skeletal assets");
+        if (hasCanonicalData && (impl->canonicalSkeleton.skeletonId == 0 || !hasCanonicalWeights))
+            return fail("canonical skeletal simplification requires both a skeleton and skin weights");
+        if (hasCanonicalWeights &&
+            (impl->canonicalWeights.skeletonId != impl->canonicalSkeleton.skeletonId ||
+             impl->canonicalWeights.frameIndex != 0))
+            return fail("canonical skin weights do not reference frame zero and the active skeleton");
+
+        util::BUFFER_MESH_DEBUG *frame = impl->buffer[static_cast<size_t>(referenceFrameIndex)];
+        if (!frame || !frame->position || frame->subset.empty())
+            return fail("simplification requires a non-empty mesh");
+        const bool sourceIndexed = frame->indexBuffer != nullptr;
+        if (targetSubsetIndex < -1 ||
+            targetSubsetIndex >= static_cast<int>(frame->subset.size()))
+            return fail("target subset index is outside the selected frame");
+
+        struct SUBSET_RANGE
+        {
+            int vertexStart = 0;
+            int indexStart = 0;
+            int vertexCount = 0;
+            int indexCount = 0;
+        };
+        struct POSITION_KEY
+        {
+            uint32_t x = 0;
+            uint32_t y = 0;
+            uint32_t z = 0;
+
+            bool operator==(const POSITION_KEY &other) const noexcept
+            {
+                return x == other.x && y == other.y && z == other.z;
+            }
+        };
+        struct POSITION_KEY_HASH
+        {
+            size_t operator()(const POSITION_KEY &key) const noexcept
+            {
+                size_t value = static_cast<size_t>(key.x) * 0x9e3779b1u;
+                value ^= static_cast<size_t>(key.y) + 0x9e3779b9u + (value << 6) + (value >> 2);
+                value ^= static_cast<size_t>(key.z) + 0x9e3779b9u + (value << 6) + (value >> 2);
+                return value;
+            }
+        };
+        struct LOGICAL_SOURCE
+        {
+            std::unordered_map<uint32_t, uint32_t> globalBySubset;
+            std::vector<uint32_t> globals;
+            uint64_t topologyDomain = 0;
+        };
+        std::vector<SUBSET_RANGE> results(frame->subset.size());
+        std::vector<VEC3> positions;
+        std::vector<VEC3> normals;
+        std::vector<VEC2> uvs;
+        std::vector<uint16_t> indices;
+        std::vector<skeletal::CANONICAL_VERTEX_WEIGHT> weights;
+        skeletal::CANONICAL_WEIGHTS simplifiedWeights;
+        std::vector<std::vector<VEC3>> deformationDeltas;
+
+        const auto *sourcePositions = reinterpret_cast<const VEC3 *>(frame->position);
+        const auto *sourceNormals = reinterpret_cast<const VEC3 *>(frame->normal);
+        const auto *sourceUvs = reinterpret_cast<const VEC2 *>(frame->uv);
+        report.sourceVertexCount = static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer);
+        std::vector<uint64_t> subsetTopologyDomains(frame->subset.size(), 0);
+        for (const util::ARTICULATED_PART_V11 &part : impl->articulatedParts)
+        {
+            if (part.frameIndex != static_cast<uint32_t>(referenceFrameIndex)) continue;
+            if (part.subsetIndex >= subsetTopologyDomains.size())
+                return fail("articulated Part references a subset outside the simplification frame");
+            subsetTopologyDomains[part.subsetIndex] = part.partId;
+        }
+        if (simplifyAllFrames)
+        {
+            if (hasCanonicalData)
+                return fail("shared multi-frame simplification does not support skeletal assets");
+            for (size_t frameIndex = 1; frameIndex < impl->buffer.size(); ++frameIndex)
+            {
+                const util::BUFFER_MESH_DEBUG *candidate = impl->buffer[frameIndex];
+                if (!candidate || !candidate->position ||
+                    candidate->headerFrame.sizeVertexBuffer != frame->headerFrame.sizeVertexBuffer ||
+                    candidate->headerFrame.sizeIndexBuffer != frame->headerFrame.sizeIndexBuffer ||
+                    candidate->headerFrame.stride != frame->headerFrame.stride ||
+                    candidate->subset.size() != frame->subset.size() ||
+                    (candidate->indexBuffer != nullptr) != sourceIndexed ||
+                    (candidate->normal != nullptr) != (frame->normal != nullptr) ||
+                    (candidate->uv != nullptr) != (frame->uv != nullptr))
+                    return fail("geometry frames do not have compatible vertex attributes and topology");
+                if (sourceIndexed && memcmp(candidate->indexBuffer, frame->indexBuffer,
+                           static_cast<size_t>(frame->headerFrame.sizeIndexBuffer) * sizeof(uint16_t)) != 0)
+                    return fail("geometry frames do not share the same index topology");
+                for (size_t subsetIndex = 0; subsetIndex < frame->subset.size(); ++subsetIndex)
+                {
+                    const util::SUBSET_DEBUG *referenceSubset = frame->subset[subsetIndex];
+                    const util::SUBSET_DEBUG *candidateSubset = candidate->subset[subsetIndex];
+                    if (!candidateSubset || candidateSubset->vertexStart != referenceSubset->vertexStart ||
+                        candidateSubset->vertexCount != referenceSubset->vertexCount ||
+                        candidateSubset->indexStart != referenceSubset->indexStart ||
+                        candidateSubset->indexCount != referenceSubset->indexCount)
+                        return fail("geometry frames do not share the same subset ranges");
+                }
+                const auto *candidatePositions = reinterpret_cast<const VEC3 *>(candidate->position);
+                std::vector<VEC3> &sample = deformationDeltas.emplace_back();
+                sample.reserve(report.sourceVertexCount);
+                for (uint32_t vertex = 0; vertex < report.sourceVertexCount; ++vertex)
+                    sample.push_back(candidatePositions[vertex] - sourcePositions[vertex]);
+            }
+            report.geometryFrameAware = true;
+            report.geometryFrameCount = static_cast<uint32_t>(impl->buffer.size());
+        }
+        VEC3 sourceMinimum = sourcePositions[0];
+        VEC3 sourceMaximum = sourcePositions[0];
+        for (uint32_t vertex = 1; vertex < report.sourceVertexCount; ++vertex)
+        {
+            const VEC3 &position = sourcePositions[vertex];
+            sourceMinimum.x = std::min(sourceMinimum.x, position.x);
+            sourceMinimum.y = std::min(sourceMinimum.y, position.y);
+            sourceMinimum.z = std::min(sourceMinimum.z, position.z);
+            sourceMaximum.x = std::max(sourceMaximum.x, position.x);
+            sourceMaximum.y = std::max(sourceMaximum.y, position.y);
+            sourceMaximum.z = std::max(sourceMaximum.z, position.z);
+        }
+        if (hasCanonicalWeights)
+        {
+            if (impl->canonicalWeights.vertices.size() != report.sourceVertexCount ||
+                !skeletal::validateCanonicalWeights(impl->canonicalSkeleton, impl->canonicalWeights,
+                                                    report.sourceVertexCount))
+                return fail("canonical skin weights are invalid for the source geometry");
+            weights.reserve(report.sourceVertexCount);
+            report.skinWeightAware = true;
+
+            if (!impl->canonicalAnimations.clips.empty())
+            {
+                if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,
+                                                           impl->canonicalAnimations))
+                    return fail("canonical animations are invalid for pose-sampled simplification");
+                static constexpr uint32_t MAX_POSE_SAMPLES = 24;
+                const uint32_t sampledClips = std::min<uint32_t>(MAX_POSE_SAMPLES,
+                    static_cast<uint32_t>(impl->canonicalAnimations.clips.size()));
+                const uint32_t samplesPerClip = MAX_POSE_SAMPLES / sampledClips;
+                const uint32_t extraSamples = MAX_POSE_SAMPLES % sampledClips;
+                std::vector<VEC3> bindPositions(sourcePositions,
+                    sourcePositions + report.sourceVertexCount);
+                for (uint32_t clipIndex = 0; clipIndex < sampledClips; ++clipIndex)
+                {
+                    const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[clipIndex];
+                    const uint32_t clipSamples = samplesPerClip + (clipIndex < extraSamples ? 1u : 0u);
+                    for (uint32_t sampleIndex = 0; sampleIndex < clipSamples; ++sampleIndex)
+                    {
+                        const float time = clip.duration * static_cast<float>(sampleIndex + 1) /
+                                           static_cast<float>(clipSamples + 1);
+                        skeletal::SKELETAL_POSE pose;
+                        std::vector<VEC3> skinnedPositions;
+                        std::vector<VEC3> skinnedNormals;
+                        if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, clip, time, pose) ||
+                            !skeletal::skinVerticesLbsReference(impl->canonicalSkeleton,
+                                impl->canonicalWeights, pose, bindPositions, {},
+                                skinnedPositions, skinnedNormals))
+                            return fail("failed to evaluate a canonical animation pose for simplification");
+                        std::vector<VEC3> &sample = deformationDeltas.emplace_back();
+                        sample.reserve(report.sourceVertexCount);
+                        for (uint32_t vertex = 0; vertex < report.sourceVertexCount; ++vertex)
+                            sample.push_back(skinnedPositions[vertex] - bindPositions[vertex]);
+                    }
+                }
+                report.poseSampledError = !deformationDeltas.empty();
+                report.sampledPoseCount = static_cast<uint32_t>(deformationDeltas.size());
+                report.sampledClipCount = sampledClips;
+            }
+        }
+        auto positionKey = [](const VEC3 &position)
+        {
+            POSITION_KEY key;
+            const float x = position.x == 0.0f ? 0.0f : position.x;
+            const float y = position.y == 0.0f ? 0.0f : position.y;
+            const float z = position.z == 0.0f ? 0.0f : position.z;
+            memcpy(&key.x, &x, sizeof(uint32_t));
+            memcpy(&key.y, &y, sizeof(uint32_t));
+            memcpy(&key.z, &z, sizeof(uint32_t));
+            return key;
+        };
+
+        mesh_simplifier::INPUT input;
+        input.preserveDetails = preserveDetails;
+        input.deformationDeltas.resize(deformationDeltas.size());
+        input.indices.reserve(static_cast<size_t>(frame->headerFrame.sizeIndexBuffer));
+        input.triangleGroups.reserve(static_cast<size_t>(frame->headerFrame.sizeIndexBuffer / 3));
+        std::vector<LOGICAL_SOURCE> logicalSources;
+        std::unordered_map<POSITION_KEY, std::vector<uint32_t>, POSITION_KEY_HASH> logicalByPosition;
+        logicalByPosition.reserve(report.sourceVertexCount);
+        for (uint32_t subsetIndex = 0; subsetIndex < frame->subset.size(); ++subsetIndex)
+        {
+            const util::SUBSET_DEBUG *subset = frame->subset[subsetIndex];
+            if (!subset || subset->vertexStart < 0 || subset->vertexCount <= 0 ||
+                subset->vertexStart + subset->vertexCount > frame->headerFrame.sizeVertexBuffer)
+                return fail("subset vertex ranges are invalid for triangle simplification");
+            if (sourceIndexed && (subset->indexStart < 0 || subset->indexCount < 3 ||
+                subset->indexCount % 3 != 0 ||
+                subset->indexStart + subset->indexCount > frame->headerFrame.sizeIndexBuffer))
+                return fail("subset index ranges are invalid for triangle simplification");
+            if (!sourceIndexed && subset->vertexCount % 3 != 0)
+                return fail("non-indexed triangle subsets require a vertex count divisible by three");
+            const int sourceElementCount = sourceIndexed ? subset->indexCount : subset->vertexCount;
+            report.sourceTriangleCount += static_cast<uint32_t>(sourceElementCount / 3);
+            if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
+                continue;
+
+            std::unordered_map<uint32_t, uint32_t> localByGlobal;
+            localByGlobal.reserve(static_cast<size_t>(subset->vertexCount));
+            std::unordered_map<std::string, uint32_t> localByAttributes;
+            if (!sourceIndexed) localByAttributes.reserve(static_cast<size_t>(subset->vertexCount));
+            for (int i = 0; i < sourceElementCount; ++i)
+            {
+                const uint32_t globalIndex = sourceIndexed
+                    ? frame->indexBuffer[subset->indexStart + i]
+                    : static_cast<uint32_t>(subset->vertexStart + i);
+                if (globalIndex >= static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer))
+                    return fail("subset index is outside the frame vertex buffer");
+                uint32_t existingLogical = UINT32_MAX;
+                std::string attributeKey;
+                if (sourceIndexed)
+                {
+                    const auto found = localByGlobal.find(globalIndex);
+                    if (found != localByGlobal.end()) existingLogical = found->second;
+                }
+                else
+                {
+                    attributeKey.append(reinterpret_cast<const char *>(&sourcePositions[globalIndex]),
+                                        sizeof(VEC3));
+                    if (sourceNormals)
+                        attributeKey.append(reinterpret_cast<const char *>(&sourceNormals[globalIndex]),
+                                            sizeof(VEC3));
+                    if (sourceUvs)
+                        attributeKey.append(reinterpret_cast<const char *>(&sourceUvs[globalIndex]),
+                                            sizeof(VEC2));
+                    const auto found = localByAttributes.find(attributeKey);
+                    if (found != localByAttributes.end()) existingLogical = found->second;
+                }
+                if (existingLogical == UINT32_MAX)
+                {
+                    const POSITION_KEY key = positionKey(sourcePositions[globalIndex]);
+                    std::vector<uint32_t> &candidates = logicalByPosition[key];
+                    uint32_t logicalIndex = UINT32_MAX;
+                    for (const uint32_t candidate : candidates)
+                    {
+                        if (logicalSources[candidate].topologyDomain == subsetTopologyDomains[subsetIndex] &&
+                            logicalSources[candidate].globalBySubset.find(subsetIndex) ==
+                            logicalSources[candidate].globalBySubset.end())
+                        {
+                            logicalIndex = candidate;
+                            break;
+                        }
+                    }
+                    if (logicalIndex == UINT32_MAX)
+                    {
+                        logicalIndex = static_cast<uint32_t>(input.positions.size());
+                        input.positions.push_back(sourcePositions[globalIndex]);
+                        logicalSources.emplace_back();
+                        logicalSources.back().topologyDomain = subsetTopologyDomains[subsetIndex];
+                        candidates.push_back(logicalIndex);
+                        for (size_t sampleIndex = 0; sampleIndex < deformationDeltas.size(); ++sampleIndex)
+                            input.deformationDeltas[sampleIndex].push_back(
+                                deformationDeltas[sampleIndex][globalIndex]);
+                    }
+                    else
+                    {
+                        const float oldCount = static_cast<float>(logicalSources[logicalIndex].globals.size());
+                        const float newCount = oldCount + 1.0f;
+                        for (size_t sampleIndex = 0; sampleIndex < deformationDeltas.size(); ++sampleIndex)
+                        {
+                            VEC3 &logicalDelta = input.deformationDeltas[sampleIndex][logicalIndex];
+                            const VEC3 &sourceDelta = deformationDeltas[sampleIndex][globalIndex];
+                            logicalDelta.x = (logicalDelta.x * oldCount + sourceDelta.x) / newCount;
+                            logicalDelta.y = (logicalDelta.y * oldCount + sourceDelta.y) / newCount;
+                            logicalDelta.z = (logicalDelta.z * oldCount + sourceDelta.z) / newCount;
+                        }
+                    }
+                    LOGICAL_SOURCE &logicalSource = logicalSources[logicalIndex];
+                    logicalSource.globalBySubset.emplace(subsetIndex, globalIndex);
+                    logicalSource.globals.push_back(globalIndex);
+                    if (sourceIndexed) localByGlobal.emplace(globalIndex, logicalIndex);
+                    else localByAttributes.emplace(std::move(attributeKey), logicalIndex);
+                    existingLogical = logicalIndex;
+                }
+                input.indices.push_back(existingLogical);
+            }
+            input.triangleGroups.insert(input.triangleGroups.end(),
+                static_cast<size_t>(sourceElementCount / 3), subsetIndex);
+        }
+
+        const uint32_t activeSourceTriangles = static_cast<uint32_t>(input.indices.size() / 3);
+        if (activeSourceTriangles < 2)
+            return fail("target simplification scope requires at least two triangles");
+        const uint32_t minimumTriangles = targetSubsetIndex < 0
+            ? static_cast<uint32_t>(frame->subset.size()) : 1u;
+        const uint32_t targetTriangles = std::max<uint32_t>(minimumTriangles,
+            static_cast<uint32_t>(std::floor(activeSourceTriangles * targetTriangleRatio)));
+        mesh_simplifier::OUTPUT simplified;
+        std::string simplifyError;
+        if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError))
+            return fail(std::string("frame simplification failed: ") + simplifyError);
+        if (simplified.triangleGroups.size() != simplified.indices.size() / 3 ||
+            simplified.sourceContributions.size() != simplified.positions.size())
+            return fail("frame simplification returned inconsistent topology metadata");
+
+        std::vector<std::vector<uint32_t>> subsetLogicalIndices(frame->subset.size());
+        for (size_t triangle = 0; triangle < simplified.triangleGroups.size(); ++triangle)
+        {
+            const uint32_t group = simplified.triangleGroups[triangle];
+            if (group >= subsetLogicalIndices.size())
+                return fail("frame simplification returned an invalid subset group");
+            std::vector<uint32_t> &groupIndices = subsetLogicalIndices[group];
+            groupIndices.push_back(simplified.indices[triangle * 3]);
+            groupIndices.push_back(simplified.indices[triangle * 3 + 1]);
+            groupIndices.push_back(simplified.indices[triangle * 3 + 2]);
+        }
+
+        auto sourceGlobalsForSubset = [&logicalSources](const uint32_t logicalIndex,
+                                                        const uint32_t subsetIndex,
+                                                        std::vector<uint32_t> &fallback)
+        {
+            fallback.clear();
+            const LOGICAL_SOURCE &source = logicalSources[logicalIndex];
+            const auto found = source.globalBySubset.find(subsetIndex);
+            if (found != source.globalBySubset.end()) fallback.push_back(found->second);
+            else fallback = source.globals;
+        };
+        std::vector<uint32_t> attributeGlobals;
+        for (uint32_t subsetIndex = 0; subsetIndex < subsetLogicalIndices.size(); ++subsetIndex)
+        {
+            const std::vector<uint32_t> &groupIndices = subsetLogicalIndices[subsetIndex];
+            SUBSET_RANGE &range = results[subsetIndex];
+            range.vertexStart = static_cast<int>(positions.size());
+            range.indexStart = static_cast<int>(indices.size());
+            if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
+            {
+                const util::SUBSET_DEBUG *sourceSubset = frame->subset[subsetIndex];
+                std::unordered_map<uint32_t, uint32_t> copiedByGlobal;
+                copiedByGlobal.reserve(static_cast<size_t>(sourceSubset->vertexCount));
+                const int sourceElementCount = sourceIndexed
+                    ? sourceSubset->indexCount : sourceSubset->vertexCount;
+                for (int i = 0; i < sourceElementCount; ++i)
+                {
+                    const uint32_t globalIndex = sourceIndexed
+                        ? frame->indexBuffer[sourceSubset->indexStart + i]
+                        : static_cast<uint32_t>(sourceSubset->vertexStart + i);
+                    if (globalIndex >= report.sourceVertexCount)
+                        return fail("subset index is outside the frame vertex buffer");
+                    auto copied = copiedByGlobal.find(globalIndex);
+                    if (copied == copiedByGlobal.end())
+                    {
+                        if (positions.size() >= UINT16_MAX)
+                            return fail("simplified frame still exceeds the uint16 vertex-index limit");
+                        const uint32_t outputIndex = static_cast<uint32_t>(positions.size());
+                        copied = copiedByGlobal.emplace(globalIndex, outputIndex).first;
+                        positions.push_back(sourcePositions[globalIndex]);
+                        if (sourceNormals) normals.push_back(sourceNormals[globalIndex]);
+                        if (sourceUvs) uvs.push_back(sourceUvs[globalIndex]);
+                        if (hasCanonicalWeights)
+                            weights.push_back(impl->canonicalWeights.vertices[globalIndex]);
+                    }
+                    indices.push_back(static_cast<uint16_t>(copied->second));
+                }
+                range.vertexCount = static_cast<int>(positions.size()) - range.vertexStart;
+                range.indexCount = static_cast<int>(indices.size()) - range.indexStart;
+                continue;
+            }
+            if (groupIndices.empty())
+                return fail("simplification would remove every triangle from a material subset");
+            std::unordered_map<uint32_t, uint32_t> physicalByLogical;
+            physicalByLogical.reserve(groupIndices.size());
+            for (const uint32_t logicalOutput : groupIndices)
+            {
+                if (logicalOutput >= simplified.positions.size())
+                    return fail("frame simplification returned an invalid vertex index");
+                auto physical = physicalByLogical.find(logicalOutput);
+                if (physical == physicalByLogical.end())
+                {
+                    if (positions.size() >= UINT16_MAX)
+                        return fail("simplified frame still exceeds the uint16 vertex-index limit");
+                    const uint32_t physicalIndex = static_cast<uint32_t>(positions.size());
+                    physical = physicalByLogical.emplace(logicalOutput, physicalIndex).first;
+                    positions.push_back(simplified.positions[logicalOutput]);
+
+                    VEC3 blendedNormal(0.0f, 0.0f, 0.0f);
+                    VEC2 blendedUv(0.0f, 0.0f);
+                    double attributeTotal = 0.0;
+                    std::unordered_map<uint32_t, double> mergedWeights;
+                    for (const auto &contribution : simplified.sourceContributions[logicalOutput])
+                    {
+                        if (contribution.first >= logicalSources.size() || contribution.second <= 0.0f)
+                            continue;
+                        sourceGlobalsForSubset(contribution.first, subsetIndex, attributeGlobals);
+                        if (attributeGlobals.empty()) continue;
+                        const double perSource = static_cast<double>(contribution.second) /
+                                                 static_cast<double>(attributeGlobals.size());
+                        for (const uint32_t globalIndex : attributeGlobals)
+                        {
+                            if (sourceNormals)
+                            {
+                                blendedNormal.x += sourceNormals[globalIndex].x * static_cast<float>(perSource);
+                                blendedNormal.y += sourceNormals[globalIndex].y * static_cast<float>(perSource);
+                                blendedNormal.z += sourceNormals[globalIndex].z * static_cast<float>(perSource);
+                            }
+                            if (sourceUvs)
+                            {
+                                blendedUv.x += sourceUvs[globalIndex].x * static_cast<float>(perSource);
+                                blendedUv.y += sourceUvs[globalIndex].y * static_cast<float>(perSource);
+                            }
+                            if (hasCanonicalWeights)
+                            {
+                                const skeletal::CANONICAL_VERTEX_WEIGHT &sourceWeight =
+                                    impl->canonicalWeights.vertices[globalIndex];
+                                for (uint32_t slot = 0; slot < 4; ++slot)
+                                    if (sourceWeight.weight[slot] > 0.0f)
+                                        mergedWeights[sourceWeight.paletteIndex[slot]] +=
+                                            static_cast<double>(sourceWeight.weight[slot]) * perSource;
+                            }
+                        }
+                        attributeTotal += contribution.second;
+                    }
+                    if (!(attributeTotal > 0.0) || !std::isfinite(attributeTotal))
+                        return fail("collapsed vertex has no valid source attributes");
+                    if (sourceNormals)
+                    {
+                        const float length = std::sqrt(blendedNormal.x * blendedNormal.x +
+                                                       blendedNormal.y * blendedNormal.y +
+                                                       blendedNormal.z * blendedNormal.z);
+                        if (length > 1.0e-8f)
+                        {
+                            blendedNormal.x /= length;
+                            blendedNormal.y /= length;
+                            blendedNormal.z /= length;
+                        }
+                        normals.push_back(blendedNormal);
+                    }
+                    if (sourceUvs)
+                    {
+                        blendedUv.x /= static_cast<float>(attributeTotal);
+                        blendedUv.y /= static_cast<float>(attributeTotal);
+                        uvs.push_back(blendedUv);
+                    }
+                    if (hasCanonicalWeights)
+                    {
+                        std::vector<std::pair<uint32_t, double>> ranked(mergedWeights.begin(), mergedWeights.end());
+                        std::sort(ranked.begin(), ranked.end(), [](const auto &left, const auto &right)
+                        {
+                            return left.second > right.second ||
+                                   (left.second == right.second && left.first < right.first);
+                        });
+                        if (ranked.size() > 4) ranked.resize(4);
+                        double total = 0.0;
+                        for (const auto &entry : ranked) total += entry.second;
+                        if (!(total > 0.0) || !std::isfinite(total))
+                            return fail("collapsed vertex has no valid canonical skin influence");
+                        skeletal::CANONICAL_VERTEX_WEIGHT outputWeight = {};
+                        for (uint32_t slot = 0; slot < ranked.size(); ++slot)
+                        {
+                            outputWeight.paletteIndex[slot] = ranked[slot].first;
+                            outputWeight.weight[slot] = static_cast<float>(ranked[slot].second / total);
+                        }
+                        weights.push_back(outputWeight);
+                    }
+                }
+                indices.push_back(static_cast<uint16_t>(physical->second));
+            }
+            range.vertexCount = static_cast<int>(positions.size()) - range.vertexStart;
+            range.indexCount = static_cast<int>(indices.size()) - range.indexStart;
+        }
+        report.resultTriangleCount = static_cast<uint32_t>(indices.size() / 3);
+
+        const float boundsScale = std::max({sourceMaximum.x - sourceMinimum.x,
+                                            sourceMaximum.y - sourceMinimum.y,
+                                            sourceMaximum.z - sourceMinimum.z, 1.0f});
+        const float boundsTolerance = boundsScale * 1.0e-5f;
+        auto boundsViolation = [](const std::vector<VEC3> &candidatePositions,
+                                  const VEC3 &minimum, const VEC3 &maximum,
+                                  const float tolerance, const size_t frameIndex,
+                                  const bool shared, std::string &error)
+        {
+            float worstViolation = 0.0f;
+            float worstValue = 0.0f;
+            float worstMinimum = 0.0f;
+            float worstMaximum = 0.0f;
+            float worstExcess = 0.0f;
+            size_t worstVertex = 0;
+            char worstAxis = 'X';
+            for (size_t vertex = 0; vertex < candidatePositions.size(); ++vertex)
+            {
+                const VEC3 &position = candidatePositions[vertex];
+                const float values[3] = {position.x, position.y, position.z};
+                const float minima[3] = {minimum.x, minimum.y, minimum.z};
+                const float maxima[3] = {maximum.x, maximum.y, maximum.z};
+                for (size_t axis = 0; axis < 3; ++axis)
+                {
+                    if (!std::isfinite(values[axis]))
+                    {
+                        char message[192] = {};
+                        snprintf(message, sizeof(message),
+                            "simplify non-finite vertex: shared=%d frame=%zu vertex=%zu axis=%c",
+                            shared ? 1 : 0, frameIndex + 1, vertex + 1, "XYZ"[axis]);
+                        error.assign(message);
+                        return true;
+                    }
+                    const float excess = values[axis] < minima[axis]
+                        ? minima[axis] - values[axis]
+                        : (values[axis] > maxima[axis] ? values[axis] - maxima[axis] : 0.0f);
+                    const float violation = excess - tolerance;
+                    if (violation <= worstViolation) continue;
+                    worstViolation = violation;
+                    worstValue = values[axis];
+                    worstMinimum = minima[axis];
+                    worstMaximum = maxima[axis];
+                    worstExcess = excess;
+                    worstVertex = vertex;
+                    worstAxis = "XYZ"[axis];
+                }
+            }
+            if (!(worstViolation > 0.0f)) return false;
+            char message[384] = {};
+            snprintf(message, sizeof(message),
+                "simplify bounds violation: shared=%d frame=%zu vertex=%zu axis=%c value=%.9g min=%.9g max=%.9g excess=%.9g tolerance=%.9g",
+                shared ? 1 : 0, frameIndex + 1, worstVertex + 1, worstAxis,
+                worstValue, worstMinimum, worstMaximum, worstExcess, tolerance);
+            error.assign(message);
+            return true;
+        };
+        std::string boundsError;
+        if (boundsViolation(positions, sourceMinimum, sourceMaximum, boundsTolerance,
+                            static_cast<size_t>(referenceFrameIndex), false, boundsError))
+            return fail(boundsError);
+
+        if (hasCanonicalWeights)
+        {
+            simplifiedWeights = impl->canonicalWeights;
+            simplifiedWeights.vertices = weights;
+            if (!skeletal::validateCanonicalWeights(impl->canonicalSkeleton, simplifiedWeights,
+                                                    static_cast<uint32_t>(positions.size())))
+                return fail("simplified canonical skin weights failed validation");
+        }
+
+        struct SHARED_FRAME_RESULT
+        {
+            std::unique_ptr<float[]> positions;
+            std::unique_ptr<float[]> normals;
+            std::unique_ptr<float[]> uvs;
+            std::unique_ptr<uint16_t[]> indices;
+            std::vector<SUBSET_RANGE> ranges;
+            size_t vertexCount = 0;
+            size_t indexCount = 0;
+        };
+        std::vector<SHARED_FRAME_RESULT> sharedResults;
+        if (simplifyAllFrames)
+        {
+            if (simplified.deformationDeltas.size() + 1 != impl->buffer.size())
+                return fail("shared simplification returned incomplete frame deformation data");
+            sharedResults.reserve(impl->buffer.size() - 1);
+            for (size_t frameIndex = 1; frameIndex < impl->buffer.size(); ++frameIndex)
+            {
+                util::BUFFER_MESH_DEBUG *sharedFrame = impl->buffer[frameIndex];
+                const auto *sharedPositions = reinterpret_cast<const VEC3 *>(sharedFrame->position);
+                const auto *sharedNormals = reinterpret_cast<const VEC3 *>(sharedFrame->normal);
+                const auto *sharedUvs = reinterpret_cast<const VEC2 *>(sharedFrame->uv);
+                const std::vector<VEC3> &frameDeltas = simplified.deformationDeltas[frameIndex - 1];
+                if (frameDeltas.size() != simplified.positions.size())
+                    return fail("shared simplification returned an invalid frame deformation count");
+
+                std::vector<VEC3> framePositions;
+                std::vector<VEC3> frameNormals;
+                std::vector<VEC2> frameUvs;
+                std::vector<uint16_t> frameIndices;
+                std::vector<SUBSET_RANGE> frameRanges(sharedFrame->subset.size());
+                std::vector<uint32_t> frameAttributeGlobals;
+                for (uint32_t subsetIndex = 0; subsetIndex < subsetLogicalIndices.size(); ++subsetIndex)
+                {
+                    const std::vector<uint32_t> &groupIndices = subsetLogicalIndices[subsetIndex];
+                    SUBSET_RANGE &range = frameRanges[subsetIndex];
+                    range.vertexStart = static_cast<int>(framePositions.size());
+                    range.indexStart = static_cast<int>(frameIndices.size());
+                    if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
+                    {
+                        const util::SUBSET_DEBUG *sourceSubset = sharedFrame->subset[subsetIndex];
+                        std::unordered_map<uint32_t, uint32_t> copiedByGlobal;
+                        copiedByGlobal.reserve(static_cast<size_t>(sourceSubset->vertexCount));
+                        const int sourceElementCount = sourceIndexed
+                            ? sourceSubset->indexCount : sourceSubset->vertexCount;
+                        for (int i = 0; i < sourceElementCount; ++i)
+                        {
+                            const uint32_t globalIndex = sourceIndexed
+                                ? sharedFrame->indexBuffer[sourceSubset->indexStart + i]
+                                : static_cast<uint32_t>(sourceSubset->vertexStart + i);
+                            auto copied = copiedByGlobal.find(globalIndex);
+                            if (copied == copiedByGlobal.end())
+                            {
+                                if (framePositions.size() >= UINT16_MAX)
+                                    return fail("shared simplified frame exceeds the uint16 vertex-index limit");
+                                const uint32_t outputIndex = static_cast<uint32_t>(framePositions.size());
+                                copied = copiedByGlobal.emplace(globalIndex, outputIndex).first;
+                                framePositions.push_back(sharedPositions[globalIndex]);
+                                if (sharedNormals) frameNormals.push_back(sharedNormals[globalIndex]);
+                                if (sharedUvs) frameUvs.push_back(sharedUvs[globalIndex]);
+                            }
+                            frameIndices.push_back(static_cast<uint16_t>(copied->second));
+                        }
+                        range.vertexCount = static_cast<int>(framePositions.size()) - range.vertexStart;
+                        range.indexCount = static_cast<int>(frameIndices.size()) - range.indexStart;
+                        continue;
+                    }
+
+                    std::unordered_map<uint32_t, uint32_t> physicalByLogical;
+                    physicalByLogical.reserve(groupIndices.size());
+                    for (const uint32_t logicalOutput : groupIndices)
+                    {
+                        auto physical = physicalByLogical.find(logicalOutput);
+                        if (physical == physicalByLogical.end())
+                        {
+                            if (logicalOutput >= frameDeltas.size() || framePositions.size() >= UINT16_MAX)
+                                return fail("shared simplification returned an invalid vertex index");
+                            const uint32_t physicalIndex = static_cast<uint32_t>(framePositions.size());
+                            physical = physicalByLogical.emplace(logicalOutput, physicalIndex).first;
+                            framePositions.push_back(simplified.positions[logicalOutput] + frameDeltas[logicalOutput]);
+
+                            VEC3 blendedNormal(0.0f, 0.0f, 0.0f);
+                            VEC2 blendedUv(0.0f, 0.0f);
+                            double attributeTotal = 0.0;
+                            for (const auto &contribution : simplified.sourceContributions[logicalOutput])
+                            {
+                                if (contribution.first >= logicalSources.size() || contribution.second <= 0.0f)
+                                    continue;
+                                sourceGlobalsForSubset(contribution.first, subsetIndex, frameAttributeGlobals);
+                                if (frameAttributeGlobals.empty()) continue;
+                                const double perSource = static_cast<double>(contribution.second) /
+                                    static_cast<double>(frameAttributeGlobals.size());
+                                for (const uint32_t globalIndex : frameAttributeGlobals)
+                                {
+                                    if (sharedNormals)
+                                    {
+                                        blendedNormal.x += sharedNormals[globalIndex].x * static_cast<float>(perSource);
+                                        blendedNormal.y += sharedNormals[globalIndex].y * static_cast<float>(perSource);
+                                        blendedNormal.z += sharedNormals[globalIndex].z * static_cast<float>(perSource);
+                                    }
+                                    if (sharedUvs)
+                                    {
+                                        blendedUv.x += sharedUvs[globalIndex].x * static_cast<float>(perSource);
+                                        blendedUv.y += sharedUvs[globalIndex].y * static_cast<float>(perSource);
+                                    }
+                                }
+                                attributeTotal += contribution.second;
+                            }
+                            if (!(attributeTotal > 0.0) || !std::isfinite(attributeTotal))
+                                return fail("shared collapsed vertex has no valid source attributes");
+                            if (sharedNormals)
+                            {
+                                const float length = std::sqrt(blendedNormal.x * blendedNormal.x +
+                                    blendedNormal.y * blendedNormal.y + blendedNormal.z * blendedNormal.z);
+                                if (length > 1.0e-8f) blendedNormal = blendedNormal * (1.0f / length);
+                                frameNormals.push_back(blendedNormal);
+                            }
+                            if (sharedUvs)
+                            {
+                                blendedUv.x /= static_cast<float>(attributeTotal);
+                                blendedUv.y /= static_cast<float>(attributeTotal);
+                                frameUvs.push_back(blendedUv);
+                            }
+                        }
+                        frameIndices.push_back(static_cast<uint16_t>(physical->second));
+                    }
+                    range.vertexCount = static_cast<int>(framePositions.size()) - range.vertexStart;
+                    range.indexCount = static_cast<int>(frameIndices.size()) - range.indexStart;
+                }
+
+                VEC3 frameMinimum = sharedPositions[0];
+                VEC3 frameMaximum = sharedPositions[0];
+                for (uint32_t vertex = 1; vertex < report.sourceVertexCount; ++vertex)
+                {
+                    const VEC3 &position = sharedPositions[vertex];
+                    frameMinimum.x = std::min(frameMinimum.x, position.x);
+                    frameMinimum.y = std::min(frameMinimum.y, position.y);
+                    frameMinimum.z = std::min(frameMinimum.z, position.z);
+                    frameMaximum.x = std::max(frameMaximum.x, position.x);
+                    frameMaximum.y = std::max(frameMaximum.y, position.y);
+                    frameMaximum.z = std::max(frameMaximum.z, position.z);
+                }
+                const float frameScale = std::max({frameMaximum.x - frameMinimum.x,
+                    frameMaximum.y - frameMinimum.y, frameMaximum.z - frameMinimum.z, 1.0f});
+                const float frameTolerance = frameScale * 1.0e-5f;
+                boundsError.clear();
+                if (boundsViolation(framePositions, frameMinimum, frameMaximum, frameTolerance,
+                                    frameIndex, true, boundsError))
+                    return fail(boundsError);
+
+                SHARED_FRAME_RESULT result;
+                result.vertexCount = framePositions.size();
+                result.indexCount = frameIndices.size();
+                result.ranges = std::move(frameRanges);
+                result.positions = std::make_unique<float[]>(framePositions.size() * 3);
+                memcpy(result.positions.get(), framePositions.data(), framePositions.size() * sizeof(VEC3));
+                if (sharedNormals)
+                {
+                    result.normals = std::make_unique<float[]>(frameNormals.size() * 3);
+                    memcpy(result.normals.get(), frameNormals.data(), frameNormals.size() * sizeof(VEC3));
+                }
+                if (sharedUvs)
+                {
+                    result.uvs = std::make_unique<float[]>(frameUvs.size() * 2);
+                    memcpy(result.uvs.get(), frameUvs.data(), frameUvs.size() * sizeof(VEC2));
+                }
+                result.indices = std::make_unique<uint16_t[]>(frameIndices.size());
+                memcpy(result.indices.get(), frameIndices.data(), frameIndices.size() * sizeof(uint16_t));
+                sharedResults.push_back(std::move(result));
+            }
+        }
+
+        std::unique_ptr<float[]> newPositions(new float[positions.size() * 3]);
+        std::unique_ptr<float[]> newNormals(sourceNormals ? new float[normals.size() * 3] : nullptr);
+        std::unique_ptr<float[]> newUvs(sourceUvs ? new float[uvs.size() * 2] : nullptr);
+        std::unique_ptr<uint16_t[]> newIndices(new uint16_t[indices.size()]);
+        memcpy(newPositions.get(), positions.data(), positions.size() * sizeof(VEC3));
+        if (newNormals) memcpy(newNormals.get(), normals.data(), normals.size() * sizeof(VEC3));
+        if (newUvs) memcpy(newUvs.get(), uvs.data(), uvs.size() * sizeof(VEC2));
+        memcpy(newIndices.get(), indices.data(), indices.size() * sizeof(uint16_t));
+
+        delete[] frame->position;
+        delete[] frame->normal;
+        delete[] frame->uv;
+        delete[] frame->indexBuffer;
+        frame->position = newPositions.release();
+        frame->normal = newNormals.release();
+        frame->uv = newUvs.release();
+        frame->indexBuffer = newIndices.release();
+        frame->headerFrame.sizeVertexBuffer = static_cast<int>(positions.size());
+        frame->headerFrame.sizeIndexBuffer = static_cast<int>(indices.size());
+        report.resultVertexCount = static_cast<uint32_t>(positions.size());
+        for (size_t i = 0; i < results.size(); ++i)
+        {
+            util::SUBSET_DEBUG *subset = frame->subset[i];
+            subset->vertexStart = results[i].vertexStart;
+            subset->indexStart = results[i].indexStart;
+            subset->vertexCount = results[i].vertexCount;
+            subset->indexCount = results[i].indexCount;
+        }
+        for (size_t resultIndex = 0; resultIndex < sharedResults.size(); ++resultIndex)
+        {
+            util::BUFFER_MESH_DEBUG *sharedFrame = impl->buffer[resultIndex + 1];
+            SHARED_FRAME_RESULT &result = sharedResults[resultIndex];
+            delete[] sharedFrame->position;
+            delete[] sharedFrame->normal;
+            delete[] sharedFrame->uv;
+            delete[] sharedFrame->indexBuffer;
+            sharedFrame->position = result.positions.release();
+            sharedFrame->normal = result.normals.release();
+            sharedFrame->uv = result.uvs.release();
+            sharedFrame->indexBuffer = result.indices.release();
+            sharedFrame->headerFrame.sizeVertexBuffer = static_cast<int>(result.vertexCount);
+            sharedFrame->headerFrame.sizeIndexBuffer = static_cast<int>(result.indexCount);
+            for (size_t subsetIndex = 0; subsetIndex < result.ranges.size(); ++subsetIndex)
+            {
+                util::SUBSET_DEBUG *subset = sharedFrame->subset[subsetIndex];
+                subset->vertexStart = result.ranges[subsetIndex].vertexStart;
+                subset->indexStart = result.ranges[subsetIndex].indexStart;
+                subset->vertexCount = result.ranges[subsetIndex].vertexCount;
+                subset->indexCount = result.ranges[subsetIndex].indexCount;
+            }
+        }
+        report.maximumGeometricError = simplified.maximumError;
+        if (simplifyAllFrames) report.maximumFrameError = simplified.maximumPoseError;
+        else report.maximumPoseError = simplified.maximumPoseError;
+        report.maximumRelativeError = simplified.maximumRelativeError;
+        report.collapseCount = simplified.collapseCount;
+        report.boundaryRejectedCollapseCount = simplified.boundaryRejectedCollapseCount;
+        report.topologyRejectedCollapseCount = simplified.topologyRejectedCollapseCount;
+        report.orientationRejectedCollapseCount = simplified.orientationRejectedCollapseCount;
+        report.invalidRejectedCollapseCount = simplified.invalidRejectedCollapseCount;
+        report.degenerateTriangleCount = simplified.degenerateTriangleCount;
+        report.nonManifoldEdgeCount = simplified.nonManifoldEdgeCount;
+        report.connectedComponentCount = simplified.connectedComponentCount;
+        report.detailPenalizedCandidateCount = simplified.detailPenalizedCandidateCount;
+        report.detailPenalizedCollapseCount = simplified.detailPenalizedCollapseCount;
+        report.clearanceRejectedCollapseCount = simplified.clearanceRejectedCollapseCount;
+        if (hasCanonicalWeights)
+            impl->canonicalWeights = std::move(simplifiedWeights);
+        return true;
+    }
+
     void MESH_MBM_DEBUG::removeBuffer(uint32_t indexFrame)
     {
         if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
@@ -2430,6 +3241,25 @@ namespace mbm
         const int srcICount  = srcSub->indexCount;
         const int tgtOldV    = tgtBuf->headerFrame.sizeVertexBuffer;
         const int tgtOldI    = tgtBuf->headerFrame.sizeIndexBuffer;
+        const bool copyCanonicalWeights = this->impl->canonicalWeights.skeletonId != 0 &&
+            this->impl->canonicalWeights.frameIndex == targetFrame;
+        std::vector<skeletal::CANONICAL_VERTEX_WEIGHT> sourceWeights;
+        if (copyCanonicalWeights)
+        {
+            if (src.impl->canonicalWeights.skeletonId == 0 ||
+                src.impl->canonicalWeights.frameIndex != srcFrame ||
+                this->impl->canonicalWeights.skeletonId != src.impl->canonicalWeights.skeletonId ||
+                this->impl->canonicalWeights.paletteBoneIds != src.impl->canonicalWeights.paletteBoneIds ||
+                this->impl->canonicalWeights.vertices.size() != static_cast<size_t>(tgtOldV) ||
+                src.impl->canonicalWeights.vertices.size() !=
+                    static_cast<size_t>(srcBuf->headerFrame.sizeVertexBuffer) ||
+                srcVStart < 0 || srcVCount < 0 ||
+                static_cast<size_t>(srcVStart + srcVCount) > src.impl->canonicalWeights.vertices.size())
+                return 0;
+            sourceWeights.insert(sourceWeights.end(),
+                src.impl->canonicalWeights.vertices.begin() + srcVStart,
+                src.impl->canonicalWeights.vertices.begin() + srcVStart + srcVCount);
+        }
         // Append vertex data
         if (srcVCount > 0)
         {
@@ -2491,6 +3321,9 @@ namespace mbm
         newSub->indexCount  = srcICount;
         tgtBuf->subset.push_back(newSub);
         tgtBuf->headerFrame.totalSubset = static_cast<int>(tgtBuf->subset.size());
+        if (copyCanonicalWeights)
+            this->impl->canonicalWeights.vertices.insert(
+                this->impl->canonicalWeights.vertices.end(), sourceWeights.begin(), sourceWeights.end());
         return static_cast<uint32_t>(tgtBuf->subset.size());
     }
 

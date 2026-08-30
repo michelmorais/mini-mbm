@@ -1,7 +1,7 @@
 # Plan: Remove the Last Worker-Thread `getFullPath`/`addPath` Call from Async Mesh Loading
 
-Status: **implemented** (see `MBM_VERSION` history in `include/version/version.h` for the entry
-that shipped this). Companion to `docs/async-loading-and-threading.md`, which documents the
+Status: **implemented** (see the Git history for the entry that shipped this). Companion to
+`docs/async-loading-and-threading.md`, which documents the
 mutex/deferred-queue fix already shipped for the bug this plan follows up on.
 
 **Scope correction from the original write-up below**: this plan, as originally written, only

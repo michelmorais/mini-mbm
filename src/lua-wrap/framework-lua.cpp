@@ -65,15 +65,27 @@
 #include <lua-wrap/render-table/mesh-debug-lua.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <map>
+#include <memory>
+#include <thread>
 #include <vector>
 #include <audio-interface.h>
 #if defined ANDROID
     // no includes here
+#elif defined _WIN32
+    #include <windows.h>
 #elif defined(__APPLE__) && !defined(ANDROID)
+    #include <mach-o/dyld.h>
+    #include <spawn.h>
+    #include <signal.h>
+    #include <sys/wait.h>
     #include <unistd.h>                 // getcwd — no X11 on macOS
 #elif defined(__linux__)
     #include <unistd.h>
+    #include <spawn.h>
+    #include <signal.h>
+    #include <sys/wait.h>
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
 #endif
@@ -91,10 +103,268 @@ extern "C"
     #include <lua-wrap/render-table/vr-lua.h>
 #endif
 
+#if !defined(_WIN32) && !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+extern char **environ;
+#endif
 
 
 namespace mbm 
 {
+#if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+    static int onGetExecutablePath(lua_State *lua)
+    {
+#if defined _WIN32
+        std::vector<char> path(32768, '\0');
+        const DWORD length = GetModuleFileNameA(nullptr, path.data(), static_cast<DWORD>(path.size()));
+        if (length == 0 || length >= path.size())
+            lua_pushnil(lua);
+        else
+            lua_pushlstring(lua, path.data(), length);
+#elif defined(__APPLE__)
+        uint32_t size = 0;
+        _NSGetExecutablePath(nullptr, &size);
+        std::vector<char> path(size + 1, '\0');
+        if (_NSGetExecutablePath(path.data(), &size) != 0)
+            lua_pushnil(lua);
+        else
+            lua_pushstring(lua, path.data());
+#else
+        std::vector<char> path(4096, '\0');
+        const ssize_t length = readlink("/proc/self/exe", path.data(), path.size() - 1);
+        if (length <= 0)
+            lua_pushnil(lua);
+        else
+            lua_pushlstring(lua, path.data(), static_cast<size_t>(length));
+#endif
+        return 1;
+    }
+
+    namespace
+    {
+        constexpr const char *PROCESS_JOB_METATABLE = "mbmProcessJob";
+
+        struct PROCESS_JOB
+        {
+#if defined _WIN32
+            HANDLE process = nullptr;
+#else
+            pid_t pid = -1;
+#endif
+            int exitCode = 0;
+            bool finished = false;
+
+            ~PROCESS_JOB()
+            {
+#if defined _WIN32
+                if (process)
+                    CloseHandle(process);
+#else
+                if (pid > 0 && !finished)
+                {
+                    const pid_t child = pid;
+                    std::thread([child]()
+                    {
+                        int status = 0;
+                        while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+                    }).detach();
+                }
+#endif
+            }
+
+            bool poll()
+            {
+                if (finished)
+                    return false;
+#if defined _WIN32
+                if (!process)
+                {
+                    exitCode = -1;
+                    finished = true;
+                    return false;
+                }
+                const DWORD waitResult = WaitForSingleObject(process, 0);
+                if (waitResult == WAIT_TIMEOUT)
+                    return true;
+                DWORD code = 0;
+                exitCode = waitResult == WAIT_OBJECT_0 && GetExitCodeProcess(process, &code)
+                    ? static_cast<int>(code) : -1;
+#else
+                int status = 0;
+                const pid_t result = waitpid(pid, &status, WNOHANG);
+                if (result == 0 || (result < 0 && errno == EINTR))
+                    return true;
+                if (result < 0)
+                    exitCode = -1;
+                else if (WIFEXITED(status))
+                    exitCode = WEXITSTATUS(status);
+                else if (WIFSIGNALED(status))
+                    exitCode = 128 + WTERMSIG(status);
+                else
+                    exitCode = -1;
+#endif
+                finished = true;
+                return false;
+            }
+
+            bool cancel()
+            {
+                if (!poll())
+                    return false;
+#if defined _WIN32
+                return TerminateProcess(process, 1) != FALSE;
+#else
+                return kill(pid, SIGTERM) == 0;
+#endif
+            }
+        };
+
+        PROCESS_JOB **checkProcessJob(lua_State *lua)
+        {
+            return static_cast<PROCESS_JOB **>(luaL_checkudata(lua, 1, PROCESS_JOB_METATABLE));
+        }
+
+        int onProcessJobIsRunning(lua_State *lua)
+        {
+            PROCESS_JOB **holder = checkProcessJob(lua);
+            lua_pushboolean(lua, *holder && (*holder)->poll());
+            return 1;
+        }
+
+        int onProcessJobGetExitCode(lua_State *lua)
+        {
+            PROCESS_JOB **holder = checkProcessJob(lua);
+            if (!*holder || (*holder)->poll())
+                lua_pushnil(lua);
+            else
+                lua_pushinteger(lua, (*holder)->exitCode);
+            return 1;
+        }
+
+        int onProcessJobCancel(lua_State *lua)
+        {
+            PROCESS_JOB **holder = checkProcessJob(lua);
+            lua_pushboolean(lua, *holder && (*holder)->cancel());
+            return 1;
+        }
+
+        int onProcessJobDestroy(lua_State *lua)
+        {
+            PROCESS_JOB **holder = checkProcessJob(lua);
+            delete *holder;
+            *holder = nullptr;
+            return 0;
+        }
+
+#if defined _WIN32
+        std::string quoteWindowsArgument(const std::string &value)
+        {
+            if (value.find_first_of(" \t\"") == std::string::npos)
+                return value;
+            std::string quoted("\"");
+            size_t backslashes = 0;
+            for (const char ch : value)
+            {
+                if (ch == '\\')
+                {
+                    ++backslashes;
+                    continue;
+                }
+                quoted.append(ch == '"' ? backslashes * 2 + 1 : backslashes, '\\');
+                backslashes = 0;
+                quoted.push_back(ch);
+            }
+            quoted.append(backslashes * 2, '\\');
+            quoted.push_back('"');
+            return quoted;
+        }
+#endif
+
+        int onExecuteProcessAsync(lua_State *lua)
+        {
+            luaL_checktype(lua, 1, LUA_TTABLE);
+            lua_getfield(lua, 1, "executable");
+            const std::string executable(luaL_checkstring(lua, -1));
+            lua_pop(lua, 1);
+            if (executable.empty())
+                return luaL_error(lua, "executeProcessAsync requires a non-empty executable");
+
+            std::vector<std::string> values{executable};
+            lua_getfield(lua, 1, "arguments");
+            if (!lua_isnil(lua, -1))
+            {
+                luaL_checktype(lua, -1, LUA_TTABLE);
+                const lua_Integer count = static_cast<lua_Integer>(lua_rawlen(lua, -1));
+                for (lua_Integer index = 1; index <= count; ++index)
+                {
+                    lua_rawgeti(lua, -1, index);
+                    values.emplace_back(luaL_checkstring(lua, -1));
+                    lua_pop(lua, 1);
+                }
+            }
+            lua_pop(lua, 1);
+
+            auto job = std::make_unique<PROCESS_JOB>();
+#if defined _WIN32
+            std::string commandLine;
+            for (const std::string &value : values)
+            {
+                if (!commandLine.empty()) commandLine.push_back(' ');
+                commandLine += quoteWindowsArgument(value);
+            }
+            lua_getfield(lua, 1, "hidden");
+            const bool hidden = lua_isnil(lua, -1) || lua_toboolean(lua, -1) != 0;
+            lua_pop(lua, 1);
+            STARTUPINFOA startup{};
+            PROCESS_INFORMATION processInfo{};
+            startup.cb = sizeof(startup);
+            const DWORD flags = hidden ? CREATE_NO_WINDOW : CREATE_NEW_CONSOLE;
+            if (!CreateProcessA(nullptr, &commandLine[0], nullptr, nullptr, FALSE,
+                                flags, nullptr, nullptr, &startup, &processInfo))
+            {
+                lua_pushnil(lua);
+                lua_pushfstring(lua, "CreateProcess failed with error %d", static_cast<int>(GetLastError()));
+                return 2;
+            }
+            CloseHandle(processInfo.hThread);
+            job->process = processInfo.hProcess;
+#else
+            std::vector<char *> arguments;
+            arguments.reserve(values.size() + 1);
+            for (std::string &value : values)
+                arguments.push_back(&value[0]);
+            arguments.push_back(nullptr);
+            const int spawnResult = posix_spawnp(&job->pid, executable.c_str(), nullptr, nullptr,
+                                                 arguments.data(), environ);
+            if (spawnResult != 0)
+            {
+                lua_pushnil(lua);
+                lua_pushfstring(lua, "posix_spawn failed with error %d", spawnResult);
+                return 2;
+            }
+#endif
+            PROCESS_JOB **holder = static_cast<PROCESS_JOB **>(lua_newuserdata(lua, sizeof(PROCESS_JOB *)));
+            *holder = job.release();
+            luaL_getmetatable(lua, PROCESS_JOB_METATABLE);
+            lua_setmetatable(lua, -2);
+            return 1;
+        }
+
+        void registerProcessJob(lua_State *lua)
+        {
+            const luaL_Reg methods[] = {
+                {"isRunning", onProcessJobIsRunning}, {"getExitCode", onProcessJobGetExitCode},
+                {"cancel", onProcessJobCancel}, {"destroy", onProcessJobDestroy},
+                {"__gc", onProcessJobDestroy}, {nullptr, nullptr}
+            };
+            luaL_newmetatable(lua, PROCESS_JOB_METATABLE);
+            luaL_setfuncs(lua, methods, 0);
+            lua_pushvalue(lua, -1);
+            lua_setfield(lua, -2, "__index");
+            lua_pop(lua, 1);
+        }
+    }
+#endif
+
     inline const char* __std_p()
     {
         // MBM_VERSION may be "X.Y" (min "1.0", sizeof==4) or "X.Y.Z" (min "1.0.0", sizeof==6);
@@ -3154,6 +3424,9 @@ namespace mbm
 
     void registerNamespaceMBM(lua_State *lua, SCENE *scene, lua_CFunction OnNewScene, lua_CFunction OnGetSplash)
     {
+#if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+        registerProcessJob(lua);
+#endif
         luaL_Reg regMbmConstantsMethods[] = {{"__index", onIndexConstants},{nullptr, nullptr}};
         luaL_newmetatable(lua,"mbmCONSTANTS");
         luaL_setfuncs(lua, regMbmConstantsMethods, 0);
@@ -3171,6 +3444,9 @@ namespace mbm
             {"showConsole", onShowConsoleMbm},
             {"addPath", onAddPathSourceMbm},
             {"getPathEngine", onGetPathSourceMbm},
+#if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+            {"getExecutablePath", onGetExecutablePath},
+#endif
             {"getFullPath", onGetFullPath},
             {"getAllPaths", onGetAllPath },
             {"to2dw", ontransform2dS2dWMbm},
@@ -3250,6 +3526,7 @@ namespace mbm
             
     #if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
             {"executeInThread", onExecuteInOtherThread},
+            {"executeProcessAsync", onExecuteProcessAsync},
     #endif
             {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},
             {"getAlphaBounds", onGetAlphaBoundsLua},

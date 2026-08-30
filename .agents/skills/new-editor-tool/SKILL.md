@@ -89,6 +89,29 @@ The engine calls these Lua globals in your script:
 
 **Important**: All ImGui rendering and state logic lives inside `onLoop(delta)`.
 
+## Protected Calls and Diagnostics
+
+Define `dpCall` near the start of every new editor script and use it instead of raw `pcall` for all
+protected calls. The only raw `pcall` in the editor should be the one inside this wrapper. Preserve
+all return values so existing `pcall` call sites can be converted without changing their contract:
+
+```lua
+-- pcall wrapper that prints the error on failure, then returns all values normally
+local function dpCall(fn, ...)
+    local res = table.pack(pcall(fn, ...))
+    if not res[1] then
+        print('[editor_name] ' .. tostring(res[2]))
+    end
+    return table.unpack(res, 1, res.n)
+end
+```
+
+Replace `editor_name` with a stable, recognizable identifier for the editor. When extending an
+existing editor, route its raw `pcall` call sites through `dpCall` as part of the change when doing
+so is safely in scope. Remember that functions such as `io.open` commonly return `nil, error`
+without throwing; handle and report those error return values explicitly because `dpCall` cannot
+diagnose a failure that does not raise a Lua error.
+
 ---
 
 ## Minimum Required Structure
@@ -914,3 +937,4 @@ Before committing a new editor tool, verify:
 - [ ] Editor tested on Linux debug build (`-DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug`)
 - [ ] Main editor script passes `loadfile()` and new top-level locals did not exhaust Lua's 200-local limit
 - [ ] Cohesive helpers/data added to a large editor were extracted into a `require` module where practical
+- [ ] `dpCall` is defined once, all protected calls use it, and the only raw `pcall` is inside the wrapper

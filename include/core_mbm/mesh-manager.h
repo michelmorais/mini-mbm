@@ -65,6 +65,35 @@ namespace mbm
         float weights[4];
     };
 
+    struct MESH_SIMPLIFY_REPORT
+    {
+        uint32_t sourceVertexCount = 0;
+        uint32_t resultVertexCount = 0;
+        uint32_t sourceTriangleCount = 0;
+        uint32_t resultTriangleCount = 0;
+        float maximumGeometricError = 0.0f;
+        bool skinWeightAware = false;
+        bool poseSampledError = false;
+        uint32_t sampledPoseCount = 0;
+        uint32_t sampledClipCount = 0;
+        float maximumPoseError = 0.0f;
+        bool geometryFrameAware = false;
+        uint32_t geometryFrameCount = 0;
+        float maximumFrameError = 0.0f;
+        float maximumRelativeError = 0.0f;
+        uint32_t collapseCount = 0;
+        uint32_t boundaryRejectedCollapseCount = 0;
+        uint32_t topologyRejectedCollapseCount = 0;
+        uint32_t orientationRejectedCollapseCount = 0;
+        uint32_t invalidRejectedCollapseCount = 0;
+        uint32_t degenerateTriangleCount = 0;
+        uint32_t nonManifoldEdgeCount = 0;
+        uint32_t connectedComponentCount = 0;
+        uint32_t detailPenalizedCandidateCount = 0;
+        uint32_t detailPenalizedCollapseCount = 0;
+        uint32_t clearanceRejectedCollapseCount = 0;
+    };
+
     struct BUFFER_MESH
     {
         BUFFER_GL *pBufferGL;
@@ -291,6 +320,19 @@ namespace mbm
         API_IMPL void calculateUV();
         API_IMPL void removeNormals();
         API_IMPL void addNormals();
+        // Simplifies one indexed or non-indexed triangle frame atomically. Non-indexed input is
+        // internally indexed by exact position/normal/UV attributes and the committed result uses
+        // the existing uint16 index contract. targetSubsetIndex=-1 processes the complete virtual
+        // cross-subset topology; otherwise only that zero-based material subset is reduced and
+        // every other subset is copied without changing its rendered vertex attributes.
+        // targetFrameIndex selects the zero-based geometry frame; -1 applies one shared collapse
+        // sequence to every compatible non-skeletal frame. Multi-frame skeletal and articulated
+        // assets remain unsupported.
+        API_IMPL bool simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
+                               char *errorOut, const int errorOutLen,
+                               const int targetSubsetIndex = -1,
+                               const int targetFrameIndex = 0,
+                               const bool preserveDetails = true);
         API_IMPL void removeBuffer(uint32_t indexFrame);
         API_IMPL void removeAnimation(uint32_t index);
         // Writes the v11 section/TLV format (docs/mesh-v11-format.md): material+transform, frames,

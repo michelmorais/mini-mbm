@@ -30,6 +30,7 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 tBlender      =     require "blender_cli_wrapper"
+tMeshImporter =     require "blender_mesh_importer"
 tImportMode   =     require "blender_import_mode_helper"
 tXformGizmo   =     require "mesh_debug_transform_gizmo"
 
@@ -404,7 +405,7 @@ function onInitScene()
         iProgress = 0,
         iTotal = 0,
         sProgressDetail = '',
-        iTimeoutSecs = 120,
+        iTimeoutSecs = 600,
         bAbortRequested = false,
         sCancelFile = '',
         customBlenderPath = '',
@@ -416,6 +417,8 @@ function onInitScene()
         nImportAngleY = 0,
         nImportAngleZ = 0,
         iLargeMeshMode = 1,
+        bReducePolygons = false,
+        nReducePolygonRatio = 0.5,
         bImportPreferSkeletal = true,
         bImportIncludeBones = true, -- legacy state name kept for older saved sessions
         tRunResults = {},
@@ -2172,6 +2175,10 @@ local function buildBlenderImportSuccessSummary(row, outMsh, importOptions)
         sizeText,
         textureText)
     local modeInfo = importOptions and importOptions.modeInfo or nil
+    if importOptions and importOptions.decimateRatio then
+        summary = summary .. '\n' .. string.format(
+            tLang.L('blender_import_summary_decimate_fmt'), importOptions.decimateRatio * 100.0)
+    end
     if modeInfo and modeInfo.mode == 'skeletal' then
         summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_skeletal_fmt'), importOptions.skeletalKeySamples or 1)
     elseif modeInfo and modeInfo.fallbackExpected then
@@ -2257,15 +2264,34 @@ local function blenderImportCoroutine()
         importOptions.importAngleY = st.nImportAngleY
         importOptions.importAngleZ = st.nImportAngleZ
         importOptions.largeMeshMode = tBlender.getLargeMeshModeArg()
+        if st.bReducePolygons then
+            importOptions.decimateRatio = math.max(0.01, math.min(1.0, tonumber(st.nReducePolygonRatio) or 0.5))
+        end
         importOptions.includeBones = tBlender.getPreferSkeletal()
-        local cmd = tBlender.buildBakeCmd(src, modeIntermediateOnly and outDir or outMsh, exporterPath, importOptions)
+        local importerJob, importerError = nil, nil
+        local cmd = nil
+        if modeIntermediateOnly then
+            cmd = tBlender.buildBakeCmd(src, outDir, exporterPath, importOptions)
+        else
+            importerJob, importerError = tMeshImporter.start({
+                wrapper = tBlender,
+                input = src,
+                output = outMsh,
+                log = dbgLog,
+                cancelFile = cancelFile,
+                timeout = st.iTimeoutSecs,
+                expectedFrames = rowEstimate.targetFrames or 1,
+                options = importOptions,
+            })
+            cmd = importerJob and true or nil
+        end
         if cmd then
             if modeInfo.fallbackExpected then
                 blenderDebugPrint(st, 'skeletal preference fallback expected: %s', modeInfo.reason or '')
             elseif modeInfo.unknown then
                 blenderDebugPrint(st, 'skeletal preference scan unknown: %s', modeInfo.reason or '')
             end
-            tBlender.launchCmdAsync(cmd, dbgLog)
+            if modeIntermediateOnly then tBlender.launchCmdAsync(cmd, dbgLog) end
             st.sCancelFile = cancelFile
             local startTime = os.time()
             local lastActivityTime = startTime
@@ -2275,8 +2301,9 @@ local function blenderImportCoroutine()
             local expectedFrames = rowEstimate.targetFrames or 1
             local finished = false
             while not finished do
+                if importerJob then importerJob:update() end
                 if st.bAbortRequested then
-                    writeTextFile(cancelFile, 'cancel\n')
+                    if importerJob then importerJob:cancel() else writeTextFile(cancelFile, 'cancel\n') end
                     failed = failed + 1
                     lastErr = tLang.L('blender_import_status_canceled')
                     blenderDebugPrint(st, 'abort requested: %s', src)
@@ -2428,9 +2455,10 @@ local function blenderImportCoroutine()
                 end
             end
         else
-            timedOut = timedOut + 1
-            blenderDebugPrint(st, 'failed to build command for: %s', src)
-            pushBlenderRunResult(src, 'timed_out', tLang.L('blender_import_status_timed_out'))
+            failed = failed + 1
+            lastErr = importerError or tLang.L('blender_import_status_timed_out')
+            blenderDebugPrint(st, 'failed to start import for %s: %s', src, lastErr)
+            pushBlenderRunResult(src, 'failed', lastErr)
         end
         st.iProgress = i
         st.sCancelFile = ''
@@ -2997,6 +3025,18 @@ function showBlenderImportDialog()
     if (st.iLargeMeshMode or 1) == 2 then
         tImGui.TextDisabled(tLang.L('blender_import_large_mesh_vb_only_note'))
     end
+    st.bReducePolygons = tImGui.Checkbox(tLang.L('blender_import_reduce_polygons'), st.bReducePolygons)
+    tImGui.SameLine()
+    tImGui.HelpMarker(tLang.L('blender_import_reduce_polygons_help'))
+    tImGui.BeginDisabled(not st.bReducePolygons)
+    tImGui.PushItemWidth(180)
+    local reduceChanged, newReduceRatio = tImGui.SliderFloat(
+        tLang.L('blender_import_reduce_ratio'), st.nReducePolygonRatio or 0.5, 0.01, 1.0, '%.2f')
+    if reduceChanged and newReduceRatio then
+        st.nReducePolygonRatio = math.max(0.01, math.min(1.0, newReduceRatio))
+    end
+    tImGui.PopItemWidth()
+    tImGui.EndDisabled()
     st.bImportPreferSkeletal = tImGui.Checkbox(tLang.L('blender_import_prefer_skeletal'), tBlender.getPreferSkeletal())
     st.bImportIncludeBones = st.bImportPreferSkeletal
     tImGui.SameLine()
@@ -3347,6 +3387,9 @@ function addMeshToTable(fileName)
         bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
+        tSimplifyState       = {ratio = 0.9, scope = 'frame', selectedSubsets = {},
+                                virtualFrame = false, report = nil},
+        tSimplifyBackup      = nil,
         tCheckedRemove       = tCheckedRm,
         bShowFramePick       = false,
         tImportMeshD         = nil,
@@ -3472,6 +3515,7 @@ function removeMeshFromTable(index)
         tXformGizmo.destroy(removed)
         if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
         splitCaptureDiscardBackup(removed)
+        simplifyDiscardBackup(removed)
         transformDiscardUndo(removed)
         destroySplitCaptureIslandMarkers(removed)
         destroyTransformSubsetHoverMarker(removed)
@@ -4064,7 +4108,8 @@ function rebuildNormalVisualization(tEntry, meshD)
     end
 end
 
--- Returns total triangle count (indexCount/3) across all frames/subsets, or 0 on error
+-- Returns total face count across all frames/subsets, or 0 on error. Triangle-list meshes without
+-- an index buffer store three consecutive vertices per face.
 function getMeshTotalTriangles(meshD)
     local total = 0
     local ok, nFrames = dpCall(function() return meshD:getTotalFrame() end)
@@ -4074,13 +4119,37 @@ function getMeshTotalTriangles(meshD)
         if ok2 and nSubsets then
             for s = 1, nSubsets do
                 local ok3, nIdx = dpCall(function() return meshD:getTotalIndex(f, s) end)
-                if ok3 and nIdx then
+                if ok3 and nIdx and nIdx > 0 then
                     total = total + math.floor(nIdx / 3)
+                else
+                    local ok4, nVert = dpCall(function() return meshD:getTotalVertex(f, s) end)
+                    if ok4 and nVert then total = total + math.floor(nVert / 3) end
                 end
             end
         end
     end
     return total
+end
+
+function formatHumanCount(value)
+    local count = math.max(0, math.floor(tonumber(value) or 0))
+    local units = {
+        {value = 1000000000000, suffix = 'T'},
+        {value = 1000000000, suffix = 'B'},
+        {value = 1000000, suffix = 'M'},
+        {value = 1000, suffix = 'K'},
+    }
+    for _, unit in ipairs(units) do
+        if count >= unit.value then
+            local scaled = count / unit.value
+            local human = scaled >= 100 and string.format('%.0f%s', scaled, unit.suffix)
+                or scaled >= 10 and string.format('%.1f%s', scaled, unit.suffix)
+                or string.format('%.2f%s', scaled, unit.suffix)
+            human = human:gsub('(%..-)0+([KMBT])$', '%1%2'):gsub('%.([KMBT])$', '%1')
+            return string.format('%s (%d)', human, count)
+        end
+    end
+    return tostring(count)
 end
 
 -- Returns unique texture names used by the mesh
@@ -4624,6 +4693,7 @@ function showMeshInfoTable(tEntry, index)
     end
     local nTri = getMeshTotalTriangles(meshD)
     if nTri > 0 then
+        addRow(tLang.L('faces_count'), formatHumanCount(nTri))
         addRow('Total triangles', nTri)
         if totalFrames > 0 then addRow('Average triangles/frame', string.format('%.2f', nTri / totalFrames)) end
     end
@@ -8316,6 +8386,282 @@ function splitCaptureDiscardBackup(tEntry)
     tEntry.tSplitCaptureBackup = nil
 end
 
+function simplifyDiscardBackup(tEntry)
+    local backup = tEntry and tEntry.tSimplifyBackup
+    if not backup then return end
+    meshDebug:fakeRelease(backup.path)
+    os.remove(backup.path)
+    tEntry.tSimplifyBackup = nil
+end
+
+function simplifyCreateBackup(tEntry, meshD)
+    local path = tUtil.getTemporaryFilePath('_simplify_undo.msh')
+    if not meshD:save(path, false, false) then
+        meshDebug:fakeRelease(path)
+        os.remove(path)
+        return nil
+    end
+    return {
+        path = path,
+        modified = tEntry.modified == true,
+        info = splitCaptureCopyTable(tEntry.info),
+    }
+end
+
+function simplifyRestoreBackup(tEntry, index)
+    local backup = tEntry.tSimplifyBackup
+    if not backup then return false end
+    local restored = meshDebug:new()
+    if not restored:load(backup.path) then
+        tUtil.showMessageWarn(tLang.L('simplify_revert_failed'))
+        return false
+    end
+    destroyNormalVisualization(tEntry)
+    destroyPhysicsVisualization(tEntry)
+    tEntry.meshDebug = restored
+    tEntry.modified = backup.modified
+    tEntry.info = backup.info
+    tEntry.tSimplifyState.report = nil
+    tEntry.tTransformBoundsCache = nil
+    tEntry.bNormalsVizDirty = true
+    tEntry.bPhysicsVizDirty = true
+    simplifyDiscardBackup(tEntry)
+    if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    rebuildBoneGizmo(tEntry, restored, index)
+    tUtil.showMessage(tLang.L('simplify_revert_success'), 5)
+    return true
+end
+
+function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, targets, ratio, preserveDetails)
+    local isolatedMesh = meshDebug:new()
+    if not isolatedMesh:load(backupPath) then
+        return nil, tLang.L('simplify_virtual_copy_failed')
+    end
+    local totalFrames = isolatedMesh:getTotalFrame()
+    for frame = totalFrames, 1, -1 do
+        if frame ~= targetFrame then isolatedMesh:removeFrame(frame) end
+    end
+    local selected = {}
+    for _, subset in ipairs(targets) do selected[subset] = true end
+    local totalSubsets = isolatedMesh:getTotalSubset(1)
+    for subset = totalSubsets, 1, -1 do
+        if not selected[subset] then isolatedMesh:removeSubset(1, subset) end
+    end
+    if isolatedMesh:getTotalSubset(1) ~= #targets then
+        return nil, tLang.L('simplify_virtual_copy_failed')
+    end
+    local report, simplifyError = isolatedMesh:simplify(ratio, nil, nil, preserveDetails)
+    if not report then return nil, simplifyError end
+
+    for i = #targets, 1, -1 do workingMesh:removeSubset(targetFrame, targets[i]) end
+    for isolatedSubset, targetPosition in ipairs(targets) do
+        local beforeCount = workingMesh:getTotalSubset(targetFrame)
+        workingMesh:copySubsetFrom(targetFrame, isolatedMesh, 1, isolatedSubset)
+        local currentPosition = workingMesh:getTotalSubset(targetFrame)
+        if currentPosition ~= beforeCount + 1 then
+            return nil, tLang.L('simplify_virtual_rebuild_failed')
+        end
+        while currentPosition > targetPosition do
+            if not workingMesh:moveSubsetUp(targetFrame, currentPosition) then
+                return nil, tLang.L('simplify_virtual_rebuild_failed')
+            end
+            currentPosition = currentPosition - 1
+        end
+    end
+    if not workingMesh:check() then
+        return nil, tLang.L('simplify_virtual_rebuild_failed')
+    end
+    return report
+end
+
+function simplifySubsetTriangles(indexCount, vertexCount)
+    if indexCount and indexCount > 0 then return math.floor(indexCount / 3) end
+    return math.floor((vertexCount or 0) / 3)
+end
+
+function simplifyGeometryTotals(meshD, frame)
+    frame = frame or 1
+    local vertices, triangles = 0, 0
+    local totalSubsets = meshD:getTotalSubset(frame)
+    for subset = 1, totalSubsets do
+        vertices = vertices + meshD:getTotalVertex(frame, subset)
+        local indexCount = meshD:getTotalIndex(frame, subset)
+        local vertexCount = meshD:getTotalVertex(frame, subset)
+        triangles = triangles + simplifySubsetTriangles(indexCount, vertexCount)
+    end
+    return vertices, triangles
+end
+
+function simplifyLocalizedError(errorValue)
+    local rawError = tostring(errorValue or tLang.L('unknown_error'))
+    local frameError = rawError:match('^frame simplification failed: (.+)$')
+    local detail = frameError or rawError
+    local shared, frame, vertex, axis, value, minimum, maximum, excess, tolerance = detail:match(
+        '^simplify bounds violation: shared=(%d+) frame=(%d+) vertex=(%d+) axis=([XYZ]) ' ..
+        'value=(%S+) min=(%S+) max=(%S+) excess=(%S+) tolerance=(%S+)$')
+    if shared then
+        local key = shared == '1' and 'simplify_error_shared_bounds_detail_fmt'
+            or 'simplify_error_bounds_detail_fmt'
+        return string.format(tLang.L(key), tonumber(frame), tonumber(vertex), axis,
+            value, minimum, maximum, excess, tolerance)
+    end
+    local nonFiniteShared, nonFiniteFrame, nonFiniteVertex, nonFiniteAxis = detail:match(
+        '^simplify non%-finite vertex: shared=(%d+) frame=(%d+) vertex=(%d+) axis=([XYZ])$')
+    if nonFiniteShared then
+        return string.format(tLang.L('simplify_error_non_finite_detail_fmt'),
+            tonumber(nonFiniteFrame), tonumber(nonFiniteVertex), nonFiniteAxis)
+    end
+    local errorKeys = {
+        ['topology constraints prevent reaching the requested triangle count'] =
+            'simplify_error_topology_constraints',
+        ['edge-collapse pass made no progress'] = 'simplify_error_no_progress',
+        ['simplified topology contains a non-manifold edge'] = 'simplify_error_non_manifold',
+        ['simplified vertex escaped the source geometry bounds'] = 'simplify_error_source_bounds',
+        ["shared simplified vertex escaped a source frame's geometry bounds"] =
+            'simplify_error_shared_frame_bounds',
+    }
+    local key = errorKeys[detail]
+    if not key then return rawError end
+    local translated = tLang.L(key)
+    if frameError then
+        return string.format(tLang.L('simplify_error_frame_fmt'), translated)
+    end
+    return translated
+end
+
+function simplifyShowFailure(errorValue)
+    local message = string.format(tLang.L('simplify_failed_fmt'),
+        simplifyLocalizedError(errorValue))
+    print('[mesh_debug] ' .. message)
+    tUtil.showMessageWarn(message, 6)
+end
+
+function simplifyQualityLevel(report)
+    local relativeError = math.max(0, tonumber(report and report.maximumRelativeError) or 0)
+    if relativeError <= 0.03 then return 'good' end
+    if relativeError <= 0.10 then return 'attention' end
+    return 'risky'
+end
+
+function simplifyQualityLabel(report)
+    return tLang.L('simplify_quality_' .. simplifyQualityLevel(report))
+end
+
+function simplifyApply(tEntry, meshD, index)
+    local simplifyState = tEntry.tSimplifyState
+    local sourceFrame = simplifyState.sharedFrames and 1 or (simplifyState.selectedFrame or 1)
+    local targetFrame = simplifyState.sharedFrames and 0 or sourceFrame
+    local pendingBackup = simplifyCreateBackup(tEntry, meshD)
+    if not pendingBackup then
+        tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
+        return false
+    end
+    local workingMesh = meshDebug:new()
+    if not workingMesh:load(pendingBackup.path) then
+        meshDebug:fakeRelease(pendingBackup.path)
+        os.remove(pendingBackup.path)
+        tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
+        return false
+    end
+    local targets = {'frame'}
+    if simplifyState.scope == 'subsets' then
+        targets = {}
+        for subset, selected in pairs(simplifyState.selectedSubsets or {}) do
+            if selected then table.insert(targets, subset) end
+        end
+        table.sort(targets)
+    end
+    local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh, sourceFrame)
+    local aggregateReport = nil
+    local useVirtualFrame = simplifyState.scope == 'subsets' and
+        simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2
+    if useVirtualFrame then
+        local okSimplify, report, simplifyError = dpCall(function()
+            return simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
+                sourceFrame, targets, simplifyState.ratio, simplifyState.preserveDetails)
+        end)
+        if not okSimplify or not report then
+            meshDebug:fakeRelease(pendingBackup.path)
+            os.remove(pendingBackup.path)
+            simplifyShowFailure(okSimplify and simplifyError or report)
+            return false
+        end
+        aggregateReport = splitCaptureCopyTable(report)
+    else
+        for _, targetSubset in ipairs(targets) do
+            local okSimplify, report, simplifyError = dpCall(function()
+                if targetSubset == 'frame' then
+                    return workingMesh:simplify(simplifyState.ratio, nil, targetFrame,
+                        simplifyState.preserveDetails)
+                end
+                return workingMesh:simplify(simplifyState.ratio, targetSubset, targetFrame,
+                    simplifyState.preserveDetails)
+            end)
+            if not okSimplify or not report then
+                meshDebug:fakeRelease(pendingBackup.path)
+                os.remove(pendingBackup.path)
+                simplifyShowFailure(okSimplify and simplifyError or report)
+                return false
+            end
+            if not aggregateReport then
+                aggregateReport = splitCaptureCopyTable(report)
+            else
+                aggregateReport.resultVertexCount = report.resultVertexCount
+                aggregateReport.resultTriangleCount = report.resultTriangleCount
+                aggregateReport.maximumGeometricError = math.max(
+                    aggregateReport.maximumGeometricError or 0, report.maximumGeometricError or 0)
+                aggregateReport.maximumPoseError = math.max(
+                    aggregateReport.maximumPoseError or 0, report.maximumPoseError or 0)
+                aggregateReport.maximumRelativeError = math.max(
+                    aggregateReport.maximumRelativeError or 0, report.maximumRelativeError or 0)
+                for _, field in ipairs({
+                    'collapseCount', 'boundaryRejectedCollapseCount',
+                    'topologyRejectedCollapseCount', 'orientationRejectedCollapseCount',
+                    'invalidRejectedCollapseCount', 'degenerateTriangleCount',
+                    'nonManifoldEdgeCount', 'connectedComponentCount',
+                    'detailPenalizedCandidateCount', 'detailPenalizedCollapseCount',
+                    'clearanceRejectedCollapseCount'
+                }) do
+                    aggregateReport[field] = (aggregateReport[field] or 0) + (report[field] or 0)
+                end
+            end
+        end
+    end
+    local resultVertices, resultTriangles = simplifyGeometryTotals(workingMesh, sourceFrame)
+    aggregateReport.sourceVertexCount = sourceVertices
+    aggregateReport.sourceTriangleCount = sourceTriangles
+    aggregateReport.resultVertexCount = resultVertices
+    aggregateReport.resultTriangleCount = resultTriangles
+    simplifyDiscardBackup(tEntry)
+    tEntry.tSimplifyBackup = pendingBackup
+    simplifyState.report = aggregateReport
+    tEntry.meshDebug = workingMesh
+    tEntry.modified = true
+    tEntry.tTransformBoundsCache = nil
+    tEntry.bNormalsVizDirty = true
+    tEntry.bPhysicsVizDirty = true
+    destroyNormalVisualization(tEntry)
+    destroyPhysicsVisualization(tEntry)
+    if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    rebuildBoneGizmo(tEntry, workingMesh, index)
+    tUtil.showMessage(string.format(tLang.L('simplify_success_fmt'),
+        aggregateReport.sourceTriangleCount, aggregateReport.resultTriangleCount), 5)
+    local reduction = aggregateReport.sourceTriangleCount > 0 and
+        (1 - aggregateReport.resultTriangleCount / aggregateReport.sourceTriangleCount) * 100 or 0
+    print(string.format(tLang.L('simplify_terminal_quality_fmt'),
+        simplifyQualityLabel(aggregateReport), reduction,
+        (aggregateReport.maximumRelativeError or 0) * 100,
+        aggregateReport.collapseCount or 0,
+        aggregateReport.boundaryRejectedCollapseCount or 0,
+        aggregateReport.topologyRejectedCollapseCount or 0,
+        aggregateReport.orientationRejectedCollapseCount or 0,
+        aggregateReport.invalidRejectedCollapseCount or 0,
+        aggregateReport.detailPenalizedCollapseCount or 0,
+        aggregateReport.detailPenalizedCandidateCount or 0,
+        aggregateReport.clearanceRejectedCollapseCount or 0))
+    return true
+end
+
 function splitCaptureCreateBackup(tEntry, meshD)
     local backupPath = tUtil.getTemporaryFilePath('.msh')
     if not meshD:save(backupPath, false, false) then
@@ -8441,7 +8787,7 @@ function splitCaptureSignature(vertices, indices, texture)
 end
 
 function splitCaptureGroup(vertices, triangles)
-    local outVertices, outIndices, remap = {}, {}, {}
+    local outVertices, outIndices, outSources, remap = {}, {}, {}, {}
     for _, tri in ipairs(triangles) do
         for _, oldIndex in ipairs(tri) do
             local newIndex = remap[oldIndex]
@@ -8449,11 +8795,60 @@ function splitCaptureGroup(vertices, triangles)
                 newIndex = #outVertices + 1
                 remap[oldIndex] = newIndex
                 outVertices[newIndex] = vertices[oldIndex]
+                outSources[newIndex] = oldIndex
             end
             table.insert(outIndices, newIndex)
         end
     end
-    return outVertices, outIndices
+    return outVertices, outIndices, outSources
+end
+
+function splitCaptureSnapshotWeights(meshD)
+    local okHas, hasWeights = dpCall(function() return meshD:hasSkeletalVertexWeights() end)
+    if not okHas or not hasWeights then return nil end
+    local subsets, globalIndex = {}, 0
+    local okS, totalSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    if not okS or not totalSubsets then return nil, tLang.L('capture_weights_failed') end
+    for subset = 1, totalSubsets do
+        subsets[subset] = {}
+        local okV, totalVertices = dpCall(function() return meshD:getTotalVertex(1, subset) end)
+        if not okV or not totalVertices then return nil, tLang.L('capture_weights_failed') end
+        for vertex = 1, totalVertices do
+            globalIndex = globalIndex + 1
+            local okW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function()
+                return meshD:getSkeletalVertexWeight(globalIndex)
+            end)
+            if not okW or not n1 then return nil, tLang.L('capture_weights_failed') end
+            subsets[subset][vertex] = {
+                [1]=n1, [2]=w1, [3]=n2, [4]=w2,
+                [5]=n3, [6]=w3, [7]=n4, [8]=w4,
+            }
+        end
+    end
+    return subsets
+end
+
+function splitCaptureRestoreWeights(meshD, subsets)
+    if not subsets then return true end
+    local okRemove = dpCall(function() return meshD:removeSkeletalVertexWeights() end)
+    if not okRemove then return false end
+    local okInit = dpCall(function() return meshD:initializeSkeletalVertexWeights(1) end)
+    if not okInit then return false end
+    local edits, globalIndex = {}, 0
+    for _, subset in ipairs(subsets) do
+        for _, weight in ipairs(subset) do
+            globalIndex = globalIndex + 1
+            edits[#edits + 1] = {
+                [1]=globalIndex,
+                [2]=weight[1], [3]=weight[2], [4]=weight[3], [5]=weight[4],
+                [6]=weight[5], [7]=weight[6], [8]=weight[7], [9]=weight[8],
+            }
+        end
+    end
+    local okSet, setResult = dpCall(function()
+        return meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    return okSet and setResult == true
 end
 
 function splitCaptureSetSubsetTextures(meshD, frame, subset, texture, materialTextures)
@@ -8753,6 +9148,8 @@ function splitCaptureApply(tEntry, meshD, resolved)
     tEntry.tSplitCapturedSignatures = tEntry.tSplitCapturedSignatures or {}
     local sourceHadNormals = tEntry.info and tEntry.info.hasNormal == true
     local sourceNormalStateKnown = tEntry.info and tEntry.info.hasNormal ~= nil
+    local weightSubsets, weightError = splitCaptureSnapshotWeights(meshD)
+    if weightError then return nil, weightError end
     table.sort(resolved.groups, function(left, right)
         return left.frame > right.frame or (left.frame == right.frame and left.subset > right.subset)
     end)
@@ -8769,22 +9166,39 @@ function splitCaptureApply(tEntry, meshD, resolved)
             local tri = {group.indices[i], group.indices[i+1], group.indices[i+2]}
             if not chosenSet[table.concat(tri, ':')] then table.insert(outside, tri) end
         end
-        local outsideV, outsideI = splitCaptureGroup(group.vertices, outside)
-        local insideV, insideI = splitCaptureGroup(group.vertices, chosen)
+        local outsideV, outsideI, outsideSources = splitCaptureGroup(group.vertices, outside)
+        local insideV, insideI, insideSources = splitCaptureGroup(group.vertices, chosen)
+        local sourceWeights = group.frame == 1 and weightSubsets and
+            table.remove(weightSubsets, group.subset) or nil
         meshD:removeSubset(group.frame, group.subset)
         if #outsideI > 0 then
             local newS = meshD:addSubSet(group.frame)
             meshD:addVertex(group.frame, newS, outsideV); meshD:addIndex(group.frame, newS, outsideI)
             splitCaptureSetSubsetTextures(meshD, group.frame, newS, group.texture, group.materialTextures)
+            if sourceWeights then
+                local weights = {}
+                for _, sourceIndex in ipairs(outsideSources) do weights[#weights + 1] = sourceWeights[sourceIndex] end
+                weightSubsets[#weightSubsets + 1] = weights
+            end
         end
         local newS = meshD:addSubSet(group.frame)
         meshD:addVertex(group.frame, newS, insideV); meshD:addIndex(group.frame, newS, insideI)
         splitCaptureSetSubsetTextures(meshD, group.frame, newS, group.texture, group.materialTextures)
+        if sourceWeights then
+            local weights = {}
+            for _, sourceIndex in ipairs(insideSources) do weights[#weights + 1] = sourceWeights[sourceIndex] end
+            weightSubsets[#weightSubsets + 1] = weights
+        end
         tEntry.tSplitCapturedSignatures[tostring(group.frame) .. ':' .. splitCaptureSignature(insideV, insideI, group.texture)] = true
+    end
+    if weightSubsets and not splitCaptureRestoreWeights(meshD, weightSubsets) then
+        return nil, tLang.L('capture_weights_failed')
     end
     if resolved.faces > 0 and sourceNormalStateKnown and not sourceHadNormals then
         meshD:removeNormals(); tEntry.info.hasNormal = false
     end
+    local okCheck, valid = dpCall(function() return meshD:check() end)
+    if not okCheck or not valid then return nil, tLang.L('capture_analysis_failed') end
     return resolved.faces, resolved.frames
 end
 
@@ -8792,7 +9206,17 @@ function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
     if resolved.faces == 0 then tUtil.showMessageWarn(tLang.L('capture_no_faces')); return end
     local pendingBackup = splitCaptureCreateBackup(tEntry, meshD)
     if not pendingBackup then tUtil.showMessageWarn(tLang.L('capture_backup_failed')); return end
-    local faces, framesOrError = splitCaptureApply(tEntry, meshD, resolved)
+    local workingMesh = meshDebug:new()
+    if not workingMesh:load(pendingBackup.path) then
+        meshDebug:fakeRelease(pendingBackup.path); os.remove(pendingBackup.path)
+        tUtil.showMessageWarn(tLang.L('capture_backup_failed'))
+        return
+    end
+    local workingEntry = {
+        info = splitCaptureCopyTable(tEntry.info),
+        tSplitCapturedSignatures = splitCaptureCopyTable(tEntry.tSplitCapturedSignatures),
+    }
+    local faces, framesOrError = splitCaptureApply(workingEntry, workingMesh, resolved)
     if not faces then
         meshDebug:fakeRelease(pendingBackup.path); os.remove(pendingBackup.path)
         tUtil.showMessageWarn(framesOrError or tLang.L('capture_analysis_failed'))
@@ -8800,11 +9224,15 @@ function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
     end
     splitCaptureDiscardBackup(tEntry)
     tEntry.tSplitCaptureBackup = pendingBackup
+    tEntry.meshDebug = workingMesh
+    tEntry.info = workingEntry.info
+    tEntry.tSplitCapturedSignatures = workingEntry.tSplitCapturedSignatures
     tEntry.modified = true
     tEntry.bNormalsVizDirty = true
     tEntry.bPhysicsVizDirty = true
     tEntry.tTransformBoundsCache = nil
     iLastPreviewedIndex = 0
+    rebuildBoneGizmo(tEntry, workingMesh, index)
     sp.lastFaces, sp.lastFrames = faces, framesOrError
     table.insert(tEntry.tSplitCaptures, {
         faces=faces, frames=framesOrError, x=sp.x, y=sp.y, z=sp.z,
@@ -9089,6 +9517,226 @@ function showSplitCapture(tEntry, meshD, index)
     end
 end
 
+function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
+    local simplifyState = tEntry.tSimplifyState or {
+        ratio = 0.9, scope = 'frame', selectedFrame = 1,
+        sharedFrames = false, selectedSubsets = {}, virtualFrame = false,
+        preserveDetails = true, report = nil
+    }
+    tEntry.tSimplifyState = simplifyState
+    simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
+    simplifyState.selectedSubsets = simplifyState.selectedSubsets or {}
+    simplifyState.selectedFrame = math.max(1, math.min(nFrames, simplifyState.selectedFrame or 1))
+    simplifyState.sharedFrames = simplifyState.sharedFrames == true and nFrames > 1
+    simplifyState.preserveDetails = simplifyState.preserveDetails ~= false
+    tImGui.Text(tLang.L('simplify_geometry'))
+
+    local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
+    scopeIndex = tImGui.RadioButton(
+        tLang.L('simplify_scope_frame') .. '##simplifyFrame-' .. index, scopeIndex, 1)
+    tImGui.SameLine()
+    scopeIndex = tImGui.RadioButton(
+        tLang.L('simplify_scope_subsets') .. '##simplifySubsets-' .. index, scopeIndex, 2)
+    local selectedScope = scopeIndex == 2 and 'subsets' or 'frame'
+    if selectedScope ~= simplifyState.scope then
+        simplifyState.scope = selectedScope
+        simplifyState.report = nil
+    end
+
+    if nFrames > 1 then
+        local sharedFrames = tImGui.Checkbox(
+            tLang.L('simplify_shared_frames') .. '##simplifySharedFrames-' .. index,
+            simplifyState.sharedFrames)
+        if sharedFrames ~= simplifyState.sharedFrames then
+            simplifyState.sharedFrames = sharedFrames
+            simplifyState.selectedSubsets = {}
+            simplifyState.report = nil
+        end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(420)
+            tImGui.Text(tLang.L('simplify_shared_frames_tooltip'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
+        if simplifyState.frameOptionsCount ~= nFrames then
+            simplifyState.frameOptions = {}
+            for frame = 1, nFrames do
+                simplifyState.frameOptions[frame] = tostring(frame)
+            end
+            simplifyState.frameOptionsCount = nFrames
+        end
+        tImGui.BeginDisabled(simplifyState.sharedFrames)
+        tImGui.SetNextItemWidth(90)
+        local frameChanged, selectedFrame = tImGui.Combo(
+            tLang.L('simplify_select_frame') .. '##simplifyTargetFrame-' .. index,
+            simplifyState.selectedFrame, simplifyState.frameOptions, -1)
+        if frameChanged and selectedFrame ~= simplifyState.selectedFrame then
+            simplifyState.selectedFrame = selectedFrame
+            simplifyState.selectedSubsets = {}
+            simplifyState.report = nil
+        end
+        tImGui.EndDisabled()
+    end
+    local targetFrame = simplifyState.sharedFrames and 1 or simplifyState.selectedFrame
+
+    local sourceTriangles = 0
+    local selectedCount = 0
+    local estimatedTriangles = 0
+    if simplifyState.scope == 'subsets' then
+        tImGui.Text(tLang.L('simplify_select_subsets'))
+        for _, subset in ipairs(allSubsets) do
+            if subset.f == targetFrame then
+                local selected = simplifyState.selectedSubsets[subset.s] == true
+                local label = string.format(tLang.L('simplify_scope_subset_fmt'),
+                    subset.s, subset.texName)
+                local newSelected = tImGui.Checkbox(label .. '##simplifySubset-' .. index .. '-' .. subset.s,
+                    selected)
+                if newSelected ~= selected then
+                    simplifyState.selectedSubsets[subset.s] = newSelected
+                    simplifyState.report = nil
+                end
+                if simplifyState.selectedSubsets[subset.s] then
+                    local triangles = simplifySubsetTriangles(subset.indexCount, subset.vertexCount)
+                    sourceTriangles = sourceTriangles + triangles
+                    estimatedTriangles = estimatedTriangles + math.max(1,
+                        math.floor(triangles * (simplifyState.ratio or 0.9)))
+                    selectedCount = selectedCount + 1
+                end
+            end
+        end
+        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames)
+        local virtualFrame = tImGui.Checkbox(
+            tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
+            simplifyState.virtualFrame == true)
+        if virtualFrame ~= simplifyState.virtualFrame then
+            simplifyState.virtualFrame = virtualFrame
+            simplifyState.report = nil
+        end
+        tImGui.EndDisabled()
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(420)
+            tImGui.Text(tLang.L('simplify_virtual_frame_tooltip'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
+        if simplifyState.virtualFrame and selectedCount >= 2 then
+            estimatedTriangles = math.max(selectedCount,
+                math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
+        end
+    else
+        for _, subset in ipairs(allSubsets) do
+            if subset.f == targetFrame then
+                sourceTriangles = sourceTriangles +
+                    simplifySubsetTriangles(subset.indexCount, subset.vertexCount)
+                selectedCount = selectedCount + 1
+            end
+        end
+        estimatedTriangles = math.max(selectedCount,
+            math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
+    end
+
+    tImGui.PushItemWidth(180)
+    local ratioChanged, ratio = tImGui.SliderFloat(
+        tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
+        simplifyState.ratio or 0.9, 0.05, 0.95, '%.2f')
+    if ratioChanged and ratio then
+        simplifyState.ratio = ratio
+        simplifyState.report = nil
+        if simplifyState.scope == 'subsets' then
+            if simplifyState.virtualFrame and selectedCount >= 2 then
+                estimatedTriangles = math.max(selectedCount, math.floor(sourceTriangles * ratio))
+            else
+                estimatedTriangles = 0
+                for _, subset in ipairs(allSubsets) do
+                    if subset.f == targetFrame and simplifyState.selectedSubsets[subset.s] then
+                        local triangles = simplifySubsetTriangles(subset.indexCount, subset.vertexCount)
+                        estimatedTriangles = estimatedTriangles + math.max(1,
+                            math.floor(triangles * ratio))
+                    end
+                end
+            end
+        else
+            estimatedTriangles = math.max(selectedCount, math.floor(sourceTriangles * ratio))
+        end
+    end
+    tImGui.PopItemWidth()
+    tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'), sourceTriangles, estimatedTriangles))
+    tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
+    local preserveDetails = tImGui.Checkbox(
+        tLang.L('simplify_preserve_details') .. '##simplifyPreserveDetails-' .. index,
+        simplifyState.preserveDetails)
+    if preserveDetails ~= simplifyState.preserveDetails then
+        simplifyState.preserveDetails = preserveDetails
+        simplifyState.report = nil
+    end
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.PushTextWrapPos(420)
+        tImGui.Text(tLang.L('simplify_preserve_details_tooltip'))
+        tImGui.PopTextWrapPos()
+        tImGui.EndTooltip()
+    end
+
+    local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
+    local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
+        #tEntry.tPendingOps == 0 and hasSelection
+    if not canSimplify then
+        local messageKey = #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
+            or 'simplify_select_at_least_one_subset'
+        tImGui.TextDisabled(tLang.L(messageKey))
+    end
+    local applied = false
+    tImGui.BeginDisabled(not canSimplify)
+    if tImGui.Button(tLang.L('simplify_apply') .. '##simplifyApply-' .. index) then
+        applied = simplifyApply(tEntry, meshD, index)
+    end
+    tImGui.EndDisabled()
+    if tEntry.tSimplifyBackup then
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('simplify_revert') .. '##simplifyRevert-' .. index) then
+            simplifyRestoreBackup(tEntry, index)
+            applied = true
+        end
+    end
+    local report = simplifyState.report
+    if report then
+        local reduction = report.sourceTriangleCount > 0 and
+            (1 - report.resultTriangleCount / report.sourceTriangleCount) * 100 or 0
+        tImGui.Text(string.format(tLang.L('simplify_report_geometry_fmt'),
+            report.sourceVertexCount, report.resultVertexCount,
+            report.sourceTriangleCount, report.resultTriangleCount))
+        tImGui.Text(string.format(tLang.L('simplify_report_quality_fmt'),
+            simplifyQualityLabel(report), reduction, (report.maximumRelativeError or 0) * 100))
+        tImGui.TextWrapped(string.format(tLang.L('simplify_report_rejections_fmt'),
+            report.collapseCount or 0, report.boundaryRejectedCollapseCount or 0,
+            report.topologyRejectedCollapseCount or 0,
+            report.orientationRejectedCollapseCount or 0,
+            report.invalidRejectedCollapseCount or 0))
+        tImGui.Text(string.format(tLang.L('simplify_report_structure_fmt'),
+            report.degenerateTriangleCount or 0, report.nonManifoldEdgeCount or 0,
+            report.connectedComponentCount or 0))
+        if simplifyState.preserveDetails then
+            tImGui.Text(string.format(tLang.L('simplify_report_details_fmt'),
+                report.detailPenalizedCollapseCount or 0,
+                report.detailPenalizedCandidateCount or 0))
+        end
+        tImGui.Text(string.format(tLang.L('simplify_report_clearance_fmt'),
+            report.clearanceRejectedCollapseCount or 0))
+        if report.skinWeightAware then
+            tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
+                report.sampledPoseCount or 0, report.sampledClipCount or 0,
+                report.maximumPoseError or 0))
+        end
+        if report.geometryFrameAware then
+            tImGui.Text(string.format(tLang.L('simplify_report_frames_fmt'),
+                report.geometryFrameCount or 0, report.maximumFrameError or 0))
+        end
+    end
+    return applied
+end
+
 -- ---------------------------------------------------------------------------
 -- Frame tree node: view/queue removals, open Frame Pick
 -- ---------------------------------------------------------------------------
@@ -9116,12 +9764,14 @@ function showFrameNode(tEntry, meshD, index)
         for s = 1, (okS and nSubs or 0) do
             local okT, tex = dpCall(function() return meshD:getTexture(f, s) end)
             local okV, vertexCount = dpCall(function() return meshD:getTotalVertex(f, s) end)
+            local okI, indexCount = dpCall(function() return meshD:getTotalIndex(f, s) end)
             local texName = (okT and tex and tex ~= '') and (' [' .. tUtil.getShortName(tex) .. ']') or ''
             table.insert(allSubsets, {
                 f = f,
                 s = s,
                 texName = texName,
                 vertexCount = okV and vertexCount or nil,
+                indexCount = okI and indexCount or nil,
             })
         end
     end
@@ -9368,8 +10018,6 @@ function showFrameNode(tEntry, meshD, index)
         end
     end
 
-    tImGui.Separator()
-
     -- Pending ops list
     if #tEntry.tPendingOps > 0 then
         tImGui.Text(tLang.L('pending_ops') .. ':')
@@ -9558,6 +10206,11 @@ function showFrameNode(tEntry, meshD, index)
     tEntry.tSplitCapture = tEntry.tSplitCapture or {active=false, initialized=false}
     tEntry.tSplitCaptures = tEntry.tSplitCaptures or {}
     showSplitCapture(tEntry, meshD, index)
+    tImGui.Separator()
+    if showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets) then
+        tImGui.TreePop()
+        return
+    end
 
     -- Save As (visible after Execute, when mesh is modified in-memory)
     if tEntry.modified then

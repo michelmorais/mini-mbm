@@ -51,6 +51,25 @@ the scan (Armature Actions and Armature/canonical NLA strips). The synthetic Ble
 only a fallback when no explicit skeletal source is available, because selecting it alongside an
 Action/NLA clip can duplicate or truncate animation ranges. Manual source choices are sticky:
 unchecking a source in Configure prevents later rescans/imports from re-enabling it automatically.
+
+The process-independent orchestration lives in `editor/blender_mesh_importer.lua`. Its `start`
+function creates one asynchronous job from an input GLB/FBX, an output MSH, the shared
+`blender_cli_wrapper.lua`, and import options. Calling `job:update()` from the current engine frame
+loop advances progress and completion; `job:cancel()` writes the exporter cancellation marker.
+Direct MSH output is first flushed to a temporary sibling and atomically renamed; the shared job
+therefore treats appearance of the final output path as completion even if Blender does not flush
+its trailing `done` log line.
+Mesh Debug initializes this workflow with V inversion, an X-axis rotation of
+-90 degrees, and a 600-second inactivity timeout; users may still override these
+values in its import configuration.
+The module launches Blender as the format reader/exporter, but it never launches another Mini MBM
+instance and owns no ImGui or transaction state. Mesh Debug supplies its scan-derived animation
+options and keeps its existing UI around this shared job. Other engine-based editors can use the
+same module and load the completed MSH in their current scene.
+
+For a static source above the 65,535-vertex indexed-subset limit, callers may select
+`largeMeshMode = "vb_only"`; the exporter splits compatible geometry into MSH subsets. As described
+below, that mode is a geometry fallback and does not preserve canonical skeletal weights.
 FBX takes that Blender imports as detached `bpy.data.actions` are also inspected: every Action with
 pose-bone curves matching the selected canonical armature is exposed as its own source and is
 activated explicitly while its clip is sampled, rather than silently reusing only the active take.

@@ -79,7 +79,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--angle-y", type=float, default=0.0)
     parser.add_argument("--angle-z", type=float, default=0.0)
     parser.add_argument("--large-mesh-mode", choices=("fail", "vb_only"), default="fail")
+    parser.add_argument("--decimate-ratio", type=float, default=None)
     parser.add_argument("--include-bones", action="store_true")
+    parser.add_argument("--uniform-scale", type=float, default=1.0)
+    parser.add_argument("--normalize-textures", action="store_true")
+    parser.add_argument("--exclude-texture-role", action="append", default=[],
+                        choices=("diffuse", "normal", "specular", "emissive", "mask"))
     parser.add_argument("--cancel-file", default="")
     parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
@@ -180,6 +185,7 @@ def resolve_image_sequence_path(image: Any, image_user: Any, scene_frame: int) -
 
 
 _EXTRACTED_IMAGE_PATHS: dict[int, str] = {}
+_NORMALIZED_IMAGE_PATHS: dict[tuple[int, str, str], str] = {}
 
 
 def _image_extension(image: Any) -> str:
@@ -293,8 +299,33 @@ def _resolve_texture_path(image: Any, image_user: Any, scene_frame: int,
     return recorded_path
 
 
+def _normalized_texture_path(image: Any, output_dir: str, output_stem: str,
+                             material_name: str, role_name: str) -> str:
+    """Write a predictably named PNG beside the MSH and return that durable path."""
+    safe_material = re.sub(r"[^A-Za-z0-9_.-]", "_", material_name).strip("._") or "material"
+    cache_key = (int(image.as_pointer()), safe_material, role_name)
+    cached = _NORMALIZED_IMAGE_PATHS.get(cache_key)
+    if cached and os.path.isfile(cached):
+        return cached
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, f"{output_stem}_{safe_material}_{role_name}.png")
+    original_path = image.filepath_raw
+    original_format = image.file_format
+    try:
+        image.filepath_raw = out_path
+        image.file_format = "PNG"
+        image.save()
+    finally:
+        image.filepath_raw = original_path
+        image.file_format = original_format
+    _NORMALIZED_IMAGE_PATHS[cache_key] = out_path
+    return out_path
+
+
 def get_material_texture_paths(material: Any, scene_frame: int,
-                               output_dir: str | None = None) -> tuple[str, list[dict[str, Any]]]:
+                               output_dir: str | None = None, normalize_textures: bool = False,
+                               output_stem: str = "mesh", excluded_roles: set[str] | None = None
+                               ) -> tuple[str, list[dict[str, Any]]]:
     if not material_uses_nodes(material) or material.node_tree is None:
         return "", []
     image_nodes = [
@@ -308,6 +339,9 @@ def get_material_texture_paths(material: Any, scene_frame: int,
     primary = ""
     extras: list[dict[str, Any]] = []
     used_roles: set[int] = set()
+    excluded_roles = excluded_roles or set()
+    role_names = {TEXTURE_ROLE_NORMAL: "normal", TEXTURE_ROLE_SPECULAR: "specular",
+                  TEXTURE_ROLE_EMISSIVE: "emissive", TEXTURE_ROLE_MASK: "mask"}
     mask_texture_hint = str(material.get("mbm_mask_texture", "")) if hasattr(material, "get") else ""
     for node in image_nodes:
         try:
@@ -317,11 +351,17 @@ def get_material_texture_paths(material: Any, scene_frame: int,
         if not path:
             continue
         if node is primary_node:
-            primary = path
+            if "diffuse" not in excluded_roles:
+                primary = (_normalized_texture_path(node.image, output_dir, output_stem,
+                           str(material.name), "diffuse") if normalize_textures and output_dir else path)
             continue
         image_name = str(getattr(node.image, "name", ""))
         role = TEXTURE_ROLE_MASK if mask_texture_hint and image_name == mask_texture_hint else _texture_node_role(node)
-        if role is not None and role not in used_roles:
+        role_name = role_names.get(role)
+        if role is not None and role_name not in excluded_roles and role not in used_roles:
+            if normalize_textures and output_dir:
+                path = _normalized_texture_path(node.image, output_dir, output_stem,
+                                                str(material.name), str(role_name))
             extras.append({"role": role, "texture": path})
             used_roles.add(role)
     return primary, extras
@@ -537,6 +577,10 @@ def split_subset_for_uint16_indices(subset: dict[str, Any]) -> list[dict[str, An
             {
                 "name": str(subset.get("name") or "Subset"),
                 "texture": str(subset.get("texture") or ""),
+                # Every chunk remains the same material subset. Preserve its semantic texture
+                # slots; dropping them here made large/vb_only imports retain Diffuse while
+                # silently losing Normal, Specular, Emissive and Mask in the final MSH.
+                "extraTextures": [dict(extra) for extra in (subset.get("extraTextures") or [])],
                 "vertices": current_vertices,
                 "indices": current_indices,
             }
@@ -924,7 +968,9 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
 
 def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | None = None,
                           output_dir: str | None = None, capture_weights: bool = False,
-                          canonical_coordinates: bool = False) -> list[dict[str, Any]]:
+                          canonical_coordinates: bool = False, uniform_scale: float = 1.0,
+                          normalize_textures: bool = False, output_stem: str = "mesh",
+                          excluded_texture_roles: set[str] | None = None) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
     scene_frame = int(scene.frame_current)
@@ -970,7 +1016,9 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                 if mat_idx not in buckets:
                     mat = mesh.materials[mat_idx] if mat_idx < len(mesh.materials) else None
                     mat_name = mat.name if mat else f"Material_{mat_idx}"
-                    primary_texture, extra_textures = get_material_texture_paths(mat, scene_frame, output_dir)
+                    primary_texture, extra_textures = get_material_texture_paths(
+                        mat, scene_frame, output_dir, normalize_textures, output_stem,
+                        excluded_texture_roles)
                     buckets[mat_idx] = {
                         "name": f"{obj.name}:{mat_name}",
                         "texture": primary_texture,
@@ -1001,6 +1049,9 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                     if canonical_coordinates:
                         pos_x = -pos_x
                         no_x = -no_x
+                    pos_x *= uniform_scale
+                    pos_y *= uniform_scale
+                    pos_z *= uniform_scale
 
                     if uv_data is not None:
                         uv = uv_data[loop_index].uv
@@ -1085,6 +1136,78 @@ def import_source(input_path: str) -> None:
         return
 
     raise RuntimeError(f"Unsupported source extension: {ext}")
+
+
+def get_decimation_ratio(args: argparse.Namespace) -> float | None:
+    ratio = getattr(args, "decimate_ratio", None)
+    if ratio is None:
+        return None
+    ratio = float(ratio)
+    if not math.isfinite(ratio) or ratio <= 0.0 or ratio > 1.0:
+        raise RuntimeError("Decimate ratio must be finite, greater than zero, and at most one.")
+    return ratio
+
+
+def get_static_decimation_rejection(scene: Any, args: argparse.Namespace) -> str | None:
+    if get_decimation_ratio(args) is None:
+        return None
+    if bool(getattr(args, "bake_animation", False)) or getattr(args, "animation_clip", None) or \
+            getattr(args, "animation_source", None):
+        return "polygon reduction supports static imports only; baked animation was requested"
+
+    for obj in getattr(scene, "objects", []):
+        object_type = getattr(obj, "type", None)
+        if object_type == "ARMATURE":
+            return "polygon reduction supports static imports only; the scene contains an armature"
+        if object_type != "MESH" or not obj.visible_get():
+            continue
+
+        animation_data = getattr(obj, "animation_data", None)
+        if animation_data is not None:
+            if getattr(animation_data, "action", None) is not None:
+                return f"polygon reduction supports static imports only; mesh '{obj.name}' is animated"
+            if any(not getattr(track, "mute", False) for track in getattr(animation_data, "nla_tracks", [])):
+                return f"polygon reduction supports static imports only; mesh '{obj.name}' has NLA animation"
+
+        shape_keys = getattr(getattr(obj, "data", None), "shape_keys", None)
+        if shape_keys is not None:
+            return f"polygon reduction supports static imports only; mesh '{obj.name}' has shape keys"
+
+        for modifier in getattr(obj, "modifiers", []):
+            modifier_type = getattr(modifier, "type", None)
+            if modifier_type == "ARMATURE":
+                return f"polygon reduction supports static imports only; mesh '{obj.name}' uses an armature modifier"
+            if modifier_type in ("MESH_CACHE", "MESH_SEQUENCE_CACHE"):
+                return f"polygon reduction supports static imports only; mesh '{obj.name}' uses mesh-cache animation"
+    return None
+
+
+def prepare_static_decimation(scene: Any, args: argparse.Namespace) -> int:
+    ratio = get_decimation_ratio(args)
+    if ratio is None:
+        return 0
+
+    rejection = get_static_decimation_rejection(scene, args)
+    if rejection:
+        raise RuntimeError(rejection)
+    if ratio == 1.0:
+        return 0
+
+    modified = 0
+    for obj in getattr(scene, "objects", []):
+        if getattr(obj, "type", None) != "MESH" or not obj.visible_get():
+            continue
+        modifier = obj.modifiers.new(name="mini-mbm import decimate", type="DECIMATE")
+        modifier.decimate_type = "COLLAPSE"
+        modifier.ratio = ratio
+        if hasattr(modifier, "use_collapse_triangulate"):
+            modifier.use_collapse_triangulate = True
+        modified += 1
+
+    if modified == 0:
+        raise RuntimeError("polygon reduction found no visible mesh objects")
+    debug_print(args.debug_steps, f"decimate: ratio={ratio:g} objects={modified}")
+    return modified
 
 
 def normalize_frame_range(frame_start: int, frame_end: int) -> tuple[int, int]:
@@ -1220,6 +1343,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    prepare_static_decimation(scene, args)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -1285,6 +1409,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    prepare_static_decimation(scene, args)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -1921,6 +2046,23 @@ def build_canonical_animations_payload_v11(skeleton_id: int, clips: list[dict[st
     return buf.getvalue()
 
 
+def apply_uniform_scale_to_canonical_data(skeleton: dict[str, Any] | None,
+                                           clips: list[dict[str, Any]], factor: float) -> None:
+    """Scale spatial canonical data without changing rotations, weights, or dimensionless scale."""
+    if factor == 1.0:
+        return
+    if skeleton:
+        for bone in skeleton["bones"]:
+            bone["translation"] = tuple(float(value) * factor for value in bone["translation"])
+            bone["radius"] = float(bone["radius"]) * factor
+            bone["length"] = float(bone["length"]) * factor
+            bone["tailOffset"] = tuple(float(value) * factor for value in bone["tailOffset"])
+    for clip in clips:
+        for track in clip["tracks"]:
+            for key in track["keys"]:
+                key["translation"] = tuple(float(value) * factor for value in key["translation"])
+
+
 def build_animation_payload_v11(anim: dict[str, Any]) -> bytes:
     buf = io.BytesIO()
     write_string_v11(buf, str(anim.get("name", "default")))
@@ -2159,6 +2301,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    prepare_static_decimation(scene, args)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -2171,6 +2314,9 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     texture_paths: set[str] = set()
     bounds = {"min": [float("inf"), float("inf"), float("inf")], "max": [-float("inf"), -float("inf"), -float("inf")]}
     try:
+        uniform_scale = float(args.uniform_scale)
+        if not math.isfinite(uniform_scale) or uniform_scale <= 0.0:
+            raise RuntimeError("uniform scale must be a finite positive number")
         fps = get_scene_fps(scene)
         # Baked directly into vertex/normal/bone data below (rotate_point_deg) instead of being
         # written into SECTION_MATERIAL_TRANSFORM's angle field, which the engine no longer applies
@@ -2194,11 +2340,16 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             )
         canonical_clips = (extract_canonical_animations(scene, clips, fps, canonical_skeleton)
                            if canonical_skeleton and clips else [])
+        apply_uniform_scale_to_canonical_data(canonical_skeleton, canonical_clips, uniform_scale)
+        if uniform_scale != 1.0:
+            debug_print(args.debug_steps, f"applying uniform scale: {uniform_scale:g}")
         # Embedded/packed textures (common in Mixamo downloads) get unpacked next to the output
         # .msh -- see get_first_texture_path/_extract_embedded_image -- rather than trusting the
         # FBX's own recorded source path, which points at wherever the original author's machine
         # had the file and is otherwise meaningless on this one.
         output_dir = os.path.dirname(os.path.abspath(out_path))
+        output_stem = os.path.splitext(os.path.basename(out_path))[0]
+        excluded_texture_roles = set(args.exclude_texture_role or [])
         # Real per-vertex weights only make sense alongside a real skeleton (--include-bones), and
         # only for the default indexed write path -- see build_canonical_weights_payload_v11's
         # own docstring for why vb_only mode is excluded.
@@ -2212,8 +2363,14 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
+            if uniform_scale != 1.0:
+                debug_print(args.debug_steps, f"applying uniform scale: {uniform_scale:g}")
             subsets = export_frame_subsets(scene, import_rotation_deg, output_dir, capture_weights,
-                                           canonical_coordinates=bool(canonical_skeleton))
+                                           canonical_coordinates=bool(canonical_skeleton),
+                                           uniform_scale=uniform_scale,
+                                           normalize_textures=bool(args.normalize_textures),
+                                           output_stem=output_stem,
+                                           excluded_texture_roles=excluded_texture_roles)
             if args.large_mesh_mode == "vb_only":
                 debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
             else:

@@ -187,6 +187,64 @@ namespace mbm
         return 1;
     }
 
+    int onSimplifyMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const float ratio = static_cast<float>(luaL_checknumber(lua, 2));
+        int targetSubsetIndex = -1;
+        if (lua_gettop(lua) >= 3 && !lua_isnil(lua, 3))
+        {
+            const lua_Integer requestedSubset = luaL_checkinteger(lua, 3);
+            targetSubsetIndex = requestedSubset > 0
+                ? static_cast<int>(requestedSubset - 1) : -2;
+        }
+        int targetFrameIndex = 0;
+        if (lua_gettop(lua) >= 4 && !lua_isnil(lua, 4))
+        {
+            const lua_Integer requestedFrame = luaL_checkinteger(lua, 4);
+            targetFrameIndex = requestedFrame > 0
+                ? static_cast<int>(requestedFrame - 1) : -1;
+        }
+        const bool preserveDetails = lua_gettop(lua) < 5 || lua_isnil(lua, 5) || lua_toboolean(lua, 5);
+        MESH_SIMPLIFY_REPORT report;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.simplify(ratio, report, errorOut,
+                                      static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
+                                      targetFrameIndex, preserveDetails))
+        {
+            lua_pushnil(lua);
+            lua_pushstring(lua, errorOut);
+            return 2;
+        }
+        lua_newtable(lua);
+        lua_pushinteger(lua, report.sourceVertexCount); lua_setfield(lua, -2, "sourceVertexCount");
+        lua_pushinteger(lua, report.resultVertexCount); lua_setfield(lua, -2, "resultVertexCount");
+        lua_pushinteger(lua, report.sourceTriangleCount); lua_setfield(lua, -2, "sourceTriangleCount");
+        lua_pushinteger(lua, report.resultTriangleCount); lua_setfield(lua, -2, "resultTriangleCount");
+        lua_pushnumber(lua, report.maximumGeometricError); lua_setfield(lua, -2, "maximumGeometricError");
+        lua_pushboolean(lua, report.skinWeightAware); lua_setfield(lua, -2, "skinWeightAware");
+        lua_pushboolean(lua, report.poseSampledError); lua_setfield(lua, -2, "poseSampledError");
+        lua_pushinteger(lua, report.sampledPoseCount); lua_setfield(lua, -2, "sampledPoseCount");
+        lua_pushinteger(lua, report.sampledClipCount); lua_setfield(lua, -2, "sampledClipCount");
+        lua_pushnumber(lua, report.maximumPoseError); lua_setfield(lua, -2, "maximumPoseError");
+        lua_pushboolean(lua, report.geometryFrameAware); lua_setfield(lua, -2, "geometryFrameAware");
+        lua_pushinteger(lua, report.geometryFrameCount); lua_setfield(lua, -2, "geometryFrameCount");
+        lua_pushnumber(lua, report.maximumFrameError); lua_setfield(lua, -2, "maximumFrameError");
+        lua_pushnumber(lua, report.maximumRelativeError); lua_setfield(lua, -2, "maximumRelativeError");
+        lua_pushinteger(lua, report.collapseCount); lua_setfield(lua, -2, "collapseCount");
+        lua_pushinteger(lua, report.boundaryRejectedCollapseCount); lua_setfield(lua, -2, "boundaryRejectedCollapseCount");
+        lua_pushinteger(lua, report.topologyRejectedCollapseCount); lua_setfield(lua, -2, "topologyRejectedCollapseCount");
+        lua_pushinteger(lua, report.orientationRejectedCollapseCount); lua_setfield(lua, -2, "orientationRejectedCollapseCount");
+        lua_pushinteger(lua, report.invalidRejectedCollapseCount); lua_setfield(lua, -2, "invalidRejectedCollapseCount");
+        lua_pushinteger(lua, report.degenerateTriangleCount); lua_setfield(lua, -2, "degenerateTriangleCount");
+        lua_pushinteger(lua, report.nonManifoldEdgeCount); lua_setfield(lua, -2, "nonManifoldEdgeCount");
+        lua_pushinteger(lua, report.connectedComponentCount); lua_setfield(lua, -2, "connectedComponentCount");
+        lua_pushinteger(lua, report.detailPenalizedCandidateCount); lua_setfield(lua, -2, "detailPenalizedCandidateCount");
+        lua_pushinteger(lua, report.detailPenalizedCollapseCount); lua_setfield(lua, -2, "detailPenalizedCollapseCount");
+        lua_pushinteger(lua, report.clearanceRejectedCollapseCount); lua_setfield(lua, -2, "clearanceRejectedCollapseCount");
+        return 1;
+    }
+
     int onSaveMeshDebugLua(lua_State *lua)
     {
         const int       top           = lua_gettop(lua);
@@ -3368,6 +3426,7 @@ namespace mbm
     {
         luaL_Reg regFrameMeshMethods[] = {{"fakeRelease", onFakeReleaseMeshManagerLua},
                                           {"load", onLoadMeshDebugLua},
+                                          {"simplify", onSimplifyMeshDebugLua},
                                           {"save", onSaveMeshDebugLua},
                                           {"setType", onSetTypeMeshDebugLua},
                                           {"getType", onGetTypeMeshDebugLua},
