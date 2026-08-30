@@ -24,6 +24,7 @@ import unittest
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 
 EXPORTER_PATH = Path(__file__).resolve().parents[2] / "editor" / "blender_mesh_export.py"
@@ -87,6 +88,31 @@ class BlenderMeshExportTests(unittest.TestCase):
             self.assertEqual(chunk["texture"], "diffuse.png")
             self.assertEqual(chunk["extraTextures"], subset["extraTextures"])
             self.assertIsNot(chunk["extraTextures"], subset["extraTextures"])
+
+    def test_material_ignores_image_node_without_pixel_data_or_file(self) -> None:
+        image = SimpleNamespace(has_data=False, filepath="", packed_file=None)
+        image.save = mock.Mock(side_effect=AssertionError("empty image must not be saved"))
+        base_color = SimpleNamespace(
+            type="TEX_IMAGE",
+            image=image,
+            outputs=[SimpleNamespace(links=[SimpleNamespace(
+                to_node=SimpleNamespace(type="BSDF_PRINCIPLED"),
+                to_socket=SimpleNamespace(name="Base Color"),
+            )])],
+        )
+        material = SimpleNamespace(
+            name="Material",
+            use_nodes=True,
+            node_tree=SimpleNamespace(nodes=[base_color]),
+        )
+
+        primary, extras = EXPORTER.get_material_texture_paths(
+            material, 1, "/tmp", normalize_textures=True,
+        )
+
+        self.assertEqual(primary, "")
+        self.assertEqual(extras, [])
+        image.save.assert_not_called()
 
     def test_static_decimation_adds_collapse_modifier(self) -> None:
         mesh = self._Object()
