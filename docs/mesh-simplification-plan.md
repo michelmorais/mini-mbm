@@ -88,6 +88,10 @@ The projected edge factor `t` is retained by every collapse and applied consiste
 normals, UVs, source contributions, canonical weights, and every geometry/pose deformation sample.
 Consequently, a shared-frame reconstruction stays on the corresponding deformed source edge rather
 than mixing an edge-projected position with an unrelated 50/50 deformation average.
+Vertices incident to any open edge are locked and cannot participate in a collapse. This stronger
+policy preserves authored silhouettes and prevents independently duplicated UV/hard-normal seam
+sides from drifting apart. A highly fragmented asset may therefore reject an aggressive target
+rather than create visible gaps.
 Each collapse must also satisfy the manifold link condition. Candidates within one batch may not
 touch the same triangle, so orientation checks performed separately cannot interfere when the batch
 is committed. If these topology and orientation constraints prevent reaching an aggressive target,

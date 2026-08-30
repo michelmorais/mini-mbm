@@ -24,40 +24,61 @@ local function totals(asset, frame)
     return vertices, triangles
 end
 
-local function makeNonIndexedGrid()
+local function octahedronVertices(nonIndexed)
+    local points = {
+        {x=1, y=0, z=0}, {x=-1, y=0, z=0}, {x=0, y=1, z=0},
+        {x=0, y=-1, z=0}, {x=0, y=0, z=1}, {x=0, y=0, z=-1}
+    }
+    local indices = {
+        3, 1, 5, 3, 5, 2, 3, 2, 6, 3, 6, 1,
+        4, 5, 1, 4, 2, 5, 4, 6, 2, 4, 1, 6
+    }
+    if not nonIndexed then return points, indices end
+    local vertices = {}
+    for _, index in ipairs(indices) do
+        local point = points[index]
+        vertices[#vertices + 1] = {x=point.x, y=point.y, z=point.z}
+    end
+    return vertices
+end
+
+local function makeClosedMesh(nonIndexed)
     local asset = meshDebug:new()
     asset:setType('mesh')
     asset:setModeFrontFace('CW')
     local frame = asset:addFrame(3)
     local subset = asset:addSubSet(frame)
-    local vertices = {}
-    local function vertex(x, z)
-        return {x=x, y=0, z=z, nx=0, ny=1, nz=0, u=x / 2, v=z / 2}
-    end
-    for z = 0, 1 do
-        for x = 0, 1 do
-            vertices[#vertices + 1] = vertex(x, z)
-            vertices[#vertices + 1] = vertex(x + 1, z)
-            vertices[#vertices + 1] = vertex(x + 1, z + 1)
-            vertices[#vertices + 1] = vertex(x, z)
-            vertices[#vertices + 1] = vertex(x + 1, z + 1)
-            vertices[#vertices + 1] = vertex(x, z + 1)
-        end
-    end
+    local vertices, indices = octahedronVertices(nonIndexed)
     assert(asset:addVertex(frame, subset, vertices))
+    if indices then assert(asset:addIndex(frame, subset, indices)) end
     assert(asset:addAnim('Static', 1, 1, 1.0, 0))
     assert(asset:check())
-    assert(asset:save('/tmp/mbm_nonindexed_grid_source.msh', false, false, true))
+    local path = nonIndexed and '/tmp/mbm_nonindexed_closed_source.msh' or '/tmp/mbm_indexed_closed_source.msh'
+    assert(asset:save(path, false, false, true))
     local restored = meshDebug:new()
-    assert(restored:load('/tmp/mbm_nonindexed_grid_source.msh'))
+    assert(restored:load(path))
     assert(restored:check())
     return restored
 end
 
+local function makeOpenMesh()
+    local asset = meshDebug:new()
+    asset:setType('mesh')
+    asset:setModeFrontFace('CW')
+    local frame = asset:addFrame(3)
+    local subset = asset:addSubSet(frame)
+    assert(asset:addVertex(frame, subset, {
+        {x=0, y=0, z=0}, {x=1, y=0, z=0}, {x=1, y=0, z=1}, {x=0, y=0, z=1}
+    }))
+    assert(asset:addIndex(frame, subset, {1, 2, 3, 1, 3, 4}))
+    assert(asset:addAnim('Static', 1, 1, 1.0, 0))
+    assert(asset:check())
+    return asset
+end
+
 function onInitScene()
     started = mbm.getTimeRun()
-    local source = meshDebug:new()
-    assert(source:load('Crate.msh'))
+    local source = makeClosedMesh(false)
     local beforeVertices, beforeTriangles = totals(source)
     local report, simplifyError = source:simplify(0.5)
     assert(report, simplifyError)
@@ -76,7 +97,14 @@ function onInitScene()
     assert(restoredVertices == report.resultVertexCount)
     assert(restoredTriangles == report.resultTriangleCount)
 
-    local nonIndexed = makeNonIndexedGrid()
+    local openMesh = makeOpenMesh()
+    local openReport, openError = openMesh:simplify(0.5)
+    assert(openReport == nil and openError)
+    assert(totals(openMesh) == 4)
+    local _, openTriangles = totals(openMesh)
+    assert(openTriangles == 2)
+
+    local nonIndexed = makeClosedMesh(true)
     assert(nonIndexed:isIndexBuffer() == false)
     local nonIndexedReport, nonIndexedError = nonIndexed:simplify(0.5)
     assert(nonIndexedReport, nonIndexedError)
@@ -90,7 +118,7 @@ function onInitScene()
     assert(nonIndexedRestored:isIndexBuffer() == true)
     assert(nonIndexedRestored:check())
 
-    local nonIndexedShared = makeNonIndexedGrid()
+    local nonIndexedShared = makeClosedMesh(true)
     assert(nonIndexedShared:copyFrameFrom(nonIndexedShared, 1) == 2)
     nonIndexedShared:scaleFrame(2, 1.0, 1.25, 1.0)
     local nonIndexedSharedReport, nonIndexedSharedError = nonIndexedShared:simplify(0.5, nil, 0)
@@ -102,8 +130,7 @@ function onInitScene()
     assert(nonIndexedShared:isIndexBuffer() == true)
     assert(nonIndexedShared:check())
 
-    local multiFrame = meshDebug:new()
-    assert(multiFrame:load('Crate.msh'))
+    local multiFrame = makeClosedMesh(false)
     assert(multiFrame:copyFrameFrom(multiFrame, 1) == 2)
     local frame1Vertices, frame1Triangles = totals(multiFrame, 1)
     local frame2Vertices, frame2Triangles = totals(multiFrame, 2)
@@ -124,8 +151,7 @@ function onInitScene()
     assert(totals(multiFrameRestored, 1) == frame1Vertices)
     assert(totals(multiFrameRestored, 2) == frame2AfterVertices)
 
-    local sharedFrames = meshDebug:new()
-    assert(sharedFrames:load('Crate.msh'))
+    local sharedFrames = makeClosedMesh(false)
     assert(sharedFrames:copyFrameFrom(sharedFrames, 1) == 2)
     sharedFrames:scaleFrame(2, 1.0, 1.25, 0.8)
     local sharedBefore1 = sharedFrames:getVertex(1, 1, 1)
@@ -150,8 +176,7 @@ function onInitScene()
     assert(totals(sharedRestored, 1) == sharedVertices1)
     assert(totals(sharedRestored, 2) == sharedVertices2)
 
-    local articulated = meshDebug:new()
-    assert(articulated:load('Crate.msh'))
+    local articulated = makeClosedMesh(false)
     assert(articulated:initializeArticulatedParts() > 0)
     local partId, partFrame, partSubset, partName, pivotX, pivotY, pivotZ,
         pivotQX, pivotQY, pivotQZ, pivotQW, parentPartId = articulated:getArticulatedPart(1)
@@ -187,8 +212,7 @@ function onInitScene()
     assert(articulatedRuntime:getTotalArticulatedAnimations() == 1)
     assert(articulatedRuntime:playArticulatedAnimation('Simplify articulated'))
 
-    local incompatibleFrames = meshDebug:new()
-    assert(incompatibleFrames:load('Crate.msh'))
+    local incompatibleFrames = makeClosedMesh(false)
     assert(incompatibleFrames:copyFrameFrom(incompatibleFrames, 1) == 2)
     local incompatibleVertices, incompatibleTriangles = totals(incompatibleFrames, 1)
     incompatibleFrames:removeSubset(2, 1)

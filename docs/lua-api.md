@@ -1399,6 +1399,9 @@ local report, err = meshD:simplify(targetTriangleRatio [, targetSubset [, target
 `targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
 quadric-error edge collapses, preserves open boundaries, UV seams, hard-normal splits, material
 metadata, and authored physics metadata, and commits only after the complete candidate is valid.
+Vertices touching an open edge are locked rather than merely constrained to slide along that edge;
+assets dominated by open or duplicated seam boundaries may therefore stop before the requested
+ratio and fail atomically instead of producing cracks.
 Without `targetSubset`, the complete frame is processed as one virtual topology: coincident seams
 may connect different material subsets for topology decisions, while triangle material IDs remain
 unchanged. `targetSubset` is an optional one-based subset index. When present, only that subset is

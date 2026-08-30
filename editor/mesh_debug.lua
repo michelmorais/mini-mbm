@@ -4108,7 +4108,8 @@ function rebuildNormalVisualization(tEntry, meshD)
     end
 end
 
--- Returns total triangle count (indexCount/3) across all frames/subsets, or 0 on error
+-- Returns total face count across all frames/subsets, or 0 on error. Triangle-list meshes without
+-- an index buffer store three consecutive vertices per face.
 function getMeshTotalTriangles(meshD)
     local total = 0
     local ok, nFrames = dpCall(function() return meshD:getTotalFrame() end)
@@ -4118,13 +4119,37 @@ function getMeshTotalTriangles(meshD)
         if ok2 and nSubsets then
             for s = 1, nSubsets do
                 local ok3, nIdx = dpCall(function() return meshD:getTotalIndex(f, s) end)
-                if ok3 and nIdx then
+                if ok3 and nIdx and nIdx > 0 then
                     total = total + math.floor(nIdx / 3)
+                else
+                    local ok4, nVert = dpCall(function() return meshD:getTotalVertex(f, s) end)
+                    if ok4 and nVert then total = total + math.floor(nVert / 3) end
                 end
             end
         end
     end
     return total
+end
+
+function formatHumanCount(value)
+    local count = math.max(0, math.floor(tonumber(value) or 0))
+    local units = {
+        {value = 1000000000000, suffix = 'T'},
+        {value = 1000000000, suffix = 'B'},
+        {value = 1000000, suffix = 'M'},
+        {value = 1000, suffix = 'K'},
+    }
+    for _, unit in ipairs(units) do
+        if count >= unit.value then
+            local scaled = count / unit.value
+            local human = scaled >= 100 and string.format('%.0f%s', scaled, unit.suffix)
+                or scaled >= 10 and string.format('%.1f%s', scaled, unit.suffix)
+                or string.format('%.2f%s', scaled, unit.suffix)
+            human = human:gsub('(%..-)0+([KMBT])$', '%1%2'):gsub('%.([KMBT])$', '%1')
+            return string.format('%s (%d)', human, count)
+        end
+    end
+    return tostring(count)
 end
 
 -- Returns unique texture names used by the mesh
@@ -4668,6 +4693,7 @@ function showMeshInfoTable(tEntry, index)
     end
     local nTri = getMeshTotalTriangles(meshD)
     if nTri > 0 then
+        addRow(tLang.L('faces_count'), formatHumanCount(nTri))
         addRow('Total triangles', nTri)
         if totalFrames > 0 then addRow('Average triangles/frame', string.format('%.2f', nTri / totalFrames)) end
     end

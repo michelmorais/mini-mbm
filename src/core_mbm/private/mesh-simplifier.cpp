@@ -225,7 +225,7 @@ namespace mbm::mesh_simplifier
             {
                 const uint32_t a = static_cast<uint32_t>(entry.first >> 32u);
                 const uint32_t b = static_cast<uint32_t>(entry.first);
-                if (boundary[a] != boundary[b] || (boundary[a] && entry.second.count != 1)) continue;
+                if (boundary[a] || boundary[b]) continue;
                 if (!preservesTopology(a, b, entry.second.count, triangles, adjacent)) continue;
                 QUADRIC combined = quadrics[a]; combined += quadrics[b];
                 VEC3 point;
