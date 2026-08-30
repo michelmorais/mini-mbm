@@ -58,6 +58,7 @@ namespace mbm::mesh_simplifier
         {
             uint32_t a, b;
             VEC3 position;
+            float interpolation;
             double cost;
             double geometricCost;
             double poseCost;
@@ -228,6 +229,7 @@ namespace mbm::mesh_simplifier
                 if (!preservesTopology(a, b, entry.second.count, triangles, adjacent)) continue;
                 QUADRIC combined = quadrics[a]; combined += quadrics[b];
                 VEC3 point;
+                float interpolation = 0.5f;
                 if (solveOptimal(combined, point))
                 {
                     const VEC3 edge = positions[b] - positions[a];
@@ -235,11 +237,14 @@ namespace mbm::mesh_simplifier
                     if (edgeLengthSquared > 1.0e-20)
                     {
                         const double projected = dot(point - positions[a], edge) / edgeLengthSquared;
-                        const float t = static_cast<float>(std::max(0.0, std::min(1.0, projected)));
-                        point = positions[a] + edge * t;
+                        interpolation = static_cast<float>(std::max(0.0, std::min(1.0, projected)));
+                        point = positions[a] + edge * interpolation;
                     }
                     else
+                    {
+                        interpolation = 0.0f;
                         point = positions[a];
+                    }
                 }
                 else
                     point = (positions[a] + positions[b]) * 0.5f;
@@ -247,7 +252,7 @@ namespace mbm::mesh_simplifier
                 for (const std::vector<VEC3> &sample : deformationDeltas)
                     poseCost = std::max(poseCost, lengthSquared(sample[a] - sample[b]));
                 const double geometricCost = combined.evaluate(point);
-                CANDIDATE candidate{a, b, point, geometricCost + poseCost,
+                CANDIDATE candidate{a, b, point, interpolation, geometricCost + poseCost,
                                     geometricCost, poseCost, entry.second.count};
                 if (std::isfinite(candidate.cost) && preservesOrientation(candidate, positions, triangles, adjacent))
                     candidates.push_back(candidate);
@@ -291,14 +296,19 @@ namespace mbm::mesh_simplifier
             {
                 replacement[candidate.b] = candidate.a;
                 positions[candidate.a] = candidate.position;
-                if (!normals.empty()) normals[candidate.a] = normalized(normals[candidate.a] + normals[candidate.b]);
-                if (!uvs.empty()) uvs[candidate.a] = (uvs[candidate.a] + uvs[candidate.b]) * 0.5f;
+                const float aWeight = 1.0f - candidate.interpolation;
+                const float bWeight = candidate.interpolation;
+                if (!normals.empty())
+                    normals[candidate.a] = normalized(normals[candidate.a] * aWeight +
+                                                      normals[candidate.b] * bWeight);
+                if (!uvs.empty())
+                    uvs[candidate.a] = uvs[candidate.a] * aWeight + uvs[candidate.b] * bWeight;
                 for (std::vector<VEC3> &sample : deformationDeltas)
-                    sample[candidate.a] = (sample[candidate.a] + sample[candidate.b]) * 0.5f;
-                for (auto &entry : contributions[candidate.a]) entry.second *= 0.5f;
+                    sample[candidate.a] = sample[candidate.a] * aWeight + sample[candidate.b] * bWeight;
+                for (auto &entry : contributions[candidate.a]) entry.second *= aWeight;
                 for (auto entry : contributions[candidate.b])
                 {
-                    entry.second *= 0.5f;
+                    entry.second *= bWeight;
                     contributions[candidate.a].push_back(entry);
                 }
                 maximumCost = std::max(maximumCost, std::max(0.0, candidate.geometricCost));

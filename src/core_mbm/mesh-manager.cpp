@@ -2097,8 +2097,9 @@ namespace mbm
             return fail("canonical skin weights do not reference frame zero and the active skeleton");
 
         util::BUFFER_MESH_DEBUG *frame = impl->buffer[static_cast<size_t>(referenceFrameIndex)];
-        if (!frame || !frame->position || !frame->indexBuffer || frame->subset.empty())
-            return fail("simplification requires a non-empty indexed mesh");
+        if (!frame || !frame->position || frame->subset.empty())
+            return fail("simplification requires a non-empty mesh");
+        const bool sourceIndexed = frame->indexBuffer != nullptr;
         if (targetSubsetIndex < -1 ||
             targetSubsetIndex >= static_cast<int>(frame->subset.size()))
             return fail("target subset index is outside the selected frame");
@@ -2156,15 +2157,16 @@ namespace mbm
             for (size_t frameIndex = 1; frameIndex < impl->buffer.size(); ++frameIndex)
             {
                 const util::BUFFER_MESH_DEBUG *candidate = impl->buffer[frameIndex];
-                if (!candidate || !candidate->position || !candidate->indexBuffer ||
+                if (!candidate || !candidate->position ||
                     candidate->headerFrame.sizeVertexBuffer != frame->headerFrame.sizeVertexBuffer ||
                     candidate->headerFrame.sizeIndexBuffer != frame->headerFrame.sizeIndexBuffer ||
                     candidate->headerFrame.stride != frame->headerFrame.stride ||
                     candidate->subset.size() != frame->subset.size() ||
+                    (candidate->indexBuffer != nullptr) != sourceIndexed ||
                     (candidate->normal != nullptr) != (frame->normal != nullptr) ||
                     (candidate->uv != nullptr) != (frame->uv != nullptr))
                     return fail("geometry frames do not have compatible vertex attributes and topology");
-                if (memcmp(candidate->indexBuffer, frame->indexBuffer,
+                if (sourceIndexed && memcmp(candidate->indexBuffer, frame->indexBuffer,
                            static_cast<size_t>(frame->headerFrame.sizeIndexBuffer) * sizeof(uint16_t)) != 0)
                     return fail("geometry frames do not share the same index topology");
                 for (size_t subsetIndex = 0; subsetIndex < frame->subset.size(); ++subsetIndex)
@@ -2268,23 +2270,52 @@ namespace mbm
         for (uint32_t subsetIndex = 0; subsetIndex < frame->subset.size(); ++subsetIndex)
         {
             const util::SUBSET_DEBUG *subset = frame->subset[subsetIndex];
-            if (!subset || subset->vertexStart < 0 || subset->vertexCount <= 0 || subset->indexStart < 0 ||
-                subset->indexCount < 3 || subset->indexCount % 3 != 0 ||
-                subset->indexStart + subset->indexCount > frame->headerFrame.sizeIndexBuffer)
-                return fail("subset ranges are invalid for indexed triangle simplification");
-            report.sourceTriangleCount += static_cast<uint32_t>(subset->indexCount / 3);
+            if (!subset || subset->vertexStart < 0 || subset->vertexCount <= 0 ||
+                subset->vertexStart + subset->vertexCount > frame->headerFrame.sizeVertexBuffer)
+                return fail("subset vertex ranges are invalid for triangle simplification");
+            if (sourceIndexed && (subset->indexStart < 0 || subset->indexCount < 3 ||
+                subset->indexCount % 3 != 0 ||
+                subset->indexStart + subset->indexCount > frame->headerFrame.sizeIndexBuffer))
+                return fail("subset index ranges are invalid for triangle simplification");
+            if (!sourceIndexed && subset->vertexCount % 3 != 0)
+                return fail("non-indexed triangle subsets require a vertex count divisible by three");
+            const int sourceElementCount = sourceIndexed ? subset->indexCount : subset->vertexCount;
+            report.sourceTriangleCount += static_cast<uint32_t>(sourceElementCount / 3);
             if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
                 continue;
 
             std::unordered_map<uint32_t, uint32_t> localByGlobal;
             localByGlobal.reserve(static_cast<size_t>(subset->vertexCount));
-            for (int i = 0; i < subset->indexCount; ++i)
+            std::unordered_map<std::string, uint32_t> localByAttributes;
+            if (!sourceIndexed) localByAttributes.reserve(static_cast<size_t>(subset->vertexCount));
+            for (int i = 0; i < sourceElementCount; ++i)
             {
-                const uint32_t globalIndex = frame->indexBuffer[subset->indexStart + i];
+                const uint32_t globalIndex = sourceIndexed
+                    ? frame->indexBuffer[subset->indexStart + i]
+                    : static_cast<uint32_t>(subset->vertexStart + i);
                 if (globalIndex >= static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer))
                     return fail("subset index is outside the frame vertex buffer");
-                auto found = localByGlobal.find(globalIndex);
-                if (found == localByGlobal.end())
+                uint32_t existingLogical = UINT32_MAX;
+                std::string attributeKey;
+                if (sourceIndexed)
+                {
+                    const auto found = localByGlobal.find(globalIndex);
+                    if (found != localByGlobal.end()) existingLogical = found->second;
+                }
+                else
+                {
+                    attributeKey.append(reinterpret_cast<const char *>(&sourcePositions[globalIndex]),
+                                        sizeof(VEC3));
+                    if (sourceNormals)
+                        attributeKey.append(reinterpret_cast<const char *>(&sourceNormals[globalIndex]),
+                                            sizeof(VEC3));
+                    if (sourceUvs)
+                        attributeKey.append(reinterpret_cast<const char *>(&sourceUvs[globalIndex]),
+                                            sizeof(VEC2));
+                    const auto found = localByAttributes.find(attributeKey);
+                    if (found != localByAttributes.end()) existingLogical = found->second;
+                }
+                if (existingLogical == UINT32_MAX)
                 {
                     const POSITION_KEY key = positionKey(sourcePositions[globalIndex]);
                     std::vector<uint32_t> &candidates = logicalByPosition[key];
@@ -2324,12 +2355,14 @@ namespace mbm
                     LOGICAL_SOURCE &logicalSource = logicalSources[logicalIndex];
                     logicalSource.globalBySubset.emplace(subsetIndex, globalIndex);
                     logicalSource.globals.push_back(globalIndex);
-                    found = localByGlobal.emplace(globalIndex, logicalIndex).first;
+                    if (sourceIndexed) localByGlobal.emplace(globalIndex, logicalIndex);
+                    else localByAttributes.emplace(std::move(attributeKey), logicalIndex);
+                    existingLogical = logicalIndex;
                 }
-                input.indices.push_back(found->second);
+                input.indices.push_back(existingLogical);
             }
             input.triangleGroups.insert(input.triangleGroups.end(),
-                static_cast<size_t>(subset->indexCount / 3), subsetIndex);
+                static_cast<size_t>(sourceElementCount / 3), subsetIndex);
         }
 
         const uint32_t activeSourceTriangles = static_cast<uint32_t>(input.indices.size() / 3);
@@ -2381,9 +2414,13 @@ namespace mbm
                 const util::SUBSET_DEBUG *sourceSubset = frame->subset[subsetIndex];
                 std::unordered_map<uint32_t, uint32_t> copiedByGlobal;
                 copiedByGlobal.reserve(static_cast<size_t>(sourceSubset->vertexCount));
-                for (int i = 0; i < sourceSubset->indexCount; ++i)
+                const int sourceElementCount = sourceIndexed
+                    ? sourceSubset->indexCount : sourceSubset->vertexCount;
+                for (int i = 0; i < sourceElementCount; ++i)
                 {
-                    const uint32_t globalIndex = frame->indexBuffer[sourceSubset->indexStart + i];
+                    const uint32_t globalIndex = sourceIndexed
+                        ? frame->indexBuffer[sourceSubset->indexStart + i]
+                        : static_cast<uint32_t>(sourceSubset->vertexStart + i);
                     if (globalIndex >= report.sourceVertexCount)
                         return fail("subset index is outside the frame vertex buffer");
                     auto copied = copiedByGlobal.find(globalIndex);
@@ -2513,12 +2550,62 @@ namespace mbm
                                             sourceMaximum.y - sourceMinimum.y,
                                             sourceMaximum.z - sourceMinimum.z, 1.0f});
         const float boundsTolerance = boundsScale * 1.0e-5f;
-        for (const VEC3 &position : positions)
-            if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
-                position.x < sourceMinimum.x - boundsTolerance || position.x > sourceMaximum.x + boundsTolerance ||
-                position.y < sourceMinimum.y - boundsTolerance || position.y > sourceMaximum.y + boundsTolerance ||
-                position.z < sourceMinimum.z - boundsTolerance || position.z > sourceMaximum.z + boundsTolerance)
-                return fail("simplified vertex escaped the source geometry bounds");
+        auto boundsViolation = [](const std::vector<VEC3> &candidatePositions,
+                                  const VEC3 &minimum, const VEC3 &maximum,
+                                  const float tolerance, const size_t frameIndex,
+                                  const bool shared, std::string &error)
+        {
+            float worstViolation = 0.0f;
+            float worstValue = 0.0f;
+            float worstMinimum = 0.0f;
+            float worstMaximum = 0.0f;
+            float worstExcess = 0.0f;
+            size_t worstVertex = 0;
+            char worstAxis = 'X';
+            for (size_t vertex = 0; vertex < candidatePositions.size(); ++vertex)
+            {
+                const VEC3 &position = candidatePositions[vertex];
+                const float values[3] = {position.x, position.y, position.z};
+                const float minima[3] = {minimum.x, minimum.y, minimum.z};
+                const float maxima[3] = {maximum.x, maximum.y, maximum.z};
+                for (size_t axis = 0; axis < 3; ++axis)
+                {
+                    if (!std::isfinite(values[axis]))
+                    {
+                        char message[192] = {};
+                        snprintf(message, sizeof(message),
+                            "simplify non-finite vertex: shared=%d frame=%zu vertex=%zu axis=%c",
+                            shared ? 1 : 0, frameIndex + 1, vertex + 1, "XYZ"[axis]);
+                        error.assign(message);
+                        return true;
+                    }
+                    const float excess = values[axis] < minima[axis]
+                        ? minima[axis] - values[axis]
+                        : (values[axis] > maxima[axis] ? values[axis] - maxima[axis] : 0.0f);
+                    const float violation = excess - tolerance;
+                    if (violation <= worstViolation) continue;
+                    worstViolation = violation;
+                    worstValue = values[axis];
+                    worstMinimum = minima[axis];
+                    worstMaximum = maxima[axis];
+                    worstExcess = excess;
+                    worstVertex = vertex;
+                    worstAxis = "XYZ"[axis];
+                }
+            }
+            if (!(worstViolation > 0.0f)) return false;
+            char message[384] = {};
+            snprintf(message, sizeof(message),
+                "simplify bounds violation: shared=%d frame=%zu vertex=%zu axis=%c value=%.9g min=%.9g max=%.9g excess=%.9g tolerance=%.9g",
+                shared ? 1 : 0, frameIndex + 1, worstVertex + 1, worstAxis,
+                worstValue, worstMinimum, worstMaximum, worstExcess, tolerance);
+            error.assign(message);
+            return true;
+        };
+        std::string boundsError;
+        if (boundsViolation(positions, sourceMinimum, sourceMaximum, boundsTolerance,
+                            static_cast<size_t>(referenceFrameIndex), false, boundsError))
+            return fail(boundsError);
 
         if (hasCanonicalWeights)
         {
@@ -2572,9 +2659,13 @@ namespace mbm
                         const util::SUBSET_DEBUG *sourceSubset = sharedFrame->subset[subsetIndex];
                         std::unordered_map<uint32_t, uint32_t> copiedByGlobal;
                         copiedByGlobal.reserve(static_cast<size_t>(sourceSubset->vertexCount));
-                        for (int i = 0; i < sourceSubset->indexCount; ++i)
+                        const int sourceElementCount = sourceIndexed
+                            ? sourceSubset->indexCount : sourceSubset->vertexCount;
+                        for (int i = 0; i < sourceElementCount; ++i)
                         {
-                            const uint32_t globalIndex = sharedFrame->indexBuffer[sourceSubset->indexStart + i];
+                            const uint32_t globalIndex = sourceIndexed
+                                ? sharedFrame->indexBuffer[sourceSubset->indexStart + i]
+                                : static_cast<uint32_t>(sourceSubset->vertexStart + i);
                             auto copied = copiedByGlobal.find(globalIndex);
                             if (copied == copiedByGlobal.end())
                             {
@@ -2670,12 +2761,10 @@ namespace mbm
                 const float frameScale = std::max({frameMaximum.x - frameMinimum.x,
                     frameMaximum.y - frameMinimum.y, frameMaximum.z - frameMinimum.z, 1.0f});
                 const float frameTolerance = frameScale * 1.0e-5f;
-                for (const VEC3 &position : framePositions)
-                    if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
-                        position.x < frameMinimum.x - frameTolerance || position.x > frameMaximum.x + frameTolerance ||
-                        position.y < frameMinimum.y - frameTolerance || position.y > frameMaximum.y + frameTolerance ||
-                        position.z < frameMinimum.z - frameTolerance || position.z > frameMaximum.z + frameTolerance)
-                        return fail("shared simplified vertex escaped a source frame's geometry bounds");
+                boundsError.clear();
+                if (boundsViolation(framePositions, frameMinimum, frameMaximum, frameTolerance,
+                                    frameIndex, true, boundsError))
+                    return fail(boundsError);
 
                 SHARED_FRAME_RESULT result;
                 result.vertexCount = framePositions.size();

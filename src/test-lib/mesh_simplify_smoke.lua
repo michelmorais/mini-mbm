@@ -24,6 +24,36 @@ local function totals(asset, frame)
     return vertices, triangles
 end
 
+local function makeNonIndexedGrid()
+    local asset = meshDebug:new()
+    asset:setType('mesh')
+    asset:setModeFrontFace('CW')
+    local frame = asset:addFrame(3)
+    local subset = asset:addSubSet(frame)
+    local vertices = {}
+    local function vertex(x, z)
+        return {x=x, y=0, z=z, nx=0, ny=1, nz=0, u=x / 2, v=z / 2}
+    end
+    for z = 0, 1 do
+        for x = 0, 1 do
+            vertices[#vertices + 1] = vertex(x, z)
+            vertices[#vertices + 1] = vertex(x + 1, z)
+            vertices[#vertices + 1] = vertex(x + 1, z + 1)
+            vertices[#vertices + 1] = vertex(x, z)
+            vertices[#vertices + 1] = vertex(x + 1, z + 1)
+            vertices[#vertices + 1] = vertex(x, z + 1)
+        end
+    end
+    assert(asset:addVertex(frame, subset, vertices))
+    assert(asset:addAnim('Static', 1, 1, 1.0, 0))
+    assert(asset:check())
+    assert(asset:save('/tmp/mbm_nonindexed_grid_source.msh', false, false, true))
+    local restored = meshDebug:new()
+    assert(restored:load('/tmp/mbm_nonindexed_grid_source.msh'))
+    assert(restored:check())
+    return restored
+end
+
 function onInitScene()
     started = mbm.getTimeRun()
     local source = meshDebug:new()
@@ -45,6 +75,32 @@ function onInitScene()
     local restoredVertices, restoredTriangles = totals(restored)
     assert(restoredVertices == report.resultVertexCount)
     assert(restoredTriangles == report.resultTriangleCount)
+
+    local nonIndexed = makeNonIndexedGrid()
+    assert(nonIndexed:isIndexBuffer() == false)
+    local nonIndexedReport, nonIndexedError = nonIndexed:simplify(0.5)
+    assert(nonIndexedReport, nonIndexedError)
+    assert(nonIndexedReport.sourceTriangleCount == 8)
+    assert(nonIndexedReport.resultTriangleCount == 4)
+    assert(nonIndexed:isIndexBuffer() == true)
+    assert(nonIndexed:check())
+    assert(nonIndexed:save('/tmp/mbm_simplified_nonindexed_grid.msh', false, false, true))
+    local nonIndexedRestored = meshDebug:new()
+    assert(nonIndexedRestored:load('/tmp/mbm_simplified_nonindexed_grid.msh'))
+    assert(nonIndexedRestored:isIndexBuffer() == true)
+    assert(nonIndexedRestored:check())
+
+    local nonIndexedShared = makeNonIndexedGrid()
+    assert(nonIndexedShared:copyFrameFrom(nonIndexedShared, 1) == 2)
+    nonIndexedShared:scaleFrame(2, 1.0, 1.25, 1.0)
+    local nonIndexedSharedReport, nonIndexedSharedError = nonIndexedShared:simplify(0.5, nil, 0)
+    assert(nonIndexedSharedReport, nonIndexedSharedError)
+    assert(nonIndexedSharedReport.geometryFrameAware == true)
+    assert(nonIndexedSharedReport.geometryFrameCount == 2)
+    assert(nonIndexedSharedReport.sourceTriangleCount == 8)
+    assert(nonIndexedSharedReport.resultTriangleCount == 4)
+    assert(nonIndexedShared:isIndexBuffer() == true)
+    assert(nonIndexedShared:check())
 
     local multiFrame = meshDebug:new()
     assert(multiFrame:load('Crate.msh'))

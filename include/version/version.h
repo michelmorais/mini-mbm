@@ -595,8 +595,12 @@
     7.186.1 Replaced Mesh Debug's selected-frame simplification radio list with a compact combo box while retaining radio buttons for the Frame/Subsets scope.
     7.186.2 Kept Mesh Debug's simplification frame combo at a compact fixed width independent of the surrounding panel width.
     7.187.0 Added atomic shared-collapse simplification for compatible non-skeletal geometry frames, including deformation-aware ranking, common topology reconstruction, Lua reporting, and Mesh Debug controls.
+    7.188.0 Added atomic simplification for non-indexed triangle-list meshes using exact position/normal/UV adjacency, indexed uint16 output, correct Mesh Debug triangle estimates, and single/shared-frame regression coverage.
+    7.188.1 Localized Mesh Debug simplification boundary/topology failures and mirrored the complete localized failure message to the terminal.
+    7.188.2 Added detailed simplification bounds diagnostics with the failing frame, generated vertex, axis, value, source range, excess, and active tolerance.
+    7.188.3 Fixed shared-frame simplification to apply each collapse's projected edge factor consistently to deformation samples, normals, UVs, source contributions, and derived skin weights instead of mixing edge placement with a fixed 50/50 blend.
 */
-#define MBM_VERSION "7.187.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.188.3" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -8448,14 +8448,65 @@ function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, target
     return report
 end
 
+function simplifySubsetTriangles(indexCount, vertexCount)
+    if indexCount and indexCount > 0 then return math.floor(indexCount / 3) end
+    return math.floor((vertexCount or 0) / 3)
+end
+
 function simplifyGeometryTotals(meshD, frame)
     local vertices, triangles = 0, 0
     local totalSubsets = meshD:getTotalSubset(frame)
     for subset = 1, totalSubsets do
         vertices = vertices + meshD:getTotalVertex(frame, subset)
-        triangles = triangles + math.floor(meshD:getTotalIndex(frame, subset) / 3)
+        local indexCount = meshD:getTotalIndex(frame, subset)
+        local vertexCount = meshD:getTotalVertex(frame, subset)
+        triangles = triangles + simplifySubsetTriangles(indexCount, vertexCount)
     end
     return vertices, triangles
+end
+
+function simplifyLocalizedError(errorValue)
+    local rawError = tostring(errorValue or tLang.L('unknown_error'))
+    local frameError = rawError:match('^frame simplification failed: (.+)$')
+    local detail = frameError or rawError
+    local shared, frame, vertex, axis, value, minimum, maximum, excess, tolerance = detail:match(
+        '^simplify bounds violation: shared=(%d+) frame=(%d+) vertex=(%d+) axis=([XYZ]) ' ..
+        'value=(%S+) min=(%S+) max=(%S+) excess=(%S+) tolerance=(%S+)$')
+    if shared then
+        local key = shared == '1' and 'simplify_error_shared_bounds_detail_fmt'
+            or 'simplify_error_bounds_detail_fmt'
+        return string.format(tLang.L(key), tonumber(frame), tonumber(vertex), axis,
+            value, minimum, maximum, excess, tolerance)
+    end
+    local nonFiniteShared, nonFiniteFrame, nonFiniteVertex, nonFiniteAxis = detail:match(
+        '^simplify non%-finite vertex: shared=(%d+) frame=(%d+) vertex=(%d+) axis=([XYZ])$')
+    if nonFiniteShared then
+        return string.format(tLang.L('simplify_error_non_finite_detail_fmt'),
+            tonumber(nonFiniteFrame), tonumber(nonFiniteVertex), nonFiniteAxis)
+    end
+    local errorKeys = {
+        ['topology constraints prevent reaching the requested triangle count'] =
+            'simplify_error_topology_constraints',
+        ['edge-collapse pass made no progress'] = 'simplify_error_no_progress',
+        ['simplified topology contains a non-manifold edge'] = 'simplify_error_non_manifold',
+        ['simplified vertex escaped the source geometry bounds'] = 'simplify_error_source_bounds',
+        ["shared simplified vertex escaped a source frame's geometry bounds"] =
+            'simplify_error_shared_frame_bounds',
+    }
+    local key = errorKeys[detail]
+    if not key then return rawError end
+    local translated = tLang.L(key)
+    if frameError then
+        return string.format(tLang.L('simplify_error_frame_fmt'), translated)
+    end
+    return translated
+end
+
+function simplifyShowFailure(errorValue)
+    local message = string.format(tLang.L('simplify_failed_fmt'),
+        simplifyLocalizedError(errorValue))
+    print('[mesh_debug] ' .. message)
+    tUtil.showMessageWarn(message, 6)
 end
 
 function simplifyApply(tEntry, meshD, index)
@@ -8494,8 +8545,7 @@ function simplifyApply(tEntry, meshD, index)
         if not okSimplify or not report then
             meshDebug:fakeRelease(pendingBackup.path)
             os.remove(pendingBackup.path)
-            tUtil.showMessageWarn(string.format(tLang.L('simplify_failed_fmt'),
-                tostring(simplifyError or tLang.L('unknown_error'))), 6)
+            simplifyShowFailure(okSimplify and simplifyError or report)
             return false
         end
         aggregateReport = splitCaptureCopyTable(report)
@@ -8510,8 +8560,7 @@ function simplifyApply(tEntry, meshD, index)
             if not okSimplify or not report then
                 meshDebug:fakeRelease(pendingBackup.path)
                 os.remove(pendingBackup.path)
-                tUtil.showMessageWarn(string.format(tLang.L('simplify_failed_fmt'),
-                    tostring(simplifyError or tLang.L('unknown_error'))), 6)
+                simplifyShowFailure(okSimplify and simplifyError or report)
                 return false
             end
             if not aggregateReport then
@@ -9399,7 +9448,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                     simplifyState.report = nil
                 end
                 if simplifyState.selectedSubsets[subset.s] then
-                    local triangles = math.floor((subset.indexCount or 0) / 3)
+                    local triangles = simplifySubsetTriangles(subset.indexCount, subset.vertexCount)
                     sourceTriangles = sourceTriangles + triangles
                     estimatedTriangles = estimatedTriangles + math.max(1,
                         math.floor(triangles * (simplifyState.ratio or 0.9)))
@@ -9430,7 +9479,8 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     else
         for _, subset in ipairs(allSubsets) do
             if subset.f == targetFrame then
-                sourceTriangles = sourceTriangles + math.floor((subset.indexCount or 0) / 3)
+                sourceTriangles = sourceTriangles +
+                    simplifySubsetTriangles(subset.indexCount, subset.vertexCount)
                 selectedCount = selectedCount + 1
             end
         end
@@ -9452,7 +9502,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 estimatedTriangles = 0
                 for _, subset in ipairs(allSubsets) do
                     if subset.f == targetFrame and simplifyState.selectedSubsets[subset.s] then
-                        local triangles = math.floor((subset.indexCount or 0) / 3)
+                        local triangles = simplifySubsetTriangles(subset.indexCount, subset.vertexCount)
                         estimatedTriangles = estimatedTriangles + math.max(1,
                             math.floor(triangles * ratio))
                     end

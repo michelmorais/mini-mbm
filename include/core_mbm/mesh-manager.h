@@ -308,9 +308,11 @@ namespace mbm
         API_IMPL void calculateUV();
         API_IMPL void removeNormals();
         API_IMPL void addNormals();
-        // Simplifies one indexed triangle frame atomically. targetSubsetIndex=-1 processes the
-        // complete virtual cross-subset topology; otherwise only that zero-based material subset
-        // is reduced and every other subset is copied without changing its vertex attributes.
+        // Simplifies one indexed or non-indexed triangle frame atomically. Non-indexed input is
+        // internally indexed by exact position/normal/UV attributes and the committed result uses
+        // the existing uint16 index contract. targetSubsetIndex=-1 processes the complete virtual
+        // cross-subset topology; otherwise only that zero-based material subset is reduced and
+        // every other subset is copied without changing its rendered vertex attributes.
         // targetFrameIndex selects the zero-based geometry frame; -1 applies one shared collapse
         // sequence to every compatible non-skeletal frame. Multi-frame skeletal and articulated
         // assets remain unsupported.

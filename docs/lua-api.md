@@ -1417,10 +1417,17 @@ may differ. On success the call returns a detached table containing
 For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
 `meshD:simplify(0.5, nil, 0)` simplifies every compatible geometry frame with shared collapses.
 
-The implementation accepts indexed, 3D triangle-list meshes. Shared multi-frame simplification
-uses the maximum deformation difference across frames in collapse ranking, then reconstructs each
-frame from the same compact topology. Multi-frame skeletal and articulated assets remain
-unsupported. For one-frame canonical skeletal assets, every collapse blends the
+The implementation accepts indexed or non-indexed 3D triangle-list meshes. Non-indexed triangle
+vertices are internally joined only when position, normal, and UV attributes match exactly; this
+recovers usable adjacency without crossing authored UV or hard-normal seams. A successful
+non-indexed simplification produces an indexed result using the engine's existing `uint16_t`
+contract. Shared multi-frame simplification uses the maximum deformation difference across frames
+in collapse ranking, then reconstructs each frame from the same compact topology. The projected
+edge interpolation factor is applied consistently to positions, attributes, weights, and every
+frame deformation sample, keeping reconstructed vertices on their corresponding deformed edges.
+Multi-frame
+skeletal and articulated assets remain unsupported. For one-frame canonical skeletal assets,
+every collapse blends the
 source influences, keeps the strongest four, normalizes them,
 and preserves the skeleton and animation clips. When clips exist, up to 24 poses are distributed
 across up to 24 clips. Edge-collapse ranking includes the maximum difference between the sampled
