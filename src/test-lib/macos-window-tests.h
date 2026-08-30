@@ -16,5 +16,8 @@
 
 bool requestMacOSWindowResize(int width, int height);
 bool validateMacOSWindowResize(int width, int height);
+bool postMacOSInputTestEvents();
+bool postMacOSCapsLockRelease();
+bool requestMacOSWindowClose();
 
 #endif

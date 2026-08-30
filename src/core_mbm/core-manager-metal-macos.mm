@@ -488,6 +488,8 @@ namespace mbm
                         float ex, ey;
                         toEngineXY([event locationInWindow], ex, ey);
                         this->onTouchDown(0, ex, ey);
+                        if (event.clickCount == 2)
+                            this->onDoubleClick(ex, ey, 0);
                     }
                     break;
 
@@ -504,6 +506,8 @@ namespace mbm
                         float ex, ey;
                         toEngineXY([event locationInWindow], ex, ey);
                         this->onTouchDown(1, ex, ey);
+                        if (event.clickCount == 2)
+                            this->onDoubleClick(ex, ey, 1);
                     }
                     break;
 
@@ -520,6 +524,8 @@ namespace mbm
                         float ex, ey;
                         toEngineXY([event locationInWindow], ex, ey);
                         this->onTouchDown(2, ex, ey);
+                        if (event.clickCount == 2)
+                            this->onDoubleClick(ex, ey, 2);
                     }
                     break;
 

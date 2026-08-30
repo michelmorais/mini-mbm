@@ -98,7 +98,7 @@ Metal deformation source. All four cases must report `PASS`, the process must ex
 and any Metal API validation message must be treated as a test failure. This test is optional for
 build-only runners because Metal device creation is unavailable without GPU access.
 
-### Automated Metal render-target and Retina resize tests
+### Automated Metal, window, and input tests
 
 Two additional graphical-session tests cover the macOS render-target readback path and window
 resize state:
@@ -106,16 +106,36 @@ resize state:
 ```sh
 MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --metal-render-to-texture-test
 MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-resize-test
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-input-test
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-close-test
 ```
 
 The render-target test validates known RGBA pixels after a Metal offscreen clear and GPU readback.
 The resize test requests a 960x640 logical content area and verifies the engine resize callback,
-the `CAMetalLayer` backing scale, and its pixel-sized drawable. Both commands exit automatically;
-any Metal API validation message or nonzero process status is a failure.
+the `CAMetalLayer` backing scale, and its pixel-sized drawable. The input test posts deterministic
+AppKit events and verifies a normal key, Shift, Control, Option, Command, Caps Lock state,
+three mouse buttons, movement, both scroll directions, double-click, and logical coordinates. The
+close test exercises the window delegate and normal engine teardown. All commands exit
+automatically; any Metal API validation message or nonzero process status is a failure.
 
 The resize harness validates the current display's scale. Moving a live window between displays
 with different backing scales, native fullscreen transitions, and multi-monitor placement still
 require manual checks because CI cannot synthesize the physical display topology.
+
+### Manual window/input acceptance checklist
+
+Run a Debug build with `MTL_DEBUG_LAYER=1` and verify the following on real hardware:
+
+- Hold and combine Shift, Control, Option, and Command; each press and release must arrive once.
+- Toggle Caps Lock twice and confirm text/input code observes the enabled and disabled states.
+- Drag with left, right, and an additional mouse button; verify motion remains in logical window
+  coordinates on Retina displays. Test both discrete-wheel and trackpad scrolling.
+- Resize continuously, minimize and restore, then enter and leave native fullscreen. Rendering must
+  resume at the correct size without flicker, stretched frames, or Metal validation messages.
+- With two displays, move the window between them. When their backing scales differ, the drawable
+  pixel size must update while the engine's logical dimensions and pointer coordinates stay stable.
+- Close through the title-bar button, Command-Q, and `mbm.quit()`. Each path must return normally
+  without a crash, hang, Metal validation message, or audio/plugin callback after teardown.
 
 ---
 

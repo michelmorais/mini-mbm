@@ -179,6 +179,21 @@ class MY_SCENE : public mbm::SCENE
     bool                    testMacOSResize;
     bool                    testMacOSResizeRequested;
     bool                    testMacOSResizeNotified;
+    bool                    testMacOSInput;
+    int                     testMacOSInputPhase;
+    uint32_t                testMacOSKeyDownMask;
+    uint32_t                testMacOSKeyUpMask;
+    uint32_t                testMacOSTouchDownMask;
+    uint32_t                testMacOSTouchUpMask;
+    uint32_t                testMacOSZoomMask;
+    bool                    testMacOSMoveReceived;
+    bool                    testMacOSDoubleClickReceived;
+    bool                    testMacOSCoordinatesValid;
+    float                   testMacOSObservedX;
+    float                   testMacOSObservedY;
+    bool                    testMacOSClose;
+    bool                    testMacOSCloseRequested;
+    mbm::CORE_MANAGER*      testCoreManager;
     bool                    automatedTestFailed;
 
     MY_SCENE();
@@ -191,6 +206,7 @@ class MY_SCENE : public mbm::SCENE
     void onTouchUp(int key, float x, float y);
     void onTouchMove(int, float x, float y);
     void onTouchZoom(float zoom);
+    void onDoubleClick(float x, float y, int key);
     void onFinalizeScene();
     void onKeyDown(int key);
     void onKeyUp(int key);

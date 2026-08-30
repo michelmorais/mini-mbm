@@ -18,6 +18,28 @@
 #include <specific-metal-context.h>
 #include <cmath>
 
+namespace
+{
+    NSEvent *makeMouseEvent(const NSEventType type, NSWindow *window,
+                            const NSPoint location, const NSInteger clickCount)
+    {
+        return [NSEvent mouseEventWithType:type location:location modifierFlags:0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
+            context:nil eventNumber:0 clickCount:clickCount pressure:1.0];
+    }
+
+    void postModifierEvent(NSWindow *window, const NSEventModifierFlags flags,
+                           const unsigned short keyCode)
+    {
+        NSEvent *event = [NSEvent keyEventWithType:NSEventTypeFlagsChanged
+            location:NSZeroPoint modifierFlags:flags
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
+            context:nil characters:@"" charactersIgnoringModifiers:@""
+            isARepeat:NO keyCode:keyCode];
+        [NSApp postEvent:event atStart:NO];
+    }
+}
+
 bool requestMacOSWindowResize(const int width, const int height)
 {
     mbm::DEVICE *device = mbm::DEVICE::getInstance();
@@ -42,6 +64,87 @@ bool validateMacOSWindowResize(const int width, const int height)
            std::fabs(context->metalLayer.contentsScale - scale) < 0.001 &&
            static_cast<int>(drawableSize.width) == static_cast<int>(width * scale) &&
            static_cast<int>(drawableSize.height) == static_cast<int>(height * scale);
+}
+
+bool postMacOSInputTestEvents()
+{
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device ? device->getSpecificContextDevice() : nullptr;
+    NSWindow *window = context ? context->window : nil;
+    if (!window)
+        return false;
+    const NSTimeInterval timestamp = NSProcessInfo.processInfo.systemUptime;
+    NSEvent *keyDown = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+        modifierFlags:0 timestamp:timestamp windowNumber:window.windowNumber context:nil
+        characters:@"a" charactersIgnoringModifiers:@"a" isARepeat:NO keyCode:0];
+    NSEvent *keyUp = [NSEvent keyEventWithType:NSEventTypeKeyUp location:NSZeroPoint
+        modifierFlags:0 timestamp:timestamp windowNumber:window.windowNumber context:nil
+        characters:@"a" charactersIgnoringModifiers:@"a" isARepeat:NO keyCode:0];
+    [NSApp postEvent:keyDown atStart:NO];
+    [NSApp postEvent:keyUp atStart:NO];
+
+    const struct { NSEventModifierFlags flag; unsigned short keyCode; } modifiers[] = {
+        {NSEventModifierFlagShift, 56}, {NSEventModifierFlagControl, 59},
+        {NSEventModifierFlagOption, 58}, {NSEventModifierFlagCommand, 55}};
+    for (const auto &modifier : modifiers)
+    {
+        postModifierEvent(window, modifier.flag, modifier.keyCode);
+        postModifierEvent(window, 0, modifier.keyCode);
+    }
+    postModifierEvent(window, NSEventModifierFlagCapsLock, 57);
+
+    const NSPoint location = NSMakePoint(120.0, window.contentView.bounds.size.height - 80.0);
+    const NSEventType downTypes[] = {NSEventTypeLeftMouseDown, NSEventTypeRightMouseDown,
+                                     NSEventTypeOtherMouseDown};
+    const NSEventType upTypes[] = {NSEventTypeLeftMouseUp, NSEventTypeRightMouseUp,
+                                   NSEventTypeOtherMouseUp};
+    for (size_t index = 0; index < 3; ++index)
+    {
+        NSEvent *downEvent = makeMouseEvent(downTypes[index], window, location, 1);
+        NSEvent *upEvent = makeMouseEvent(upTypes[index], window, location, 1);
+        [NSApp postEvent:downEvent atStart:NO];
+        [NSApp postEvent:upEvent atStart:NO];
+    }
+    [NSApp postEvent:makeMouseEvent(NSEventTypeLeftMouseDown, window, location, 2) atStart:NO];
+    [NSApp postEvent:makeMouseEvent(NSEventTypeLeftMouseUp, window, location, 2) atStart:NO];
+    [NSApp postEvent:makeMouseEvent(NSEventTypeMouseMoved, window, location, 0) atStart:NO];
+
+    CGEventRef scrollUpEvent = CGEventCreateScrollWheelEvent(nullptr, kCGScrollEventUnitLine, 1, 1);
+    CGEventRef scrollDownEvent = CGEventCreateScrollWheelEvent(nullptr, kCGScrollEventUnitLine, 1, -1);
+    NSEvent *scrollUp = scrollUpEvent ? [NSEvent eventWithCGEvent:scrollUpEvent] : nil;
+    NSEvent *scrollDown = scrollDownEvent ? [NSEvent eventWithCGEvent:scrollDownEvent] : nil;
+    if (scrollUp)
+        [NSApp postEvent:scrollUp atStart:NO];
+    if (scrollDown)
+        [NSApp postEvent:scrollDown atStart:NO];
+    if (scrollUpEvent)
+        CFRelease(scrollUpEvent);
+    if (scrollDownEvent)
+        CFRelease(scrollDownEvent);
+    if (!scrollUp || !scrollDown)
+        return false;
+    return true;
+}
+
+bool postMacOSCapsLockRelease()
+{
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device ? device->getSpecificContextDevice() : nullptr;
+    NSWindow *window = context ? context->window : nil;
+    if (!window)
+        return false;
+    postModifierEvent(window, 0, 57);
+    return true;
+}
+
+bool requestMacOSWindowClose()
+{
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context = device ? device->getSpecificContextDevice() : nullptr;
+    if (!context || !context->window)
+        return false;
+    [context->window performClose:nil];
+    return true;
 }
 
 #endif

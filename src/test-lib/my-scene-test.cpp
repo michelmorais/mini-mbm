@@ -139,6 +139,21 @@ MY_SCENE::MY_SCENE()
     testMacOSResize = false;
     testMacOSResizeRequested = false;
     testMacOSResizeNotified = false;
+    testMacOSInput = false;
+    testMacOSInputPhase = 0;
+    testMacOSKeyDownMask = 0;
+    testMacOSKeyUpMask = 0;
+    testMacOSTouchDownMask = 0;
+    testMacOSTouchUpMask = 0;
+    testMacOSZoomMask = 0;
+    testMacOSMoveReceived = false;
+    testMacOSDoubleClickReceived = false;
+    testMacOSCoordinatesValid = true;
+    testMacOSObservedX = -1.0f;
+    testMacOSObservedY = -1.0f;
+    testMacOSClose = false;
+    testMacOSCloseRequested = false;
+    testCoreManager = nullptr;
     automatedTestFailed = false;
 }
 
@@ -915,6 +930,64 @@ void MY_SCENE::onLoop()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
 #if defined(__APPLE__)
+    if (testMacOSInput)
+    {
+        if (testMacOSInputPhase == 0)
+        {
+            testMacOSInputPhase = 1;
+            if (!postMacOSInputTestEvents())
+            {
+                ERROR_LOG("testLib: failed to post synthetic macOS input events");
+                automatedTestFailed = true;
+                device->setRun(false);
+            }
+            return;
+        }
+        if (testMacOSInputPhase == 1 && testCoreManager && testCoreManager->isKeyCapsLockOn())
+        {
+            testMacOSInputPhase = 2;
+            if (!postMacOSCapsLockRelease())
+            {
+                ERROR_LOG("testLib: failed to post synthetic macOS Caps Lock release");
+                automatedTestFailed = true;
+                device->setRun(false);
+            }
+            return;
+        }
+        if (testMacOSInputPhase == 2 && testCoreManager && !testCoreManager->isKeyCapsLockOn())
+        {
+            const uint32_t expectedKeyMask = 0x3fu;
+            const bool valid = testMacOSKeyDownMask == expectedKeyMask &&
+                testMacOSKeyUpMask == expectedKeyMask && testMacOSTouchDownMask == 0x7u &&
+                testMacOSTouchUpMask == 0x7u && testMacOSZoomMask == 0x3u &&
+                testMacOSMoveReceived && testMacOSDoubleClickReceived && testMacOSCoordinatesValid;
+            if (!valid)
+            {
+                ERROR_LOG("testLib: macOS input validation failed keys=%x/%x buttons=%x/%x zoom=%x move=%d double=%d coords=%d",
+                    testMacOSKeyDownMask, testMacOSKeyUpMask, testMacOSTouchDownMask,
+                    testMacOSTouchUpMask, testMacOSZoomMask, testMacOSMoveReceived,
+                    testMacOSDoubleClickReceived, testMacOSCoordinatesValid);
+                automatedTestFailed = true;
+            }
+            else
+            {
+                INFO_LOG("testLib: macOS keyboard/modifiers/mouse/scroll/double-click validation passed");
+            }
+            device->setRun(false);
+            return;
+        }
+    }
+    if (testMacOSClose && !testMacOSCloseRequested)
+    {
+        testMacOSCloseRequested = true;
+        if (!requestMacOSWindowClose())
+        {
+            ERROR_LOG("testLib: failed to request macOS window close");
+            automatedTestFailed = true;
+            device->setRun(false);
+        }
+        return;
+    }
     if (testMacOSResize && !testMacOSResizeRequested)
     {
         testMacOSResizeRequested = true;
@@ -1102,6 +1175,16 @@ void MY_SCENE::onLoop()
         if (testElapsedSeconds >= testTimeoutSeconds)
         {
 #if defined(USE_METAL)
+            if (testMacOSInput)
+            {
+                ERROR_LOG("testLib: macOS input event validation timed out");
+                automatedTestFailed = true;
+            }
+            if (testMacOSClose)
+            {
+                ERROR_LOG("testLib: macOS window close timed out");
+                automatedTestFailed = true;
+            }
             if (testMacOSResize)
             {
                 ERROR_LOG("testLib: macOS resize event timed out");
@@ -1282,6 +1365,20 @@ std::string MY_SCENE::getShaderInfoText(const bool isPS, std::vector<mbm::VAR_SH
 
 void MY_SCENE::onTouchDown(int key, float x, float y)
 {
+    if (testMacOSInput)
+    {
+        if (key >= 0 && key <= 2)
+            testMacOSTouchDownMask |= 1u << static_cast<uint32_t>(key);
+        if (testMacOSObservedX < 0.0f)
+        {
+            testMacOSObservedX = x;
+            testMacOSObservedY = y;
+            testMacOSCoordinatesValid = x > 50.0f && x < 200.0f && y > 40.0f && y < 150.0f;
+        }
+        testMacOSCoordinatesValid = testMacOSCoordinatesValid &&
+            std::fabs(x - testMacOSObservedX) < 0.01f && std::fabs(y - testMacOSObservedY) < 0.01f;
+        return;
+    }
     INFO_LOG("Touch down key: %d %g %g", key, x, y);
     if (key == 0)
     {
@@ -1316,12 +1413,26 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
     }
 }
 
-void MY_SCENE::onTouchUp(int, float, float)
+void MY_SCENE::onTouchUp(int key, float x, float y)
 {
+    if (testMacOSInput)
+    {
+        if (key >= 0 && key <= 2)
+            testMacOSTouchUpMask |= 1u << static_cast<uint32_t>(key);
+        testMacOSCoordinatesValid = testMacOSCoordinatesValid &&
+            std::fabs(x - testMacOSObservedX) < 0.01f && std::fabs(y - testMacOSObservedY) < 0.01f;
+    }
 }
 
 void MY_SCENE::onTouchMove(int, float x, float y)
 {
+    if (testMacOSInput)
+    {
+        testMacOSMoveReceived = true;
+        testMacOSCoordinatesValid = testMacOSCoordinatesValid &&
+            std::fabs(x - testMacOSObservedX) < 0.01f && std::fabs(y - testMacOSObservedY) < 0.01f;
+        return;
+    }
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     mouseScreenX = x;
     mouseScreenY = y;
@@ -1463,8 +1574,25 @@ void MY_SCENE::updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw)
     
 }
 
-void MY_SCENE::onTouchZoom(float)
+void MY_SCENE::onTouchZoom(float zoom)
 {
+    if (testMacOSInput)
+    {
+        if (zoom > 0.0f)
+            testMacOSZoomMask |= 1u;
+        if (zoom < 0.0f)
+            testMacOSZoomMask |= 2u;
+    }
+}
+
+void MY_SCENE::onDoubleClick(float x, float y, int key)
+{
+    if (testMacOSInput)
+    {
+        testMacOSDoubleClickReceived = key == 0;
+        testMacOSCoordinatesValid = testMacOSCoordinatesValid &&
+            std::fabs(x - testMacOSObservedX) < 0.01f && std::fabs(y - testMacOSObservedY) < 0.01f;
+    }
 }
 
 void MY_SCENE::onFinalizeScene()
@@ -1473,6 +1601,16 @@ void MY_SCENE::onFinalizeScene()
 
 void MY_SCENE::onKeyDown(int key)
 {
+    if (testMacOSInput)
+    {
+        const int keys[] = {'A', 0xFFE1, 0xFFE3, 0xFFE9, 0xFFEB, 0xFFE5};
+        for (uint32_t index = 0; index < 6; ++index)
+        {
+            if (key == keys[index])
+                testMacOSKeyDownMask |= 1u << index;
+        }
+        return;
+    }
     printf("Key down: %d\n", key);
     if (key == 77) // M - toggle left menu
     {
@@ -1505,8 +1643,17 @@ void MY_SCENE::onKeyDown(int key)
         camera.position2d.y -= 10;
 }
 
-void MY_SCENE::onKeyUp(int)
+void MY_SCENE::onKeyUp(int key)
 {
+    if (testMacOSInput)
+    {
+        const int keys[] = {'A', 0xFFE1, 0xFFE3, 0xFFE9, 0xFFEB, 0xFFE5};
+        for (uint32_t index = 0; index < 6; ++index)
+        {
+            if (key == keys[index])
+                testMacOSKeyUpMask |= 1u << index;
+        }
+    }
 }
 
 void MY_SCENE::onKeyDownJoystick(int, int)
