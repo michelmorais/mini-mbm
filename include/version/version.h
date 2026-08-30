@@ -607,8 +607,9 @@
     7.191.0 Added post-simplification quality diagnostics with relative error classification, achieved reduction, committed-collapse totals, and boundary/topology/orientation/invalid candidate protection counters in the native report, Lua API, Mesh Debug UI, and terminal.
     7.192.0 Added default-on detail-preserving simplification that softly penalizes collapses near sharp edges and strong normal variation, with an editor toggle, Lua/native control, and diagnostic counters.
     7.193.0 Preserved clearance between nearby disconnected subsets during simplification using spatially queried triangle-distance checks across reference geometry and deformation samples, with editor and terminal diagnostics.
+    7.194.0 Enabled atomic Mesh Debug Split Capture on canonically weighted meshes by remapping every captured/outside vertex to its source weight and rebuilding the frame-global weight array before commit.
 */
-#define MBM_VERSION "7.193.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.194.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

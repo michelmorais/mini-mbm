@@ -8787,7 +8787,7 @@ function splitCaptureSignature(vertices, indices, texture)
 end
 
 function splitCaptureGroup(vertices, triangles)
-    local outVertices, outIndices, remap = {}, {}, {}
+    local outVertices, outIndices, outSources, remap = {}, {}, {}, {}
     for _, tri in ipairs(triangles) do
         for _, oldIndex in ipairs(tri) do
             local newIndex = remap[oldIndex]
@@ -8795,11 +8795,60 @@ function splitCaptureGroup(vertices, triangles)
                 newIndex = #outVertices + 1
                 remap[oldIndex] = newIndex
                 outVertices[newIndex] = vertices[oldIndex]
+                outSources[newIndex] = oldIndex
             end
             table.insert(outIndices, newIndex)
         end
     end
-    return outVertices, outIndices
+    return outVertices, outIndices, outSources
+end
+
+function splitCaptureSnapshotWeights(meshD)
+    local okHas, hasWeights = dpCall(function() return meshD:hasSkeletalVertexWeights() end)
+    if not okHas or not hasWeights then return nil end
+    local subsets, globalIndex = {}, 0
+    local okS, totalSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    if not okS or not totalSubsets then return nil, tLang.L('capture_weights_failed') end
+    for subset = 1, totalSubsets do
+        subsets[subset] = {}
+        local okV, totalVertices = dpCall(function() return meshD:getTotalVertex(1, subset) end)
+        if not okV or not totalVertices then return nil, tLang.L('capture_weights_failed') end
+        for vertex = 1, totalVertices do
+            globalIndex = globalIndex + 1
+            local okW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function()
+                return meshD:getSkeletalVertexWeight(globalIndex)
+            end)
+            if not okW or not n1 then return nil, tLang.L('capture_weights_failed') end
+            subsets[subset][vertex] = {
+                [1]=n1, [2]=w1, [3]=n2, [4]=w2,
+                [5]=n3, [6]=w3, [7]=n4, [8]=w4,
+            }
+        end
+    end
+    return subsets
+end
+
+function splitCaptureRestoreWeights(meshD, subsets)
+    if not subsets then return true end
+    local okRemove = dpCall(function() return meshD:removeSkeletalVertexWeights() end)
+    if not okRemove then return false end
+    local okInit = dpCall(function() return meshD:initializeSkeletalVertexWeights(1) end)
+    if not okInit then return false end
+    local edits, globalIndex = {}, 0
+    for _, subset in ipairs(subsets) do
+        for _, weight in ipairs(subset) do
+            globalIndex = globalIndex + 1
+            edits[#edits + 1] = {
+                [1]=globalIndex,
+                [2]=weight[1], [3]=weight[2], [4]=weight[3], [5]=weight[4],
+                [6]=weight[5], [7]=weight[6], [8]=weight[7], [9]=weight[8],
+            }
+        end
+    end
+    local okSet, setResult = dpCall(function()
+        return meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    return okSet and setResult == true
 end
 
 function splitCaptureSetSubsetTextures(meshD, frame, subset, texture, materialTextures)
@@ -9099,6 +9148,8 @@ function splitCaptureApply(tEntry, meshD, resolved)
     tEntry.tSplitCapturedSignatures = tEntry.tSplitCapturedSignatures or {}
     local sourceHadNormals = tEntry.info and tEntry.info.hasNormal == true
     local sourceNormalStateKnown = tEntry.info and tEntry.info.hasNormal ~= nil
+    local weightSubsets, weightError = splitCaptureSnapshotWeights(meshD)
+    if weightError then return nil, weightError end
     table.sort(resolved.groups, function(left, right)
         return left.frame > right.frame or (left.frame == right.frame and left.subset > right.subset)
     end)
@@ -9115,22 +9166,39 @@ function splitCaptureApply(tEntry, meshD, resolved)
             local tri = {group.indices[i], group.indices[i+1], group.indices[i+2]}
             if not chosenSet[table.concat(tri, ':')] then table.insert(outside, tri) end
         end
-        local outsideV, outsideI = splitCaptureGroup(group.vertices, outside)
-        local insideV, insideI = splitCaptureGroup(group.vertices, chosen)
+        local outsideV, outsideI, outsideSources = splitCaptureGroup(group.vertices, outside)
+        local insideV, insideI, insideSources = splitCaptureGroup(group.vertices, chosen)
+        local sourceWeights = group.frame == 1 and weightSubsets and
+            table.remove(weightSubsets, group.subset) or nil
         meshD:removeSubset(group.frame, group.subset)
         if #outsideI > 0 then
             local newS = meshD:addSubSet(group.frame)
             meshD:addVertex(group.frame, newS, outsideV); meshD:addIndex(group.frame, newS, outsideI)
             splitCaptureSetSubsetTextures(meshD, group.frame, newS, group.texture, group.materialTextures)
+            if sourceWeights then
+                local weights = {}
+                for _, sourceIndex in ipairs(outsideSources) do weights[#weights + 1] = sourceWeights[sourceIndex] end
+                weightSubsets[#weightSubsets + 1] = weights
+            end
         end
         local newS = meshD:addSubSet(group.frame)
         meshD:addVertex(group.frame, newS, insideV); meshD:addIndex(group.frame, newS, insideI)
         splitCaptureSetSubsetTextures(meshD, group.frame, newS, group.texture, group.materialTextures)
+        if sourceWeights then
+            local weights = {}
+            for _, sourceIndex in ipairs(insideSources) do weights[#weights + 1] = sourceWeights[sourceIndex] end
+            weightSubsets[#weightSubsets + 1] = weights
+        end
         tEntry.tSplitCapturedSignatures[tostring(group.frame) .. ':' .. splitCaptureSignature(insideV, insideI, group.texture)] = true
+    end
+    if weightSubsets and not splitCaptureRestoreWeights(meshD, weightSubsets) then
+        return nil, tLang.L('capture_weights_failed')
     end
     if resolved.faces > 0 and sourceNormalStateKnown and not sourceHadNormals then
         meshD:removeNormals(); tEntry.info.hasNormal = false
     end
+    local okCheck, valid = dpCall(function() return meshD:check() end)
+    if not okCheck or not valid then return nil, tLang.L('capture_analysis_failed') end
     return resolved.faces, resolved.frames
 end
 
@@ -9138,7 +9206,17 @@ function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
     if resolved.faces == 0 then tUtil.showMessageWarn(tLang.L('capture_no_faces')); return end
     local pendingBackup = splitCaptureCreateBackup(tEntry, meshD)
     if not pendingBackup then tUtil.showMessageWarn(tLang.L('capture_backup_failed')); return end
-    local faces, framesOrError = splitCaptureApply(tEntry, meshD, resolved)
+    local workingMesh = meshDebug:new()
+    if not workingMesh:load(pendingBackup.path) then
+        meshDebug:fakeRelease(pendingBackup.path); os.remove(pendingBackup.path)
+        tUtil.showMessageWarn(tLang.L('capture_backup_failed'))
+        return
+    end
+    local workingEntry = {
+        info = splitCaptureCopyTable(tEntry.info),
+        tSplitCapturedSignatures = splitCaptureCopyTable(tEntry.tSplitCapturedSignatures),
+    }
+    local faces, framesOrError = splitCaptureApply(workingEntry, workingMesh, resolved)
     if not faces then
         meshDebug:fakeRelease(pendingBackup.path); os.remove(pendingBackup.path)
         tUtil.showMessageWarn(framesOrError or tLang.L('capture_analysis_failed'))
@@ -9146,11 +9224,15 @@ function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
     end
     splitCaptureDiscardBackup(tEntry)
     tEntry.tSplitCaptureBackup = pendingBackup
+    tEntry.meshDebug = workingMesh
+    tEntry.info = workingEntry.info
+    tEntry.tSplitCapturedSignatures = workingEntry.tSplitCapturedSignatures
     tEntry.modified = true
     tEntry.bNormalsVizDirty = true
     tEntry.bPhysicsVizDirty = true
     tEntry.tTransformBoundsCache = nil
     iLastPreviewedIndex = 0
+    rebuildBoneGizmo(tEntry, workingMesh, index)
     sp.lastFaces, sp.lastFrames = faces, framesOrError
     table.insert(tEntry.tSplitCaptures, {
         faces=faces, frames=framesOrError, x=sp.x, y=sp.y, z=sp.z,

@@ -121,6 +121,12 @@ to one of those triangles falls below 75% of the smaller endpoint distance, both
 geometry and in every available deformation sample. This targets layered geometry such as clothes
 over a body without treating intentionally disconnected components as a single welded surface.
 
+Mesh Debug's Split Capture remains an editor-side topology operation, but weighted frame-1 meshes
+retain canonical skinning. Capture snapshots weights in frame-global vertex order, rebuilds the
+outside and captured subsets with explicit source-vertex maps, then recreates and validates the
+canonical weight array in the new global order. The operation runs on a detached backup copy and
+replaces the editor mesh only after geometry and weights both succeed.
+
 Whole-frame simplification uses one virtual topology across all material subsets. Vertices with
 bit-identical positions may be paired across different subsets so a material seam is treated as an
 interior topological edge, but coincident vertices inside the same subset remain separate to retain
