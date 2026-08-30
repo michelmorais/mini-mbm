@@ -2133,6 +2133,7 @@ namespace mbm
         {
             std::unordered_map<uint32_t, uint32_t> globalBySubset;
             std::vector<uint32_t> globals;
+            uint64_t topologyDomain = 0;
         };
         std::vector<SUBSET_RANGE> results(frame->subset.size());
         std::vector<VEC3> positions;
@@ -2147,6 +2148,14 @@ namespace mbm
         const auto *sourceNormals = reinterpret_cast<const VEC3 *>(frame->normal);
         const auto *sourceUvs = reinterpret_cast<const VEC2 *>(frame->uv);
         report.sourceVertexCount = static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer);
+        std::vector<uint64_t> subsetTopologyDomains(frame->subset.size(), 0);
+        for (const util::ARTICULATED_PART_V11 &part : impl->articulatedParts)
+        {
+            if (part.frameIndex != static_cast<uint32_t>(referenceFrameIndex)) continue;
+            if (part.subsetIndex >= subsetTopologyDomains.size())
+                return fail("articulated Part references a subset outside the simplification frame");
+            subsetTopologyDomains[part.subsetIndex] = part.partId;
+        }
         if (simplifyAllFrames)
         {
             if (hasCanonicalData)
@@ -2319,7 +2328,8 @@ namespace mbm
                     uint32_t logicalIndex = UINT32_MAX;
                     for (const uint32_t candidate : candidates)
                     {
-                        if (logicalSources[candidate].globalBySubset.find(subsetIndex) ==
+                        if (logicalSources[candidate].topologyDomain == subsetTopologyDomains[subsetIndex] &&
+                            logicalSources[candidate].globalBySubset.find(subsetIndex) ==
                             logicalSources[candidate].globalBySubset.end())
                         {
                             logicalIndex = candidate;
@@ -2331,6 +2341,7 @@ namespace mbm
                         logicalIndex = static_cast<uint32_t>(input.positions.size());
                         input.positions.push_back(sourcePositions[globalIndex]);
                         logicalSources.emplace_back();
+                        logicalSources.back().topologyDomain = subsetTopologyDomains[subsetIndex];
                         candidates.push_back(logicalIndex);
                         for (size_t sampleIndex = 0; sampleIndex < deformationDeltas.size(); ++sampleIndex)
                             input.deformationDeltas[sampleIndex].push_back(

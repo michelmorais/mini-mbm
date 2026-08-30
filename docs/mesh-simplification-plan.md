@@ -98,7 +98,9 @@ than two triangles rejects the operation as a defensive invariant check.
 Whole-frame simplification uses one virtual topology across all material subsets. Vertices with
 bit-identical positions may be paired across different subsets so a material seam is treated as an
 interior topological edge, but coincident vertices inside the same subset remain separate to retain
-authored UV and hard-normal seams. Every triangle carries its original subset identifier through
+authored UV and hard-normal seams. Articulated Parts are a stricter domain: vertices belonging to
+different `partId` values, or to a Part and an ordinary subset, are never paired because those
+subsets may receive independent runtime transforms. Every triangle carries its original subset identifier through
 the collapse sequence. The detached result is then expanded back into contiguous per-subset vertex
 and index ranges, with normals, UVs, and canonical weights blended in the target subset's attribute
 domain. No material assignment is merged, and the final frame still must fit the existing 16-bit
@@ -110,7 +112,8 @@ Articulated Parts remain attached to stable frame/subset occurrences, while anim
 stable `partId` values rather than vertex indices. Because simplification preserves subset count and
 order, articulated identities, hierarchy, pivots, clips, tracks, keys, easing, and blend metadata
 remain unchanged without vertex remapping. Save/reload regression coverage validates the simplified
-geometry together with the preserved articulated data.
+geometry together with the preserved articulated data. Each Part is also simplified as an independent
+topological domain so collapses cannot create cracks that appear when neighboring Parts animate.
 
 ## Mesh Debug Editor Integration
 

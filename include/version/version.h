@@ -601,8 +601,9 @@
     7.188.3 Fixed shared-frame simplification to apply each collapse's projected edge factor consistently to deformation samples, normals, UVs, source contributions, and derived skin weights instead of mixing edge placement with a fixed 50/50 blend.
     7.188.4 Fixed Mesh Debug crashing after a successful simplification by passing the reference frame to result-total calculation and defensively defaulting that internal helper to frame 1.
     7.189.0 Preserved articulated Parts, hierarchy, pivots, clips, tracks, keys, easing, and blend metadata during mesh simplification by retaining their stable frame/subset and partId references, with save/reload regression coverage.
+    7.189.1 Isolated articulated Parts by partId during whole-frame simplification so independently transformed subsets cannot share cross-Part collapses and develop animated cracks or missing faces.
 */
-#define MBM_VERSION "7.189.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.189.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -1427,7 +1427,8 @@ edge interpolation factor is applied consistently to positions, attributes, weig
 frame deformation sample, keeping reconstructed vertices on their corresponding deformed edges.
 Multi-frame skeletal assets remain unsupported. Articulated Parts and animation clips are preserved
 because they reference stable frame/subset occurrences and `partId` values rather than vertex
-indices. For one-frame canonical skeletal assets,
+indices. Different articulated Parts are kept in separate topology domains, so coincident vertices
+from independently transformed subsets are never collapsed together. For one-frame canonical skeletal assets,
 every collapse blends the
 source influences, keeps the strongest four, normalizes them,
 and preserves the skeleton and animation clips. When clips exist, up to 24 poses are distributed
