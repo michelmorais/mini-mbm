@@ -205,11 +205,12 @@ namespace mbm
             targetFrameIndex = requestedFrame > 0
                 ? static_cast<int>(requestedFrame - 1) : -1;
         }
+        const bool preserveDetails = lua_gettop(lua) < 5 || lua_isnil(lua, 5) || lua_toboolean(lua, 5);
         MESH_SIMPLIFY_REPORT report;
         char errorOut[255] = "";
         if (!meshDebug->mesh.simplify(ratio, report, errorOut,
                                       static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
-                                      targetFrameIndex))
+                                      targetFrameIndex, preserveDetails))
         {
             lua_pushnil(lua);
             lua_pushstring(lua, errorOut);
@@ -238,6 +239,8 @@ namespace mbm
         lua_pushinteger(lua, report.degenerateTriangleCount); lua_setfield(lua, -2, "degenerateTriangleCount");
         lua_pushinteger(lua, report.nonManifoldEdgeCount); lua_setfield(lua, -2, "nonManifoldEdgeCount");
         lua_pushinteger(lua, report.connectedComponentCount); lua_setfield(lua, -2, "connectedComponentCount");
+        lua_pushinteger(lua, report.detailPenalizedCandidateCount); lua_setfield(lua, -2, "detailPenalizedCandidateCount");
+        lua_pushinteger(lua, report.detailPenalizedCollapseCount); lua_setfield(lua, -2, "detailPenalizedCollapseCount");
         return 1;
     }
 

@@ -2061,7 +2061,8 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
                                   char *errorOut, const int errorOutLen,
-                                  const int targetSubsetIndex, const int targetFrameIndex)
+                                  const int targetSubsetIndex, const int targetFrameIndex,
+                                  const bool preserveDetails)
     {
         report = {};
         auto fail = [errorOut, errorOutLen](const std::string &message)
@@ -2267,6 +2268,7 @@ namespace mbm
         };
 
         mesh_simplifier::INPUT input;
+        input.preserveDetails = preserveDetails;
         input.deformationDeltas.resize(deformationDeltas.size());
         input.indices.reserve(static_cast<size_t>(frame->headerFrame.sizeIndexBuffer));
         input.triangleGroups.reserve(static_cast<size_t>(frame->headerFrame.sizeIndexBuffer / 3));
@@ -2859,6 +2861,8 @@ namespace mbm
         report.degenerateTriangleCount = simplified.degenerateTriangleCount;
         report.nonManifoldEdgeCount = simplified.nonManifoldEdgeCount;
         report.connectedComponentCount = simplified.connectedComponentCount;
+        report.detailPenalizedCandidateCount = simplified.detailPenalizedCandidateCount;
+        report.detailPenalizedCollapseCount = simplified.detailPenalizedCollapseCount;
         if (hasCanonicalWeights)
             impl->canonicalWeights = std::move(simplifiedWeights);
         return true;

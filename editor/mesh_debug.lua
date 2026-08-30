@@ -8432,7 +8432,7 @@ function simplifyRestoreBackup(tEntry, index)
     return true
 end
 
-function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, targets, ratio)
+function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, targets, ratio, preserveDetails)
     local isolatedMesh = meshDebug:new()
     if not isolatedMesh:load(backupPath) then
         return nil, tLang.L('simplify_virtual_copy_failed')
@@ -8450,7 +8450,7 @@ function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, target
     if isolatedMesh:getTotalSubset(1) ~= #targets then
         return nil, tLang.L('simplify_virtual_copy_failed')
     end
-    local report, simplifyError = isolatedMesh:simplify(ratio)
+    local report, simplifyError = isolatedMesh:simplify(ratio, nil, nil, preserveDetails)
     if not report then return nil, simplifyError end
 
     for i = #targets, 1, -1 do workingMesh:removeSubset(targetFrame, targets[i]) end
@@ -8578,7 +8578,7 @@ function simplifyApply(tEntry, meshD, index)
     if useVirtualFrame then
         local okSimplify, report, simplifyError = dpCall(function()
             return simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
-                sourceFrame, targets, simplifyState.ratio)
+                sourceFrame, targets, simplifyState.ratio, simplifyState.preserveDetails)
         end)
         if not okSimplify or not report then
             meshDebug:fakeRelease(pendingBackup.path)
@@ -8591,9 +8591,11 @@ function simplifyApply(tEntry, meshD, index)
         for _, targetSubset in ipairs(targets) do
             local okSimplify, report, simplifyError = dpCall(function()
                 if targetSubset == 'frame' then
-                    return workingMesh:simplify(simplifyState.ratio, nil, targetFrame)
+                    return workingMesh:simplify(simplifyState.ratio, nil, targetFrame,
+                        simplifyState.preserveDetails)
                 end
-                return workingMesh:simplify(simplifyState.ratio, targetSubset, targetFrame)
+                return workingMesh:simplify(simplifyState.ratio, targetSubset, targetFrame,
+                    simplifyState.preserveDetails)
             end)
             if not okSimplify or not report then
                 meshDebug:fakeRelease(pendingBackup.path)
@@ -8616,7 +8618,8 @@ function simplifyApply(tEntry, meshD, index)
                     'collapseCount', 'boundaryRejectedCollapseCount',
                     'topologyRejectedCollapseCount', 'orientationRejectedCollapseCount',
                     'invalidRejectedCollapseCount', 'degenerateTriangleCount',
-                    'nonManifoldEdgeCount', 'connectedComponentCount'
+                    'nonManifoldEdgeCount', 'connectedComponentCount',
+                    'detailPenalizedCandidateCount', 'detailPenalizedCollapseCount'
                 }) do
                     aggregateReport[field] = (aggregateReport[field] or 0) + (report[field] or 0)
                 end
@@ -8651,7 +8654,9 @@ function simplifyApply(tEntry, meshD, index)
         aggregateReport.boundaryRejectedCollapseCount or 0,
         aggregateReport.topologyRejectedCollapseCount or 0,
         aggregateReport.orientationRejectedCollapseCount or 0,
-        aggregateReport.invalidRejectedCollapseCount or 0))
+        aggregateReport.invalidRejectedCollapseCount or 0,
+        aggregateReport.detailPenalizedCollapseCount or 0,
+        aggregateReport.detailPenalizedCandidateCount or 0))
     return true
 end
 
@@ -9431,13 +9436,15 @@ end
 function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local simplifyState = tEntry.tSimplifyState or {
         ratio = 0.9, scope = 'frame', selectedFrame = 1,
-        sharedFrames = false, selectedSubsets = {}, virtualFrame = false, report = nil
+        sharedFrames = false, selectedSubsets = {}, virtualFrame = false,
+        preserveDetails = true, report = nil
     }
     tEntry.tSimplifyState = simplifyState
     simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
     simplifyState.selectedSubsets = simplifyState.selectedSubsets or {}
     simplifyState.selectedFrame = math.max(1, math.min(nFrames, simplifyState.selectedFrame or 1))
     simplifyState.sharedFrames = simplifyState.sharedFrames == true and nFrames > 1
+    simplifyState.preserveDetails = simplifyState.preserveDetails ~= false
     tImGui.Text(tLang.L('simplify_geometry'))
 
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
@@ -9573,6 +9580,20 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tImGui.PopItemWidth()
     tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'), sourceTriangles, estimatedTriangles))
     tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
+    local preserveDetails = tImGui.Checkbox(
+        tLang.L('simplify_preserve_details') .. '##simplifyPreserveDetails-' .. index,
+        simplifyState.preserveDetails)
+    if preserveDetails ~= simplifyState.preserveDetails then
+        simplifyState.preserveDetails = preserveDetails
+        simplifyState.report = nil
+    end
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.PushTextWrapPos(420)
+        tImGui.Text(tLang.L('simplify_preserve_details_tooltip'))
+        tImGui.PopTextWrapPos()
+        tImGui.EndTooltip()
+    end
 
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
@@ -9612,6 +9633,11 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tImGui.Text(string.format(tLang.L('simplify_report_structure_fmt'),
             report.degenerateTriangleCount or 0, report.nonManifoldEdgeCount or 0,
             report.connectedComponentCount or 0))
+        if simplifyState.preserveDetails then
+            tImGui.Text(string.format(tLang.L('simplify_report_details_fmt'),
+                report.detailPenalizedCollapseCount or 0,
+                report.detailPenalizedCandidateCount or 0))
+        end
         if report.skinWeightAware then
             tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
                 report.sampledPoseCount or 0, report.sampledClipCount or 0,

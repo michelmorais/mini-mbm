@@ -108,6 +108,13 @@ invalid faces. The committed result also reports degenerate-face and non-manifol
 its connected-component count; multiple components are informational because articulated or
 intentionally separated geometry can contain them legitimately.
 
+Detail preservation is enabled by default and remains a soft priority. For each candidate, the
+maximum normal variation across the two endpoint neighborhoods contributes a scale-relative cost;
+flat regions therefore collapse first, while sharp edges and curved details tend to survive longer.
+The report distinguishes penalized candidate evaluations from penalized collapses that were
+actually committed. Disabling the option restores pure geometry/pose QEM ranking without removing
+the hard boundary, topology, orientation, or frame-bounds protections.
+
 Whole-frame simplification uses one virtual topology across all material subsets. Vertices with
 bit-identical positions may be paired across different subsets so a material seam is treated as an
 interior topological edge, but coincident vertices inside the same subset remain separate to retain

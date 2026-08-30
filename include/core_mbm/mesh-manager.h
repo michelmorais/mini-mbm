@@ -89,6 +89,8 @@ namespace mbm
         uint32_t degenerateTriangleCount = 0;
         uint32_t nonManifoldEdgeCount = 0;
         uint32_t connectedComponentCount = 0;
+        uint32_t detailPenalizedCandidateCount = 0;
+        uint32_t detailPenalizedCollapseCount = 0;
     };
 
     struct BUFFER_MESH
@@ -328,7 +330,8 @@ namespace mbm
         API_IMPL bool simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
                                char *errorOut, const int errorOutLen,
                                const int targetSubsetIndex = -1,
-                               const int targetFrameIndex = 0);
+                               const int targetFrameIndex = 0,
+                               const bool preserveDetails = true);
         API_IMPL void removeBuffer(uint32_t indexFrame);
         API_IMPL void removeAnimation(uint32_t index);
         // Writes the v11 section/TLV format (docs/mesh-v11-format.md): material+transform, frames,

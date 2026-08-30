@@ -32,6 +32,7 @@ namespace mbm::mesh_simplifier
         std::vector<uint32_t> indices;
         std::vector<uint32_t> triangleGroups;
         std::vector<std::vector<VEC3>> deformationDeltas;
+        bool preserveDetails = true;
     };
 
     struct OUTPUT
@@ -54,6 +55,8 @@ namespace mbm::mesh_simplifier
         uint32_t degenerateTriangleCount = 0;
         uint32_t nonManifoldEdgeCount = 0;
         uint32_t connectedComponentCount = 0;
+        uint32_t detailPenalizedCandidateCount = 0;
+        uint32_t detailPenalizedCollapseCount = 0;
     };
 
     bool simplify(const INPUT &input, uint32_t targetTriangleCount, OUTPUT &output,

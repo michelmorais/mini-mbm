@@ -62,6 +62,7 @@ namespace mbm::mesh_simplifier
             double cost;
             double geometricCost;
             double poseCost;
+            double detailCost;
             uint32_t removedTriangles;
         };
 
@@ -211,6 +212,7 @@ namespace mbm::mesh_simplifier
         {
             std::vector<QUADRIC> quadrics(positions.size());
             std::vector<std::vector<uint32_t>> adjacent(positions.size());
+            std::vector<VEC3> triangleNormals(triangles.size());
             std::unordered_map<uint64_t, EDGE_INFO> edges;
             edges.reserve(triangles.size() * 2);
             for (uint32_t i = 0; i < triangles.size(); ++i)
@@ -218,6 +220,7 @@ namespace mbm::mesh_simplifier
                 const TRIANGLE &triangle = triangles[i];
                 const VEC3 normal = normalized(cross(positions[triangle.b] - positions[triangle.a],
                                                      positions[triangle.c] - positions[triangle.a]));
+                triangleNormals[i] = normal;
                 if (lengthSquared(normal) <= 1.0e-20) continue;
                 const double d = -dot(normal, positions[triangle.a]);
                 for (const uint32_t vertex : {triangle.a, triangle.b, triangle.c})
@@ -266,8 +269,25 @@ namespace mbm::mesh_simplifier
                 for (const std::vector<VEC3> &sample : deformationDeltas)
                     poseCost = std::max(poseCost, lengthSquared(sample[a] - sample[b]));
                 const double geometricCost = combined.evaluate(point);
-                CANDIDATE candidate{a, b, point, interpolation, geometricCost + poseCost,
-                                    geometricCost, poseCost, entry.second.count};
+                double detailCost = 0.0;
+                if (input.preserveDetails)
+                {
+                    double maximumNormalVariation = 0.0;
+                    for (const uint32_t triangleA : adjacent[a])
+                        for (const uint32_t triangleB : adjacent[b])
+                        {
+                            const double normalDot = std::max(-1.0, std::min(1.0,
+                                dot(triangleNormals[triangleA], triangleNormals[triangleB])));
+                            maximumNormalVariation = std::max(maximumNormalVariation,
+                                (1.0 - normalDot) * 0.5);
+                        }
+                    detailCost = sourceDiagonal * sourceDiagonal * maximumNormalVariation *
+                                 maximumNormalVariation * 1.0e-4;
+                    if (detailCost > 1.0e-20) ++output.detailPenalizedCandidateCount;
+                }
+                CANDIDATE candidate{a, b, point, interpolation,
+                                    geometricCost + poseCost + detailCost,
+                                    geometricCost, poseCost, detailCost, entry.second.count};
                 if (!std::isfinite(candidate.cost))
                 { ++output.invalidRejectedCollapseCount; continue; }
                 if (!preservesOrientation(candidate, positions, triangles, adjacent))
@@ -312,6 +332,7 @@ namespace mbm::mesh_simplifier
             for (const CANDIDATE &candidate : selected)
             {
                 ++output.collapseCount;
+                if (candidate.detailCost > 1.0e-20) ++output.detailPenalizedCollapseCount;
                 replacement[candidate.b] = candidate.a;
                 positions[candidate.a] = candidate.position;
                 const float aWeight = 1.0f - candidate.interpolation;

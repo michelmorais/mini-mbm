@@ -1393,7 +1393,7 @@ references are remapped automatically.
 ### Triangle simplification
 
 ```lua
-local report, err = meshD:simplify(targetTriangleRatio [, targetSubset [, targetFrame]])
+local report, err = meshD:simplify(targetTriangleRatio [, targetSubset [, targetFrame [, preserveDetails]]])
 ```
 
 `targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
@@ -1411,7 +1411,11 @@ and defaults to frame 1. A selected frame in a non-skeletal multi-frame mesh is 
 changing any other frame. Passing `targetFrame=0` uses frame 1 as the reference and applies one
 shared collapse sequence to every compatible geometry frame. All frames must have identical
 vertex/index counts, index values, attribute presence, subset count, and subset ranges; positions
-may differ. On success the call returns a detached table containing
+may differ.
+`preserveDetails` defaults to `true`. When enabled, strong local normal variation adds a
+scale-relative penalty to the collapse cost, causing flat regions to be reduced before sharp edges
+and curved details without turning those features into rigid constraints. On success the call
+returns a detached table containing
 `sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`,
 `maximumGeometricError`, `skinWeightAware`, `poseSampledError`, `sampledPoseCount`,
 `sampledClipCount`, `maximumPoseError`, `geometryFrameAware`, `geometryFrameCount`, and
@@ -1422,8 +1426,10 @@ geometric or sampled deformation error divided by the source bounding-box diagon
 protected candidates evaluated across simplification passes; they are observability data, not
 invalid faces in the committed result. `degenerateTriangleCount`, `nonManifoldEdgeCount`, and
 `connectedComponentCount` summarize the committed topology; multiple connected components can be
-intentional and are not classified as a defect by themselves. On failure the call returns
-`nil, error` without modifying the mesh.
+intentional and are not classified as a defect by themselves.
+`detailPenalizedCandidateCount` counts detail-sensitive candidate evaluations across all passes,
+while `detailPenalizedCollapseCount` counts how many committed collapses carried that penalty.
+On failure the call returns `nil, error` without modifying the mesh.
 
 For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
 `meshD:simplify(0.5, nil, 0)` simplifies every compatible geometry frame with shared collapses.
