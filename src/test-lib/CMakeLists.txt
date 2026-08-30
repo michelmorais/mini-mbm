@@ -37,6 +37,9 @@ file(GLOB SOURCES "*.cpp")
 
 if(USE_METAL)
   list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-skeletal-parity-tests.mm")
+  if(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
+    list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/macos-window-tests.mm")
+  endif()
 endif()
 
 # Foundation tests intentionally exercise private, non-exported mesh/skeletal

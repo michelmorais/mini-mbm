@@ -25,6 +25,9 @@
 #if defined(USE_METAL)
 #include "metal-skeletal-parity-tests.h"
 #endif
+#if defined(__APPLE__)
+#include "macos-window-tests.h"
+#endif
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/shader-resource.h>
@@ -43,6 +46,9 @@
 #include <cstring>
 #include <cmath>
 #include <random>
+#if defined(USE_METAL)
+#include <lodepng/lodepng.h>
+#endif
 
 static inline const char* modeToStr(RenderMode mode)
 {
@@ -129,6 +135,10 @@ MY_SCENE::MY_SCENE()
         stageTexture = nullptr;
     testMetalEditorShaders = false;
     testMetalSkeletalParity = false;
+    testMetalRenderToTexture = false;
+    testMacOSResize = false;
+    testMacOSResizeRequested = false;
+    testMacOSResizeNotified = false;
     automatedTestFailed = false;
 }
 
@@ -816,6 +826,22 @@ void MY_SCENE::onInitScene()
 #endif
 
 #if defined(USE_METAL)
+    if (testMetalRenderToTexture)
+    {
+        render2Texture = new mbm::RENDER_2_TEXTURE(this, false, true);
+        render2Texture->setPosition(mbm::VEC3(0.0f, -1000000.0f, 0.0f));
+        render2Texture->setAlwaysRenderize(true);
+        render2Texture->setRenderTargetClearColor(mbm::COLOR(
+            static_cast<uint8_t>(17), static_cast<uint8_t>(34),
+            static_cast<uint8_t>(51), static_cast<uint8_t>(68)));
+        if (!render2Texture->load(64, 64, 64, 64, "metal-render-target-smoke", true))
+        {
+            ERROR_LOG("testLib: Metal render-to-texture setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+    }
     if (testMetalSkeletalParity && !runMetalSkeletalParityTests())
     {
         ERROR_LOG("testLib: Metal skeletal CPU/GPU parity failed");
@@ -888,6 +914,36 @@ void MY_SCENE::onInitScene()
 void MY_SCENE::onLoop()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
+#if defined(__APPLE__)
+    if (testMacOSResize && !testMacOSResizeRequested)
+    {
+        testMacOSResizeRequested = true;
+        if (!requestMacOSWindowResize(960, 640))
+        {
+            ERROR_LOG("testLib: failed to request a 960x640 macOS content-area resize");
+            automatedTestFailed = true;
+            device->setRun(false);
+        }
+        return;
+    }
+    if (testMacOSResize &&
+        static_cast<int>(device->getBackBufferWidth()) == 960 &&
+        static_cast<int>(device->getBackBufferHeight()) == 640)
+    {
+        const bool valid = testMacOSResizeNotified && validateMacOSWindowResize(960, 640);
+        if (!valid)
+        {
+            ERROR_LOG("testLib: macOS resize/Retina layer validation failed");
+            automatedTestFailed = true;
+        }
+        else
+        {
+            INFO_LOG("testLib: macOS resize passed (logical size, scene callback, scale, and drawable)");
+        }
+        device->setRun(false);
+        return;
+    }
+#endif
 #if defined(USE_DIRECTX11)
     if (testDirectX11TextureStages)
     {
@@ -1045,6 +1101,45 @@ void MY_SCENE::onLoop()
 #endif
         if (testElapsedSeconds >= testTimeoutSeconds)
         {
+#if defined(USE_METAL)
+            if (testMacOSResize)
+            {
+                ERROR_LOG("testLib: macOS resize event timed out");
+                automatedTestFailed = true;
+            }
+            if (testMetalRenderToTexture)
+            {
+                const char *pngPath = "metal-render-target-smoke.png";
+                unsigned char *pixels = nullptr;
+                unsigned int width = 0;
+                unsigned int height = 0;
+                bool valid = render2Texture &&
+                    render2Texture->saveAsPNG(pngPath, 0, 0, 64, 64);
+                const unsigned int decodeError = valid ?
+                    lodepng_decode32_file(&pixels, &width, &height, pngPath) : 1u;
+                valid = valid && decodeError == 0u && width == 64u && height == 64u;
+                const size_t sampleOffsets[] = {0u, 32u * 4u, (32u * 64u + 32u) * 4u,
+                                                (63u * 64u + 63u) * 4u};
+                for (const size_t offset : sampleOffsets)
+                {
+                    if (!valid)
+                        break;
+                    valid = pixels[offset] == 17u && pixels[offset + 1u] == 34u &&
+                            pixels[offset + 2u] == 51u && pixels[offset + 3u] == 68u;
+                }
+                free(pixels);
+                std::remove(pngPath);
+                if (!valid)
+                {
+                    ERROR_LOG("testLib: Metal render-to-texture clear/readback validation failed");
+                    automatedTestFailed = true;
+                }
+                else
+                {
+                    INFO_LOG("testLib: Metal render-to-texture clear/readback validation passed");
+                }
+            }
+#endif
 #if defined(USE_DIRECTX11)
             if (testDirectX11Resize)
             {
@@ -1432,6 +1527,10 @@ void MY_SCENE::onInfoDeviceJoystick(int, int, const char *,const char *)
 
 void MY_SCENE::onResizeWindow()
 {
+#if defined(__APPLE__)
+    if (testMacOSResize)
+        testMacOSResizeNotified = true;
+#endif
 #if defined(USE_DIRECTX11)
     if (testDirectX11Resize)
         testDirectX11ResizeNotified = true;

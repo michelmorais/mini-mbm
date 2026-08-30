@@ -70,6 +70,22 @@ static MBMQuitHandler* s_quitHandler = nil;
 
 @implementation MBMWindowDelegate
 
+- (void)updateMetalLayerForWindow:(NSWindow *)window
+{
+    if (!_device || !window)
+        return;
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = _device->getSpecificContextDevice();
+    NSView *contentView = window.contentView;
+    if (!ctx || !ctx->metalLayer || !contentView)
+        return;
+    const NSRect bounds = contentView.bounds;
+    const CGFloat scale = window.backingScaleFactor;
+    ctx->metalLayer.frame = bounds;
+    ctx->metalLayer.contentsScale = scale;
+    ctx->metalLayer.drawableSize = CGSizeMake(bounds.size.width * scale,
+                                               bounds.size.height * scale);
+}
+
 - (BOOL)windowShouldClose:(NSWindow*)__unused sender
 {
     if (_device)
@@ -79,11 +95,21 @@ static MBMQuitHandler* s_quitHandler = nil;
 
 - (void)windowDidResize:(NSNotification*)notification
 {
-    // The engine's handleEventFromWindow loop picks up NSEventTypeApplicationDefined
-    // on the next tick. We post a synthetic resize notification via the CORE_MANAGER
-    // event queue; but since we don't have the pointer here we rely on poll in
-    // handleEventFromWindow() examining the window's current content-view size.
-    (void)notification;
+    [self updateMetalLayerForWindow:notification.object];
+    // handleEventFromWindow() observes the new logical content size on the next
+    // engine tick and dispatches the engine's resize callback.
+}
+
+- (void)windowDidChangeBackingProperties:(NSNotification *)notification
+{
+    [self updateMetalLayerForWindow:notification.object];
+}
+
+- (void)windowDidChangeScreen:(NSNotification *)notification
+{
+    // AppKit normally follows this with windowDidChangeBackingProperties:, but
+    // updating here as well makes a cross-monitor transition immediately safe.
+    [self updateMetalLayerForWindow:notification.object];
 }
 
 @end

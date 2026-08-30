@@ -175,6 +175,10 @@ class MY_SCENE : public mbm::SCENE
     mbm::TEXTURE*           testDirectX11StageTextures[6];
     bool                    testMetalEditorShaders;
     bool                    testMetalSkeletalParity;
+    bool                    testMetalRenderToTexture;
+    bool                    testMacOSResize;
+    bool                    testMacOSResizeRequested;
+    bool                    testMacOSResizeNotified;
     bool                    automatedTestFailed;
 
     MY_SCENE();
