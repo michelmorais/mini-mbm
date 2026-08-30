@@ -165,22 +165,24 @@ make -j$(sysctl -n hw.logicalcpu)
 
 ---
 
-## Game Delivery — .app Bundle and .dmg
+## Local CMake Bundle Prototype — .app and .dmg
 
-### Distribution workflows and current status
+### Supported workflow policy
 
-macOS distribution is not limited to the CMake/Makefile packager described below. A game has
-already been released with Mini-MBM using an Xcode-based packaging workflow. That production
-precedent confirms that the engine can be distributed on macOS, but it does not validate every
-packaging path in this repository.
+CMake is used for local development, builds, and automated engine tests on macOS. It is **not**
+the release-packaging workflow. Distribution is performed through Xcode: create the application
+archive there, then use Xcode's distribution workflow for Developer ID or Mac App Store export,
+signing, and submission as appropriate. A game built with Mini-MBM has already been released using
+this Xcode workflow.
 
-The workflows must be evaluated separately:
+The available paths therefore have different roles:
 
 | Workflow | Status |
 |---|---|
-| Xcode packaging used by an existing released game | Proven in production for that game and its configuration; the exact project/signing setup is not stored in this repository |
-| CMake/Makefile standard delivery (`GAME_ASSETS_DIR`, section below) | Experimental: builds the bundle skeleton, but is not currently self-contained; see the warning below |
-| CMake-generated Xcode project with `MAS_DELIVERY=1` | Implemented, but requires an application-specific Archive, sandbox, signing, and App Store validation pass |
+| Xcode project and Archive/Distribute workflow | Required for distribution; proven in production for an existing game and its configuration |
+| CMake/Makefile (`PLAT=MacOs`) | Supported for local development and automated tests |
+| CMake bundle helpers (`GAME_ASSETS_DIR`, `macapp`, `macdmg`) | Local prototype/diagnostic output only; not a supported release artifact |
+| CMake-generated Xcode project with `MAS_DELIVERY=1` | Project-generation helper; final Archive, signing, validation, and distribution still happen in Xcode |
 
 > **Important - current CMake standard-delivery limitation:** the generated `.app` copies the
 > engine executable and `distribution.dylib`, but does not yet copy all runtime libraries and Lua
@@ -188,13 +190,13 @@ The workflows must be evaluated separately:
 > not treat this CMake-generated bundle as portable or ready for signing/notarization until its
 > dependencies use bundle-relative install names (for example,
 > `@executable_path/../Frameworks`) and all required libraries are embedded. This limitation does
-> not apply retroactively to the separate Xcode workflow already used to release a game.
+> not apply to the separate Xcode release workflow.
 
 The normal Makefile build also inherits the active SDK's deployment target unless
-`CMAKE_OSX_DEPLOYMENT_TARGET` is supplied. Set and verify an explicit target for distributable
-builds; otherwise a build made with a new SDK may require that same recent macOS release. The
-current output layout is `arm64`, and this workflow does not produce an Intel or universal binary
-automatically.
+`CMAKE_OSX_DEPLOYMENT_TARGET` is supplied. This matters when using a local CMake binary for
+compatibility testing, but it does not define the release policy: configure the deployment target
+and architectures in the Xcode project used to archive the game. The current CMake output layout
+is `arm64`, and it does not produce an Intel or universal binary automatically.
 
 The macOS build contains a per-game packaging path via the same `-DGAME_ASSETS_DIR`
 workflow as Linux (AppImage) and Windows (GameDir). The build produces a
@@ -209,7 +211,7 @@ by the bundled `distribution` tool. At launch, the engine extracts the archive
 to a temporary directory, loads `main.lua`, then cleans up on exit. The
 `distribution.dylib` runtime library is bundled inside `Contents/Frameworks/`.
 
-### CMake delivery flags
+### Local CMake bundle flags
 
 | Flag | Required? | Description |
 |---|---|---|
@@ -307,94 +309,13 @@ cmake ~/mini-mbm \
 make macdmg
 ```
 
-### Code Signing and Notarization (for sharing outside your Mac)
+### No release from this CMake output
 
-After first making the bundle self-contained and validating it on a clean machine, sign and
-notarize the generated `.app` and `.dmg` before distributing them to other macOS users.
-
-Prerequisites:
-
-- Apple Developer membership
-- A `Developer ID Application` certificate installed in your login keychain
-- An app-specific password for your Apple ID
-
-Set variables (edit values first):
-
-```sh
-export BUILD_DIR="$HOME/tower-defense-macos"
-export APP_NAME="Tower_Defense_Monster"
-export APP_PATH="$BUILD_DIR/$APP_NAME.app"
-export DMG_PATH="$BUILD_DIR/$APP_NAME-macos.dmg"
-export IDENTITY="Developer ID Application: YOUR NAME (TEAMID)"
-export NOTARY_PROFILE="AC_NOTARY"
-```
-
-Create notary credentials profile (one-time setup):
-
-```sh
-xcrun notarytool store-credentials "$NOTARY_PROFILE" \
-    --apple-id "your-apple-id@example.com" \
-    --team-id "YOURTEAMID" \
-    --password "xxxx-xxxx-xxxx-xxxx"
-```
-
-Sign every nested runtime library from the inside out, then sign the app. The command below only
-shows `distribution.dylib`; a corrected self-contained bundle must repeat this step for every
-embedded library and plugin. Do not use `codesign --deep` as a substitute for signing each nested
-code object explicitly.
-
-```sh
-codesign --force --options runtime --timestamp --sign "$IDENTITY" \
-    "$APP_PATH/Contents/Frameworks/distribution.dylib"
-
-codesign --force --options runtime --timestamp --sign "$IDENTITY" \
-    "$APP_PATH"
-```
-
-Verify app signature locally:
-
-```sh
-codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-spctl --assess --type execute --verbose=4 "$APP_PATH"
-```
-
-Sign and submit DMG for notarization:
-
-```sh
-codesign --force --timestamp --sign "$IDENTITY" "$DMG_PATH"
-
-xcrun notarytool submit "$DMG_PATH" \
-    --keychain-profile "$NOTARY_PROFILE" \
-    --wait
-```
-
-Staple tickets:
-
-```sh
-xcrun stapler staple "$APP_PATH"
-xcrun stapler staple "$DMG_PATH"
-```
-
-Final verification:
-
-```sh
-spctl --assess --type execute --verbose=4 "$APP_PATH"
-spctl --assess --type open --verbose=4 "$DMG_PATH"
-```
-
-If notarization fails, inspect logs:
-
-```sh
-xcrun notarytool history --keychain-profile "$NOTARY_PROFILE"
-xcrun notarytool log SUBMISSION_ID --keychain-profile "$NOTARY_PROFILE"
-```
-
-Common first-time issues:
-
-- Wrong certificate name in `IDENTITY`
-- Certificate not installed in login keychain
-- Unsigned nested binary inside the `.app`
-- Missing hardened runtime (`--options runtime`)
+Do not sign, notarize, upload, or ship the `.app`/`.dmg` produced by these Make targets. They exist
+for local inspection of the asset-packing and bundle-assembly logic. Use the game's Xcode project
+for all release artifacts. In Xcode, verify the deployment target, architectures, embedded runtime
+libraries, signing team, entitlements, hardened runtime, and archive contents before selecting
+**Distribute App**.
 
 ### CMake status messages
 
@@ -408,7 +329,11 @@ When delivery is configured, CMake prints:
 
 ---
 
-## Mac App Store Delivery (`-DMAS_DELIVERY=1`)
+## Mac App Store Xcode Project Helper (`-DMAS_DELIVERY=1`)
+
+This CMake option generates an Xcode project and prepares its targets/resources. It does not make
+CMake the distribution tool: open the generated project in Xcode and use **Product -> Archive** and
+**Distribute App** for the actual release workflow.
 
 ### Monitor / Resolution / Fullscreen Launcher
 
@@ -497,44 +422,9 @@ Then in Xcode:
 3. **Product → Archive** — builds a Release archive.
 4. **Distribute App → App Store Connect → Upload**.
 
-### Archive and upload (command line)
-
-```sh
-# Archive
-xcodebuild -scheme mini-mbm \
-           -configuration Release \
-           archive \
-           -archivePath "$(pwd)/mini-mbm.xcarchive"
-
-# Export for App Store Connect
-xcodebuild -exportArchive \
-           -archivePath "$(pwd)/mini-mbm.xcarchive" \
-           -exportPath "$(pwd)/export" \
-           -exportOptionsPlist /path/to/ExportOptions.plist
-
-# Upload (requires xcrun altool or Transporter)
-xcrun altool --upload-app \
-             -f "$(pwd)/export/mini-mbm.pkg" \
-             --type macos \
-             --apiKey YOUR_API_KEY \
-             --apiIssuer YOUR_ISSUER_ID
-```
-
-Minimal `ExportOptions.plist` for App Store:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>           <string>app-store</string>
-    <key>teamID</key>           <string>YOURTEAMID</string>
-    <key>uploadBitcode</key>    <false/>
-    <key>uploadSymbols</key>    <true/>
-</dict>
-</plist>
-```
+Command-line packaging/upload recipes are intentionally not documented as a supported release
+path. Use Xcode's Archive organizer so the game's signing, entitlements, embedded content, and
+distribution method are reviewed together.
 
 ### Entitlements (`platform-macos/mini-mbm.entitlements`)
 
@@ -547,14 +437,14 @@ add any other application-specific capabilities explicitly.
 <true/>   <!-- currently enabled; remove if the game does not need networking -->
 ```
 
-### Important differences from standard delivery
+### Important differences from the local CMake prototype
 
-| | Standard delivery (`GAME_ASSETS_DIR`) | App Store (`MAS_DELIVERY`) |
+| | Local CMake prototype (`GAME_ASSETS_DIR`) | Xcode/Mac App Store (`MAS_DELIVERY`) |
 |---|---|---|
-| Distribution cert | Developer ID Application | App Store Distribution |
+| Release status | Not supported for distribution | Archive and distribute through Xcode |
 | Asset delivery | `.asset` archive extracted to temp dir | Embedded in bundle |
 | Plugin linking | SHARED `.dylib` loaded via `require` | STATIC, linked into binary |
-| Notarization | Required for Gatekeeper | Handled by App Store |
+| Signing/notarization | Not performed from this prototype | Managed by the selected Xcode distribution workflow |
 | Entry point | `main-lua-delivery.cpp` | `main-lua-mas.mm` |
 | Generator | Makefile | **Xcode only** |
 
@@ -673,7 +563,7 @@ loadProgress()
 | Player clears container via System Settings | Save is lost — same as any macOS app |
 
 > **Note on `GAME_ASSETS_PASSWORD`:** This flag only affects the `.asset` archive
-> used in *standard delivery* (`GAME_ASSETS_DIR`).  It has no effect in MAS mode
+> used by the local CMake prototype (`GAME_ASSETS_DIR`). It has no effect in MAS mode
 > — assets are plain files embedded in the bundle.  The App Store protects the
 > entire package with FairPlay DRM at download time.
 
