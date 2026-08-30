@@ -1425,8 +1425,9 @@ contract. Shared multi-frame simplification uses the maximum deformation differe
 in collapse ranking, then reconstructs each frame from the same compact topology. The projected
 edge interpolation factor is applied consistently to positions, attributes, weights, and every
 frame deformation sample, keeping reconstructed vertices on their corresponding deformed edges.
-Multi-frame
-skeletal and articulated assets remain unsupported. For one-frame canonical skeletal assets,
+Multi-frame skeletal assets remain unsupported. Articulated Parts and animation clips are preserved
+because they reference stable frame/subset occurrences and `partId` values rather than vertex
+indices. For one-frame canonical skeletal assets,
 every collapse blends the
 source influences, keeps the strongest four, normalizes them,
 and preserves the skeleton and animation clips. When clips exist, up to 24 poses are distributed

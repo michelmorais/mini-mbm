@@ -2080,9 +2080,6 @@ namespace mbm
         const int referenceFrameIndex = simplifyAllFrames ? 0 : targetFrameIndex;
         if (referenceFrameIndex < 0 || referenceFrameIndex >= static_cast<int>(impl->buffer.size()))
             return fail("target frame index is outside the mesh");
-        if (!impl->articulatedParts.empty() || !impl->articulatedClips.empty())
-            return fail("simplification of articulated assets is not implemented yet");
-
         const bool hasCanonicalData = impl->canonicalSkeleton.skeletonId != 0 ||
                                       impl->canonicalWeights.skeletonId != 0 ||
                                       impl->canonicalAnimations.skeletonId != 0;

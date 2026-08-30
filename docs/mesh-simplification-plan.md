@@ -54,8 +54,9 @@ Status: static indexed simplification is implemented in MBM_VERSION 7.178.0. Can
 weights and animation preservation are implemented in MBM_VERSION 7.179.0. Animation-aware
 pose-sampled quality is implemented in MBM_VERSION 7.180.0. MBM_VERSION 7.186.0 adds independent
 selected-frame simplification for non-skeletal geometry animation. MBM_VERSION 7.187.0 adds one
-shared collapse sequence across compatible non-skeletal geometry frames. Articulated animation
-remains a later slice. MBM_VERSION 7.188.0 accepts non-indexed triangle-list frames by deriving
+shared collapse sequence across compatible non-skeletal geometry frames. MBM_VERSION 7.189.0
+preserves articulated Parts and animation metadata. MBM_VERSION 7.188.0 accepts non-indexed
+triangle-list frames by deriving
 temporary adjacency from exact position/normal/UV matches and commits a `uint16_t` indexed result.
 
 The public surface is one method. Asset inspection selects private implementation paths; callers do
@@ -104,6 +105,12 @@ domain. No material assignment is merged, and the final frame still must fit the
 vertex-index contract. The reduction target is calculated once for the complete frame rather than
 rounded independently per subset; removing every triangle from any subset rejects the operation
 atomically.
+
+Articulated Parts remain attached to stable frame/subset occurrences, while animation tracks target
+stable `partId` values rather than vertex indices. Because simplification preserves subset count and
+order, articulated identities, hierarchy, pivots, clips, tracks, keys, easing, and blend metadata
+remain unchanged without vertex remapping. Save/reload regression coverage validates the simplified
+geometry together with the preserved articulated data.
 
 ## Mesh Debug Editor Integration
 
