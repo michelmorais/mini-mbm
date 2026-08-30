@@ -8454,6 +8454,7 @@ function simplifySubsetTriangles(indexCount, vertexCount)
 end
 
 function simplifyGeometryTotals(meshD, frame)
+    frame = frame or 1
     local vertices, triangles = 0, 0
     local totalSubsets = meshD:getTotalSubset(frame)
     for subset = 1, totalSubsets do
@@ -8575,7 +8576,7 @@ function simplifyApply(tEntry, meshD, index)
             end
         end
     end
-    local resultVertices, resultTriangles = simplifyGeometryTotals(workingMesh)
+    local resultVertices, resultTriangles = simplifyGeometryTotals(workingMesh, sourceFrame)
     aggregateReport.sourceVertexCount = sourceVertices
     aggregateReport.sourceTriangleCount = sourceTriangles
     aggregateReport.resultVertexCount = resultVertices
