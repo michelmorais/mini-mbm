@@ -77,6 +77,9 @@ namespace mbm
         uint32_t sampledPoseCount = 0;
         uint32_t sampledClipCount = 0;
         float maximumPoseError = 0.0f;
+        bool geometryFrameAware = false;
+        uint32_t geometryFrameCount = 0;
+        float maximumFrameError = 0.0f;
     };
 
     struct BUFFER_MESH
@@ -308,8 +311,9 @@ namespace mbm
         // Simplifies one indexed triangle frame atomically. targetSubsetIndex=-1 processes the
         // complete virtual cross-subset topology; otherwise only that zero-based material subset
         // is reduced and every other subset is copied without changing its vertex attributes.
-        // targetFrameIndex selects the zero-based geometry frame. Multi-frame skeletal and
-        // articulated assets remain unsupported.
+        // targetFrameIndex selects the zero-based geometry frame; -1 applies one shared collapse
+        // sequence to every compatible non-skeletal frame. Multi-frame skeletal and articulated
+        // assets remain unsupported.
         API_IMPL bool simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
                                char *errorOut, const int errorOutLen,
                                const int targetSubsetIndex = -1,

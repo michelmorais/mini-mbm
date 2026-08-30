@@ -1405,16 +1405,22 @@ unchanged. `targetSubset` is an optional one-based subset index. When present, o
 reduced; every other subset retains the same rendered positions, normals, UVs, texture assignment,
 triangle order, and canonical weights. `targetFrame` is an optional one-based geometry-frame index
 and defaults to frame 1. A selected frame in a non-skeletal multi-frame mesh is simplified without
-changing any other frame. On success the call returns a detached table containing
+changing any other frame. Passing `targetFrame=0` uses frame 1 as the reference and applies one
+shared collapse sequence to every compatible geometry frame. All frames must have identical
+vertex/index counts, index values, attribute presence, subset count, and subset ranges; positions
+may differ. On success the call returns a detached table containing
 `sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`,
 `maximumGeometricError`, `skinWeightAware`, `poseSampledError`, `sampledPoseCount`,
-`sampledClipCount`, and `maximumPoseError`. On failure it returns `nil, error` without modifying
-the mesh.
+`sampledClipCount`, `maximumPoseError`, `geometryFrameAware`, `geometryFrameCount`, and
+`maximumFrameError`. On failure it returns `nil, error` without modifying the mesh.
 
 For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
+`meshD:simplify(0.5, nil, 0)` simplifies every compatible geometry frame with shared collapses.
 
-The implementation accepts indexed, 3D triangle-list meshes. Multi-frame skeletal and articulated
-assets remain unsupported. For one-frame canonical skeletal assets, every collapse blends the
+The implementation accepts indexed, 3D triangle-list meshes. Shared multi-frame simplification
+uses the maximum deformation difference across frames in collapse ranking, then reconstructs each
+frame from the same compact topology. Multi-frame skeletal and articulated assets remain
+unsupported. For one-frame canonical skeletal assets, every collapse blends the
 source influences, keeps the strongest four, normalizes them,
 and preserves the skeleton and animation clips. When clips exist, up to 24 poses are distributed
 across up to 24 clips. Edge-collapse ranking includes the maximum difference between the sampled

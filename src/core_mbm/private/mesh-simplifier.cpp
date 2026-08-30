@@ -318,6 +318,7 @@ namespace mbm::mesh_simplifier
         }
 
         std::vector<uint32_t> compact(positions.size(), UINT32_MAX);
+        output.deformationDeltas.resize(deformationDeltas.size());
         std::unordered_map<uint64_t, uint32_t> finalEdgeCounts;
         finalEdgeCounts.reserve(triangles.size() * 2);
         for (const TRIANGLE &triangle : triangles)
@@ -338,6 +339,9 @@ namespace mbm::mesh_simplifier
                     if (!normals.empty()) output.normals.push_back(normals[vertex]);
                     if (!uvs.empty()) output.uvs.push_back(uvs[vertex]);
                     output.sourceContributions.push_back(contributions[vertex]);
+                    for (size_t sampleIndex = 0; sampleIndex < deformationDeltas.size(); ++sampleIndex)
+                        output.deformationDeltas[sampleIndex].push_back(
+                            deformationDeltas[sampleIndex][vertex]);
                 }
         output.indices.reserve(triangles.size() * 3);
         output.triangleGroups.reserve(triangles.size());

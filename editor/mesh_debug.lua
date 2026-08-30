@@ -8460,7 +8460,8 @@ end
 
 function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
-    local targetFrame = simplifyState.selectedFrame or 1
+    local sourceFrame = simplifyState.sharedFrames and 1 or (simplifyState.selectedFrame or 1)
+    local targetFrame = simplifyState.sharedFrames and 0 or sourceFrame
     local pendingBackup = simplifyCreateBackup(tEntry, meshD)
     if not pendingBackup then
         tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
@@ -8481,14 +8482,14 @@ function simplifyApply(tEntry, meshD, index)
         end
         table.sort(targets)
     end
-    local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh, targetFrame)
+    local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh, sourceFrame)
     local aggregateReport = nil
     local useVirtualFrame = simplifyState.scope == 'subsets' and
-        simplifyState.virtualFrame == true and #targets >= 2
+        simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2
     if useVirtualFrame then
         local okSimplify, report, simplifyError = dpCall(function()
             return simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
-                targetFrame, targets, simplifyState.ratio)
+                sourceFrame, targets, simplifyState.ratio)
         end)
         if not okSimplify or not report then
             meshDebug:fakeRelease(pendingBackup.path)
@@ -9323,12 +9324,13 @@ end
 function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local simplifyState = tEntry.tSimplifyState or {
         ratio = 0.9, scope = 'frame', selectedFrame = 1,
-        selectedSubsets = {}, virtualFrame = false, report = nil
+        sharedFrames = false, selectedSubsets = {}, virtualFrame = false, report = nil
     }
     tEntry.tSimplifyState = simplifyState
     simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
     simplifyState.selectedSubsets = simplifyState.selectedSubsets or {}
     simplifyState.selectedFrame = math.max(1, math.min(nFrames, simplifyState.selectedFrame or 1))
+    simplifyState.sharedFrames = simplifyState.sharedFrames == true and nFrames > 1
     tImGui.Text(tLang.L('simplify_geometry'))
 
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
@@ -9344,6 +9346,21 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     end
 
     if nFrames > 1 then
+        local sharedFrames = tImGui.Checkbox(
+            tLang.L('simplify_shared_frames') .. '##simplifySharedFrames-' .. index,
+            simplifyState.sharedFrames)
+        if sharedFrames ~= simplifyState.sharedFrames then
+            simplifyState.sharedFrames = sharedFrames
+            simplifyState.selectedSubsets = {}
+            simplifyState.report = nil
+        end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(420)
+            tImGui.Text(tLang.L('simplify_shared_frames_tooltip'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
         if simplifyState.frameOptionsCount ~= nFrames then
             simplifyState.frameOptions = {}
             for frame = 1, nFrames do
@@ -9351,6 +9368,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             end
             simplifyState.frameOptionsCount = nFrames
         end
+        tImGui.BeginDisabled(simplifyState.sharedFrames)
         tImGui.SetNextItemWidth(90)
         local frameChanged, selectedFrame = tImGui.Combo(
             tLang.L('simplify_select_frame') .. '##simplifyTargetFrame-' .. index,
@@ -9360,8 +9378,9 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             simplifyState.selectedSubsets = {}
             simplifyState.report = nil
         end
+        tImGui.EndDisabled()
     end
-    local targetFrame = simplifyState.selectedFrame
+    local targetFrame = simplifyState.sharedFrames and 1 or simplifyState.selectedFrame
 
     local sourceTriangles = 0
     local selectedCount = 0
@@ -9388,7 +9407,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 end
             end
         end
-        tImGui.BeginDisabled(selectedCount < 2)
+        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames)
         local virtualFrame = tImGui.Checkbox(
             tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
             simplifyState.virtualFrame == true)
@@ -9477,6 +9496,10 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
                 report.sampledPoseCount or 0, report.sampledClipCount or 0,
                 report.maximumPoseError or 0))
+        end
+        if report.geometryFrameAware then
+            tImGui.Text(string.format(tLang.L('simplify_report_frames_fmt'),
+                report.geometryFrameCount or 0, report.maximumFrameError or 0))
         end
     end
     return applied

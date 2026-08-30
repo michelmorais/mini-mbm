@@ -594,8 +594,9 @@
     7.186.0 Added independent selected-frame simplification for non-skeletal multi-frame meshes to the native API, Lua binding, and Mesh Debug frame/subset scopes while preserving every unselected frame.
     7.186.1 Replaced Mesh Debug's selected-frame simplification radio list with a compact combo box while retaining radio buttons for the Frame/Subsets scope.
     7.186.2 Kept Mesh Debug's simplification frame combo at a compact fixed width independent of the surrounding panel width.
+    7.187.0 Added atomic shared-collapse simplification for compatible non-skeletal geometry frames, including deformation-aware ranking, common topology reconstruction, Lua reporting, and Mesh Debug controls.
 */
-#define MBM_VERSION "7.186.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.187.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

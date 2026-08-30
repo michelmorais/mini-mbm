@@ -226,6 +226,9 @@ namespace mbm
         lua_pushinteger(lua, report.sampledPoseCount); lua_setfield(lua, -2, "sampledPoseCount");
         lua_pushinteger(lua, report.sampledClipCount); lua_setfield(lua, -2, "sampledClipCount");
         lua_pushnumber(lua, report.maximumPoseError); lua_setfield(lua, -2, "maximumPoseError");
+        lua_pushboolean(lua, report.geometryFrameAware); lua_setfield(lua, -2, "geometryFrameAware");
+        lua_pushinteger(lua, report.geometryFrameCount); lua_setfield(lua, -2, "geometryFrameCount");
+        lua_pushnumber(lua, report.maximumFrameError); lua_setfield(lua, -2, "maximumFrameError");
         return 1;
     }
 

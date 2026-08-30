@@ -68,6 +68,43 @@ function onInitScene()
     assert(totals(multiFrameRestored, 1) == frame1Vertices)
     assert(totals(multiFrameRestored, 2) == frame2AfterVertices)
 
+    local sharedFrames = meshDebug:new()
+    assert(sharedFrames:load('Crate.msh'))
+    assert(sharedFrames:copyFrameFrom(sharedFrames, 1) == 2)
+    sharedFrames:scaleFrame(2, 1.0, 1.25, 0.8)
+    local sharedBefore1 = sharedFrames:getVertex(1, 1, 1)
+    local sharedBefore2 = sharedFrames:getVertex(2, 1, 1)
+    assert(sharedBefore1 and sharedBefore2)
+    local sharedReport, sharedError = sharedFrames:simplify(0.5, nil, 0)
+    assert(sharedReport, sharedError)
+    assert(sharedReport.geometryFrameAware == true)
+    assert(sharedReport.geometryFrameCount == 2)
+    assert(sharedReport.maximumFrameError >= 0)
+    assert(sharedReport.poseSampledError == false)
+    local sharedVertices1, sharedTriangles1 = totals(sharedFrames, 1)
+    local sharedVertices2, sharedTriangles2 = totals(sharedFrames, 2)
+    assert(sharedVertices1 == sharedVertices2)
+    assert(sharedTriangles1 == sharedTriangles2)
+    assert(sharedTriangles1 == sharedReport.resultTriangleCount)
+    assert(sharedFrames:check())
+    assert(sharedFrames:save('/tmp/mbm_simplified_shared_frames.msh', false, false, true))
+    local sharedRestored = meshDebug:new()
+    assert(sharedRestored:load('/tmp/mbm_simplified_shared_frames.msh'))
+    assert(sharedRestored:getTotalFrame() == 2)
+    assert(totals(sharedRestored, 1) == sharedVertices1)
+    assert(totals(sharedRestored, 2) == sharedVertices2)
+
+    local incompatibleFrames = meshDebug:new()
+    assert(incompatibleFrames:load('Crate.msh'))
+    assert(incompatibleFrames:copyFrameFrom(incompatibleFrames, 1) == 2)
+    local incompatibleVertices, incompatibleTriangles = totals(incompatibleFrames, 1)
+    incompatibleFrames:removeSubset(2, 1)
+    local rejectedReport, rejectedError = incompatibleFrames:simplify(0.5, nil, 0)
+    assert(rejectedReport == nil and rejectedError)
+    assert(totals(incompatibleFrames, 1) == incompatibleVertices)
+    local _, incompatibleTrianglesAfter = totals(incompatibleFrames, 1)
+    assert(incompatibleTrianglesAfter == incompatibleTriangles)
+
     local skeletal = meshDebug:new()
     assert(skeletal:load('Lorekeeper-walk.msh'))
     local skeletalVertices, skeletalTriangles = totals(skeletal)
@@ -90,9 +127,10 @@ function onInitScene()
     assert(skeletalRestoredTriangles == skeletalReport.resultTriangleCount)
 
     print('info', 'green', string.format(
-        'SIMPLIFY SMOKETEST OK static=%d/%d->%d/%d frame2=%d/%d->%d/%d skeletal=%d/%d->%d/%d error=%.6g',
+        'SIMPLIFY SMOKETEST OK static=%d/%d->%d/%d frame2=%d/%d->%d/%d shared=%d/%d skeletal=%d/%d->%d/%d error=%.6g',
         beforeVertices, beforeTriangles, restoredVertices, restoredTriangles,
         frame2Vertices, frame2Triangles, frame2AfterVertices, frame2AfterTriangles,
+        sharedVertices1, sharedTriangles1,
         skeletalVertices, skeletalTriangles, skeletalRestoredVertices, skeletalRestoredTriangles,
         report.maximumGeometricError))
 end
