@@ -13,7 +13,9 @@
 #include <physics.h>
 #include <skeletal-animation-foundation.h>
 #include <skeletal-gpu-lbs.h>
+#include <atomic>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace mbm
@@ -157,6 +159,11 @@ namespace mbm
         bool authoringPoseValid = false;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
+        std::thread simplifyWorker;
+        std::atomic<MESH_SIMPLIFY_STATE> simplifyState{MESH_SIMPLIFY_STATE::IDLE};
+        std::atomic<float> simplifyProgress{0.0f};
+        MESH_SIMPLIFY_REPORT simplifyReport;
+        std::string simplifyError;
     };
 }
 

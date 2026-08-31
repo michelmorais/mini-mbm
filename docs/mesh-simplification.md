@@ -17,9 +17,11 @@ this importer option instead of being reduced incorrectly.
 
 ## MSH API
 
-The Lua signature, arguments, return fields, and failure behavior are defined in
+The Lua signatures, arguments, return fields, and failure behavior are defined in
 [Lua API - Triangle simplification](lua-api.md#triangle-simplification). The native entry point is
-`MESH_MBM_DEBUG::simplify()`.
+`MESH_MBM_DEBUG::simplify()`. Editor-facing asynchronous work uses instance-owned
+`startSimplify()`, `getSimplifyState()`, and `getSimplifyResult()` methods. Its thread and result
+live in `MESH_MBM_DEBUG::Impl`; the runtime engine loop has no Mesh Debug pump or dependency.
 
 The operation accepts indexed or non-indexed 3D triangle lists. It builds a detached candidate,
 validates the complete result, and replaces the source only on success. A successful non-indexed
@@ -66,7 +68,8 @@ Authored physics/collision geometry is preserved and is not regenerated automati
 
 ## Mesh Debug workflow
 
-`Simplify Geometry` appears after Split Start Capture. The editor supports frame or checked-subset
+`Simplify Geometry` appears after Split Start Capture. The editor polls its detached working mesh
+once per frame and displays a progress bar while the simplifier worker runs. It supports frame or checked-subset
 scope, an optional virtual frame for selected subsets, compatible shared-frame collapses, rollback,
 and Save As. No simplification work runs continuously while the editor is idle.
 

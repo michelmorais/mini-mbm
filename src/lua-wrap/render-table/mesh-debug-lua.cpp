@@ -123,6 +123,30 @@ namespace mbm
             return nullptr;
         }
 
+        void pushSimplifyReport(lua_State *lua, const MESH_SIMPLIFY_REPORT &report)
+        {
+            lua_newtable(lua);
+#define MBM_SIMPLIFY_INT(field) lua_pushinteger(lua, report.field); lua_setfield(lua, -2, #field)
+#define MBM_SIMPLIFY_NUM(field) lua_pushnumber(lua, report.field); lua_setfield(lua, -2, #field)
+#define MBM_SIMPLIFY_BOOL(field) lua_pushboolean(lua, report.field); lua_setfield(lua, -2, #field)
+            MBM_SIMPLIFY_INT(sourceVertexCount); MBM_SIMPLIFY_INT(resultVertexCount);
+            MBM_SIMPLIFY_INT(sourceTriangleCount); MBM_SIMPLIFY_INT(resultTriangleCount);
+            MBM_SIMPLIFY_NUM(maximumGeometricError); MBM_SIMPLIFY_BOOL(skinWeightAware);
+            MBM_SIMPLIFY_BOOL(poseSampledError); MBM_SIMPLIFY_INT(sampledPoseCount);
+            MBM_SIMPLIFY_INT(sampledClipCount); MBM_SIMPLIFY_NUM(maximumPoseError);
+            MBM_SIMPLIFY_BOOL(geometryFrameAware); MBM_SIMPLIFY_INT(geometryFrameCount);
+            MBM_SIMPLIFY_NUM(maximumFrameError); MBM_SIMPLIFY_NUM(maximumRelativeError);
+            MBM_SIMPLIFY_INT(collapseCount); MBM_SIMPLIFY_INT(boundaryRejectedCollapseCount);
+            MBM_SIMPLIFY_INT(topologyRejectedCollapseCount); MBM_SIMPLIFY_INT(orientationRejectedCollapseCount);
+            MBM_SIMPLIFY_INT(invalidRejectedCollapseCount); MBM_SIMPLIFY_INT(degenerateTriangleCount);
+            MBM_SIMPLIFY_INT(nonManifoldEdgeCount); MBM_SIMPLIFY_INT(connectedComponentCount);
+            MBM_SIMPLIFY_INT(detailPenalizedCandidateCount); MBM_SIMPLIFY_INT(detailPenalizedCollapseCount);
+            MBM_SIMPLIFY_INT(clearanceRejectedCollapseCount);
+#undef MBM_SIMPLIFY_INT
+#undef MBM_SIMPLIFY_NUM
+#undef MBM_SIMPLIFY_BOOL
+        }
+
     }
 
     class MESH_DEBUG_LUA
@@ -216,32 +240,65 @@ namespace mbm
             lua_pushstring(lua, errorOut);
             return 2;
         }
-        lua_newtable(lua);
-        lua_pushinteger(lua, report.sourceVertexCount); lua_setfield(lua, -2, "sourceVertexCount");
-        lua_pushinteger(lua, report.resultVertexCount); lua_setfield(lua, -2, "resultVertexCount");
-        lua_pushinteger(lua, report.sourceTriangleCount); lua_setfield(lua, -2, "sourceTriangleCount");
-        lua_pushinteger(lua, report.resultTriangleCount); lua_setfield(lua, -2, "resultTriangleCount");
-        lua_pushnumber(lua, report.maximumGeometricError); lua_setfield(lua, -2, "maximumGeometricError");
-        lua_pushboolean(lua, report.skinWeightAware); lua_setfield(lua, -2, "skinWeightAware");
-        lua_pushboolean(lua, report.poseSampledError); lua_setfield(lua, -2, "poseSampledError");
-        lua_pushinteger(lua, report.sampledPoseCount); lua_setfield(lua, -2, "sampledPoseCount");
-        lua_pushinteger(lua, report.sampledClipCount); lua_setfield(lua, -2, "sampledClipCount");
-        lua_pushnumber(lua, report.maximumPoseError); lua_setfield(lua, -2, "maximumPoseError");
-        lua_pushboolean(lua, report.geometryFrameAware); lua_setfield(lua, -2, "geometryFrameAware");
-        lua_pushinteger(lua, report.geometryFrameCount); lua_setfield(lua, -2, "geometryFrameCount");
-        lua_pushnumber(lua, report.maximumFrameError); lua_setfield(lua, -2, "maximumFrameError");
-        lua_pushnumber(lua, report.maximumRelativeError); lua_setfield(lua, -2, "maximumRelativeError");
-        lua_pushinteger(lua, report.collapseCount); lua_setfield(lua, -2, "collapseCount");
-        lua_pushinteger(lua, report.boundaryRejectedCollapseCount); lua_setfield(lua, -2, "boundaryRejectedCollapseCount");
-        lua_pushinteger(lua, report.topologyRejectedCollapseCount); lua_setfield(lua, -2, "topologyRejectedCollapseCount");
-        lua_pushinteger(lua, report.orientationRejectedCollapseCount); lua_setfield(lua, -2, "orientationRejectedCollapseCount");
-        lua_pushinteger(lua, report.invalidRejectedCollapseCount); lua_setfield(lua, -2, "invalidRejectedCollapseCount");
-        lua_pushinteger(lua, report.degenerateTriangleCount); lua_setfield(lua, -2, "degenerateTriangleCount");
-        lua_pushinteger(lua, report.nonManifoldEdgeCount); lua_setfield(lua, -2, "nonManifoldEdgeCount");
-        lua_pushinteger(lua, report.connectedComponentCount); lua_setfield(lua, -2, "connectedComponentCount");
-        lua_pushinteger(lua, report.detailPenalizedCandidateCount); lua_setfield(lua, -2, "detailPenalizedCandidateCount");
-        lua_pushinteger(lua, report.detailPenalizedCollapseCount); lua_setfield(lua, -2, "detailPenalizedCollapseCount");
-        lua_pushinteger(lua, report.clearanceRejectedCollapseCount); lua_setfield(lua, -2, "clearanceRejectedCollapseCount");
+        pushSimplifyReport(lua, report);
+        return 1;
+    }
+
+    int onStartSimplifyMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const float ratio = static_cast<float>(luaL_checknumber(lua, 2));
+        int targetSubsetIndex = -1;
+        if (!lua_isnoneornil(lua, 3))
+        {
+            const lua_Integer requested = luaL_checkinteger(lua, 3);
+            targetSubsetIndex = requested > 0 ? static_cast<int>(requested - 1) : -2;
+        }
+        int targetFrameIndex = 0;
+        if (!lua_isnoneornil(lua, 4))
+        {
+            const lua_Integer requested = luaL_checkinteger(lua, 4);
+            targetFrameIndex = requested > 0 ? static_cast<int>(requested - 1) : -1;
+        }
+        const bool preserveDetails = lua_isnoneornil(lua, 5) || lua_toboolean(lua, 5);
+        if (meshDebug->mesh.startSimplify(ratio, targetSubsetIndex, targetFrameIndex, preserveDetails))
+        {
+            lua_pushboolean(lua, 1);
+            return 1;
+        }
+        lua_pushnil(lua);
+        lua_pushstring(lua, "a simplification is already running or the worker could not start");
+        return 2;
+    }
+
+    int onGetSimplifyStatusMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        float progress = 0.0f;
+        const MESH_SIMPLIFY_STATE state = meshDebug->mesh.getSimplifyState(progress);
+        const char *stateName = state == MESH_SIMPLIFY_STATE::RUNNING ? "running"
+            : state == MESH_SIMPLIFY_STATE::SUCCEEDED ? "completed"
+            : state == MESH_SIMPLIFY_STATE::FAILED ? "failed" : "idle";
+        lua_createtable(lua, 0, 4);
+        lua_pushstring(lua, stateName); lua_setfield(lua, -2, "state");
+        lua_pushnumber(lua, progress); lua_setfield(lua, -2, "progress");
+        if (state == MESH_SIMPLIFY_STATE::SUCCEEDED || state == MESH_SIMPLIFY_STATE::FAILED)
+        {
+            MESH_SIMPLIFY_REPORT report;
+            char errorOut[255] = "";
+            const bool success = meshDebug->mesh.getSimplifyResult(report, errorOut,
+                static_cast<int>(sizeof(errorOut)));
+            if (success)
+            {
+                pushSimplifyReport(lua, report);
+                lua_setfield(lua, -2, "report");
+            }
+            else
+            {
+                lua_pushstring(lua, errorOut);
+                lua_setfield(lua, -2, "error");
+            }
+        }
         return 1;
     }
 
@@ -3427,6 +3484,8 @@ namespace mbm
         luaL_Reg regFrameMeshMethods[] = {{"fakeRelease", onFakeReleaseMeshManagerLua},
                                           {"load", onLoadMeshDebugLua},
                                           {"simplify", onSimplifyMeshDebugLua},
+                                          {"startSimplify", onStartSimplifyMeshDebugLua},
+                                          {"getSimplifyStatus", onGetSimplifyStatusMeshDebugLua},
                                           {"save", onSaveMeshDebugLua},
                                           {"setType", onSetTypeMeshDebugLua},
                                           {"getType", onGetTypeMeshDebugLua},

@@ -18,6 +18,7 @@
 
 #include <core_mbm/primitives.h>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -61,7 +62,7 @@ namespace mbm::mesh_simplifier
     };
 
     bool simplify(const INPUT &input, uint32_t targetTriangleCount, OUTPUT &output,
-                  std::string &errorOut);
+                  std::string &errorOut, const std::function<void(float)> &onProgress = {});
 }
 
 #endif

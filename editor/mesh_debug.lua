@@ -8432,7 +8432,8 @@ function simplifyRestoreBackup(tEntry, index)
     return true
 end
 
-function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, targets, ratio, preserveDetails)
+function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, targets, ratio,
+                                    preserveDetails, progressState)
     local isolatedMesh = meshDebug:new()
     if not isolatedMesh:load(backupPath) then
         return nil, tLang.L('simplify_virtual_copy_failed')
@@ -8450,7 +8451,8 @@ function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, target
     if isolatedMesh:getTotalSubset(1) ~= #targets then
         return nil, tLang.L('simplify_virtual_copy_failed')
     end
-    local report, simplifyError = isolatedMesh:simplify(ratio, nil, nil, preserveDetails)
+    local report, simplifyError = simplifyAwait(isolatedMesh, ratio, nil, nil,
+        preserveDetails, progressState, 0, 1)
     if not report then return nil, simplifyError end
 
     for i = #targets, 1, -1 do workingMesh:removeSubset(targetFrame, targets[i]) end
@@ -8547,7 +8549,21 @@ function simplifyQualityLabel(report)
     return tLang.L('simplify_quality_' .. simplifyQualityLevel(report))
 end
 
-function simplifyApply(tEntry, meshD, index)
+function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
+                       progressState, completedJobs, totalJobs)
+    local started, startError = meshD:startSimplify(ratio, targetSubset, targetFrame, preserveDetails)
+    if not started then return nil, startError end
+    while true do
+        local status = meshD:getSimplifyStatus()
+        local localProgress = math.max(0, math.min(1, tonumber(status.progress) or 0))
+        progressState.progress = (completedJobs + localProgress) / totalJobs
+        if status.state == 'completed' then return status.report end
+        if status.state == 'failed' then return nil, status.error end
+        coroutine.yield()
+    end
+end
+
+function simplifyApplyCoroutine(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
     local sourceFrame = simplifyState.sharedFrames and 1 or (simplifyState.selectedFrame or 1)
     local targetFrame = simplifyState.sharedFrames and 0 or sourceFrame
@@ -8576,31 +8592,25 @@ function simplifyApply(tEntry, meshD, index)
     local useVirtualFrame = simplifyState.scope == 'subsets' and
         simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2
     if useVirtualFrame then
-        local okSimplify, report, simplifyError = dpCall(function()
-            return simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
-                sourceFrame, targets, simplifyState.ratio, simplifyState.preserveDetails)
-        end)
-        if not okSimplify or not report then
+        local report, simplifyError = simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
+            sourceFrame, targets, simplifyState.ratio, simplifyState.preserveDetails, simplifyState)
+        if not report then
             meshDebug:fakeRelease(pendingBackup.path)
             os.remove(pendingBackup.path)
-            simplifyShowFailure(okSimplify and simplifyError or report)
+            simplifyShowFailure(simplifyError)
             return false
         end
         aggregateReport = splitCaptureCopyTable(report)
     else
-        for _, targetSubset in ipairs(targets) do
-            local okSimplify, report, simplifyError = dpCall(function()
-                if targetSubset == 'frame' then
-                    return workingMesh:simplify(simplifyState.ratio, nil, targetFrame,
-                        simplifyState.preserveDetails)
-                end
-                return workingMesh:simplify(simplifyState.ratio, targetSubset, targetFrame,
-                    simplifyState.preserveDetails)
-            end)
-            if not okSimplify or not report then
+        for targetIndex, targetSubset in ipairs(targets) do
+            local subset = targetSubset == 'frame' and nil or targetSubset
+            local report, simplifyError = simplifyAwait(workingMesh, simplifyState.ratio,
+                subset, targetFrame, simplifyState.preserveDetails, simplifyState,
+                targetIndex - 1, #targets)
+            if not report then
                 meshDebug:fakeRelease(pendingBackup.path)
                 os.remove(pendingBackup.path)
-                simplifyShowFailure(okSimplify and simplifyError or report)
+                simplifyShowFailure(simplifyError)
                 return false
             end
             if not aggregateReport then
@@ -8659,6 +8669,37 @@ function simplifyApply(tEntry, meshD, index)
         aggregateReport.detailPenalizedCollapseCount or 0,
         aggregateReport.detailPenalizedCandidateCount or 0,
         aggregateReport.clearanceRejectedCollapseCount or 0))
+    return true
+end
+
+function simplifyResume(tEntry)
+    local simplifyState = tEntry and tEntry.tSimplifyState
+    local co = simplifyState and simplifyState.co
+    if not co or coroutine.status(co) ~= 'suspended' then return end
+    local ok, errorValue = coroutine.resume(co)
+    if not ok then
+        simplifyState.running = false
+        simplifyState.co = nil
+        simplifyShowFailure(errorValue)
+        return
+    end
+    if coroutine.status(co) == 'dead' then
+        simplifyState.running = false
+        simplifyState.co = nil
+        simplifyState.progress = simplifyState.report and 1 or 0
+    end
+end
+
+function simplifyApply(tEntry, meshD, index)
+    local simplifyState = tEntry.tSimplifyState
+    if simplifyState.running then return false end
+    simplifyState.running = true
+    simplifyState.progress = 0
+    simplifyState.report = nil
+    simplifyState.co = coroutine.create(function()
+        simplifyApplyCoroutine(tEntry, meshD, index)
+    end)
+    simplifyResume(tEntry)
     return true
 end
 
@@ -9681,7 +9722,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
 
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
-        #tEntry.tPendingOps == 0 and hasSelection
+        #tEntry.tPendingOps == 0 and hasSelection and not simplifyState.running
     if not canSimplify then
         local messageKey = #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
             or 'simplify_select_at_least_one_subset'
@@ -9693,6 +9734,11 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         applied = simplifyApply(tEntry, meshD, index)
     end
     tImGui.EndDisabled()
+    if simplifyState.running then
+        local progress = math.max(0, math.min(1, simplifyState.progress or 0))
+        tImGui.ProgressBar(progress, {x=-1,y=0},
+            string.format(tLang.L('simplify_progress_fmt'), progress * 100))
+    end
     if tEntry.tSimplifyBackup then
         tImGui.SameLine()
         if tImGui.Button(tLang.L('simplify_revert') .. '##simplifyRevert-' .. index) then
@@ -14629,6 +14675,7 @@ function showListMeshesWindow()
 end
 
 function onLoop(delta)
+    for i = 1, #tLoadedMeshes do simplifyResume(tLoadedMeshes[i]) end
     main_menu_mesh_debug()
     showMixamoGuideDialog()
     showBlenderImportDialog()

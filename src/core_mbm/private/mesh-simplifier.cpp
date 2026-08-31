@@ -211,7 +211,7 @@ namespace mbm::mesh_simplifier
     }
 
     bool simplify(const INPUT &input, const uint32_t targetTriangleCount, OUTPUT &output,
-                  std::string &errorOut)
+                  std::string &errorOut, const std::function<void(float)> &onProgress)
     {
         output = {};
         if (input.positions.empty() || input.indices.empty() || input.indices.size() % 3 != 0)
@@ -246,6 +246,8 @@ namespace mbm::mesh_simplifier
         if (targetTriangleCount == 0 || targetTriangleCount >= triangles.size())
         { errorOut = "target triangle count must be smaller than the source count"; return false; }
 
+        const size_t sourceTriangleCount = triangles.size();
+        if (onProgress) onProgress(0.0f);
         double maximumCost = 0.0;
         double maximumPoseCost = 0.0;
         VEC3 minimum = positions.front();
@@ -262,6 +264,13 @@ namespace mbm::mesh_simplifier
         const double sourceDiagonal = std::sqrt(lengthSquared(maximum - minimum));
         while (triangles.size() > targetTriangleCount)
         {
+            if (onProgress)
+            {
+                const size_t requestedRemoval = sourceTriangleCount - targetTriangleCount;
+                const size_t removed = sourceTriangleCount - triangles.size();
+                onProgress(requestedRemoval > 0
+                    ? static_cast<float>(removed) / static_cast<float>(requestedRemoval) : 1.0f);
+            }
             std::vector<QUADRIC> quadrics(positions.size());
             std::vector<std::vector<uint32_t>> adjacent(positions.size());
             std::vector<VEC3> triangleNormals(triangles.size());
@@ -554,6 +563,7 @@ namespace mbm::mesh_simplifier
         const double maximumAbsoluteError = std::max(std::sqrt(maximumCost), std::sqrt(maximumPoseCost));
         output.maximumRelativeError = sourceDiagonal > 1.0e-20
             ? static_cast<float>(maximumAbsoluteError / sourceDiagonal) : 0.0f;
+        if (onProgress) onProgress(1.0f);
         return true;
     }
 }

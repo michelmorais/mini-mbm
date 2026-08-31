@@ -94,6 +94,14 @@ namespace mbm
         uint32_t clearanceRejectedCollapseCount = 0;
     };
 
+    enum class MESH_SIMPLIFY_STATE : uint8_t
+    {
+        IDLE,
+        RUNNING,
+        SUCCEEDED,
+        FAILED
+    };
+
     struct BUFFER_MESH
     {
         BUFFER_GL *pBufferGL;
@@ -333,6 +341,16 @@ namespace mbm
                                const int targetSubsetIndex = -1,
                                const int targetFrameIndex = 0,
                                const bool preserveDetails = true);
+        // Editor/tooling-only asynchronous counterpart. The worker, progress, report, and error
+        // belong to this MESH_MBM_DEBUG instance; no engine-loop pump is involved. Do not access
+        // or mutate this instance while RUNNING. Starting a new job replaces a completed result.
+        API_IMPL bool startSimplify(const float targetTriangleRatio,
+                                    const int targetSubsetIndex = -1,
+                                    const int targetFrameIndex = 0,
+                                    const bool preserveDetails = true);
+        API_IMPL MESH_SIMPLIFY_STATE getSimplifyState(float &progress) noexcept;
+        API_IMPL bool getSimplifyResult(MESH_SIMPLIFY_REPORT &report,
+                                        char *errorOut, const int errorOutLen);
         API_IMPL void removeBuffer(uint32_t indexFrame);
         API_IMPL void removeAnimation(uint32_t index);
         // Writes the v11 section/TLV format (docs/mesh-v11-format.md): material+transform, frames,

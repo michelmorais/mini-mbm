@@ -1464,6 +1464,8 @@ namespace mbm
 
     MESH_MBM_DEBUG::~MESH_MBM_DEBUG()
     {
+        if (impl->simplifyWorker.joinable())
+            impl->simplifyWorker.join();
         this->release();
     }
 
@@ -2384,7 +2386,8 @@ namespace mbm
             static_cast<uint32_t>(std::floor(activeSourceTriangles * targetTriangleRatio)));
         mesh_simplifier::OUTPUT simplified;
         std::string simplifyError;
-        if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError))
+        if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError,
+            [this](const float progress) { impl->simplifyProgress = progress; }))
             return fail(std::string("frame simplification failed: ") + simplifyError);
         if (simplified.triangleGroups.size() != simplified.indices.size() / 3 ||
             simplified.sourceContributions.size() != simplified.positions.size())
@@ -2867,6 +2870,63 @@ namespace mbm
         if (hasCanonicalWeights)
             impl->canonicalWeights = std::move(simplifiedWeights);
         return true;
+    }
+
+    bool MESH_MBM_DEBUG::startSimplify(const float targetTriangleRatio,
+                                       const int targetSubsetIndex,
+                                       const int targetFrameIndex,
+                                       const bool preserveDetails)
+    {
+        if (impl->simplifyState.load(std::memory_order_acquire) == MESH_SIMPLIFY_STATE::RUNNING)
+            return false;
+        if (impl->simplifyWorker.joinable())
+            impl->simplifyWorker.join();
+        impl->simplifyReport = {};
+        impl->simplifyError.clear();
+        impl->simplifyProgress = 0.0f;
+        impl->simplifyState.store(MESH_SIMPLIFY_STATE::RUNNING, std::memory_order_release);
+        try
+        {
+            impl->simplifyWorker = std::thread([this, targetTriangleRatio, targetSubsetIndex,
+                                                targetFrameIndex, preserveDetails]()
+            {
+                char errorOut[255] = "";
+                const bool success = simplify(targetTriangleRatio, impl->simplifyReport,
+                    errorOut, static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
+                    targetFrameIndex, preserveDetails);
+                if (!success) impl->simplifyError = errorOut;
+                impl->simplifyState.store(success ? MESH_SIMPLIFY_STATE::SUCCEEDED
+                                                  : MESH_SIMPLIFY_STATE::FAILED,
+                                          std::memory_order_release);
+            });
+        }
+        catch (...)
+        {
+            impl->simplifyError = "failed to start simplification worker";
+            impl->simplifyState.store(MESH_SIMPLIFY_STATE::FAILED, std::memory_order_release);
+            return false;
+        }
+        return true;
+    }
+
+    MESH_SIMPLIFY_STATE MESH_MBM_DEBUG::getSimplifyState(float &progress) noexcept
+    {
+        progress = std::max(0.0f, std::min(1.0f, impl->simplifyProgress.load()));
+        return impl->simplifyState.load(std::memory_order_acquire);
+    }
+
+    bool MESH_MBM_DEBUG::getSimplifyResult(MESH_SIMPLIFY_REPORT &report,
+                                           char *errorOut, const int errorOutLen)
+    {
+        const MESH_SIMPLIFY_STATE state = impl->simplifyState.load(std::memory_order_acquire);
+        if (state == MESH_SIMPLIFY_STATE::RUNNING || state == MESH_SIMPLIFY_STATE::IDLE)
+            return false;
+        if (impl->simplifyWorker.joinable())
+            impl->simplifyWorker.join();
+        report = impl->simplifyReport;
+        if (errorOut && errorOutLen > 0)
+            snprintf(errorOut, static_cast<size_t>(errorOutLen), "%s", impl->simplifyError.c_str());
+        return state == MESH_SIMPLIFY_STATE::SUCCEEDED;
     }
 
     void MESH_MBM_DEBUG::removeBuffer(uint32_t indexFrame)

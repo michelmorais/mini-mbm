@@ -1448,6 +1448,22 @@ reduce its distance to a nearby triangle from another subset by more than 25%. T
 local spatial grid and repeats against available geometry/pose deformation samples.
 On failure the call returns `nil, error` without modifying the mesh.
 
+Editor tools should use the instance-owned asynchronous form for large meshes:
+
+```lua
+local started, err = meshD:startSimplify(targetTriangleRatio,
+    targetSubset, targetFrame, preserveDetails)
+local status = meshD:getSimplifyStatus()
+```
+
+`startSimplify` returns immediately after creating the worker. `getSimplifyStatus()` returns a
+table with `state` (`idle`, `running`, `completed`, or `failed`) and normalized `progress` in
+`0..1`. A completed status also contains `report`; a failed status contains `error`. The worker,
+state, progress, and result are owned by that `meshDebug` instance and require no callback or
+engine-loop integration. Lua must poll from its normal `onLoop`. Do not read, save, or mutate the
+same instance while its state is `running`; use a detached working `meshDebug` and publish it only
+after completion. Destroying the instance waits for its worker to finish.
+
 For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
 `meshD:simplify(0.5, nil, 0)` simplifies every compatible geometry frame with shared collapses.
 
