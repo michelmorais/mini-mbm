@@ -43,6 +43,7 @@
 #include <string>
 #include <memory>
 #include <atomic>
+#include <cstdint>
 #include <cstdlib>   // free()
 #include <cstring>   // memcpy
 
@@ -113,16 +114,25 @@ extern "C" void avfoundation_audio_resume(void)
 // BackendData — per-instance data (ObjC++ PIMPL; defined here so the C++
 // header stays ObjC-free)
 // ---------------------------------------------------------------------------
+namespace
+{
+    struct AVF_COMPLETION_STATE
+    {
+        std::atomic<bool> alive { true };
+        std::atomic<bool> finished { false };
+        std::atomic<uint64_t> generation { 0 };
+        std::atomic<mbm::AUDIO *> owner { nullptr };
+    };
+}
+
 struct mbm::AUDIO::BackendData
 {
     AVAudioPlayerNode  *node     = nil;
     AVAudioPCMBuffer   *buffer   = nil;
     bool                loaded   = false;
     float               volume   = 1.0f;
-    // Set to true by the audio-render thread when a non-looping buffer finishes.
-    // AVAudioPlayerNode.isPlaying stays true after the buffer ends (it reflects
-    // the node's play-state, not active rendering), so we track this ourselves.
-    std::atomic<bool>   finished { false };
+    std::shared_ptr<AVF_COMPLETION_STATE> completion =
+        std::make_shared<AVF_COMPLETION_STATE>();
 };
 
 // ---------------------------------------------------------------------------
@@ -135,10 +145,17 @@ AUDIO::AUDIO(const int newIdScene)
     : AUDIO_INTERFACE(newIdScene),
       onEndStreamCallBack(nullptr),
       backend(std::make_unique<BackendData>())
-{}
+{
+    backend->completion->owner = this;
+}
 
 AUDIO::~AUDIO()
 {
+    if (backend && backend->completion) {
+        backend->completion->alive = false;
+        backend->completion->owner = nullptr;
+        backend->completion->generation.fetch_add(1);
+    }
     if (backend && backend->node && g_avf_engine) {
         [backend->node stop];
         [g_avf_engine detachNode:backend->node];
@@ -321,8 +338,10 @@ bool AUDIO::play(const bool loop)
     if (!backend || !backend->buffer || !backend->node)
         return false;
 
+    const std::shared_ptr<AVF_COMPLETION_STATE> completion = backend->completion;
+    const uint64_t generation = completion->generation.fetch_add(1) + 1;
     [backend->node stop];
-    backend->finished = false;   // reset for this playback
+    completion->finished = false;
 
     if (loop) {
         // Looping buffers run until stop() is called — no completion needed.
@@ -336,19 +355,20 @@ bool AUDIO::play(const bool loop)
         // Without this, AVAudioPlayerNode.isPlaying stays true after the buffer
         // ends (it tracks the node's play-state, not active rendering), causing
         // isPlaying() to return true forever and starving the sound pool.
-        BackendData *rawData = backend.get();   // raw ptr safe: [node stop] in dtor cancels the handler
-        AUDIO      *self    = this;
         [backend->node scheduleBuffer:backend->buffer
                                 atTime:nil
                                options:0
                      completionHandler:^{
-            rawData->finished = true;
-            if (self->onEndStreamCallBack) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (self->onEndStreamCallBack)
-                        self->onEndStreamCallBack(self);
-                });
-            }
+            if (!completion->alive || completion->generation != generation)
+                return;
+            completion->finished = true;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (!completion->alive || completion->generation != generation)
+                    return;
+                AUDIO *owner = completion->owner.load();
+                if (owner && owner->getOnEndstream())
+                    owner->getOnEndstream()(owner);
+            });
         }];
     }
 
@@ -381,6 +401,7 @@ bool AUDIO::resume()
 bool AUDIO::stop()
 {
     if (backend && backend->node) {
+        backend->completion->generation.fetch_add(1);
         [backend->node stop];
         state = AUDIO_STOPPED;
         return true;
@@ -429,7 +450,7 @@ bool AUDIO::isPlaying()
         return false;
     // Once the render thread signals the buffer is done, transition state so
     // repeated calls don't need to re-read the atomic.
-    if (backend->finished) {
+    if (backend->completion->finished) {
         state = AUDIO_STOPPED;
         return false;
     }
@@ -441,7 +462,7 @@ bool AUDIO::isPaused()
     // Paused = in AUDIO_PLAYING state but node is not actively rendering.
     return backend && backend->node &&
            state == AUDIO_PLAYING &&
-           !backend->finished &&
+           !backend->completion->finished &&
            !backend->node.isPlaying;
 }
 

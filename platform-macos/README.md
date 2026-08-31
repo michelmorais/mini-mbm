@@ -176,11 +176,29 @@ Unicode characters; pass it through `--addpath`:
 
 ```sh
 MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
-    --addpath="/path/to/audio fixtures" \
+    --addpath "/path/to/audio fixtures" \
     --scene src/test-lib/macos-avfoundation-smoke.lua
 MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
     --scene src/test-lib/macos-common-plugins-smoke.lua
 ```
+
+For AVFoundation lifecycle stress, provide `lifecycle tone.wav` plus a matching
+`lifecycle Opus fallback.ogg` / `.wav` pair in the fixture directory, then run:
+
+```sh
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
+    --disable_select_monitor --nosplash -w 320 -h 240 \
+    --addpath "/path/to/audio fixtures" \
+    --scene src/test-lib/macos-avfoundation-lifecycle-smoke.lua
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
+    --disable_select_monitor --nosplash -w 320 -h 240 \
+    --addpath "/path/to/audio fixtures" \
+    --scene src/test-lib/macos-avfoundation-scene-cleanup-smoke.lua
+```
+
+The first harness covers immediate destruction, rapid play/stop replacement, simultaneous natural
+completion, Opus-to-WAV fallback, and engine shutdown with a loop active. The second changes scene
+while a completion callback is pending and waits in the replacement scene to expose late callbacks.
 
 Box2D and LiquidFun must be tested in separate build configurations:
 
