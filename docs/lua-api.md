@@ -1453,6 +1453,12 @@ source attributes into its logical topology and estimates the requested result's
 that estimate exceeds the indexed-mesh limit of 65,535 vertices, it fails immediately and reports
 the largest conservative ratio for that source. Editors additionally perform a cheaper estimate
 from the selected source vertex count so obviously incompatible requests never start a worker.
+The native preflight also counts locked vertices and open/seam edges in the logical source
+topology. It rejects before the collapse loop when the locked boundary vertices alone cannot fit
+the 65,535-vertex indexed result or when those boundary edges establish a triangle floor above the
+requested target.
+The boundary-floor error reports the minimum ratio that can satisfy this hard constraint, although
+other topology and orientation protections may still require a larger result.
 
 Editor tools should use the instance-owned asynchronous form for large meshes:
 

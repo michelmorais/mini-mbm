@@ -11,6 +11,9 @@ The editor range for native MSH simplification is 0.1% through 95%. Before start
 the estimated result vertex count with the 65,535 indexed-mesh limit. The native path repeats the
 check after exact attribute joining and fails before edge-collapse passes when the conservative
 logical estimate still cannot fit.
+It also derives a hard lower bound from locked open/seam boundaries. If the boundary vertices alone
+exceed the indexed vertex limit, or their edges require more triangles than requested, the job
+fails during preflight rather than running until no legal collapse remains.
 
 ## Blender importer
 

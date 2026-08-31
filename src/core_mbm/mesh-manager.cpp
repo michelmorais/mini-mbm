@@ -2382,11 +2382,11 @@ namespace mbm
         const uint32_t activeSourceTriangles = static_cast<uint32_t>(input.indices.size() / 3);
         if (activeSourceTriangles < 2)
             return fail("target simplification scope requires at least two triangles");
+        const uint64_t preservedSourceVertexCount = targetSubsetIndex >= 0 &&
+            activeSourceVertexCount < report.sourceVertexCount
+            ? report.sourceVertexCount - activeSourceVertexCount : 0u;
         if (!input.positions.empty())
         {
-            const uint64_t preservedSourceVertexCount = targetSubsetIndex >= 0 &&
-                activeSourceVertexCount < report.sourceVertexCount
-                ? report.sourceVertexCount - activeSourceVertexCount : 0u;
             const double estimatedTargetVertices = static_cast<double>(preservedSourceVertexCount) +
                 std::ceil(static_cast<double>(input.positions.size()) * targetTriangleRatio);
             if (estimatedTargetVertices > static_cast<double>(UINT16_MAX))
@@ -2406,6 +2406,49 @@ namespace mbm
             ? static_cast<uint32_t>(frame->subset.size()) : 1u;
         const uint32_t targetTriangles = std::max<uint32_t>(minimumTriangles,
             static_cast<uint32_t>(std::floor(activeSourceTriangles * targetTriangleRatio)));
+        auto edgeKey = [](uint32_t a, uint32_t b)
+        {
+            if (a > b) std::swap(a, b);
+            return (static_cast<uint64_t>(a) << 32u) | b;
+        };
+        std::unordered_map<uint64_t, uint32_t> sourceEdgeCounts;
+        sourceEdgeCounts.reserve(input.indices.size());
+        for (size_t i = 0; i < input.indices.size(); i += 3)
+        {
+            ++sourceEdgeCounts[edgeKey(input.indices[i], input.indices[i + 1])];
+            ++sourceEdgeCounts[edgeKey(input.indices[i + 1], input.indices[i + 2])];
+            ++sourceEdgeCounts[edgeKey(input.indices[i + 2], input.indices[i])];
+        }
+        std::unordered_set<uint32_t> lockedBoundaryVertices;
+        uint64_t boundaryEdgeCount = 0;
+        for (const auto &entry : sourceEdgeCounts)
+        {
+            if (entry.second == 2) continue;
+            ++boundaryEdgeCount;
+            lockedBoundaryVertices.insert(static_cast<uint32_t>(entry.first >> 32u));
+            lockedBoundaryVertices.insert(static_cast<uint32_t>(entry.first));
+        }
+        if (preservedSourceVertexCount + lockedBoundaryVertices.size() > UINT16_MAX)
+        {
+            char message[255] = "";
+            snprintf(message, sizeof(message),
+                "source topology has %zu locked boundary vertices; the simplified indexed frame "
+                "cannot fit the uint16 vertex-index limit", lockedBoundaryVertices.size());
+            return fail(message);
+        }
+        const uint64_t boundaryTriangleFloor = (boundaryEdgeCount + 2u) / 3u;
+        if (boundaryTriangleFloor > targetTriangles)
+        {
+            char message[255] = "";
+            const double minimumBoundaryRatio = static_cast<double>(boundaryTriangleFloor) /
+                                                static_cast<double>(activeSourceTriangles);
+            snprintf(message, sizeof(message),
+                "locked source boundaries require at least %llu triangles; requested target is %u; "
+                "use %.6f or larger",
+                static_cast<unsigned long long>(boundaryTriangleFloor), targetTriangles,
+                minimumBoundaryRatio);
+            return fail(message);
+        }
         mesh_simplifier::OUTPUT simplified;
         std::string simplifyError;
         if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError,
