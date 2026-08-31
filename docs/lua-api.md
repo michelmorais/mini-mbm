@@ -1448,6 +1448,12 @@ reduce its distance to a nearby triangle from another subset by more than 25%. T
 local spatial grid and repeats against available geometry/pose deformation samples.
 On failure the call returns `nil, error` without modifying the mesh.
 
+Before running the expensive collapse passes for a complete frame, the implementation joins exact
+source attributes into its logical topology and estimates the requested result's vertex count. If
+that estimate exceeds the indexed-mesh limit of 65,535 vertices, it fails immediately and reports
+the largest conservative ratio for that source. Editors additionally perform a cheaper estimate
+from the selected source vertex count so obviously incompatible requests never start a worker.
+
 Editor tools should use the instance-owned asynchronous form for large meshes:
 
 ```lua

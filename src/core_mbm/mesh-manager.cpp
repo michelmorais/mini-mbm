@@ -2277,6 +2277,7 @@ namespace mbm
         std::vector<LOGICAL_SOURCE> logicalSources;
         std::unordered_map<POSITION_KEY, std::vector<uint32_t>, POSITION_KEY_HASH> logicalByPosition;
         logicalByPosition.reserve(report.sourceVertexCount);
+        uint64_t activeSourceVertexCount = 0;
         for (uint32_t subsetIndex = 0; subsetIndex < frame->subset.size(); ++subsetIndex)
         {
             const util::SUBSET_DEBUG *subset = frame->subset[subsetIndex];
@@ -2293,6 +2294,7 @@ namespace mbm
             report.sourceTriangleCount += static_cast<uint32_t>(sourceElementCount / 3);
             if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
                 continue;
+            activeSourceVertexCount += static_cast<uint64_t>(subset->vertexCount);
 
             std::unordered_map<uint32_t, uint32_t> localByGlobal;
             localByGlobal.reserve(static_cast<size_t>(subset->vertexCount));
@@ -2380,6 +2382,26 @@ namespace mbm
         const uint32_t activeSourceTriangles = static_cast<uint32_t>(input.indices.size() / 3);
         if (activeSourceTriangles < 2)
             return fail("target simplification scope requires at least two triangles");
+        if (!input.positions.empty())
+        {
+            const uint64_t preservedSourceVertexCount = targetSubsetIndex >= 0 &&
+                activeSourceVertexCount < report.sourceVertexCount
+                ? report.sourceVertexCount - activeSourceVertexCount : 0u;
+            const double estimatedTargetVertices = static_cast<double>(preservedSourceVertexCount) +
+                std::ceil(static_cast<double>(input.positions.size()) * targetTriangleRatio);
+            if (estimatedTargetVertices > static_cast<double>(UINT16_MAX))
+            {
+                char message[255] = "";
+                const double availableVertices = preservedSourceVertexCount < UINT16_MAX
+                    ? static_cast<double>(UINT16_MAX - preservedSourceVertexCount) : 0.0;
+                const double maximumRatio = availableVertices /
+                    static_cast<double>(input.positions.size());
+                snprintf(message, sizeof(message),
+                    "requested ratio is expected to exceed the uint16 vertex-index limit; "
+                    "use %.6f or smaller", maximumRatio);
+                return fail(message);
+            }
+        }
         const uint32_t minimumTriangles = targetSubsetIndex < 0
             ? static_cast<uint32_t>(frame->subset.size()) : 1u;
         const uint32_t targetTriangles = std::max<uint32_t>(minimumTriangles,

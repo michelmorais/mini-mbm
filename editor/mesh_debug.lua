@@ -9622,12 +9622,15 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local targetFrame = simplifyState.sharedFrames and 1 or simplifyState.selectedFrame
 
     local sourceTriangles = 0
+    local sourceVertices = 0
+    local frameVertices = 0
     local selectedCount = 0
     local estimatedTriangles = 0
     if simplifyState.scope == 'subsets' then
         tImGui.Text(tLang.L('simplify_select_subsets'))
         for _, subset in ipairs(allSubsets) do
             if subset.f == targetFrame then
+                frameVertices = frameVertices + (subset.vertexCount or 0)
                 local selected = simplifyState.selectedSubsets[subset.s] == true
                 local label = string.format(tLang.L('simplify_scope_subset_fmt'),
                     subset.s, subset.texName)
@@ -9638,6 +9641,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                     simplifyState.report = nil
                 end
                 if simplifyState.selectedSubsets[subset.s] then
+                    sourceVertices = sourceVertices + (subset.vertexCount or 0)
                     local triangles = simplifySubsetTriangles(subset.indexCount, subset.vertexCount)
                     sourceTriangles = sourceTriangles + triangles
                     estimatedTriangles = estimatedTriangles + math.max(1,
@@ -9669,6 +9673,8 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     else
         for _, subset in ipairs(allSubsets) do
             if subset.f == targetFrame then
+                sourceVertices = sourceVertices + (subset.vertexCount or 0)
+                frameVertices = frameVertices + (subset.vertexCount or 0)
                 sourceTriangles = sourceTriangles +
                     simplifySubsetTriangles(subset.indexCount, subset.vertexCount)
                 selectedCount = selectedCount + 1
@@ -9681,7 +9687,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tImGui.PushItemWidth(180)
     local ratioChanged, ratio = tImGui.SliderFloat(
         tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
-        simplifyState.ratio or 0.9, 0.05, 0.95, '%.2f')
+        simplifyState.ratio or 0.9, 0.001, 0.95, '%.3f')
     if ratioChanged and ratio then
         simplifyState.ratio = ratio
         simplifyState.report = nil
@@ -9704,6 +9710,17 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     end
     tImGui.PopItemWidth()
     tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'), sourceTriangles, estimatedTriangles))
+    local preservedVertices = math.max(0, frameVertices - sourceVertices)
+    local estimatedVertices = math.max(1, preservedVertices +
+        math.ceil(sourceVertices * (simplifyState.ratio or 0.9)))
+    local availableVertices = math.max(0, 65535 - preservedVertices)
+    local maximumSafeRatio = sourceVertices > 0 and
+        math.min(0.95, availableVertices / sourceVertices) or 0.95
+    local exceedsIndexLimit = estimatedVertices > 65535
+    if exceedsIndexLimit then
+        tImGui.TextWrapped(string.format(tLang.L('simplify_uint16_limit_fmt'),
+            estimatedVertices, maximumSafeRatio * 100))
+    end
     tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
     local preserveDetails = tImGui.Checkbox(
         tLang.L('simplify_preserve_details') .. '##simplifyPreserveDetails-' .. index,
@@ -9722,11 +9739,14 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
 
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
-        #tEntry.tPendingOps == 0 and hasSelection and not simplifyState.running
+        #tEntry.tPendingOps == 0 and hasSelection and not simplifyState.running and
+        not exceedsIndexLimit
     if not canSimplify then
-        local messageKey = #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
-            or 'simplify_select_at_least_one_subset'
-        tImGui.TextDisabled(tLang.L(messageKey))
+        if not exceedsIndexLimit then
+            local messageKey = #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
+                or 'simplify_select_at_least_one_subset'
+            tImGui.TextDisabled(tLang.L(messageKey))
+        end
     end
     local applied = false
     tImGui.BeginDisabled(not canSimplify)
