@@ -98,6 +98,68 @@ Metal deformation source. All four cases must report `PASS`, the process must ex
 and any Metal API validation message must be treated as a test failure. This test is optional for
 build-only runners because Metal device creation is unavailable without GPU access.
 
+### Automated Metal, window, and input tests
+
+Two additional graphical-session tests cover the macOS render-target readback path and window
+resize state:
+
+```sh
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --metal-render-to-texture-test
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-resize-test
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-input-test
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-close-test
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/testLib --macos-minimize-test
+```
+
+The render-target test validates known RGBA pixels after a Metal offscreen clear and GPU readback.
+The resize test requests a 960x640 logical content area and verifies the engine resize callback,
+the `CAMetalLayer` backing scale, and its pixel-sized drawable. The input test posts deterministic
+AppKit events and verifies a normal key, Shift, Control, Option, Command, Caps Lock state,
+three mouse buttons, movement, both scroll directions, double-click, and logical coordinates. The
+close test exercises the window delegate and normal engine teardown. The minimize test verifies
+that minimizing does not terminate the engine and that the window can be restored. All commands exit
+automatically; any Metal API validation message or nonzero process status is a failure.
+
+The resize harness validates the current display's scale. Moving a live window between displays
+with different backing scales, native fullscreen transitions, and multi-monitor placement still
+require manual checks because CI cannot synthesize the physical display topology.
+
+### Manual window/input acceptance checklist
+
+Run a Debug build with `MTL_DEBUG_LAYER=1` and verify the following on real hardware:
+
+- Hold and combine Shift, Control, Option, and Command; each press and release must arrive once.
+- Toggle Caps Lock twice and confirm text/input code observes the enabled and disabled states.
+- Drag with left, right, and an additional mouse button; verify motion remains in logical window
+  coordinates on Retina displays. Test both discrete-wheel and trackpad scrolling.
+- Resize continuously, then enter and leave native fullscreen. Rendering must
+  resume at the correct size without flicker, stretched frames, or Metal validation messages.
+- With two displays, move the window between them. When their backing scales differ, the drawable
+  pixel size must update while the engine's logical dimensions and pointer coordinates stay stable.
+- Close through the title-bar button, Command-Q, and `mbm.quit()`. Each path must return normally
+  without a crash, hang, Metal validation message, or audio/plugin callback after teardown.
+
+---
+
+## System integration smoke test
+
+`macos-system-integration-smoke.lua` exercises `getExecutablePath()` and the asynchronous process
+API without requiring user interaction. It verifies normal and signalled exit codes, failed spawn,
+cancellation, and arguments containing spaces and Unicode. Run it from a directory other than the
+repository root to also prove that executable-path discovery is independent of the current working
+directory:
+
+```sh
+cd /tmp
+MTL_DEBUG_LAYER=1 /path/to/mini-mbm/bin/debug/arm64/mini-mbm \
+    --disable_select_monitor --nosplash -w 320 -h 240 \
+    --scene /path/to/mini-mbm/src/test-lib/macos-system-integration-smoke.lua
+```
+
+Success requires exit code `0`, the `MACOS_SYSTEM_INTEGRATION_SMOKE_OK` sentinel, and no Metal
+validation message. Native open/save/folder dialogs remain manual tests because selecting or
+cancelling them requires UI interaction.
+
 ---
 
 ## Audio Backend — AVFoundation
@@ -119,6 +181,67 @@ automatically (no `-DAUDIO=` flag needed).
 > `.wav` file of the same base name in the same directory. Keep both `.ogg` and
 > `.wav` versions of your sounds to stay compatible with both Android and macOS.
 
+### Current AVFoundation limitations
+
+- Volume, pan, play, pause, resume, stop, looping, and end-of-stream notification are implemented.
+- Pitch changes are not implemented; `setPitch()` returns failure and `getPitch()` returns `1.0`.
+- Seeking is not implemented; `setPosition()` returns failure. Use `stop()` followed by `play()` to
+  restart from the beginning.
+- `getLength()` reports the decoded duration in milliseconds.
+
+### Automated audio and plugin smoke tests
+
+The macOS smoke scripts use the real Metal window and exit on their own. Run them from the
+repository root with Metal validation enabled. The audio fixture directory may contain spaces and
+Unicode characters; pass it through `--addpath`:
+
+```sh
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
+    --addpath "/path/to/audio fixtures" \
+    --scene src/test-lib/macos-avfoundation-smoke.lua
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
+    --scene src/test-lib/macos-common-plugins-smoke.lua
+```
+
+For AVFoundation lifecycle stress, provide `lifecycle tone.wav` plus a matching
+`lifecycle Opus fallback.ogg` / `.wav` pair in the fixture directory, then run:
+
+```sh
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
+    --disable_select_monitor --nosplash -w 320 -h 240 \
+    --addpath "/path/to/audio fixtures" \
+    --scene src/test-lib/macos-avfoundation-lifecycle-smoke.lua
+MTL_DEBUG_LAYER=1 ./bin/debug/arm64/mini-mbm \
+    --disable_select_monitor --nosplash -w 320 -h 240 \
+    --addpath "/path/to/audio fixtures" \
+    --scene src/test-lib/macos-avfoundation-scene-cleanup-smoke.lua
+```
+
+The first harness covers immediate destruction, rapid play/stop replacement, simultaneous natural
+completion, Opus-to-WAV fallback, and engine shutdown with a loop active. The second changes scene
+while a completion callback is pending and waits in the replacement scene to expose late callbacks.
+
+Box2D and LiquidFun must be tested in separate build configurations:
+
+```sh
+# Box2D 2.4.1 configuration
+cmake -S . -B build/macos_box2d_debug \
+    -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug \
+    -DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_LIQUID_FUN=0 \
+    -DUSE_TEXTURE_MISSING_DIALOG=0
+
+# LiquidFun / Box2D 2.3 configuration
+cmake -S . -B build/macos_liquidfun_debug \
+    -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug \
+    -DUSE_LUA=1 -DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1 \
+    -DUSE_TEXTURE_MISSING_DIALOG=0
+```
+
+The local CMake configurations share `bin/<type>/arm64` as their output directory. Switching
+between them does not remove a plugin produced by the previous configuration, so verify or clean
+that output deliberately before claiming an exclusive-plugin test. Distribution builds avoid this
+ambiguity by selecting one static physics plugin in the Xcode configuration.
+
 ---
 
 ## Launching the Editor Tools
@@ -127,15 +250,15 @@ After a build with `-DUSE_ALL=1`, launch the engine without arguments to open th
 **launcher dialog** listing all built-in Lua editors:
 
 ```sh
-./bin/debug/macos/mini-mbm
+./bin/debug/arm64/mini-mbm
 ```
 
 Or launch a specific editor directly:
 
 ```sh
-./bin/debug/macos/mini-mbm --scene editor/sprite_maker.lua
-./bin/debug/macos/mini-mbm --scene editor/scene_editor2d.lua
-./bin/debug/macos/mini-mbm --scene editor/font_maker.lua
+./bin/debug/arm64/mini-mbm --scene editor/sprite_maker.lua
+./bin/debug/arm64/mini-mbm --scene editor/scene_editor2d.lua
+./bin/debug/arm64/mini-mbm --scene editor/font_maker.lua
 ```
 
 ---
@@ -156,12 +279,44 @@ make -j$(sysctl -n hw.logicalcpu)
 
 ---
 
-## Game Delivery — .app Bundle and .dmg
+## Local CMake Bundle Prototype — .app and .dmg
 
-The macOS build supports per-game packaging via the same `-DGAME_ASSETS_DIR`
+### Supported workflow policy
+
+CMake is used for local development, builds, and automated engine tests on macOS. It is **not**
+the release-packaging workflow. Distribution is performed through Xcode: create the application
+archive there, then use Xcode's distribution workflow for Developer ID or Mac App Store export,
+signing, and submission as appropriate. A game built with Mini-MBM has already been released using
+this Xcode workflow.
+
+The available paths therefore have different roles:
+
+| Workflow | Status |
+|---|---|
+| Xcode project and Archive/Distribute workflow | Required for distribution; proven in production for an existing game and its configuration |
+| CMake/Makefile (`PLAT=MacOs`) | Supported for local development and automated tests |
+| CMake bundle helpers (`GAME_ASSETS_DIR`, `macapp`, `macdmg`) | Local prototype/diagnostic output only; not a supported release artifact |
+| CMake-generated Xcode project with `MAS_DELIVERY=1` | Project-generation helper; final Archive, signing, validation, and distribution still happen in Xcode |
+
+> **Important - current CMake standard-delivery limitation:** the generated `.app` copies the
+> engine executable and `distribution.dylib`, but does not yet copy all runtime libraries and Lua
+> plugin `.dylib` files. The executable also retains the build-tree `LC_RPATH`. Consequently, do
+> not treat this CMake-generated bundle as portable or ready for signing/notarization until its
+> dependencies use bundle-relative install names (for example,
+> `@executable_path/../Frameworks`) and all required libraries are embedded. This limitation does
+> not apply to the separate Xcode release workflow.
+
+The normal Makefile build also inherits the active SDK's deployment target unless
+`CMAKE_OSX_DEPLOYMENT_TARGET` is supplied. This matters when using a local CMake binary for
+compatibility testing, but it does not define the release policy: configure the deployment target
+and architectures in the Xcode project used to archive the game. The current CMake output layout
+is `arm64`, and it does not produce an Intel or universal binary automatically.
+
+The macOS build contains a per-game packaging path via the same `-DGAME_ASSETS_DIR`
 workflow as Linux (AppImage) and Windows (GameDir). The build produces a
-self-contained **`.app` bundle** automatically after `make`. An optional
-`make macdmg` step wraps it into a distributable **`.dmg`** disk image.
+**`.app` bundle skeleton** automatically after `make`. An optional
+`make macdmg` step wraps it into a **`.dmg`** disk image. Creating the disk image does not by itself
+make the incomplete bundle portable or ready for distribution.
 
 ### How it works
 
@@ -170,7 +325,7 @@ by the bundled `distribution` tool. At launch, the engine extracts the archive
 to a temporary directory, loads `main.lua`, then cleans up on exit. The
 `distribution.dylib` runtime library is bundled inside `Contents/Frameworks/`.
 
-### CMake delivery flags
+### Local CMake bundle flags
 
 | Flag | Required? | Description |
 |---|---|---|
@@ -268,91 +423,13 @@ cmake ~/mini-mbm \
 make macdmg
 ```
 
-### Code Signing and Notarization (for sharing outside your Mac)
+### No release from this CMake output
 
-If you want to distribute your game to other macOS users, sign and notarize the
-generated `.app` and `.dmg`.
-
-Prerequisites:
-
-- Apple Developer membership
-- A `Developer ID Application` certificate installed in your login keychain
-- An app-specific password for your Apple ID
-
-Set variables (edit values first):
-
-```sh
-export BUILD_DIR="$HOME/tower-defense-macos"
-export APP_NAME="Tower_Defense_Monster"
-export APP_PATH="$BUILD_DIR/$APP_NAME.app"
-export DMG_PATH="$BUILD_DIR/$APP_NAME-macos.dmg"
-export IDENTITY="Developer ID Application: YOUR NAME (TEAMID)"
-export NOTARY_PROFILE="AC_NOTARY"
-```
-
-Create notary credentials profile (one-time setup):
-
-```sh
-xcrun notarytool store-credentials "$NOTARY_PROFILE" \
-    --apple-id "your-apple-id@example.com" \
-    --team-id "YOURTEAMID" \
-    --password "xxxx-xxxx-xxxx-xxxx"
-```
-
-Sign nested runtime libraries and app:
-
-```sh
-codesign --force --options runtime --timestamp --sign "$IDENTITY" \
-    "$APP_PATH/Contents/Frameworks/distribution.dylib"
-
-codesign --force --options runtime --timestamp --sign "$IDENTITY" \
-    "$APP_PATH"
-```
-
-Verify app signature locally:
-
-```sh
-codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-spctl --assess --type execute --verbose=4 "$APP_PATH"
-```
-
-Sign and submit DMG for notarization:
-
-```sh
-codesign --force --timestamp --sign "$IDENTITY" "$DMG_PATH"
-
-xcrun notarytool submit "$DMG_PATH" \
-    --keychain-profile "$NOTARY_PROFILE" \
-    --wait
-```
-
-Staple tickets:
-
-```sh
-xcrun stapler staple "$APP_PATH"
-xcrun stapler staple "$DMG_PATH"
-```
-
-Final verification:
-
-```sh
-spctl --assess --type execute --verbose=4 "$APP_PATH"
-spctl --assess --type open --verbose=4 "$DMG_PATH"
-```
-
-If notarization fails, inspect logs:
-
-```sh
-xcrun notarytool history --keychain-profile "$NOTARY_PROFILE"
-xcrun notarytool log SUBMISSION_ID --keychain-profile "$NOTARY_PROFILE"
-```
-
-Common first-time issues:
-
-- Wrong certificate name in `IDENTITY`
-- Certificate not installed in login keychain
-- Unsigned nested binary inside the `.app`
-- Missing hardened runtime (`--options runtime`)
+Do not sign, notarize, upload, or ship the `.app`/`.dmg` produced by these Make targets. They exist
+for local inspection of the asset-packing and bundle-assembly logic. Use the game's Xcode project
+for all release artifacts. In Xcode, verify the deployment target, architectures, embedded runtime
+libraries, signing team, entitlements, hardened runtime, and archive contents before selecting
+**Distribute App**.
 
 ### CMake status messages
 
@@ -366,12 +443,11 @@ When delivery is configured, CMake prints:
 
 ---
 
-## Mac App Store Delivery (`-DMAS_DELIVERY=1`)
+## Mac App Store Xcode Project Helper (`-DMAS_DELIVERY=1`)
 
-This mode produces an Xcode project suitable for archiving and submitting to the
-**Mac App Store**.  Assets are embedded directly in the `.app` bundle; no
-`.asset` archive extraction happens at runtime.  All plugins are linked
-statically so no user-space dylibs are loaded (required by the App Store sandbox).
+This CMake option generates an Xcode project and prepares its targets/resources. It does not make
+CMake the distribution tool: open the generated project in Xcode and use **Product -> Archive** and
+**Distribute App** for the actual release workflow.
 
 ### Monitor / Resolution / Fullscreen Launcher
 
@@ -413,7 +489,11 @@ cmake ~/mini-mbm \
     -G Xcode \
     -DPLAT=MacOs \
     -DUSE_LUA=1 \
-    -DUSE_ALL=1 \
+    -DUSE_IMGUI=1 \
+    -DUSE_LSQLITE3=1 \
+    -DUSE_TILEMAP=1 \
+    -DUSE_BOX2D=1 \
+    -DUSE_BOX2D_LIQUID_FUN=0 \
     -DMAS_DELIVERY=1 \
     -DMAS_BUNDLE_ID=com.mini.mbm.tower-defense \
     -DMAS_APP_NAME="Tower Defense Monsters" \
@@ -421,6 +501,11 @@ cmake ~/mini-mbm \
     -DGAME_ICON_PNG=/Users/michel/tower-defense/propaganda/1024x1024-icon.png \
     -DCMAKE_BUILD_TYPE=Release
 ```
+
+The example selects Box2D 2.4.1. A game that needs LiquidFun must instead pass
+`-DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1`. These plugins contain conflicting Box2D symbols and
+cannot coexist in the statically linked macOS application. Do not use `USE_ALL=1` for a release
+configuration when the physics choice needs to be explicit.
 
 | Flag | Required | Description |
 |---|---|---|
@@ -443,7 +528,7 @@ cmake ~/mini-mbm \
    `Contents/Resources/assets/` (preserving directory structure).
 5. Runs `sips` to generate all required macOS icon sizes and writes an
    `Assets.xcassets/AppIcon.appiconset/Contents.json` for Xcode to compile.
-6. Statically links all enabled plugins (ImGui, Box2D, Bullet, lsqlite3, Tiled)
+6. Statically links all enabled plugins (ImGui, one of Box2D or LiquidFun, Bullet, lsqlite3, Tiled)
    into the executable — no dylib loading at runtime.
 7. Wires `platform-macos/mini-mbm.entitlements` for App Sandbox compliance.
 
@@ -460,64 +545,29 @@ Then in Xcode:
 3. **Product → Archive** — builds a Release archive.
 4. **Distribute App → App Store Connect → Upload**.
 
-### Archive and upload (command line)
-
-```sh
-# Archive
-xcodebuild -scheme mini-mbm \
-           -configuration Release \
-           archive \
-           -archivePath "$(pwd)/mini-mbm.xcarchive"
-
-# Export for App Store Connect
-xcodebuild -exportArchive \
-           -archivePath "$(pwd)/mini-mbm.xcarchive" \
-           -exportPath "$(pwd)/export" \
-           -exportOptionsPlist /path/to/ExportOptions.plist
-
-# Upload (requires xcrun altool or Transporter)
-xcrun altool --upload-app \
-             -f "$(pwd)/export/mini-mbm.pkg" \
-             --type macos \
-             --apiKey YOUR_API_KEY \
-             --apiIssuer YOUR_ISSUER_ID
-```
-
-Minimal `ExportOptions.plist` for App Store:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>           <string>app-store</string>
-    <key>teamID</key>           <string>YOURTEAMID</string>
-    <key>uploadBitcode</key>    <false/>
-    <key>uploadSymbols</key>    <true/>
-</dict>
-</plist>
-```
+Command-line packaging/upload recipes are intentionally not documented as a supported release
+path. Use Xcode's Archive organizer so the game's signing, entitlements, embedded content, and
+distribution method are reviewed together.
 
 ### Entitlements (`platform-macos/mini-mbm.entitlements`)
 
-The provided entitlements file enables the App Sandbox with read-only user
-file access.  Edit it before submission if your game needs additional
-capabilities (e.g. outbound networking):
+The provided entitlements file enables the App Sandbox, read-only user-selected file access, and
+outbound networking. Review it before submission and remove capabilities the game does not need;
+add any other application-specific capabilities explicitly.
 
 ```xml
 <key>com.apple.security.network.client</key>
-<true/>   <!-- enable if needed -->
+<true/>   <!-- currently enabled; remove if the game does not need networking -->
 ```
 
-### Important differences from standard delivery
+### Important differences from the local CMake prototype
 
-| | Standard delivery (`GAME_ASSETS_DIR`) | App Store (`MAS_DELIVERY`) |
+| | Local CMake prototype (`GAME_ASSETS_DIR`) | Xcode/Mac App Store (`MAS_DELIVERY`) |
 |---|---|---|
-| Distribution cert | Developer ID Application | App Store Distribution |
+| Release status | Not supported for distribution | Archive and distribute through Xcode |
 | Asset delivery | `.asset` archive extracted to temp dir | Embedded in bundle |
 | Plugin linking | SHARED `.dylib` loaded via `require` | STATIC, linked into binary |
-| Notarization | Required for Gatekeeper | Handled by App Store |
+| Signing/notarization | Not performed from this prototype | Managed by the selected Xcode distribution workflow |
 | Entry point | `main-lua-delivery.cpp` | `main-lua-mas.mm` |
 | Generator | Makefile | **Xcode only** |
 
@@ -636,7 +686,7 @@ loadProgress()
 | Player clears container via System Settings | Save is lost — same as any macOS app |
 
 > **Note on `GAME_ASSETS_PASSWORD`:** This flag only affects the `.asset` archive
-> used in *standard delivery* (`GAME_ASSETS_DIR`).  It has no effect in MAS mode
+> used by the local CMake prototype (`GAME_ASSETS_DIR`). It has no effect in MAS mode
 > — assets are plain files embedded in the bundle.  The App Store protects the
 > entire package with FairPlay DRM at download time.
 

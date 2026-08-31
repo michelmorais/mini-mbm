@@ -25,6 +25,9 @@
 #if defined(USE_METAL)
 #include "metal-skeletal-parity-tests.h"
 #endif
+#if defined(__APPLE__)
+#include "macos-window-tests.h"
+#endif
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/shader-resource.h>
@@ -43,6 +46,9 @@
 #include <cstring>
 #include <cmath>
 #include <random>
+#if defined(USE_METAL)
+#include <lodepng/lodepng.h>
+#endif
 
 static inline const char* modeToStr(RenderMode mode)
 {
@@ -129,6 +135,28 @@ MY_SCENE::MY_SCENE()
         stageTexture = nullptr;
     testMetalEditorShaders = false;
     testMetalSkeletalParity = false;
+    testMetalRenderToTexture = false;
+    testMacOSResize = false;
+    testMacOSResizeRequested = false;
+    testMacOSResizeNotified = false;
+    testMacOSInput = false;
+    testMacOSInputPhase = 0;
+    testMacOSKeyDownMask = 0;
+    testMacOSKeyUpMask = 0;
+    testMacOSTouchDownMask = 0;
+    testMacOSTouchUpMask = 0;
+    testMacOSZoomMask = 0;
+    testMacOSMoveReceived = false;
+    testMacOSDoubleClickReceived = false;
+    testMacOSCoordinatesValid = true;
+    testMacOSObservedX = -1.0f;
+    testMacOSObservedY = -1.0f;
+    testMacOSClose = false;
+    testMacOSCloseRequested = false;
+    testMacOSMinimize = false;
+    testMacOSMinimizePhase = 0;
+    testMacOSMinimizeCompleted = false;
+    testCoreManager = nullptr;
     automatedTestFailed = false;
 }
 
@@ -816,6 +844,22 @@ void MY_SCENE::onInitScene()
 #endif
 
 #if defined(USE_METAL)
+    if (testMetalRenderToTexture)
+    {
+        render2Texture = new mbm::RENDER_2_TEXTURE(this, false, true);
+        render2Texture->setPosition(mbm::VEC3(0.0f, -1000000.0f, 0.0f));
+        render2Texture->setAlwaysRenderize(true);
+        render2Texture->setRenderTargetClearColor(mbm::COLOR(
+            static_cast<uint8_t>(17), static_cast<uint8_t>(34),
+            static_cast<uint8_t>(51), static_cast<uint8_t>(68)));
+        if (!render2Texture->load(64, 64, 64, 64, "metal-render-target-smoke", true))
+        {
+            ERROR_LOG("testLib: Metal render-to-texture setup failed");
+            automatedTestFailed = true;
+            device->setRun(false);
+            return;
+        }
+    }
     if (testMetalSkeletalParity && !runMetalSkeletalParityTests())
     {
         ERROR_LOG("testLib: Metal skeletal CPU/GPU parity failed");
@@ -888,6 +932,126 @@ void MY_SCENE::onInitScene()
 void MY_SCENE::onLoop()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
+#if defined(__APPLE__)
+    if (testMacOSInput)
+    {
+        if (testMacOSInputPhase == 0)
+        {
+            testMacOSInputPhase = 1;
+            if (!postMacOSInputTestEvents())
+            {
+                ERROR_LOG("testLib: failed to post synthetic macOS input events");
+                automatedTestFailed = true;
+                device->setRun(false);
+            }
+            return;
+        }
+        if (testMacOSInputPhase == 1 && testCoreManager && testCoreManager->isKeyCapsLockOn())
+        {
+            testMacOSInputPhase = 2;
+            if (!postMacOSCapsLockRelease())
+            {
+                ERROR_LOG("testLib: failed to post synthetic macOS Caps Lock release");
+                automatedTestFailed = true;
+                device->setRun(false);
+            }
+            return;
+        }
+        if (testMacOSInputPhase == 2 && testCoreManager && !testCoreManager->isKeyCapsLockOn())
+        {
+            const uint32_t expectedKeyMask = 0x3fu;
+            const bool valid = testMacOSKeyDownMask == expectedKeyMask &&
+                testMacOSKeyUpMask == expectedKeyMask && testMacOSTouchDownMask == 0x7u &&
+                testMacOSTouchUpMask == 0x7u && testMacOSZoomMask == 0x3u &&
+                testMacOSMoveReceived && testMacOSDoubleClickReceived && testMacOSCoordinatesValid;
+            if (!valid)
+            {
+                ERROR_LOG("testLib: macOS input validation failed keys=%x/%x buttons=%x/%x zoom=%x move=%d double=%d coords=%d",
+                    testMacOSKeyDownMask, testMacOSKeyUpMask, testMacOSTouchDownMask,
+                    testMacOSTouchUpMask, testMacOSZoomMask, testMacOSMoveReceived,
+                    testMacOSDoubleClickReceived, testMacOSCoordinatesValid);
+                automatedTestFailed = true;
+            }
+            else
+            {
+                INFO_LOG("testLib: macOS keyboard/modifiers/mouse/scroll/double-click validation passed");
+            }
+            device->setRun(false);
+            return;
+        }
+    }
+    if (testMacOSClose && !testMacOSCloseRequested)
+    {
+        testMacOSCloseRequested = true;
+        if (!requestMacOSWindowClose())
+        {
+            ERROR_LOG("testLib: failed to request macOS window close");
+            automatedTestFailed = true;
+            device->setRun(false);
+        }
+        return;
+    }
+    if (testMacOSMinimize)
+    {
+        if (testMacOSMinimizePhase == 0)
+        {
+            testMacOSMinimizePhase = 1;
+            if (!requestMacOSWindowMinimize())
+            {
+                ERROR_LOG("testLib: failed to minimize the macOS window");
+                automatedTestFailed = true;
+                device->setRun(false);
+            }
+            return;
+        }
+        if (testMacOSMinimizePhase == 1 && isMacOSWindowMinimized())
+        {
+            testMacOSMinimizePhase = 2;
+            if (!requestMacOSWindowRestore())
+            {
+                ERROR_LOG("testLib: failed to restore the macOS window");
+                automatedTestFailed = true;
+                device->setRun(false);
+            }
+            return;
+        }
+        if (testMacOSMinimizePhase == 2 && !isMacOSWindowMinimized())
+        {
+            testMacOSMinimizeCompleted = true;
+            INFO_LOG("testLib: macOS minimize/restore lifecycle validation passed");
+            device->setRun(false);
+            return;
+        }
+    }
+    if (testMacOSResize && !testMacOSResizeRequested)
+    {
+        testMacOSResizeRequested = true;
+        if (!requestMacOSWindowResize(960, 640))
+        {
+            ERROR_LOG("testLib: failed to request a 960x640 macOS content-area resize");
+            automatedTestFailed = true;
+            device->setRun(false);
+        }
+        return;
+    }
+    if (testMacOSResize &&
+        static_cast<int>(device->getBackBufferWidth()) == 960 &&
+        static_cast<int>(device->getBackBufferHeight()) == 640)
+    {
+        const bool valid = testMacOSResizeNotified && validateMacOSWindowResize(960, 640);
+        if (!valid)
+        {
+            ERROR_LOG("testLib: macOS resize/Retina layer validation failed");
+            automatedTestFailed = true;
+        }
+        else
+        {
+            INFO_LOG("testLib: macOS resize passed (logical size, scene callback, scale, and drawable)");
+        }
+        device->setRun(false);
+        return;
+    }
+#endif
 #if defined(USE_DIRECTX11)
     if (testDirectX11TextureStages)
     {
@@ -1045,6 +1209,60 @@ void MY_SCENE::onLoop()
 #endif
         if (testElapsedSeconds >= testTimeoutSeconds)
         {
+#if defined(USE_METAL)
+            if (testMacOSInput)
+            {
+                ERROR_LOG("testLib: macOS input event validation timed out");
+                automatedTestFailed = true;
+            }
+            if (testMacOSClose)
+            {
+                ERROR_LOG("testLib: macOS window close timed out");
+                automatedTestFailed = true;
+            }
+            if (testMacOSMinimize)
+            {
+                ERROR_LOG("testLib: macOS minimize/restore validation timed out");
+                automatedTestFailed = true;
+            }
+            if (testMacOSResize)
+            {
+                ERROR_LOG("testLib: macOS resize event timed out");
+                automatedTestFailed = true;
+            }
+            if (testMetalRenderToTexture)
+            {
+                const char *pngPath = "metal-render-target-smoke.png";
+                unsigned char *pixels = nullptr;
+                unsigned int width = 0;
+                unsigned int height = 0;
+                bool valid = render2Texture &&
+                    render2Texture->saveAsPNG(pngPath, 0, 0, 64, 64);
+                const unsigned int decodeError = valid ?
+                    lodepng_decode32_file(&pixels, &width, &height, pngPath) : 1u;
+                valid = valid && decodeError == 0u && width == 64u && height == 64u;
+                const size_t sampleOffsets[] = {0u, 32u * 4u, (32u * 64u + 32u) * 4u,
+                                                (63u * 64u + 63u) * 4u};
+                for (const size_t offset : sampleOffsets)
+                {
+                    if (!valid)
+                        break;
+                    valid = pixels[offset] == 17u && pixels[offset + 1u] == 34u &&
+                            pixels[offset + 2u] == 51u && pixels[offset + 3u] == 68u;
+                }
+                free(pixels);
+                std::remove(pngPath);
+                if (!valid)
+                {
+                    ERROR_LOG("testLib: Metal render-to-texture clear/readback validation failed");
+                    automatedTestFailed = true;
+                }
+                else
+                {
+                    INFO_LOG("testLib: Metal render-to-texture clear/readback validation passed");
+                }
+            }
+#endif
 #if defined(USE_DIRECTX11)
             if (testDirectX11Resize)
             {
@@ -1187,6 +1405,20 @@ std::string MY_SCENE::getShaderInfoText(const bool isPS, std::vector<mbm::VAR_SH
 
 void MY_SCENE::onTouchDown(int key, float x, float y)
 {
+    if (testMacOSInput)
+    {
+        if (key >= 0 && key <= 2)
+            testMacOSTouchDownMask |= 1u << static_cast<uint32_t>(key);
+        if (testMacOSObservedX < 0.0f)
+        {
+            testMacOSObservedX = x;
+            testMacOSObservedY = y;
+            testMacOSCoordinatesValid = x > 50.0f && x < 200.0f && y > 40.0f && y < 150.0f;
+        }
+        testMacOSCoordinatesValid = testMacOSCoordinatesValid &&
+            std::fabs(x - testMacOSObservedX) < 0.01f && std::fabs(y - testMacOSObservedY) < 0.01f;
+        return;
+    }
     INFO_LOG("Touch down key: %d %g %g", key, x, y);
     if (key == 0)
     {
@@ -1221,12 +1453,26 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
     }
 }
 
-void MY_SCENE::onTouchUp(int, float, float)
+void MY_SCENE::onTouchUp(int key, float x, float y)
 {
+    if (testMacOSInput)
+    {
+        if (key >= 0 && key <= 2)
+            testMacOSTouchUpMask |= 1u << static_cast<uint32_t>(key);
+        testMacOSCoordinatesValid = testMacOSCoordinatesValid &&
+            std::fabs(x - testMacOSObservedX) < 0.01f && std::fabs(y - testMacOSObservedY) < 0.01f;
+    }
 }
 
 void MY_SCENE::onTouchMove(int, float x, float y)
 {
+    if (testMacOSInput)
+    {
+        testMacOSMoveReceived = true;
+        testMacOSCoordinatesValid = testMacOSCoordinatesValid &&
+            std::fabs(x - testMacOSObservedX) < 0.01f && std::fabs(y - testMacOSObservedY) < 0.01f;
+        return;
+    }
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     mouseScreenX = x;
     mouseScreenY = y;
@@ -1368,8 +1614,25 @@ void MY_SCENE::updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw)
     
 }
 
-void MY_SCENE::onTouchZoom(float)
+void MY_SCENE::onTouchZoom(float zoom)
 {
+    if (testMacOSInput)
+    {
+        if (zoom > 0.0f)
+            testMacOSZoomMask |= 1u;
+        if (zoom < 0.0f)
+            testMacOSZoomMask |= 2u;
+    }
+}
+
+void MY_SCENE::onDoubleClick(float x, float y, int key)
+{
+    if (testMacOSInput)
+    {
+        testMacOSDoubleClickReceived = key == 0;
+        testMacOSCoordinatesValid = testMacOSCoordinatesValid &&
+            std::fabs(x - testMacOSObservedX) < 0.01f && std::fabs(y - testMacOSObservedY) < 0.01f;
+    }
 }
 
 void MY_SCENE::onFinalizeScene()
@@ -1378,6 +1641,16 @@ void MY_SCENE::onFinalizeScene()
 
 void MY_SCENE::onKeyDown(int key)
 {
+    if (testMacOSInput)
+    {
+        const int keys[] = {'A', 0xFFE1, 0xFFE3, 0xFFE9, 0xFFEB, 0xFFE5};
+        for (uint32_t index = 0; index < 6; ++index)
+        {
+            if (key == keys[index])
+                testMacOSKeyDownMask |= 1u << index;
+        }
+        return;
+    }
     printf("Key down: %d\n", key);
     if (key == 77) // M - toggle left menu
     {
@@ -1410,8 +1683,17 @@ void MY_SCENE::onKeyDown(int key)
         camera.position2d.y -= 10;
 }
 
-void MY_SCENE::onKeyUp(int)
+void MY_SCENE::onKeyUp(int key)
 {
+    if (testMacOSInput)
+    {
+        const int keys[] = {'A', 0xFFE1, 0xFFE3, 0xFFE9, 0xFFEB, 0xFFE5};
+        for (uint32_t index = 0; index < 6; ++index)
+        {
+            if (key == keys[index])
+                testMacOSKeyUpMask |= 1u << index;
+        }
+    }
 }
 
 void MY_SCENE::onKeyDownJoystick(int, int)
@@ -1432,6 +1714,10 @@ void MY_SCENE::onInfoDeviceJoystick(int, int, const char *,const char *)
 
 void MY_SCENE::onResizeWindow()
 {
+#if defined(__APPLE__)
+    if (testMacOSResize)
+        testMacOSResizeNotified = true;
+#endif
 #if defined(USE_DIRECTX11)
     if (testDirectX11Resize)
         testDirectX11ResizeNotified = true;

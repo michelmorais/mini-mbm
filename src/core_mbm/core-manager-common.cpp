@@ -359,8 +359,11 @@ namespace mbm
                             else
                                 this->setKeyCapsLockState(false);
                         }
-                        #elif defined(__linux__) || defined(__APPLE__)
-                        //TODO: implement CapsLock state detection for linux and macOS
+                        #elif defined(__APPLE__)
+                        if (event.key == 0xFFE5)
+                            this->setKeyCapsLockState(true);
+                        #elif defined(__linux__)
+                        //TODO: implement CapsLock state detection for Linux
                         #endif
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -373,6 +376,10 @@ namespace mbm
                     {
                         if (SCENE *scene = getInitializedScene())
                             scene->onKeyUp(event.key);
+#if defined(__APPLE__)
+                        if (event.key == 0xFFE5)
+                            this->setKeyCapsLockState(false);
+#endif
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);

@@ -448,6 +448,11 @@ else()
         set(CMAKE_SYSTEM_NAME           "Darwin")
         set(ENGINE_TARGET_PLATFORM      "MacOs")
         set(FOLDER_ARCHITECTURE          "arm64") #macos with M1, M2, M3, M4 ...
+        # Set the minimum OS before project() so every target, including static
+        # libraries, is compiled for the same deployment target as the app.
+        if(MAS_DELIVERY AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+            set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "macOS deployment target" FORCE)
+        endif()
         #success
         set(CMAKE_SUCCESS_SET_PLAT           1)
 

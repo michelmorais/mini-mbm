@@ -181,9 +181,9 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 |---|---|---|---|
 | `mbm.existFile` | `(name: string)` | bool, string\|nil | Whether file exists; second return is full path |
 | `mbm.listFiles` | `(path: string, recursive?: bool)` | table | Directory listing. Returns `{separator, {path, file1, ...}, ...}` |
-| `mbm.openFile` | `(title: string, filter: string)` | string\|nil | Show native open-file dialog |
-| `mbm.openMultiFile` | `(title: string, filter: string)` | table\|nil | Show native multi-file open dialog |
-| `mbm.saveFile` | `(title: string, filter: string)` | string\|nil | Show native save-file dialog |
+| `mbm.openFile` | `(defaultPathOrFile?: string, ...filters: string)` | string\|nil | Show native open-file dialog, optionally starting from a path/name and filtering by one or more extensions |
+| `mbm.openMultiFile` | `(defaultPathOrFile?: string, ...filters: string)` | table\|nil | Show native multi-file dialog with the same default-path and filter convention as `openFile` |
+| `mbm.saveFile` | `(defaultPathOrFile?: string, ...filters: string)` | string\|nil | Show native save-file dialog; appends the first concrete filter extension when needed |
 | `mbm.openFolder` | `(prompt?: string, default?: string)` | string\|nil | Show native folder picker dialog |
 | `mbm.compress` | `(fileIn: string, fileOut?: string, level?: int)` | bool | ZIP-compress a file (miniz) |
 | `mbm.decompress` | `(fileIn: string, fileOut?: string)` | bool | ZIP-decompress a file |
@@ -931,10 +931,20 @@ character.z = 0   -- renders after background, before trees
 ### 7.11 render2texture
 
 ```lua
-local rt = render2texture:new(width, height, channels?)
--- After rendering, use rt as a texture name string:
-someSprite:setTexture(rt:getName())
+local rt = render2texture:new(type, x?, y?, z?)
+local ok, textureName, textureInfo = rt:create(width, height, hasAlpha?, name?)
 ```
+
+`type` follows the normal render-object convention: `"2dw"`, `"2ds"`, or `"3d"`. The optional
+position defaults to `(0, 0, 0)`. `create` defaults to the current back-buffer dimensions when
+width/height are omitted, enables alpha by default, and generates an internal texture name when
+`name` is omitted. It returns `success`, the texture name, and a texture-info object; on failure it
+returns `false, nil, nil`.
+
+Objects are assigned to the off-screen pass with `rt:add(object)` and removed with
+`rt:remove(object)`. `rt:clear()` removes all assigned objects, `rt:release()` releases the target,
+and `rt:save(fileName, x?, y?, width?, height?)` writes a rectangular region to PNG. The omitted
+region defaults to the complete render target, and the method returns a boolean success value.
 
 `rt:getCamera(type)` (`type` is `"2d"` or `"3d"`) returns a camera object independent of the main
 scene camera (`mbm.getCamera`), with its own `setPos`/`getPos`/`setFocus`/`getFocus`/`setScale`/
@@ -1008,7 +1018,7 @@ when the file cannot be loaded. `inMemory`, `play`, and `loop` default to `false
 | `audio:isPlaying` | `()` | bool | Whether playback is active |
 | `audio:isPaused` | `()` | bool | Whether playback is paused |
 | `audio:reset` | `()` | bool | Reset playback state |
-| `audio:getLen` | `()` | int | Get the sound length reported by the backend |
+| `audio:getLen` | `()` | int | Get the sound duration in milliseconds |
 | `audio:setPosition` | `(position: int)` | bool | Seek to a backend position |
 | `audio:onEnd` | `(callback)` | — | Register `callback(audio, fileName)`; Lua execution is queued on the scene thread |
 | `audio:getName` | `()` | string | Get the loaded file name |
@@ -1061,13 +1071,14 @@ Access as `mbm.CONSTANT_NAME`.
 
 2D rigid-body physics. Load with:
 ```lua
-local box2d = require "box2d"
+require "box2d" -- registers the global box2d factory
 ```
 
 ```lua
 local world = box2d:new()
 world:setGravity(0, -10)
-world:step(delta)                               -- advance physics (call in onLoop())
+world:pause()                                   -- optional: stop automatic simulation
+world:start()                                   -- resume automatic simulation
 
 -- Add bodies (pass a renderizable as the shape source)
 world:addDynamicBody(renderizable, density?, friction?, restitution?)
@@ -1083,7 +1094,8 @@ world:setContactListener(
 )
 
 world:getWorldManifolds(body)   -- returns contact manifold table
-world:destroy()
+-- Simulation advances through the plugin's engine callback. The world is released with its
+-- Lua scene/userdata; there are no world:step() or world:destroy() methods.
 ```
 
 ---
@@ -1093,20 +1105,19 @@ world:destroy()
 2D fluid simulation using LiquidFun 1.1.0, an extended branch of Box2D 2.3.0. This is separate
 from the standalone `box2d` plugin, which uses the newer Box2D 2.4.1. Load with:
 ```lua
-local lf = require "box2dLiquidFun"
+require "box2dLiquidFun" -- registers the global box2dLiquidFun factory
 ```
 
 ```lua
-local world = lf:new()
+local world = box2dLiquidFun:new()
 world:setGravity(0, -10)
-world:step(delta)
 
 local fluid = world:createFluid(
     {type="rectangle", center={x=0, y=100, z=0}, width=200, height=100},
     {particleRadius=5, density=1.0, damping=0.2}
 )
 local fluidShader = fluid:getShader()   -- returns shader config table
-world:destroy()
+-- Simulation and world lifetime follow the same automatic plugin lifecycle as box2d.
 ```
 
 ---

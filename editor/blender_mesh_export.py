@@ -188,6 +188,24 @@ _EXTRACTED_IMAGE_PATHS: dict[int, str] = {}
 _NORMALIZED_IMAGE_PATHS: dict[tuple[int, str, str], str] = {}
 
 
+def _image_has_usable_data(image: Any) -> bool:
+    """Return whether an image can safely be referenced or written by the exporter.
+
+    FBX files may contain empty image datablocks connected to otherwise valid materials. Blender
+    exposes those nodes normally, but ``Image.save()`` raises "does not have any image data". A
+    real external file remains usable even when Blender has not loaded its pixels yet.
+    """
+    if bool(getattr(image, "has_data", False)):
+        return True
+    raw_path = str(getattr(image, "filepath", "") or "")
+    if not raw_path:
+        return False
+    try:
+        return os.path.isfile(bpy.path.abspath(raw_path))
+    except Exception:
+        return os.path.isfile(raw_path)
+
+
 def _image_extension(image: Any) -> str:
     format_extensions = {
         "BMP": ".bmp",
@@ -215,6 +233,8 @@ def _extract_embedded_image(image: Any, output_dir: str) -> str:
     to a real file next to the output .msh instead, and returns that path; cached by image identity
     so a texture shared by several subsets (the common case) is only written once.
     """
+    if not _image_has_usable_data(image):
+        return ""
     cache_key = image.as_pointer()
     cached = _EXTRACTED_IMAGE_PATHS.get(cache_key)
     if cached and os.path.isfile(cached):
@@ -293,15 +313,37 @@ def _resolve_texture_path(image: Any, image_user: Any, scene_frame: int,
     if getattr(image, "source", "") == "SEQUENCE":
         return resolve_image_sequence_path(image, image_user, scene_frame)
     recorded_path = bpy.path.abspath(image.filepath)
-    needs_extraction = image.packed_file is not None or not os.path.isfile(recorded_path)
-    if needs_extraction and output_dir:
+    if os.path.isfile(recorded_path):
+        return recorded_path
+    # Some FBX materials contain a second, empty Image datablock which points to the same source
+    # basename as a packed image used by an earlier material (Mixamo eyes commonly duplicate the
+    # body diffuse this way). Reuse the image already extracted beside the MSH instead of trying to
+    # save the empty alias or silently leaving that subset white.
+    if output_dir:
+        sibling = os.path.join(output_dir, os.path.basename(recorded_path))
+        if os.path.isfile(sibling):
+            return sibling
+    if output_dir and (image.packed_file is not None or bool(getattr(image, "has_data", False))):
         return _extract_embedded_image(image, output_dir)
     return recorded_path
 
 
 def _normalized_texture_path(image: Any, output_dir: str, output_stem: str,
-                             material_name: str, role_name: str) -> str:
+                             material_name: str, role_name: str, source_path: str = "") -> str:
     """Write a predictably named PNG beside the MSH and return that durable path."""
+    if not _image_has_usable_data(image):
+        if not os.path.isfile(source_path):
+            return ""
+        if os.path.splitext(source_path)[1].lower() != ".png":
+            return source_path
+    source_is_png = os.path.isfile(source_path) and os.path.splitext(source_path)[1].lower() == ".png"
+    if not bool(getattr(image, "has_data", False)) and not source_is_png:
+        try:
+            image.reload()
+        except Exception:
+            return ""
+        if not bool(getattr(image, "has_data", False)):
+            return ""
     safe_material = re.sub(r"[^A-Za-z0-9_.-]", "_", material_name).strip("._") or "material"
     cache_key = (int(image.as_pointer()), safe_material, role_name)
     cached = _NORMALIZED_IMAGE_PATHS.get(cache_key)
@@ -309,6 +351,11 @@ def _normalized_texture_path(image: Any, output_dir: str, output_stem: str,
         return cached
     os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, f"{output_stem}_{safe_material}_{role_name}.png")
+    if not bool(getattr(image, "has_data", False)):
+        if os.path.abspath(source_path) != os.path.abspath(out_path):
+            shutil.copyfile(source_path, out_path)
+        _NORMALIZED_IMAGE_PATHS[cache_key] = out_path
+        return out_path
     original_path = image.filepath_raw
     original_format = image.file_format
     try:
@@ -353,7 +400,7 @@ def get_material_texture_paths(material: Any, scene_frame: int,
         if node is primary_node:
             if "diffuse" not in excluded_roles:
                 primary = (_normalized_texture_path(node.image, output_dir, output_stem,
-                           str(material.name), "diffuse") if normalize_textures and output_dir else path)
+                           str(material.name), "diffuse", path) if normalize_textures and output_dir else path)
             continue
         image_name = str(getattr(node.image, "name", ""))
         role = TEXTURE_ROLE_MASK if mask_texture_hint and image_name == mask_texture_hint else _texture_node_role(node)
@@ -361,9 +408,10 @@ def get_material_texture_paths(material: Any, scene_frame: int,
         if role is not None and role_name not in excluded_roles and role not in used_roles:
             if normalize_textures and output_dir:
                 path = _normalized_texture_path(node.image, output_dir, output_stem,
-                                                str(material.name), str(role_name))
-            extras.append({"role": role, "texture": path})
-            used_roles.add(role)
+                                                str(material.name), str(role_name), path)
+            if path:
+                extras.append({"role": role, "texture": path})
+                used_roles.add(role)
     return primary, extras
 
 

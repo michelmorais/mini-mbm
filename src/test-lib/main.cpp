@@ -185,6 +185,11 @@ namespace
 //        testLib --directx11-texture-stage-test
 //        testLib --metal-editor-shader-test
 //        testLib --metal-skeletal-parity-test
+//        testLib --metal-render-to-texture-test
+//        testLib --macos-resize-test
+//        testLib --macos-input-test
+//        testLib --macos-close-test
+//        testLib --macos-minimize-test
 //        testLib [seconds] [mesh_file] [world] [lbs|dqs|auto] [gpu|cpu|auto]
 //   seconds    Exit on its own once this many seconds have elapsed in the
 //              render loop, instead of running forever. Meant for
@@ -207,6 +212,7 @@ static int runTestLib(int argc, char **argv
     if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)
         return runSkeletalFoundationTests();
     GAME game;
+    game.myScene.testCoreManager = &game;
 #if defined(USE_DIRECTX11)
     if (argc == 2 && std::strcmp(argv[1], "--directx11-builtin-shader-test") == 0)
     {
@@ -307,6 +313,31 @@ static int runTestLib(int argc, char **argv
         game.myScene.testMetalEditorShaders = true;
         game.myScene.testTimeoutSeconds = 1.0f;
     }
+    else if (argc == 2 && std::strcmp(argv[1], "--metal-render-to-texture-test") == 0)
+    {
+        game.myScene.testMetalRenderToTexture = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--macos-resize-test") == 0)
+    {
+        game.myScene.testMacOSResize = true;
+        game.myScene.testTimeoutSeconds = 3.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--macos-input-test") == 0)
+    {
+        game.myScene.testMacOSInput = true;
+        game.myScene.testTimeoutSeconds = 3.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--macos-close-test") == 0)
+    {
+        game.myScene.testMacOSClose = true;
+        game.myScene.testTimeoutSeconds = 3.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--macos-minimize-test") == 0)
+    {
+        game.myScene.testMacOSMinimize = true;
+        game.myScene.testTimeoutSeconds = 5.0f;
+    }
     else
 #endif
 #if defined(USE_OPENGL_ES)
@@ -396,6 +427,8 @@ static int runTestLib(int argc, char **argv
                 return -1;
         }
 #endif
+        if (game.myScene.testMacOSMinimize && !game.myScene.testMacOSMinimizeCompleted)
+            return -1;
         return game.myScene.automatedTestFailed ? -1 : result;
     }
     return -1;

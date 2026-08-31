@@ -20,10 +20,12 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 
 EXPORTER_PATH = Path(__file__).resolve().parents[2] / "editor" / "blender_mesh_export.py"
@@ -87,6 +89,70 @@ class BlenderMeshExportTests(unittest.TestCase):
             self.assertEqual(chunk["texture"], "diffuse.png")
             self.assertEqual(chunk["extraTextures"], subset["extraTextures"])
             self.assertIsNot(chunk["extraTextures"], subset["extraTextures"])
+
+    def test_material_ignores_image_node_without_pixel_data_or_file(self) -> None:
+        image = SimpleNamespace(has_data=False, filepath="", packed_file=None)
+        image.save = mock.Mock(side_effect=AssertionError("empty image must not be saved"))
+        base_color = SimpleNamespace(
+            type="TEX_IMAGE",
+            image=image,
+            outputs=[SimpleNamespace(links=[SimpleNamespace(
+                to_node=SimpleNamespace(type="BSDF_PRINCIPLED"),
+                to_socket=SimpleNamespace(name="Base Color"),
+            )])],
+        )
+        material = SimpleNamespace(
+            name="Material",
+            use_nodes=True,
+            node_tree=SimpleNamespace(nodes=[base_color]),
+        )
+
+        primary, extras = EXPORTER.get_material_texture_paths(
+            material, 1, "/tmp", normalize_textures=True,
+        )
+
+        self.assertEqual(primary, "")
+        self.assertEqual(extras, [])
+        image.save.assert_not_called()
+
+    def test_empty_fbx_image_alias_reuses_extracted_texture_with_same_basename(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            extracted = Path(folder) / "Body_Diffuse.png"
+            extracted.write_bytes(b"png-data")
+            image = SimpleNamespace(
+                has_data=False,
+                filepath="/missing/source/Body_Diffuse.png",
+                packed_file=None,
+                source="FILE",
+                name="base_color_texture",
+                as_pointer=lambda: 123,
+            )
+            image.save = mock.Mock(side_effect=AssertionError("empty alias must not be saved"))
+            node = SimpleNamespace(
+                type="TEX_IMAGE",
+                image=image,
+                image_user=None,
+                outputs=[SimpleNamespace(links=[SimpleNamespace(
+                    to_node=SimpleNamespace(type="BSDF_PRINCIPLED"),
+                    to_socket=SimpleNamespace(name="Base Color"),
+                )])],
+            )
+            material = SimpleNamespace(
+                name="Eyes",
+                use_nodes=True,
+                node_tree=SimpleNamespace(nodes=[node]),
+            )
+
+            with mock.patch.object(EXPORTER, "bpy", SimpleNamespace(
+                    path=SimpleNamespace(abspath=lambda value: value)), create=True):
+                primary, extras = EXPORTER.get_material_texture_paths(
+                    material, 1, folder, normalize_textures=True, output_stem="character",
+                )
+
+            self.assertEqual(primary, str(Path(folder) / "character_Eyes_diffuse.png"))
+            self.assertEqual(Path(primary).read_bytes(), b"png-data")
+            self.assertEqual(extras, [])
+            image.save.assert_not_called()
 
     def test_static_decimation_adds_collapse_modifier(self) -> None:
         mesh = self._Object()
