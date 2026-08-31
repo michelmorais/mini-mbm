@@ -8551,7 +8551,10 @@ end
 
 function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
                        progressState, completedJobs, totalJobs)
-    local started, startError = meshD:startSimplify(ratio, targetSubset, targetFrame, preserveDetails)
+    local numericRatio = tonumber(ratio)
+    if not numericRatio then return nil, tLang.L('simplify_invalid_ratio') end
+    local started, startError = meshD:startSimplify(numericRatio, targetSubset,
+        targetFrame, preserveDetails)
     if not started then return nil, startError end
     while true do
         local status = meshD:getSimplifyStatus()
@@ -9570,6 +9573,8 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     simplifyState.selectedFrame = math.max(1, math.min(nFrames, simplifyState.selectedFrame or 1))
     simplifyState.sharedFrames = simplifyState.sharedFrames == true and nFrames > 1
     simplifyState.preserveDetails = simplifyState.preserveDetails ~= false
+    simplifyState.ratio = math.max(0.001, math.min(0.95,
+        tonumber(simplifyState.ratio) or 0.9))
     tImGui.Text(tLang.L('simplify_geometry'))
 
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
@@ -9685,9 +9690,10 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     end
 
     tImGui.PushItemWidth(180)
-    local ratioChanged, ratio = tImGui.SliderFloat(
+    local ratioChanged, ratio = tImGui.DragFloat(
         tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
-        simplifyState.ratio or 0.9, 0.001, 0.95, '%.3f')
+        simplifyState.ratio, 0.001, 0.001, 0.95, '%.3f',
+        tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
     if ratioChanged and ratio then
         simplifyState.ratio = ratio
         simplifyState.report = nil
