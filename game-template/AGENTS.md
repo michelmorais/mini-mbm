@@ -130,9 +130,9 @@ mbm.include("util.lua")     -- execute another Lua file (searched via paths)
 ```lua
 mbm.existFile(name)                     -- → bool, fullPath|nil
 mbm.listFiles(path, recursive?)         -- → table: {separator, {path, file...}, ...}
-mbm.openFile(title, filter)             -- → string|nil  (native dialog)
-mbm.openMultiFile(title, filter)        -- → table|nil
-mbm.saveFile(title, filter)             -- → string|nil
+mbm.openFile(defaultPath?, filter...)      -- → string|nil  (native dialog)
+mbm.openMultiFile(defaultPath?, filter...) -- → table|nil
+mbm.saveFile(defaultPath?, filter...)      -- → string|nil
 mbm.openFolder(prompt?, default?)       -- → string|nil
 mbm.compress(fileIn, fileOut?, level?)  -- → bool
 mbm.decompress(fileIn, fileOut?)        -- → bool

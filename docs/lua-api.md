@@ -181,9 +181,9 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 |---|---|---|---|
 | `mbm.existFile` | `(name: string)` | bool, string\|nil | Whether file exists; second return is full path |
 | `mbm.listFiles` | `(path: string, recursive?: bool)` | table | Directory listing. Returns `{separator, {path, file1, ...}, ...}` |
-| `mbm.openFile` | `(title: string, filter: string)` | string\|nil | Show native open-file dialog |
-| `mbm.openMultiFile` | `(title: string, filter: string)` | table\|nil | Show native multi-file open dialog |
-| `mbm.saveFile` | `(title: string, filter: string)` | string\|nil | Show native save-file dialog |
+| `mbm.openFile` | `(defaultPathOrFile?: string, ...filters: string)` | string\|nil | Show native open-file dialog, optionally starting from a path/name and filtering by one or more extensions |
+| `mbm.openMultiFile` | `(defaultPathOrFile?: string, ...filters: string)` | table\|nil | Show native multi-file dialog with the same default-path and filter convention as `openFile` |
+| `mbm.saveFile` | `(defaultPathOrFile?: string, ...filters: string)` | string\|nil | Show native save-file dialog; appends the first concrete filter extension when needed |
 | `mbm.openFolder` | `(prompt?: string, default?: string)` | string\|nil | Show native folder picker dialog |
 | `mbm.compress` | `(fileIn: string, fileOut?: string, level?: int)` | bool | ZIP-compress a file (miniz) |
 | `mbm.decompress` | `(fileIn: string, fileOut?: string)` | bool | ZIP-decompress a file |

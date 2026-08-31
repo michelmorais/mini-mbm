@@ -141,6 +141,27 @@ Run a Debug build with `MTL_DEBUG_LAYER=1` and verify the following on real hard
 
 ---
 
+## System integration smoke test
+
+`macos-system-integration-smoke.lua` exercises `getExecutablePath()` and the asynchronous process
+API without requiring user interaction. It verifies normal and signalled exit codes, failed spawn,
+cancellation, and arguments containing spaces and Unicode. Run it from a directory other than the
+repository root to also prove that executable-path discovery is independent of the current working
+directory:
+
+```sh
+cd /tmp
+MTL_DEBUG_LAYER=1 /path/to/mini-mbm/bin/debug/arm64/mini-mbm \
+    --disable_select_monitor --nosplash -w 320 -h 240 \
+    --scene /path/to/mini-mbm/src/test-lib/macos-system-integration-smoke.lua
+```
+
+Success requires exit code `0`, the `MACOS_SYSTEM_INTEGRATION_SMOKE_OK` sentinel, and no Metal
+validation message. Native open/save/folder dialogs remain manual tests because selecting or
+cancelling them requires UI interaction.
+
+---
+
 ## Audio Backend — AVFoundation
 
 **AVFoundation** is the default audio backend on macOS and is selected
