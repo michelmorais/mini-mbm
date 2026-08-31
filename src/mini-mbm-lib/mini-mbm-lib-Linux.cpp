@@ -24,13 +24,107 @@
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #include <X11/keysym.h>
+#include <cerrno>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <string>
+#include <sys/stat.h>
 
 extern std::string my_app_name;
 
 namespace mbm
 {
+    namespace
+    {
+        struct LAUNCHER_PREFERENCES
+        {
+            int monitor = 0;
+            int width = 0;
+            int height = 0;
+            int app = 0;
+            bool fullscreen = false;
+            bool loaded = false;
+        };
+
+        std::string getLauncherPreferencesPath()
+        {
+            const char *xdgConfigHome = std::getenv("XDG_CONFIG_HOME");
+            std::string configHome;
+            if (xdgConfigHome && xdgConfigHome[0] == '/')
+            {
+                configHome = xdgConfigHome;
+            }
+            else
+            {
+                const char *home = std::getenv("HOME");
+                if (!home || home[0] != '/')
+                    return std::string();
+                configHome = std::string(home) + "/.config";
+            }
+
+            if (mkdir(configHome.c_str(), 0755) != 0 && errno != EEXIST)
+                return std::string();
+
+            const std::string preferencesDirectory = configHome + "/mini-mbm";
+            if (mkdir(preferencesDirectory.c_str(), 0755) != 0 && errno != EEXIST)
+                return std::string();
+
+            const std::string appName = my_app_name.empty() ? "Mini-Mbm" : my_app_name;
+            std::string safeAppName;
+            safeAppName.reserve(appName.size());
+            for (const char character : appName)
+            {
+                const unsigned char value = static_cast<unsigned char>(character);
+                safeAppName += std::isalnum(value) || character == '-' || character == '_' ? character : '_';
+            }
+            return preferencesDirectory + "/" + safeAppName + ".conf";
+        }
+
+        LAUNCHER_PREFERENCES loadLauncherPreferences(const std::string &path)
+        {
+            LAUNCHER_PREFERENCES preferences;
+            if (path.empty())
+                return preferences;
+
+            std::ifstream input(path);
+            std::string key;
+            int value = 0;
+            while (input >> key >> value)
+            {
+                if (key == "monitor") preferences.monitor = value;
+                else if (key == "width") preferences.width = value;
+                else if (key == "height") preferences.height = value;
+                else if (key == "app") preferences.app = value;
+                else if (key == "fullscreen") preferences.fullscreen = value != 0;
+            }
+            preferences.loaded = input.eof();
+            return preferences;
+        }
+
+        void saveLauncherPreferences(const std::string &path, const LAUNCHER_PREFERENCES &preferences)
+        {
+            if (path.empty())
+                return;
+
+            const std::string temporaryPath = path + ".tmp";
+            std::ofstream output(temporaryPath, std::ios::trunc);
+            if (!output)
+                return;
+            output << "monitor " << preferences.monitor << '\n'
+                   << "width " << preferences.width << '\n'
+                   << "height " << preferences.height << '\n'
+                   << "app " << preferences.app << '\n'
+                   << "fullscreen " << (preferences.fullscreen ? 1 : 0) << '\n';
+            output.close();
+            if (output)
+                std::rename(temporaryPath.c_str(), path.c_str());
+            else
+                std::remove(temporaryPath.c_str());
+        }
+    }
 
     // Simple X11 dialog for resolution/app selection
     bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked, int requested_width, int requested_height)
@@ -75,12 +169,23 @@ namespace mbm
             screen_resolution_list = default_resolutions;
         }
         
+        const std::string preferences_path = getLauncherPreferencesPath();
+        const LAUNCHER_PREFERENCES preferences = loadLauncherPreferences(preferences_path);
+
         // Selection state - valid_resolutions is rebuilt each redraw based on selected monitor
-        int selected_monitor = 0;
+        int selected_monitor = preferences.loaded ? preferences.monitor : 0;
+        if (selected_monitor < 0 || selected_monitor >= num_monitors)
+            selected_monitor = 0;
         int selected_resolution = 0;
-        int selected_width_prev = 0, selected_height_prev = 0; // preserve across monitor change
-        int selected_app = (index_app_selected && *index_app_selected >= 0) ? *index_app_selected : 0;
-        bool full_screen = allow_full_screen && full_screen_checked;
+        const bool has_requested_resolution = requested_width > 0 && requested_height > 0;
+        int selected_width_prev = has_requested_resolution ? 0 : preferences.width;
+        int selected_height_prev = has_requested_resolution ? 0 : preferences.height;
+        int selected_app = preferences.loaded ? preferences.app : 0;
+        if (index_app_selected && *index_app_selected >= 0)
+            selected_app = *index_app_selected;
+        if (selected_app < 0 || selected_app >= size_app_run)
+            selected_app = 0;
+        bool full_screen = allow_full_screen && (preferences.loaded ? preferences.fullscreen : full_screen_checked);
         bool confirmed = false;
         
         // Window dimensions
@@ -473,6 +578,14 @@ namespace mbm
             {
                 *index_app_selected = selected_app;
             }
+
+            LAUNCHER_PREFERENCES selected_preferences;
+            selected_preferences.monitor = selected_monitor;
+            selected_preferences.width = valid_resolutions[selected_resolution].width;
+            selected_preferences.height = valid_resolutions[selected_resolution].height;
+            selected_preferences.app = selected_app;
+            selected_preferences.fullscreen = full_screen;
+            saveLauncherPreferences(preferences_path, selected_preferences);
         }
         
         // Cleanup
