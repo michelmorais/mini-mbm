@@ -422,6 +422,12 @@ function onInitScene()
         nReducePolygonRatio = 0.5,
         bImportPreferSkeletal = true,
         bImportIncludeBones = true, -- legacy state name kept for older saved sessions
+        bNormalizeTextures = true,
+        bIncludeTextureDiffuse = true,
+        bIncludeTextureNormal = true,
+        bIncludeTextureSpecular = true,
+        bIncludeTextureEmissive = true,
+        bIncludeTextureMask = false,
         tRunResults = {},
     }
     tMixamoGuideState = {
@@ -2271,6 +2277,12 @@ local function blenderImportCoroutine()
             importOptions.decimateRatio = math.max(0.01, math.min(1.0, tonumber(st.nReducePolygonRatio) or 0.5))
         end
         importOptions.includeBones = tBlender.getPreferSkeletal()
+        importOptions.normalizeTextures = st.bNormalizeTextures
+        importOptions.includeTextureDiffuse = st.bIncludeTextureDiffuse
+        importOptions.includeTextureNormal = st.bIncludeTextureNormal
+        importOptions.includeTextureSpecular = st.bIncludeTextureSpecular
+        importOptions.includeTextureEmissive = st.bIncludeTextureEmissive
+        importOptions.includeTextureMask = st.bIncludeTextureMask
         local importerJob, importerError = nil, nil
         local cmd = nil
         if modeIntermediateOnly then
@@ -3040,6 +3052,21 @@ function showBlenderImportDialog()
     end
     tImGui.PopItemWidth()
     tImGui.EndDisabled()
+    tImGui.Separator()
+    st.bNormalizeTextures = tImGui.Checkbox(tLang.L('blender_import_normalize_textures'), st.bNormalizeTextures)
+    tImGui.SameLine()
+    tImGui.HelpMarker(tLang.L('blender_import_normalize_textures_help'))
+    tImGui.Text(tLang.L('blender_import_texture_roles'))
+    st.bIncludeTextureDiffuse = tImGui.Checkbox(tLang.L('blender_import_texture_diffuse'), st.bIncludeTextureDiffuse)
+    tImGui.SameLine()
+    st.bIncludeTextureNormal = tImGui.Checkbox(tLang.L('blender_import_texture_normal'), st.bIncludeTextureNormal)
+    tImGui.SameLine()
+    st.bIncludeTextureSpecular = tImGui.Checkbox(tLang.L('blender_import_texture_specular'), st.bIncludeTextureSpecular)
+    tImGui.SameLine()
+    st.bIncludeTextureEmissive = tImGui.Checkbox(tLang.L('blender_import_texture_emissive'), st.bIncludeTextureEmissive)
+    st.bIncludeTextureMask = tImGui.Checkbox(tLang.L('blender_import_texture_mask'), st.bIncludeTextureMask)
+    tImGui.SameLine()
+    tImGui.HelpMarker(tLang.L('blender_import_texture_mask_help'))
     st.bImportPreferSkeletal = tImGui.Checkbox(tLang.L('blender_import_prefer_skeletal'), tBlender.getPreferSkeletal())
     st.bImportIncludeBones = st.bImportPreferSkeletal
     tImGui.SameLine()

@@ -172,6 +172,26 @@ class BlenderMeshExportTests(unittest.TestCase):
             self.assertEqual(extras, [])
             image.save.assert_not_called()
 
+    def test_texture_normalization_keeps_renamed_original_when_png_conversion_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "source.webp"
+            source.write_bytes(b"webp-data")
+            image = SimpleNamespace(
+                has_data=True,
+                filepath=str(source),
+                filepath_raw=str(source),
+                file_format="WEBP",
+                as_pointer=lambda: 987,
+                save=mock.Mock(side_effect=RuntimeError("PNG encoder failed")),
+            )
+
+            result = EXPORTER._normalized_texture_path(
+                image, folder, "Robot", "Body Material", "diffuse", str(source)
+            )
+
+            self.assertEqual(result, str(Path(folder) / "Robot_Body_Material_diffuse.webp"))
+            self.assertEqual(Path(result).read_bytes(), b"webp-data")
+
     def test_static_decimation_adds_collapse_modifier(self) -> None:
         mesh = self._Object()
         scene = type("Scene", (), {"objects": [mesh]})()

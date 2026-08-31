@@ -343,21 +343,35 @@ def _resolve_texture_path(image: Any, image_user: Any, scene_frame: int,
 
 def _normalized_texture_path(image: Any, output_dir: str, output_stem: str,
                              material_name: str, role_name: str, source_path: str = "") -> str:
-    """Write a predictably named PNG beside the MSH and return that durable path."""
-    if not _image_has_usable_data(image):
+    """Write a predictably named texture beside the MSH and return that durable path.
+
+    PNG is preferred, but an external source that Blender cannot decode is still copied with its
+    original extension. Importing a usable texture is more important than normalization.
+    """
+    safe_material = re.sub(r"[^A-Za-z0-9_.-]", "_", material_name).strip("._") or "material"
+
+    def copy_source_fallback() -> str:
         if not os.path.isfile(source_path):
             return ""
-        if os.path.splitext(source_path)[1].lower() != ".png":
-            return source_path
+        source_ext = os.path.splitext(source_path)[1] or _image_extension(image)
+        fallback_path = os.path.join(
+            output_dir, f"{output_stem}_{safe_material}_{role_name}{source_ext.lower()}"
+        )
+        os.makedirs(output_dir, exist_ok=True)
+        if os.path.abspath(source_path) != os.path.abspath(fallback_path):
+            shutil.copyfile(source_path, fallback_path)
+        return fallback_path
+
+    if not _image_has_usable_data(image):
+        return copy_source_fallback()
     source_is_png = os.path.isfile(source_path) and os.path.splitext(source_path)[1].lower() == ".png"
     if not bool(getattr(image, "has_data", False)) and not source_is_png:
         try:
             image.reload()
         except Exception:
-            return ""
+            return copy_source_fallback()
         if not bool(getattr(image, "has_data", False)):
-            return ""
-    safe_material = re.sub(r"[^A-Za-z0-9_.-]", "_", material_name).strip("._") or "material"
+            return copy_source_fallback()
     cache_key = (int(image.as_pointer()), safe_material, role_name)
     cached = _NORMALIZED_IMAGE_PATHS.get(cache_key)
     if cached and os.path.isfile(cached):
@@ -374,7 +388,10 @@ def _normalized_texture_path(image: Any, output_dir: str, output_stem: str,
     try:
         image.filepath_raw = out_path
         image.file_format = "PNG"
-        image.save()
+        try:
+            image.save()
+        except Exception:
+            return copy_source_fallback()
     finally:
         image.filepath_raw = original_path
         image.file_format = original_format
@@ -404,27 +421,39 @@ def get_material_texture_paths(material: Any, scene_frame: int,
                   TEXTURE_ROLE_EMISSIVE: "emissive", TEXTURE_ROLE_MASK: "mask"}
     mask_texture_hint = str(material.get("mbm_mask_texture", "")) if hasattr(material, "get") else ""
     for node in image_nodes:
+        role = None
+        role_name = "diffuse"
+        if node is primary_node:
+            if role_name in excluded_roles:
+                continue
+        else:
+            image_name = str(getattr(node.image, "name", ""))
+            role = TEXTURE_ROLE_MASK if mask_texture_hint and image_name == mask_texture_hint else _texture_node_role(node)
+            role_name = role_names.get(role)
+            if role is None or role_name in excluded_roles or role in used_roles:
+                continue
+
         try:
-            path = _resolve_texture_path(node.image, getattr(node, "image_user", None), scene_frame, output_dir)
+            # Packed GLB/FBX images can be normalized straight from Blender's pixels. Extracting
+            # them under their old name first would leave an unreferenced duplicate beside MSH.
+            if normalize_textures and output_dir and (
+                    getattr(node.image, "packed_file", None) is not None
+                    or bool(getattr(node.image, "has_data", False))):
+                path = bpy.path.abspath(str(getattr(node.image, "filepath", "") or ""))
+            else:
+                path = _resolve_texture_path(node.image, getattr(node, "image_user", None), scene_frame, output_dir)
         except Exception:
             path = str(node.image.filepath or "")
+        if normalize_textures and output_dir:
+            path = _normalized_texture_path(node.image, output_dir, output_stem,
+                                            str(material.name), str(role_name), path)
         if not path:
             continue
         if node is primary_node:
-            if "diffuse" not in excluded_roles:
-                primary = (_normalized_texture_path(node.image, output_dir, output_stem,
-                           str(material.name), "diffuse", path) if normalize_textures and output_dir else path)
-            continue
-        image_name = str(getattr(node.image, "name", ""))
-        role = TEXTURE_ROLE_MASK if mask_texture_hint and image_name == mask_texture_hint else _texture_node_role(node)
-        role_name = role_names.get(role)
-        if role is not None and role_name not in excluded_roles and role not in used_roles:
-            if normalize_textures and output_dir:
-                path = _normalized_texture_path(node.image, output_dir, output_stem,
-                                                str(material.name), str(role_name), path)
-            if path:
-                extras.append({"role": role, "texture": path})
-                used_roles.add(role)
+            primary = path
+        else:
+            extras.append({"role": role, "texture": path})
+            used_roles.add(role)
     return primary, extras
 
 
