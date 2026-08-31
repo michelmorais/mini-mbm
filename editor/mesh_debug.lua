@@ -33,6 +33,7 @@ tBlender      =     require "blender_cli_wrapper"
 tMeshImporter =     require "blender_mesh_importer"
 tImportMode   =     require "blender_import_mode_helper"
 tXformGizmo   =     require "mesh_debug_transform_gizmo"
+tMeshExport   =     require "mesh_debug_export_helper"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -5907,11 +5908,14 @@ local function writeMeshDebugJson(meshD, jsonPath)
         -- (accumulated from prior subsets only, see below) to make them global across the single
         -- combined vertex list this JSON writes.
         local okI, idxList = dpCall(function() return meshD:getIndex(1, s) end)
-        local offsetIdx = {}
-        if okI and idxList then
-            for _, li in ipairs(idxList) do
-                table.insert(offsetIdx, li + totalVerts)
-            end
+        -- A vertex-buffer-only MSH stores one independent vertex per triangle corner and has no
+        -- index stream. Blender still needs explicit faces, so recover the engine's triangle-list
+        -- topology without welding or otherwise changing the geometry.
+        local offsetIdx = tMeshExport.buildGlobalTriangleIndices(
+            okI and idxList or nil, nVerts, totalVerts)
+        if not offsetIdx then
+            return abortWrite(string.format(
+                tLang.L('mesh_export_nonindexed_triangle_list_invalid'), s, nVerts))
         end
         tSubsetIndexLists[s] = offsetIdx
         totalVerts = totalVerts + nVerts

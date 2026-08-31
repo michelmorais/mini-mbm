@@ -2419,6 +2419,11 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                                            normalize_textures=bool(args.normalize_textures),
                                            output_stem=output_stem,
                                            excluded_texture_roles=excluded_texture_roles)
+            if not subsets:
+                raise RuntimeError(
+                    "The Blender scene has no visible triangle faces to export. "
+                    "The source may contain vertices without polygon topology."
+                )
             if args.large_mesh_mode == "vb_only":
                 debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
             else:
