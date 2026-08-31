@@ -197,6 +197,19 @@ def _image_has_usable_data(image: Any) -> bool:
     """
     if bool(getattr(image, "has_data", False)):
         return True
+    # Blender 5.x may leave glTF images lazy-loaded after import: packed_file is
+    # present, but has_data stays false until pixel storage is touched. Force
+    # that load before classifying the image as empty, otherwise valid embedded
+    # GLB textures are silently omitted from the generated MSH.
+    if getattr(image, "packed_file", None) is not None:
+        try:
+            pixels = getattr(image, "pixels", None)
+            if pixels is not None and len(pixels) > 0:
+                pixels[0]
+        except (AttributeError, IndexError, RuntimeError, TypeError):
+            pass
+        if bool(getattr(image, "has_data", False)):
+            return True
     raw_path = str(getattr(image, "filepath", "") or "")
     if not raw_path:
         return False

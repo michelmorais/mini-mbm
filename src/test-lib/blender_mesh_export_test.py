@@ -115,6 +115,24 @@ class BlenderMeshExportTests(unittest.TestCase):
         self.assertEqual(extras, [])
         image.save.assert_not_called()
 
+    def test_lazy_packed_gltf_image_is_loaded_before_usable_data_check(self) -> None:
+        class LazyPixels:
+            def __init__(self, image):
+                self.image = image
+
+            def __len__(self):
+                return 4
+
+            def __getitem__(self, index):
+                self.image.has_data = True
+                return 0.5
+
+        image = SimpleNamespace(has_data=False, filepath="", packed_file=object())
+        image.pixels = LazyPixels(image)
+
+        self.assertTrue(EXPORTER._image_has_usable_data(image))
+        self.assertTrue(image.has_data)
+
     def test_empty_fbx_image_alias_reuses_extracted_texture_with_same_basename(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             extracted = Path(folder) / "Body_Diffuse.png"
