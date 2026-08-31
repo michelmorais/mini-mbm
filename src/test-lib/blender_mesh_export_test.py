@@ -186,10 +186,10 @@ class BlenderMeshExportTests(unittest.TestCase):
             )
 
             result = EXPORTER._normalized_texture_path(
-                image, folder, "Robot", "Body Material", "diffuse", str(source)
+                image, folder, "Robot", "Body.Material", "diffuse", str(source)
             )
 
-            self.assertEqual(result, str(Path(folder) / "Robot_Body_Material_diffuse.webp"))
+            self.assertEqual(result, str(Path(folder) / "Robot_Body-Material_diffuse.webp"))
             self.assertEqual(Path(result).read_bytes(), b"webp-data")
 
     def test_static_decimation_adds_collapse_modifier(self) -> None:

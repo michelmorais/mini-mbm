@@ -348,7 +348,7 @@ def _normalized_texture_path(image: Any, output_dir: str, output_stem: str,
     PNG is preferred, but an external source that Blender cannot decode is still copied with its
     original extension. Importing a usable texture is more important than normalization.
     """
-    safe_material = re.sub(r"[^A-Za-z0-9_.-]", "_", material_name).strip("._") or "material"
+    safe_material = re.sub(r"[^A-Za-z0-9_-]", "_", material_name.replace(".", "-")).strip("_-") or "material"
 
     def copy_source_fallback() -> str:
         if not os.path.isfile(source_path):
