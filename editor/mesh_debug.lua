@@ -8606,7 +8606,8 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         aggregateReport = splitCaptureCopyTable(report)
     else
         for targetIndex, targetSubset in ipairs(targets) do
-            local subset = targetSubset == 'frame' and nil or targetSubset
+            local subset = nil
+            if targetSubset ~= 'frame' then subset = targetSubset end
             local report, simplifyError = simplifyAwait(workingMesh, simplifyState.ratio,
                 subset, targetFrame, simplifyState.preserveDetails, simplifyState,
                 targetIndex - 1, #targets)
