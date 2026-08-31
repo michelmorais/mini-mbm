@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Blender headless exporter for mini-mbm's Mesh Debug tool: takes a JSON dump of a loaded mesh's raw
-geometry (and, optionally, its editor-authored/imported bone hierarchy) and produces a real FBX
-with a skinned armature and one Blender Action per sampled canonical skeletal clip, ready for
-round-trip editing or upload to an auto-rigging/animation service (Mixamo or similar).
+geometry (and, optionally, its editor-authored/imported bone hierarchy) and produces a real FBX or
+Blender project with a skinned armature and one Blender Action per sampled canonical skeletal clip,
+ready for round-trip editing or upload to an auto-rigging/animation service (Mixamo or similar).
 
 This script's input comes from editor/mesh_debug.lua's own geometry -- which is in the ENGINE's
 own coordinate convention (Y-up), not Blender's native Z-up, ever since editor/blender_mesh_export.py's
@@ -800,6 +800,24 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, animation_count
     import bpy
     from mathutils import Vector
 
+    if output_path.lower().endswith(".blend"):
+        # A project intended for continued authoring must retain the mesh's authored placement.
+        # FBX/Mixamo's centering below is intentionally not applied here. Pack available external
+        # resources so moving the project does not silently discard its textures.
+        keep_objects = {mesh_obj}
+        if armature_obj:
+            keep_objects.add(armature_obj)
+        for scene_object in list(bpy.data.objects):
+            if scene_object not in keep_objects:
+                bpy.data.objects.remove(scene_object, do_unlink=True)
+        try:
+            bpy.ops.file.pack_all()
+        except RuntimeError as exc:
+            debug_print(debug, f"could not pack every external resource: {exc}")
+        bpy.ops.wm.save_as_mainfile(filepath=output_path, check_existing=False)
+        debug_print(debug, f"saved Blender project: {output_path}")
+        return
+
     # Center X/Y, feet at Z=0. No rescale to a target height here -- mesh_debug's geometry is
     # already in the mesh's own real/intended scale, not raw photo-pixel units.
     world_corners = [mesh_obj.matrix_world @ Vector(c) for c in mesh_obj.bound_box]
@@ -881,7 +899,7 @@ def main() -> int:
             debug_print(args.debug_steps, "overriding with real/rigid-bound stored per-vertex weights")
             apply_stored_vertex_weights_override(mesh_obj, verts_data, args.debug_steps)
     else:
-        debug_print(args.debug_steps, "no bones in input -- exporting mesh-only FBX")
+        debug_print(args.debug_steps, "no bones in input -- exporting mesh-only output")
 
     check_cancel_requested(args.cancel_file)
     animation_count = build_animation_actions(data, armature_obj, rotation_deg, args.debug_steps)

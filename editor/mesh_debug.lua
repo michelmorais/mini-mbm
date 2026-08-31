@@ -438,10 +438,11 @@ function onInitScene()
         sCancelFile = '',
         iTimeoutSecs = 120,
         bDebugSteps = false,
+        outputKind = 'fbx',
         tRunResults = {}, -- {name=, ok=, msg=} per entry, populated for both single and "all" runs
     }
-    -- Shown before meshExportBuildCoroutine actually runs (triggered by "Export Current Mesh"/
-    -- "Export All Meshes"), mirroring the Blender-import dialog's own "Post-processing" block.
+    -- Shown before meshExportBuildCoroutine actually runs (triggered by an FBX/.blend export),
+    -- mirroring the Blender-import dialog's own "Post-processing" block.
     -- Rotation defaults (90,0,0) are the exact negation of the import dialog's own default
     -- (nImportAngleX = -90 above) -- rotation isn't self-cancelling, so undoing it needs the
     -- opposite angle. Invert U/V defaults (false, true) are instead the *same* flags as import's
@@ -455,6 +456,7 @@ function onInitScene()
         nAngleZ = 0,
         bInvertU = false,
         bInvertV = true,
+        outputKind = 'fbx',
         tEntries = nil, -- resolved by the menu handler before opening this dialog
     }
     tEditorLightUi = {}
@@ -6085,8 +6087,9 @@ local function meshExportBuildCoroutine(entries)
     st.bBuilding = false
 end
 
--- Shared entry point for both "Export Current Mesh" and "Export All Meshes". `entries` is a list
--- of {name=, meshD=, outputFbx=}; the caller resolves output paths before calling this (single
+-- Shared entry point for FBX and Blender-project exports. `entries` is a list of
+-- {name=, meshD=, outputFbx=}; outputFbx is the historical field name and may contain .blend.
+-- The caller resolves output paths before calling this (single
 -- mbm.saveFile prompt for one mesh, a folder pick + per-entry filename for "all").
 local function startMeshExportBuild(entries)
     local st = tMeshExportBuildState
@@ -6099,6 +6102,7 @@ local function startMeshExportBuild(entries)
     st.sStatus = ''
     st.bStatusOk = true
     st.tRunResults = {}
+    st.outputKind = tMeshExportOptionsState.outputKind or 'fbx'
     st.co = coroutine.create(function() meshExportBuildCoroutine(entries) end)
 end
 
@@ -6117,7 +6121,9 @@ function showMeshExportOptionsDialog()
     end
 
     local pFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
-    local isOpen = tImGui.BeginPopupModal(tLang.L('mesh_export_options_title') .. '###mesh_export_options_modal', false, pFlags)
+    local titleKey = st.outputKind == 'blend' and 'mesh_blend_export_options_title'
+        or 'mesh_export_options_title'
+    local isOpen = tImGui.BeginPopupModal(tLang.L(titleKey) .. '###mesh_export_options_modal', false, pFlags)
     if not isOpen then return end
 
     tImGui.TextWrapped(tLang.L('mesh_export_options_help'))
@@ -6166,7 +6172,9 @@ function showMeshExportBuildDialog()
     end
 
     local pFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
-    local isOpen = tImGui.BeginPopupModal(tLang.L('bones_export_dialog_title') .. '###mesh_debug_skeleton_export_modal', false, pFlags)
+    local titleKey = st.outputKind == 'blend' and 'mesh_blend_export_dialog_title'
+        or 'bones_export_dialog_title'
+    local isOpen = tImGui.BeginPopupModal(tLang.L(titleKey) .. '###mesh_debug_skeleton_export_modal', false, pFlags)
     if not isOpen then return end
 
     if st.bBuilding then
@@ -8516,6 +8524,8 @@ function simplifyLocalizedError(errorValue)
     local errorKeys = {
         ['topology constraints prevent reaching the requested triangle count'] =
             'simplify_error_topology_constraints',
+        ['topology and boundary constraints prevent reaching the requested triangle count'] =
+            'simplify_error_topology_constraints',
         ['edge-collapse pass made no progress'] = 'simplify_error_no_progress',
         ['simplified topology contains a non-manifold edge'] = 'simplify_error_non_manifold',
         ['simplified vertex escaped the source geometry bounds'] = 'simplify_error_source_bounds',
@@ -8531,7 +8541,10 @@ function simplifyLocalizedError(errorValue)
     return translated
 end
 
-function simplifyShowFailure(errorValue)
+function simplifyShowFailure(errorValue, tEntry)
+    if tEntry and tEntry.tSimplifyState then
+        tEntry.tSimplifyState.lastError = tostring(errorValue or '')
+    end
     local message = string.format(tLang.L('simplify_failed_fmt'),
         simplifyLocalizedError(errorValue))
     print('[mesh_debug] ' .. message)
@@ -8600,7 +8613,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         if not report then
             meshDebug:fakeRelease(pendingBackup.path)
             os.remove(pendingBackup.path)
-            simplifyShowFailure(simplifyError)
+            simplifyShowFailure(simplifyError, tEntry)
             return false
         end
         aggregateReport = splitCaptureCopyTable(report)
@@ -8614,7 +8627,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
             if not report then
                 meshDebug:fakeRelease(pendingBackup.path)
                 os.remove(pendingBackup.path)
-                simplifyShowFailure(simplifyError)
+                simplifyShowFailure(simplifyError, tEntry)
                 return false
             end
             if not aggregateReport then
@@ -8649,6 +8662,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     simplifyDiscardBackup(tEntry)
     tEntry.tSimplifyBackup = pendingBackup
     simplifyState.report = aggregateReport
+    simplifyState.lastError = nil
     tEntry.meshDebug = workingMesh
     tEntry.modified = true
     tEntry.tTransformBoundsCache = nil
@@ -8684,7 +8698,7 @@ function simplifyResume(tEntry)
     if not ok then
         simplifyState.running = false
         simplifyState.co = nil
-        simplifyShowFailure(errorValue)
+        simplifyShowFailure(errorValue, tEntry)
         return
     end
     if coroutine.status(co) == 'dead' then
@@ -8700,6 +8714,7 @@ function simplifyApply(tEntry, meshD, index)
     simplifyState.running = true
     simplifyState.progress = 0
     simplifyState.report = nil
+    simplifyState.lastError = nil
     simplifyState.co = coroutine.create(function()
         simplifyApplyCoroutine(tEntry, meshD, index)
     end)
@@ -9805,6 +9820,15 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         if report.geometryFrameAware then
             tImGui.Text(string.format(tLang.L('simplify_report_frames_fmt'),
                 report.geometryFrameCount or 0, report.maximumFrameError or 0))
+        end
+    end
+    local blockedByTopology = tostring(simplifyState.lastError or ''):find(
+        'topology and boundary constraints prevent', 1, true) ~= nil
+    if blockedByTopology then
+        tImGui.TextWrapped(tLang.L('simplify_blender_fallback_help'))
+        if tImGui.Button(tLang.L('mesh_export_blend_current') ..
+                '##simplifyExportBlend-' .. index) then
+            openCurrentMeshBlenderExport('blend')
         end
     end
     return applied
@@ -13760,6 +13784,29 @@ function showApplyAllWindow()
     end
 end
 
+function openCurrentMeshBlenderExport(outputKind)
+    if iSelectedMeshIndex <= 0 or iSelectedMeshIndex > #tLoadedMeshes then return false end
+    local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+    local isBlend = outputKind == 'blend'
+    local extension = isBlend and 'blend' or 'fbx'
+    local remembered = isBlend and sLastMeshExportBlendPath or sLastMeshExportFbxPath
+    local defaultName = remembered or
+        (tUtil.getShortName(tEntry.fileName):gsub('%.[^%.]+$', '') .. '.' .. extension)
+    local outputPath = mbm.saveFile(defaultName, extension)
+    if not outputPath then return false end
+    outputPath = outputPath:gsub('%.[^%.]+$', '') .. '.' .. extension
+    if isBlend then sLastMeshExportBlendPath = outputPath
+    else sLastMeshExportFbxPath = outputPath end
+    tMeshExportOptionsState.outputKind = outputKind
+    tMeshExportOptionsState.tEntries = {{
+        name = tUtil.getShortName(tEntry.fileName), meshD = tEntry.meshDebug,
+        outputFbx = outputPath, fileName = tEntry.fileName
+    }}
+    tMeshExportOptionsState.bOpen = true
+    tMeshExportOptionsState.bOpenPopup = true
+    return true
+end
+
 function main_menu_mesh_debug()
     if tImGui.BeginMainMenuBar() then
         if tImGui.BeginMenu(tLang.L("menu_file")) then
@@ -13784,40 +13831,36 @@ function main_menu_mesh_debug()
             if tImGui.MenuItem(tLang.L('mixamo_guide_menu')) then
                 onOpenMixamoGuideDialog()
             end
-            if tImGui.MenuItem(tLang.L('import_via_blender')) then
-                onOpenBlenderImportDialog()
-            end
-            if tImGui.MenuItem(tLang.L('bones_export_current_button'), nil, false,
-                    iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes) then
-                local tEntry = tLoadedMeshes[iSelectedMeshIndex]
-                -- Default filename must end in .fbx, not carry the source mesh's own .msh extension
-                -- forward -- same extension-swap makeUniqueFbxOutputPath already does for "Export
-                -- All Meshes", applied here only on first use (sLastMeshExportFbxPath, once set,
-                -- already ends in .fbx from a prior export and is reused as-is).
-                local defaultFbxName = sLastMeshExportFbxPath or
-                    (tUtil.getShortName(tEntry.fileName):gsub('%.[^%.]+$', '') .. '.fbx')
-                local outputFbx = mbm.saveFile(defaultFbxName, 'fbx')
-                if outputFbx then
-                    sLastMeshExportFbxPath = outputFbx
-                    tMeshExportOptionsState.tEntries = { { name = tUtil.getShortName(tEntry.fileName), meshD = tEntry.meshDebug, outputFbx = outputFbx, fileName = tEntry.fileName } }
-                    tMeshExportOptionsState.bOpen = true
-                    tMeshExportOptionsState.bOpenPopup = true
+            if tImGui.BeginMenu(tLang.L('menu_blender')) then
+                if tImGui.MenuItem(tLang.L('import_via_blender')) then
+                    onOpenBlenderImportDialog()
                 end
-            end
-            if tImGui.MenuItem(tLang.L('bones_export_all_button'), nil, false, #tLoadedMeshes > 0) then
-                local folder = mbm.openFolder(tLang.L('bones_export_all_button'), sLastFolderPath)
-                if folder and folder ~= '' then
-                    sLastFolderPath = folder
-                    local usedNames = {}
-                    local entries = {}
-                    for i, e in ipairs(tLoadedMeshes) do
-                        local outputFbx = makeUniqueFbxOutputPath(folder, e.fileName, usedNames, i)
-                        table.insert(entries, { name = tUtil.getShortName(e.fileName), meshD = e.meshDebug, outputFbx = outputFbx, fileName = e.fileName })
+                if tImGui.MenuItem(tLang.L('bones_export_current_button'), nil, false,
+                        iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes) then
+                    openCurrentMeshBlenderExport('fbx')
+                end
+                if tImGui.MenuItem(tLang.L('bones_export_all_button'), nil, false, #tLoadedMeshes > 0) then
+                    local folder = mbm.openFolder(tLang.L('bones_export_all_button'), sLastFolderPath)
+                    if folder and folder ~= '' then
+                        sLastFolderPath = folder
+                        local usedNames = {}
+                        local entries = {}
+                        for i, e in ipairs(tLoadedMeshes) do
+                            local outputFbx = makeUniqueFbxOutputPath(folder, e.fileName, usedNames, i)
+                            table.insert(entries, { name = tUtil.getShortName(e.fileName), meshD = e.meshDebug, outputFbx = outputFbx, fileName = e.fileName })
+                        end
+                        tMeshExportOptionsState.outputKind = 'fbx'
+                        tMeshExportOptionsState.tEntries = entries
+                        tMeshExportOptionsState.bOpen = true
+                        tMeshExportOptionsState.bOpenPopup = true
                     end
-                    tMeshExportOptionsState.tEntries = entries
-                    tMeshExportOptionsState.bOpen = true
-                    tMeshExportOptionsState.bOpenPopup = true
                 end
+                tImGui.Separator()
+                if tImGui.MenuItem(tLang.L('mesh_export_blend_current'), nil, false,
+                        iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes) then
+                    openCurrentMeshBlenderExport('blend')
+                end
+                tImGui.EndMenu()
             end
             tImGui.Separator()
             if tImGui.MenuItem('Legacy: Load OBJ(s)') then

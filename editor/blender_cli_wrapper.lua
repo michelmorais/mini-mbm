@@ -373,12 +373,12 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     return cmd
 end
 
--- Builds the headless command for blender_mesh_skeleton_export.py (Mesh Debug's "Export to FBX"):
--- jsonInputPath is mesh_debug.lua's own geometry+bones dump, outputFbxPath is where the built
+-- Builds the headless command for blender_mesh_skeleton_export.py (Mesh Debug's FBX/.blend export):
+-- jsonInputPath is mesh_debug.lua's own geometry+bones dump, outputPath is where the built
 -- mesh(+armature, if the JSON has bones) gets exported. Always --factory-startup since the script
 -- builds its scene from scratch (there is no source .blend to open, unlike buildBakeCmd's
 -- sourcePath).
-function M.buildMeshSkeletonExportCmd(jsonInputPath, outputFbxPath, exporterScriptPath, options)
+function M.buildMeshSkeletonExportCmd(jsonInputPath, outputPath, exporterScriptPath, options)
     local b = M.blender or M.detectBlender()
     if not b.found then return nil end
 
@@ -393,7 +393,7 @@ function M.buildMeshSkeletonExportCmd(jsonInputPath, outputFbxPath, exporterScri
         '--input',
         shellQuote(jsonInputPath),
         '--output',
-        shellQuote(outputFbxPath),
+        shellQuote(outputPath),
     }
 
     -- Undoes the import side's own Z-up -> Y-up bake (editor/blender_mesh_export.py's
