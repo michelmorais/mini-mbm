@@ -582,8 +582,21 @@ namespace mbm
                     default:
                         break;
                 }
-                // Let NSApplication / NSWindow handle system-level events (menus, etc.).
-                [NSApp sendEvent:event];
+                // The engine already consumed key-down events above. Sending an
+                // unhandled printable key to the plain Metal content view makes
+                // NSResponder emit the macOS alert sound. Keep menu shortcuts
+                // such as Command-Q working without forwarding ordinary typing
+                // to the responder chain a second time.
+                if (event.type == NSEventTypeKeyDown)
+                {
+                    NSMenu *mainMenu = [NSApp mainMenu];
+                    if (mainMenu)
+                        [mainMenu performKeyEquivalent:event];
+                }
+                else
+                {
+                    [NSApp sendEvent:event];
+                }
             }
 
             // Poll for window resize every frame (catches programmatic resizes too).
