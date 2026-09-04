@@ -83,6 +83,7 @@ namespace mbm
         float maximumRelativeError = 0.0f;
         uint32_t collapseCount = 0;
         uint32_t boundaryRejectedCollapseCount = 0;
+        uint32_t boundaryCollapseCount = 0;
         uint32_t topologyRejectedCollapseCount = 0;
         uint32_t orientationRejectedCollapseCount = 0;
         uint32_t invalidRejectedCollapseCount = 0;
@@ -335,19 +336,22 @@ namespace mbm
         // every other subset is copied without changing its rendered vertex attributes.
         // targetFrameIndex selects the zero-based geometry frame; -1 applies one shared collapse
         // sequence to every compatible non-skeletal frame. Multi-frame skeletal and articulated
-        // assets remain unsupported.
+        // assets remain unsupported. boundaryCollapseThreshold=0 locks open boundaries; positive
+        // values allow clean boundary edges up to that fraction of the source diagonal to collapse.
         API_IMPL bool simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
                                char *errorOut, const int errorOutLen,
                                const int targetSubsetIndex = -1,
                                const int targetFrameIndex = 0,
-                               const bool preserveDetails = true);
+                               const bool preserveDetails = true,
+                               const float boundaryCollapseThreshold = 0.0f);
         // Editor/tooling-only asynchronous counterpart. The worker, progress, report, and error
         // belong to this MESH_MBM_DEBUG instance; no engine-loop pump is involved. Do not access
         // or mutate this instance while RUNNING. Starting a new job replaces a completed result.
         API_IMPL bool startSimplify(const float targetTriangleRatio,
                                     const int targetSubsetIndex = -1,
                                     const int targetFrameIndex = 0,
-                                    const bool preserveDetails = true);
+                                    const bool preserveDetails = true,
+                                    const float boundaryCollapseThreshold = 0.0f);
         API_IMPL MESH_SIMPLIFY_STATE getSimplifyState(float &progress) noexcept;
         API_IMPL bool getSimplifyResult(MESH_SIMPLIFY_REPORT &report,
                                         char *errorOut, const int errorOutLen);

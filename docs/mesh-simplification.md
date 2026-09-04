@@ -13,9 +13,9 @@ check after exact attribute joining and fails before edge-collapse passes when t
 logical estimate still cannot fit.
 Mesh Debug exposes the ratio as a clamped drag field: drag to adjust it continuously or activate
 text entry to type an exact value.
-It also derives a hard lower bound from locked open/seam boundaries. If the boundary vertices alone
-exceed the indexed vertex limit, or their edges require more triangles than requested, the job
-fails during preflight rather than running until no legal collapse remains.
+In the default strict mode it also derives a hard lower bound from locked open/seam boundaries. If
+the boundary vertices alone exceed the indexed vertex limit, or their edges require more triangles
+than requested, the job fails during preflight rather than running until no legal collapse remains.
 
 ## Blender importer
 
@@ -57,7 +57,7 @@ Canonical weights retain at most four normalized nonnegative influences.
 
 Hard protections reject collapses that would violate:
 
-- open-boundary vertex locking;
+- open-boundary vertex locking in the default strict mode;
 - manifold topology and triangle orientation;
 - source/frame geometry bounds;
 - the 16-bit index contract;
@@ -66,6 +66,12 @@ Hard protections reject collapses that would violate:
 
 `Preserve details` is a default-on soft preference rather than a validity rule. It penalizes
 collapses near sharp edges and strong normal variation so flatter regions are reduced first.
+
+`Boundary collapse threshold` is an opt-in geometric relaxation measured as a fraction of the
+source bounding-box diagonal. Zero retains the strict behavior. A positive value permits only
+short, clean open-boundary edges to collapse; boundary-to-interior edges, irregular boundaries,
+orientation flips, and non-manifold results remain rejected. This is intended for assets dominated
+by small disconnected pieces or duplicated seams that cannot otherwise make progress.
 
 The report includes source/result counts, geometric and sampled-pose errors, achieved relative
 error, structural validation counts, committed collapses, protected-candidate counters, detail

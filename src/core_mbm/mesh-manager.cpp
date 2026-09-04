@@ -2064,7 +2064,8 @@ namespace mbm
     bool MESH_MBM_DEBUG::simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
                                   char *errorOut, const int errorOutLen,
                                   const int targetSubsetIndex, const int targetFrameIndex,
-                                  const bool preserveDetails)
+                                  const bool preserveDetails,
+                                  const float boundaryCollapseThreshold)
     {
         report = {};
         auto fail = [errorOut, errorOutLen](const std::string &message)
@@ -2075,6 +2076,9 @@ namespace mbm
         };
         if (!std::isfinite(targetTriangleRatio) || targetTriangleRatio <= 0.0f || targetTriangleRatio >= 1.0f)
             return fail("target triangle ratio must be finite, greater than zero, and smaller than one");
+        if (!std::isfinite(boundaryCollapseThreshold) ||
+            boundaryCollapseThreshold < 0.0f || boundaryCollapseThreshold > 1.0f)
+            return fail("boundary collapse threshold must be finite and between zero and one");
         if (impl->typeMe != util::TYPE_MESH_3D)
             return fail("simplification currently supports only 3D meshes");
         if (impl->info_mode.mode_draw != util::MODE_DRAW_TRIANGLES)
@@ -2271,6 +2275,7 @@ namespace mbm
 
         mesh_simplifier::INPUT input;
         input.preserveDetails = preserveDetails;
+        input.boundaryCollapseThreshold = boundaryCollapseThreshold;
         input.deformationDeltas.resize(deformationDeltas.size());
         input.indices.reserve(static_cast<size_t>(frame->headerFrame.sizeIndexBuffer));
         input.triangleGroups.reserve(static_cast<size_t>(frame->headerFrame.sizeIndexBuffer / 3));
@@ -2428,7 +2433,8 @@ namespace mbm
             lockedBoundaryVertices.insert(static_cast<uint32_t>(entry.first >> 32u));
             lockedBoundaryVertices.insert(static_cast<uint32_t>(entry.first));
         }
-        if (preservedSourceVertexCount + lockedBoundaryVertices.size() > UINT16_MAX)
+        if (boundaryCollapseThreshold == 0.0f &&
+            preservedSourceVertexCount + lockedBoundaryVertices.size() > UINT16_MAX)
         {
             char message[255] = "";
             snprintf(message, sizeof(message),
@@ -2437,7 +2443,7 @@ namespace mbm
             return fail(message);
         }
         const uint64_t boundaryTriangleFloor = (boundaryEdgeCount + 2u) / 3u;
-        if (boundaryTriangleFloor > targetTriangles)
+        if (boundaryCollapseThreshold == 0.0f && boundaryTriangleFloor > targetTriangles)
         {
             char message[255] = "";
             const double minimumBoundaryRatio = static_cast<double>(boundaryTriangleFloor) /
@@ -2923,6 +2929,7 @@ namespace mbm
         report.maximumRelativeError = simplified.maximumRelativeError;
         report.collapseCount = simplified.collapseCount;
         report.boundaryRejectedCollapseCount = simplified.boundaryRejectedCollapseCount;
+        report.boundaryCollapseCount = simplified.boundaryCollapseCount;
         report.topologyRejectedCollapseCount = simplified.topologyRejectedCollapseCount;
         report.orientationRejectedCollapseCount = simplified.orientationRejectedCollapseCount;
         report.invalidRejectedCollapseCount = simplified.invalidRejectedCollapseCount;
@@ -2940,7 +2947,8 @@ namespace mbm
     bool MESH_MBM_DEBUG::startSimplify(const float targetTriangleRatio,
                                        const int targetSubsetIndex,
                                        const int targetFrameIndex,
-                                       const bool preserveDetails)
+                                       const bool preserveDetails,
+                                       const float boundaryCollapseThreshold)
     {
         if (impl->simplifyState.load(std::memory_order_acquire) == MESH_SIMPLIFY_STATE::RUNNING)
             return false;
@@ -2953,12 +2961,13 @@ namespace mbm
         try
         {
             impl->simplifyWorker = std::thread([this, targetTriangleRatio, targetSubsetIndex,
-                                                targetFrameIndex, preserveDetails]()
+                                                targetFrameIndex, preserveDetails,
+                                                boundaryCollapseThreshold]()
             {
                 char errorOut[255] = "";
                 const bool success = simplify(targetTriangleRatio, impl->simplifyReport,
                     errorOut, static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
-                    targetFrameIndex, preserveDetails);
+                    targetFrameIndex, preserveDetails, boundaryCollapseThreshold);
                 if (!success) impl->simplifyError = errorOut;
                 impl->simplifyState.store(success ? MESH_SIMPLIFY_STATE::SUCCEEDED
                                                   : MESH_SIMPLIFY_STATE::FAILED,

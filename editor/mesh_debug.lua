@@ -8472,7 +8472,7 @@ function simplifyRestoreBackup(tEntry, index)
 end
 
 function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, targets, ratio,
-                                    preserveDetails, progressState)
+                                    preserveDetails, boundaryCollapseThreshold, progressState)
     local isolatedMesh = meshDebug:new()
     if not isolatedMesh:load(backupPath) then
         return nil, tLang.L('simplify_virtual_copy_failed')
@@ -8491,7 +8491,7 @@ function simplifyVirtualSubsetBatch(workingMesh, backupPath, targetFrame, target
         return nil, tLang.L('simplify_virtual_copy_failed')
     end
     local report, simplifyError = simplifyAwait(isolatedMesh, ratio, nil, nil,
-        preserveDetails, progressState, 0, 1)
+        preserveDetails, boundaryCollapseThreshold, progressState, 0, 1)
     if not report then return nil, simplifyError end
 
     for i = #targets, 1, -1 do workingMesh:removeSubset(targetFrame, targets[i]) end
@@ -8594,11 +8594,12 @@ function simplifyQualityLabel(report)
 end
 
 function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
+                       boundaryCollapseThreshold,
                        progressState, completedJobs, totalJobs)
     local numericRatio = tonumber(ratio)
     if not numericRatio then return nil, tLang.L('simplify_invalid_ratio') end
     local started, startError = meshD:startSimplify(numericRatio, targetSubset,
-        targetFrame, preserveDetails)
+        targetFrame, preserveDetails, boundaryCollapseThreshold)
     if not started then return nil, startError end
     while true do
         local status = meshD:getSimplifyStatus()
@@ -8640,7 +8641,8 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2
     if useVirtualFrame then
         local report, simplifyError = simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
-            sourceFrame, targets, simplifyState.ratio, simplifyState.preserveDetails, simplifyState)
+            sourceFrame, targets, simplifyState.ratio, simplifyState.preserveDetails,
+            simplifyState.boundaryCollapseThreshold, simplifyState)
         if not report then
             meshDebug:fakeRelease(pendingBackup.path)
             os.remove(pendingBackup.path)
@@ -8653,7 +8655,8 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
             local subset = nil
             if targetSubset ~= 'frame' then subset = targetSubset end
             local report, simplifyError = simplifyAwait(workingMesh, simplifyState.ratio,
-                subset, targetFrame, simplifyState.preserveDetails, simplifyState,
+                subset, targetFrame, simplifyState.preserveDetails,
+                simplifyState.boundaryCollapseThreshold, simplifyState,
                 targetIndex - 1, #targets)
             if not report then
                 meshDebug:fakeRelease(pendingBackup.path)
@@ -8674,6 +8677,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
                     aggregateReport.maximumRelativeError or 0, report.maximumRelativeError or 0)
                 for _, field in ipairs({
                     'collapseCount', 'boundaryRejectedCollapseCount',
+                    'boundaryCollapseCount',
                     'topologyRejectedCollapseCount', 'orientationRejectedCollapseCount',
                     'invalidRejectedCollapseCount', 'degenerateTriangleCount',
                     'nonManifoldEdgeCount', 'connectedComponentCount',
@@ -9620,6 +9624,8 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     simplifyState.selectedFrame = math.max(1, math.min(nFrames, simplifyState.selectedFrame or 1))
     simplifyState.sharedFrames = simplifyState.sharedFrames == true and nFrames > 1
     simplifyState.preserveDetails = simplifyState.preserveDetails ~= false
+    simplifyState.boundaryCollapseThreshold = math.max(0, math.min(1,
+        tonumber(simplifyState.boundaryCollapseThreshold) or 0))
     simplifyState.ratio = math.max(0.001, math.min(0.95,
         tonumber(simplifyState.ratio) or 0.9))
     tImGui.Text(tLang.L('simplify_geometry'))
@@ -9789,6 +9795,37 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tImGui.PopTextWrapPos()
         tImGui.EndTooltip()
     end
+    tImGui.PushItemWidth(180)
+    local boundaryLabelKey = 'simplify_boundary_threshold'
+    local boundaryLabel = tLang.L(boundaryLabelKey)
+    if boundaryLabel == boundaryLabelKey then
+        boundaryLabel = tLang.getLanguage() == 'pt_br'
+            and 'Limiar de colapso de fronteira'
+            or 'Boundary collapse threshold'
+    end
+    local boundaryThresholdChanged, boundaryCollapseThreshold = tImGui.SliderFloat(
+        boundaryLabel .. '##simplifyBoundaryThreshold-' .. index,
+        simplifyState.boundaryCollapseThreshold, 0, 0.25, '%.3f',
+        tImGui.ImGuiSliderFlags_None)
+    tImGui.PopItemWidth()
+    if boundaryThresholdChanged then
+        simplifyState.boundaryCollapseThreshold = boundaryCollapseThreshold
+        simplifyState.report = nil
+    end
+    if tImGui.IsItemHovered() then
+        local tooltipKey = 'simplify_boundary_threshold_tooltip'
+        local tooltipText = tLang.L(tooltipKey)
+        if tooltipText == tooltipKey then
+            tooltipText = tLang.getLanguage() == 'pt_br'
+                and '0 mantem todos os vertices de fronteira aberta bloqueados. Valores maiores permitem colapsar arestas de fronteira limpas ate esta fracao da diagonal da mesh. As verificacoes de orientacao e manifold continuam ativas.'
+                or '0 keeps every open-boundary vertex locked. Higher values allow clean boundary edges up to this fraction of the mesh diagonal to collapse. Orientation and manifold checks remain enabled.'
+        end
+        tImGui.BeginTooltip()
+        tImGui.PushTextWrapPos(420)
+        tImGui.Text(tooltipText)
+        tImGui.PopTextWrapPos()
+        tImGui.EndTooltip()
+    end
 
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
@@ -9833,6 +9870,10 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             report.topologyRejectedCollapseCount or 0,
             report.orientationRejectedCollapseCount or 0,
             report.invalidRejectedCollapseCount or 0))
+        if (report.boundaryCollapseCount or 0) > 0 then
+            tImGui.Text(string.format(tLang.L('simplify_report_boundary_collapses_fmt'),
+                report.boundaryCollapseCount))
+        end
         tImGui.Text(string.format(tLang.L('simplify_report_structure_fmt'),
             report.degenerateTriangleCount or 0, report.nonManifoldEdgeCount or 0,
             report.connectedComponentCount or 0))

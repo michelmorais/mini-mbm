@@ -34,6 +34,7 @@ namespace mbm::mesh_simplifier
         std::vector<uint32_t> triangleGroups;
         std::vector<std::vector<VEC3>> deformationDeltas;
         bool preserveDetails = true;
+        float boundaryCollapseThreshold = 0.0f;
     };
 
     struct OUTPUT
@@ -50,6 +51,7 @@ namespace mbm::mesh_simplifier
         float maximumRelativeError = 0.0f;
         uint32_t collapseCount = 0;
         uint32_t boundaryRejectedCollapseCount = 0;
+        uint32_t boundaryCollapseCount = 0;
         uint32_t topologyRejectedCollapseCount = 0;
         uint32_t orientationRejectedCollapseCount = 0;
         uint32_t invalidRejectedCollapseCount = 0;

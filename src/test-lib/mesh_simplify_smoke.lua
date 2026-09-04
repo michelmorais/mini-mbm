@@ -122,6 +122,15 @@ function onInitScene()
     local _, openTriangles = totals(openMesh)
     assert(openTriangles == 2)
 
+    local relaxedOpenMesh = makeOpenMesh()
+    local relaxedOpenReport, relaxedOpenError = relaxedOpenMesh:simplify(
+        0.5, nil, nil, true, 1.0)
+    assert(relaxedOpenReport, relaxedOpenError)
+    assert(relaxedOpenReport.resultTriangleCount == 1)
+    assert(relaxedOpenReport.boundaryCollapseCount > 0)
+    assert(relaxedOpenReport.nonManifoldEdgeCount == 0)
+    assert(relaxedOpenMesh:check())
+
     local nonIndexed = makeClosedMesh(true)
     assert(nonIndexed:isIndexBuffer() == false)
     local nonIndexedReport, nonIndexedError = nonIndexed:simplify(0.5)

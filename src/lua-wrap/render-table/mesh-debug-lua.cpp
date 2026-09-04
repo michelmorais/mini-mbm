@@ -137,6 +137,7 @@ namespace mbm
             MBM_SIMPLIFY_BOOL(geometryFrameAware); MBM_SIMPLIFY_INT(geometryFrameCount);
             MBM_SIMPLIFY_NUM(maximumFrameError); MBM_SIMPLIFY_NUM(maximumRelativeError);
             MBM_SIMPLIFY_INT(collapseCount); MBM_SIMPLIFY_INT(boundaryRejectedCollapseCount);
+            MBM_SIMPLIFY_INT(boundaryCollapseCount);
             MBM_SIMPLIFY_INT(topologyRejectedCollapseCount); MBM_SIMPLIFY_INT(orientationRejectedCollapseCount);
             MBM_SIMPLIFY_INT(invalidRejectedCollapseCount); MBM_SIMPLIFY_INT(degenerateTriangleCount);
             MBM_SIMPLIFY_INT(nonManifoldEdgeCount); MBM_SIMPLIFY_INT(connectedComponentCount);
@@ -230,11 +231,14 @@ namespace mbm
                 ? static_cast<int>(requestedFrame - 1) : -1;
         }
         const bool preserveDetails = lua_gettop(lua) < 5 || lua_isnil(lua, 5) || lua_toboolean(lua, 5);
+        const float boundaryCollapseThreshold = lua_gettop(lua) < 6 || lua_isnil(lua, 6)
+            ? 0.0f : static_cast<float>(luaL_checknumber(lua, 6));
         MESH_SIMPLIFY_REPORT report;
         char errorOut[255] = "";
         if (!meshDebug->mesh.simplify(ratio, report, errorOut,
                                       static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
-                                      targetFrameIndex, preserveDetails))
+                                      targetFrameIndex, preserveDetails,
+                                      boundaryCollapseThreshold))
         {
             lua_pushnil(lua);
             lua_pushstring(lua, errorOut);
@@ -261,7 +265,10 @@ namespace mbm
             targetFrameIndex = requested > 0 ? static_cast<int>(requested - 1) : -1;
         }
         const bool preserveDetails = lua_isnoneornil(lua, 5) || lua_toboolean(lua, 5);
-        if (meshDebug->mesh.startSimplify(ratio, targetSubsetIndex, targetFrameIndex, preserveDetails))
+        const float boundaryCollapseThreshold = lua_isnoneornil(lua, 6)
+            ? 0.0f : static_cast<float>(luaL_checknumber(lua, 6));
+        if (meshDebug->mesh.startSimplify(ratio, targetSubsetIndex, targetFrameIndex,
+                                          preserveDetails, boundaryCollapseThreshold))
         {
             lua_pushboolean(lua, 1);
             return 1;

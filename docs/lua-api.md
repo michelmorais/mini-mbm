@@ -1407,7 +1407,8 @@ See also [Mesh Simplification](mesh-simplification.md) for the maintained workfl
 invariants, Mesh Debug integration, and importer relationship.
 
 ```lua
-local report, err = meshD:simplify(targetTriangleRatio [, targetSubset [, targetFrame [, preserveDetails]]])
+local report, err = meshD:simplify(targetTriangleRatio
+    [, targetSubset [, targetFrame [, preserveDetails [, boundaryCollapseThreshold]]]])
 ```
 
 `targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
@@ -1428,14 +1429,19 @@ vertex/index counts, index values, attribute presence, subset count, and subset 
 may differ.
 `preserveDetails` defaults to `true`. When enabled, strong local normal variation adds a
 scale-relative penalty to the collapse cost, causing flat regions to be reduced before sharp edges
-and curved details without turning those features into rigid constraints. On success the call
-returns a detached table containing
+and curved details without turning those features into rigid constraints.
+`boundaryCollapseThreshold` defaults to `0`, preserving the strict
+boundary lock. A value in `0..1` allows clean manifold boundary edges no longer than that fraction
+of the source bounding-box diagonal to collapse. Boundary-to-interior and irregular/non-manifold
+boundary collapses remain forbidden, as do collapses that fail topology or orientation checks.
+On success the call returns a detached table containing
 `sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount`,
 `maximumGeometricError`, `skinWeightAware`, `poseSampledError`, `sampledPoseCount`,
 `sampledClipCount`, `maximumPoseError`, `geometryFrameAware`, `geometryFrameCount`, and
 `maximumFrameError`. Quality diagnostics also include `maximumRelativeError` (the greatest
 geometric or sampled deformation error divided by the source bounding-box diagonal),
-`collapseCount`, `boundaryRejectedCollapseCount`, `topologyRejectedCollapseCount`,
+`collapseCount`, `boundaryRejectedCollapseCount`, `boundaryCollapseCount`,
+`topologyRejectedCollapseCount`,
 `orientationRejectedCollapseCount`, and `invalidRejectedCollapseCount`. Rejection counters measure
 protected candidates evaluated across simplification passes; they are observability data, not
 invalid faces in the committed result. `degenerateTriangleCount`, `nonManifoldEdgeCount`, and
@@ -1464,7 +1470,7 @@ Editor tools should use the instance-owned asynchronous form for large meshes:
 
 ```lua
 local started, err = meshD:startSimplify(targetTriangleRatio,
-    targetSubset, targetFrame, preserveDetails)
+    targetSubset, targetFrame, preserveDetails, boundaryCollapseThreshold)
 local status = meshD:getSimplifyStatus()
 ```
 

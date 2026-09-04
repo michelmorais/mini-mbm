@@ -224,6 +224,9 @@ namespace mbm::mesh_simplifier
         for (const std::vector<VEC3> &sample : input.deformationDeltas)
             if (sample.size() != input.positions.size())
             { errorOut = "pose-sample vertex count does not match positions"; return false; }
+        if (!std::isfinite(input.boundaryCollapseThreshold) ||
+            input.boundaryCollapseThreshold < 0.0f || input.boundaryCollapseThreshold > 1.0f)
+        { errorOut = "boundary collapse threshold must be finite and between zero and one"; return false; }
 
         std::vector<VEC3> positions = input.positions;
         std::vector<VEC3> normals = input.normals;
@@ -310,9 +313,15 @@ namespace mbm::mesh_simplifier
             }
 
             std::vector<bool> boundary(positions.size(), false);
+            std::vector<bool> irregularBoundary(positions.size(), false);
             for (const auto &entry : edges)
                 if (entry.second.count != 2)
-                { boundary[entry.first >> 32u] = true; boundary[static_cast<uint32_t>(entry.first)] = true; }
+                {
+                    const uint32_t a = static_cast<uint32_t>(entry.first >> 32u);
+                    const uint32_t b = static_cast<uint32_t>(entry.first);
+                    boundary[a] = boundary[b] = true;
+                    if (entry.second.count != 1) irregularBoundary[a] = irregularBoundary[b] = true;
+                }
 
             std::vector<CANDIDATE> candidates;
             candidates.reserve(edges.size());
@@ -320,7 +329,13 @@ namespace mbm::mesh_simplifier
             {
                 const uint32_t a = static_cast<uint32_t>(entry.first >> 32u);
                 const uint32_t b = static_cast<uint32_t>(entry.first);
-                if (boundary[a] || boundary[b])
+                const bool touchesBoundary = boundary[a] || boundary[b];
+                const double boundaryEdgeLimit = sourceDiagonal * input.boundaryCollapseThreshold;
+                const bool collapsibleBoundary = input.boundaryCollapseThreshold > 0.0f &&
+                    boundary[a] && boundary[b] && !irregularBoundary[a] && !irregularBoundary[b] &&
+                    entry.second.count == 1 &&
+                    lengthSquared(positions[b] - positions[a]) <= boundaryEdgeLimit * boundaryEdgeLimit;
+                if (touchesBoundary && !collapsibleBoundary)
                 { ++output.boundaryRejectedCollapseCount; continue; }
                 if (!preservesTopology(a, b, entry.second.count, triangles, adjacent))
                 { ++output.topologyRejectedCollapseCount; continue; }
@@ -457,6 +472,7 @@ namespace mbm::mesh_simplifier
             for (const CANDIDATE &candidate : selected)
             {
                 ++output.collapseCount;
+                if (boundary[candidate.a] || boundary[candidate.b]) ++output.boundaryCollapseCount;
                 if (candidate.detailCost > 1.0e-20) ++output.detailPenalizedCollapseCount;
                 replacement[candidate.b] = candidate.a;
                 positions[candidate.a] = candidate.position;
