@@ -180,7 +180,8 @@ class IMGUI_LUA;
 //-----------------------------------------------------------------------------
 // OS-dependent clipboard for ImGui
 // Windows: Uses built-in Win32 clipboard (imgui.cpp default)
-// Linux/macOS: Override with xclip/xsel for OS clipboard integration
+// macOS: Uses built-in native clipboard (enabled by CMake)
+// Linux: Override with xclip/xsel for OS clipboard integration
 //-----------------------------------------------------------------------------
 #if defined(__linux__) && !defined(ANDROID)
 // Requirements on Linux:
@@ -1569,7 +1570,7 @@ public:
                 // Windows: clipboard uses built-in Win32 handlers from imgui.cpp
             #elif defined USE_METAL
                 context = _context;  // NSWindow* as void*
-                // macOS clipboard: ImGui uses pbpaste/pbcopy via tinyfd or system defaults
+                // macOS: native clipboard handlers in imgui.cpp are enabled by CMake.
             #elif defined(__linux__) && !defined(ANDROID)
                 context = static_cast<Display*>(_context);
                 // Linux: install xclip/xsel-based clipboard for OS integration
