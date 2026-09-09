@@ -171,7 +171,7 @@ namespace mbm
 #endif
             }
 
-            bool poll()
+            bool poll(const bool blocking = false)
             {
                 if (finished)
                     return false;
@@ -182,7 +182,7 @@ namespace mbm
                     finished = true;
                     return false;
                 }
-                const DWORD waitResult = WaitForSingleObject(process, 0);
+                const DWORD waitResult = WaitForSingleObject(process, blocking ? INFINITE : 0);
                 if (waitResult == WAIT_TIMEOUT)
                     return true;
                 DWORD code = 0;
@@ -190,7 +190,11 @@ namespace mbm
                     ? static_cast<int>(code) : -1;
 #else
                 int status = 0;
-                const pid_t result = waitpid(pid, &status, WNOHANG);
+                pid_t result;
+                do
+                {
+                    result = waitpid(pid, &status, blocking ? 0 : WNOHANG);
+                } while (blocking && result < 0 && errno == EINTR);
                 if (result == 0 || (result < 0 && errno == EINTR))
                     return true;
                 if (result < 0)
@@ -237,6 +241,19 @@ namespace mbm
                 lua_pushnil(lua);
             else
                 lua_pushinteger(lua, (*holder)->exitCode);
+            return 1;
+        }
+
+        int onProcessJobWait(lua_State *lua)
+        {
+            PROCESS_JOB **holder = checkProcessJob(lua);
+            if (!*holder)
+                lua_pushnil(lua);
+            else
+            {
+                (*holder)->poll(true);
+                lua_pushinteger(lua, (*holder)->exitCode);
+            }
             return 1;
         }
 
@@ -353,6 +370,7 @@ namespace mbm
         {
             const luaL_Reg methods[] = {
                 {"isRunning", onProcessJobIsRunning}, {"getExitCode", onProcessJobGetExitCode},
+                {"wait", onProcessJobWait},
                 {"cancel", onProcessJobCancel}, {"destroy", onProcessJobDestroy},
                 {"__gc", onProcessJobDestroy}, {nullptr, nullptr}
             };
