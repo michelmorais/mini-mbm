@@ -311,7 +311,7 @@ local function sourceCanvas()
             local x,y=(mouse.x-origin.x)/scale,(mouse.y-origin.y)/scale
             if tImGui.IsItemHovered(0) and tImGui.IsMouseClicked(0,false) then
                 if E.editContour then
-                    local p=selected(); local ring=p and p.rings[E.contour]
+                    local p=selected(); local ring=p and p.image==E.image and p.rings[E.contour]
                     if ring then
                         local distance=64/(scale*scale)
                         for i,v in ipairs(ring) do
@@ -344,11 +344,47 @@ local function sourceCanvas()
                 {x=origin.x+(r.x+r.w)*scale,y=origin.y+(r.y+r.h)*scale},{r=1,g=0.8,b=0,a=1})
             local p=selected()
             if p and p.image==E.image then
-                for _,ring in ipairs(p.rings) do
+                local function screen(v)
+                    return {x=origin.x+v.x*scale,y=origin.y+v.y*scale}
+                end
+                -- Interior triangle edges reveal the actual subset topology.
+                -- While dragging, triangles still belong to the last committed
+                -- geometry; show only the live contour until retriangulation.
+                if E.editContour and not E.dragPoint and not p.imported then
+                    for j=1,#p.indices,3 do
+                        for k=0,2 do
+                            local a=p.vertices[p.indices[j+k]]
+                            local b=p.vertices[p.indices[j+(k+1)%3]]
+                            tImGui.AddLine(screen(a),screen(b),{r=0,g=0.8,b=1,a=0.65},1)
+                        end
+                    end
+                end
+                for ri,ring in ipairs(p.rings) do
                     for i,a in ipairs(ring) do
                         local b=ring[i%#ring+1]
-                        tImGui.AddLine({x=origin.x+a.x*scale,y=origin.y+a.y*scale},
-                            {x=origin.x+b.x*scale,y=origin.y+b.y*scale},{r=0,g=1,b=0.5,a=1},2)
+                        local from,to=screen(a),screen(b)
+                        -- A dark outline keeps edges readable on light artwork.
+                        tImGui.AddLine(from,to,{r=0,g=0,b=0,a=1},5)
+                        tImGui.AddLine(from,to,{r=0,g=1,b=0.5,a=1},2)
+                    end
+                end
+                if E.editContour then
+                    for ri,ring in ipairs(p.rings) do
+                        for i,v in ipairs(ring) do
+                            local point=screen(v)
+                            local active=ri==E.contour and i==E.point
+                            if not active then
+                                tImGui.AddCircleFilled(point,4,{r=0,g=0,b=0,a=1},12)
+                                tImGui.AddCircleFilled(point,2,{r=1,g=1,b=1,a=1},12)
+                            end
+                        end
+                    end
+                    local ring=p.rings[E.contour]
+                    local active=ring and ring[E.point]
+                    if active then
+                        local point=screen(active)
+                        tImGui.AddCircleFilled(point,7,{r=0,g=0,b=0,a=1},12)
+                        tImGui.AddCircleFilled(point,5,{r=1,g=0,b=1,a=1},12)
                     end
                 end
             end
@@ -450,7 +486,10 @@ local function properties()
                 if field('pivot_y',p.pivot,'y',0.1) then modified=true end
                 if modified then commit() end
             end
-            check('edit_contour',E,'editContour')
+            if check('edit_contour',E,'editContour') and E.editContour then
+                E.image=p.image
+                E.project.options.showSource=true
+            end
             if p.imported then
                 E.point=math.max(1,math.min(E.point,#p.vertices))
                 local _,v=widget('SliderInt','vertex',E.point,1,#p.vertices); E.point=v
