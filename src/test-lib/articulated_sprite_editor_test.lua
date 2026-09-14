@@ -157,3 +157,28 @@ do
     assert(not pcall(M.removeFrame,project,1))
 end
 print('ARTICULATED SPRITE FRAME DELETE OK')
+
+-- Coupled ring controls remain valid at their limits and after rectangle resize.
+do
+    for _,rect in ipairs({{w=1,h=1},{w=200,h=40},{w=4096,h=2048}}) do
+        for _,offset in ipairs({-100000,0,100000}) do
+            for _,ratio in ipairs({-1,0.01,0.5,0.99,2}) do
+                local form={inner=ratio,dx=offset,dy=-offset}
+                local maxInner,maxX,maxY=G.constrainRing(rect,form)
+                assert(form.inner>=0.01 and form.inner<=0.99)
+                local r={x=0,y=0,w=rect.w,h=rect.h}
+                assert(G.form('ring',r,64,form))
+                for _,sign in ipairs({-1,1}) do
+                    local f=M.copy(form)
+                    f.dx=sign*maxX
+                    assert(G.form('ring',r,64,f))
+                    f=M.copy(form); f.dy=sign*maxY
+                    assert(G.form('ring',r,64,f))
+                end
+                form.inner=maxInner
+                assert(G.form('ring',r,64,form))
+            end
+        end
+    end
+end
+print('ARTICULATED SPRITE RING CONTROL LIMITS OK')

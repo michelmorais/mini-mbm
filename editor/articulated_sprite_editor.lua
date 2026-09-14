@@ -490,8 +490,17 @@ local function sourceCanvas()
                 field('top',E.form,'top',0.5,0.1,E.rect.h/2)
                 if not E.form.linked then field('bottom',E.form,'bottom',0.5,0.1,E.rect.h/2) end
             elseif E.kind=='ring' then
-                field('inner',E.form,'inner',0.01,0.01,0.99)
-                field('hole_x',E.form,'dx'); field('hole_y',E.form,'dy')
+                local innerMax=G.constrainRing(E.rect,E.form,alphaMode and 64 or E.budget)
+                field('inner',E.form,'inner',0.01,0.01,innerMax)
+                -- Also clamp typed values; DragFloat limits alone do not
+                -- constrain all keyboard entry paths in ImGui.
+                E.form.inner=math.max(0.01,math.min(innerMax,E.form.inner))
+                local _,xMax=G.constrainRing(E.rect,E.form,alphaMode and 64 or E.budget)
+                field('hole_x',E.form,'dx',1,-xMax,xMax)
+                E.form.dx=math.max(-xMax,math.min(xMax,E.form.dx))
+                local _,_,yMax=G.constrainRing(E.rect,E.form,alphaMode and 64 or E.budget)
+                field('hole_y',E.form,'dy',1,-yMax,yMax)
+                E.form.dy=math.max(-yMax,math.min(yMax,E.form.dy))
             end
             local change,threshold=widget('SliderInt','threshold',E.threshold,0,254)
             if change then E.threshold=threshold end

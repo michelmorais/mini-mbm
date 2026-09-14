@@ -58,6 +58,29 @@ local function ellipse(cx,cy,rx,ry,n)
     end
     return ring
 end
+-- Keep the hole strictly inside the ellipse, including after resizing its
+-- selection rectangle. The margin avoids boundary failures with float32 Lua.
+function M.constrainRing(r,options,budget)
+    local margin=0.0001
+    local rx,ry=r.w/2,r.h/2
+    local sides=math.max(5,math.floor((budget or 64)/2))
+    local inset=math.cos(math.pi/sides)
+    options.inner=math.max(0.01,math.min(0.99,options.inner or 0.5))
+    local x,y=(options.dx or 0)/rx,(options.dy or 0)/ry
+    local distance=math.sqrt(x*x+y*y)
+    -- Account for the polygonal outer boundary, not just its ideal ellipse.
+    local radius=(1-options.inner)*inset-margin
+    if distance>radius then
+        local scale=radius/distance
+        x,y=x*scale,y*scale
+        distance=radius
+    end
+    options.dx,options.dy=x*rx,y*ry
+    local innerMax=math.max(0.01,math.min(0.99,1-(distance+margin)/inset))
+    local xMax=rx*math.sqrt(math.max(0,radius*radius-y*y))
+    local yMax=ry*math.sqrt(math.max(0,radius*radius-x*x))
+    return innerMax,xMax,yMax
+end
 function M.form(kind,r,budget,options)
     options=options or {}
     assert(r.w>0 and r.h>0,'invalid_rectangle')
