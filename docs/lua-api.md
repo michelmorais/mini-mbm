@@ -1331,8 +1331,10 @@ batch creation. Callback errors propagate after restoring the drawing target.
 atlas white pixel, without rerunning the callback or tessellating shapes.
 Recreate the batch when positions, sizes, colors, or geometry change. Coordinates
 are absolute window pixels. Lua GC releases the batch; it owns no GPU resources.
-The renderer's usual index/vertex limits still apply (including the 16-bit
-per-draw-list vertex limit on backends without vertex-offset support).
+Large batches are split at draw-command vertex offsets while retaining 16-bit
+indices. The OpenGL ES backend honors these offsets by rebasing vertex attributes;
+desktop OpenGL, DirectX and Metal also support draw-command vertex offsets.
+Custom backends must provide equivalent support for large batches.
 
 ### Utility
 
