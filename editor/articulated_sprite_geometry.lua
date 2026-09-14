@@ -259,25 +259,30 @@ function M.triangulate(rings,budget)
             for i,a in ipairs(r) do
                 if not seen[a.y] then levels[#levels+1]=a.y; seen[a.y]=true end
                 local b=r[i%#r+1]
-                if math.abs(a.y-b.y)>EPS then edges[#edges+1]={a,b} end
+                if a.y~=b.y then edges[#edges+1]={a,b} end
             end
         end
         table.sort(levels)
-        for i=#levels,2,-1 do
-            if levels[i]-levels[i-1]<EPS then table.remove(levels,i) end
-        end
         local function at(e,y) return e[1].x+(e[2].x-e[1].x)*(y-e[1].y)/(e[2].y-e[1].y) end
         for i=1,#levels-1 do
             local lo,hi=levels[i],levels[i+1]
-            if hi-lo>EPS then
-                local mid=(lo+hi)/2
+            if hi>lo then
                 local active={}
                 for _,e in ipairs(edges) do
-                    if mid>math.min(e[1].y,e[2].y) and mid<math.max(e[1].y,e[2].y) then
+                    -- The bundled Lua uses float32. Adjacent Y levels may have
+                    -- no representable midpoint, so test coverage of the slab
+                    -- rather than strict containment of a rounded midpoint.
+                    if math.min(e[1].y,e[2].y)<=lo and math.max(e[1].y,e[2].y)>=hi then
                         active[#active+1]=e
                     end
                 end
-                table.sort(active,function(a,b) return at(a,mid)<at(b,mid) end)
+                table.sort(active,function(a,b)
+                    local alo,blo=at(a,lo),at(b,lo)
+                    local ahi,bhi=at(a,hi),at(b,hi)
+                    local difference=(alo-blo)+(ahi-bhi)
+                    if difference~=0 then return difference<0 end
+                    return alo<blo or (alo==blo and ahi<bhi)
+                end)
                 assert(#active%2==0,'open_contour '..lo..' '..hi..' '..#active)
                 for j=1,#active,2 do
                     local l,r=active[j],active[j+1]

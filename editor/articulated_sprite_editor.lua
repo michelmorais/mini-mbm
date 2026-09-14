@@ -174,8 +174,9 @@ local function addImage(path)
 end
 local function generate(replace)
     local img=assert(E.project.images[E.image],'missing_image')
-    local rings=G.form(E.kind,E.rect,E.budget,E.form)
-    if E.kind=='alpha' or E.useAlpha then
+    local alphaMode=E.kind=='alpha' or E.useAlpha
+    local rings=G.form(E.kind,E.rect,alphaMode and 64 or E.budget,E.form)
+    if alphaMode then
         if not E.alpha[img.path] then
             local bytes,w,h=mbm.readPngAlpha(img.path)
             assert(bytes,w); assert(w==img.width and h==img.height,'alpha_dimensions_mismatch')
@@ -188,8 +189,7 @@ local function generate(replace)
     local groups=(not replace and E.project.options.splitRegions) and G.components(rings) or {rings}
     local generated={}
     for _,group in ipairs(groups) do
-        if E.kind=='alpha' or E.useAlpha then group=G.fitBudget(group,E.budget) end
-        local vertices,indices=G.triangulate(group,E.budget)
+        local vertices,indices=G.triangulate(group,alphaMode and 2 or E.budget)
         generated[#generated+1]={rings=group,vertices=vertices,indices=indices}
     end
     action(function()
@@ -211,7 +211,8 @@ local function generate(replace)
 end
 local function retriangulate(p)
     assert(not p.componentCount or #G.components(p.rings)==p.componentCount,'contour_changes_components')
-    local vertices,indices=G.triangulate(p.rings,p.recipe.budget or E.budget)
+    local alphaMode=p.recipe.kind=='alpha' or p.recipe.alpha
+    local vertices,indices=G.triangulate(p.rings,alphaMode and 2 or (p.recipe.budget or E.budget))
     p.vertices=vertices; p.indices=indices; p.manual=true
 end
 local function finishContourDrag(cancel)
@@ -451,8 +452,13 @@ local function sourceCanvas()
             for _,kind in ipairs({'rectangle','circle','capsule','ring','alpha'}) do
                 if widget('Selectable',kind,E.kind==kind) then E.kind=kind; E.budget=kind=='rectangle' and 2 or 12 end
             end
-            local changed,value=widget('SliderInt','budget',E.budget, E.kind=='circle' and 5 or 2,512)
-            if changed then E.budget=value end
+            check('use_alpha',E,'useAlpha')
+            local alphaMode=E.kind=='alpha' or E.useAlpha
+            if not alphaMode then
+                local changed,value=widget('SliderInt','budget',E.budget,E.kind=='circle' and 5 or 2,512)
+                if changed then E.budget=value end
+
+            end
             field('simplification',E,'tolerance',0.1,0,10)
             field('x',E.rect,'x'); field('y',E.rect,'y'); field('width',E.rect,'w',1,1,100000); field('height',E.rect,'h',1,1,100000)
             if E.kind=='capsule' then
@@ -464,7 +470,6 @@ local function sourceCanvas()
                 field('inner',E.form,'inner',0.01,0.01,0.99)
                 field('hole_x',E.form,'dx'); field('hole_y',E.form,'dy')
             end
-            check('use_alpha',E,'useAlpha')
             local change,threshold=widget('SliderInt','threshold',E.threshold,0,254)
             if change then E.threshold=threshold end
             check('preserve_holes',E.project.options,'preserveHoles')

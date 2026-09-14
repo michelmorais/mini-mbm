@@ -45,7 +45,14 @@ function onInitScene()
     for i=1,16*16*4 do pixels[i]=255 end
     mbm.createTexture(pixels,16,16,4,'ase_contour_regression',imagePath)
     api.addImage(imagePath)
+    api.state.useAlpha=true
+    api.state.budget=2
     api.generate(false)
+    local part=api.state.project.frames[1].parts[1]
+    local count=#part.indices
+    api.state.budget=128
+    api.generate(true)
+    assert(#part.indices==count,'hidden triangle budget changed alpha mesh')
     api.rebuild()
     frame=0
 end

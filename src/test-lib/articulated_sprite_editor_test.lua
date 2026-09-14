@@ -29,6 +29,22 @@ local function area(vertices,index)
     return total
 end
 local function near(a,b) assert(math.abs(a-b)<1e-4,tostring(a)..' ~= '..tostring(b)) end
+-- Adjacent float32 Y levels have no representable midpoint. The old
+-- scanline test rejected this valid polygon with open_contour ... ... 1.
+do
+    local lo,hi=268.590087890625,268.590118408203125
+    local ring={{x=0,y=250},{x=4,y=250},{x=6,y=lo},
+        {x=10,y=hi},{x=4,y=280},{x=0,y=280}}
+    local vertices,indices=G.triangulate({ring},2)
+    near(area(vertices,indices),math.abs(G.area(ring)))
+    for i=1,32 do
+        local rings=G.form('circle',{x=225,y=220,w=96,h=96},32)
+        local v=rings[1][i]
+        v.x=273+(v.x-273)*0.6; v.y=268+(v.y-268)*0.6
+        local vertices,indices=G.triangulate(rings,2)
+        assert(math.abs(area(vertices,indices)-math.abs(G.area(rings[1])))<0.1)
+    end
+end
 local rect={x=0,y=0,w=10,h=10}
 local rings=G.form('rectangle',rect,2)
 local v,ix=G.triangulate(rings,2)

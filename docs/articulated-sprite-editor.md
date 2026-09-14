@@ -22,8 +22,8 @@ bin/debug/linux_x86/mini-mbm --scene editor/articulated_sprite_editor.lua --disa
 1. Use **Adicionar imagem**. É possível carregar várias imagens e alternar entre elas.
 2. Arraste na imagem original para selecionar uma região retangular. Os campos X,
    Y, largura e altura também permitem definir a seleção numericamente.
-3. Escolha retângulo, círculo, cápsula, rosca ou contorno por alfa. Ajuste o orçamento
-   de triângulos e, quando necessário, a tolerância de simplificação do contorno.
+3. Escolha retângulo, círculo, cápsula, rosca ou contorno por alfa. Sem alfa, ajuste
+   o orçamento de triângulos. Com alfa, use a tolerância de simplificação do contorno.
 4. Para combinar uma forma com os pixels visíveis, marque **Combinar com alfa (PNG)**.
    **Preservar furos** e **Um subset por região** começam ativados. Desmarcar a
    segunda opção agrupa as regiões no mesmo subset. O limiar inicial de alfa é 16,
@@ -43,9 +43,11 @@ A cápsula tem extremidades vinculadas ou independentes e opção para manter a
 circularidade. Sua altura e os raios definem o segmento central. A rosca tem
 proporção interna e deslocamento do furo ajustáveis.
 
-O orçamento de triângulos é aproximado. Para alfa, o ajuste automático preserva
-componentes e furos e limita a variação da área de cada contorno a 5%. Caso o alvo
-exija descaracterizar a peça, o total gerado pode ficar acima do solicitado.
+O orçamento de triângulos é aproximado e aparece apenas sem recorte por alfa.
+Com alfa, a quantidade final depende do contorno, dos furos e da tolerância de
+simplificação; não há ajuste automático ou refinamento por um orçamento oculto.
+Com alfa, todas as formas ocultam o orçamento. Círculo, cápsula e rosca usam
+detalhamento fixo para a forma de interseção, independente do orçamento sem alfa.
 
 ## Corrigir peças
 
