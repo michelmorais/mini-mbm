@@ -62,9 +62,10 @@ local function field(key,object,name,step,min,max)
     return changed
 end
 local function check(key,object,name)
-    local changed,value=tImGui.Checkbox(L(key),object[name])
-    if changed then object[name]=value end
-    return changed
+    local previous=not not object[name]
+    local value=tImGui.Checkbox(L(key),previous)
+    object[name]=value
+    return value~=previous
 end
 local function texture(index)
     local img=E.project.images[index]
@@ -410,7 +411,8 @@ local function worldInput()
     if E.zoomRequest then
         if not hovered then
             local factor=math.max(0.1,math.min(10,E.camera.sx*(1-E.zoomRequest*0.1)))
-            E.camera:setScale(factor,factor)
+            E.camera.sx=factor
+            E.camera.sy=factor
         end
         E.zoomRequest=nil
     end
@@ -485,8 +487,9 @@ local function timeline()
             if field('speed',clip,'speed',0.05,0.01,100) then commit() end
             local priorityChanged,priority=tImGui.SliderInt(L('priority'),clip.priority or 0,-20,20)
             if priorityChanged then clip.priority=priority; commit() end
-            local blendChanged,blend=tImGui.Checkbox(L('additive'),clip.blend==1)
-            if blendChanged then clip.blend=blend and 1 or 0; commit() end
+            local wasAdditive=clip.blend==1
+            local additive=tImGui.Checkbox(L('additive'),wasAdditive)
+            if additive~=wasAdditive then clip.blend=additive and 1 or 0; commit() end
             if check('loop',clip,'loop') then commit() end
             local moved,time=tImGui.SliderFloat(L('time'),E.time,0,clip.duration)
             if moved then E.time=time; E.poseDirty=true; if E.transient then E.transient=false; E.dirty=true end end
@@ -632,4 +635,6 @@ if type(testApi)=='table' then
     testApi.generate=generate
     testApi.rebuild=rebuild
     testApi.loadProject=loadProject
+    testApi.worldInput=worldInput
+    testApi.check=check
 end
