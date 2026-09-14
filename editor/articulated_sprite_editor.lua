@@ -20,6 +20,9 @@
 
 ]]--
 
+-- A test may supply an output table via loadfile()(api). Production dofile()
+-- must return nil so the launcher invokes the global scene callbacks.
+local testApi = ...
 tImGui = require 'ImGui'
 tUtil = require 'editor_utils'
 local G=require 'articulated_sprite_geometry'
@@ -623,5 +626,10 @@ function onKeyDown(key)
 end
 function onEndScene() destroyPreview() end
 function onKeyUp(key) if key==mbm.getKeyCode('control') then E.control=false end end
--- Exposed only to the engine smoke scene; production callbacks remain above.
-return {state=E,addImage=addImage,generate=generate,rebuild=rebuild,loadProject=loadProject}
+if type(testApi)=='table' then
+    testApi.state=E
+    testApi.addImage=addImage
+    testApi.generate=generate
+    testApi.rebuild=rebuild
+    testApi.loadProject=loadProject
+end

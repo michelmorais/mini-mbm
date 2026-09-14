@@ -105,8 +105,12 @@ Os testes automatizados ficam em:
 
 ```sh
 bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/articulated_sprite_editor_test.lua
+timeout -s KILL 15 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_sprite_startup_smoke.lua --disable_select_monitor --nosplash -w 1280 -h 800
 timeout -s KILL 20 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_sprite_editor_smoke.lua --disable_select_monitor --nosplash -w 1280 -h 800
 ```
+
+O teste de startup usa o launcher real e verifica a inicialização antes de executar
+os painéis. O teste de integração exercita separadamente projeto e animações.
 
 A leitura de alfa desta versão é específica para PNG. Outros formatos aceitos
 como textura podem ser usados com formas sem extração de alfa. A importação de

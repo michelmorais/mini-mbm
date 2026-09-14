@@ -21,7 +21,8 @@
 ]]--
 
 package.path='editor/?.lua;'..package.path
-local editor=assert(loadfile('editor/articulated_sprite_editor.lua'))()
+local editor={}
+assert(loadfile('editor/articulated_sprite_editor.lua'))(editor)
 local init=onInitScene
 local loop=onLoop
 local start
