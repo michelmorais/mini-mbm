@@ -475,6 +475,13 @@ local function properties()
     end
     tImGui.End()
 end
+local function mouseWorld(mouse)
+    -- ImGui reports physical window pixels. mbm.to2dw expects coordinates
+    -- already scaled by the engine's input pipeline, so do not pass them raw.
+    local width,height=mbm.getRealSizeScreen()
+    return E.camera.x+(mouse.x-width/2)/E.camera.sx,
+        E.camera.y+(height/2-mouse.y)/E.camera.sy
+end
 local function worldInput()
     local hovered=tImGui.IsAnyWindowHovered()
     if E.zoomRequest then
@@ -490,7 +497,7 @@ local function worldInput()
     end
     local mouse=tImGui.GetMousePos()
     if not hovered and tImGui.IsMouseClicked(0,false) then
-        local x,y=mbm.to2dw(mouse.x,mouse.y)
+        local x,y=mouseWorld(mouse)
         local parts=E.project.frames[E.frame].parts
         for i=#parts,1,-1 do
             local p=parts[i]
@@ -509,7 +516,7 @@ local function worldInput()
         end
     end
     if E.worldDrag and tImGui.IsMouseDown(0) then
-        local x,y=mbm.to2dw(mouse.x,mouse.y)
+        local x,y=mouseWorld(mouse)
         local d,p=E.worldDrag,selected()
         if p and (x~=d.lastX or y~=d.lastY) then
             d.lastX,d.lastY=x,y
