@@ -32,7 +32,7 @@ local E={project=Model.new(),frame=1,image=1,selected=0,clip=1,time=0,playing=fa
     rect={x=0,y=0,w=100,h=100},kind='rectangle',budget=2,threshold=16,
     form={inner=0.5,dx=0,dy=0,linked=true,circular=true},textures={},alpha={},dirty=false,poseDirty=false,
     pose={x=0,y=0,z=0,angle=0,sx=1,sy=1},mode='setup',editContour=false,contour=1,point=1,
-    status='',preview=nil,ghosts={},scale=1}
+    status='',preview=nil,ghosts={},scale=1,showParts=true,showTimeline=true}
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
     if not result[1] then
@@ -250,6 +250,8 @@ local function menu()
     end
     if tImGui.BeginMenu(tLang.L('menu_options')) then
         check('show_source',E.project.options,'showSource')
+        check('show_parts',E,'showParts')
+        check('show_timeline',E,'showTimeline')
         check('copy_images',E.project.options,'copyImages')
         if check('move_windows',E,'moveWindows') then E.flags=E.moveWindows and 0 or E.noMoveFlag end
         if tImGui.BeginMenu(tLang.L('menu_language')) then
@@ -287,9 +289,11 @@ local function sourceCanvas()
     if not E.project.options.showSource then return end
     local width,height=mbm.getRealSizeScreen()
     local first=tImGui.Flags('ImGuiCond_FirstUseEver')
-    tImGui.SetNextWindowPos({x=width/2,y=height/2},first,{x=0.5,y=0.5})
-    tImGui.SetNextWindowSize({x=width*0.8,y=height*0.76},first)
-    tImGui.SetNextWindowSizeConstraints({x=520,y=320},{x=10000,y=10000})
+    -- Reference layout from imgui.ini at 1920 x 1020: (225,23), 1383 x 775.
+    -- FirstUseEver preserves the user's saved placement and subsequent resizing.
+    tImGui.SetNextWindowPos({x=width*225/1920,y=math.max(tImGui.GetMainMenuBarHeight(),height*23/1020)},first)
+    tImGui.SetNextWindowSize({x=width*1383/1920,y=height*775/1020},first)
+    tImGui.SetNextWindowSizeConstraints({x=math.min(520,width),y=math.min(320,height)},{x=width,y=height})
     tImGui.SetNextWindowBgAlpha(1)
     local opened,closed=tImGui.Begin(E.titles.canvas,true,E.flags)
     if closed then E.project.options.showSource=false end
@@ -386,8 +390,10 @@ local function sourceCanvas()
     tImGui.End()
 end
 local function properties()
+    if not E.showParts then return end
     tUtil.setInitialWindowPositionRight(E.titles.parts,0,0,310)
-    local opened=tImGui.Begin(E.titles.parts,true,E.flags)
+    local opened,closed=tImGui.Begin(E.titles.parts,true,E.flags)
+    if closed then E.showParts=false end
     if opened then
         tImGui.PushItemWidth(135)
         local changed,frame=widget('SliderInt','frame',E.frame,1,#E.project.frames)
@@ -526,8 +532,15 @@ local function worldInput()
     else E.pan=nil end
 end
 local function timeline()
-    tUtil.setInitialWindowPositionDown(E.titles.timeline,340,0.27,310)
-    local opened=tImGui.Begin(E.titles.timeline,true,E.flags)
+    if not E.showTimeline then return end
+    local width,height=mbm.getRealSizeScreen()
+    local first=tImGui.Flags('ImGuiCond_FirstUseEver')
+    -- Reference layout from imgui.ini at 1920 x 1020: (222,796), 1385 x 201.
+    tImGui.SetNextWindowPos({x=width*222/1920,y=height*796/1020},first)
+    tImGui.SetNextWindowSize({x=width*1385/1920,y=height*201/1020},first)
+    tImGui.SetNextWindowSizeConstraints({x=math.min(120,width),y=math.min(80,height)},{x=width,y=height})
+    local opened,closed=tImGui.Begin(E.titles.timeline,true,E.flags)
+    if closed then E.showTimeline=false end
     if opened then
         if widget('Selectable','setup',E.mode=='setup') then E.mode='setup'; E.playing=false; E.poseDirty=true end
         tImGui.SameLine()

@@ -8,6 +8,10 @@ local M = {}
 
 -- String tables
 M.en = {
+    ase_show_parts = "Show Parts window",
+    ase_show_parts_tip = "Show or hide the part properties window.",
+    ase_show_timeline = "Show Timeline window",
+    ase_show_timeline_tip = "Show or hide animation controls. Hiding them does not stop playback.",
     ase_select_part_tip = "Select this part to edit its transform, pivot, hierarchy and contour.",
     ase_select_clip_tip = "Select this animation clip and return to its beginning.",
     ase_select_key_tip = "Select this key and preview its pose at the recorded time.",
@@ -2872,6 +2876,10 @@ M.en = {
 }
 
 M.pt_br = {
+    ase_show_parts = "Mostrar janela de peças",
+    ase_show_parts_tip = "Mostra ou esconde a janela de propriedades das peças.",
+    ase_show_timeline = "Mostrar linha do tempo",
+    ase_show_timeline_tip = "Mostra ou esconde os controles de animação. Escondê-los não interrompe a reprodução.",
     ase_select_part_tip = "Seleciona esta peça para editar transformação, pivô, hierarquia e contorno.",
     ase_select_clip_tip = "Seleciona este clipe e retorna ao início da animação.",
     ase_select_key_tip = "Seleciona esta key e visualiza sua pose no tempo gravado.",
