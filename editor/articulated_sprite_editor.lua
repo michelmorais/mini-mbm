@@ -42,6 +42,27 @@ local function dpCall(fn,...)
     return table.unpack(result,1,result.n)
 end
 local function L(key) return tLang.L('ase_'..key) end
+local function tooltip(key)
+    if tImGui.IsItemHovered(0) then tImGui.SetTooltip(L(key..'_tip')) end
+end
+-- Preserve every binding return value, and attach help before another widget
+-- replaces ImGui's last item. Only the hovered item resolves its help text.
+local function widget(method,key,...)
+    local label=L(key)
+    if E.sourceControls and (method=='SliderInt' or method=='DragFloat') then
+        tImGui.Text(label)
+        label='##'..key
+    end
+    local a,b=tImGui[method](label,...)
+    tooltip(key)
+    return a,b
+end
+local function refreshTitles()
+    E.titles={source=L('source_title')..'###ase_sources',
+        canvas=L('canvas_title')..'###ase_canvas',
+        parts=L('parts_title')..'###ase_parts',
+        timeline=L('timeline_title')..'###ase_timeline'}
+end
 local function selected() return Model.part(E.project,E.frame,E.selected) end
 local function commit()
     if E.mouseDown then E.pendingHistory=true
@@ -54,16 +75,16 @@ local function action(fn)
     if ok then commit() else E.project=before end
 end
 local function button(key,fn)
-    if tImGui.Button(L(key)) then dpCall(fn) end
+    if widget('Button',key) then dpCall(fn) end
 end
 local function field(key,object,name,step,min,max)
-    local changed,value=tImGui.DragFloat(L(key),object[name] or 0,step or 1,min or -100000,max or 100000,'%.3f')
+    local changed,value=widget('DragFloat',key,object[name] or 0,step or 1,min or -100000,max or 100000,'%.3f')
     if changed then object[name]=value end
     return changed
 end
 local function check(key,object,name)
     local previous=not not object[name]
-    local value=tImGui.Checkbox(L(key),previous)
+    local value=widget('Checkbox',key,previous)
     object[name]=value
     return value~=previous
 end
@@ -146,6 +167,7 @@ local function addImage(path)
         E.project.images[#E.project.images+1]={path=mbm.getFullPath(path) or path,
             width=info:getWidth(),height=info:getHeight()}
         E.image=#E.project.images
+        E.project.options.showSource=true
     end)
     E.rect={x=0,y=0,w=info:getWidth(),h=info:getHeight()}
 end
@@ -198,30 +220,30 @@ end
 local function menu()
     if not tImGui.BeginMainMenuBar() then return end
     if tImGui.BeginMenu(tLang.L('menu_file')) then
-        if tImGui.MenuItem(L('new')) then E.pendingNew=true end
-        if tImGui.MenuItem(L('open')) then
+        if widget('MenuItem','new') then E.pendingNew=true end
+        if widget('MenuItem','open') then
             dpCall(function() local path=mbm.openFile(E.path,'*.asprite'); if path then loadProject(IO.load(path),path) end end)
         end
-        if tImGui.MenuItem(L('save')) then
+        if widget('MenuItem','save') then
             dpCall(function()
                 local path=mbm.saveFile(E.path,'*.asprite')
                 if path then IO.save(E.project,path); E.path=path; E.changed=false; E.status=L('saved') end
             end)
         end
-        if tImGui.MenuItem(L('import')) then
+        if widget('MenuItem','import') then
             dpCall(function() local path=mbm.openFile(nil,'*.spt'); if path then loadProject(IO.import(path)) end end)
         end
-        if tImGui.MenuItem(L('export')) then
+        if widget('MenuItem','export') then
             dpCall(function() local path=mbm.saveFile(nil,'*.spt'); if path then IO.export(E.project,path); E.status=L('saved') end end)
         end
-        if tImGui.MenuItem(L('add_image')) then dpCall(addImage) end
+        if widget('MenuItem','add_image') then dpCall(addImage) end
         tImGui.EndMenu()
     end
     if tImGui.BeginMenu(L('edit')) then
-        if tImGui.MenuItem(L('undo'),'Ctrl+Z') then
+        if widget('MenuItem','undo','Ctrl+Z') then
             local p=Model.undo(E.history); if p then E.project=p; E.dirty=true; E.changed=true end
         end
-        if tImGui.MenuItem(L('redo'),'Ctrl+Y') then
+        if widget('MenuItem','redo','Ctrl+Y') then
             local p=Model.redo(E.history); if p then E.project=p; E.dirty=true; E.changed=true end
         end
         tImGui.EndMenu()
@@ -230,28 +252,57 @@ local function menu()
         check('show_source',E.project.options,'showSource')
         check('copy_images',E.project.options,'copyImages')
         if check('move_windows',E,'moveWindows') then E.flags=E.moveWindows and 0 or E.noMoveFlag end
-        if tImGui.MenuItem('English') then tLang.setLanguage('en') end
-        if tImGui.MenuItem('Portugues') then tLang.setLanguage('pt_br') end
+        if tImGui.BeginMenu(tLang.L('menu_language')) then
+            if tImGui.MenuItem(tLang.L('lang_english'),nil,tLang.current=='en') then
+                tLang.setLanguage('en'); refreshTitles()
+            end
+            tooltip('language')
+            if tImGui.MenuItem(tLang.L('lang_portuguese_br'),nil,tLang.current=='pt_br') then
+                tLang.setLanguage('pt_br'); refreshTitles()
+            end
+            tooltip('language')
+            tImGui.EndMenu()
+        end
         tImGui.EndMenu()
     end
     tImGui.EndMainMenuBar()
 end
 local function sourcePanel()
-    if not E.project.options.showSource then return end
-    tUtil.setInitialWindowPositionLeft(E.titles.source,0,0,340)
+    tUtil.setInitialWindowPositionLeft(E.titles.source,0,0,220)
     local opened=tImGui.Begin(E.titles.source,true,E.flags)
     if opened then
         tImGui.PushItemWidth(135)
         button('add_image',addImage)
         for i,img in ipairs(E.project.images) do
-            if tImGui.Selectable(img.path:match('[^/\\]+$')..'##image'..i,i==E.image) then E.image=i end
+            if tImGui.Selectable(img.path:match('[^/\\]+$')..'##image'..i,i==E.image) then
+                E.image=i; E.project.options.showSource=true
+            end
+            tooltip('select_source')
         end
+        tImGui.PopItemWidth()
+    end
+    tImGui.End()
+end
+local function sourceCanvas()
+    if not E.project.options.showSource then return end
+    local width,height=mbm.getRealSizeScreen()
+    local first=tImGui.Flags('ImGuiCond_FirstUseEver')
+    tImGui.SetNextWindowPos({x=width/2,y=height/2},first,{x=0.5,y=0.5})
+    tImGui.SetNextWindowSize({x=width*0.8,y=height*0.76},first)
+    tImGui.SetNextWindowSizeConstraints({x=520,y=320},{x=10000,y=10000})
+    tImGui.SetNextWindowBgAlpha(1)
+    local opened,closed=tImGui.Begin(E.titles.canvas,true,E.flags)
+    if closed then E.project.options.showSource=false end
+    if opened then
         local img=E.project.images[E.image]
         if img then
             local avail=tImGui.GetContentRegionAvail()
-            local scale=math.min((avail.x or 300)/img.width,350/img.height)
+            local imageWidth=math.max(100,math.min(avail.x-250,(avail.y-8)*img.width/img.height))
+            tImGui.BeginChild('##source_image',{x=imageWidth,y=0},false)
+            local scale=math.min(imageWidth/img.width,math.max(100,avail.y-8)/img.height)
             local origin=tImGui.GetCursorScreenPos()
             tImGui.Image(texture(E.image),{x=img.width*scale,y=img.height*scale})
+            tooltip('source_canvas')
             local mouse=tImGui.GetMousePos()
             local x,y=(mouse.x-origin.x)/scale,(mouse.y-origin.y)/scale
             if tImGui.IsItemHovered(0) and tImGui.IsMouseClicked(0,false) then
@@ -297,10 +348,15 @@ local function sourcePanel()
                     end
                 end
             end
+            tImGui.EndChild()
+            tImGui.SameLine()
+            tImGui.BeginChild('##source_controls',{x=0,y=0},false)
+            E.sourceControls=true
+            tImGui.PushItemWidth(120)
             for _,kind in ipairs({'rectangle','circle','capsule','ring','alpha'}) do
-                if tImGui.Selectable(L(kind),E.kind==kind) then E.kind=kind; E.budget=kind=='rectangle' and 2 or 12 end
+                if widget('Selectable',kind,E.kind==kind) then E.kind=kind; E.budget=kind=='rectangle' and 2 or 12 end
             end
-            local changed,value=tImGui.SliderInt(L('budget'),E.budget, E.kind=='circle' and 5 or 2,512)
+            local changed,value=widget('SliderInt','budget',E.budget, E.kind=='circle' and 5 or 2,512)
             if changed then E.budget=value end
             field('simplification',E,'tolerance',0.1,0,10)
             field('x',E.rect,'x'); field('y',E.rect,'y'); field('width',E.rect,'w',1,1,100000); field('height',E.rect,'h',1,1,100000)
@@ -314,14 +370,18 @@ local function sourcePanel()
                 field('hole_x',E.form,'dx'); field('hole_y',E.form,'dy')
             end
             check('use_alpha',E,'useAlpha')
-            local change,threshold=tImGui.SliderInt(L('threshold'),E.threshold,0,254)
+            local change,threshold=widget('SliderInt','threshold',E.threshold,0,254)
             if change then E.threshold=threshold end
             check('preserve_holes',E.project.options,'preserveHoles')
             check('split_regions',E.project.options,'splitRegions')
             button('generate',function() generate(false) end)
             if p and not p.imported then button('regenerate',function() generate(true) end) end
+            tImGui.PopItemWidth()
+            E.sourceControls=false
+            tImGui.EndChild()
+        else
+            tImGui.Text(L('welcome'))
         end
-        tImGui.PopItemWidth()
     end
     tImGui.End()
 end
@@ -330,7 +390,7 @@ local function properties()
     local opened=tImGui.Begin(E.titles.parts,true,E.flags)
     if opened then
         tImGui.PushItemWidth(135)
-        local changed,frame=tImGui.SliderInt(L('frame'),E.frame,1,#E.project.frames)
+        local changed,frame=widget('SliderInt','frame',E.frame,1,#E.project.frames)
         if changed then E.frame=frame; E.selected=0; E.dirty=true end
         button('add_frame',function() action(function() E.project.frames[#E.project.frames+1]={parts={}}; E.frame=#E.project.frames; E.selected=0 end) end)
         local parts=E.project.frames[E.frame].parts
@@ -342,14 +402,17 @@ local function properties()
                     E.form=Model.copy(p.recipe.form); E.useAlpha=p.recipe.alpha; E.threshold=p.recipe.threshold or 0
                 end
             end
+            tooltip('select_part')
         end
         local p,index=selected()
         if p then
-            local changed,name=tImGui.InputText(L('name'),p.name)
+            local changed,name=widget('InputText','name',p.name)
             if changed then p.name=name; commit() end
             tImGui.Text(L('triangles')..': '..#p.indices/3)
-            if tImGui.BeginCombo(L('parent'),p.parent==0 and L('none') or tostring(p.parent)) then
-                if tImGui.Selectable(L('none'),p.parent==0) then action(function() Model.reparent(E.project,E.frame,p.id,0) end) end
+            local parentOpen=tImGui.BeginCombo(L('parent'),p.parent==0 and L('none') or tostring(p.parent))
+            tooltip('parent')
+            if parentOpen then
+                if widget('Selectable','none',p.parent==0) then action(function() Model.reparent(E.project,E.frame,p.id,0) end) end
                 for _,parent in ipairs(parts) do
                     if parent.id~=p.id and tImGui.Selectable(parent.name..'##parent'..parent.id,p.parent==parent.id) then
                         action(function() Model.reparent(E.project,E.frame,p.id,parent.id) end)
@@ -379,7 +442,7 @@ local function properties()
             check('edit_contour',E,'editContour')
             if p.imported then
                 E.point=math.max(1,math.min(E.point,#p.vertices))
-                local _,v=tImGui.SliderInt(L('vertex'),E.point,1,#p.vertices); E.point=v
+                local _,v=widget('SliderInt','vertex',E.point,1,#p.vertices); E.point=v
                 local point=p.vertices[v]
                 local modified=field('vertex_x',point,'x',0.1)
                 if field('vertex_y',point,'y',0.1) then modified=true end
@@ -389,10 +452,10 @@ local function properties()
             end
             if E.editContour and #p.rings>0 then
                 E.contour=math.max(1,math.min(E.contour,#p.rings))
-                local _,c=tImGui.SliderInt(L('contour'),E.contour,1,#p.rings); E.contour=c
+                local _,c=widget('SliderInt','contour',E.contour,1,#p.rings); E.contour=c
                 local ring=p.rings[c]
                 E.point=math.max(1,math.min(E.point,#ring))
-                local _,v=tImGui.SliderInt(L('point'),E.point,1,#ring); E.point=v
+                local _,v=widget('SliderInt','point',E.point,1,#ring); E.point=v
                 button('add_point',function() action(function()
                     local a,b=ring[v],ring[v%#ring+1]
                     table.insert(ring,v+1,{x=(a.x+b.x)/2,y=(a.y+b.y)/2}); retriangulate(p)
@@ -410,9 +473,12 @@ local function worldInput()
     local hovered=tImGui.IsAnyWindowHovered()
     if E.zoomRequest then
         if not hovered then
-            local factor=math.max(0.1,math.min(10,E.camera.sx*(1-E.zoomRequest*0.1)))
-            E.camera.sx=factor
-            E.camera.sy=factor
+            local factor=math.max(0.1,math.min(10,E.camera.sx*1.1^E.zoomRequest))
+            local width,height=mbm.getRealSizeScreen()
+            local x,y=E.camera.x,E.camera.y
+            -- sx/sy alone are overwritten by adjustScaleScreen2d next frame.
+            E.camera:scaleToScreen(width/factor,height/factor,'xy')
+            E.camera:setPos(x,y)
         end
         E.zoomRequest=nil
     end
@@ -456,20 +522,21 @@ local function worldInput()
         E.pan={x=mouse.x,y=mouse.y,cx=E.camera.x,cy=E.camera.y}
     end
     if E.pan and tImGui.IsMouseDown(2) then
-        E.camera:setPos(E.pan.cx+(E.pan.x-mouse.x)*E.camera.sx,E.pan.cy+(mouse.y-E.pan.y)*E.camera.sy)
+        E.camera:setPos(E.pan.cx+(E.pan.x-mouse.x)/E.camera.sx,E.pan.cy+(mouse.y-E.pan.y)/E.camera.sy)
     else E.pan=nil end
 end
 local function timeline()
     tUtil.setInitialWindowPositionDown(E.titles.timeline,340,0.27,310)
     local opened=tImGui.Begin(E.titles.timeline,true,E.flags)
     if opened then
-        if tImGui.Selectable(L('setup'),E.mode=='setup') then E.mode='setup'; E.playing=false; E.poseDirty=true end
+        if widget('Selectable','setup',E.mode=='setup') then E.mode='setup'; E.playing=false; E.poseDirty=true end
         tImGui.SameLine()
-        if tImGui.Selectable(L('animate'),E.mode=='animate') then E.mode='animate'; E.poseDirty=true end
+        if widget('Selectable','animate',E.mode=='animate') then E.mode='animate'; E.poseDirty=true end
         check('auto_key',E.project.options,'autoKey')
         if check('onion',E.project.options,'onion') then E.dirty=true end
         for i,clip in ipairs(E.project.clips) do
             if tImGui.Selectable(clip.name..'##clip'..i,E.clip==i) then E.clip=i; E.time=0; E.poseDirty=true end
+            tooltip('select_clip')
         end
         button('add_clip',function() action(function()
             E.project.clips[#E.project.clips+1]={name=L('clip')..' '..(#E.project.clips+1),duration=1,speed=1,priority=0,loop=true,blend=0,tracks={}}
@@ -481,17 +548,17 @@ local function timeline()
                 table.remove(E.project.clips,E.clip); E.clip=1; E.time=0; E.playing=false
             end) end)
             if E.project.clips[E.clip]~=clip then tImGui.End(); return end
-            local changed,name=tImGui.InputText(L('clip_name'),clip.name)
+            local changed,name=widget('InputText','clip_name',clip.name)
             if changed then clip.name=name; commit() end
             if field('duration',clip,'duration',0.05,0.01,3600) then commit() end
             if field('speed',clip,'speed',0.05,0.01,100) then commit() end
-            local priorityChanged,priority=tImGui.SliderInt(L('priority'),clip.priority or 0,-20,20)
+            local priorityChanged,priority=widget('SliderInt','priority',clip.priority or 0,-20,20)
             if priorityChanged then clip.priority=priority; commit() end
             local wasAdditive=clip.blend==1
-            local additive=tImGui.Checkbox(L('additive'),wasAdditive)
+            local additive=widget('Checkbox','additive',wasAdditive)
             if additive~=wasAdditive then clip.blend=additive and 1 or 0; commit() end
             if check('loop',clip,'loop') then commit() end
-            local moved,time=tImGui.SliderFloat(L('time'),E.time,0,clip.duration)
+            local moved,time=widget('SliderFloat','time',E.time,0,clip.duration)
             if moved then E.time=time; E.poseDirty=true; if E.transient then E.transient=false; E.dirty=true end end
             button(E.playing and 'pause' or 'play',function() E.playing=not E.playing; E.mode='animate'; E.poseDirty=true end)
             if selected() then
@@ -503,7 +570,7 @@ local function timeline()
                     if E.project.options.autoKey then record()
                     else E.transient=true; E.dirty=true end
                 end
-                local easingChanged,easing=tImGui.SliderInt(L('easing'),E.pose.easing or 0,0,5)
+                local easingChanged,easing=widget('SliderInt','easing',E.pose.easing or 0,0,5)
                 if easingChanged then E.pose.easing=easing end
                 tImGui.Text(L('easing_help'))
                 if E.pose.easing==5 then
@@ -531,6 +598,7 @@ local function timeline()
                                 E.pose.angle=k.euler and k.euler[3] or k.angle or (k.q and 2*math.atan(k.q[3],k.q[4])*180/math.pi) or 0
                                 E.pose.q=nil; E.pose.euler=nil; E.poseDirty=true
                             end
+                            tooltip('select_key')
                         end
                         button('delete_key',function() action(function()
                             for ki=#track.keys,1,-1 do if math.abs(track.keys[ki].time-E.time)<0.0001 then table.remove(track.keys,ki) end end
@@ -546,7 +614,7 @@ end
 function onInitScene()
     E.camera=mbm.getCamera('2d')
     E.noMoveFlag=tImGui.Flags('ImGuiWindowFlags_NoMove'); E.flags=E.noMoveFlag
-    E.titles={source=L('source_title'),parts=L('parts_title'),timeline=L('timeline_title')}
+    refreshTitles()
     E.history=Model.history(E.project)
     E.pivotMarker=line:new('2dw',0,0,-1)
     E.pivotMarker:add({-8,0,8,0}); E.pivotMarker:add({0,-8,0,8}); E.pivotMarker:setColor(1,0.8,0)
@@ -564,7 +632,7 @@ function onLoop(delta)
     E.frame=math.max(1,math.min(E.frame,#E.project.frames))
     E.clip=math.max(1,math.min(E.clip,#E.project.clips))
     E.mouseDown=tImGui.IsMouseDown(0)
-    menu(); sourcePanel(); properties(); timeline(); worldInput()
+    menu(); sourcePanel(); properties(); timeline(); sourceCanvas(); worldInput()
     if E.pendingHistory and not tImGui.IsMouseDown(0) then
         E.pendingHistory=false; Model.commit(E.history,E.project)
     end
@@ -617,7 +685,7 @@ function onTouchMove(key,x,y)
 end
 function onTouchUp(key,x,y) E.pendingTouch=false; E.mouse=nil end
 function onTouchZoom(zoom)
-    E.zoomRequest=zoom
+    E.zoomRequest=(E.zoomRequest or 0)+zoom
 end
 function onKeyDown(key)
     if key==mbm.getKeyCode('control') then E.control=true end
@@ -637,4 +705,5 @@ if type(testApi)=='table' then
     testApi.loadProject=loadProject
     testApi.worldInput=worldInput
     testApi.check=check
+    testApi.refreshTitles=refreshTitles
 end

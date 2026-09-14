@@ -91,9 +91,13 @@ function onInitScene()
     print('ARTICULATED SPRITE ROUNDTRIP OK')
 end
 local zoomCase=1
+local expectedZoom
 local zoomCases={
     {delta=1,hovered=false},
+    {delta=1,hovered=false},
     {delta=-1,hovered=false},
+    {delta=-1,hovered=false},
+    {delta=0,hovered=false},
     {delta=100,hovered=false},
     {delta=-1000,hovered=false},
     {delta=1,hovered=true},
@@ -135,6 +139,9 @@ function onLoop(delta)
         testCheckboxTransitions()
         checkboxTested=true
     end
+    if expectedZoom then
+        assert(math.abs(editor.state.camera.sx-expectedZoom)<0.0001,'zoom reset between engine frames')
+    end
     local case=zoomCases[zoomCase]
     if case then
         -- Keep the real camera binding and scroll callback; control only whether
@@ -147,17 +154,25 @@ function onLoop(delta)
         local ok,err=pcall(editor.worldInput)
         tImGui.IsAnyWindowHovered=hovered
         assert(ok,err)
-        local expected=case.hovered and before or math.max(0.1,math.min(10,before*(1-case.delta*0.1)))
+        local expected=case.hovered and before or math.max(0.1,math.min(10,before*1.1^case.delta))
         assert(math.abs(camera.sx-expected)<0.0001,'unexpected camera zoom X')
         assert(math.abs(camera.sy-expected)<0.0001,'unexpected camera zoom Y')
         assert(editor.state.zoomRequest==nil,'scroll request was not consumed')
+        expectedZoom=expected
         zoomCase=zoomCase+1
         if zoomCase>#zoomCases then
-            camera.sx=1; camera.sy=1
+            local width,height=mbm.getRealSizeScreen()
+            camera:scaleToScreen(width,height,'xy')
+            expectedZoom=1
             print('ARTICULATED SPRITE ZOOM OK')
         end
     end
     local preview=editor.state.preview
+    local language=mbm.getTimeRun()-start<2 and 'pt_br' or 'en'
+    if tLang.current~=language then
+        tLang.setLanguage(language); editor.refreshTitles()
+    end
+    assert(editor.state.titles.canvas==tLang.L('ase_canvas_title')..'###ase_canvas')
     loop(delta)
     -- Real ImGui controls must leave idle values and preview resources unchanged.
     local E=editor.state
