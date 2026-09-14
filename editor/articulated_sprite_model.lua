@@ -51,6 +51,16 @@ function M.addPart(project,frame,image,rings,vertices,indices,recipe)
     table.insert(project.frames[frame].parts,p)
     return p
 end
+function M.rotatePart(p,angle)
+    -- The stored position is the geometry center. Rotate that center around
+    -- the chosen world-space pivot as well as rotating the geometry itself.
+    local delta=(angle-p.angle)*math.pi/180
+    local c,s=math.cos(delta),math.sin(delta)
+    local x,y=p.x-p.pivot.x,p.y-p.pivot.y
+    p.x=p.pivot.x+x*c-y*s
+    p.y=p.pivot.y+x*s+y*c
+    p.angle=angle
+end
 function M.vertex(p,v,image)
     local a=p.angle*math.pi/180
     local x,y=(v.x-p.origin.x)*p.sx,(v.y-p.origin.y)*p.sy

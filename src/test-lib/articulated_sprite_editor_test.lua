@@ -59,6 +59,31 @@ local project=M.new(); project.images={{path='fixture.png',width=10,height=10}}
 v,ix=G.triangulate(rings,2)
 local p=M.addPart(project,1,1,rings,v,ix,{kind='rectangle'})
 p.x=12; p.pivot.x=15
+-- An endpoint pivot stays fixed through setup rotation, including after moving
+-- the pivot on an already rotated part. Moving only the pivot leaves geometry intact.
+do
+    for _,imported in ipairs({false,true}) do
+        local part=M.copy(p)
+        part.imported=imported
+        part.sx=1.5; part.sy=0.75
+        local image=project.images[1]
+        local endpoint=part.vertices[1]
+        local before=M.vertex(part,endpoint,image)
+        part.pivot.x,part.pivot.y=before.x,before.y
+        M.rotatePart(part,90)
+        local after=M.vertex(part,endpoint,image)
+        near(after.x,before.x); near(after.y,before.y)
+        local other=part.vertices[2]
+        local otherBefore=M.vertex(part,other,image)
+        part.pivot.x,part.pivot.y=otherBefore.x,otherBefore.y
+        local unchanged=M.vertex(part,other,image)
+        near(unchanged.x,otherBefore.x); near(unchanged.y,otherBefore.y)
+        M.rotatePart(part,-45)
+        local otherAfter=M.vertex(part,other,image)
+        near(otherAfter.x,otherBefore.x); near(otherAfter.y,otherBefore.y)
+        near(part.pivot.x,otherBefore.x); near(part.pivot.y,otherBefore.y)
+    end
+end
 local child=M.duplicate(project,1,p.id,false)
 M.reparent(project,1,child.id,p.id)
 assert(child.x==12 and child.pivot.x==15)

@@ -434,12 +434,17 @@ local function properties()
             button('delete',function() action(function() Model.remove(E.project,E.frame,p.id,false); E.selected=0 end) end)
             button('delete_hierarchy',function() action(function() Model.remove(E.project,E.frame,p.id,true); E.selected=0 end) end)
             if E.mode=='setup' then
-                local oldX,oldY=p.x,p.y
+                local oldX,oldY,oldAngle=p.x,p.y,p.angle
                 local modified=false
                 for _,entry in ipairs({{'x','x'},{'y','y'},{'z','z'},{'rotation','angle'},{'scale_x','sx'},{'scale_y','sy'}}) do
                     if field(entry[1],p,entry[2],0.1) then modified=true end
                 end
                 p.pivot.x=p.pivot.x+p.x-oldX; p.pivot.y=p.pivot.y+p.y-oldY
+                if p.angle~=oldAngle then
+                    local angle=p.angle
+                    p.angle=oldAngle
+                    Model.rotatePart(p,angle)
+                end
                 check('move_pivot',E,'movePivot')
                 if field('pivot_x',p.pivot,'x',0.1) then modified=true end
                 if field('pivot_y',p.pivot,'y',0.1) then modified=true end
