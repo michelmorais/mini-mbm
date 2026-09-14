@@ -213,6 +213,39 @@ local function retriangulate(p)
     local vertices,indices=G.triangulate(p.rings,p.recipe.budget or E.budget)
     p.vertices=vertices; p.indices=indices; p.manual=true
 end
+local function finishContourDrag(cancel)
+    local d=E.contourDrag
+    E.contourDrag=nil; E.dragPoint=false
+    if not d then return end
+    local point=d.part.rings[d.contour][d.point]
+    if point.x==d.x and point.y==d.y then return end
+    if cancel then
+        point.x,point.y=d.x,d.y
+        return
+    end
+    local ok=dpCall(retriangulate,d.part)
+    if ok then commit() else point.x,point.y=d.x,d.y end
+end
+local function startContourDrag(p,contour,point,x,y)
+    finishContourDrag(true)
+    local v=p.rings[contour][point]
+    E.contourDrag={part=p,contour=contour,point=point,x=v.x,y=v.y,mouseX=x,mouseY=y}
+    E.dragPoint=true
+end
+local function moveContourPoint(x,y,scale)
+    local d=E.contourDrag
+    if not d then return end
+    local dx,dy=x-d.mouseX,y-d.mouseY
+    -- A click selects a point. Small mouse jitter must not edit geometry.
+    if not d.moved and (dx*dx+dy*dy)*scale*scale<4 then return end
+    d.moved=true
+    local point=d.part.rings[d.contour][d.point]
+    point.x,point.y=d.x+dx,d.y+dy
+end
+local function closeContourEditor()
+    finishContourDrag(true)
+    E.editContour=false; E.selectionStart=nil
+end
 local function record()
     E.transient=false
     action(function() Model.key(E.project,E.clip,E.selected,E.time,E.pose) end)
@@ -286,7 +319,8 @@ local function sourcePanel()
     tImGui.End()
 end
 local function sourceCanvas()
-    if not E.project.options.showSource then return end
+    if not E.project.options.showSource then closeContourEditor(); return end
+    if not E.editContour then finishContourDrag(true) end
     local width,height=mbm.getRealSizeScreen()
     local first=tImGui.Flags('ImGuiCond_FirstUseEver')
     -- Reference layout from imgui.ini at 1920 x 1020: (225,23), 1383 x 775.
@@ -296,7 +330,10 @@ local function sourceCanvas()
     tImGui.SetNextWindowSizeConstraints({x=math.min(520,width),y=math.min(320,height)},{x=width,y=height})
     tImGui.SetNextWindowBgAlpha(1)
     local opened,closed=tImGui.Begin(E.titles.canvas,true,E.flags)
-    if closed then E.project.options.showSource=false end
+    if closed then
+        E.project.options.showSource=false; closeContourEditor()
+        tImGui.End(); return
+    end
     if opened then
         local img=E.project.images[E.image]
         if img then
@@ -316,9 +353,9 @@ local function sourceCanvas()
                         local distance=64/(scale*scale)
                         for i,v in ipairs(ring) do
                             local d=(v.x-x)^2+(v.y-y)^2
-                            if d<distance then E.point=i; distance=d; E.dragPoint=true end
+                            if d<distance then E.point=i; distance=d end
                         end
-                        if E.dragPoint then E.beforeDrag=Model.copy(E.project) end
+                        if distance<64/(scale*scale) then startContourDrag(p,E.contour,E.point,x,y) end
                     end
                 else E.selectionStart={x=x,y=y} end
             end
@@ -328,16 +365,11 @@ local function sourceCanvas()
                 E.rect={x=math.min(a.x,x),y=math.min(a.y,y),w=math.max(1,math.abs(x-a.x)),h=math.max(1,math.abs(y-a.y))}
             end
             if E.dragPoint and tImGui.IsMouseDown(0) then
-                local p=selected(); p.rings[E.contour][E.point]={x=x,y=y}
+                moveContourPoint(x,y,scale)
             end
             if tImGui.IsMouseReleased(0) then
                 E.selectionStart=nil
-                if E.dragPoint then
-                    E.dragPoint=false
-                    local ok=dpCall(retriangulate,selected())
-                    if ok then commit() else E.project=E.beforeDrag end
-                    E.beforeDrag=nil
-                end
+                finishContourDrag(false)
             end
             local r=E.rect
             tImGui.AddRect({x=origin.x+r.x*scale,y=origin.y+r.y*scale},
@@ -780,4 +812,7 @@ if type(testApi)=='table' then
     testApi.worldInput=worldInput
     testApi.check=check
     testApi.refreshTitles=refreshTitles
+    testApi.startContourDrag=startContourDrag
+    testApi.moveContourPoint=moveContourPoint
+    testApi.finishContourDrag=finishContourDrag
 end
