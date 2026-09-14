@@ -1311,6 +1311,29 @@ tImGui.Image(textureName, {x=w, y=h}?, {x=u0, y=v0}?, {x=u1, y=v1}?, bgColor?, t
 local pressed = tImGui.ImageButton("id", textureName, {x=w, y=h}?, {x=u0, y=v0}?, {x=u1, y=v1}?, bgColor?, tintColor?, flipV?)
 ```
 
+### Cached geometry overlays
+
+```lua
+-- Call during onLoop, while an ImGui frame is active.
+local batch = tImGui.CreateGeometryBatch(function()
+    tImGui.AddLine({x=10,y=20}, {x=100,y=20}, {r=0,g=1,b=0,a=1}, 2)
+    tImGui.AddCircleFilled({x=10,y=20}, 4, {r=1,g=1,b=1,a=1}, 12)
+end)
+-- Subsequent frames: append cached indexed geometry to the current draw list.
+tImGui.AddGeometryBatch(batch)
+```
+
+`CreateGeometryBatch(callback)` runs the callback once and returns an opaque Lua
+userdata holding CPU-side tessellated geometry. Use only untextured `Add*` drawing
+primitives in the callback; no widgets, text, images, clip changes, or nested
+batch creation. Callback errors propagate after restoring the drawing target.
+`AddGeometryBatch(batch)` uses the current draw-list clipping and the current
+atlas white pixel, without rerunning the callback or tessellating shapes.
+Recreate the batch when positions, sizes, colors, or geometry change. Coordinates
+are absolute window pixels. Lua GC releases the batch; it owns no GPU resources.
+The renderer's usual index/vertex limits still apply (including the 16-bit
+per-draw-list vertex limit on backends without vertex-offset support).
+
 ### Utility
 
 ```lua

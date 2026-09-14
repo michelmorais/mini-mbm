@@ -511,9 +511,12 @@ static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
 static int PLUGIN_IDENTIFIER = 1; //this value is auto set by this module. It is set in the metatable to make sure that we can convert the userdata to ** IMGUI_LUA
 static bool bDrawListToBackground = false;
 static bool bDrawListToForeground = false;
+static ImDrawList *geometryBatchTarget = nullptr;
 
 ImDrawList* GetImDrawListLua()
 {
+    if (geometryBatchTarget)
+        return geometryBatchTarget;
     if(bDrawListToForeground)
         return ImGui::GetForegroundDrawList();
     if(bDrawListToForeground)
@@ -6785,6 +6788,123 @@ int onAddTextImDrawListLua(lua_State *lua)
     return 0;
 }
     
+// Geometry-only batches retain tessellated triangles, never GPU resources or
+// pointers into an ImGui context. Lua GC owns their lifetime.
+struct IMGUI_GEOMETRY_CHUNK
+{
+    std::vector<ImDrawVert> vertices;
+    std::vector<ImDrawIdx> indices;
+};
+struct IMGUI_GEOMETRY_BATCH
+{
+    std::vector<IMGUI_GEOMETRY_CHUNK> chunks;
+};
+
+static int onDestroyGeometryBatchLua(lua_State *lua)
+{
+    auto **batch = static_cast<IMGUI_GEOMETRY_BATCH **>(luaL_checkudata(lua, 1, "ImGui.GeometryBatch"));
+    delete *batch;
+    *batch = nullptr;
+    return 0;
+}
+
+static int onCreateGeometryBatchLua(lua_State *lua)
+{
+    luaL_checktype(lua, 1, LUA_TFUNCTION);
+    if (geometryBatchTarget)
+        return luaL_error(lua, "Geometry batches cannot be nested");
+    auto **handle = static_cast<IMGUI_GEOMETRY_BATCH **>(lua_newuserdata(lua, sizeof(IMGUI_GEOMETRY_BATCH *)));
+    *handle = nullptr;
+    if (luaL_newmetatable(lua, "ImGui.GeometryBatch"))
+    {
+        lua_pushcfunction(lua, onDestroyGeometryBatchLua);
+        lua_setfield(lua, -2, "__gc");
+    }
+    lua_setmetatable(lua, -2);
+    *handle = new IMGUI_GEOMETRY_BATCH();
+    int status = LUA_OK;
+    bool unsupported = false;
+    {
+        ImDrawList drawing(ImGui::GetDrawListSharedData());
+        drawing._ResetForNewFrame();
+        // Only untextured shapes: every UV can be rebound to the current white
+        // pixel on replay, including after an atlas/device recreation.
+        drawing.Flags &= ~ImDrawListFlags_AntiAliasedLinesUseTex;
+        drawing.PushTexture(ImGui::GetIO().Fonts->TexRef);
+        drawing.PushClipRectFullScreen();
+        geometryBatchTarget = &drawing;
+        lua_pushvalue(lua, 1);
+        status = lua_pcall(lua, 0, 0, 0);
+        geometryBatchTarget = nullptr;
+        if (status == LUA_OK)
+        {
+            const ImVec2 white = ImGui::GetFontTexUvWhitePixel();
+            for (const ImDrawVert &v : drawing.VtxBuffer)
+                unsupported = unsupported || v.uv.x != white.x || v.uv.y != white.y;
+            for (const ImDrawCmd &cmd : drawing.CmdBuffer)
+            {
+                unsupported = unsupported || cmd.UserCallback != nullptr;
+                if (unsupported || cmd.ElemCount == 0)
+                    continue;
+                IMGUI_GEOMETRY_CHUNK chunk;
+                unsigned int maxIndex = 0;
+                chunk.indices.reserve(cmd.ElemCount);
+                for (unsigned int i = 0; i < cmd.ElemCount; ++i)
+                {
+                    const ImDrawIdx index = drawing.IdxBuffer[cmd.IdxOffset + i];
+                    chunk.indices.push_back(index);
+                    maxIndex = std::max(maxIndex, static_cast<unsigned int>(index));
+                }
+                chunk.vertices.assign(drawing.VtxBuffer.Data + cmd.VtxOffset,
+                                      drawing.VtxBuffer.Data + cmd.VtxOffset + maxIndex + 1);
+                (*handle)->chunks.push_back(std::move(chunk));
+            }
+        }
+    }
+    if (status != LUA_OK)
+        return lua_error(lua); // callback error is on top; C++ locals are gone
+    if (unsupported)
+        return luaL_error(lua, "Geometry batches accept untextured shapes only");
+    return 1;
+}
+
+static int onAddGeometryBatchLua(lua_State *lua)
+{
+    auto **handle = static_cast<IMGUI_GEOMETRY_BATCH **>(luaL_checkudata(lua, 1, "ImGui.GeometryBatch"));
+    if (!*handle)
+        return luaL_error(lua, "Released geometry batch");
+    ImDrawList *drawing = GetImDrawListLua();
+    size_t totalVertices = drawing->_VtxCurrentIdx;
+    for (const auto &chunk : (*handle)->chunks)
+        totalVertices += chunk.vertices.size();
+    if (!(drawing->Flags & ImDrawListFlags_AllowVtxOffset) &&
+        sizeof(ImDrawIdx) == 2 && totalVertices >= 65536)
+        return luaL_error(lua, "Geometry batch exceeds this renderer's 16-bit vertex limit");
+    const ImVec2 white = ImGui::GetFontTexUvWhitePixel();
+    drawing->PushTexture(ImGui::GetIO().Fonts->TexRef);
+    for (const auto &chunk : (*handle)->chunks)
+    {
+        drawing->PrimReserve(static_cast<int>(chunk.indices.size()), static_cast<int>(chunk.vertices.size()));
+        const unsigned int base = drawing->_VtxCurrentIdx;
+        const ImDrawIdx *indices = chunk.indices.data();
+        const size_t indexCount = chunk.indices.size();
+        for (size_t i = 0; i < indexCount; ++i)
+            drawing->_IdxWritePtr[i] = static_cast<ImDrawIdx>(base + indices[i]);
+        drawing->_IdxWritePtr += indexCount;
+        const size_t vertexCount = chunk.vertices.size();
+        memcpy(drawing->_VtxWritePtr, chunk.vertices.data(), vertexCount * sizeof(ImDrawVert));
+        if (vertexCount && (chunk.vertices[0].uv.x != white.x || chunk.vertices[0].uv.y != white.y))
+        {
+            for (size_t i = 0; i < vertexCount; ++i)
+                drawing->_VtxWritePtr[i].uv = white;
+        }
+        drawing->_VtxWritePtr += vertexCount;
+        drawing->_VtxCurrentIdx += static_cast<unsigned int>(vertexCount);
+    }
+    drawing->PopTexture();
+    return 0;
+}
+
 int onAddPolylineImDrawListLua(lua_State *lua)
 {
     std::vector<ImVec2> points;
@@ -7222,6 +7342,8 @@ int onNewimguiLua(lua_State *lua)
         {"AddLine",                                   onAddLineImDrawListLua },
         {"AddNgon",                                   onAddNgonImDrawListLua },
         {"AddNgonFilled",                       onAddNgonFilledImDrawListLua }, // Not Tested, ImDrawList
+        {"CreateGeometryBatch", onCreateGeometryBatchLua },
+        {"AddGeometryBatch", onAddGeometryBatchLua },
         {"AddPolyline",                           onAddPolylineImDrawListLua }, // Not Tested, ImDrawList
         {"AddQuad",                                   onAddQuadImDrawListLua }, // Not Tested, ImDrawList
         {"AddQuadFilled",                       onAddQuadFilledImDrawListLua }, // Not Tested, ImDrawList

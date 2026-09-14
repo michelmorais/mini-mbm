@@ -65,6 +65,7 @@ local function refreshTitles()
 end
 local function selected() return Model.part(E.project,E.frame,E.selected) end
 local function commit()
+    E.geometryRevision=(E.geometryRevision or 0)+1
     if E.mouseDown then E.pendingHistory=true
     else Model.commit(E.history,E.project) end
     E.dirty=true; E.changed=true
@@ -220,11 +221,15 @@ local function finishContourDrag(cancel)
     local point=d.part.rings[d.contour][d.point]
     if point.x==d.x and point.y==d.y then return end
     if cancel then
+        E.geometryRevision=(E.geometryRevision or 0)+1
         point.x,point.y=d.x,d.y
         return
     end
     local ok=dpCall(retriangulate,d.part)
-    if ok then commit() else point.x,point.y=d.x,d.y end
+    if ok then commit() else
+        point.x,point.y=d.x,d.y
+        E.geometryRevision=(E.geometryRevision or 0)+1
+    end
 end
 local function startContourDrag(p,contour,point,x,y)
     finishContourDrag(true)
@@ -240,11 +245,15 @@ local function moveContourPoint(x,y,scale)
     if not d.moved and (dx*dx+dy*dy)*scale*scale<4 then return end
     d.moved=true
     local point=d.part.rings[d.contour][d.point]
-    point.x,point.y=d.x+dx,d.y+dy
+    local x,y=d.x+dx,d.y+dy
+    if point.x~=x or point.y~=y then
+        point.x,point.y=x,y
+        E.geometryRevision=(E.geometryRevision or 0)+1
+    end
 end
 local function closeContourEditor()
     finishContourDrag(true)
-    E.editContour=false; E.selectionStart=nil
+    E.editContour=false; E.selectionStart=nil; E.overlayCache=nil
 end
 local function record()
     E.transient=false
@@ -379,38 +388,52 @@ local function sourceCanvas()
                 local function screen(v)
                     return {x=origin.x+v.x*scale,y=origin.y+v.y*scale}
                 end
-                -- Interior triangle edges reveal the actual subset topology.
-                -- While dragging, triangles still belong to the last committed
-                -- geometry; show only the live contour until retriangulation.
-                if E.editContour and not E.dragPoint and not p.imported then
-                    for j=1,#p.indices,3 do
-                        for k=0,2 do
-                            local a=p.vertices[p.indices[j+k]]
-                            local b=p.vertices[p.indices[j+(k+1)%3]]
-                            tImGui.AddLine(screen(a),screen(b),{r=0,g=0.8,b=1,a=0.65},1)
-                        end
-                    end
-                end
-                for ri,ring in ipairs(p.rings) do
-                    for i,a in ipairs(ring) do
-                        local b=ring[i%#ring+1]
-                        local from,to=screen(a),screen(b)
-                        -- A dark outline keeps edges readable on light artwork.
-                        tImGui.AddLine(from,to,{r=0,g=0,b=0,a=1},5)
-                        tImGui.AddLine(from,to,{r=0,g=1,b=0.5,a=1},2)
-                    end
-                end
-                if E.editContour then
-                    for ri,ring in ipairs(p.rings) do
-                        for i,v in ipairs(ring) do
-                            local point=screen(v)
-                            local active=ri==E.contour and i==E.point
-                            if not active then
-                                tImGui.AddCircleFilled(point,4,{r=0,g=0,b=0,a=1},12)
-                                tImGui.AddCircleFilled(point,2,{r=1,g=1,b=1,a=1},12)
+                local dragging=E.contourDrag and E.contourDrag.moved or false
+                local cache=E.overlayCache
+                if not cache or cache.part~=p or cache.vertices~=p.vertices or
+                    cache.indices~=p.indices or cache.revision~=E.geometryRevision or
+                    cache.x~=origin.x or cache.y~=origin.y or cache.scale~=scale or
+                    cache.edit~=E.editContour or cache.drag~=dragging then
+                    cache={part=p,vertices=p.vertices,indices=p.indices,revision=E.geometryRevision,
+                        x=origin.x,y=origin.y,scale=scale,edit=E.editContour,drag=dragging}
+                    cache.batch=tImGui.CreateGeometryBatch(function()
+                        -- Tessellate the overlay once per geometry/view change.
+                        if E.editContour and not dragging and not p.imported then
+                            local edges={}
+                            for j=1,#p.indices,3 do
+                                for k=0,2 do
+                                    local a,b=p.indices[j+k],p.indices[j+(k+1)%3]
+                                    if a>b then a,b=b,a end
+                                    local key=a..':'..b
+                                    if not edges[key] then
+                                        edges[key]=true
+                                        tImGui.AddLine(screen(p.vertices[a]),screen(p.vertices[b]),{r=0,g=0.8,b=1,a=0.65},1)
+                                    end
+                                end
                             end
                         end
-                    end
+                        for _,ring in ipairs(p.rings) do
+                            for i,a in ipairs(ring) do
+                                local b=ring[i%#ring+1]
+                                local from,to=screen(a),screen(b)
+                                tImGui.AddLine(from,to,{r=0,g=0,b=0,a=1},5)
+                                tImGui.AddLine(from,to,{r=0,g=1,b=0.5,a=1},2)
+                            end
+                        end
+                        if E.editContour then
+                            for _,ring in ipairs(p.rings) do
+                                for _,v in ipairs(ring) do
+                                    local point=screen(v)
+                                    tImGui.AddCircleFilled(point,4,{r=0,g=0,b=0,a=1},12)
+                                    tImGui.AddCircleFilled(point,2,{r=1,g=1,b=1,a=1},12)
+                                end
+                            end
+                        end
+                    end)
+                    E.overlayCache=cache
+                end
+                tImGui.AddGeometryBatch(cache.batch)
+                if E.editContour then
                     local ring=p.rings[E.contour]
                     local active=ring and ring[E.point]
                     if active then
