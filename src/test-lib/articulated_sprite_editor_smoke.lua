@@ -149,10 +149,14 @@ function onLoop(delta)
         local camera=editor.state.camera
         local before=camera.sx
         local hovered=tImGui.IsAnyWindowHovered
+        local active,capture=tImGui.IsAnyItemActive,tImGui.GetWantCaptureMouse
         tImGui.IsAnyWindowHovered=function() return case.hovered end
+        tImGui.IsAnyItemActive=function() return false end
+        tImGui.GetWantCaptureMouse=function() return false end
         onTouchZoom(case.delta)
         local ok,err=pcall(editor.worldInput)
         tImGui.IsAnyWindowHovered=hovered
+        tImGui.IsAnyItemActive,tImGui.GetWantCaptureMouse=active,capture
         assert(ok,err)
         local expected=case.hovered and before or math.max(0.1,math.min(10,before*1.1^case.delta))
         assert(math.abs(camera.sx-expected)<0.0001,'unexpected camera zoom X')

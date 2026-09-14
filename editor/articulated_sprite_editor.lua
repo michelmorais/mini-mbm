@@ -38,6 +38,7 @@ local function dpCall(fn,...)
     if not result[1] then
         print('[articulated_sprite_editor] '..tostring(result[2]))
         E.status=tostring(result[2])
+        tUtil.showMessageWarn(E.status,8)
     end
     return table.unpack(result,1,result.n)
 end
@@ -74,6 +75,7 @@ local function action(fn)
     local before=Model.copy(E.project)
     local ok=dpCall(fn)
     if ok then commit() else E.project=before end
+    return ok
 end
 local function button(key,fn)
     if widget('Button',key) then dpCall(fn) end
@@ -125,34 +127,50 @@ local function applyPose()
 end
 local function rebuild()
     E.dirty=false
-    if #E.project.frames[E.frame].parts==0 then destroyPreview(); return end
+    if #E.project.frames[E.frame].parts==0 then destroyPreview(); return true end
     local path=os.tmpname()
     os.remove(path); path=path..'.spt'
     local renderProject=E.project
-    E.previewFrame=E.frame
+    local previewFrame=E.frame
     for fi=#E.project.frames,1,-1 do
         if #E.project.frames[fi].parts==0 then
             if renderProject==E.project then renderProject=Model.copy(E.project) end
             table.remove(renderProject.frames,fi)
-            if fi<E.frame then E.previewFrame=E.previewFrame-1 end
+            if fi<E.frame then previewFrame=previewFrame-1 end
         end
     end
     if E.transient and E.mode=='animate' and selected() and E.project.clips[E.clip] then
         renderProject=Model.copy(renderProject)
         Model.key(renderProject,E.clip,E.selected,E.time,E.pose)
     end
-    local ok=dpCall(IO.export,renderProject,path)
-    if not ok then os.remove(path); return end
-    local obj=sprite:new('2dw')
-    if not obj:loadEditorPreview(path) then obj:destroy(); os.remove(path); error('preview_load_failed') end
-    destroyPreview(); E.preview=obj; E.previewPath=path
-    for i=1,(E.project.options.onion and 2 or 0) do
-        local ghost=sprite:new('2dw')
-        assert(ghost:loadEditorPreview(path),'ghost_load_failed')
-        ghost:setColor(i==1 and 0.3 or 0.9,0.5,i==1 and 0.9 or 0.3,0.18)
-        ghost.visible=false; E.ghosts[i]=ghost
+    local obj,ghosts=nil,{}
+    local previous,previousGhosts,previousPath,previousFrame=E.preview,E.ghosts,E.previewPath,E.previewFrame
+    local ok=dpCall(function()
+        IO.export(renderProject,path)
+        obj=sprite:new('2dw')
+        assert(obj:loadEditorPreview(path),'preview_load_failed')
+        for i=1,(E.project.options.onion and 2 or 0) do
+            local ghost=sprite:new('2dw')
+            ghosts[i]=ghost
+            assert(ghost:loadEditorPreview(path),'ghost_load_failed')
+            ghost:setColor(i==1 and 0.3 or 0.9,0.5,i==1 and 0.9 or 0.3,0.18)
+            ghost.visible=false
+        end
+        E.preview,E.ghosts,E.previewPath,E.previewFrame=obj,ghosts,path,previewFrame
+        applyPose()
+    end)
+    if not ok then
+        E.preview,E.ghosts,E.previewPath,E.previewFrame=previous,previousGhosts,previousPath,previousFrame
+        if obj then obj:loadEditorPreview(nil); obj:destroy() end
+        for _,ghost in ipairs(ghosts) do ghost:loadEditorPreview(nil); ghost:destroy() end
+        os.remove(path)
+        return false
     end
-    applyPose()
+    -- Release the previous version only after every new resource and pose is ready.
+    if previous then previous:loadEditorPreview(nil); previous:destroy() end
+    for _,ghost in ipairs(previousGhosts) do ghost:loadEditorPreview(nil); ghost:destroy() end
+    if previousPath then os.remove(previousPath) end
+    return true
 end
 local function loadProject(project,path)
     destroyPreview()
@@ -171,43 +189,6 @@ local function addImage(path)
         E.project.options.showSource=true
     end)
     E.rect={x=0,y=0,w=info:getWidth(),h=info:getHeight()}
-end
-local function generate(replace)
-    local img=assert(E.project.images[E.image],'missing_image')
-    local alphaMode=E.kind=='alpha' or E.useAlpha
-    local rings=G.form(E.kind,E.rect,alphaMode and 64 or E.budget,E.form)
-    if alphaMode then
-        if not E.alpha[img.path] then
-            local bytes,w,h=mbm.readPngAlpha(img.path)
-            assert(bytes,w); assert(w==img.width and h==img.height,'alpha_dimensions_mismatch')
-            E.alpha[img.path]=bytes
-        end
-        rings=G.alphaContours(E.alpha[img.path],img.width,img.height,E.rect,rings,E.threshold,
-            E.project.options.preserveHoles)
-    end
-    rings=G.simplify(rings,E.tolerance or 0)
-    local groups=(not replace and E.project.options.splitRegions) and G.components(rings) or {rings}
-    local generated={}
-    for _,group in ipairs(groups) do
-        local vertices,indices=G.triangulate(group,alphaMode and 2 or E.budget)
-        generated[#generated+1]={rings=group,vertices=vertices,indices=indices}
-    end
-    action(function()
-        for _,g in ipairs(generated) do
-            local recipe={kind=E.kind,rect=Model.copy(E.rect),budget=E.budget,form=Model.copy(E.form),
-                alpha=E.useAlpha,threshold=E.threshold}
-            if replace then
-                local p=assert(selected(),'missing_part')
-                assert(not p.imported,'imported_regenerate_requires_source_mapping')
-                p.rings=g.rings; p.componentCount=#G.components(g.rings); p.vertices=g.vertices; p.indices=g.indices; p.recipe=recipe; p.image=E.image
-            else
-                local p=Model.addPart(E.project,E.frame,E.image,g.rings,g.vertices,g.indices,recipe)
-                p.componentCount=#G.components(g.rings)
-                p.name=L('part')..' '..p.id
-                E.selected=p.id
-            end
-        end
-    end)
 end
 local function retriangulate(p)
     assert(not p.componentCount or #G.components(p.rings)==p.componentCount,'contour_changes_components')
@@ -255,6 +236,48 @@ end
 local function closeContourEditor()
     finishContourDrag(true)
     E.editContour=false; E.selectionStart=nil; E.overlayCache=nil
+end
+local function generate(replace)
+    finishContourDrag(true)
+    local img=assert(E.project.images[E.image],'missing_image')
+    local alphaMode=E.kind=='alpha' or E.useAlpha
+    local rings=G.form(E.kind,E.rect,alphaMode and 64 or E.budget,E.form)
+    if alphaMode then
+        if not E.alpha[img.path] then
+            local bytes,w,h=mbm.readPngAlpha(img.path)
+            assert(bytes,w); assert(w==img.width and h==img.height,'alpha_dimensions_mismatch')
+            E.alpha[img.path]=bytes
+        end
+        rings=G.alphaContours(E.alpha[img.path],img.width,img.height,E.rect,rings,E.threshold,
+            E.project.options.preserveHoles)
+    end
+    rings=G.simplify(rings,E.tolerance or 0)
+    local groups=(not replace and E.project.options.splitRegions) and G.components(rings) or {rings}
+    local generated={}
+    for _,group in ipairs(groups) do
+        local vertices,indices=G.triangulate(group,alphaMode and 2 or E.budget)
+        generated[#generated+1]={rings=group,vertices=vertices,indices=indices}
+    end
+    local ok=action(function()
+        for _,g in ipairs(generated) do
+            local recipe={kind=E.kind,rect=Model.copy(E.rect),budget=E.budget,form=Model.copy(E.form),
+                alpha=E.useAlpha,threshold=E.threshold}
+            if replace then
+                local p=assert(selected(),'missing_part')
+                assert(not p.imported,'imported_regenerate_requires_source_mapping')
+                p.rings=g.rings; p.componentCount=#G.components(g.rings); p.vertices=g.vertices; p.indices=g.indices; p.recipe=recipe; p.image=E.image; p.manual=false
+            else
+                local p=Model.addPart(E.project,E.frame,E.image,g.rings,g.vertices,g.indices,recipe)
+                p.componentCount=#G.components(g.rings)
+                p.name=L('part')..' '..p.id
+                E.selected=p.id
+            end
+        end
+        if replace then assert(rebuild(),E.status) end
+    end)
+    if ok and replace then
+        E.dirty=false; E.contour=1; E.point=1; E.overlayCache=nil
+    end
 end
 local function record()
     E.transient=false
