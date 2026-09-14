@@ -1,6 +1,6 @@
 # Core MBM PIMPL Status
 
-Updated: 2026-08-18
+Updated: 2026-09-14
 
 This document replaces the old milestone-style gap report. Its purpose is to describe the current PIMPL/header-hygiene status of `core_mbm`, the boundaries already established, and the rules for future work.
 
@@ -39,6 +39,12 @@ The remaining work is optional. It is not needed to claim backend/OS PIMPL succe
 - Public backend bridge headers now expose only forward declarations or narrow bridge APIs where needed.
 
 ### Core/base class layout cleanup
+
+`MESH_MANAGER::loadUncached` is an ownership factory for editor previews: it returns
+a `std::unique_ptr<MESH_MBM>` without registering the asset in the shared cache.
+This does not expose cache containers, backend handles, or `Impl` storage. The
+sprite preview keeps that owner privately and releases it before replacing the
+preview; ordinary sprite loading continues to use the existing shared cache.
 
 The following areas are already in the "treat as complete unless a bug/regression appears" state:
 

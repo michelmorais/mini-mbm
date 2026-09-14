@@ -2,9 +2,9 @@
 
 Data: 2026-09-14.
 
-Status: planejamento aprovado em conversa; implementação ainda não iniciada.
+Status: primeira implementação disponível em 7.203.0; validação manual de interação e de outros backends pendente.
 Este documento registra as decisões de produto e propõe uma sequência de execução.
-As etapas e nomes de arquivos sugeridos não representam funcionalidades já entregues.
+As decisões abaixo são o contrato de produto. Consulte o [guia da implementação](articulated-sprite-editor.md) para o comportamento entregue, testes e limites atuais.
 
 ## Objetivo e limites
 
@@ -136,6 +136,25 @@ somente as regiões visíveis da imagem dentro da forma.
 - Ao abrir apenas um `.spt`, recuperar os dados presentes. Não inventar parâmetros
   originais de cápsula, rosca ou recorte por alfa que não estejam no arquivo.
   A geometria importada deve continuar editável.
+
+## Registro de implementação inicial
+
+- Editor: `editor/articulated_sprite_editor.lua`, com módulos próprios de geometria,
+  modelo e importação/exportação/persistência.
+- Entrada no launcher de desenvolvimento de Linux, macOS e Windows.
+- Formas, alfa PNG, furos, agrupamento de componentes, edição de contornos,
+  montagem, hierarquia, clipes, chaves, Auto Key, onion skin e histórico.
+- Importação/exportação articulada `.spt` e projeto `.asprite` com imagens copiadas.
+- Nova prévia de sprite com propriedade exclusiva da malha, evitando acumular
+  reconstruções no cache global. Formato binário articulado mantido.
+- Build Linux de `mini-mbm` e `testLib`; testes puros e de integração no engine;
+  inspeção visual com a imagem fornecida.
+- Permanecem pendentes a validação manual dos gestos e a execução nos demais
+  backends. A extração de alfa nesta versão aceita PNG; texturas de outros formatos
+  podem ser usadas com formas sem alfa.
+
+Os checklists seguintes permanecem como roteiro de auditoria detalhada: um item
+não deve ser considerado validado apenas por existir um controle correspondente.
 
 ## Sequência proposta de implementação
 

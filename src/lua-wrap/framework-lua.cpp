@@ -66,6 +66,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <thread>
@@ -3279,6 +3280,43 @@ namespace mbm
         return 1;
     }
 
+    extern "C" int onCreateDirectoriesLua(lua_State *lua)
+    {
+        const char *path = luaL_checkstring(lua, 1);
+        std::error_code error;
+        std::filesystem::create_directories(std::filesystem::u8path(path), error);
+        if (error)
+        {
+            lua_pushnil(lua);
+            lua_pushstring(lua, error.message().c_str());
+            return 2;
+        }
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    extern "C" int onReadPngAlphaLua(lua_State *lua)
+    {
+        const char *path = luaL_checkstring(lua, 1);
+        std::vector<unsigned char> rgba;
+        unsigned int width = 0, height = 0;
+        const unsigned int error = lodepng::decode(rgba, width, height, path, LCT_RGBA, 8);
+        if (error)
+        {
+            lua_pushnil(lua);
+            lua_pushstring(lua, lodepng_error_text(error));
+            return 2;
+        }
+        std::string alpha;
+        alpha.resize(rgba.size() / 4);
+        for (size_t i = 0; i < alpha.size(); ++i)
+            alpha[i] = static_cast<char>(rgba[i * 4 + 3]);
+        lua_pushlstring(lua, alpha.data(), alpha.size());
+        lua_pushinteger(lua, width);
+        lua_pushinteger(lua, height);
+        return 3;
+    }
+
     int onLoadDetailedTexture(lua_State *lua)
     {
         const int top   = lua_gettop(lua);
@@ -3537,6 +3575,8 @@ namespace mbm
             {"getSplash", OnGetSplash },
             {"doSubscribe", doSubscribePlugin},
             {"loadTexture", onLoadDetailedTexture},
+            {"readPngAlpha", onReadPngAlphaLua},
+            {"createDirectories", onCreateDirectoriesLua},
             {"listFiles", onlistFiles},
             {"enableTextureFilter", enableTextureFilterLua},
             {"setMinMaxWindowSize", onSetMinMaxWindowSizeLua},

@@ -47,6 +47,30 @@ namespace mbm
         this->mesh                  = nullptr;
         this->setIndexAnimation(0);
         this->resetArticulatedAnimationPlayer();
+        this->editorPreviewMesh.reset();
+    }
+
+    bool SPRITE::loadEditorPreview(const char *fileName)
+    {
+        this->release();
+        if (!fileName)
+            return true;
+        auto candidate = MESH_MANAGER::getInstance()->loadUncached(fileName, this);
+        if (!candidate)
+            return false;
+        this->editorPreviewMesh = std::move(candidate);
+        this->mesh = this->editorPreviewMesh.get();
+        const util::TYPE_MESH expectedType = util::TYPE_MESH_SPRITE;
+        if (this->populateAnimationsFromMesh(this->mesh, &expectedType, "sprite preview") !=
+            MeshLoadFinishResult::OK)
+        {
+            this->release();
+            return false;
+        }
+        this->setInternalFileName(fileName);
+        this->restartAnimation();
+        this->updateAABB();
+        return true;
     }
     
     bool SPRITE::load(const char *fileName)
@@ -244,6 +268,11 @@ namespace mbm
     
     bool SPRITE::onRestoreDevice()
     {
+        if (this->editorPreviewMesh)
+        {
+            const std::string path = this->getInternalFileName();
+            return this->loadEditorPreview(path.c_str());
+        }
         this->mesh = nullptr;
         const char *internalFileName = this->getInternalFileName();
         if(this->load(internalFileName))

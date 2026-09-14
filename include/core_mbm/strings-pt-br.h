@@ -32,6 +32,7 @@
 #define STR_PT_BR_SCENE_3D_EDITOR      "Editor de Cena 3D"
 #define STR_PT_BR_SHADER_EDITOR        "Editor de Shader"
 #define STR_PT_BR_SPRITE_MAKER         "Editor de Sprite"
+#define STR_PT_BR_ARTICULATED_SPRITE_EDITOR "Sprite Articulado"
 #define STR_PT_BR_TEXTURE_PACKER       "Empacotador de texturas"
 #define STR_PT_BR_TILEMAP_EDITOR       "Editor de mapa de blocos"
 #define STR_PT_BR_USER_SPECIFIED       "Script do usu" "\xE1" "rio"

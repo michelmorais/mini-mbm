@@ -26,6 +26,7 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
 #include <functional>
+#include <memory>
 
 
 namespace mbm
@@ -39,6 +40,8 @@ class SPRITE : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL virtual ~SPRITE();
     API_IMPL void release();
     API_IMPL bool load(const char *fileName);
+    // Editor-owned asset, bypassing the global mesh cache. nullptr releases it.
+    API_IMPL bool loadEditorPreview(const char *fileName);
     // Background-thread-friendly equivalent of load() - see MESH::loadAsync.
     API_IMPL void loadAsync(const char *fileName, std::function<void(bool success)> callback);
     API_IMPL const char *getFileName();
@@ -65,6 +68,7 @@ class SPRITE : public RENDERIZABLE, public ANIMATION_MANAGER
     bool                     isLoaded() const override;
 
     MESH_MBM *mesh;
+    std::unique_ptr<MESH_MBM> editorPreviewMesh;
     };
 }
 

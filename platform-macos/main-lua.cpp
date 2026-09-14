@@ -83,6 +83,7 @@ int main(const int argc,const char **argv)
             {"Scene 3D Editor"       , STR_PT_BR_SCENE_3D_EDITOR,    "scene_editor3d.lua"},
             {"Shader Editor"         , STR_PT_BR_SHADER_EDITOR,      "shader_editor.lua"},
             {"Sprite Maker"          , STR_PT_BR_SPRITE_MAKER,       "sprite_maker.lua"},
+            {"Articulated Sprite"    , STR_PT_BR_ARTICULATED_SPRITE_EDITOR, "articulated_sprite_editor.lua"},
             {"Texture Packer"        , STR_PT_BR_TEXTURE_PACKER,      "texture_packer.lua"},
             {"Tile-Map Editor"       , STR_PT_BR_TILEMAP_EDITOR,     "tilemap_editor.lua"},
             {"User specified"        , STR_PT_BR_USER_SPECIFIED,      "user_specified.lua"},

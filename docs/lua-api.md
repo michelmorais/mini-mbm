@@ -221,6 +221,8 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 | `mbm.createTexture` | `(pixels: table, w, h, channels, name?, savePath?)` | string\|nil | Create a texture from a raw pixel table (RGB or RGBA) |
 | `mbm.existTexture` | `(name: string)` | bool | Whether a named texture is already loaded |
 | `mbm.loadTexture` | `(file: string, alpha?: bool)` | textureInfo | Load a texture file and return info table |
+| `mbm.readPngAlpha` | `(path: string)` | bytes, width, height or nil, error | Decode a PNG file on the CPU. Returns a binary string with one alpha byte per pixel, in row-major order from the top-left; images without transparency yield 255. Uses the supplied filesystem path, without asset-search dialogs. Intended for editor operations on demand, not per-frame calls. |
+| `mbm.createDirectories` | `(path: string)` | true or nil, error | Create a directory and missing parent directories. Succeeds if the directory already exists. Uses a filesystem path, without invoking a shell. |
 
 ### 3.9 Global Variables (cross-scene storage)
 
@@ -557,6 +559,14 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:getShader` | `()` | table | Get current shader config (`name`, `var` values) |
 | `obj:setBlend` | `(srcBlend, dstBlend, op?)` | — | Set blend mode using `mbm.*` blend constants |
 | `obj:getBlend` | `()` | srcBlend, dstBlend, op | Get current blend mode |
+
+For editor sprite previews, `sprite:loadEditorPreview(path)` loads a private asset
+without adding it to the global mesh cache. It returns a boolean and replaces the
+sprite's previous asset. Keep the file available while the preview is alive for
+device restoration. `sprite:loadEditorPreview(nil)` releases the preview buffers;
+normal `sprite:load(path)` continues to use the shared cache. This is intended for
+frequently rebuilt editor assets, not ordinary game sprite loading.
+
 
 #### Articulated playback (`mesh` and `sprite`)
 
