@@ -497,6 +497,7 @@ local function worldInput()
     end
     local mouse=tImGui.GetMousePos()
     if not hovered and tImGui.IsMouseClicked(0,false) then
+        E.worldDrag=nil; E.pan=nil
         local x,y=mouseWorld(mouse)
         local parts=E.project.frames[E.frame].parts
         for i=#parts,1,-1 do
@@ -513,6 +514,9 @@ local function worldInput()
                     keyX=E.pose.x or 0,keyY=E.pose.y or 0,pivotOnly=E.movePivot}
                 break
             end
+        end
+        if not E.worldDrag then
+            E.pan={button=0,x=mouse.x,y=mouse.y,cx=E.camera.x,cy=E.camera.y}
         end
     end
     if E.worldDrag and tImGui.IsMouseDown(0) then
@@ -531,10 +535,10 @@ local function worldInput()
         end
     end
     if tImGui.IsMouseReleased(0) then E.worldDrag=nil end
-    if not hovered and tImGui.IsMouseClicked(2,false) then
-        E.pan={x=mouse.x,y=mouse.y,cx=E.camera.x,cy=E.camera.y}
+    if not hovered and not E.worldDrag and not E.pan and tImGui.IsMouseClicked(2,false) then
+        E.pan={button=2,x=mouse.x,y=mouse.y,cx=E.camera.x,cy=E.camera.y}
     end
-    if E.pan and tImGui.IsMouseDown(2) then
+    if E.pan and tImGui.IsMouseDown(E.pan.button) then
         E.camera:setPos(E.pan.cx+(E.pan.x-mouse.x)/E.camera.sx,E.pan.cy+(mouse.y-E.pan.y)/E.camera.sy)
     else E.pan=nil end
 end
