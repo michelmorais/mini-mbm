@@ -484,6 +484,12 @@ local function mouseWorld(mouse)
 end
 local function worldInput()
     local hovered=tImGui.IsAnyWindowHovered()
+    if hovered or tImGui.IsAnyItemActive() or tImGui.GetWantCaptureMouse() then
+        -- A DragFloat can keep mouse ownership after the cursor leaves its
+        -- window. Cancel scene gestures instead of resuming them underneath UI.
+        E.pan=nil; E.worldDrag=nil; E.zoomRequest=nil
+        return
+    end
     if E.zoomRequest then
         if not hovered then
             local factor=math.max(0.1,math.min(10,E.camera.sx*1.1^E.zoomRequest))
@@ -641,7 +647,7 @@ function onInitScene()
     refreshTitles()
     E.history=Model.history(E.project)
     E.pivotMarker=line:new('2dw',0,0,-1)
-    E.pivotMarker:add({-8,0,8,0}); E.pivotMarker:add({0,-8,0,8}); E.pivotMarker:setColor(1,0.8,0)
+    E.pivotMarker:add({-8,0,8,0}); E.pivotMarker:add({0,-8,0,8}); E.pivotMarker:setColor(1,0,1)
     E.pivotMarker.visible=false
     tUtil.sMessageOverlay=L('welcome')
     tLineCenterX=line:new('2dw',0,0,50); tLineCenterX:add({-99999,0,99999,0}); tLineCenterX:setColor(1,0,0)
