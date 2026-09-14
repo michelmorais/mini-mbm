@@ -134,3 +134,26 @@ for sample=1,100 do
     end
 end
 print('ARTICULATED SPRITE MODEL/GEOMETRY OK')
+
+-- Frame deletion preserves unrelated tracks, remaps frame ranges and is undoable.
+do
+    local project=M.new()
+    project.frames={{parts={{id=1}}},{parts={{id=2}}},{parts={{id=3}}}}
+    project.clips={{tracks={{part=1},{part=2},{part=3}}}}
+    project.frameAnimations={{'all',1,3},{'deleted',2,2},{'after',3,3},{'reverse',3,1},{'__frame_2',2,2}}
+    local history=M.history(project)
+    M.removeFrame(project,2); M.commit(history,project)
+    assert(#project.frames==2 and project.frames[2].parts[1].id==3)
+    assert(#project.clips[1].tracks==2 and project.clips[1].tracks[2].part==3)
+    assert(#project.frameAnimations==3)
+    assert(project.frameAnimations[1][3]==2)
+    assert(project.frameAnimations[2][2]==2 and project.frameAnimations[2][3]==2)
+    assert(project.frameAnimations[3][2]==2 and project.frameAnimations[3][3]==1)
+    project=M.undo(history)
+    assert(#project.frames==3 and #project.clips[1].tracks==3 and #project.frameAnimations==5)
+    project=M.redo(history)
+    M.removeFrame(project,2)
+    assert(#project.frames==1)
+    assert(not pcall(M.removeFrame,project,1))
+end
+print('ARTICULATED SPRITE FRAME DELETE OK')

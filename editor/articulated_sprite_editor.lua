@@ -495,6 +495,18 @@ local function properties()
         local changed,frame=widget('SliderInt','frame',E.frame,1,#E.project.frames)
         if changed then E.frame=frame; E.selected=0; E.dirty=true end
         button('add_frame',function() action(function() E.project.frames[#E.project.frames+1]={parts={}}; E.frame=#E.project.frames; E.selected=0 end) end)
+        if #E.project.frames>1 then
+            button('delete_frame',function()
+                finishContourDrag(true)
+                action(function()
+                    Model.removeFrame(E.project,E.frame)
+                    E.frame=math.min(E.frame,#E.project.frames)
+                    E.selected=0; E.contour=1; E.point=1; E.overlayCache=nil
+                    E.playing=false; E.time=0; E.transient=false; E.keyOrigin=nil
+                    E.worldDrag=nil; E.pose={x=0,y=0,z=0,angle=0,sx=1,sy=1}
+                end)
+            end)
+        end
         local parts=E.project.frames[E.frame].parts
         for _,p in ipairs(parts) do
             if tImGui.Selectable(p.name..'##part'..p.id,E.selected==p.id) then

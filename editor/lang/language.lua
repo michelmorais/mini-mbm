@@ -8,6 +8,8 @@ local M = {}
 
 -- String tables
 M.en = {
+    ase_delete_frame = "Delete frame",
+    ase_delete_frame_tip = "Delete this frame, its parts and their animation tracks. Undo restores them. At least one frame is kept.",
     ase_show_parts = "Show Parts window",
     ase_show_parts_tip = "Show or hide the part properties window.",
     ase_show_timeline = "Show Timeline window",
@@ -2876,6 +2878,8 @@ M.en = {
 }
 
 M.pt_br = {
+    ase_delete_frame = "Apagar frame",
+    ase_delete_frame_tip = "Apaga este frame, suas peças e as respectivas trilhas de animação. Desfazer restaura tudo. Pelo menos um frame é mantido.",
     ase_show_parts = "Mostrar janela de peças",
     ase_show_parts_tip = "Mostra ou esconde a janela de propriedades das peças.",
     ase_show_timeline = "Mostrar linha do tempo",

@@ -121,6 +121,32 @@ function M.remove(project,frame,id,hierarchy)
         for i=#clip.tracks,1,-1 do if removed[clip.tracks[i].part] then table.remove(clip.tracks,i) end end
     end
 end
+function M.removeFrame(project,index)
+    assert(#project.frames>1,'cannot_remove_last_frame')
+    local frame=assert(project.frames[index],'missing_frame')
+    local removed={}
+    for _,part in ipairs(frame.parts) do removed[part.id]=true end
+    table.remove(project.frames,index)
+    for _,clip in ipairs(project.clips) do
+        for i=#clip.tracks,1,-1 do
+            if removed[clip.tracks[i].part] then table.remove(clip.tracks,i) end
+        end
+    end
+    local animations=project.frameAnimations or {}
+    for i=#animations,1,-1 do
+        local anim=animations[i]
+        local first,last=anim[2],anim[3]
+        if anim[1]:match('^__frame_') or (first==index and last==index) then
+            table.remove(animations,i)
+        else
+            local lo,hi=math.min(first,last),math.max(first,last)
+            if lo>index then lo=lo-1 end
+            if hi>=index then hi=hi-1 end
+            if first<=last then anim[2],anim[3]=lo,hi
+            else anim[2],anim[3]=hi,lo end
+        end
+    end
+end
 function M.key(project,clipIndex,id,time,pose)
     local clip=assert(project.clips[clipIndex],'missing_clip')
     local track
