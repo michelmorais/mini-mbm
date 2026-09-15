@@ -6853,7 +6853,7 @@ static int onCreateGeometryBatchLua(lua_State *lua)
                 {
                     const ImDrawIdx index = drawing.IdxBuffer[cmd.IdxOffset + i];
                     chunk.indices.push_back(index);
-                    maxIndex = std::max(maxIndex, static_cast<unsigned int>(index));
+                    maxIndex = (std::max)(maxIndex, static_cast<unsigned int>(index));
                 }
                 chunk.vertices.assign(drawing.VtxBuffer.Data + cmd.VtxOffset,
                                       drawing.VtxBuffer.Data + cmd.VtxOffset + maxIndex + 1);
