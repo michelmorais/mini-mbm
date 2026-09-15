@@ -1,7 +1,7 @@
 # Editor de Sprite Articulado 2D
 
-Primeira implementação: 7.203.0. As decisões de produto estão no
-[plano do editor](articulated-sprite-editor-plan.md).
+Primeira implementação: 7.203.0. Este guia reúne o comportamento entregue,
+as limitações, a validação e as pendências do editor.
 
 O editor usa subsets rígidos, pivôs e hierarquia do sistema articulado da engine.
 Não utiliza ossos, pesos ou skinning. O `.spt` exportado mantém clipes e chaves
@@ -171,9 +171,10 @@ como textura podem ser usados com formas sem extração de alfa. A importação 
 geometria suporta triângulos, triangle strips e triangle fans; primitives de linhas
 ou pontos não fazem parte desse fluxo de recorte.
 
-A interface foi executada e inspecionada no Linux/OpenGL ES. Cliques e arrastes
-reais ainda precisam de uma passagem manual, e a execução em Windows/DirectX e
-macOS/Metal não foi validada neste ambiente.
+A interface foi executada e inspecionada no Linux/OpenGL ES. Houve testes manuais
+de interação durante o desenvolvimento, e a importação do `FW_Hero_1.scml` foi
+confirmada pelo usuário. Isso não equivale à validação completa de todos os fluxos
+e plataformas; os itens ainda abertos estão registrados abaixo.
 
 As prévias possuem malhas privadas, sem acumular versões no cache global de
 malhas. Recorte, triangulação e exportação ocorrem quando solicitados ou quando
@@ -186,3 +187,30 @@ exemplo local em `/home/michel/Downloads/SpriterFile`, exporta/reimporta o SPT e
 percorre os oito clipes na engine, verificando que a prévia não é reconstruída
 continuamente durante a reprodução. As imagens do exemplo não são distribuídas
 com o repositório.
+
+## Pendências
+
+### Implementação
+
+- [ ] Ajustar o orçamento inicial do círculo para **5 triângulos**, conforme
+  combinado. Atualmente, selecionar círculo inicia o orçamento em **12**; o
+  controle já permite reduzi-lo até 5. O orçamento continua aproximado e é
+  mostrado apenas quando o recorte por alfa está desligado.
+- [ ] Oferecer edição direta dos vértices da geometria também para peças criadas
+  no editor, incluindo os vértices internos da triangulação. Atualmente, essas
+  peças oferecem edição dos contornos; os campos de vértices e UV estão
+  disponíveis apenas para geometria importada de SPT.
+
+### Validação
+
+- [ ] Completar uma passagem manual do fluxo de autoria: recorte, montagem,
+  hierarquia, duplicação/exclusão/reordenação, Auto Key, onion skin,
+  desfazer/refazer e exportação. Os testes manuais já realizados não representam
+  cobertura integral dessa sequência.
+- [ ] Mover uma cópia do projeto com sua pasta de imagens para outro diretório e
+  verificar a reabertura pelos caminhos relativos. O teste automatizado atual
+  verifica salvamento/reabertura e imagens de nomes iguais, mas não essa mudança
+  de diretório.
+- [ ] Executar e verificar ordenação, transparência, prévia e interação em
+  **Windows/DirectX e macOS/Metal**. A validação na engine realizada até aqui foi
+  em **Linux/OpenGL ES**.
