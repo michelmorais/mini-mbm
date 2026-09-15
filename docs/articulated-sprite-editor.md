@@ -73,7 +73,10 @@ desfazer/refazer, acessível pelo menu ou por Ctrl+Z / Ctrl+Y.
 ## Animar
 
 Use **Adicionar clipe**, defina nome, duração, velocidade, prioridade, repetição
-e modo aditivo quando desejado. Alterne de **Pose inicial** para **Animação**.
+e modo aditivo quando desejado. Para alterar o nome, edite **Nome do clipe** e
+clique em **Renomear** ao lado. O texto pode ficar vazio enquanto você digita;
+a alteração só é aplicada pelo botão, com um nome não vazio e sem duplicar outro
+clipe. Alterne de **Pose inicial** para **Animação**.
 
 Selecione a peça e o instante. Ajuste posição, rotação e escala da chave; a prévia
 temporária permite visualizar a alteração antes de gravá-la. **Adicionar / atualizar
@@ -81,8 +84,10 @@ chave** grava os valores. **Auto Key** começa desligado; ligado, grava alteraç
 de transformação no instante selecionado.
 
 A lista de chaves permite selecionar uma pose existente, excluí-la ou movê-la
-para outro instante. A interpolação oferece os modos existentes da engine:
-linear, entrada, saída, entrada/saída, smoothstep e Bezier com controles.
+para outro instante. O combobox **Interpolação** oferece os modos existentes da
+engine: linear, entrada, saída, entrada/saída, suave (smoothstep) e Bezier com
+controles. Os campos de propriedades e chaves têm largura compacta; a barra de
+tempo acompanha a largura disponível da janela.
 
 **Onion skin** começa desligado. Quando ativado, mostra silhuetas transparentes
 a 1/12 de segundo antes e depois da posição atual. Durante a reprodução, as

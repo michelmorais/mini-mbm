@@ -782,8 +782,33 @@ local function timeline()
                 table.remove(E.project.clips,E.clip); E.clip=1; E.time=0; E.playing=false
             end) end)
             if E.project.clips[E.clip]~=clip then tImGui.End(); return end
-            local changed,name=widget('InputText','clip_name',clip.name)
-            if changed then clip.name=name; commit() end
+            tImGui.PushItemWidth(100)
+            tImGui.PushItemWidth(180)
+            if E.renameClip~=clip or E.renameSource~=clip.name then
+                E.renameClip=clip; E.renameSource=clip.name; E.renameDraft=clip.name
+            end
+            local changed,name=widget('InputText','clip_name',E.renameDraft)
+            tImGui.PopItemWidth()
+            if changed then E.renameDraft=name end
+            tImGui.SameLine()
+            local newName=E.renameDraft:match('^%s*(.-)%s*$')
+            tImGui.BeginDisabled(newName=='' or newName==clip.name)
+            button('rename_clip',function()
+                if newName=='' or newName==clip.name then return end
+                for _,other in ipairs(E.project.clips) do
+                    assert(other==clip or other.name~=newName,L('clip_name_exists'))
+                end
+                action(function()
+                    -- Keep the named base-frame selector of imported clips in sync.
+                    for _,anim in ipairs(E.project.frameAnimations or {}) do
+                        if clip.frame and anim[1]==clip.name and anim[2]==clip.frame and anim[3]==clip.frame then
+                            anim[1]=newName
+                        end
+                    end
+                    clip.name=newName
+                end)
+            end)
+            tImGui.EndDisabled()
             if field('duration',clip,'duration',0.05,0.01,3600) then commit() end
             if field('speed',clip,'speed',0.05,0.01,100) then commit() end
             local priorityChanged,priority=widget('SliderInt','priority',clip.priority or 0,-20,20)
@@ -792,7 +817,10 @@ local function timeline()
             local additive=widget('Checkbox','additive',wasAdditive)
             if additive~=wasAdditive then clip.blend=additive and 1 or 0; commit() end
             if check('loop',clip,'loop') then commit() end
+            -- Keep scrubbing wide; properties and key values use compact fields.
+            tImGui.PushItemWidth(math.max(100,tImGui.GetContentRegionAvail().x-90))
             local moved,time=widget('SliderFloat','time',E.time,0,clip.duration)
+            tImGui.PopItemWidth()
             if moved then E.time=time; E.poseDirty=true; if E.transient then E.transient=false; E.dirty=true end end
             button(E.playing and 'pause' or 'play',function() E.playing=not E.playing; E.mode='animate'; E.poseDirty=true end)
             if selected() then
@@ -804,9 +832,16 @@ local function timeline()
                     if E.project.options.autoKey then record()
                     else E.transient=true; E.dirty=true end
                 end
-                local easingChanged,easing=widget('SliderInt','easing',E.pose.easing or 0,0,5)
-                if easingChanged then E.pose.easing=easing end
-                tImGui.Text(L('easing_help'))
+                tImGui.PushItemWidth(160)
+                if widget('BeginCombo','easing',L('easing_'..(E.pose.easing or 0))) then
+                    for easing=0,5 do
+                        if tImGui.Selectable(L('easing_'..easing),(E.pose.easing or 0)==easing) then
+                            E.pose.easing=easing
+                        end
+                    end
+                    tImGui.EndCombo()
+                end
+                tImGui.PopItemWidth()
                 if E.pose.easing==5 then
                     E.pose.bezier=E.pose.bezier or {0.25,0.25,0.75,0.75}
                     for i=1,4 do field('bezier_'..i,E.pose.bezier,i,0.01,0,1) end
@@ -840,6 +875,7 @@ local function timeline()
                     end
                 end
             end
+            tImGui.PopItemWidth()
         end
         tImGui.Text(E.status)
     end
