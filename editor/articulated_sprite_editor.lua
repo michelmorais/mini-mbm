@@ -49,7 +49,7 @@ local function dpCall(fn,...)
 end
 local function L(key) return tLang.L('ase_'..key) end
 local function tooltip(key)
-    if tImGui.IsItemHovered(0) then tImGui.SetTooltip(L(key..'_tip')) end
+    if tImGui.IsItemHovered(0) then Timeline.tooltip('ase_'..key..'_tip') end
 end
 -- Preserve every binding return value, and attach help before another widget
 -- replaces ImGui's last item. Only the hovered item resolves its help text.

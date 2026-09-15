@@ -107,11 +107,24 @@ function M.execute(E,H,operation,value)
     end
     return ok
 end
+-- Resolve translations when shown so changing language also updates open help.
+function M.tooltip(key)
+    if tImGui.BeginTooltip() then
+        local screenWidth=mbm.getRealSizeScreen()
+        tImGui.PushTextWrapPos(math.min(420,math.max(80,screenWidth-32)))
+        tImGui.Text(tLang.L(key))
+        tImGui.PopTextWrapPos()
+        tImGui.EndTooltip()
+    end
+end
+local function itemTooltip(key)
+    if tImGui.IsItemHovered(0) then M.tooltip(key) end
+end
 local function button(label,enabled,fn)
     tImGui.BeginDisabled(not enabled)
     if tImGui.Button(L(label)) then fn() end
     tImGui.EndDisabled()
-    if tImGui.IsItemHovered(0) then tImGui.SetTooltip(L(label..'_tip')) end
+    itemTooltip('ase_tl_'..label..'_tip')
 end
 local function nextControl(text,width)
     local needed=(width or tImGui.CalcTextSize(text).x)+24
@@ -127,10 +140,12 @@ function M.toolbar(E,H)
         if not E.playing and E.time>=clip.duration then E.time=0 end
         E.playing=not E.playing; E.mode='animate'; E.poseDirty=true
     end
+    itemTooltip('ase_play_tip')
     tImGui.SameLine()
     button('stop',true,function() Pose.clear(E); M.seek(E,0) end)
     tImGui.SameLine()
     local changed,time=tImGui.DragFloat(tLang.L('ase_time'),E.time,0.001,0,clip.duration,'%.3f s')
+    itemTooltip('ase_time_tip')
     if changed then M.seek(E,snapped(s,time,clip.duration)) end
     nextControl(L('fit'))
     button('fit',true,function() s.viewStart=0; s.viewEnd=clip.duration; s.batch=nil end)
@@ -142,11 +157,14 @@ function M.toolbar(E,H)
     if tImGui.CollapsingHeader(L('time_tools')) then
         button('ripple',s.count>1,function() M.execute(E,H,'ripple') end)
         local edit,gap=tImGui.DragFloat(L('gap'),s.gap,0.01,0.001,60,'%.3f s')
+        itemTooltip('ase_tl_gap_tip')
         if edit then s.gap=clamp(gap,0.001,60) end
         nextControl(L('insert')); button('insert',true,function() M.execute(E,H,'insert') end)
         s.removalPreview=tImGui.Checkbox(L('preview_remove'),s.removalPreview or false)
+        itemTooltip('ase_tl_preview_remove_tip')
         if s.removalPreview then
             local edit,span=tImGui.DragFloat(L('removal'),s.removal,0.01,0.001,clip.duration,'%.3f s')
+            itemTooltip('ase_tl_removal_tip')
             if edit then s.removal=clamp(span,0.001,clip.duration) end
             local impact=s.impact
             if not impact or impact.clip~=clip or impact.revision~=E.geometryRevision or impact.time~=E.time or impact.duration~=s.removal then
@@ -160,8 +178,10 @@ function M.toolbar(E,H)
                 function() M.execute(E,H,'remove') end)
         end
         s.snap=tImGui.Checkbox(L('snap'),s.snap)
+        itemTooltip('ase_tl_snap_tip')
         nextControl('',95+tImGui.CalcTextSize(L('snap_step')).x)
         local edit,step=tImGui.DragFloat(L('snap_step'),s.step,0.001,0.0001,10,'%.6f s')
+        itemTooltip('ase_tl_snap_step_tip')
         if edit then s.step=clamp(step,0.0001,10) end
         for i,fps in ipairs({24,25,30,50,60}) do
             if i>1 then tImGui.SameLine() end
@@ -322,7 +342,7 @@ function M.draw(E,H)
     end
     local playhead=tx(E.time)
     if playhead>=x0 and playhead<=x1 then tImGui.AddLine({x=playhead,y=origin.y},{x=playhead,y=origin.y+math.max(height,viewport)},{r=1,g=0.25,b=0.15,a=1},2) end
-    if hovered and not s.drag and not s.box then tImGui.SetTooltip(L('navigation')) end
+    if hovered and not s.drag and not s.box then M.tooltip('ase_tl_navigation') end
     s.focused=tImGui.IsWindowFocused(tImGui.Flags('ImGuiFocusedFlags_RootAndChildWindows'))
     tImGui.EndChild()
 end
