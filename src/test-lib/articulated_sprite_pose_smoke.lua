@@ -32,7 +32,7 @@ IO.export=function(project,...)
     rendered=M.copy(project)
     return export(project,...)
 end
-local selectable,drag,button,slider=tImGui.Selectable,tImGui.DragFloat,tImGui.Button,tImGui.SliderFloat
+local selectable,drag,button=tImGui.Selectable,tImGui.DragFloat,tImGui.Button
 tImGui.Selectable=function(label,...)
     local value=selectable(label,...)
     if ((stage==2 or stage==5) and label=='Spin##part2') or ((stage==4 or stage==9) and label=='Hammer##part1') then return true end
@@ -41,6 +41,8 @@ tImGui.Selectable=function(label,...)
 end
 tImGui.DragFloat=function(label,...)
     local changed,value=drag(label,...)
+    if stage==6 and label==tLang.L('ase_time') then return true,0.5 end
+    if stage==10 and label==tLang.L('ase_time') then return true,0.8 end
     if label==tLang.L('ase_key_rotation') then
         if stage==1 then return true,70 end
         if stage==3 then return true,20 end
@@ -54,12 +56,6 @@ tImGui.Button=function(label,...)
     if stage==11 and label==tLang.L('ase_move_key') then return true end
     if stage==12 and label==tLang.L('ase_delete_key') then return true end
     return value
-end
-tImGui.SliderFloat=function(label,...)
-    local changed,value=slider(label,...)
-    if stage==6 and label==tLang.L('ase_time') then return true,0.5 end
-    if stage==10 and label==tLang.L('ase_time') then return true,0.8 end
-    return changed,value
 end
 local function key(project,id,time)
     for _,t in ipairs(project.clips[1].tracks) do

@@ -72,8 +72,8 @@ desfazer/refazer, acessível pelo menu ou por Ctrl+Z / Ctrl+Y.
 
 ## Animar
 
-Use **Adicionar clipe**, defina nome, duração, velocidade, prioridade, repetição
-e modo aditivo quando desejado. Para alterar o nome, edite **Nome do clipe** e
+Use **Adicionar clipe** e abra **Propriedades do clipe** para definir nome,
+duração, velocidade, prioridade, repetição e modo aditivo quando desejado. Para alterar o nome, edite **Nome do clipe** e
 clique em **Renomear** ao lado. O texto pode ficar vazio enquanto você digita;
 a alteração só é aplicada pelo botão, com um nome não vazio e sem duplicar outro
 clipe. Alterne de **Pose inicial** para **Animação**.
@@ -94,11 +94,51 @@ outras peças no mesmo instante permanecem.
 **Auto Key** começa desligado; ligado, grava alterações da peça selecionada no
 instante atual. Editar uma transformação durante a reprodução pausa a animação.
 
-A lista de chaves permite selecionar uma pose existente, excluí-la ou movê-la
-para outro instante. O combobox **Interpolação** oferece os modos existentes da
-engine: linear, entrada, saída, entrada/saída, suave (smoothstep) e Bezier com
-controles. Os campos de propriedades e chaves têm largura compacta; a barra de
-tempo acompanha a largura disponível da janela.
+Desde 7.210.0, a Timeline oferece régua e trilhas por peça, seguindo os controles
+do editor de animação esquelética 3D. As propriedades da peça/chave ficam à direita
+em janelas largas e abaixo das trilhas em janelas estreitas. A lista de clipes é
+um combobox; **Propriedades do clipe** recolhe os ajustes menos frequentes.
+
+- Clique nas marcações magentas para selecionar a peça e carregar a chave. Chaves
+  selecionadas ficam amarelas; a linha da peça ativa fica destacada.
+- Ctrl+clique alterna a seleção de uma chave. Arraste uma região vazia para
+  selecionar várias chaves; Ctrl acrescenta à seleção. Arrastar uma marcação
+  selecionada move o grupo, preservando os intervalos. A alteração só é gravada
+  ao soltar o mouse.
+- Clique/arraste na régua para posicionar o instante atual (linha vermelha).
+  Ctrl+roda aplica zoom no cursor; arraste com o botão do meio para navegar
+  horizontalmente. A roda sozinha percorre as trilhas. **Enquadrar clipe** restaura
+  a visualização de toda a duração.
+- **Copiar chaves** / **Colar aqui** preservam peças, canais, transformações,
+  interpolação e intervalos relativos; a primeira chave copiada é alinhada ao
+  instante atual. **Duplicar aqui** faz o mesmo com a seleção atual.
+  Ctrl+C / Ctrl+V funcionam com a Timeline focada, fora de campos em edição.
+  **Excluir chaves** (ou Delete) apaga a seleção.
+- Em **Operações de tempo e snap**, **Inserir trecho copiado** copia o trecho
+  selecionado, desloca as chaves posteriores de todas as trilhas e aumenta a
+  duração do clipe. Inclui uma pequena margem no limite para não sobrepor a
+  última chave copiada à primeira deslocada; exige seleção em instantes distintos.
+- **Inserir tempo vazio** desloca as chaves a partir do playhead sem criar novas
+  poses. A prévia de remoção mostra a região e a quantidade de chaves afetadas;
+  **Remover intervalo** apaga as chaves nessa região, desloca as posteriores e
+  reduz a duração. O início pertence ao intervalo removido e o fim é preservado.
+- **Snap temporal** começa desligado e oferece intervalo editável e presets
+  24/25/30/50/60 FPS para posicionar o tempo e arrastar chaves.
+
+Colar/duplicar exige peças existentes no frame atual e canais compatíveis. Colar
+ou mover para fora da duração, ou sobre uma chave existente na mesma trilha, é
+rejeitado sem substituir dados. As operações de alteração participam de
+Ctrl+Z / Ctrl+Y. A prancheta permanece disponível ao trocar de clipe, mas é
+limpa ao carregar outro projeto. Ao alterar keys com essas operações, prévias
+não gravadas são descartadas.
+
+A lista numérica de chaves também permite selecionar uma pose existente,
+excluí-la ou movê-la para outro instante. O combobox **Interpolação** oferece os
+modos existentes da engine: linear, entrada, saída, entrada/saída, suave
+(smoothstep) e Bezier com controles. Os campos de propriedades e chaves têm
+largura compacta. A geometria da régua e das marcações é reconstruída somente
+quando dados, seleção ou visualização mudam; mover apenas o playhead não
+reconstrói essa geometria.
 
 **Onion skin** começa desligado. Quando ativado, mostra silhuetas transparentes
 a 1/12 de segundo antes e depois da posição atual. Durante a reprodução, as
@@ -244,3 +284,10 @@ com o repositório.
 O teste `articulated_sprite_pose_smoke.lua` exercita a troca entre Hammer e Spin,
 prévias separadas, gravação por peça, Auto Key, desfazer e ausência de reconstruções
 contínuas com a Timeline parada.
+
+O teste puro `articulated_sprite_timeline_test.lua` cobre cópia, movimentação em
+grupo, inserção/remoção de tempo e rejeição atômica de colisões. Na engine,
+`articulated_sprite_timeline_smoke.lua` simula os retornos de entrada do ImGui
+para selecionar/arrastar marcações e usar Ctrl+clique, verifica desfazer,
+clipboard entre peças, exportação/reimportação SPT e estabilidade do cache
+em repouso. Essa simulação não substitui uma passagem manual com o mouse.

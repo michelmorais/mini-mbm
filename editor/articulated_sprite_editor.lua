@@ -29,6 +29,8 @@ local G=require 'articulated_sprite_geometry'
 local Model=require 'articulated_sprite_model'
 local IO=require 'articulated_sprite_io'
 local Pose=require 'articulated_sprite_pose'
+local Timeline=require 'articulated_sprite_timeline'
+local TimelineOps=require 'articulated_sprite_timeline_model'
 local E={project=Model.new(),frame=1,image=1,selected=0,clip=1,time=0,playing=false,
     rect={x=0,y=0,w=100,h=100},kind='rectangle',budget=2,threshold=16,
     form={inner=0.5,dx=0,dy=0,linked=true,circular=true},textures={},alpha={},dirty=false,poseDirty=false,
@@ -37,6 +39,8 @@ local E={project=Model.new(),frame=1,image=1,selected=0,clip=1,time=0,playing=fa
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
     if not result[1] then
+        local timelineError=tostring(result[2]):match('(tl_[%w_]+)$')
+        if timelineError then result[2]=tLang.L('ase_'..timelineError) end
         print('[articulated_sprite_editor] '..tostring(result[2]))
         E.status=tostring(result[2])
         tUtil.showMessageWarn(E.status,8)
@@ -177,7 +181,7 @@ local function rebuild()
 end
 local function loadProject(project,path)
     destroyPreview()
-    Pose.clear(E); E.poseContext=nil
+    Pose.clear(E); E.poseContext=nil; E.timeline=nil
     E.project=project; E.path=path; E.frame=1; E.image=1; E.selected=0; E.clip=1
     E.time=0; E.playing=false; E.textures={}; E.alpha={}; E.history=Model.history(project)
     E.dirty=true; E.changed=false; E.editContour=false; E.contourDrag=nil; E.overlayCache=nil
@@ -765,35 +769,55 @@ local function timeline()
     if not E.showTimeline then return end
     local width,height=mbm.getRealSizeScreen()
     local first=tImGui.Flags('ImGuiCond_FirstUseEver')
-    -- Reference layout from imgui.ini at 1920 x 1020: (222,796), 1385 x 201.
-    tImGui.SetNextWindowPos({x=width*222/1920,y=height*796/1020},first)
-    tImGui.SetNextWindowSize({x=width*1385/1920,y=height*201/1020},first)
-    tImGui.SetNextWindowSizeConstraints({x=math.min(120,width),y=math.min(80,height)},{x=width,y=height})
+    tImGui.SetNextWindowPos({x=width*222/1920,y=height*0.65},first)
+    tImGui.SetNextWindowSize({x=width*1385/1920,y=height*0.32},first)
+    tImGui.SetNextWindowSizeConstraints({x=math.min(520,width),y=math.min(240,height)},{x=width,y=height})
     local opened,closed=tImGui.Begin(E.titles.timeline,true,E.flags)
     if closed then E.showTimeline=false end
     if opened then
-        if widget('Selectable','setup',E.mode=='setup') then E.mode='setup'; E.playing=false; E.poseDirty=true end
-        tImGui.SameLine()
-        if widget('Selectable','animate',E.mode=='animate') then E.mode='animate'; E.poseDirty=true end
-        Pose.sync(E)
-        local activePart=selected()
-        tImGui.Text(L('selected_part')..': '..(activePart and activePart.name or L('none')))
-        check('auto_key',E.project.options,'autoKey')
-        if check('onion',E.project.options,'onion') then E.dirty=true end
-        for i,clip in ipairs(E.project.clips) do
-            if tImGui.Selectable(clip.name..'##clip'..i,E.clip==i) then selectClip(i) end
-            tooltip('select_clip')
+        local mode=E.mode=='setup' and 0 or 1
+        mode=widget('RadioButton','setup',mode,0)
+        tImGui.SameLine(); mode=widget('RadioButton','animate',mode,1)
+        if mode~=(E.mode=='setup' and 0 or 1) then
+            E.mode=mode==0 and 'setup' or 'animate'; E.playing=false; E.poseDirty=true
         end
+        tImGui.SameLine(); check('auto_key',E.project.options,'autoKey')
+        tImGui.SameLine(); if check('onion',E.project.options,'onion') then E.dirty=true end
+        Pose.sync(E)
+        tImGui.PushItemWidth(180)
+        local current=E.project.clips[E.clip]
+        if widget('BeginCombo','clip',current and current.name or L('none')) then
+            for i,clip in ipairs(E.project.clips) do
+                if tImGui.Selectable(clip.name..'##clip'..i,E.clip==i) then selectClip(i) end
+            end
+            tImGui.EndCombo()
+        end
+        tImGui.PopItemWidth()
+        tImGui.SameLine()
         button('add_clip',function() action(function()
             E.project.clips[#E.project.clips+1]={name=L('clip')..' '..(#E.project.clips+1),duration=1,speed=1,priority=0,loop=true,blend=0,tracks={}}
             E.clip=#E.project.clips; E.mode='animate'; Pose.sync(E)
         end) end)
+        tImGui.SameLine()
+        tImGui.BeginDisabled(not E.project.clips[E.clip])
+        button('delete_clip',function() action(function()
+            table.remove(E.project.clips,E.clip); selectClip(1); E.playing=false
+        end) end)
+        tImGui.EndDisabled()
         local clip=E.project.clips[E.clip]
         if clip then
-            button('delete_clip',function() action(function()
-                table.remove(E.project.clips,E.clip); E.clip=1; E.time=0; E.playing=false
-            end) end)
-            if E.project.clips[E.clip]~=clip then tImGui.End(); return end
+            local available=tImGui.GetContentRegionAvail()
+            local side=available.x>=700
+            local inspector=math.min(340,math.max(300,available.x*0.25))
+            if tImGui.BeginChild('##ase_timeline_graph',{x=side and available.x-inspector-8 or 0,y=side and 0 or 260},false) then
+                Timeline.draw(E,{action=action})
+            end
+            tImGui.EndChild()
+            if side then tImGui.SameLine() end
+            tImGui.BeginChild('##ase_timeline_properties',{x=0,y=0},false)
+            local active=selected()
+            tImGui.TextWrapped(L('selected_part')..': '..(active and active.name or L('none')))
+            if tImGui.CollapsingHeader(L('clip_properties')) then
             tImGui.PushItemWidth(100)
             tImGui.PushItemWidth(180)
             if E.renameClip~=clip or E.renameSource~=clip.name then
@@ -829,14 +853,9 @@ local function timeline()
             local additive=widget('Checkbox','additive',wasAdditive)
             if additive~=wasAdditive then clip.blend=additive and 1 or 0; commit() end
             if check('loop',clip,'loop') then commit() end
-            -- Keep scrubbing wide; properties and key values use compact fields.
-            tImGui.PushItemWidth(math.max(100,tImGui.GetContentRegionAvail().x-90))
-            local moved,time=widget('SliderFloat','time',E.time,0,clip.duration)
             tImGui.PopItemWidth()
-            if moved then E.time=time; E.poseDirty=true; Pose.sync(E) end
-            button(E.playing and 'pause' or 'play',function()
-                Pose.clear(E); E.playing=not E.playing; E.mode='animate'; E.poseDirty=true
-            end)
+            end
+            tImGui.PushItemWidth(100)
             if selected() then
                 local modified=false
                 for _,entry in ipairs({{'key_x','x'},{'key_y','y'},{'key_rotation','angle'},{'key_scale_x','sx'},{'key_scale_y','sy'}}) do
@@ -871,13 +890,13 @@ local function timeline()
                                 if track.part==E.selected then
                                     for i=#track.keys,1,-1 do
                                         if math.abs(track.keys[i].time-E.keyOrigin)<0.0001 then
-                                            original=Model.copy(track.keys[i]); table.remove(track.keys,i)
+                                            original=track.keys[i]
                                         end
                                     end
                                 end
                             end
                             assert(original,'missing_key')
-                            Model.key(E.project,E.clip,E.selected,E.time,original); E.keyOrigin=E.time
+                            TimelineOps.move(clip,{[original]=true},E.time-original.time); E.keyOrigin=E.time
                         end)
                         if ok then Pose.recorded(E) end
                     end)
@@ -886,10 +905,7 @@ local function timeline()
                     if track.part==E.selected then
                         for ki,k in ipairs(track.keys) do
                             if tImGui.Selectable(string.format('%.3f##key%d',k.time,ki),math.abs(k.time-E.time)<0.0001) then
-                                E.time=k.time; Pose.sync(E)
-                                if E.drafts and E.drafts[E.selected] then Pose.recorded(E); E.dirty=true end
-                                E.pose=Pose.sample(clip,E.selected,E.time)
-                                E.keyOrigin=k.time; E.poseDirty=true
+                                Timeline.selectKey(E,k,false)
                             end
                             tooltip('select_key')
                         end
@@ -903,8 +919,9 @@ local function timeline()
                 end
             end
             tImGui.PopItemWidth()
-        end
-        tImGui.Text(E.status)
+            tImGui.TextWrapped(E.status)
+            tImGui.EndChild()
+        else tImGui.TextWrapped(L('tl_no_clip')) end
     end
     tImGui.End()
 end
@@ -988,6 +1005,7 @@ function onTouchZoom(zoom)
 end
 function onKeyDown(key)
     if key==mbm.getKeyCode('control') then E.control=true end
+    if Timeline.keyDown(E,{action=action},key) then return end
     if E.control and key==mbm.getKeyCode('Z') then
         local p=Model.undo(E.history); if p then E.project=p; E.dirty=true end
     elseif E.control and key==mbm.getKeyCode('Y') then
@@ -1002,6 +1020,8 @@ if type(testApi)=='table' then
     testApi.syncPose=function() Pose.sync(E) end
     testApi.stagePose=function() Pose.stage(E) end
     testApi.record=record
+    testApi.timelineCommand=function(op,value) return Timeline.execute(E,{action=action},op,value) end
+    testApi.selectTimelineKey=function(key,control) Timeline.selectKey(E,key,control) end
     testApi.state=E
     testApi.addImage=addImage
     testApi.generate=generate
