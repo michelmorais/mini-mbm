@@ -19,10 +19,15 @@ bin/debug/linux_x86/mini-mbm --scene editor/articulated_sprite_editor.lua --disa
 
 ## Recortar e montar
 
-1. Use **Adicionar imagem**. É possível carregar várias imagens e alternar entre elas.
+1. Use **Adicionar imagem** para selecionar um ou vários arquivos na mesma janela.
+   As imagens entram juntas no projeto; a última fica selecionada para recorte.
+   É possível alternar entre elas na lista de origens e desfazer a inclusão do lote
+   em uma única ação.
 2. Arraste na imagem original para selecionar uma região retangular. Os campos X,
-   Y, largura e altura também permitem definir a seleção numericamente.
-3. Escolha retângulo, círculo, cápsula, rosca ou contorno por alfa. Sem alfa, ajuste
+   Y, largura e altura também permitem definir a seleção numericamente. Use
+   **Selecionar imagem inteira** para ajustar o retângulo amarelo a toda a imagem
+   atual; esse botão apenas ajusta a seleção, sem gerar ou substituir peças.
+3. No combobox **Forma do recorte**, escolha retângulo, círculo, cápsula, rosca ou contorno por alfa. Sem alfa, ajuste
    o orçamento de triângulos. Com alfa, use a tolerância de simplificação do contorno.
 4. Para combinar uma forma com os pixels visíveis, marque **Combinar com alfa (PNG)**.
    **Preservar furos** e **Um subset por região** começam ativados. Desmarcar a

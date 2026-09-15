@@ -201,17 +201,28 @@ local function importScml(path)
     tUtil.showMessage(E.status,8)
     selectClip(1)
 end
-local function addImage(path)
-    path=path or mbm.openFile(nil,'*.png','*.jpg','*.bmp','*.tga')
-    if not path then return end
-    local info=assert(mbm.loadTexture(path),'missing_image')
-    action(function()
-        E.project.images[#E.project.images+1]={path=mbm.getFullPath(path) or path,
+local function addImage(paths)
+    paths=paths or mbm.openMultiFile(nil,'*.png','*.jpg','*.bmp','*.tga')
+    if not paths then return end
+    if type(paths)=='string' then paths={paths} end
+    if #paths==0 then return end
+    -- Load the batch before changing the project, then record one undo action.
+    local images={}
+    for _,path in ipairs(paths) do
+        local info=assert(mbm.loadTexture(path),'missing_image: '..path)
+        images[#images+1]={path=mbm.getFullPath(path) or path,
             width=info:getWidth(),height=info:getHeight()}
+    end
+    local ok=action(function()
+        for _,img in ipairs(images) do E.project.images[#E.project.images+1]=img end
         E.image=#E.project.images
         E.project.options.showSource=true
     end)
-    E.rect={x=0,y=0,w=info:getWidth(),h=info:getHeight()}
+    if ok then
+        local img=images[#images]
+        E.selectionStart=nil
+        E.rect={x=0,y=0,w=img.width,h=img.height}
+    end
 end
 local function retriangulate(p)
     assert(not p.componentCount or #G.components(p.rings)==p.componentCount,'contour_changes_components')
@@ -498,9 +509,23 @@ local function sourceCanvas()
             tImGui.BeginChild('##source_controls',{x=0,y=0},false)
             E.sourceControls=true
             tImGui.PushItemWidth(120)
-            for _,kind in ipairs({'rectangle','circle','capsule','ring','alpha'}) do
-                if widget('Selectable',kind,E.kind==kind) then E.kind=kind; E.budget=kind=='rectangle' and 2 or 12 end
+            tImGui.Text(L('cut_shape'))
+            tImGui.PushItemWidth(math.max(120,tImGui.GetContentRegionAvail().x-8))
+            local shapeOpen=tImGui.BeginCombo('##cut_shape',L(E.kind))
+            tooltip('cut_shape')
+            if shapeOpen then
+                for _,kind in ipairs({'rectangle','circle','capsule','ring','alpha'}) do
+                    if widget('Selectable',kind,E.kind==kind) then
+                        E.kind=kind; E.budget=kind=='rectangle' and 2 or 12
+                    end
+                end
+                tImGui.EndCombo()
             end
+            tImGui.PopItemWidth()
+            button('select_full_image',function()
+                E.selectionStart=nil
+                E.rect={x=0,y=0,w=img.width,h=img.height}
+            end)
             check('use_alpha',E,'useAlpha')
             local alphaMode=E.kind=='alpha' or E.useAlpha
             if not alphaMode then

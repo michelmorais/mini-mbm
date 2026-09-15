@@ -24,7 +24,13 @@
 local M = {}
 local EPS = 1e-5
 local function point(x,y) return {x=x,y=y} end
-local function cross(a,b,c) return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x) end
+local function cross(a,b,c)
+    -- Texture dimensions/pixel contours can be Lua integers. The engine uses
+    -- 32-bit integers: cross products and their intersection-test products must
+    -- use floating point to avoid wrapping valid rectangles into false crossings.
+    local dx,dy=(b.x-a.x)*1.0,(b.y-a.y)*1.0
+    return dx*(c.y-a.y)-dy*(c.x-a.x)
+end
 function M.area(ring)
     local area=0
     for i,a in ipairs(ring) do

@@ -50,6 +50,17 @@ function onInitScene()
     Model.key(E.project,1,E.selected,1,{angle=45})
     local IO=require 'articulated_sprite_io'
     local G=require 'articulated_sprite_geometry'
+    -- Run with the engine's 32-bit Lua integers. A 216 x 226 whole-image
+    -- rectangle used to overflow the edge intersection products (crossing_contours).
+    for _,size in ipairs({{216,226},{1024,1024}}) do
+        local rectangle=G.form('rectangle',{x=0,y=0,w=size[1],h=size[2]},2,{})
+        assert(G.validate(rectangle),'integer rectangle rejected')
+        local _,indices=G.triangulate(rectangle,2)
+        assert(#indices==6,'whole image must produce two triangles')
+    end
+    local valid,reason=G.validate({{{x=0,y=0},{x=216,y=226},{x=20,y=200},{x=216,y=0}}})
+    assert(not valid and reason=='crossing_contours','real crossing was accepted')
+    print('ARTICULATED SPRITE INTEGER RECTANGLE OK')
     E.project.frames[2]={parts={}}
     local rings=G.form('ring',{x=0,y=0,w=32,h=32},20,{inner=0.3,dx=2})
     local vertices,indices=G.triangulate(rings,20)
