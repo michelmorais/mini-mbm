@@ -37,12 +37,40 @@ function M.save(project,path)
     if out.options.copyImages then
         local name=path:gsub('\\','/'):match('([^/]+)$')..'.assets'
         assert(mbm.createDirectories(dir..'/'..name))
-        for i,img in ipairs(out.images) do
-            local ext=img.path:match('(%.[%w]+)$') or '.png'
-            local relative=name..'/image_'..i..ext
-            local destination=dir..'/'..relative
-            if img.path~=destination then write(destination,read(img.path)) end
-            img.path=relative
+        local reserved,used={},{}
+        for _,img in ipairs(out.images) do
+            local base=assert(img.path:gsub('\\','/'):match('([^/]+)$'),'invalid_image_path')
+            reserved[base:lower()]=true
+        end
+        for _,img in ipairs(out.images) do
+            local base=img.path:gsub('\\','/'):match('([^/]+)$')
+            local stem,ext=base:match('^(.*)(%.[^.]*)$')
+            if not stem or stem=='' then stem,ext=base,'' end
+            local bytes=read(img.path)
+            local candidate,suffix=base,1
+            while true do
+                local destination=dir..'/'..name..'/'..candidate
+                local available=not used[candidate:lower()] and
+                    (candidate==base or not reserved[candidate:lower()])
+                if available then
+                    local existing=io.open(destination,'rb')
+                    local matches=false
+                    if existing then
+                        matches=existing:read('a')==bytes
+                        assert(existing:close())
+                        available=matches
+                    end
+                    if available then
+                        -- Never overwrite another image (including resources from
+                        -- an earlier save). Reuse an existing copy only if identical.
+                        if not matches then write(destination,bytes) end
+                        used[candidate:lower()]=true
+                        img.path=name..'/'..candidate
+                        break
+                    end
+                end
+                suffix=suffix+1; candidate=stem..'_'..suffix..ext
+            end
         end
     end
     local temp=path..'.writing'

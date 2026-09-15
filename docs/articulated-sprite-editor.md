@@ -159,7 +159,11 @@ Referência de interpolação: [Spriter SCML](https://www.brashmonkey.com/ScmlDo
 
 - **Salvar projeto** grava um `.asprite` com dados de autoria, formas, contornos,
   imagens, montagem e animações. Por padrão, as imagens são copiadas para uma
-  pasta `<projeto>.asprite.assets`, com nomes próprios e referências relativas.
+  pasta `<projeto>.asprite.assets`, preservando seus nomes e usando referências
+  relativas. Nomes repetidos recebem sufixos (`Hammer_2.png`, por exemplo), sem
+  sobrescrever outra imagem. Cópias existentes de conteúdo idêntico são
+  reaproveitadas ao salvar novamente. Projetos antigos que já referenciam
+  `image_1.png` continuam compatíveis, mas não contêm o nome original perdido.
 - **Importar SPT** recupera os frames, geometria, texturas e dados articulados
   disponíveis. O editor trabalha em um frame por vez. Parâmetros de formas que
   não existem no binário não são reconstruídos como se fossem os originais.

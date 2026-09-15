@@ -81,6 +81,8 @@ function onInitScene()
     local restored=IO.load(tempRoot..'/project.asprite')
     assert(restored.images[1].path:find('.assets/'))
     assert(restored.images[1].path~=restored.images[2].path)
+    assert(restored.images[1].path:match('/fixture%.png$'))
+    assert(restored.images[2].path:match('/fixture_2%.png$'))
     local a=assert(io.open(restored.images[1].path,'rb')); a:close()
     local b=assert(io.open(restored.images[2].path,'rb')); b:close()
     local missing,reason=mbm.readPngAlpha(tempRoot..'/missing.png')
@@ -207,7 +209,7 @@ local finalize=onEndScene
 function onEndScene()
     finalize()
     if tempRoot then
-        for _,path in ipairs({'fixture.png','export.spt','project.asprite','project.asprite.assets/image_1.png','project.asprite.assets/image_2.png','other/fixture.png'}) do
+        for _,path in ipairs({'fixture.png','export.spt','project.asprite','project.asprite.assets/fixture.png','project.asprite.assets/fixture_2.png','other/fixture.png'}) do
             os.remove(tempRoot..'/'..path)
         end
         os.remove(tempRoot..'/project.asprite.assets'); os.remove(tempRoot..'/other'); os.remove(tempRoot)
