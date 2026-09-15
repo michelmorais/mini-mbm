@@ -24,7 +24,7 @@
 package.path='editor/?.lua;'..package.path
 local launch=assert(__onLoadScene,'engine scene launcher is required')
 function onInitScene()
-    launch('editor/articulated_sprite_editor.lua')
+    launch('editor/sprite_maker_articulated.lua')
     assert(tLineCenterX and tLineCenterY,'editor initialization was skipped')
     local editorLoop=assert(onLoop)
     local started=mbm.getTimeRun()

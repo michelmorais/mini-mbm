@@ -9,12 +9,16 @@ articuladas, reproduzidas por `sprite:playArticulatedAnimation()`.
 
 ## Abrir
 
-No launcher de desenvolvimento, selecione **Articulated Sprite / Sprite Articulado**.
-A entrada foi adicionada para Linux, macOS e Windows. Diretamente, a partir da
-raiz do repositório:
+No launcher de desenvolvimento, selecione **Sprite Maker (Articulated)**
+(**Editor de Sprite Articulado** em português). A entrada está disponível no Linux,
+macOS e Windows. O script principal é `editor/sprite_maker_articulated.lua`; os
+aliases CMake e o atalho Windows usam o nome `sprite_maker_articulated`.
+Depois de atualizar o repositório, recompile o launcher para que o menu use o
+novo caminho e recarregue os aliases gerados. Diretamente, a partir da raiz do
+repositório:
 
 ```sh
-bin/debug/linux_x86/mini-mbm --scene editor/articulated_sprite_editor.lua --disable_select_monitor --nosplash -w 1280 -h 800
+bin/debug/linux_x86/mini-mbm --scene editor/sprite_maker_articulated.lua --disable_select_monitor --nosplash -w 1280 -h 800
 ```
 
 ## Recortar e montar
@@ -237,10 +241,12 @@ como textura podem ser usados com formas sem extração de alfa. A importação 
 geometria suporta triângulos, triangle strips e triangle fans; primitives de linhas
 ou pontos não fazem parte desse fluxo de recorte.
 
-A interface foi executada e inspecionada no Linux/OpenGL ES. Houve testes manuais
-de interação durante o desenvolvimento, e a importação do `FW_Hero_1.scml` foi
-confirmada pelo usuário. Isso não equivale à validação completa de todos os fluxos
-e plataformas; os itens ainda abertos estão registrados abaixo.
+A interface foi executada e inspecionada no Linux/OpenGL ES. O usuário também
+confirmou o funcionamento em testes manuais no Windows e macOS, após ajustes
+necessários no Windows. A validação nessas duas plataformas está concluída para
+os cenários testados; isso não representa cobertura de todas as combinações de
+backends e fluxos. A importação do `FW_Hero_1.scml` também foi confirmada pelo
+usuário. Os itens ainda abertos estão registrados abaixo.
 
 As prévias possuem malhas privadas, sem acumular versões no cache global de
 malhas. Recorte, triangulação e exportação ocorrem quando solicitados ou quando
@@ -277,9 +283,9 @@ com o repositório.
   verificar a reabertura pelos caminhos relativos. O teste automatizado atual
   verifica salvamento/reabertura e imagens de nomes iguais, mas não essa mudança
   de diretório.
-- [ ] Executar e verificar ordenação, transparência, prévia e interação em
-  **Windows/DirectX e macOS/Metal**. A validação na engine realizada até aqui foi
-  em **Linux/OpenGL ES**.
+- [x] Validar o funcionamento em **Windows e macOS**. Testes manuais concluídos
+  e confirmados pelo usuário, com ajustes necessários no Windows. A validação
+  automatizada local permanece em **Linux/OpenGL ES**.
 
 O teste `articulated_sprite_pose_smoke.lua` exercita a troca entre Hammer e Spin,
 prévias separadas, gravação por peça, Auto Key, desfazer e ausência de reconstruções

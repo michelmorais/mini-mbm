@@ -23,7 +23,7 @@
 -- Optional real asset fixture, supplied locally (not redistributed with the engine).
 package.path='editor/?.lua;'..package.path
 local editor={}
-assert(loadfile('editor/articulated_sprite_editor.lua'))(editor)
+assert(loadfile('editor/sprite_maker_articulated.lua'))(editor)
 local init,loop=onInitScene,onLoop
 local start,checked,initialized
 local visited={}

@@ -41,7 +41,7 @@ local function dpCall(fn,...)
     if not result[1] then
         local timelineError=tostring(result[2]):match('(tl_[%w_]+)$')
         if timelineError then result[2]=tLang.L('ase_'..timelineError) end
-        print('[articulated_sprite_editor] '..tostring(result[2]))
+        print('[sprite_maker_articulated] '..tostring(result[2]))
         E.status=tostring(result[2])
         tUtil.showMessageWarn(E.status,8)
     end

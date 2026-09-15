@@ -2119,7 +2119,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias scene_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor2d.lua  --nosplash --name scene_editor2d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias scene_editor3d='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor3d.lua  --nosplash --name scene_editor3d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias sprite_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/sprite_maker.lua  --nosplash --name sprite_maker'" >> ${PATH_BIN}/shortcuts.sh
-        COMMAND cmake -E echo "alias sprite_maker_articulated='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/articulated_sprite_editor.lua  --nosplash --name sprite_maker_articulated'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias sprite_maker_articulated='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/sprite_maker_articulated.lua  --nosplash --name sprite_maker_articulated'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias font_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/font_maker.lua  --nosplash --name font_maker'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_debug='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_debug.lua  --nosplash --name mesh_debug'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
@@ -2190,7 +2190,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         COMMAND cmake -E echo "alias scene_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor2d.lua -w 1470 -h 900 --nosplash --name scene_editor2d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias scene_editor3d='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor3d.lua -w 1470 -h 900 --nosplash --name scene_editor3d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias sprite_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/sprite_maker.lua -w 1470 -h 900 --nosplash --name sprite_maker'" >> ${PATH_BIN}/shortcuts.sh
-        COMMAND cmake -E echo "alias sprite_maker_articulated='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/articulated_sprite_editor.lua -w 1470 -h 900 --nosplash --name sprite_maker_articulated'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias sprite_maker_articulated='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/sprite_maker_articulated.lua -w 1470 -h 900 --nosplash --name sprite_maker_articulated'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias font_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/font_maker.lua  -w 1470 -h 900 --nosplash --name font_maker'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_debug='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_debug.lua -w 1470 -h 900 --nosplash --name mesh_debug'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua -w 1470 -h 900 --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh

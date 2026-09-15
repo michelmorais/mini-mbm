@@ -22,7 +22,7 @@
 
 package.path='editor/?.lua;'..package.path
 local api={}
-assert(loadfile('editor/articulated_sprite_editor.lua'))(api)
+assert(loadfile('editor/sprite_maker_articulated.lua'))(api)
 local init,loop=onInitScene,onLoop
 local G=require 'articulated_sprite_geometry'
 local Model=require 'articulated_sprite_model'
