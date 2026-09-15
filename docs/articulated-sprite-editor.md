@@ -78,10 +78,21 @@ clique em **Renomear** ao lado. O texto pode ficar vazio enquanto você digita;
 a alteração só é aplicada pelo botão, com um nome não vazio e sem duplicar outro
 clipe. Alterne de **Pose inicial** para **Animação**.
 
-Selecione a peça e o instante. Ajuste posição, rotação e escala da chave; a prévia
-temporária permite visualizar a alteração antes de gravá-la. **Adicionar / atualizar
-chave** grava os valores. **Auto Key** começa desligado; ligado, grava alterações
-de transformação no instante selecionado.
+A Timeline identifica a **Peça selecionada**. Ao trocar a peça ou o instante,
+os campos carregam a transformação da trilha correspondente, interpolada no tempo
+atual; peças sem trilha começam com posição/rotação zero e escala um.
+
+Ajuste posição, rotação, escala e interpolação da chave. Com **Auto Key** desligado,
+a prévia temporária pertence à peça e ao instante em edição. Trocar de peça no
+mesmo instante preserva as prévias das outras peças, sem transferir seus valores.
+**Adicionar / atualizar chave** grava somente a peça selecionada, em uma ação
+reversível. A Timeline avisa quando há prévias não gravadas. Mudar o tempo, clipe
+ou modo, ou iniciar a reprodução, descarta essas prévias e recupera as chaves
+gravadas. Carregar uma chave existente descarta a prévia daquela peça; as de
+outras peças no mesmo instante permanecem.
+
+**Auto Key** começa desligado; ligado, grava alterações da peça selecionada no
+instante atual. Editar uma transformação durante a reprodução pausa a animação.
 
 A lista de chaves permite selecionar uma pose existente, excluí-la ou movê-la
 para outro instante. O combobox **Interpolação** oferece os modos existentes da
@@ -169,6 +180,7 @@ Os testes automatizados ficam em:
 ```sh
 bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/articulated_sprite_editor_test.lua
 bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/articulated_sprite_scml_test.lua
+bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/articulated_sprite_pose_test.lua
 timeout -s KILL 15 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_sprite_startup_smoke.lua --disable_select_monitor --nosplash -w 1280 -h 800
 timeout -s KILL 20 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_sprite_editor_smoke.lua --disable_select_monitor --nosplash -w 1280 -h 800
 ```
@@ -224,3 +236,7 @@ com o repositório.
 - [ ] Executar e verificar ordenação, transparência, prévia e interação em
   **Windows/DirectX e macOS/Metal**. A validação na engine realizada até aqui foi
   em **Linux/OpenGL ES**.
+
+O teste `articulated_sprite_pose_smoke.lua` exercita a troca entre Hammer e Spin,
+prévias separadas, gravação por peça, Auto Key, desfazer e ausência de reconstruções
+contínuas com a Timeline parada.

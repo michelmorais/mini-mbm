@@ -28,6 +28,7 @@ tUtil = require 'editor_utils'
 local G=require 'articulated_sprite_geometry'
 local Model=require 'articulated_sprite_model'
 local IO=require 'articulated_sprite_io'
+local Pose=require 'articulated_sprite_pose'
 local E={project=Model.new(),frame=1,image=1,selected=0,clip=1,time=0,playing=false,
     rect={x=0,y=0,w=100,h=100},kind='rectangle',budget=2,threshold=16,
     form={inner=0.5,dx=0,dy=0,linked=true,circular=true},textures={},alpha={},dirty=false,poseDirty=false,
@@ -139,9 +140,11 @@ local function rebuild()
             if fi<E.frame then previewFrame=previewFrame-1 end
         end
     end
-    if E.transient and E.mode=='animate' and selected() and E.project.clips[E.clip] then
+    if E.transient and E.mode=='animate' and E.project.clips[E.clip] then
         renderProject=Model.copy(renderProject)
-        Model.key(renderProject,E.clip,E.selected,E.time,E.pose)
+        for id,pose in pairs(E.drafts or {}) do
+            if Model.part(E.project,E.frame,id) then Model.key(renderProject,E.clip,id,E.time,pose) end
+        end
     end
     local obj,ghosts=nil,{}
     local previous,previousGhosts,previousPath,previousFrame=E.preview,E.ghosts,E.previewPath,E.previewFrame
@@ -174,12 +177,13 @@ local function rebuild()
 end
 local function loadProject(project,path)
     destroyPreview()
+    Pose.clear(E); E.poseContext=nil
     E.project=project; E.path=path; E.frame=1; E.image=1; E.selected=0; E.clip=1
     E.time=0; E.playing=false; E.textures={}; E.alpha={}; E.history=Model.history(project)
     E.dirty=true; E.changed=false; E.editContour=false; E.contourDrag=nil; E.overlayCache=nil
 end
 local function selectClip(index)
-    if E.transient then E.dirty=true end
+    Pose.clear(E); E.poseContext=nil
     E.clip=index; E.time=0; E.poseDirty=true; E.transient=false; E.keyOrigin=nil
     E.pose={x=0,y=0,z=0,angle=0,sx=1,sy=1}
     local clip=E.project.clips[index]
@@ -314,8 +318,11 @@ local function generate(replace)
     end
 end
 local function record()
-    E.transient=false
-    action(function() Model.key(E.project,E.clip,E.selected,E.time,E.pose) end)
+    if E.playing then E.playing=false; E.poseDirty=true end
+    if action(function() Model.key(E.project,E.clip,E.selected,E.time,E.pose) end) then
+        Pose.recorded(E)
+        E.status=string.format(L('key_recorded'),selected().name,E.time)
+    end
 end
 local function menu()
     if not tImGui.BeginMainMenuBar() then return end
@@ -720,6 +727,7 @@ local function worldInput()
             end
             if hit then
                 E.selected=p.id; E.image=p.image
+                Pose.sync(E)
                 E.worldDrag={x=x,y=y,px=p.x,py=p.y,pivotX=p.pivot.x,pivotY=p.pivot.y,
                     keyX=E.pose.x or 0,keyY=E.pose.y or 0,pivotOnly=E.movePivot}
                 break
@@ -740,7 +748,7 @@ local function worldInput()
                 commit()
             else
                 E.pose.x,E.pose.y=d.keyX+x-d.x,d.keyY+y-d.y
-                if E.project.options.autoKey then record() else E.transient=true; E.dirty=true end
+                if E.project.options.autoKey then record() else Pose.stage(E) end
             end
         end
     end
@@ -753,6 +761,7 @@ local function worldInput()
     else E.pan=nil end
 end
 local function timeline()
+    Pose.sync(E)
     if not E.showTimeline then return end
     local width,height=mbm.getRealSizeScreen()
     local first=tImGui.Flags('ImGuiCond_FirstUseEver')
@@ -766,6 +775,9 @@ local function timeline()
         if widget('Selectable','setup',E.mode=='setup') then E.mode='setup'; E.playing=false; E.poseDirty=true end
         tImGui.SameLine()
         if widget('Selectable','animate',E.mode=='animate') then E.mode='animate'; E.poseDirty=true end
+        Pose.sync(E)
+        local activePart=selected()
+        tImGui.Text(L('selected_part')..': '..(activePart and activePart.name or L('none')))
         check('auto_key',E.project.options,'autoKey')
         if check('onion',E.project.options,'onion') then E.dirty=true end
         for i,clip in ipairs(E.project.clips) do
@@ -774,7 +786,7 @@ local function timeline()
         end
         button('add_clip',function() action(function()
             E.project.clips[#E.project.clips+1]={name=L('clip')..' '..(#E.project.clips+1),duration=1,speed=1,priority=0,loop=true,blend=0,tracks={}}
-            E.clip=#E.project.clips; E.mode='animate'
+            E.clip=#E.project.clips; E.mode='animate'; Pose.sync(E)
         end) end)
         local clip=E.project.clips[E.clip]
         if clip then
@@ -821,22 +833,20 @@ local function timeline()
             tImGui.PushItemWidth(math.max(100,tImGui.GetContentRegionAvail().x-90))
             local moved,time=widget('SliderFloat','time',E.time,0,clip.duration)
             tImGui.PopItemWidth()
-            if moved then E.time=time; E.poseDirty=true; if E.transient then E.transient=false; E.dirty=true end end
-            button(E.playing and 'pause' or 'play',function() E.playing=not E.playing; E.mode='animate'; E.poseDirty=true end)
+            if moved then E.time=time; E.poseDirty=true; Pose.sync(E) end
+            button(E.playing and 'pause' or 'play',function()
+                Pose.clear(E); E.playing=not E.playing; E.mode='animate'; E.poseDirty=true
+            end)
             if selected() then
                 local modified=false
                 for _,entry in ipairs({{'key_x','x'},{'key_y','y'},{'key_rotation','angle'},{'key_scale_x','sx'},{'key_scale_y','sy'}}) do
                     if field(entry[1],E.pose,entry[2],0.1) then modified=true end
                 end
-                if modified then
-                    if E.project.options.autoKey then record()
-                    else E.transient=true; E.dirty=true end
-                end
                 tImGui.PushItemWidth(160)
                 if widget('BeginCombo','easing',L('easing_'..(E.pose.easing or 0))) then
                     for easing=0,5 do
                         if tImGui.Selectable(L('easing_'..easing),(E.pose.easing or 0)==easing) then
-                            E.pose.easing=easing
+                            E.pose.easing=easing; modified=true
                         end
                     end
                     tImGui.EndCombo()
@@ -844,34 +854,51 @@ local function timeline()
                 tImGui.PopItemWidth()
                 if E.pose.easing==5 then
                     E.pose.bezier=E.pose.bezier or {0.25,0.25,0.75,0.75}
-                    for i=1,4 do field('bezier_'..i,E.pose.bezier,i,0.01,0,1) end
+                    for i=1,4 do
+                        if field('bezier_'..i,E.pose.bezier,i,0.01,0,1) then modified=true end
+                    end
                 end
+                if modified then
+                    if E.project.options.autoKey then record() else Pose.stage(E) end
+                end
+                if E.transient then tImGui.TextWrapped(L('pending_poses')) end
                 button('record',record)
                 if E.keyOrigin then
-                    button('move_key',function() action(function()
-                        for _,track in ipairs(clip.tracks) do
-                            if track.part==E.selected then
-                                for i=#track.keys,1,-1 do
-                                    if math.abs(track.keys[i].time-E.keyOrigin)<0.0001 then table.remove(track.keys,i) end
+                    button('move_key',function()
+                        local ok=action(function()
+                            local original
+                            for _,track in ipairs(clip.tracks) do
+                                if track.part==E.selected then
+                                    for i=#track.keys,1,-1 do
+                                        if math.abs(track.keys[i].time-E.keyOrigin)<0.0001 then
+                                            original=Model.copy(track.keys[i]); table.remove(track.keys,i)
+                                        end
+                                    end
                                 end
                             end
-                        end
-                        Model.key(E.project,E.clip,E.selected,E.time,E.pose); E.keyOrigin=E.time
-                    end) end)
+                            assert(original,'missing_key')
+                            Model.key(E.project,E.clip,E.selected,E.time,original); E.keyOrigin=E.time
+                        end)
+                        if ok then Pose.recorded(E) end
+                    end)
                 end
                 for _,track in ipairs(clip.tracks) do
                     if track.part==E.selected then
                         for ki,k in ipairs(track.keys) do
                             if tImGui.Selectable(string.format('%.3f##key%d',k.time,ki),math.abs(k.time-E.time)<0.0001) then
-                                E.time=k.time; E.keyOrigin=k.time; E.pose=Model.copy(k)
-                                E.pose.angle=k.euler and k.euler[3] or k.angle or (k.q and 2*math.atan(k.q[3],k.q[4])*180/math.pi) or 0
-                                E.pose.q=nil; E.pose.euler=nil; E.poseDirty=true
+                                E.time=k.time; Pose.sync(E)
+                                if E.drafts and E.drafts[E.selected] then Pose.recorded(E); E.dirty=true end
+                                E.pose=Pose.sample(clip,E.selected,E.time)
+                                E.keyOrigin=k.time; E.poseDirty=true
                             end
                             tooltip('select_key')
                         end
-                        button('delete_key',function() action(function()
-                            for ki=#track.keys,1,-1 do if math.abs(track.keys[ki].time-E.time)<0.0001 then table.remove(track.keys,ki) end end
-                        end) end)
+                        button('delete_key',function()
+                            local ok=action(function()
+                                for ki=#track.keys,1,-1 do if math.abs(track.keys[ki].time-E.time)<0.0001 then table.remove(track.keys,ki) end end
+                            end)
+                            if ok then Pose.recorded(E); E.keyOrigin=nil end
+                        end)
                     end
                 end
             end
@@ -902,7 +929,9 @@ function onLoop(delta)
     E.frame=math.max(1,math.min(E.frame,#E.project.frames))
     E.clip=math.max(1,math.min(E.clip,#E.project.clips))
     E.mouseDown=tImGui.IsMouseDown(0)
+    Pose.sync(E)
     menu(); sourcePanel(); properties(); timeline(); sourceCanvas(); worldInput()
+    Pose.sync(E)
     if E.pendingHistory and not tImGui.IsMouseDown(0) then
         E.pendingHistory=false; Model.commit(E.history,E.project)
     end
@@ -970,6 +999,9 @@ function onKeyUp(key) if key==mbm.getKeyCode('control') then E.control=false end
 if type(testApi)=='table' then
     testApi.importScml=importScml
     testApi.selectClip=selectClip
+    testApi.syncPose=function() Pose.sync(E) end
+    testApi.stagePose=function() Pose.stage(E) end
+    testApi.record=record
     testApi.state=E
     testApi.addImage=addImage
     testApi.generate=generate
