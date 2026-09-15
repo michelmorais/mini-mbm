@@ -45,6 +45,10 @@ a `std::unique_ptr<MESH_MBM>` without registering the asset in the shared cache.
 This does not expose cache containers, backend handles, or `Impl` storage. The
 sprite preview keeps that owner privately and releases it before replacing the
 preview; ordinary sprite loading continues to use the existing shared cache.
+`SPRITE_EDITOR_ACCESS`, declared only in `src/render/sprite-editor-access.h`, is a
+narrow friend bridge used by Mesh Debug tooling and device restoration. It adds
+no public sprite methods or mutable accessors. Lua exposes the operation through
+`meshDebug:loadSpritePreview(sprite, path)`, not through sprite objects.
 
 The following areas are already in the "treat as complete unless a bug/regression appears" state:
 

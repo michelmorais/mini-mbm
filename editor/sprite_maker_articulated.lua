@@ -103,8 +103,8 @@ local function texture(index)
     return E.textures[img.path]
 end
 local function destroyPreview()
-    if E.preview then E.preview:loadEditorPreview(nil); E.preview:destroy(); E.preview=nil end
-    for _,obj in ipairs(E.ghosts) do obj:loadEditorPreview(nil); obj:destroy() end
+    if E.preview then meshDebug:loadSpritePreview(E.preview,nil); E.preview:destroy(); E.preview=nil end
+    for _,obj in ipairs(E.ghosts) do meshDebug:loadSpritePreview(obj,nil); obj:destroy() end
     if E.previewPath then os.remove(E.previewPath); E.previewPath=nil end
     E.ghosts={}
 end
@@ -155,11 +155,11 @@ local function rebuild()
     local ok=dpCall(function()
         IO.export(renderProject,path)
         obj=sprite:new('2dw')
-        assert(obj:loadEditorPreview(path),'preview_load_failed')
+        assert(meshDebug:loadSpritePreview(obj,path),'preview_load_failed')
         for i=1,(E.project.options.onion and 2 or 0) do
             local ghost=sprite:new('2dw')
             ghosts[i]=ghost
-            assert(ghost:loadEditorPreview(path),'ghost_load_failed')
+            assert(meshDebug:loadSpritePreview(ghost,path),'ghost_load_failed')
             ghost:setColor(i==1 and 0.3 or 0.9,0.5,i==1 and 0.9 or 0.3,0.18)
             ghost.visible=false
         end
@@ -168,14 +168,14 @@ local function rebuild()
     end)
     if not ok then
         E.preview,E.ghosts,E.previewPath,E.previewFrame=previous,previousGhosts,previousPath,previousFrame
-        if obj then obj:loadEditorPreview(nil); obj:destroy() end
-        for _,ghost in ipairs(ghosts) do ghost:loadEditorPreview(nil); ghost:destroy() end
+        if obj then meshDebug:loadSpritePreview(obj,nil); obj:destroy() end
+        for _,ghost in ipairs(ghosts) do meshDebug:loadSpritePreview(ghost,nil); ghost:destroy() end
         os.remove(path)
         return false
     end
     -- Release the previous version only after every new resource and pose is ready.
-    if previous then previous:loadEditorPreview(nil); previous:destroy() end
-    for _,ghost in ipairs(previousGhosts) do ghost:loadEditorPreview(nil); ghost:destroy() end
+    if previous then meshDebug:loadSpritePreview(previous,nil); previous:destroy() end
+    for _,ghost in ipairs(previousGhosts) do meshDebug:loadSpritePreview(ghost,nil); ghost:destroy() end
     if previousPath then os.remove(previousPath) end
     return true
 end

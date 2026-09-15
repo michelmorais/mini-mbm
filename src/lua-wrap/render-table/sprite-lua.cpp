@@ -86,14 +86,6 @@ namespace mbm
         return 0;
     }
 
-    extern "C" int onLoadEditorPreviewSpriteLua(lua_State *lua)
-    {
-        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
-        const char *path = luaL_optstring(lua, 2, nullptr);
-        lua_pushboolean(lua, sprite->loadEditorPreview(path));
-        return 1;
-    }
-
     int onLoadSpriteLua(lua_State *lua)
     {
         SPRITE *    sprite   = getSpriteFromRawTable(lua, 1, 1);
@@ -238,7 +230,6 @@ namespace mbm
     {
         const int top                = lua_gettop(lua);
         luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua},
-                                        {"loadEditorPreview", onLoadEditorPreviewSpriteLua},
                                         {"playArticulatedAnimation", onPlayArticulatedAnimationSpriteLua},
                                         {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsSpriteLua},
                                         {"getArticulatedAnimationName", onGetArticulatedAnimationNameSpriteLua},
@@ -322,7 +313,6 @@ namespace mbm
 		
 		//table
 		luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua},
-                                        {"loadEditorPreview", onLoadEditorPreviewSpriteLua},
                                         {"playArticulatedAnimation", onPlayArticulatedAnimationSpriteLua},
                                         {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsSpriteLua},
                                         {"getArticulatedAnimationName", onGetArticulatedAnimationNameSpriteLua},

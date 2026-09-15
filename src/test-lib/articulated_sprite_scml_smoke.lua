@@ -54,8 +54,11 @@ function onInitScene()
 end
 function onLoop(delta)
     assert(initialized,'SCML initialization failed')
-    local elapsed=mbm.getTimeRun()-start
-    local index=math.min(8,math.floor(elapsed)+1)
+    local now=mbm.getTimeRun()
+    if not previousClip then start=now end
+    local elapsed=now-start
+    local index=previousClip or 1
+    if elapsed>=1 and index<8 then index=index+1; start=now; elapsed=0 end
     if editor.state.clip~=index then editor.selectClip(index); editor.state.playing=true end
     loop(delta)
     assert(editor.state.preview,'Missing SCML preview')
@@ -63,7 +66,7 @@ function onLoop(delta)
     previousClip,previousPreview=index,editor.state.preview
     visited[index]=true
     assert(editor.state.preview:getArticulatedAnimationTime(editor.state.project.clips[index].name))
-    if elapsed>8 then
+    if index==8 and elapsed>=1 then
         for i=1,8 do assert(visited[i],'Clip not exercised: '..i) end
         if not checked then print('SCML PLAYBACK OK'); checked=true end
         mbm.quit()

@@ -98,8 +98,24 @@ function onInitScene()
     editor.rebuild()
     for i=1,5 do editor.rebuild() end
     local preview=sprite:new('2dw')
-    assert(preview:loadEditorPreview(tempRoot..'/export.spt'))
-    assert(preview:loadEditorPreview(nil))
+    assert(preview.loadEditorPreview==nil and sprite.loadEditorPreview==nil,'editor API leaked into sprite')
+    local cachedCount=independent:getTotalArticulatedAnimations()
+    local edited=Model.copy(E.project)
+    local extra=Model.copy(edited.clips[1]); extra.name='private_preview_only'
+    edited.clips[#edited.clips+1]=extra
+    -- save() intentionally invalidates its output cache entry. Write elsewhere,
+    -- then replace the file bytes to test uncached loading independently of save().
+    assert(IO.export(edited,tempRoot..'/edited.spt'))
+    local input=assert(io.open(tempRoot..'/edited.spt','rb')); local bytes=input:read('*a'); input:close()
+    local output=assert(io.open(tempRoot..'/export.spt','wb')); assert(output:write(bytes)); output:close()
+    os.remove(tempRoot..'/edited.spt')
+    assert(meshDebug:loadSpritePreview(preview,tempRoot..'/export.spt'))
+    assert(preview:getTotalArticulatedAnimations()==cachedCount+1,'preview reused stale cached mesh')
+    assert(independent:getTotalArticulatedAnimations()==cachedCount,'preview changed shared mesh')
+    assert(meshDebug:loadSpritePreview(preview,nil))
+    assert(preview:load(tempRoot..'/export.spt'))
+    assert(preview:getTotalArticulatedAnimations()==cachedCount,'normal load bypassed shared cache')
+    assert(meshDebug:loadSpritePreview(preview,nil))
     preview:destroy()
     print('ARTICULATED SPRITE ROUNDTRIP OK')
 end

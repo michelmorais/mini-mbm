@@ -288,6 +288,7 @@
     <ClInclude Include="..\..\include\render\render-2-texture.h" />
     <ClInclude Include="..\..\include\render\shape-mesh.h" />
     <ClInclude Include="..\..\include\render\sprite.h" />
+    <ClInclude Include="..\..\src\render\sprite-editor-access.h" />
     <ClInclude Include="..\..\include\render\steered_particle.h" />
     <ClInclude Include="..\..\include\render\texture-view.h" />
     <ClInclude Include="..\..\include\render\tile.h" />

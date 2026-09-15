@@ -248,8 +248,9 @@ os cenários testados; isso não representa cobertura de todas as combinações 
 backends e fluxos. A importação do `FW_Hero_1.scml` também foi confirmada pelo
 usuário. Os itens ainda abertos estão registrados abaixo.
 
-As prévias possuem malhas privadas, sem acumular versões no cache global de
-malhas. Recorte, triangulação e exportação ocorrem quando solicitados ou quando
+As prévias usam `meshDebug:loadSpritePreview(sprite, caminho)` e possuem malhas
+privadas, sem acumular versões no cache global de malhas. O carregamento pertence
+à API de ferramentas Mesh Debug; sprites de jogos continuam usando `load`. Recorte, triangulação e exportação ocorrem quando solicitados ou quando
 seus dados mudam. Reconstruções durante arrastes são limitadas a uma a cada 80 ms;
 o editor parado não reconstrói assets nem executa seek continuamente.
 

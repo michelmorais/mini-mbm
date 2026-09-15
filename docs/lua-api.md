@@ -560,14 +560,6 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:setBlend` | `(srcBlend, dstBlend, op?)` | — | Set blend mode using `mbm.*` blend constants |
 | `obj:getBlend` | `()` | srcBlend, dstBlend, op | Get current blend mode |
 
-For editor sprite previews, `sprite:loadEditorPreview(path)` loads a private asset
-without adding it to the global mesh cache. It returns a boolean and replaces the
-sprite's previous asset. Keep the file available while the preview is alive for
-device restoration. `sprite:loadEditorPreview(nil)` releases the preview buffers;
-normal `sprite:load(path)` continues to use the shared cache. This is intended for
-frequently rebuilt editor assets, not ordinary game sprite loading.
-
-
 #### Articulated playback (`mesh` and `sprite`)
 
 These methods are available on loaded `.msh` and `.spt` objects whose asset contains articulated
@@ -1411,6 +1403,17 @@ Standard `print(...)` (no tag) still works and prints white.
 ---
 
 ## 15. Mesh Debug authoring
+
+`meshDebug:loadSpritePreview(sprite, path)` is an editor utility for repeatedly
+rebuilt SPT previews. It returns a boolean, releases the sprite's previous asset,
+and loads a privately owned mesh without adding it to the global mesh cache.
+The source file must remain available while the preview is alive for device
+restoration. `meshDebug:loadSpritePreview(sprite, nil)` releases the asset and its
+private buffers; the sprite object remains valid. This utility is called on the
+`meshDebug` factory table, without constructing a Mesh Debug instance.
+Ordinary `sprite:load(path)` continues to use the shared cache. Sprite objects
+and the public C++ `SPRITE` class expose no editor-specific loading method.
+
 
 The editor-only `meshDebug` object exposes Mesh V11 authoring operations. To reorder subsets inside
 a frame, use:

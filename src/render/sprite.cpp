@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <sprite.h>
+#include "sprite-editor-access.h"
 #include <texture-manager.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
@@ -50,26 +51,26 @@ namespace mbm
         this->editorPreviewMesh.reset();
     }
 
-    bool SPRITE::loadEditorPreview(const char *fileName)
+    bool SPRITE_EDITOR_ACCESS::loadPreview(SPRITE &sprite, const char *fileName)
     {
-        this->release();
+        sprite.release();
         if (!fileName)
             return true;
-        auto candidate = MESH_MANAGER::getInstance()->loadUncached(fileName, this);
+        auto candidate = MESH_MANAGER::getInstance()->loadUncached(fileName, &sprite);
         if (!candidate)
             return false;
-        this->editorPreviewMesh = std::move(candidate);
-        this->mesh = this->editorPreviewMesh.get();
+        sprite.editorPreviewMesh = std::move(candidate);
+        sprite.mesh = sprite.editorPreviewMesh.get();
         const util::TYPE_MESH expectedType = util::TYPE_MESH_SPRITE;
-        if (this->populateAnimationsFromMesh(this->mesh, &expectedType, "sprite preview") !=
+        if (sprite.populateAnimationsFromMesh(sprite.mesh, &expectedType, "sprite preview") !=
             MeshLoadFinishResult::OK)
         {
-            this->release();
+            sprite.release();
             return false;
         }
-        this->setInternalFileName(fileName);
-        this->restartAnimation();
-        this->updateAABB();
+        sprite.setInternalFileName(fileName);
+        sprite.restartAnimation();
+        sprite.updateAABB();
         return true;
     }
     
@@ -271,7 +272,7 @@ namespace mbm
         if (this->editorPreviewMesh)
         {
             const std::string path = this->getInternalFileName();
-            return this->loadEditorPreview(path.c_str());
+            return SPRITE_EDITOR_ACCESS::loadPreview(*this, path.c_str());
         }
         this->mesh = nullptr;
         const char *internalFileName = this->getInternalFileName();
