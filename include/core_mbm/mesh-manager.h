@@ -890,6 +890,8 @@ namespace mbm
         API_IMPL void fakeRelease(const char* fileName);
         API_IMPL MESH_MBM *load(const char *fileName);
         API_IMPL MESH_MBM *load(const char *fileName, RENDERIZABLE *renderizable);
+        // The caller owns this asset; it never enters the shared cache.
+        API_IMPL std::unique_ptr<MESH_MBM> loadUncached(const char *fileName, RENDERIZABLE *renderizable);
         API_IMPL MESH_MBM *loadTrueTypeFont(const char *fileNameTtf, const float heightLetter, const short spaceWidth,const short spaceHeight,const bool saveTextureAsPng,TEXTURE ** texture_loaded);
         API_IMPL MESH_MBM *load(const char *nickName, float *pPosition, float *pNormal, float *pTexture,const uint32_t sizeVertexBuffer,const util::INFO_DRAW_MODE * info_mode);
         API_IMPL MESH_MBM *loadIndex(const char *nickName, float *pPosition, float *pNormal, float *pTexture,const uint32_t sizeVertexBuffer, uint16_t *index,const uint32_t sizeIndex,const util::INFO_DRAW_MODE * info_draw_mode);

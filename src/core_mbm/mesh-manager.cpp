@@ -11730,6 +11730,14 @@ namespace mbm
         return this->load(fileName, nullptr);
     }
 
+    std::unique_ptr<MESH_MBM> MESH_MANAGER::loadUncached(const char *fileName, RENDERIZABLE *renderizable)
+    {
+        std::unique_ptr<MESH_MBM> mesh(new MESH_MBM());
+        if (!mesh->load(fileName, renderizable))
+            return nullptr;
+        return mesh;
+    }
+
     MESH_MBM * MESH_MANAGER::load(const char *fileName, RENDERIZABLE *renderizable)
     {
         std::string fileNameBase = util::getBaseName(fileName);

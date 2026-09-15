@@ -73,19 +73,20 @@ int main(const int argc,const char **argv)
     bool disable_select_monitor = false;
 
     mbm::APP_RUN default_applications[] = {
-            {"Asset packager"        , STR_PT_BR_ASSET_PACKAGER,    "asset_packager.lua"},
-            {"Font Maker"            , STR_PT_BR_FONT_MAKER,        "font_maker.lua"},
-            {"Mesh Debug Editor"     , STR_PT_BR_MESH_DEBUG_EDITOR,  "mesh_debug.lua"},
-            {"Skeletal Animation Editor", STR_PT_BR_SKELETAL_ANIMATION_EDITOR, "skeletal_animation_editor.lua"},
-            {"Particle Editor"       , STR_PT_BR_PARTICLE_EDITOR,   "particle_editor.lua"},
-            {"Physics Editor"        , STR_PT_BR_PHYSICS_EDITOR,     "physic_editor.lua"},
-            {"Scene 2D Editor"       , STR_PT_BR_SCENE_2D_EDITOR,    "scene_editor2d.lua"},
-            {"Scene 3D Editor"       , STR_PT_BR_SCENE_3D_EDITOR,    "scene_editor3d.lua"},
-            {"Shader Editor"         , STR_PT_BR_SHADER_EDITOR,      "shader_editor.lua"},
-            {"Sprite Maker"          , STR_PT_BR_SPRITE_MAKER,       "sprite_maker.lua"},
-            {"Texture Packer"        , STR_PT_BR_TEXTURE_PACKER,      "texture_packer.lua"},
-            {"Tile-Map Editor"       , STR_PT_BR_TILEMAP_EDITOR,     "tilemap_editor.lua"},
-            {"User specified"        , STR_PT_BR_USER_SPECIFIED,      "user_specified.lua"},
+            {"Asset packager"              , STR_PT_BR_ASSET_PACKAGER,            "asset_packager.lua"},
+            {"Font Maker"                  , STR_PT_BR_FONT_MAKER,                "font_maker.lua"},
+            {"Mesh Editor"                 , STR_PT_BR_MESH_EDITOR,               "mesh_debug.lua"},
+            {"Skeletal Animation Editor"   , STR_PT_BR_SKELETAL_ANIMATION_EDITOR, "skeletal_animation_editor.lua"},
+            {"Particle Editor"             , STR_PT_BR_PARTICLE_EDITOR,           "particle_editor.lua"},
+            {"Physics Editor"              , STR_PT_BR_PHYSICS_EDITOR,            "physic_editor.lua"},
+            {"Scene 2D Editor"             , STR_PT_BR_SCENE_2D_EDITOR,           "scene_editor2d.lua"},
+            {"Scene 3D Editor"             , STR_PT_BR_SCENE_3D_EDITOR,           "scene_editor3d.lua"},
+            {"Shader Editor"               , STR_PT_BR_SHADER_EDITOR,             "shader_editor.lua"},
+            {"Sprite Maker"                , STR_PT_BR_SPRITE_MAKER,              "sprite_maker.lua"},
+            {"Sprite Maker (Articulated)"  , STR_PT_BR_ARTICULATED_SPRITE_EDITOR, "sprite_maker_articulated.lua"},
+            {"Texture Packer"              , STR_PT_BR_TEXTURE_PACKER,            "texture_packer.lua"},
+            {"Tile-Map Editor"             , STR_PT_BR_TILEMAP_EDITOR,            "tilemap_editor.lua"},
+            {"User specified"              , STR_PT_BR_USER_SPECIFIED,            "user_specified.lua"},
     };
     int size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
 	size_app = size_app - 1; // remove the last one, it is a user specified script

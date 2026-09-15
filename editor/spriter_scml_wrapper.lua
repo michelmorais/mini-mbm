@@ -253,6 +253,7 @@ function M.parse(scmlPath)
                 id = toInt(animNode.attrs.id, #entity.animations),
                 name = animNode.attrs.name or ("animation_" .. tostring(#entity.animations + 1)),
                 length = toNum(animNode.attrs.length, 0),
+                looping = animNode.attrs.looping ~= "false",
                 interval = toNum(animNode.attrs.interval, nil),
                 mainline = {},
                 timelines = {},
@@ -264,6 +265,7 @@ function M.parse(scmlPath)
                     local key = {
                         id = toInt(keyNode.attrs.id, #anim.mainline),
                         time = toNum(keyNode.attrs.time, 0),
+                        curve = cloneAttrs(keyNode.attrs),
                         boneRefs = {},
                         objectRefs = {},
                     }
@@ -291,6 +293,7 @@ function M.parse(scmlPath)
                         local key = {
                             id = toInt(keyNode.attrs.id, #timeline.keys),
                             time = toNum(keyNode.attrs.time, 0),
+                            curve = cloneAttrs(keyNode.attrs),
                             spin = toInt(keyNode.attrs.spin, 1),
                             type = child.name,
                             attrs = cloneAttrs(child.attrs),

@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <sprite.h>
+#include "sprite-editor-access.h"
 #include <texture-manager.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
@@ -47,6 +48,30 @@ namespace mbm
         this->mesh                  = nullptr;
         this->setIndexAnimation(0);
         this->resetArticulatedAnimationPlayer();
+        this->editorPreviewMesh.reset();
+    }
+
+    bool SPRITE_EDITOR_ACCESS::loadPreview(SPRITE &sprite, const char *fileName)
+    {
+        sprite.release();
+        if (!fileName)
+            return true;
+        auto candidate = MESH_MANAGER::getInstance()->loadUncached(fileName, &sprite);
+        if (!candidate)
+            return false;
+        sprite.editorPreviewMesh = std::move(candidate);
+        sprite.mesh = sprite.editorPreviewMesh.get();
+        const util::TYPE_MESH expectedType = util::TYPE_MESH_SPRITE;
+        if (sprite.populateAnimationsFromMesh(sprite.mesh, &expectedType, "sprite preview") !=
+            MeshLoadFinishResult::OK)
+        {
+            sprite.release();
+            return false;
+        }
+        sprite.setInternalFileName(fileName);
+        sprite.restartAnimation();
+        sprite.updateAABB();
+        return true;
     }
     
     bool SPRITE::load(const char *fileName)
@@ -244,6 +269,11 @@ namespace mbm
     
     bool SPRITE::onRestoreDevice()
     {
+        if (this->editorPreviewMesh)
+        {
+            const std::string path = this->getInternalFileName();
+            return SPRITE_EDITOR_ACCESS::loadPreview(*this, path.c_str());
+        }
         this->mesh = nullptr;
         const char *internalFileName = this->getInternalFileName();
         if(this->load(internalFileName))

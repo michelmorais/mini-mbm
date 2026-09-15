@@ -221,6 +221,8 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 | `mbm.createTexture` | `(pixels: table, w, h, channels, name?, savePath?)` | string\|nil | Create a texture from a raw pixel table (RGB or RGBA) |
 | `mbm.existTexture` | `(name: string)` | bool | Whether a named texture is already loaded |
 | `mbm.loadTexture` | `(file: string, alpha?: bool)` | textureInfo | Load a texture file and return info table |
+| `mbm.readPngAlpha` | `(path: string)` | bytes, width, height or nil, error | Decode a PNG file on the CPU. Returns a binary string with one alpha byte per pixel, in row-major order from the top-left; images without transparency yield 255. Uses the supplied filesystem path, without asset-search dialogs. Intended for editor operations on demand, not per-frame calls. |
+| `mbm.createDirectories` | `(path: string)` | true or nil, error | Create a directory and missing parent directories. Succeeds if the directory already exists. Uses a filesystem path, without invoking a shell. |
 
 ### 3.9 Global Variables (cross-scene storage)
 
@@ -1301,6 +1303,31 @@ tImGui.Image(textureName, {x=w, y=h}?, {x=u0, y=v0}?, {x=u1, y=v1}?, bgColor?, t
 local pressed = tImGui.ImageButton("id", textureName, {x=w, y=h}?, {x=u0, y=v0}?, {x=u1, y=v1}?, bgColor?, tintColor?, flipV?)
 ```
 
+### Cached geometry overlays
+
+```lua
+-- Call during onLoop, while an ImGui frame is active.
+local batch = tImGui.CreateGeometryBatch(function()
+    tImGui.AddLine({x=10,y=20}, {x=100,y=20}, {r=0,g=1,b=0,a=1}, 2)
+    tImGui.AddCircleFilled({x=10,y=20}, 4, {r=1,g=1,b=1,a=1}, 12)
+end)
+-- Subsequent frames: append cached indexed geometry to the current draw list.
+tImGui.AddGeometryBatch(batch)
+```
+
+`CreateGeometryBatch(callback)` runs the callback once and returns an opaque Lua
+userdata holding CPU-side tessellated geometry. Use only untextured `Add*` drawing
+primitives in the callback; no widgets, text, images, clip changes, or nested
+batch creation. Callback errors propagate after restoring the drawing target.
+`AddGeometryBatch(batch)` uses the current draw-list clipping and the current
+atlas white pixel, without rerunning the callback or tessellating shapes.
+Recreate the batch when positions, sizes, colors, or geometry change. Coordinates
+are absolute window pixels. Lua GC releases the batch; it owns no GPU resources.
+Large batches are split at draw-command vertex offsets while retaining 16-bit
+indices. The OpenGL ES backend honors these offsets by rebasing vertex attributes;
+desktop OpenGL, DirectX and Metal also support draw-command vertex offsets.
+Custom backends must provide equivalent support for large batches.
+
 ### Utility
 
 ```lua
@@ -1376,6 +1403,17 @@ Standard `print(...)` (no tag) still works and prints white.
 ---
 
 ## 15. Mesh Debug authoring
+
+`meshDebug:loadSpritePreview(sprite, path)` is an editor utility for repeatedly
+rebuilt SPT previews. It returns a boolean, releases the sprite's previous asset,
+and loads a privately owned mesh without adding it to the global mesh cache.
+The source file must remain available while the preview is alive for device
+restoration. `meshDebug:loadSpritePreview(sprite, nil)` releases the asset and its
+private buffers; the sprite object remains valid. This utility is called on the
+`meshDebug` factory table, without constructing a Mesh Debug instance.
+Ordinary `sprite:load(path)` continues to use the shared cache. Sprite objects
+and the public C++ `SPRITE` class expose no editor-specific loading method.
+
 
 The editor-only `meshDebug` object exposes Mesh V11 authoring operations. To reorder subsets inside
 a frame, use:

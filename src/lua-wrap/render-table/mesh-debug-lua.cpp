@@ -33,6 +33,7 @@ extern "C"
 #include <lua-wrap/render-table/animation-lua.h>
 #include <lua-wrap/render-table/mesh-lua.h>
 #include <lua-wrap/render-table/sprite-lua.h>
+#include "../../render/sprite-editor-access.h"
 #include <lua-wrap/render-table/font-lua.h>
 #include <lua-wrap/render-table/gif-view-lua.h>
 #include <lua-wrap/render-table/texture-view-lua.h>
@@ -3651,9 +3652,18 @@ namespace mbm
 
     void registerClassAuto(lua_State *lua);
 
+    extern "C" int onLoadSpritePreviewMeshDebugLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 2);
+        const char *path = luaL_optstring(lua, 3, nullptr);
+        lua_pushboolean(lua, SPRITE_EDITOR_ACCESS::loadPreview(*sprite, path));
+        return 1;
+    }
+
     void registerClassMeshDebug(lua_State *lua)
     {
         luaL_Reg regFrameMeshMethods[] = {{"new", onNewMeshDebugLua},
+                                          {"loadSpritePreview", onLoadSpritePreviewMeshDebugLua},
                                           {"__newindex", onNewIndexMeshDebug},
                                           {"__index", onIndexMeshDebug},
                                           {"__gc", onDestroyMeshDebugLua},

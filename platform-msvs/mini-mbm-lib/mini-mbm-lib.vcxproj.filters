@@ -141,6 +141,9 @@
     <ClCompile Include="..\..\src\lua-wrap\render-table\vr-lua.cpp">
       <Filter>Source Files\Lua-wrapper\Render</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

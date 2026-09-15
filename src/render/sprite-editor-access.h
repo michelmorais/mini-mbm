@@ -17,58 +17,22 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef SPRITE_GLES_H
-#define SPRITE_GLES_H
+#ifndef MBM_SPRITE_EDITOR_ACCESS_H
+#define MBM_SPRITE_EDITOR_ACCESS_H
 
 #include <core_mbm/core-exports.h>
-#include <core_mbm/device.h>
-#include <core_mbm/renderizable.h>
-#include <core_mbm/animation.h>
-#include <core_mbm/physics.h>
-#include <functional>
-#include <memory>
-
 
 namespace mbm
 {
+class SPRITE;
 
-class SPRITE : public RENDERIZABLE, public ANIMATION_MANAGER
+// Internal editor bridge. Not part of the public render API.
+class SPRITE_EDITOR_ACCESS
 {
   public:
-    friend class RENDER_2_TEXTURE;
-    API_IMPL SPRITE(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
-    API_IMPL virtual ~SPRITE();
-    API_IMPL void release();
-    API_IMPL bool load(const char *fileName);
-    // Background-thread-friendly equivalent of load() - see MESH::loadAsync.
-    API_IMPL void loadAsync(const char *fileName, std::function<void(bool success)> callback);
-    API_IMPL const char *getFileName();
-    API_IMPL bool playArticulatedAnimation(const char *name, const int priority = 0,
-                                           const float blendDuration = 0.0f,
-                                           const float weight = 1.0f);
-    API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
-    API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
-    API_IMPL bool pauseArticulatedAnimation(const char *name) noexcept;
-    API_IMPL bool resumeArticulatedAnimation(const char *name) noexcept;
-    API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;
-    API_IMPL bool seekArticulatedAnimation(const char *name, const float time) noexcept;
-    API_IMPL bool getArticulatedAnimationTime(const char *name, float *time) const noexcept;
-	API_IMPL FX*  getFx() const override;
-	API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
-	FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
-
-  private:
-    friend class SPRITE_EDITOR_ACCESS;
-    bool                     isOnFrustum() override;
-    bool                     render() override;
-    bool                     onRestoreDevice() override;
-    const mbm::INFO_PHYSICS *getInfoPhysics() const override;
-    const MESH_MBM *         getMesh() const override;
-    bool                     isLoaded() const override;
-
-    MESH_MBM *mesh;
-    std::unique_ptr<MESH_MBM> editorPreviewMesh;
-    };
+    // A null path releases the current asset, including its private buffers.
+    API_IMPL static bool loadPreview(SPRITE &sprite, const char *fileName);
+};
 }
 
 #endif
