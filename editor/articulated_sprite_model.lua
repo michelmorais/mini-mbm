@@ -132,6 +132,10 @@ function M.removeFrame(project,index)
             if removed[clip.tracks[i].part] then table.remove(clip.tracks,i) end
         end
     end
+    for _,clip in ipairs(project.clips) do
+        if clip.frame==index then clip.frame=nil
+        elseif clip.frame and clip.frame>index then clip.frame=clip.frame-1 end
+    end
     local animations=project.frameAnimations or {}
     for i=#animations,1,-1 do
         local anim=animations[i]
@@ -215,6 +219,7 @@ function M.validate(project)
     end
     for _,clip in ipairs(project.clips) do
         assert(clip.duration>0 and type(clip.name)=='string','invalid_clip')
+        assert(not clip.frame or project.frames[clip.frame],'missing_clip_frame')
         for _,track in ipairs(clip.tracks) do assert(ids[track.part],'missing_track_part') end
     end
     project.nextId=math.max(project.nextId or 1,maxId+1)

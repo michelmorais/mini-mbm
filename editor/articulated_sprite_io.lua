@@ -85,8 +85,13 @@ function M.build(project)
     end
     d:removeNormals(); d:setType('sprite')
     d:setModeDraw('TRIANGLES'); d:setModeCullFace('BACK'); d:setModeFrontFace('CW')
+    local clipFrames={}
+    for _,clip in ipairs(project.clips) do if clip.frame then clipFrames[clip.name]=clip.frame end end
     for _,anim in ipairs(project.frameAnimations or {}) do
-        if not anim[1]:match('^__frame_') then d:addAnim(table.unpack(anim)) end
+        if not anim[1]:match('^__frame_') and not clipFrames[anim[1]] then d:addAnim(table.unpack(anim)) end
+    end
+    for _,clip in ipairs(project.clips) do
+        if clip.frame then d:addAnim(clip.name,clip.frame,clip.frame,1,mbm.PAUSED) end
     end
     if project.physics and #project.physics>0 then d:setPhysics(project.physics) end
     for fi in ipairs(project.frames) do d:addAnim('__frame_'..fi,fi,fi,1,mbm.PAUSED) end
@@ -194,6 +199,9 @@ function M.import(path)
     for ci=1,d:getTotalArticulatedAnimations() do
         local name,duration,speed,priority,loop,blend=d:getArticulatedAnimation(ci)
         local clip={name=name,duration=duration,speed=speed,priority=priority,loop=loop,blend=blend,tracks={}}
+        for _,anim in ipairs(project.frameAnimations) do
+            if anim[1]==name and anim[2]==anim[3] then clip.frame=anim[2]; break end
+        end
         project.clips[#project.clips+1]=clip
         for ti=1,d:getTotalArticulatedTracks(ci) do
             local id,mask,count=d:getArticulatedTrack(ci,ti)

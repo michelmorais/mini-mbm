@@ -32,7 +32,7 @@ bin/debug/linux_x86/mini-mbm --scene editor/articulated_sprite_editor.lua --disa
 6. Selecione a peça na lista ou no viewport e arraste para posicioná-la. A pose
    inicial também oferece posição, profundidade, rotação, escala e pivô numéricos.
    **Arrastar somente o pivô** altera o pivô sem mover a geometria. O marcador
-   amarelo mostra o pivô selecionado.
+   magenta mostra o pivô selecionado.
 7. Escolha o pai na lista e use os controles de ordem para organizar os subsets.
    Trocar o pai preserva a pose inicial, armazenada em coordenadas do asset.
 
@@ -83,6 +83,57 @@ linear, entrada, saída, entrada/saída, smoothstep e Bezier com controles.
 a 1/12 de segundo antes e depois da posição atual. Durante a reprodução, as
 silhuetas são atualizadas a 12 Hz; a animação principal é executada pela engine.
 
+## Importar animações do Spriter (SCML)
+
+Desde 7.206.0, **Arquivo > Importar SCML (Spriter)** abre o `.scml` e resolve as
+imagens referenciadas nas suas subpastas. A importação substitui o projeto atual;
+salve alterações antes de importar. Não é necessário usar uma imagem composta
+ou atlas como entrada. O Sprite Maker tradicional mantém sua importação estática.
+
+Cada animação recebe um frame base com subsets rígidos e um clipe articulado.
+Selecionar o clipe na Timeline seleciona também seu frame. O editor abre em modo
+**Animação**; use **Reproduzir** ou a barra de tempo e edite as chaves das peças.
+A imagem de origem começa oculta nessa importação e pode ser mostrada em Opções.
+
+O importador resolve os pivôs, transformações herdadas, escalas espelhadas,
+sentido de rotação, duração e repetição. Curvas da mainline e das timelines
+(linear, instantânea, quadrática, cúbica, quártica, quíntica e Bezier) são avaliadas
+na importação. As transformações resultantes são amostradas a 60 Hz em chaves
+TRS com interpolação linear no runtime, incluindo os limites das chaves originais.
+É uma aproximação temporal das curvas do Spriter; não há avaliação SCML a cada
+frame da engine. A hierarquia de ossos é convertida em trilhas independentes das
+peças, sem importar ossos ou skinning. A base conserva os recortes sem rotação
+nas posições dos pivôs; a montagem rotacionada é aplicada pelas chaves do clipe.
+
+Trocas de imagem e de ordem criam variantes de subsets. A variante inativa usa
+escala zero; chaves próximas da transição evitam que ela apareça gradualmente
+entre amostras. Essa transição tem uma pequena janela de interpolação (normalmente
+0,05 ms), respeitando a tolerância de tempo da engine. No modo Pose inicial,
+as variantes ficam visíveis para edição. O SPT continua usando índices de 16 bits.
+
+Opacidade parcial animada não é representável pelas trilhas TRS e impede a
+importação com uma mensagem; opacidade zero é tratada como peça oculta. Tipos de
+objeto diferentes de sprite/bone não são suportados. Character maps, áudio,
+eventos e metadados do Spriter não são convertidos. O `.asprite` conserva os
+recortes e as referências de origem para continuar a autoria; não há exportação
+SCML.
+
+No exemplo `FW_Hero_1.scml`, o resultado é **8 clipes, 8 frames base e 27 imagens**:
+Walking, Running, Jumping, Crouching, Attack, Attack_No_Weapon, Hit e Die.
+Die não repete. O importador tradicional gera os mesmos 62 frames estáticos.
+
+Para reproduzir o SPT exportado no jogo, selecione o frame base e o clipe:
+
+```lua
+hero:setAnim('Walking')
+hero:playArticulatedAnimation('Walking')
+```
+
+As animações de frame com o nome dos clipes selecionam apenas seu frame base.
+Essa associação é recuperada ao reimportar o SPT no editor.
+
+Referência de interpolação: [Spriter SCML](https://www.brashmonkey.com/ScmlDocs/ScmlReference.html).
+
 ## Projeto e binário
 
 - **Salvar projeto** grava um `.asprite` com dados de autoria, formas, contornos,
@@ -107,6 +158,7 @@ Os testes automatizados ficam em:
 
 ```sh
 bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/articulated_sprite_editor_test.lua
+bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/articulated_sprite_scml_test.lua
 timeout -s KILL 15 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_sprite_startup_smoke.lua --disable_select_monitor --nosplash -w 1280 -h 800
 timeout -s KILL 20 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_sprite_editor_smoke.lua --disable_select_monitor --nosplash -w 1280 -h 800
 ```
@@ -127,3 +179,10 @@ As prévias possuem malhas privadas, sem acumular versões no cache global de
 malhas. Recorte, triangulação e exportação ocorrem quando solicitados ou quando
 seus dados mudam. Reconstruções durante arrastes são limitadas a uma a cada 80 ms;
 o editor parado não reconstrói assets nem executa seek continuamente.
+
+O teste SCML puro usa um arquivo sintético e aceita um caminho opcional para o
+`FW_Hero_1.scml` como primeiro argumento. `articulated_sprite_scml_smoke.lua` usa o
+exemplo local em `/home/michel/Downloads/SpriterFile`, exporta/reimporta o SPT e
+percorre os oito clipes na engine, verificando que a prévia não é reconstruída
+continuamente durante a reprodução. As imagens do exemplo não são distribuídas
+com o repositório.

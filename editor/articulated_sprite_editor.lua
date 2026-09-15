@@ -135,7 +135,7 @@ local function rebuild()
     for fi=#E.project.frames,1,-1 do
         if #E.project.frames[fi].parts==0 then
             if renderProject==E.project then renderProject=Model.copy(E.project) end
-            table.remove(renderProject.frames,fi)
+            Model.removeFrame(renderProject,fi)
             if fi<E.frame then previewFrame=previewFrame-1 end
         end
     end
@@ -176,7 +176,30 @@ local function loadProject(project,path)
     destroyPreview()
     E.project=project; E.path=path; E.frame=1; E.image=1; E.selected=0; E.clip=1
     E.time=0; E.playing=false; E.textures={}; E.alpha={}; E.history=Model.history(project)
-    E.dirty=true; E.changed=false
+    E.dirty=true; E.changed=false; E.editContour=false; E.contourDrag=nil; E.overlayCache=nil
+end
+local function selectClip(index)
+    if E.transient then E.dirty=true end
+    E.clip=index; E.time=0; E.poseDirty=true; E.transient=false; E.keyOrigin=nil
+    E.pose={x=0,y=0,z=0,angle=0,sx=1,sy=1}
+    local clip=E.project.clips[index]
+    if clip and clip.frame and E.frame~=clip.frame then
+        E.frame=clip.frame; E.selected=0; E.dirty=true
+    end
+end
+local function importScml(path)
+    local project=require('articulated_sprite_scml').import(path)
+    -- Validate all source textures before replacing the current editor project.
+    for _,img in ipairs(project.images) do
+        local info=assert(mbm.loadTexture(img.path),'missing_image: '..img.path)
+        assert(info:getWidth()==img.width and info:getHeight()==img.height,'SCML image dimensions: '..img.path)
+    end
+    project.options.showSource=false
+    loadProject(project)
+    E.mode='animate'; E.changed=true
+    E.status=string.format(L('scml_loaded'),#project.clips,#project.images)
+    tUtil.showMessage(E.status,8)
+    selectClip(1)
 end
 local function addImage(path)
     path=path or mbm.openFile(nil,'*.png','*.jpg','*.bmp','*.tga')
@@ -298,6 +321,9 @@ local function menu()
         end
         if widget('MenuItem','import') then
             dpCall(function() local path=mbm.openFile(nil,'*.spt'); if path then loadProject(IO.import(path)) end end)
+        end
+        if widget('MenuItem','import_scml') then
+            dpCall(function() local path=mbm.openFile(nil,'*.scml'); if path then importScml(path) end end)
         end
         if widget('MenuItem','export') then
             dpCall(function() local path=mbm.saveFile(nil,'*.spt'); if path then IO.export(E.project,path); E.status=L('saved') end end)
@@ -525,7 +551,12 @@ local function properties()
     if opened then
         tImGui.PushItemWidth(135)
         local changed,frame=widget('SliderInt','frame',E.frame,1,#E.project.frames)
-        if changed then E.frame=frame; E.selected=0; E.dirty=true end
+        if changed then
+            E.frame=frame; E.selected=0; E.dirty=true
+            for i,clip in ipairs(E.project.clips) do
+                if clip.frame==frame then selectClip(i); break end
+            end
+        end
         button('add_frame',function() action(function() E.project.frames[#E.project.frames+1]={parts={}}; E.frame=#E.project.frames; E.selected=0 end) end)
         if #E.project.frames>1 then
             button('delete_frame',function()
@@ -713,7 +744,7 @@ local function timeline()
         check('auto_key',E.project.options,'autoKey')
         if check('onion',E.project.options,'onion') then E.dirty=true end
         for i,clip in ipairs(E.project.clips) do
-            if tImGui.Selectable(clip.name..'##clip'..i,E.clip==i) then E.clip=i; E.time=0; E.poseDirty=true end
+            if tImGui.Selectable(clip.name..'##clip'..i,E.clip==i) then selectClip(i) end
             tooltip('select_clip')
         end
         button('add_clip',function() action(function()
@@ -876,6 +907,8 @@ end
 function onEndScene() destroyPreview() end
 function onKeyUp(key) if key==mbm.getKeyCode('control') then E.control=false end end
 if type(testApi)=='table' then
+    testApi.importScml=importScml
+    testApi.selectClip=selectClip
     testApi.state=E
     testApi.addImage=addImage
     testApi.generate=generate
