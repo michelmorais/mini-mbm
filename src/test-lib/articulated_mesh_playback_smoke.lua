@@ -28,9 +28,9 @@ local entry={}; local played,paused,stopped=0,0,0
 local button=tImGui.Button
 tImGui.Button=function(label,...)
     local pressed=button(label,...)
-    if (stage==1 or stage==4 or stage==5) and label==tLang.L('ase_play') then return true end
+    if (stage==1 or stage==4 or stage==5 or stage==6) and label==tLang.L('ase_play') then return true end
     if stage==2 and label==tLang.L('ase_pause') then return true end
-    if stage==3 and label==tLang.L('ase_tl_stop') then return true end
+    if (stage==3 or stage==7) and label==tLang.L('ase_tl_stop') then return true end
     return pressed
 end
 function onInitScene()
@@ -49,13 +49,22 @@ end
 function onLoop()
     stage=stage+1
     if stage==4 then entry.articulatedPlayback.selected=2 end
+    if stage==6 then entry.articulatedPlayback.selected=1 end
     local ok,err
     if tImGui.Begin('Playback smoke',false,0) then
         ok,err=pcall(function() Playback.draw(entry,data,preview,stage~=5,function(fn) return fn() end) end)
     end
     tImGui.End(); assert(ok,err)
-    if stage==5 then
-        assert(played==2 and paused==1 and stopped==6,'playback controls failed')
+    if stage==6 then
+        local clips=entry.articulatedPlayback.clips
+        assert(preview:getArticulatedAnimationTime(clips[1].name)~=nil)
+        assert(preview:getArticulatedAnimationTime(clips[2].name)~=nil, 'starting another clip stopped the previous one')
+    end
+    if stage==7 then
+        local clips=entry.articulatedPlayback.clips
+        assert(preview:getArticulatedAnimationTime(clips[1].name)==nil)
+        assert(preview:getArticulatedAnimationTime(clips[2].name)~=nil, 'stop affected another clip')
+        assert(played==3 and paused==1 and stopped==2,'playback controls failed')
         assert(reads==1,'clip list scanned every frame')
         assert(data:getTotalArticulatedParts()==12 and #entry.articulatedPlayback.clips==2)
         meshDebug:loadMeshPreview(preview,nil); preview:destroy(); os.remove(path)

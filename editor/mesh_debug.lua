@@ -10886,6 +10886,13 @@ function showMeshOptions(tEntry, index)
     -- Articulated Animation node: persistent parts/pivots and named clips
     showArticulatedAnimationNode(tEntry, meshD, index)
 
+    if openNode(tEntry, 'skeletal', tLang.L('mesh_debug_skeletal_animation'), 0, 'skeletal-' .. index) then
+        require('skeletal_mesh_playback').draw(tEntry,
+            index == iSelectedMeshIndex and tPreviewMesh or nil,
+            index == iSelectedMeshIndex and tPreviewMesh ~= nil and not tEntry.modified, dpCall)
+        tImGui.TreePop()
+    end
+
     if openNode(tEntry, 'shader', tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
             -- plain pcall (no dpCall/print): a mesh with no active shader animation has no FX,

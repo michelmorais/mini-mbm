@@ -33,27 +33,30 @@ function M.draw(entry,data,preview,ready,call)
     end
     if #s.clips==0 then tImGui.TextDisabled(tLang.L('articulated_no_clips')); return end
     local function stop()
-        if preview then for _,c in ipairs(s.clips) do preview:disableArticulatedAnimation(c.name) end end
+        return preview:disableArticulatedAnimation(s.clips[s.selected].name)
     end
     local function play()
-        stop(); local c=s.clips[s.selected]; return preview:playArticulatedAnimation(c.name,c.priority,0,1)
+        local c=s.clips[s.selected]
+        return preview:playArticulatedAnimation(c.name,c.priority,0,1)
     end
     tImGui.BeginDisabled(not ready)
     tImGui.PushItemWidth(220)
     if tImGui.BeginCombo(tLang.L('articulated_clip'),s.clips[s.selected].name) then
         for i,c in ipairs(s.clips) do
-            if tImGui.Selectable(c.name..'##artPlay'..i,s.selected==i) then s.selected=i; if ready then call(play) end end
+            -- Selection must not interrupt the active clip or restart one that has ended.
+            if tImGui.Selectable(c.name..'##artPlay'..i,s.selected==i) and ready then s.selected=i end
         end
         tImGui.EndCombo()
     end
     tImGui.PopItemWidth()
     if tImGui.Button(tLang.L('ase_play')) and ready then call(play) end
     tImGui.SameLine()
-    if tImGui.Button(tLang.L('ase_pause')) and ready then call(function() preview:pauseArticulatedAnimation(s.clips[s.selected].name) end) end
+    if tImGui.Button(tLang.L('ase_pause')) and ready then call(function() return preview:pauseArticulatedAnimation(s.clips[s.selected].name) end) end
     tImGui.SameLine()
     if tImGui.Button(tLang.L('ase_tl_stop')) and ready then call(stop) end
     tImGui.EndDisabled()
     if not ready then tImGui.TextWrapped(tLang.L('articulated_save_to_preview')) end
+    tImGui.TextWrapped(tLang.L('mesh_debug_articulated_controls'))
     tImGui.TextWrapped(tLang.L('ame_debug_playback'))
 end
 return M
