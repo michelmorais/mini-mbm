@@ -32,8 +32,9 @@ quando o arquivo veio de outra máquina. As imagens não são copiadas ao salvar
 ## Partes e pivôs
 
 Selecione o frame e uma parte na lista. O número inicial identifica seu subset.
-Também é possível clicar na cena; a seleção usa os limites da parte transformada,
-e a caixa ciano identifica o subset selecionado. Em peças sobrepostas, use a lista
+Também é possível clicar com o botão direito na cena; a seleção usa os limites da parte transformada,
+e a caixa ciano opcional identifica o subset selecionado.
+**Mostrar subset selecionado** começa desligado; **Mostrar pivô** permanece ligado. Em peças sobrepostas, use a lista
 para escolher sem ambiguidade.
 
 **Inicializar partes ausentes** cria vínculos articulados para subsets sem uma
@@ -41,17 +42,24 @@ parte e posiciona seus pivôs no centro dos limites. Preserva vínculos e clipes
 existentes. Não cria geometria nova.
 
 Edite nome, posição XYZ do pivô, orientação XYZ e pai, depois pressione
-**Aplicar parte**. O marcador magenta mostra o pivô gravado. A orientação define
+**Aplicar parte**. Uma pequena esfera laranja mostra o pivô gravado. A orientação define
 os eixos locais usados pela rotação articulada. Pais inválidos e ciclos são
 rejeitados. **Remover parte articulada** remove sua identidade e respectivas
 trilhas, preserva a geometria e liga os filhos ao pai anterior. As ações podem
 ser desfeitas.
 
-No painel de visualização, **Enquadrar mesh** restaura o enquadramento original.
-O gizmo de órbita também orienta a câmera. Na cena, o botão direito arrastado
+No painel de visualização, **Resetar visão** restaura orientação, posição e zoom iniciais para a mesh.
+O gizmo de órbita também orienta a câmera. Na cena, o botão esquerdo arrastado
 orbita, o botão central arrastado desloca a câmera e a roda aplica zoom. Controles
-ImGui capturam o mouse e não movimentam a câmera. Os painéis podem ser fechados
-e reabertos pelo menu Opções, que também oferece inglês e português.
+ImGui capturam o mouse e não movimentam a câmera. A rotação usa os eventos de
+movimento e a mesma sensibilidade do Mesh Debug, mantendo fixos o foco e a
+distância durante a órbita. No deslocamento central, o arrasto vertical altera
+somente Y; o horizontal move X/Z conforme a orientação da vista. **Luz 3D** começa habilitada e
+fica em uma janela própria, inicialmente abaixo de Visualização. Ela oferece
+ativação, cor ambiente, cor direcional, gizmo de direção com valores XYZ e reset
+para os padrões da engine. As alterações afetam somente a prévia, sem alterar
+o arquivo da mesh. Todos os painéis podem ser fechados e
+reabertos pelo menu Opções, que também oferece inglês e português.
 
 ## Clipes e chaves
 
@@ -116,10 +124,15 @@ marcações usam geometria em cache; uma Timeline parada não faz seek continuam
 Limites de subsets são lidos ao abrir o arquivo. Na reprodução, os marcadores
 avaliam somente as partes necessárias e seus pais.
 
+O teste de iluminação abaixo exercita ativação, cores, direção, reset e ausência
+de atualizações de iluminação em repouso, sem depender de assets externos.
+
 Testes disponíveis:
 
 ```sh
 bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/articulated_mesh_pose_test.lua
+bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/articulated_mesh_view_test.lua
+timeout -s KILL 30 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_mesh_light_smoke.lua --disable_select_monitor --nosplash -w 1280 -h 800
 timeout -s KILL 40 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_mesh_editor_smoke.lua --disable_select_monitor --nosplash -w 1920 -h 1020
 timeout -s KILL 30 bin/debug/linux_x86/mini-mbm --scene src/test-lib/articulated_mesh_playback_smoke.lua --disable_select_monitor --nosplash -w 640 -h 480
 ```

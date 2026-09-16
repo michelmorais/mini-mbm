@@ -23,6 +23,32 @@
 local Pose=require 'articulated_mesh_pose'
 local Model=require 'articulated_sprite_model'
 local M={}
+local function unitSphereVerts(latSegments, lonSegments)
+    latSegments = latSegments or 8
+    lonSegments = lonSegments or 12
+    local function toXYZ(theta, phi)
+        local s = math.sin(theta)
+        return s * math.cos(phi), math.cos(theta), s * math.sin(phi)
+    end
+    local verts = {}
+    local function push(x, y, z) table.insert(verts, x); table.insert(verts, y); table.insert(verts, z) end
+    for i = 0, latSegments - 1 do
+        local theta1 = (i / latSegments) * math.pi
+        local theta2 = ((i + 1) / latSegments) * math.pi
+        for j = 0, lonSegments - 1 do
+            local phi1 = (j / lonSegments) * math.pi * 2
+            local phi2 = ((j + 1) / lonSegments) * math.pi * 2
+            local x1, y1, z1 = toXYZ(theta1, phi1)
+            local x2, y2, z2 = toXYZ(theta1, phi2)
+            local x3, y3, z3 = toXYZ(theta2, phi1)
+            local x4, y4, z4 = toXYZ(theta2, phi2)
+            push(x1, y1, z1); push(x3, y3, z3); push(x4, y4, z4)
+            push(x1, y1, z1); push(x4, y4, z4); push(x2, y2, z2)
+        end
+    end
+    return verts
+end
+
 local edges={{1,2},{1,3},{1,5},{2,4},{2,6},{3,4},{3,7},{4,8},{5,6},{5,7},{6,8},{7,8}}
 local function corners(b)
     return {{b.minX,b.minY,b.minZ},{b.maxX,b.minY,b.minZ},{b.minX,b.maxY,b.minZ},{b.maxX,b.maxY,b.minZ},
@@ -30,21 +56,24 @@ local function corners(b)
 end
 function M.camera(E)
     local c=E.cam
-    -- Keep the fitted mesh above the timeline while orbiting around its center.
-    local offset=c.verticalOffset or 0
-    local fx=c.fx+offset*math.sin(c.azimuth)*math.sin(c.elevation)
-    local fy=c.fy-offset*math.cos(c.elevation)
-    local fz=c.fz+offset*math.cos(c.azimuth)*math.sin(c.elevation)
-    E.camera:setPos(fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth),
-        fy+c.distance*math.sin(c.elevation),fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth))
-    E.camera:setFocus(fx,fy,fz)
+    E.camera:setPos(c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth),
+        c.fy+c.distance*math.sin(c.elevation),c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth))
+    E.camera:setFocus(c.fx,c.fy,c.fz)
+end
+function M.reset(E)
+    E.cameraDrag=nil; E.cam.azimuth=0.3; E.cam.elevation=0.3
+    M.fit(E)
 end
 function M.fit(E)
     local b=E.bounds; if not b then return end
     E.cam.fx=(b.minX+b.maxX)/2; E.cam.fy=(b.minY+b.maxY)/2; E.cam.fz=(b.minZ+b.maxZ)/2
     E.extent=math.max(0.1,b.maxX-b.minX,b.maxY-b.minY,b.maxZ-b.minZ)
     E.cam.distance=E.extent*(E.showTimeline and 2.8 or 2.3)
-    E.cam.verticalOffset=E.showTimeline and E.extent*0.45 or 0
+    -- Apply layout compensation once, not as an angle-dependent moving orbit target.
+    local offset=E.showTimeline and E.extent*0.45 or 0
+    E.cam.fx=E.cam.fx+offset*math.sin(E.cam.azimuth)*math.sin(E.cam.elevation)
+    E.cam.fy=E.cam.fy-offset*math.cos(E.cam.elevation)
+    E.cam.fz=E.cam.fz+offset*math.cos(E.cam.azimuth)*math.sin(E.cam.elevation)
     M.camera(E)
 end
 function M.destroy(E)
@@ -71,9 +100,15 @@ function M.update(E)
     if E.outline then E.outline:set(points,1) else E.outline=line:new('3d'); E.outline:add(points); E.outline:setColor(0.1,0.8,1,1) end
     E.outline.visible=E.showOutline; E.outline.alwaysOnTop=true
     local px,py,pz=transform(p.id,table.unpack(p.pivot)); local r=E.extent*0.012
-    points={px-r,py,pz,px+r,py,pz,px,py-r,pz,px,py+r,pz,px,py,pz-r,px,py,pz+r}
-    if E.pivotMarker then E.pivotMarker:set(points,1) else E.pivotMarker=line:new('3d'); E.pivotMarker:add(points); E.pivotMarker:setColor(1,0,1,1) end
-    E.pivotMarker.visible=E.showPivot; E.pivotMarker.alwaysOnTop=true
+    if not E.pivotMarker then
+        E.pivotMarker=shape:new('3d')
+        E.pivotMarker:create(unitSphereVerts(),nil,'articulated_mesh_pivot_orange')
+        E.pivotMarker:setColor(1,0.5,0,1)
+        E.pivotMarker.alwaysOnTop=true
+    end
+    E.pivotMarker:setPos(px,py,pz)
+    E.pivotMarker:setScale(r,r,r)
+    E.pivotMarker.visible=E.showPivot
 end
 function M.pick(E,x,y)
     if not E.transform then return end
@@ -91,27 +126,37 @@ function M.pick(E,x,y)
     end
     if best then E.selected=best; Pose.sync(E) end
 end
-function M.input(E)
-    if tImGui.IsAnyWindowHovered() or tImGui.IsAnyItemActive() or tImGui.GetWantCaptureMouse() then E.cameraDrag=nil; return end
-    local m=tImGui.GetMousePos()
-    if tImGui.IsMouseClicked(0,false) then M.pick(E,m.x,m.y) end
-    if tImGui.IsMouseClicked(1,false) or tImGui.IsMouseClicked(2,false) then
-        E.cameraDrag={x=m.x,y=m.y,pan=tImGui.IsMouseDown(2)}
-    end
+local function captured()
+    return tImGui.IsAnyWindowHovered() or tImGui.IsAnyItemActive() or tImGui.GetWantCaptureMouse()
+end
+function M.pointerDown(E,key,x,y)
+    if captured() or not E.bounds then E.cameraDrag=nil; return end
+    if key==1 then M.pick(E,x,y)
+    elseif key==0 or key==2 then E.cameraDrag={x=x,y=y,key=key} end
+end
+function M.pointerUp(E,key)
+    if E.cameraDrag and E.cameraDrag.key==key then E.cameraDrag=nil end
+end
+function M.pointerMove(E,x,y)
+    if captured() then E.cameraDrag=nil; return end
     local drag=E.cameraDrag
-    if drag then
-        if not tImGui.IsMouseDown(1) and not tImGui.IsMouseDown(2) then E.cameraDrag=nil
-        elseif drag.x~=m.x or drag.y~=m.y then
-            local dx,dy=m.x-drag.x,m.y-drag.y; drag.x,drag.y=m.x,m.y
-            if drag.pan then
-                local r,u=E.camera:getNormal('R'),E.camera:getNormal('U'); local scale=E.cam.distance*0.0015
-                E.cam.fx=E.cam.fx+(-dx*r.x+dy*u.x)*scale
-                E.cam.fy=E.cam.fy+(-dx*r.y+dy*u.y)*scale
-                E.cam.fz=E.cam.fz+(-dx*r.z+dy*u.z)*scale
-            else E.cam.azimuth=E.cam.azimuth-dx*0.008; E.cam.elevation=math.max(-1.5,math.min(1.5,E.cam.elevation+dy*0.008)) end
-            M.camera(E)
-        end
+    if not drag or (drag.x==x and drag.y==y) then return end
+    local dx,dy=x-drag.x,y-drag.y; drag.x,drag.y=x,y
+    if drag.key==2 then
+        -- Mesh Debug convention: horizontal camera-right on XZ, vertical on world Y.
+        local scale=E.cam.distance*0.001
+        E.cam.fx=E.cam.fx+dx*math.cos(E.cam.azimuth)*scale
+        E.cam.fy=E.cam.fy+dy*scale
+        E.cam.fz=E.cam.fz-dx*math.sin(E.cam.azimuth)*scale
+    else
+        E.cam.azimuth=E.cam.azimuth-dx*0.005
+        E.cam.elevation=math.max(-math.pi*0.49,math.min(math.pi*0.49,E.cam.elevation+dy*0.005))
     end
+    M.camera(E)
+end
+function M.input(E)
+    if captured() then E.cameraDrag=nil; return end
+    if not E.bounds then return end
     local wheel=tImGui.GetZoom()
     if math.abs(wheel)>0.0001 then E.cam.distance=math.max(E.extent*0.02,math.min(E.extent*100,E.cam.distance*math.exp(-wheel*0.15))); M.camera(E) end
 end

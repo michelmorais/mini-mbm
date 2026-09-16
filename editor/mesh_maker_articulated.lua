@@ -30,8 +30,8 @@ local Pose=require 'articulated_mesh_pose'
 local View=require 'articulated_mesh_view'
 local E={project={frames={{parts={}}},clips={},options={autoKey=false}},frame=1,clip=1,selected=0,time=0,
     mode='animate',playing=false,geometryRevision=0,poseController=Pose,poseRevision=0,
-    showTimeline=true,showParts=true,showView=true,showPivot=true,showOutline=true,dirty=false,poseDirty=false,
-    cam={azimuth=0.5,elevation=0.25,distance=100,fx=0,fy=0,fz=0},status='',mask=7}
+    showTimeline=true,showParts=true,showView=true,showLight=true,showPivot=true,showOutline=false,light3d=true,dirty=false,poseDirty=false,
+    cam={azimuth=0.3,elevation=0.3,distance=100,fx=0,fy=0,fz=0},status='',mask=7}
 local function L(key) return tLang.L('ame_'..key) end
 local function A(key) return tLang.L('ase_'..key) end
 local function dpCall(fn,...)
@@ -123,7 +123,7 @@ local function load(path)
     E.frame=1; E.clip=1; E.time=0; E.playing=false; E.mode='animate'
     E.selected=project.frames[1].parts[1] and project.frames[1].parts[1].id or 0
     E.timeline=nil; E.poseContext=nil; Pose.clear(E); E.history=Model.history(project)
-    changed(); E.modified=false; E.status=L('loaded'); tUtil.sMessageOverlay=E.status; View.fit(E); Pose.sync(E); rebuild(); applyPlayer()
+    changed(); E.modified=false; E.status=L('loaded'); tUtil.sMessageOverlay=E.status; View.reset(E); Pose.sync(E); rebuild(); applyPlayer()
     return true
 end
 local function save(path)
@@ -152,7 +152,7 @@ local function record()
     end
 end
 local function titles()
-    E.titles={parts=L('parts')..'###ame_parts',timeline=L('timeline')..'###ame_timeline',view=L('view')..'###ame_view'}
+    E.titles={parts=L('parts')..'###ame_parts',timeline=L('timeline')..'###ame_timeline',view=L('view')..'###ame_view',light=L('light3d')..'###ame_light'}
 end
 local function menu()
     if not tImGui.BeginMainMenuBar() then return end
@@ -177,6 +177,7 @@ local function menu()
         if tImGui.MenuItem(L('parts'),nil,E.showParts) then E.showParts=not E.showParts end
         if tImGui.MenuItem(L('timeline'),nil,E.showTimeline) then E.showTimeline=not E.showTimeline end
         if tImGui.MenuItem(L('view'),nil,E.showView) then E.showView=not E.showView end
+        if tImGui.MenuItem(L('light3d'),nil,E.showLight) then E.showLight=not E.showLight end
         local lang=tLang.current; tLang.renderLanguageSubmenu(); if lang~=tLang.current then titles() end
         tImGui.EndMenu()
     end
@@ -194,7 +195,8 @@ end
 local function window(key,pos,size,fn)
     tImGui.SetNextWindowPos(pos,E.first); tImGui.SetNextWindowSize(size,E.first)
     local opened,closed=tImGui.Begin(E.titles[key],true,0)
-    if closed then if key=='parts' then E.showParts=false elseif key=='timeline' then E.showTimeline=false else E.showView=false end end
+    if closed then if key=='parts' then E.showParts=false elseif key=='timeline' then E.showTimeline=false elseif key=='light' then E.showLight=false else E.showView=false end end
+    if key=='view' then E.viewPos=tImGui.GetWindowPos(); E.viewSize=tImGui.GetWindowSize() end
     if opened then fn() end
     tImGui.End()
 end
@@ -354,8 +356,47 @@ local function timelinePanel()
     if tImGui.BeginChild('##ame_keys',{x=0,y=0},false) then tImGui.PushItemWidth(200); keyProperties(clip); tImGui.TextWrapped(E.status); tImGui.PopItemWidth() end
     tImGui.EndChild()
 end
+local function refreshLight()
+    E.lightState=mbm.getLightState('3d')
+    E.lightState.orbit=tUtil.orbitFromDir(E.lightState.directionalDirection)
+    E.light3d=E.lightState.enabled
+end
+local function lightPanel()
+    local state=E.lightState
+    local enabled=tImGui.Checkbox(tLang.L('light_enabled'),state.enabled)
+    if enabled~=state.enabled and dpCall(function() mbm.setLightEnabled('3d',enabled) end) then
+        state.enabled=enabled; E.light3d=enabled
+    end
+    help('ame_light3d_tip')
+    local flags=tImGui.Flags('ImGuiColorEditFlags_NoInputs')
+    tImGui.Text(tLang.L('ambient')); tImGui.SameLine()
+    local changed,color=tImGui.ColorEdit4('##ame_ambient',state.ambientColor,flags)
+    if changed and dpCall(function() mbm.setAmbientLight('3d',color) end) then state.ambientColor=color end
+    help('ame_light_ambient_tip')
+    tImGui.Text(tLang.L('directional_color')); tImGui.SameLine()
+    changed,color=tImGui.ColorEdit4('##ame_directional',state.directionalColor,flags)
+    if changed and dpCall(function() mbm.setDirectionalLightColor('3d',color) end) then state.directionalColor=color end
+    help('ame_light_color_tip')
+    tImGui.Text(tLang.L('direction_label'))
+    if tUtil.drawOrbitGizmo(state.orbit,{size=110}) then
+        local dir=tUtil.dirFromOrbit(state.orbit)
+        if dpCall(function() mbm.setDirectionalLightDirection('3d',dir.x,dir.y,dir.z) end) then
+            state.directionalDirection=dir
+        end
+    end
+    help('ame_light_direction_tip')
+    local dir=state.directionalDirection
+    tImGui.TextDisabled(string.format('x=%.3f  y=%.3f',dir.x,dir.y))
+    tImGui.TextDisabled(string.format('z=%.3f',dir.z))
+    if tImGui.Button(tLang.L('reset_light')) then
+        dpCall(function() mbm.resetLight('3d'); refreshLight() end)
+    end
+    help('ame_light_reset_tip')
+end
 function onInitScene()
     mbm.setColor(0.08,0.09,0.12)
+    mbm.setLightEnabled('3d',E.light3d)
+    refreshLight()
     titles(); E.camera=mbm.getCamera('3d'); E.camera:setFar(9999999); View.camera(E)
     E.first=tImGui.Flags('ImGuiCond_FirstUseEver'); E.modalFlags=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
     tUtil.sMessageOverlay=L('start'); Pose.sync(E)
@@ -368,8 +409,8 @@ function onLoop(delta)
     Pose.sync(E); menu()
     local w,h=mbm.getRealSizeScreen()
     if E.showParts then window('parts',{x=w-320,y=22},{x=320,y=h*0.6},partsPanel) end
-    if E.showView then window('view',{x=0,y=22},{x=215,y=280},function()
-        button('fit',function() View.fit(E) end)
+    if E.showView then window('view',{x=0,y=22},{x=215,y=320},function()
+        button('fit',function() View.reset(E) end)
         if tUtil.drawOrbitGizmo(E.cam,{size=90}) then View.camera(E) end
         local selected=part()~=nil
         E.showPivot=tImGui.Checkbox(L('show_pivot'),E.showPivot)
@@ -378,11 +419,19 @@ function onLoop(delta)
         if E.outline then E.outline.visible=E.showOutline and selected end
         tImGui.TextWrapped(L('navigation'))
     end) end
+    if E.showLight then
+        local pos,size=E.viewPos or {x=0,y=22},E.viewSize or {x=215,y=320}
+        local y=pos.y+size.y+6
+        window('light',{x=pos.x,y=y},{x=215,y=math.max(200,math.min(340,h-y-8))},lightPanel)
+    end
     if E.showTimeline then window('timeline',{x=218,y=h*0.63},{x=w-222,y=h*0.36},timelinePanel) end
     local now=mbm.getTimeRun()
     if E.dirty and (not E.lastBuild or now-E.lastBuild>=0.08) then E.lastBuild=now; rebuild() end
     applyPlayer(); View.update(E); View.input(E); tUtil.showOverlayMessage()
 end
+function onTouchDown(key,x,y) View.pointerDown(E,key,x,y) end
+function onTouchMove(key,x,y) View.pointerMove(E,x,y) end
+function onTouchUp(key,x,y) View.pointerUp(E,key) end
 function onKeyDown(key)
     if key==mbm.getKeyCode('control') then E.control=true end
     if tImGui.GetWantCaptureKeyboard() then return end

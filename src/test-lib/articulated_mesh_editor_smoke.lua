@@ -42,7 +42,9 @@ end
 function onInitScene()
     local ok,err=pcall(function()
         init(); assert(api.load(source))
-        local E=api.state; assert(#E.project.frames==1 and #E.project.frames[1].parts==12 and #E.project.clips==2)
+        assert(mbm.getLightState('3d').enabled,'default 3D lighting')
+        local E=api.state; assert(E.showPivot and not E.showOutline,'default markers')
+        assert(#E.project.frames==1 and #E.project.frames[1].parts==12 and #E.project.clips==2)
         assert(E.preview.loadEditorPreview==nil and E.preview.loadMeshPreview==nil)
         local original=geometry(E.data)
         local bare=IO.build(E.base,E.project)
@@ -79,7 +81,10 @@ end
 function onLoop(delta)
     if not ready then return end
     loop(delta); frames=frames+1; local E=api.state
-    if frames==5 then previousPreview=E.preview; previousBuilds=builds end
+    if frames==5 then
+        assert(E.pivotMarker and E.pivotMarker.create,'pivot is not a shape')
+        previousPreview=E.preview; previousBuilds=builds
+    end
     if frames==10 then assert(E.preview==previousPreview and builds==previousBuilds,'idle rebuild'); start=mbm.getTimeRun(); print('ARTICULATED MESH VIEW READY') end
     if frames>=10 and mbm.getTimeRun()-start>6 then
         os.remove(output)
