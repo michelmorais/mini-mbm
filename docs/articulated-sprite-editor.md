@@ -7,6 +7,8 @@ O editor usa subsets rígidos, pivôs e hierarquia do sistema articulado da engi
 Não utiliza ossos, pesos ou skinning. O `.spt` exportado mantém clipes e chaves
 articuladas, reproduzidas por `sprite:playArticulatedAnimation()`.
 
+Para meshes 3D `.msh`, use o [Mesh Maker (Articulated)](articulated-mesh-editor.md).
+
 ## Abrir
 
 No launcher de desenvolvimento, selecione **Sprite Maker (Articulated)**

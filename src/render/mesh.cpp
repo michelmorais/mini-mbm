@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#include "mesh-editor-access.h"
 #include <mesh.h>
 #include <texture-manager.h>
 #include <mesh-manager.h>
@@ -80,6 +81,7 @@ namespace mbm
         this->mesh                  = nullptr;
         this->resetArticulatedAnimationPlayer();
         this->resetSkeletalAnimationPlayer();
+        this->editorPreviewMesh.reset();
     }
 
     void MESH::releaseCpuSkeletalRenderState() noexcept
@@ -101,6 +103,19 @@ namespace mbm
         cpuSkeletalRenderState->initialized = false;
     }
     
+    bool MESH_EDITOR_ACCESS::loadPreview(MESH &object, const char *fileName)
+    {
+        object.release();
+        if (!fileName)
+            return true;
+        auto candidate = MESH_MANAGER::getInstance()->loadUncached(fileName, &object);
+        if (!candidate)
+            return false;
+        object.editorPreviewMesh = std::move(candidate);
+        object.mesh = object.editorPreviewMesh.get();
+        return object.finishLoad(fileName);
+    }
+
     bool MESH::load(const char *fileName)
     {
         if (this->mesh)
@@ -108,24 +123,26 @@ namespace mbm
         MESH_MANAGER *mehManager = MESH_MANAGER::getInstance();
         this->mesh               = mehManager->load(fileName, this);
         if (this->mesh)
-        {
-            this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
-            this->resolveSkeletalExecutionPath();
-            const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
-            if (result == MeshLoadFinishResult::ANIMATION_FAILED)
-            {
-                this->release();
-                return false;
-            }
-            else if (result != MeshLoadFinishResult::OK)
-                return false;
-            this->setInternalFileName(fileName);
-            this->restartAnimation();
-            this->updateAABB();
-            return true;
-        }
-
+            return this->finishLoad(fileName);
         return false;
+    }
+
+    bool MESH::finishLoad(const char *fileName)
+    {
+        this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
+        this->resolveSkeletalExecutionPath();
+        const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
+        if (result == MeshLoadFinishResult::ANIMATION_FAILED)
+        {
+            this->release();
+            return false;
+        }
+        if (result != MeshLoadFinishResult::OK)
+            return false;
+        this->setInternalFileName(fileName);
+        this->restartAnimation();
+        this->updateAABB();
+        return true;
     }
 
     void MESH::loadAsync(const char *fileName, std::function<void(bool success)> callback)
@@ -806,6 +823,11 @@ namespace mbm
     
     bool MESH::onRestoreDevice()
     {
+        if (this->editorPreviewMesh)
+        {
+            const std::string path = this->getInternalFileName();
+            return MESH_EDITOR_ACCESS::loadPreview(*this, path.c_str());
+        }
         this->releaseCpuSkeletalRenderState();
 		this->mesh = nullptr;
         const char *internalFileName = this->getInternalFileName();

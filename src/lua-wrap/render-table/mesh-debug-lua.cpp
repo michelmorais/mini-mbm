@@ -34,6 +34,7 @@ extern "C"
 #include <lua-wrap/render-table/mesh-lua.h>
 #include <lua-wrap/render-table/sprite-lua.h>
 #include "../../render/sprite-editor-access.h"
+#include "../../render/mesh-editor-access.h"
 #include <lua-wrap/render-table/font-lua.h>
 #include <lua-wrap/render-table/gif-view-lua.h>
 #include <lua-wrap/render-table/texture-view-lua.h>
@@ -3660,10 +3661,19 @@ namespace mbm
         return 1;
     }
 
+    extern "C" int onLoadMeshPreviewMeshDebugLua(lua_State *lua)
+    {
+        MESH *object = getMeshFromRawTable(lua, 1, 2);
+        const char *path = luaL_optstring(lua, 3, nullptr);
+        lua_pushboolean(lua, MESH_EDITOR_ACCESS::loadPreview(*object, path));
+        return 1;
+    }
+
     void registerClassMeshDebug(lua_State *lua)
     {
         luaL_Reg regFrameMeshMethods[] = {{"new", onNewMeshDebugLua},
                                           {"loadSpritePreview", onLoadSpritePreviewMeshDebugLua},
+                                          {"loadMeshPreview", onLoadMeshPreviewMeshDebugLua},
                                           {"__newindex", onNewIndexMeshDebug},
                                           {"__index", onIndexMeshDebug},
                                           {"__gc", onDestroyMeshDebugLua},

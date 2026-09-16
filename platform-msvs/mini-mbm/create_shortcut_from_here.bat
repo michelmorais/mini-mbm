@@ -8,6 +8,7 @@ set default_args="-w 800 -h 600 -nosplash --showconsole"
 CALL :CreateShortcutFromHere scene_editor,     scene_editor2d.lua,   %default_args%
 CALL :CreateShortcutFromHere sprite_maker,     sprite_maker.lua,     %default_args%
 CALL :CreateShortcutFromHere sprite_maker_articulated, sprite_maker_articulated.lua, %default_args%
+CALL :CreateShortcutFromHere mesh_maker_articulated, mesh_maker_articulated.lua, %default_args%
 CALL :CreateShortcutFromHere shader_editor,    shader_editor.lua,    %default_args%
 CALL :CreateShortcutFromHere particle_editor,  particle_editor.lua,  %default_args%
 CALL :CreateShortcutFromHere physic_editor,    physic_editor.lua,    %default_args%

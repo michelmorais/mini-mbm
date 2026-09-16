@@ -29,6 +29,7 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
 #include <functional>
+#include <memory>
 
 namespace mbm
 {
@@ -136,8 +137,10 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
   private:
+    friend class MESH_EDITOR_ACCESS;
     struct SKELETAL_POSE_SHARING_STATE;
     struct CPU_SKELETAL_RENDER_STATE;
+    bool                     finishLoad(const char *fileName);
     bool                     render() override;
     bool                     onRestoreDevice() override;
     bool                     isOnFrustum() override;
@@ -152,6 +155,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
                                                uint32_t frameIndex, SHADER *shader);
     void                     releaseCpuSkeletalRenderState() noexcept;
     MESH_MBM *               mesh;
+    std::unique_ptr<MESH_MBM> editorPreviewMesh;
     SKELETAL_POSE_SHARING_STATE *skeletalPoseSharingState;
     CPU_SKELETAL_RENDER_STATE *cpuSkeletalRenderState;
     };

@@ -1,8 +1,8 @@
 # Articulated Animation
 
-Document version: **1.1**
+Document version: **1.2**
 Status: **Implemented**
-Last updated: **2026-08-17**
+Last updated: **2026-09-15**
 
 ## 1. Purpose
 
@@ -236,27 +236,28 @@ Important API details:
 See the [Lua API reference](lua-api.md#articulated-playback-mesh-and-sprite) for the complete method
 table.
 
-## 9. Authoring in Mesh Debug
+## 9. Dedicated authoring editors
 
-Open a `.msh` or `.spt` asset and expand the **Articulated Animation** node. The current workflow is:
+Since 7.211.0, rigid 3D authoring lives in **Mesh Maker (Articulated)**,
+`editor/mesh_maker_articulated.lua`. See the [editor guide](articulated-mesh-editor.md).
+Use [Sprite Maker (Articulated)](articulated-sprite-editor.md) for `.spt` assets.
 
-1. initialize or select Parts for frame/subset occurrences;
-2. position and orient each pivot;
-3. assign parent Parts where hierarchy is needed;
-4. create a named clip and configure duration, speed, priority, loop, and blend mode;
-5. select a Part and create a track with the required P/R/S channels;
-6. move the timeline to the target time;
-7. enter transform values and explicitly add/update keys;
-8. choose easing and, for Cubic Bezier, edit its control points;
-9. save the asset before relying on runtime preview;
-10. use Play, Pause, Resume, Disable, and timeline seek in the preview.
+The 3D editor opens `.msh` files, selects Parts by frame/subset, edits pivot position
+and orientation, assigns parents, and authors clips with independent position,
+rotation and scale channels. The shared graphical timeline supports magenta key
+markers, multi-selection, dragging, copy/paste, duplication, time insertion/removal,
+snapping and undo/redo. Rotation controls use XYZ degrees and retain full turns.
+One clip is previewed at a time; runtime APIs still support composition of clips.
 
-The editor previews several active clips simultaneously, which is necessary for validating
-priority, crossfade, and Absolute/Additive composition. Only one clip is edited at a time.
+**Mesh Debug now provides playback only** in its Articulated Animation node:
+select an existing clip in the combobox and use Play, Pause or Stop. Selecting a
+clip starts it and disables the previous articulated clip. Authoring controls and
+the separate articulated pivot window have been removed from Mesh Debug.
 
-Part selection is frame-aware. When editing a hierarchy, confirm that parent and child Parts belong
-to the same frame. Orphaned tracks can be preserved in data but are ignored by runtime until their
-target Part exists again.
+Part selection remains frame-aware. Parents must be valid in the same frame and
+cycles are rejected. The dedicated editor saves articulated edits into the mesh
+while preserving its geometry and other native sections; preview-only frame
+selectors are never written to the exported asset.
 
 ## 10. Rendering and Performance Model
 
