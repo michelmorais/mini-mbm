@@ -20,11 +20,12 @@
 
 ]]--
 
--- 2D adaptation of skeletal_animation_editor.lua's timeline interaction model.
+-- Shared articulated timeline, adapted from skeletal_animation_editor.lua.
 local Model=require 'articulated_sprite_model'
 local Pose=require 'articulated_sprite_pose'
 local Ops=require 'articulated_sprite_timeline_model'
 local M={}
+local function poses(E) return E.poseController or Pose end
 local function L(key) return tLang.L('ase_tl_'..key) end
 local function clamp(x,a,b) return math.max(a,math.min(b,x)) end
 local function state(E)
@@ -62,7 +63,7 @@ function M.sync(E)
 end
 function M.seek(E,time)
     if not E.playing and E.mode=='animate' and E.time==time then return end
-    E.playing=false; E.mode='animate'; E.time=time; E.poseDirty=true; Pose.sync(E)
+    E.playing=false; E.mode='animate'; E.time=time; E.poseDirty=true; poses(E).sync(E)
 end
 function M.selectKey(E,key,control)
     local s=M.sync(E); local entry=s.entries[key]
@@ -73,8 +74,8 @@ function M.selectKey(E,key,control)
     E.selected=entry.part
     local p=Model.part(E.project,E.frame,entry.part); E.image=p.image
     M.seek(E,key.time)
-    if E.drafts and E.drafts[E.selected] then Pose.recorded(E); E.dirty=true end
-    E.pose=Pose.sample(s.clip,E.selected,E.time); E.keyOrigin=key.time
+    if E.drafts and E.drafts[E.selected] then poses(E).recorded(E); E.dirty=true end
+    E.pose=poses(E).sample(s.clip,E.selected,E.time); E.keyOrigin=key.time
 end
 local function snapped(s,t,duration)
     if s.snap then t=math.floor(t/s.step+0.5)*s.step end
@@ -100,10 +101,10 @@ function M.execute(E,H,operation,value)
         else error('Unknown timeline operation') end
     end)
     if ok then
-        Pose.clear(E); E.poseContext=nil; E.keyOrigin=nil
+        poses(E).clear(E); E.poseContext=nil; E.keyOrigin=nil
         E.time=math.min(E.time,clip.duration); E.poseDirty=true; E.playing=false
         E.status=L('applied'); s.selection={}; s.removalPreview=false
-        M.sync(E); Pose.sync(E)
+        M.sync(E); poses(E).sync(E)
     end
     return ok
 end
@@ -136,13 +137,13 @@ function M.toolbar(E,H)
     if not clip then return end
     tImGui.PushItemWidth(95)
     if tImGui.Button(tLang.L('ase_'..(E.playing and 'pause' or 'play'))) then
-        Pose.clear(E)
+        poses(E).clear(E)
         if not E.playing and E.time>=clip.duration then E.time=0 end
         E.playing=not E.playing; E.mode='animate'; E.poseDirty=true
     end
     itemTooltip('ase_play_tip')
     tImGui.SameLine()
-    button('stop',true,function() Pose.clear(E); M.seek(E,0) end)
+    button('stop',true,function() poses(E).clear(E); M.seek(E,0) end)
     tImGui.SameLine()
     local changed,time=tImGui.DragFloat(tLang.L('ase_time'),E.time,0.001,0,clip.duration,'%.3f s')
     itemTooltip('ase_time_tip')
@@ -200,6 +201,7 @@ end
 function M.draw(E,H)
     local s,clip=M.sync(E)
     if not clip then tImGui.TextWrapped(L('no_clip')); return end
+    if clip.duration<=0 then tImGui.TextWrapped(L('zero_duration')); return end
     M.toolbar(E,H)
     local viewport=math.max(80,tImGui.GetContentRegionAvail().y)
     if not tImGui.BeginChild('##ase_tracks',{x=0,y=viewport},true) then tImGui.EndChild(); return end
@@ -249,7 +251,7 @@ function M.draw(E,H)
                 s.drag={x=mouse.x,anchor=nearest.time,min=members.first,max=members.last,delta=0,moved=false}
             end
         elseif mouse.x<x0 and s.rows[row] then
-            E.selected=s.rows[row].part.id; E.image=s.rows[row].part.image; Pose.sync(E)
+            E.selected=s.rows[row].part.id; E.image=s.rows[row].part.image; poses(E).sync(E)
         elseif mouse.y<origin.y+ruler then
             s.scrub=true; M.seek(E,snapped(s,xt(mouse.x),duration))
         else s.box={x=mouse.x,y=mouse.y,cx=mouse.x,cy=mouse.y,control=E.control} end

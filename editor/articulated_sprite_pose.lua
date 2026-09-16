@@ -117,4 +117,5 @@ function M.recorded(E)
     if E.drafts then E.drafts[E.selected]=nil end
     E.transient=E.drafts and next(E.drafts)~=nil or false
 end
+M.ease=ease
 return M

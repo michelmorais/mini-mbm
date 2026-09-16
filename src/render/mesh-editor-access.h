@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,12 +17,22 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef VERSION_MBM_H
-#define VERSION_MBM_H
+#ifndef MBM_MESH_EDITOR_ACCESS_H
+#define MBM_MESH_EDITOR_ACCESS_H
 
-// Format: "X.Y" or "X.Y.Z". Release history is maintained by the Git history and tags.
-#ifndef MBM_VERSION
-    #define MBM_VERSION "7.211.1"
-#endif
+#include <core_mbm/core-exports.h>
+
+namespace mbm
+{
+class MESH;
+
+// Internal editor bridge. Not part of the public render API.
+class MESH_EDITOR_ACCESS
+{
+  public:
+    // A null path releases the current asset, including its private buffers.
+    API_IMPL static bool loadPreview(MESH &mesh, const char *fileName);
+};
+}
 
 #endif

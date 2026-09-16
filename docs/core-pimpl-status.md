@@ -50,6 +50,13 @@ narrow friend bridge used by Mesh Debug tooling and device restoration. It adds
 no public sprite methods or mutable accessors. Lua exposes the operation through
 `meshDebug:loadSpritePreview(sprite, path)`, not through sprite objects.
 
+`MESH_EDITOR_ACCESS` in `src/render/mesh-editor-access.h` provides the equivalent
+bridge for `meshDebug:loadMeshPreview(mesh, path)`. `MESH` retains the owner
+privately; its common private `finishLoad` performs the same animation and
+skeletal initialization for cached and uncached assets. Neither bridge adds
+public runtime loading methods or exposes backend state. Device restoration
+reloads privately owned previews through the corresponding internal bridge.
+
 The following areas are already in the "treat as complete unless a bug/regression appears" state:
 
 - `TEXTURE_MANAGER`

@@ -291,6 +291,9 @@
     <ClInclude Include="..\..\src\render\sprite-editor-access.h">
       <Filter>Header Files\render</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\render\mesh-editor-access.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\include\render\sprite.h">
       <Filter>Header Files\render</Filter>
     </ClInclude>

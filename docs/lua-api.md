@@ -1414,6 +1414,13 @@ private buffers; the sprite object remains valid. This utility is called on the
 Ordinary `sprite:load(path)` continues to use the shared cache. Sprite objects
 and the public C++ `SPRITE` class expose no editor-specific loading method.
 
+`meshDebug:loadMeshPreview(mesh, path)` provides the same private-asset lifecycle
+for 3D mesh previews. `nil` releases the mesh asset and its animation state;
+the mesh object remains valid. The file must remain available for device
+restoration. This operation belongs to the `meshDebug` factory table, not to
+`mesh` objects or the public C++ `MESH` API. Normal `mesh:load` retains the shared
+cache behavior and the usual skeletal initialization path.
+
 
 The editor-only `meshDebug` object exposes Mesh V11 authoring operations. To reorder subsets inside
 a frame, use:
