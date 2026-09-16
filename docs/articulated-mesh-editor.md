@@ -145,7 +145,20 @@ geometria. O teste puro cobre a convenção de quaternion, máscaras, hierarquia
 rascunhos por parte e estabilidade em repouso. O teste de playback verifica o
 combobox/controles do Mesh Debug, o cache da lista e os controles desabilitados.
 
-A verificação local é em Linux/OpenGL ES. Ainda é necessária uma passagem manual
-com o mouse e validação desta nova ferramenta no Windows/DirectX e macOS/Metal.
-Os testes anteriores do editor de sprites nessas plataformas não substituem
-essa validação do editor 3D.
+### Validação concluída
+
+| Plataforma | Evidência |
+|---|---|
+| Linux/OpenGL ES | Build, testes automatizados de pose, câmera, iluminação, playback e integração com `Bocao.msh`, além de conferência visual. |
+| Windows | Testes manuais do Mesh Maker (Articulated) concluídos pelo usuário, com funcionamento confirmado. |
+| macOS | Testes manuais do Mesh Maker (Articulated) concluídos pelo usuário, com funcionamento confirmado. |
+
+A confirmação em Windows e macOS se refere ao editor 3D com os ajustes finais de
+câmera, seleção, pivô e janela de iluminação. A pendência anterior de validação
+manual nessas plataformas está encerrada. Os backends gráficos usados nesses
+testes manuais não foram especificados; a confirmação não representa uma matriz
+de testes de todos os backends disponíveis.
+
+Não há pendências conhecidas de implementação ou validação registradas para o
+merge desta entrega. As limitações descritas neste guia, como seleção pelos
+limites dos subsets e prévia de um clipe por vez, permanecem parte do escopo atual.
