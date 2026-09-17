@@ -52,6 +52,8 @@ set(CMAKE_VERSION_MAJOR "3.25.1")
 cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 
+option(ENGINE_DISTRIBUTION "Enable the Windows mini-mbm-dev installer and portable package" OFF)
+
 set(CMAKE_SUCCESS_SET_PLAT           0)
 set(OPTIMIZED                    "-O3")
 set(SUPPORTED_MAX_LIGHTS "4" CACHE STRING "Compile-time supported max lights for engine lighting (1..4)")
@@ -1277,6 +1279,10 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         add_subdirectory(${TEST_LIB} 				${TEST_LIB})
         add_subdirectory(distribution               distribution)
+    endif()
+
+    if(ENGINE_DISTRIBUTION)
+        include("${CMAKE_SOURCE_DIR}/platform-msvs/engine-distribution.cmake")
     endif()
 
     message("")

@@ -1,0 +1,70 @@
+# +--------------------------------------------------------------------------+
+# | MIT License - Copyright (c) 2026 Michel Braz de Morais                    |
+# | Permission is hereby granted, free of charge, to any person obtaining a  |
+# | copy of this software and associated documentation files (the Software), |
+# | to deal in the Software without restriction, including without limitation|
+# | the rights to use, copy, modify, merge, publish, distribute, sublicense,  |
+# | and/or sell copies, and to permit persons to whom the Software is        |
+# | furnished to do so, subject to the following conditions:                 |
+# | The above copyright notice and this permission notice shall be included |
+# | in all copies or substantial portions of the Software.                  |
+# | THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR |
+# | IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A    |
+# | PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS   |
+# | OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          |
+# | LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING  |
+# | FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.              |
+# +--------------------------------------------------------------------------+
+
+Unicode true
+!include "MUI2.nsh"
+Name "Mini MBM Dev"
+OutFile "@CMAKE_BINARY_DIR@/@ENGINE_PACKAGE_BASENAME@-setup.exe"
+InstallDir "$LOCALAPPDATA\Programs\mini-mbm-dev"
+RequestExecutionLevel user
+SetCompressor /SOLID lzma
+!define MUI_ABORTWARNING
+!define MUI_FINISHPAGE_RUN "$INSTDIR\mini-mbm-dev.exe"
+!define MUI_FINISHPAGE_RUN_NOTCHECKED
+!insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_LICENSE "@CMAKE_SOURCE_DIR@/LICENSE.md"
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+!insertmacro MUI_LANGUAGE "English"
+!insertmacro MUI_LANGUAGE "PortugueseBR"
+
+Section "Mini MBM Dev"
+    SetShellVarContext current
+    SetOutPath "$INSTDIR"
+    File /r "@ENGINE_PACKAGE_STAGE@\*"
+    WriteUninstaller "$INSTDIR\uninstall.exe"
+    CreateDirectory "$SMPROGRAMS\Mini MBM Dev"
+    CreateShortcut "$SMPROGRAMS\Mini MBM Dev\Mini MBM Dev.lnk" "$INSTDIR\mini-mbm-dev.exe"
+    CreateShortcut "$SMPROGRAMS\Mini MBM Dev\Getting started.lnk" "$INSTDIR\GETTING-STARTED.txt"
+    CreateShortcut "$SMPROGRAMS\Mini MBM Dev\Uninstall.lnk" "$INSTDIR\uninstall.exe"
+    CreateShortcut "$DESKTOP\Mini MBM Dev.lnk" "$INSTDIR\mini-mbm-dev.exe"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "DisplayName" "Mini MBM Dev"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "DisplayVersion" "@ENGINE_PACKAGE_VERSION@"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "Publisher" "Michel Braz de Morais"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "InstallLocation" "$INSTDIR"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "DisplayIcon" "$INSTDIR\mini-mbm-dev.exe"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "UninstallString" '$\"$INSTDIR\uninstall.exe$\"'
+    WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "NoModify" 1
+    WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "NoRepair" 1
+SectionEnd
+
+Section "Uninstall"
+    SetShellVarContext current
+    !include /CHARSET=UTF8 "@ENGINE_UNINSTALL_MANIFEST@"
+    Delete "$INSTDIR\uninstall.exe"
+    RMDir "$INSTDIR"
+    Delete "$DESKTOP\Mini MBM Dev.lnk"
+    Delete "$SMPROGRAMS\Mini MBM Dev\Mini MBM Dev.lnk"
+    Delete "$SMPROGRAMS\Mini MBM Dev\Getting started.lnk"
+    Delete "$SMPROGRAMS\Mini MBM Dev\Uninstall.lnk"
+    RMDir "$SMPROGRAMS\Mini MBM Dev"
+    DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev"
+SectionEnd

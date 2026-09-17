@@ -1,0 +1,154 @@
+# +--------------------------------------------------------------------------+
+# | MIT License - Copyright (c) 2026 Michel Braz de Morais                    |
+# | Permission is hereby granted, free of charge, to any person obtaining a  |
+# | copy of this software and associated documentation files (the Software), |
+# | to deal in the Software without restriction, including without limitation|
+# | the rights to use, copy, modify, merge, publish, distribute, sublicense,  |
+# | and/or sell copies, and to permit persons to whom the Software is        |
+# | furnished to do so, subject to the following conditions:                 |
+# | The above copyright notice and this permission notice shall be included |
+# | in all copies or substantial portions of the Software.                  |
+# | THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR |
+# | IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A    |
+# | PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS   |
+# | OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          |
+# | LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING  |
+# | FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.              |
+# +--------------------------------------------------------------------------+
+
+cmake_minimum_required(VERSION 3.25.1)
+set(_stage "@ENGINE_PACKAGE_STAGE@")
+# Only clear our fixed staging directory, never an arbitrary caller-supplied path.
+file(REAL_PATH "@CMAKE_BINARY_DIR@" _build_real)
+if(EXISTS "${_stage}" OR IS_SYMLINK "${_stage}")
+    file(REAL_PATH "${_stage}" _stage_real)
+else()
+    set(_stage_real "${_build_real}/mini-mbm-dev.EngineDir")
+endif()
+if(NOT _stage_real STREQUAL "${_build_real}/mini-mbm-dev.EngineDir")
+    message(FATAL_ERROR "Unsafe engine staging path: ${_stage_real}")
+endif()
+file(REMOVE_RECURSE "${_stage}")
+file(MAKE_DIRECTORY "${_stage}")
+
+set(_executables "@ENGINE_PACKAGE_EXECUTABLES@")
+set(_libraries "@ENGINE_PACKAGE_LIBRARIES@;@ENGINE_EXTERNAL_LIBRARIES@")
+set(_stage_executables "")
+set(_stage_libraries "")
+foreach(_kind executables libraries)
+    foreach(_source IN LISTS _${_kind})
+        if(NOT EXISTS "${_source}")
+            message(FATAL_ERROR "Missing required distribution file: ${_source}")
+        endif()
+        file(COPY "${_source}" DESTINATION "${_stage}")
+        get_filename_component(_name "${_source}" NAME)
+        list(APPEND _stage_${_kind} "${_stage}/${_name}")
+    endforeach()
+endforeach()
+
+# Inspect imports of every plugin too: they are loaded dynamically by Lua.
+set(CMAKE_GET_RUNTIME_DEPENDENCIES_PLATFORM windows+pe)
+set(CMAKE_GET_RUNTIME_DEPENDENCIES_TOOL objdump)
+set(CMAKE_GET_RUNTIME_DEPENDENCIES_COMMAND "@CMAKE_OBJDUMP@")
+file(GET_RUNTIME_DEPENDENCIES
+    EXECUTABLES ${_stage_executables}
+    LIBRARIES ${_stage_libraries}
+    DIRECTORIES "${_stage}" "@ENGINE_MINGW_BIN@" "@ENGINE_SYSTEM_DIR@"
+    PRE_EXCLUDE_REGEXES "api-ms-.*" "ext-ms-.*"
+    POST_EXCLUDE_REGEXES ".*[Ss][Yy][Ss][Tt][Ee][Mm]32/.*" ".*[Ss][Yy][Ss][Ww][Oo][Ww]64/.*"
+    RESOLVED_DEPENDENCIES_VAR _resolved
+    UNRESOLVED_DEPENDENCIES_VAR _unresolved
+    CONFLICTING_DEPENDENCIES_PREFIX _conflicts)
+if(_unresolved OR _conflicts_FILENAMES)
+    message(FATAL_ERROR "Incomplete engine runtime. Unresolved: ${_unresolved}; conflicting: ${_conflicts_FILENAMES}")
+endif()
+foreach(_dependency IN LISTS _resolved)
+    get_filename_component(_directory "${_dependency}" DIRECTORY)
+    if(NOT _directory STREQUAL _stage)
+        file(COPY "${_dependency}" DESTINATION "${_stage}")
+    endif()
+endforeach()
+
+# Refuse mixed x86/x64 packages, including bundled audio/graphics/runtime DLLs.
+file(GLOB _binaries "${_stage}/*.exe" "${_stage}/*.dll")
+foreach(_binary IN LISTS _binaries)
+    execute_process(COMMAND "@CMAKE_OBJDUMP@" -f "${_binary}"
+        OUTPUT_VARIABLE _headers COMMAND_ERROR_IS_FATAL ANY)
+    if(@CMAKE_SIZEOF_VOID_P@ EQUAL 4)
+        set(_format "file format pei-i386")
+    else()
+        set(_format "file format pei-x86-64")
+    endif()
+    string(FIND "${_headers}" "${_format}" _match)
+    if(_match EQUAL -1)
+        message(FATAL_ERROR "Wrong architecture in engine package: ${_binary}")
+    endif()
+endforeach()
+
+file(COPY "@CMAKE_SOURCE_DIR@/editor" "@CMAKE_SOURCE_DIR@/docs"
+    "@CMAKE_SOURCE_DIR@/game-template" "@CMAKE_SOURCE_DIR@/LICENSE.md"
+    DESTINATION "${_stage}")
+# Preserve bundled standalone third-party license notices and their directory names.
+file(GLOB_RECURSE _notices RELATIVE "@CMAKE_SOURCE_DIR@/third-party"
+    "@CMAKE_SOURCE_DIR@/third-party/*LICENSE*"
+    "@CMAKE_SOURCE_DIR@/third-party/*license*"
+    "@CMAKE_SOURCE_DIR@/third-party/*COPYING*"
+    "@CMAKE_SOURCE_DIR@/third-party/*copyright*")
+foreach(_notice IN LISTS _notices)
+    get_filename_component(_directory "${_notice}" DIRECTORY)
+    file(COPY "@CMAKE_SOURCE_DIR@/third-party/${_notice}"
+        DESTINATION "${_stage}/licenses/third-party/${_directory}")
+endforeach()
+foreach(_runtime_license gcc-libs libwinpthread winpthreads)
+    set(_notice_dir "@ENGINE_MINGW_BIN@/../share/licenses/${_runtime_license}")
+    if(IS_DIRECTORY "${_notice_dir}")
+        file(COPY "${_notice_dir}" DESTINATION "${_stage}/licenses/mingw")
+    endif()
+endforeach()
+# Some bundled projects keep their license in a source header rather than LICENSE.
+foreach(_notice lua-5.4.1/lua.h portaudio/include/portaudio.h
+        lodepng/lodepng.h stb/stb_image.h tinyfiledialogs/tinyfiledialogs.h
+        box2d-liquid-fun-2.3.1/Box2D/Common/b2Settings.h
+        bullet-2.84/LinearMath/btScalar.h)
+    if(EXISTS "@CMAKE_SOURCE_DIR@/third-party/${_notice}")
+        get_filename_component(_directory "${_notice}" DIRECTORY)
+        file(COPY "@CMAKE_SOURCE_DIR@/third-party/${_notice}"
+            DESTINATION "${_stage}/licenses/third-party/${_directory}")
+    endif()
+endforeach()
+file(WRITE "${_stage}/launch.bat"
+    "@echo off\r\ncd /d \"%~dp0\"\r\n\"%~dp0mini-mbm-dev.exe\" %*\r\n")
+file(WRITE "${_stage}/GETTING-STARTED.txt"
+"Mini MBM @ENGINE_PACKAGE_VERSION@
+Open mini-mbm-dev.exe (or the Mini MBM Dev shortcut) to select an editor.
+No compiler or repository checkout is required to use this distribution.
+
+To start a Lua game, copy game-template to a folder in your Documents directory.
+Run mini-mbm.exe --scene \"C:/path/to/your-game/main.lua\".
+The Lua API reference is docs/lua-api.md.
+distribution.exe is the command-line asset packager; run it for usage.
+
+Keep your games and assets outside the installation directory.
+Uninstall removes packaged files; it leaves your own additional files intact.
+This package contains the plugins enabled by the publisher's CMake configuration.
+")
+
+# Explicit file manifest: uninstall must not recursively delete users' projects.
+file(GLOB_RECURSE _entries LIST_DIRECTORIES true RELATIVE "${_stage}" "${_stage}/*")
+set(_delete_commands "")
+set(_directories "")
+foreach(_entry IN LISTS _entries)
+    string(REPLACE "/" "\\" _windows_entry "${_entry}")
+    string(REPLACE "$" "$$" _windows_entry "${_windows_entry}")
+    if(IS_DIRECTORY "${_stage}/${_entry}")
+        list(APPEND _directories "${_windows_entry}")
+    else()
+        string(APPEND _delete_commands "Delete \"$INSTDIR\\${_windows_entry}\"\n")
+    endif()
+endforeach()
+list(SORT _directories ORDER DESCENDING)
+foreach(_directory IN LISTS _directories)
+    string(APPEND _delete_commands "RMDir \"$INSTDIR\\${_directory}\"\n")
+endforeach()
+file(WRITE "@CMAKE_BINARY_DIR@/engine-uninstall-files.nsh" "${_delete_commands}")
+message(STATUS "Engine staging ready: ${_stage}")

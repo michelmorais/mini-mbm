@@ -504,6 +504,11 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     # so define LIB_MBM_EXPORTS to get dllexport (not dllimport) on GCC/MinGW.
     target_compile_definitions(mini-mbm PRIVATE LIB_MBM_EXPORTS)
 
+    if(USE_LUA AND MINGW)
+        # framework-lua calls LodePNG directly; its C++ API is not exported by core_mbm.dll.
+        target_sources(mini-mbm PRIVATE "${THIRD_PARTY}/lodepng/lodepng.cpp")
+    endif()
+
     # Generate a small .cpp that exposes the baked-in game name as a C symbol.
     # Using file(WRITE ...) avoids all shell/CMake quoting pitfalls that come
     # with -D defines for strings containing spaces.
@@ -1323,6 +1328,7 @@ endif()
             IDI_ICON1=101)
 
         target_link_libraries(mini-mbm-dev ${CORE_MBM_LIBRARY})
+        target_sources(mini-mbm-dev PRIVATE "${THIRD_PARTY}/lodepng/lodepng.cpp")
 
         # Same subsystem flag as mini-mbm — suppress the console window.
         target_link_options(mini-mbm-dev PRIVATE -Wl,--subsystem,windows)

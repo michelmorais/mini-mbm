@@ -67,6 +67,20 @@ void onDoNativeCommand(const char* command, const char* param, char* result, con
 
 int main(const int argc,const char **argv)
 {
+    // Installed editors live beside the launcher, independently of its working directory.
+    char executablePath[MAX_PATH] = {};
+    const DWORD executablePathLength = GetModuleFileNameA(nullptr, executablePath, MAX_PATH);
+    if (executablePathLength > 0 && executablePathLength < MAX_PATH)
+    {
+        const std::string executable(executablePath);
+        const size_t separator = executable.find_last_of("\\/");
+        if (separator != std::string::npos)
+        {
+            const std::string editorDirectory = executable.substr(0, separator) + "\\editor\\";
+            mbm::add_path(editorDirectory.c_str());
+        }
+    }
+
     bool allowFullScreen = false;
     bool full_screen_checked = false;
     // Set console to Windows ANSI code page for Portuguese

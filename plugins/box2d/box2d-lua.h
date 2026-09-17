@@ -21,14 +21,14 @@
 
 #define BOX_2D_IMPORTER_H
 
-#if defined (__GNUC__) 
-  #define BOX_2D_IMP_API  __attribute__ ((__visibility__("default")))
-#elif defined (WIN32)
+#if defined (_WIN32) || defined (WIN32)
   #ifdef BOX_2D_BUILD_DLL
     #define BOX_2D_IMP_API  __declspec(dllexport)
   #else
     #define BOX_2D_IMP_API   __declspec(dllimport)
   #endif
+#elif defined (__GNUC__)
+  #define BOX_2D_IMP_API  __attribute__ ((__visibility__("default")))
 #endif
 
 extern "C"

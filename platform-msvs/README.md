@@ -223,6 +223,9 @@ the same API used on Linux and macOS.
 
 ## Building Just the Engine with CMake / MinGW
 
+For a distributable installer containing the engine and editors, see
+[Distributing the Engine and Editors](#distributing-the-engine-and-editors).
+
 Use this when you want to develop or test the engine itself — no game assets or
 packaging needed.  The build outputs `mini-mbm.exe` plus `mini-mbm-dev.exe` (the editor launcher) and
 all plugin `.dll` files into `bin\debug\windows_x86\` or `bin\release\windows_x86\`.
@@ -284,9 +287,77 @@ bin\release\windows_x86\mini-mbm-dev.exe
 
 ---
 
-## Game Delivery — Distribution Packages
+## Distributing the Engine and Editors
+
+Enable `ENGINE_DISTRIBUTION` to package **mini-mbm-dev** for people who want to
+use the engine without cloning this repository or installing a compiler.
+The installer opens the editor launcher and includes:
+
+- `mini-mbm-dev.exe`, `mini-mbm.exe`, and the `distribution.exe` asset packager;
+- all shared libraries/plugins enabled in this build, plus their runtime DLL dependencies;
+- the complete `editor/` scripts and assets, `docs/`, `game-template/`, and license notices;
+- Start Menu and Desktop shortcuts, getting-started instructions, and an uninstaller.
+
+### Complete command (MinGW + NSIS)
+
+Run in **Command Prompt (`cmd.exe`)**, from the repository root. The publisher
+needs CMake 3.25.1+, the MinGW 32-bit toolchain described below, and NSIS installed
+in `PATH`, `C:\Program Files (x86)\NSIS`, or `C:\Program Files\NSIS`.
+Recipients only need the resulting setup executable.
+
+```cmd
+set "PATH=C:\msys64\mingw32\bin;%PATH%"
+
+cmake -S . -B build\mingw_engine_installer -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_ALL=1 -DUSE_BULLET3D=1 ^
+    -DAUDIO=portaudio -DUSE_OPENGL_ES=1 ^
+    -DENGINE_DISTRIBUTION=ON
+
+cmake --build build\mingw_engine_installer --target engine-installer --parallel %NUMBER_OF_PROCESSORS%
+```
+
+This single build target compiles the required executables and plugins, assembles
+the runtime folder, checks DLL dependencies and architecture, and invokes NSIS.
+For engine version `7.213`, the output is:
+
+```text
+build\mingw_engine_installer\mini-mbm-dev-7.213-windows-x86-setup.exe
+```
+
+The version is read from `include/version/version.h`. The installer defaults to
+`%LOCALAPPDATA%\Programs\mini-mbm-dev`, installs for the current user without
+administrator privileges, and registers an entry in Windows Settings > Apps.
+Keep games/assets outside the installation directory. Uninstall removes the
+packaged files and shortcuts, leaving additional user-created files intact.
+
+Use a fresh build directory; **do not set `GAME_ASSETS_DIR`** for this workflow.
+The distribution requires Release, Lua, ImGui, SQLite, Tiled, Box2D and LiquidFun
+(`USE_ALL=1` enables these). `USE_BULLET3D=1` adds the optional 3D physics plugin.
+Steam is not enabled by `USE_ALL`; it requires a separately supplied Steamworks SDK.
+The example uses OpenGL ES through ANGLE; select a different backend in a separate
+build directory if needed. Bundled third-party DLLs are intended for x86 builds;
+packaging rejects DLLs whose architecture does not match the compiler target.
+
+### Portable alternatives
+
+These targets need no NSIS installation:
+
+```cmd
+cmake --build build\mingw_engine_installer --target engine-stage --parallel %NUMBER_OF_PROCESSORS%
+cmake --build build\mingw_engine_installer --target engine-zip --parallel %NUMBER_OF_PROCESSORS%
+```
+
+`engine-stage` assembles `build\mingw_engine_installer\mini-mbm-dev.EngineDir\`.
+`engine-zip` produces `mini-mbm-dev-<version>-windows-x86.zip` in the build directory.
+Open `mini-mbm-dev.exe` or `launch.bat` inside the extracted folder.
+Each packaging invocation refreshes the staging folder, including changes to editor
+scripts and documentation even when no C++ compilation is needed. Missing NSIS or
+unresolved runtime dependencies make the installer target fail explicitly.
 
 ---
+
+## Game Delivery — Distribution Packages
 
 ### Path A — CMake / MinGW (recommended for CI and scripted builds)
 
@@ -372,6 +443,34 @@ will succeed.
 | `-DGAME_ASSETS_PASSWORD=secret` | No | If set, assets are AES-128-CBC encrypted (PBKDF2-HMAC-SHA256, 100 000 iterations). Omit for unencrypted packing. |
 | `-DGAME_ICON_PNG=C:\path\to\icon.png` | No | Any-size PNG. ImageMagick (`convert`) converts it to `.ico` automatically if found in `PATH` or the standard install location. |
 | `-DGAME_ICON_ICO=C:\path\to\icon.ico` | No | Supply a ready-made `.ico` directly (takes priority over `-DGAME_ICON_PNG`). |
+
+#### Complete MinGW + NSIS installer example
+
+Run these commands in **Command Prompt (`cmd.exe`)**, from the repository root.
+This requires the MinGW 32-bit toolchain and CMake described above, plus NSIS
+installed in `PATH` or `C:\Program Files (x86)\NSIS` / `C:\Program Files\NSIS`.
+Replace the game name and assets path; the assets folder must contain `main.lua`.
+Use a fresh build directory to avoid cached compiler, backend, or delivery settings.
+
+```cmd
+set "PATH=C:\msys64\mingw32\bin;%PATH%"
+
+cmake -S . -B build\mingw_game_installer -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=portaudio ^
+    -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_OPENGL_ES=1 ^
+    -DGAME_NAME="My Game" ^
+    -DGAME_ASSETS_DIR="C:/path/to/my-game/assets"
+
+cmake --build build\mingw_game_installer --parallel %NUMBER_OF_PROCESSORS%
+cmake --build build\mingw_game_installer --target nsis
+```
+
+The installer is `build\mingw_game_installer\My_Game-windows-setup.exe`.
+The portable staging folder is `build\mingw_game_installer\My_Game.GameDir\`.
+If NSIS is missing, the target only prints instructions and leaves the staging
+folder available; it does not produce the installer. This packages a game using
+the engine; it does not create an engine/editor development installer.
 
 #### Example build
 

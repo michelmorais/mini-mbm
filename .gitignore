@@ -79,6 +79,7 @@ platform-msvs/steam/Debug/
 
 .vscode/
 bin/
+libs/
 build/
 imgui.ini
 __pycache__/
