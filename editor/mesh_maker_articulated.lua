@@ -76,7 +76,7 @@ local function rebuild()
         project=Model.copy(project)
         for id,pose in pairs(E.drafts) do IO.record(project,E.clip,id,E.time,pose,E.mask) end
     end
-    local path=os.tmpname()..'.msh'; local obj
+    local path=tUtil.getTemporaryFilePath('.msh'); local obj
     local ok=dpCall(function()
         local d=IO.build(E.base,project)
         for f=1,#project.frames do d:addAnim('__ame_frame_'..f,f,f,1,mbm.PAUSED) end
@@ -118,7 +118,7 @@ local function load(path)
         end
     end end
     local project=IO.read(d); local subsets,bounds=IO.bounds(d)
-    local base=os.tmpname()..'.msh'; assert(d:save(base,false,false),'snapshot_failed')
+    local base=tUtil.getTemporaryFilePath('.msh'); assert(d:save(base,false,false),'snapshot_failed')
     clear(); E.base=base; E.path=path; E.project=project; E.data=d; E.subsetBounds=subsets; E.bounds=bounds
     E.frame=1; E.clip=1; E.time=0; E.playing=false; E.mode='animate'
     E.selected=project.frames[1].parts[1] and project.frames[1].parts[1].id or 0

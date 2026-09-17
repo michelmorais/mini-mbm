@@ -117,10 +117,12 @@ foreach(_notice lua-5.4.1/lua.h portaudio/include/portaudio.h
     endif()
 endforeach()
 file(WRITE "${_stage}/launch.bat"
-    "@echo off\r\ncd /d \"%~dp0\"\r\n\"%~dp0mini-mbm-dev.exe\" %*\r\n")
+    "@echo off\r\ncd /d \"%~dp0\"\r\n\"%~dp0mini-mbm-dev.exe\" %*\r\nset \"MBM_EXIT_CODE=%ERRORLEVEL%\"\r\necho.\r\npause\r\nexit /b %MBM_EXIT_CODE%\r\n")
 file(WRITE "${_stage}/GETTING-STARTED.txt"
 "Mini MBM @ENGINE_PACKAGE_VERSION@
-Open mini-mbm-dev.exe (or the Mini MBM Dev shortcut) to select an editor.
+Open launch.bat (or the Mini MBM Dev shortcut) to select an editor.
+The console stays open after the editor exits so you can copy diagnostics.
+Press a key in the console when you are ready to close it.
 No compiler or repository checkout is required to use this distribution.
 
 To start a Lua game, copy game-template to a folder in your Documents directory.

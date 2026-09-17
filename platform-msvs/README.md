@@ -305,13 +305,36 @@ needs CMake 3.25.1+, the MinGW 32-bit toolchain described below, and NSIS instal
 in `PATH`, `C:\Program Files (x86)\NSIS`, or `C:\Program Files\NSIS`.
 Recipients only need the resulting setup executable.
 
+Choose **one** of the three configure commands below, then run the common build
+command. The explicit `=0` flags reset cached backend/Steam selections when you
+reuse this build directory.
+
 ```cmd
 set "PATH=C:\msys64\mingw32\bin;%PATH%"
 
+rem Option 1: OpenGL ES / ANGLE
 cmake -S . -B build\mingw_engine_installer -G "MinGW Makefiles" ^
     -DPLAT=Windows -DCMAKE_BUILD_TYPE=Release ^
     -DUSE_ALL=1 -DUSE_BULLET3D=1 ^
-    -DAUDIO=portaudio -DUSE_OPENGL_ES=1 ^
+    -DAUDIO=portaudio -DUSE_OPENGL_ES=1 -DUSE_DIRECTX11=0 -DUSE_DIRECTX9=0 ^
+    -DUSE_STEAM=0 ^
+    -DENGINE_DISTRIBUTION=ON
+
+rem OR option 2: DirectX 11
+cmake -S . -B build\mingw_engine_installer -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_ALL=1 -DUSE_BULLET3D=1 ^
+    -DAUDIO=portaudio -DUSE_DIRECTX11=1 -DUSE_OPENGL_ES=0 -DUSE_DIRECTX9=0 ^
+    -DUSE_STEAM=0 ^
+    -DENGINE_DISTRIBUTION=ON
+
+rem OR option 3: DirectX 11 + Steam
+cmake -S . -B build\mingw_engine_installer -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_ALL=1 -DUSE_BULLET3D=1 ^
+    -DAUDIO=portaudio -DUSE_DIRECTX11=1 -DUSE_OPENGL_ES=0 -DUSE_DIRECTX9=0 ^
+    -DUSE_STEAM=1 ^
+    -DSTEAMWORKS_SDK_PATH="C:/Program Files (x86)/steamworks_sdk_165/sdk" ^
     -DENGINE_DISTRIBUTION=ON
 
 cmake --build build\mingw_engine_installer --target engine-installer --parallel %NUMBER_OF_PROCESSORS%
@@ -319,10 +342,10 @@ cmake --build build\mingw_engine_installer --target engine-installer --parallel 
 
 This single build target compiles the required executables and plugins, assembles
 the runtime folder, checks DLL dependencies and architecture, and invokes NSIS.
-For engine version `7.213`, the output is:
+For engine version `7.213.1`, the output is:
 
 ```text
-build\mingw_engine_installer\mini-mbm-dev-7.213-windows-x86-setup.exe
+build\mingw_engine_installer\mini-mbm-dev-7.213.1-windows-x86-setup.exe
 ```
 
 The version is read from `include/version/version.h`. The installer defaults to
@@ -331,12 +354,23 @@ administrator privileges, and registers an entry in Windows Settings > Apps.
 Keep games/assets outside the installation directory. Uninstall removes the
 packaged files and shortcuts, leaving additional user-created files intact.
 
+`mini-mbm-dev.exe` is built with the Windows console subsystem so editor diagnostics
+remain visible. The installed shortcuts and the optional post-install launch use
+`launch.bat`, which keeps the console open after the editor exits; press a key when
+you have finished copying the error output. The game-delivery executable retains
+its existing console-free behavior.
+
 Use a fresh build directory; **do not set `GAME_ASSETS_DIR`** for this workflow.
 The distribution requires Release, Lua, ImGui, SQLite, Tiled, Box2D and LiquidFun
 (`USE_ALL=1` enables these). `USE_BULLET3D=1` adds the optional 3D physics plugin.
 Steam is not enabled by `USE_ALL`; it requires a separately supplied Steamworks SDK.
-The example uses OpenGL ES through ANGLE; select a different backend in a separate
-build directory if needed. Bundled third-party DLLs are intended for x86 builds;
+With `USE_STEAM=1`, the package includes the compiled `steam.dll` plugin and the SDK's
+`redistributable_bin/steam_api.dll` for x86 (or `redistributable_bin/win64/steam_api64.dll`
+for x64). A missing SDK runtime fails configuration. The Steam client itself and a
+game's App ID configuration are not part of this package. A script that calls
+`require "steam"` will attempt to initialize the Steam API.
+Configure one graphics backend at a time. Build variants sequentially, since their
+binary output directory is shared. Bundled third-party DLLs are intended for x86 builds;
 packaging rejects DLLs whose architecture does not match the compiler target.
 
 ### Portable alternatives
@@ -350,7 +384,8 @@ cmake --build build\mingw_engine_installer --target engine-zip --parallel %NUMBE
 
 `engine-stage` assembles `build\mingw_engine_installer\mini-mbm-dev.EngineDir\`.
 `engine-zip` produces `mini-mbm-dev-<version>-windows-x86.zip` in the build directory.
-Open `mini-mbm-dev.exe` or `launch.bat` inside the extracted folder.
+Open `launch.bat` inside the extracted folder to retain diagnostics after exit, or
+run `mini-mbm-dev.exe` directly from an existing terminal.
 Each packaging invocation refreshes the staging folder, including changes to editor
 scripts and documentation even when no C++ compilation is needed. Missing NSIS or
 unresolved runtime dependencies make the installer target fail explicitly.

@@ -1330,8 +1330,8 @@ endif()
         target_link_libraries(mini-mbm-dev ${CORE_MBM_LIBRARY})
         target_sources(mini-mbm-dev PRIVATE "${THIRD_PARTY}/lodepng/lodepng.cpp")
 
-        # Same subsystem flag as mini-mbm — suppress the console window.
-        target_link_options(mini-mbm-dev PRIVATE -Wl,--subsystem,windows)
+        # Editor diagnostics must remain visible, including when launched from Explorer.
+        target_link_options(mini-mbm-dev PRIVATE -Wl,--subsystem,console)
 
         # Copy runtime DLLs and editor/ scripts next to mini-mbm-dev.exe.
         # (mini-mbm POST_BUILD already copies them, but mini-mbm-dev may be

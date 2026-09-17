@@ -33,7 +33,7 @@
       <PreprocessorDefinitions>SUPPORTED_MAX_LIGHTS=$(MbmSupportedMaxLights);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies Condition="'$(MbmBackend)'=='DirectX11'">d3d11.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(MbmBackend)'=='DirectX11'">d3d11.lib;dxgi.lib;d3dcompiler.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 </Project>

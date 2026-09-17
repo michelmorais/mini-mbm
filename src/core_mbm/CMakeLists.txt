@@ -313,7 +313,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     if(USE_DIRECTX9)
         target_link_libraries(core_mbm d3d9 d3dcompiler)
     elseif(USE_DIRECTX11)
-        target_link_libraries(core_mbm d3d11 dxgi d3dcompiler)
+        target_link_libraries(core_mbm d3d11 dxgi d3dcompiler dxguid)
     else()
         # OpenGL ES emulation (Imagination PowerVR pre-built import libs)
         target_link_libraries(core_mbm

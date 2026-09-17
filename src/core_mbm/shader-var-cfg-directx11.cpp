@@ -20,6 +20,7 @@
 #if defined(USE_DIRECTX11)
 
 #include <shader-var-cfg.h>
+#include <cstdint>
 #include <cstring>
 
 namespace mbm
@@ -48,12 +49,12 @@ namespace mbm
             break;
         }
 
-        ptrHandleVar = new int32_t(-1);
+        ptrHandleVar = new std::int32_t(-1);
     }
 
     VAR_SHADER::~VAR_SHADER()
     {
-        delete static_cast<int32_t *>(ptrHandleVar);
+        delete static_cast<std::int32_t *>(ptrHandleVar);
     }
 
 }

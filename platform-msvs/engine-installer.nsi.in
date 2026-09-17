@@ -25,6 +25,7 @@ RequestExecutionLevel user
 SetCompressor /SOLID lzma
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\mini-mbm-dev.exe"
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchEngine
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "@CMAKE_SOURCE_DIR@/LICENSE.md"
@@ -36,16 +37,21 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "PortugueseBR"
 
+Function LaunchEngine
+    SetOutPath "$INSTDIR"
+    ExecShell "open" "$INSTDIR\launch.bat"
+FunctionEnd
+
 Section "Mini MBM Dev"
     SetShellVarContext current
     SetOutPath "$INSTDIR"
     File /r "@ENGINE_PACKAGE_STAGE@\*"
     WriteUninstaller "$INSTDIR\uninstall.exe"
     CreateDirectory "$SMPROGRAMS\Mini MBM Dev"
-    CreateShortcut "$SMPROGRAMS\Mini MBM Dev\Mini MBM Dev.lnk" "$INSTDIR\mini-mbm-dev.exe"
+    CreateShortcut "$SMPROGRAMS\Mini MBM Dev\Mini MBM Dev.lnk" "$INSTDIR\launch.bat" "" "$INSTDIR\mini-mbm-dev.exe"
     CreateShortcut "$SMPROGRAMS\Mini MBM Dev\Getting started.lnk" "$INSTDIR\GETTING-STARTED.txt"
     CreateShortcut "$SMPROGRAMS\Mini MBM Dev\Uninstall.lnk" "$INSTDIR\uninstall.exe"
-    CreateShortcut "$DESKTOP\Mini MBM Dev.lnk" "$INSTDIR\mini-mbm-dev.exe"
+    CreateShortcut "$DESKTOP\Mini MBM Dev.lnk" "$INSTDIR\launch.bat" "" "$INSTDIR\mini-mbm-dev.exe"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "DisplayName" "Mini MBM Dev"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "DisplayVersion" "@ENGINE_PACKAGE_VERSION@"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\mini-mbm-dev" "Publisher" "Michel Braz de Morais"

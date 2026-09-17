@@ -199,7 +199,7 @@ namespace mbm
         {
             ID3D11ShaderReflection *reflection = nullptr;
             if (FAILED(D3DReflect(byteCode->GetBufferPointer(), byteCode->GetBufferSize(),
-                                  __uuidof(ID3D11ShaderReflection), reinterpret_cast<void **>(&reflection))))
+                                  IID_ID3D11ShaderReflection, reinterpret_cast<void **>(&reflection))))
                 return false;
             D3D11_SHADER_DESC shaderDescription = {};
             reflection->GetDesc(&shaderDescription);
