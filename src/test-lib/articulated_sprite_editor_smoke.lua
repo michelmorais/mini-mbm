@@ -29,7 +29,7 @@ local start
 local tempRoot
 function onInitScene()
     init()
-    tempRoot=os.tmpname(); os.remove(tempRoot); assert(mbm.createDirectories(tempRoot))
+    tempRoot=tUtil.getTemporaryFilePath(); assert(mbm.createDirectories(tempRoot))
     start=mbm.getTimeRun()
     local pixels={}
     for y=0,31 do for x=0,31 do
@@ -43,6 +43,9 @@ function onInitScene()
     editor.state.image=1
     editor.state.kind='alpha'
     editor.generate(false)
+    editor.rebuild()
+    assert(editor.state.previewPath and editor.state.previewPath:sub(1,1)~='\\',
+        'articulated sprite preview used an invalid root-relative temporary path')
     local E=editor.state
     local Model=require 'articulated_sprite_model'
     E.project.clips={{name='walk',duration=1,speed=1,loop=true,blend=1,tracks={}}}

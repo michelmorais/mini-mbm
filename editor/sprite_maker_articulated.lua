@@ -133,8 +133,7 @@ end
 local function rebuild()
     E.dirty=false
     if #E.project.frames[E.frame].parts==0 then destroyPreview(); return true end
-    local path=os.tmpname()
-    os.remove(path); path=path..'.spt'
+    local path=tUtil.getTemporaryFilePath('.spt')
     local renderProject=E.project
     local previewFrame=E.frame
     for fi=#E.project.frames,1,-1 do
