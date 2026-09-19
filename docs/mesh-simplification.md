@@ -91,6 +91,8 @@ and Save As. No simplification work runs continuously while the editor is idle.
 Split Capture supports canonical skeletal weights. It maps every rebuilt outside/captured vertex to
 its source weight, reconstructs the frame-global weight order, validates the detached mesh, and only
 then replaces the editor object. Skeleton hierarchy and animation clips remain available after
-save/reload.
+save/reload. [Automatic capture](mesh-debug-auto-capture.md) uses the same transaction and creates
+one subset per detected island, with configurable connectivity, position tolerance and minimum
+face count.
 
 Deferred diagnostics and performance work is tracked in [Future Features](future-features.md).
