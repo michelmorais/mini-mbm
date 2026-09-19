@@ -23,44 +23,93 @@
 local Model=require 'image_mesh_model'
 local M={}
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
-function M.invalidate(E) E.overlay=nil end
-function M.draw(E,H)
-    if not E.texture then tImGui.Text(tLang.L('ime_open_help')); return end
-    local available=tImGui.GetContentRegionAvail()
-    local scale=math.min(math.max(100,available.x)/E.project.image.width,math.max(100,available.y)/E.project.image.height)*E.zoom
-    local size={x=E.project.image.width*scale,y=E.project.image.height*scale}
-    if E.checker then local start=tImGui.GetCursorScreenPos(); tImGui.AddImage(E.checker,start,{x=start.x+size.x,y=start.y+size.y}) end
-    tImGui.Image(E.texture,size)
-    local origin=tImGui.GetItemRectMin(); local mouse=tImGui.GetMousePos(); local hovered=tImGui.IsItemHovered(0)
-    E.canvasTransform=E.canvasTransform or {}
-    E.canvasTransform.x=origin.x; E.canvasTransform.y=origin.y; E.canvasTransform.scale=scale
-    local x=clamp((mouse.x-origin.x)/scale,0,E.project.image.width-1)
-    local y=clamp((mouse.y-origin.y)/scale,0,E.project.image.height-1)
-    local imagePoints=E.outlines
-    if not imagePoints then
-        imagePoints={}; for _,r in ipairs(E.project.regions) do imagePoints[#imagePoints+1]={id=r.id,points=Model.outline(r)} end
-        E.outlines=imagePoints
+function M.cancel(E)
+    if E.drag then E.project=E.drag.before or E.project end
+    E.drag=nil; E.polygon={}; E.outlines=nil; E.canvasDirty=true
+end
+function M.destroy(E)
+    for _,object in ipairs(E.sceneLines or {}) do object:destroy() end
+    E.sceneLines={}
+    if E.imageObject then E.imageObject:destroy(); E.imageObject=nil end
+    if E.checkerObject then E.checkerObject:destroy(); E.checkerObject=nil end
+    E.canvasPath=nil; E.canvasDirty=true
+end
+function M.sync(E)
+    local visible=E.editMode and E.texture~=nil
+    if E.imageObject then E.imageObject.visible=visible end
+    if E.checkerObject then E.checkerObject.visible=visible end
+    if E.canvasVisible~=visible then
+        for _,object in ipairs(E.sceneLines or {}) do object.visible=visible end
+        E.canvasVisible=visible
     end
-    if not E.overlay or E.overlay.x~=origin.x or E.overlay.y~=origin.y or E.overlay.scale~=scale then
-        E.overlay={x=origin.x,y=origin.y,scale=scale,regions={}}
-        for _,r in ipairs(imagePoints) do local points={}
-            for _,p in ipairs(r.points) do points[#points+1]={x=origin.x+p.x*scale,y=origin.y+p.y*scale} end
-            E.overlay.regions[#E.overlay.regions+1]={id=r.id,points=points}
-        end
+    if not visible then return end
+    local w,h=E.project.image.width,E.project.image.height
+    local scale=math.min(math.max(50,E.screenW-E.sidebar-40)/w,math.max(50,E.screenH-65)/h)*E.zoom
+    local x=E.sidebar+(E.screenW-E.sidebar-w*scale)/2+E.panX
+    local y=25+(E.screenH-25-h*scale)/2+E.panY
+    local previous=E.canvasTransform
+    local moved=not previous or previous.x~=x or previous.y~=y or previous.scale~=scale
+    if E.canvasPath~=E.project.image.path then
+        M.destroy(E)
+        E.imageObject=texture:new('2ds'); assert(E.imageObject:load(E.project.image.path))
+        if E.checkerPath then E.checkerObject=texture:new('2ds'); assert(E.checkerObject:load(E.checkerPath)) end
+        E.canvasPath=E.project.image.path; moved=true
     end
-    for _,r in ipairs(E.overlay.regions) do
-        local color=E.selection[r.id] and {r=1,g=0.7,b=0.1,a=1} or {r=0.2,g=0.8,b=1,a=0.9}
-        tImGui.AddPolyline(r.points,color,true,2)
+    if moved then
+        E.canvasTransform={x=x,y=y,scale=scale}
+        E.imageObject:setSize(w*scale,h*scale); E.imageObject:setPos(x+w*scale/2,y+h*scale/2,1)
+        if E.checkerObject then E.checkerObject:setSize(w*scale,h*scale); E.checkerObject:setPos(x+w*scale/2,y+h*scale/2,2) end
+    end
+    if not E.canvasDirty and E.outlines and not moved then return end
+    E.canvasDirty=false
+    for _,object in ipairs(E.sceneLines or {}) do object:destroy() end
+    E.sceneLines={}; E.canvasBuilds=(E.canvasBuilds or 0)+1
+    local function draw(points,closed,selected)
+        if #points<2 then return end
+        local vertices={}
+        for _,p in ipairs(points) do vertices[#vertices+1]=p.x*scale; vertices[#vertices+1]=p.y*scale end
+        if closed then vertices[#vertices+1]=vertices[1]; vertices[#vertices+1]=vertices[2] end
+        local object=line:new('2ds',x,y,0); object:add(vertices)
+        if selected then object:setColor(1,0.7,0.1) else object:setColor(0.2,0.8,1) end
+        E.sceneLines[#E.sceneLines+1]=object
+    end
+    local function handle(px,py)
+        local d=4/scale
+        draw({{x=px-d,y=py-d},{x=px+d,y=py-d},{x=px+d,y=py+d},{x=px-d,y=py+d}},true,true)
+    end
+    if not E.outlines then
+        E.outlines={}
+        for _,r in ipairs(E.project.regions) do E.outlines[#E.outlines+1]={id=r.id,points=Model.outline(r)} end
+    end
+    for _,r in ipairs(E.outlines) do
+        draw(r.points,true,E.selection[r.id])
         if r.id==E.selected then
             local region=Model.region(E.project,r.id)
-            if region.shape=='polygon' then
-                for _,point in ipairs(r.points) do tImGui.AddCircleFilled(point,4,color,12) end
-            else local p=r.points[1]; local q={x=origin.x+(region.x+region.w-1)*scale,y=origin.y+(region.y+region.h-1)*scale}
-                tImGui.AddRectFilled({x=q.x-4,y=q.y-4},{x=q.x+4,y=q.y+4},color)
-            end
+            if region.shape=='polygon' then for _,p in ipairs(r.points) do handle(p.x,p.y) end
+            else handle(region.x+region.w-1,region.y+region.h-1) end
         end
     end
-    if hovered and tImGui.IsMouseClicked(0,false) then
+    local d=E.drag
+    if d and d.mode=='create' then
+        local r={shape=E.tool,x=math.min(d.x,d.cx),y=math.min(d.y,d.cy),w=math.abs(d.cx-d.x)+1,h=math.abs(d.cy-d.y)+1}
+        draw(Model.outline(r),true,true)
+    end
+    if #E.polygon>0 then
+        local points=Model.copy(E.polygon)
+        if E.cursor then points[#points+1]=E.cursor end
+        draw(points,false,true)
+    end
+end
+function M.input(E,H,event,mx,my)
+    if not E.editMode or not E.texture or not E.canvasTransform then return end
+    local origin=E.canvasTransform; local scale=origin.scale
+    local hovered=mx>=origin.x and my>=origin.y and mx<origin.x+E.project.image.width*scale and my<origin.y+E.project.image.height*scale
+    local x=clamp((mx-origin.x)/scale,0,E.project.image.width-1)
+    local y=clamp((my-origin.y)/scale,0,E.project.image.height-1)
+    local imagePoints=E.outlines or {}
+    E.cursor={x=x,y=y}
+    if E.drag or #E.polygon>0 or event=='down' then E.canvasDirty=true end
+    if hovered and event=='down' then
         if E.tool=='polygon' then
             local last=E.polygon[#E.polygon]
             if #E.polygon<128 and (not last or (last.x-x)^2+(last.y-y)^2>1) then E.polygon[#E.polygon+1]={x=x,y=y} end
@@ -84,7 +133,7 @@ function M.draw(E,H)
         end
     end
     local d=E.drag
-    if d and tImGui.IsMouseDown(0) and (d.cx~=x or d.cy~=y) then
+    if d and event=='move' and (d.cx~=x or d.cy~=y) then
         d.cx=x; d.cy=y
         if d.mode~='create' then
             local r=Model.region(E.project,d.id); local before=d.region
@@ -95,14 +144,10 @@ function M.draw(E,H)
                 r.w=clamp(math.floor(x-r.x+1.5),1,E.project.image.width-r.x)
                 r.h=clamp(math.floor(y-r.y+1.5),1,E.project.image.height-r.y)
             else r.contour[d.index]={x=clamp((x-r.x)/math.max(1,r.w-1),0,1),y=clamp((y-r.y)/math.max(1,r.h-1),0,1)} end
-            E.outlines=nil; E.overlay=nil; d.changed=true
+            E.outlines=nil; d.changed=true
         end
     end
-    if d and d.mode=='create' then
-        tImGui.AddRect({x=origin.x+math.min(d.x,d.cx)*scale,y=origin.y+math.min(d.y,d.cy)*scale},
-            {x=origin.x+math.max(d.x,d.cx)*scale,y=origin.y+math.max(d.y,d.cy)*scale},{r=1,g=0.7,b=0.1,a=1})
-    end
-    if d and not tImGui.IsMouseDown(0) then
+    if d and event=='up' then
         E.drag=nil
         if d.mode=='create' then
             if math.abs(d.cx-d.x)>=2 and math.abs(d.cy-d.y)>=2 then
@@ -113,11 +158,6 @@ function M.draw(E,H)
                 end)
             end
         elseif d.changed then H.commitDrag(d.before) end
-    end
-    if #E.polygon>0 then
-        local points={}; for _,p in ipairs(E.polygon) do points[#points+1]={x=origin.x+p.x*scale,y=origin.y+p.y*scale} end
-        points[#points+1]={x=origin.x+x*scale,y=origin.y+y*scale}
-        tImGui.AddPolyline(points,{r=1,g=0.6,b=0.1,a=1},false,2)
     end
 end
 return M

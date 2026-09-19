@@ -276,3 +276,23 @@ Próxima entrega: etapa 3 (pintura de altura, presets, texturas/fundo e prévia 
 encaixe). Continuam pendentes furos, seleção automática, mapas de altura separados,
 empacotamento portátil de texturas e otimização/simplificação da etapa 5. O lote é
 cooperativo entre peças; a geração de uma peça ainda é síncrona e não cancelável.
+
+
+### Revisão da interface após uso (7.218.0)
+
+A organização atual segue o `texture_packer.lua`: uma lateral **Regiões** reúne
+ferramentas, lista e propriedades da seleção. As janelas separadas de imagem,
+propriedades e prévia 3D foram removidas. O checkbox **Modo de edição** alterna
+entre imagem/contornos e a mesh selecionada na cena principal da engine.
+
+O canvas usa `texture`/`line` e callbacks `onTouch*`, com zoom, deslocamento,
+seleção e edição dos contornos. A visualização usa a câmera 3D da cena, sem RTT.
+A geração é adiada durante edição e acontece ao entrar na visualização, selecionar
+ou aplicar alterações nesse modo. Em repouso, não há reconstruções de malha ou
+buffers dos contornos. Os registros anteriores sobre RTT descrevem a versão
+inicial da etapa 2, substituída por esta revisão.
+
+Os testes de projeto/lote foram mantidos e os gestos migraram de consultas ImGui
+simuladas para callbacks da cena. Foram verificadas alternância dos modos,
+órbita, desenho/movimento/redimensionamento/pontos e ausência de reconstruções
+em repouso no Linux/OpenGL ES.

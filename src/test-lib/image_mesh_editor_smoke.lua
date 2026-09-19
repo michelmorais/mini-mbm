@@ -33,7 +33,7 @@ local function runInit()
         Model.add(p,'ellipse',0,0,32,32)
         Model.fromPoints(p,{{x=32,y=32},{x=63,y=32},{x=63,y=43},{x=43,y=43},{x=43,y=63},{x=32,y=63}})
     end))
-    api.select(13); api.rebuild(); assert(api.state.preview and api.state.report)
+    api.setEditMode(false); api.select(13); api.rebuild(); assert(api.state.preview and api.state.report)
     api.select(14); api.rebuild(); assert(api.state.preview and api.state.report)
     local before=api.state.project.defaults.relief
     assert(api.action(function(p) p.defaults.relief=3 end)); api.undo(false)
@@ -81,25 +81,33 @@ function onLoop(delta)
     if frame==120 then assert(e.project.regions[15].w==25 and e.project.regions[15].h==25); api.select(17) end
     if frame==89 then e.tool='rectangle' elseif frame==93 then e.tool='ellipse' elseif frame==97 then e.tool='polygon' elseif frame==111 then e.tool='select' end
     local command=commands[frame]
-    local originalMouse,originalClick,originalDown,originalHover=tImGui.GetMousePos,tImGui.IsMouseClicked,tImGui.IsMouseDown,tImGui.IsItemHovered
-    if frame>=90 and frame<=122 then
-        if command then
-            e.tool=command[1]; local o=e.canvasTransform
-            mouse={x=o.x+(command[2]+0.25)*o.scale,y=o.y+(command[3]+0.25)*o.scale}; click=command[4]; down=command[5]
-        else mouse=originalMouse(); click=false; down=false end
-        tImGui.GetMousePos=function() return mouse end
-        tImGui.IsMouseClicked=function(button) return button==0 and click end
-        tImGui.IsMouseDown=function(button) return button==0 and down end
-        tImGui.IsItemHovered=function(flags)
-            local origin=tImGui.GetItemRectMin(); local o=e.canvasTransform
-            return o and origin.x==o.x and origin.y==o.y
+    local originalCheckbox=tImGui.Checkbox
+    if frame==85 then
+        tImGui.Checkbox=function(label,value)
+            if label==tLang.L('ime_edit_mode') then return true end
+            return originalCheckbox(label,value)
         end
     end
+    local originalHovered=tImGui.GetWantCaptureMouse
+    tImGui.GetWantCaptureMouse=function() return false end
+    if command then
+        e.tool=command[1]; local o=e.canvasTransform
+        local x,y=o.x+(command[2]+0.25)*o.scale,o.y+(command[3]+0.25)*o.scale
+        if command[4] then onTouchDown(0,x,y)
+        elseif command[5] then onTouchMove(0,x,y)
+        else onTouchUp(0,x,y) end
+    elseif frame>=98 and frame<=109 then
+        onTouchUp(0,e.canvasTransform.x,e.canvasTransform.y)
+    end
+    tImGui.GetWantCaptureMouse=originalHovered
     loop(delta)
-    tImGui.GetMousePos,tImGui.IsMouseClicked,tImGui.IsMouseDown,tImGui.IsItemHovered=originalMouse,originalClick,originalDown,originalHover
+    tImGui.Checkbox=originalCheckbox
+    if frame==85 then assert(e.editMode and e.values.lockBorder==true,'checkbox state was not preserved') end
     if frame==130 then
         assert(e.project.regions[17].contour[1].x>0)
-        assert(e.preview and e.report,'edited contour did not generate')
+        api.setEditMode(false); api.rebuild()
+        assert(e.preview and e.preview.visible and e.report,'edited contour did not generate')
+        assert(not e.imageObject.visible,'image leaked into 3D mode')
         print('IMAGE MESH EDITOR DRAW / MOVE / RESIZE / POLYGON POINT INPUT OK')
     end
     if frame==30 then
@@ -110,7 +118,37 @@ function onLoop(delta)
         end
         baseline=api.state.builds
     end
-    if frame==80 then assert(api.state.builds==baseline,'idle editor rebuilt geometry'); assert(not api.state.target.visible,'idle render target still active'); print('IMAGE MESH EDITOR UI / BATCH / IDLE OK') end
+    if frame==80 then assert(api.state.builds==baseline,'idle editor rebuilt geometry'); assert(api.state.target==nil,'preview still uses render target'); print('IMAGE MESH EDITOR UI / BATCH / IDLE OK') end
+    if frame==135 then
+        api.setEditMode(true)
+        assert(e.imageObject.visible and not e.preview.visible)
+        e.idleCanvas=e.canvasBuilds; e.idleMeshes=e.builds
+    end
+    if frame==155 then
+        assert(e.canvasBuilds==e.idleCanvas and e.builds==e.idleMeshes,'idle editing rebuilt geometry')
+        local distance=e.orbit.distance; api.setEditMode(false)
+        tImGui.GetWantCaptureMouse=function() return false end
+        onTouchDown(0,900,400); onTouchMove(0,940,420); onTouchUp(0,940,420); onTouchZoom(1)
+        tImGui.GetWantCaptureMouse=originalHovered
+        assert(e.orbit.distance<distance)
+        api.setEditMode(true)
+        tImGui.GetWantCaptureMouse=function() return false end
+        local oldPan=e.panX; local oldZoom=e.zoom
+        onTouchDown(1,900,400); onTouchMove(1,940,420); onTouchUp(1,940,420); onTouchZoom(1)
+        assert(e.panX==oldPan+40 and e.zoom>oldZoom)
+        local before=#e.project.regions
+        local o=e.canvasTransform; e.tool='rectangle'
+        onTouchDown(0,o.x+10*o.scale,o.y+10*o.scale)
+        onTouchMove(0,o.x+20*o.scale,o.y+20*o.scale)
+        assert(e.drag); api.setEditMode(false)
+        assert(not e.drag and #e.project.regions==before,'mode change committed unfinished drawing')
+        tImGui.GetWantCaptureMouse=function() return true end
+        local azimuth=e.orbit.azimuth
+        onTouchDown(0,900,400); onTouchMove(0,940,420); onTouchUp(0,940,420)
+        assert(e.orbit.azimuth==azimuth,'UI input reached scene')
+        tImGui.GetWantCaptureMouse=originalHovered
+        print('IMAGE MESH EDITOR SCENE MODES / ORBIT / IDLE OK')
+    end
     if started and mbm.getTimeRun()-started>8 then mbm.quit() end
 end
 function onEndScene() finish() end

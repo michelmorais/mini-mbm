@@ -1,7 +1,7 @@
 # Image Mesh Editor
 
 Editor offline para extrudar regiões de uma imagem em módulos 3D com relevo.
-Disponível a partir da versão 7.217.0. O estado atual corresponde às etapas 1 e 2
+Disponível a partir da versão 7.217.0; interface reorganizada na 7.218.0. O estado atual corresponde às etapas 1 e 2
 [do plano](image-mesh-editor-plan.md).
 
 ## Abrir
@@ -20,7 +20,7 @@ está presente, mas não foi executada nessas plataformas.
 ## Criar e editar peças
 
 1. Use **Arquivo > Abrir imagem**. O projeto usa uma imagem de até 16 megapixels.
-2. Na área da imagem, escolha **Retângulo**, **Elipse / círculo** ou **Polígono**.
+2. Na lateral **Regiões**, mantenha **Modo de edição** marcado e escolha **Retângulo**, **Elipse / círculo** ou **Polígono**.
    Arraste para criar retângulos/elipses; clique nos pontos e use **Concluir
    polígono** para fechar uma forma. Igualar largura e altura do recorte seleciona
    um círculo na imagem; iguale também as dimensões no mundo para gerar um volume
@@ -30,8 +30,9 @@ está presente, mas não foi executada nessas plataformas.
    sem substituir as existentes. Ajuste recortes individuais se o atlas for irregular.
 4. Use **Selecionar / mover** para arrastar uma peça; arraste seu canto inferior
    direito para redimensionar um retângulo/elipse. Em polígonos, arraste os pontos.
-   A área **Propriedades** permite editar recorte, forma e coordenadas normalizadas
-   dos pontos, além de inserir/remover pontos. Confirme com **Aplicar**.
+   A própria lateral **Regiões** mostra as propriedades da seleção. Abra
+   **Recorte e contorno na imagem** para editar recorte, forma e coordenadas
+   normalizadas dos pontos, além de inserir/remover pontos. Confirme com **Aplicar**.
 5. Selecione várias peças com Ctrl+clique. **Duplicar** e **Excluir** operam sobre
    a seleção. Os parâmetros de geração em **Aplicar** afetam todas as selecionadas;
    nome, recorte, forma e pontos afetam somente a peça principal.
@@ -41,6 +42,27 @@ está presente, mas não foi executada nessas plataformas.
 O projeto suporta até 256 regiões e guarda as últimas 40 operações para
 **Desfazer/Refazer** (Ctrl+Z/Ctrl+Y). Um arraste confirmado é uma operação. Escape
 cancela um contorno ainda em desenho ou um arraste em andamento.
+
+## Cena principal e modos
+
+A única janela lateral é **Regiões**, reunindo ferramentas, lista e propriedades.
+Ao selecionar outra peça, suas propriedades aparecem nessa lateral. **Volume e
+relevo** contém os ajustes principais; **Resolução e limites de geometria** agrupa
+os parâmetros de densidade e orçamento.
+
+- **Modo de edição marcado:** a cena mostra a imagem e os contornos, renderizados
+  por objetos `texture` e `line` da engine. Botão esquerdo desenha/seleciona/move;
+  botão direito ou central desloca a imagem; a roda aproxima/afasta.
+  **Enquadrar imagem** restaura zoom e posição. O canto inferior direito e os
+  pontos do polígono são alças de edição.
+- **Modo de edição desmarcado:** a cena mostra somente a mesh 3D selecionada.
+  Arraste com o botão esquerdo para orbitar e use a roda para ajustar a distância.
+  A luz fica na lateral. Selecionar outra região atualiza a mesh mostrada.
+
+A troca de modo cancela desenhos e arrastes ainda não confirmados. Valores nos
+campos precisam de **Aplicar** antes da troca. Cliques na interface não iniciam
+manipulação da cena. Não existem janelas separadas de imagem, propriedades ou
+prévia, nem render target intermediário para a mesh.
 
 ## Relevo e prévia
 
@@ -56,9 +78,11 @@ entram no projeto após **Aplicar**. A prévia fica indisponível se a geração
 com o motivo apresentado; ela não mantém uma peça antiga como se fosse atual.
 
 O editor não regenera nem serializa a malha a cada frame. Contornos desenhados
-são armazenados em cache; alterações confirmadas ou seleção disparam geração.
-A textura da prévia é atualizada quando geometria, câmera ou luz mudam e é
-reutilizada em repouso. A geração de uma peça ainda é síncrona.
+são armazenados em cache e os buffers de linhas só são reconstruídos quando suas
+entradas mudam. No modo de edição, a geração 3D fica pendente até entrar na
+visualização. Nesse modo, alterações confirmadas ou seleção disparam geração;
+orbitar ou ajustar a luz não regenera a mesh. A cena desenha normalmente a cada
+frame, sem reconstruir geometria em repouso. A geração de uma peça ainda é síncrona.
 
 ## Salvar, relocalizar e exportar
 
@@ -92,9 +116,10 @@ timeout -s KILL 25 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_
 
 Use um build com `-DUSE_TEXTURE_MISSING_DIALOG=0` para testes automáticos. Confira
 os marcadores `IMAGE MESH ... OK` e ausência de erros Lua; o código de saída da
-engine sozinho não comprova sucesso. O teste do editor deve produzir os três
-marcadores de projeto, UI/lote/repouso e gestos de entrada. Os gestos são simulados
-nas funções de entrada ImGui, passando pelo canvas real.
+engine sozinho não comprova sucesso. O teste do editor deve produzir os quatro
+marcadores de projeto, UI/lote/repouso, gestos de entrada e modos da cena. Os gestos
+são simulados nos callbacks `onTouch*` da engine, passando pelo canvas real; isso
+não substitui uma conferência manual com mouse físico.
 
 A referência visual dos 12 painéis pode ser reproduzida com:
 

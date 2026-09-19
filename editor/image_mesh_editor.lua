@@ -27,7 +27,7 @@ local Model=require 'image_mesh_model'
 local IO=require 'image_mesh_io'
 local Canvas=require 'image_mesh_canvas'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
-    polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
+    editMode=true,panX=0,panY=0,sidebar=370,polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={azimuth=math.pi-0.4,elevation=0.25,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
 local function dpCall(fn,...)
@@ -37,7 +37,7 @@ local function dpCall(fn,...)
 end
 local function releasePreview()
     if E.preview then
-        E.target:remove(E.preview); meshDebug:loadMeshPreview(E.preview,nil); E.preview:destroy(); E.preview=nil
+        meshDebug:loadMeshPreview(E.preview,nil); E.preview:destroy(); E.preview=nil
     end
     if E.previewPath then os.remove(E.previewPath); E.previewPath=nil end
 end
@@ -48,7 +48,7 @@ local function syncDraft()
     E.point=1
 end
 local function changed()
-    E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.overlay=nil; E.report=nil
+    E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
     if E.preview then E.preview.visible=false end
     syncDraft()
 end
@@ -57,7 +57,7 @@ local function selectRegion(id,extend)
     if extend then E.selection[id]=not E.selection[id] else E.selection={[id]=true} end
     E.selected=id
     if not E.selection[id] then E.selected=0; for _,r in ipairs(E.project.regions) do if E.selection[r.id] then E.selected=r.id; break end end end
-    E.dirty=true; E.report=nil; E.polygon={}; syncDraft()
+    E.dirty=true; E.report=nil; E.polygon={}; E.canvasDirty=true; E.editDefaults=false; syncDraft()
     if E.preview then E.preview.visible=false end
 end
 local function action(fn)
@@ -69,7 +69,7 @@ local function action(fn)
 end
 local function commitDrag(before)
     local ok=dpCall(Model.validate,E.project)
-    if ok then Model.commit(E.history,before); changed() else E.project=before; E.outlines=nil; E.overlay=nil; syncDraft() end
+    if ok then Model.commit(E.history,before); changed() else E.project=before; E.outlines=nil; syncDraft() end
 end
 local function history(redo)
     if E.drag then E.project=E.drag.before or E.project; E.drag=nil end
@@ -81,9 +81,15 @@ local function history(redo)
 end
 local function camera()
     local c=E.orbit
-    E.previewCamera:setPos(c.distance*math.cos(c.elevation)*math.sin(c.azimuth),c.distance*math.sin(c.elevation),c.distance*math.cos(c.elevation)*math.cos(c.azimuth))
-    E.renderFrames=2
-    E.previewCamera:setFocus(0,0,0)
+    -- Shift the camera parallel to its view plane so the module is centered
+    -- in the scene area beside the sidebar. Match CAMERA::updateCam's current
+    -- projection conversion (cot(angle/2) is passed as the perspective angle).
+    local halfHeight=c.distance*math.tan(0.5/math.tan(math.rad(55)))
+    local offset=halfHeight*E.sidebar/E.screenH
+    local ox,oz=math.cos(c.azimuth)*offset,-math.sin(c.azimuth)*offset
+    E.previewCamera:setPos(ox+c.distance*math.cos(c.elevation)*math.sin(c.azimuth),c.distance*math.sin(c.elevation),oz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth))
+
+    E.previewCamera:setFocus(ox,0,oz)
     E.previewCamera:setFar(math.max(2000,c.distance*10))
 end
 local function generate(region)
@@ -91,7 +97,7 @@ local function generate(region)
     assert(asset,report); return asset,report
 end
 local function rebuild()
-    if not E.dirty or E.drag then return end
+    if not E.dirty or E.drag or E.editMode then return end
     E.dirty=false; releasePreview()
     local r=Model.region(E.project,E.selected); if not r or not E.texture then return end
     local path=tUtil.getTemporaryFilePath('.msh'); local object
@@ -100,13 +106,12 @@ local function rebuild()
         assert(asset:save(path,false,false,true),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true
-        assert(E.target:add(object),L('preview_failed'))
         E.preview=object; E.previewPath=path; E.report=report; E.builds=E.builds+1
         local o=Model.options(E.project,r); E.orbit.distance=math.max(o.width,o.height,o.depth+o.relief)*2.7; camera()
         E.status=L('preview_ready')
     end)
     if not ok then
-        if object then E.target:remove(object); meshDebug:loadMeshPreview(object,nil); object:destroy() end
+        if object then meshDebug:loadMeshPreview(object,nil); object:destroy() end
         E.preview=nil; E.previewPath=nil; os.remove(path)
     end
 end
@@ -118,9 +123,9 @@ local function loadTexture(path)
     return texture
 end
 local function install(project,path,texture)
-    releasePreview(); E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
+    releasePreview(); Canvas.destroy(E); E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
-    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; changed(); E.modified=false
+    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; E.panX=0; E.panY=0; changed(); E.modified=false
 end
 local function openImage(path)
     local texture=loadTexture(path)
@@ -216,14 +221,78 @@ local function menu()
         tImGui.EndPopup()
     end
 end
-local function window(key,x,y,w,h)
-    tImGui.SetNextWindowPos({x=x,y=y},E.flags.first)
-    tImGui.SetNextWindowSize({x=w,y=h},E.flags.first)
-    return tImGui.Begin(L(key)..'###'..E.titles[key],false,0)
+local function setEditMode(enabled)
+    if E.editMode==enabled then return end
+    Canvas.cancel(E); syncDraft(); E.orbitDrag=nil; E.panDrag=nil
+    E.editMode=enabled
+    if E.preview then E.preview.visible=not enabled and not E.dirty end
+    Canvas.sync(E)
+end
+local function propertiesPanel()
+    tImGui.PushItemWidth(math.max(90,tImGui.GetContentRegionAvail().x*0.42))
+    local defaults=tImGui.Checkbox(L('edit_defaults'),E.editDefaults or false)
+    if defaults~=(E.editDefaults or false) then E.editDefaults=defaults; syncDraft() end
+    if E.draft or E.editDefaults then
+        if not E.editDefaults then
+            local d=E.draft
+            local edited,value=tImGui.InputText(L('name'),d.name); if edited then d.name=value end
+            if tImGui.CollapsingHeader(L('crop_group')) then
+            for _,key in ipairs({'x','y','w','h'}) do local c,v=tImGui.InputInt(L('crop_'..key),d[key]); if c then d[key]=v end end
+            local shapes={'rectangle','ellipse','polygon'}; local idx=d.shape=='rectangle' and 1 or (d.shape=='ellipse' and 2 or 3)
+            local c,v=tImGui.Combo(L('shape'),idx,{L('rectangle'),L('ellipse'),L('polygon')})
+            if c then d.shape=shapes[v]; if d.shape=='polygon' and not d.contour then d.contour={{x=0,y=0},{x=1,y=0},{x=1,y=1},{x=0,y=1}} end end
+            if d.shape=='polygon' and tImGui.CollapsingHeader(L('points')) then
+                local change,index=tImGui.SliderInt(L('point'),E.point,1,#d.contour); if change then E.point=index end
+                local point=d.contour[E.point]
+                for _,axis in ipairs({'x','y'}) do local modified,n=tImGui.InputFloat(axis,point[axis]); if modified then point[axis]=n end end
+                if tImGui.Button(L('add_point')) and #d.contour<128 then local nextPoint=d.contour[E.point%#d.contour+1]
+                    table.insert(d.contour,E.point+1,{x=(point.x+nextPoint.x)/2,y=(point.y+nextPoint.y)/2}); E.point=E.point+1
+                end
+                tImGui.SameLine(); if tImGui.Button(L('remove_point')) and #d.contour>3 then table.remove(d.contour,E.point); E.point=math.min(E.point,#d.contour) end
+            end
+            end
+        end
+        tImGui.Separator(); tImGui.Text(L('volume_group'))
+        for _,key in ipairs({'width','height','depth','relief','borderWidth'}) do
+            local c,v=tImGui.InputFloat(L(key),E.values[key]); if c then E.values[key]=v end
+        end
+        if tImGui.CollapsingHeader(L('resolution_group')) then
+        for _,key in ipairs({'columns','rows','ellipseSegments','maxVertices','maxTriangles'}) do
+            local c,v=tImGui.InputInt(L(key),E.values[key]); if c then E.values[key]=v end
+        end
+        end
+        for _,key in ipairs({'invert','lockBorder'}) do E.values[key]=tImGui.Checkbox(L(key),E.values[key]) end
+        if tImGui.Button(L('apply')) then applyProperties() end
+        if not E.editDefaults then
+            tImGui.SameLine(); if tImGui.Button(L('inherit')) then action(function(p) for _,r in ipairs(p.regions) do if E.selection[r.id] then r.overrides={} end end end) end
+        end
+    else tImGui.Text(L('select_region')) end
+    tImGui.PopItemWidth()
 end
 local function regionsPanel()
-    if window('regions',0,25,260,E.screenH-25) then
-        tImGui.PushItemWidth(105)
+    tImGui.SetNextWindowPos({x=0,y=25},E.flags.always)
+    tImGui.SetNextWindowSize({x=E.sidebar,y=E.screenH-25},E.flags.always)
+    if tImGui.Begin(L('regions')..'###ime_regions',false,E.flags.fixed) then
+        tImGui.PushItemWidth(135)
+        local value=tImGui.Checkbox(L('edit_mode'),E.editMode)
+        if value~=E.editMode then setEditMode(value) end
+        if E.editMode then
+            local names={L('select'),L('rectangle'),L('ellipse'),L('polygon')}; local tools={'select','rectangle','ellipse','polygon'}
+            local index=1; for i,name in ipairs(tools) do if name==E.tool then index=i end end
+            local modified,tool=tImGui.Combo(L('tool'),index,names)
+            if modified then Canvas.cancel(E); E.tool=tools[tool] end
+            if E.tool=='polygon' then
+                if tImGui.Button(L('finish_polygon')) then finishPolygon() end
+                tImGui.SameLine(); if tImGui.Button(L('cancel')) then Canvas.cancel(E) end
+            end
+            if tImGui.Button(L('fit_image')) then E.zoom=1; E.panX=0; E.panY=0 end
+            tImGui.TextWrapped(L('canvas_help'))
+        else
+            tImGui.TextWrapped(L('preview_help'))
+            local c,v=tImGui.SliderFloat(L('light'),E.light,0,1)
+            if c then E.light=v; mbm.setDirectionalLightColor('3d',v,v,v) end
+        end
+        tImGui.Separator()
         if E.missing then
             tImGui.Text(L('missing_image'))
             if tImGui.Button(L('relink')) then dpCall(function() local path=mbm.openFile('',table.unpack(tUtil.supported_images)); if path then relink(path) end end) end
@@ -249,10 +318,16 @@ local function regionsPanel()
                 E.selected=p.regions[1] and p.regions[1].id or 0; E.selection={[E.selected]=true}
             end) end
             tImGui.Text(L('selection_help'))
+            if tImGui.BeginChild('ime_region_list',{x=0,y=130},true,0) then
             for _,r in ipairs(E.project.regions) do
                 if tImGui.Selectable(r.name..'##region'..r.id,E.selection[r.id] or false) then selectRegion(r.id,E.control) end
             end
+            end
+            tImGui.EndChild()
+            tImGui.Separator(); propertiesPanel()
         else tImGui.Text(L('open_help')) end
+        if E.report then tImGui.TextWrapped(string.format(L('counts'),E.report.vertices,E.report.triangles)) end
+        tImGui.TextWrapped(E.status)
         if E.batch then
             tImGui.ProgressBar((E.batch.index-1)/#E.batch.project.regions,{x=-1,y=0},L('exporting'))
             if tImGui.Button(L('cancel')) then E.status=L('cancelled'); E.batch=nil end
@@ -261,125 +336,69 @@ local function regionsPanel()
     end
     tImGui.End()
 end
-local function imagePanel()
-    if window('image',260,25,E.middleW,E.screenH-25) then
-        local names={L('select'),L('rectangle'),L('ellipse'),L('polygon')}; local tools={'select','rectangle','ellipse','polygon'}
-        local index=1; for i,name in ipairs(tools) do if name==E.tool then index=i end end
-        local changedTool,value=tImGui.Combo(L('tool'),index,names)
-        if changedTool then E.tool=tools[value]; E.polygon={} end
-        local edited,zoom=tImGui.SliderFloat(L('zoom'),E.zoom,0.25,4); if edited then E.zoom=zoom end
-        tImGui.TextWrapped(L('canvas_help'))
-        if E.tool=='polygon' then
-            if tImGui.Button(L('finish_polygon')) then finishPolygon() end
-            tImGui.SameLine(); if tImGui.Button(L('cancel')) then E.polygon={} end
-        end
-        if tImGui.BeginChild('ime_canvas',{x=0,y=0},true,E.flags.scroll) then
-            Canvas.draw(E,{action=action,select=selectRegion,commitDrag=commitDrag})
-        end
-        tImGui.EndChild()
-    end
-    tImGui.End()
-end
-local function propertiesPanel()
-    if window('properties',260+E.middleW,25,E.rightW,E.screenH*0.51) then
-        tImGui.PushItemWidth(math.max(90,tImGui.GetContentRegionAvail().x*0.42))
-        local edit,defaults=tImGui.Checkbox(L('edit_defaults'),E.editDefaults or false)
-        if edit then E.editDefaults=defaults; syncDraft() end
-        if E.draft or E.editDefaults then
-            if not E.editDefaults then
-                local d=E.draft
-                local edited,value=tImGui.InputText(L('name'),d.name); if edited then d.name=value end
-                for _,key in ipairs({'x','y','w','h'}) do local c,v=tImGui.InputInt(L('crop_'..key),d[key]); if c then d[key]=v end end
-                local shapes={'rectangle','ellipse','polygon'}; local idx=d.shape=='rectangle' and 1 or (d.shape=='ellipse' and 2 or 3)
-                local c,v=tImGui.Combo(L('shape'),idx,{L('rectangle'),L('ellipse'),L('polygon')})
-                if c then d.shape=shapes[v]; if d.shape=='polygon' and not d.contour then d.contour={{x=0,y=0},{x=1,y=0},{x=1,y=1},{x=0,y=1}} end end
-                if d.shape=='polygon' and tImGui.CollapsingHeader(L('points')) then
-                    local change,index=tImGui.SliderInt(L('point'),E.point,1,#d.contour); if change then E.point=index end
-                    local point=d.contour[E.point]
-                    for _,axis in ipairs({'x','y'}) do local modified,n=tImGui.InputFloat(axis,point[axis]); if modified then point[axis]=n end end
-                    if tImGui.Button(L('add_point')) and #d.contour<128 then local nextPoint=d.contour[E.point%#d.contour+1]
-                        table.insert(d.contour,E.point+1,{x=(point.x+nextPoint.x)/2,y=(point.y+nextPoint.y)/2}); E.point=E.point+1
-                    end
-                    tImGui.SameLine(); if tImGui.Button(L('remove_point')) and #d.contour>3 then table.remove(d.contour,E.point); E.point=math.min(E.point,#d.contour) end
-                end
-            end
-            for _,key in ipairs({'width','height','depth','relief','borderWidth'}) do
-                local c,v=tImGui.InputFloat(L(key),E.values[key]); if c then E.values[key]=v end
-            end
-            for _,key in ipairs({'columns','rows','ellipseSegments','maxVertices','maxTriangles'}) do
-                local c,v=tImGui.InputInt(L(key),E.values[key]); if c then E.values[key]=v end
-            end
-            for _,key in ipairs({'invert','lockBorder'}) do local c,v=tImGui.Checkbox(L(key),E.values[key]); if c then E.values[key]=v end end
-            if tImGui.Button(L('apply')) then applyProperties() end
-            if not E.editDefaults then
-                tImGui.SameLine(); if tImGui.Button(L('inherit')) then action(function(p) for _,r in ipairs(p.regions) do if E.selection[r.id] then r.overrides={} end end end) end
-            end
-        else tImGui.Text(L('select_region')) end
-        tImGui.PopItemWidth()
-    end
-    tImGui.End()
-end
-local function previewPanel()
-    if window('preview',260+E.middleW,30+E.screenH*0.51,E.rightW,E.screenH*0.49-30) then
-        if E.report then tImGui.Text(string.format(L('counts'),E.report.vertices,E.report.triangles)) end
-        tImGui.TextWrapped(E.status)
-        tImGui.Text(L('preview_help'))
-        tImGui.SetNextItemWidth(math.max(90,tImGui.GetContentRegionAvail().x*0.5))
-        local c,v=tImGui.SliderFloat(L('light'),E.light,0,1)
-        if c then E.light=v; mbm.setDirectionalLightColor('3d',v,v,v); E.renderFrames=2 end
-        local available=tImGui.GetContentRegionAvail(); local side=math.max(32,math.min(available.x,available.y))
-        if E.preview then
-            tImGui.Image(E.targetTexture,{x=side,y=side},E.previewUV0,E.previewUV1)
-            local hover=tImGui.IsItemHovered(0); local mouse=tImGui.GetMousePos()
-            if hover and tImGui.IsMouseClicked(0,false) then E.orbitDrag={x=mouse.x,y=mouse.y} end
-            if E.orbitDrag and tImGui.IsMouseDown(0) then
-                local dx,dy=mouse.x-E.orbitDrag.x,mouse.y-E.orbitDrag.y
-                if dx~=0 or dy~=0 then E.orbit.azimuth=E.orbit.azimuth-dx*0.01; E.orbit.elevation=math.max(-1.5,math.min(1.5,E.orbit.elevation+dy*0.01)); camera() end
-                E.orbitDrag=mouse
-            else E.orbitDrag=nil end
-            if hover then local wheel=tImGui.GetZoom(); if wheel~=0 then E.orbit.distance=math.max(0.01,E.orbit.distance*math.exp(-wheel*0.12)); camera() end end
-        end
-    end
-    tImGui.End()
-end
 function onInitScene()
-    local w,h=mbm.getSizeScreen(); E.screenW=w; E.screenH=h; E.middleW=math.max(280,(w-260)*0.55); E.rightW=math.max(280,w-260-E.middleW)
-    E.flags={first=tImGui.Flags('ImGuiCond_FirstUseEver'),auto=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'),scroll=tImGui.Flags('ImGuiWindowFlags_HorizontalScrollbar')}
-    E.titles={regions='ime_regions',image='ime_image',properties='ime_properties',preview='ime_preview'}
+    E.screenW,E.screenH=mbm.getSizeScreen()
+    E.flags={always=tImGui.Flags('ImGuiCond_Always'),auto=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'),
+        fixed=tImGui.Flags('ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoResize','ImGuiWindowFlags_NoCollapse')}
     mbm.setColor(0.1,0.12,0.15); mbm.setLightEnabled('3d',true); mbm.setAmbientLight('3d',0.35,0.35,0.35)
     E.light=0.7; mbm.setDirectionalLight('3d',0.4,-0.5,1,E.light,E.light,E.light)
-    local flipPreview=mbm.get('USE_OPENGL_ES')
-    E.previewUV0={x=0,y=flipPreview and 1 or 0}; E.previewUV1={x=1,y=flipPreview and 0 or 1}
-    E.target=render2texture:new('2ds'); local ok,_,texture=E.target:create(640,640,true)
-    assert(ok and texture,L('preview_failed')); E.targetTexture=texture; E.target:enableFrame(false); E.target:setColor(0.10,0.12,0.15,1)
-    E.previewCamera=E.target:getCamera('3d'); camera()
-    E.originX=line:new('2dw'); E.originX:add({-1000,0,1000,0}); E.originX:setColor(1,0,0); E.originX.visible=false
-    E.originY=line:new('2dw'); E.originY:add({0,-1000,0,1000}); E.originY:setColor(0,1,0); E.originY.visible=false
+    E.previewCamera=mbm.getCamera('3d'); E.previewCamera:setAngleOfView(110); camera()
     local checker=tUtil.createAlphaPattern(256,256,16,{r=70,g=70,b=70},{r=100,g=100,b=100})
-    if checker then E.checker=mbm.loadTexture(checker) end
+    E.checkerPath=checker
     syncDraft(); tUtil.sMessageOverlay=L('welcome')
 end
 function onLoop(delta)
-    menu(); regionsPanel(); imagePanel(); propertiesPanel(); previewPanel()
+    menu(); regionsPanel()
     if E.key and not tImGui.GetWantCaptureKeyboard() then
         if E.control and E.key==mbm.getKeyCode('Z') then history(false)
         elseif E.control and E.key==mbm.getKeyCode('Y') then history(true)
         elseif E.control and E.key==mbm.getKeyCode('S') then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end)
-        elseif E.key==mbm.getKeyCode('ESC') then E.polygon={}; if E.drag then E.project=E.drag.before or E.project; E.drag=nil; E.outlines=nil; E.overlay=nil end end
+        elseif E.key==mbm.getKeyCode('ESC') then Canvas.cancel(E); syncDraft() end
     end
     E.key=nil; rebuild(); batchStep()
-    E.target.visible=(E.renderFrames or 0)>0
-    E.renderFrames=math.max(0,(E.renderFrames or 0)-1)
+    Canvas.sync(E)
     tUtil.showOverlayMessage()
 end
 function onKeyDown(key)
     if key==mbm.getKeyCode('control') then E.control=true else E.key=key end
 end
 function onKeyUp(key) if key==mbm.getKeyCode('control') then E.control=false end end
-function onEndScene() releasePreview(); if E.target then E.target:destroy(); E.target=nil end end
+local handlers={action=action,select=selectRegion,commitDrag=commitDrag}
+local function sceneInput(x,y)
+    return x>=E.sidebar and y>=25 and not tImGui.GetWantCaptureMouse()
+end
+function onTouchDown(key,x,y)
+    if not sceneInput(x,y) then return end
+    if E.editMode then
+        if key==0 then Canvas.input(E,handlers,'down',x,y)
+        elseif key==1 or key==2 then E.panDrag={x=x,y=y} end
+    elseif key==0 then E.orbitDrag={x=x,y=y} end
+end
+function onTouchMove(key,x,y)
+    if E.panDrag then
+        E.panX=E.panX+x-E.panDrag.x; E.panY=E.panY+y-E.panDrag.y; E.panDrag={x=x,y=y}
+    elseif E.orbitDrag then
+        E.orbit.azimuth=E.orbit.azimuth-(x-E.orbitDrag.x)*0.01
+        E.orbit.elevation=math.max(-1.5,math.min(1.5,E.orbit.elevation+(y-E.orbitDrag.y)*0.01))
+        E.orbitDrag={x=x,y=y}; camera()
+    elseif E.drag or sceneInput(x,y) then Canvas.input(E,handlers,'move',x,y) end
+end
+function onTouchUp(key,x,y)
+    if key==0 then Canvas.input(E,handlers,'up',x,y); E.orbitDrag=nil end
+    if key==1 or key==2 then E.panDrag=nil end
+end
+function onTouchZoom(zoom)
+    if tImGui.GetWantCaptureMouse() then return end
+    if E.editMode then E.zoom=math.max(0.1,math.min(16,E.zoom*math.exp(zoom*0.12)))
+    else E.orbit.distance=math.max(0.01,E.orbit.distance*math.exp(-zoom*0.12)); camera() end
+end
+function onResizeWindow()
+    E.screenW,E.screenH=mbm.getSizeScreen(); E.canvasDirty=true; camera()
+end
+function onEndScene() releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink
-    testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
+    testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
 end
