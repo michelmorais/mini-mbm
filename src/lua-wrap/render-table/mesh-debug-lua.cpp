@@ -3641,7 +3641,7 @@ namespace mbm
         return 1;
     }
 
-    extern "C" int onGenerateImageMeshLua(lua_State *lua)
+    int onGenerateImageMeshLua(lua_State *lua)
     {
         const char *path = luaL_checkstring(lua, 1);
         luaL_checktype(lua, 2, LUA_TTABLE);

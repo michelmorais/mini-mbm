@@ -73,7 +73,7 @@ namespace mbm
     int onNewIndexMeshDebug(lua_State *lua);
     int onIndexMeshDebug(lua_State *lua);
     int onNewMeshDebugLua(lua_State *lua);
-    extern "C" int onGenerateImageMeshLua(lua_State *lua);
+    int onGenerateImageMeshLua(lua_State *lua);
     int onDestroyMeshDebugLua(lua_State *lua);
     void registerClassMeshDebug(lua_State *lua);
 };
