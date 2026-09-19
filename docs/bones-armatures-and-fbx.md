@@ -374,6 +374,15 @@ physics bounds, then recompiles global/inverse bind and validates before commit.
 weights, normals, and local scale channels remain unchanged: changing coordinate units is not a
 local bone-scale animation.
 
+Mesh Debug applies the same transform policy to individual edits, batch operations, and preview
+clones. Rotation, translation, and centralization of a complete canonical skeletal mesh are blocked
+before mutation; those geometry-only methods have no complete bind/clip counterpart yet. A combined
+preview/apply request containing a blocked operation is rejected as a whole, including its scale.
+`centralize` moves all subsets even when one subset supplies the anchor, so selecting an anchor
+with all frames selected does not bypass this restriction. Explicit partial frame/subset edits
+remain geometry-only. Skeleton authoring belongs to the Skeletal Animation Editor, not to a legacy
+bone table in Mesh Debug.
+
 A partial frame/subset scale remains an explicit geometry edit. A negative or non-uniform complete
 skeletal scale is rejected because conjugating arbitrary animated rotations through such a change
 can introduce reflection or shear that the canonical local TRS and rigid DQS contracts cannot

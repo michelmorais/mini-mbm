@@ -1574,7 +1574,10 @@ before committing. Weights, rotations, normals, and local scale channels are unc
 raises a Lua error without partially modifying the asset. Mesh Debug selects this operation
 automatically when its Transform node applies a positive uniform scale to all frames and subsets of
 a canonical skeletal mesh. Partial transforms remain geometry-only; negative or non-uniform
-whole-asset skeletal scaling is rejected.
+whole-asset skeletal scaling is rejected. The editor uses the same policy for preview clones and
+batch operations. It blocks whole-mesh rotation, translation, and centralization on canonical
+skeletal assets, including combined transforms containing those operations; the underlying
+geometry-only API methods do not perform that editor policy check.
 
 ### Bind-pose diagnostics
 

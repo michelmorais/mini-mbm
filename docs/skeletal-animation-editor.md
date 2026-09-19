@@ -701,9 +701,9 @@ continuous interpolation between samples can differ. A composition requiring she
 whole operation.
 
 The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
-bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or
-manufacture a legacy skeleton. Assets containing only exploratory skeletal sections must be
-re-imported from FBX.
+bone snapshot only when `canonical == true`; it does not fall back to the removed legacy
+bone API or manufacture a legacy skeleton. Assets containing only exploratory skeletal sections
+must be re-imported from FBX.
 
 Open **Runtime Skeletal Preview** to select a canonical clip, play or restart it, pause/resume,
 seek by time, change the shared `0.05x..4x` playback speed, or explicitly return the mesh to bind
@@ -1407,7 +1407,10 @@ The following are current editor limitations rather than regressions caused by r
 Richer pose-stress overlays and antipodality tooling are outside the current editor capability.
 Backend validation coverage and its boundaries are recorded in
 [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md). Mesh Debug's legacy Bone
-node/window has been retired; canonical bind inspection and weight repair belong to this editor.
+node/window, ghost preview, bone mouse handlers, and legacy bone helpers have been removed;
+canonical bind inspection and weight repair belong to this editor. Mesh Debug retains canonical
+FBX export and uniform whole-asset scaling; whole-mesh rotation, translation, and centralization
+are blocked for skeletal assets until complete bind/clip transforms are supported.
 
 The editor maintains bounded 50-entry Undo and Redo stacks backed by complete temporary MSH
 snapshots. Every existing atomic commit boundary creates one Undo entry and clears Redo; Undo/Redo
