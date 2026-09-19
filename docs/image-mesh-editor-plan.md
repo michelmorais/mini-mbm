@@ -2,7 +2,7 @@
 
 Data: 2026-09-19
 
-Status: implementação iniciada; etapa 1 concluída em Linux/OpenGL ES em 2026-09-19. As seções de escopo descrevem o destino planejado. Consulte o registro de execução ao final para distinguir o que já está disponível.
+Status: implementação iniciada; etapas 1 e 2 concluídas em Linux/OpenGL ES em 2026-09-19. As seções de escopo descrevem o destino planejado. Consulte o registro de execução ao final para distinguir o que já está disponível.
 
 ## Objetivo
 
@@ -213,7 +213,7 @@ timeout -s KILL 20 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_
 
 `MBM_IMAGE_MESH_OUTPUT` pode alterar o destino padrão `/tmp/mbm_image_mesh_preview.msh`; `MBM_IMAGE_MESH_RELIEF` altera a amplitude. Sem variáveis de recorte, a prévia usa a imagem inteira.
 
-Limites atuais e próximo passo:
+Limites ao final da etapa 1 (histórico; atualizados pela etapa 2 abaixo):
 
 - Ainda não há interface de editor. A próxima entrega é a etapa 2, incluindo elipses e polígonos côncavos, além dos retângulos.
 - A geração é síncrona e retangular; furos, suavização configurável, canais alternativos, pintura e mapas separados ainda não estão implementados.
@@ -221,3 +221,58 @@ Limites atuais e próximo passo:
 - O fundo é plano e repete as coordenadas frontais; as laterais esticam os texels da borda. As opções artísticas completas continuam na etapa 3.
 - A prévia de um painel valida a prova técnica; a parede com os 12 painéis continua sendo o marco da etapa 2.
 - Os contratos e limites da API implementada estão em `docs/lua-api.md`, seção de geração de malhas por imagem.
+
+
+### Etapa 2: editor básico concluído em Linux/OpenGL ES
+
+Disponível em `editor/image_mesh_editor.lua`, com módulos separados para modelo,
+canvas e persistência. Guia de uso: [Image Mesh Editor](image-mesh-editor.md).
+
+Entregue:
+
+- Retângulos, elipses/círculos e polígonos simples côncavos. O gerador C++ valida
+  contornos, triangula e refina com pontos compartilhados; gera fundo e laterais
+  fechados respeitando a forma. Polígonos não suportam furos nesta etapa.
+- Seleção e desenho sobre a imagem, movimento, redimensionamento, edição de
+  pontos por arraste ou coordenadas, inserção e remoção de pontos.
+- Grade com margens e espaçamento, seleção múltipla, duplicação e exclusão.
+- Parâmetros gerais e sobrescritas por região. Aplicação de parâmetros de geração
+  às regiões selecionadas; nome/recorte/forma pertencem à região principal.
+- Histórico de 40 operações, desfazer/refazer, projeto versionado `.imesh`, caminhos
+  relativos quando a imagem está sob a pasta do projeto e localização de imagem
+  movida com conferência das dimensões.
+- Prévia 3D com órbita, distância e intensidade da luz. Reconstrução somente após
+  edição confirmada ou seleção; render target atualizado apenas após mudanças de
+  geometria, câmera ou luz, mantendo a textura da prévia em repouso. A orientação
+  vertical do render target 3D foi corrigida na exibição ImGui/OpenGL ES.
+- Exportação individual e em lote. O lote processa uma peça por frame, pode ser
+  cancelado entre peças e relata falhas. Arquivos existentes no lote são rejeitados
+  individualmente; arquivos já concluídos permanecem após cancelamento.
+- Integração aos launchers Linux, macOS e Windows, aliases/atalhos e localização
+  inglês/português. Versão 7.217.0. Macro `MBM_IMAGE_MESH_LUA_API` removido.
+
+Validação:
+
+- Build Debug e teste sintético da API, incluindo volume, fechamento orientado,
+  normais, recortes, elipses, concavidade, orientação invertida do contorno,
+  colinearidade e rejeição de cruzamentos/orçamentos inválidos.
+- `image_mesh_model_test.lua`: modelo, grade, herança, histórico e caminhos.
+- `image_mesh_editor_smoke.lua`: execução do editor real, projeto salvo/reaberto,
+  imagem relocalizada, parâmetros em seleção múltipla, lote de 14 peças reaberto,
+  repouso sem reconstruções e sem render target ativo. Eventos ImGui simulados
+  exercitam desenho de retângulo/elipse/polígono, movimento, redimensionamento e
+  arraste de ponto; não equivalem a uma revisão manual de todos os controles.
+- `image_mesh_wall_smoke.lua`: os 12 painéis da referência exportados e carregados
+  como módulos adjacentes. Parede e prévia côncava conferidas visualmente no GLES.
+- Teste C++ `testLib` carrega as malhas exportadas. Outras plataformas não foram
+  executadas; o registro nos projetos/launchers não é evidência de teste nelas.
+
+Artefatos locais da referência: `/tmp/image-mesh-stage2-export/reference.imesh`
+e `reference_1.msh` a `reference_12.msh` na mesma pasta. São reproduzíveis pelo
+fixture visual descrito no guia, dependem da imagem original e não fazem parte
+permanente do repositório.
+
+Próxima entrega: etapa 3 (pintura de altura, presets, texturas/fundo e prévia de
+encaixe). Continuam pendentes furos, seleção automática, mapas de altura separados,
+empacotamento portátil de texturas e otimização/simplificação da etapa 5. O lote é
+cooperativo entre peças; a geração de uma peça ainda é síncrona e não cancelável.

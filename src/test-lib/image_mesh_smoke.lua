@@ -89,6 +89,30 @@ local function runTests()
     assert(not pcall(mbm.generateImageMesh,image,{rows=-1}))
     assert(not pcall(mbm.generateImageMesh,image,{invert=1}))
     local missing,err=mbm.generateImageMesh('/tmp/mbm_image_mesh_missing.png',{}); assert(not missing and err)
+    local contour={{x=0,y=0},{x=1,y=0},{x=1,y=0.4},{x=0.4,y=0.4},{x=0.4,y=1},{x=0,y=1}}
+    local polyOptions={shape='polygon',contour=contour,columns=12,rows=12,relief=0,width=100,height=80,depth=20}
+    local polygon,pr=mbm.generateImageMesh(image,polyOptions); assert(polygon,pr)
+    local pv,pvolume=inspect(polygon,pr); near(pvolume,100*80*20*0.64)
+    for _,v in ipairs(pv) do assert(v.x<=-10.0001 or v.y>=8-0.0001 or math.abs(v.x+10)<0.001, 'triangle vertex outside concave region') end
+    local reverse={}; for i=#contour,1,-1 do reverse[#reverse+1]=contour[i] end
+    polyOptions.contour=reverse
+    local reversed,rr=mbm.generateImageMesh(image,polyOptions); assert(reversed,rr); inspect(reversed,rr)
+    polyOptions.contour={{x=0,y=0},{x=1,y=1},{x=0,y=1},{x=1,y=0}}
+    local crossed,ce=mbm.generateImageMesh(image,polyOptions); assert(not crossed and ce:find('intersect'))
+    polyOptions.contour={{x=0,y=0},{x=0.5,y=0},{x=1,y=0},{x=1,y=1},{x=0,y=1}}
+    local collinear,clr=mbm.generateImageMesh(image,polyOptions); assert(collinear,clr); inspect(collinear,clr)
+    polyOptions.contour={{x=0,y=0},{x=0,y=0},{x=1,y=1}}
+    assert(not mbm.generateImageMesh(image,polyOptions))
+    local ellipse,er=mbm.generateImageMesh(image,{shape='ellipse',ellipseSegments=32,columns=16,rows=12,relief=0,width=100,height=80,depth=20})
+    assert(ellipse,er); local _,ev=inspect(ellipse,er)
+    near(ev,100*80*20*32*math.sin(2*math.pi/32)/8)
+    local oval,ovr=mbm.generateImageMesh(image,{shape='ellipse',columns=24,rows=16,relief=10,lockBorder=true})
+    assert(oval,ovr); inspect(oval,ovr)
+    assert(not mbm.generateImageMesh(image,{shape='ellipse',ellipseSegments=2}))
+    assert(not mbm.generateImageMesh(image,{shape='ellipse',maxTriangles=10}))
+    assert(not pcall(mbm.generateImageMesh,image,{shape='unknown'}))
+    assert(polygon:save('/tmp/mbm_image_mesh_concave.msh',false,false,true))
+    assert(ellipse:save('/tmp/mbm_image_mesh_ellipse.msh',false,false,true))
     local output='/tmp/mbm_image_mesh_smoke.msh'
     assert(asset:save(output,false,false,true))
     local restored=meshDebug:new(); assert(restored:load(output)); inspect(restored,report)

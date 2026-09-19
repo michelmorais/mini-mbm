@@ -235,3 +235,11 @@ state remain private and are invalidated at discontinuities.
 declaration of `MESH_MBM_DEBUG`. Pixel buffers, temporary geometry, indices and
 normal accumulation remain translation-unit-local in `image-mesh.cpp`. No backend
 handles, containers or accessors to `Impl` storage are added to public classes.
+
+
+The stage-2 contour extension adds `IMAGE_MESH_SHAPE` and a borrowed immutable
+point span to the request. Contour validation, ear clipping, conforming refinement,
+perimeter indexing and their STL containers live in
+`src/core_mbm/private/image-mesh-topology.{h,cpp}`. No runtime render class storage
+or backend state is exposed. The directly registered Lua callback follows the
+existing launcher binding declarations; its feature-specific export macro was removed.

@@ -2105,7 +2105,7 @@ position, rotation, and scale. Cubic Bezier solves its normalized-time X curve b
 Version-1 articulated sections default to Linear.
 
 
-## Image-based mesh generation (rectangular proof of concept)
+## Image-based mesh generation
 
 `mbm.generateImageMesh(imagePath, options)` returns `asset, report` on success,
 where `asset` is a new `meshDebug` authoring object. Processing failures return
@@ -2126,14 +2126,17 @@ assert(asset:save("panel.msh", false, false, true))
 
 | Option | Default | Meaning |
 |---|---|---|
+| `shape` | `"rectangle"` | `"rectangle"`, `"ellipse"`, or `"polygon"` |
+| `ellipseSegments` | 48 | Ellipse perimeter segments, integer in [8, 128]; ignored for other shapes |
+| `contour` | — | Polygon-only array of 3..128 `{x, y}` points in normalized crop coordinates [0, 1]; either winding accepted |
 | `x`, `y` | 0 | Zero-based crop origin in pixels, measured from image top-left |
 | `cropWidth`, `cropHeight` | 0 | Crop dimensions in pixels; 0 uses the remaining extent on that axis |
 | `width`, `height`, `depth` | 100, 100, 20 | World dimensions; each finite and within [0.001, 1000000] |
 | `relief` | 8 | Nonnegative outward relief amplitude, at most 1000000 |
-| `columns`, `rows` | 32, 32 | Cells per axis, each an integer in [1, 255], subject to total budget |
+| `columns`, `rows` | 32, 32 | Integers in [1, 255]. Rectangular grid cells per axis; contour refinement density for ellipses/polygons, subject to total budget |
 | `invert` | false | Invert luminance before computing height |
 | `lockBorder` | true | Force the perimeter to zero relief |
-| `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices |
+| `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual contour |
 | `maxVertices` | 65535 | Total vertex budget, including back and duplicated side vertices; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
 
@@ -2146,16 +2149,38 @@ back use the original crop, and side walls stretch boundary texels through the
 depth. UVs sample pixel centers to avoid sampling adjacent panels at the border.
 
 The source image must be decodable by the bundled stb loader and contain at most
-16,777,216 pixels. Geometry limits are checked before decoding. Oversized grids,
+16,777,216 pixels. Topology and geometry limits are checked before decoding. Oversized grids,
 out-of-bounds crops, nonfinite values and invalid dimensions fail explicitly.
 `report` contains `vertices`, `triangles`, `minHeight`, and `maxHeight`; heights
 are sampled vertex displacements after inversion and border treatment.
 
 The generated mesh references the resolved original image, which is **not copied**.
 Keep it available on the engine's asset paths when loading exported meshes.
-Portable texture packaging, arbitrary contours, height painting and the editor UI
-remain planned in [Image Mesh Editor plan](image-mesh-editor-plan.md).
+The [Image Mesh Editor](image-mesh-editor.md) provides selection, project persistence,
+undo/redo, preview and batch export. Portable texture packaging, holes and height
+painting remain planned in [Image Mesh Editor plan](image-mesh-editor-plan.md).
+
+Polygons must be simple, without holes, touching edges or crossings. Consecutive
+forward collinear points are removed; duplicate/near-duplicate points, backtracking,
+nonfinite coordinates and negligible area are rejected. Ellipses are approximated
+by an inscribed polygon with `ellipseSegments` sides. Triangulation respects concavity;
+shared midpoint refinement preserves the boundary and produces conforming triangles.
+For these shapes, `columns`/`rows` scale the refinement metric: final front edges
+have squared length at most approximately 2 after multiplying normalized X/Y deltas
+by those resolutions. This is not a rectangular cell count for polygons. Exceeding
+the total budget rejects generation instead of silently reducing quality.
+
+```lua
+local asset, report = mbm.generateImageMesh("panel.png", {
+    shape="polygon", columns=24, rows=24,
+    contour={{x=0,y=0},{x=1,y=0},{x=1,y=0.4},
+             {x=0.4,y=0.4},{x=0.4,y=1},{x=0,y=1}},
+})
+assert(asset, report)
+```
 
 C++ callers can use `mbm::generateImageMesh` from `core_mbm/image-mesh.h` with an
-empty `MESH_MBM_DEBUG` destination and value-only options/report. On failure,
+empty `MESH_MBM_DEBUG` destination and value-only options/report. Polygon options
+borrow `const IMAGE_MESH_POINT *contour` plus `contourCount` only for the duration
+of the call; no pointer is retained. On failure,
 discard the destination; generation does not promise transactional mutation.

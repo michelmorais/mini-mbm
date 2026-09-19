@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-topology.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
@@ -120,6 +123,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\core_mbm\private\image-mesh-topology.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-animation-foundation.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>

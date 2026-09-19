@@ -26,6 +26,7 @@ extern "C"
 
 #include <map>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -3640,11 +3641,12 @@ namespace mbm
         return 1;
     }
 
-    extern "C" MBM_IMAGE_MESH_LUA_API int onGenerateImageMeshLua(lua_State *lua)
+    extern "C" int onGenerateImageMeshLua(lua_State *lua)
     {
         const char *path = luaL_checkstring(lua, 1);
         luaL_checktype(lua, 2, LUA_TTABLE);
         IMAGE_MESH_OPTIONS options;
+        IMAGE_MESH_POINT contour[128];
         const auto integer = [&](const char *name, uint32_t &value)
         {
             lua_getfield(lua, 2, name);
@@ -3681,6 +3683,35 @@ namespace mbm
         number("depth", options.depth); number("relief", options.relief);
         number("borderWidth", options.borderWidth);
         boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
+        integer("ellipseSegments", options.ellipseSegments);
+        lua_getfield(lua, 2, "shape");
+        if (!lua_isnil(lua, -1))
+        {
+            const char *shape = luaL_checkstring(lua, -1);
+            if (std::strcmp(shape, "rectangle") == 0) options.shape = IMAGE_MESH_SHAPE::RECTANGLE;
+            else if (std::strcmp(shape, "ellipse") == 0) options.shape = IMAGE_MESH_SHAPE::ELLIPSE;
+            else if (std::strcmp(shape, "polygon") == 0) options.shape = IMAGE_MESH_SHAPE::POLYGON;
+            else return luaL_error(lua, "shape must be rectangle, ellipse or polygon");
+        }
+        lua_pop(lua, 1);
+        if (options.shape == IMAGE_MESH_SHAPE::POLYGON)
+        {
+            lua_getfield(lua, 2, "contour");
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            const size_t count = lua_rawlen(lua, -1);
+            if (count < 3 || count > 128) return luaL_error(lua, "contour needs 3..128 points");
+            options.contourCount = static_cast<uint32_t>(count);
+            options.contour = contour;
+            for (size_t i = 0; i < count; ++i)
+            {
+                lua_rawgeti(lua, -1, static_cast<lua_Integer>(i + 1));
+                luaL_checktype(lua, -1, LUA_TTABLE);
+                lua_getfield(lua, -1, "x"); contour[i].x = static_cast<float>(luaL_checknumber(lua, -1)); lua_pop(lua, 1);
+                lua_getfield(lua, -1, "y"); contour[i].y = static_cast<float>(luaL_checknumber(lua, -1)); lua_pop(lua, 1);
+                lua_pop(lua, 1);
+            }
+            lua_pop(lua, 1);
+        }
         lua_settop(lua, 2);
         lua_pushcfunction(lua, onNewMeshDebugLua);
         lua_call(lua, 0, 1);

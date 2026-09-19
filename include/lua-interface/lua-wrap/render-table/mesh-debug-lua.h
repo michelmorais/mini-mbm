@@ -20,14 +20,6 @@
 #ifndef MESH_DEBUG_2_LUA_H
 #define MESH_DEBUG_2_LUA_H
 
-// This callback is linked into the launcher, not imported from core_mbm.
-#if defined(_WIN32)
-    #define MBM_IMAGE_MESH_LUA_API __declspec(dllexport)
-#else
-    #define MBM_IMAGE_MESH_LUA_API __attribute__((visibility("default")))
-#endif
-
-
 struct lua_State;
 
 namespace util
@@ -81,7 +73,7 @@ namespace mbm
     int onNewIndexMeshDebug(lua_State *lua);
     int onIndexMeshDebug(lua_State *lua);
     int onNewMeshDebugLua(lua_State *lua);
-    extern "C" MBM_IMAGE_MESH_LUA_API int onGenerateImageMeshLua(lua_State *lua);
+    extern "C" int onGenerateImageMeshLua(lua_State *lua);
     int onDestroyMeshDebugLua(lua_State *lua);
     void registerClassMeshDebug(lua_State *lua);
 };

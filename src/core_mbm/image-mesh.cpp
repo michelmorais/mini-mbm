@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <core_mbm/image-mesh.h>
+#include "private/image-mesh-topology.h"
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/draw-compatibility.h>
 #include <core_mbm/util-interface.h>
@@ -62,13 +63,15 @@ namespace mbm
             !std::isfinite(o.borderWidth) || o.borderWidth < 0.0f || o.borderWidth > 0.5f ||
             o.columns == 0 || o.rows == 0 || o.columns > 255 || o.rows > 255)
             return fail(errorOut, errorOutLen, "Invalid dimensions, relief, border width or grid (1..255 cells per axis)");
-        const uint32_t gridSize = (o.columns + 1) * (o.rows + 1);
-        const uint32_t vertexCount = 2 * gridSize + 8 * (o.columns + o.rows);
-        const uint32_t triangleCount = 4 * o.columns * o.rows + 4 * (o.columns + o.rows);
-        if (vertexCount > 65535 || vertexCount > o.maxVertices || triangleCount > o.maxTriangles)
-            return fail(errorOut, errorOutLen, "Geometry budget exceeded (including back and sides)");
         try
         {
+            image_mesh::TOPOLOGY topology;
+            std::string topologyError;
+            if (!image_mesh::buildTopology(o, topology, topologyError))
+                return fail(errorOut, errorOutLen, topologyError.c_str());
+            const uint32_t gridSize = static_cast<uint32_t>(topology.points.size());
+            const uint32_t vertexCount = 2 * gridSize + 4 * static_cast<uint32_t>(topology.boundary.size());
+            const uint32_t triangleCount = 2 * static_cast<uint32_t>(topology.triangles.size() + topology.boundary.size());
             bool exists = false;
             const char *resolved = util::getFullPath(imagePath, &exists);
             const std::string path = exists && resolved ? resolved : imagePath;
@@ -97,31 +100,30 @@ namespace mbm
             vertices.reserve(vertexCount);
             indices.reserve(triangleCount * 3);
             float minHeight = o.relief, maxHeight = 0.0f;
-            for (uint32_t row = 0; row <= o.rows; ++row)
+            std::vector<bool> boundary(gridSize, false);
+            for (uint32_t index : topology.boundary) boundary[index] = true;
+            for (uint32_t pointIndex = 0; pointIndex < gridSize; ++pointIndex)
             {
-                const float v = static_cast<float>(row) / o.rows;
-                for (uint32_t col = 0; col <= o.columns; ++col)
+                const auto &point = topology.points[pointIndex];
+                const float u = point.x, v = point.y;
+                const float px = o.x + u * (cw - 1), py = o.y + v * (ch - 1);
+                const uint32_t x0 = static_cast<uint32_t>(px), y0 = static_cast<uint32_t>(py);
+                const uint32_t x1 = std::min(x0 + 1, o.x + cw - 1), y1 = std::min(y0 + 1, o.y + ch - 1);
+                const float fx = px - x0, fy = py - y0;
+                float level = (intensity(x0, y0) * (1 - fx) + intensity(x1, y0) * fx) * (1 - fy) +
+                              (intensity(x0, y1) * (1 - fx) + intensity(x1, y1) * fx) * fy;
+                if (o.invert) level = 1.0f - level;
+                float height = level * o.relief;
+                if (o.lockBorder)
                 {
-                    const float u = static_cast<float>(col) / o.columns;
-                    const float px = o.x + u * (cw - 1), py = o.y + v * (ch - 1);
-                    const uint32_t x0 = static_cast<uint32_t>(px), y0 = static_cast<uint32_t>(py);
-                    const uint32_t x1 = std::min(x0 + 1, o.x + cw - 1), y1 = std::min(y0 + 1, o.y + ch - 1);
-                    const float fx = px - x0, fy = py - y0;
-                    float level = (intensity(x0, y0) * (1 - fx) + intensity(x1, y0) * fx) * (1 - fy) +
-                                  (intensity(x0, y1) * (1 - fx) + intensity(x1, y1) * fx) * fy;
-                    if (o.invert) level = 1.0f - level;
-                    float height = level * o.relief;
-                    if (o.lockBorder)
-                    {
-                        const float distance = std::min({u, v, 1 - u, 1 - v});
-                        if (col == 0 || row == 0 || col == o.columns || row == o.rows) height = 0;
-                        else if (o.borderWidth > 0) height *= std::min(1.0f, distance / o.borderWidth);
-                    }
-                    minHeight = std::min(minHeight, height);
-                    maxHeight = std::max(maxHeight, height);
-                    vertices.push_back({VEC3((u - 0.5f) * o.width, (0.5f - v) * o.height, -o.depth * 0.5f - height),
-                                        VEC3(0, 0, 0), VEC2((px + 0.5f) / imageWidth, (py + 0.5f) / imageHeight)});
+                    const float distance = image_mesh::borderDistance(point, topology);
+                    if (boundary[pointIndex]) height = 0;
+                    else if (o.borderWidth > 0) height *= std::min(1.0f, distance / o.borderWidth);
                 }
+                minHeight = std::min(minHeight, height);
+                maxHeight = std::max(maxHeight, height);
+                vertices.push_back({VEC3((u - 0.5f) * o.width, (0.5f - v) * o.height, -o.depth * 0.5f - height),
+                                    VEC3(0, 0, 0), VEC2((px + 0.5f) / imageWidth, (py + 0.5f) / imageHeight)});
             }
             for (uint32_t i = 0; i < gridSize; ++i)
             {
@@ -135,15 +137,10 @@ namespace mbm
                 indices.push_back(static_cast<uint16_t>(b));
                 indices.push_back(static_cast<uint16_t>(c));
             };
-            for (uint32_t row = 0; row < o.rows; ++row)
+            for (const auto &face : topology.triangles)
             {
-                for (uint32_t col = 0; col < o.columns; ++col)
-                {
-                    const uint32_t a = row * (o.columns + 1) + col, b = a + 1, c = a + o.columns + 1, d = c + 1;
-                    triangle(a, b, c); triangle(b, d, c);
-                    triangle(a + gridSize, c + gridSize, b + gridSize);
-                    triangle(b + gridSize, c + gridSize, d + gridSize);
-                }
+                triangle(face[0], face[1], face[2]);
+                triangle(face[0] + gridSize, face[2] + gridSize, face[1] + gridSize);
             }
             // Clockwise perimeter viewed from -Z. Duplicate side vertices for hard seams.
             const auto side = [&](uint32_t a, uint32_t b)
@@ -153,16 +150,16 @@ namespace mbm
                 vertices.push_back(vertices[a + gridSize]); vertices.push_back(vertices[b + gridSize]);
                 triangle(start, start + 2, start + 1); triangle(start + 1, start + 2, start + 3);
             };
-            for (uint32_t col = 0; col < o.columns; ++col) side(col, col + 1);
-            for (uint32_t row = 0; row < o.rows; ++row) side(row * (o.columns + 1) + o.columns, (row + 1) * (o.columns + 1) + o.columns);
-            for (uint32_t col = o.columns; col > 0; --col) side(o.rows * (o.columns + 1) + col, o.rows * (o.columns + 1) + col - 1);
-            for (uint32_t row = o.rows; row > 0; --row) side(row * (o.columns + 1), (row - 1) * (o.columns + 1));
+            for (size_t i = 0; i < topology.boundary.size(); ++i)
+                side(topology.boundary[i], topology.boundary[(i + 1) % topology.boundary.size()]);
             for (size_t i = 0; i < indices.size(); i += 3)
             {
                 VERTEX &a = vertices[indices[i]], &b = vertices[indices[i + 1]], &c = vertices[indices[i + 2]];
                 const VEC3 ab(b.position.x - a.position.x, b.position.y - a.position.y, b.position.z - a.position.z);
                 const VEC3 ac(c.position.x - a.position.x, c.position.y - a.position.y, c.position.z - a.position.z);
                 const VEC3 normal(ab.y * ac.z - ab.z * ac.y, ab.z * ac.x - ab.x * ac.z, ab.x * ac.y - ab.y * ac.x);
+                if (normal.x == 0 && normal.y == 0 && normal.z == 0)
+                    return fail(errorOut, errorOutLen, "Degenerate triangle after coordinate conversion");
                 for (auto *vertex : {&a, &b, &c})
                 {
                     vertex->normal.x += normal.x; vertex->normal.y += normal.y; vertex->normal.z += normal.z;
