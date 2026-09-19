@@ -82,6 +82,7 @@ local function rebuild()
         for f=1,#project.frames do d:addAnim('__ame_frame_'..f,f,f,1,mbm.PAUSED) end
         assert(d:save(path,false,false),'preview_save_failed')
         obj=mesh:new('3d'); assert(meshDebug:loadMeshPreview(obj,path),'preview_load_failed')
+        obj.alwaysRender=true
     end)
     if not ok then releasePreview(obj); os.remove(path); E.dirty=false; return false end
     local old,oldPath=E.preview,E.previewPath

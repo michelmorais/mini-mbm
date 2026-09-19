@@ -3769,6 +3769,7 @@ function updatePreviewMesh()
     end
 
     if ok and tPreviewMesh then
+        tPreviewMesh.alwaysRender = true
         tPreviewMesh.visible = true
         dpCall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
         if bCameraMode3D then applyCam3d(tEntry.cam3d) end
@@ -4391,6 +4392,7 @@ function refreshFrameFilterPreview(tEntry, index)
         -- registered. Frame/subset filter refreshes must not move the user's preview or the
         -- apparent reference used by the split-capture cube.
         if meshType == 'mesh' then tPreviewMesh:setPos(0, 0, 0) end
+        tPreviewMesh.alwaysRender = true
         tPreviewMesh.visible = true
         dpCall(function()
             local nA = (tEntry.info and tEntry.info.animation) or 0
@@ -13141,9 +13143,9 @@ function showCameraWindow()
 
                 -- Position (editable; back-computes spherical coords on change)
                 tImGui.Text(tLang.L('cam_position'))
-                local r1, nx = tImGui.InputFloat('X##cpx', px, 0, 0, '%.1f', 0)
-                local r2, ny = tImGui.InputFloat('Y##cpy', py, 0, 0, '%.1f', 0)
-                local r3, nz = tImGui.InputFloat('Z##cpz', pz, 0, 0, '%.1f', 0)
+                local r1, nx = tImGui.DragFloat('X##cpx', px, 1.0, 0, 0, '%.1f', 0)
+                local r2, ny = tImGui.DragFloat('Y##cpy', py, 1.0, 0, 0, '%.1f', 0)
+                local r3, nz = tImGui.DragFloat('Z##cpz', pz, 1.0, 0, 0, '%.1f', 0)
                 if r1 or r2 or r3 then
                     nx = r1 and nx or px
                     ny = r2 and ny or py
