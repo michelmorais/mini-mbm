@@ -1,7 +1,7 @@
 # Image Mesh Editor
 
 Editor offline para extrudar regiões de uma imagem em módulos 3D com relevo.
-Disponível a partir da versão 7.217.0; interface reorganizada na 7.218.0. O estado atual corresponde às etapas 1 e 2
+Disponível a partir da versão 7.217.0; interface reorganizada na 7.218.0 e controles de diagnóstico na 7.219.0. O estado atual corresponde às etapas 1 e 2
 [do plano](image-mesh-editor-plan.md).
 
 ## Abrir
@@ -45,24 +45,48 @@ cancela um contorno ainda em desenho ou um arraste em andamento.
 
 ## Cena principal e modos
 
-A única janela lateral é **Regiões**, reunindo ferramentas, lista e propriedades.
+A janela **Regiões** fica à esquerda, reunindo ferramentas, lista e propriedades.
+À direita ficam **Câmera 3D / 2D** e **Luz**.
 Ao selecionar outra peça, suas propriedades aparecem nessa lateral. **Volume e
 relevo** contém os ajustes principais; **Resolução e limites de geometria** agrupa
 os parâmetros de densidade e orçamento.
 
 - **Modo de edição marcado:** a cena mostra a imagem e os contornos, renderizados
-  por objetos `texture` e `line` da engine. Botão esquerdo desenha/seleciona/move;
-  botão direito ou central desloca a imagem; a roda aproxima/afasta.
+  por objetos `texture` e `line` em **2dw**, centrados na origem do mundo.
+  Botão esquerdo desenha/seleciona/move regiões; botão direito ou central move
+  a câmera 2D. A ferramenta **Mover câmera** permite esse arraste com o botão
+  esquerdo. A roda ajusta o zoom da imagem e dos contornos no mundo, preservando
+  as coordenadas originais dos recortes.
   **Enquadrar imagem** restaura zoom e posição. O canto inferior direito e os
   pontos do polígono são alças de edição.
 - **Modo de edição desmarcado:** a cena mostra somente a mesh 3D selecionada.
   Arraste com o botão esquerdo para orbitar e use a roda para ajustar a distância.
-  A luz fica na lateral. Selecionar outra região atualiza a mesh mostrada.
+  A luz fica na janela à direita. Selecionar outra região atualiza a mesh mostrada.
 
 A troca de modo cancela desenhos e arrastes ainda não confirmados. Valores nos
 campos precisam de **Aplicar** antes da troca. Cliques na interface não iniciam
 manipulação da cena. Não existem janelas separadas de imagem, propriedades ou
 prévia, nem render target intermediário para a mesh.
+
+## Controles de diagnóstico
+
+**Câmera 3D / 2D** acompanha o modo do editor: seus botões também alternam entre
+edição 2D e visualização 3D. No modo 2D, edite X/Y, ajuste o zoom ou use
+**Resetar visão** para enquadrar a imagem. Em 3D, use o gizmo de órbita compartilhado
+com Mesh Debug, distância, posição/centro da órbita e reset. A posição numérica
+representa a órbita antes do deslocamento paralelo usado para centrar a mesh
+entre as laterais.
+
+**Luz** controla o espaço ativo: habilitar/desabilitar, cor ambiente e cor da luz;
+em 3D, direção pelo gizmo ou vetor numérico; em 2dw, posição e raio da luz pontual.
+As duas configurações são independentes. A iluminação 2D começa desativada para
+preservar a leitura da imagem original. **Resetar luz** restaura os padrões da
+engine para o espaço ativo. Esses ajustes são de inspeção da cena, não alteram
+alturas, não regeneram a mesh e não são salvos no projeto ou exportados.
+
+Para investigar relevo, reduza a luz ambiente e varie a direção da luz em 3D,
+além de orbitar a câmera. Isso ajuda a distinguir sombras da iluminação de marcas
+já pintadas na textura; não comprova por si só que a amostragem de altura está correta.
 
 ## Relevo e prévia
 
@@ -116,8 +140,8 @@ timeout -s KILL 25 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_
 
 Use um build com `-DUSE_TEXTURE_MISSING_DIALOG=0` para testes automáticos. Confira
 os marcadores `IMAGE MESH ... OK` e ausência de erros Lua; o código de saída da
-engine sozinho não comprova sucesso. O teste do editor deve produzir os quatro
-marcadores de projeto, UI/lote/repouso, gestos de entrada e modos da cena. Os gestos
+engine sozinho não comprova sucesso. O teste do editor deve produzir os cinco
+marcadores de projeto, UI/lote/repouso, gestos de entrada, modos da cena e controles de câmera/luz. Os gestos
 são simulados nos callbacks `onTouch*` da engine, passando pelo canvas real; isso
 não substitui uma conferência manual com mouse físico.
 

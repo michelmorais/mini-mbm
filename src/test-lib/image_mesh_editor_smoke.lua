@@ -100,7 +100,28 @@ function onLoop(delta)
         onTouchUp(0,e.canvasTransform.x,e.canvasTransform.y)
     end
     tImGui.GetWantCaptureMouse=originalHovered
+    local originalGizmo,originalColor=tUtil.drawOrbitGizmo,tImGui.ColorEdit4
+    if frame==170 then
+        e.diagnosticBuilds=e.builds
+        tUtil.drawOrbitGizmo=function(c,options)
+            c.azimuth=c.azimuth+0.2
+            return true
+        end
+        tImGui.ColorEdit4=function(label,value,flags)
+            if label==tLang.L('ambient') then return true,{r=0.12,g=0.13,b=0.14,a=1} end
+            return originalColor(label,value,flags)
+        end
+    end
     loop(delta)
+    tUtil.drawOrbitGizmo,tImGui.ColorEdit4=originalGizmo,originalColor
+    if frame==170 then
+        local light=mbm.getLightState('3d')
+        assert(math.abs(light.ambientColor.r-0.12)<0.0001)
+        local direction=tUtil.dirFromOrbit(e.lights['3d'].orbit)
+        assert(math.abs(light.directionalDirection.x-direction.x)<0.0001)
+        assert(e.builds==e.diagnosticBuilds,'camera/light rebuilt mesh')
+        print('IMAGE MESH EDITOR CAMERA / LIGHT PANELS OK')
+    end
     tImGui.Checkbox=originalCheckbox
     if frame==85 then assert(e.editMode and e.values.lockBorder==true,'checkbox state was not preserved') end
     if frame==130 then
@@ -133,9 +154,15 @@ function onLoop(delta)
         assert(e.orbit.distance<distance)
         api.setEditMode(true)
         tImGui.GetWantCaptureMouse=function() return false end
-        local oldPan=e.panX; local oldZoom=e.zoom
-        onTouchDown(1,900,400); onTouchMove(1,940,420); onTouchUp(1,940,420); onTouchZoom(1)
-        assert(e.panX==oldPan+40 and e.zoom>oldZoom)
+        local oldPan=e.camera2d.x; local oldZoom=e.zoom; local lines=e.canvasBuilds; local cameraScale=e.camera2d.sx
+        onTouchDown(1,900,400); onTouchMove(1,940,420); onTouchUp(1,940,420)
+        require('image_mesh_canvas').sync(e)
+        local sx,sy=mbm.to2ds(-e.project.image.width*e.zoom/2,e.project.image.height*e.zoom/2)
+        assert(math.abs(sx-e.canvasTransform.x)<0.01 and math.abs(sy-e.canvasTransform.y)<0.01,'world/image coordinates disagree')
+        onTouchZoom(1)
+        assert(math.abs(e.camera2d.x-(oldPan-40/cameraScale))<0.001 and e.zoom>oldZoom)
+        assert(e.canvasBuilds==lines,'camera pan rebuilt contour buffers')
+        api.fit(e); require('image_mesh_canvas').sync(e)
         local before=#e.project.regions
         local o=e.canvasTransform; e.tool='rectangle'
         onTouchDown(0,o.x+10*o.scale,o.y+10*o.scale)

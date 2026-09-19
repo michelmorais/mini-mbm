@@ -296,3 +296,16 @@ Os testes de projeto/lote foram mantidos e os gestos migraram de consultas ImGui
 simuladas para callbacks da cena. Foram verificadas alternância dos modos,
 órbita, desenho/movimento/redimensionamento/pontos e ausência de reconstruções
 em repouso no Linux/OpenGL ES.
+
+
+### Controles de diagnóstico e câmera 2D (7.219.0)
+
+Adicionadas à direita as janelas Câmera 3D / 2D e Luz, reaproveitando o gizmo de
+órbita e as conversões de direção de `editor_utils.lua` usados pelo Mesh Debug.
+A câmera oferece navegação e edição numérica; a luz tem controles independentes
+por espaço (direcional 3D e pontual 2dw). A imagem e seus contornos migraram de
+2ds para 2dw. Arrastar com botão direito/central ou com a ferramenta Mover câmera
+move a câmera 2D; zoom altera a escala de visualização dos objetos, sem alterar
+os recortes. Pan não reconstrói os buffers de contorno. Luz e câmera 3D não
+regeneram a mesh. Esta entrega adiciona instrumentos para investigar o relevo;
+não altera o algoritmo de amostragem nem declara resolvida a suspeita visual.

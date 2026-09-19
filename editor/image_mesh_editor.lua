@@ -26,9 +26,10 @@ tUtil=require 'editor_utils'
 local Model=require 'image_mesh_model'
 local IO=require 'image_mesh_io'
 local Canvas=require 'image_mesh_canvas'
+local Diagnostics=require 'image_mesh_diagnostics'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
-    editMode=true,panX=0,panY=0,sidebar=370,polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
-    orbit={azimuth=math.pi-0.4,elevation=0.25,distance=300},status='',point=1}
+    editMode=true,sidebar=370,rightbar=310,polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
+    orbit={fx=0,fy=0,fz=0,azimuth=math.pi-0.4,elevation=0.25,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -85,11 +86,11 @@ local function camera()
     -- in the scene area beside the sidebar. Match CAMERA::updateCam's current
     -- projection conversion (cot(angle/2) is passed as the perspective angle).
     local halfHeight=c.distance*math.tan(0.5/math.tan(math.rad(55)))
-    local offset=halfHeight*E.sidebar/E.screenH
+    local offset=halfHeight*(E.sidebar-E.rightbar)/E.screenH
     local ox,oz=math.cos(c.azimuth)*offset,-math.sin(c.azimuth)*offset
-    E.previewCamera:setPos(ox+c.distance*math.cos(c.elevation)*math.sin(c.azimuth),c.distance*math.sin(c.elevation),oz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth))
+    E.previewCamera:setPos(c.fx+ox+c.distance*math.cos(c.elevation)*math.sin(c.azimuth),c.fy+c.distance*math.sin(c.elevation),c.fz+oz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth))
 
-    E.previewCamera:setFocus(ox,0,oz)
+    E.previewCamera:setFocus(c.fx+ox,c.fy,c.fz+oz)
     E.previewCamera:setFar(math.max(2000,c.distance*10))
 end
 local function generate(region)
@@ -107,7 +108,7 @@ local function rebuild()
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true
         E.preview=object; E.previewPath=path; E.report=report; E.builds=E.builds+1
-        local o=Model.options(E.project,r); E.orbit.distance=math.max(o.width,o.height,o.depth+o.relief)*2.7; camera()
+        local o=Model.options(E.project,r); E.fitDistance=math.max(o.width,o.height,o.depth+o.relief)*2.7; E.orbit.distance=E.fitDistance; camera()
         E.status=L('preview_ready')
     end)
     if not ok then
@@ -125,7 +126,7 @@ end
 local function install(project,path,texture)
     releasePreview(); Canvas.destroy(E); E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
-    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; E.panX=0; E.panY=0; changed(); E.modified=false
+    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; Canvas.fit(E); changed(); E.modified=false
 end
 local function openImage(path)
     local texture=loadTexture(path)
@@ -277,7 +278,7 @@ local function regionsPanel()
         local value=tImGui.Checkbox(L('edit_mode'),E.editMode)
         if value~=E.editMode then setEditMode(value) end
         if E.editMode then
-            local names={L('select'),L('rectangle'),L('ellipse'),L('polygon')}; local tools={'select','rectangle','ellipse','polygon'}
+            local names={L('select'),L('rectangle'),L('ellipse'),L('polygon'),L('pan')}; local tools={'select','rectangle','ellipse','polygon','pan'}
             local index=1; for i,name in ipairs(tools) do if name==E.tool then index=i end end
             local modified,tool=tImGui.Combo(L('tool'),index,names)
             if modified then Canvas.cancel(E); E.tool=tools[tool] end
@@ -285,12 +286,10 @@ local function regionsPanel()
                 if tImGui.Button(L('finish_polygon')) then finishPolygon() end
                 tImGui.SameLine(); if tImGui.Button(L('cancel')) then Canvas.cancel(E) end
             end
-            if tImGui.Button(L('fit_image')) then E.zoom=1; E.panX=0; E.panY=0 end
+            if tImGui.Button(L('fit_image')) then Canvas.fit(E) end
             tImGui.TextWrapped(L('canvas_help'))
         else
             tImGui.TextWrapped(L('preview_help'))
-            local c,v=tImGui.SliderFloat(L('light'),E.light,0,1)
-            if c then E.light=v; mbm.setDirectionalLightColor('3d',v,v,v) end
         end
         tImGui.Separator()
         if E.missing then
@@ -342,13 +341,14 @@ function onInitScene()
         fixed=tImGui.Flags('ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoResize','ImGuiWindowFlags_NoCollapse')}
     mbm.setColor(0.1,0.12,0.15); mbm.setLightEnabled('3d',true); mbm.setAmbientLight('3d',0.35,0.35,0.35)
     E.light=0.7; mbm.setDirectionalLight('3d',0.4,-0.5,1,E.light,E.light,E.light)
+    E.camera2d=mbm.getCamera('2d'); mbm.setLightEnabled('2dw',false)
     E.previewCamera=mbm.getCamera('3d'); E.previewCamera:setAngleOfView(110); camera()
     local checker=tUtil.createAlphaPattern(256,256,16,{r=70,g=70,b=70},{r=100,g=100,b=100})
     E.checkerPath=checker
-    syncDraft(); tUtil.sMessageOverlay=L('welcome')
+    Diagnostics.init(E); syncDraft(); tUtil.sMessageOverlay=L('welcome')
 end
 function onLoop(delta)
-    menu(); regionsPanel()
+    menu(); regionsPanel(); Diagnostics.draw(E,{camera=camera,setMode=setEditMode,fit=Canvas.fit,zoom=Canvas.zoom})
     if E.key and not tImGui.GetWantCaptureKeyboard() then
         if E.control and E.key==mbm.getKeyCode('Z') then history(false)
         elseif E.control and E.key==mbm.getKeyCode('Y') then history(true)
@@ -365,18 +365,21 @@ end
 function onKeyUp(key) if key==mbm.getKeyCode('control') then E.control=false end end
 local handlers={action=action,select=selectRegion,commitDrag=commitDrag}
 local function sceneInput(x,y)
-    return x>=E.sidebar and y>=25 and not tImGui.GetWantCaptureMouse()
+    return x>=E.sidebar and x<E.screenW-E.rightbar and y>=25 and not tImGui.GetWantCaptureMouse()
 end
 function onTouchDown(key,x,y)
     if not sceneInput(x,y) then return end
     if E.editMode then
-        if key==0 then Canvas.input(E,handlers,'down',x,y)
+        if key==0 and E.tool~='pan' then Canvas.input(E,handlers,'down',x,y)
+        elseif key==0 then E.panDrag={x=x,y=y}
         elseif key==1 or key==2 then E.panDrag={x=x,y=y} end
     elseif key==0 then E.orbitDrag={x=x,y=y} end
 end
 function onTouchMove(key,x,y)
     if E.panDrag then
-        E.panX=E.panX+x-E.panDrag.x; E.panY=E.panY+y-E.panDrag.y; E.panDrag={x=x,y=y}
+        local c=E.camera2d
+        c:setPos(c.x-(x-E.panDrag.x)/c.sx,c.y+(y-E.panDrag.y)/c.sy)
+        E.panDrag={x=x,y=y}
     elseif E.orbitDrag then
         E.orbit.azimuth=E.orbit.azimuth-(x-E.orbitDrag.x)*0.01
         E.orbit.elevation=math.max(-1.5,math.min(1.5,E.orbit.elevation+(y-E.orbitDrag.y)*0.01))
@@ -384,12 +387,12 @@ function onTouchMove(key,x,y)
     elseif E.drag or sceneInput(x,y) then Canvas.input(E,handlers,'move',x,y) end
 end
 function onTouchUp(key,x,y)
-    if key==0 then Canvas.input(E,handlers,'up',x,y); E.orbitDrag=nil end
+    if key==0 then Canvas.input(E,handlers,'up',x,y); E.orbitDrag=nil; E.panDrag=nil end
     if key==1 or key==2 then E.panDrag=nil end
 end
 function onTouchZoom(zoom)
     if tImGui.GetWantCaptureMouse() then return end
-    if E.editMode then E.zoom=math.max(0.1,math.min(16,E.zoom*math.exp(zoom*0.12)))
+    if E.editMode then Canvas.zoom(E,E.zoom*math.exp(zoom*0.12))
     else E.orbit.distance=math.max(0.01,E.orbit.distance*math.exp(-zoom*0.12)); camera() end
 end
 function onResizeWindow()
@@ -400,5 +403,5 @@ if type(testApi)=='table' then
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink
-    testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
+    testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
 end

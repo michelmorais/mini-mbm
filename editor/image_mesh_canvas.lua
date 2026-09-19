@@ -34,6 +34,25 @@ function M.destroy(E)
     if E.checkerObject then E.checkerObject:destroy(); E.checkerObject=nil end
     E.canvasPath=nil; E.canvasDirty=true
 end
+function M.zoom(E,value)
+    E.zoom=clamp(value,0.02,32)
+end
+function M.fit(E)
+    if not E.texture then return end
+    local w,h=E.project.image.width,E.project.image.height
+    M.zoom(E,math.min(math.max(50,E.screenW-E.sidebar-E.rightbar-40)/w,math.max(50,E.screenH-65)/h))
+    E.camera2d:setPos(-(E.sidebar-E.rightbar)/2/E.camera2d.sx,12.5/E.camera2d.sy)
+end
+function M.transform(E)
+    local c=E.camera2d
+    local w,h=E.project.image.width,E.project.image.height
+    local transform=E.canvasTransform or {}
+    transform.x=E.screenW/2+(-w/2*E.zoom-c.x)*c.sx
+    transform.y=E.screenH/2-(h/2*E.zoom-c.y)*c.sy
+    transform.scale=E.zoom*c.sx
+    E.canvasTransform=transform
+    return E.canvasTransform
+end
 function M.sync(E)
     local visible=E.editMode and E.texture~=nil
     if E.imageObject then E.imageObject.visible=visible end
@@ -44,32 +63,31 @@ function M.sync(E)
     end
     if not visible then return end
     local w,h=E.project.image.width,E.project.image.height
-    local scale=math.min(math.max(50,E.screenW-E.sidebar-40)/w,math.max(50,E.screenH-65)/h)*E.zoom
-    local x=E.sidebar+(E.screenW-E.sidebar-w*scale)/2+E.panX
-    local y=25+(E.screenH-25-h*scale)/2+E.panY
-    local previous=E.canvasTransform
-    local moved=not previous or previous.x~=x or previous.y~=y or previous.scale~=scale
+    local scale=E.zoom*E.camera2d.sx
+    M.transform(E)
+    local zoomed=E.canvasScale~=scale
     if E.canvasPath~=E.project.image.path then
         M.destroy(E)
-        E.imageObject=texture:new('2ds'); assert(E.imageObject:load(E.project.image.path))
-        if E.checkerPath then E.checkerObject=texture:new('2ds'); assert(E.checkerObject:load(E.checkerPath)) end
-        E.canvasPath=E.project.image.path; moved=true
+        E.imageObject=texture:new('2dw'); assert(E.imageObject:load(E.project.image.path))
+        if E.checkerPath then E.checkerObject=texture:new('2dw'); assert(E.checkerObject:load(E.checkerPath)) end
+        E.imageObject:setSize(w,h); E.imageObject:setPos(0,0,1)
+        if E.checkerObject then E.checkerObject:setSize(w,h); E.checkerObject:setPos(0,0,2) end
+        E.canvasPath=E.project.image.path
     end
-    if moved then
-        E.canvasTransform={x=x,y=y,scale=scale}
-        E.imageObject:setSize(w*scale,h*scale); E.imageObject:setPos(x+w*scale/2,y+h*scale/2,1)
-        if E.checkerObject then E.checkerObject:setSize(w*scale,h*scale); E.checkerObject:setPos(x+w*scale/2,y+h*scale/2,2) end
+    if zoomed or E.canvasDirty then
+        E.imageObject:setScale(E.zoom,E.zoom)
+        if E.checkerObject then E.checkerObject:setScale(E.zoom,E.zoom) end
     end
-    if not E.canvasDirty and E.outlines and not moved then return end
-    E.canvasDirty=false
+    if not E.canvasDirty and E.outlines and not zoomed then return end
+    E.canvasDirty=false; E.canvasScale=scale
     for _,object in ipairs(E.sceneLines or {}) do object:destroy() end
     E.sceneLines={}; E.canvasBuilds=(E.canvasBuilds or 0)+1
     local function draw(points,closed,selected)
         if #points<2 then return end
         local vertices={}
-        for _,p in ipairs(points) do vertices[#vertices+1]=p.x*scale; vertices[#vertices+1]=p.y*scale end
+        for _,p in ipairs(points) do vertices[#vertices+1]=p.x-w/2; vertices[#vertices+1]=h/2-p.y end
         if closed then vertices[#vertices+1]=vertices[1]; vertices[#vertices+1]=vertices[2] end
-        local object=line:new('2ds',x,y,0); object:add(vertices)
+        local object=line:new('2dw',0,0,0); object:add(vertices); object:setScale(E.zoom,E.zoom)
         if selected then object:setColor(1,0.7,0.1) else object:setColor(0.2,0.8,1) end
         E.sceneLines[#E.sceneLines+1]=object
     end
@@ -102,7 +120,7 @@ function M.sync(E)
 end
 function M.input(E,H,event,mx,my)
     if not E.editMode or not E.texture or not E.canvasTransform then return end
-    local origin=E.canvasTransform; local scale=origin.scale
+    local origin=M.transform(E); local scale=origin.scale
     local hovered=mx>=origin.x and my>=origin.y and mx<origin.x+E.project.image.width*scale and my<origin.y+E.project.image.height*scale
     local x=clamp((mx-origin.x)/scale,0,E.project.image.width-1)
     local y=clamp((my-origin.y)/scale,0,E.project.image.height-1)
