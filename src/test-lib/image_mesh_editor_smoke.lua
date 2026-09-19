@@ -112,7 +112,36 @@ function onLoop(delta)
             return originalColor(label,value,flags)
         end
     end
+    local originalBegin=tImGui.Begin
+    local lightWindows=0
+    if frame==180 then
+        api.setEditMode(true)
+        tImGui.Begin=function(title,...)
+            if title:find('###ime_light',1,true) then lightWindows=lightWindows+1 end
+            return originalBegin(title,...)
+        end
+    end
     loop(delta)
+    tImGui.Begin=originalBegin
+    if frame==180 then
+        assert(lightWindows==0 and not mbm.getLightState('2dw').enabled,'2D light/window enabled')
+        for _,kind in ipairs({'rectangle','circle','ellipse','triangle','regular'}) do
+            api.setEditMode(true)
+            local count=#e.project.regions
+            e.primitive={kind=kind,w=24,h=20,sides=6}
+            assert(api.addPrimitive())
+            assert(#e.project.regions==count+1 and e.tool=='select')
+            local selected=e.selected
+            api.undo(false); assert(#e.project.regions==count)
+            api.undo(true); api.select(selected)
+            api.setEditMode(false); api.rebuild()
+            assert(e.preview and e.report,'primitive extrusion failed: '..kind)
+        end
+        api.saveProject('/tmp/ime-primitives.imesh')
+        api.openProject('/tmp/ime-primitives.imesh')
+        assert(#e.project.regions==22)
+        print('IMAGE MESH EDITOR PRIMITIVES / EXTRUSION / NO 2D LIGHT OK')
+    end
     tUtil.drawOrbitGizmo,tImGui.ColorEdit4=originalGizmo,originalColor
     if frame==170 then
         local light=mbm.getLightState('3d')

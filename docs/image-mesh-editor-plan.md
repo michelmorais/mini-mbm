@@ -309,3 +309,18 @@ move a câmera 2D; zoom altera a escala de visualização dos objetos, sem alter
 os recortes. Pan não reconstrói os buffers de contorno. Luz e câmera 3D não
 regeneram a mesh. Esta entrega adiciona instrumentos para investigar o relevo;
 não altera o algoritmo de amostragem nem declara resolvida a suspeita visual.
+
+
+### Primitivas e iluminação restrita ao 3D (7.220.0)
+
+A janela Luz agora só aparece na visualização 3D; controles e estado de luz 2dw
+foram removidos. A imagem de entrada permanece sem iluminação. O registro da
+7.219.0 acima descreve a interface anterior, substituída por esta revisão.
+
+O painel Regiões oferece Adicionar forma com combo de retângulo, círculo, elipse,
+triângulo e polígono regular (3..32 lados), dimensões em pixels e botão Adicionar.
+As formas são criadas como regiões existentes do modelo, selecionadas na cena,
+com movimento, alças/pontos, dimensões numéricas, histórico e persistência.
+Todos os presets usam a extrusão já implementada; não há alteração no algoritmo
+CPU nem no formato dos projetos. Testes cobrem criação, limites, undo/redo,
+extrusão de cada preset, persistência e ocultação da luz durante edição.

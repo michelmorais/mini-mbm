@@ -82,6 +82,29 @@ function M.add(p,shape,x,y,w,h,contour)
         contour=M.copy(contour),overrides={}}
     p.nextId=p.nextId+1; p.regions[#p.regions+1]=r; return r
 end
+-- Presets become ordinary editable regions; no new project schema is needed.
+function M.primitive(p,kind,w,h,sides,cx,cy)
+    assert(kind=='rectangle' or kind=='circle' or kind=='ellipse' or kind=='triangle' or kind=='regular','ime_invalid_shape')
+    assert(type(w)=='number' and w==math.floor(w) and w>=2 and w<=p.image.width,'ime_invalid_crop')
+    if kind=='circle' then h=w end
+    assert(type(h)=='number' and h==math.floor(h) and h>=2 and h<=p.image.height,'ime_invalid_crop')
+    local x=math.max(0,math.min(p.image.width-w,math.floor((cx or p.image.width/2)-w/2)))
+    local y=math.max(0,math.min(p.image.height-h,math.floor((cy or p.image.height/2)-h/2)))
+    local shape=kind; local contour
+    if kind=='circle' then shape='ellipse'
+    elseif kind=='triangle' then shape='polygon'; contour={{x=0.5,y=0},{x=1,y=1},{x=0,y=1}}
+    elseif kind=='regular' then
+        assert(type(sides)=='number' and sides==math.floor(sides) and sides>=3 and sides<=32,'ime_invalid_sides')
+        shape='polygon'; contour={}
+        for i=0,sides-1 do
+            local angle=-math.pi/2+2*math.pi*i/sides
+            contour[#contour+1]={x=0.5+0.5*math.cos(angle),y=0.5+0.5*math.sin(angle)}
+        end
+    end
+    local region=M.add(p,shape,x,y,w,h,contour)
+    if kind=='circle' then region.overrides.height=p.defaults.width end
+    return region
+end
 function M.grid(p,g)
     assert(number(g.columns,1,64,true) and number(g.rows,1,64,true),'ime_invalid_grid')
     assert(number(g.marginX,0,p.image.width,true) and number(g.marginY,0,p.image.height,true) and

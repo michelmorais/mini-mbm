@@ -28,7 +28,7 @@ local IO=require 'image_mesh_io'
 local Canvas=require 'image_mesh_canvas'
 local Diagnostics=require 'image_mesh_diagnostics'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
-    editMode=true,sidebar=370,rightbar=310,polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
+    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,sidebar=370,rightbar=310,polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=math.pi-0.4,elevation=0.25,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
 local function dpCall(fn,...)
@@ -126,7 +126,9 @@ end
 local function install(project,path,texture)
     releasePreview(); Canvas.destroy(E); E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
-    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; Canvas.fit(E); changed(); E.modified=false
+    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1
+    E.primitive.w=math.max(2,math.floor(project.image.width/4)); E.primitive.h=math.max(2,math.floor(project.image.height/4))
+    Canvas.fit(E); changed(); E.modified=false
 end
 local function openImage(path)
     local texture=loadTexture(path)
@@ -229,6 +231,41 @@ local function setEditMode(enabled)
     if E.preview then E.preview.visible=not enabled and not E.dirty end
     Canvas.sync(E)
 end
+local function addPrimitive()
+    if not E.texture or not E.editMode then return false end
+    local spec=E.primitive
+    Canvas.cancel(E)
+    local o=Canvas.transform(E)
+    local cx=((E.sidebar+E.screenW-E.rightbar)/2-o.x)/o.scale
+    local cy=((E.screenH+25)/2-o.y)/o.scale
+    local ok=action(function(p)
+        local r=Model.primitive(p,spec.kind,spec.w,spec.h,spec.sides,cx,cy)
+        E.selected=r.id; E.selection={[r.id]=true}; E.editDefaults=false
+    end)
+    if ok then E.tool='select'; E.status=L('primitive_added') end
+    return ok
+end
+local function primitivePanel()
+    tImGui.Text(L('add_primitive'))
+    local types={'rectangle','circle','ellipse','triangle','regular'}
+    local names={L('rectangle'),L('circle'),L('ellipse'),L('triangle'),L('regular')}
+    local spec=E.primitive; local index=1
+    for i,kind in ipairs(types) do if kind==spec.kind then index=i end end
+    local changed,value=tImGui.Combo(L('primitive_type'),index,names)
+    if changed then spec.kind=types[value] end
+    changed,value=tImGui.InputInt(L(spec.kind=='circle' and 'diameter' or 'crop_w')..'##new',spec.w)
+    if changed then spec.w=value end
+    if spec.kind~='circle' then
+        changed,value=tImGui.InputInt(L('crop_h')..'##new',spec.h)
+        if changed then spec.h=value end
+    end
+    if spec.kind=='regular' then
+        changed,value=tImGui.SliderInt(L('sides'),spec.sides,3,32)
+        if changed then spec.sides=value end
+    end
+    if tImGui.Button(L('add_primitive')..'##add') then addPrimitive() end
+    tImGui.Separator()
+end
 local function propertiesPanel()
     tImGui.PushItemWidth(math.max(90,tImGui.GetContentRegionAvail().x*0.42))
     local defaults=tImGui.Checkbox(L('edit_defaults'),E.editDefaults or false)
@@ -298,6 +335,7 @@ local function regionsPanel()
             tImGui.SameLine(); if tImGui.Button(L('cancel')) then E.missing=nil end
         end
         if E.texture then
+            if E.editMode then primitivePanel() end
             tImGui.Text(tUtil.getShortName(E.project.image.path))
             if tImGui.CollapsingHeader(L('grid')) then
                 for _,key in ipairs({'columns','rows','marginX','marginY','gapX','gapY'}) do
@@ -403,5 +441,5 @@ if type(testApi)=='table' then
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink
-    testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
+    testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
 end

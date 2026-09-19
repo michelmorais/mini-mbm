@@ -30,7 +30,7 @@ local function lightState(target)
     return state
 end
 function M.init(E)
-    E.lights={['3d']=lightState('3d'),['2dw']=lightState('2dw')}
+    E.lights={['3d']=lightState('3d')}
 end
 local function vector(label,v,prefix)
     tImGui.Text(label)
@@ -84,7 +84,7 @@ local function cameraPanel(E,H)
     end
 end
 local function lightPanel(E)
-    local target=E.editMode and '2dw' or '3d'
+    local target='3d'
     local state=E.lights[target]
     tImGui.Text(target)
     local enabled=tImGui.Checkbox(L('light_enabled'),state.enabled)
@@ -92,26 +92,18 @@ local function lightPanel(E)
     local flags=tImGui.Flags('ImGuiColorEditFlags_NoInputs')
     local changed,value=tImGui.ColorEdit4(L('ambient'),state.ambientColor,flags)
     if changed then state.ambientColor=value; mbm.setAmbientLight(target,value) end
-    if target=='3d' then
-        changed,value=tImGui.ColorEdit4(L('light_color'),state.directionalColor,flags)
-        if changed then state.directionalColor=value; mbm.setDirectionalLightColor(target,value) end
-        tImGui.Text(L('direction_label'))
-        if tUtil.drawOrbitGizmo(state.orbit,{size=100}) then
-            state.directionalDirection=tUtil.dirFromOrbit(state.orbit)
-            mbm.setDirectionalLightDirection(target,state.directionalDirection)
+    changed,value=tImGui.ColorEdit4(L('light_color'),state.directionalColor,flags)
+    if changed then state.directionalColor=value; mbm.setDirectionalLightColor(target,value) end
+    tImGui.Text(L('direction_label'))
+    if tUtil.drawOrbitGizmo(state.orbit,{size=100}) then
+        state.directionalDirection=tUtil.dirFromOrbit(state.orbit)
+        mbm.setDirectionalLightDirection(target,state.directionalDirection)
+    end
+    if tImGui.CollapsingHeader(L('ime_light_vector')) then
+        local d=state.directionalDirection
+        if vector(L('direction_label'),d,'ime_direction') and d.x*d.x+d.y*d.y+d.z*d.z>0.000001 then
+            mbm.setDirectionalLightDirection(target,d); state.orbit=tUtil.orbitFromDir(d)
         end
-        if tImGui.CollapsingHeader(L('ime_light_vector')) then
-            local d=state.directionalDirection
-            if vector(L('direction_label'),d,'ime_direction') and d.x*d.x+d.y*d.y+d.z*d.z>0.000001 then
-                mbm.setDirectionalLightDirection(target,d); state.orbit=tUtil.orbitFromDir(d)
-            end
-        end
-    else
-        changed,value=tImGui.ColorEdit4(L('light_color'),state.pointColor,flags)
-        if changed then state.pointColor=value; mbm.setPointLightColor(target,value) end
-        if vector(L('cam_position'),state.pointPosition,'ime_point') then mbm.setPointLightPosition(target,state.pointPosition) end
-        changed,value=tImGui.InputFloat(L('ime_light_radius'),state.pointRadius,10,100,'%.1f')
-        if changed and value>0 then state.pointRadius=value; mbm.setPointLightRadius(target,value) end
     end
     if tImGui.Button(L('reset_light')) then mbm.resetLight(target); E.lights[target]=lightState(target) end
     tImGui.TextWrapped(L('ime_light_scope'))
@@ -125,6 +117,7 @@ function M.draw(E,H)
         tImGui.PushItemWidth(130); cameraPanel(E,H); tImGui.PopItemWidth()
     end
     tImGui.End()
+    if E.editMode then return end
     tImGui.SetNextWindowPos({x=width-E.rightbar,y=25+cameraHeight},E.flags.always)
     tImGui.SetNextWindowSize({x=E.rightbar,y=height-25-cameraHeight},E.flags.always)
     if tImGui.Begin(L('light_panel')..'###ime_light',false,E.flags.fixed) then

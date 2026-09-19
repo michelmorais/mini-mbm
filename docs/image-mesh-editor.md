@@ -1,7 +1,7 @@
 # Image Mesh Editor
 
 Editor offline para extrudar regiões de uma imagem em módulos 3D com relevo.
-Disponível a partir da versão 7.217.0; interface reorganizada na 7.218.0 e controles de diagnóstico na 7.219.0. O estado atual corresponde às etapas 1 e 2
+Disponível a partir da versão 7.217.0; interface reorganizada na 7.218.0 e controles de diagnóstico na 7.219.0 e adição de formas na 7.220.0. O estado atual corresponde às etapas 1 e 2
 [do plano](image-mesh-editor-plan.md).
 
 ## Abrir
@@ -38,6 +38,26 @@ está presente, mas não foi executada nessas plataformas.
    nome, recorte, forma e pontos afetam somente a peça principal.
 6. **Editar padrões do projeto** altera os valores herdados. Peças podem ter
    sobrescritas próprias; **Usar padrões do projeto** limpa as sobrescritas da seleção.
+
+### Adicionar formas pelo painel
+
+Em **Modo de edição**, use **Adicionar forma** na lateral Regiões:
+
+1. Escolha o tipo no combo: **Retângulo**, **Círculo**, **Elipse**, **Triângulo**
+   ou **Polígono regular** (3 a 32 lados).
+2. Informe largura/altura em pixels, ou o diâmetro para o círculo.
+3. Clique em **Adicionar forma**. A região nasce perto do centro da área visível,
+   limitada à imagem, e fica selecionada com a ferramenta Selecionar / mover.
+4. Arraste para mover. Retângulos/elipses têm alça de tamanho no canto; polígonos
+   têm pontos editáveis. Em **Recorte e contorno na imagem**, ajuste X/Y e
+   largura/altura numericamente e confirme com **Aplicar**.
+5. Desative o modo de edição para gerar e inspecionar a extrusão.
+
+Todos esses tipos são extrudáveis agora. Círculos são elipses inicialmente com
+largura/altura iguais, inclusive nas dimensões de mundo; triângulos e polígonos
+regulares são contornos editáveis. Edições posteriores podem deformar essas
+formas (por exemplo, transformar um círculo em elipse). A criação participa do
+histórico, salvamento e exportação como qualquer região desenhada.
 
 O projeto suporta até 256 regiões e guarda as últimas 40 operações para
 **Desfazer/Refazer** (Ctrl+Z/Ctrl+Y). Um arraste confirmado é uma operação. Escape
@@ -77,12 +97,11 @@ com Mesh Debug, distância, posição/centro da órbita e reset. A posição num
 representa a órbita antes do deslocamento paralelo usado para centrar a mesh
 entre as laterais.
 
-**Luz** controla o espaço ativo: habilitar/desabilitar, cor ambiente e cor da luz;
-em 3D, direção pelo gizmo ou vetor numérico; em 2dw, posição e raio da luz pontual.
-As duas configurações são independentes. A iluminação 2D começa desativada para
-preservar a leitura da imagem original. **Resetar luz** restaura os padrões da
-engine para o espaço ativo. Esses ajustes são de inspeção da cena, não alteram
-alturas, não regeneram a mesh e não são salvos no projeto ou exportados.
+**Luz** aparece somente na visualização 3D: habilitar/desabilitar, cor ambiente,
+cor da luz e direção pelo gizmo ou vetor numérico. **Resetar luz** restaura os
+padrões 3D da engine. A imagem de entrada em 2dw permanece sem iluminação;
+não há controles de luz 2D. Esses ajustes são de inspeção, não alteram alturas,
+não regeneram a mesh e não são salvos no projeto ou exportados.
 
 Para investigar relevo, reduza a luz ambiente e varie a direção da luz em 3D,
 além de orbitar a câmera. Isso ajuda a distinguir sombras da iluminação de marcas
@@ -140,8 +159,8 @@ timeout -s KILL 25 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_
 
 Use um build com `-DUSE_TEXTURE_MISSING_DIALOG=0` para testes automáticos. Confira
 os marcadores `IMAGE MESH ... OK` e ausência de erros Lua; o código de saída da
-engine sozinho não comprova sucesso. O teste do editor deve produzir os cinco
-marcadores de projeto, UI/lote/repouso, gestos de entrada, modos da cena e controles de câmera/luz. Os gestos
+engine sozinho não comprova sucesso. O teste do editor deve produzir os seis
+marcadores de projeto, UI/lote/repouso, gestos de entrada, modos da cena, controles de câmera/luz e primitivas/extrusão/luz 2D desativada. Os gestos
 são simulados nos callbacks `onTouch*` da engine, passando pelo canvas real; isso
 não substitui uma conferência manual com mouse físico.
 

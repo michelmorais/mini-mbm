@@ -37,4 +37,17 @@ bad=M.copy(p); bad.regions[1].overrides.columns=0; assert(not pcall(M.validate,b
 assert(IO.relative('/tmp/source.png','/tmp/project.imesh')=='source.png')
 assert(IO.resolve('source.png','/tmp/project.imesh')=='/tmp/source.png')
 assert(IO.exportName({id=12,name='../evil/name'}):match('^012_') and not IO.exportName({id=12,name='../evil/name'}):find('/'))
+for _,kind in ipairs({'rectangle','circle','ellipse','triangle','regular'}) do
+    local r=M.primitive(p,kind,40,30,6,-100,10000)
+    M.validate(p)
+    assert(r.x==0 and r.y+r.h==p.image.height)
+    if kind=='circle' then assert(r.w==r.h and M.options(p,r).height==M.options(p,r).width) end
+    if kind=='triangle' then assert(#r.contour==3) end
+    if kind=='regular' then assert(#r.contour==6) end
+end
+local count=#p.regions
+assert(not pcall(M.primitive,p,'regular',40,30,2))
+assert(not pcall(M.primitive,p,'rectangle',0,30,6))
+assert(not pcall(M.primitive,p,'circle',900,30,6))
+assert(#p.regions==count)
 print('IMAGE MESH MODEL OK')
