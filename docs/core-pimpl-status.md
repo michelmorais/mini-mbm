@@ -226,3 +226,12 @@ mutable storage, lookup container, palette pointer, or backend handle.
 Root-motion extraction retains only the previous evaluated global matrices inside the opaque
 per-instance player and copies one named bone's translation delta; the history vector and validity
 state remain private and are invalidated at discontinuities.
+
+
+## Image mesh generation boundary (2026-09-19)
+
+`core_mbm/image-mesh.h` introduces a CPU authoring operation with value-only
+`IMAGE_MESH_OPTIONS` and `IMAGE_MESH_REPORT` request/result records and a forward
+declaration of `MESH_MBM_DEBUG`. Pixel buffers, temporary geometry, indices and
+normal accumulation remain translation-unit-local in `image-mesh.cpp`. No backend
+handles, containers or accessors to `Impl` storage are added to public classes.
