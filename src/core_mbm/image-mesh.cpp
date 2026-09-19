@@ -142,12 +142,78 @@ namespace mbm
                 triangle(face[0], face[1], face[2]);
                 triangle(face[0] + gridSize, face[2] + gridSize, face[1] + gridSize);
             }
+            // Transparent atlas margins must not turn a closed solid into invisible walls.
+            // Build a nearest-max-alpha lookup only if a side crosses transparent texels.
+            // Two Manhattan-distance sweeps keep lookup work linear in crop pixels.
+            std::vector<uint32_t> visibleTexel;
+            const auto alpha = [&](uint32_t x, uint32_t y)
+            {
+                return pixels.get()[(static_cast<size_t>(y + o.y) * imageWidth + x + o.x) * 4 + 3];
+            };
+            const auto prepareVisibleTexels = [&]()
+            {
+                if (!visibleTexel.empty()) return;
+                unsigned char maximum = 0;
+                for (uint32_t y = 0; y < ch; ++y) for (uint32_t x = 0; x < cw; ++x)
+                    maximum = std::max(maximum, alpha(x, y));
+                const uint32_t missing = cw * ch;
+                visibleTexel.assign(missing, missing);
+                for (uint32_t y = 0; y < ch; ++y) for (uint32_t x = 0; x < cw; ++x)
+                    if (alpha(x, y) == maximum) visibleTexel[y * cw + x] = y * cw + x;
+                const auto consider = [&](uint32_t at, uint32_t neighbor)
+                {
+                    const uint32_t candidate = visibleTexel[neighbor], current = visibleTexel[at];
+                    if (candidate == missing) return;
+                    const auto distance = [&](uint32_t source)
+                    {
+                        return std::abs(static_cast<int>(at % cw) - static_cast<int>(source % cw)) +
+                               std::abs(static_cast<int>(at / cw) - static_cast<int>(source / cw));
+                    };
+                    if (current == missing || distance(candidate) < distance(current)) visibleTexel[at] = candidate;
+                };
+                for (uint32_t i = 0; i < missing; ++i)
+                {
+                    if (i % cw) consider(i, i - 1);
+                    if (i >= cw) consider(i, i - cw);
+                }
+                for (uint32_t i = missing; i-- > 0;)
+                {
+                    if (i % cw + 1 < cw) consider(i, i + 1);
+                    if (i + cw < missing) consider(i, i + cw);
+                }
+            };
+            const auto sideNeedsOpaqueSample = [&](const IMAGE_MESH_POINT &a, const IMAGE_MESH_POINT &b)
+            {
+                const float ax = a.x * (cw - 1), ay = a.y * (ch - 1);
+                const float bx = b.x * (cw - 1), by = b.y * (ch - 1);
+                const uint32_t steps = std::max(1u, static_cast<uint32_t>(std::ceil(std::max(std::abs(bx-ax), std::abs(by-ay)) * 2)));
+                for (uint32_t i = 0; i <= steps; ++i)
+                {
+                    const float t = static_cast<float>(i) / steps;
+                    const float x = ax + (bx-ax)*t, y = ay + (by-ay)*t;
+                    const uint32_t x0 = static_cast<uint32_t>(x), y0 = static_cast<uint32_t>(y);
+                    const uint32_t x1 = std::min(cw-1, static_cast<uint32_t>(std::ceil(x)));
+                    const uint32_t y1 = std::min(ch-1, static_cast<uint32_t>(std::ceil(y)));
+                    if (alpha(x0,y0) < 255 || alpha(x1,y0) < 255 || alpha(x0,y1) < 255 || alpha(x1,y1) < 255) return true;
+                }
+                return false;
+            };
             // Clockwise perimeter viewed from -Z. Duplicate side vertices for hard seams.
             const auto side = [&](uint32_t a, uint32_t b)
             {
                 const uint32_t start = static_cast<uint32_t>(vertices.size());
                 vertices.push_back(vertices[a]); vertices.push_back(vertices[b]);
                 vertices.push_back(vertices[a + gridSize]); vertices.push_back(vertices[b + gridSize]);
+                if (sideNeedsOpaqueSample(topology.points[a], topology.points[b]))
+                {
+                    prepareVisibleTexels();
+                    const uint32_t x = std::min(cw-1, static_cast<uint32_t>(std::lround((topology.points[a].x + topology.points[b].x) * 0.5f * (cw-1))));
+                    const uint32_t y = std::min(ch-1, static_cast<uint32_t>(std::lround((topology.points[a].y + topology.points[b].y) * 0.5f * (ch-1))));
+                    const uint32_t source = visibleTexel[y * cw + x];
+                    const VEC2 uv((o.x + source % cw + 0.5f) / imageWidth, (o.y + source / cw + 0.5f) / imageHeight);
+                    // Constant UV per fallback quad also avoids interpolating across another alpha gap.
+                    for (uint32_t i = start; i < start + 4; ++i) vertices[i].uv = uv;
+                }
                 triangle(start, start + 2, start + 1); triangle(start + 1, start + 2, start + 3);
             };
             for (size_t i = 0; i < topology.boundary.size(); ++i)

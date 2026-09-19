@@ -74,7 +74,32 @@ local function runTests()
     for r=0,4 do for c=0,4 do if r==0 or r==4 or c==0 or c==4 then near(lv[r*5+c+1].z,-10) end end end
     opts.relief=0
     local flat,fr=mbm.generateImageMesh(image,opts); assert(flat,fr)
-    local _,volume=inspect(flat,fr); near(volume,100*80*20)
+    local fv,volume=inspect(flat,fr); near(volume,100*80*20)
+    local directions={}
+    for _,v in ipairs(fv) do
+        if math.abs(v.nx)>0.99 then directions[v.nx>0 and 'right' or 'left']=true end
+        if math.abs(v.ny)>0.99 then directions[v.ny>0 and 'top' or 'bottom']=true end
+        if math.abs(v.nz)>0.99 then directions[v.nz>0 and 'back' or 'front']=true end
+    end
+    for _,face in ipairs({'right','left','top','bottom','back','front'}) do assert(directions[face],'missing face: '..face) end
+    local alphaPixels={}
+    for y=0,6 do for x=0,6 do
+        alphaPixels[#alphaPixels+1]=100+x*20; alphaPixels[#alphaPixels+1]=100+y*20
+        alphaPixels[#alphaPixels+1]=150; alphaPixels[#alphaPixels+1]=(x>=2 and x<=4 and y>=2 and y<=4) and 255 or 0
+    end end
+    local alphaImage='/tmp/ime_transparent_margin.png'
+    assert(mbm.createTexture(alphaPixels,7,7,4,'ime_transparent_margin',alphaImage))
+    local solid,sr=mbm.generateImageMesh(alphaImage,{columns=4,rows=4,depth=30,relief=0})
+    assert(solid,sr); local sv=inspect(solid,sr)
+    near(sv[1].u,0.5/7); near(sv[1].v,0.5/7) -- front retains original transparency
+    for i=51,#sv do
+        local v=sv[i]; local x,y=math.floor(v.u*7),math.floor(v.v*7)
+        assert(x>=2 and x<=4 and y>=2 and y<=4,'side samples transparent margin')
+    end
+    for i=51,#sv,4 do for j=i+1,i+3 do near(sv[j].u,sv[i].u); near(sv[j].v,sv[i].v) end end
+    assert(solid:save('/tmp/ime_transparent_margin.msh',false,false,true))
+    local savedSolid=meshDebug:new(); assert(savedSolid:load('/tmp/ime_transparent_margin.msh')); inspect(savedSolid,sr)
+    print('IMAGE MESH SIX FACES / OPAQUE SIDE UV OK')
     opts.relief=10; opts.x=2; opts.cropWidth=1; opts.y=1; opts.cropHeight=2; opts.lockBorder=false
     local cropped,cr=mbm.generateImageMesh(image,opts); assert(cropped,cr)
     inspect(cropped,cr); near(cr.minHeight,cr.maxHeight)

@@ -2145,8 +2145,16 @@ The origin is at the center of the base block. +Y points upward. The front faces
 -Z at `-depth/2 - height`; the flat back is at `+depth/2`. Height uses bilinear
 sampling of encoded RGB luminance (`0.2126 R + 0.7152 G + 0.0722 B`), without
 linear-light conversion. Alpha does not create holes or alter height. Front and
-back use the original crop, and side walls stretch boundary texels through the
-depth. UVs sample pixel centers to avoid sampling adjacent panels at the border.
+back use the original crop (including its transparency), and side walls stretch
+opaque boundary texels through the depth. If a wall segment crosses transparent
+texels, its four UVs use one nearby texel having the maximum alpha found within
+the crop. Thus a crop containing opaque pixels produces opaque fallback walls;
+constant UVs prevent interpolation through another transparent gap. A crop with
+only partial transparency retains that maximum alpha, and a fully transparent
+crop remains transparent. This changes texture sampling only, not geometry or
+front/back UVs. UVs sample pixel centers to avoid adjacent panels at the border.
+The fallback lookup is allocated lazily, takes linear work in crop pixels, and
+uses four bytes per crop pixel (at most 64 MiB).
 
 The source image must be decodable by the bundled stb loader and contain at most
 16,777,216 pixels. Topology and geometry limits are checked before decoding. Oversized grids,

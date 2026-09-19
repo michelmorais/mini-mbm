@@ -23,6 +23,10 @@
 local Model=require 'image_mesh_model'
 local M={}
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
+-- Keep handles usable when zoomed out and let them grow when zooming in.
+function M.handleRadius(E)
+    return clamp(8*math.sqrt(E.zoom),8,20)
+end
 function M.cancel(E)
     if E.drag then E.project=E.drag.before or E.project end
     E.drag=nil; E.polygon={}; E.outlines=nil; E.canvasDirty=true
@@ -92,7 +96,7 @@ function M.sync(E)
         E.sceneLines[#E.sceneLines+1]=object
     end
     local function handle(px,py)
-        local d=4/scale
+        local d=M.handleRadius(E)/scale
         draw({{x=px-d,y=py-d},{x=px+d,y=py-d},{x=px+d,y=py+d},{x=px-d,y=py+d}},true,true)
     end
     if not E.outlines then
@@ -127,19 +131,23 @@ function M.input(E,H,event,mx,my)
     local imagePoints=E.outlines or {}
     E.cursor={x=x,y=y}
     if E.drag or #E.polygon>0 or event=='down' then E.canvasDirty=true end
-    if hovered and event=='down' then
+    local selected=Model.region(E.project,E.selected)
+    local rawX,rawY=(mx-origin.x)/scale,(my-origin.y)/scale
+    local nearResize=E.tool=='select' and selected and selected.shape~='polygon' and
+        math.abs(selected.x+selected.w-1-rawX)*scale<=M.handleRadius(E)+6 and
+        math.abs(selected.y+selected.h-1-rawY)*scale<=M.handleRadius(E)+6
+    if (hovered or nearResize) and event=='down' then
         if E.tool=='polygon' then
             local last=E.polygon[#E.polygon]
             if #E.polygon<128 and (not last or (last.x-x)^2+(last.y-y)^2>1) then E.polygon[#E.polygon+1]={x=x,y=y} end
         elseif E.tool=='rectangle' or E.tool=='ellipse' then
             E.drag={mode='create',x=x,y=y,cx=x,cy=y}
         else
-            local selected=Model.region(E.project,E.selected)
             local mode,index,id
             if selected then
                 if selected.shape=='polygon' then
-                    for i,p in ipairs(Model.outline(selected)) do if ((p.x-x)^2+(p.y-y)^2)*scale*scale<81 then mode='point';index=i;id=selected.id;break end end
-                elseif ((selected.x+selected.w-1-x)^2+(selected.y+selected.h-1-y)^2)*scale*scale<100 then mode='resize';id=selected.id end
+                    for i,p in ipairs(Model.outline(selected)) do if ((p.x-x)^2+(p.y-y)^2)*scale*scale<(M.handleRadius(E)+6)^2 then mode='point';index=i;id=selected.id;break end end
+                elseif nearResize then mode='resize';id=selected.id end
             end
             if not id then for i=#imagePoints,1,-1 do local r=imagePoints[i]
                 if Model.contains(r.points,x,y) then id=r.id; mode='move'; break end
@@ -159,8 +167,8 @@ function M.input(E,H,event,mx,my)
                 r.x=clamp(math.floor(before.x+x-d.x+0.5),0,E.project.image.width-r.w)
                 r.y=clamp(math.floor(before.y+y-d.y+0.5),0,E.project.image.height-r.h)
             elseif d.mode=='resize' then
-                r.w=clamp(math.floor(x-r.x+1.5),1,E.project.image.width-r.x)
-                r.h=clamp(math.floor(y-r.y+1.5),1,E.project.image.height-r.y)
+                r.w=clamp(math.floor(before.w+x-d.x+0.5),1,E.project.image.width-r.x)
+                r.h=clamp(math.floor(before.h+y-d.y+0.5),1,E.project.image.height-r.y)
             else r.contour[d.index]={x=clamp((x-r.x)/math.max(1,r.w-1),0,1),y=clamp((y-r.y)/math.max(1,r.h-1),0,1)} end
             E.outlines=nil; d.changed=true
         end

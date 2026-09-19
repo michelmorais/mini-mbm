@@ -324,3 +324,22 @@ com movimento, alças/pontos, dimensões numéricas, histórico e persistência.
 Todos os presets usam a extrusão já implementada; não há alteração no algoritmo
 CPU nem no formato dos projetos. Testes cobrem criação, limites, undo/redo,
 extrusão de cada preset, persistência e ocultação da luz durante edição.
+
+
+### Redimensionamento e transparência das laterais (7.220.1)
+
+Alças maiores (16..40 pixels), com crescimento pelo zoom e margem de clique de
+6 pixels. O arraste usa a variação desde o clique para não saltar quando iniciado
+fora do centro da alça, inclusive próximo ao limite da imagem.
+
+A ausência visual das laterais foi reproduzida no atlas original: os triângulos
+estavam presentes, mas amostravam transparência nas margens do recorte. O gerador
+mantém a geometria fechada e passa a usar um texel próximo de máxima opacidade
+para cada segmento de parede que atravessa transparência. Frente/fundo permanecem
+iguais. A consulta é construída sob demanda em tempo linear, com até 64 MiB de
+memória adicional no limite de 16 megapixels, apenas durante a geração.
+
+Regressões verificam as seis direções de faces, UVs laterais com margem alfa,
+exportação/recarga e alças ampliadas sem salto. Conferência visual com o atlas
+original mostrou as paredes antes invisíveis. Exportações anteriores exigem
+regeneração para incorporar os novos UVs.

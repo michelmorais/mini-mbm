@@ -205,6 +205,23 @@ function onLoop(delta)
         tImGui.GetWantCaptureMouse=originalHovered
         print('IMAGE MESH EDITOR SCENE MODES / ORBIT / IDLE OK')
     end
+    if frame==190 then
+        local Canvas=require 'image_mesh_canvas'
+        api.setEditMode(true); api.select(1); e.tool='select'; Canvas.sync(e)
+        local r=e.project.regions[1]; local width,height=r.w,r.h
+        local o=e.canvasTransform
+        local x,y=o.x+(r.x+r.w-1)*o.scale+15,o.y+(r.y+r.h-1)*o.scale+15
+        local captured=tImGui.GetWantCaptureMouse; tImGui.GetWantCaptureMouse=function() return false end
+        onTouchDown(0,x,y); assert(e.drag and e.drag.mode=='resize','expanded resize target missed')
+        onTouchMove(0,x,y); assert(r.w==width and r.h==height,'resize jumped on initial click')
+        onTouchMove(0,x+20,y+20); onTouchUp(0,x+20,y+20)
+        assert(e.project.regions[1].w==math.floor(width+20/o.scale+0.5))
+        api.undo(false); assert(e.project.regions[1].w==width)
+        local zoom=e.zoom; e.zoom=0.25; local small=Canvas.handleRadius(e)
+        e.zoom=4; assert(Canvas.handleRadius(e)>small); e.zoom=zoom
+        tImGui.GetWantCaptureMouse=captured
+        print('IMAGE MESH EDITOR LARGE RESIZE HANDLE / NO JUMP OK')
+    end
     if started and mbm.getTimeRun()-started>8 then mbm.quit() end
 end
 function onEndScene() finish() end

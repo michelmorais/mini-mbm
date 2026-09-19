@@ -78,7 +78,9 @@ os parâmetros de densidade e orçamento.
   esquerdo. A roda ajusta o zoom da imagem e dos contornos no mundo, preservando
   as coordenadas originais dos recortes.
   **Enquadrar imagem** restaura zoom e posição. O canto inferior direito e os
-  pontos do polígono são alças de edição.
+  pontos do polígono são alças de edição. As alças têm 16 a 40 pixels de lado,
+  crescem com o zoom e aceitam cliques até 6 pixels além da borda. O redimensionamento
+  preserva a distância inicial do clique para evitar saltos.
 - **Modo de edição desmarcado:** a cena mostra somente a mesh 3D selecionada.
   Arraste com o botão esquerdo para orbitar e use a roda para ajustar a distância.
   A luz fica na janela à direita. Selecionar outra região atualiza a mesh mostrada.
@@ -143,7 +145,12 @@ relatadas, arquivos existentes são preservados e os já exportados permanecem.
 
 **As malhas ainda referenciam a imagem original; a textura não é empacotada.**
 Mantenha a imagem acessível nos caminhos de assets ao carregar as malhas. Frente
-e fundo usam o recorte original, e as laterais esticam a borda. Pintura de altura,
+e fundo usam o recorte original. As laterais esticam a borda quando ela é opaca.
+Desde 7.220.1, segmentos da lateral que atravessam transparência usam um pixel
+próximo de maior opacidade dentro do recorte, evitando paredes invisíveis quando
+existem pixels opacos na imagem. Frente/fundo mantêm a transparência original.
+Meshes exportadas anteriormente precisam ser geradas/exportadas novamente para
+receber a correção. Pintura de altura,
 furos, mapas separados e opções adicionais de textura pertencem às próximas etapas.
 
 A API de geração e seus limites estão em [Lua API](lua-api.md#image-based-mesh-generation).
@@ -159,8 +166,8 @@ timeout -s KILL 25 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_
 
 Use um build com `-DUSE_TEXTURE_MISSING_DIALOG=0` para testes automáticos. Confira
 os marcadores `IMAGE MESH ... OK` e ausência de erros Lua; o código de saída da
-engine sozinho não comprova sucesso. O teste do editor deve produzir os seis
-marcadores de projeto, UI/lote/repouso, gestos de entrada, modos da cena, controles de câmera/luz e primitivas/extrusão/luz 2D desativada. Os gestos
+engine sozinho não comprova sucesso. O teste do editor deve produzir os sete
+marcadores de projeto, UI/lote/repouso, gestos de entrada, modos da cena, controles de câmera/luz e primitivas/extrusão/luz 2D desativada e alça ampliada sem salto. Os gestos
 são simulados nos callbacks `onTouch*` da engine, passando pelo canvas real; isso
 não substitui uma conferência manual com mouse físico.
 
