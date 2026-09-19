@@ -2103,3 +2103,59 @@ The runtime advances clip time with the engine's `device->delta`, preserving the
 and frame-rate behavior. Easing is evaluated in the articulated track sampler before interpolating
 position, rotation, and scale. Cubic Bezier solves its normalized-time X curve before evaluating Y.
 Version-1 articulated sections default to Linear.
+
+
+## Image-based mesh generation (rectangular proof of concept)
+
+`mbm.generateImageMesh(imagePath, options)` returns `asset, report` on success,
+where `asset` is a new `meshDebug` authoring object. Processing failures return
+`nil, errorMessage`; malformed Lua argument types and out-of-range integer fields
+raise a Lua error. This is a synchronous CPU operation: call when inputs change,
+not every frame. It does not save files or create GPU resources itself.
+
+```lua
+local asset, report = mbm.generateImageMesh("panels.png", {
+    x=40, y=28, cropWidth=232, cropHeight=212,
+    width=100, height=100, depth=20, relief=8,
+    columns=32, rows=32, lockBorder=true, borderWidth=0.1,
+})
+assert(asset, report)
+assert(asset:save("panel.msh", false, false, true))
+-- Keep generated normals and UVs: do not request their recalculation on save.
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `x`, `y` | 0 | Zero-based crop origin in pixels, measured from image top-left |
+| `cropWidth`, `cropHeight` | 0 | Crop dimensions in pixels; 0 uses the remaining extent on that axis |
+| `width`, `height`, `depth` | 100, 100, 20 | World dimensions; each finite and within [0.001, 1000000] |
+| `relief` | 8 | Nonnegative outward relief amplitude, at most 1000000 |
+| `columns`, `rows` | 32, 32 | Cells per axis, each an integer in [1, 255], subject to total budget |
+| `invert` | false | Invert luminance before computing height |
+| `lockBorder` | true | Force the perimeter to zero relief |
+| `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices |
+| `maxVertices` | 65535 | Total vertex budget, including back and duplicated side vertices; engine cap remains 65535 |
+| `maxTriangles` | 131070 | Total triangle budget |
+
+The generated material is matte (zero specular color and power).
+The origin is at the center of the base block. +Y points upward. The front faces
+-Z at `-depth/2 - height`; the flat back is at `+depth/2`. Height uses bilinear
+sampling of encoded RGB luminance (`0.2126 R + 0.7152 G + 0.0722 B`), without
+linear-light conversion. Alpha does not create holes or alter height. Front and
+back use the original crop, and side walls stretch boundary texels through the
+depth. UVs sample pixel centers to avoid sampling adjacent panels at the border.
+
+The source image must be decodable by the bundled stb loader and contain at most
+16,777,216 pixels. Geometry limits are checked before decoding. Oversized grids,
+out-of-bounds crops, nonfinite values and invalid dimensions fail explicitly.
+`report` contains `vertices`, `triangles`, `minHeight`, and `maxHeight`; heights
+are sampled vertex displacements after inversion and border treatment.
+
+The generated mesh references the resolved original image, which is **not copied**.
+Keep it available on the engine's asset paths when loading exported meshes.
+Portable texture packaging, arbitrary contours, height painting and the editor UI
+remain planned in [Image Mesh Editor plan](image-mesh-editor-plan.md).
+
+C++ callers can use `mbm::generateImageMesh` from `core_mbm/image-mesh.h` with an
+empty `MESH_MBM_DEBUG` destination and value-only options/report. On failure,
+discard the destination; generation does not promise transactional mutation.

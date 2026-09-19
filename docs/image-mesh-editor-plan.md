@@ -2,7 +2,7 @@
 
 Data: 2026-09-19
 
-Status: proposta de implementação. As funcionalidades descritas neste documento são planejadas, não uma descrição da API disponível.
+Status: implementação iniciada; etapa 1 concluída em Linux/OpenGL ES em 2026-09-19. As seções de escopo descrevem o destino planejado. Consulte o registro de execução ao final para distinguir o que já está disponível.
 
 ## Objetivo
 
@@ -167,3 +167,57 @@ Cobertura prevista:
 - Cancelamento e descarte de resultados obsoletos quando houver tarefas assíncronas.
 
 O primeiro marco visual será montar uma parede 3D com os 12 painéis da imagem de referência. Os testes automatizados usarão imagens pequenas e sintéticas reproduzíveis, sem depender do arquivo externo em Downloads. Verificações em outros backends serão registradas conforme a disponibilidade real de cada plataforma.
+
+
+## Registro de execução — 2026-09-19
+
+### Etapa 1: prova técnica concluída em Linux/OpenGL ES
+
+Implementado:
+
+- Gerador C++ CPU-only em `src/core_mbm/image-mesh.cpp`, com interface em `include/core_mbm/image-mesh.h`.
+- API Lua `mbm.generateImageMesh(imagePath, options)`, retornando um novo objeto de autoria `meshDebug` e relatório de geometria/altura; erros de processamento retornam `nil, mensagem`.
+- Recorte retangular, altura por luminância interpolada, inversão, amplitude, espessura, resolução, borda fixa e transição linear.
+- Frente e fundo subdivididos, laterais fechadas, normais suavizadas na frente e separadas nas quinas, material fosco e UVs na imagem original.
+- Orçamento de vértices/triângulos incluindo todas as faces, validação de parâmetros e limite de tamanho da imagem.
+- Exportação v11 pelo método `asset:save`, preservando normais e UVs gerados.
+- Versão da engine atualizada para 7.216.0; fontes adicionados ao projeto Visual Studio. Windows não foi executado nesta etapa.
+
+Validação realizada:
+
+- Build Debug dos targets `mini-mbm` e `testLib`.
+- `src/test-lib/image_mesh_smoke.lua`: fechamento geométrico com arestas orientadas em pares, volume positivo, normais unitárias, UVs, inversão, bordas fixas, recortes, repetibilidade, rejeição de entradas inválidas, exportação/reabertura e objeto renderizado.
+- Carregamento do arquivo exportado pelo `testLib` C++, com encerramento automático.
+- Prévia do primeiro painel da imagem de referência em vista oblíqua, com textura e iluminação, conferida visualmente. Grade de 64 x 64 células: 9.474 vértices e 16.896 triângulos incluindo fundo/laterais.
+- Correção do brilho especular inicial: material padrão do gerador agora é fosco, para não saturar a textura na prévia.
+
+Reprodução do teste sintético a partir da raiz do repositório:
+
+```sh
+cmake -S . -B build -DPLAT=Linux -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug -DUSE_TEXTURE_MISSING_DIALOG=0
+cmake --build build --target mini-mbm testLib -j 6
+timeout -s KILL 15 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_smoke.lua --disable_select_monitor --nosplash -w 640 -h 480
+timeout -s KILL 15 bin/debug/linux_x86/testLib 3 /tmp/mbm_image_mesh_smoke.msh 3d
+```
+
+O teste Lua deve imprimir os marcadores `IMAGE MESH GEOMETRY / VALIDATION / ROUNDTRIP OK` e `IMAGE MESH RENDER OK`; somente o código de saída da engine não basta para verificar erros Lua. Os arquivos sintéticos e exportados ficam em `/tmp`.
+
+Prévia reproduzível do painel de referência (encerra após 10 segundos):
+
+```sh
+MBM_IMAGE_MESH_SOURCE=/home/michel/Downloads/mesh-tile-experiment/f1-c002ae9c-img01.png \
+MBM_IMAGE_MESH_X=41 MBM_IMAGE_MESH_Y=27 \
+MBM_IMAGE_MESH_WIDTH=233 MBM_IMAGE_MESH_HEIGHT=216 \
+timeout -s KILL 20 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_preview.lua --disable_select_monitor --nosplash -w 960 -h 720
+```
+
+`MBM_IMAGE_MESH_OUTPUT` pode alterar o destino padrão `/tmp/mbm_image_mesh_preview.msh`; `MBM_IMAGE_MESH_RELIEF` altera a amplitude. Sem variáveis de recorte, a prévia usa a imagem inteira.
+
+Limites atuais e próximo passo:
+
+- Ainda não há interface de editor. A próxima entrega é a etapa 2, incluindo elipses e polígonos côncavos, além dos retângulos.
+- A geração é síncrona e retangular; furos, suavização configurável, canais alternativos, pintura e mapas separados ainda não estão implementados.
+- A textura original é referenciada, não copiada. Exportação portátil com recortes e margens permanece pendente.
+- O fundo é plano e repete as coordenadas frontais; as laterais esticam os texels da borda. As opções artísticas completas continuam na etapa 3.
+- A prévia de um painel valida a prova técnica; a parede com os 12 painéis continua sendo o marco da etapa 2.
+- Os contratos e limites da API implementada estão em `docs/lua-api.md`, seção de geração de malhas por imagem.

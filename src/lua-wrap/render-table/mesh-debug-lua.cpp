@@ -40,6 +40,7 @@ extern "C"
 #include <lua-wrap/render-table/texture-view-lua.h>
 #include <lua-wrap/render-table/particle-lua.h>
 #include <core_mbm/mesh-manager.h>
+#include <core_mbm/image-mesh.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/shapes.h>
@@ -3637,6 +3638,68 @@ namespace mbm
 
         lua_rawseti(lua, -2, 1);
         return 1;
+    }
+
+    extern "C" MBM_IMAGE_MESH_LUA_API int onGenerateImageMeshLua(lua_State *lua)
+    {
+        const char *path = luaL_checkstring(lua, 1);
+        luaL_checktype(lua, 2, LUA_TTABLE);
+        IMAGE_MESH_OPTIONS options;
+        const auto integer = [&](const char *name, uint32_t &value)
+        {
+            lua_getfield(lua, 2, name);
+            if (!lua_isnil(lua, -1))
+            {
+                const lua_Integer input = luaL_checkinteger(lua, -1);
+                if (input < 0 || static_cast<uint64_t>(input) > UINT32_MAX)
+                    luaL_error(lua, "%s must be an unsigned 32-bit integer", name);
+                value = static_cast<uint32_t>(input);
+            }
+            lua_pop(lua, 1);
+        };
+        const auto number = [&](const char *name, float &value)
+        {
+            lua_getfield(lua, 2, name);
+            if (!lua_isnil(lua, -1)) value = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 1);
+        };
+        const auto boolean = [&](const char *name, bool &value)
+        {
+            lua_getfield(lua, 2, name);
+            if (!lua_isnil(lua, -1))
+            {
+                luaL_checktype(lua, -1, LUA_TBOOLEAN);
+                value = lua_toboolean(lua, -1) != 0;
+            }
+            lua_pop(lua, 1);
+        };
+        integer("x", options.x); integer("y", options.y);
+        integer("cropWidth", options.cropWidth); integer("cropHeight", options.cropHeight);
+        integer("columns", options.columns); integer("rows", options.rows);
+        integer("maxVertices", options.maxVertices); integer("maxTriangles", options.maxTriangles);
+        number("width", options.width); number("height", options.height);
+        number("depth", options.depth); number("relief", options.relief);
+        number("borderWidth", options.borderWidth);
+        boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
+        lua_settop(lua, 2);
+        lua_pushcfunction(lua, onNewMeshDebugLua);
+        lua_call(lua, 0, 1);
+        MESH_DEBUG_LUA *asset = getMeshDebugFromRawTable(lua, 1, 3);
+        IMAGE_MESH_REPORT report;
+        char error[512] = "";
+        if (!generateImageMesh(path, options, asset->mesh, report, error, sizeof(error)))
+        {
+            lua_pop(lua, 1);
+            lua_pushnil(lua);
+            lua_pushstring(lua, error);
+            return 2;
+        }
+        lua_newtable(lua);
+        lua_pushinteger(lua, report.vertices); lua_setfield(lua, -2, "vertices");
+        lua_pushinteger(lua, report.triangles); lua_setfield(lua, -2, "triangles");
+        lua_pushnumber(lua, report.minHeight); lua_setfield(lua, -2, "minHeight");
+        lua_pushnumber(lua, report.maxHeight); lua_setfield(lua, -2, "maxHeight");
+        return 2;
     }
 
     int onDestroyMeshDebugLua(lua_State *lua)

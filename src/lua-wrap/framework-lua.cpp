@@ -3495,6 +3495,7 @@ namespace mbm
             {"getSizeScreen", onGetSizeBackBuffer},
             {"getCamera", onGetCamera},
             {"getFps", onGetFps},
+            {"generateImageMesh", onGenerateImageMeshLua},
             {"quit", onQuitEngine},
             {"setColor", onSetColorBackground},
             {"showConsole", onShowConsoleMbm},
