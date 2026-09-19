@@ -5684,7 +5684,7 @@ function splitCaptureMoveBox(t)
     t.aabbMax = {x=t.x+hw, y=t.y+hh, z=t.z+hd}
 end
 
-function splitCaptureBuildBox(t)
+function splitCaptureBuildBox(t, previewName)
     if t.tShape then t.tShape:destroy(); t.tShape = nil end
     if t.tLine then t.tLine:destroy(); t.tLine = nil end
     for _, overlay in pairs(t.tAxisEdgeLines or {}) do overlay:destroy() end
@@ -5709,7 +5709,7 @@ function splitCaptureBuildBox(t)
             table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z)
         end
     end
-    local name = 'mesh_debug_split_capture_' .. tostring(os.clock())
+    local name = previewName or ('mesh_debug_split_capture_' .. tostring(os.clock()))
     t.tShape = shape:new('3d', t.x, t.y, t.z)
     t.tShape:create(verts, nil, name)
     t.tShape:setColor(1, 0.65, 0.05, 0.12)
@@ -5719,6 +5719,15 @@ function splitCaptureBuildBox(t)
     t.tLine = line:new('3d', t.x, t.y, t.z)
     t.tLine:drawBounding(t.tShape, false)
     t.tLine:setColor(1, 0.75, 0.1)
+
+    if previewName then
+        -- Analysis boxes are read-only bounds; omit the manual cube's six drag overlays.
+        t.tShape.alwaysRender = true
+        t.tLine.alwaysRender = true
+        t.tLine.alwaysOnTop = true
+        splitCaptureMoveBox(t)
+        return
+    end
 
     -- Hover overlays are built together with the capture box, then only their
     -- visibility changes per frame. This avoids allocating render objects while
@@ -6542,7 +6551,7 @@ function splitCaptureAnalyze(tEntry, meshD, box, autoOptions)
     end
     local analysis = {
         algorithms=algorithms, selected=1, filterIslands=false,
-        autoCapture=autoOptions ~= nil, showIslandCenters=false,
+        autoCapture=autoOptions ~= nil, showIslandCenters=false, showIslandBoxes=autoOptions ~= nil,
         threshold=10, appliedThreshold=10,
     }
     splitCaptureRefreshResolved(analysis)
@@ -6578,6 +6587,7 @@ function splitCaptureResolveAlgorithm(algorithm, filterIslands, threshold)
                     table.insert(resolved.islandMarkers, {
                         x=(minX+maxX)*0.5, y=(minY+maxY)*0.5, z=(minZ+maxZ)*0.5,
                         size=math.max(extent*0.06, 0.05), removed=not keep,
+                        width=maxX-minX, height=maxY-minY, depth=maxZ-minZ,
                     })
                 end
             end
@@ -6613,30 +6623,45 @@ end
 function destroySplitCaptureIslandMarkers(tEntry)
     for _, marker in ipairs(tEntry.tSplitCaptureIslandMarkers or {}) do marker:destroy() end
     tEntry.tSplitCaptureIslandMarkers = nil
+    for _, box in ipairs(tEntry.tSplitCaptureIslandBoxes or {}) do splitCaptureDestroy(box) end
+    tEntry.tSplitCaptureIslandBoxes = nil
     tEntry.sSplitCaptureIslandMarkerKey = nil
 end
 
 function updateSplitCaptureIslandMarkers(tEntry, index, analysis, resolved)
-    if not (analysis.filterIslands or analysis.autoCapture) or not analysis.showIslandCenters then
+    local showBoxes = analysis.autoCapture and analysis.showIslandBoxes == true
+    local showCenters = analysis.showIslandCenters == true
+    if not (analysis.filterIslands or analysis.autoCapture) or not (showCenters or showBoxes) then
         destroySplitCaptureIslandMarkers(tEntry)
         return
     end
-    local markerKey = tostring(analysis.resolvedCacheKey) .. ':' .. tostring(analysis.selected)
+    local markerKey = tostring(analysis.resolvedCacheKey) .. ':' .. tostring(analysis.selected) ..
+        ':' .. tostring(showCenters) .. ':' .. tostring(showBoxes)
     if tEntry.sSplitCaptureIslandMarkerKey == markerKey and tEntry.tSplitCaptureIslandMarkers then return end
     destroySplitCaptureIslandMarkers(tEntry)
     tEntry.tSplitCaptureIslandMarkers = {}
+    tEntry.tSplitCaptureIslandBoxes = {}
     tEntry.iSplitCaptureIslandMarkerGeneration = (tEntry.iSplitCaptureIslandMarkerGeneration or 0) + 1
     for markerIndex, info in ipairs(resolved.islandMarkers or {}) do
-        local marker = shape:new('3d', info.x, info.y, dodgeAutoZOrder(info.z))
-        marker:create(unitSphereVerts(8, 12), nil, 'mesh_debug_capture_island_' .. index .. '_' ..
-            tEntry.iSplitCaptureIslandMarkerGeneration .. '_' .. markerIndex)
-        if info.removed then marker:setColor(1.0, 0.45, 0.05, 0.95)
-        else marker:setColor(0.1, 1.0, 1.0, 0.95) end
-        marker:setScale(info.size, info.size, info.size)
-        marker.alwaysOnTop = true
-        marker.alwaysRender = true
-        marker.visible = true
-        table.insert(tEntry.tSplitCaptureIslandMarkers, marker)
+        if showCenters then
+            local marker = shape:new('3d', info.x, info.y, dodgeAutoZOrder(info.z))
+            marker:create(unitSphereVerts(8, 12), nil, 'mesh_debug_capture_island_' .. index .. '_' ..
+                tEntry.iSplitCaptureIslandMarkerGeneration .. '_' .. markerIndex)
+            if info.removed then marker:setColor(1.0, 0.45, 0.05, 0.95)
+            else marker:setColor(0.1, 1.0, 1.0, 0.95) end
+            marker:setScale(info.size, info.size, info.size)
+            marker.alwaysOnTop = true
+            marker.alwaysRender = true
+            marker.visible = true
+            table.insert(tEntry.tSplitCaptureIslandMarkers, marker)
+        end
+        if showBoxes and not info.removed then
+            local box = {x=info.x, y=info.y, z=info.z,
+                width=info.width, height=info.height, depth=info.depth}
+            splitCaptureBuildBox(box, 'mesh_debug_island_box_' .. index .. '_' ..
+                tEntry.iSplitCaptureIslandMarkerGeneration .. '_' .. markerIndex)
+            table.insert(tEntry.tSplitCaptureIslandBoxes, box)
+        end
     end
     tEntry.sSplitCaptureIslandMarkerKey = markerKey
 end
@@ -6760,11 +6785,24 @@ function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
     tUtil.showMessage(string.format(tLang.L('capture_applied_fmt'), faces, framesOrError), 5)
 end
 
+local function showCaptureTooltip(key)
+    if not tImGui.IsItemHovered(0) then return end
+    tImGui.BeginTooltip()
+    tImGui.PushTextWrapPos(420)
+    tImGui.Text(tLang.L(key))
+    tImGui.PopTextWrapPos()
+    tImGui.EndTooltip()
+end
+
 function showSplitCaptureAnalysis(tEntry, meshD, index, sp)
     local analysis = sp.analysis
     if not analysis then return end
     tImGui.Text(tLang.L('capture_results'))
     if analysis.autoCapture then
+        analysis.showIslandBoxes = tImGui.Checkbox(
+            tLang.L('capture_show_island_boxes') .. '##autoBoxes-' .. index,
+            analysis.showIslandBoxes == true)
+        showCaptureTooltip('capture_show_island_boxes_help')
         tImGui.TextWrapped(tLang.L('capture_auto_result_help'))
         analysis.showIslandCenters = tImGui.Checkbox(
             tLang.L('capture_show_island_centers') .. '##autoCenters-' .. index,
@@ -7047,14 +7085,18 @@ function showSplitCapture(tEntry, meshD, index)
             currentMode, {tLang.L('capture_auto_indices'), tLang.L('capture_auto_vertices'), tLang.L('capture_auto_edges')})
         tImGui.PopItemWidth()
         if changedMode then options.mode = modes[modeIndex] end
+        showCaptureTooltip('capture_auto_' .. options.mode .. '_help')
         tImGui.PushItemWidth(120)
         local changedTolerance, tolerance = tImGui.InputFloat(tLang.L('capture_auto_tolerance') .. '##autoTolerance-' .. index,
             options.tolerance, 0, 0, '%.6f', 0)
+        showCaptureTooltip(options.mode == 'indices' and 'capture_auto_tolerance_indices_help' or
+            'capture_auto_tolerance_help')
         if changedTolerance and tolerance == tolerance and math.abs(tolerance) < math.huge then
             options.tolerance = math.max(0, tolerance)
         end
         local changedMin, minFaces = tImGui.InputInt(tLang.L('capture_auto_min_faces') .. '##autoMinFaces-' .. index,
             options.minFaces, 1, 10, 0)
+        showCaptureTooltip('capture_auto_min_faces_help')
         tImGui.PopItemWidth()
         if changedMin then options.minFaces = math.max(1, minFaces) end
         tImGui.TextWrapped(tLang.L('capture_auto_help'))

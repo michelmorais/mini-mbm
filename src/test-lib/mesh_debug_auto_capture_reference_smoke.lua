@@ -23,7 +23,7 @@
 package.path='editor/?.lua;'..package.path
 dofile('editor/mesh_debug.lua')
 local init,loop=onInitScene,onLoop
-local start,failed,entry,initialBuilds,builds
+local start,failed,entry,initialBuilds,builds,boxGeneration
 local function vertexKey(v)
     local values={v.x,v.y,v.z,v.nx or 0,v.ny or 0,v.nz or 0,v.u or 0,v.v or 0}
     for i,value in ipairs(values) do if value==0 then values[i]=0 end end
@@ -85,6 +85,30 @@ function onInitScene()
         builds=0; local build=tMeshIslands.build
         tMeshIslands.build=function(...) builds=builds+1; return build(...) end
         sp.analysis=assert(splitCaptureAnalyze(entry,entry.meshDebug,nil,sp.autoOptions))
+        assert(sp.analysis.showIslandBoxes == true, 'auto capture must enable boxes')
+        local resolved = sp.analysis.resolved[1]
+        updateSplitCaptureIslandMarkers(entry,1,sp.analysis,resolved)
+        assert(#entry.tSplitCaptureIslandBoxes==6 and #entry.tSplitCaptureIslandMarkers==0)
+        for i,box in ipairs(entry.tSplitCaptureIslandBoxes) do
+            local bounds=resolved.islandMarkers[i]
+            assert(box.width==bounds.width and box.height==bounds.height and box.depth==bounds.depth)
+            local pos=box.tShape:getPos()
+            assert(pos.x==bounds.x and pos.y==bounds.y and pos.z==bounds.z)
+            assert(next(box.tAxisEdgeLines)==nil and next(box.tAxisFaceShapes)==nil,'read-only box overlays')
+        end
+        local previous=entry.tSplitCaptureIslandBoxes[1]
+        sp.analysis.showIslandBoxes=false
+        updateSplitCaptureIslandMarkers(entry,1,sp.analysis,resolved)
+        assert(entry.tSplitCaptureIslandBoxes==nil and previous.tShape==nil,'disable boxes')
+        sp.analysis.showIslandCenters=true
+        updateSplitCaptureIslandMarkers(entry,1,sp.analysis,resolved)
+        assert(#entry.tSplitCaptureIslandMarkers==6 and #entry.tSplitCaptureIslandBoxes==0,'independent centers')
+        sp.analysis.showIslandCenters=false; sp.analysis.showIslandBoxes=true
+        updateSplitCaptureIslandMarkers(entry,1,sp.analysis,resolved)
+        assert(#entry.tSplitCaptureIslandBoxes==6,'restore boxes')
+        boxGeneration=entry.iSplitCaptureIslandMarkerGeneration
+        updateSplitCaptureIslandMarkers(entry,1,sp.analysis,resolved)
+        assert(entry.iSplitCaptureIslandMarkerGeneration==boxGeneration,'idle boxes rebuilt')
         initialBuilds=builds; entry.sOpenNode='frameNode'
         bCameraMode3D=true; iLastPreviewedIndex=0
         entry.cam3d={azimuth=0,elevation=0,distance=320,fx=0,fy=0,fz=0}
@@ -97,6 +121,9 @@ function onLoop(delta)
     loop(delta)
     if mbm.getTimeRun()-start>5 then
         assert(builds==initialBuilds,'idle UI rebuilt islands')
+        assert(entry.iSplitCaptureIslandMarkerGeneration==boxGeneration,'idle UI rebuilt boxes')
+        destroySplitCaptureIslandMarkers(entry)
+        assert(entry.tSplitCaptureIslandBoxes==nil,'cleanup boxes')
         print('AUTO_CAPTURE_REFERENCE_UI_OK'); mbm.quit()
     end
 end

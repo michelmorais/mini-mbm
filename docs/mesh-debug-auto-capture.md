@@ -29,6 +29,16 @@ The result table reports detected islands, captured faces, skipped islands and t
 captured subsets to create. Optional center markers use cyan for accepted islands and orange for
 islands left in the remainder.
 
+Hover the connectivity selector for an explanation of the selected mode. The tolerance and
+minimum-face inputs also have tooltips explaining units, ignored settings and how skipped faces
+are preserved. The minimum is a triangle-count filter, not a target number of subsets.
+
+After automatic capture, orange translucent boxes surround each accepted island by default,
+previewing the bounds of the subsets to create. They use the same style as the manual capture
+box, but are read-only. Uncheck **Show subset boxes** to hide them; **Show island centers** remains
+independent. Skipped islands do not receive boxes. Preview geometry is cached and cleaned up when
+the analysis is discarded or applied; it is not rebuilt continuously while idle.
+
 Changing automatic-capture parameters invalidates the previous automatic result. Click **Auto
 capture** again to analyze. No island detection runs continuously while the editor is idle. The
 connectivity combo has a fixed 240-pixel width; tolerance and minimum-face inputs use 120 pixels.
@@ -75,4 +85,6 @@ timeout -s KILL 25 bin/debug/linux_x86/mini-mbm \
 The general engine smoke test covers indexed/non-indexed geometry, minimum-size filtering,
 texture/UV/weight preservation, manual capture, revert, stale-analysis rejection and idle behavior.
 The reference smoke test checks exact group membership against the manual six-subset mesh and
-rechecks the saved result. The reference output path must be a disposable path, not an input file.
+rechecks the saved result. It also checks the six preview boxes, their positions and dimensions,
+independent box/center toggles, cleanup and absence of idle reconstruction. The reference output
+path must be a disposable path, not an input file.
