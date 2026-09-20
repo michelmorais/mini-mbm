@@ -135,7 +135,7 @@ até habilitar **Seguir formas da imagem (adaptativo)**.
 2. Ajuste **Limiar dos sulcos**. Intensidades abaixo dele, após inversão e
    suavização, são interpretadas como regiões baixas. **Inverter** troca a
    interpretação claro/escuro. Azul representa a classificação, não furos.
-3. Use **Duas alturas (barras / sulcos)** para nivelar partes elevadas e fundos,
+3. No **Mapa de alturas**, use **Duas alturas (barras / sulcos)** para nivelar partes elevadas e fundos,
    com uma rampa controlada pela **Largura da transição**. A amplitude **Relevo**
    define a diferença de profundidade no mundo. O mapa de alturas mostra valores
    normalizados, incluindo a atenuação de borda, antes dessa amplitude.
@@ -144,8 +144,26 @@ até habilitar **Seguir formas da imagem (adaptativo)**.
 5. Clique **Pré-visualizar ajustes** após mudar os controles para conferir o
    rascunho, sem modificar o projeto. **Aplicar** confirma os parâmetros; use
    **Salvar projeto** para gravá-los em disco. **Imagem original** remove o mapa.
-6. Ative a geometria adaptativa, aplique e entre no modo 3D. Use wireframe para
+6. Volte para **Imagem original** ou para o modo 3D para ativar a geometria
+   adaptativa e ajustar sua tolerância; aplique. Use wireframe para
    inspecionar as arestas criadas ao longo das transições.
+
+O combo aparece antes dos ajustes de **Relevo e sulcos**. Nesse grupo, os
+controles sem efeito na prévia selecionada ficam ocultos, preservando seus valores:
+
+| Ajuste | Mapa de alturas | Sulcos detectados (azul) |
+|---|---|---|
+| Inversão e suavização | Sim | Sim |
+| Limiar dos sulcos | Com **Duas alturas** | Sim |
+| Duas alturas | Sim | Não |
+| Largura da transição | Com **Duas alturas** | Não |
+| Geometria adaptativa e tolerância | Só na mesh 3D | Só na mesh 3D |
+
+Em **Imagem original**, no modo 3D ou ao editar os padrões, os controles de geração
+voltam a aparecer conforme suas dependências. A tolerância exige geometria adaptativa;
+o limiar também orienta o alinhamento das arestas adaptativas mesmo sem **Duas alturas**.
+A imagem original não é processada. Os grupos de volume e resolução continuam sendo
+configurações de geração, independentemente da prévia selecionada.
 
 A geometria adaptativa amostra o erro de interpolação do relevo, refina onde é
 necessário, melhora a forma dos triângulos e insere arestas nas transições da

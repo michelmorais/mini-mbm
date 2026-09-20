@@ -143,7 +143,33 @@ function onLoop(delta)
         numericWidgets.CollapsingHeader=tImGui.CollapsingHeader
         tImGui.CollapsingHeader=function(...) numericWidgets.CollapsingHeader(...); return true end
     end
+    local visibilityWidgets,shown,viewCase
+    if frame>=250 and frame<=256 then
+        local cases={{2,false,true},{2,true,true},{3,false,true},{1,false,false},{1,true,true},{3,true,true},{1,false,true}}
+        viewCase=cases[frame-249]
+        api.setEditMode(true); api.select(1)
+        e.heightView=viewCase[1]; e.values.twoLevels=viewCase[2]; e.values.followImage=viewCase[3]
+        visibilityWidgets={}; shown={}
+        for _,name in ipairs({'Checkbox','SliderFloat','SliderInt'}) do
+            local original=tImGui[name]; visibilityWidgets[name]=original
+            tImGui[name]=function(label,...) shown[label]=true; return original(label,...) end
+        end
+        visibilityWidgets.CollapsingHeader=tImGui.CollapsingHeader
+        tImGui.CollapsingHeader=function(...) visibilityWidgets.CollapsingHeader(...); return true end
+    end
     loop(delta)
+    if visibilityWidgets then
+        for name,widget in pairs(visibilityWidgets) do tImGui[name]=widget end
+        local function visible(key) return shown[tLang.L('ime_'..key)]==true end
+        local overlay=viewCase[1]==3; local geometry=viewCase[1]==1
+        assert(visible('grooveThreshold')==(overlay or viewCase[2] or (geometry and viewCase[3])),'threshold visibility')
+        assert(visible('grooveTransition')==(not overlay and viewCase[2]),'transition visibility')
+        assert(visible('heightTolerance')==(geometry and viewCase[3]),'tolerance visibility')
+        assert(visible('twoLevels')==not overlay and visible('followImage')==geometry,'geometry toggles visibility')
+        assert(visible('invert') and visible('smoothPasses'),'shared processing controls missing')
+        assert(e.values.twoLevels==viewCase[2] and e.values.followImage==viewCase[3],'hidden values changed')
+        if frame==256 then print('IMAGE MESH EDITOR HEIGHT / GROOVE CONTROL VISIBILITY OK') end
+    end
     if numericWidgets then
         for name,widget in pairs(numericWidgets) do tImGui[name]=widget end
         local model=require 'image_mesh_model'
