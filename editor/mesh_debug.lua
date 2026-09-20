@@ -36,6 +36,7 @@ tMeshIslands =      require "mesh_debug_islands"
 tMeshTransform =    require "mesh_debug_transform"
 tXformGizmo   =     require "mesh_debug_transform_gizmo"
 tMeshExport   =     require "mesh_debug_export_helper"
+tMeshNormals  =     require "mesh_debug_normals"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -3826,11 +3827,15 @@ end
 -- check that first). Vertices not referenced by any triangle are absent from the result.
 function computeGeoNormalsForSubset(meshD, f, s)
     local okIdx, indices = dpCall(function() return meshD:getIndex(f, s) end)
-    if not okIdx or not indices then return {} end
+    if not okIdx then return {} end
     local okV, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
     if not okV or not nV or nV <= 0 then return {} end
     local okVerts, verts = dpCall(function() return meshD:getVertex(f, s, 1, nV) end)
     if not okVerts or not verts then return {} end
+    if not indices then
+        indices={}
+        for i=1,nV do indices[i]=i end -- non-indexed triangle list
+    end
 
     -- Deliberately NOT front-face-aware: MESH_MBM_DEBUG::calculateNormals() (mesh-manager.cpp,
     -- the actual engine algorithm behind addNormals()/"Recompute from geometry") always uses the
@@ -8021,13 +8026,13 @@ function showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk, vertices)
     end
     if triOk and geo and geo[v] then
         tImGui.SameLine()
-        if tImGui.Button(tLang.L('normal_recompute_short') .. '##nrecalc-' .. rid) then
-            local g = geo[v]
-            commitNormal(g.x, g.y, g.z)
+        if tImGui.Button(tLang.L('normal_apply_short') .. '##nrecalc-' .. rid) then
+            local nx,ny,nz=tMeshNormals.select(vd,geo[v],tEntry.normalMethod or 1)
+            if nx then commitNormal(nx,ny,nz) end
         end
         if tImGui.IsItemHovered(0) then
             tImGui.BeginTooltip()
-            tImGui.Text(tLang.L('normal_recompute'))
+            tImGui.Text(tLang.L((tEntry.normalMethod or 1)==1 and 'normal_method_repair' or 'normal_method_uniform'))
             tImGui.EndTooltip()
         end
     end
@@ -8062,28 +8067,33 @@ function showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
     end
 
     local function bulkUpdate(fn)
+        local changed=0
         for v = 1, nV do
             local vd = vertices[v]
             if vd then
                 local nx, ny, nz = fn(v, vd, geo[v])
                 if nx then
                     vd.nx, vd.ny, vd.nz = nx, ny, nz
-                    dpCall(function() meshD:setVertex(1, s, v, vd) end)
+                    local ok=dpCall(function() meshD:setVertex(1, s, v, vd) end)
+                    if ok then changed=changed+1 end
                 end
             end
         end
+        tUtil.showMessage(string.format(tLang.L('normal_changed_fmt'),changed),4)
+        if changed==0 then return end
         tEntry.modified = true
         tEntry.bNormalsVizDirty = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     end
 
+    if triOk then tMeshNormals.draw(tImGui,tLang,tEntry,'normalMethod-'..index..'-'..s) end
     if tImGui.Button(tLang.L('normal_flip_all') .. '##nflipall-' .. index .. '-' .. s) then
         bulkUpdate(function(v, vd) return -vd.nx, -vd.ny, -vd.nz end)
     end
     if triOk then
         tImGui.SameLine()
-        if tImGui.Button(tLang.L('normal_recompute_all') .. '##nrecalcall-' .. index .. '-' .. s) then
-            bulkUpdate(function(v, vd, g) if g then return g.x, g.y, g.z end return nil end)
+        if tImGui.Button(tLang.L('normal_apply_all') .. '##nrecalcall-' .. index .. '-' .. s) then
+            bulkUpdate(function(v,vd,g) return tMeshNormals.select(vd,g,tEntry.normalMethod or 1) end)
         end
     end
 
@@ -8225,6 +8235,7 @@ function showMeshOptions(tEntry, index)
             end
         end
         tImGui.SameLine()
+        tImGui.BeginDisabled(info and info.hasNormal or false)
         if tImGui.Button(tLang.L("add_normals") .. '##' .. index) then
             local nVertices = getMeshTotalVertices(meshD)
             meshD:addNormals()
@@ -8238,6 +8249,7 @@ function showMeshOptions(tEntry, index)
                 tUtil.showMessage('Added normals: ' .. shortName, 4)
             end
         end
+        tImGui.EndDisabled()
         showNormalsEditor(tEntry, meshD, index)
         tImGui.TreePop()
     elseif tEntry.tNormalLineGood or tEntry.tNormalLineBad then
@@ -10228,7 +10240,8 @@ local function runApplyAllOperation(sType, sOperationLabel, fnApply)
         details = {},
     }
     for _, target in ipairs(tTargets) do
-        local status, detail = fnApply(target.entry, target.index)
+        local ok,status,detail=dpCall(fnApply,target.entry,target.index)
+        if not ok then status,detail='failed',tostring(status) end
         if status == 'success' then
             summary.success = summary.success + 1
             iLastPreviewedIndex = 0
@@ -10279,6 +10292,7 @@ end
 local function applyAllAddNormals(sType)
     local totalVertices = 0
     local summary = runApplyAllOperation(sType, tLang.L('add_normals'), function(tEntry)
+        if tEntry.info and tEntry.info.hasNormal then return 'skipped',tLang.L('normal_already_exists') end
         totalVertices = totalVertices + getMeshTotalVertices(tEntry.meshDebug)
         tEntry.meshDebug:addNormals()
         if tEntry.info then tEntry.info.hasNormal = true end
@@ -10318,7 +10332,7 @@ local function bulkUpdateAllNormals(meshD, needGeo, fnNormal)
                             local nx, ny, nz = fnNormal(vd, geo and geo[v])
                             if nx then
                                 vd.nx, vd.ny, vd.nz = nx, ny, nz
-                                dpCall(function() meshD:setVertex(f, s, v, vd) end)
+                                meshD:setVertex(f,s,v,vd)
                                 count = count + 1
                             end
                         end
@@ -10357,16 +10371,15 @@ end
 
 local function applyAllRecomputeNormalsBulk(sType)
     local totalVertices = 0
-    local summary = runApplyAllOperation(sType, tLang.L('normal_recompute_all'), function(tEntry)
+    local summary = runApplyAllOperation(sType, tLang.L((tApplyAllWin.normalMethod or 1)==1 and 'normal_method_repair' or 'normal_method_uniform'), function(tEntry)
         if not (tEntry.info and tEntry.info.hasNormal) then
             return 'skipped', tLang.L('apply_all_no_matching_targets')
         end
         local count = bulkUpdateAllNormals(tEntry.meshDebug, true, function(vd, g)
-            if g then return g.x, g.y, g.z end
-            return nil
+            return tMeshNormals.select(vd,g,tApplyAllWin.normalMethod or 1)
         end)
         if count == 0 then
-            return 'skipped', tLang.L('apply_all_no_matching_targets')
+            return 'skipped', tLang.L('normal_no_changes')
         end
         totalVertices = totalVertices + count
         tEntry.modified = true
@@ -10921,7 +10934,20 @@ local function applyAllSave(sType, bRecalcNormals)
             return 'failed', tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr
         end
         local wasLegacy = isLegacyTextureAnimationEffectStorage(tEntry.info)
-        local ok = tEntry.meshDebug:save(tEntry.fileName, bRecalcNormals, false)
+        if bRecalcNormals then
+            local meshD=tEntry.meshDebug
+            if meshD:getModeDraw()~='TRIANGLES' then return 'skipped',tLang.L('apply_all_no_matching_targets') end
+            local missing=not (tEntry.info and tEntry.info.hasNormal)
+            if missing then meshD:addNormals() end
+            local count=bulkUpdateAllNormals(meshD,true,function(vd,g)
+                return tMeshNormals.select(vd,g,missing and 2 or (tApplyAllWin.normalMethod or 1))
+            end)
+            if missing or count>0 then
+                tEntry.modified=true; tEntry.bNormalsVizDirty=true
+                if tEntry.info then tEntry.info.hasNormal=true end
+            end
+        end
+        local ok = tEntry.meshDebug:save(tEntry.fileName, false, false)
         if ok then
             tEntry.modified = false
             if bRecalcNormals and tEntry.info then tEntry.info.hasNormal = true end
@@ -10977,6 +11003,7 @@ function showApplyAllWindow()
             tImGui.Separator()
 
             if tImGui.TreeNodeEx(tLang.L('normals_label') .. '##applyAllNormals', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                tMeshNormals.draw(tImGui,tLang,win,'bulkNormalMethod')
                 if tImGui.Button(tLang.L('remove_normals') .. '##applyAllRemoveNormals') then
                     applyAllRemoveNormals(win.selectedType)
                 end
@@ -10989,7 +11016,7 @@ function showApplyAllWindow()
                     applyAllFlipNormalsBulk(win.selectedType)
                 end
                 tImGui.SameLine()
-                if tImGui.Button(tLang.L('normal_recompute_all') .. '##applyAllRecomputeNormals') then
+                if tImGui.Button(tLang.L('normal_apply_all') .. '##applyAllRecomputeNormals') then
                     applyAllRecomputeNormalsBulk(win.selectedType)
                 end
                 tImGui.TextDisabled(tLang.L('apply_all_normals_scope_note'))
@@ -11298,7 +11325,6 @@ function showApplyAllWindow()
                 if tImGui.Button(tLang.L('save_all_overwrite') .. '##applyAllSave') then
                     applyAllSave(win.selectedType, false)
                 end
-                tImGui.SameLine()
                 if tImGui.Button(tLang.L('save_all_calc_normals') .. '##applyAllSaveNormals') then
                     applyAllSave(win.selectedType, true)
                 end

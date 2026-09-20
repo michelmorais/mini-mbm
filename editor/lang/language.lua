@@ -8,6 +8,17 @@ local M = {}
 
 -- String tables
 M.en = {
+    normal_already_exists = "Normals already exist; choose a processing method to modify them.",
+    normal_no_changes = "No normals needed changing.",
+    normal_method = "Normal processing",
+    normal_method_repair = "Repair invalid normals",
+    normal_method_uniform = "Recompute - uniform smoothing",
+    normal_repair_help = "Keeps valid normals. Normalizes non-unit vectors; replaces zero, non-finite or reversed normals where geometry provides a direction.",
+    normal_uniform_help = "Replaces normals with the average of adjacent face normals. Custom surface shading will be lost.",
+    normal_apply_short = "Apply",
+    normal_apply_all = "Apply method to all",
+    normal_changed_fmt = "%d normals changed (valid or unchanged normals preserved).",
+
     -- Image Mesh Editor
     ime_welcome = "Image Mesh Editor - open an image to create 3D modules.",
     ime_open_help = "File > Open image, then draw regions or create a grid.",
@@ -1668,7 +1679,7 @@ M.en = {
     centralize = "Centralize",
     centralize_itself = "Centralize Itself",
     save_all_overwrite = "Save All (overwrite)",
-    save_all_calc_normals = "Save All (with calculated normals)",
+    save_all_calc_normals = "Save All (selected normal method)",
     save_all_to_folder = "Save all to folder",
     save_all_to_folder_no_meshes = "No loaded meshes to save.",
     save_all_to_folder_result_fmt = "Saved %d/%d mesh(es) to folder:\n%s",
@@ -3121,6 +3132,17 @@ M.en = {
 }
 
 M.pt_br = {
+    normal_already_exists = "As normais já existem; escolha um método de processamento para alterá-las.",
+    normal_no_changes = "Nenhuma normal precisou de alteração.",
+    normal_method = "Processamento de normais",
+    normal_method_repair = "Reparar normais inválidas",
+    normal_method_uniform = "Recalcular - suavização uniforme",
+    normal_repair_help = "Mantém normais válidas. Normaliza vetores fora do comprimento unitário; substitui normais nulas, não finitas ou invertidas quando a geometria fornece uma direção.",
+    normal_uniform_help = "Substitui as normais pela média das faces vizinhas. O sombreamento personalizado das superfícies será perdido.",
+    normal_apply_short = "Aplicar",
+    normal_apply_all = "Aplicar método em todas",
+    normal_changed_fmt = "%d normais alteradas (válidas ou sem alteração preservadas).",
+
     -- Image Mesh Editor
     ime_welcome = "Editor de Mesh por Imagem - abra uma imagem para criar modulos 3D.",
     ime_open_help = "Arquivo > Abrir imagem; desenhe regioes ou crie uma grade.",
@@ -4778,7 +4800,7 @@ M.pt_br = {
     centralize = "Centralizar",
     centralize_itself = "Centralizar em si",
     save_all_overwrite = "Salvar todos (sobrescrever)",
-    save_all_calc_normals = "Salvar todos (com normais calculadas)",
+    save_all_calc_normals = "Salvar todos (método de normais selecionado)",
     save_all_to_folder = "Salvar todos em pasta",
     save_all_to_folder_no_meshes = "Nenhum mesh carregado para salvar.",
     save_all_to_folder_result_fmt = "%d/%d mesh(es) salvo(s) na pasta:\n%s",
