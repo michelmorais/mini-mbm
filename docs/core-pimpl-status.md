@@ -250,3 +250,8 @@ to the value-only request and a PNG diagnostic operation. Decoded pixels and
 filtered height buffers stay in private `image-mesh-height.h`; adaptive topology,
 transition intersections and simplified-back scratch storage remain private in
 `image-mesh-topology.cpp`. No runtime object state or backend handle is exposed.
+
+Height painting (7.234.0) adds a borrowed pointer/count of value-only brush dabs to
+`IMAGE_MESH_OPTIONS`. It introduces no owned buffers, runtime mutable state,
+backend handles or STL containers in the public header. Replay buffers, local
+smoothing snapshots and sampled corrections remain in private `HEIGHT_FIELD`.

@@ -2140,11 +2140,31 @@ assert(asset:save("panel.msh", false, false, true))
 | `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
 | `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
 | `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
+| `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
 | `lockBorder` | true | Force the perimeter to zero relief |
 | `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual contour |
 | `maxVertices` | 65535 | Total vertex budget, including back and duplicated side vertices; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
+
+Height painting (`heightEdits`) is shared by `generateImageMesh` and
+`generateImageMeshMap`. Each dab requires `{x, y, radius, strength, height, mode}`.
+`x` and `y` are normalized crop coordinates [0,1]; `radius` is [0.001,1] times
+`max(1, min(cropWidth,cropHeight)-1)` pixels, with a minimum radius of half a pixel.
+`strength` and target `height` are finite [0,1]. Modes are `"raise"`, `"lower"`,
+`"flatten"` and `"smooth"`. Dabs run in array order after automatic filtering and
+two-level mapping, before relief amplitude and border attenuation. They use a
+smooth radial falloff and clamp heights to [0,1]. Raise/lower add/subtract strength;
+flatten blends toward the target; smooth blends toward the local 3x3 mean using
+a snapshot of each dab (no scan-order bias). The correction is interpolated
+separately from the automatic field, preserving the original sampling outside
+painted cells. Tiny features remain constrained by source pixels and mesh density.
+The contour clips the exported surface; painting never creates holes or changes UVs.
+The blue groove overlay still shows automatic threshold detection, not manual paint.
+
+Invalid numbers/counts are rejected. Painting has a per-build budget of 64 million
+bounding-box pixel operations (smooth counts nine per pixel); exceeding it returns
+`nil, message` rather than an incomplete asset/map. This CPU pass is synchronous.
 
 The generated material is matte (zero specular color and power).
 The origin is at the center of the base block. +Y points upward. The front faces

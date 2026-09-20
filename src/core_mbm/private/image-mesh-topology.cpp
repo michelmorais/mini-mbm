@@ -104,7 +104,7 @@ namespace {
     float surface(const IMAGE_MESH_POINT &p,const HEIGHT_FIELD &field,const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t)
     {
         if (o.relief==0) return 0;
-        float value=field.mapped(field.sample(p.x,p.y),o);
+        float value=field.surface(p.x,p.y,o);
         if (o.lockBorder)
         {
             const float d=borderDistance(p,t);

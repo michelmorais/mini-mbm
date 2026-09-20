@@ -30,6 +30,13 @@ namespace mbm
     enum class IMAGE_MESH_SHAPE { RECTANGLE, ELLIPSE, POLYGON };
     struct IMAGE_MESH_POINT { float x = 0, y = 0; };
 
+    enum class IMAGE_MESH_BRUSH { RAISE, LOWER, FLATTEN, SMOOTH };
+    struct IMAGE_MESH_DAB
+    {
+        float x = 0.5f, y = 0.5f, radius = 0.1f, strength = 0.1f, height = 0.5f;
+        IMAGE_MESH_BRUSH mode = IMAGE_MESH_BRUSH::RAISE;
+    };
+
     // Value-only request/result types. Image and mesh buffers remain implementation-owned.
     struct IMAGE_MESH_OPTIONS
     {
@@ -48,6 +55,9 @@ namespace mbm
         bool followImage = false, twoLevels = false;
         float grooveThreshold = 0.5f, grooveTransition = 0.1f, heightTolerance = 0.03f;
         uint32_t smoothPasses = 0;
+        // Borrowed ordered dabs (max 4096). XY normalized to crop; radius relative to its shorter side.
+        const IMAGE_MESH_DAB *heightEdits = nullptr;
+        uint32_t heightEditCount = 0;
     };
 
     struct IMAGE_MESH_REPORT

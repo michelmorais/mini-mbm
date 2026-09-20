@@ -205,7 +205,7 @@ O mapa é temporário, fica em cache e não altera a textura original ou a expor
 Zoom e pan reposicionam o mapa sem refazer processamento. Arrastes ocultam o mapa
 antigo; após confirmar, ele é atualizado. Trocar módulo ou vista também atualiza
 o cache. A prévia 2D continua funcionando quando o orçamento impede gerar a mesh.
-A máscara ainda não tem pintura manual; pincéis e furos reais permanecem etapas futuras.
+A pintura manual de altura está disponível no grupo **Pintura de altura**; furos reais permanecem uma etapa futura.
 
 No teste com o módulo 2 do projeto de exemplo, a configuração adaptativa com
 limiar 0,45, transição 0,12, suavização 2 e densidade 48 x 48 produziu 13.586
@@ -395,3 +395,36 @@ timeout -s KILL 15 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_
 O teste cria seus dados por padrão. Para reproduzir um projeto salvo, defina
 `MBM_IMAGE_MESH_PROJECT=/caminho/project.imesh`; o arquivo é somente lido.
 O marcador esperado é `IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT / LEFT DRAG OK`.
+
+## Pintura de altura (7.234.0)
+
+No modo de edição, selecione um módulo e abra **Pintura de altura**. Habilite
+**Pintar módulo selecionado**: ajustes pendentes são aplicados e a imagem muda
+para o mapa de alturas. Escolha **Elevar**, **Rebaixar**, **Nivelar** ou **Suavizar**.
+O raio é exibido em pixels da imagem; a intensidade vai de 0,01 a 1.
+Internamente, o raio é relativo ao menor lado para acompanhar o redimensionamento.
+Nivelar oferece uma altura alvo entre 0 e 1 (multiplicada pelo relevo na mesh).
+
+Arraste o botão esquerdo dentro do módulo. O círculo amarelo mostra o alcance;
+ao soltar, o mapa recebe o traço completo. Cada arraste ocupa uma entrada no
+histórico: Ctrl+Z/Ctrl+Y desfaz/refaz; Esc descarta o traço em andamento.
+**Limpar pintura** também permite desfazer. Fora do módulo, o botão esquerdo
+move a câmera. Escolher outra ferramenta desabilita a pintura para permitir
+manipular as regiões normalmente.
+
+A pintura é uma camada por módulo, salva em `heightEdits` no projeto e incluída
+na duplicação, prévia 3D, simplificação e exportação. Coordenadas normalizadas
+acompanham movimentação/redimensionamento do recorte. Alterar a detecção automática
+reexecuta os mesmos traços sobre o novo mapa. Não modifica a imagem original.
+A borda fixa ainda prevalece, e o contorno recorta a superfície final.
+A sobreposição azul continua representando apenas os sulcos automáticos.
+
+A pintura não aumenta automaticamente a densidade de polígonos. Para detalhes
+finos, ajuste Colunas/Linhas e/ou o refinamento adaptativo. Há no máximo 4096
+amostras por módulo; o espaçamento é calculado pela distância, sem depender da
+frequência dos eventos do mouse. O backend limita o trabalho de pintura por geração
+a 64 milhões de operações em pixels, com diagnóstico em caso de excesso.
+
+Enquanto o pincel está habilitado, a contagem automática de faces fica adiada.
+O mapa atualiza ao concluir o traço; a mesh é gerada ao voltar ao modo 3D ou
+exportar. Em repouso, o editor não reexecuta a pintura nem reconstrói a geometria.

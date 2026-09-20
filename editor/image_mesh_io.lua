@@ -42,6 +42,7 @@ function M.save(project,path,serialize)
     local saved=Model.copy(project); saved.image.path=M.relative(project.image.path,path)
     local lines={}; serialize('project',saved,lines)
     local text=table.concat(lines,'\n')..'\nreturn project\n'
+    assert(#text<=4*1024*1024,'ime_project_too_large')
     local f,err=io.open(path,'wb'); assert(f,err)
     local ok,writeError=f:write(text); local closed,closeError=f:close()
     assert(ok,writeError); assert(closed,closeError)
@@ -58,6 +59,11 @@ function M.load(path)
     project.nextId=loaded.nextId; project.defaults=Model.copy(loaded.defaults)
     for _,r in ipairs(loaded.regions) do
         local region={id=r.id,name=r.name,shape=r.shape,x=r.x,y=r.y,w=r.w,h=r.h,overrides=Model.copy(r.overrides)}
+        if r.heightEdits then
+            region.heightEdits={}
+            for _,d in ipairs(r.heightEdits) do region.heightEdits[#region.heightEdits+1]={
+                x=d.x,y=d.y,radius=d.radius,strength=d.strength,height=d.height,mode=d.mode} end
+        end
         if r.shape=='polygon' then region.contour={}; for _,point in ipairs(r.contour) do
             region.contour[#region.contour+1]={x=point.x,y=point.y}
         end end

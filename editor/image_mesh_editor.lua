@@ -29,6 +29,7 @@ local Canvas=require 'image_mesh_canvas'
 local Diagnostics=require 'image_mesh_diagnostics'
 local Wire=require 'image_mesh_wireframe'
 local HeightPreview=require 'image_mesh_height_preview'
+local Paint=require 'image_mesh_paint'
 local Simplify=require 'image_mesh_simplify'
 local Comparison=require 'image_mesh_comparison'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
@@ -66,6 +67,7 @@ local function changed()
     syncDraft()
 end
 local function selectRegion(id,extend)
+    Paint.cancel(E)
     if E.drag then return end
     if extend then E.selection[id]=not E.selection[id] else E.selection={[id]=true} end
     E.selected=id
@@ -87,6 +89,7 @@ local function commitDrag(before)
     if ok then Model.commit(E.history,before); changed() else E.project=before; E.outlines=nil; syncDraft() end
 end
 local function history(redo)
+    if E.paintDrag then Paint.cancel(E); return end
     if E.drag then E.project=E.drag.before or E.project; E.drag=nil end
     local project=Model.undo(E.history,E.project,redo)
     if not project then return end
@@ -154,7 +157,7 @@ local function updateStatisticsImpl()
     E.report=cached.report; E.generationFailure=cached.error
 end
 local function updateStatistics()
-    if E.meshTask or not E.editMode or E.drag or not E.texture or E.selected==0 then return end
+    if E.meshTask or E.paintDrag or (E.paint and E.paint.enabled) or not E.editMode or E.drag or not E.texture or E.selected==0 then return end
     if E.statistics[E.selected] then return updateStatisticsImpl() end
     return Simplify.run(E,updateStatisticsImpl)
 end
@@ -200,6 +203,7 @@ local function loadTexture(path)
     return texture
 end
 local function install(project,path,texture)
+    Paint.destroy(E); if E.paint then E.paint.enabled=false end
     releasePreview(); Canvas.destroy(E); E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
     E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; E.viewRegion=nil
@@ -338,7 +342,7 @@ local function menu()
 end
 local function setEditMode(enabled)
     if E.editMode==enabled then return end
-    Canvas.cancel(E); syncDraft(); E.orbitDrag=nil; E.panDrag=nil
+    Paint.cancel(E); Canvas.cancel(E); syncDraft(); E.orbitDrag=nil; E.panDrag=nil
     E.editMode=enabled
     Comparison.sync(E)
     if E.heightObject then E.heightObject.visible=enabled and E.heightView~=1 end
@@ -358,6 +362,7 @@ end
 local function addPrimitive()
     if not E.texture or not E.editMode then return false end
     local spec=E.primitive
+    Paint.cancel(E); Paint.state(E).enabled=false
     Canvas.cancel(E)
     local o=Canvas.transform(E)
     local cx=((E.sidebar+E.screenW-E.rightbar)/2-o.x)/o.scale
@@ -461,6 +466,7 @@ local function propertiesPanel()
                 if E.heightError then tImGui.TextWrapped(E.heightError) end
             end
         end
+        Paint.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
         if tImGui.CollapsingHeader(L('volume_group')) then
         E.values.preserveAspect=tImGui.Checkbox(L('preserveAspect'),E.values.preserveAspect)
         if E.values.preserveAspect and E.draft and not E.editDefaults then
@@ -542,14 +548,15 @@ local function regionsPanel()
         if E.editMode then
             local names={L('select'),L('rectangle'),L('ellipse'),L('polygon'),L('pan')}; local tools={'select','rectangle','ellipse','polygon','pan'}
             local index=1; for i,name in ipairs(tools) do if name==E.tool then index=i end end
+            if E.paint and E.paint.enabled then names[#names+1]=L('paint_title'); index=#names end
             local modified,tool=tImGui.Combo(L('tool'),index,names)
-            if modified then Canvas.cancel(E); E.tool=tools[tool] end
+            if modified and tools[tool] then Paint.cancel(E); Paint.state(E).enabled=false; Canvas.cancel(E); E.tool=tools[tool] end
             if E.tool=='polygon' then
                 if tImGui.Button(L('finish_polygon')) then finishPolygon() end
                 tImGui.SameLine(); if tImGui.Button(L('cancel')) then Canvas.cancel(E) end
             end
             if tImGui.Button(L('fit_image')) then Canvas.fit(E) end
-            tImGui.TextWrapped(L('canvas_help'))
+            tImGui.TextWrapped(L(E.paint and E.paint.enabled and 'paint_canvas_help' or 'canvas_help'))
         else
             tImGui.TextWrapped(L('preview_help'))
             setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
@@ -584,7 +591,7 @@ local function regionsPanel()
             if tImGui.Button(L('duplicate')) then action(function(p)
                 local originals=Model.copy(p.regions); local selection=E.selection; E.selection={}; local first
                 for _,r in ipairs(originals) do if selection[r.id] then local n=Model.add(p,r.shape,r.x,r.y,r.w,r.h,r.contour)
-                    n.overrides=Model.copy(r.overrides); n.name=r.name:sub(1,123)..'_copy'; first=first or n.id; E.selected=first; E.selection[n.id]=true
+                    n.overrides=Model.copy(r.overrides); n.heightEdits=Model.copy(r.heightEdits); n.name=r.name:sub(1,123)..'_copy'; first=first or n.id; E.selected=first; E.selection[n.id]=true
                 end end
             end) end
             tImGui.SameLine()
@@ -625,19 +632,20 @@ function onInitScene()
 end
 function onLoop(delta)
     if E.meshTask then dpCall(Simplify.resume,E) end
-    tImGui.BeginDisabled(E.meshTask~=nil); menu(); tImGui.EndDisabled()
-    tImGui.BeginDisabled(E.meshTask~=nil)
+    tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil); menu(); tImGui.EndDisabled()
+    tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil)
     regionsPanel(); Diagnostics.draw(E,{camera=camera,setMode=setEditMode,fit=Canvas.fit,zoom=Canvas.zoom})
     tImGui.EndDisabled()
     if not E.meshTask and E.key and not tImGui.GetWantCaptureKeyboard() then
         if E.control and E.key==mbm.getKeyCode('Z') then history(false)
         elseif E.control and E.key==mbm.getKeyCode('Y') then history(true)
-        elseif E.control and E.key==mbm.getKeyCode('S') then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end)
-        elseif E.key==mbm.getKeyCode('ESC') then Canvas.cancel(E); syncDraft() end
+        elseif E.control and E.key==mbm.getKeyCode('S') and not E.paintDrag then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end)
+        elseif E.key==mbm.getKeyCode('ESC') then Paint.cancel(E); Canvas.cancel(E); syncDraft() end
     end
     E.key=nil; rebuild(); updateStatistics(); batchStep()
     Canvas.sync(E)
     HeightPreview.sync(E,dpCall)
+    Paint.sync(E)
     tUtil.showOverlayMessage()
 end
 function onKeyDown(key)
@@ -657,7 +665,11 @@ function onTouchDown(key,x,y)
     if not sceneInput(x,y) then return end
     if E.editMode then
         if key==0 and E.tool~='pan' then
-            local handled=Canvas.input(E,handlers,'down',x,y)
+            local handled
+            if Paint.state(E).enabled and not E.editDefaults then
+                if draftChanged() and not applyProperties() then return end
+                handled=Paint.input(E,action,'down',x,y)
+            else handled=Canvas.input(E,handlers,'down',x,y) end
             if E.tool=='select' and not handled then E.panDrag={x=x,y=y} end
         elseif key==0 then E.panDrag={x=x,y=y}
         elseif key==1 or key==2 then E.panDrag={x=x,y=y} end
@@ -675,12 +687,16 @@ function onTouchMove(key,x,y)
         E.orbit.azimuth=E.orbit.azimuth-(x-E.orbitDrag.x)*0.01
         E.orbit.elevation=math.max(-1.5,math.min(1.5,E.orbit.elevation+(y-E.orbitDrag.y)*0.01))
         E.orbitDrag={x=x,y=y}; camera()
+    elseif E.paintDrag or (E.editMode and Paint.state(E).enabled and sceneInput(x,y)) then Paint.input(E,action,'move',x,y)
     elseif E.drag or sceneInput(x,y) then Canvas.input(E,handlers,'move',x,y) end
 end
 function onTouchUp(key,x,y)
     -- Scene callbacks arrive divided by the camera scale; UI and hit testing use framebuffer pixels.
     x=x*E.camera2d.sx; y=y*E.camera2d.sy
-    if key==0 then Canvas.input(E,handlers,'up',x,y); E.orbitDrag=nil; E.panDrag=nil end
+    if key==0 then
+        if E.paintDrag then Paint.input(E,action,'up',x,y) else Canvas.input(E,handlers,'up',x,y) end
+        E.orbitDrag=nil; E.panDrag=nil
+    end
     if key==1 or key==2 then E.panDrag=nil end
 end
 function onTouchZoom(zoom)
@@ -694,8 +710,9 @@ end
 function onResizeWindow()
     E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
-function onEndScene() HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
+function onEndScene() Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
+    testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
     testApi.setComparison=setComparison
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history

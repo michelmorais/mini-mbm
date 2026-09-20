@@ -48,7 +48,7 @@ function M.sync(E,protectedCall)
     local key=E.revision..':'..E.selected..':'..E.heightView
     if E.heightKey~=key then M.destroy(E); E.heightKey=key; E.heightRequested=true; E.heightError=nil end
     local visible=E.editMode and E.heightView~=1 and E.draft~=nil and not E.drag
-    if visible and E.heightRequested then
+    if visible and E.heightRequested and not E.paintDrag then
         E.heightRequested=false
         local ok=protectedCall(M.build,E)
         if not ok then M.destroy(E); E.heightError=E.status else E.heightError=nil end

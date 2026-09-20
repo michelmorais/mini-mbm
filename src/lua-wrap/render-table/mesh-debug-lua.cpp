@@ -3641,7 +3641,7 @@ namespace mbm
         return 1;
     }
 
-    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour)
+    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs)
     {
         luaL_checktype(lua,2,LUA_TTABLE);
         const auto integer = [&](const char *name, uint32_t &value)
@@ -3685,6 +3685,31 @@ namespace mbm
         integer("smoothPasses",options.smoothPasses);
         number("grooveThreshold",options.grooveThreshold); number("grooveTransition",options.grooveTransition);
         number("heightTolerance",options.heightTolerance);
+        lua_getfield(lua,2,"heightEdits");
+        if (!lua_isnil(lua,-1))
+        {
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const size_t count=lua_rawlen(lua,-1);
+            if (count>4096) luaL_error(lua,"heightEdits accepts at most 4096 dabs");
+            options.heightEditCount=static_cast<uint32_t>(count); options.heightEdits=dabs;
+            for (size_t i=0;i<count;++i)
+            {
+                lua_rawgeti(lua,-1,static_cast<lua_Integer>(i+1)); luaL_checktype(lua,-1,LUA_TTABLE);
+                const auto read=[&](const char *key,float &v)
+                { lua_getfield(lua,-1,key); v=static_cast<float>(luaL_checknumber(lua,-1)); lua_pop(lua,1); };
+                read("x",dabs[i].x); read("y",dabs[i].y); read("radius",dabs[i].radius);
+                read("strength",dabs[i].strength); read("height",dabs[i].height);
+                lua_getfield(lua,-1,"mode");
+                const char *mode=luaL_checkstring(lua,-1);
+                if (std::strcmp(mode,"raise")==0) dabs[i].mode=IMAGE_MESH_BRUSH::RAISE;
+                else if (std::strcmp(mode,"lower")==0) dabs[i].mode=IMAGE_MESH_BRUSH::LOWER;
+                else if (std::strcmp(mode,"flatten")==0) dabs[i].mode=IMAGE_MESH_BRUSH::FLATTEN;
+                else if (std::strcmp(mode,"smooth")==0) dabs[i].mode=IMAGE_MESH_BRUSH::SMOOTH;
+                else luaL_error(lua,"heightEdits mode must be raise, lower, flatten or smooth");
+                lua_pop(lua,2);
+            }
+        }
+        lua_pop(lua,1);
         lua_getfield(lua, 2, "shape");
         if (!lua_isnil(lua, -1))
         {
@@ -3721,8 +3746,8 @@ namespace mbm
         const char *output=luaL_checkstring(lua,3);
         if (!lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
         const bool overlay=lua_toboolean(lua,4)!=0;
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128];
-        readImageMeshOptions(lua,options,contour);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096];
+        readImageMeshOptions(lua,options,contour,dabs);
         char error[512]="";
         if (!generateImageMeshMap(path,options,output,overlay,error,sizeof(error)))
         {
@@ -3734,8 +3759,8 @@ namespace mbm
     int onGenerateImageMeshLua(lua_State *lua)
     {
         const char *path=luaL_checkstring(lua,1);
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128];
-        readImageMeshOptions(lua,options,contour);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096];
+        readImageMeshOptions(lua,options,contour,dabs);
         lua_settop(lua, 2);
         lua_pushcfunction(lua, onNewMeshDebugLua);
         lua_call(lua, 0, 1);

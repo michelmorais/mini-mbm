@@ -476,3 +476,21 @@ perder a comparação. Regressão cobre Aplicar, undo/redo, modos e recuperaçã
 - Compatibilidade com projetos anteriores, histórico e persistência dos ajustes.
 - Contagens do frame gerado preenchidas antes de salvar, permitindo simplificação
   diretamente em memória. Teste de integração cobre exportação, lote e recuperação.
+
+
+### Etapa 3a - Pintura manual de altura (7.234.0)
+
+Entregues quatro pincéis (elevar, rebaixar, nivelar e suavizar), cursor na cena,
+raio/intensidade/altura alvo, histórico por arraste, cancelamento e limpeza com
+undo. Traços normalizados persistem por módulo, são duplicados com ele e alimentam
+a mesma altura na prévia, geração adaptativa, simplificação e exportação. A imagem
+fonte permanece intacta; a borda fixa continua prevalecendo. O mapa atualiza ao
+soltar o mouse, com geometria adiada durante a pintura e sem reconstrução em repouso.
+
+Verificação: `image_mesh_paint_smoke.lua` cobre os quatro modos, bordas, números
+inválidos, escopo do contorno, histórico, cancelamento, persistência, exportação e
+repouso. Os testes existentes de modelo/API/editor continuam aplicáveis.
+
+A etapa 3 ainda não está toda concluída: restam presets reutilizáveis de geração,
+opções adicionais de textura/fundo e prévia de encaixe entre módulos. As etapas
+4 e o restante do acabamento da etapa 5 continuam pendentes.

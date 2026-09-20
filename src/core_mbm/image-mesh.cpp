@@ -93,7 +93,7 @@ namespace mbm
                 const auto &point = topology.points[pointIndex];
                 const float u = point.x, v = point.y;
                 const float px = o.x + u * (cw - 1), py = o.y + v * (ch - 1);
-                const float level=field.mapped(field.sample(u,v),o);
+                const float level=field.surface(u,v,o);
                 float height = level * o.relief;
                 if (o.lockBorder)
                 {
@@ -211,7 +211,7 @@ namespace mbm
             if (preservePlateaus)
             {
                 levels.reserve(gridSize);
-                for (const auto &p : topology.points) levels.push_back(field.mapped(field.sample(p.x,p.y),o));
+                for (const auto &p : topology.points) levels.push_back(field.surface(p.x,p.y,o));
                 plateauNormals.resize(gridSize,VEC3(0,0,0));
             }
             for (size_t i = 0; i < indices.size(); i += 3)
@@ -330,7 +330,7 @@ namespace mbm
                 const float distance=image_mesh::borderDistance(p,topology);
                 if (!inside && distance>1e-6f) continue;
                 const float intensity=field.sample(p.x,p.y);
-                float level=field.mapped(intensity,o);
+                float level=field.surface(p.x,p.y,o);
                 if (o.lockBorder)
                 {
                     if (distance<1e-7f) level=0;

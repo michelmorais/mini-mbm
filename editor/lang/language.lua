@@ -8,6 +8,23 @@ local M = {}
 
 -- String tables
 M.en = {
+    ime_paint_canvas_help = "Drag inside the selected module to paint. Release to update. Esc cancels; Ctrl+Z undoes a stroke. Outside the module: pan.",
+    ime_paint_title = "Height painting",
+    ime_paint_enabled = "Paint selected module",
+    ime_paint_brush = "Brush",
+    ime_paint_raise = "Raise",
+    ime_paint_lower = "Lower",
+    ime_paint_flatten = "Flatten",
+    ime_paint_smooth = "Smooth",
+    ime_paint_radius = "Radius (px)",
+    ime_paint_strength = "Strength",
+    ime_paint_height = "Target height (0-1)",
+    ime_paint_count = "%d / 4096 brush dabs",
+    ime_paint_clear = "Clear painting (undoable)",
+    ime_paint_help = "Drag to paint; release to update the height map. Ctrl+Z undoes one stroke; Esc cancels it. Heights stay within 0-1; fixed borders still apply. Enable Follow image or increase grid resolution for fine strokes. Blue grooves show automatic detection, not painting.",
+    ime_paint_limit = "Painting limit: 4096 dabs per module. Undo or clear painting.",
+    ime_invalid_paint = "Invalid height painting data.",
+
     normal_review_title = "Normal preview",
     normal_review_busy = "Wait for simplification to finish.",
     normal_review_copy_failed = "Could not create an isolated mesh copy.",
@@ -3151,6 +3168,23 @@ M.en = {
 }
 
 M.pt_br = {
+    ime_paint_canvas_help = "Arraste dentro do módulo selecionado para pintar. Solte para atualizar. Esc cancela; Ctrl+Z desfaz um traço. Fora do módulo: mover câmera.",
+    ime_paint_title = "Pintura de altura",
+    ime_paint_enabled = "Pintar módulo selecionado",
+    ime_paint_brush = "Pincel",
+    ime_paint_raise = "Elevar",
+    ime_paint_lower = "Rebaixar",
+    ime_paint_flatten = "Nivelar",
+    ime_paint_smooth = "Suavizar",
+    ime_paint_radius = "Raio (px)",
+    ime_paint_strength = "Intensidade",
+    ime_paint_height = "Altura alvo (0-1)",
+    ime_paint_count = "%d / 4096 amostras de pincel",
+    ime_paint_clear = "Limpar pintura (permite desfazer)",
+    ime_paint_help = "Arraste para pintar; solte para atualizar o mapa de alturas. Ctrl+Z desfaz um traço; Esc cancela. Alturas ficam entre 0-1; a borda fixa continua valendo. Ative Seguir imagem ou aumente a resolução para traços finos. Sulcos azuis mostram a detecção automática, sem pintura.",
+    ime_paint_limit = "Limite de pintura: 4096 amostras por módulo. Desfaça ou limpe a pintura.",
+    ime_invalid_paint = "Dados de pintura de altura inválidos.",
+
     normal_review_title = "Prévia de normais",
     normal_review_busy = "Aguarde o término da simplificação.",
     normal_review_copy_failed = "Não foi possível criar uma cópia isolada da mesh.",

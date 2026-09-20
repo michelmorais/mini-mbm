@@ -64,6 +64,7 @@ function M.options(project,region)
     if o.preserveAspect then o.height=o.width*math.max(1,region.h-1)/math.max(1,region.w-1) end
     o.x=region.x; o.y=region.y; o.cropWidth=region.w; o.cropHeight=region.h
     o.shape=region.shape; o.contour=M.copy(region.contour)
+    o.heightEdits=M.copy(region.heightEdits)
     return o
 end
 function M.validateOptions(options,complete)
@@ -89,6 +90,14 @@ function M.validate(p)
         assert(number(r.x,0,p.image.width-1,true) and number(r.y,0,p.image.height-1,true) and
             number(r.w,1,p.image.width-r.x,true) and number(r.h,1,p.image.height-r.y,true),'ime_invalid_crop')
         M.validateOptions(r.overrides,false)
+        if r.heightEdits then
+            assert(type(r.heightEdits)=='table' and #r.heightEdits<=4096,'ime_paint_limit')
+            for _,dab in ipairs(r.heightEdits) do
+                assert(type(dab)=='table' and number(dab.x,0,1) and number(dab.y,0,1) and
+                    number(dab.radius,0.001,1) and number(dab.strength,0,1) and number(dab.height,0,1) and
+                    (dab.mode=='raise' or dab.mode=='lower' or dab.mode=='flatten' or dab.mode=='smooth'),'ime_invalid_paint')
+            end
+        end
         if r.shape=='polygon' then
             assert(type(r.contour)=='table' and #r.contour>=3 and #r.contour<=128,'ime_invalid_contour')
             for _,point in ipairs(r.contour) do assert(type(point)=='table' and number(point.x,0,1) and number(point.y,0,1),'ime_invalid_contour') end
