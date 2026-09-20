@@ -3579,7 +3579,7 @@ function updatePreviewMesh()
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new(coordType)
-        ok = tPreviewMesh:load(loadPath)
+        ok = meshDebug:loadMeshPreview(tPreviewMesh,loadPath)
         -- Force the preview's position back to the origin immediately after load, overriding
         -- DEVICE::addRenderizable's z-order auto-assign (src/core_mbm/device-common.cpp:1173,
         -- `if (position.z == 0.0f) position.z = getNextZOrderControl3d()`). Every freshly
@@ -4220,7 +4220,7 @@ function refreshFrameFilterPreview(tEntry, index)
     if meshType == 'sprite' then
         tPreviewMesh = sprite:new(coordType); ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'mesh' then
-        tPreviewMesh = mesh:new(coordType);   ok = tPreviewMesh:load(tEntry.framePreviewPath)
+        tPreviewMesh = mesh:new(coordType);   ok = meshDebug:loadMeshPreview(tPreviewMesh,tEntry.framePreviewPath)
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new(coordType);       ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'particle' then
@@ -8027,12 +8027,14 @@ function showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk, vertices)
     if triOk and geo and geo[v] then
         tImGui.SameLine()
         if tImGui.Button(tLang.L('normal_apply_short') .. '##nrecalc-' .. rid) then
-            local nx,ny,nz=tMeshNormals.select(vd,geo[v],tEntry.normalMethod or 1)
+            local target=geo
+            if tEntry.normalMethod==3 then target=tMeshNormals.geometry(meshD,1,s,tEntry,computeGeoNormalsForSubset) end
+            local nx,ny,nz=tMeshNormals.select(vd,target[v],tEntry.normalMethod or 1)
             if nx then commitNormal(nx,ny,nz) end
         end
         if tImGui.IsItemHovered(0) then
             tImGui.BeginTooltip()
-            tImGui.Text(tLang.L((tEntry.normalMethod or 1)==1 and 'normal_method_repair' or 'normal_method_uniform'))
+            tImGui.Text(tLang.L(tMeshNormals.label(tEntry.normalMethod)))
             tImGui.EndTooltip()
         end
     end
@@ -8093,7 +8095,9 @@ function showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
     if triOk then
         tImGui.SameLine()
         if tImGui.Button(tLang.L('normal_apply_all') .. '##nrecalcall-' .. index .. '-' .. s) then
-            bulkUpdate(function(v,vd,g) return tMeshNormals.select(vd,g,tEntry.normalMethod or 1) end)
+            local target=geo
+            if tEntry.normalMethod==3 then target=tMeshNormals.geometry(meshD,1,s,tEntry,computeGeoNormalsForSubset) end
+            bulkUpdate(function(v,vd) return tMeshNormals.select(vd,target[v],tEntry.normalMethod or 1) end)
         end
     end
 
@@ -10313,7 +10317,7 @@ end
 -- to All" bulk operation covers every animation frame, matching how removeNormals()/addNormals()
 -- already behave. geoNormal is only computed (via computeGeoNormalsForSubset) when needGeo is
 -- true and the subset's draw mode is TRIANGLES; it's nil otherwise.
-local function bulkUpdateAllNormals(meshD, needGeo, fnNormal)
+local function bulkUpdateAllNormals(meshD, needGeo, fnNormal, normalState)
     local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okF or not nFrames then return 0 end
     local okMode, modeDraw = dpCall(function() return meshD:getModeDraw() end)
@@ -10323,7 +10327,10 @@ local function bulkUpdateAllNormals(meshD, needGeo, fnNormal)
         local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
         if okS and nSubsets then
             for s = 1, nSubsets do
-                local geo = (needGeo and triOk) and computeGeoNormalsForSubset(meshD, f, s) or nil
+                local geo
+                if needGeo and triOk then
+                    geo=tMeshNormals.geometry(meshD,f,s,normalState or {},computeGeoNormalsForSubset)
+                end
                 local okV, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
                 if okV and nV and nV > 0 then
                     for v = 1, nV do
@@ -10371,13 +10378,13 @@ end
 
 local function applyAllRecomputeNormalsBulk(sType)
     local totalVertices = 0
-    local summary = runApplyAllOperation(sType, tLang.L((tApplyAllWin.normalMethod or 1)==1 and 'normal_method_repair' or 'normal_method_uniform'), function(tEntry)
+    local summary = runApplyAllOperation(sType, tLang.L(tMeshNormals.label(tApplyAllWin.normalMethod)), function(tEntry)
         if not (tEntry.info and tEntry.info.hasNormal) then
             return 'skipped', tLang.L('apply_all_no_matching_targets')
         end
         local count = bulkUpdateAllNormals(tEntry.meshDebug, true, function(vd, g)
             return tMeshNormals.select(vd,g,tApplyAllWin.normalMethod or 1)
-        end)
+        end,tApplyAllWin)
         if count == 0 then
             return 'skipped', tLang.L('normal_no_changes')
         end
@@ -10940,8 +10947,9 @@ local function applyAllSave(sType, bRecalcNormals)
             local missing=not (tEntry.info and tEntry.info.hasNormal)
             if missing then meshD:addNormals() end
             local count=bulkUpdateAllNormals(meshD,true,function(vd,g)
-                return tMeshNormals.select(vd,g,missing and 2 or (tApplyAllWin.normalMethod or 1))
-            end)
+                local mode=tApplyAllWin.normalMethod or 1
+                return tMeshNormals.select(vd,g,(missing and mode==1) and 2 or mode)
+            end,tApplyAllWin)
             if missing or count>0 then
                 tEntry.modified=true; tEntry.bNormalsVizDirty=true
                 if tEntry.info then tEntry.info.hasNormal=true end

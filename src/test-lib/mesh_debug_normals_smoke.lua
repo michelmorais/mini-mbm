@@ -15,6 +15,9 @@
 package.path='editor/?.lua;'..package.path
 dofile('editor/mesh_debug.lua')
 local init=onInitScene
+local surfaceCalls,initialSurfaceCalls=0,0
+local surfaces=tMeshNormals.surfaces
+tMeshNormals.surfaces=function(...) surfaceCalls=surfaceCalls+1;return surfaces(...) end
 local function upvalue(fn,name)
     for i=1,100 do local n,v=debug.getupvalue(fn,i);if n==name then return v end;if not n then break end end
     error('missing callback '..name)
@@ -59,13 +62,23 @@ local function run()
     local plain=meshDebug:new();plain:setType('mesh');plain:addFrame(3);plain:addSubSet(1)
     plain:addVertex(1,1,{{x=0,y=0,z=0},{x=1,y=0,z=0},{x=0,y=1,z=0}})
     local geo=computeGeoNormalsForSubset(plain,1,1);assert(geo[1].z==1)
-    tLoadedMeshes={entry};tApplyAllWin.open=true
+    tLoadedMeshes={entry};tApplyAllWin.normalMethod=3;tApplyAllWin.normalSurfaceAngle=25
+    for f=1,2 do for subset=1,2 do
+        local v=d:getVertex(f,subset,1);v.nx=.6;v.nz=.8;d:setVertex(f,subset,1,v)
+    end end
+    assert(apply('mesh').success==1)
+    for f=1,2 do for subset=1,2 do assert(d:getVertex(f,subset,1).nz==1) end end
+    assert(save('mesh',true).success==1)
+    entry.modified=true;iSelectedMeshIndex=1;iLastPreviewedIndex=0
+    updatePreviewMesh();assert(tPreviewMesh,'isolated mesh preview failed')
+    print('MESH DEBUG SURFACES ALL FRAMES / SUBSETS / SAVE / PREVIEW OK')
+    tApplyAllWin.open=true
     print('MESH DEBUG NORMALS FRAMES / SUBSETS / REPAIR / SAVE / UNIFORM OK')
 end
 local started
 function onInitScene()
     local ok,err=pcall(run);if not ok then print('NORMALS SMOKE FAIL '..tostring(err));mbm.quit();return end
-    started=mbm.getTimeRun()
+    initialSurfaceCalls=surfaceCalls;started=mbm.getTimeRun()
 end
 function onLoop()
     if not started then return end
@@ -73,5 +86,8 @@ function onLoop()
     tImGui.Begin('Single normal methods',false,0)
     tMeshNormals.draw(tImGui,tLang,tLoadedMeshes[1],'normalSingleTest')
     tImGui.End()
-    if mbm.getTimeRun()-started>3 then print('MESH DEBUG NORMALS UI OK');mbm.quit() end
+    if mbm.getTimeRun()-started>3 then
+        assert(surfaceCalls==initialSurfaceCalls,'surface reconstruction repeated while idle')
+        print('MESH DEBUG NORMALS UI / IDLE OK');mbm.quit()
+    end
 end

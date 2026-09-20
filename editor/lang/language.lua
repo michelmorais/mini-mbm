@@ -8,6 +8,9 @@ local M = {}
 
 -- String tables
 M.en = {
+    normal_method_surfaces = "Recompute - preserve surfaces",
+    normal_surface_angle = "Patch angle (deg)",
+    normal_surfaces_help = "Groups connected faces by angle and favors larger surface patches at creases. Inspect the preview before saving; this cannot recover every custom normal. Higher angles join more faces.",
     normal_already_exists = "Normals already exist; choose a processing method to modify them.",
     normal_no_changes = "No normals needed changing.",
     normal_method = "Normal processing",
@@ -3132,6 +3135,9 @@ M.en = {
 }
 
 M.pt_br = {
+    normal_method_surfaces = "Recalcular - preservar superfícies",
+    normal_surface_angle = "Ângulo das regiões (deg)",
+    normal_surfaces_help = "Agrupa faces conectadas pelo ângulo e prioriza regiões maiores nas quinas. Confira a prévia antes de salvar; não recupera toda normal personalizada. Ângulos maiores unem mais faces.",
     normal_already_exists = "As normais já existem; escolha um método de processamento para alterá-las.",
     normal_no_changes = "Nenhuma normal precisou de alteração.",
     normal_method = "Processamento de normais",
