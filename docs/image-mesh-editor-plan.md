@@ -381,3 +381,16 @@ O zoom numérico e o enquadramento continuam disponíveis no painel da câmera.
 
 A regressão verifica aproximação/afastamento após pan, escalas 1x/2x/assimétrica,
 limites de zoom e captura da interface, sem editar o projeto ou regenerar a mesh.
+
+
+### Círculos, proporções e expansão de polígonos (7.223.0)
+
+- Elipses usam leque inicial central antes do refinamento compartilhado; polígonos
+  genéricos mantêm ear clipping para suportar concavidade.
+- O editor preserva por padrão a proporção do recorte entre 2D e 3D, inclusive em
+  projetos antigos. A opção pode ser desmarcada para usar dimensões livres. É uma
+  opção do editor: a API continua recebendo largura/altura explícitas.
+- Arrastar vértices além do recorte expande seus limites e renormaliza os pontos,
+  preservando os demais vértices em pixels. O limite passa a ser a imagem.
+- Regressões cobrem leque central, fechamento/normais/volume, proporções da mesh
+  do módulo 5 e expansão superior/inferior com undo nas três escalas de tela.

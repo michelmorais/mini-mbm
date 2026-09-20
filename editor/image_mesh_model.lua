@@ -21,7 +21,7 @@
 ]]--
 
 local M={}
-M.defaults={width=100,height=100,depth=20,relief=8,columns=24,rows=24,
+M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=24,rows=24,
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
 local limits={width={0.001,1000000},height={0.001,1000000},depth={0.001,1000000},relief={0,1000000},
     columns={1,255,true},rows={1,255,true},borderWidth={0,0.5},maxVertices={1,65535,true},
@@ -42,6 +42,8 @@ end
 function M.options(project,region)
     local o=M.copy(project.defaults)
     for k,v in pairs(region.overrides) do o[k]=v end
+    o.preserveAspect=o.preserveAspect~=false
+    if o.preserveAspect then o.height=o.width*math.max(1,region.h-1)/math.max(1,region.w-1) end
     o.x=region.x; o.y=region.y; o.cropWidth=region.w; o.cropHeight=region.h
     o.shape=region.shape; o.contour=M.copy(region.contour)
     return o
@@ -49,10 +51,10 @@ end
 function M.validateOptions(options,complete)
     assert(type(options)=='table','ime_invalid_options')
     for k,v in pairs(options) do
-        if k=='invert' or k=='lockBorder' then assert(type(v)=='boolean','ime_invalid_options')
+        if k=='invert' or k=='lockBorder' or k=='preserveAspect' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
     end
-    if complete then for k in pairs(M.defaults) do assert(options[k]~=nil,'ime_invalid_options') end end
+    if complete then for k in pairs(M.defaults) do assert(k=='preserveAspect' or options[k]~=nil,'ime_invalid_options') end end
 end
 function M.validate(p)
     assert(type(p)=='table' and p.version==1,'ime_invalid_project')
@@ -102,7 +104,6 @@ function M.primitive(p,kind,w,h,sides,cx,cy)
         end
     end
     local region=M.add(p,shape,x,y,w,h,contour)
-    if kind=='circle' then region.overrides.height=p.defaults.width end
     return region
 end
 function M.grid(p,g)
@@ -139,6 +140,19 @@ function M.outline(r,segments)
         end
     else points={{x=r.x,y=r.y},{x=r.x+r.w-1,y=r.y},{x=r.x+r.w-1,y=r.y+r.h-1},{x=r.x,y=r.y+r.h-1}} end
     return points
+end
+-- Expand the crop from the drag-start snapshot, preserving every other image point.
+function M.movePoint(r,before,index,x,y)
+    local points=M.outline(before)
+    points[index]={x=x,y=y}
+    local left=math.min(before.x,math.floor(x))
+    local top=math.min(before.y,math.floor(y))
+    local right=math.max(before.x+before.w-1,math.ceil(x))
+    local bottom=math.max(before.y+before.h-1,math.ceil(y))
+    r.x=left; r.y=top; r.w=right-left+1; r.h=bottom-top+1
+    for i,p in ipairs(points) do
+        r.contour[i]={x=(p.x-left)/math.max(1,r.w-1),y=(p.y-top)/math.max(1,r.h-1)}
+    end
 end
 function M.contains(points,x,y)
     local inside=false

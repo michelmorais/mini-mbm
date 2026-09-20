@@ -188,7 +188,7 @@ function M.input(E,H,event,mx,my)
             elseif d.mode=='resize' then
                 r.w=clamp(math.floor(before.w+x-d.x+0.5),1,E.project.image.width-r.x)
                 r.h=clamp(math.floor(before.h+y-d.y+0.5),1,E.project.image.height-r.y)
-            else r.contour[d.index]={x=clamp((x-r.x)/math.max(1,r.w-1),0,1),y=clamp((y-r.y)/math.max(1,r.h-1),0,1)} end
+            else Model.movePoint(r,before,d.index,x,y) end
             E.outlines=nil; d.changed=true
         end
     end

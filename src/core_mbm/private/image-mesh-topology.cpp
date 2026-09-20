@@ -131,28 +131,38 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error)
     if (area<0) std::reverse(t.points.begin(),t.points.end());
     t.contour=t.points;
     t.boundary.resize(t.points.size()); std::iota(t.boundary.begin(),t.boundary.end(),0u);
-    auto remaining=t.boundary;
-    while (remaining.size()>3)
+    if (o.shape==IMAGE_MESH_SHAPE::ELLIPSE)
     {
-        bool found=false;
-        for (size_t i=0;i<remaining.size();++i)
-        {
-            const uint32_t a=remaining[(i+remaining.size()-1)%remaining.size()], b=remaining[i], c=remaining[(i+1)%remaining.size()];
-            if (cross(t.points[a],t.points[b],t.points[c])<=epsilon) continue;
-            bool contains=false;
-            for (uint32_t v:remaining)
-            {
-                if (v==a || v==b || v==c) continue;
-                if (cross(t.points[a],t.points[b],t.points[v])>=-epsilon &&
-                    cross(t.points[b],t.points[c],t.points[v])>=-epsilon &&
-                    cross(t.points[c],t.points[a],t.points[v])>=-epsilon) { contains=true; break; }
-            }
-            if (contains) continue;
-            t.triangles.push_back({a,b,c}); remaining.erase(remaining.begin()+static_cast<std::ptrdiff_t>(i)); found=true; break;
-        }
-        if (!found) return fail("Cannot triangulate contour without degenerate triangles");
+        const uint32_t center=static_cast<uint32_t>(t.points.size());
+        t.points.push_back({0.5f,0.5f});
+        for (uint32_t i=0;i<center;++i)
+            t.triangles.push_back({center,i,(i+1)%center});
     }
-    t.triangles.push_back({remaining[0],remaining[1],remaining[2]});
+    else
+    {
+        auto remaining=t.boundary;
+        while (remaining.size()>3)
+        {
+            bool found=false;
+            for (size_t i=0;i<remaining.size();++i)
+            {
+                const uint32_t a=remaining[(i+remaining.size()-1)%remaining.size()], b=remaining[i], c=remaining[(i+1)%remaining.size()];
+                if (cross(t.points[a],t.points[b],t.points[c])<=epsilon) continue;
+                bool contains=false;
+                for (uint32_t v:remaining)
+                {
+                    if (v==a || v==b || v==c) continue;
+                    if (cross(t.points[a],t.points[b],t.points[v])>=-epsilon &&
+                        cross(t.points[b],t.points[c],t.points[v])>=-epsilon &&
+                        cross(t.points[c],t.points[a],t.points[v])>=-epsilon) { contains=true; break; }
+                }
+                if (contains) continue;
+                t.triangles.push_back({a,b,c}); remaining.erase(remaining.begin()+static_cast<std::ptrdiff_t>(i)); found=true; break;
+            }
+            if (!found) return fail("Cannot triangulate contour without degenerate triangles");
+        }
+        t.triangles.push_back({remaining[0],remaining[1],remaining[2]});
+    }
     if (!budget(o,t)) return fail("Geometry budget exceeded by contour");
     // Shared midpoint splits preserve conformity, including on the perimeter.
     for (unsigned pass=0;pass<20;++pass)

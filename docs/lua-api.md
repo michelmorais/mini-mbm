@@ -2171,7 +2171,8 @@ painting remain planned in [Image Mesh Editor plan](image-mesh-editor-plan.md).
 Polygons must be simple, without holes, touching edges or crossings. Consecutive
 forward collinear points are removed; duplicate/near-duplicate points, backtracking,
 nonfinite coordinates and negligible area are rejected. Ellipses are approximated
-by an inscribed polygon with `ellipseSegments` sides. Triangulation respects concavity;
+by an inscribed polygon with `ellipseSegments` sides and an initial triangle fan
+from its center. Generic polygons use ear clipping to respect concavity;
 shared midpoint refinement preserves the boundary and produces conforming triangles.
 For these shapes, `columns`/`rows` scale the refinement metric: final front edges
 have squared length at most approximately 2 after multiplying normalized X/Y deltas

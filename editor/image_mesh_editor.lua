@@ -46,6 +46,7 @@ local function syncDraft()
     local r=Model.region(E.project,E.selected)
     E.draft=r and Model.copy(r) or nil
     E.values=Model.copy(E.editDefaults and E.project.defaults or (r and Model.options(E.project,r) or E.project.defaults))
+    E.values.preserveAspect=E.values.preserveAspect~=false
     E.point=1
 end
 local function changed()
@@ -291,8 +292,16 @@ local function propertiesPanel()
             end
         end
         tImGui.Separator(); tImGui.Text(L('volume_group'))
+        E.values.preserveAspect=tImGui.Checkbox(L('preserveAspect'),E.values.preserveAspect)
+        if E.values.preserveAspect and E.draft and not E.editDefaults then
+            E.values.height=E.values.width*math.max(1,E.draft.h-1)/math.max(1,E.draft.w-1)
+        end
         for _,key in ipairs({'width','height','depth','relief','borderWidth'}) do
-            local c,v=tImGui.InputFloat(L(key),E.values[key]); if c then E.values[key]=v end
+            if key=='height' and E.values.preserveAspect then
+                if not E.editDefaults then tImGui.Text(L(key)..': '..string.format('%.3f',E.values.height)) end
+            else
+                local c,v=tImGui.InputFloat(L(key),E.values[key]); if c then E.values[key]=v end
+            end
         end
         if tImGui.CollapsingHeader(L('resolution_group')) then
         for _,key in ipairs({'columns','rows','ellipseSegments','maxVertices','maxTriangles'}) do

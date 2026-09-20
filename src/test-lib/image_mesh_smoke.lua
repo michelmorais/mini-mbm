@@ -128,6 +128,21 @@ local function runTests()
     local collinear,clr=mbm.generateImageMesh(image,polyOptions); assert(collinear,clr); inspect(collinear,clr)
     polyOptions.contour={{x=0,y=0},{x=0,y=0},{x=1,y=1}}
     assert(not mbm.generateImageMesh(image,polyOptions))
+    -- With no refinement, every front triangle must radiate from the center.
+    local radial,rr=mbm.generateImageMesh(image,{shape='ellipse',ellipseSegments=32,columns=1,rows=1,relief=0})
+    assert(radial,rr); inspect(radial,rr)
+    local rv=radial:getVertex(1,1,1,rr.vertices); local ri=radial:getIndex(1,1)
+    local front=0
+    for i=1,#ri,3 do
+        local a,b,c=rv[ri[i]],rv[ri[i+1]],rv[ri[i+2]]
+        if a.nz< -0.99 and b.nz< -0.99 and c.nz< -0.99 then
+            front=front+1
+            assert((math.abs(a.x)<0.001 and math.abs(a.y)<0.001) or
+                (math.abs(b.x)<0.001 and math.abs(b.y)<0.001) or
+                (math.abs(c.x)<0.001 and math.abs(c.y)<0.001),'ellipse fan is not centered')
+        end
+    end
+    assert(front==32)
     local ellipse,er=mbm.generateImageMesh(image,{shape='ellipse',ellipseSegments=32,columns=16,rows=12,relief=0,width=100,height=80,depth=20})
     assert(ellipse,er); local _,ev=inspect(ellipse,er)
     near(ev,100*80*20*32*math.sin(2*math.pi/32)/8)

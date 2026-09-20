@@ -130,17 +130,53 @@ local function verifyCursorZoom()
     local contours=e.canvasBuilds
     Canvas.sync(e); assert(e.canvasBuilds==contours,'idle zoom rebuilt contours')
 end
+local function verifyPolygon()
+    local e=api.state; local Canvas=require 'image_mesh_canvas'; local c=e.camera2d
+    local r=Model.region(e.project,5)
+    if not r or r.shape~='polygon' then return end
+    local before=Model.copy(r); local points=Model.outline(r)
+    api.select(r.id); api.fit(e); Canvas.sync(e)
+    local capture=tImGui.GetWantCaptureMouse; tImGui.GetWantCaptureMouse=function() return false end
+    local top,bottom=1,1
+    for i,p in ipairs(points) do
+        if p.y<points[top].y then top=i end
+        if p.y>points[bottom].y then bottom=i end
+    end
+    for _,case in ipairs({{top,-30},{bottom,30}}) do
+        local t=Canvas.transform(e); local p=points[case[1]]
+        local x,y=(t.x+p.x*t.scale)/c.sx,(t.y+p.y*t.scaleY)/c.sy
+        onTouchDown(0,x,y); assert(e.drag and e.drag.mode=='point','polygon handle missed')
+        onTouchMove(0,x,y+case[2]*t.scaleY/c.sy); onTouchUp(0,x,y+case[2]*t.scaleY/c.sy)
+        r=Model.region(e.project,5)
+        local moved=Model.outline(r)
+        assert(math.abs(moved[case[1]].y-p.y-case[2])<0.01,'polygon point blocked at crop edge')
+        for i,v in ipairs(points) do if i~=case[1] then
+            assert(math.abs(moved[i].x-v.x)<0.01 and math.abs(moved[i].y-v.y)<0.01,'other points shifted')
+        end end
+        api.undo(false); Canvas.sync(e)
+        r=Model.region(e.project,5); assert(r.y==before.y and r.h==before.h)
+    end
+    tImGui.GetWantCaptureMouse=capture
+    local asset,report=mbm.generateImageMesh(e.project.image.path,Model.options(e.project,r)); assert(asset,report)
+    local vertices=asset:getVertex(1,1,1,report.vertices)
+    local xmin,ymin,xmax,ymax=math.huge,math.huge,-math.huge,-math.huge
+    for _,v in ipairs(vertices) do xmin=math.min(xmin,v.x); ymin=math.min(ymin,v.y); xmax=math.max(xmax,v.x); ymax=math.max(ymax,v.y) end
+    local pxmin,pymin,pxmax,pymax=math.huge,math.huge,-math.huge,-math.huge
+    for _,v in ipairs(points) do pxmin=math.min(pxmin,v.x); pymin=math.min(pymin,v.y); pxmax=math.max(pxmax,v.x); pymax=math.max(pymax,v.y) end
+    assert(math.abs((xmax-xmin)/(ymax-ymin)-(pxmax-pxmin)/(pymax-pymin))<0.001,'2D/3D proportions disagree')
+    api.select(e.project.regions[1].id)
+end
 local function runFrame(dt)
     loop(dt)
     local e=api.state
     if frame==10 then e.camera2d:scaleToScreen(e.screenW/2,e.screenH/2,'xy') end
-    if frame==12 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom() end
+    if frame==12 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom(); verifyPolygon() end
     if frame==20 then e.camera2d:scaleToScreen(e.screenW/2,e.screenH/1.5,'xy') end
-    if frame==22 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom() end
+    if frame==22 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom(); verifyPolygon() end
     if frame==30 then e.camera2d:scaleToScreen(e.screenW,e.screenH,'xy') end
     if frame==32 then
-        verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom()
-        print('IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT / LEFT DRAG / CURSOR ZOOM OK'); mbm.quit()
+        verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom(); verifyPolygon()
+        print('IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT / LEFT DRAG / CURSOR ZOOM / POLYGON OK'); mbm.quit()
     end
 end
 function onLoop(dt)

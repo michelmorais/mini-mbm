@@ -23,13 +23,15 @@ está presente, mas não foi executada nessas plataformas.
 2. Na lateral **Regiões**, mantenha **Modo de edição** marcado e escolha **Retângulo**, **Elipse / círculo** ou **Polígono**.
    Arraste para criar retângulos/elipses; clique nos pontos e use **Concluir
    polígono** para fechar uma forma. Igualar largura e altura do recorte seleciona
-   um círculo na imagem; iguale também as dimensões no mundo para gerar um volume
-   circular. Polígonos côncavos são aceitos; cruzamentos, auto-contato e furos não.
+   um círculo na imagem; **Preservar proporção da imagem**, ativo por padrão,
+   mantém essa proporção no volume. Polígonos côncavos são aceitos; cruzamentos, auto-contato e furos não.
 3. Para várias peças regulares, abra **Criar regiões em grade** e informe colunas,
    linhas, margens simétricas e espaçamento em pixels. A grade adiciona regiões,
    sem substituir as existentes. Ajuste recortes individuais se o atlas for irregular.
 4. Use **Selecionar / mover** para arrastar uma peça; arraste seu canto inferior
-   direito para redimensionar um retângulo/elipse. Em polígonos, arraste os pontos.
+   direito para redimensionar um retângulo/elipse. Em polígonos, arraste os pontos:
+   o recorte cresce ao ultrapassar sua borda, até o limite da imagem, mantendo
+   os demais pontos nas mesmas posições.
    A própria lateral **Regiões** mostra as propriedades da seleção. Abra
    **Recorte e contorno na imagem** para editar recorte, forma e coordenadas
    normalizadas dos pontos, além de inserir/remover pontos. Confirme com **Aplicar**.
@@ -119,8 +121,13 @@ já pintadas na textura; não comprova por si só que a amostragem de altura est
 
 ## Relevo e prévia
 
-Largura/altura no mundo, espessura, amplitude de relevo, resolução, inversão,
-transição da borda e orçamento de geometria são independentes. A frente aponta
+**Preservar proporção da imagem** calcula a altura no mundo a partir da largura
+usando `(h - 1) / (w - 1)` do recorte (intervalos mínimos de um pixel). Assim,
+o contorno 3D mantém a proporção do desenho 2D. Isso também vale ao abrir projetos
+antigos sem essa opção; desmarque-a e aplique para usar largura/altura independentes.
+Espessura, amplitude de relevo, resolução, inversão, transição da borda e orçamento
+de geometria continuam independentes. Círculos/elipses começam com triângulos
+radiais a partir do centro e recebem subdivisões para amostrar o relevo. A frente aponta
 para -Z; a origem fica no centro do volume básico. A altura vem da luminosidade,
 que também contém sombras/manchas: a ferramenta não reconstrói semanticamente o
 objeto da imagem.
