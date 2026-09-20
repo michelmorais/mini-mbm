@@ -130,7 +130,7 @@ ser herdados dos padrões do projeto. Projetos antigos mantêm a geração anter
 até habilitar **Seguir formas da imagem (adaptativo)**.
 
 1. Em edição 2D, escolha **Sulcos detectados (azul)** ou **Mapa de alturas** em
-   **Visualização da imagem**. O mapa aparece sobre o recorte selecionado na cena
+   **Modo**. O mapa aparece sobre o recorte selecionado na cena
    da engine; o restante da imagem continua visível e as alças ficam por cima.
 2. Ajuste **Limiar dos sulcos**. Intensidades abaixo dele, após inversão e
    suavização, são interpretadas como regiões baixas. **Inverter** troca a
@@ -144,7 +144,7 @@ até habilitar **Seguir formas da imagem (adaptativo)**.
 5. Clique **Pré-visualizar ajustes** após mudar os controles para conferir o
    rascunho, sem modificar o projeto. **Aplicar** confirma os parâmetros; use
    **Salvar projeto** para gravá-los em disco. **Imagem original** remove o mapa.
-6. Volte para **Imagem original** ou para o modo 3D para ativar a geometria
+6. Entre no modo 3D para ativar a geometria
    adaptativa e ajustar sua tolerância; aplique. Use wireframe para
    inspecionar as arestas criadas ao longo das transições.
 
@@ -159,8 +159,9 @@ controles sem efeito na prévia selecionada ficam ocultos, preservando seus valo
 | Largura da transição | Com **Duas alturas** | Não |
 | Geometria adaptativa e tolerância | Só na mesh 3D | Só na mesh 3D |
 
-Em **Imagem original**, no modo 3D ou ao editar os padrões, os controles de geração
-voltam a aparecer conforme suas dependências. A tolerância exige geometria adaptativa;
+Em **Imagem original**, limiar, largura da transição, tolerância de erro e suavização
+ficam ocultos, sem alterar seus valores. No modo 3D ou ao editar os padrões, os
+controles de geração aparecem conforme suas dependências. A tolerância exige geometria adaptativa;
 o limiar também orienta o alinhamento das arestas adaptativas mesmo sem **Duas alturas**.
 A imagem original não é processada. Os grupos de volume e resolução continuam sendo
 configurações de geração, independentemente da prévia selecionada.

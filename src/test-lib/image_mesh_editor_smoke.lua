@@ -162,11 +162,11 @@ function onLoop(delta)
         for name,widget in pairs(visibilityWidgets) do tImGui[name]=widget end
         local function visible(key) return shown[tLang.L('ime_'..key)]==true end
         local overlay=viewCase[1]==3; local geometry=viewCase[1]==1
-        assert(visible('grooveThreshold')==(overlay or viewCase[2] or (geometry and viewCase[3])),'threshold visibility')
-        assert(visible('grooveTransition')==(not overlay and viewCase[2]),'transition visibility')
-        assert(visible('heightTolerance')==(geometry and viewCase[3]),'tolerance visibility')
+        assert(visible('grooveThreshold')==(not geometry and (overlay or viewCase[2])),'threshold visibility')
+        assert(visible('grooveTransition')==(not geometry and not overlay and viewCase[2]),'transition visibility')
+        assert(not visible('heightTolerance'),'tolerance visibility')
         assert(visible('twoLevels')==not overlay and visible('followImage')==geometry,'geometry toggles visibility')
-        assert(visible('invert') and visible('smoothPasses'),'shared processing controls missing')
+        assert(visible('invert') and visible('smoothPasses')==not geometry,'shared processing controls missing')
         assert(e.values.twoLevels==viewCase[2] and e.values.followImage==viewCase[3],'hidden values changed')
         if frame==256 then print('IMAGE MESH EDITOR HEIGHT / GROOVE CONTROL VISIBILITY OK') end
     end

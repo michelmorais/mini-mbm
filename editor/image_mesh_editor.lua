@@ -376,6 +376,7 @@ local function propertiesPanel()
                 local change,view=tImGui.Combo(L('height_view'),E.heightView,{L('original_image'),L('height_map'),L('groove_overlay')})
                 if change then E.heightView=view end
             end
+            local original=imagePreview and E.heightView==1
             local map=imagePreview and E.heightView==2
             local overlay=imagePreview and E.heightView==3
             local geometry=not map and not overlay
@@ -386,14 +387,16 @@ local function propertiesPanel()
                 local visible=(key=='grooveThreshold' and (overlay or E.values.twoLevels or (geometry and E.values.followImage))) or
                     (key=='grooveTransition' and not overlay and E.values.twoLevels) or
                     (key=='heightTolerance' and geometry and E.values.followImage)
-                if visible then
+                if visible and not original then
                     local lo=key=='grooveThreshold' and 0 or 0.001
                     local c,v=tImGui.SliderFloat(L(key),E.values[key],lo,1)
                     if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
                 end
             end
-            local c,v=tImGui.SliderInt(L('smoothPasses'),E.values.smoothPasses,0,4)
-            if c then E.values.smoothPasses=Model.clampOption('smoothPasses',v,E.values.smoothPasses) end
+            if not original then
+                local c,v=tImGui.SliderInt(L('smoothPasses'),E.values.smoothPasses,0,4)
+                if c then E.values.smoothPasses=Model.clampOption('smoothPasses',v,E.values.smoothPasses) end
+            end
             local help='grooves_help'
             if map then help='height_map_help' elseif overlay then help='groove_overlay_help' end
             tImGui.TextWrapped(L(help))
