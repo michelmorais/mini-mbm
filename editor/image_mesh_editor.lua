@@ -130,7 +130,7 @@ local function generate(region,project,keepOriginal)
         v.x=-v.x; v.z=-v.z; v.nx=-v.nx; v.nz=-v.nz
     end
     asset:setVertex(1,1,1,vertices)
-    if keepOriginal and options.simplify then Comparison.capture(E,asset) end
+    if keepOriginal and options.simplify then Comparison.capture(E,asset,vertices) end
     Simplify.apply(E,asset,options,report)
     return asset,report
 end
@@ -169,8 +169,10 @@ local function rebuildImpl()
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true
         E.preview=object; E.previewPath=path; E.report=report; E.statistics[r.id]={report=report}; E.builds=E.builds+1
+        Comparison.layout(E,asset)
         local o=Model.options(E.project,r)
         E.fitDistance=math.max(o.width,o.height,o.depth+o.relief)*2.7
+        E.singleFitDistance=E.fitDistance
         -- Rebuilding the same module must not disturb the user's comparison view.
         if E.viewRegion~=r.id then E.orbit.distance=E.fitDistance; camera() end
         if E.wireframe then Wire.ensure(E,asset) end
@@ -342,6 +344,9 @@ local function setEditMode(enabled)
     if E.heightObject then E.heightObject.visible=enabled and E.heightView~=1 end
     Canvas.sync(E)
 end
+local function setComparison(sideBySide)
+    if Comparison.select(E,sideBySide) then camera() end
+end
 local function setWireframe(enabled)
     if E.wireframe==enabled then return end
     if enabled and E.preview and not E.dirty then
@@ -501,8 +506,8 @@ local function propertiesPanel()
                 tImGui.Text(string.format(tLang.L('simplify_success_fmt'),E.report.sourceTriangles,E.report.triangles))
                 if E.comparison and not E.editMode and not E.dirty then
                     tImGui.Separator(); tImGui.Text(L('comparison'))
-                    local change,index=tImGui.Combo(L('comparison_view'),E.compareOriginal and 2 or 1,{L('simplified_mesh'),L('generated_mesh')})
-                    if change then dpCall(Comparison.select,E,index==2) end
+                    local sideBySide=tImGui.Checkbox(L('comparison_side_by_side'),E.compareSideBySide)
+                    if sideBySide~=E.compareSideBySide then dpCall(setComparison,sideBySide) end
                     setWireframe(tImGui.Checkbox(L('wireframe')..'##comparison',E.wireframe))
                     tImGui.Text(string.format(L('comparison_counts'),E.report.sourceVertices,E.report.vertices,
                         E.report.sourceTriangles,E.report.triangles,100*(1-E.report.triangles/E.report.sourceTriangles)))
@@ -684,7 +689,7 @@ function onResizeWindow()
 end
 function onEndScene() HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
-    testApi.setComparison=function(original) return Comparison.select(E,original) end
+    testApi.setComparison=setComparison
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink

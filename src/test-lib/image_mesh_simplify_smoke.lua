@@ -48,17 +48,19 @@ local function test()
     assert(e.report.simplification.degenerateTriangleCount==0 and e.report.simplification.nonManifoldEdgeCount==0)
     for k,v in pairs(orbit) do assert(e.orbit[k]==v,'simplification moved camera') end
     checkSaved(e.previewPath,count)
-    assert(e.comparison and not e.compareOriginal and e.preview.visible)
+    assert(e.comparison and not e.compareSideBySide and e.preview.visible)
     local originalPath=e.comparison.previewPath
     checkSaved(originalPath,source)
     local camera={}; for _,key in ipairs({'x','y','z','fx','fy','fz'}) do camera[key]=e.previewCamera[key] end
     local builds=e.builds
     api.setComparison(true)
-    assert(e.comparison.preview.visible and not e.preview.visible)
+    assert(e.comparison.preview.visible and e.preview.visible)
+    assert(e.comparison.preview.x+e.comparison.bounds.max+e.comparison.gap<=e.preview.x+e.comparison.resultBounds.min+0.0001,'comparison meshes overlap')
     api.setWireframe(true)
-    assert(e.comparison.wireObject.visible and not e.comparison.preview.visible)
+    assert(e.comparison.wireObject.visible and e.wireObject.visible and not e.comparison.preview.visible)
+    assert(e.comparison.wireObject.x==e.comparison.preview.x and e.wireObject.x==e.preview.x)
     api.setComparison(false)
-    assert(e.wireObject.visible and not e.comparison.wireObject.visible)
+    assert(e.wireObject.visible and not e.comparison.wireObject.visible and e.preview.x==0 and e.wireObject.x==0)
     local wires,originalWires=e.wireBuilds,e.comparison.wireBuilds
     for _=1,5 do api.setComparison(true); api.setComparison(false) end
     assert(e.wireBuilds==wires and e.comparison.wireBuilds==originalWires and e.builds==builds,'comparison rebuilt cached geometry')
@@ -66,7 +68,7 @@ local function test()
     api.setComparison(true); api.setEditMode(true)
     assert(not e.comparison.wireObject.visible and not e.wireObject.visible)
     api.setEditMode(false); assert(e.comparison.wireObject.visible)
-    api.setWireframe(false); assert(e.comparison.preview.visible and not e.preview.visible)
+    api.setWireframe(false); assert(e.comparison.preview.visible and e.preview.visible)
     expectedEstimate=string.format(tLang.L('simplify_estimate_fmt'),source,math.floor(source*0.25))
     e.values.simplifyRatio=0.25; coroutine.yield()
     assert(sawEstimate,'missing estimate or estimate used already simplified count')

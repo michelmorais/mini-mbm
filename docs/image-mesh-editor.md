@@ -262,9 +262,14 @@ salvos no `.imesh`, participam do histórico e ficam desabilitados em projetos a
 Desabilitar a etapa e aplicar recupera a geometria gerada, sem acumular simplificações.
 Os mapas 2D continuam representando a imagem processada e não são simplificados.
 
-Após gerar em 3D com simplificação habilitada, **Comparação** permite alternar
-entre **Original gerada** e **Simplificada**, mantendo câmera, zoom e iluminação.
-O wireframe acompanha a versão selecionada. O painel mostra vértices e triângulos
+Após gerar em 3D com simplificação habilitada, **Comparação** permite ativar
+**Original e simplificada lado a lado**, compartilhando câmera e iluminação.
+Ao ativar, a distância é ampliada se necessário para mostrar o par, mantendo a
+orientação e o foco; ao desativar, volta à distância anterior.
+As versões são posicionadas pelos limites reais no eixo X, com espaço de 15% da
+maior largura. **Resetar visão** considera a largura do par. Desativar a comparação
+centraliza novamente a versão simplificada.
+O wireframe mostra as duas versões nas mesmas posições. O painel mostra vértices e triângulos
 antes/depois, redução percentual e os erros geométrico/relativo informados pelo
 simplificador; esse erro não é uma avaliação visual da imagem.
 
