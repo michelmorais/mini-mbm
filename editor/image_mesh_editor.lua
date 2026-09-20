@@ -488,6 +488,12 @@ local function propertiesPanel()
         end
         E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
         end
+        if tImGui.CollapsingHeader(L('back_group')) then
+            local changed,index=tImGui.Combo(L('back_geometry'),E.values.backRelief and 2 or 1,{L('back_flat'),L('back_copy')})
+            if changed then E.values.backRelief=index==2 end
+            E.values.backMirror=tImGui.Checkbox(L('back_mirror'),E.values.backMirror)
+            tImGui.TextWrapped(L('back_help'))
+        end
         if tImGui.CollapsingHeader(L('resolution_group')) then
         for _,key in ipairs({'columns','rows','ellipseSegments'}) do
             local c,v=tImGui.InputInt(L(key),E.values[key],1,10); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end

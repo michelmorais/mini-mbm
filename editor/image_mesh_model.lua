@@ -25,8 +25,9 @@ M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=2
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
 M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTransition=0.1,heightTolerance=0.03,smoothPasses=0}
 M.simplifyDefaults={simplify=false,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
+M.backDefaults={backRelief=false,backMirror=false}
 M.optionalDefaults={}
-for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults}) do
+for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.backDefaults}) do
     for k,v in pairs(defaults) do M.defaults[k]=v; M.optionalDefaults[k]=v end
 end
 local limits={simplifyRatio={0.001,0.95},simplifyBoundary={0,0.25},grooveThreshold={0,1},grooveTransition={0.001,1},heightTolerance={0.001,1},smoothPasses={0,4,true},width={0.001,1000000},height={0.001,1000000},depth={0.001,1000000},relief={0,1000000},
@@ -70,7 +71,7 @@ end
 function M.validateOptions(options,complete)
     assert(type(options)=='table','ime_invalid_options')
     for k,v in pairs(options) do
-        if k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
+        if k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
     end
     if complete then for k in pairs(M.defaults) do assert(k=='preserveAspect' or M.optionalDefaults[k]~=nil or options[k]~=nil,'ime_invalid_options') end end

@@ -3680,6 +3680,7 @@ namespace mbm
         number("depth", options.depth); number("relief", options.relief);
         number("borderWidth", options.borderWidth);
         boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
+        boolean("backRelief", options.backRelief); boolean("backMirror", options.backMirror);
         integer("ellipseSegments", options.ellipseSegments);
         boolean("followImage",options.followImage); boolean("twoLevels",options.twoLevels);
         integer("smoothPasses",options.smoothPasses);

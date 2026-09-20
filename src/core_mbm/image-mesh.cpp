@@ -74,10 +74,11 @@ namespace mbm
             if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
             const uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
-            const uint32_t backSize=o.followImage?static_cast<uint32_t>(topology.boundary.size()):gridSize;
+            const bool compactBack=o.followImage && !o.backRelief;
+            const uint32_t backSize=compactBack?static_cast<uint32_t>(topology.boundary.size()):gridSize;
             const uint32_t vertexCount=gridSize+backSize+4*static_cast<uint32_t>(topology.boundary.size());
             const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+
-                (o.followImage?topology.backTriangles.size():topology.triangles.size())+2*topology.boundary.size());
+                (compactBack?topology.backTriangles.size():topology.triangles.size())+2*topology.boundary.size());
             const auto &path=field.path;
             const uint32_t imageWidth=field.imageWidth,imageHeight=field.imageHeight,cw=field.width,ch=field.height;
             const auto &pixels=field.pixels;
@@ -109,10 +110,12 @@ namespace mbm
             std::vector<uint32_t> backIndex(gridSize);
             for (uint32_t i=0;i<backSize;++i)
             {
-                const uint32_t source=o.followImage?topology.boundary[i]:i;
+                const uint32_t source=compactBack?topology.boundary[i]:i;
                 backIndex[source]=gridSize+i;
                 VERTEX back = vertices[source];
-                back.position.z = o.depth * 0.5f;
+                back.position.z = o.backRelief ? -back.position.z : o.depth * 0.5f;
+                if (o.backMirror)
+                    back.uv.x = (o.x + (1.0f-topology.points[source].x)*(cw-1) + 0.5f)/imageWidth;
                 vertices.push_back(back);
             }
             const auto triangle = [&](uint32_t a, uint32_t b, uint32_t c)
@@ -125,7 +128,7 @@ namespace mbm
             {
                 triangle(face[0], face[1], face[2]);
             }
-            for (const auto &face : (o.followImage?topology.backTriangles:topology.triangles))
+            for (const auto &face : (compactBack?topology.backTriangles:topology.triangles))
                 triangle(backIndex[face[0]],backIndex[face[2]],backIndex[face[1]]);
             // Transparent atlas margins must not turn a closed solid into invisible walls.
             // Build a nearest-max-alpha lookup only if a side crosses transparent texels.
@@ -189,6 +192,8 @@ namespace mbm
                 const uint32_t start = static_cast<uint32_t>(vertices.size());
                 vertices.push_back(vertices[a]); vertices.push_back(vertices[b]);
                 vertices.push_back(vertices[backIndex[a]]); vertices.push_back(vertices[backIndex[b]]);
+                // Back-only UV mirroring must not twist the stretched border strip.
+                vertices[start+2].uv=vertices[a].uv; vertices[start+3].uv=vertices[b].uv;
                 if (sideNeedsOpaqueSample(topology.points[a], topology.points[b]))
                 {
                     prepareVisibleTexels();
@@ -257,6 +262,16 @@ namespace mbm
             {
                 const auto &normal=plateauNormals[i];
                 if (normal.x!=0 || normal.y!=0 || normal.z!=0) vertices[i].normal=normal;
+            }
+            if (o.backRelief)
+            {
+                // Identical sampled relief on both sides must retain identical smoothing,
+                // including the front's authored plateau normals.
+                for (uint32_t i=0;i<gridSize;++i)
+                {
+                    const auto &front=vertices[i].normal;
+                    vertices[backIndex[i]].normal=VEC3(front.x,front.y,-front.z);
+                }
             }
             destination.setMeshType(util::TYPE_MESH_3D);
             util::MATERIAL &material = destination.getMaterial();

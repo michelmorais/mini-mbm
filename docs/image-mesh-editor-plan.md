@@ -533,3 +533,19 @@ ImGui e ausência de trabalho contínuo em repouso.
 
 Próximas pendências da etapa 3: opções adicionais de textura/fundo e prévia de
 encaixe entre módulos. Etapas 4 e acabamento restante da etapa 5 seguem pendentes.
+
+### Etapa 3c - Controle do verso (7.236.0)
+
+Entregue: fundo plano ou com relevo copiado da frente e espelhamento horizontal
+independente da textura do verso. A cópia inclui pintura e bordas, preserva
+normais dos patamares e usa orçamento para a triangulação completa do verso.
+Opções na seção **Textura e fundo**, persistidas em projetos/presets, aplicáveis
+à seleção múltipla e exportação. Os padrões anteriores permanecem válidos.
+
+Verificação: `image_mesh_back_smoke.lua` cobre retângulo, elipse e polígono
+côncavo, geração regular/adaptativa, fechamento, espessura, normais, independência
+entre UVs/geometria, limites, pintura, persistência/presets e exportação.
+
+O bloco de texturas/fundo ainda não está completo. Próximas entregas: textura
+própria no verso, repetição/cor uniforme nas laterais e empacotamento portátil
+com margens de proteção. Prévia de encaixe segue pendente na etapa 3.

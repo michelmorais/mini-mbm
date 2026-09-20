@@ -259,3 +259,8 @@ smoothing snapshots and sampled corrections remain in private `HEIGHT_FIELD`.
 The 7.234.1 painted-height refinement keeps its coarse summed-area raster index and byte mask
 inside private `HEIGHT_FIELD`. Conforming subdivision and corrected-height
 transition tests remain private topology helpers; no public API/storage changed.
+
+The 7.236.0 back-surface controls add only two boolean request values,
+`backRelief` and `backMirror`. Back vertices, indices and reflected normals remain
+generation-local; budget accounting stays in the private topology helper.
+No render-object storage, backend handles or public container access was added.

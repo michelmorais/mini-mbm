@@ -60,7 +60,7 @@ namespace {
     }
     bool budget(const IMAGE_MESH_OPTIONS &o, const TOPOLOGY &t, const char *stage, std::string &error)
     {
-        if (o.followImage)
+        if (o.followImage && !o.backRelief)
             return budget(o,t.points.size()+5*t.boundary.size(),t.triangles.size()+3*t.boundary.size()-2,stage,error);
         return budget(o,2*t.points.size()+4*t.boundary.size(),
                       2*t.triangles.size()+2*t.boundary.size(),stage,error);

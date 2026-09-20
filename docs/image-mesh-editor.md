@@ -492,3 +492,31 @@ parâmetros, com limite de 64 KiB.
 A lista de nomes é atualizada apenas quando o projeto muda. Captura, aplicação,
 serialização e acesso a arquivos ocorrem por ação do usuário, sem trabalho
 contínuo de geração ou leitura em repouso.
+
+## Textura e fundo: controle do verso (7.236.0)
+
+A seção **Textura e fundo** permite escolher **Plano** ou **Copiar relevo frontal**
+em **Geometria do fundo**, além de **Espelhar textura do fundo na horizontal**.
+Pressione **Aplicar** e gire a câmera em modo 3D para inspecionar o verso.
+
+O relevo copiado usa as alturas finais da frente, incluindo pintura e ajustes
+da borda, crescendo para fora. A espessura em cada ponto passa a ser a espessura
+base mais duas vezes o relevo local. Suas normais preservam a suavização e os
+patamares da frente. A malha continua fechada, com quinas separadas das laterais.
+
+O espelhamento é independente da geometria: altera apenas as coordenadas
+horizontais da textura no verso, dentro do mesmo recorte. Frente e laterais
+mantêm suas coordenadas anteriores.
+
+Em geração adaptativa, o relevo copiado exige triangulação completa do verso,
+em vez do fundo plano simplificado. Os limites de vértices/triângulos incluem
+esse custo; um orçamento insuficiente é informado pelo gerador. A simplificação
+opcional continua sendo aplicada depois da geração.
+
+Ambas as opções participam da seleção múltipla, padrões do projeto, histórico,
+presets e exportação. Projetos e presets anteriores usam fundo plano sem
+espelhamento por padrão. Nenhuma dessas opções altera o mapa diagnóstico frontal.
+
+Esta entrega cobre o verso plano/com relevo e o espelhamento. Texturas próprias,
+textura repetida/cor uniforme nas laterais e exportação portátil com recortes
+protegidos ainda estão pendentes; a imagem original continua sendo referenciada.

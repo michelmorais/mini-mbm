@@ -52,6 +52,8 @@ namespace mbm
         float borderWidth = 0.1f;
         bool invert = false;
         bool lockBorder = true;
+        // Copy the final front relief outward on the back. UV mirroring is independent.
+        bool backRelief = false, backMirror = false;
         bool followImage = false, twoLevels = false;
         float grooveThreshold = 0.5f, grooveTransition = 0.1f, heightTolerance = 0.03f;
         uint32_t smoothPasses = 0;
@@ -68,7 +70,7 @@ namespace mbm
 
     // CPU-only extrusion of a rectangle, ellipse or simple polygon. Destination must have no frames.
     // Crop uses zero-based top-left pixels; zero crop dimensions mean remaining image.
-    // Front faces -Z; relief extends outward; back is +depth/2. Texture references
+    // Front faces -Z; relief extends outward. Back is +depth/2, plus copied relief when enabled. Texture references
     // the resolved source image (not copied). On failure discard the destination.
     API_IMPL bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                                     MESH_MBM_DEBUG &destination, IMAGE_MESH_REPORT &report,

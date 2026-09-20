@@ -2135,17 +2135,33 @@ assert(asset:save("panel.msh", false, false, true))
 | `relief` | 8 | Nonnegative outward relief amplitude, at most 1000000 |
 | `columns`, `rows` | 32, 32 | Integers in [1, 255]. Rectangular grid cells per axis; contour refinement density for ellipses/polygons, subject to total budget |
 | `invert` | false | Invert luminance before filtering, groove detection and height mapping |
-| `followImage` | false | Adaptive image-guided front triangulation, transition alignment and simplified flat back; legacy topology when false |
+| `followImage` | false | Adaptive image-guided front triangulation and transition alignment; simplified back only when `backRelief=false`; legacy topology when false |
 | `twoLevels` | false | Map intensity to low/high plateaus with a smoothstep transition |
 | `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
 | `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
 | `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
+| `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
+| `backMirror` | false | Flip back UVs horizontally within the crop; independent of relief, with no change to front or side UVs |
 | `lockBorder` | true | Force the perimeter to zero relief |
 | `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual contour |
 | `maxVertices` | 65535 | Total vertex budget, including back and duplicated side vertices; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
+
+**Image-mesh back controls (7.236.0).**
+
+`backRelief` and `backMirror` are strict optional booleans accepted by the image
+mesh options reader. Their defaults preserve existing geometry and UVs.
+Copied relief uses the same XY triangulation and final heights as the front,
+with reversed winding and reflected normals. It does not mirror the relief
+horizontally. Both budgets include the full back, including adaptive and painted
+refinement; enabling this option may reject an otherwise valid flat-back budget.
+The report's `minHeight`/`maxHeight` still describe one face's relief amplitude,
+not the combined thickness.
+
+These options affect mesh generation only; diagnostic height/overlay PNGs remain
+front-field diagnostics. The source texture is still referenced, not copied.
 
 Height painting (`heightEdits`) is shared by `generateImageMesh` and
 `generateImageMeshMap`. Each dab requires `{x, y, radius, strength, height, mode}`.
@@ -2179,7 +2195,9 @@ bounding-box pixel operations (smooth counts nine per pixel); exceeding it retur
 
 The generated material is matte (zero specular color and power).
 The origin is at the center of the base block. +Y points upward. The front faces
--Z at `-depth/2 - height`; the flat back is at `+depth/2`. Height uses bilinear
+-Z at `-depth/2 - height`; the flat back is at `+depth/2`. With `backRelief=true`,
+the back is at `+depth/2 + height`, so the thickness is `depth + 2*height`.
+Height uses bilinear
 sampling of encoded RGB luminance (`0.2126 R + 0.7152 G + 0.0722 B`), without
 linear-light conversion. Optional filtering and two-height remapping happen before
 relief amplitude and border attenuation. Alpha does not create holes or alter height. Front and
@@ -2210,7 +2228,8 @@ faces uses their average unit normal; other vertices retain the ordinary average
 This preserves plateau shading without duplicating vertices or introducing seams
 that constrain simplification. Positions, UVs, indices and geometry counts do not
 change; transition shading also changes through the shared normals. Other modes
-and side/back normals retain their previous behavior.
+and side/flat-back normals retain their previous behavior. A copied relief back
+uses the reflected front normals, including plateau preservation.
 
 The source image must be decodable by the bundled stb loader and contain at most
 16,777,216 pixels. Topology and geometry limits are checked before decoding. Oversized grids,
@@ -2251,7 +2270,7 @@ Features below the sampling scale may need higher columns/rows.
 
 After refinement, edges are inserted along processed-image isovalues: the threshold
 for continuous relief, or both ends of the two-height transition. Shared edge
-intersections are solved against the filtered image. The back is triangulated
+intersections are solved against the filtered image. When `backRelief=false`, the back is triangulated
 using boundary vertices only; it does not duplicate interior relief vertices.
 Sharp transition fragments may legitimately be small. All final vertex/triangle
 budgets include back and walls; insufficient budgets still return an error.
