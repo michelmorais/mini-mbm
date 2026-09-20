@@ -188,8 +188,12 @@ function onLoop(delta)
         require('image_mesh_canvas').sync(e)
         local sx,sy=mbm.to2ds(-e.project.image.width*e.zoom/2,e.project.image.height*e.zoom/2)
         assert(math.abs(sx-e.canvasTransform.x)<0.01 and math.abs(sy-e.canvasTransform.y)<0.01,'world/image coordinates disagree')
+        assert(math.abs(e.camera2d.x-(oldPan-40/cameraScale))<0.001)
+        local mouse=tImGui.GetMousePos
+        tImGui.GetMousePos=function() return {x=e.screenW*0.6,y=e.screenH*0.6} end
         onTouchZoom(1)
-        assert(math.abs(e.camera2d.x-(oldPan-40/cameraScale))<0.001 and e.zoom>oldZoom)
+        tImGui.GetMousePos=mouse
+        assert(e.zoom>oldZoom)
         assert(e.canvasBuilds==lines,'camera pan rebuilt contour buffers')
         api.fit(e); require('image_mesh_canvas').sync(e)
         local before=#e.project.regions

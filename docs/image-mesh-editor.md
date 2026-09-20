@@ -78,8 +78,9 @@ os parâmetros de densidade e orçamento.
   move a câmera 2D. Alças têm prioridade para editar tamanho/pontos. A ação é
   escolhida ao pressionar e mantida até soltar. As ferramentas de desenho
   continuam criando formas. Botão direito ou central também move a câmera. A ferramenta **Mover câmera** permite esse arraste com o botão
-  esquerdo. A roda ajusta o zoom da imagem e dos contornos no mundo, preservando
-  as coordenadas originais dos recortes.
+  esquerdo. A roda ajusta o zoom da imagem e dos contornos mantendo o ponto sob
+  o cursor fixo na tela, inclusive após mover a câmera. As coordenadas originais
+  dos recortes são preservadas.
   **Enquadrar imagem** restaura zoom e posição. O canto inferior direito e os
   pontos do polígono são alças de edição. As alças têm 16 a 40 pixels de lado,
   crescem com o zoom e aceitam cliques até 6 pixels além da borda. O redimensionamento

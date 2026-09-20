@@ -96,17 +96,51 @@ local function verifyLeftDrag()
     onTouchUp(0,x,y); e.control=false; api.select(e.project.regions[1].id)
     tImGui.GetWantCaptureMouse=captured
 end
+local function verifyCursorZoom()
+    local e=api.state; local c=e.camera2d; local Canvas=require 'image_mesh_canvas'
+    api.fit(e); c:setPos(c.x+73,c.y-41); Canvas.sync(e)
+    local capture,mouse=tImGui.GetWantCaptureMouse,tImGui.GetMousePos
+    tImGui.GetWantCaptureMouse=function() return false end
+    local mx,my=e.screenW*0.65,e.screenH*0.73
+    tImGui.GetMousePos=function() return {x=mx,y=my} end
+    local t=Canvas.transform(e)
+    local px,py=(mx-t.x)/t.scale,(my-t.y)/t.scaleY
+    local revision,builds=e.revision,e.builds
+    local function checkPoint()
+        local x,y=mbm.to2ds((px-e.project.image.width/2)*e.zoom,(e.project.image.height/2-py)*e.zoom)
+        assert(math.abs(x*c.sx-mx)<0.1 and math.abs(y*c.sy-my)<0.1,'zoom moved point under cursor')
+        assert(e.revision==revision and e.builds==builds,'zoom changed project or rebuilt mesh')
+    end
+    onTouchZoom(1); checkPoint()
+    onTouchZoom(-1); checkPoint()
+    -- Reach both limits, then verify additional wheel events do not drift the camera.
+    for _,amount in ipairs({100,-200}) do
+        onTouchZoom(amount); checkPoint()
+        local cx,cy,z=c.x,c.y,e.zoom
+        Canvas.sync(e); local contours=e.canvasBuilds
+        onTouchZoom(amount); Canvas.sync(e)
+        assert(c.x==cx and c.y==cy and e.zoom==z and e.canvasBuilds==contours,'zoom limit drift/rebuild')
+    end
+    local cx,cy,z=c.x,c.y,e.zoom
+    tImGui.GetWantCaptureMouse=function() return true end
+    onTouchZoom(1)
+    assert(c.x==cx and c.y==cy and e.zoom==z,'zoom ignored UI capture')
+    tImGui.GetWantCaptureMouse=capture; tImGui.GetMousePos=mouse
+    api.fit(e); Canvas.sync(e)
+    local contours=e.canvasBuilds
+    Canvas.sync(e); assert(e.canvasBuilds==contours,'idle zoom rebuilt contours')
+end
 local function runFrame(dt)
     loop(dt)
     local e=api.state
     if frame==10 then e.camera2d:scaleToScreen(e.screenW/2,e.screenH/2,'xy') end
-    if frame==12 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true) end
+    if frame==12 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom() end
     if frame==20 then e.camera2d:scaleToScreen(e.screenW/2,e.screenH/1.5,'xy') end
-    if frame==22 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true) end
+    if frame==22 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom() end
     if frame==30 then e.camera2d:scaleToScreen(e.screenW,e.screenH,'xy') end
     if frame==32 then
-        verifyLeftDrag(); verifyCorner(false); verifyCorner(true)
-        print('IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT / LEFT DRAG OK'); mbm.quit()
+        verifyLeftDrag(); verifyCorner(false); verifyCorner(true); verifyCursorZoom()
+        print('IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT / LEFT DRAG / CURSOR ZOOM OK'); mbm.quit()
     end
 end
 function onLoop(dt)

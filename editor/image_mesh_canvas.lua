@@ -45,8 +45,18 @@ function M.destroy(E)
     if E.checkerObject then E.checkerObject:destroy(); E.checkerObject=nil end
     E.canvasPath=nil; E.canvasDirty=true
 end
-function M.zoom(E,value)
-    E.zoom=clamp(value,0.02,32)
+function M.zoom(E,value,mx,my)
+    local zoom=clamp(value,0.02,32)
+    if zoom==E.zoom then return end
+    if mx and my then
+        local c=E.camera2d
+        local dx=(mx-E.screenW/2)/c.sx
+        local dy=(E.screenH/2-my)/c.sy
+        local ratio=zoom/E.zoom
+        -- Keep the image point under this framebuffer position fixed on screen.
+        c:setPos((c.x+dx)*ratio-dx,(c.y+dy)*ratio-dy)
+    end
+    E.zoom=zoom
 end
 function M.fit(E)
     if not E.texture then return end

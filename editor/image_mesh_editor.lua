@@ -440,7 +440,9 @@ function onTouchUp(key,x,y)
 end
 function onTouchZoom(zoom)
     if tImGui.GetWantCaptureMouse() then return end
-    if E.editMode then Canvas.zoom(E,E.zoom*math.exp(zoom*0.12))
+    if E.editMode then
+        local mouse=tImGui.GetMousePos()
+        if sceneInput(mouse.x,mouse.y) then Canvas.zoom(E,E.zoom*math.exp(zoom*0.12),mouse.x,mouse.y) end
     else E.orbit.distance=math.max(0.01,E.orbit.distance*math.exp(-zoom*0.12)); camera() end
 end
 function onResizeWindow()

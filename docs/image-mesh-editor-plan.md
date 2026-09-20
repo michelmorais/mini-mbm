@@ -370,3 +370,14 @@ desenho e o pan por botão direito/central permanecem disponíveis.
 A regressão de entrada cobre pan em vazio dentro/fora da imagem, movimento de
 forma sem mover a câmera, seleção com Ctrl após undo e escalas distintas.
 Pan não modifica o projeto nem reconstrói buffers de contornos.
+
+
+### Zoom no cursor em edição (7.222.0)
+
+A roda ajusta a escala da imagem e a posição da câmera 2D em conjunto, mantendo
+o ponto sob o cursor fixo na tela. Usa coordenadas físicas do ImGui e compensa
+as escalas X/Y da câmera. Os limites de zoom não provocam deslocamento adicional.
+O zoom numérico e o enquadramento continuam disponíveis no painel da câmera.
+
+A regressão verifica aproximação/afastamento após pan, escalas 1x/2x/assimétrica,
+limites de zoom e captura da interface, sem editar o projeto ou regenerar a mesh.
