@@ -423,3 +423,16 @@ A API mantém seu parâmetro independente para consumidores existentes.
 
 Regressões cobrem os limites de ambos os recursos, refinamento de elipse acima
 da capacidade da engine, orçamento derivado e recuperação da prévia via undo.
+
+
+### Feedback de salvamento e contagem de faces (7.226.0)
+
+Salvar confirma o sucesso em overlay com nome do arquivo e duração de quatro
+segundos, reiniciada a cada salvamento. O painel Regiões mostra o total de faces
+triangulares da seleção em formato compacto (K decimal), com totais exatos de
+faces/vértices no tooltip. Vale para edição 2D e visualização 3D.
+
+A edição 2D consulta a geração CPU sob demanda e mantém relatórios por módulo
+em cache até mudanças no projeto. Arrastes não recalculam continuamente, e
+contagens antigas não são exibidas durante edição de geometria ou após erro.
+Regressões cobrem confirmação repetida, formatação, seleção, invalidação e idle.

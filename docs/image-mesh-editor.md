@@ -150,22 +150,33 @@ incluem frente, verso e laterais; não são totais finais quando o refinamento f
 interrompido. Reduza **Colunas/Linhas** ou **Segmentos da elipse**; um orçamento
 menor de vértices pode ser aumentado até 65.535.
 
-A prévia mostra contagens finais, permite orbitar com arraste, ajustar distância
+O alto do painel **Regiões** mostra as faces triangulares do módulo selecionado
+em formato compacto, por exemplo `4K` ou `4.2K` (`K = 1000`), na edição 2D e na
+visualização 3D. O tooltip mostra os totais exatos de vértices e triângulos,
+incluindo frente, verso e laterais. Durante um arraste a contagem fica pendente;
+ao confirmar a alteração ela é recalculada. Uma geração inválida mostra seu erro
+em vez de manter uma contagem antiga.
+
+A prévia permite orbitar com arraste, ajustar distância
 com a roda e intensidade da luz direcional. Modificações nas propriedades só
 entram no projeto após **Aplicar**. A prévia fica indisponível se a geração falhar,
 com o motivo apresentado; ela não mantém uma peça antiga como se fosse atual.
 
 O editor não regenera nem serializa a malha a cada frame. Contornos desenhados
 são armazenados em cache e os buffers de linhas só são reconstruídos quando suas
-entradas mudam. No modo de edição, a geração 3D fica pendente até entrar na
-visualização. Nesse modo, alterações confirmadas ou seleção disparam geração;
+entradas mudam. No modo de edição, a contagem exata é calculada pela geração CPU
+uma vez por módulo consultado; os relatórios ficam em cache até uma alteração
+confirmada no projeto, incluindo undo/redo. Não há exportação ou upload de mesh
+3D para contar faces. A prévia GPU fica pendente até entrar na visualização.
+Nesse modo, alterações confirmadas ou seleção disparam geração;
 orbitar ou ajustar a luz não regenera a mesh. A cena desenha normalmente a cada
 frame, sem reconstruir geometria em repouso. A geração de uma peça ainda é síncrona.
 
 ## Salvar, relocalizar e exportar
 
 **Salvar projeto** (Ctrl+S) grava `.imesh`, contendo versão, imagem, regiões e
-parâmetros. É um arquivo Lua de dados seguindo o padrão dos editores, carregado
+parâmetros. Ao concluir, uma mensagem temporária de quatro segundos confirma o
+salvamento e mostra o nome do arquivo. Salvar novamente reinicia sua duração. É um arquivo Lua de dados seguindo o padrão dos editores, carregado
 com ambiente vazio e validado. O histórico de desfazer e recursos GPU não são
 salvos. Imagens sob a pasta do projeto usam referência relativa; outras mantêm
 o caminho recebido pelo diálogo. Ao reabrir com imagem ausente, **Localizar

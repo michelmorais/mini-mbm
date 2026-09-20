@@ -39,6 +39,7 @@ local function runInit()
     assert(api.action(function(p) p.defaults.relief=3 end)); api.undo(false)
     assert(api.state.project.defaults.relief==before); api.undo(true); assert(api.state.project.defaults.relief==3)
     assert(api.saveProject('/tmp/ime_editor.imesh')); assert(not api.state.modified)
+    assert(tUtil.sMessageOverlay:find('ime_editor.imesh',1,true),'save confirmation missing')
     assert(api.openProject('/tmp/ime_editor.imesh')); assert(#api.state.project.regions==14)
     api.select(1); api.select(2,true)
     api.state.values.depth=40; api.applyProperties()
@@ -253,6 +254,29 @@ function onLoop(delta)
         assert(Model.options(e.project,Model.region(e.project,13)).maxTriangles==131070)
         api.undo(false); api.rebuild(); assert(e.preview and not e.generationFailure)
         print('IMAGE MESH EDITOR BUDGET DIAGNOSTIC / RECOVERY OK')
+    end
+    if frame==210 then
+        assert(api.compactCount(999)=='999' and api.compactCount(4000)=='4K' and api.compactCount(4200)=='4.2K')
+        local report=e.report
+        api.setEditMode(true); api.updateStatistics()
+        assert(e.report.triangles==report.triangles)
+        api.select(1); api.updateStatistics(); local builds=e.statisticsBuilds
+        local expected=e.report.triangles
+        api.select(13); api.updateStatistics(); api.select(1); api.updateStatistics()
+        assert(e.statisticsBuilds==builds and e.report.triangles==expected,'selection did not reuse counts')
+        for i=1,10 do api.updateStatistics() end
+        assert(e.statisticsBuilds==builds,'idle recounts geometry')
+        api.action(function(p) Model.region(p,1).overrides.columns=4 end)
+        api.updateStatistics(); assert(e.statisticsBuilds==builds+1,'changed geometry did not recount')
+        local asset,actual=mbm.generateImageMesh(e.project.image.path,Model.options(e.project,Model.region(e.project,1)))
+        assert(asset and e.report.triangles==actual.triangles)
+        api.undo(false); api.updateStatistics()
+        local restart=tUtil.tTimerOverlay.restart; local restarted=0
+        tUtil.tTimerOverlay.restart=function(self) restarted=restarted+1; return restart(self) end
+        api.saveProject('/tmp/ime_feedback.imesh'); api.saveProject('/tmp/ime_feedback.imesh')
+        tUtil.tTimerOverlay.restart=restart
+        assert(restarted==2 and tUtil.sMessageOverlay:find('ime_feedback.imesh',1,true))
+        print('IMAGE MESH EDITOR SAVE FEEDBACK / FACE COUNTS / CACHE OK')
     end
     if started and mbm.getTimeRun()-started>8 then mbm.quit() end
 end

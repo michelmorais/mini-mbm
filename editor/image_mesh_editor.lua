@@ -29,7 +29,7 @@ local Canvas=require 'image_mesh_canvas'
 local Diagnostics=require 'image_mesh_diagnostics'
 local Wire=require 'image_mesh_wireframe'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
-    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,sidebar=370,rightbar=310,polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
+    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=math.pi-0.4,elevation=0.25,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
 local function dpCall(fn,...)
@@ -53,6 +53,7 @@ local function syncDraft()
     E.point=1
 end
 local function changed()
+    E.statistics={}
     E.generationFailure=nil
     E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
     if E.preview then E.preview.visible=false end
@@ -117,6 +118,25 @@ local function generate(region)
     if not asset then error(generationError(region,report),0) end
     return asset,report
 end
+local function compactCount(value)
+    if value<1000 then return tostring(value) end
+    local divisor,suffix=1000,'K'
+    if value>=999950 then divisor,suffix=1000000,'M' end
+    return string.format('%.1f',value/divisor):gsub('%.0$','')..suffix
+end
+local function updateStatistics()
+    if not E.editMode or E.drag or not E.texture or E.selected==0 then return end
+    local cached=E.statistics[E.selected]
+    if not cached then
+        local region=Model.region(E.project,E.selected)
+        if not region then return end
+        local ok,asset,report=dpCall(generate,region)
+        cached=ok and {report=report} or {error=E.status}
+        E.statistics[E.selected]=cached
+        E.statisticsBuilds=(E.statisticsBuilds or 0)+1
+    end
+    E.report=cached.report; E.generationFailure=cached.error
+end
 local function rebuild()
     if not E.dirty or E.drag or E.editMode then return end
     E.dirty=false; releasePreview()
@@ -127,7 +147,7 @@ local function rebuild()
         assert(asset:save(path,false,false,true),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true
-        E.preview=object; E.previewPath=path; E.report=report; E.builds=E.builds+1
+        E.preview=object; E.previewPath=path; E.report=report; E.statistics[r.id]={report=report}; E.builds=E.builds+1
         local o=Model.options(E.project,r); E.fitDistance=math.max(o.width,o.height,o.depth+o.relief)*2.7; E.orbit.distance=E.fitDistance; camera()
         if E.wireframe then Wire.ensure(E,asset) end
         Wire.sync(E)
@@ -173,7 +193,12 @@ local function relink(path)
     pending.project.image.path=path; install(pending.project,pending.path,texture); E.modified=true
 end
 local function saveProject(path)
-    IO.save(E.project,path,tUtil.save); E.path=path; E.modified=false; E.status=L('saved'); return true
+    IO.save(E.project,path,tUtil.save); E.path=path; E.modified=false
+    E.status=L('saved')..' '..tUtil.getShortName(path)
+    tUtil.showMessage(E.status,4)
+    -- Saving the same file again must restart the confirmation duration too.
+    tUtil.tTimerOverlay:set(4); tUtil.tTimerOverlay:restart()
+    return true
 end
 local function exportOne(path)
     local r=assert(Model.region(E.project,E.selected),L('select_region'))
@@ -375,6 +400,14 @@ local function regionsPanel()
             tImGui.TextWrapped(L('preview_help'))
             setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
         end
+        if E.draft then
+            if E.report and not E.drag then
+                tImGui.TextWrapped(string.format(L('faces_compact'),E.draft.name,compactCount(E.report.triangles)))
+                if tImGui.IsItemHovered() then
+                    tImGui.BeginTooltip(); tImGui.Text(string.format(L('counts'),E.report.vertices,E.report.triangles)); tImGui.EndTooltip()
+                end
+            elseif not E.generationFailure then tImGui.Text(L('faces_pending')) end
+        end
         if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
         tImGui.Separator()
         if E.missing then
@@ -411,7 +444,6 @@ local function regionsPanel()
             tImGui.EndChild()
             tImGui.Separator(); propertiesPanel()
         else tImGui.Text(L('open_help')) end
-        if E.report then tImGui.TextWrapped(string.format(L('counts'),E.report.vertices,E.report.triangles)) end
         if E.status~=E.generationFailure then tImGui.TextWrapped(E.status) end
         if E.batch then
             tImGui.ProgressBar((E.batch.index-1)/#E.batch.project.regions,{x=-1,y=0},L('exporting'))
@@ -441,7 +473,7 @@ function onLoop(delta)
         elseif E.control and E.key==mbm.getKeyCode('S') then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end)
         elseif E.key==mbm.getKeyCode('ESC') then Canvas.cancel(E); syncDraft() end
     end
-    E.key=nil; rebuild(); batchStep()
+    E.key=nil; rebuild(); updateStatistics(); batchStep()
     Canvas.sync(E)
     tUtil.showOverlayMessage()
 end
@@ -501,5 +533,5 @@ if type(testApi)=='table' then
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink
-    testApi.setWireframe=setWireframe; testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
+    testApi.updateStatistics=updateStatistics; testApi.compactCount=compactCount; testApi.setWireframe=setWireframe; testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
 end
