@@ -23,6 +23,7 @@
 -- Camera and light inspection for image meshes. Reuses Mesh Debug's shared
 -- orbit gizmo and direction conversions without depending on its scene globals.
 local M={}
+local Model=require 'image_mesh_model'
 local function L(key) return tLang.L(key) end
 local function lightState(target)
     local state=mbm.getLightState(target)
@@ -54,13 +55,13 @@ local function cameraPanel(E,H)
         local ry,y=tImGui.DragFloat('Y##ime_cam2',camera.y,1,0,0,'%.2f',0)
         if rx or ry then camera:setPos(x,y) end
         local changed,zoom=tImGui.InputFloat(L('ime_zoom'),E.zoom,0.1,1,'%.3f')
-        if changed and zoom>0 then H.zoom(E,zoom) end
+        if changed then H.zoom(E,Model.clampNumber(zoom,0.02,32,E.zoom)) end
         if tImGui.Button(L('reset_camera')) then H.fit(E) end
         tImGui.TextWrapped(L('ime_camera_pan_help'))
     else
         if tUtil.drawOrbitGizmo(c,{size=90}) then H.camera() end
         local changed,value=tImGui.InputFloat(L('cam_distance'),c.distance,10,100,'%.2f')
-        if changed and value>0 then c.distance=value; H.camera() end
+        if changed then c.distance=Model.clampNumber(value,0.01,math.huge,c.distance); H.camera() end
         if tImGui.CollapsingHeader(L('cam_position')..' / '..L('cam_focus')) then
             -- Orbit coordinates before the parallel viewport-centering offset.
             local p={x=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth),

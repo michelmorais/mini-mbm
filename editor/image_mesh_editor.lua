@@ -320,16 +320,20 @@ local function primitivePanel()
     local spec=E.primitive; local index=1
     for i,kind in ipairs(types) do if kind==spec.kind then index=i end end
     local changed,value=tImGui.Combo(L('primitive_type'),index,names)
-    if changed then spec.kind=types[value] end
-    changed,value=tImGui.InputInt(L(spec.kind=='circle' and 'diameter' or 'crop_w')..'##new',spec.w)
-    if changed then spec.w=value end
+    if changed then
+        spec.kind=types[value]
+        if spec.kind=='circle' then spec.w=math.min(spec.w,E.project.image.width,E.project.image.height) end
+    end
+    local maxWidth=spec.kind=='circle' and math.min(E.project.image.width,E.project.image.height) or E.project.image.width
+    changed,value=tImGui.InputInt(L(spec.kind=='circle' and 'diameter' or 'crop_w')..'##new',spec.w,1,10)
+    if changed then spec.w=Model.clampNumber(value,math.min(2,maxWidth),maxWidth,spec.w,true) end
     if spec.kind~='circle' then
-        changed,value=tImGui.InputInt(L('crop_h')..'##new',spec.h)
-        if changed then spec.h=value end
+        changed,value=tImGui.InputInt(L('crop_h')..'##new',spec.h,1,10)
+        if changed then spec.h=Model.clampNumber(value,math.min(2,E.project.image.height),E.project.image.height,spec.h,true) end
     end
     if spec.kind=='regular' then
         changed,value=tImGui.SliderInt(L('sides'),spec.sides,3,32)
-        if changed then spec.sides=value end
+        if changed then spec.sides=Model.clampNumber(value,3,32,spec.sides,true) end
     end
     if tImGui.Button(L('add_primitive')..'##add') then addPrimitive() end
     tImGui.Separator()
@@ -343,14 +347,22 @@ local function propertiesPanel()
             local d=E.draft
             local edited,value=tImGui.InputText(L('name'),d.name); if edited then d.name=value end
             if tImGui.CollapsingHeader(L('crop_group')) then
-            for _,key in ipairs({'x','y','w','h'}) do local c,v=tImGui.InputInt(L('crop_'..key),d[key]); if c then d[key]=v end end
+            for _,key in ipairs({'x','y','w','h'}) do
+                local horizontal=key=='x' or key=='w'
+                local size=horizontal and E.project.image.width or E.project.image.height
+                local position=key=='x' or key=='y'
+                local lo=position and 0 or 1
+                local hi=position and size-d[horizontal and 'w' or 'h'] or size-d[horizontal and 'x' or 'y']
+                local c,v=tImGui.InputInt(L('crop_'..key),d[key],1,10)
+                if c then d[key]=Model.clampNumber(v,lo,hi,d[key],true) end
+            end
             local shapes={'rectangle','ellipse','polygon'}; local idx=d.shape=='rectangle' and 1 or (d.shape=='ellipse' and 2 or 3)
             local c,v=tImGui.Combo(L('shape'),idx,{L('rectangle'),L('ellipse'),L('polygon')})
             if c then d.shape=shapes[v]; if d.shape=='polygon' and not d.contour then d.contour={{x=0,y=0},{x=1,y=0},{x=1,y=1},{x=0,y=1}} end end
             if d.shape=='polygon' and tImGui.CollapsingHeader(L('points')) then
-                local change,index=tImGui.SliderInt(L('point'),E.point,1,#d.contour); if change then E.point=index end
+                local change,index=tImGui.SliderInt(L('point'),E.point,1,#d.contour); if change then E.point=Model.clampNumber(index,1,#d.contour,E.point,true) end
                 local point=d.contour[E.point]
-                for _,axis in ipairs({'x','y'}) do local modified,n=tImGui.InputFloat(axis,point[axis]); if modified then point[axis]=n end end
+                for _,axis in ipairs({'x','y'}) do local modified,n=tImGui.InputFloat(axis,point[axis],0.01,0.1,'%.3f'); if modified then point[axis]=Model.clampNumber(n,0,1,point[axis]) end end
                 if tImGui.Button(L('add_point')) and #d.contour<128 then local nextPoint=d.contour[E.point%#d.contour+1]
                     table.insert(d.contour,E.point+1,{x=(point.x+nextPoint.x)/2,y=(point.y+nextPoint.y)/2}); E.point=E.point+1
                 end
@@ -365,10 +377,10 @@ local function propertiesPanel()
             for _,key in ipairs({'grooveThreshold','grooveTransition','heightTolerance'}) do
                 local lo=key=='grooveThreshold' and 0 or 0.001
                 local c,v=tImGui.SliderFloat(L(key),E.values[key],lo,1)
-                if c then E.values[key]=v end
+                if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
             end
             local c,v=tImGui.SliderInt(L('smoothPasses'),E.values.smoothPasses,0,4)
-            if c then E.values.smoothPasses=v end
+            if c then E.values.smoothPasses=Model.clampOption('smoothPasses',v,E.values.smoothPasses) end
             tImGui.TextWrapped(L('grooves_help'))
             if E.editMode and not E.editDefaults then
                 local change,view=tImGui.Combo(L('height_view'),E.heightView,{L('original_image'),L('height_map'),L('groove_overlay')})
@@ -386,15 +398,16 @@ local function propertiesPanel()
             if key=='height' and E.values.preserveAspect then
                 if not E.editDefaults then tImGui.Text(L(key)..': '..string.format('%.3f',E.values.height)) end
             else
-                local c,v=tImGui.InputFloat(L(key),E.values[key]); if c then E.values[key]=v end
+                local step=key=='borderWidth' and 0.05 or 0.1
+                local c,v=tImGui.InputFloat(L(key),E.values[key],step,step*10,'%.3f'); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
             end
         end
         if tImGui.CollapsingHeader(L('resolution_group')) then
         for _,key in ipairs({'columns','rows','ellipseSegments'}) do
-            local c,v=tImGui.InputInt(L(key),E.values[key]); if c then E.values[key]=v end
+            local c,v=tImGui.InputInt(L(key),E.values[key],1,10); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
         end
         local c,v=tImGui.InputInt(L('maxVertices'),E.values.maxVertices)
-        if c then E.values.maxVertices=math.max(1,math.min(65535,v)) end
+        if c then E.values.maxVertices=Model.clampOption('maxVertices',v,E.values.maxVertices) end
         tImGui.TextWrapped(L('vertex_budget_help'))
         tImGui.Text(string.format(L('triangle_budget_auto'),2*E.values.maxVertices))
         end
@@ -448,7 +461,10 @@ local function regionsPanel()
             tImGui.Text(tUtil.getShortName(E.project.image.path))
             if tImGui.CollapsingHeader(L('grid')) then
                 for _,key in ipairs({'columns','rows','marginX','marginY','gapX','gapY'}) do
-                    local edit,value=tImGui.InputInt(L('grid_'..key),E.grid[key]); if edit then E.grid[key]=value end
+                    local count=key=='columns' or key=='rows'
+                    local hi=count and 64 or E.project.image[key:sub(-1)=='X' and 'width' or 'height']
+                    local edit,value=tImGui.InputInt(L('grid_'..key),E.grid[key],1,10)
+                    if edit then E.grid[key]=Model.clampNumber(value,count and 1 or 0,hi,E.grid[key],true) end
                 end
                 if tImGui.Button(L('create_grid')) then action(function(p) local ids=Model.grid(p,E.grid); E.selected=ids[1]; E.selection={}; for _,id in ipairs(ids) do E.selection[id]=true end end) end
             end

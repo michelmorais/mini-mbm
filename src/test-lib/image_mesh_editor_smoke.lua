@@ -122,7 +122,43 @@ function onLoop(delta)
             return originalBegin(title,...)
         end
     end
+    local numericWidgets
+    if frame==240 or frame==241 then
+        api.setEditMode(true); api.select(1)
+        e.values.preserveAspect=false
+        e.draft.shape='polygon'; e.draft.contour={{x=0,y=0},{x=1,y=0},{x=0,y=1}}; e.point=1
+        numericWidgets={}
+        local function inject(name)
+            local original=tImGui[name]; numericWidgets[name]=original
+            tImGui[name]=function(label,value,...)
+                original(label,value,...)
+                if label==tLang.L('ime_borderWidth') then
+                    local step,fast,format=...
+                    assert(step==0.05 and fast==0.5 and format=='%.3f','incorrect border step')
+                end
+                return true,frame==240 and 1e9 or -1e9
+            end
+        end
+        for _,name in ipairs({'InputFloat','InputInt','SliderFloat','SliderInt'}) do inject(name) end
+        numericWidgets.CollapsingHeader=tImGui.CollapsingHeader
+        tImGui.CollapsingHeader=function(...) numericWidgets.CollapsingHeader(...); return true end
+    end
     loop(delta)
+    if numericWidgets then
+        for name,widget in pairs(numericWidgets) do tImGui[name]=widget end
+        local model=require 'image_mesh_model'
+        local settings={}; for key in pairs(model.defaults) do settings[key]=e.values[key] end
+        model.validateOptions(settings,true)
+        assert(e.values.borderWidth==(frame==240 and 0.5 or 0),'border range')
+        assert(e.values.columns==(frame==240 and 255 or 1),'resolution range')
+        assert(e.values.ellipseSegments==(frame==240 and 128 or 8),'ellipse range')
+        local d=e.draft; local image=e.project.image
+        assert(d.x>=0 and d.y>=0 and d.w>=1 and d.h>=1 and d.x+d.w<=image.width and d.y+d.h<=image.height,'crop range')
+        for _,p in ipairs(d.contour) do assert(p.x>=0 and p.x<=1 and p.y>=0 and p.y<=1,'point range') end
+        assert(e.zoom==(frame==240 and 32 or 0.02),'zoom range')
+        if frame==241 then print('IMAGE MESH EDITOR NUMERIC INPUT RANGES / STEPS OK') end
+        api.select(1)
+    end
     tImGui.Begin=originalBegin
     if frame==180 then
         assert(lightWindows==0 and not mbm.getLightState('2dw').enabled,'2D light/window enabled')

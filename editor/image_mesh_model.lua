@@ -31,6 +31,16 @@ local limits={grooveThreshold={0,1},grooveTransition={0.001,1},heightTolerance={
 local function number(v,lo,hi,integer)
     return type(v)=='number' and v==v and v>=lo and v<=hi and (not integer or v%1==0)
 end
+-- Shared by widgets and project validation, so their accepted ranges cannot drift.
+function M.clampNumber(value,lo,hi,fallback,integer)
+    if type(value)~='number' or value~=value or (hi==math.huge and value==math.huge) then return fallback end
+    value=math.max(lo,math.min(hi,value))
+    return integer and math.floor(value) or value
+end
+function M.clampOption(key,value,fallback)
+    local range=assert(limits[key])
+    return M.clampNumber(value,range[1],range[2],fallback,range[3])
+end
 function M.copy(value)
     if type(value)~='table' then return value end
     local out={}; for k,v in pairs(value) do out[k]=M.copy(v) end; return out
