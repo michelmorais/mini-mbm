@@ -41,11 +41,13 @@ sem normais são ignoradas pelo processamento; **Adicionar normais** serve para
 criá-las e ignora arquivos que já possuem normais, evitando sobrescrita acidental.
 
 **Salvar todos (método de normais selecionado)** aplica a política selecionada
-antes de salvar com o recálculo implícito da engine desabilitado. Se não houver
+em cópias para revisão. Somente **Confirmar e salvar** grava os arquivos,
+com o recálculo implícito da engine desabilitado. Se não houver
 normais, cria-as e aplica o método escolhido (Reparar usa suavização uniforme
 nesse caso, pois não há vetores personalizados a preservar). Arquivos que não usam TRIANGLES são ignorados nessa operação.
-O salvamento comum continua preservando os vetores atuais. Falhas são registradas
-por item e não interrompem os demais arquivos do lote.
+O salvamento comum continua preservando os vetores atuais. Falhas de salvamento são
+registradas por item e não interrompem os demais arquivos do lote. Uma falha ao
+preparar a prévia descarta todas as cópias, preservando o lote original.
 
 A seleção do método não altera a geometria nem aplica operações por si só. Ela é
 estado temporário da sessão. A computação geométrica da tabela permanece em cache;
@@ -63,9 +65,10 @@ novo trabalho de varredura de geometria contínuo no editor ocioso.
 ## Preservar superfícies: uso e limites
 
 Escolha o método e o ângulo, aplique ao subset ou aos arquivos carregados e examine
-a prévia 3D sob diferentes direções de luz antes de salvar. A operação muda apenas
-normais em memória e marca o arquivo como modificado; não salva implicitamente.
-O botão de salvamento com método selecionado aplica e salva explicitamente.
+a prévia 3D sob diferentes direções de luz. Os três métodos abrem uma revisão
+reversível antes de alterar a mesh autoral. **Confirmar** aceita as cópias com
+normais alteradas e marca os arquivos como modificados, sem salvamento implícito.
+O botão de salvamento com método selecionado exige **Confirmar e salvar**.
 A largura do combobox é fixa em 320 px, tanto na tabela quanto na janela de lote.
 
 Regiões crescem por continuidade local: uma superfície curva pode formar uma única
@@ -93,3 +96,33 @@ controle de ângulo, largura fixa, testes de invariância por rotação, regiõe
 module_002-recompute-all.msh, a inferência recuperou visualmente os patamares,
 comparada com a exportação original. Isso é validação desse exemplo, não garantia
 para qualquer malha.
+
+## Prévia reversível (7.233.0)
+
+O processamento por vértice, subset e lote usa cópias isoladas da mesh atual,
+incluindo edições ainda não salvas. A janela mostra o método, a contagem de normais
+a alterar e as meshes propostas. O combo permite escolher o alvo no lote;
+**Visualizar original** alterna entre a mesh autoral e a proposta. Câmera e luz
+continuam disponíveis. Os demais controles de edição ficam indisponíveis durante
+a revisão, evitando modificações concorrentes.
+
+**Cancelar** ou fechar a janela descarta a proposta. A mesh autoral, suas edições
+anteriores e seu estado de modificação permanecem intactos. **Confirmar** aceita
+todas as meshes listadas, após verificar que os alvos ainda são os mesmos.
+Os temporários são removidos ao confirmar, cancelar, sair da cena ou falhar na
+preparação. O salvamento combinado grava apenas os alvos incluídos na revisão;
+uma falha de gravação mantém a alteração em memória para permitir novo salvamento.
+
+Sem alterações necessárias, o processamento comum só informa esse resultado;
+no fluxo combinado com salvamento, a revisão permanece disponível mesmo com zero
+normais alteradas. Meshes sem normais são ignoradas no processamento comum e
+recebem normais na cópia do fluxo combinado. Operações manuais de componentes,
+inversão, adição e remoção de normais mantêm seus fluxos existentes.
+
+As cópias e o cálculo são feitos ao solicitar a operação. Alternar o alvo ou a
+visualização invalida a prévia; o loop ocioso só desenha os controles e atualiza a
+câmera, sem recalcular normais ou reconstruir continuamente as meshes.
+
+O smoke test também verifica isolamento antes de confirmar, cancelamento com
+edições anteriores, escopo por vértice/subset, múltiplos alvos, falha de preparação,
+limpeza de temporários, salvamento adiado e ausência de recálculo no loop ocioso.

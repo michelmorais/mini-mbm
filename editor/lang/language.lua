@@ -8,6 +8,22 @@ local M = {}
 
 -- String tables
 M.en = {
+    normal_review_title = "Normal preview",
+    normal_review_busy = "Wait for simplification to finish.",
+    normal_review_copy_failed = "Could not create an isolated mesh copy.",
+    normal_review_failed = "Preview failed; no authored mesh was changed",
+    normal_review_stale = "Source changed. Cancel and generate another preview.",
+    normal_review_confirmed = "Normals confirmed in memory.",
+    normal_review_cancelled = "Preview cancelled. Previous edits preserved.",
+    normal_review_help = "Inspect the result with the camera and light controls. Confirm affects every mesh listed.",
+    normal_review_count = "%d meshes / %d normals to change",
+    normal_review_original = "Show original",
+    normal_review_showing_original = "Showing: original",
+    normal_review_showing_result = "Showing: proposed result",
+    normal_review_save_warning = "Confirm and save will overwrite the files of this batch.",
+    normal_review_confirm_save = "Confirm and save",
+    normal_review_confirm = "Confirm",
+
     normal_method_surfaces = "Recompute - preserve surfaces",
     normal_surface_angle = "Patch angle (deg)",
     normal_surfaces_help = "Groups connected faces by angle and favors larger surface patches at creases. Inspect the preview before saving; this cannot recover every custom normal. Higher angles join more faces.",
@@ -3135,6 +3151,22 @@ M.en = {
 }
 
 M.pt_br = {
+    normal_review_title = "Prévia de normais",
+    normal_review_busy = "Aguarde o término da simplificação.",
+    normal_review_copy_failed = "Não foi possível criar uma cópia isolada da mesh.",
+    normal_review_failed = "A prévia falhou; nenhuma mesh original foi alterada",
+    normal_review_stale = "A origem mudou. Cancele e gere outra prévia.",
+    normal_review_confirmed = "Normais confirmadas em memória.",
+    normal_review_cancelled = "Prévia cancelada. Edições anteriores preservadas.",
+    normal_review_help = "Examine o resultado com os controles de câmera e luz. Confirmar afeta todas as meshes listadas.",
+    normal_review_count = "%d meshes / %d normais a alterar",
+    normal_review_original = "Visualizar original",
+    normal_review_showing_original = "Exibindo: original",
+    normal_review_showing_result = "Exibindo: resultado proposto",
+    normal_review_save_warning = "Confirmar e salvar sobrescreverá os arquivos deste lote.",
+    normal_review_confirm_save = "Confirmar e salvar",
+    normal_review_confirm = "Confirmar",
+
     normal_method_surfaces = "Recalcular - preservar superfícies",
     normal_surface_angle = "Ângulo das regiões (deg)",
     normal_surfaces_help = "Agrupa faces conectadas pelo ângulo e prioriza regiões maiores nas quinas. Confira a prévia antes de salvar; não recupera toda normal personalizada. Ângulos maiores unem mais faces.",

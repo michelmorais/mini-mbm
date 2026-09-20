@@ -15,6 +15,7 @@
 package.path='editor/?.lua;'..package.path
 dofile('editor/mesh_debug.lua')
 local init=onInitScene
+local editorLoop=onLoop
 local surfaceCalls,initialSurfaceCalls=0,0
 local surfaces=tMeshNormals.surfaces
 tMeshNormals.surfaces=function(...) surfaceCalls=surfaceCalls+1;return surfaces(...) end
@@ -38,7 +39,42 @@ local function run()
     d:addAnim('Static',1,2,1,0)
     local entry={meshDebug=d,info={type='mesh',hasNormal=true,animation=1},fileName='/tmp/mesh-debug-normal-policy.msh'}
     tLoadedMeshes={entry};tApplyAllWin.normalMethod=1
-    local apply=upvalue(showApplyAllWindow,'applyAllRecomputeNormalsBulk')
+    local prepare=upvalue(showApplyAllWindow,'applyAllRecomputeNormalsBulk')
+    local review=tMeshNormals.preview
+    -- Staging must never mutate authored data, including existing unsaved changes.
+    entry.modified=true
+    assert(prepare('mesh').success==1)
+    assert(entry.meshDebug==d and d:getVertex(1,1,3).nz==0)
+    assert(review.entry(entry).meshDebug:getVertex(1,1,3).nz==1)
+    local temporary=review.pending.paths[1]
+    assert(review.finish(false) and not review.pending)
+    assert(entry.modified and entry.meshDebug==d and d:getVertex(1,1,3).nz==0)
+    assert(not io.open(temporary,'rb'),'cancel leaked temporary file')
+    -- The single-vertex and subset controls use the same transaction with narrower scope.
+    entry.normalMethod=2
+    assert(review.begin({{entry=entry,index=1}},entry,1,2,1,nil,pcall).success==1)
+    local candidate=review.entry(entry).meshDebug
+    assert(candidate:getVertex(1,2,1).nz==1 and candidate:getVertex(2,2,1).nx>.5)
+    assert(candidate:getVertex(1,1,1).nx>.5)
+    assert(review.finish(false))
+    assert(review.begin({{entry=entry,index=1}},entry,1,2,nil,nil,pcall).success==1)
+    candidate=review.entry(entry).meshDebug
+    assert(candidate:getVertex(1,2,3).nz==1 and candidate:getVertex(2,2,3).nz==0)
+    assert(review.finish(false))
+    -- Batch preparation failure leaves even already-prepared targets untouched.
+    local bad={info={type='mesh',hasNormal=true},fileName='/tmp/invalid-normal-source.msh'}
+    assert(review.begin({{entry=entry,index=1},{entry=bad,index=2}},entry,nil,nil,nil,nil,pcall).failed==1)
+    assert(not review.pending and entry.meshDebug==d and d:getVertex(1,1,3).nz==0)
+    local another={meshDebug=d,info=entry.info,fileName='/tmp/normal-review-second.msh'}
+    tLoadedMeshes={entry,another}
+    assert(review.begin({{entry=entry,index=1},{entry=another,index=2}},entry,nil,nil,nil,nil,pcall).success==2)
+    assert(#review.pending.items==2 and another.meshDebug==d)
+    assert(review.finish(false));tLoadedMeshes={entry}
+    local function apply(kind)
+        local result=prepare(kind)
+        if review.pending then assert(review.finish(true));d=entry.meshDebug end
+        return result
+    end
     assert(apply('mesh').success==1)
     for f=1,2 do for s=1,2 do
         local v=d:getVertex(f,s,1);assert(math.abs(v.nx-.6)<1e-6 and math.abs(v.nz-.8)<1e-6)
@@ -46,14 +82,24 @@ local function run()
     end end
     entry.modified=false;assert(apply('mesh').skipped==1);assert(not entry.modified)
     -- Save uses the same repair policy and does not silently recalculate.
-    local save=upvalue(showApplyAllWindow,'applyAllSave')
+    local saveOperation=upvalue(showApplyAllWindow,'applyAllSave')
+    os.remove(entry.fileName)
+    assert(saveOperation('mesh',true).success==1)
+    assert(not io.open(entry.fileName,'rb'),'save ran before confirmation')
+    assert(review.finish(false))
+    assert(not io.open(entry.fileName,'rb'),'cancel wrote the authored file')
+    local function save(kind,normals)
+        local result=saveOperation(kind,normals)
+        if review.pending then assert(review.finish(true));d=entry.meshDebug end
+        return result
+    end
     assert(save('mesh',true).success==1)
     local copy=meshDebug:new();assert(copy:load(entry.fileName));assert(math.abs(copy:getVertex(2,2,1).nx-.6)<1e-6)
     tApplyAllWin.normalMethod=2;assert(apply('mesh').success==1)
     for f=1,2 do for s=1,2 do assert(d:getVertex(f,s,1).nz==1) end end
     -- A failed file must not prevent processing other loaded targets.
     tLoadedMeshes={{info={type='mesh'},fileName='/tmp/failure.msh'},entry}
-    local runner=upvalue(apply,'runApplyAllOperation')
+    local runner=upvalue(saveOperation,'runApplyAllOperation')
     local summary=runner('mesh','failure isolation',function(e)
         if e~=entry then error('intentional fixture failure') end
         return 'success'
@@ -72,6 +118,15 @@ local function run()
     entry.modified=true;iSelectedMeshIndex=1;iLastPreviewedIndex=0
     updatePreviewMesh();assert(tPreviewMesh,'isolated mesh preview failed')
     print('MESH DEBUG SURFACES ALL FRAMES / SUBSETS / SAVE / PREVIEW OK')
+    -- Leave a real pending preview on screen, with original and candidate separated.
+    tApplyAllWin.normalMethod=2
+    local v=d:getVertex(1,1,1);v.nx=.6;v.nz=.8;d:setVertex(1,1,1,v)
+    entry.cam3d={fx=0,fy=0,fz=0,distance=100,azimuth=0,elevation=0}
+    assert(prepare('mesh').success==1)
+    updatePreviewMesh();assert(tPreviewMesh)
+    review.pending.original=true;iLastPreviewedIndex=0;updatePreviewMesh();assert(tPreviewMesh)
+    review.pending.original=false;iLastPreviewedIndex=0;updatePreviewMesh()
+    assert(entry.meshDebug==d and math.abs(d:getVertex(1,1,1).nx-.6)<1e-6)
     tApplyAllWin.open=true
     print('MESH DEBUG NORMALS FRAMES / SUBSETS / REPAIR / SAVE / UNIFORM OK')
 end
@@ -82,12 +137,9 @@ function onInitScene()
 end
 function onLoop()
     if not started then return end
-    showApplyAllWindow()
-    tImGui.Begin('Single normal methods',false,0)
-    tMeshNormals.draw(tImGui,tLang,tLoadedMeshes[1],'normalSingleTest')
-    tImGui.End()
+    editorLoop(0.016)
     if mbm.getTimeRun()-started>3 then
         assert(surfaceCalls==initialSurfaceCalls,'surface reconstruction repeated while idle')
-        print('MESH DEBUG NORMALS UI / IDLE OK');mbm.quit()
+        assert(tMeshNormals.preview.finish(false));print('MESH DEBUG NORMALS PREVIEW / CANCEL / CONFIRM / UI / IDLE OK');mbm.quit()
     end
 end

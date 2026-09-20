@@ -37,6 +37,7 @@ tMeshTransform =    require "mesh_debug_transform"
 tXformGizmo   =     require "mesh_debug_transform_gizmo"
 tMeshExport   =     require "mesh_debug_export_helper"
 tMeshNormals  =     require "mesh_debug_normals"
+tMeshNormals.preview = require "mesh_debug_normal_preview"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -3550,7 +3551,7 @@ function updatePreviewMesh()
     iLastPreviewedIndex = iSelectedMeshIndex
     if iSelectedMeshIndex <= 0 or iSelectedMeshIndex > #tLoadedMeshes then return end
 
-    local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+    local tEntry = tMeshNormals.preview.entry(tLoadedMeshes[iSelectedMeshIndex])
     local meshD = tEntry.meshDebug
     local fileName = tEntry.fileName
     local info = tEntry.info or {}
@@ -8027,10 +8028,7 @@ function showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk, vertices)
     if triOk and geo and geo[v] then
         tImGui.SameLine()
         if tImGui.Button(tLang.L('normal_apply_short') .. '##nrecalc-' .. rid) then
-            local target=geo
-            if tEntry.normalMethod==3 then target=tMeshNormals.geometry(meshD,1,s,tEntry,computeGeoNormalsForSubset) end
-            local nx,ny,nz=tMeshNormals.select(vd,target[v],tEntry.normalMethod or 1)
-            if nx then commitNormal(nx,ny,nz) end
+            tMeshNormals.preview.begin({{entry=tEntry,index=index}},tEntry,1,s,v,nil,dpCall)
         end
         if tImGui.IsItemHovered(0) then
             tImGui.BeginTooltip()
@@ -8095,9 +8093,7 @@ function showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
     if triOk then
         tImGui.SameLine()
         if tImGui.Button(tLang.L('normal_apply_all') .. '##nrecalcall-' .. index .. '-' .. s) then
-            local target=geo
-            if tEntry.normalMethod==3 then target=tMeshNormals.geometry(meshD,1,s,tEntry,computeGeoNormalsForSubset) end
-            bulkUpdate(function(v,vd) return tMeshNormals.select(vd,target[v],tEntry.normalMethod or 1) end)
+            tMeshNormals.preview.begin({{entry=tEntry,index=index}},tEntry,1,s,nil,nil,dpCall)
         end
     end
 
@@ -10377,28 +10373,7 @@ local function applyAllFlipNormalsBulk(sType)
 end
 
 local function applyAllRecomputeNormalsBulk(sType)
-    local totalVertices = 0
-    local summary = runApplyAllOperation(sType, tLang.L(tMeshNormals.label(tApplyAllWin.normalMethod)), function(tEntry)
-        if not (tEntry.info and tEntry.info.hasNormal) then
-            return 'skipped', tLang.L('apply_all_no_matching_targets')
-        end
-        local count = bulkUpdateAllNormals(tEntry.meshDebug, true, function(vd, g)
-            return tMeshNormals.select(vd,g,tApplyAllWin.normalMethod or 1)
-        end,tApplyAllWin)
-        if count == 0 then
-            return 'skipped', tLang.L('normal_no_changes')
-        end
-        totalVertices = totalVertices + count
-        tEntry.modified = true
-        tEntry.bNormalsVizDirty = true
-        return 'success'
-    end)
-    if totalVertices > 0 then
-        tApplyAllWin.lastResultText = tApplyAllWin.lastResultText
-            .. string.format('\n%d vertices', totalVertices)
-        tUtil.showMessage(tApplyAllWin.lastResultText, 8)
-    end
-    return summary
+    return tMeshNormals.preview.begin(getApplyAllTargets(sType),tApplyAllWin,nil,nil,nil,nil,dpCall)
 end
 
 local function applyAllCentralize(sType)
@@ -10933,32 +10908,26 @@ local function applyAllCheck(sType)
     end)
 end
 
-local function applyAllSave(sType, bRecalcNormals)
-    local operationLabel = bRecalcNormals and tLang.L('save_all_calc_normals') or tLang.L('save_all_overwrite')
+local function applyAllSave(sType, bRecalcNormals, reviewed)
+    if bRecalcNormals then
+        return tMeshNormals.preview.begin(getApplyAllTargets(sType),tApplyAllWin,nil,nil,nil,
+            function(items)
+                local allowed={}
+                for _,item in ipairs(items) do allowed[item.source]=true end
+                applyAllSave(sType,false,allowed)
+            end,dpCall)
+    end
+    local operationLabel = tLang.L('save_all_overwrite')
     return runApplyAllOperation(sType, operationLabel, function(tEntry)
+        if reviewed and not reviewed[tEntry] then return 'skipped',tLang.L('apply_all_no_matching_targets') end
         local animErr = collectAnimFrameErrors(tEntry)
         if animErr then
             return 'failed', tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr
         end
         local wasLegacy = isLegacyTextureAnimationEffectStorage(tEntry.info)
-        if bRecalcNormals then
-            local meshD=tEntry.meshDebug
-            if meshD:getModeDraw()~='TRIANGLES' then return 'skipped',tLang.L('apply_all_no_matching_targets') end
-            local missing=not (tEntry.info and tEntry.info.hasNormal)
-            if missing then meshD:addNormals() end
-            local count=bulkUpdateAllNormals(meshD,true,function(vd,g)
-                local mode=tApplyAllWin.normalMethod or 1
-                return tMeshNormals.select(vd,g,(missing and mode==1) and 2 or mode)
-            end,tApplyAllWin)
-            if missing or count>0 then
-                tEntry.modified=true; tEntry.bNormalsVizDirty=true
-                if tEntry.info then tEntry.info.hasNormal=true end
-            end
-        end
         local ok = tEntry.meshDebug:save(tEntry.fileName, false, false)
         if ok then
             tEntry.modified = false
-            if bRecalcNormals and tEntry.info then tEntry.info.hasNormal = true end
             local newInfo = refreshEntryInfoFromFile(tEntry)
             if wasLegacy and not isLegacyTextureAnimationEffectStorage(newInfo) then
                 return 'success', tLang.L('mesh_migrated_save_fmt'):format(tUtil.getShortName(tEntry.fileName))
@@ -12312,6 +12281,15 @@ function showListMeshesWindow()
 end
 
 function onLoop(delta)
+    if tMeshNormals.preview.pending then
+        tMeshNormals.preview.draw()
+        showCameraWindow()
+        showLightWindow()
+        updatePreviewMesh()
+        updateCam3dKeyboardMovement(delta)
+        tUtil.showOverlayMessage()
+        return
+    end
     for i = 1, #tLoadedMeshes do simplifyResume(tLoadedMeshes[i]) end
     main_menu_mesh_debug()
     showMixamoGuideDialog()
@@ -12345,6 +12323,13 @@ function onLoop(delta)
 end
 
 function onTouchDown(key, x, y)
+    if tMeshNormals.preview.pending then
+        if not tImGui.IsAnyWindowHovered() then
+            isClickedMouseleft, isClickedMouseRight = key==0, key==1
+            camera2d.mx, camera2d.my = x,y
+        end
+        return
+    end
     if not tImGui.IsAnyWindowHovered() then
         if (key == 0 or key == 1 or key == 2) and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
             local tEntry = tLoadedMeshes[iSelectedMeshIndex]
@@ -12444,7 +12429,7 @@ end
 
 function onTouchMove(key, x, y)
     if tImGui.IsAnyWindowHovered() then return end
-    if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+    if not tMeshNormals.preview.pending and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
         if tDragEntry.bXformOrbiting and bCameraMode3D then
             local c = tDragEntry.cam3d
@@ -12543,6 +12528,11 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if tMeshNormals.preview.pending then
+        isClickedMouseleft,isClickedMouseRight=false,false
+        camera2d.mx,camera2d.my=x,y
+        return
+    end
     isClickedMouseleft  = false
     isClickedMouseRight = false
     camera2d.mx = x
@@ -12598,6 +12588,7 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if tMeshNormals.preview.pending and (mbm.getKeyName(key)=='DOWN' or mbm.getKeyName(key)=='UP') then return end
     if mbm.getKeyName(key) == 'DOWN' then
         selectMeshIndex(iSelectedMeshIndex + 1)
     elseif mbm.getKeyName(key) == 'UP' then
@@ -12625,4 +12616,8 @@ function onKeyUp(key)
     elseif key == mbm.getKeyCode('pageup') or key == mbm.getKeyCode('pagedown') then
         tCam3dMove.vertical = 0
     end
+end
+
+function onEndScene()
+    tMeshNormals.preview.dispose()
 end
