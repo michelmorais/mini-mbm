@@ -249,6 +249,12 @@ salvos. Imagens sob a pasta do projeto usam referência relativa; outras mantêm
 o caminho recebido pelo diálogo. Ao reabrir com imagem ausente, **Localizar
 imagem** permite escolher uma substituta com as mesmas dimensões.
 
+As normais suavizadas usam a média das normais unitárias das faces vizinhas,
+como **Recalcular todos** na tabela de normais do Mesh Debug. As separações entre
+frente, verso e laterais são preservadas. O status **OK** indica concordância de
+direção, não igualdade numérica com esse recálculo. Reexporte meshes antigas para
+adotar essa ponderação; os arquivos existentes não são alterados automaticamente.
+
 O editor rotaciona a geometria gerada em 180 graus no eixo Y, incluindo as normais,
 antes de criar a prévia ou exportar (individualmente ou em lote). UVs e ordem dos
 triângulos são preservados. A API `mbm.generateImageMesh` continua gerando a frente

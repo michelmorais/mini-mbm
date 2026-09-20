@@ -206,11 +206,23 @@ namespace mbm
             for (size_t i = 0; i < indices.size(); i += 3)
             {
                 VERTEX &a = vertices[indices[i]], &b = vertices[indices[i + 1]], &c = vertices[indices[i + 2]];
-                const VEC3 ab(b.position.x - a.position.x, b.position.y - a.position.y, b.position.z - a.position.z);
-                const VEC3 ac(c.position.x - a.position.x, c.position.y - a.position.y, c.position.z - a.position.z);
-                const VEC3 normal(ab.y * ac.z - ab.z * ac.y, ab.z * ac.x - ab.x * ac.z, ab.x * ac.y - ab.y * ac.x);
-                if (normal.x == 0 && normal.y == 0 && normal.z == 0)
+                // Double intermediates avoid cancellation on tiny groove triangles.
+                const double abx = static_cast<double>(b.position.x) - a.position.x;
+                const double aby = static_cast<double>(b.position.y) - a.position.y;
+                const double abz = static_cast<double>(b.position.z) - a.position.z;
+                const double acx = static_cast<double>(c.position.x) - a.position.x;
+                const double acy = static_cast<double>(c.position.y) - a.position.y;
+                const double acz = static_cast<double>(c.position.z) - a.position.z;
+                const double nx = aby * acz - abz * acy;
+                const double ny = abz * acx - abx * acz;
+                const double nz = abx * acy - aby * acx;
+                const double faceLength = std::sqrt(nx * nx + ny * ny + nz * nz);
+                if (!(faceLength > 0))
                     return fail(errorOut, errorOutLen, "Degenerate triangle after coordinate conversion");
+                // Match Mesh Debug's per-subset "Recalculate all": average unit face
+                // normals, so large triangles do not dominate smaller groove faces.
+                const VEC3 normal(static_cast<float>(nx / faceLength),
+                    static_cast<float>(ny / faceLength), static_cast<float>(nz / faceLength));
                 for (auto *vertex : {&a, &b, &c})
                 {
                     vertex->normal.x += normal.x; vertex->normal.y += normal.y; vertex->normal.z += normal.z;

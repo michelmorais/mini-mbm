@@ -21,7 +21,7 @@ local function inspect(asset, report)
     local vertices = asset:getVertex(1,1,1,report.vertices)
     local indices = asset:getIndex(1,1)
     assert(#indices == report.triangles*3)
-    local edges, volume = {}, 0
+    local edges, volume, normalSums = {}, 0, {}
     local function key(v) return string.format('%.5f,%.5f,%.5f', v.x+0.0, v.y+0.0, v.z+0.0) end
     local function edge(a,b)
         local ka,kb=key(a),key(b)
@@ -39,13 +39,23 @@ local function inspect(asset, report)
         local ux,uy,uz=b.x-a.x,b.y-a.y,b.z-a.z
         local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
         local nx,ny,nz=uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx
-        assert(nx*nx+ny*ny+nz*nz>0)
+        local faceLength=math.sqrt(nx*nx+ny*ny+nz*nz)
+        assert(faceLength>0)
+        for j=i,i+2 do
+            local id=indices[j]; local sum=normalSums[id] or {0,0,0}; normalSums[id]=sum
+            sum[1]=sum[1]+nx/faceLength; sum[2]=sum[2]+ny/faceLength; sum[3]=sum[3]+nz/faceLength
+        end
         assert(nx*a.nx+ny*a.ny+nz*a.nz>0)
         volume=volume+(a.x*(b.y*c.z-b.z*c.y)+a.y*(b.z*c.x-b.x*c.z)+a.z*(b.x*c.y-b.y*c.x))/6
         edge(a,b); edge(b,c); edge(c,a)
     end
     for _,e in pairs(edges) do assert(e.count==2 and e.balance==0, 'open or non-manifold mesh') end
     assert(volume>0, 'inward winding')
+    for id,sum in pairs(normalSums) do
+        local length=math.sqrt(sum[1]^2+sum[2]^2+sum[3]^2)
+        local v=vertices[id]
+        near(v.nx,sum[1]/length); near(v.ny,sum[2]/length); near(v.nz,sum[3]/length)
+    end
     return vertices,volume
 end
 local function runTests()

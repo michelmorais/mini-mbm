@@ -22,7 +22,7 @@
 
 // Format: "X.Y" or "X.Y.Z". Release history is maintained by the Git history and tags.
 #ifndef MBM_VERSION
-    #define MBM_VERSION "7.227.6"
+    #define MBM_VERSION "7.227.7"
 #endif
 
 #endif
