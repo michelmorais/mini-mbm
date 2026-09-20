@@ -193,7 +193,8 @@ antigos sem essa opção; desmarque-a e aplique para usar largura/altura indepen
 Espessura, amplitude de relevo, resolução, inversão, transição da borda e orçamento
 de geometria continuam independentes. Círculos/elipses começam com triângulos
 radiais a partir do centro e recebem subdivisões para amostrar o relevo. A frente aponta
-para -Z; a origem fica no centro do volume básico. A altura vem da luminosidade,
+para +Z na prévia e nos arquivos exportados pelo editor, compatível com a câmera
+inicial do Mesh Debug; a origem fica no centro do volume básico. A altura vem da luminosidade,
 que também contém sombras/manchas: a ferramenta não reconstrói semanticamente o
 objeto da imagem.
 
@@ -247,6 +248,11 @@ com ambiente vazio e validado. O histórico de desfazer e recursos GPU não são
 salvos. Imagens sob a pasta do projeto usam referência relativa; outras mantêm
 o caminho recebido pelo diálogo. Ao reabrir com imagem ausente, **Localizar
 imagem** permite escolher uma substituta com as mesmas dimensões.
+
+O editor rotaciona a geometria gerada em 180 graus no eixo Y, incluindo as normais,
+antes de criar a prévia ou exportar (individualmente ou em lote). UVs e ordem dos
+triângulos são preservados. A API `mbm.generateImageMesh` continua gerando a frente
+em -Z. Arquivos já exportados não são modificados; reexporte para adotar a orientação +Z.
 
 **Exportar mesh selecionada** escreve uma `.msh` v11. **Exportar todas as meshes**
 usará a pasta escolhida e nomes com ID da região, por exemplo `001_module_001.msh`.

@@ -18,8 +18,28 @@ local IO=require 'image_mesh_io'
 local api={}; assert(loadfile('editor/image_mesh_editor.lua'))(api)
 local init,loop,finish=onInitScene,onLoop,onEndScene
 local frame,started,baseline=0,nil,nil
+local exportProject
+local function checkOrientation(path,project,region)
+    local expected,report=mbm.generateImageMesh(project.image.path,Model.options(project,region))
+    assert(expected,report)
+    local loaded=meshDebug:new(); assert(loaded:load(path))
+    assert(loaded:getTotalVertex(1,1)==report.vertices)
+    local a=expected:getVertex(1,1,1,report.vertices)
+    local b=loaded:getVertex(1,1,1,report.vertices)
+    for i,v in ipairs(a) do
+        local w=b[i]
+        for _,key in ipairs({'x','y','z','nx','ny','nz','u','v'}) do
+            local sign=(key=='x' or key=='z' or key=='nx' or key=='nz') and -1 or 1
+            assert(math.abs(w[key]-sign*v[key])<0.00001,'export orientation/normal/UV: '..key)
+        end
+    end
+    local indices=loaded:getIndex(1,1)
+    for i,index in ipairs(expected:getIndex(1,1)) do assert(indices[i]==index,'winding changed') end
+    assert(b[1].nz>0 and b[1].z>0,'relief does not face +Z')
+end
 local function runInit()
     init(); started=mbm.getTimeRun()
+    assert(api.state.previewCamera.z>0,'default camera must face +Z front')
     local pixels={}; for y=0,95 do for x=0,127 do
         local v=((x%32)<3 or (y%32)<3) and 20 or 160+(x+y)%70
         pixels[#pixels+1]=v; pixels[#pixels+1]=v; pixels[#pixels+1]=v
@@ -47,6 +67,8 @@ local function runInit()
     assert(Model.options(api.state.project,api.state.project.regions[2]).depth==40)
     assert(Model.options(api.state.project,api.state.project.regions[3]).depth==20)
     api.exportOne('/tmp/ime_editor_selected.msh')
+    exportProject=Model.copy(api.state.project)
+    checkOrientation('/tmp/ime_editor_selected.msh',exportProject,Model.region(exportProject,api.state.selected))
     for _,r in ipairs(api.state.project.regions) do os.remove('/tmp/image-mesh-stage2-export/'..IO.exportName(r)) end
     api.beginBatch('/tmp/image-mesh-stage2-export')
     -- Relinking a missing source restores the saved project only after size validation.
@@ -55,6 +77,7 @@ local function runInit()
     assert(not api.openProject('/tmp/ime_missing.imesh')); assert(api.state.missing)
     api.relink(source); assert(not api.state.missing and api.state.modified)
     api.select(14); api.rebuild(); assert(api.state.preview)
+    checkOrientation(api.state.previewPath,api.state.project,Model.region(api.state.project,14))
     print('IMAGE MESH EDITOR PROJECT / HISTORY / MULTISELECT / RELINK OK')
 end
 function onInitScene()
@@ -230,6 +253,10 @@ function onLoop(delta)
             local mesh=meshDebug:new(); assert(mesh:load(path)); assert(mesh:check())
         end
         baseline=api.state.builds
+    end
+    if frame==80 then
+        checkOrientation('/tmp/image-mesh-stage2-export/'..IO.exportName(exportProject.regions[2]),exportProject,exportProject.regions[2])
+        print('IMAGE MESH EDITOR +Z PREVIEW / EXPORT / BATCH / NORMALS OK')
     end
     if frame==80 then assert(api.state.builds==baseline,'idle editor rebuilt geometry'); assert(api.state.target==nil,'preview still uses render target'); print('IMAGE MESH EDITOR UI / BATCH / IDLE OK') end
     if frame==135 then

@@ -78,7 +78,7 @@ local function cameraPanel(E,H)
             if vector(L('ime_orbit_focus'),focus,'ime_focus') then c.fx=focus.x; c.fy=focus.y; c.fz=focus.z; H.camera() end
         end
         if tImGui.Button(L('reset_camera')) then
-            c.fx=0; c.fy=0; c.fz=0; c.azimuth=math.pi-0.4; c.elevation=0.25
+            c.fx=0; c.fy=0; c.fz=0; c.azimuth=0.3; c.elevation=0.3
             c.distance=E.fitDistance or 300; H.camera()
         end
         tImGui.TextWrapped(L('ime_preview_help'))

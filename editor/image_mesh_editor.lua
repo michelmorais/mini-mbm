@@ -31,7 +31,7 @@ local Wire=require 'image_mesh_wireframe'
 local HeightPreview=require 'image_mesh_height_preview'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
     primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
-    orbit={fx=0,fy=0,fz=0,azimuth=math.pi-0.4,elevation=0.25,distance=300},status='',point=1}
+    orbit={fx=0,fy=0,fz=0,azimuth=0.3,elevation=0.3,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -117,9 +117,17 @@ local function generationError(region,message)
     end
     return region.name..': '..tostring(message)
 end
-local function generate(region)
-    local asset,report=mbm.generateImageMesh(E.project.image.path,Model.options(E.project,region))
+local function generate(region,project)
+    project=project or E.project
+    local asset,report=mbm.generateImageMesh(project.image.path,Model.options(project,region))
     if not asset then error(generationError(region,report),0) end
+    -- Match Mesh Debug's +Z front view. Rotate positions AND authored normals
+    -- by 180 degrees around Y, preserving UVs, winding and smooth/hard edges.
+    local vertices=asset:getVertex(1,1,1,report.vertices)
+    for _,v in ipairs(vertices) do
+        v.x=-v.x; v.z=-v.z; v.nx=-v.nx; v.nz=-v.nz
+    end
+    asset:setVertex(1,1,1,vertices)
     return asset,report
 end
 local function compactCount(value)
@@ -226,8 +234,7 @@ local function batchStep()
         E.batch=nil; return
     end
     local ok,err=dpCall(function()
-        local asset,message=mbm.generateImageMesh(batch.project.image.path,Model.options(batch.project,region))
-        if not asset then error(generationError(region,message),0) end
+        local asset=generate(region,batch.project)
         local path=batch.directory..'/'..IO.exportName(region)
         -- Do not silently overwrite an earlier export; the user chooses a fresh folder.
         assert(not IO.exists(path),L('file_exists')..' '..path)
@@ -263,7 +270,11 @@ local function menu()
             if tImGui.MenuItem(L('open_project')) then requestReplace(function() local path=mbm.openFile(E.path or '', 'imesh'); if path then openProject(path) end end) end
             if tImGui.MenuItem(L('save'),'Ctrl+S') then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end) end
             if tImGui.MenuItem(L('save_as')) then dpCall(function() local path=mbm.saveFile(E.path or 'project.imesh','imesh'); if path then saveProject(path) end end) end
-            if tImGui.MenuItem(L('export_selected')) then dpCall(function() local path=mbm.saveFile('module.msh','msh'); if path then exportOne(path) end end) end
+            if tImGui.MenuItem(L('export_selected')) then dpCall(function()
+                local region=assert(Model.region(E.project,E.selected),L('select_region'))
+                local path=mbm.saveFile(string.format('module_%03d.msh',region.id),'msh')
+                if path then exportOne(path) end
+            end) end
             if tImGui.MenuItem(L('export_all')) then dpCall(function() local path=mbm.openFolder(L('export_folder')); if path then beginBatch(path) end end) end
             if tImGui.MenuItem(tLang.L('menu_quit')) then requestReplace(mbm.quit) end
             tImGui.EndMenu()
@@ -518,7 +529,7 @@ function onInitScene()
     E.flags={always=tImGui.Flags('ImGuiCond_Always'),auto=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'),
         fixed=tImGui.Flags('ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoResize','ImGuiWindowFlags_NoCollapse')}
     mbm.setColor(0.1,0.12,0.15); mbm.setLightEnabled('3d',true); mbm.setAmbientLight('3d',0.35,0.35,0.35)
-    E.light=0.7; mbm.setDirectionalLight('3d',0.4,-0.5,1,E.light,E.light,E.light)
+    E.light=0.7; mbm.setDirectionalLight('3d',-0.4,-0.5,-1,E.light,E.light,E.light)
     E.camera2d=mbm.getCamera('2d'); mbm.setLightEnabled('2dw',false)
     E.previewCamera=mbm.getCamera('3d'); E.previewCamera:setAngleOfView(110); camera()
     local checker=tUtil.createAlphaPattern(256,256,16,{r=70,g=70,b=70},{r=100,g=100,b=100})
