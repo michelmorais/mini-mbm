@@ -242,6 +242,18 @@ function onLoop(delta)
         tImGui.GetWantCaptureMouse=captured
         print('IMAGE MESH EDITOR LARGE RESIZE HANDLE / NO JUMP OK')
     end
+    if frame==200 then
+        api.setEditMode(false); api.select(13)
+        e.values.columns=255; e.values.rows=255; e.values.ellipseSegments=128
+        e.values.maxVertices=65535; e.values.maxTriangles=1
+        api.applyProperties(); api.rebuild()
+        assert(not e.preview and e.generationFailure==e.status)
+        assert(e.status:find('65535',1,true) and e.status:find(Model.region(e.project,13).name,1,true))
+        assert(not e.status:find('.lua:',1,true),'error leaked Lua stack location')
+        assert(Model.options(e.project,Model.region(e.project,13)).maxTriangles==131070)
+        api.undo(false); api.rebuild(); assert(e.preview and not e.generationFailure)
+        print('IMAGE MESH EDITOR BUDGET DIAGNOSTIC / RECOVERY OK')
+    end
     if started and mbm.getTimeRun()-started>8 then mbm.quit() end
 end
 function onEndScene() finish() end

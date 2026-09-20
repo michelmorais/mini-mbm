@@ -42,6 +42,7 @@ end
 function M.options(project,region)
     local o=M.copy(project.defaults)
     for k,v in pairs(region.overrides) do o[k]=v end
+    o.maxTriangles=2*o.maxVertices
     o.preserveAspect=o.preserveAspect~=false
     if o.preserveAspect then o.height=o.width*math.max(1,region.h-1)/math.max(1,region.w-1) end
     o.x=region.x; o.y=region.y; o.cropWidth=region.w; o.cropHeight=region.h

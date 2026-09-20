@@ -61,4 +61,6 @@ M.movePoint(wide,before,1,points[1].x,before.y-20)
 local moved=M.outline(wide); assert(wide.y==before.y-20 and moved[1].y==before.y-20)
 for i=2,#points do assert(math.abs(points[i].x-moved[i].x)<1e-6 and math.abs(points[i].y-moved[i].y)<1e-6) end
 M.validate(p)
+wide.overrides.maxVertices=1000; wide.overrides.maxTriangles=1
+assert(M.options(p,wide).maxTriangles==2000,'editor triangle budget is not derived')
 print('IMAGE MESH MODEL OK')

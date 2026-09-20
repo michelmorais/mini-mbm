@@ -406,3 +406,20 @@ a edição 2D oculta a visualização. Exportação e projeto não são modifica
 Arestas coincidentes são unificadas e percorridas em sequências limitadas de
 linhas, evitando conexões falsas entre componentes e um draw call por triângulo.
 A regressão integrada cobre visibilidade, cache, troca de módulo e modos.
+
+
+### Diagnóstico e simplificação dos orçamentos (7.225.0)
+
+O gerador informa recurso excedido, quantidade mínima já necessária e limite
+efetivo, em todos os caminhos de orçamento (grade, contorno e refinamento).
+O editor apresenta a falha no alto de Regiões, com módulo e orientação para
+reduzir densidade, sem expor localização de assert em Lua.
+
+Orçamento de vértices permite tetos menores que os 65.535 fixos da engine.
+O teto de triângulos no editor passa a ser automático: 2 vezes esse orçamento,
+um limite conservador, não uma previsão da contagem final. Projetos antigos
+continuam legíveis; o maxTriangles armazenado deixa de restringir o editor.
+A API mantém seu parâmetro independente para consumidores existentes.
+
+Regressões cobrem os limites de ambos os recursos, refinamento de elipse acima
+da capacidade da engine, orçamento derivado e recuperação da prévia via undo.

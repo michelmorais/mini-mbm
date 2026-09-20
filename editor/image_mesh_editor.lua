@@ -38,6 +38,7 @@ local function dpCall(fn,...)
     return table.unpack(result,1,result.n)
 end
 local function releasePreview()
+    E.generationFailure=nil
     Wire.release(E)
     if E.preview then
         meshDebug:loadMeshPreview(E.preview,nil); E.preview:destroy(); E.preview=nil
@@ -52,6 +53,7 @@ local function syncDraft()
     E.point=1
 end
 local function changed()
+    E.generationFailure=nil
     E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
     if E.preview then E.preview.visible=false end
     if E.wireObject then E.wireObject.visible=false end
@@ -62,6 +64,7 @@ local function selectRegion(id,extend)
     if extend then E.selection[id]=not E.selection[id] else E.selection={[id]=true} end
     E.selected=id
     if not E.selection[id] then E.selected=0; for _,r in ipairs(E.project.regions) do if E.selection[r.id] then E.selected=r.id; break end end end
+    E.generationFailure=nil
     E.dirty=true; E.report=nil; E.polygon={}; E.canvasDirty=true; E.editDefaults=false; syncDraft()
     if E.preview then E.preview.visible=false end
     if E.wireObject then E.wireObject.visible=false end
@@ -98,9 +101,21 @@ local function camera()
     E.previewCamera:setFocus(c.fx+ox,c.fy,c.fz+oz)
     E.previewCamera:setFar(math.max(2000,c.distance*10))
 end
+local function generationError(region,message)
+    local details={}
+    for kind,count,limit in tostring(message):gmatch('(%a+) >= (%d+), limit (%d+)') do
+        local label=kind=='vertices' and L('maxVertices') or L('maxTriangles')
+        details[#details+1]=string.format(L('budget_exceeded'),label,tonumber(count),tonumber(limit))
+    end
+    if #details>0 then
+        return region.name..': '..table.concat(details,'\n')..'\n'..L('budget_reduce')
+    end
+    return region.name..': '..tostring(message)
+end
 local function generate(region)
     local asset,report=mbm.generateImageMesh(E.project.image.path,Model.options(E.project,region))
-    assert(asset,report); return asset,report
+    if not asset then error(generationError(region,report),0) end
+    return asset,report
 end
 local function rebuild()
     if not E.dirty or E.drag or E.editMode then return end
@@ -119,6 +134,7 @@ local function rebuild()
         E.status=L('preview_ready')
     end)
     if not ok then
+        E.generationFailure=E.status
         Wire.release(E)
         if object then meshDebug:loadMeshPreview(object,nil); object:destroy() end
         E.preview=nil; E.previewPath=nil; os.remove(path)
@@ -177,7 +193,8 @@ local function batchStep()
         E.batch=nil; return
     end
     local ok,err=dpCall(function()
-        local asset,message=mbm.generateImageMesh(batch.project.image.path,Model.options(batch.project,region)); assert(asset,message)
+        local asset,message=mbm.generateImageMesh(batch.project.image.path,Model.options(batch.project,region))
+        if not asset then error(generationError(region,message),0) end
         local path=batch.directory..'/'..IO.exportName(region)
         -- Do not silently overwrite an earlier export; the user chooses a fresh folder.
         assert(not IO.exists(path),L('file_exists')..' '..path)
@@ -195,6 +212,7 @@ local function finishPolygon()
 end
 local function applyProperties()
     local draft,values=E.draft,Model.copy(E.values)
+    values.maxTriangles=2*values.maxVertices
     action(function(p)
         local settings={}; for k in pairs(Model.defaults) do settings[k]=values[k] end
         if E.editDefaults then p.defaults=settings; return end
@@ -319,9 +337,13 @@ local function propertiesPanel()
             end
         end
         if tImGui.CollapsingHeader(L('resolution_group')) then
-        for _,key in ipairs({'columns','rows','ellipseSegments','maxVertices','maxTriangles'}) do
+        for _,key in ipairs({'columns','rows','ellipseSegments'}) do
             local c,v=tImGui.InputInt(L(key),E.values[key]); if c then E.values[key]=v end
         end
+        local c,v=tImGui.InputInt(L('maxVertices'),E.values.maxVertices)
+        if c then E.values.maxVertices=math.max(1,math.min(65535,v)) end
+        tImGui.TextWrapped(L('vertex_budget_help'))
+        tImGui.Text(string.format(L('triangle_budget_auto'),2*E.values.maxVertices))
         end
         for _,key in ipairs({'invert','lockBorder'}) do E.values[key]=tImGui.Checkbox(L(key),E.values[key]) end
         if tImGui.Button(L('apply')) then applyProperties() end
@@ -353,6 +375,7 @@ local function regionsPanel()
             tImGui.TextWrapped(L('preview_help'))
             setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
         end
+        if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
         tImGui.Separator()
         if E.missing then
             tImGui.Text(L('missing_image'))
@@ -389,7 +412,7 @@ local function regionsPanel()
             tImGui.Separator(); propertiesPanel()
         else tImGui.Text(L('open_help')) end
         if E.report then tImGui.TextWrapped(string.format(L('counts'),E.report.vertices,E.report.triangles)) end
-        tImGui.TextWrapped(E.status)
+        if E.status~=E.generationFailure then tImGui.TextWrapped(E.status) end
         if E.batch then
             tImGui.ProgressBar((E.batch.index-1)/#E.batch.project.regions,{x=-1,y=0},L('exporting'))
             if tImGui.Button(L('cancel')) then E.status=L('cancelled'); E.batch=nil end

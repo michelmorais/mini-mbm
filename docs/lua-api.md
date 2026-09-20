@@ -2177,7 +2177,12 @@ shared midpoint refinement preserves the boundary and produces conforming triang
 For these shapes, `columns`/`rows` scale the refinement metric: final front edges
 have squared length at most approximately 2 after multiplying normalized X/Y deltas
 by those resolutions. This is not a rectangular cell count for polygons. Exceeding
-the total budget rejects generation instead of silently reducing quality.
+the total budget rejects generation instead of silently reducing quality. Budget
+errors identify the exceeded resource(s), effective limit(s), and lower-bound
+counts already required, including front/back/sides. Refinement stops early, so
+these counts are not estimates of the final requested geometry. The Image Mesh
+Editor derives `maxTriangles = 2 * maxVertices`; direct API callers may still
+supply an independent triangle budget.
 
 ```lua
 local asset, report = mbm.generateImageMesh("panel.png", {

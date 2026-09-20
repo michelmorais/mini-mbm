@@ -136,6 +136,20 @@ para -Z; a origem fica no centro do volume básico. A altura vem da luminosidade
 que também contém sombras/manchas: a ferramenta não reconstrói semanticamente o
 objeto da imagem.
 
+Em **Resolução e limites de geometria**, **Orçamento de vértices** permite impor
+um teto menor para módulos leves, até o limite fixo de 65.535 da engine. Ele não
+é uma contagem alvo nem aumenta a capacidade dos índices de 16 bits. O orçamento
+de triângulos é calculado automaticamente como `2 * maxVertices`: um teto
+conservador para as formas fechadas e sem furos deste gerador, não uma previsão
+da contagem final. Valores antigos de `maxTriangles` no projeto deixam de limitar
+a geração no editor; a API direta ainda aceita esse orçamento independente.
+
+Se a geração exceder um limite, o alto do painel **Regiões** informa o módulo,
+o recurso excedido, a quantidade mínima já necessária e seu limite. As contagens
+incluem frente, verso e laterais; não são totais finais quando o refinamento foi
+interrompido. Reduza **Colunas/Linhas** ou **Segmentos da elipse**; um orçamento
+menor de vértices pode ser aumentado até 65.535.
+
 A prévia mostra contagens finais, permite orbitar com arraste, ajustar distância
 com a roda e intensidade da luz direcional. Modificações nas propriedades só
 entram no projeto após **Aplicar**. A prévia fica indisponível se a geração falhar,

@@ -43,11 +43,24 @@ namespace {
         const double abC=cross(a,b,c), abD=cross(a,b,d), cdA=cross(c,d,a), cdB=cross(c,d,b);
         return (abC*abD<0 && cdA*cdB<0) || onSegment(a,b,c) || onSegment(a,b,d) || onSegment(c,d,a) || onSegment(c,d,b);
     }
-    bool budget(const IMAGE_MESH_OPTIONS &o, const TOPOLOGY &t)
+    bool budget(const IMAGE_MESH_OPTIONS &o, uint64_t vertices, uint64_t triangles,
+                const char *stage, std::string &error)
     {
-        const size_t vertices=2*t.points.size()+4*t.boundary.size();
-        const size_t triangles=2*t.triangles.size()+2*t.boundary.size();
-        return vertices<=65535 && vertices<=o.maxVertices && triangles<=o.maxTriangles;
+        const uint32_t vertexLimit=std::min(o.maxVertices,65535u);
+        if (vertices<=vertexLimit && triangles<=o.maxTriangles) return true;
+        error=std::string("Geometry budget exceeded ")+stage+":";
+        if (vertices>vertexLimit)
+            error+=" vertices >= "+std::to_string(vertices)+", limit "+std::to_string(vertexLimit)+";";
+        if (triangles>o.maxTriangles)
+            error+=" triangles >= "+std::to_string(triangles)+", limit "+std::to_string(o.maxTriangles)+";";
+        error+=" includes front, back and sides. Counts are lower bounds, not final totals. "
+               "Engine vertex ceiling: 65535. Reduce columns/rows or ellipseSegments.";
+        return false;
+    }
+    bool budget(const IMAGE_MESH_OPTIONS &o, const TOPOLOGY &t, const char *stage, std::string &error)
+    {
+        return budget(o,2*t.points.size()+4*t.boundary.size(),
+                      2*t.triangles.size()+2*t.boundary.size(),stage,error);
     }
     uint64_t edgeKey(uint32_t a, uint32_t b)
     {
@@ -61,9 +74,8 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error)
     if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE)
     {
         const uint64_t size=static_cast<uint64_t>(o.columns+1)*(o.rows+1);
-        if (2*size+8*(o.columns+o.rows)>std::min(o.maxVertices,65535u) ||
-            4ull*o.columns*o.rows+4*(o.columns+o.rows)>o.maxTriangles)
-            return fail("Geometry budget exceeded (including back and sides)");
+        if (!budget(o,2*size+8*(o.columns+o.rows),4ull*o.columns*o.rows+4*(o.columns+o.rows),
+                    "for rectangular grid",error)) return false;
         for (uint32_t r=0;r<=o.rows;++r) for (uint32_t c=0;c<=o.columns;++c)
             t.points.push_back({static_cast<float>(c)/o.columns,static_cast<float>(r)/o.rows});
         for (uint32_t r=0;r<o.rows;++r) for (uint32_t c=0;c<o.columns;++c)
@@ -163,7 +175,7 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error)
         }
         t.triangles.push_back({remaining[0],remaining[1],remaining[2]});
     }
-    if (!budget(o,t)) return fail("Geometry budget exceeded by contour");
+    if (!budget(o,t,"by contour",error)) return false;
     // Shared midpoint splits preserve conformity, including on the perimeter.
     for (unsigned pass=0;pass<20;++pass)
     {
@@ -178,8 +190,7 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error)
             if (midpoints.count(key)) continue;
             const IMAGE_MESH_POINT midpoint{(pa.x+pb.x)*0.5f,(pa.y+pb.y)*0.5f};
             midpoints[key]=static_cast<uint32_t>(t.points.size()); t.points.push_back(midpoint);
-            if (2*t.points.size()+4*t.boundary.size()>std::min(o.maxVertices,65535u))
-                return fail("Geometry budget exceeded during contour refinement");
+            if (!budget(o,t,"during contour refinement",error)) return false;
         }
         if (midpoints.empty()) return true;
         std::vector<uint32_t> boundary;
@@ -217,7 +228,7 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error)
             }
         }
         t.boundary=std::move(boundary); t.triangles=std::move(triangles);
-        if (!budget(o,t)) return fail("Geometry budget exceeded during contour refinement");
+        if (!budget(o,t,"during contour refinement",error)) return false;
     }
     return fail("Contour refinement did not converge");
 }
