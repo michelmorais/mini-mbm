@@ -83,7 +83,7 @@ function M.load(path)
     return {name=cleanName(value.name),settings=Model.settings(value.settings)}
 end
 function M.draw(E,action,dpCall)
-    if not tImGui.TreeNode(L('presets')) then return end
+    if not tImGui.CollapsingHeader(L('presets')) then return end
     E.presetUI=E.presetUI or {index=1,name=''}
     local ui=E.presetUI
     -- Rebuild names only after an action, undo, or project replacement.
@@ -138,6 +138,5 @@ function M.draw(E,action,dpCall)
             if path then M.save(preset,path,tUtil.save); notify('preset_exported') end
         end) end
     end
-    tImGui.TreePop()
 end
 return M

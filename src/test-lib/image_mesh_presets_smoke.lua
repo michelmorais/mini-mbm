@@ -108,13 +108,13 @@ function onInitScene()
 end
 function onLoop(delta)
     if not started then return end
-    local tree=tImGui.TreeNode
-    tImGui.TreeNode=function(label,...)
+    local header=tImGui.CollapsingHeader
+    tImGui.CollapsingHeader=function(label,...)
         if label==tLang.L('ime_presets') then tImGui.SetNextItemOpen(true,0) end
-        return tree(label,...)
+        return header(label,...)
     end
     loop(delta)
-    tImGui.TreeNode=tree
+    tImGui.CollapsingHeader=header
     local E=api.state
     if mbm.getTimeRun()-started>1 and not baseline then
         baseline={names=E.presetUI.names,builds=E.builds,revision=E.revision}

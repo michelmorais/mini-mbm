@@ -405,10 +405,14 @@ local function propertiesPanel()
     local defaults=tImGui.Checkbox(L('edit_defaults'),E.editDefaults or false)
     if defaults~=(E.editDefaults or false) then E.editDefaults=defaults; syncDraft() end
     if E.draft or E.editDefaults then
-        Presets.draw(E,action,dpCall)
         if not E.editDefaults then
             local d=E.draft
             local edited,value=tImGui.InputText(L('name'),d.name); if edited then d.name=value end
+        end
+        tImGui.Separator()
+        Presets.draw(E,action,dpCall)
+        if not E.editDefaults then
+            local d=E.draft
             if tImGui.CollapsingHeader(L('crop_group')) then
             for _,key in ipairs({'x','y','w','h'}) do
                 local horizontal=key=='x' or key=='w'
