@@ -62,6 +62,18 @@ local function test()
     api.setComparison(false)
     assert(e.wireObject.visible and not e.comparison.wireObject.visible and e.preview.x==0 and e.wireObject.x==0)
     local wires,originalWires=e.wireBuilds,e.comparison.wireBuilds
+    api.setComparison(true)
+    local comparison=require 'image_mesh_comparison'
+    comparison.visibility(e,false,true)
+    assert(not e.comparison.wireObject.visible and e.wireObject.visible)
+    comparison.visibility(e,true,false)
+    assert(e.comparison.wireObject.visible and not e.wireObject.visible)
+    api.setWireframe(false)
+    assert(e.comparison.preview.visible and not e.preview.visible)
+    comparison.visibility(e,false,false)
+    assert(not e.comparison.preview.visible and not e.preview.visible)
+    api.setComparison(false); assert(e.preview.visible,'comparison visibility leaked into normal mode')
+    comparison.visibility(e,true,true); api.setWireframe(true)
     for _=1,5 do api.setComparison(true); api.setComparison(false) end
     assert(e.wireBuilds==wires and e.comparison.wireBuilds==originalWires and e.builds==builds,'comparison rebuilt cached geometry')
     for key,value in pairs(camera) do assert(e.previewCamera[key]==value,'comparison moved camera') end

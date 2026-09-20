@@ -40,7 +40,7 @@ local function bounds(vertices)
 end
 function M.capture(E,asset,vertices)
     M.release(E)
-    local source={previewPath=tUtil.getTemporaryFilePath('.msh'),bounds=bounds(vertices)}
+    local source={previewPath=tUtil.getTemporaryFilePath('.msh'),bounds=bounds(vertices),showOriginal=true,showSimplified=true}
     E.comparison=source
     assert(asset:save(source.previewPath,false,false,true),tLang.L('ime_export_failed'))
     source.preview=mesh:new('3d'); source.preview.visible=false
@@ -77,8 +77,17 @@ function M.sync(E)
     local source=E.comparison
     if not source then return end
     local visible=not E.editMode and not E.dirty and E.preview~=nil and E.compareSideBySide
-    source.preview.visible=visible and not E.wireframe
-    if source.wireObject then source.wireObject.visible=visible and E.wireframe end
+    source.preview.visible=visible and source.showOriginal and not E.wireframe
+    if source.wireObject then source.wireObject.visible=visible and source.showOriginal and E.wireframe end
+    if E.compareSideBySide and not source.showSimplified then
+        if E.preview then E.preview.visible=false end
+        if E.wireObject then E.wireObject.visible=false end
+    end
+end
+function M.visibility(E,original,simplified)
+    if not E.comparison then return end
+    E.comparison.showOriginal=original; E.comparison.showSimplified=simplified
+    M.sync(E)
 end
 function M.select(E,sideBySide)
     if not E.comparison or E.dirty then return end

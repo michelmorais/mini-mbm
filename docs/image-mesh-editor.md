@@ -269,7 +269,10 @@ orientação e o foco; ao desativar, volta à distância anterior.
 As versões são posicionadas pelos limites reais no eixo X, com espaço de 15% da
 maior largura. **Resetar visão** considera a largura do par. Desativar a comparação
 centraliza novamente a versão simplificada.
-O wireframe mostra as duas versões nas mesmas posições. O painel mostra vértices e triângulos
+Os checkboxes **Visualizar original** e **Visualizar simplificada** controlam cada
+mesh separadamente; os labels indicam o lado conforme a câmera. A visibilidade
+também se aplica ao wireframe e não altera a exportação. Fora da comparação,
+a simplificada volta a aparecer normalmente. O painel mostra vértices e triângulos
 antes/depois, redução percentual e os erros geométrico/relativo informados pelo
 simplificador; esse erro não é uma avaliação visual da imagem.
 

@@ -508,6 +508,13 @@ local function propertiesPanel()
                     tImGui.Separator(); tImGui.Text(L('comparison'))
                     local sideBySide=tImGui.Checkbox(L('comparison_side_by_side'),E.compareSideBySide)
                     if sideBySide~=E.compareSideBySide then dpCall(setComparison,sideBySide) end
+                    if E.compareSideBySide then
+                        local originalOnLeft=math.cos(E.orbit.azimuth)<0
+                        local source=E.comparison
+                        local original=tImGui.Checkbox(L(originalOnLeft and 'comparison_show_original_left' or 'comparison_show_original_right')..'###ime_show_original',source.showOriginal)
+                        local simplified=tImGui.Checkbox(L(originalOnLeft and 'comparison_show_simplified_right' or 'comparison_show_simplified_left')..'###ime_show_simplified',source.showSimplified)
+                        if original~=source.showOriginal or simplified~=source.showSimplified then Comparison.visibility(E,original,simplified) end
+                    end
                     setWireframe(tImGui.Checkbox(L('wireframe')..'##comparison',E.wireframe))
                     tImGui.Text(string.format(L('comparison_counts'),E.report.sourceVertices,E.report.vertices,
                         E.report.sourceTriangles,E.report.triangles,100*(1-E.report.triangles/E.report.sourceTriangles)))
