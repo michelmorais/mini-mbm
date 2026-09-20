@@ -160,6 +160,32 @@ local function runTests()
     assert(not pcall(mbm.generateImageMesh,image,{shape='unknown'}))
     assert(polygon:save('/tmp/mbm_image_mesh_concave.msh',false,false,true))
     assert(ellipse:save('/tmp/mbm_image_mesh_ellipse.msh',false,false,true))
+    for _,shape in ipairs({'rectangle','ellipse','polygon'}) do
+        local options={shape=shape,followImage=true,twoLevels=true,grooveThreshold=0.5,grooveTransition=0.15,
+            columns=32,rows=32,relief=12,lockBorder=false,smoothPasses=1,
+            contour={{x=0,y=0},{x=1,y=0},{x=1,y=0.4},{x=0.4,y=0.4},{x=0.4,y=1},{x=0,y=1}}}
+        local adaptive,ar=mbm.generateImageMesh(image,options); assert(adaptive,ar)
+        inspect(adaptive,ar)
+        assert(mbm.generateImageMeshMap(image,options,'/tmp/ime_height_'..shape..'.png',false))
+        assert(mbm.generateImageMeshMap(image,options,'/tmp/ime_grooves_'..shape..'.png',true))
+        options.maxVertices=10
+        local rejected,message=mbm.generateImageMesh(image,options)
+        assert(not rejected and message:find('vertices >=',1,true))
+        assert(mbm.generateImageMeshMap(image,options,'/tmp/ime_map_over_budget.png',false),'map must not depend on mesh budget')
+    end
+    local flat,fr=mbm.generateImageMesh(image,{followImage=true,twoLevels=true,grooveThreshold=0,
+        grooveTransition=0.001,columns=32,rows=32,relief=0,lockBorder=false})
+    assert(flat,fr); inspect(flat,fr)
+    assert(fr.triangles<100,'adaptive flat surface was not simplified')
+    assert(not mbm.generateImageMesh(image,{grooveTransition=0}))
+    assert(not mbm.generateImageMeshMap(image,{smoothPasses=5},'/tmp/invalid_map.png'))
+    assert(not pcall(mbm.generateImageMeshMap,image,{},'/tmp/invalid_map.png','overlay'))
+    local diagonal='/tmp/ime_diagonal_height.png'
+    assert(mbm.createTexture({0,0,0,128,128,128,128,128,128,255,255,255},2,2,3,'ime_diagonal',diagonal))
+    local tiny,tr=mbm.generateImageMesh(diagonal,{followImage=true,columns=1,rows=1,
+        grooveThreshold=0.000004,relief=0,lockBorder=false})
+    assert(tiny,tr); inspect(tiny,tr)
+    print('IMAGE MESH ADAPTIVE / HEIGHT MAP / GROOVES / TINY TRANSITIONS OK')
     local output='/tmp/mbm_image_mesh_smoke.msh'
     assert(asset:save(output,false,false,true))
     local restored=meshDebug:new(); assert(restored:load(output)); inspect(restored,report)

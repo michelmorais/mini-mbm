@@ -24,14 +24,15 @@
 #include <string>
 #include <vector>
 namespace mbm { namespace image_mesh {
+    struct HEIGHT_FIELD;
     struct TOPOLOGY
     {
         std::vector<IMAGE_MESH_POINT> points;
-        std::vector<std::array<uint32_t, 3>> triangles;
+        std::vector<std::array<uint32_t, 3>> triangles, backTriangles;
         std::vector<uint32_t> boundary;
         std::vector<IMAGE_MESH_POINT> contour;
     };
-    bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &out, std::string &error);
+    bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &out, std::string &error, const HEIGHT_FIELD *field = nullptr);
     float borderDistance(const IMAGE_MESH_POINT &point, const TOPOLOGY &topology);
 } }
 #endif

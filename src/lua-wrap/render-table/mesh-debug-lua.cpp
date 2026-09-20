@@ -3641,12 +3641,9 @@ namespace mbm
         return 1;
     }
 
-    int onGenerateImageMeshLua(lua_State *lua)
+    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour)
     {
-        const char *path = luaL_checkstring(lua, 1);
-        luaL_checktype(lua, 2, LUA_TTABLE);
-        IMAGE_MESH_OPTIONS options;
-        IMAGE_MESH_POINT contour[128];
+        luaL_checktype(lua,2,LUA_TTABLE);
         const auto integer = [&](const char *name, uint32_t &value)
         {
             lua_getfield(lua, 2, name);
@@ -3684,6 +3681,10 @@ namespace mbm
         number("borderWidth", options.borderWidth);
         boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
         integer("ellipseSegments", options.ellipseSegments);
+        boolean("followImage",options.followImage); boolean("twoLevels",options.twoLevels);
+        integer("smoothPasses",options.smoothPasses);
+        number("grooveThreshold",options.grooveThreshold); number("grooveTransition",options.grooveTransition);
+        number("heightTolerance",options.heightTolerance);
         lua_getfield(lua, 2, "shape");
         if (!lua_isnil(lua, -1))
         {
@@ -3691,7 +3692,7 @@ namespace mbm
             if (std::strcmp(shape, "rectangle") == 0) options.shape = IMAGE_MESH_SHAPE::RECTANGLE;
             else if (std::strcmp(shape, "ellipse") == 0) options.shape = IMAGE_MESH_SHAPE::ELLIPSE;
             else if (std::strcmp(shape, "polygon") == 0) options.shape = IMAGE_MESH_SHAPE::POLYGON;
-            else return luaL_error(lua, "shape must be rectangle, ellipse or polygon");
+            else luaL_error(lua, "shape must be rectangle, ellipse or polygon");
         }
         lua_pop(lua, 1);
         if (options.shape == IMAGE_MESH_SHAPE::POLYGON)
@@ -3699,7 +3700,7 @@ namespace mbm
             lua_getfield(lua, 2, "contour");
             luaL_checktype(lua, -1, LUA_TTABLE);
             const size_t count = lua_rawlen(lua, -1);
-            if (count < 3 || count > 128) return luaL_error(lua, "contour needs 3..128 points");
+            if (count < 3 || count > 128) luaL_error(lua, "contour needs 3..128 points");
             options.contourCount = static_cast<uint32_t>(count);
             options.contour = contour;
             for (size_t i = 0; i < count; ++i)
@@ -3712,6 +3713,29 @@ namespace mbm
             }
             lua_pop(lua, 1);
         }
+    }
+
+    int onGenerateImageMeshMapLua(lua_State *lua)
+    {
+        const char *path=luaL_checkstring(lua,1);
+        const char *output=luaL_checkstring(lua,3);
+        if (!lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
+        const bool overlay=lua_toboolean(lua,4)!=0;
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128];
+        readImageMeshOptions(lua,options,contour);
+        char error[512]="";
+        if (!generateImageMeshMap(path,options,output,overlay,error,sizeof(error)))
+        {
+            lua_pushnil(lua); lua_pushstring(lua,error); return 2;
+        }
+        lua_pushboolean(lua,true); return 1;
+    }
+
+    int onGenerateImageMeshLua(lua_State *lua)
+    {
+        const char *path=luaL_checkstring(lua,1);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128];
+        readImageMeshOptions(lua,options,contour);
         lua_settop(lua, 2);
         lua_pushcfunction(lua, onNewMeshDebugLua);
         lua_call(lua, 0, 1);

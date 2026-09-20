@@ -2134,7 +2134,13 @@ assert(asset:save("panel.msh", false, false, true))
 | `width`, `height`, `depth` | 100, 100, 20 | World dimensions; each finite and within [0.001, 1000000] |
 | `relief` | 8 | Nonnegative outward relief amplitude, at most 1000000 |
 | `columns`, `rows` | 32, 32 | Integers in [1, 255]. Rectangular grid cells per axis; contour refinement density for ellipses/polygons, subject to total budget |
-| `invert` | false | Invert luminance before computing height |
+| `invert` | false | Invert luminance before filtering, groove detection and height mapping |
+| `followImage` | false | Adaptive image-guided front triangulation, transition alignment and simplified flat back; legacy topology when false |
+| `twoLevels` | false | Map intensity to low/high plateaus with a smoothstep transition |
+| `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
+| `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
+| `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
+| `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
 | `lockBorder` | true | Force the perimeter to zero relief |
 | `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual contour |
 | `maxVertices` | 65535 | Total vertex budget, including back and duplicated side vertices; engine cap remains 65535 |
@@ -2144,7 +2150,8 @@ The generated material is matte (zero specular color and power).
 The origin is at the center of the base block. +Y points upward. The front faces
 -Z at `-depth/2 - height`; the flat back is at `+depth/2`. Height uses bilinear
 sampling of encoded RGB luminance (`0.2126 R + 0.7152 G + 0.0722 B`), without
-linear-light conversion. Alpha does not create holes or alter height. Front and
+linear-light conversion. Optional filtering and two-height remapping happen before
+relief amplitude and border attenuation. Alpha does not create holes or alter height. Front and
 back use the original crop (including its transparency), and side walls stretch
 opaque boundary texels through the depth. If a wall segment crosses transparent
 texels, its four UVs use one nearby texel having the maximum alpha found within
@@ -2174,7 +2181,7 @@ nonfinite coordinates and negligible area are rejected. Ellipses are approximate
 by an inscribed polygon with `ellipseSegments` sides and an initial triangle fan
 from its center. Generic polygons use ear clipping to respect concavity;
 shared midpoint refinement preserves the boundary and produces conforming triangles.
-For these shapes, `columns`/`rows` scale the refinement metric: final front edges
+With `followImage=false`, `columns`/`rows` scale the refinement metric for these shapes: final front edges
 have squared length at most approximately 2 after multiplying normalized X/Y deltas
 by those resolutions. This is not a rectangular cell count for polygons. Exceeding
 the total budget rejects generation instead of silently reducing quality. Budget
@@ -2183,6 +2190,51 @@ counts already required, including front/back/sides. Refinement stops early, so
 these counts are not estimates of the final requested geometry. The Image Mesh
 Editor derives `maxTriangles = 2 * maxVertices`; direct API callers may still
 supply an independent triangle budget.
+
+With `followImage=true`, the initial contour triangulation is refined by sampled
+height interpolation error. Longest-edge splits are shared with adjacent faces;
+local Delaunay flips improve triangle shape before each refinement pass. Samples
+include triangle centers, edge midpoints, and a crop lattice capped at twice the
+requested columns/rows. Regions that are sufficiently flat keep larger faces.
+Columns/rows bound subdivision density, rather than forcing uniform cells;
+`heightTolerance` is a target over those samples, not a global certified error bound.
+Features below the sampling scale may need higher columns/rows.
+
+After refinement, edges are inserted along processed-image isovalues: the threshold
+for continuous relief, or both ends of the two-height transition. Shared edge
+intersections are solved against the filtered image. The back is triangulated
+using boundary vertices only; it does not duplicate interior relief vertices.
+Sharp transition fragments may legitimately be small. All final vertex/triangle
+budgets include back and walls; insufficient budgets still return an error.
+Filtering and thresholding cannot infer real depth from painted lighting or create holes.
+
+`mbm.generateImageMeshMap(imagePath, options, outputPngPath, overlay?)` writes a
+cropped RGBA PNG and returns `true`, or `nil, errorMessage` on processing failure.
+Malformed argument types still raise Lua errors. It shares image decoding,
+inversion, filtering, two-height mapping and border attenuation with the mesh
+operation. With `overlay=false` (default), RGB contains normalized relief in
+[0,255], before multiplication by the `relief` world amplitude; alpha is opaque
+inside the contour and zero outside. With `overlay=true`, pixels below the
+threshold are tinted blue over the original colors, preserving source alpha;
+the overlay depicts classification, not the border attenuation. Both images use
+the same rectangle/inscribed ellipse/simple polygon contour as the generator.
+
+Map generation performs no mesh/GPU allocation and ignores mesh budgets and
+refinement density, so it can diagnose settings that exceed mesh budgets. It
+writes the supplied output path; use a separate temporary file, not the source
+image. Call only when inputs change or explicitly requested.
+
+```lua
+local options = {
+    shape="ellipse", followImage=true, twoLevels=true,
+    grooveThreshold=0.45, grooveTransition=0.12, smoothPasses=2,
+    heightTolerance=0.03, columns=48, rows=48,
+}
+assert(mbm.generateImageMeshMap("panel.png", options, "height-preview.png", false))
+assert(mbm.generateImageMeshMap("panel.png", options, "groove-preview.png", true))
+local asset, report = mbm.generateImageMesh("panel.png", options)
+assert(asset, report)
+```
 
 ```lua
 local asset, report = mbm.generateImageMesh("panel.png", {

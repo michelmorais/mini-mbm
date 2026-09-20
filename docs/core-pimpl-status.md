@@ -243,3 +243,10 @@ perimeter indexing and their STL containers live in
 `src/core_mbm/private/image-mesh-topology.{h,cpp}`. No runtime render class storage
 or backend state is exposed. The directly registered Lua callback follows the
 existing launcher binding declarations; its feature-specific export macro was removed.
+
+
+The image-guided relief extension adds scalar filtering/threshold/adaptive options
+to the value-only request and a PNG diagnostic operation. Decoded pixels and
+filtered height buffers stay in private `image-mesh-height.h`; adaptive topology,
+transition intersections and simplified-back scratch storage remain private in
+`image-mesh-topology.cpp`. No runtime object state or backend handle is exposed.

@@ -45,6 +45,9 @@ namespace mbm
         float borderWidth = 0.1f;
         bool invert = false;
         bool lockBorder = true;
+        bool followImage = false, twoLevels = false;
+        float grooveThreshold = 0.5f, grooveTransition = 0.1f, heightTolerance = 0.03f;
+        uint32_t smoothPasses = 0;
     };
 
     struct IMAGE_MESH_REPORT
@@ -60,6 +63,10 @@ namespace mbm
     API_IMPL bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                                     MESH_MBM_DEBUG &destination, IMAGE_MESH_REPORT &report,
                                     char *errorOut, int errorOutLen);
+    // Writes a cropped RGBA PNG: processed height or blue groove overlay; no mesh/GPU allocation.
+    API_IMPL bool generateImageMeshMap(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
+                                       const char *outputPath, bool overlay,
+                                       char *errorOut, int errorOutLen);
 }
 
 #endif

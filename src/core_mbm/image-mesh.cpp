@@ -23,6 +23,8 @@
 #include <core_mbm/draw-compatibility.h>
 #include <core_mbm/util-interface.h>
 #include <stb/stb-interface.h>
+#include "private/image-mesh-height.h"
+#include <lodepng/lodepng.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -65,36 +67,20 @@ namespace mbm
             return fail(errorOut, errorOutLen, "Invalid dimensions, relief, border width or grid (1..255 cells per axis)");
         try
         {
-            image_mesh::TOPOLOGY topology;
+            image_mesh::HEIGHT_FIELD field;
             std::string topologyError;
-            if (!image_mesh::buildTopology(o, topology, topologyError))
-                return fail(errorOut, errorOutLen, topologyError.c_str());
-            const uint32_t gridSize = static_cast<uint32_t>(topology.points.size());
-            const uint32_t vertexCount = 2 * gridSize + 4 * static_cast<uint32_t>(topology.boundary.size());
-            const uint32_t triangleCount = 2 * static_cast<uint32_t>(topology.triangles.size() + topology.boundary.size());
-            bool exists = false;
-            const char *resolved = util::getFullPath(imagePath, &exists);
-            const std::string path = exists && resolved ? resolved : imagePath;
-            int iw = 0, ih = 0, channels = 0;
-            if (!stbi_info(path.c_str(), &iw, &ih, &channels) || iw <= 0 || ih <= 0 ||
-                static_cast<uint64_t>(iw) * static_cast<uint64_t>(ih) > 16777216)
-                return fail(errorOut, errorOutLen, "Cannot inspect image or image exceeds 16 megapixels");
-            const uint32_t imageWidth = static_cast<uint32_t>(iw), imageHeight = static_cast<uint32_t>(ih);
-            if (o.x >= imageWidth || o.y >= imageHeight)
-                return fail(errorOut, errorOutLen, "Crop origin outside image");
-            const uint32_t cw = o.cropWidth ? o.cropWidth : imageWidth - o.x;
-            const uint32_t ch = o.cropHeight ? o.cropHeight : imageHeight - o.y;
-            if (cw > imageWidth - o.x || ch > imageHeight - o.y)
-                return fail(errorOut, errorOutLen, "Crop outside image");
-            std::unique_ptr<stbi_uc, decltype(&std::free)> pixels(
-                stbi_load(path.c_str(), &iw, &ih, &channels, 4), &std::free);
-            if (!pixels || static_cast<uint32_t>(iw) != imageWidth || static_cast<uint32_t>(ih) != imageHeight)
-                return fail(errorOut, errorOutLen, "Cannot decode image or dimensions changed");
-            const auto intensity = [&](uint32_t x, uint32_t y)
-            {
-                const auto *p = pixels.get() + (static_cast<size_t>(y) * imageWidth + x) * 4;
-                return (0.2126f * p[0] + 0.7152f * p[1] + 0.0722f * p[2]) / 255.0f;
-            };
+            if (!field.load(imagePath,o,topologyError)) return fail(errorOut,errorOutLen,topologyError.c_str());
+            image_mesh::TOPOLOGY topology;
+            if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
+                return fail(errorOut,errorOutLen,topologyError.c_str());
+            const uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
+            const uint32_t backSize=o.followImage?static_cast<uint32_t>(topology.boundary.size()):gridSize;
+            const uint32_t vertexCount=gridSize+backSize+4*static_cast<uint32_t>(topology.boundary.size());
+            const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+
+                (o.followImage?topology.backTriangles.size():topology.triangles.size())+2*topology.boundary.size());
+            const auto &path=field.path;
+            const uint32_t imageWidth=field.imageWidth,imageHeight=field.imageHeight,cw=field.width,ch=field.height;
+            const auto &pixels=field.pixels;
             std::vector<VERTEX> vertices;
             std::vector<uint16_t> indices;
             vertices.reserve(vertexCount);
@@ -107,12 +93,7 @@ namespace mbm
                 const auto &point = topology.points[pointIndex];
                 const float u = point.x, v = point.y;
                 const float px = o.x + u * (cw - 1), py = o.y + v * (ch - 1);
-                const uint32_t x0 = static_cast<uint32_t>(px), y0 = static_cast<uint32_t>(py);
-                const uint32_t x1 = std::min(x0 + 1, o.x + cw - 1), y1 = std::min(y0 + 1, o.y + ch - 1);
-                const float fx = px - x0, fy = py - y0;
-                float level = (intensity(x0, y0) * (1 - fx) + intensity(x1, y0) * fx) * (1 - fy) +
-                              (intensity(x0, y1) * (1 - fx) + intensity(x1, y1) * fx) * fy;
-                if (o.invert) level = 1.0f - level;
+                const float level=field.mapped(field.sample(u,v),o);
                 float height = level * o.relief;
                 if (o.lockBorder)
                 {
@@ -125,9 +106,12 @@ namespace mbm
                 vertices.push_back({VEC3((u - 0.5f) * o.width, (0.5f - v) * o.height, -o.depth * 0.5f - height),
                                     VEC3(0, 0, 0), VEC2((px + 0.5f) / imageWidth, (py + 0.5f) / imageHeight)});
             }
-            for (uint32_t i = 0; i < gridSize; ++i)
+            std::vector<uint32_t> backIndex(gridSize);
+            for (uint32_t i=0;i<backSize;++i)
             {
-                VERTEX back = vertices[i];
+                const uint32_t source=o.followImage?topology.boundary[i]:i;
+                backIndex[source]=gridSize+i;
+                VERTEX back = vertices[source];
                 back.position.z = o.depth * 0.5f;
                 vertices.push_back(back);
             }
@@ -140,8 +124,9 @@ namespace mbm
             for (const auto &face : topology.triangles)
             {
                 triangle(face[0], face[1], face[2]);
-                triangle(face[0] + gridSize, face[2] + gridSize, face[1] + gridSize);
             }
+            for (const auto &face : (o.followImage?topology.backTriangles:topology.triangles))
+                triangle(backIndex[face[0]],backIndex[face[2]],backIndex[face[1]]);
             // Transparent atlas margins must not turn a closed solid into invisible walls.
             // Build a nearest-max-alpha lookup only if a side crosses transparent texels.
             // Two Manhattan-distance sweeps keep lookup work linear in crop pixels.
@@ -203,7 +188,7 @@ namespace mbm
             {
                 const uint32_t start = static_cast<uint32_t>(vertices.size());
                 vertices.push_back(vertices[a]); vertices.push_back(vertices[b]);
-                vertices.push_back(vertices[a + gridSize]); vertices.push_back(vertices[b + gridSize]);
+                vertices.push_back(vertices[backIndex[a]]); vertices.push_back(vertices[backIndex[b]]);
                 if (sideNeedsOpaqueSample(topology.points[a], topology.points[b]))
                 {
                     prepareVisibleTexels();
@@ -270,4 +255,52 @@ namespace mbm
             return fail(errorOut, errorOutLen, e.what());
         }
     }
+    bool generateImageMeshMap(const char *imagePath,const IMAGE_MESH_OPTIONS &o,const char *outputPath,
+                              bool overlay,char *errorOut,int errorOutLen)
+    {
+        if (errorOut && errorOutLen>0) errorOut[0]=0;
+        if (!outputPath || !*outputPath) return fail(errorOut,errorOutLen,"Output PNG path required");
+        if (!std::isfinite(o.borderWidth) || o.borderWidth<0 || o.borderWidth>0.5f)
+            return fail(errorOut,errorOutLen,"Invalid border width");
+        try
+        {
+            image_mesh::HEIGHT_FIELD field; std::string error;
+            if (!field.load(imagePath,o,error)) return fail(errorOut,errorOutLen,error.c_str());
+            IMAGE_MESH_OPTIONS outline=o;
+            outline.followImage=false; outline.columns=outline.rows=1; outline.maxVertices=65535; outline.maxTriangles=131070;
+            image_mesh::TOPOLOGY topology;
+            if (!image_mesh::buildTopology(outline,topology,error)) return fail(errorOut,errorOutLen,error.c_str());
+            std::vector<unsigned char> rgba(static_cast<size_t>(field.width)*field.height*4,0);
+            for (uint32_t y=0;y<field.height;++y) for (uint32_t x=0;x<field.width;++x)
+            {
+                const IMAGE_MESH_POINT p{static_cast<float>(x)/std::max(1u,field.width-1),static_cast<float>(y)/std::max(1u,field.height-1)};
+                bool inside=false;
+                for (size_t i=0,j=topology.contour.size()-1;i<topology.contour.size();j=i++)
+                {
+                    const auto &a=topology.contour[i],&b=topology.contour[j];
+                    if ((a.y>p.y)!=(b.y>p.y) && p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x) inside=!inside;
+                }
+                const float distance=image_mesh::borderDistance(p,topology);
+                if (!inside && distance>1e-6f) continue;
+                const float intensity=field.sample(p.x,p.y);
+                float level=field.mapped(intensity,o);
+                if (o.lockBorder)
+                {
+                    if (distance<1e-7f) level=0;
+                    else if (o.borderWidth>0) level*=std::min(1.0f,distance/o.borderWidth);
+                }
+                auto *out=rgba.data()+(static_cast<size_t>(y)*field.width+x)*4;
+                const auto *source=field.pixels.get()+(static_cast<size_t>(y+o.y)*field.imageWidth+x+o.x)*4;
+                for (unsigned c=0;c<3;++c)
+                    out[c]=static_cast<unsigned char>(std::lround(overlay?
+                        (intensity<o.grooveThreshold?source[c]*0.35f+(c==2?255.0f:40.0f)*0.65f:source[c]):level*255));
+                out[3]=overlay?source[3]:255;
+            }
+            const unsigned code=lodepng::encode(outputPath,rgba,field.width,field.height);
+            if (code) return fail(errorOut,errorOutLen,lodepng_error_text(code));
+            return true;
+        }
+        catch (const std::exception &e) { return fail(errorOut,errorOutLen,e.what()); }
+    }
+
 }

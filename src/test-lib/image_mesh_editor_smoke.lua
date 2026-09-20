@@ -278,6 +278,35 @@ function onLoop(delta)
         assert(restarted==2 and tUtil.sMessageOverlay:find('ime_feedback.imesh',1,true))
         print('IMAGE MESH EDITOR SAVE FEEDBACK / FACE COUNTS / CACHE OK')
     end
+    if frame==220 then
+        api.select(13); api.setEditMode(true)
+        local revision=e.revision; local build=e.builds
+        e.values.twoLevels=true; e.values.followImage=true; e.values.grooveThreshold=0.45
+        e.values.grooveTransition=0.12; e.values.smoothPasses=2; e.values.heightTolerance=0.03
+        e.heightView=2; api.updateHeightPreview()
+        assert(e.heightObject and e.heightObject.visible and e.revision==revision,'draft map changed project')
+        local height=e.heightObject; local mapBuilds=e.heightBuilds
+        api.updateHeightPreview(); api.updateHeightPreview()
+        assert(e.heightObject==height and e.heightBuilds==mapBuilds and e.builds==build,'idle rebuilt height map')
+        local zoom=e.zoom; e.zoom=2; api.updateHeightPreview()
+        local r=e.draft
+        assert(math.abs(e.heightObject.x-(r.x+r.w/2-e.project.image.width/2)*e.zoom)<0.001,'map zoom alignment X')
+        assert(math.abs(e.heightObject.y-(e.project.image.height/2-r.y-r.h/2)*e.zoom)<0.001,'map zoom alignment Y')
+        assert(e.heightBuilds==mapBuilds,'zoom rebuilt map')
+        e.zoom=zoom; api.updateHeightPreview()
+        e.heightView=3; api.updateHeightPreview(); assert(e.heightBuilds==mapBuilds+1)
+        api.applyProperties(); api.updateHeightPreview()
+        local options=Model.options(e.project,Model.region(e.project,13))
+        assert(options.followImage and options.twoLevels and options.smoothPasses==2)
+        api.saveProject('/tmp/ime_grooves_editor.imesh'); api.openProject('/tmp/ime_grooves_editor.imesh')
+        api.select(13); api.updateHeightPreview()
+        options=Model.options(e.project,Model.region(e.project,13)); assert(math.abs(options.grooveThreshold-0.45)<0.000001)
+        api.setEditMode(false); api.rebuild()
+        assert(e.preview and not e.heightObject.visible,'map leaked into 3D')
+        api.setEditMode(true); api.updateHeightPreview(); assert(e.heightObject.visible)
+        e.heightView=1; api.updateHeightPreview(); assert(not e.heightObject,'original view retained map')
+        print('IMAGE MESH EDITOR GROOVE MAPS / DRAFT / CACHE / SAVE / MODES OK')
+    end
     if started and mbm.getTimeRun()-started>8 then mbm.quit() end
 end
 function onEndScene() finish() end

@@ -63,4 +63,10 @@ for i=2,#points do assert(math.abs(points[i].x-moved[i].x)<1e-6 and math.abs(poi
 M.validate(p)
 wide.overrides.maxVertices=1000; wide.overrides.maxTriangles=1
 assert(M.options(p,wide).maxTriangles==2000,'editor triangle budget is not derived')
+local legacy=M.copy(p)
+for k in pairs(M.grooveDefaults) do legacy.defaults[k]=nil end
+M.validate(legacy)
+assert(not M.options(legacy,legacy.regions[1]).followImage)
+local badGrooves=M.copy(p); badGrooves.defaults.grooveTransition=0
+assert(not pcall(M.validate,badGrooves))
 print('IMAGE MESH MODEL OK')

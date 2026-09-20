@@ -436,3 +436,23 @@ A edição 2D consulta a geração CPU sob demanda e mantém relatórios por mó
 em cache até mudanças no projeto. Arrastes não recalculam continuamente, e
 contagens antigas não são exibidas durante edição de geometria ou após erro.
 Regressões cobrem confirmação repetida, formatação, seleção, invalidação e idle.
+
+
+### Detecção de sulcos e geometria adaptativa (7.227.0)
+
+Entregues controles por módulo de limiar, inversão, duas alturas, transição,
+suavização preservando bordas e tolerância de erro. Prévia 2D de alturas e
+sobreposição azul usam o mesmo processamento CPU da geração, sobre a imagem
+na cena da engine. O botão de prévia permite avaliar ajustes antes de Aplicar.
+
+O modo adaptativo é opt-in, preservando projetos anteriores. Refina por erro
+amostrado, melhora triângulos por flips locais, alinha arestas às transições
+e simplifica o verso plano. Os limites de geometria continuam obrigatórios;
+Colunas/Linhas delimitam densidade e amostragem. Pincéis e furos não fazem parte
+desta etapa. Não há reconstrução semântica de profundidade.
+
+Testes: fechamento, normais, volume, orçamento, pequenos triângulos nas transições,
+retângulos/elipses/polígonos côncavos, mapas sem orçamento de mesh, cache, prévia
+de rascunho, salvamento/carregamento e alternância 2D/3D. No projeto real, os
+módulos 1/2/5 passaram em varredura dos limiares 0,3/0,45/0,6. O círculo passou
+de 31.392 triângulos no preset anterior a 13.586 na configuração documentada.

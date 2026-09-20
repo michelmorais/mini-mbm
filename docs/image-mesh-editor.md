@@ -123,6 +123,48 @@ Para investigar relevo, reduza a luz ambiente e varie a direção da luz em 3D,
 além de orbitar a câmera. Isso ajuda a distinguir sombras da iluminação de marcas
 já pintadas na textura; não comprova por si só que a amostragem de altura está correta.
 
+## Detectar sulcos e acompanhar as formas
+
+Na seleção, abra **Relevo e sulcos**. Os controles são salvos por módulo e podem
+ser herdados dos padrões do projeto. Projetos antigos mantêm a geração anterior
+até habilitar **Seguir formas da imagem (adaptativo)**.
+
+1. Em edição 2D, escolha **Sulcos detectados (azul)** ou **Mapa de alturas** em
+   **Visualização da imagem**. O mapa aparece sobre o recorte selecionado na cena
+   da engine; o restante da imagem continua visível e as alças ficam por cima.
+2. Ajuste **Limiar dos sulcos**. Intensidades abaixo dele, após inversão e
+   suavização, são interpretadas como regiões baixas. **Inverter** troca a
+   interpretação claro/escuro. Azul representa a classificação, não furos.
+3. Use **Duas alturas (barras / sulcos)** para nivelar partes elevadas e fundos,
+   com uma rampa controlada pela **Largura da transição**. A amplitude **Relevo**
+   define a diferença de profundidade no mundo. O mapa de alturas mostra valores
+   normalizados, incluindo a atenuação de borda, antes dessa amplitude.
+4. **Suavização preservando bordas** aplica de zero a quatro passes locais para
+   reduzir manchas. Ela não separa automaticamente sombras de profundidade real.
+5. Clique **Pré-visualizar ajustes** após mudar os controles para conferir o
+   rascunho, sem modificar o projeto. **Aplicar** confirma os parâmetros; use
+   **Salvar projeto** para gravá-los em disco. **Imagem original** remove o mapa.
+6. Ative a geometria adaptativa, aplique e entre no modo 3D. Use wireframe para
+   inspecionar as arestas criadas ao longo das transições.
+
+A geometria adaptativa amostra o erro de interpolação do relevo, refina onde é
+necessário, melhora a forma dos triângulos e insere arestas nas transições da
+imagem processada. O verso plano usa só vértices da borda. **Tolerância de erro
+do relevo** é uma fração da amplitude e orienta o refinamento; **Colunas/Linhas**
+limitam a densidade e a amostragem. Não é uma garantia de erro máximo em cada pixel:
+detalhes menores que a escala de amostragem podem exigir maior resolução.
+
+O mapa é temporário, fica em cache e não altera a textura original ou a exportada.
+Zoom e pan reposicionam o mapa sem refazer processamento. Arrastes ocultam o mapa
+antigo; após confirmar, ele é atualizado. Trocar módulo ou vista também atualiza
+o cache. A prévia 2D continua funcionando quando o orçamento impede gerar a mesh.
+A máscara ainda não tem pintura manual; pincéis e furos reais permanecem etapas futuras.
+
+No teste com o módulo 2 do projeto de exemplo, a configuração adaptativa com
+limiar 0,45, transição 0,12, suavização 2 e densidade 48 x 48 produziu 13.586
+triângulos; a configuração anterior salva (50 x 50) produzia 31.392. A redução e
+a aparência dependem da imagem e dos parâmetros, não são metas fixas do gerador.
+
 ## Relevo e prévia
 
 **Preservar proporção da imagem** calcula a altura no mundo a partir da largura

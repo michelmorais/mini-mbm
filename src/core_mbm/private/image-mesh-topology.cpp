@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "image-mesh-topology.h"
+#include "image-mesh-height.h"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -59,6 +60,8 @@ namespace {
     }
     bool budget(const IMAGE_MESH_OPTIONS &o, const TOPOLOGY &t, const char *stage, std::string &error)
     {
+        if (o.followImage)
+            return budget(o,t.points.size()+5*t.boundary.size(),t.triangles.size()+3*t.boundary.size()-2,stage,error);
         return budget(o,2*t.points.size()+4*t.boundary.size(),
                       2*t.triangles.size()+2*t.boundary.size(),stage,error);
     }
@@ -66,12 +69,169 @@ namespace {
     {
         return (static_cast<uint64_t>(std::min(a,b))<<32) | std::max(a,b);
     }
+    bool triangulateBoundary(const TOPOLOGY &t,std::vector<std::array<uint32_t,3>> &output)
+    {
+        auto remaining=t.boundary;
+        while (remaining.size()>3)
+        {
+            bool found=false;
+            for (size_t i=0;i<remaining.size();++i)
+            {
+                const uint32_t a=remaining[(i+remaining.size()-1)%remaining.size()], b=remaining[i], c=remaining[(i+1)%remaining.size()];
+                if (cross(t.points[a],t.points[b],t.points[c])<=epsilon) continue;
+                bool contains=false;
+                for (uint32_t v:remaining)
+                {
+                    if (v==a || v==b || v==c) continue;
+                    if (cross(t.points[a],t.points[b],t.points[v])>=-epsilon &&
+                        cross(t.points[b],t.points[c],t.points[v])>=-epsilon &&
+                        cross(t.points[c],t.points[a],t.points[v])>=-epsilon) { contains=true; break; }
+                }
+                if (contains) continue;
+                output.push_back({a,b,c}); remaining.erase(remaining.begin()+static_cast<std::ptrdiff_t>(i)); found=true; break;
+            }
+            if (!found) return false;
+        }
+        output.push_back({remaining[0],remaining[1],remaining[2]});
+        return true;
+    }
+
+    double edgeLength(const IMAGE_MESH_POINT &a,const IMAGE_MESH_POINT &b,const IMAGE_MESH_OPTIONS &o)
+    {
+        const double x=(a.x-b.x)*o.columns,y=(a.y-b.y)*o.rows;
+        return x*x+y*y;
+    }
+    float surface(const IMAGE_MESH_POINT &p,const HEIGHT_FIELD &field,const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t)
+    {
+        if (o.relief==0) return 0;
+        float value=field.mapped(field.sample(p.x,p.y),o);
+        if (o.lockBorder)
+        {
+            const float d=borderDistance(p,t);
+            if (d<1e-7f) return 0;
+            if (o.borderWidth>0) value*=std::min(1.0f,d/o.borderWidth);
+        }
+        return value;
+    }
+    bool needsDetail(const std::array<uint32_t,3> &tri,const TOPOLOGY &t,const HEIGHT_FIELD &field,const IMAGE_MESH_OPTIONS &o)
+    {
+        const auto &a=t.points[tri[0]],&b=t.points[tri[1]],&c=t.points[tri[2]];
+        const double area=cross(a,b,c);
+        const float ha=surface(a,field,o,t),hb=surface(b,field,o,t),hc=surface(c,field,o,t);
+        const auto check=[&](const IMAGE_MESH_POINT &p)
+        {
+            const double wa=cross(b,c,p)/area,wb=cross(c,a,p)/area,wc=1-wa-wb;
+            return wa>=-epsilon && wb>=-epsilon && wc>=-epsilon &&
+                std::abs(surface(p,field,o,t)-(wa*ha+wb*hb+wc*hc))>o.heightTolerance;
+        };
+        if (check({(a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3}) ||
+            check({(a.x+b.x)/2,(a.y+b.y)/2}) || check({(b.x+c.x)/2,(b.y+c.y)/2}) || check({(c.x+a.x)/2,(c.y+a.y)/2})) return true;
+        const uint32_t nx=std::min(std::max(1u,field.width-1),o.columns*2),ny=std::min(std::max(1u,field.height-1),o.rows*2);
+        const uint32_t x0=static_cast<uint32_t>(std::ceil(std::min({a.x,b.x,c.x})*nx));
+        const uint32_t x1=static_cast<uint32_t>(std::floor(std::max({a.x,b.x,c.x})*nx));
+        const uint32_t y0=static_cast<uint32_t>(std::ceil(std::min({a.y,b.y,c.y})*ny));
+        const uint32_t y1=static_cast<uint32_t>(std::floor(std::max({a.y,b.y,c.y})*ny));
+        for (uint32_t y=y0;y<=y1;++y) for (uint32_t x=x0;x<=x1;++x)
+            if (check({static_cast<float>(x)/nx,static_cast<float>(y)/ny})) return true;
+        return false;
+    }
+    // Local Delaunay flips improve skinny triangles without moving image samples.
+    void improveTriangles(TOPOLOGY &t)
+    {
+        for (unsigned pass=0;pass<3;++pass)
+        {
+            std::map<uint64_t,std::pair<size_t,uint32_t>> neighbors;
+            std::vector<bool> changed(t.triangles.size(),false);
+            bool any=false;
+            for (size_t i=0;i<t.triangles.size();++i)
+            {
+                const auto tri=t.triangles[i];
+                for (unsigned e=0;e<3 && !changed[i];++e)
+                {
+                    const uint32_t a=tri[e],b=tri[(e+1)%3],c=tri[(e+2)%3];
+                    const auto key=edgeKey(a,b); const auto it=neighbors.find(key);
+                    if (it==neighbors.end()) { neighbors[key]={i,c}; continue; }
+                    const size_t j=it->second.first; const uint32_t d=it->second.second;
+                    if (changed[j]) continue;
+                    const auto &pa=t.points[a],&pb=t.points[b],&pc=t.points[c],&pd=t.points[d];
+                    if (cross(pc,pd,pb)<=epsilon || cross(pd,pc,pa)<=epsilon) continue;
+                    const double ax=pa.x-pd.x,ay=pa.y-pd.y,bx=pb.x-pd.x,by=pb.y-pd.y,cx=pc.x-pd.x,cy=pc.y-pd.y;
+                    const double det=(ax*ax+ay*ay)*(bx*cy-by*cx)-(bx*bx+by*by)*(ax*cy-ay*cx)+(cx*cx+cy*cy)*(ax*by-ay*bx);
+                    if (det<=1e-12) continue;
+                    t.triangles[i]={c,d,b}; t.triangles[j]={d,c,a}; changed[i]=changed[j]=true; any=true;
+                }
+            }
+            if (!any) return;
+        }
+    }
+    bool alignTransition(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,const HEIGHT_FIELD &field,float iso,std::string &error)
+    {
+        if (iso<=0 || iso>=1) return true;
+        std::map<uint64_t,uint32_t> cuts;
+        const auto intersection=[&](uint32_t a,uint32_t b,float va,float vb)
+        {
+            if (std::abs(va-iso)<1e-6f) return a;
+            if (std::abs(vb-iso)<1e-6f) return b;
+            const auto key=edgeKey(a,b); auto it=cuts.find(key);
+            if (it!=cuts.end()) return it->second;
+            const auto pa=t.points[a],pb=t.points[b];
+            float lo=0,hi=1;
+            // Solve on the processed image, not just the endpoint intensities.
+            for (unsigned n=0;n<20;++n)
+            {
+                const float f=(lo+hi)*0.5f,v=field.sample(pa.x+(pb.x-pa.x)*f,pa.y+(pb.y-pa.y)*f);
+                if ((v<iso)==(va<iso)) lo=f; else hi=f;
+            }
+            const float f=(lo+hi)*0.5f;
+            const uint32_t id=static_cast<uint32_t>(t.points.size());
+            t.points.push_back({pa.x+(pb.x-pa.x)*f,pa.y+(pb.y-pa.y)*f}); cuts[key]=id; return id;
+        };
+        std::vector<std::array<uint32_t,3>> result;
+        for (const auto &tri:t.triangles)
+        {
+            float v[3]; for (unsigned i=0;i<3;++i) v[i]=field.sample(t.points[tri[i]].x,t.points[tri[i]].y);
+            if ((v[0]<iso)==(v[1]<iso) && (v[1]<iso)==(v[2]<iso)) { result.push_back(tri); continue; }
+            for (unsigned side=0;side<2;++side)
+            {
+                std::vector<uint32_t> polygon;
+                for (unsigned i=0;i<3;++i)
+                {
+                    const unsigned j=(i+1)%3;
+                    if ((v[i]<iso)==(side==0)) polygon.push_back(tri[i]);
+                    if ((v[i]<iso)!=(v[j]<iso)) polygon.push_back(intersection(tri[i],tri[j],v[i],v[j]));
+                }
+                polygon.erase(std::unique(polygon.begin(),polygon.end()),polygon.end());
+                if (polygon.size()>1 && polygon.front()==polygon.back()) polygon.pop_back();
+                for (size_t i=1;i+1<polygon.size();++i)
+                    if (cross(t.points[polygon[0]],t.points[polygon[i]],t.points[polygon[i+1]])>0)
+                        result.push_back({polygon[0],polygon[i],polygon[i+1]});
+            }
+            if (!budget(o,t,"while aligning grooves",error)) return false;
+        }
+        std::vector<uint32_t> boundary;
+        for (size_t i=0;i<t.boundary.size();++i)
+        {
+            const auto a=t.boundary[i],b=t.boundary[(i+1)%t.boundary.size()]; boundary.push_back(a);
+            auto it=cuts.find(edgeKey(a,b)); if (it!=cuts.end()) boundary.push_back(it->second);
+        }
+        t.boundary=std::move(boundary); t.triangles=std::move(result);
+        return budget(o,t,"while aligning grooves",error);
+    }
+    bool finishAdaptive(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,const HEIGHT_FIELD &field,std::string &error)
+    {
+        const float half=o.twoLevels?o.grooveTransition*0.5f:0.0f;
+        if (!alignTransition(o,t,field,o.grooveThreshold-half,error)) return false;
+        if (o.twoLevels && !alignTransition(o,t,field,o.grooveThreshold+half,error)) return false;
+        if (!triangulateBoundary(t,t.backTriangles)) { error="Cannot triangulate simplified back"; return false; }
+        return budget(o,t,"after groove alignment",error);
+    }
+
 }
 
-bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error)
+bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
 {
     const auto fail=[&](const char *message) { error=message; return false; };
-    if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE)
+    if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE && !field)
     {
         const uint64_t size=static_cast<uint64_t>(o.columns+1)*(o.rows+1);
         if (!budget(o,2*size+8*(o.columns+o.rows),4ull*o.columns*o.rows+4*(o.columns+o.rows),
@@ -99,6 +259,7 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error)
             t.points.push_back({static_cast<float>(0.5+0.5*std::cos(angle)),static_cast<float>(0.5+0.5*std::sin(angle))});
         }
     }
+    else if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE) t.points={{0,0},{1,0},{1,1},{0,1}};
     else if (o.shape==IMAGE_MESH_SHAPE::POLYGON)
     {
         if (!o.contour || o.contourCount<3 || o.contourCount>128) return fail("Polygon needs 3..128 points");
@@ -152,47 +313,37 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error)
     }
     else
     {
-        auto remaining=t.boundary;
-        while (remaining.size()>3)
-        {
-            bool found=false;
-            for (size_t i=0;i<remaining.size();++i)
-            {
-                const uint32_t a=remaining[(i+remaining.size()-1)%remaining.size()], b=remaining[i], c=remaining[(i+1)%remaining.size()];
-                if (cross(t.points[a],t.points[b],t.points[c])<=epsilon) continue;
-                bool contains=false;
-                for (uint32_t v:remaining)
-                {
-                    if (v==a || v==b || v==c) continue;
-                    if (cross(t.points[a],t.points[b],t.points[v])>=-epsilon &&
-                        cross(t.points[b],t.points[c],t.points[v])>=-epsilon &&
-                        cross(t.points[c],t.points[a],t.points[v])>=-epsilon) { contains=true; break; }
-                }
-                if (contains) continue;
-                t.triangles.push_back({a,b,c}); remaining.erase(remaining.begin()+static_cast<std::ptrdiff_t>(i)); found=true; break;
-            }
-            if (!found) return fail("Cannot triangulate contour without degenerate triangles");
-        }
-        t.triangles.push_back({remaining[0],remaining[1],remaining[2]});
+        if (!triangulateBoundary(t,t.triangles)) return fail("Cannot triangulate contour without degenerate triangles");
     }
     if (!budget(o,t,"by contour",error)) return false;
     // Shared midpoint splits preserve conformity, including on the perimeter.
     for (unsigned pass=0;pass<20;++pass)
     {
+        if (field) improveTriangles(t);
         std::map<uint64_t,uint32_t> midpoints;
-        for (const auto &tri:t.triangles) for (unsigned e=0;e<3;++e)
+        for (const auto &tri:t.triangles)
         {
-            const uint32_t a=tri[e],b=tri[(e+1)%3];
-            const auto &pa=t.points[a], &pb=t.points[b];
-            const double dx=(static_cast<double>(pa.x)-pb.x)*o.columns, dy=(static_cast<double>(pa.y)-pb.y)*o.rows;
-            if (dx*dx+dy*dy<=2.000001) continue;
-            const uint64_t key=edgeKey(a,b);
-            if (midpoints.count(key)) continue;
-            const IMAGE_MESH_POINT midpoint{(pa.x+pb.x)*0.5f,(pa.y+pb.y)*0.5f};
-            midpoints[key]=static_cast<uint32_t>(t.points.size()); t.points.push_back(midpoint);
-            if (!budget(o,t,"during contour refinement",error)) return false;
+            unsigned longest=0;
+            if (field)
+            {
+                for (unsigned e=1;e<3;++e)
+                    if (edgeLength(t.points[tri[e]],t.points[tri[(e+1)%3]],o)>
+                        edgeLength(t.points[tri[longest]],t.points[tri[(longest+1)%3]],o)) longest=e;
+                if (edgeLength(t.points[tri[longest]],t.points[tri[(longest+1)%3]],o)<=2.000001 || !needsDetail(tri,t,*field,o)) continue;
+            }
+            for (unsigned e=0;e<3;++e)
+            {
+                if (field && e!=longest) continue;
+                const uint32_t a=tri[e],b=tri[(e+1)%3];
+                const auto pa=t.points[a],pb=t.points[b];
+                if (edgeLength(pa,pb,o)<=2.000001) continue;
+                const uint64_t key=edgeKey(a,b); if (midpoints.count(key)) continue;
+                midpoints[key]=static_cast<uint32_t>(t.points.size());
+                t.points.push_back({(pa.x+pb.x)*0.5f,(pa.y+pb.y)*0.5f});
+                if (!budget(o,t,"during contour refinement",error)) return false;
+            }
         }
-        if (midpoints.empty()) return true;
+        if (midpoints.empty()) return field?finishAdaptive(o,t,*field,error):true;
         std::vector<uint32_t> boundary;
         for (size_t i=0;i<t.boundary.size();++i)
         {

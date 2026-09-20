@@ -28,8 +28,9 @@ local IO=require 'image_mesh_io'
 local Canvas=require 'image_mesh_canvas'
 local Diagnostics=require 'image_mesh_diagnostics'
 local Wire=require 'image_mesh_wireframe'
+local HeightPreview=require 'image_mesh_height_preview'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
-    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
+    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=math.pi-0.4,elevation=0.25,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
 local function dpCall(fn,...)
@@ -49,11 +50,13 @@ local function syncDraft()
     local r=Model.region(E.project,E.selected)
     E.draft=r and Model.copy(r) or nil
     E.values=Model.copy(E.editDefaults and E.project.defaults or (r and Model.options(E.project,r) or E.project.defaults))
+    for k,v in pairs(Model.grooveDefaults) do if E.values[k]==nil then E.values[k]=v end end
     E.values.preserveAspect=E.values.preserveAspect~=false
     E.point=1
 end
 local function changed()
     E.statistics={}
+    HeightPreview.destroy(E)
     E.generationFailure=nil
     E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
     if E.preview then E.preview.visible=false end
@@ -66,6 +69,7 @@ local function selectRegion(id,extend)
     E.selected=id
     if not E.selection[id] then E.selected=0; for _,r in ipairs(E.project.regions) do if E.selection[r.id] then E.selected=r.id; break end end end
     E.generationFailure=nil
+    HeightPreview.destroy(E); E.heightRequested=true
     E.dirty=true; E.report=nil; E.polygon={}; E.canvasDirty=true; E.editDefaults=false; syncDraft()
     if E.preview then E.preview.visible=false end
     if E.wireObject then E.wireObject.visible=false end
@@ -280,6 +284,7 @@ local function setEditMode(enabled)
     Canvas.cancel(E); syncDraft(); E.orbitDrag=nil; E.panDrag=nil
     E.editMode=enabled
     Wire.sync(E)
+    if E.heightObject then E.heightObject.visible=enabled and E.heightView~=1 end
     Canvas.sync(E)
 end
 local function setWireframe(enabled)
@@ -349,6 +354,25 @@ local function propertiesPanel()
             end
             end
         end
+        if tImGui.CollapsingHeader(L('grooves_group')) then
+            E.values.followImage=tImGui.Checkbox(L('followImage'),E.values.followImage)
+            E.values.twoLevels=tImGui.Checkbox(L('twoLevels'),E.values.twoLevels)
+            E.values.invert=tImGui.Checkbox(L('invert'),E.values.invert)
+            for _,key in ipairs({'grooveThreshold','grooveTransition','heightTolerance'}) do
+                local lo=key=='grooveThreshold' and 0 or 0.001
+                local c,v=tImGui.SliderFloat(L(key),E.values[key],lo,1)
+                if c then E.values[key]=v end
+            end
+            local c,v=tImGui.SliderInt(L('smoothPasses'),E.values.smoothPasses,0,4)
+            if c then E.values.smoothPasses=v end
+            tImGui.TextWrapped(L('grooves_help'))
+            if E.editMode and not E.editDefaults then
+                local change,view=tImGui.Combo(L('height_view'),E.heightView,{L('original_image'),L('height_map'),L('groove_overlay')})
+                if change then E.heightView=view end
+                if E.heightView~=1 and tImGui.Button(L('preview_adjustments')) then E.heightRequested=true end
+                if E.heightError then tImGui.TextWrapped(E.heightError) end
+            end
+        end
         tImGui.Separator(); tImGui.Text(L('volume_group'))
         E.values.preserveAspect=tImGui.Checkbox(L('preserveAspect'),E.values.preserveAspect)
         if E.values.preserveAspect and E.draft and not E.editDefaults then
@@ -370,7 +394,7 @@ local function propertiesPanel()
         tImGui.TextWrapped(L('vertex_budget_help'))
         tImGui.Text(string.format(L('triangle_budget_auto'),2*E.values.maxVertices))
         end
-        for _,key in ipairs({'invert','lockBorder'}) do E.values[key]=tImGui.Checkbox(L(key),E.values[key]) end
+        for _,key in ipairs({'lockBorder'}) do E.values[key]=tImGui.Checkbox(L(key),E.values[key]) end
         if tImGui.Button(L('apply')) then applyProperties() end
         if not E.editDefaults then
             tImGui.SameLine(); if tImGui.Button(L('inherit')) then action(function(p) for _,r in ipairs(p.regions) do if E.selection[r.id] then r.overrides={} end end end) end
@@ -475,6 +499,7 @@ function onLoop(delta)
     end
     E.key=nil; rebuild(); updateStatistics(); batchStep()
     Canvas.sync(E)
+    HeightPreview.sync(E,dpCall)
     tUtil.showOverlayMessage()
 end
 function onKeyDown(key)
@@ -528,10 +553,10 @@ end
 function onResizeWindow()
     E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
-function onEndScene() releasePreview(); Canvas.destroy(E) end
+function onEndScene() HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink
-    testApi.updateStatistics=updateStatistics; testApi.compactCount=compactCount; testApi.setWireframe=setWireframe; testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
+    testApi.updateHeightPreview=function() HeightPreview.sync(E,dpCall) end; testApi.updateStatistics=updateStatistics; testApi.compactCount=compactCount; testApi.setWireframe=setWireframe; testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
 end

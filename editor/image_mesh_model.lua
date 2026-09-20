@@ -23,7 +23,9 @@
 local M={}
 M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=24,rows=24,
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
-local limits={width={0.001,1000000},height={0.001,1000000},depth={0.001,1000000},relief={0,1000000},
+M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTransition=0.1,heightTolerance=0.03,smoothPasses=0}
+for k,v in pairs(M.grooveDefaults) do M.defaults[k]=v end
+local limits={grooveThreshold={0,1},grooveTransition={0.001,1},heightTolerance={0.001,1},smoothPasses={0,4,true},width={0.001,1000000},height={0.001,1000000},depth={0.001,1000000},relief={0,1000000},
     columns={1,255,true},rows={1,255,true},borderWidth={0,0.5},maxVertices={1,65535,true},
     maxTriangles={1,131070,true},ellipseSegments={8,128,true}}
 local function number(v,lo,hi,integer)
@@ -42,6 +44,7 @@ end
 function M.options(project,region)
     local o=M.copy(project.defaults)
     for k,v in pairs(region.overrides) do o[k]=v end
+    for k,v in pairs(M.grooveDefaults) do if o[k]==nil then o[k]=v end end
     o.maxTriangles=2*o.maxVertices
     o.preserveAspect=o.preserveAspect~=false
     if o.preserveAspect then o.height=o.width*math.max(1,region.h-1)/math.max(1,region.w-1) end
@@ -52,10 +55,10 @@ end
 function M.validateOptions(options,complete)
     assert(type(options)=='table','ime_invalid_options')
     for k,v in pairs(options) do
-        if k=='invert' or k=='lockBorder' or k=='preserveAspect' then assert(type(v)=='boolean','ime_invalid_options')
+        if k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
     end
-    if complete then for k in pairs(M.defaults) do assert(k=='preserveAspect' or options[k]~=nil,'ime_invalid_options') end end
+    if complete then for k in pairs(M.defaults) do assert(k=='preserveAspect' or M.grooveDefaults[k]~=nil or options[k]~=nil,'ime_invalid_options') end end
 end
 function M.validate(p)
     assert(type(p)=='table' and p.version==1,'ime_invalid_project')

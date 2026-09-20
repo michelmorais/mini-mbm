@@ -3496,6 +3496,7 @@ namespace mbm
             {"getCamera", onGetCamera},
             {"getFps", onGetFps},
             {"generateImageMesh", onGenerateImageMeshLua},
+            {"generateImageMeshMap", onGenerateImageMeshMapLua},
             {"quit", onQuitEngine},
             {"setColor", onSetColorBackground},
             {"showConsole", onShowConsoleMbm},
