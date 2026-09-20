@@ -2163,6 +2163,24 @@ front/back UVs. UVs sample pixel centers to avoid adjacent panels at the border.
 The fallback lookup is allocated lazily, takes linear work in crop pixels, and
 uses four bytes per crop pixel (at most 64 MiB).
 
+With `followImage`, a bounded post-alignment pass tests diagonal flips against
+height samples shared by both candidate triangulations. It preserves aligned
+threshold edges and only accepts error reductions that do not worsen the pair's
+minimum XY triangle quality in world dimensions. Without `twoLevels`, additional
+near-extreme contours (0.0001 and 0.9999 processed intensity) capture ramp plateaus;
+these may increase geometry counts. This is local optimization, not a guaranteed
+maximum-error bound.
+
+When `followImage` and `twoLevels` are both enabled with nonzero relief, plateau
+faces take priority when averaging shared front vertex normals. A face is a
+plateau when all three mapped corner levels are at least 0.9999 (top) or at most
+0.0001 (floor), measured before border attenuation. A vertex incident to plateau
+faces uses their average unit normal; other vertices retain the ordinary average.
+This preserves plateau shading without duplicating vertices or introducing seams
+that constrain simplification. Positions, UVs, indices and geometry counts do not
+change; transition shading also changes through the shared normals. Other modes
+and side/back normals retain their previous behavior.
+
 The source image must be decodable by the bundled stb loader and contain at most
 16,777,216 pixels. Topology and geometry limits are checked before decoding. Oversized grids,
 out-of-bounds crops, nonfinite values and invalid dimensions fail explicitly.

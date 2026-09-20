@@ -217,11 +217,101 @@ namespace {
         t.boundary=std::move(boundary); t.triangles=std::move(result);
         return budget(o,t,"while aligning grooves",error);
     }
+    // Optimize the actual height approximation on both candidate triangulations.
+    // Delaunay alone only sees XY and can connect opposite sides of a groove.
+    void improveRelief(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, const HEIGHT_FIELD &field)
+    {
+        std::vector<float> heights, intensities;
+        for (const auto &p : t.points)
+        {
+            heights.push_back(surface(p,field,o,t));
+            intensities.push_back(field.sample(p.x,p.y));
+        }
+        const auto constrained=[&](uint32_t a,uint32_t b)
+        {
+            const float half=o.twoLevels?o.grooveTransition*0.5f:0.0f;
+            const float levels[]={o.grooveThreshold-half,o.grooveThreshold+half,0.0001f,0.9999f};
+            for (float level : levels)
+                if (std::abs(intensities[a]-level)<2e-5f && std::abs(intensities[b]-level)<2e-5f) return true;
+            return false;
+        };
+        for (unsigned pass=0;pass<8;++pass)
+        {
+            std::map<uint64_t,std::pair<size_t,uint32_t>> neighbors;
+            std::vector<bool> changed(t.triangles.size(),false);
+            bool any=false;
+            for (size_t i=0;i<t.triangles.size();++i)
+            {
+                const auto tri=t.triangles[i];
+                for (unsigned e=0;e<3 && !changed[i];++e)
+                {
+                    const uint32_t a=tri[e],b=tri[(e+1)%3],c=tri[(e+2)%3];
+                    const auto key=edgeKey(a,b); const auto it=neighbors.find(key);
+                    if (it==neighbors.end()) { neighbors[key]={i,c}; continue; }
+                    const size_t j=it->second.first; const uint32_t d=it->second.second;
+                    if (changed[j] || constrained(a,b)) continue;
+                    const auto &pa=t.points[a],&pb=t.points[b],&pc=t.points[c],&pd=t.points[d];
+                    if (cross(pc,pd,pb)<=epsilon || cross(pd,pc,pa)<=epsilon) continue;
+                    const std::array<uint32_t,3> oldTris[]={tri,t.triangles[j]},newTris[]={ {c,d,b},{d,c,a} };
+                    const auto quality=[&](const std::array<uint32_t,3> &f)
+                    {
+                        const auto &u=t.points[f[0]],&v=t.points[f[1]],&w=t.points[f[2]];
+                        const double uv=std::hypot((u.x-v.x)*o.width,(u.y-v.y)*o.height);
+                        const double vw=std::hypot((v.x-w.x)*o.width,(v.y-w.y)*o.height);
+                        const double wu=std::hypot((w.x-u.x)*o.width,(w.y-u.y)*o.height);
+                        return cross(u,v,w)*o.width*o.height/(uv*uv+vw*vw+wu*wu);
+                    };
+                    if (std::min(quality(newTris[0]),quality(newTris[1]))+1e-8 <
+                        std::min(quality(oldTris[0]),quality(oldTris[1]))) continue;
+                    // Use the SAME samples for both diagonals, including both centroids
+                    // and both diagonal midpoints. Never compare unrelated error probes.
+                    std::array<IMAGE_MESH_POINT,6> probes;
+                    unsigned probeIndex=0;
+                    for (const auto &face : {oldTris[0],oldTris[1],newTris[0],newTris[1]})
+                    {
+                        const auto &p=t.points[face[0]],&q=t.points[face[1]],&r=t.points[face[2]];
+                        probes[probeIndex++]={(p.x+q.x+r.x)/3,(p.y+q.y+r.y)/3};
+                    }
+                    probes[4]={(pa.x+pb.x)*0.5f,(pa.y+pb.y)*0.5f};
+                    probes[5]={(pc.x+pd.x)*0.5f,(pc.y+pd.y)*0.5f};
+                    double errors[2]={0,0};
+                    for (const auto &p : probes)
+                    {
+                        const double actual=surface(p,field,o,t);
+                        for (unsigned candidate=0;candidate<2;++candidate)
+                        {
+                            const auto *faces=candidate?newTris:oldTris;
+                            for (unsigned k=0;k<2;++k)
+                            {
+                                const auto &f=faces[k]; const auto &u=t.points[f[0]],&v=t.points[f[1]],&w=t.points[f[2]];
+                                const double area=cross(u,v,w),wa=cross(v,w,p)/area,wb=cross(w,u,p)/area,wc=1-wa-wb;
+                                if (k==0 && (wa<-1e-6 || wb<-1e-6 || wc<-1e-6)) continue;
+                                const double delta=actual-wa*heights[f[0]]-wb*heights[f[1]]-wc*heights[f[2]];
+                                errors[candidate]+=delta*delta;
+                                break;
+                            }
+                        }
+                    }
+                    if (errors[1]+1e-10>=errors[0]*0.99) continue;
+                    t.triangles[i]=newTris[0]; t.triangles[j]=newTris[1];
+                    changed[i]=changed[j]=true; any=true;
+                }
+            }
+            if (!any) break;
+        }
+    }
     bool finishAdaptive(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,const HEIGHT_FIELD &field,std::string &error)
     {
         const float half=o.twoLevels?o.grooveTransition*0.5f:0.0f;
         if (!alignTransition(o,t,field,o.grooveThreshold-half,error)) return false;
         if (o.twoLevels && !alignTransition(o,t,field,o.grooveThreshold+half,error)) return false;
+        if (!o.twoLevels)
+        {
+            // Near-extreme contours recover the ends of ramps in binary/plateau
+            // height maps, without making the whole surface a regular grid.
+            if (!alignTransition(o,t,field,0.0001f,error) || !alignTransition(o,t,field,0.9999f,error)) return false;
+        }
+        improveRelief(o,t,field);
         if (!triangulateBoundary(t,t.backTriangles)) { error="Cannot triangulate simplified back"; return false; }
         return budget(o,t,"after groove alignment",error);
     }

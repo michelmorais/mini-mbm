@@ -174,6 +174,33 @@ do relevo** é uma fração da amplitude e orienta o refinamento; **Colunas/Linh
 limitam a densidade e a amostragem. Não é uma garantia de erro máximo em cada pixel:
 detalhes menores que a escala de amostragem podem exigir maior resolução.
 
+Após o alinhamento, o gerador avalia trocas de diagonais pelo erro de altura
+amostrado nas duas triangulações. Só aceita a troca quando ela reduz esse erro
+sem piorar a qualidade mínima dos dois triângulos em XY (área em relação à soma
+dos comprimentos quadráticos das arestas, nas dimensões do módulo). Arestas nos
+limiares de alinhamento são preservadas. São até oito passes locais; não se trata
+de uma otimização global nem de uma garantia adicional para a tolerância.
+Sem **Duas alturas**, também são alinhados níveis próximos de preto e branco
+(0,0001 e 0,9999), para capturar os extremos de rampas com patamares. Isso pode
+acrescentar vértices e triângulos e continua sujeito ao orçamento da geração.
+Com **Seguir formas da imagem** e **Duas alturas barra/sulcos**, as faces dos
+patamares têm prioridade no cálculo das normais dos vértices compartilhados com
+as transições. A classificação usa a altura mapeada antes da atenuação da borda,
+portanto a inclinação desejada perto do contorno é mantida. Isso evita que paredes
+íngremes inclinem indevidamente as normais dos topos e fundos dos sulcos.
+Posições, UVs, índices e contagens permanecem iguais; não são criadas costuras de
+vértices que impeçam a simplificação. Vértices sem faces de patamar continuam
+usando a média das faces adjacentes, assim como os demais modos de geração.
+O sombreamento das transições também muda, pois usa esses mesmos vértices.
+A exportação mantém essas normais. Recalculá-las no Mesh Debug pela média comum
+das faces substitui esse tratamento específico dos patamares.
+Não há novo modo QUAD. Todo esse trabalho ocorre somente ao gerar a mesh.
+
+O teste `src/test-lib/image_mesh_relief_smoke.lua` usa rampas verticais e horizontais
+conhecidas e mede a interpolação dentro das faces, além das alturas dos vértices.
+Ele exige erro amostrado abaixo de 0,03 unidade para amplitude 8; esse limite é
+específico do teste, não uma promessa para qualquer imagem.
+
 O mapa é temporário, fica em cache e não altera a textura original ou a exportada.
 Zoom e pan reposicionam o mapa sem refazer processamento. Arrastes ocultam o mapa
 antigo; após confirmar, ele é atualizado. Trocar módulo ou vista também atualiza

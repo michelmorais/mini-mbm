@@ -15,7 +15,7 @@
 -- Run from repository root with mini-mbm --scene ... --disable_select_monitor.
 local started, rendered
 local function near(a, b) assert(math.abs(a-b) < 0.00001*math.max(1,math.abs(a),math.abs(b)), tostring(a).." ~= "..tostring(b)) end
-local function inspect(asset, report)
+local function inspect(asset, report, plateauNormals)
     assert(asset:check())
     assert(asset:getTotalVertex(1,1) == report.vertices)
     local vertices = asset:getVertex(1,1,1,report.vertices)
@@ -51,7 +51,7 @@ local function inspect(asset, report)
     end
     for _,e in pairs(edges) do assert(e.count==2 and e.balance==0, 'open or non-manifold mesh') end
     assert(volume>0, 'inward winding')
-    for id,sum in pairs(normalSums) do
+    for id,sum in pairs(plateauNormals and {} or normalSums) do
         local length=math.sqrt(sum[1]^2+sum[2]^2+sum[3]^2)
         local v=vertices[id]
         near(v.nx,sum[1]/length); near(v.ny,sum[2]/length); near(v.nz,sum[3]/length)
@@ -175,7 +175,7 @@ local function runTests()
             columns=32,rows=32,relief=12,lockBorder=false,smoothPasses=1,
             contour={{x=0,y=0},{x=1,y=0},{x=1,y=0.4},{x=0.4,y=0.4},{x=0.4,y=1},{x=0,y=1}}}
         local adaptive,ar=mbm.generateImageMesh(image,options); assert(adaptive,ar)
-        inspect(adaptive,ar)
+        inspect(adaptive,ar,true) -- plateau normal direction is covered by image_mesh_relief_smoke.lua
         assert(mbm.generateImageMeshMap(image,options,'/tmp/ime_height_'..shape..'.png',false))
         assert(mbm.generateImageMeshMap(image,options,'/tmp/ime_grooves_'..shape..'.png',true))
         options.maxVertices=10

@@ -203,6 +203,17 @@ namespace mbm
             };
             for (size_t i = 0; i < topology.boundary.size(); ++i)
                 side(topology.boundary[i], topology.boundary[(i + 1) % topology.boundary.size()]);
+            // Prefer plateau faces over steep ramps when computing shared front
+            // normals. Keeping vertices welded preserves simplification behavior.
+            const bool preservePlateaus=o.followImage && o.twoLevels && o.relief>0;
+            std::vector<float> levels;
+            std::vector<VEC3> plateauNormals;
+            if (preservePlateaus)
+            {
+                levels.reserve(gridSize);
+                for (const auto &p : topology.points) levels.push_back(field.mapped(field.sample(p.x,p.y),o));
+                plateauNormals.resize(gridSize,VEC3(0,0,0));
+            }
             for (size_t i = 0; i < indices.size(); i += 3)
             {
                 VERTEX &a = vertices[indices[i]], &b = vertices[indices[i + 1]], &c = vertices[indices[i + 2]];
@@ -223,10 +234,29 @@ namespace mbm
                 // normals, so large triangles do not dominate smaller groove faces.
                 const VEC3 normal(static_cast<float>(nx / faceLength),
                     static_cast<float>(ny / faceLength), static_cast<float>(nz / faceLength));
+                if (preservePlateaus && i/3<topology.triangles.size())
+                {
+                    const uint32_t ia=indices[i],ib=indices[i+1],ic=indices[i+2];
+                    const float low=std::min({levels[ia],levels[ib],levels[ic]});
+                    const float high=std::max({levels[ia],levels[ib],levels[ic]});
+                    if (low>=0.9999f || high<=0.0001f)
+                    {
+                        for (uint32_t index : {ia,ib,ic})
+                        {
+                            auto &sum=plateauNormals[index];
+                            sum.x+=normal.x; sum.y+=normal.y; sum.z+=normal.z;
+                        }
+                    }
+                }
                 for (auto *vertex : {&a, &b, &c})
                 {
                     vertex->normal.x += normal.x; vertex->normal.y += normal.y; vertex->normal.z += normal.z;
                 }
+            }
+            for (uint32_t i=0;i<plateauNormals.size();++i)
+            {
+                const auto &normal=plateauNormals[i];
+                if (normal.x!=0 || normal.y!=0 || normal.z!=0) vertices[i].normal=normal;
             }
             destination.setMeshType(util::TYPE_MESH_3D);
             util::MATERIAL &material = destination.getMaterial();
