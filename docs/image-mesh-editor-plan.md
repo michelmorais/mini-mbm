@@ -343,3 +343,17 @@ Regressões verificam as seis direções de faces, UVs laterais com margem alfa,
 exportação/recarga e alças ampliadas sem salto. Conferência visual com o atlas
 original mostrou as paredes antes invisíveis. Exportações anteriores exigem
 regeneração para incorporar os novos UVs.
+
+
+### Hit testing fora do centro (7.220.2)
+
+O projeto de reprodução revelou dois problemas na entrada: uma rejeição de toda
+a faixa direita, inclusive da área livre sob a câmera no modo de edição, e mistura
+de coordenadas lógicas dos callbacks com pixels de framebuffer. O editor passa a
+bloquear apenas áreas ocupadas pela interface via WantCaptureMouse e limites da
+tela. A conversão para pixels é feita nos callbacks; as escalas X/Y são tratadas
+separadamente no canvas, nas alças e no posicionamento de primitivas.
+
+A regressão testa o projeto salvo, escalas 1x/2x/assimétrica, alça à direita fora
+do centro, redimensionamento/undo e captura da interface. Cópias temporárias do
+código anterior falham nos casos que agora passam.

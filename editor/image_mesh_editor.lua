@@ -237,7 +237,7 @@ local function addPrimitive()
     Canvas.cancel(E)
     local o=Canvas.transform(E)
     local cx=((E.sidebar+E.screenW-E.rightbar)/2-o.x)/o.scale
-    local cy=((E.screenH+25)/2-o.y)/o.scale
+    local cy=((E.screenH+25)/2-o.y)/o.scaleY
     local ok=action(function(p)
         local r=Model.primitive(p,spec.kind,spec.w,spec.h,spec.sides,cx,cy)
         E.selected=r.id; E.selection={[r.id]=true}; E.editDefaults=false
@@ -374,7 +374,7 @@ local function regionsPanel()
     tImGui.End()
 end
 function onInitScene()
-    E.screenW,E.screenH=mbm.getSizeScreen()
+    E.screenW,E.screenH=mbm.getRealSizeScreen()
     E.flags={always=tImGui.Flags('ImGuiCond_Always'),auto=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'),
         fixed=tImGui.Flags('ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoResize','ImGuiWindowFlags_NoCollapse')}
     mbm.setColor(0.1,0.12,0.15); mbm.setLightEnabled('3d',true); mbm.setAmbientLight('3d',0.35,0.35,0.35)
@@ -403,9 +403,13 @@ end
 function onKeyUp(key) if key==mbm.getKeyCode('control') then E.control=false end end
 local handlers={action=action,select=selectRegion,commitDrag=commitDrag}
 local function sceneInput(x,y)
-    return x>=E.sidebar and x<E.screenW-E.rightbar and y>=25 and not tImGui.GetWantCaptureMouse()
+    -- The lower-right area is scene space when the light window is hidden.
+    -- Let ImGui reject actual windows/popups instead of blocking an entire column.
+    return x>=0 and x<E.screenW and y>=25 and y<E.screenH and not tImGui.GetWantCaptureMouse()
 end
 function onTouchDown(key,x,y)
+    -- Scene callbacks arrive divided by the camera scale; UI and hit testing use framebuffer pixels.
+    x=x*E.camera2d.sx; y=y*E.camera2d.sy
     if not sceneInput(x,y) then return end
     if E.editMode then
         if key==0 and E.tool~='pan' then Canvas.input(E,handlers,'down',x,y)
@@ -414,6 +418,8 @@ function onTouchDown(key,x,y)
     elseif key==0 then E.orbitDrag={x=x,y=y} end
 end
 function onTouchMove(key,x,y)
+    -- Scene callbacks arrive divided by the camera scale; UI and hit testing use framebuffer pixels.
+    x=x*E.camera2d.sx; y=y*E.camera2d.sy
     if E.panDrag then
         local c=E.camera2d
         c:setPos(c.x-(x-E.panDrag.x)/c.sx,c.y+(y-E.panDrag.y)/c.sy)
@@ -425,6 +431,8 @@ function onTouchMove(key,x,y)
     elseif E.drag or sceneInput(x,y) then Canvas.input(E,handlers,'move',x,y) end
 end
 function onTouchUp(key,x,y)
+    -- Scene callbacks arrive divided by the camera scale; UI and hit testing use framebuffer pixels.
+    x=x*E.camera2d.sx; y=y*E.camera2d.sy
     if key==0 then Canvas.input(E,handlers,'up',x,y); E.orbitDrag=nil; E.panDrag=nil end
     if key==1 or key==2 then E.panDrag=nil end
 end
@@ -434,7 +442,7 @@ function onTouchZoom(zoom)
     else E.orbit.distance=math.max(0.01,E.orbit.distance*math.exp(-zoom*0.12)); camera() end
 end
 function onResizeWindow()
-    E.screenW,E.screenH=mbm.getSizeScreen(); E.canvasDirty=true; camera()
+    E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
 function onEndScene() releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then

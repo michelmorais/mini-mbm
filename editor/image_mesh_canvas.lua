@@ -44,7 +44,7 @@ end
 function M.fit(E)
     if not E.texture then return end
     local w,h=E.project.image.width,E.project.image.height
-    M.zoom(E,math.min(math.max(50,E.screenW-E.sidebar-E.rightbar-40)/w,math.max(50,E.screenH-65)/h))
+    M.zoom(E,math.min(math.max(50,E.screenW-E.sidebar-E.rightbar-40)/(w*E.camera2d.sx),math.max(50,E.screenH-65)/(h*E.camera2d.sy)))
     E.camera2d:setPos(-(E.sidebar-E.rightbar)/2/E.camera2d.sx,12.5/E.camera2d.sy)
 end
 function M.transform(E)
@@ -53,7 +53,7 @@ function M.transform(E)
     local transform=E.canvasTransform or {}
     transform.x=E.screenW/2+(-w/2*E.zoom-c.x)*c.sx
     transform.y=E.screenH/2-(h/2*E.zoom-c.y)*c.sy
-    transform.scale=E.zoom*c.sx
+    transform.scale=E.zoom*c.sx; transform.scaleY=E.zoom*c.sy
     E.canvasTransform=transform
     return E.canvasTransform
 end
@@ -68,8 +68,9 @@ function M.sync(E)
     if not visible then return end
     local w,h=E.project.image.width,E.project.image.height
     local scale=E.zoom*E.camera2d.sx
+    local scaleY=E.zoom*E.camera2d.sy
     M.transform(E)
-    local zoomed=E.canvasScale~=scale
+    local zoomed=E.canvasScale~=scale or E.canvasScaleY~=scaleY
     if E.canvasPath~=E.project.image.path then
         M.destroy(E)
         E.imageObject=texture:new('2dw'); assert(E.imageObject:load(E.project.image.path))
@@ -83,7 +84,7 @@ function M.sync(E)
         if E.checkerObject then E.checkerObject:setScale(E.zoom,E.zoom) end
     end
     if not E.canvasDirty and E.outlines and not zoomed then return end
-    E.canvasDirty=false; E.canvasScale=scale
+    E.canvasDirty=false; E.canvasScale=scale; E.canvasScaleY=scaleY
     for _,object in ipairs(E.sceneLines or {}) do object:destroy() end
     E.sceneLines={}; E.canvasBuilds=(E.canvasBuilds or 0)+1
     local function draw(points,closed,selected)
@@ -96,8 +97,8 @@ function M.sync(E)
         E.sceneLines[#E.sceneLines+1]=object
     end
     local function handle(px,py)
-        local d=M.handleRadius(E)/scale
-        draw({{x=px-d,y=py-d},{x=px+d,y=py-d},{x=px+d,y=py+d},{x=px-d,y=py+d}},true,true)
+        local dx,dy=M.handleRadius(E)/scale,M.handleRadius(E)/scaleY
+        draw({{x=px-dx,y=py-dy},{x=px+dx,y=py-dy},{x=px+dx,y=py+dy},{x=px-dx,y=py+dy}},true,true)
     end
     if not E.outlines then
         E.outlines={}
@@ -124,18 +125,18 @@ function M.sync(E)
 end
 function M.input(E,H,event,mx,my)
     if not E.editMode or not E.texture or not E.canvasTransform then return end
-    local origin=M.transform(E); local scale=origin.scale
-    local hovered=mx>=origin.x and my>=origin.y and mx<origin.x+E.project.image.width*scale and my<origin.y+E.project.image.height*scale
+    local origin=M.transform(E); local scale,scaleY=origin.scale,origin.scaleY
+    local hovered=mx>=origin.x and my>=origin.y and mx<origin.x+E.project.image.width*scale and my<origin.y+E.project.image.height*scaleY
     local x=clamp((mx-origin.x)/scale,0,E.project.image.width-1)
-    local y=clamp((my-origin.y)/scale,0,E.project.image.height-1)
+    local y=clamp((my-origin.y)/scaleY,0,E.project.image.height-1)
     local imagePoints=E.outlines or {}
     E.cursor={x=x,y=y}
     if E.drag or #E.polygon>0 or event=='down' then E.canvasDirty=true end
     local selected=Model.region(E.project,E.selected)
-    local rawX,rawY=(mx-origin.x)/scale,(my-origin.y)/scale
+    local rawX,rawY=(mx-origin.x)/scale,(my-origin.y)/scaleY
     local nearResize=E.tool=='select' and selected and selected.shape~='polygon' and
         math.abs(selected.x+selected.w-1-rawX)*scale<=M.handleRadius(E)+6 and
-        math.abs(selected.y+selected.h-1-rawY)*scale<=M.handleRadius(E)+6
+        math.abs(selected.y+selected.h-1-rawY)*scaleY<=M.handleRadius(E)+6
     if (hovered or nearResize) and event=='down' then
         if E.tool=='polygon' then
             local last=E.polygon[#E.polygon]
@@ -146,7 +147,7 @@ function M.input(E,H,event,mx,my)
             local mode,index,id
             if selected then
                 if selected.shape=='polygon' then
-                    for i,p in ipairs(Model.outline(selected)) do if ((p.x-x)^2+(p.y-y)^2)*scale*scale<(M.handleRadius(E)+6)^2 then mode='point';index=i;id=selected.id;break end end
+                    for i,p in ipairs(Model.outline(selected)) do if ((p.x-x)*scale)^2+((p.y-y)*scaleY)^2<(M.handleRadius(E)+6)^2 then mode='point';index=i;id=selected.id;break end end
                 elseif nearResize then mode='resize';id=selected.id end
             end
             if not id then for i=#imagePoints,1,-1 do local r=imagePoints[i]

@@ -87,7 +87,11 @@ os parâmetros de densidade e orçamento.
 
 A troca de modo cancela desenhos e arrastes ainda não confirmados. Valores nos
 campos precisam de **Aplicar** antes da troca. Cliques na interface não iniciam
-manipulação da cena. Não existem janelas separadas de imagem, propriedades ou
+manipulação da cena. A área livre abaixo da câmera à direita também recebe
+cliques e arrastes quando a janela de luz está oculta. Desde 7.220.2, a seleção
+converte a entrada do mouse para pixels da tela e trata separadamente as escalas
+X/Y, mantendo as alças alinhadas ao redimensionar/escalar a janela.
+Não existem janelas separadas de imagem, propriedades ou
 prévia, nem render target intermediário para a mesh.
 
 ## Controles de diagnóstico
@@ -181,3 +185,14 @@ timeout -s KILL 25 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_
 Esse fixture exige a imagem de referência 1344 x 768; os demais testes criam seus
 próprios dados. A parede fica visível por 10 segundos, exporta os 12 módulos e salva
 `/tmp/image-mesh-stage2-export/reference.imesh`, que pode ser aberto no editor.
+
+
+Teste de coordenadas de entrada (escala 1x, 2x, escalas X/Y distintas e faixa direita):
+
+```sh
+timeout -s KILL 15 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_input_scale_smoke.lua --disable_select_monitor --nosplash -w 1440 -h 900
+```
+
+O teste cria seus dados por padrão. Para reproduzir um projeto salvo, defina
+`MBM_IMAGE_MESH_PROJECT=/caminho/project.imesh`; o arquivo é somente lido.
+O marcador esperado é `IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT OK`.
