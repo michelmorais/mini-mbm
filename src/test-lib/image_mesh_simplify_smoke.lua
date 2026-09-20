@@ -17,7 +17,7 @@ local Model=require 'image_mesh_model'
 local IO=require 'image_mesh_io'
 local api={}; assert(loadfile('editor/image_mesh_editor.lua'))(api)
 local init,loop,finish=onInitScene,onLoop,onEndScene
-local started,task,failed
+local started,task,failed,expectedEstimate,sawEstimate
 local function awaitTask()
     while api.state.meshTask do coroutine.yield() end
 end
@@ -37,7 +37,10 @@ local function test()
     local source=e.report.triangles
     local orbit=Model.copy(e.orbit)
     e.values.simplify=true; e.values.simplifyRatio=0.5; e.values.simplifyDetails=true; e.values.simplifyBoundary=0.1
-    api.applyProperties(); api.rebuild()
+    assert(api.saveProject('/tmp/ime-simplify-pending.imesh')) -- no Apply
+    assert(api.openProject('/tmp/ime-simplify-pending.imesh')); api.select(1)
+    assert(e.values.simplify and e.values.simplifyRatio==0.5 and e.values.simplifyBoundary==0.1)
+    api.rebuild()
     assert(e.meshTask,'simplification did not yield to the UI'); awaitTask()
     assert(e.preview and e.report.simplification,e.status)
     local count=e.report.triangles
@@ -45,6 +48,10 @@ local function test()
     assert(e.report.simplification.degenerateTriangleCount==0 and e.report.simplification.nonManifoldEdgeCount==0)
     for k,v in pairs(orbit) do assert(e.orbit[k]==v,'simplification moved camera') end
     checkSaved(e.previewPath,count)
+    expectedEstimate=string.format(tLang.L('simplify_estimate_fmt'),source,math.floor(source*0.25))
+    e.values.simplifyRatio=0.25; coroutine.yield()
+    assert(sawEstimate,'missing estimate or estimate used already simplified count')
+    expectedEstimate=nil; e.values.simplifyRatio=0.5
     api.exportOne('/tmp/ime-simplify-selected.msh'); awaitTask(); checkSaved('/tmp/ime-simplify-selected.msh',count)
     os.remove('/tmp/ime-simplify-batch/'..IO.exportName(e.project.regions[1]))
     api.beginBatch('/tmp/ime-simplify-batch')
@@ -56,6 +63,10 @@ local function test()
     api.setEditMode(true); api.updateStatistics(); awaitTask(); assert(e.report.triangles==count)
     e.values.simplify=false; api.applyProperties(); api.updateStatistics(); awaitTask(); assert(e.report.triangles==source)
     api.undo(false); api.updateStatistics(); awaitTask(); assert(e.report.triangles==count)
+    local depth=e.values.depth; e.values.depth=-1
+    assert(not api.saveProject('/tmp/ime-simplify.imesh'),'invalid draft was saved')
+    assert(Model.options(IO.load('/tmp/ime-simplify.imesh'),IO.load('/tmp/ime-simplify.imesh').regions[1]).depth==depth)
+    e.values.depth=depth
     -- Impossible target must fail visibly and never write the unsimplified fallback.
     e.values.simplifyRatio=0.001; e.values.simplifyBoundary=0; api.applyProperties()
     api.setEditMode(false); api.rebuild(); awaitTask()
@@ -71,6 +82,11 @@ local function test()
 end
 function onInitScene()
     init(); started=mbm.getTimeRun(); task=coroutine.create(test)
+    local text=tImGui.Text
+    tImGui.Text=function(value,...)
+        if value==expectedEstimate then sawEstimate=true end
+        return text(value,...)
+    end
     local header=tImGui.CollapsingHeader
     tImGui.CollapsingHeader=function(label,...)
         local open=header(label,...)

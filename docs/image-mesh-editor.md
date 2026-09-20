@@ -71,7 +71,8 @@ A janela **Regiões** fica à esquerda, reunindo ferramentas, lista e propriedad
 À direita ficam **Câmera 3D / 2D** e **Luz**.
 Ao selecionar outra peça, suas propriedades aparecem nessa lateral. **Volume e
 relevo** contém os ajustes principais; **Resolução e limites de geometria** agrupa
-os parâmetros de densidade e orçamento.
+os parâmetros de densidade e orçamento. **Volume e relevo** é recolhível e inclui
+**Fixar altura da borda**.
 
 - **Modo de edição marcado:** a cena mostra a imagem e os contornos, renderizados
   por objetos `texture` e `line` em **2dw**, centrados na origem do mundo.
@@ -255,7 +256,8 @@ e um único subset no módulo, portanto não há seletores de escopo ou frames c
   arestas limpas de fronteira até essa fração da diagonal da mesh.
 
 A prévia, wireframe, contagem de faces e exportações individuais/em lote usam o
-resultado simplificado. O painel informa as contagens antes/depois. Os ajustes são
+resultado simplificado. O painel informa as contagens antes/depois e a estimativa
+de triângulos para a proporção atual, usando a última contagem anterior à simplificação. Os ajustes são
 salvos no `.imesh`, participam do histórico e ficam desabilitados em projetos antigos.
 Desabilitar a etapa e aplicar recupera a geometria gerada, sem acumular simplificações.
 Os mapas 2D continuam representando a imagem processada e não são simplificados.
@@ -271,7 +273,8 @@ próxima peça. Seu cancelamento ocorre entre peças.
 ## Salvar, relocalizar e exportar
 
 **Salvar projeto** (Ctrl+S) grava `.imesh`, contendo versão, imagem, regiões e
-parâmetros. Ao concluir, uma mensagem temporária de quatro segundos confirma o
+parâmetros. Salvar também valida e confirma os ajustes pendentes no painel, mesmo
+sem pressionar **Aplicar**; se forem inválidos, o arquivo não é sobrescrito. Ao concluir, uma mensagem temporária de quatro segundos confirma o
 salvamento e mostra o nome do arquivo. Salvar novamente reinicia sua duração. É um arquivo Lua de dados seguindo o padrão dos editores, carregado
 com ambiente vazio e validado. O histórico de desfazer e recursos GPU não são
 salvos. Imagens sob a pasta do projeto usam referência relativa; outras mantêm

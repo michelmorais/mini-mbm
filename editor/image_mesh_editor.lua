@@ -220,7 +220,26 @@ local function relink(path)
     assert(texture.width==pending.project.image.width and texture.height==pending.project.image.height,L('image_size_changed'))
     pending.project.image.path=path; install(pending.project,pending.path,texture); E.modified=true
 end
+local applyProperties
+local function draftChanged()
+    if not E.editDefaults and not E.draft then return false end
+    local region=Model.region(E.project,E.selected)
+    local current=E.editDefaults and E.project.defaults or Model.options(E.project,region)
+    for key in pairs(Model.defaults) do
+        local expected=current[key]
+        if expected==nil then expected=Model.optionalDefaults[key] end
+        if key~='maxTriangles' and not (key=='height' and E.values.preserveAspect) and E.values[key]~=expected then return true end
+    end
+    if E.editDefaults then return false end
+    for _,key in ipairs({'name','x','y','w','h','shape'}) do if E.draft[key]~=region[key] then return true end end
+    local a,b=E.draft.contour or {},region.contour or {}
+    if #a~=#b then return true end
+    for i,p in ipairs(a) do if p.x~=b[i].x or p.y~=b[i].y then return true end end
+    return false
+end
 local function saveProject(path)
+    -- Save the settings currently displayed, even if Apply was not pressed yet.
+    if draftChanged() and not applyProperties() then return false end
     IO.save(E.project,path,tUtil.save); E.path=path; E.modified=false
     E.status=L('saved')..' '..tUtil.getShortName(path)
     tUtil.showMessage(E.status,4)
@@ -269,10 +288,10 @@ local function finishPolygon()
     local points=E.polygon
     if action(function(p) local r=Model.fromPoints(p,points); E.selected=r.id; E.selection={[r.id]=true} end) then E.polygon={} end
 end
-local function applyProperties()
+applyProperties=function()
     local draft,values=E.draft,Model.copy(E.values)
     values.maxTriangles=2*values.maxVertices
-    action(function(p)
+    return action(function(p)
         local settings={}; for k in pairs(Model.defaults) do settings[k]=values[k] end
         if E.editDefaults then p.defaults=settings; return end
         for _,r in ipairs(p.regions) do if E.selection[r.id] then
@@ -435,7 +454,7 @@ local function propertiesPanel()
                 if E.heightError then tImGui.TextWrapped(E.heightError) end
             end
         end
-        tImGui.Separator(); tImGui.Text(L('volume_group'))
+        if tImGui.CollapsingHeader(L('volume_group')) then
         E.values.preserveAspect=tImGui.Checkbox(L('preserveAspect'),E.values.preserveAspect)
         if E.values.preserveAspect and E.draft and not E.editDefaults then
             E.values.height=E.values.width*math.max(1,E.draft.h-1)/math.max(1,E.draft.w-1)
@@ -447,6 +466,8 @@ local function propertiesPanel()
                 local step=key=='borderWidth' and 0.05 or 0.1
                 local c,v=tImGui.InputFloat(L(key),E.values[key],step,step*10,'%.3f'); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
             end
+        end
+        E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
         end
         if tImGui.CollapsingHeader(L('resolution_group')) then
         for _,key in ipairs({'columns','rows','ellipseSegments'}) do
@@ -462,6 +483,11 @@ local function propertiesPanel()
             if E.values.simplify then
                 local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.001,0.95,'%.3f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
                 if c then E.values.simplifyRatio=Model.clampOption('simplifyRatio',v,E.values.simplifyRatio) end
+                if E.report and not E.editDefaults then
+                    local source=E.report.sourceTriangles or E.report.triangles
+                    tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'),source,math.max(1,math.floor(source*E.values.simplifyRatio))))
+                    if tImGui.IsItemHovered() then tImGui.SetTooltip(L('simplify_estimate_hint')) end
+                else tImGui.TextWrapped(L('simplify_estimate_pending')) end
                 E.values.simplifyDetails=tImGui.Checkbox(tLang.L('simplify_preserve_details'),E.values.simplifyDetails)
                 if tImGui.IsItemHovered() then tImGui.SetTooltip(tLang.L('simplify_preserve_details_tooltip')) end
                 c,v=tImGui.SliderFloat(tLang.L('simplify_boundary_threshold'),E.values.simplifyBoundary,0,0.25,'%.3f')
@@ -473,7 +499,6 @@ local function propertiesPanel()
                 tImGui.Text(string.format(tLang.L('simplify_success_fmt'),E.report.sourceTriangles,E.report.triangles))
             end
         end
-        for _,key in ipairs({'lockBorder'}) do E.values[key]=tImGui.Checkbox(L(key),E.values[key]) end
         if tImGui.Button(L('apply')) then applyProperties() end
         if not E.editDefaults then
             tImGui.SameLine(); if tImGui.Button(L('inherit')) then action(function(p) for _,r in ipairs(p.regions) do if E.selection[r.id] then r.overrides={} end end end) end
