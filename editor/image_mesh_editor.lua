@@ -152,9 +152,13 @@ local function rebuild()
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true
         E.preview=object; E.previewPath=path; E.report=report; E.statistics[r.id]={report=report}; E.builds=E.builds+1
-        local o=Model.options(E.project,r); E.fitDistance=math.max(o.width,o.height,o.depth+o.relief)*2.7; E.orbit.distance=E.fitDistance; camera()
+        local o=Model.options(E.project,r)
+        E.fitDistance=math.max(o.width,o.height,o.depth+o.relief)*2.7
+        -- Rebuilding the same module must not disturb the user's comparison view.
+        if E.viewRegion~=r.id then E.orbit.distance=E.fitDistance; camera() end
         if E.wireframe then Wire.ensure(E,asset) end
         Wire.sync(E)
+        E.viewRegion=r.id
         E.status=L('preview_ready')
     end)
     if not ok then
@@ -174,7 +178,7 @@ end
 local function install(project,path,texture)
     releasePreview(); Canvas.destroy(E); E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
-    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1
+    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; E.viewRegion=nil
     E.primitive.w=math.max(2,math.floor(project.image.width/4)); E.primitive.h=math.max(2,math.floor(project.image.height/4))
     Canvas.fit(E); changed(); E.modified=false
 end

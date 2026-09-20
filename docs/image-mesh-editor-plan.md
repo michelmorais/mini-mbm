@@ -456,3 +456,12 @@ retângulos/elipses/polígonos côncavos, mapas sem orçamento de mesh, cache, p
 de rascunho, salvamento/carregamento e alternância 2D/3D. No projeto real, os
 módulos 1/2/5 passaram em varredura dos limiares 0,3/0,45/0,6. O círculo passou
 de 31.392 triângulos no preset anterior a 13.586 na configuração documentada.
+
+
+### Preservar enquadramento ao aplicar (7.227.1)
+
+Regenerar o mesmo módulo mantém órbita, distância e foco 3D. A distância de
+enquadramento é atualizada apenas como referência para Resetar visão. Outro
+módulo ou projeto mantém o enquadramento automático. A identificação da vista
+permanece válida após falhas de geração para permitir corrigir parâmetros sem
+perder a comparação. Regressão cobre Aplicar, undo/redo, modos e recuperação.

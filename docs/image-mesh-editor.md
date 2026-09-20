@@ -199,6 +199,11 @@ incluindo frente, verso e laterais. Durante um arraste a contagem fica pendente;
 ao confirmar a alteração ela é recalculada. Uma geração inválida mostra seu erro
 em vez de manter uma contagem antiga.
 
+Ao aplicar alterações ao mesmo módulo, o editor preserva órbita, distância e
+foco da câmera 3D, inclusive após undo/redo ou recuperação de erro. O enquadramento
+automático ocorre ao visualizar outro módulo ou abrir um projeto. **Resetar visão**
+no painel da câmera continua disponível para reenquadrar conforme o tamanho atual.
+
 A prévia permite orbitar com arraste, ajustar distância
 com a roda e intensidade da luz direcional. Modificações nas propriedades só
 entram no projeto após **Aplicar**. A prévia fica indisponível se a geração falhar,

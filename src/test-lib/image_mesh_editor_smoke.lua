@@ -307,6 +307,28 @@ function onLoop(delta)
         e.heightView=1; api.updateHeightPreview(); assert(not e.heightObject,'original view retained map')
         print('IMAGE MESH EDITOR GROOVE MAPS / DRAFT / CACHE / SAVE / MODES OK')
     end
+    if frame==230 then
+        api.setEditMode(false); api.select(13); api.rebuild(); assert(e.preview)
+        e.orbit.azimuth=2.1; e.orbit.elevation=-0.35; e.orbit.distance=143
+        e.orbit.fx=17; e.orbit.fy=-11; e.orbit.fz=8; api.camera()
+        local orbit=Model.copy(e.orbit); local camera={}
+        for _,key in ipairs({'x','y','z','fx','fy','fz'}) do camera[key]=e.previewCamera[key] end
+        local function unchanged()
+            for key,value in pairs(orbit) do assert(e.orbit[key]==value,'rebuild changed orbit '..key) end
+            for key,value in pairs(camera) do assert(e.previewCamera[key]==value,'rebuild moved camera '..key) end
+        end
+        e.values.width=e.values.width*1.4; e.values.relief=e.values.relief+3
+        api.applyProperties(); api.rebuild(); assert(e.preview); unchanged()
+        assert(e.fitDistance~=e.orbit.distance,'explicit reset fit was not updated')
+        api.undo(false); api.rebuild(); unchanged()
+        api.undo(true); api.rebuild(); unchanged()
+        api.setEditMode(true); api.setEditMode(false); api.rebuild(); unchanged()
+        e.values.maxVertices=1; api.applyProperties(); api.rebuild()
+        assert(not e.preview and e.generationFailure); unchanged()
+        api.undo(false); api.rebuild(); assert(e.preview); unchanged()
+        api.select(1); api.rebuild(); assert(e.orbit.distance==e.fitDistance,'new module was not framed')
+        print('IMAGE MESH EDITOR PRESERVE 3D VIEW / APPLY / UNDO / FAILURE OK')
+    end
     if started and mbm.getTimeRun()-started>8 then mbm.quit() end
 end
 function onEndScene() finish() end
