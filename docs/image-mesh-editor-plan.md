@@ -494,3 +494,25 @@ repouso. Os testes existentes de modelo/API/editor continuam aplicáveis.
 A etapa 3 ainda não está toda concluída: restam presets reutilizáveis de geração,
 opções adicionais de textura/fundo e prévia de encaixe entre módulos. As etapas
 4 e o restante do acabamento da etapa 5 continuam pendentes.
+
+
+### Correção da fidelidade da pintura (7.234.1)
+
+Alinhamento adaptativo passa a consultar a altura corrigida. Após os ajustes de
+diagonais, refinamento local verifica os pixels pintados e a borda do traço,
+independentemente da densidade geral, mantendo fechamento e orçamento. O projeto
+continua guardando traços editáveis; não há exportação/releitura intermediária de
+PNG. Sem modo adaptativo, a resolução continua sendo explícita.
+
+Regressão `image_mesh_paint_refine_smoke.lua`: retoques menores que a célula da
+mesh com tolerância global alta, retângulo/elipse/polígono côncavo, altura amostrada,
+fechamento, repetibilidade, pintura sem efeito, depressões, preenchimento entre pixels, preservação de normais
+dos patamares e rejeição por orçamento.
+
+Na configuração analisada de `project-1-pintado.imesh` (módulo 2, 30 x 30,
+tolerância 0,26, simplificação desligada), o resultado passou de 3.590 para
+4.686 triângulos. Nos 39 pixels alterados, o erro absoluto médio entre a superfície
+interpolada e o mapa diagnóstico de 8 bits caiu de 0,756579 para 0,0365014 unidades;
+o máximo caiu de 4,422234 para 0,1480951. A leitura do mapa inclui arredondamento
+para 8 bits; essas medidas são desse projeto, não uma garantia global. Comparação
+visual com material neutro verificou a preservação dos patamares fora da pintura.

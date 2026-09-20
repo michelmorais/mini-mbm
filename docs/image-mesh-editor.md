@@ -419,8 +419,10 @@ reexecuta os mesmos traços sobre o novo mapa. Não modifica a imagem original.
 A borda fixa ainda prevalece, e o contorno recorta a superfície final.
 A sobreposição azul continua representando apenas os sulcos automáticos.
 
-A pintura não aumenta automaticamente a densidade de polígonos. Para detalhes
-finos, ajuste Colunas/Linhas e/ou o refinamento adaptativo. Há no máximo 4096
+Com **Seguir formas da imagem (adaptativo)**, a pintura refina localmente a
+geometria usando o campo final de alturas. Colunas/Linhas continuam definindo a
+densidade geral; o retoque pode receber mais detalhe sem aumentar a grade inteira.
+Sem o modo adaptativo, a grade continua seguindo a resolução escolhida. Há no máximo 4096
 amostras por módulo; o espaçamento é calculado pela distância, sem depender da
 frequência dos eventos do mouse. O backend limita o trabalho de pintura por geração
 a 64 milhões de operações em pixels, com diagnóstico em caso de excesso.
@@ -428,3 +430,29 @@ a 64 milhões de operações em pixels, com diagnóstico em caso de excesso.
 Enquanto o pincel está habilitado, a contagem automática de faces fica adiada.
 O mapa atualiza ao concluir o traço; a mesh é gerada ao voltar ao modo 3D ou
 exportar. Em repouso, o editor não reexecuta a pintura nem reconstrói a geometria.
+
+
+### Fidelidade dos retoques (7.234.1)
+
+Os traços do projeto são reexecutados no campo de alturas em ponto flutuante.
+A triangulação adaptativa consulta esse campo final para alinhar transições, e
+uma etapa posterior refina as células efetivamente alteradas e sua vizinhança.
+Ela verifica amostras a cada meio pixel, centros e meios de arestas, com alvo
+local de erro de no máximo `min(tolerância configurada, 0,02)` do relevo. O piso
+de subdivisão é 1/16 de pixel; esse alvo amostrado não é uma garantia de erro
+contínuo em toda a superfície. A atenuação da borda fixa continua sendo aplicada.
+
+Não é necessário salvar ou reler um PNG para obter esse resultado: o mapa exibido
+e a mesh usam o mesmo campo, sem uma conversão adicional para 8 bits. Os traços
+continuam sendo o formato editável do projeto, não uma lista de posições de vértices.
+Pintura sem efeito não força novo refinamento. Os tetos de geometria continuam
+valendo; orçamento insuficiente gera erro, em vez de omitir silenciosamente o retoque.
+A simplificação opcional ainda pode aproximar detalhes depois da geração.
+
+
+Na área corrigida, a interpolação usa os valores finais dos pixels pintados, com
+transição local para o campo automático. Isso evita ondulações entre pixels
+nivelados. Em Duas alturas, valores a menos de 0,0001 de 0 ou 1 são fixados no
+patamar correspondente nessa área, em acordo com o cálculo de normais. O alinhamento
+reexpressa a altura corrigida no domínio dos limiares, preservando o tratamento
+dos patamares automáticos fora do retoque.

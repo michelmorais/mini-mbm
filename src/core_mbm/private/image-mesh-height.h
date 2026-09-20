@@ -35,6 +35,31 @@ struct HEIGHT_FIELD
     std::string path;
     std::unique_ptr<stbi_uc,decltype(&std::free)> pixels{nullptr,&std::free};
     std::vector<float> levels, painted;
+    // Coarse summed-area index: locate actual raster corrections, not brush coordinates.
+    std::vector<uint32_t> paintIndex;
+    std::vector<uint8_t> paintMask;
+    uint32_t paintStride=0,paintMinX=0,paintMinY=0,paintMaxX=0,paintMaxY=0;
+    bool hasPainting() const { return !paintIndex.empty(); }
+    bool paintAt(float u,float v) const
+    {
+        if (!hasPainting()) return false;
+        const auto x=static_cast<uint32_t>(std::clamp(u,0.0f,1.0f)*(width-1));
+        const auto y=static_cast<uint32_t>(std::clamp(v,0.0f,1.0f)*(height-1));
+        for (uint32_t yy=y?y-1:0;yy<=std::min(y+1,height-1);++yy)
+            for (uint32_t xx=x?x-1:0;xx<=std::min(x+1,width-1);++xx)
+                if (paintMask[static_cast<size_t>(yy)*width+xx]) return true;
+        return false;
+    }
+    bool paintTouches(float minX,float minY,float maxX,float maxY) const
+    {
+        if (!hasPainting()) return false;
+        const uint32_t x0=static_cast<uint32_t>(std::clamp(minX,0.0f,1.0f)*(width-1))/8;
+        const uint32_t y0=static_cast<uint32_t>(std::clamp(minY,0.0f,1.0f)*(height-1))/8;
+        const uint32_t x1=static_cast<uint32_t>(std::clamp(maxX,0.0f,1.0f)*(width-1))/8+1;
+        const uint32_t y1=static_cast<uint32_t>(std::clamp(maxY,0.0f,1.0f)*(height-1))/8+1;
+        const auto at=[&](uint32_t x,uint32_t y) { return paintIndex[static_cast<size_t>(y)*paintStride+x]; };
+        return at(x1,y1)+at(x0,y0)>at(x0,y1)+at(x1,y0);
+    }
     bool load(const char *source,const IMAGE_MESH_OPTIONS &o,std::string &error)
     {
         const auto fail=[&](const char *m) { error=m; return false; };
@@ -142,11 +167,43 @@ struct HEIGHT_FIELD
             for (int y=y0;y<=y1;++y) for (int x=x0;x<=x1;++x)
                 painted[static_cast<size_t>(y)*width+x]=patch[static_cast<size_t>(y-y0)*pw+x-x0];
         }
-        // Store only the correction: untouched cells must retain the original remap-after-interpolation path.
-        for (size_t i=0;i<painted.size();++i) painted[i]-=mapped(levels[i],o);
+        // Locate corrections before turning this buffer into the final painted raster.
+        bool changed=false;
+        for (size_t i=0;i<painted.size();++i)
+        {
+            painted[i]-=mapped(levels[i],o);
+            changed=changed || std::abs(painted[i])>1e-7f;
+        }
+        if (!changed) { painted.clear(); return true; }
+        paintStride=(width+7)/8+1;
+        const uint32_t tileRows=(height+7)/8;
+        paintIndex.assign(static_cast<size_t>(paintStride)*(tileRows+1),0);
+        paintMask.assign(levels.size(),0);
+        paintMinX=width-1; paintMinY=height-1;
+        for (uint32_t y=0;y<height;++y) for (uint32_t x=0;x<width;++x)
+        {
+            if (std::abs(painted[static_cast<size_t>(y)*width+x])<=1e-7f) continue;
+            // One-pixel mask dilation covers all cells touching a corrected sample.
+            for (uint32_t yy=y?y-1:0;yy<=std::min(y+1,height-1);++yy)
+                for (uint32_t xx=x?x-1:0;xx<=std::min(x+1,width-1);++xx)
+                    paintMask[static_cast<size_t>(yy)*width+xx]=1;
+            const uint32_t x0=x>3?x-3:0,y0=y>3?y-3:0;
+            const uint32_t x1=std::min(x+3,width-1),y1=std::min(y+3,height-1);
+            paintMinX=std::min(paintMinX,x0); paintMinY=std::min(paintMinY,y0);
+            paintMaxX=std::max(paintMaxX,x1); paintMaxY=std::max(paintMaxY,y1);
+            for (uint32_t ty=y0/8;ty<=y1/8;++ty) for (uint32_t tx=x0/8;tx<=x1/8;++tx)
+                paintIndex[static_cast<size_t>(ty+1)*paintStride+tx+1]=1;
+        }
+        for (size_t i=0;i<painted.size();++i) painted[i]+=mapped(levels[i],o);
+        for (uint32_t y=1;y<=tileRows;++y) for (uint32_t x=1;x<paintStride;++x)
+        {
+            const size_t i=static_cast<size_t>(y)*paintStride+x;
+            paintIndex[i]+=paintIndex[i-1]+paintIndex[i-paintStride]-paintIndex[i-paintStride-1];
+        }
         return true;
     }
-    float interpolate(float u,float v,const std::vector<float> &values) const
+    template<class T>
+    float interpolate(float u,float v,const std::vector<T> &values) const
     {
         const float x=std::clamp(u,0.0f,1.0f)*(width-1),y=std::clamp(v,0.0f,1.0f)*(height-1);
         const auto x0=static_cast<uint32_t>(x),y0=static_cast<uint32_t>(y);
@@ -157,7 +214,39 @@ struct HEIGHT_FIELD
     }
     float sample(float u,float v) const { return interpolate(u,v,levels); }
     float surface(float u,float v,const IMAGE_MESH_OPTIONS &o) const
-    { return painted.empty()?mapped(sample(u,v),o):std::clamp(mapped(sample(u,v),o)+interpolate(u,v,painted),0.0f,1.0f); }
+    {
+        const float automatic=mapped(sample(u,v),o);
+        if (!hasPainting()) return automatic;
+        const float weight=interpolate(u,v,paintMask);
+        if (weight==0) return automatic;
+        // Interpolate final heights, not brush deltas on top of a nonlinear remap:
+        // neighboring pixels painted to 1 must remain a flat plateau between pixels.
+        const float value=std::clamp(automatic+(interpolate(u,v,painted)-automatic)*weight,0.0f,1.0f);
+        // Use the same plateau tolerance as normal classification; tiny near-flat
+        // height differences on narrow refined faces otherwise tilt their normals.
+        if (o.twoLevels && value>=0.9999f) return 1;
+        if (o.twoLevels && value<=0.0001f) return 0;
+        return value;
+    }
+    float transition(float u,float v,const IMAGE_MESH_OPTIONS &o) const
+    {
+        const float raw=sample(u,v);
+        if (!hasPainting()) return raw;
+        const float level=surface(u,v,o);
+        if (std::abs(level-mapped(raw,o))<=1e-7f) return raw;
+        if (!o.twoLevels) return level;
+        // Express corrected height in the original threshold domain. Keep untouched raw
+        // values EXACT: using near-0/1 height isocurves everywhere would lose plateau normals.
+        if (level<=0) return std::min(raw,o.grooveThreshold-o.grooveTransition*0.5f-0.0001f);
+        if (level>=1) return std::max(raw,o.grooveThreshold+o.grooveTransition*0.5f+0.0001f);
+        float lo=0,hi=1;
+        for (unsigned i=0;i<20;++i)
+        {
+            const float t=(lo+hi)*0.5f;
+            if (t*t*(3-2*t)<level) lo=t; else hi=t;
+        }
+        return o.grooveThreshold+((lo+hi)*0.5f-0.5f)*o.grooveTransition;
+    }
     float mapped(float value,const IMAGE_MESH_OPTIONS &o) const
     {
         if (!o.twoLevels) return value;

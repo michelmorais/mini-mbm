@@ -2156,9 +2156,20 @@ Height painting (`heightEdits`) is shared by `generateImageMesh` and
 two-level mapping, before relief amplitude and border attenuation. They use a
 smooth radial falloff and clamp heights to [0,1]. Raise/lower add/subtract strength;
 flatten blends toward the target; smooth blends toward the local 3x3 mean using
-a snapshot of each dab (no scan-order bias). The correction is interpolated
-separately from the automatic field, preserving the original sampling outside
-painted cells. Tiny features remain constrained by source pixels and mesh density.
+a snapshot of each dab (no scan-order bias). The final painted float raster is interpolated in cells touching changed pixels;
+a dilated mask blends back to the automatic field around that area. Sampling far
+from the correction stays unchanged. With two levels, painted heights within
+0.0001 of an endpoint are snapped to that plateau, matching normal classification
+and avoiding tilted normals on tiny near-flat faces. Tiny features remain constrained by source pixels and mesh density.
+With `followImage=true`, transition alignment reads the corrected float height
+field when painting has an effect. After alignment and diagonal optimization,
+local conforming edge splits check painted cells and the surrounding transition,
+using half-pixel probes, triangle centroids and edge midpoints. The local sampled
+error target is `min(heightTolerance, 0.02)`; a 1/16-source-pixel edge-length floor
+and the existing geometry budgets bound refinement. This is not a continuous
+error guarantee or a limit on later simplification. Paint with zero net correction
+keeps the unpainted topology path. With `followImage=false`, density remains
+controlled by `columns` and `rows`.
 The contour clips the exported surface; painting never creates holes or changes UVs.
 The blue groove overlay still shows automatic threshold detection, not manual paint.
 

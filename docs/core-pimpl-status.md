@@ -255,3 +255,7 @@ Height painting (7.234.0) adds a borrowed pointer/count of value-only brush dabs
 `IMAGE_MESH_OPTIONS`. It introduces no owned buffers, runtime mutable state,
 backend handles or STL containers in the public header. Replay buffers, local
 smoothing snapshots and sampled corrections remain in private `HEIGHT_FIELD`.
+
+The 7.234.1 painted-height refinement keeps its coarse summed-area raster index and byte mask
+inside private `HEIGHT_FIELD`. Conforming subdivision and corrected-height
+transition tests remain private topology helpers; no public API/storage changed.

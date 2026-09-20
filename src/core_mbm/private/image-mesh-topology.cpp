@@ -179,7 +179,7 @@ namespace {
             // Solve on the processed image, not just the endpoint intensities.
             for (unsigned n=0;n<20;++n)
             {
-                const float f=(lo+hi)*0.5f,v=field.sample(pa.x+(pb.x-pa.x)*f,pa.y+(pb.y-pa.y)*f);
+                const float f=(lo+hi)*0.5f,v=field.transition(pa.x+(pb.x-pa.x)*f,pa.y+(pb.y-pa.y)*f,o);
                 if ((v<iso)==(va<iso)) lo=f; else hi=f;
             }
             const float f=(lo+hi)*0.5f;
@@ -189,7 +189,7 @@ namespace {
         std::vector<std::array<uint32_t,3>> result;
         for (const auto &tri:t.triangles)
         {
-            float v[3]; for (unsigned i=0;i<3;++i) v[i]=field.sample(t.points[tri[i]].x,t.points[tri[i]].y);
+            float v[3]; for (unsigned i=0;i<3;++i) v[i]=field.transition(t.points[tri[i]].x,t.points[tri[i]].y,o);
             if ((v[0]<iso)==(v[1]<iso) && (v[1]<iso)==(v[2]<iso)) { result.push_back(tri); continue; }
             for (unsigned side=0;side<2;++side)
             {
@@ -225,7 +225,7 @@ namespace {
         for (const auto &p : t.points)
         {
             heights.push_back(surface(p,field,o,t));
-            intensities.push_back(field.sample(p.x,p.y));
+            intensities.push_back(field.transition(p.x,p.y,o));
         }
         const auto constrained=[&](uint32_t a,uint32_t b)
         {
@@ -300,18 +300,115 @@ namespace {
             if (!any) break;
         }
     }
+    void splitEdges(TOPOLOGY &t,const std::map<uint64_t,uint32_t> &midpoints)
+    {
+        std::vector<uint32_t> boundary;
+        for (size_t i=0;i<t.boundary.size();++i)
+        {
+            const uint32_t a=t.boundary[i],b=t.boundary[(i+1)%t.boundary.size()]; boundary.push_back(a);
+            const auto it=midpoints.find(edgeKey(a,b)); if (it!=midpoints.end()) boundary.push_back(it->second);
+        }
+        std::vector<std::array<uint32_t,3>> triangles;
+        for (const auto &tri:t.triangles)
+        {
+            uint32_t m[3]{}; bool split[3]{}; unsigned count=0;
+            for (unsigned e=0;e<3;++e)
+            {
+                const auto it=midpoints.find(edgeKey(tri[e],tri[(e+1)%3]));
+                if (it!=midpoints.end()) { split[e]=true; m[e]=it->second; ++count; }
+            }
+            if (count==0) triangles.push_back(tri);
+            else if (count==3)
+            {
+                triangles.push_back({tri[0],m[0],m[2]}); triangles.push_back({m[0],tri[1],m[1]});
+                triangles.push_back({m[2],m[1],tri[2]}); triangles.push_back({m[0],m[1],m[2]});
+            }
+            else
+            {
+                unsigned e=0;
+                while (!(split[e] && (count==1 || split[(e+1)%3]))) ++e;
+                const uint32_t a=tri[e],b=tri[(e+1)%3],c=tri[(e+2)%3],ab=m[e];
+                if (count==1) { triangles.push_back({a,ab,c}); triangles.push_back({ab,b,c}); }
+                else
+                {
+                    const uint32_t bc=m[(e+1)%3]; triangles.push_back({b,bc,ab});
+                    triangles.push_back({a,ab,c}); triangles.push_back({ab,bc,c});
+                }
+            }
+        }
+        t.boundary=std::move(boundary); t.triangles=std::move(triangles);
+    }
+    bool needsPaintDetail(const std::array<uint32_t,3> &tri,const TOPOLOGY &t,
+                          const HEIGHT_FIELD &field,const IMAGE_MESH_OPTIONS &o)
+    {
+        const auto &a=t.points[tri[0]],&b=t.points[tri[1]],&c=t.points[tri[2]];
+        const float minX=std::min({a.x,b.x,c.x}),maxX=std::max({a.x,b.x,c.x});
+        const float minY=std::min({a.y,b.y,c.y}),maxY=std::max({a.y,b.y,c.y});
+        if (!field.paintTouches(minX,minY,maxX,maxY)) return false;
+        const double area=cross(a,b,c);
+        const float ha=surface(a,field,o,t),hb=surface(b,field,o,t),hc=surface(c,field,o,t);
+        const float tolerance=std::min(o.heightTolerance,0.02f);
+        const auto check=[&](const IMAGE_MESH_POINT &p)
+        {
+            if (!field.paintAt(p.x,p.y)) return false;
+            const double wa=cross(b,c,p)/area,wb=cross(c,a,p)/area,wc=1-wa-wb;
+            return wa>=-epsilon && wb>=-epsilon && wc>=-epsilon &&
+                std::abs(surface(p,field,o,t)-(wa*ha+wb*hb+wc*hc))>tolerance;
+        };
+        if (check({(a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3}) ||
+            check({(a.x+b.x)/2,(a.y+b.y)/2}) || check({(b.x+c.x)/2,(b.y+c.y)/2}) ||
+            check({(c.x+a.x)/2,(c.y+a.y)/2})) return true;
+        const uint32_t nx=std::max(1u,field.width-1)*2,ny=std::max(1u,field.height-1)*2;
+        const uint32_t x0=std::max(field.paintMinX*2,static_cast<uint32_t>(std::ceil(minX*nx)));
+        const uint32_t x1=std::min(field.paintMaxX*2,static_cast<uint32_t>(std::floor(maxX*nx)));
+        const uint32_t y0=std::max(field.paintMinY*2,static_cast<uint32_t>(std::ceil(minY*ny)));
+        const uint32_t y1=std::min(field.paintMaxY*2,static_cast<uint32_t>(std::floor(maxY*ny)));
+        for (uint32_t y=y0;y<=y1;++y) for (uint32_t x=x0;x<=x1;++x)
+            if (check({static_cast<float>(x)/nx,static_cast<float>(y)/ny})) return true;
+        return false;
+    }
+    bool refinePainting(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,const HEIGHT_FIELD &field,std::string &error)
+    {
+        if (!field.hasPainting() || o.relief==0) return true;
+        const auto length=[&](uint32_t a,uint32_t b)
+        {
+            const double x=(t.points[a].x-t.points[b].x)*std::max(1u,field.width-1);
+            const double y=(t.points[a].y-t.points[b].y)*std::max(1u,field.height-1);
+            return x*x+y*y;
+        };
+        // Run AFTER alignment/flips so later optimizations cannot erase the painted correction.
+        for (unsigned pass=0;pass<48;++pass)
+        {
+            std::map<uint64_t,uint32_t> midpoints;
+            for (const auto &tri:t.triangles)
+            {
+                if (!needsPaintDetail(tri,t,field,o)) continue;
+                unsigned longest=0;
+                for (unsigned e=1;e<3;++e)
+                    if (length(tri[e],tri[(e+1)%3])>length(tri[longest],tri[(longest+1)%3])) longest=e;
+                const uint32_t a=tri[longest],b=tri[(longest+1)%3];
+                if (length(a,b)<=0.00390625) continue; // 1/16-pixel floor for narrow remapped transitions
+                const uint64_t key=edgeKey(a,b);
+                if (midpoints.count(key)) continue;
+                const auto pa=t.points[a],pb=t.points[b];
+                midpoints[key]=static_cast<uint32_t>(t.points.size());
+                t.points.push_back({(pa.x+pb.x)*0.5f,(pa.y+pb.y)*0.5f});
+                if (!budget(o,t,"during painted height refinement",error)) return false;
+            }
+            if (midpoints.empty()) return true;
+            splitEdges(t,midpoints);
+            if (!budget(o,t,"during painted height refinement",error)) return false;
+        }
+        error="Painted height refinement did not converge"; return false;
+    }
     bool finishAdaptive(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,const HEIGHT_FIELD &field,std::string &error)
     {
         const float half=o.twoLevels?o.grooveTransition*0.5f:0.0f;
         if (!alignTransition(o,t,field,o.grooveThreshold-half,error)) return false;
         if (o.twoLevels && !alignTransition(o,t,field,o.grooveThreshold+half,error)) return false;
-        if (!o.twoLevels)
-        {
-            // Near-extreme contours recover the ends of ramps in binary/plateau
-            // height maps, without making the whole surface a regular grid.
-            if (!alignTransition(o,t,field,0.0001f,error) || !alignTransition(o,t,field,0.9999f,error)) return false;
-        }
+        if (!o.twoLevels && (!alignTransition(o,t,field,0.0001f,error) || !alignTransition(o,t,field,0.9999f,error))) return false;
         improveRelief(o,t,field);
+        if (!refinePainting(o,t,field,error)) return false;
         if (!triangulateBoundary(t,t.backTriangles)) { error="Cannot triangulate simplified back"; return false; }
         return budget(o,t,"after groove alignment",error);
     }
@@ -434,41 +531,7 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error,
             }
         }
         if (midpoints.empty()) return field?finishAdaptive(o,t,*field,error):true;
-        std::vector<uint32_t> boundary;
-        for (size_t i=0;i<t.boundary.size();++i)
-        {
-            const uint32_t a=t.boundary[i],b=t.boundary[(i+1)%t.boundary.size()]; boundary.push_back(a);
-            const auto it=midpoints.find(edgeKey(a,b)); if (it!=midpoints.end()) boundary.push_back(it->second);
-        }
-        std::vector<std::array<uint32_t,3>> triangles;
-        for (const auto &tri:t.triangles)
-        {
-            uint32_t m[3]{}; bool split[3]{}; unsigned count=0;
-            for (unsigned e=0;e<3;++e)
-            {
-                const auto it=midpoints.find(edgeKey(tri[e],tri[(e+1)%3]));
-                if (it!=midpoints.end()) { split[e]=true; m[e]=it->second; ++count; }
-            }
-            if (count==0) triangles.push_back(tri);
-            else if (count==3)
-            {
-                triangles.push_back({tri[0],m[0],m[2]}); triangles.push_back({m[0],tri[1],m[1]});
-                triangles.push_back({m[2],m[1],tri[2]}); triangles.push_back({m[0],m[1],m[2]});
-            }
-            else
-            {
-                unsigned e=0;
-                while (!(split[e] && (count==1 || split[(e+1)%3]))) ++e;
-                const uint32_t a=tri[e],b=tri[(e+1)%3],c=tri[(e+2)%3],ab=m[e];
-                if (count==1) { triangles.push_back({a,ab,c}); triangles.push_back({ab,b,c}); }
-                else
-                {
-                    const uint32_t bc=m[(e+1)%3]; triangles.push_back({b,bc,ab});
-                    triangles.push_back({a,ab,c}); triangles.push_back({ab,bc,c});
-                }
-            }
-        }
-        t.boundary=std::move(boundary); t.triangles=std::move(triangles);
+        splitEdges(t,midpoints);
         if (!budget(o,t,"during contour refinement",error)) return false;
     }
     return fail("Contour refinement did not converge");
