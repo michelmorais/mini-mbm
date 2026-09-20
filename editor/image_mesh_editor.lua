@@ -27,8 +27,9 @@ local Model=require 'image_mesh_model'
 local IO=require 'image_mesh_io'
 local Canvas=require 'image_mesh_canvas'
 local Diagnostics=require 'image_mesh_diagnostics'
+local Wire=require 'image_mesh_wireframe'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
-    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,sidebar=370,rightbar=310,polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
+    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,sidebar=370,rightbar=310,polygon={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=math.pi-0.4,elevation=0.25,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
 local function dpCall(fn,...)
@@ -37,6 +38,7 @@ local function dpCall(fn,...)
     return table.unpack(result,1,result.n)
 end
 local function releasePreview()
+    Wire.release(E)
     if E.preview then
         meshDebug:loadMeshPreview(E.preview,nil); E.preview:destroy(); E.preview=nil
     end
@@ -52,6 +54,7 @@ end
 local function changed()
     E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
     if E.preview then E.preview.visible=false end
+    if E.wireObject then E.wireObject.visible=false end
     syncDraft()
 end
 local function selectRegion(id,extend)
@@ -61,6 +64,7 @@ local function selectRegion(id,extend)
     if not E.selection[id] then E.selected=0; for _,r in ipairs(E.project.regions) do if E.selection[r.id] then E.selected=r.id; break end end end
     E.dirty=true; E.report=nil; E.polygon={}; E.canvasDirty=true; E.editDefaults=false; syncDraft()
     if E.preview then E.preview.visible=false end
+    if E.wireObject then E.wireObject.visible=false end
 end
 local function action(fn)
     if E.drag then return false end
@@ -110,9 +114,12 @@ local function rebuild()
         object.alwaysRender=true
         E.preview=object; E.previewPath=path; E.report=report; E.builds=E.builds+1
         local o=Model.options(E.project,r); E.fitDistance=math.max(o.width,o.height,o.depth+o.relief)*2.7; E.orbit.distance=E.fitDistance; camera()
+        if E.wireframe then Wire.ensure(E,asset) end
+        Wire.sync(E)
         E.status=L('preview_ready')
     end)
     if not ok then
+        Wire.release(E)
         if object then meshDebug:loadMeshPreview(object,nil); object:destroy() end
         E.preview=nil; E.previewPath=nil; os.remove(path)
     end
@@ -229,8 +236,16 @@ local function setEditMode(enabled)
     if E.editMode==enabled then return end
     Canvas.cancel(E); syncDraft(); E.orbitDrag=nil; E.panDrag=nil
     E.editMode=enabled
-    if E.preview then E.preview.visible=not enabled and not E.dirty end
+    Wire.sync(E)
     Canvas.sync(E)
+end
+local function setWireframe(enabled)
+    if E.wireframe==enabled then return end
+    if enabled and E.preview and not E.dirty then
+        local ok=dpCall(Wire.ensure,E)
+        if not ok then Wire.release(E); return end
+    end
+    E.wireframe=enabled; Wire.sync(E)
 end
 local function addPrimitive()
     if not E.texture or not E.editMode then return false end
@@ -336,6 +351,7 @@ local function regionsPanel()
             tImGui.TextWrapped(L('canvas_help'))
         else
             tImGui.TextWrapped(L('preview_help'))
+            setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
         end
         tImGui.Separator()
         if E.missing then
@@ -462,5 +478,5 @@ if type(testApi)=='table' then
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink
-    testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
+    testApi.setWireframe=setWireframe; testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
 end

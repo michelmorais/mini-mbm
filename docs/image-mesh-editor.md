@@ -89,6 +89,10 @@ os parâmetros de densidade e orçamento.
   preserva a distância inicial do clique para evitar saltos.
 - **Modo de edição desmarcado:** a cena mostra somente a mesh 3D selecionada.
   Arraste com o botão esquerdo para orbitar e use a roda para ajustar a distância.
+  Ative **Wireframe (arestas dos triângulos)** no painel **Regiões** para mostrar
+  somente as arestas da mesh, incluindo frente, verso e laterais. Desmarque para
+  voltar à superfície com textura. É uma opção de inspeção: não altera o projeto
+  nem a exportação. As linhas ficam em cache até a geometria mudar.
   A luz fica na janela à direita. Selecionar outra região atualiza a mesh mostrada.
 
 A troca de modo cancela desenhos e arrastes ainda não confirmados. Valores nos

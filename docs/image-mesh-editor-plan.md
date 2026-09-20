@@ -394,3 +394,15 @@ limites de zoom e captura da interface, sem editar o projeto ou regenerar a mesh
   preservando os demais vértices em pixels. O limite passa a ser a imagem.
 - Regressões cobrem leque central, fechamento/normais/volume, proporções da mesh
   do módulo 5 e expansão superior/inferior com undo nas três escalas de tela.
+
+
+### Wireframe na cena 3D (7.224.0)
+
+O painel Regiões oferece wireframe no modo de visualização, alternando superfície
+e arestas completas da mesh. As linhas são geradas sob demanda e reutilizadas
+em alternâncias e movimentos de câmera. Trocar a geometria invalida o cache;
+a edição 2D oculta a visualização. Exportação e projeto não são modificados.
+
+Arestas coincidentes são unificadas e percorridas em sequências limitadas de
+linhas, evitando conexões falsas entre componentes e um draw call por triângulo.
+A regressão integrada cobre visibilidade, cache, troca de módulo e modos.

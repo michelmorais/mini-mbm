@@ -176,6 +176,22 @@ function onLoop(delta)
     end
     if frame==155 then
         assert(e.canvasBuilds==e.idleCanvas and e.builds==e.idleMeshes,'idle editing rebuilt geometry')
+        api.setEditMode(false); api.rebuild()
+        local meshBuilds=e.builds; local revision=e.revision
+        api.setWireframe(true)
+        assert(e.wireObject and e.wireObject.visible and not e.preview.visible)
+        local wire=e.wireObject; local wireBuilds=e.wireBuilds
+        api.camera(); api.rebuild()
+        assert(e.wireObject==wire and e.wireBuilds==wireBuilds and e.builds==meshBuilds)
+        api.setEditMode(true); assert(not wire.visible)
+        api.setEditMode(false); assert(wire.visible)
+        api.setWireframe(false); assert(not wire.visible and e.preview.visible)
+        api.setWireframe(true); assert(e.wireObject==wire and e.wireBuilds==wireBuilds)
+        assert(e.revision==revision and e.builds==meshBuilds,'wireframe changed project/mesh')
+        api.select(e.project.regions[2].id); assert(not wire.visible)
+        api.rebuild(); assert(e.wireObject~=wire and e.wireObject.visible and not e.preview.visible)
+        api.setWireframe(false)
+        print('IMAGE MESH EDITOR WIREFRAME / CACHE / VISIBILITY OK')
         local distance=e.orbit.distance; api.setEditMode(false)
         tImGui.GetWantCaptureMouse=function() return false end
         onTouchDown(0,900,400); onTouchMove(0,940,420); onTouchUp(0,940,420); onTouchZoom(1)
