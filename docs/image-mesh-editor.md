@@ -239,6 +239,35 @@ Nesse modo, alterações confirmadas ou seleção disparam geração;
 orbitar ou ajustar a luz não regenera a mesh. A cena desenha normalmente a cada
 frame, sem reconstruir geometria em repouso. A geração de uma peça ainda é síncrona.
 
+## Simplificação após gerar
+
+Desde 7.228.0, **Simplificar geometria > Simplificar após gerar** habilita uma etapa
+opcional por módulo (ou nos padrões do projeto). **Aplicar** regenera a peça e
+simplifica o frame inteiro com o mesmo algoritmo do Mesh Debug. Há um único frame
+e um único subset no módulo, portanto não há seletores de escopo ou frames compartilhados.
+
+- **Proporção de triângulos**: fração a manter, de 0,001 a 0,95; padrão 0,9.
+  Por exemplo, 0,28 solicita aproximadamente 28% das faces de origem.
+- **Preservar detalhes**: mesma penalização de colapsos em detalhes usada pelo Mesh Debug;
+  habilitada por padrão.
+- **Limiar de colapso de fronteira**: de 0 a 0,25, como no painel do Mesh Debug.
+  Zero mantém as fronteiras abertas bloqueadas; valores maiores permitem reduzir
+  arestas limpas de fronteira até essa fração da diagonal da mesh.
+
+A prévia, wireframe, contagem de faces e exportações individuais/em lote usam o
+resultado simplificado. O painel informa as contagens antes/depois. Os ajustes são
+salvos no `.imesh`, participam do histórico e ficam desabilitados em projetos antigos.
+Desabilitar a etapa e aplicar recupera a geometria gerada, sem acumular simplificações.
+Os mapas 2D continuam representando a imagem processada e não são simplificados.
+
+A simplificação roda em um worker da engine, com progresso. Durante essa etapa os
+controles de edição ficam indisponíveis para impedir alterações na operação em curso;
+a cena continua desenhando. Nenhum worker é iniciado novamente enquanto o editor está
+ocioso. A geração inicial continua síncrona e precisa respeitar o orçamento de vértices.
+Se as restrições de topologia impedirem a redução solicitada, o editor informa o erro;
+não exporta silenciosamente a mesh original. O lote registra a falha e segue para a
+próxima peça. Seu cancelamento ocorre entre peças.
+
 ## Salvar, relocalizar e exportar
 
 **Salvar projeto** (Ctrl+S) grava `.imesh`, contendo versão, imagem, regiões e
@@ -262,7 +291,7 @@ em -Z. Arquivos já exportados não são modificados; reexporte para adotar a or
 
 **Exportar mesh selecionada** escreve uma `.msh` v11. **Exportar todas as meshes**
 usará a pasta escolhida e nomes com ID da região, por exemplo `001_module_001.msh`.
-O lote processa uma peça por frame e pode ser cancelado entre peças. Falhas são
+O lote processa uma peça por vez, aguardando sua simplificação opcional, e pode ser cancelado entre peças. Falhas são
 relatadas, arquivos existentes são preservados e os já exportados permanecem.
 
 **As malhas ainda referenciam a imagem original; a textura não é empacotada.**
@@ -281,9 +310,10 @@ A API de geração e seus limites estão em [Lua API](lua-api.md#image-based-mes
 
 ```sh
 bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/image_mesh_model_test.lua
-mkdir -p /tmp/image-mesh-stage2-export
+mkdir -p /tmp/image-mesh-stage2-export /tmp/ime-simplify-batch
 timeout -s KILL 20 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_smoke.lua --disable_select_monitor --nosplash -w 640 -h 480
 timeout -s KILL 25 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_editor_smoke.lua --disable_select_monitor --nosplash -w 1440 -h 900
+timeout -s KILL 40 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_simplify_smoke.lua --disable_select_monitor --nosplash -w 1440 -h 900
 ```
 
 Use um build com `-DUSE_TEXTURE_MISSING_DIALOG=0` para testes automáticos. Confira

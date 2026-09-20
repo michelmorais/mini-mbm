@@ -70,3 +70,13 @@ assert(not M.options(legacy,legacy.regions[1]).followImage)
 local badGrooves=M.copy(p); badGrooves.defaults.grooveTransition=0
 assert(not pcall(M.validate,badGrooves))
 print('IMAGE MESH MODEL OK')
+
+local legacySimplify=M.copy(p)
+for key in pairs(M.simplifyDefaults) do legacySimplify.defaults[key]=nil end
+M.validate(legacySimplify)
+local options=M.options(legacySimplify,legacySimplify.regions[1])
+assert(options.simplify==false and options.simplifyRatio==0.9 and options.simplifyDetails and options.simplifyBoundary==0)
+for _,bad in ipairs({{simplifyRatio=0},{simplifyRatio=1},{simplifyBoundary=-1},{simplifyBoundary=1},{simplify=1},{simplifyDetails=0}}) do
+    assert(not pcall(M.validateOptions,bad,false))
+end
+print('IMAGE MESH SIMPLIFICATION SETTINGS / LEGACY PROJECT OK')

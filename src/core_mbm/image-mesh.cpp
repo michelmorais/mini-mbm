@@ -256,6 +256,11 @@ namespace mbm
             }
             destination.getSubset(0, 0)->texture = path;
             if (!destination.addIndex(0, 0, indices.data(), static_cast<uint32_t>(indices.size()), errorOut, errorOutLen)) return false;
+            // Consumers such as the simplifier use frame counts before the first save.
+            auto *frame = destination.getFrameBuffer(0);
+            frame->headerFrame.totalSubset = 1;
+            frame->headerFrame.sizeVertexBuffer = static_cast<int>(vertexCount);
+            frame->headerFrame.sizeIndexBuffer = static_cast<int>(indices.size());
             if (destination.addAnimation("Static", 0, 0, 1.0f, 0, errorOut, errorOutLen) <= 0) return false;
             if (!destination.check(errorOut, errorOutLen)) return false;
             report.vertices = vertexCount; report.triangles = triangleCount;

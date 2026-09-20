@@ -465,3 +465,14 @@ enquadramento é atualizada apenas como referência para Resetar visão. Outro
 módulo ou projeto mantém o enquadramento automático. A identificação da vista
 permanece válida após falhas de geração para permitir corrigir parâmetros sem
 perder a comparação. Regressão cobre Aplicar, undo/redo, modos e recuperação.
+
+### 7.228.0 - Simplificação opcional após geração
+
+- Ajustes por módulo/padrões: proporção, preservar detalhes e limiar de fronteira,
+  usando o mesmo algoritmo e intervalos do painel Frames do Mesh Debug.
+- Execução assíncrona com progresso e proteção dos controles durante a operação.
+- Prévia, wireframe, estatísticas e exportações usam o resultado final. Falhas não
+  exportam a geometria original como se a redução tivesse sido concluída.
+- Compatibilidade com projetos anteriores, histórico e persistência dos ajustes.
+- Contagens do frame gerado preenchidas antes de salvar, permitindo simplificação
+  diretamente em memória. Teste de integração cobre exportação, lote e recuperação.

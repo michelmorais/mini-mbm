@@ -29,6 +29,7 @@ local Canvas=require 'image_mesh_canvas'
 local Diagnostics=require 'image_mesh_diagnostics'
 local Wire=require 'image_mesh_wireframe'
 local HeightPreview=require 'image_mesh_height_preview'
+local Simplify=require 'image_mesh_simplify'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
     primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=0.3,elevation=0.3,distance=300},status='',point=1}
@@ -50,7 +51,7 @@ local function syncDraft()
     local r=Model.region(E.project,E.selected)
     E.draft=r and Model.copy(r) or nil
     E.values=Model.copy(E.editDefaults and E.project.defaults or (r and Model.options(E.project,r) or E.project.defaults))
-    for k,v in pairs(Model.grooveDefaults) do if E.values[k]==nil then E.values[k]=v end end
+    for k,v in pairs(Model.optionalDefaults) do if E.values[k]==nil then E.values[k]=v end end
     E.values.preserveAspect=E.values.preserveAspect~=false
     E.point=1
 end
@@ -119,7 +120,8 @@ local function generationError(region,message)
 end
 local function generate(region,project)
     project=project or E.project
-    local asset,report=mbm.generateImageMesh(project.image.path,Model.options(project,region))
+    local options=Model.options(project,region)
+    local asset,report=mbm.generateImageMesh(project.image.path,options)
     if not asset then error(generationError(region,report),0) end
     -- Match Mesh Debug's +Z front view. Rotate positions AND authored normals
     -- by 180 degrees around Y, preserving UVs, winding and smooth/hard edges.
@@ -128,6 +130,7 @@ local function generate(region,project)
         v.x=-v.x; v.z=-v.z; v.nx=-v.nx; v.nz=-v.nz
     end
     asset:setVertex(1,1,1,vertices)
+    Simplify.apply(E,asset,options,report)
     return asset,report
 end
 local function compactCount(value)
@@ -136,7 +139,7 @@ local function compactCount(value)
     if value>=999950 then divisor,suffix=1000000,'M' end
     return string.format('%.1f',value/divisor):gsub('%.0$','')..suffix
 end
-local function updateStatistics()
+local function updateStatisticsImpl()
     if not E.editMode or E.drag or not E.texture or E.selected==0 then return end
     local cached=E.statistics[E.selected]
     if not cached then
@@ -149,7 +152,12 @@ local function updateStatistics()
     end
     E.report=cached.report; E.generationFailure=cached.error
 end
-local function rebuild()
+local function updateStatistics()
+    if E.meshTask or not E.editMode or E.drag or not E.texture or E.selected==0 then return end
+    if E.statistics[E.selected] then return updateStatisticsImpl() end
+    return Simplify.run(E,updateStatisticsImpl)
+end
+local function rebuildImpl()
     if not E.dirty or E.drag or E.editMode then return end
     E.dirty=false; releasePreview()
     local r=Model.region(E.project,E.selected); if not r or not E.texture then return end
@@ -175,6 +183,10 @@ local function rebuild()
         if object then meshDebug:loadMeshPreview(object,nil); object:destroy() end
         E.preview=nil; E.previewPath=nil; os.remove(path)
     end
+end
+local function rebuild()
+    if E.meshTask or not E.dirty or E.drag or E.editMode then return end
+    return Simplify.run(E,rebuildImpl)
 end
 local function loadTexture(path)
     assert(IO.exists(path),L('missing_image'))
@@ -216,16 +228,19 @@ local function saveProject(path)
     tUtil.tTimerOverlay:set(4); tUtil.tTimerOverlay:restart()
     return true
 end
-local function exportOne(path)
+local function exportOneImpl(path)
     local r=assert(Model.region(E.project,E.selected),L('select_region'))
     local asset=generate(r); assert(asset:save(path,false,false,true),L('export_failed'))
     E.status=L('exported')..' '..path; return true
+end
+local function exportOne(path)
+    return Simplify.run(E,exportOneImpl,path)
 end
 local function beginBatch(directory)
     assert(#E.project.regions>0,L('select_region'))
     E.batch={directory=directory,index=1,completed=0,failures={},project=Model.copy(E.project)}
 end
-local function batchStep()
+local function batchStepImpl()
     local batch=E.batch; if not batch then return end
     local region=batch.project.regions[batch.index]
     if not region then
@@ -242,6 +257,10 @@ local function batchStep()
     end)
     if ok then batch.completed=batch.completed+1 else batch.failures[#batch.failures+1]=region.name..': '..tostring(err) end
     batch.index=batch.index+1
+end
+local function batchStep()
+    if E.meshTask or not E.batch then return end
+    return Simplify.run(E,batchStepImpl)
 end
 local function requestReplace(fn)
     if E.modified then E.pending=fn; tImGui.OpenPopup('ime_discard') else dpCall(fn) end
@@ -438,6 +457,22 @@ local function propertiesPanel()
         tImGui.TextWrapped(L('vertex_budget_help'))
         tImGui.Text(string.format(L('triangle_budget_auto'),2*E.values.maxVertices))
         end
+        if tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
+            E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)
+            if E.values.simplify then
+                local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.001,0.95,'%.3f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
+                if c then E.values.simplifyRatio=Model.clampOption('simplifyRatio',v,E.values.simplifyRatio) end
+                E.values.simplifyDetails=tImGui.Checkbox(tLang.L('simplify_preserve_details'),E.values.simplifyDetails)
+                if tImGui.IsItemHovered() then tImGui.SetTooltip(tLang.L('simplify_preserve_details_tooltip')) end
+                c,v=tImGui.SliderFloat(tLang.L('simplify_boundary_threshold'),E.values.simplifyBoundary,0,0.25,'%.3f')
+                if c then E.values.simplifyBoundary=Model.clampOption('simplifyBoundary',v,E.values.simplifyBoundary) end
+                if tImGui.IsItemHovered() then tImGui.SetTooltip(tLang.L('simplify_boundary_threshold_tooltip')) end
+                tImGui.TextWrapped(L('simplify_help'))
+            end
+            if E.report and E.report.simplification then
+                tImGui.Text(string.format(tLang.L('simplify_success_fmt'),E.report.sourceTriangles,E.report.triangles))
+            end
+        end
         for _,key in ipairs({'lockBorder'}) do E.values[key]=tImGui.Checkbox(L(key),E.values[key]) end
         if tImGui.Button(L('apply')) then applyProperties() end
         if not E.editDefaults then
@@ -515,6 +550,7 @@ local function regionsPanel()
             tImGui.EndChild()
             tImGui.Separator(); propertiesPanel()
         else tImGui.Text(L('open_help')) end
+        if E.simplifyProgress then tImGui.ProgressBar(E.simplifyProgress,{x=-1,y=0},string.format(tLang.L('simplify_progress_fmt'),E.simplifyProgress*100)) end
         if E.status~=E.generationFailure then tImGui.TextWrapped(E.status) end
         if E.batch then
             tImGui.ProgressBar((E.batch.index-1)/#E.batch.project.regions,{x=-1,y=0},L('exporting'))
@@ -537,8 +573,12 @@ function onInitScene()
     Diagnostics.init(E); syncDraft(); tUtil.sMessageOverlay=L('welcome')
 end
 function onLoop(delta)
-    menu(); regionsPanel(); Diagnostics.draw(E,{camera=camera,setMode=setEditMode,fit=Canvas.fit,zoom=Canvas.zoom})
-    if E.key and not tImGui.GetWantCaptureKeyboard() then
+    if E.meshTask then dpCall(Simplify.resume,E) end
+    tImGui.BeginDisabled(E.meshTask~=nil); menu(); tImGui.EndDisabled()
+    tImGui.BeginDisabled(E.meshTask~=nil)
+    regionsPanel(); Diagnostics.draw(E,{camera=camera,setMode=setEditMode,fit=Canvas.fit,zoom=Canvas.zoom})
+    tImGui.EndDisabled()
+    if not E.meshTask and E.key and not tImGui.GetWantCaptureKeyboard() then
         if E.control and E.key==mbm.getKeyCode('Z') then history(false)
         elseif E.control and E.key==mbm.getKeyCode('Y') then history(true)
         elseif E.control and E.key==mbm.getKeyCode('S') then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end)
@@ -560,6 +600,7 @@ local function sceneInput(x,y)
     return x>=0 and x<E.screenW and y>=25 and y<E.screenH and not tImGui.GetWantCaptureMouse()
 end
 function onTouchDown(key,x,y)
+    if E.meshTask then return end
     -- Scene callbacks arrive divided by the camera scale; UI and hit testing use framebuffer pixels.
     x=x*E.camera2d.sx; y=y*E.camera2d.sy
     if not sceneInput(x,y) then return end
@@ -572,6 +613,7 @@ function onTouchDown(key,x,y)
     elseif key==0 then E.orbitDrag={x=x,y=y} end
 end
 function onTouchMove(key,x,y)
+    if E.meshTask then return end
     -- Scene callbacks arrive divided by the camera scale; UI and hit testing use framebuffer pixels.
     x=x*E.camera2d.sx; y=y*E.camera2d.sy
     if E.panDrag then
@@ -591,6 +633,7 @@ function onTouchUp(key,x,y)
     if key==1 or key==2 then E.panDrag=nil end
 end
 function onTouchZoom(zoom)
+    if E.meshTask then return end
     if tImGui.GetWantCaptureMouse() then return end
     if E.editMode then
         local mouse=tImGui.GetMousePos()
