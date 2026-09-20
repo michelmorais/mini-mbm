@@ -73,8 +73,11 @@ os parâmetros de densidade e orçamento.
 
 - **Modo de edição marcado:** a cena mostra a imagem e os contornos, renderizados
   por objetos `texture` e `line` em **2dw**, centrados na origem do mundo.
-  Botão esquerdo desenha/seleciona/move regiões; botão direito ou central move
-  a câmera 2D. A ferramenta **Mover câmera** permite esse arraste com o botão
+  Na ferramenta **Selecionar / mover**, arrastar com o botão esquerdo sobre
+  uma forma move a forma; arrastar em espaço vazio (dentro ou fora da imagem)
+  move a câmera 2D. Alças têm prioridade para editar tamanho/pontos. A ação é
+  escolhida ao pressionar e mantida até soltar. As ferramentas de desenho
+  continuam criando formas. Botão direito ou central também move a câmera. A ferramenta **Mover câmera** permite esse arraste com o botão
   esquerdo. A roda ajusta o zoom da imagem e dos contornos no mundo, preservando
   as coordenadas originais dos recortes.
   **Enquadrar imagem** restaura zoom e posição. O canto inferior direito e os
@@ -195,4 +198,4 @@ timeout -s KILL 15 bin/debug/linux_x86/mini-mbm --scene src/test-lib/image_mesh_
 
 O teste cria seus dados por padrão. Para reproduzir um projeto salvo, defina
 `MBM_IMAGE_MESH_PROJECT=/caminho/project.imesh`; o arquivo é somente lido.
-O marcador esperado é `IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT OK`.
+O marcador esperado é `IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT / LEFT DRAG OK`.

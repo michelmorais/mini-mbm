@@ -412,7 +412,9 @@ function onTouchDown(key,x,y)
     x=x*E.camera2d.sx; y=y*E.camera2d.sy
     if not sceneInput(x,y) then return end
     if E.editMode then
-        if key==0 and E.tool~='pan' then Canvas.input(E,handlers,'down',x,y)
+        if key==0 and E.tool~='pan' then
+            local handled=Canvas.input(E,handlers,'down',x,y)
+            if E.tool=='select' and not handled then E.panDrag={x=x,y=y} end
         elseif key==0 then E.panDrag={x=x,y=y}
         elseif key==1 or key==2 then E.panDrag={x=x,y=y} end
     elseif key==0 then E.orbitDrag={x=x,y=y} end

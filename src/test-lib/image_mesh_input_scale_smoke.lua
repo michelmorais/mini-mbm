@@ -64,17 +64,49 @@ local function verifyCorner(rightColumn)
     onTouchDown(0,x,y); assert(not e.drag,'UI capture ignored')
     tImGui.GetWantCaptureMouse=captured
 end
+local function verifyLeftDrag()
+    local e=api.state; local c=e.camera2d; local Canvas=require 'image_mesh_canvas'
+    e.tool='select'; api.fit(e); Canvas.sync(e)
+    local captured=tImGui.GetWantCaptureMouse; tImGui.GetWantCaptureMouse=function() return false end
+    local t=e.canvasTransform
+    local x=(t.x+e.project.image.width*0.1*t.scale)/c.sx
+    local y=(t.y+e.project.image.height*0.8*t.scaleY)/c.sy
+    local cx,cy=c.x,c.y; local revision=e.revision; local builds=e.canvasBuilds
+    onTouchDown(0,x,y); assert(e.panDrag and not e.drag,'empty space did not start camera drag')
+    onTouchMove(0,x+20,y+12); onTouchUp(0,x+20,y+12)
+    assert(math.abs(c.x-cx+20)<0.001 and math.abs(c.y-cy-12)<0.001)
+    Canvas.sync(e)
+    assert(e.revision==revision and e.canvasBuilds==builds,'camera drag edited/rebuilt shapes')
+    api.fit(e); Canvas.sync(e)
+    t=e.canvasTransform
+    -- Empty scene outside the image also pans, and the choice stays fixed until release.
+    x=(e.screenW/2)/c.sx; y=50/c.sy
+    onTouchDown(0,x,y); assert(e.panDrag,'scene background did not start camera drag')
+    onTouchMove(0,x+10,y+10); onTouchUp(0,x+10,y+10)
+    api.fit(e); Canvas.sync(e)
+    local r=e.project.regions[1]
+    x=(t.x+(r.x+r.w*0.4)*t.scale)/c.sx
+    y=(t.y+(r.y+r.h*0.4)*t.scaleY)/c.sy
+    cx,cy=c.x,c.y
+    onTouchDown(0,x,y); assert(e.drag and e.drag.mode=='move' and not e.panDrag,'shape did not get drag')
+    onTouchMove(0,x-12,y+10); onTouchUp(0,x-12,y+10)
+    assert(c.x==cx and c.y==cy,'shape drag moved camera'); api.undo(false)
+    e.control=true
+    onTouchDown(0,x,y); assert(not e.panDrag and not e.drag,'Ctrl selection started pan')
+    onTouchUp(0,x,y); e.control=false; api.select(e.project.regions[1].id)
+    tImGui.GetWantCaptureMouse=captured
+end
 local function runFrame(dt)
     loop(dt)
     local e=api.state
     if frame==10 then e.camera2d:scaleToScreen(e.screenW/2,e.screenH/2,'xy') end
-    if frame==12 then verifyCorner(false); verifyCorner(true) end
+    if frame==12 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true) end
     if frame==20 then e.camera2d:scaleToScreen(e.screenW/2,e.screenH/1.5,'xy') end
-    if frame==22 then verifyCorner(false); verifyCorner(true) end
+    if frame==22 then verifyLeftDrag(); verifyCorner(false); verifyCorner(true) end
     if frame==30 then e.camera2d:scaleToScreen(e.screenW,e.screenH,'xy') end
     if frame==32 then
-        verifyCorner(false); verifyCorner(true)
-        print('IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT OK'); mbm.quit()
+        verifyLeftDrag(); verifyCorner(false); verifyCorner(true)
+        print('IMAGE MESH INPUT SCALE / RIGHT COLUMN / PROJECT / LEFT DRAG OK'); mbm.quit()
     end
 end
 function onLoop(dt)

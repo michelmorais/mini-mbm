@@ -357,3 +357,16 @@ separadamente no canvas, nas alças e no posicionamento de primitivas.
 A regressão testa o projeto salvo, escalas 1x/2x/assimétrica, alça à direita fora
 do centro, redimensionamento/undo e captura da interface. Cópias temporárias do
 código anterior falham nos casos que agora passam.
+
+
+### Arraste contextual com o botão esquerdo (7.221.0)
+
+Em Selecionar / mover, o clique inicial decide a ação: alça edita a região,
+interior de forma move a forma, espaço vazio move a câmera 2D. A decisão é
+mantida durante o arraste. Ctrl continua alternando a seleção sem iniciar pan
+sobre formas; a captura da interface mantém prioridade. As ferramentas de
+desenho e o pan por botão direito/central permanecem disponíveis.
+
+A regressão de entrada cobre pan em vazio dentro/fora da imagem, movimento de
+forma sem mover a câmera, seleção com Ctrl após undo e escalas distintas.
+Pan não modifica o projeto nem reconstrói buffers de contornos.

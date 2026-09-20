@@ -27,6 +27,13 @@ local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
 function M.handleRadius(E)
     return clamp(8*math.sqrt(E.zoom),8,20)
 end
+local function outlines(E)
+    if not E.outlines then
+        E.outlines={}
+        for _,r in ipairs(E.project.regions) do E.outlines[#E.outlines+1]={id=r.id,points=Model.outline(r)} end
+    end
+    return E.outlines
+end
 function M.cancel(E)
     if E.drag then E.project=E.drag.before or E.project end
     E.drag=nil; E.polygon={}; E.outlines=nil; E.canvasDirty=true
@@ -100,11 +107,7 @@ function M.sync(E)
         local dx,dy=M.handleRadius(E)/scale,M.handleRadius(E)/scaleY
         draw({{x=px-dx,y=py-dy},{x=px+dx,y=py-dy},{x=px+dx,y=py+dy},{x=px-dx,y=py+dy}},true,true)
     end
-    if not E.outlines then
-        E.outlines={}
-        for _,r in ipairs(E.project.regions) do E.outlines[#E.outlines+1]={id=r.id,points=Model.outline(r)} end
-    end
-    for _,r in ipairs(E.outlines) do
+    for _,r in ipairs(outlines(E)) do
         draw(r.points,true,E.selection[r.id])
         if r.id==E.selected then
             local region=Model.region(E.project,r.id)
@@ -129,9 +132,11 @@ function M.input(E,H,event,mx,my)
     local hovered=mx>=origin.x and my>=origin.y and mx<origin.x+E.project.image.width*scale and my<origin.y+E.project.image.height*scaleY
     local x=clamp((mx-origin.x)/scale,0,E.project.image.width-1)
     local y=clamp((my-origin.y)/scaleY,0,E.project.image.height-1)
-    local imagePoints=E.outlines or {}
+    if not E.outlines then E.canvasDirty=true end
+    local imagePoints=outlines(E)
     E.cursor={x=x,y=y}
-    if E.drag or #E.polygon>0 or event=='down' then E.canvasDirty=true end
+    if E.drag or #E.polygon>0 then E.canvasDirty=true end
+    local handled=false
     local selected=Model.region(E.project,E.selected)
     local rawX,rawY=(mx-origin.x)/scale,(my-origin.y)/scaleY
     local nearResize=E.tool=='select' and selected and selected.shape~='polygon' and
@@ -139,9 +144,11 @@ function M.input(E,H,event,mx,my)
         math.abs(selected.y+selected.h-1-rawY)*scaleY<=M.handleRadius(E)+6
     if (hovered or nearResize) and event=='down' then
         if E.tool=='polygon' then
+            handled=true; E.canvasDirty=true
             local last=E.polygon[#E.polygon]
             if #E.polygon<128 and (not last or (last.x-x)^2+(last.y-y)^2>1) then E.polygon[#E.polygon+1]={x=x,y=y} end
         elseif E.tool=='rectangle' or E.tool=='ellipse' then
+            handled=true; E.canvasDirty=true
             E.drag={mode='create',x=x,y=y,cx=x,cy=y}
         else
             local mode,index,id
@@ -154,6 +161,7 @@ function M.input(E,H,event,mx,my)
                 if Model.contains(r.points,x,y) then id=r.id; mode='move'; break end
             end end
             if id then
+                handled=true
                 H.select(id,E.control)
                 if not E.control then E.drag={mode=mode,index=index,id=id,x=x,y=y,cx=x,cy=y,before=Model.copy(E.project),region=Model.copy(Model.region(E.project,id))} end
             end
@@ -186,5 +194,6 @@ function M.input(E,H,event,mx,my)
             end
         elseif d.changed then H.commitDrag(d.before) end
     end
+    return handled
 end
 return M
