@@ -540,7 +540,7 @@ câmera. O contorno UV recebe prioridade quando está sobreposto à frente.
 A ferramenta também fica disponível no combo **Ferramenta** após aplicar o modo.
 
 Os campos de posição/largura/altura permitem ajustes numéricos, confirmados com
-**Aplicar**. **Usar recorte da frente** repõe esses campos. Movimento e
+**Aplicar**. **Restaurar recorte UV para a região frontal** repõe esses campos. Movimento e
 redimensionamento ficam limitados à imagem. O desenho acompanha mudanças no
 contorno frontal; polígonos assimétricos refletem também a opção de espelhamento
 para mostrar os pixels realmente utilizados no verso.
