@@ -520,3 +520,35 @@ espelhamento por padrão. Nenhuma dessas opções altera o mapa diagnóstico fro
 Esta entrega cobre o verso plano/com relevo e o espelhamento. Texturas próprias,
 textura repetida/cor uniforme nas laterais e exportação portátil com recortes
 protegidos ainda estão pendentes; a imagem original continua sendo referenciada.
+
+## Sem fundo e remapeamento UV (7.237.0)
+
+**Geometria do fundo** agora também oferece:
+
+- **Sem fundo**: gera a frente e as laterais, deixando a parte traseira aberta.
+  Os vértices e triângulos exclusivos do verso deixam de contar no orçamento.
+  Útil quando a câmera do jogo vê somente a frente e as laterais.
+- **Plano + remap UV**: mantém o fundo plano, mas usa outro recorte da mesma
+  imagem como textura. Inicialmente, o recorte coincide com a região frontal.
+
+Para posicionar esse recorte, escolha **Plano + remap UV** e habilite
+**Editar recorte do fundo** no modo de edição. Isso confirma os ajustes pendentes,
+seleciona a imagem original e desabilita o pincel de altura.
+O contorno roxo tem a mesma forma normalizada da frente; arraste seu interior
+para mover e a alça inferior direita para redimensionar. Espaço vazio move a
+câmera. O contorno UV recebe prioridade quando está sobreposto à frente.
+A ferramenta também fica disponível no combo **Ferramenta** após aplicar o modo.
+
+Os campos de posição/largura/altura permitem ajustes numéricos, confirmados com
+**Aplicar**. **Usar recorte da frente** repõe esses campos. Movimento e
+redimensionamento ficam limitados à imagem. O desenho acompanha mudanças no
+contorno frontal; polígonos assimétricos refletem também a opção de espelhamento
+para mostrar os pixels realmente utilizados no verso.
+
+O recorte roxo altera somente UVs: não altera a geometria frontal, o relevo,
+a pintura nem as laterais. Não é um segundo módulo e não aparece na lista de
+regiões. Seu retângulo é salvo em `region.backCrop={x,y,w,h}` no projeto,
+com histórico por gesto e preservação ao duplicar módulos. Cada módulo conserva
+sua posição UV ao receber um preset; presets guardam o modo, não coordenadas
+específicas da imagem. As três escolhas de geometria especiais são exclusivas,
+inclusive ao combinar padrões do projeto com ajustes individuais.

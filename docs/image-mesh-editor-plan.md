@@ -549,3 +549,20 @@ entre UVs/geometria, limites, pintura, persistência/presets e exportação.
 O bloco de texturas/fundo ainda não está completo. Próximas entregas: textura
 própria no verso, repetição/cor uniforme nas laterais e empacotamento portátil
 com margens de proteção. Prévia de encaixe segue pendente na etapa 3.
+
+### Extensão do verso - sem fundo e recorte UV (7.237.0)
+
+Entregue: **Sem fundo**, removendo geometria traseira e seu custo do orçamento,
+e **Plano + remap UV**, com retângulo independente na imagem original.
+Contorno roxo acompanha a forma frontal, com seleção própria para mover e
+redimensionar, limites da imagem, histórico por gesto e persistência por módulo.
+Espelhamento também é refletido no desenho de contornos assimétricos.
+Presets preservam recortes UV existentes dos módulos.
+
+Verificação: `image_mesh_back_uv_smoke.lua` cobre retângulo/elipse/polígono,
+modos regulares/adaptativos, ausência de faces traseiras, preservação de
+frente/laterais, UVs, espelhamento, limites, input de movimento/redimensionamento,
+câmera em espaço vazio, cancelamento, histórico, presets, persistência e exportação.
+
+Textura de outro arquivo, opções de repetição/cor das laterais e exportação
+portátil permanecem pendentes. Remap UV seleciona pixels da mesma imagem.

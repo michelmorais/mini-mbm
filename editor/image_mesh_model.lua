@@ -25,7 +25,7 @@ M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=2
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
 M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTransition=0.1,heightTolerance=0.03,smoothPasses=0}
 M.simplifyDefaults={simplify=false,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
-M.backDefaults={backRelief=false,backMirror=false}
+M.backDefaults={backRelief=false,backMirror=false,backOpen=false,backRemap=false}
 M.optionalDefaults={}
 for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.backDefaults}) do
     for k,v in pairs(defaults) do M.defaults[k]=v; M.optionalDefaults[k]=v end
@@ -56,25 +56,55 @@ end
 function M.region(project,id)
     for i,r in ipairs(project.regions) do if r.id==id then return r,i end end
 end
+function M.backMode(project,region)
+    local scope=region.overrides
+    if scope.backOpen==nil and scope.backRelief==nil and scope.backRemap==nil then scope=project.defaults end
+    if scope.backOpen then return 'open' end
+    if scope.backRemap then return 'remap' end
+    if scope.backRelief then return 'relief' end
+    return 'flat'
+end
 function M.options(project,region)
     local o=M.copy(project.defaults)
     for k,v in pairs(region.overrides) do o[k]=v end
     for k,v in pairs(M.optionalDefaults) do if o[k]==nil then o[k]=v end end
+    local backMode=M.backMode(project,region)
+    o.backOpen=backMode=='open'; o.backRemap=backMode=='remap'; o.backRelief=backMode=='relief'
     o.maxTriangles=2*o.maxVertices
     o.preserveAspect=o.preserveAspect~=false
     if o.preserveAspect then o.height=o.width*math.max(1,region.h-1)/math.max(1,region.w-1) end
     o.x=region.x; o.y=region.y; o.cropWidth=region.w; o.cropHeight=region.h
     o.shape=region.shape; o.contour=M.copy(region.contour)
     o.heightEdits=M.copy(region.heightEdits)
+    if o.backRemap then
+        local crop=region.backCrop or region
+        o.backX=crop.x; o.backY=crop.y; o.backCropWidth=crop.w; o.backCropHeight=crop.h
+    end
     return o
 end
 function M.validateOptions(options,complete)
     assert(type(options)=='table','ime_invalid_options')
     for k,v in pairs(options) do
-        if k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
+        if k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
     end
+    assert(not (options.backOpen and (options.backRemap or options.backRelief)) and
+        not (options.backRemap and options.backRelief),'ime_invalid_options')
     if complete then for k in pairs(M.defaults) do assert(k=='preserveAspect' or M.optionalDefaults[k]~=nil or options[k]~=nil,'ime_invalid_options') end end
+end
+function M.backRegion(region,mirror)
+    local crop=region.backCrop or region
+    local contour=region.contour
+    if mirror and region.shape=='polygon' then
+        contour={}
+        for _,point in ipairs(region.contour) do contour[#contour+1]={x=1-point.x,y=point.y} end
+    end
+    return {x=crop.x,y=crop.y,w=crop.w,h=crop.h,shape=region.shape,contour=contour}
+end
+function M.ensureBackCrops(p)
+    for _,r in ipairs(p.regions) do
+        if M.backMode(p,r)=='remap' and not r.backCrop then r.backCrop={x=r.x,y=r.y,w=r.w,h=r.h} end
+    end
 end
 function M.settings(values)
     local out={}
@@ -112,6 +142,11 @@ function M.validate(p)
         assert(number(r.x,0,p.image.width-1,true) and number(r.y,0,p.image.height-1,true) and
             number(r.w,1,p.image.width-r.x,true) and number(r.h,1,p.image.height-r.y,true),'ime_invalid_crop')
         M.validateOptions(r.overrides,false)
+        if r.backCrop then
+            local c=r.backCrop
+            assert(type(c)=='table' and number(c.x,0,p.image.width-1,true) and number(c.y,0,p.image.height-1,true) and
+                number(c.w,1,p.image.width-c.x,true) and number(c.h,1,p.image.height-c.y,true),'ime_invalid_back_crop')
+        end
         if r.heightEdits then
             assert(type(r.heightEdits)=='table' and #r.heightEdits<=4096,'ime_paint_limit')
             for _,dab in ipairs(r.heightEdits) do

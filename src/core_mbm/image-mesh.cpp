@@ -65,20 +65,33 @@ namespace mbm
             !std::isfinite(o.borderWidth) || o.borderWidth < 0.0f || o.borderWidth > 0.5f ||
             o.columns == 0 || o.rows == 0 || o.columns > 255 || o.rows > 255)
             return fail(errorOut, errorOutLen, "Invalid dimensions, relief, border width or grid (1..255 cells per axis)");
+        if ((o.backOpen && (o.backRelief || o.backRemap)) || (o.backRemap && o.backRelief))
+            return fail(errorOut,errorOutLen,"Back modes are mutually exclusive: open, copied relief or flat remap");
         try
         {
             image_mesh::HEIGHT_FIELD field;
             std::string topologyError;
             if (!field.load(imagePath,o,topologyError)) return fail(errorOut,errorOutLen,topologyError.c_str());
+            const uint32_t backWidth=o.backCropWidth?o.backCropWidth:field.width;
+            const uint32_t backHeight=o.backCropHeight?o.backCropHeight:field.height;
+            if (o.backRemap && (o.backX>=field.imageWidth || o.backY>=field.imageHeight ||
+                backWidth>field.imageWidth-o.backX || backHeight>field.imageHeight-o.backY))
+                return fail(errorOut,errorOutLen,"Back UV crop is outside the source image");
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
             const uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
             const bool compactBack=o.followImage && !o.backRelief;
-            const uint32_t backSize=compactBack?static_cast<uint32_t>(topology.boundary.size()):gridSize;
+            uint32_t backSize=gridSize;
+            size_t backTriangles=topology.triangles.size();
+            if (o.backOpen) { backSize=0; backTriangles=0; }
+            else if (compactBack)
+            {
+                backSize=static_cast<uint32_t>(topology.boundary.size());
+                backTriangles=topology.backTriangles.size();
+            }
             const uint32_t vertexCount=gridSize+backSize+4*static_cast<uint32_t>(topology.boundary.size());
-            const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+
-                (compactBack?topology.backTriangles.size():topology.triangles.size())+2*topology.boundary.size());
+            const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+2*topology.boundary.size());
             const auto &path=field.path;
             const uint32_t imageWidth=field.imageWidth,imageHeight=field.imageHeight,cw=field.width,ch=field.height;
             const auto &pixels=field.pixels;
@@ -114,8 +127,12 @@ namespace mbm
                 backIndex[source]=gridSize+i;
                 VERTEX back = vertices[source];
                 back.position.z = o.backRelief ? -back.position.z : o.depth * 0.5f;
-                if (o.backMirror)
-                    back.uv.x = (o.x + (1.0f-topology.points[source].x)*(cw-1) + 0.5f)/imageWidth;
+                const float u=o.backMirror?1.0f-topology.points[source].x:topology.points[source].x;
+                if (o.backRemap)
+                    back.uv=VEC2((o.backX+u*(backWidth-1)+0.5f)/imageWidth,
+                                  (o.backY+topology.points[source].y*(backHeight-1)+0.5f)/imageHeight);
+                else if (o.backMirror)
+                    back.uv.x = (o.x + u*(cw-1) + 0.5f)/imageWidth;
                 vertices.push_back(back);
             }
             const auto triangle = [&](uint32_t a, uint32_t b, uint32_t c)
@@ -128,8 +145,9 @@ namespace mbm
             {
                 triangle(face[0], face[1], face[2]);
             }
-            for (const auto &face : (compactBack?topology.backTriangles:topology.triangles))
-                triangle(backIndex[face[0]],backIndex[face[2]],backIndex[face[1]]);
+            if (!o.backOpen)
+                for (const auto &face : (compactBack?topology.backTriangles:topology.triangles))
+                    triangle(backIndex[face[0]],backIndex[face[2]],backIndex[face[1]]);
             // Transparent atlas margins must not turn a closed solid into invisible walls.
             // Build a nearest-max-alpha lookup only if a side crosses transparent texels.
             // Two Manhattan-distance sweeps keep lookup work linear in crop pixels.
@@ -191,7 +209,16 @@ namespace mbm
             {
                 const uint32_t start = static_cast<uint32_t>(vertices.size());
                 vertices.push_back(vertices[a]); vertices.push_back(vertices[b]);
-                vertices.push_back(vertices[backIndex[a]]); vertices.push_back(vertices[backIndex[b]]);
+                if (o.backOpen)
+                {
+                    VERTEX backA=vertices[a],backB=vertices[b];
+                    backA.position.z=o.depth*0.5f; backB.position.z=o.depth*0.5f;
+                    vertices.push_back(backA); vertices.push_back(backB);
+                }
+                else
+                {
+                    vertices.push_back(vertices[backIndex[a]]); vertices.push_back(vertices[backIndex[b]]);
+                }
                 // Back-only UV mirroring must not twist the stretched border strip.
                 vertices[start+2].uv=vertices[a].uv; vertices[start+3].uv=vertices[b].uv;
                 if (sideNeedsOpaqueSample(topology.points[a], topology.points[b]))

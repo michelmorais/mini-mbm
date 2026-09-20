@@ -264,3 +264,7 @@ The 7.236.0 back-surface controls add only two boolean request values,
 `backRelief` and `backMirror`. Back vertices, indices and reflected normals remain
 generation-local; budget accounting stays in the private topology helper.
 No render-object storage, backend handles or public container access was added.
+
+The 7.237.0 extension adds only boolean open/remap modes and four unsigned pixel
+rectangle values to `IMAGE_MESH_OPTIONS`. Geometry and UV assembly remain local
+to the generator; no new public mutable render storage or backend access is exposed.

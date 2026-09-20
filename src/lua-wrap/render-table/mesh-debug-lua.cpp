@@ -3681,6 +3681,9 @@ namespace mbm
         number("borderWidth", options.borderWidth);
         boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
         boolean("backRelief", options.backRelief); boolean("backMirror", options.backMirror);
+        boolean("backOpen", options.backOpen); boolean("backRemap", options.backRemap);
+        integer("backX",options.backX); integer("backY",options.backY);
+        integer("backCropWidth",options.backCropWidth); integer("backCropHeight",options.backCropHeight);
         integer("ellipseSegments", options.ellipseSegments);
         boolean("followImage",options.followImage); boolean("twoLevels",options.twoLevels);
         integer("smoothPasses",options.smoothPasses);

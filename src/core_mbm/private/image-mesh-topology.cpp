@@ -60,6 +60,8 @@ namespace {
     }
     bool budget(const IMAGE_MESH_OPTIONS &o, const TOPOLOGY &t, const char *stage, std::string &error)
     {
+        if (o.backOpen)
+            return budget(o,t.points.size()+4*t.boundary.size(),t.triangles.size()+2*t.boundary.size(),stage,error);
         if (o.followImage && !o.backRelief)
             return budget(o,t.points.size()+5*t.boundary.size(),t.triangles.size()+3*t.boundary.size()-2,stage,error);
         return budget(o,2*t.points.size()+4*t.boundary.size(),
@@ -409,7 +411,7 @@ namespace {
         if (!o.twoLevels && (!alignTransition(o,t,field,0.0001f,error) || !alignTransition(o,t,field,0.9999f,error))) return false;
         improveRelief(o,t,field);
         if (!refinePainting(o,t,field,error)) return false;
-        if (!triangulateBoundary(t,t.backTriangles)) { error="Cannot triangulate simplified back"; return false; }
+        if (!o.backOpen && !triangulateBoundary(t,t.backTriangles)) { error="Cannot triangulate simplified back"; return false; }
         return budget(o,t,"after groove alignment",error);
     }
 
@@ -421,7 +423,8 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error,
     if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE && !field)
     {
         const uint64_t size=static_cast<uint64_t>(o.columns+1)*(o.rows+1);
-        if (!budget(o,2*size+8*(o.columns+o.rows),4ull*o.columns*o.rows+4*(o.columns+o.rows),
+        if (!budget(o,(o.backOpen?size:2*size)+8*(o.columns+o.rows),
+                    (o.backOpen?2ull:4ull)*o.columns*o.rows+4*(o.columns+o.rows),
                     "for rectangular grid",error)) return false;
         for (uint32_t r=0;r<=o.rows;++r) for (uint32_t c=0;c<=o.columns;++c)
             t.points.push_back({static_cast<float>(c)/o.columns,static_cast<float>(r)/o.rows});

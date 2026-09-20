@@ -2143,7 +2143,11 @@ assert(asset:save("panel.msh", false, false, true))
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
-| `backMirror` | false | Flip back UVs horizontally within the crop; independent of relief, with no change to front or side UVs |
+| `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
+| `backOpen` | false | Omit back vertices/triangles, retaining front and side walls ending at `+depth/2` |
+| `backRemap` | false | Flat back sampling an independent rectangle in the same source image |
+| `backX`, `backY` | 0 | Remap rectangle's zero-based top-left source pixel |
+| `backCropWidth`, `backCropHeight` | 0 | Remap rectangle dimensions; 0 uses corresponding front crop dimension; rectangle must fit inside the source image |
 | `lockBorder` | true | Force the perimeter to zero relief |
 | `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual contour |
 | `maxVertices` | 65535 | Total vertex budget, including back and duplicated side vertices; engine cap remains 65535 |
@@ -2159,6 +2163,13 @@ horizontally. Both budgets include the full back, including adaptive and painted
 refinement; enabling this option may reject an otherwise valid flat-back budget.
 The report's `minHeight`/`maxHeight` still describe one face's relief amplitude,
 not the combined thickness.
+
+Since 7.237.0, `backOpen`, `backRelief` and `backRemap` are mutually exclusive.
+An open back is intentionally non-watertight. It removes back-only geometry
+from both budgets; the side-wall geometry and UVs remain unchanged. A remapped
+back retains flat-back topology and positions; UVs map normalized front-shape
+coordinates into the independent source rectangle. Mirroring is applied within
+that rectangle. No second image or material is created.
 
 These options affect mesh generation only; diagnostic height/overlay PNGs remain
 front-field diagnostics. The source texture is still referenced, not copied.

@@ -64,6 +64,7 @@ function M.load(path)
     project.nextId=loaded.nextId; project.defaults=Model.copy(loaded.defaults)
     for _,r in ipairs(loaded.regions) do
         local region={id=r.id,name=r.name,shape=r.shape,x=r.x,y=r.y,w=r.w,h=r.h,overrides=Model.copy(r.overrides)}
+        if r.backCrop then region.backCrop={x=r.backCrop.x,y=r.backCrop.y,w=r.backCrop.w,h=r.backCrop.h} end
         if r.heightEdits then
             region.heightEdits={}
             for _,d in ipairs(r.heightEdits) do region.heightEdits[#region.heightEdits+1]={
