@@ -1,7 +1,7 @@
 # Image Mesh Editor
 
 Editor offline para extrudar regiões de uma imagem em módulos 3D com relevo.
-Disponível a partir da versão 7.217.0; interface reorganizada na 7.218.0 e controles de diagnóstico na 7.219.0 e adição de formas na 7.220.0. O estado atual corresponde às etapas 1 e 2
+Disponível a partir da versão 7.217.0; interface reorganizada na 7.218.0 e controles de diagnóstico na 7.219.0 e adição de formas na 7.220.0. O estado atual inclui as etapas 1 e 2, pintura manual e presets reutilizáveis da etapa 3
 [do plano](image-mesh-editor-plan.md).
 
 ## Abrir
@@ -320,7 +320,7 @@ próxima peça. Seu cancelamento ocorre entre peças.
 
 ## Salvar, relocalizar e exportar
 
-**Salvar projeto** (Ctrl+S) grava `.imesh`, contendo versão, imagem, regiões e
+**Salvar projeto** (Ctrl+S) grava `.imesh`, contendo versão, imagem, regiões, presets e
 parâmetros. Salvar também valida e confirma os ajustes pendentes no painel, mesmo
 sem pressionar **Aplicar**; se forem inválidos, o arquivo não é sobrescrito. Ao concluir, uma mensagem temporária de quatro segundos confirma o
 salvamento e mostra o nome do arquivo. Salvar novamente reinicia sua duração. É um arquivo Lua de dados seguindo o padrão dos editores, carregado
@@ -456,3 +456,39 @@ nivelados. Em Duas alturas, valores a menos de 0,0001 de 0 ou 1 são fixados no
 patamar correspondente nessa área, em acordo com o cálculo de normais. O alinhamento
 reexpressa a altura corrigida no domínio dos limiares, preservando o tratamento
 dos patamares automáticos fora do retoque.
+
+## Presets reutilizáveis (7.235.0)
+
+No painel **Regiões**, abra **Presets de geração** após selecionar um módulo
+ou habilitar **Editar padrões do projeto**.
+
+- Digite um nome e use **Criar preset** para capturar os parâmetros exibidos,
+  inclusive ajustes ainda não aplicados. Isso não gera uma mesh.
+- Escolha um preset na lista. **Aplicar aos módulos selecionados** substitui os
+  parâmetros dos módulos selecionados; no modo de padrões, o botão aplica aos
+  padrões do projeto. A aplicação substitui os ajustes pendentes do painel e
+  preserva nome, recorte, contorno e pintura já confirmados no projeto.
+- **Atualizar com parâmetros exibidos** substitui o conteúdo do preset escolhido.
+  Para renomeá-lo, digite o novo nome e pressione **Renomear**.
+- **Excluir preset**, criação, atualização, renomeação, importação e aplicação
+  participam do histórico do projeto (Ctrl+Z/Ctrl+Y).
+
+O preset contém volume, dimensões 3D, preservação de proporção, relevo/sulcos,
+resolução/orçamento e simplificação. Não contém imagem, contorno, traços de pintura,
+câmera, luz ou modo de visualização. Com preservação de proporção habilitada,
+a altura 3D é calculada a partir do recorte de cada módulo destinatário.
+
+Os presets ficam dentro do arquivo `.imesh`: use **Salvar projeto** para persistir
+as alterações. Projetos antigos sem presets continuam válidos. Há um limite de
+128 presets por projeto; nomes devem ser únicos, não vazios e ter até 128 bytes.
+
+**Exportar preset** grava o preset escolhido em `.imeshpreset`.
+**Importar preset** adiciona esse arquivo ao projeto atual, permitindo reutilizar
+configurações entre projetos. Importar não aplica automaticamente aos módulos;
+nomes duplicados são rejeitados, sem sobrescrever o preset existente.
+Esses arquivos usam dados Lua versionados, ambiente vazio e validação dos
+parâmetros, com limite de 64 KiB.
+
+A lista de nomes é atualizada apenas quando o projeto muda. Captura, aplicação,
+serialização e acesso a arquivos ocorrem por ação do usuário, sem trabalho
+contínuo de geração ou leitura em repouso.

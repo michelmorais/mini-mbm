@@ -491,8 +491,8 @@ Verificação: `image_mesh_paint_smoke.lua` cobre os quatro modos, bordas, núme
 inválidos, escopo do contorno, histórico, cancelamento, persistência, exportação e
 repouso. Os testes existentes de modelo/API/editor continuam aplicáveis.
 
-A etapa 3 ainda não está toda concluída: restam presets reutilizáveis de geração,
-opções adicionais de textura/fundo e prévia de encaixe entre módulos. As etapas
+A etapa 3 ainda não está toda concluída: restam opções adicionais de textura/fundo
+e prévia de encaixe entre módulos. Os presets foram entregues na etapa 3b abaixo. As etapas
 4 e o restante do acabamento da etapa 5 continuam pendentes.
 
 
@@ -516,3 +516,20 @@ interpolada e o mapa diagnóstico de 8 bits caiu de 0,756579 para 0,0365014 unid
 o máximo caiu de 4,422234 para 0,1480951. A leitura do mapa inclui arredondamento
 para 8 bits; essas medidas são desse projeto, não uma garantia global. Comparação
 visual com material neutro verificou a preservação dos patamares fora da pintura.
+
+
+### Etapa 3b - Presets reutilizáveis (7.235.0)
+
+Entregue: captura dos parâmetros exibidos, aplicação aos módulos selecionados ou
+aos padrões do projeto, atualização, renomeação e exclusão com histórico.
+Contornos e pintura manual já confirmados são preservados. Presets são salvos
+no projeto; arquivos `.imeshpreset` permitem exportação e importação entre
+projetos. Projetos anteriores continuam carregando sem migração.
+
+Verificação: `image_mesh_presets_smoke.lua` cobre seleção múltipla, isolamento
+dos módulos não selecionados, preservação de contorno/pintura, validação,
+desfazer/refazer, salvar/reabrir e importação entre projetos, além da interface
+ImGui e ausência de trabalho contínuo em repouso.
+
+Próximas pendências da etapa 3: opções adicionais de textura/fundo e prévia de
+encaixe entre módulos. Etapas 4 e acabamento restante da etapa 5 seguem pendentes.

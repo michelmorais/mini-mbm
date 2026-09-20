@@ -30,6 +30,7 @@ local Diagnostics=require 'image_mesh_diagnostics'
 local Wire=require 'image_mesh_wireframe'
 local HeightPreview=require 'image_mesh_height_preview'
 local Paint=require 'image_mesh_paint'
+local Presets=require 'image_mesh_presets'
 local Simplify=require 'image_mesh_simplify'
 local Comparison=require 'image_mesh_comparison'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
@@ -404,6 +405,7 @@ local function propertiesPanel()
     local defaults=tImGui.Checkbox(L('edit_defaults'),E.editDefaults or false)
     if defaults~=(E.editDefaults or false) then E.editDefaults=defaults; syncDraft() end
     if E.draft or E.editDefaults then
+        Presets.draw(E,action,dpCall)
         if not E.editDefaults then
             local d=E.draft
             local edited,value=tImGui.InputText(L('name'),d.name); if edited then d.name=value end

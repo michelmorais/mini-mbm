@@ -75,12 +75,33 @@ function M.validateOptions(options,complete)
     end
     if complete then for k in pairs(M.defaults) do assert(k=='preserveAspect' or M.optionalDefaults[k]~=nil or options[k]~=nil,'ime_invalid_options') end end
 end
+function M.settings(values)
+    local out={}
+    for k,v in pairs(M.defaults) do
+        out[k]=values[k]; if out[k]==nil then out[k]=v end
+    end
+    out.maxTriangles=2*out.maxVertices
+    M.validateOptions(out,true)
+    return out
+end
+function M.validatePresets(presets)
+    assert(type(presets)=='table' and #presets<=128,'ime_preset_invalid')
+    local seen={}
+    for key,preset in pairs(presets) do
+        assert(type(key)=='number' and key%1==0 and key>=1 and key<=#presets,'ime_preset_invalid')
+        assert(type(preset)=='table' and type(preset.name)=='string' and #preset.name<=128 and
+            preset.name:match('%S') and not preset.name:find('%c') and not seen[preset.name],'ime_preset_invalid')
+        seen[preset.name]=true
+        M.validateOptions(preset.settings,true)
+    end
+end
 function M.validate(p)
     assert(type(p)=='table' and p.version==1,'ime_invalid_project')
     assert(type(p.image)=='table' and type(p.image.path)=='string' and #p.image.path<4096,'ime_invalid_project')
     assert(number(p.image.width,1,16777216,true) and number(p.image.height,1,16777216,true) and
         p.image.width*p.image.height<=16777216,'ime_invalid_image')
     M.validateOptions(p.defaults,true)
+    if p.presets~=nil then M.validatePresets(p.presets) end
     assert(type(p.regions)=='table' and #p.regions<=256 and number(p.nextId,1,2147483647,true),'ime_invalid_project')
     local seen={}
     for _,r in ipairs(p.regions) do

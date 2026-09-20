@@ -56,6 +56,11 @@ function M.load(path)
     local loaded=fn(); Model.validate(loaded)
     -- Retain only the versioned data schema, never arbitrary extra tables from a file.
     local project=Model.new(M.resolve(loaded.image.path,path),loaded.image.width,loaded.image.height)
+    if loaded.presets then
+        project.presets={}
+        for _,preset in ipairs(loaded.presets) do project.presets[#project.presets+1]={
+            name=preset.name,settings=Model.settings(preset.settings)} end
+    end
     project.nextId=loaded.nextId; project.defaults=Model.copy(loaded.defaults)
     for _,r in ipairs(loaded.regions) do
         local region={id=r.id,name=r.name,shape=r.shape,x=r.x,y=r.y,w=r.w,h=r.h,overrides=Model.copy(r.overrides)}
