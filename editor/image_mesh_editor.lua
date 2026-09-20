@@ -30,6 +30,7 @@ local Diagnostics=require 'image_mesh_diagnostics'
 local Wire=require 'image_mesh_wireframe'
 local HeightPreview=require 'image_mesh_height_preview'
 local Simplify=require 'image_mesh_simplify'
+local Comparison=require 'image_mesh_comparison'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
     primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=0.3,elevation=0.3,distance=300},status='',point=1}
@@ -40,6 +41,7 @@ local function dpCall(fn,...)
     return table.unpack(result,1,result.n)
 end
 local function releasePreview()
+    Comparison.release(E)
     E.generationFailure=nil
     Wire.release(E)
     if E.preview then
@@ -60,8 +62,7 @@ local function changed()
     HeightPreview.destroy(E)
     E.generationFailure=nil
     E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
-    if E.preview then E.preview.visible=false end
-    if E.wireObject then E.wireObject.visible=false end
+    Comparison.sync(E)
     syncDraft()
 end
 local function selectRegion(id,extend)
@@ -72,8 +73,7 @@ local function selectRegion(id,extend)
     E.generationFailure=nil
     HeightPreview.destroy(E); E.heightRequested=true
     E.dirty=true; E.report=nil; E.polygon={}; E.canvasDirty=true; E.editDefaults=false; syncDraft()
-    if E.preview then E.preview.visible=false end
-    if E.wireObject then E.wireObject.visible=false end
+    Comparison.sync(E)
 end
 local function action(fn)
     if E.drag then return false end
@@ -118,7 +118,7 @@ local function generationError(region,message)
     end
     return region.name..': '..tostring(message)
 end
-local function generate(region,project)
+local function generate(region,project,keepOriginal)
     project=project or E.project
     local options=Model.options(project,region)
     local asset,report=mbm.generateImageMesh(project.image.path,options)
@@ -130,6 +130,7 @@ local function generate(region,project)
         v.x=-v.x; v.z=-v.z; v.nx=-v.nx; v.nz=-v.nz
     end
     asset:setVertex(1,1,1,vertices)
+    if keepOriginal and options.simplify then Comparison.capture(E,asset) end
     Simplify.apply(E,asset,options,report)
     return asset,report
 end
@@ -163,7 +164,7 @@ local function rebuildImpl()
     local r=Model.region(E.project,E.selected); if not r or not E.texture then return end
     local path=tUtil.getTemporaryFilePath('.msh'); local object
     local ok=dpCall(function()
-        local asset,report=generate(r)
+        local asset,report=generate(r,nil,true)
         assert(asset:save(path,false,false,true),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true
@@ -173,12 +174,13 @@ local function rebuildImpl()
         -- Rebuilding the same module must not disturb the user's comparison view.
         if E.viewRegion~=r.id then E.orbit.distance=E.fitDistance; camera() end
         if E.wireframe then Wire.ensure(E,asset) end
-        Wire.sync(E)
+        Comparison.sync(E)
         E.viewRegion=r.id
         E.status=L('preview_ready')
     end)
     if not ok then
         E.generationFailure=E.status
+        Comparison.release(E)
         Wire.release(E)
         if object then meshDebug:loadMeshPreview(object,nil); object:destroy() end
         E.preview=nil; E.previewPath=nil; os.remove(path)
@@ -336,17 +338,17 @@ local function setEditMode(enabled)
     if E.editMode==enabled then return end
     Canvas.cancel(E); syncDraft(); E.orbitDrag=nil; E.panDrag=nil
     E.editMode=enabled
-    Wire.sync(E)
+    Comparison.sync(E)
     if E.heightObject then E.heightObject.visible=enabled and E.heightView~=1 end
     Canvas.sync(E)
 end
 local function setWireframe(enabled)
     if E.wireframe==enabled then return end
     if enabled and E.preview and not E.dirty then
-        local ok=dpCall(Wire.ensure,E)
-        if not ok then Wire.release(E); return end
+        local ok=dpCall(Comparison.ensureWire,E)
+        if not ok then Wire.release(E); if E.comparison then Wire.release(E.comparison) end; return end
     end
-    E.wireframe=enabled; Wire.sync(E)
+    E.wireframe=enabled; Comparison.sync(E)
 end
 local function addPrimitive()
     if not E.texture or not E.editMode then return false end
@@ -497,6 +499,18 @@ local function propertiesPanel()
             end
             if E.report and E.report.simplification then
                 tImGui.Text(string.format(tLang.L('simplify_success_fmt'),E.report.sourceTriangles,E.report.triangles))
+                if E.comparison and not E.editMode and not E.dirty then
+                    tImGui.Separator(); tImGui.Text(L('comparison'))
+                    local change,index=tImGui.Combo(L('comparison_view'),E.compareOriginal and 2 or 1,{L('simplified_mesh'),L('generated_mesh')})
+                    if change then dpCall(Comparison.select,E,index==2) end
+                    setWireframe(tImGui.Checkbox(L('wireframe')..'##comparison',E.wireframe))
+                    tImGui.Text(string.format(L('comparison_counts'),E.report.sourceVertices,E.report.vertices,
+                        E.report.sourceTriangles,E.report.triangles,100*(1-E.report.triangles/E.report.sourceTriangles)))
+                    tImGui.Text(string.format(L('comparison_error'),E.report.simplification.maximumGeometricError,
+                        E.report.simplification.maximumRelativeError*100))
+                    if tImGui.IsItemHovered() then tImGui.SetTooltip(L('comparison_error_help')) end
+                    tImGui.TextWrapped(L('comparison_export'))
+                end
             end
         end
         if tImGui.Button(L('apply')) then applyProperties() end
@@ -670,6 +684,7 @@ function onResizeWindow()
 end
 function onEndScene() HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
+    testApi.setComparison=function(original) return Comparison.select(E,original) end
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink

@@ -48,6 +48,25 @@ local function test()
     assert(e.report.simplification.degenerateTriangleCount==0 and e.report.simplification.nonManifoldEdgeCount==0)
     for k,v in pairs(orbit) do assert(e.orbit[k]==v,'simplification moved camera') end
     checkSaved(e.previewPath,count)
+    assert(e.comparison and not e.compareOriginal and e.preview.visible)
+    local originalPath=e.comparison.previewPath
+    checkSaved(originalPath,source)
+    local camera={}; for _,key in ipairs({'x','y','z','fx','fy','fz'}) do camera[key]=e.previewCamera[key] end
+    local builds=e.builds
+    api.setComparison(true)
+    assert(e.comparison.preview.visible and not e.preview.visible)
+    api.setWireframe(true)
+    assert(e.comparison.wireObject.visible and not e.comparison.preview.visible)
+    api.setComparison(false)
+    assert(e.wireObject.visible and not e.comparison.wireObject.visible)
+    local wires,originalWires=e.wireBuilds,e.comparison.wireBuilds
+    for _=1,5 do api.setComparison(true); api.setComparison(false) end
+    assert(e.wireBuilds==wires and e.comparison.wireBuilds==originalWires and e.builds==builds,'comparison rebuilt cached geometry')
+    for key,value in pairs(camera) do assert(e.previewCamera[key]==value,'comparison moved camera') end
+    api.setComparison(true); api.setEditMode(true)
+    assert(not e.comparison.wireObject.visible and not e.wireObject.visible)
+    api.setEditMode(false); assert(e.comparison.wireObject.visible)
+    api.setWireframe(false); assert(e.comparison.preview.visible and not e.preview.visible)
     expectedEstimate=string.format(tLang.L('simplify_estimate_fmt'),source,math.floor(source*0.25))
     e.values.simplifyRatio=0.25; coroutine.yield()
     assert(sawEstimate,'missing estimate or estimate used already simplified count')
@@ -58,6 +77,7 @@ local function test()
     while e.batch do coroutine.yield() end
     checkSaved('/tmp/ime-simplify-batch/'..IO.exportName(e.project.regions[1]),count)
     api.saveProject('/tmp/ime-simplify.imesh'); api.openProject('/tmp/ime-simplify.imesh')
+    assert(not IO.exists(originalPath),'original comparison temp file leaked')
     api.select(1); assert(e.values.simplify and e.values.simplifyRatio==0.5 and e.values.simplifyBoundary==0.1)
     api.rebuild(); awaitTask(); assert(e.report.triangles==count)
     api.setEditMode(true); api.updateStatistics(); awaitTask(); assert(e.report.triangles==count)
@@ -70,7 +90,7 @@ local function test()
     -- Impossible target must fail visibly and never write the unsimplified fallback.
     e.values.simplifyRatio=0.001; e.values.simplifyBoundary=0; api.applyProperties()
     api.setEditMode(false); api.rebuild(); awaitTask()
-    assert(not e.preview and e.generationFailure,'missing simplification failure')
+    assert(not e.preview and not e.comparison and e.generationFailure,'missing simplification failure or stale comparison')
     os.remove('/tmp/ime-simplify-failed.msh')
     local ok=pcall(api.exportOne,'/tmp/ime-simplify-failed.msh'); awaitTask()
     assert(not IO.exists('/tmp/ime-simplify-failed.msh'),'failure exported unsimplified mesh')
@@ -78,6 +98,7 @@ local function test()
     local builds=e.builds
     for _=1,10 do coroutine.yield() end
     assert(e.builds==builds and not e.meshTask,'idle simplification repeated')
+    print('IMAGE MESH COMPARISON / WIREFRAME CACHE / CAMERA / EXPORT / CLEANUP OK')
     print(string.format('IMAGE MESH SIMPLIFY PREVIEW / EXPORT / BATCH / SAVE / UNDO / FAILURE / IDLE OK: %d -> %d',source,count))
 end
 function onInitScene()

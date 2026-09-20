@@ -262,6 +262,19 @@ salvos no `.imesh`, participam do histórico e ficam desabilitados em projetos a
 Desabilitar a etapa e aplicar recupera a geometria gerada, sem acumular simplificações.
 Os mapas 2D continuam representando a imagem processada e não são simplificados.
 
+Após gerar em 3D com simplificação habilitada, **Comparação** permite alternar
+entre **Original gerada** e **Simplificada**, mantendo câmera, zoom e iluminação.
+O wireframe acompanha a versão selecionada. O painel mostra vértices e triângulos
+antes/depois, redução percentual e os erros geométrico/relativo informados pelo
+simplificador; esse erro não é uma avaliação visual da imagem.
+
+As duas versões ficam em cache durante a prévia. Cada wireframe é criado apenas
+quando solicitado pela primeira vez. A alternância não gera nem simplifica a mesh
+novamente; os recursos e arquivos temporários são liberados ao substituir a prévia
+ou encerrar a cena. A comparação não modifica parâmetros nem o histórico.
+**Exportar** continua usando o resultado simplificado mesmo quando a original está
+visível. No modo 2D as duas meshes ficam ocultas.
+
 A simplificação roda em um worker da engine, com progresso. Durante essa etapa os
 controles de edição ficam indisponíveis para impedir alterações na operação em curso;
 a cena continua desenhando. Nenhum worker é iniciado novamente enquanto o editor está
