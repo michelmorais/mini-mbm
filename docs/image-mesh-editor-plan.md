@@ -927,3 +927,22 @@ Com esta entrega fica concluída a revisão de orçamento/diagnósticos pendente
 etapa 5. Permanecem as limitações de responsividade já registradas em 7.252.0
 (mapa de alturas, IO e cancelamento da simplificação); não são eliminadas por este
 painel. Sulcos por linha continuam como extensão futura das áreas manuais.
+
+### Controle artístico - Canais de altura (7.254.0)
+
+Entregue a escolha de canal prevista em Fontes de altura: luminosidade, vermelho,
+verde, azul e alfa. O campo de alturas compartilhado pelo gerador e pelas prévias
+consulta o canal antes dos filtros e do mapeamento de sulcos. Manual ignora essa
+seleção; Misto usa o canal como base antes das áreas e retoques. A textura e seus
+UVs permanecem os mesmos. Luminosidade mantém a fórmula anterior por padrão.
+
+A GUI apresenta o controle somente em Imagem/Misto, com tooltip sobre alfa e
+aplicação dos ajustes. Projetos, presets e histórico conservam a escolha. A tarefa
+assíncrona copia o enum junto com o restante das opções. A mudança não introduz
+novas gerações nem varreduras em repouso.
+
+Validação: `image_mesh_channels_smoke.lua` cobre valores conhecidos por canal,
+mapa/mesh, RGB sem alfa, inversão, duas alturas, Manual/Misto, parâmetros inválidos,
+cópia assíncrona, persistência, presets, histórico e padrão de projetos antigos.
+Mapa de alturas em arquivo separado e sulcos por linha continuam pendentes como
+extensões distintas; esta entrega não os implementa.

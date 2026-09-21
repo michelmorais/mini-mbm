@@ -899,3 +899,21 @@ Falhas de orçamento identificam o recurso excedido, a etapa e sugestões pertin
 (grade, contorno, sulcos, pintura/áreas ou emendas da textura lateral). Estimativas
 mínimas de refinamento são diferenciadas das contagens calculadas para as emendas.
 Erros nativos não reconhecidos conservam a mensagem original para diagnóstico.
+
+### Canal da imagem usado como altura (7.254.0)
+
+Em **Relevos e sulcos**, o controle **Canal de altura** permite escolher
+Luminosidade (padrão), Vermelho, Verde, Azul ou Alfa. A seleção aparece nos modos
+Imagem e Misto; no Manual não participa da altura e fica oculta. Confirme com
+Aplicar para atualizar as propriedades e a prévia correspondente.
+
+O canal alimenta o mesmo processamento na mesh, no mapa de alturas e nos sulcos
+detectados. Não altera a textura visível da peça. Inversão, suavização e duas
+alturas são aplicadas depois da leitura do canal. Alfa representa opacidade;
+imagens sem alfa fornecem o valor 1 em todos os pixels. No modo Misto, as áreas
+manuais continuam substituindo a altura da imagem onde forem desenhadas.
+
+A escolha é salva por módulo, nos padrões do projeto e nos presets; participa do
+histórico. Projetos anteriores continuam usando luminosidade. Este controle usa
+os canais da imagem original; carregar um mapa de alturas separado permanece
+uma entrega futura.

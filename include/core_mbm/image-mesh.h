@@ -45,6 +45,7 @@ namespace mbm
         uint32_t count = 0;
     };
 
+    enum class IMAGE_MESH_HEIGHT_CHANNEL { LUMINANCE, RED, GREEN, BLUE, ALPHA };
     enum class IMAGE_MESH_HEIGHT_SOURCE { IMAGE, MANUAL, MIXED };
     struct IMAGE_MESH_HEIGHT_AREA
     {
@@ -91,6 +92,7 @@ namespace mbm
         uint32_t heightEditCount = 0;
         IMAGE_MESH_HEIGHT_SOURCE heightSource = IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
         float baseHeight = 0.5f;
+        IMAGE_MESH_HEIGHT_CHANNEL heightChannel = IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE;
         // Ordered borrowed normalized contours, max 32 x 128. Transition is
         // relative to the shorter crop side, fades inward from each area edge.
         const IMAGE_MESH_HEIGHT_AREA *heightAreas = nullptr;

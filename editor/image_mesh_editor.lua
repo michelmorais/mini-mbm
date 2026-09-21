@@ -518,6 +518,17 @@ local function propertiesPanel()
             end
             Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
             tImGui.Separator()
+            if not manual then
+                local channels={'luminance','red','green','blue','alpha'}
+                local labels,index={},1
+                for i,key in ipairs(channels) do
+                    labels[i]=L('channel_'..key)
+                    if E.values.heightChannel==key then index=i end
+                end
+                local changed,selected=tImGui.Combo(L('height_channel'),index,labels)
+                if changed then E.values.heightChannel=channels[selected] end
+                if tImGui.IsItemHovered() then tImGui.SetTooltip(L('height_channel_help')) end
+            end
             local original=imagePreview and E.heightView==1
             local map=imagePreview and E.heightView==2
             local overlay=imagePreview and E.heightView==3

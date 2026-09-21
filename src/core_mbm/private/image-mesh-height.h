@@ -73,6 +73,8 @@ struct HEIGHT_FIELD
             !std::isfinite(o.grooveTransition) || o.grooveTransition<0.001f || o.grooveTransition>1 ||
             !std::isfinite(o.heightTolerance) || o.heightTolerance<0.001f || o.heightTolerance>1 || o.smoothPasses>4)
             return fail("Invalid groove threshold [0,1], transition/tolerance [0.001,1], or smoothing passes [0,4]");
+        if (o.heightChannel<IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE || o.heightChannel>IMAGE_MESH_HEIGHT_CHANNEL::ALPHA)
+            return fail("Invalid heightChannel");
         bool exists=false; const char *resolved=util::getFullPath(source,&exists);
         path=exists?resolved:source;
         int iw=0,ih=0,channels=0;
@@ -91,7 +93,15 @@ struct HEIGHT_FIELD
         for (uint32_t y=0;y<height;++y) for (uint32_t x=0;x<width;++x)
         {
             const auto *p=pixels.get()+(static_cast<size_t>(y+o.y)*imageWidth+x+o.x)*4;
-            const float v=(0.2126f*p[0]+0.7152f*p[1]+0.0722f*p[2])/255.0f;
+            float v=0;
+            switch (o.heightChannel)
+            {
+                case IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE: v=(0.2126f*p[0]+0.7152f*p[1]+0.0722f*p[2])/255.0f; break;
+                case IMAGE_MESH_HEIGHT_CHANNEL::RED: v=p[0]/255.0f; break;
+                case IMAGE_MESH_HEIGHT_CHANNEL::GREEN: v=p[1]/255.0f; break;
+                case IMAGE_MESH_HEIGHT_CHANNEL::BLUE: v=p[2]/255.0f; break;
+                case IMAGE_MESH_HEIGHT_CHANNEL::ALPHA: v=p[3]/255.0f; break;
+            }
             levels[static_cast<size_t>(y)*width+x]=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL?o.baseHeight:(o.invert?1-v:v);
         }
         std::vector<float> filtered;

@@ -2142,6 +2142,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
 | `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
 | `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
+| `heightChannel` | `"luminance"` | `"luminance"`, `"red"`, `"green"`, `"blue"`, or `"alpha"`; image component used before inversion, filtering and groove mapping. Ignored by manual heights. |
 | `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas |
 | `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
 | `heightAreas` | nil | Up to 32 ordered closed contours with target height and inward transition; see below |
@@ -2189,6 +2190,15 @@ that rectangle. No second image or material is created.
 
 These options affect mesh generation only; diagnostic height/overlay PNGs remain
 front-field diagnostics. The source texture is still referenced, not copied.
+
+Image-mesh height channels (7.254.0): `heightChannel` applies equally to
+`generateImageMesh`, `startImageMesh` and `generateImageMeshMap`. Luminance retains
+the existing formula `(0.2126*R + 0.7152*G + 0.0722*B)/255`; individual channels
+use their byte value divided by 255, without gamma conversion. Missing alpha is
+opaque (1). Channel selection does not alter texture references, UVs or the
+color source of the groove overlay. Manual mode uses `baseHeight`; mixed mode
+uses the selected channel outside manual areas. Filters, inversion, groove
+mapping, manual areas and brush edits retain their existing ordering.
 
 **Side texture controls (7.238.0).**
 

@@ -283,3 +283,7 @@ exposed. Checkpoints live in the private generator helpers; the Lua job owns its
 request snapshot, CPU result, atomics and worker in the private `image-mesh-job.h`
 state declaration, with its implementation in `mesh-debug-lua.cpp`.
 The worker never calls Lua and its owner joins it before destruction.
+
+The 7.254.0 `IMAGE_MESH_HEIGHT_CHANNEL` option is a value-only enum in the image-mesh
+request. Sampling remains in the private height-field implementation; no new
+owned buffers, backend storage or public container exposure is introduced.

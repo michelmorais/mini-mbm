@@ -28,7 +28,7 @@ M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTr
 M.simplifyDefaults={simplify=false,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
 M.backDefaults={backExternal=false,backTexture='',backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
 M.sideDefaults={sideMode='edge',sideBandInvert=false,sideInset=1,sideRepeatU=1,sideRepeatV=1,sideColor=0x808080,sideTexture=''}
-M.heightDefaults={heightSource='image',baseHeight=0.5}
+M.heightDefaults={heightSource='image',baseHeight=0.5,heightChannel='luminance'}
 M.optionalDefaults={}
 for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.backDefaults,M.sideDefaults,M.heightDefaults}) do
     for k,v in pairs(defaults) do M.defaults[k]=v; M.optionalDefaults[k]=v end
@@ -93,6 +93,7 @@ function M.validateOptions(options,complete)
     assert(type(options)=='table','ime_invalid_options')
     for k,v in pairs(options) do
         if k=='heightSource' then assert(v=='image' or v=='manual' or v=='mixed','ime_invalid_options')
+        elseif k=='heightChannel' then assert(v=='luminance' or v=='red' or v=='green' or v=='blue' or v=='alpha','ime_invalid_options')
         elseif k=='sideMode' then assert(v=='edge' or v=='color' or v=='repeat' or v=='band','ime_invalid_options')
         elseif k=='sideTexture' or k=='backTexture' then assert(type(v)=='string' and #v<4096 and not v:find('%z'),'ime_invalid_options')
         elseif k=='backExternal' or k=='backSolid' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')

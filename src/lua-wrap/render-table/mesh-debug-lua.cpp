@@ -3708,6 +3708,15 @@ namespace mbm
         integer("smoothPasses",options.smoothPasses);
         number("grooveThreshold",options.grooveThreshold); number("grooveTransition",options.grooveTransition);
         number("heightTolerance",options.heightTolerance);
+        lua_getfield(lua,optionIndex,"heightChannel");
+        const char *heightChannel=luaL_optstring(lua,-1,"luminance");
+        if (std::strcmp(heightChannel,"luminance")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE;
+        else if (std::strcmp(heightChannel,"red")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::RED;
+        else if (std::strcmp(heightChannel,"green")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::GREEN;
+        else if (std::strcmp(heightChannel,"blue")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::BLUE;
+        else if (std::strcmp(heightChannel,"alpha")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::ALPHA;
+        else luaL_error(lua,"heightChannel must be luminance, red, green, blue or alpha");
+        lua_pop(lua,1);
         lua_getfield(lua,optionIndex,"heightSource");
         const char *heightSource=luaL_optstring(lua,-1,"image");
         if (std::strcmp(heightSource,"image")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
