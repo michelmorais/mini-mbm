@@ -24,6 +24,7 @@ local testApi=...
 tImGui=require 'ImGui'
 tUtil=require 'editor_utils'
 local Model=require 'image_mesh_model'
+local Help=require 'image_mesh_help'
 local IO=require 'image_mesh_io'
 local Portable=require 'image_mesh_portable'
 local Canvas=require 'image_mesh_canvas'
@@ -492,6 +493,7 @@ local function propertiesPanel()
                 if not manual then views[3]=L('groove_overlay') end
                 local change,view=tImGui.Combo(L('height_view'),E.heightView,views)
                 if change then E.heightView=view end
+                Help.show('view_'..E.heightView)
             end
             Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
             tImGui.Separator()
@@ -499,9 +501,9 @@ local function propertiesPanel()
             local map=imagePreview and E.heightView==2
             local overlay=imagePreview and E.heightView==3
             local geometry=not map and not overlay
-            if geometry then E.values.followImage=tImGui.Checkbox(L('followImage'),E.values.followImage) end
-            if not manual and not overlay then E.values.twoLevels=tImGui.Checkbox(L('twoLevels'),E.values.twoLevels) end
-            if not manual then E.values.invert=tImGui.Checkbox(L('invert'),E.values.invert) end
+            if geometry then E.values.followImage=tImGui.Checkbox(L('followImage'),E.values.followImage); Help.show('adaptive') end
+            if not manual and not overlay then E.values.twoLevels=tImGui.Checkbox(L('twoLevels'),E.values.twoLevels); Help.show('twoLevels') end
+            if not manual then E.values.invert=tImGui.Checkbox(L('invert'),E.values.invert); Help.show('invert') end
             for _,key in ipairs({'grooveThreshold','grooveTransition','heightTolerance'}) do
                 local visible=(key=='grooveThreshold' and (overlay or E.values.twoLevels or (geometry and E.values.followImage))) or
                     (key=='grooveTransition' and not overlay and E.values.twoLevels) or
@@ -509,11 +511,13 @@ local function propertiesPanel()
                 if visible and not original and (not manual or key=='heightTolerance') then
                     local lo=key=='grooveThreshold' and 0 or 0.001
                     local c,v=tImGui.SliderFloat(L(key),E.values[key],lo,1)
+                    Help.show(key)
                     if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
                 end
             end
             if not original and not manual then
                 local c,v=tImGui.SliderInt(L('smoothPasses'),E.values.smoothPasses,0,4)
+                Help.show('smoothPasses')
                 if c then E.values.smoothPasses=Model.clampOption('smoothPasses',v,E.values.smoothPasses) end
             end
             local help='grooves_help'
@@ -537,9 +541,11 @@ local function propertiesPanel()
             else
                 local step=key=='borderWidth' and 0.05 or 0.1
                 local c,v=tImGui.InputFloat(L(key),E.values[key],step,step*10,'%.3f'); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
+                if key=='relief' or key=='borderWidth' or key=='depth' then Help.show(key) end
             end
         end
         E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
+        Help.show('lockBorder')
         end
         BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         Sides.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
@@ -674,6 +680,10 @@ local function regionsPanel()
             if tImGui.BeginChild('ime_region_list',{x=0,y=130},true,0) then
             for _,r in ipairs(E.project.regions) do
                 if tImGui.Selectable(r.name..'##region'..r.id,E.selection[r.id] or false) then selectRegion(r.id,E.control) end
+                if r.id==E.selected then
+                    local mode=E.editDefaults and (r.overrides.heightSource or E.project.defaults.heightSource or 'image') or E.values.heightSource
+                    Help.show('mode_'..mode)
+                end
             end
             end
             tImGui.EndChild()

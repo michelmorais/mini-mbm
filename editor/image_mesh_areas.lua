@@ -21,6 +21,7 @@
 ]]--
 
 local Model=require 'image_mesh_model'
+local Help=require 'image_mesh_help'
 local Geometry=require 'image_mesh_holes_geometry'
 local Freehand=require 'image_mesh_freehand'
 local Holes=require 'image_mesh_holes'
@@ -93,8 +94,10 @@ function M.modePanel(E)
  for i,v in ipairs(sources) do if E.values.heightSource==v then index=i end end
  local c,v=tImGui.Combo(L('source'),index,{L('image'),L('manual'),L('mixed')})
  if c then E.values.heightSource=sources[v];if v~=1 then E.values.followImage=true end;if v==2 and E.heightView==3 then E.heightView=2 end end
+ Help.show('mode_'..E.values.heightSource)
  if E.values.heightSource=='manual' then
   c,v=tImGui.SliderFloat(L('base'),E.values.baseHeight,0,1,'%.3f')
+  Help.show('base')
   if c then E.values.baseHeight=Model.clampOption('baseHeight',v,E.values.baseHeight) end
  end
 end
@@ -111,12 +114,15 @@ function M.panel(E,action,apply)
   E.areaIndex=clamp(E.areaIndex or 1,1,#areas)
   local names={};for i,a in ipairs(areas) do names[i]=i..': '..a.name end
   c,v=tImGui.Combo(L('selected'),E.areaIndex,names)
+  Help.show('order')
   if c then E.areaIndex=v;E.canvasDirty=true end
   local a=areas[E.areaIndex]
   c,v=tImGui.InputText(L('name'),a.name);if c then a.name=v:gsub('%c',''):sub(1,128) end
   a.enabled=tImGui.Checkbox(L('enabled'),a.enabled)
+  Help.show('enabled')
   if not a.enabled then tImGui.TextWrapped(L('disabled')) end
   c,v=tImGui.SliderFloat(L('height'),a.height,0,1,'%.3f');if c then a.height=Model.clampNumber(v,0,1,a.height) end
+  Help.show('height')
   tImGui.TextWrapped(string.format(L('world_height'),a.height,E.values.relief,a.height*E.values.relief))
   if E.values.heightSource=='manual' then
    tImGui.TextWrapped(string.format(L('relative_height'),(a.height-E.values.baseHeight)*E.values.relief))
@@ -125,13 +131,17 @@ function M.panel(E,action,apply)
   if tImGui.Button(tLang.L('ime_apply')..'##height_area') then apply();return end
   local span=math.max(1,math.min(E.draft.w,E.draft.h)-1)
   c,v=tImGui.InputFloat(L('transition'),a.transition*span,.5,5,'%.2f');if c then a.transition=Model.clampNumber(v,0,span,a.transition*span)/span end
+  Help.show('transition')
   local b=Geometry.bounds(a);local w,h=math.max(1,E.draft.w-1),math.max(1,E.draft.h-1)
   c,v=tImGui.InputFloat(L('width'),2*b.rx*w,1,10,'%.2f');if c then M.resize(a,Model.clampNumber(v,1,w,2*b.rx*w)/w,2*b.ry) end
+  Help.show('size')
   b=Geometry.bounds(a)
   c,v=tImGui.InputFloat(L('height_px'),2*b.ry*h,1,10,'%.2f');if c then M.resize(a,2*b.rx,Model.clampNumber(v,1,h,2*b.ry*h)/h) end
+  Help.show('size')
   for _,kind in ipairs({'up','down','duplicate','remove'}) do
    if kind=='down' or kind=='remove' then tImGui.SameLine() end
    if tImGui.Button(L(kind)) and apply() then M.change(E,action,kind) end
+   if kind=='up' or kind=='down' then Help.show('order') elseif kind=='duplicate' then Help.show('duplicate') end
   end
   if E.editMode then
    local edit=tImGui.Checkbox(L('edit'),E.tool=='height_areas')
