@@ -901,3 +901,29 @@ conserva sua tarefa existente sem o novo cancelamento; gravação e carregamento
 prévia permanecem na thread principal. A montagem de vários módulos conserva seu
 tratamento anterior de falhas, sem restauração de uma montagem parcialmente refeita.
 A revisão final de limites/diagnósticos da etapa 5 continua pendente.
+
+### Etapa 5 - Revisão de limites e diagnósticos (7.253.0)
+
+Entregue a revisão do orçamento de geometria na GUI. O painel mostra contagens e
+percentuais antes da simplificação, resultado final quando simplificado e aviso
+quando pelo menos 90% de um recurso foi utilizado. Os limites são registrados no
+relatório da geração, para não confundir inputs ainda não aplicados com o orçamento
+que produziu aquela mesh. Relatórios pendentes, em processamento ou de prévias
+anteriores não são apresentados como resultados atuais.
+
+A tradução de falhas agora cobre tanto estimativas mínimas do refinamento quanto
+contagens das emendas laterais. O segundo formato não era reconhecido pelo editor.
+Somente recursos excedidos aparecem como falha. A mensagem identifica a etapa e
+sugere ajustes, explicando que simplificar posteriormente não contorna o orçamento
+do gerador. Não foram modificados os limites ou a triangulação do backend.
+
+O painel usa somente o relatório em memória: não gera, serializa ou varre meshes
+em repouso. Validação: teste puro `image_mesh_budget_test.lua` cobre os dois formatos,
+etapas, idiomas, recursos dentro do limite, contagem antes/depois da simplificação,
+limites aplicados e supressão de dados antigos. Regressões de estatísticas e geração
+assíncrona verificam o fluxo real do editor.
+
+Com esta entrega fica concluída a revisão de orçamento/diagnósticos pendente da
+etapa 5. Permanecem as limitações de responsividade já registradas em 7.252.0
+(mapa de alturas, IO e cancelamento da simplificação); não são eliminadas por este
+painel. Sulcos por linha continuam como extensão futura das áreas manuais.

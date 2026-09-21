@@ -880,3 +880,22 @@ da textura na GPU, preparação da prévia e gravação de arquivos continuam na
 principal após o cálculo. A simplificação mantém seu processamento assíncrono
 anterior, mas o novo botão cancela a geração, não a simplificação. A atualização do
 mapa de alturas continua sendo uma operação própria e síncrona.
+
+### Diagnóstico do orçamento de geometria (7.253.0)
+
+O painel **Diagnóstico do orçamento de geometria** mostra o consumo de vértices e
+triângulos da última geração concluída, em valores exatos e porcentagem do limite
+aplicado. A partir de 90%, avisa que detalhes adicionais podem exceder o orçamento.
+As contagens incluem frente, verso, laterais e duplicações para UVs/normais.
+Com simplificação, mostra separadamente a contagem gerada e o resultado reduzido.
+A simplificação ocorre depois da geração e não permite ultrapassar seu orçamento.
+
+O painel não gera geometria: usa o relatório existente. Durante edição pendente,
+arraste, processamento ou exibição de uma prévia anterior, solicita uma contagem
+atualizada. Valores ainda não aplicados nos inputs não alteram os limites do
+relatório anterior. Use **Calcular faces** ou a prévia 3D para obter outro relatório.
+
+Falhas de orçamento identificam o recurso excedido, a etapa e sugestões pertinentes
+(grade, contorno, sulcos, pintura/áreas ou emendas da textura lateral). Estimativas
+mínimas de refinamento são diferenciadas das contagens calculadas para as emendas.
+Erros nativos não reconhecidos conservam a mensagem original para diagnóstico.

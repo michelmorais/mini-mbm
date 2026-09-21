@@ -37,6 +37,7 @@ local BackUv=require 'image_mesh_back_uv'
 local Asset=require 'image_mesh_asset'
 local GeometryCache=require 'image_mesh_cache'
 local Generation=require 'image_mesh_generation'
+local Budget=require 'image_mesh_budget'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
 local Areas=require 'image_mesh_areas'
@@ -134,27 +135,17 @@ local function camera()
     E.previewCamera:setFocus(c.fx+ox,c.fy,c.fz+oz)
     E.previewCamera:setFar(math.max(2000,c.distance*10))
 end
-local function generationError(region,message)
-    local details={}
-    for kind,count,limit in tostring(message):gmatch('(%a+) >= (%d+), limit (%d+)') do
-        local label=kind=='vertices' and L('maxVertices') or L('maxTriangles')
-        details[#details+1]=string.format(L('budget_exceeded'),label,tonumber(count),tonumber(limit))
-    end
-    if #details>0 then
-        return region.name..': '..table.concat(details,'\n')..'\n'..L('budget_reduce')
-    end
-    return region.name..': '..tostring(message)
-end
 local function generate(region,project,keepOriginal,cacheOriginal)
     project=project or E.project
     local options=Model.options(project,region)
     local asset,report=Generation.generate(E,project.image.path,options)
-    if not asset then error(generationError(region,report),0) end
+    if not asset then error(Budget.error(region,report),0) end
     -- Match Mesh Debug's +Z front view. Rotate positions AND authored normals
     -- by 180 degrees around Y, preserving UVs, winding and smooth/hard edges.
     local vertices=Asset.vertices(asset,true)
     if keepOriginal and options.simplify then Comparison.capture(type(keepOriginal)=='table' and keepOriginal or E,asset,vertices) end
     if cacheOriginal and options.simplify then GeometryCache.original(E,asset) end
+    report.vertexLimit=math.min(options.maxVertices,65535); report.triangleLimit=options.maxTriangles
     Simplify.apply(E,asset,options,report)
     return asset,report
 end
@@ -682,6 +673,7 @@ local function regionsPanel()
                 if tImGui.IsItemHovered() then tImGui.SetTooltip(L('faces_calculate_help')) end
             end
         end
+        Budget.panel(E)
         if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
         if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end
         tImGui.Separator()
