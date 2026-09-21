@@ -841,3 +841,24 @@ Regressões `image_mesh_simplify_smoke.lua` e `image_mesh_areas_editor_smoke.lua
 Build Linux Debug atualizado. Na mesma configuração do projeto 2, sem simplificação,
 a estatística levou 2,320 s de CPU; a entrada em 3D levou 0,012 s e manteve o total
 em uma única chamada ao gerador. Medição de CPU, não uma garantia de latência geral.
+
+### Contagem de faces sob demanda em edição (7.251.1)
+
+O reaproveitamento da prévia não eliminava o cálculo síncrono após cada arraste:
+`changed()` invalidava a contagem e o próximo `onLoop` gerava novamente a mesh.
+A geração automática para estatísticas foi removida do modo de edição. Adicionar,
+mover, redimensionar, aplicar propriedades e usar o histórico deixam a contagem
+pendente; **Calcular faces** solicita explicitamente a geração completa. A entrada
+em 3D também gera/atualiza a contagem e continua usando o cache quando disponível.
+Nenhuma estimativa antiga é apresentada como uma contagem atual.
+
+A GUI distingue cálculo pendente de processamento em andamento. O botão confirma
+propriedades pendentes e explica no tooltip que a contagem exata pode demorar.
+A prévia do mapa de alturas mantém seu processamento próprio; esta correção elimina
+a geração 3D implícita para contar faces, não torna todo processamento assíncrono.
+
+Validação Linux Debug: `image_mesh_statistics_smoke.lua` move a área três vezes por
+callbacks de mouse intercalados com frames e verifica zero chamadas ao gerador;
+o botão gera uma vez, a prévia 3D reutiliza a mesh, alterações deixam a contagem
+pendente e entrar em 3D atualiza o resultado. Regressões de cache/comparação e editor
+de áreas passaram. Build atualizado para 7.251.1.

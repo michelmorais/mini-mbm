@@ -852,3 +852,10 @@ resultado e sua simplificação. A comparação mantém a original correta.
 O cache é limitado a um módulo e invalidado por alterações, histórico e troca de
 projeto. Exportações permanecem independentes. A primeira geração ainda pode
 pausar a interface; o reaproveitamento evita repetir esse trabalho ao entrar em 3D.
+
+Desde 7.251.1, a contagem exata no modo de edição é **sob demanda**. Após alterações,
+aparece **Faces: cálculo pendente**. Use **Calcular faces** quando precisar da
+contagem; isso confirma propriedades pendentes e gera a mesh completa, podendo
+levar alguns segundos. Entrar em 3D também atualiza a contagem. Arrastar áreas não
+dispara mais geração 3D apenas para contar faces. O mapa de alturas, quando visível,
+continua tendo sua atualização própria.

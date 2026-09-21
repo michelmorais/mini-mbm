@@ -76,6 +76,7 @@ local function syncDraft()
     E.point=1
 end
 local function changed()
+    E.statisticsRequested=nil
     GeometryCache.clear(E)
     E.statistics={}
     HeightPreview.destroy(E)
@@ -85,6 +86,7 @@ local function changed()
     syncDraft()
 end
 local function selectRegion(id,extend)
+    E.statisticsRequested=nil
     Paint.cancel(E)
     if E.drag then return end
     if extend then E.selection[id]=not E.selection[id] else E.selection={[id]=true} end
@@ -175,9 +177,11 @@ local function updateStatisticsImpl()
     end
     E.report=cached.report; E.generationFailure=cached.error
 end
-local function updateStatistics()
-    if E.meshTask or E.paintDrag or (E.paint and E.paint.enabled) or not E.editMode or E.drag or not E.texture or E.selected==0 then return end
+local function updateStatistics(requested)
+    if E.meshTask or E.paintDrag or (E.paint and E.paint.enabled and not requested) or not E.editMode or E.drag or not E.texture or E.selected==0 then return end
     if E.statistics[E.selected] then return updateStatisticsImpl() end
+    if not requested then return end
+    E.statisticsRequested=nil
     return Simplify.run(E,updateStatisticsImpl)
 end
 local function rebuildImpl()
@@ -658,7 +662,13 @@ local function regionsPanel()
                 if tImGui.IsItemHovered() then
                     tImGui.BeginTooltip(); tImGui.Text(string.format(L('counts'),E.report.vertices,E.report.triangles)); tImGui.EndTooltip()
                 end
-            elseif not E.generationFailure then tImGui.Text(L('faces_pending')) end
+            elseif not E.generationFailure then tImGui.Text(L(E.meshTask and 'faces_calculating' or 'faces_pending')) end
+            if E.editMode and not E.report and not E.drag and not E.paintDrag then
+                if tImGui.Button(L('faces_calculate')) then
+                    if not draftChanged() or applyProperties() then E.statisticsRequested=true end
+                end
+                if tImGui.IsItemHovered() then tImGui.SetTooltip(L('faces_calculate_help')) end
+            end
         end
         if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
         tImGui.Separator()
@@ -738,7 +748,7 @@ function onLoop(delta)
         elseif E.control and E.key==mbm.getKeyCode('S') and not E.paintDrag then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end)
         elseif E.key==mbm.getKeyCode('ESC') then Paint.cancel(E); Canvas.cancel(E); syncDraft() end
     end
-    E.key=nil; rebuild(); updateStatistics(); batchStep()
+    E.key=nil; rebuild(); updateStatistics(E.statisticsRequested); batchStep()
     Canvas.sync(E)
     HeightPreview.sync(E,dpCall)
     Paint.sync(E)
@@ -819,5 +829,5 @@ if type(testApi)=='table' then
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink
-    testApi.updateHeightPreview=function() HeightPreview.sync(E,dpCall) end; testApi.updateStatistics=updateStatistics; testApi.compactCount=compactCount; testApi.setWireframe=setWireframe; testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
+    testApi.updateHeightPreview=function() HeightPreview.sync(E,dpCall) end; testApi.updateStatistics=function() return updateStatistics(true) end; testApi.compactCount=compactCount; testApi.setWireframe=setWireframe; testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
 end
