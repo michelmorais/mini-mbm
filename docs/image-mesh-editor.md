@@ -617,3 +617,23 @@ Aplique para atualizar. Arquivos inválidos ou acima de 16 milhões de pixels
 são rejeitados na geração; a transparência da imagem é preservada.
 Projetos/presets armazenam caminhos relativos. A exportação `.msh` referencia
 a imagem e não a copia; empacotamento portátil continua pendente.
+
+## Exportação portátil (7.242.0)
+
+No menu Arquivo, **Exportar mesh selecionada + texturas...** e
+**Exportar todas as meshes + texturas...** criam meshes e PNGs na mesma pasta.
+Mova a pasta inteira para outro projeto. A exportação anterior continua disponível.
+
+Cada material com imagem recebe um PNG RGBA com a área coberta pelos UVs e margem
+de 4 pixels com borda replicada. Os UVs são remapeados; geometria, normais,
+transparência e simplificação são preservadas. Cores sólidas permanecem na mesh.
+Frente e verso no mesmo material usam o retângulo que engloba ambos os recortes.
+Imagens são independentes por módulo/material; esta entrega não cria atlas nem
+deduplica imagens entre módulos. Margens reduzem vazamentos por filtragem, sem
+garantia para todos os níveis de mipmap.
+
+O `.msh` referencia somente os nomes dos PNGs adjacentes. Nomes de textura são
+limitados a 63 bytes pelo gravador. Arquivos existentes não são sobrescritos;
+use outra pasta/nome. Falhas removem os arquivos criados para aquele módulo;
+módulos já exportados no lote são preservados. Projetos e imagens originais
+não são alterados.

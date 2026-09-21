@@ -278,6 +278,47 @@ local function run()
     local preset=Presets.load('/tmp/ime_external.imeshpreset')
     assert(preset.settings.backExternal and preset.settings.backTexture==tilePath,'external preset path')
     print('EXTERNAL BACK / UV / MIRROR / SIMPLIFY / EXPORT / PERSISTENCE OK')
+    assert(mbm.createDirectories('/tmp/ime_portable'))
+    local portable='/tmp/ime_portable/module.msh'
+    os.remove(portable)
+    for i=1,3 do os.remove('/tmp/ime_portable/module_texture_0'..i..'.png') end
+    assert(api.exportOne(portable,true))
+    local packed=meshDebug:new();assert(packed:load(portable))
+    for subset=1,packed:getTotalSubset(1) do
+        local texture=packed:getTexture(1,subset)
+        assert(not texture:find('/') and not texture:find('\\'),'portable texture not relative')
+        assert(IO.exists('/tmp/ime_portable/'..texture))
+        for _,v in ipairs(packed:getVertex(1,subset,1,packed:getTotalVertex(1,subset))) do
+            assert(v.u>0 and v.u<1 and v.v>0 and v.v<1,'padding missing')
+        end
+    end
+    data(packed,{})
+    local Portable=require 'image_mesh_portable'
+    local asset,ar=mbm.generateImageMesh(path,Model.options(E.project,E.project.regions[1]));assert(asset,ar)
+    local originalVertices=Asset.vertices(asset)
+    local packedVertices=Asset.vertices(packed)
+    assert(#originalVertices==#packedVertices)
+    for i,v in ipairs(originalVertices) do
+        local out=packedVertices[i]
+        close(out.x,-v.x);close(out.y,v.y);close(out.z,-v.z)
+        close(out.nx,-v.nx);close(out.ny,v.ny);close(out.nz,-v.nz)
+    end
+    local function quiet(fn) return pcall(fn) end
+    assert(not pcall(Portable.save,asset,portable,quiet),'portable overwrote existing mesh')
+    asset:setTexture(1,2,'/tmp/missing-portable-texture.png')
+    assert(not pcall(Portable.save,asset,'/tmp/ime_portable/failed.msh',quiet))
+    assert(not IO.exists('/tmp/ime_portable/failed_texture_01.png'),'partial PNG not cleaned')
+    assert(not IO.exists('/tmp/ime_portable/failed.msh'),'partial mesh not cleaned')
+    local su,sv,ou,ov=mbm.exportImageMeshTexture(path,'/tmp/ime_portable/pixels.png',20.5/129,30.5/129,89.5/129,89.5/129,4)
+    assert(su,sv);close(su,129/78);close(sv,129/68);close(ou,-16/78);close(ov,-26/68)
+    assert(mbm.createDirectories('/tmp/ime_portable/batch'))
+    local batchPath='/tmp/ime_portable/batch/'..IO.exportName(E.project.regions[1])
+    os.remove(batchPath)
+    for i=1,3 do os.remove(batchPath:gsub('%.msh$','')..string.format('_texture_%02d.png',i)) end
+    api.beginBatch('/tmp/ime_portable/batch',true)
+    while E.batch do api.batchStep() end
+    assert(IO.exists(batchPath),'portable batch export failed')
+    print('PORTABLE / RELATIVE PATHS / UV / COLLISIONS / CLEANUP / BATCH OK')
     assert(api.exportOne('/tmp/ime_sides_editor.msh'))
     local source,report=mbm.generateImageMesh(path,Model.options(E.project,E.project.regions[1]));assert(source,report)
     local loaded=meshDebug:new();assert(loaded:load('/tmp/ime_sides_editor.msh'))

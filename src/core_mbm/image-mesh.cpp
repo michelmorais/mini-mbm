@@ -495,6 +495,49 @@ namespace mbm
             return fail(errorOut, errorOutLen, e.what());
         }
     }
+    bool exportImageMeshTexture(const char *source,const char *output,const float *bounds,
+                                uint32_t padding,float *transform,char *errorOut,int errorOutLen)
+    {
+        if (!source || !output || !*output || !bounds || !transform || padding>32)
+            return fail(errorOut,errorOutLen,"Invalid texture export arguments");
+        for (int i=0;i<4;++i)
+            if (!std::isfinite(bounds[i]) || bounds[i]<0 || bounds[i]>1)
+                return fail(errorOut,errorOutLen,"Texture UV bounds must be within 0..1");
+        if (bounds[0]>bounds[2] || bounds[1]>bounds[3])
+            return fail(errorOut,errorOutLen,"Inverted texture UV bounds");
+        try
+        {
+            bool exists=false;
+            const char *resolved=util::getFullPath(source,&exists);
+            int w=0,h=0,channels=0;
+            if (!exists || !resolved || !stbi_info(resolved,&w,&h,&channels) || w<1 || h<1 ||
+                static_cast<uint64_t>(w)*h>16777216)
+                return fail(errorOut,errorOutLen,"Invalid source texture (maximum 16 million pixels)");
+            std::unique_ptr<stbi_uc,decltype(&std::free)> pixels(stbi_load(resolved,&w,&h,&channels,4),&std::free);
+            if (!pixels) return fail(errorOut,errorOutLen,"Cannot decode export texture");
+            const int x0=std::clamp(static_cast<int>(std::floor(bounds[0]*w-.5f+1e-5f)),0,w-1);
+            const int y0=std::clamp(static_cast<int>(std::floor(bounds[1]*h-.5f+1e-5f)),0,h-1);
+            const int x1=std::clamp(static_cast<int>(std::ceil(bounds[2]*w-.5f-1e-5f)),x0,w-1);
+            const int y1=std::clamp(static_cast<int>(std::ceil(bounds[3]*h-.5f-1e-5f)),y0,h-1);
+            const uint32_t width=x1-x0+1+2*padding,height=y1-y0+1+2*padding;
+            if (static_cast<uint64_t>(width)*height>33554432)
+                return fail(errorOut,errorOutLen,"Padded texture exceeds 32 million pixels");
+            std::vector<unsigned char> rgba(static_cast<size_t>(width)*height*4);
+            for (uint32_t y=0;y<height;++y) for (uint32_t x=0;x<width;++x)
+            {
+                const int sx=std::clamp(static_cast<int>(x)-static_cast<int>(padding)+x0,x0,x1);
+                const int sy=std::clamp(static_cast<int>(y)-static_cast<int>(padding)+y0,y0,y1);
+                for (int c=0;c<4;++c) rgba[(static_cast<size_t>(y)*width+x)*4+c]=pixels.get()[(static_cast<size_t>(sy)*w+sx)*4+c];
+            }
+            const unsigned code=lodepng::encode(output,rgba,width,height);
+            if (code) return fail(errorOut,errorOutLen,lodepng_error_text(code));
+            transform[0]=static_cast<float>(w)/width; transform[1]=static_cast<float>(h)/height;
+            transform[2]=(static_cast<float>(padding)-x0)/width; transform[3]=(static_cast<float>(padding)-y0)/height;
+            return true;
+        }
+        catch (const std::exception &e) { return fail(errorOut,errorOutLen,e.what()); }
+    }
+
     bool getImageMeshSideContour(const IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *points,
                                  uint32_t &count,float &maximumInset,char *errorOut,int errorOutLen)
     {

@@ -92,6 +92,9 @@ namespace mbm
                                           uint32_t &count, float &maximumInset,
                                           char *errorOut, int errorOutLen);
     // Writes a cropped RGBA PNG: processed height or blue groove overlay; no mesh/GPU allocation.
+    // Export the UV bounding rectangle with replicated padding; transform = scaleU,scaleV,offsetU,offsetV.
+    API_IMPL bool exportImageMeshTexture(const char *source, const char *output, const float *bounds,
+                                         uint32_t padding, float *transform, char *errorOut, int errorOutLen);
     API_IMPL bool generateImageMeshMap(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                                        const char *outputPath, bool overlay,
                                        char *errorOut, int errorOutLen);

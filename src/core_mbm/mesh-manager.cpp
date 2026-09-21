@@ -293,7 +293,7 @@ namespace
     bool fillTextureReferenceForHeader(FILE *file,
                                        const std::string &textureReference,
                                        const util::TYPE_MESH typeMe,
-                                       char outNameTexture[64])
+                                       char outNameTexture[64], const bool relativeTextures)
     {
         memset(outNameTexture, 0, 64);
         if (textureReference.empty())
@@ -328,6 +328,7 @@ namespace
                                           "You must to load the font with 'save' flag enabled to save as png otherwise will not work...");
         }
 
+        if (relativeTextures) return true;
         bool exists = false;
         std::string fullPathTexture = util::getFullPath(outNameTexture, &exists);
         if (exists && fullPathTexture.size() < 64u)
@@ -3520,7 +3521,7 @@ namespace mbm
         }
     }
     
-    bool MESH_MBM_DEBUG::saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut)
+    bool MESH_MBM_DEBUG::saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut, const bool relativeTextures)
     {
         if (this->impl->buffer.size() == 0)
             return false;
@@ -4249,7 +4250,7 @@ namespace mbm
 
                     util::SUBSET_DESC_V11 subsetDesc;
                     char nameTexture[64];
-                    if (!fillTextureReferenceForHeader(fp, pSubset->texture, impl->typeMe, nameTexture))
+                    if (!fillTextureReferenceForHeader(fp, pSubset->texture, impl->typeMe, nameTexture, relativeTextures))
                         return false;
                     subsetDesc.primaryTexture.storage = util::TEXTURE_REF_STORAGE_PATH;
                     subsetDesc.primaryTexture.path    = nameTexture;
@@ -4268,7 +4269,7 @@ namespace mbm
                         util::SUBSET_EXTRA_SLOT_V11 extraSlot;
                         extraSlot.role = static_cast<uint8_t>(legacyMaterialSlotTypeToTextureRole(slot.type));
                         char slotNameTexture[64];
-                        if (!fillTextureReferenceForHeader(fp, slot.texture, impl->typeMe, slotNameTexture))
+                        if (!fillTextureReferenceForHeader(fp, slot.texture, impl->typeMe, slotNameTexture, relativeTextures))
                             return false;
                         extraSlot.texture.storage = util::TEXTURE_REF_STORAGE_PATH;
                         extraSlot.texture.path    = slotNameTexture;

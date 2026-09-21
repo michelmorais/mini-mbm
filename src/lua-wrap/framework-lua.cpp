@@ -3498,6 +3498,7 @@ namespace mbm
             {"getImageMeshSideContour", onGetImageMeshSideContourLua},
             {"generateImageMesh", onGenerateImageMeshLua},
             {"generateImageMeshMap", onGenerateImageMeshMapLua},
+            {"exportImageMeshTexture", onExportImageMeshTextureLua},
             {"quit", onQuitEngine},
             {"setColor", onSetColorBackground},
             {"showConsole", onShowConsoleMbm},

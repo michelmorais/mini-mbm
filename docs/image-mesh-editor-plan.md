@@ -616,3 +616,11 @@ espelhamento, simplificação, exportação e persistência.
 
 Próximo milestone: exportação portátil com texturas e margens de proteção.
 Depois: prévia de encaixe entre módulos.
+
+### Exportação portátil (7.242.0)
+
+Entregue exportação individual/em lote de `.msh` + PNGs adjacentes, nomes
+relativos, recortes pelos UVs finais e margem replicada de 4 pixels. Materiais
+sólidos não exigem PNG; geometria/normais preservadas. Colisões recusadas e
+limpeza dos arquivos criados por módulo em caso de falha. Sem atlas compartilhado
+ou deduplicação entre módulos nesta entrega. Próximo milestone: prévia de encaixe.

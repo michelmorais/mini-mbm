@@ -322,7 +322,7 @@ namespace mbm
         const bool      calUV         = top > 3 ? (lua_toboolean(lua, 4) ? true : false) : false;
         const bool      compress      = top > 4 ? (lua_toboolean(lua, 5) ? true : false) : false;
         char            strError[255] = "";
-        if (meshDebug->mesh.saveV11(fileName, calNormal, calUV, compress, strError,sizeof(strError)-1))
+        if (meshDebug->mesh.saveV11(fileName, calNormal, calUV, compress, strError,sizeof(strError)-1, top>5 && lua_toboolean(lua,6)))
         {
             MESH_MANAGER::getInstance()->fakeRelease(fileName);
             lua_pushboolean(lua, 1);
@@ -3779,6 +3779,20 @@ namespace mbm
             lua_rawseti(lua,-2,i+1);
         }
         lua_pushnumber(lua,maximum); return 2;
+    }
+
+    int onExportImageMeshTextureLua(lua_State *lua)
+    {
+        const char *source=luaL_checkstring(lua,1),*output=luaL_checkstring(lua,2);
+        float bounds[4],transform[4];
+        for (int i=0;i<4;++i) bounds[i]=static_cast<float>(luaL_checknumber(lua,3+i));
+        const lua_Integer padding=luaL_optinteger(lua,7,4);
+        luaL_argcheck(lua,padding>=0 && padding<=32,7,"padding must be 0..32");
+        char error[512]="";
+        if (!exportImageMeshTexture(source,output,bounds,static_cast<uint32_t>(padding),transform,error,sizeof(error)))
+        { lua_pushnil(lua); lua_pushstring(lua,error); return 2; }
+        for (float value:transform) lua_pushnumber(lua,value);
+        return 4;
     }
 
     int onGenerateImageMeshMapLua(lua_State *lua)

@@ -2381,3 +2381,22 @@ empty `MESH_MBM_DEBUG` destination and value-only options/report. Polygon option
 borrow `const IMAGE_MESH_POINT *contour` plus `contourCount` only for the duration
 of the call; no pointer is retained. On failure,
 discard the destination; generation does not promise transactional mutation.
+
+### Portable image-mesh export (7.242.0)
+
+`mbm.exportImageMeshTexture(source, outputPNG, minU, minV, maxU, maxV, padding=4)`
+decodes an image on the CPU, exports the rectangle needed by the UV bounds and
+replicates its edge pixels into a padding border (including alpha). Bounds must
+be finite, ordered and within [0,1]; padding is an integer in [0,32]. Source
+images are limited to 16 million pixels; padded output to 32 million. Returns `scaleU, scaleV, offsetU, offsetV`
+for `newUV = oldUV * scale + offset`, or `nil, error`. Fractional pixel bounds
+include neighboring samples required for linear filtering. Work runs only on
+explicit export. Padding reduces bleeding; it does not guarantee isolation at
+arbitrarily coarse mip levels.
+
+`meshDebug:save(path, recalculateNormal=false, recalculateUV=false, compress=false,
+relativeTextures=false)` accepts an optional final flag. When true, primary and
+extra material texture references are written as basenames instead of resolving
+them to absolute paths. It does not copy images. Existing calls keep their prior
+behavior. The image-mesh portable exporter creates adjacent PNG files before
+saving with this flag; solid `#RRGGBBAA` references remain unchanged.
