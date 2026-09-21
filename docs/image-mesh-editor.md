@@ -730,3 +730,26 @@ reconstrói a elipse usando os limites atuais. A opção acompanha o furo no
 projeto e no histórico. Círculos/elipses regulares de 16 pontos de projetos
 antigos são reconhecidos ao abrir. Sobreposição e saída do módulo continuam
 sendo rejeitadas ao soltar a alça.
+
+## Desenho livre de contornos (7.248.0)
+
+Escolha **Contorno à mão livre** no seletor de ferramenta para criar um módulo.
+Para uma abertura, selecione um módulo e use **Furos > Furo à mão livre**.
+Arraste o botão esquerdo sobre a imagem e solte: o editor fecha o traçado e
+apresenta uma prévia, sem modificar o projeto ou gerar a mesh nesse momento.
+
+**Redução de pontos (px)** controla a tolerância de simplificação do traçado
+em pixels da imagem, de 0,1 a 20 (padrão 1,5). Valores maiores removem detalhes.
+A contagem mostra amostras capturadas e vértices finais. Ajuste e clique em
+**Confirmar contorno**; um novo arraste substitui a prévia. **Cancelar** ou
+Escape descarta o traçado.
+
+O resultado é um polígono comum, com vértices editáveis, histórico, persistência,
+relevo, simplificação da mesh e exportação já existentes. Furos também passam
+pelas validações de contenção e sobreposição antes da confirmação.
+Contornos que se cruzam, degenerados ou com mais de 128 vértices são recusados.
+O traçado aceita até 4096 amostras; se exceder esse limite, precisa ser redesenhado.
+
+A captura recebe eventos do mouse, e a redução só ocorre ao soltar ou alterar
+a tolerância. A prévia parada não refaz o contorno nem regenera a geometria.
+Esta ferramenta é manual: detecção automática de contornos permanece pendente.

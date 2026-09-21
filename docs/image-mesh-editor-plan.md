@@ -671,3 +671,17 @@ Testes cobrem fechamento, característica de Euler, área, normais, 16 furos,
 furos côncavos, limites, mapas, edição, histórico, presets e salvamento.
 
 Próximas pendências da etapa 4: desenho livre e seleção automática de contornos.
+
+### Etapa 4b - Desenho livre (7.248.0)
+
+Entregue traçado contínuo com mouse para módulos e furos. Prévia fechada antes
+da confirmação, redução de pontos por tolerância em pixels da imagem, contagem
+e validação de limites/cruzamentos. Resultado armazenado como polígono comum,
+sem novo formato de projeto; preserva edição de vértices, histórico e exportação.
+
+Até 4096 amostras por traçado e 128 vértices finais. Redução somente ao soltar
+ou alterar tolerância; nenhum processamento contínuo em repouso.
+`image_mesh_freehand_smoke.lua` cobre contorno côncavo, furo, redução, rejeição,
+cancelamento, histórico, persistência, exportação e GUI em repouso.
+
+Próxima pendência da etapa 4: seleção automática de contornos.

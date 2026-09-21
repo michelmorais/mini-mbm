@@ -36,6 +36,7 @@ local BackUv=require 'image_mesh_back_uv'
 local Asset=require 'image_mesh_asset'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
+local Freehand=require 'image_mesh_freehand'
 local Simplify=require 'image_mesh_simplify'
 local Comparison=require 'image_mesh_comparison'
 local Assembly=require 'image_mesh_assembly'
@@ -86,7 +87,7 @@ local function selectRegion(id,extend)
     if not E.selection[id] then E.selected=0; for _,r in ipairs(E.project.regions) do if E.selection[r.id] then E.selected=r.id; break end end end
     E.generationFailure=nil
     HeightPreview.destroy(E); E.heightRequested=true
-    E.dirty=true; E.report=nil; E.polygon={}; E.canvasDirty=true; E.editDefaults=false; syncDraft()
+    E.dirty=true; E.report=nil; E.polygon={}; E.stroke=nil; E.canvasDirty=true; E.editDefaults=false; syncDraft()
     Comparison.sync(E); Assembly.sync(E)
 end
 local function action(fn)
@@ -102,12 +103,13 @@ local function commitDrag(before)
 end
 local function history(redo)
     if E.paintDrag then Paint.cancel(E); return end
+    if E.stroke then Canvas.cancel(E); return end
     if E.drag then E.project=E.drag.before or E.project; E.drag=nil end
     local project=Model.undo(E.history,E.project,redo)
     if not project then return end
     E.project=project
     if not Model.region(project,E.selected) then E.selected=project.regions[1] and project.regions[1].id or 0 end
-    E.selection={[E.selected]=true}; E.polygon={}; changed()
+    E.selection={[E.selected]=true}; E.polygon={}; E.stroke=nil; changed()
 end
 local function camera()
     local c=E.orbit
@@ -216,7 +218,7 @@ local function install(project,path,texture)
     releasePreview(); E.assembly=nil; Canvas.destroy(E); E.sideContour=nil; E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     if E.tool=='back_uv' or E.tool=='side_band' then E.tool='select' end
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
-    E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; E.viewRegion=nil
+    E.polygon={}; E.stroke=nil; E.drag=nil; E.missing=nil; E.zoom=1; E.viewRegion=nil
     E.primitive.w=math.max(2,math.floor(project.image.width/4)); E.primitive.h=math.max(2,math.floor(project.image.height/4))
     Canvas.fit(E); changed(); E.modified=false
 end
@@ -307,7 +309,7 @@ local function requestReplace(fn)
 end
 local function finishPolygon()
     local points=E.polygon
-    if action(function(p) local r=Model.fromPoints(p,points); E.selected=r.id; E.selection={[r.id]=true} end) then E.polygon={} end
+    if action(function(p) local r=Model.fromPoints(p,points); E.selected=r.id; E.selection={[r.id]=true} end) then E.polygon={};E.stroke=nil;if E.tool=='freehand' then E.tool='select' end end
 end
 applyProperties=function()
     local draft,values=E.draft,Model.copy(E.values)
@@ -594,14 +596,16 @@ local function regionsPanel()
         local value=tImGui.Checkbox(L('edit_mode'),E.editMode)
         if value~=E.editMode then setEditMode(value) end
         if E.editMode then
-            local names={L('select'),L('rectangle'),L('ellipse'),L('polygon'),L('pan')}; local tools={'select','rectangle','ellipse','polygon','pan'}
+            local names={L('select'),L('rectangle'),L('ellipse'),L('polygon'),L('freehand_title'),L('pan')}; local tools={'select','rectangle','ellipse','polygon','freehand','pan'}
             if BackUv.available(E) then names[#names+1]=L('back_edit'); tools[#tools+1]='back_uv' end
             if Sides.available(E) then names[#names+1]=L('side_edit');tools[#tools+1]='side_band' end
+            if E.tool=='hole_freehand' then names[#names+1]=L('freehand_hole');tools[#tools+1]=E.tool end
             if E.tool=='holes' or E.tool=='hole_draw' then names[#names+1]=L('holes_'..(E.tool=='holes' and 'edit' or 'draw'));tools[#tools+1]=E.tool end
             local index=1; for i,name in ipairs(tools) do if name==E.tool then index=i end end
             if E.paint and E.paint.enabled then names[#names+1]=L('paint_title'); index=#names end
             local modified,tool=tImGui.Combo(L('tool'),index,names)
             if modified and tools[tool] then Paint.cancel(E); Paint.state(E).enabled=false; Canvas.cancel(E); E.tool=tools[tool]; if E.tool=='back_uv' or E.tool=='side_band' then E.heightView=1 end end
+            if E.tool=='freehand' then Freehand.panel(E,finishPolygon,function() Canvas.cancel(E) end) end
             if E.tool=='polygon' then
                 if tImGui.Button(L('finish_polygon')) then finishPolygon() end
                 tImGui.SameLine(); if tImGui.Button(L('cancel')) then Canvas.cancel(E) end
@@ -764,7 +768,7 @@ function onResizeWindow()
 end
 function onEndScene() Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
-    testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
+    testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
     testApi.holes=Holes
     testApi.setAssembly=setAssembly
     testApi.setComparison=setComparison

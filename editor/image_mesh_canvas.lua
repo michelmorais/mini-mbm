@@ -24,6 +24,7 @@ local Model=require 'image_mesh_model'
 local BackUv=require 'image_mesh_back_uv'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
+local Freehand=require 'image_mesh_freehand'
 local M={}
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
 -- Keep handles usable when zoomed out and let them grow when zooming in.
@@ -39,7 +40,7 @@ local function outlines(E)
 end
 function M.cancel(E)
     if E.drag then E.project=E.drag.before or E.project end
-    E.drag=nil; E.polygon={}; E.outlines=nil; E.canvasDirty=true
+    E.drag=nil; E.polygon={}; E.stroke=nil; E.outlines=nil; E.canvasDirty=true
 end
 function M.destroy(E)
     for _,object in ipairs(E.sceneLines or {}) do object:destroy() end
@@ -125,7 +126,7 @@ function M.sync(E)
     end
     for _,r in ipairs(outlines(E)) do
         draw(r.points,true,E.selection[r.id])
-        if r.id==E.selected and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' then
+        if r.id==E.selected and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' then
             local region=Model.region(E.project,r.id)
             if region.shape=='polygon' then for _,p in ipairs(r.points) do handle(p.x,p.y) end
             else handle(region.x+region.w-1,region.y+region.h-1) end
@@ -155,12 +156,13 @@ function M.sync(E)
     if #E.polygon>0 then
         local points=Model.copy(E.polygon)
         if E.cursor then points[#points+1]=E.cursor end
-        draw(points,false,true)
+        draw(points,E.stroke~=nil and E.drag==nil,true)
     end
 end
 function M.input(E,H,event,mx,my)
     if not E.editMode or not E.texture or not E.canvasTransform then return end
     local origin=M.transform(E); local scale,scaleY=origin.scale,origin.scaleY
+    if E.tool=='freehand' or E.tool=='hole_freehand' then return Freehand.input(E,event,mx,my,origin) end
     if E.tool=='holes' or E.tool=='hole_draw' then return Holes.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if E.tool=='side_band' then return Sides.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if E.tool=='back_uv' then return BackUv.input(E,H,event,mx,my,origin,M.handleRadius(E)) end

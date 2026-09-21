@@ -45,6 +45,19 @@ end
 local function hit(a,b,c,d)
  return (cross(a,b,c)*cross(a,b,d)<0 and cross(c,d,a)*cross(c,d,b)<0) or on(a,b,c) or on(a,b,d) or on(c,d,a) or on(c,d,b)
 end
+function M.simple(ring)
+ local area=0
+ for i,a in ipairs(ring) do
+  local b,c=ring[i%#ring+1],ring[(i+1)%#ring+1]
+  if (a.x-b.x)^2+(a.y-b.y)^2<1e-12 then return false end
+  if math.abs(cross(a,b,c))<=epsilon and not on(a,c,b) then return false end
+  for j=i+1,#ring do
+   if j~=i%#ring+1 and j%#ring+1~=i and hit(a,b,ring[j],ring[j%#ring+1]) then return false end
+  end
+  area=area+a.x*b.y-a.y*b.x
+ end
+ return #ring>=3 and math.abs(area)>1e-8
+end
 function M.inside(r,p)
  local inside=false
  for i,a in ipairs(r) do local b=r[i%#r+1]

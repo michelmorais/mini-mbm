@@ -22,6 +22,7 @@
 
 local Model=require 'image_mesh_model'
 local Geometry=require 'image_mesh_holes_geometry'
+local Freehand=require 'image_mesh_freehand'
 local M={}
 local function L(key) return tLang.L('ime_holes_'..key) end
 function M.points(r,hole)
@@ -37,7 +38,7 @@ function M.finish(E,action)
   local hole={};for _,p in ipairs(points) do hole[#hole+1]={x=(p.x-r.x)/math.max(1,r.w-1),y=(p.y-r.y)/math.max(1,r.h-1)} end
   r.holes[#r.holes+1]=hole
  end)
- if ok then E.holeIndex=#Model.region(E.project,E.selected).holes;E.polygon={};E.tool='holes';E.canvasDirty=true end
+ if ok then E.holeIndex=#Model.region(E.project,E.selected).holes;E.polygon={};E.stroke=nil;E.tool='holes';E.canvasDirty=true end
  return ok
 end
 function M.add(E,action,kind)
@@ -66,7 +67,7 @@ function M.add(E,action,kind)
   end
   error('ime_holes_no_space')
  end)
- if ok then E.holeIndex=#Model.region(E.project,E.selected).holes;E.canvasDirty=true end
+ if ok then E.holeIndex=#Model.region(E.project,E.selected).holes;E.polygon={};E.stroke=nil;E.canvasDirty=true end
  return ok
 end
 function M.panel(E,action,apply)
@@ -81,7 +82,14 @@ function M.panel(E,action,apply)
    if M.add(E,action,E.holePrimitive or 1) then E.tool='holes';E.canvasDirty=true;if E.paint then E.paint.enabled=false end end
   end
   tImGui.SameLine()
-  if tImGui.Button(L('draw')) and apply() then E.tool='hole_draw';E.polygon={};E.canvasDirty=true;if E.paint then E.paint.enabled=false end end
+  if tImGui.Button(L('draw')) and apply() then E.tool='hole_draw';E.polygon={};E.stroke=nil;E.canvasDirty=true;if E.paint then E.paint.enabled=false end end
+  if tImGui.Button(tLang.L('ime_freehand_hole')) and apply() then
+   E.tool='hole_freehand';E.polygon={};E.stroke=nil;E.canvasDirty=true
+   if E.paint then E.paint.enabled=false end
+  end
+  if E.tool=='hole_freehand' then
+   Freehand.panel(E,function() M.finish(E,action) end,function() E.drag=nil;E.stroke=nil;E.polygon={};E.canvasDirty=true end)
+  end
   if E.tool=='hole_draw' then
    if tImGui.Button(L('finish')) then M.finish(E,action) end
    tImGui.SameLine();if tImGui.Button(tLang.L('ime_cancel')) then E.tool='holes';E.polygon={};E.canvasDirty=true end
@@ -104,7 +112,7 @@ function M.panel(E,action,apply)
   end
   if E.editMode then
    local edit=tImGui.Checkbox(L('edit'),E.tool=='holes')
-   if edit~=(E.tool=='holes') and (not edit or apply()) then E.tool=edit and 'holes' or 'select';E.polygon={};E.canvasDirty=true;if E.paint then E.paint.enabled=false end end
+   if edit~=(E.tool=='holes') and (not edit or apply()) then E.tool=edit and 'holes' or 'select';E.polygon={};E.stroke=nil;E.canvasDirty=true;if E.paint then E.paint.enabled=false end end
   end
   if tImGui.Button(L('remove')) and apply() then
    if action(function(p) table.remove(Model.region(p,E.selected).holes,E.holeIndex) end) then E.holeIndex=1 end
