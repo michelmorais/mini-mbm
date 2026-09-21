@@ -482,8 +482,8 @@ local function propertiesPanel()
             end
             end
         end
-        Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
         if tImGui.CollapsingHeader(L('grooves_group')) then
+            Areas.modePanel(E)
             local manual=E.values.heightSource=='manual'
             local imagePreview=E.editMode and not E.editDefaults
             if imagePreview then
@@ -493,6 +493,8 @@ local function propertiesPanel()
                 local change,view=tImGui.Combo(L('height_view'),E.heightView,views)
                 if change then E.heightView=view end
             end
+            Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
+            tImGui.Separator()
             local original=imagePreview and E.heightView==1
             local map=imagePreview and E.heightView==2
             local overlay=imagePreview and E.heightView==3

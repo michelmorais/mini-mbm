@@ -88,8 +88,7 @@ function M.resize(area,width,height)
  width=clamp(width,.0001,1-x);height=clamp(height,.0001,1-y)
  for _,p in ipairs(area) do p.x=x+(p.x-x)*width/(2*b.rx);p.y=y+(p.y-y)*height/(2*b.ry) end
 end
-function M.panel(E,action,apply)
- if not tImGui.CollapsingHeader(L('title')) then return end
+function M.modePanel(E)
  local sources={'image','manual','mixed'};local index=1
  for i,v in ipairs(sources) do if E.values.heightSource==v then index=i end end
  local c,v=tImGui.Combo(L('source'),index,{L('image'),L('manual'),L('mixed')})
@@ -98,19 +97,15 @@ function M.panel(E,action,apply)
   c,v=tImGui.SliderFloat(L('base'),E.values.baseHeight,0,1,'%.3f')
   if c then E.values.baseHeight=Model.clampOption('baseHeight',v,E.values.baseHeight) end
  end
+end
+function M.panel(E,action,apply)
  if E.editDefaults or not E.draft then return end
- if E.editMode then
-  c,v=tImGui.Combo(L('primitive'),E.areaPrimitive or 1,{L('rectangle'),L('ellipse')});if c then E.areaPrimitive=v end
-  if tImGui.Button(L('add')) and apply() then M.add(E,action,E.areaPrimitive==2 and 'ellipse' or 'rectangle') end
-  if tImGui.Button(L('draw')) and apply() then activate(E);E.tool='area_draw' end
-  tImGui.SameLine()
-  if tImGui.Button(L('freehand')) and apply() then activate(E);E.tool='area_freehand' end
-  if E.tool=='area_freehand' then Freehand.panel(E,function() M.finish(E,action) end,function() activate(E) end) end
-  if E.tool=='area_draw' then
-   if tImGui.Button(L('finish')) then M.finish(E,action) end
-   tImGui.SameLine();if tImGui.Button(tLang.L('ime_cancel')) then activate(E) end
-  end
+ if E.values.heightSource=='image' then
+  if #(E.draft.heightAreas or {})>0 then tImGui.TextWrapped(L('inactive_mode')) end
+  return
  end
+ tImGui.Separator();tImGui.Text(L('title'))
+ local c,v
  local areas=E.draft.heightAreas or {}
  if #areas>0 then
   E.areaIndex=clamp(E.areaIndex or 1,1,#areas)
@@ -120,7 +115,14 @@ function M.panel(E,action,apply)
   local a=areas[E.areaIndex]
   c,v=tImGui.InputText(L('name'),a.name);if c then a.name=v:gsub('%c',''):sub(1,128) end
   a.enabled=tImGui.Checkbox(L('enabled'),a.enabled)
+  if not a.enabled then tImGui.TextWrapped(L('disabled')) end
   c,v=tImGui.SliderFloat(L('height'),a.height,0,1,'%.3f');if c then a.height=Model.clampNumber(v,0,1,a.height) end
+  tImGui.TextWrapped(string.format(L('world_height'),a.height,E.values.relief,a.height*E.values.relief))
+  if E.values.heightSource=='manual' then
+   tImGui.TextWrapped(string.format(L('relative_height'),(a.height-E.values.baseHeight)*E.values.relief))
+  end
+  tImGui.TextWrapped(L('height_help'))
+  if tImGui.Button(tLang.L('ime_apply')..'##height_area') then apply();return end
   local span=math.max(1,math.min(E.draft.w,E.draft.h)-1)
   c,v=tImGui.InputFloat(L('transition'),a.transition*span,.5,5,'%.2f');if c then a.transition=Model.clampNumber(v,0,span,a.transition*span)/span end
   local b=Geometry.bounds(a);local w,h=math.max(1,E.draft.w-1),math.max(1,E.draft.h-1)
@@ -134,6 +136,19 @@ function M.panel(E,action,apply)
   if E.editMode then
    local edit=tImGui.Checkbox(L('edit'),E.tool=='height_areas')
    if edit~=(E.tool=='height_areas') and apply() then activate(E);if not edit then E.tool='select' end end
+  end
+ end
+ tImGui.Separator()
+ if E.editMode then
+  c,v=tImGui.Combo(L('primitive'),E.areaPrimitive or 1,{L('rectangle'),L('ellipse')});if c then E.areaPrimitive=v end
+  if tImGui.Button(L('add')) and apply() then M.add(E,action,E.areaPrimitive==2 and 'ellipse' or 'rectangle') end
+  if tImGui.Button(L('draw')) and apply() then activate(E);E.tool='area_draw' end
+  tImGui.SameLine()
+  if tImGui.Button(L('freehand')) and apply() then activate(E);E.tool='area_freehand' end
+  if E.tool=='area_freehand' then Freehand.panel(E,function() M.finish(E,action) end,function() activate(E) end) end
+  if E.tool=='area_draw' then
+   if tImGui.Button(L('finish')) then M.finish(E,action) end
+   tImGui.SameLine();if tImGui.Button(tLang.L('ime_cancel')) then activate(E) end
   end
  end
  tImGui.TextWrapped(L('help'))

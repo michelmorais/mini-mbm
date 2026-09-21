@@ -67,7 +67,7 @@ function onLoop(delta)
  if not started then return end
  local header=tImGui.CollapsingHeader
  tImGui.CollapsingHeader=function(label,...)
-  if label==tLang.L('ime_areas_title') then tImGui.SetNextItemOpen(true,0) end
+  if label==tLang.L('ime_grooves_group') then tImGui.SetNextItemOpen(true,0) end
   return header(label,...)
  end
  loop(delta);tImGui.CollapsingHeader=header

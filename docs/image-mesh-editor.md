@@ -794,7 +794,7 @@ da imagem, reconstrução ou processamento contínuo.
 
 ## Relevo desenhado por áreas (7.250.0)
 
-Em **Relevo desenhado**, escolha a **Origem das alturas**:
+Em **Relevos e sulcos**, escolha o **Modo de relevo**:
 
 - **Imagem**: mantém a interpretação automática e os retoques de pincel anteriores.
 - **Manual**: começa com a **Altura base (0-1)**. A textura não determina as alturas.
@@ -821,7 +821,7 @@ confirmadas ao aplicar, salvar ou iniciar outra operação de edição.
 A transição mistura a altura anterior com a nova, da borda para dentro da área.
 Zero é uma mudança abrupta no mapa; a mesh continua limitada pelos pixels e pela
 resolução. Pincel é aplicado depois das áreas, e a borda externa fixa por último.
-Use **Modo > Mapa de alturas** e **Pré-visualizar ajustes** para examinar as alterações
+Use **Visualização > Mapa de alturas** e **Pré-visualizar ajustes** para examinar as alterações
 antes de **Aplicar**. No modo Manual, filtros da imagem e a visualização de sulcos
 azuis ficam ocultos. O refinamento adaptativo continua disponível, assim como
 simplificação, comparação e exportação.
@@ -836,3 +836,10 @@ ficam para uma entrega posterior; por enquanto use áreas estreitas fechadas.
 Validação: `image_mesh_areas_smoke.lua` cobre composição, alturas, transições,
 ordem, pincel, furos e geração; `image_mesh_areas_editor_smoke.lua` cobre edição,
 histórico, persistência, exportação, GUI e ausência de reconstruções em repouso.
+
+Os controles de áreas ficam dentro de **Relevos e sulcos**, nos modos Manual e
+Imagem + áreas manuais. A área selecionada mostra primeiro habilitação, altura-alvo,
+altura resultante em unidades da mesh e diferença para a base manual. **Aplicar**
+confirma os ajustes. Uma área desabilitada permanece salva, mas não altera a mesh;
+o editor mostra um aviso explícito. Tamanho vertical em pixels dimensiona somente
+o contorno na imagem, não a profundidade.
