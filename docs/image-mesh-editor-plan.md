@@ -632,3 +632,11 @@ novos arquivos antes da substituição e restaurando backups em falhas normais.
 Padrão: imagem inteira em PNG, dimensões/pixels/UVs preservados, sem margem.
 Recorte com margem e remapeamento de UVs tornou-se checkbox opcional no menu
 Arquivo, desmarcado no início da sessão.
+
+### Compartilhamento de texturas na exportação (7.244.0)
+
+Lotes reutilizam cada imagem de origem entre módulos e materiais; cada PNG é
+gerado apenas uma vez e referenciado pelo mesmo nome. Recortes compartilham
+quando origem e limites de UV coincidem. O registro de compartilhamento só
+é atualizado depois do commit bem-sucedido do módulo. O cache dura apenas
+o lote, sem trabalho adicional em repouso nem exclusão de arquivos antigos.

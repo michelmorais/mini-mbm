@@ -274,7 +274,7 @@ local function exportOne(path,portable)
 end
 local function beginBatch(directory,portable)
     assert(#E.project.regions>0,L('select_region'))
-    E.batch={portableCrop=E.portableCrop or false,portable=portable,directory=directory,index=1,completed=0,failures={},project=Model.copy(E.project)}
+    E.batch={portableTextures={},portableCrop=E.portableCrop or false,portable=portable,directory=directory,index=1,completed=0,failures={},project=Model.copy(E.project)}
 end
 local function batchStepImpl()
     local batch=E.batch; if not batch then return end
@@ -288,7 +288,7 @@ local function batchStepImpl()
         local asset=generate(region,batch.project)
         local path=batch.directory..'/'..IO.exportName(region)
         if not batch.portable then assert(not IO.exists(path),L('file_exists')..' '..path) end
-        if batch.portable then Portable.save(asset,path,dpCall,batch.portableCrop) else assert(asset:save(path,false,false,true),L('export_failed')) end
+        if batch.portable then Portable.save(asset,path,dpCall,batch.portableCrop,batch.portableTextures) else assert(asset:save(path,false,false,true),L('export_failed')) end
     end)
     if ok then batch.completed=batch.completed+1 else batch.failures[#batch.failures+1]=region.name..': '..tostring(err) end
     batch.index=batch.index+1

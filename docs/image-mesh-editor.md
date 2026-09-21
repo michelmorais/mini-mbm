@@ -618,7 +618,7 @@ são rejeitados na geração; a transparência da imagem é preservada.
 Projetos/presets armazenam caminhos relativos. A exportação `.msh` referencia
 a imagem e não a copia; empacotamento portátil continua pendente.
 
-## Exportação portátil (7.243.0)
+## Exportação portátil (7.244.0)
 
 No menu Arquivo, **Exportar mesh selecionada + texturas...** e
 **Exportar todas as meshes + texturas...** criam meshes e PNGs na mesma pasta.
@@ -636,8 +636,10 @@ mesmo material usam o retângulo que engloba ambos os recortes. Os recortes não
 são arredondados para potências de dois. O lote captura a opção ao iniciar.
 
 Geometria, normais e simplificação são preservadas. Cores sólidas permanecem
-na mesh. Imagens são independentes por módulo/material, sem atlas compartilhado
-ou deduplicação. Margens reduzem vazamentos por filtragem, sem garantia para
+na mesh. No mesmo lote, módulos e materiais que usam a mesma imagem de origem
+compartilham um único PNG e o mesmo nome de textura. Com recorte habilitado,
+o compartilhamento exige também limites de UV idênticos. Arquivos de origem
+diferentes não são comparados por conteúdo. Não há atlas compartilhado. Margens reduzem vazamentos por filtragem, sem garantia para
 todos os níveis de mipmap. O `.msh` referencia os PNGs adjacentes; seus nomes
 são limitados a 63 bytes pelo gravador.
 
@@ -647,3 +649,8 @@ backups durante a operação. Falhas de geração preservam os arquivos anterior
 falhas de substituição tentam restaurar os backups e informam se a restauração
 falhar. Isso não é uma transação resistente a queda de energia. Módulos já
 exportados no lote são preservados. Os arquivos do projeto não são alterados.
+
+O compartilhamento vale para a exportação atual; uma exportação individual também
+reutiliza a imagem entre seus materiais. Arquivos antigos que deixaram de ser
+referenciados não são removidos automaticamente da pasta. Para conferir somente
+os arquivos da nova exportação, escolha uma pasta vazia.

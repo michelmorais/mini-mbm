@@ -293,6 +293,8 @@ local function run()
         end
     end
     data(packed,{})
+    assert(packed:getTexture(1,2)==packed:getTexture(1,3),'same source duplicated within mesh')
+    assert(not IO.exists('/tmp/ime_portable/module_texture_03.png'),'duplicate material PNG created')
     local Portable=require 'image_mesh_portable'
     local asset,ar=mbm.generateImageMesh(path,Model.options(E.project,E.project.regions[1]));assert(asset,ar)
     local originalVertices=Asset.vertices(asset)
@@ -313,7 +315,7 @@ local function run()
     asset:setTexture(1,1,tilePath) -- replacement differs from original, testing real backup restoration
     local rename=os.rename
     os.rename=function(from,to)
-        if from:find('module_texture_02.png.ime-tmp-',1,true) then return nil,'simulated rename failure' end
+        if from:find('module.msh.ime-tmp-',1,true) then return nil,'simulated rename failure' end
         return rename(from,to)
     end
     local committed=pcall(Portable.save,asset,portable,quiet)
@@ -344,7 +346,41 @@ local function run()
     local cropped=meshDebug:new();assert(cropped:load('/tmp/ime_portable/cropped.msh'))
     local cv=Asset.vertices(cropped)
     assert(math.abs(cv[1].u-packedVertices[1].u)>1e-4,'optional crop did not remap UV')
-    print('PORTABLE / FULL IMAGE UV / OPTIONAL CROP / OVERWRITE / ROLLBACK / BATCH OK')
+    -- Three modules with different UV crops must share one full source image in a batch.
+    local beforeProject=Model.copy(E.project)
+    assert(api.action(function(p)
+        p.regions={};p.nextId=1
+        for i=1,3 do Model.add(p,'rectangle',i*10,10,40,40) end
+    end))
+    local directory='/tmp/ime_portable/shared_batch'
+    assert(mbm.createDirectories(directory))
+    for _,r in ipairs(E.project.regions) do
+        local file=directory..'/'..IO.exportName(r)
+        os.remove(file)
+        for subset=1,3 do os.remove(file:gsub('%.msh$','')..string.format('_texture_%02d.png',subset)) end
+    end
+    local exports=0;local encode=mbm.exportImageMeshTexture
+    mbm.exportImageMeshTexture=function(...) exports=exports+1;return encode(...) end
+    api.beginBatch(directory,true)
+    while E.batch do api.batchStep() end
+    mbm.exportImageMeshTexture=encode
+    assert(exports==1,'shared batch encoded texture more than once: '..exports)
+    local reference
+    for _,r in ipairs(E.project.regions) do
+        local mesh=meshDebug:new();assert(mesh:load(directory..'/'..IO.exportName(r)))
+        local texture=mesh:getTexture(1,1)
+        reference=reference or texture;assert(texture==reference,'batch texture references differ')
+    end
+    -- Cropped modules with different sampled areas must remain distinct.
+    E.portableCrop=true;exports=0
+    mbm.exportImageMeshTexture=function(...) exports=exports+1;return encode(...) end
+    api.beginBatch(directory,true)
+    while E.batch do api.batchStep() end
+    mbm.exportImageMeshTexture=encode;E.portableCrop=false
+    assert(exports==3,'different cropped textures were merged')
+    assert(api.action(function(p) for k in pairs(p) do p[k]=nil end;for k,v in pairs(beforeProject) do p[k]=v end end))
+    api.select(1,false)
+    print('PORTABLE / FULL IMAGE UV / CROP / OVERWRITE / ROLLBACK / SHARED BATCH OK')
     assert(api.exportOne('/tmp/ime_sides_editor.msh'))
     local source,report=mbm.generateImageMesh(path,Model.options(E.project,E.project.regions[1]));assert(source,report)
     local loaded=meshDebug:new();assert(loaded:load('/tmp/ime_sides_editor.msh'))

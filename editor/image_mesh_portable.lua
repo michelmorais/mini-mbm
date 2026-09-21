@@ -23,9 +23,10 @@
 local IO=require 'image_mesh_io'
 local M={}
 -- Stage the complete module before replacing any previously exported files.
-function M.save(asset,path,dpCall,crop)
+function M.save(asset,path,dpCall,crop,shared)
     local stem=IO.directory(path)..'/'..path:match('[^/\\]+$'):gsub('%.msh$',''):sub(1,48)
-    local plans,files={},{}
+    shared=shared or {}
+    local plans,files,pending={},{},{}
     local serial=0
     local function stage(target)
         local temporary,backup
@@ -49,20 +50,32 @@ function M.save(asset,path,dpCall,crop)
                     bounds[3]=math.max(bounds[3],v.u);bounds[4]=math.max(bounds[4],v.v)
                 end
             end
-            plans[#plans+1]={subset=subset,source=texture,file=stage(stem..string.format('_texture_%02d.png',subset)),vertices=vertices,bounds=bounds}
+            local key=IO.directory(path)..'\0'..texture:gsub('\\','/')..'\0'..tostring(not not crop)
+            if crop then key=key..string.format('/%.17g/%.17g/%.17g/%.17g',table.unpack(bounds)) end
+            local record=shared[key] or pending[key]
+            if not record then
+                record={source=texture,file=stage(stem..string.format('_texture_%02d.png',subset)),bounds=bounds}
+                pending[key]=record
+            end
+            plans[#plans+1]={subset=subset,record=record,vertices=vertices}
         end
     end
     local meshFile=stage(path)
     local ok,err=dpCall(function()
         for _,p in ipairs(plans) do
-            local b=p.bounds
-            local su,sv,ou,ov=mbm.exportImageMeshTexture(p.source,p.file.temporary,b[1],b[2],b[3],b[4],crop and 4 or 0)
-            assert(su,sv)
+            local r=p.record
+            if not r.transform then
+                local b=r.bounds
+                local su,sv,ou,ov=mbm.exportImageMeshTexture(r.source,r.file.temporary,b[1],b[2],b[3],b[4],crop and 4 or 0)
+                assert(su,sv)
+                r.transform={su,sv,ou,ov}
+            end
             if crop then
+                local su,sv,ou,ov=table.unpack(r.transform)
                 for _,v in ipairs(p.vertices) do v.u=v.u*su+ou;v.v=v.v*sv+ov end
                 asset:setVertex(1,p.subset,1,p.vertices)
             end
-            assert(asset:setTexture(1,p.subset,p.file.target:match('[^/\\]+$')))
+            assert(asset:setTexture(1,p.subset,r.file.target:match('[^/\\]+$')))
         end
         assert(asset:save(meshFile.temporary,false,false,true,true),tLang.L('ime_export_failed'))
         for _,f in ipairs(files) do
@@ -84,6 +97,7 @@ function M.save(asset,path,dpCall,crop)
         if #rollbackErrors>0 then err=tostring(err)..' / Restore: '..table.concat(rollbackErrors,'; ') end
         error(err,0)
     end
+    for key,record in pairs(pending) do shared[key]=record end
     for _,f in ipairs(files) do if f.backedUp then os.remove(f.backup) end end
     return true
 end
