@@ -37,6 +37,7 @@ local Asset=require 'image_mesh_asset'
 local Sides=require 'image_mesh_sides'
 local Simplify=require 'image_mesh_simplify'
 local Comparison=require 'image_mesh_comparison'
+local Assembly=require 'image_mesh_assembly'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
     primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=0.3,elevation=0.3,distance=300},status='',point=1}
@@ -47,6 +48,7 @@ local function dpCall(fn,...)
     return table.unpack(result,1,result.n)
 end
 local function releasePreview()
+    Assembly.release(E)
     Comparison.release(E)
     E.generationFailure=nil
     Wire.release(E)
@@ -70,7 +72,7 @@ local function changed()
     HeightPreview.destroy(E)
     E.generationFailure=nil
     E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
-    Comparison.sync(E)
+    Comparison.sync(E); Assembly.sync(E)
     syncDraft()
 end
 local function selectRegion(id,extend)
@@ -83,7 +85,7 @@ local function selectRegion(id,extend)
     E.generationFailure=nil
     HeightPreview.destroy(E); E.heightRequested=true
     E.dirty=true; E.report=nil; E.polygon={}; E.canvasDirty=true; E.editDefaults=false; syncDraft()
-    Comparison.sync(E)
+    Comparison.sync(E); Assembly.sync(E)
 end
 local function action(fn)
     if E.drag then return false end
@@ -167,6 +169,7 @@ local function updateStatistics()
 end
 local function rebuildImpl()
     if not E.dirty or E.drag or E.editMode then return end
+    if E.assembly and E.assembly.enabled then return Assembly.build(E,generate,dpCall,camera) end
     E.dirty=false; releasePreview()
     local r=Model.region(E.project,E.selected); if not r or not E.texture then return end
     local path=tUtil.getTemporaryFilePath('.msh'); local object
@@ -183,7 +186,7 @@ local function rebuildImpl()
         -- Rebuilding the same module must not disturb the user's comparison view.
         if E.viewRegion~=r.id then E.orbit.distance=E.fitDistance; camera() end
         if E.wireframe then Wire.ensure(E,asset) end
-        Comparison.sync(E)
+        Comparison.sync(E); Assembly.sync(E)
         E.viewRegion=r.id
         E.status=L('preview_ready')
     end)
@@ -208,7 +211,7 @@ local function loadTexture(path)
 end
 local function install(project,path,texture)
     Paint.destroy(E); if E.paint then E.paint.enabled=false end
-    releasePreview(); Canvas.destroy(E); E.sideContour=nil; E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
+    releasePreview(); E.assembly=nil; Canvas.destroy(E); E.sideContour=nil; E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     if E.tool=='back_uv' or E.tool=='side_band' then E.tool='select' end
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
     E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; E.viewRegion=nil
@@ -363,7 +366,7 @@ local function setEditMode(enabled)
     if E.editMode==enabled then return end
     Paint.cancel(E); Canvas.cancel(E); syncDraft(); E.orbitDrag=nil; E.panDrag=nil
     E.editMode=enabled
-    Comparison.sync(E)
+    Comparison.sync(E); Assembly.sync(E)
     if E.heightObject then E.heightObject.visible=enabled and E.heightView~=1 end
     Canvas.sync(E)
 end
@@ -376,7 +379,23 @@ local function setWireframe(enabled)
         local ok=dpCall(Comparison.ensureWire,E)
         if not ok then Wire.release(E); if E.comparison then Wire.release(E.comparison) end; return end
     end
-    E.wireframe=enabled; Comparison.sync(E)
+    if enabled and E.assembly and E.assembly.enabled then
+        if not dpCall(Assembly.ensureWire,E) then return end
+    end
+    E.wireframe=enabled; Comparison.sync(E); Assembly.sync(E)
+end
+local function setAssembly(enabled)
+    local a=Assembly.state(E)
+    if a.enabled==enabled then return end
+    if enabled then
+        a.singleOrbit=Model.copy(E.orbit)
+        releasePreview();a.enabled=true;a.fitPending=true
+    else
+        Assembly.release(E);a.enabled=false
+        if a.singleOrbit then E.orbit=Model.copy(a.singleOrbit);camera() end
+        E.viewRegion=E.selected
+    end
+    E.dirty=true;Assembly.sync(E)
 end
 local function addPrimitive()
     if not E.texture or not E.editMode then return false end
@@ -589,6 +608,7 @@ local function regionsPanel()
             tImGui.TextWrapped(L('preview_help'))
             setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
         end
+        Assembly.panel(E,setAssembly,camera)
         if E.draft then
             if E.report and not E.drag then
                 tImGui.TextWrapped(string.format(L('faces_compact'),E.draft.name,compactCount(E.report.triangles)))
@@ -741,6 +761,7 @@ end
 function onEndScene() Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
+    testApi.setAssembly=setAssembly
     testApi.setComparison=setComparison
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history

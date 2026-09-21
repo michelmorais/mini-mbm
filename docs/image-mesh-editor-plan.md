@@ -640,3 +640,18 @@ gerado apenas uma vez e referenciado pelo mesmo nome. Recortes compartilham
 quando origem e limites de UV coincidem. O registro de compartilhamento só
 é atualizado depois do commit bem-sucedido do módulo. O cache dura apenas
 o lote, sem trabalho adicional em repouso nem exclusão de arquivos antigos.
+
+### Prévia de encaixe entre módulos (7.245.0)
+
+Entregue montagem 3D com todos os módulos, grade por maior dimensão, número
+de colunas, espaçamento X/Y, posição numérica linha/coluna, profundidade e
+visibilidade por módulo. Planos frontais de base alinhados. Reutiliza luz,
+câmera e wireframe, respeitando simplificação e múltiplos materiais.
+Disposição temporária, sem alterar/salvar/exportar parâmetros de geração.
+Posições e seleção não regeneram geometria; reconstrução preserva câmera.
+Prévias e arquivos temporários são liberados ao sair/abrir outro projeto.
+
+`image_mesh_assembly_smoke.lua` valida disposição, alinhamento em profundidade,
+simplificação, wireframe, seleção sem regeneração, câmera, arquivos temporários
+e ausência de trabalho em repouso. Conferência visual com project-1.imesh.
+Arraste 3D, rotação individual e persistência da montagem ficam fora desta entrega.

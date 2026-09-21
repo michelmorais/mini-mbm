@@ -654,3 +654,32 @@ O compartilhamento vale para a exportação atual; uma exportação individual t
 reutiliza a imagem entre seus materiais. Arquivos antigos que deixaram de ser
 referenciados não são removidos automaticamente da pasta. Para conferir somente
 os arquivos da nova exportação, escolha uma pasta vazia.
+
+## Prévia de encaixe (7.245.0)
+
+Em modo 3D, abra **Prévia de encaixe** e habilite **Mostrar módulos montados**.
+A cena mostra todos os módulos com suas configurações atuais, incluindo
+simplificação e materiais. A comparação original/simplificada fica substituída
+pela montagem enquanto esse modo está ativo.
+
+- **Colunas da grade** e **Organizar na grade** distribuem as peças na ordem do projeto.
+- **Espaçamento X/Y** adiciona distância entre células. As células usam a maior
+  largura/altura das peças; módulos menores podem deixar folgas mesmo com zero.
+- Selecione um módulo na lista de Regiões para editar sua **Coluna**, **Linha**,
+  **Deslocamento em profundidade** ou **Visualizar módulo**. Linhas/colunas começam
+  em zero. Posições iguais permitem sobreposição para diagnóstico.
+- **Enquadrar montagem** centraliza a câmera. Órbita, zoom, luz e wireframe
+  continuam disponíveis. O plano frontal de base é alinhado em Z=0; os relevos
+  continuam projetados para fora e o deslocamento de profundidade é adicional.
+
+Esta entrega usa controles numéricos, sem arraste de peças na cena ou rotação
+individual. O posicionamento é uma prévia da sessão: não altera as regiões,
+não entra no histórico do projeto e não é salvo/exportado. Ao desabilitar,
+a câmera anterior e a prévia individual são restauradas. Abrir outro projeto
+limpa a montagem. Alternar para edição 2D apenas oculta a montagem.
+
+Seleção, espaçamento, visibilidade e posições reutilizam as meshes prontas.
+Alterações aplicadas ao projeto regeneram a montagem preservando a câmera;
+wireframes são criados sob demanda. Não há geração, leitura de arquivos ou
+reposicionamento contínuo em repouso. Falha de geração libera as prévias
+parciais e apresenta o erro, sem repetir a geração a cada frame.
