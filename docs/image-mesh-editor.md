@@ -917,3 +917,29 @@ A escolha é salva por módulo, nos padrões do projeto e nos presets; participa
 histórico. Projetos anteriores continuam usando luminosidade. Este controle usa
 os canais da imagem original; carregar um mapa de alturas separado permanece
 uma entrega futura.
+
+### Imagem de alturas separada (7.255.0)
+
+Em **Relevos e sulcos**, use **Escolher imagem de alturas** nos modos Imagem ou
+Misto. Selecione o canal desejado e um alinhamento:
+
+- **Imagem inteira**: os limites do mapa correspondem aos da textura original.
+  Cada módulo consulta o recorte correspondente, útil para um mapa do atlas inteiro.
+- **Módulo inteiro**: ajusta o mapa completo ao recorte do módulo selecionado,
+  útil para um mapa específico daquela peça.
+
+Confirme com Aplicar. O mapa de alturas, os sulcos detectados e a mesh usam a
+mesma fonte. A textura de cor exportada continua sendo a original; o arquivo de
+alturas não se torna um material nem precisa acompanhar a mesh pronta.
+**Usar alturas da imagem original** remove a escolha do mapa separado.
+
+Mapas com resoluções diferentes usam interpolação bilinear, sem manter proporção
+automaticamente. O campo resultante continua limitado à resolução do recorte da
+imagem original. O limite é de 16.777.216 pixels por imagem. Um arquivo ausente ou
+inválido interrompe a geração; selecione novamente o arquivo para corrigir o caminho.
+No Manual, o mapa é ignorado e os controles ficam ocultos, sem apagar a configuração.
+
+Projeto e presets guardam o caminho relativo quando possível, não uma cópia dos
+pixels; mantenha o arquivo disponível ao reabrir. A configuração participa do
+histórico e é copiada ao iniciar geração assíncrona. Geração do mapa de diagnóstico
+continua síncrona, conforme os limites já documentados.

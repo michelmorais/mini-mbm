@@ -93,6 +93,10 @@ namespace mbm
         IMAGE_MESH_HEIGHT_SOURCE heightSource = IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
         float baseHeight = 0.5f;
         IMAGE_MESH_HEIGHT_CHANNEL heightChannel = IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE;
+        // Borrowed optional height-only image. Empty uses the source texture.
+        const char *heightImage = nullptr;
+        // false: map the whole source image; true: fit the whole map to this crop.
+        bool heightImageToRegion = false;
         // Ordered borrowed normalized contours, max 32 x 128. Transition is
         // relative to the shorter crop side, fades inward from each area edge.
         const IMAGE_MESH_HEIGHT_AREA *heightAreas = nullptr;

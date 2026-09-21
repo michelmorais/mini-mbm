@@ -3708,6 +3708,9 @@ namespace mbm
         integer("smoothPasses",options.smoothPasses);
         number("grooveThreshold",options.grooveThreshold); number("grooveTransition",options.grooveTransition);
         number("heightTolerance",options.heightTolerance);
+        lua_getfield(lua,optionIndex,"heightImage");
+        options.heightImage=luaL_optstring(lua,-1,nullptr); lua_pop(lua,1);
+        boolean("heightImageToRegion",options.heightImageToRegion);
         lua_getfield(lua,optionIndex,"heightChannel");
         const char *heightChannel=luaL_optstring(lua,-1,"luminance");
         if (std::strcmp(heightChannel,"luminance")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE;
@@ -3900,6 +3903,7 @@ namespace mbm
     void IMAGE_MESH_JOB_LUA::snapshot(const char *source,const IMAGE_MESH_OPTIONS &o)
     {
         path=source;options=o;
+        if (o.heightImage) { heightImage=o.heightImage;options.heightImage=heightImage.c_str(); }
         if (o.sideTexture) { side=o.sideTexture;options.sideTexture=side.c_str(); }
         if (o.backTexture) { back=o.backTexture;options.backTexture=back.c_str(); }
         if (o.contourCount) { contour.assign(o.contour,o.contour+o.contourCount);options.contour=contour.data(); }

@@ -62,6 +62,18 @@ struct HEIGHT_FIELD
         const auto at=[&](uint32_t x,uint32_t y) { return paintIndex[static_cast<size_t>(y)*paintStride+x]; };
         return at(x1,y1)+at(x0,y0)>at(x0,y1)+at(x1,y0);
     }
+    static float channelValue(const stbi_uc *p, IMAGE_MESH_HEIGHT_CHANNEL channel)
+    {
+        switch (channel)
+        {
+            case IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE: return (0.2126f*p[0]+0.7152f*p[1]+0.0722f*p[2])/255.0f;
+            case IMAGE_MESH_HEIGHT_CHANNEL::RED: return p[0]/255.0f;
+            case IMAGE_MESH_HEIGHT_CHANNEL::GREEN: return p[1]/255.0f;
+            case IMAGE_MESH_HEIGHT_CHANNEL::BLUE: return p[2]/255.0f;
+            case IMAGE_MESH_HEIGHT_CHANNEL::ALPHA: return p[3]/255.0f;
+        }
+        return 0;
+    }
     bool load(const char *source,const IMAGE_MESH_OPTIONS &o,std::string &error)
     {
         const auto fail=[&](const char *m) { error=m; return false; };
@@ -88,22 +100,46 @@ struct HEIGHT_FIELD
         pixels.reset(stbi_load(path.c_str(),&iw,&ih,&channels,4));
         if (!pixels || iw!=static_cast<int>(imageWidth) || ih!=static_cast<int>(imageHeight))
             return fail("Cannot decode image or dimensions changed");
+        std::unique_ptr<stbi_uc,decltype(&std::free)> heightPixels{nullptr,&std::free};
+        int hw=0,hh=0;
+        if (o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.heightImage && *o.heightImage)
+        {
+            const char *heightResolved=util::getFullPath(o.heightImage,&exists);
+            const std::string heightPath=exists?heightResolved:o.heightImage;
+            if (!stbi_info(heightPath.c_str(),&hw,&hh,&channels) || hw<=0 || hh<=0 ||
+                static_cast<uint64_t>(hw)*hh>16777216)
+                return fail("Height image is missing or invalid (maximum 16 million pixels)");
+            const int expectedWidth=hw,expectedHeight=hh;
+            checkpoint(o,"decode",0.04f);
+            heightPixels.reset(stbi_load(heightPath.c_str(),&hw,&hh,&channels,4));
+            if (!heightPixels || hw!=expectedWidth || hh!=expectedHeight)
+                return fail("Cannot decode height image or dimensions changed");
+        }
         checkpoint(o,"heights",0.08f);
         levels.resize(static_cast<size_t>(width)*height);
         for (uint32_t y=0;y<height;++y) for (uint32_t x=0;x<width;++x)
         {
             const auto *p=pixels.get()+(static_cast<size_t>(y+o.y)*imageWidth+x+o.x)*4;
-            float v=0;
-            switch (o.heightChannel)
+            if (x==0) checkpoint(o,"heights",0.08f);
+            float v=channelValue(p,o.heightChannel);
+            if (heightPixels)
             {
-                case IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE: v=(0.2126f*p[0]+0.7152f*p[1]+0.0722f*p[2])/255.0f; break;
-                case IMAGE_MESH_HEIGHT_CHANNEL::RED: v=p[0]/255.0f; break;
-                case IMAGE_MESH_HEIGHT_CHANNEL::GREEN: v=p[1]/255.0f; break;
-                case IMAGE_MESH_HEIGHT_CHANNEL::BLUE: v=p[2]/255.0f; break;
-                case IMAGE_MESH_HEIGHT_CHANNEL::ALPHA: v=p[3]/255.0f; break;
+                const double u=static_cast<double>(o.heightImageToRegion?x:x+o.x)/std::max(1u,(o.heightImageToRegion?width:imageWidth)-1);
+                const double vCoord=static_cast<double>(o.heightImageToRegion?y:y+o.y)/std::max(1u,(o.heightImageToRegion?height:imageHeight)-1);
+                const double px=u*(hw-1),py=vCoord*(hh-1);
+                const int x0=static_cast<int>(px),y0=static_cast<int>(py);
+                const int x1=std::min(x0+1,hw-1),y1=std::min(y0+1,hh-1);
+                const float fx=static_cast<float>(px-x0),fy=static_cast<float>(py-y0);
+                const auto sample=[&](int xx,int yy) {
+                    return channelValue(heightPixels.get()+(static_cast<size_t>(yy)*hw+xx)*4,o.heightChannel);
+                };
+                const float top=sample(x0,y0)*(1-fx)+sample(x1,y0)*fx;
+                const float bottom=sample(x0,y1)*(1-fx)+sample(x1,y1)*fx;
+                v=top*(1-fy)+bottom*fy;
             }
             levels[static_cast<size_t>(y)*width+x]=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL?o.baseHeight:(o.invert?1-v:v);
         }
+        heightPixels.reset();
         std::vector<float> filtered;
         const uint32_t passes=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL?0:o.smoothPasses;
         if (passes) filtered.resize(levels.size());

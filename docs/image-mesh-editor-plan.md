@@ -946,3 +946,26 @@ mapa/mesh, RGB sem alfa, inversão, duas alturas, Manual/Misto, parâmetros inv�
 cópia assíncrona, persistência, presets, histórico e padrão de projetos antigos.
 Mapa de alturas em arquivo separado e sulcos por linha continuam pendentes como
 extensões distintas; esta entrega não os implementa.
+
+### Controle artístico - Imagem de alturas separada (7.255.0)
+
+Entregue a fonte externa prevista no plano. O mapa fornece apenas alturas;
+textura, UVs e materiais exportados conservam a fonte de cor original. Há dois
+alinhamentos explícitos: mapa sobre a imagem inteira (seguindo os recortes) ou
+mapa inteiro ajustado a cada módulo. Resoluções diferentes usam interpolação
+bilinear sobre a grade de pixels do recorte original.
+
+A fonte externa consulta o canal selecionado e os filtros/áreas/retoques comuns.
+Manual ignora o arquivo; Imagem/Misto reportam erro se ele estiver ausente ou
+inválido. Máximo de 16.777.216 pixels por imagem. O buffer externo é temporário;
+a tarefa assíncrona copia o caminho. Nenhuma leitura ou geração adicional em
+repouso foi introduzida: a leitura ocorre somente ao processar alturas.
+
+GUI, projeto, presets, caminhos relativos, histórico e prévias estão integrados.
+Teste `image_mesh_height_image_smoke.lua`: alinhamentos e interpolação com tamanhos
+diferentes, mapa/mesh, preservação da textura, inversão, cópia assíncrona, arquivo
+ausente, Manual/Misto, projetos/presets e histórico. Regressões de canais,
+estatísticas e geração assíncrona passaram no build Linux Debug.
+
+Sulcos por linha seguem como extensão futura das áreas manuais. O mapa diagnóstico
+continua síncrono; esta entrega acrescenta uma fonte, não altera seu agendamento.

@@ -67,7 +67,7 @@ function M.save(preset,path,serialize)
     Model.validatePresets({preset})
     local lines={}
     local settings=Model.settings(preset.settings)
-    for _,key in ipairs{'sideTexture','backTexture'} do
+    for _,key in ipairs{'sideTexture','backTexture','heightImage'} do
         if settings[key]~='' then settings[key]=IO.relative(settings[key],path) end
     end
     serialize('preset',{version=1,name=preset.name,settings=settings},lines)
@@ -86,7 +86,7 @@ function M.load(path)
     assert(type(value)=='table' and value.version==1,'ime_preset_invalid')
     Model.validatePresets({value})
     local settings=Model.settings(value.settings)
-    for _,key in ipairs{'sideTexture','backTexture'} do
+    for _,key in ipairs{'sideTexture','backTexture','heightImage'} do
         if settings[key]~='' then settings[key]=IO.resolve(settings[key],path) end
     end
     return {name=cleanName(value.name),settings=settings}

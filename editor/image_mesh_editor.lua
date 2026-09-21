@@ -519,6 +519,19 @@ local function propertiesPanel()
             Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
             tImGui.Separator()
             if not manual then
+                if tImGui.Button(L('height_image_choose')) then dpCall(function()
+                    local path=mbm.openFile(E.values.heightImage,table.unpack(tUtil.supported_images))
+                    if path then E.values.heightImage=path end
+                end) end
+                if E.values.heightImage~='' then
+                    tImGui.TextWrapped(tUtil.getShortName(E.values.heightImage))
+                    if tImGui.IsItemHovered() then tImGui.SetTooltip(E.values.heightImage) end
+                    local c,index=tImGui.Combo(L('height_image_alignment'),E.values.heightImageToRegion and 2 or 1,
+                        {L('height_image_whole'),L('height_image_region')})
+                    if c then E.values.heightImageToRegion=index==2 end
+                    if tImGui.Button(L('height_image_clear')) then E.values.heightImage='' end
+                else tImGui.TextWrapped(L('height_image_source')) end
+                tImGui.TextWrapped(L('height_image_help'))
                 local channels={'luminance','red','green','blue','alpha'}
                 local labels,index={},1
                 for i,key in ipairs(channels) do

@@ -40,7 +40,7 @@ function M.exists(path)
 end
 function M.texturePaths(project,convert)
     local function options(o)
-        for _,key in ipairs{'sideTexture','backTexture'} do
+        for _,key in ipairs{'sideTexture','backTexture','heightImage'} do
             if o[key] and o[key]~='' then o[key]=convert(o[key]) end
         end
     end

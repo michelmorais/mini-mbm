@@ -43,7 +43,7 @@ namespace mbm
         std::unique_ptr<MESH_DEBUG_LUA> result;
         IMAGE_MESH_OPTIONS options;
         IMAGE_MESH_REPORT report;
-        std::string path,side,back,error;
+        std::string path,side,back,heightImage,error;
         std::vector<IMAGE_MESH_POINT> contour;
         std::vector<IMAGE_MESH_DAB> dabs;
         std::vector<IMAGE_MESH_HOLE> holes;

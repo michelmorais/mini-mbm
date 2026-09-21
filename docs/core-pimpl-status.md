@@ -287,3 +287,8 @@ The worker never calls Lua and its owner joins it before destruction.
 The 7.254.0 `IMAGE_MESH_HEIGHT_CHANNEL` option is a value-only enum in the image-mesh
 request. Sampling remains in the private height-field implementation; no new
 owned buffers, backend storage or public container exposure is introduced.
+
+The 7.255.0 separate height image adds a borrowed path and an alignment boolean
+to `IMAGE_MESH_OPTIONS`. Decoding and bilinear resampling use a private temporary
+buffer in the height-field implementation. The asynchronous binding owns a copy
+of the path. No owned storage or backend state is added to the public request.

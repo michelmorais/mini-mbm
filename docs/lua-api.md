@@ -2142,6 +2142,8 @@ assert(asset:save("panel.msh", false, false, true))
 | `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
 | `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
 | `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
+| `heightImage` | nil | Optional height-only image path. Nil/empty uses the source image. Ignored in manual mode. Maximum 16,777,216 pixels. |
+| `heightImageToRegion` | false | False aligns the map with the whole source image; true fits the whole map to the current crop. Bilinear sampling for different resolutions. |
 | `heightChannel` | `"luminance"` | `"luminance"`, `"red"`, `"green"`, `"blue"`, or `"alpha"`; image component used before inversion, filtering and groove mapping. Ignored by manual heights. |
 | `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas |
 | `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
@@ -2199,6 +2201,21 @@ opaque (1). Channel selection does not alter texture references, UVs or the
 color source of the groove overlay. Manual mode uses `baseHeight`; mixed mode
 uses the selected channel outside manual areas. Filters, inversion, groove
 mapping, manual areas and brush edits retain their existing ordering.
+
+**Separate height image (7.255.0).** `heightImage` is shared by the synchronous,
+asynchronous and diagnostic-map APIs. The color texture, UVs, groove-overlay
+colors and export materials continue to use the original image. The worker copies
+the path before starting. Missing/invalid maps fail generation in Image/Mixed
+modes; Manual ignores the map, including a missing path.
+
+Alignment uses pixel centers at the endpoints: for whole-image alignment,
+`u=(cropX+x)/max(1,sourceWidth-1)` and likewise for Y; fitting a region uses
+`u=x/max(1,cropWidth-1)`. These normalized coordinates sample the map at
+`u*(mapWidth-1)`, with bilinear interpolation of the selected channel. A
+single-pixel map axis is constant. Sampling is onto the original crop resolution;
+a larger map does not independently increase mesh resolution. No gamma conversion
+or automatic aspect-ratio preservation is performed. Filters and edits retain
+their existing order. The temporary decoded height map is freed after sampling.
 
 **Side texture controls (7.238.0).**
 
