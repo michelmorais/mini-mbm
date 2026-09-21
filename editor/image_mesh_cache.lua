@@ -1,6 +1,7 @@
-/*-----------------------------------------------------------------------------------------------------------------------|
+--[[
+-------------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -15,14 +16,32 @@
 | COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
-|-----------------------------------------------------------------------------------------------------------------------*/
+|------------------------------------------------------------------------------------------------------------------------|
 
-#ifndef VERSION_MBM_H
-#define VERSION_MBM_H
+]]--
 
-// Format: "X.Y" or "X.Y.Z". Release history is maintained by the Git history and tags.
-#ifndef MBM_VERSION
-    #define MBM_VERSION "7.251.0"
-#endif
-
-#endif
+-- One completed statistics mesh, already oriented for the editor.
+-- Exporters never receive this mutable asset: portable export may rewrite UVs.
+local M={}
+function M.clear(E)
+ local c=E.generatedMesh
+ if c and c.originalPath then os.remove(c.originalPath) end
+ E.generatedMesh=nil
+end
+function M.begin(E,id)
+ M.clear(E)
+ E.generatedMesh={id=id,revision=E.revision}
+end
+function M.original(E,asset)
+ local c=assert(E.generatedMesh)
+ c.originalPath=tUtil.getTemporaryFilePath('.msh')
+ assert(asset:save(c.originalPath,false,false,true),tLang.L('ime_export_failed'))
+end
+function M.finish(E,asset,report)
+ local c=assert(E.generatedMesh);c.asset=asset;c.report=report
+end
+function M.get(E,id)
+ local c=E.generatedMesh
+ if c and c.id==id and c.revision==E.revision and c.asset then return c end
+end
+return M

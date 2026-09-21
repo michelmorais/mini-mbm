@@ -773,3 +773,71 @@ estreitos podem ser desenhados como regiões. A primeira entrega foi priorizada 
 Entrega 7.250.0: modos Imagem/Manual/Misto, áreas editáveis com altura e transição,
 composição no campo de alturas, refinamento local, histórico, persistência e
 exportação. Testes de backend e editor em `src/test-lib/image_mesh_areas*_smoke.lua`.
+
+### Observação de desempenho - geração manual (2026-09-21)
+
+Investigação sem mudança de algoritmo, motivada pela pausa inicial percebida na GUI.
+Medição no build Linux Debug, com uma leitura do `project-2.imesh` do usuário:
+`module_001`, recorte 437 x 341, duas áreas, modo Manual, grade 24 x 24,
+adaptativo ligado e simplificação desligada. Arquivos de saída somente em `/tmp`.
+Os números abaixo são tempo de CPU (`os.clock`), não latência de quadro medida.
+
+| Operação | Tempo de CPU | Triângulos |
+|---|---:|---:|
+| Geração completa, três chamadas iguais | 2,354 / 2,313 / 2,229 s | 2.342 |
+| Mapa de alturas, três chamadas iguais | 0,805 / 0,765 / 0,764 s | — |
+| Salvar a mesh já gerada | 0,005–0,006 s | — |
+| Geração só da base, sem áreas/pincel | 0,174 s | 396 |
+| Geração com áreas, adaptativo desligado | 0,174 s | 16.968 |
+
+A comparação localiza o custo adicional principalmente no caminho adaptativo com
+áreas, mas não discrimina seus estágios internos. Desligá-lo não é uma otimização
+equivalente: muda a triangulação e a fidelidade dos detalhes. Não houve uma grande
+redução de custo entre a primeira e as demais gerações idênticas.
+
+`updateStatisticsImpl` gera a mesh completa em modo de edição quando não há
+estatísticas em cache. `changed()` invalida esse cache ao confirmar alterações.
+A troca para 3D passa por `rebuildImpl`, que pode gerar novamente o mesmo módulo:
+o cache das estatísticas conserva o relatório, não a geometria. A chamada nativa
+`generateImageMesh` é síncrona; a coroutine que a envolve não permite desenhar a GUI
+enquanto o C++ está executando. A simplificação já tem processamento assíncrono,
+mas não resolve essa pausa anterior. Isso explica uma pausa ao calcular os dados,
+seguida de fluidez em repouso; ajustes confirmados ainda podem repetir o custo.
+
+Pendência de otimização, sem classificar a observação como defeito:
+
+1. Avaliar reaproveitar a geometria gerada para estatísticas na prévia 3D, com
+   invalidação correta por módulo/opções, limites de memória e atenção à comparação
+   original/simplificada e à rotação aplicada pelo editor.
+2. Se a pausa continuar relevante, instrumentar os estágios do adaptativo e avaliar
+   geração assíncrona com progresso/cancelamento, mantendo operações de GPU na thread
+   apropriada. Essa entrega se relaciona ao acabamento de responsividade da etapa 5.
+
+### Etapa 5 - Reaproveitamento da geometria das estatísticas (7.251.0)
+
+Entregue o primeiro item da investigação acima. O editor mantém uma única mesh
+completa, correspondente à última geração bem-sucedida para estatísticas, com
+identificador de módulo e revisão do projeto. A prévia 3D do mesmo módulo/revisão
+consome esse resultado sem repetir geração, rotação ou simplificação. A estatística
+numérica continua disponível após o consumo; o cache não cresce com o número de módulos.
+
+Quando há simplificação, a original já orientada para o editor fica em um arquivo
+temporário, sem criar uma prévia GPU durante a contagem de faces. Ao entrar em 3D,
+a comparação é montada a partir dela e da mesh simplificada. O temporário é removido
+ao consumir, substituir ou invalidar o cache, inclusive após falhas. Mudanças
+confirmadas, histórico, instalação de projeto e encerramento invalidam o resultado.
+Uma entrada de outro módulo nunca é utilizada como se fosse a atual.
+
+Exportação e montagem de módulos continuam usando geração independente: a exportação
+portátil pode modificar texturas/UVs, portanto não recebe a mesh mutável do cache.
+Nenhuma busca, cópia ou reconstrução de geometria foi adicionada ao editor em repouso.
+O primeiro processamento continua síncrono; geração assíncrona com progresso e
+cancelamento permanece pendente.
+
+Validação: `image_mesh_cache_smoke.lua` verifica contagem de chamadas ao gerador,
+vértices/normais/UVs da prévia, comparação original/simplificada, câmera, wireframe,
+invalidação por histórico, troca de módulo, isolamento da exportação, erros e limpeza.
+Regressões `image_mesh_simplify_smoke.lua` e `image_mesh_areas_editor_smoke.lua` passaram.
+Build Linux Debug atualizado. Na mesma configuração do projeto 2, sem simplificação,
+a estatística levou 2,320 s de CPU; a entrada em 3D levou 0,012 s e manteve o total
+em uma única chamada ao gerador. Medição de CPU, não uma garantia de latência geral.

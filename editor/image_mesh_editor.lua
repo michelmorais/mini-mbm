@@ -35,6 +35,7 @@ local Paint=require 'image_mesh_paint'
 local Presets=require 'image_mesh_presets'
 local BackUv=require 'image_mesh_back_uv'
 local Asset=require 'image_mesh_asset'
+local GeometryCache=require 'image_mesh_cache'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
 local Areas=require 'image_mesh_areas'
@@ -75,6 +76,7 @@ local function syncDraft()
     E.point=1
 end
 local function changed()
+    GeometryCache.clear(E)
     E.statistics={}
     HeightPreview.destroy(E)
     E.generationFailure=nil
@@ -139,7 +141,7 @@ local function generationError(region,message)
     end
     return region.name..': '..tostring(message)
 end
-local function generate(region,project,keepOriginal)
+local function generate(region,project,keepOriginal,cacheOriginal)
     project=project or E.project
     local options=Model.options(project,region)
     local asset,report=mbm.generateImageMesh(project.image.path,options)
@@ -148,6 +150,7 @@ local function generate(region,project,keepOriginal)
     -- by 180 degrees around Y, preserving UVs, winding and smooth/hard edges.
     local vertices=Asset.vertices(asset,true)
     if keepOriginal and options.simplify then Comparison.capture(E,asset,vertices) end
+    if cacheOriginal and options.simplify then GeometryCache.original(E,asset) end
     Simplify.apply(E,asset,options,report)
     return asset,report
 end
@@ -163,7 +166,9 @@ local function updateStatisticsImpl()
     if not cached then
         local region=Model.region(E.project,E.selected)
         if not region then return end
-        local ok,asset,report=dpCall(generate,region)
+        GeometryCache.begin(E,region.id)
+        local ok,asset,report=dpCall(generate,region,nil,false,true)
+        if ok then GeometryCache.finish(E,asset,report) else GeometryCache.clear(E) end
         cached=ok and {report=report} or {error=E.status}
         E.statistics[E.selected]=cached
         E.statisticsBuilds=(E.statisticsBuilds or 0)+1
@@ -182,7 +187,15 @@ local function rebuildImpl()
     local r=Model.region(E.project,E.selected); if not r or not E.texture then return end
     local path=tUtil.getTemporaryFilePath('.msh'); local object
     local ok=dpCall(function()
-        local asset,report=generate(r,nil,true)
+        local asset,report
+        local cached=GeometryCache.get(E,r.id)
+        if cached then
+            asset,report=cached.asset,cached.report
+            if cached.originalPath then
+                local original=meshDebug:new(); assert(original:load(cached.originalPath),L('preview_failed'))
+                Comparison.capture(E,original,Asset.vertices(original))
+            end
+        else asset,report=generate(r,nil,true) end
         assert(asset:save(path,false,false,true),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true
@@ -198,6 +211,7 @@ local function rebuildImpl()
         E.viewRegion=r.id
         E.status=L('preview_ready')
     end)
+    GeometryCache.clear(E)
     if not ok then
         E.generationFailure=E.status
         Comparison.release(E)
@@ -795,7 +809,7 @@ end
 function onResizeWindow()
     E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
-function onEndScene() Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
+function onEndScene() GeometryCache.clear(E); Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.auto=Auto; testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
     testApi.areas=Areas

@@ -843,3 +843,12 @@ altura resultante em unidades da mesh e diferença para a base manual. **Aplicar
 confirma os ajustes. Uma área desabilitada permanece salva, mas não altera a mesh;
 o editor mostra um aviso explícito. Tamanho vertical em pixels dimensiona somente
 o contorno na imagem, não a profundidade.
+
+## Reaproveitamento da prévia (7.251.0)
+
+Depois de calcular a contagem de faces, o editor conserva a última mesh gerada.
+Entrar em 3D no mesmo módulo, sem confirmar novas alterações, reaproveita esse
+resultado e sua simplificação. A comparação mantém a original correta.
+O cache é limitado a um módulo e invalidado por alterações, histórico e troca de
+projeto. Exportações permanecem independentes. A primeira geração ainda pode
+pausar a interface; o reaproveitamento evita repetir esse trabalho ao entrar em 3D.
