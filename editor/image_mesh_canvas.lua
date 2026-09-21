@@ -40,7 +40,7 @@ local function outlines(E)
 end
 function M.cancel(E)
     if E.drag then E.project=E.drag.before or E.project end
-    E.drag=nil; E.polygon={}; E.stroke=nil; E.outlines=nil; E.canvasDirty=true
+    E.drag=nil; E.polygon={}; E.stroke=nil; E.autoTask=nil; E.autoSource=nil; E.outlines=nil; E.canvasDirty=true
 end
 function M.destroy(E)
     for _,object in ipairs(E.sceneLines or {}) do object:destroy() end
@@ -126,7 +126,7 @@ function M.sync(E)
     end
     for _,r in ipairs(outlines(E)) do
         draw(r.points,true,E.selection[r.id])
-        if r.id==E.selected and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' then
+        if r.id==E.selected and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' and E.tool~='auto_contour' and E.tool~='auto_background' then
             local region=Model.region(E.project,r.id)
             if region.shape=='polygon' then for _,p in ipairs(r.points) do handle(p.x,p.y) end
             else handle(region.x+region.w-1,region.y+region.h-1) end
@@ -162,6 +162,7 @@ end
 function M.input(E,H,event,mx,my)
     if not E.editMode or not E.texture or not E.canvasTransform then return end
     local origin=M.transform(E); local scale,scaleY=origin.scale,origin.scaleY
+    if E.tool=='auto_contour' or E.tool=='auto_background' then return H.detect(event,mx,my,origin) end
     if E.tool=='freehand' or E.tool=='hole_freehand' then return Freehand.input(E,event,mx,my,origin) end
     if E.tool=='holes' or E.tool=='hole_draw' then return Holes.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if E.tool=='side_band' then return Sides.input(E,H,event,mx,my,origin,M.handleRadius(E)) end

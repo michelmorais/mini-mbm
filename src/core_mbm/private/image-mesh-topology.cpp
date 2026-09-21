@@ -127,8 +127,27 @@ namespace {
     {
         if (t.holes.empty()) return true;
         path.assign(t.boundary.begin(),t.boundary.begin()+t.loopEnds[0]);
+        struct HOLE_ORDER { size_t loop; float x,y; };
+        std::vector<HOLE_ORDER> order;
         for (size_t hole=1;hole<t.loopEnds.size();++hole)
         {
+            const auto &first=t.points[t.boundary[t.loopEnds[hole-1]]];
+            HOLE_ORDER entry{hole,first.x,first.y};
+            for (uint32_t j=t.loopEnds[hole-1];j<t.loopEnds[hole];++j)
+            {
+                const auto &p=t.points[t.boundary[j]];
+                if (p.x<entry.x || (p.x==entry.x && p.y<entry.y)) { entry.x=p.x;entry.y=p.y; }
+            }
+            order.push_back(entry);
+        }
+        // Join exposed holes first. An interior hole can be hidden from all outer
+        // vertices by holes that have not yet been connected to the path.
+        std::sort(order.begin(),order.end(),[](const HOLE_ORDER &a,const HOLE_ORDER &b) {
+            return a.x<b.x || (a.x==b.x && a.y<b.y);
+        });
+        for (const auto &entry:order)
+        {
+            const size_t hole=entry.loop;
             const uint32_t start=t.loopEnds[hole-1],end=t.loopEnds[hole];
             double best=1e100;size_t chosen=0;uint32_t vertex=0;bool found=false;
             for (size_t i=0;i<path.size();++i) for (uint32_t j=start;j<end;++j)
@@ -136,6 +155,17 @@ namespace {
                 const auto a=path[i],b=t.boundary[j];const auto &p=t.points[a],&q=t.points[b];
                 const double length=std::hypot(p.x-q.x,p.y-q.y);
                 if (length>=best) continue;
+                // A bridge endpoint may occur more than once after joining holes.
+                // Choose the occurrence whose local interior contains the bridge;
+                // visibility alone can splice it into the wrong side of the path.
+                const auto locallyInside=[&](uint32_t previous,uint32_t current,uint32_t next,const IMAGE_MESH_POINT &target) {
+                    const auto &u=t.points[previous],&v=t.points[current],&w=t.points[next];
+                    const double left=cross(u,v,target),right=cross(v,w,target);
+                    if (cross(u,v,w)>=0) return left>=0 && right>=0;
+                    return left>0 || right>0;
+                };
+                if (!locallyInside(path[(i+path.size()-1)%path.size()],a,path[(i+1)%path.size()],q) ||
+                    !locallyInside(t.boundary[j==start?end-1:j-1],b,t.boundary[j+1==end?start:j+1],p)) continue;
                 const IMAGE_MESH_POINT mid={(p.x+q.x)*.5f,(p.y+q.y)*.5f};
                 if (!insideRing(t.contour,mid)) continue;
                 bool blocked=false;

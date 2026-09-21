@@ -753,3 +753,41 @@ O traçado aceita até 4096 amostras; se exceder esse limite, precisa ser redese
 A captura recebe eventos do mouse, e a redução só ocorre ao soltar ou alterar
 a tolerância. A prévia parada não refaz o contorno nem regenera a geometria.
 Esta ferramenta é manual: detecção automática de contornos permanece pendente.
+
+## Seleção automática de contornos (7.249.0)
+
+No seletor de ferramenta, escolha **Contorno automático**. Selecione o destino
+(**Novo módulo** ou **Furo no módulo selecionado**) e o método:
+
+- **Transparência**: pixels com alfa maior que o limiar pertencem à forma.
+- **Cor de fundo**: além do alfa, exclui pixels próximos da cor escolhida.
+  **Capturar cor de fundo** permite obter essa cor clicando na imagem.
+  A tolerância usa a maior diferença entre canais RGB, de 0 a 255.
+
+Clique dentro da forma desejada. A busca considera apenas a área conectada
+ao ponto, por vizinhos horizontais/verticais. Cavidades internas não viram
+furos automaticamente: o resultado é somente o contorno externo dessa área.
+Para criar uma abertura, use explicitamente o destino de furo e confirme.
+
+Revise a prévia, ajuste **Redução de pontos (px)** e confirme. Após a confirmação,
+o polígono permite edição normal de vértices, histórico, salvamento e exportação.
+Mudar o método, a cor ou os limiares descarta a prévia e exige outro clique.
+**Cancelar**, Escape, troca de ferramenta/projeto ou desfazer descartam a busca
+ou prévia pendente.
+
+**Usar recorte do módulo selecionado** limita a busca para novos módulos;
+furos sempre usam esse recorte. Sem módulo selecionado, usa-se a imagem inteira.
+A detecção lê a imagem original, sem aplicar pintura de altura ou filtros de relevo.
+Não há reconhecimento semântico: numa imagem opaca, a transparência sozinha
+selecionará toda a área conectada do recorte.
+
+Para limitar memória e trabalho, a grade de busca tem até 262.144 células.
+Áreas maiores são amostradas com passo inteiro, exibido no resultado. Detalhes
+menores que esse passo podem desaparecer; um recorte menor oferece maior precisão.
+Há limites de 65.536 segmentos de borda, 4.096 cantos antes da redução e
+128 vértices finais. Contornos ambíguos que se tocam ou se cruzam são recusados,
+com orientação para ajustar a detecção ou desenhar manualmente.
+
+A imagem é decodificada uma vez por clique. A busca cede execução a cada bloco
+de trabalho para permitir cancelamento; depois de concluída não há releitura
+da imagem, reconstrução ou processamento contínuo.

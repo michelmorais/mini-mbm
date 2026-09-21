@@ -71,6 +71,8 @@
 #include <memory>
 #include <thread>
 #include <vector>
+#include <stb/stb-interface.h>
+#include <cstdlib>
 #include <audio-interface.h>
 #if defined ANDROID
     // no includes here
@@ -3317,6 +3319,25 @@ namespace mbm
         return 3;
     }
 
+    static int onReadImagePixelsLua(lua_State *lua)
+    {
+        const char *path=luaL_checkstring(lua,1);
+        int width=0,height=0,channels=0;
+        if (!stbi_info(path,&width,&height,&channels) || width<=0 || height<=0 ||
+            static_cast<uint64_t>(width)*height>16777216)
+        {
+            lua_pushnil(lua);lua_pushliteral(lua,"Invalid image or more than 16 million pixels");return 2;
+        }
+        const int expectedWidth=width,expectedHeight=height;
+        std::unique_ptr<stbi_uc,decltype(&std::free)> pixels(stbi_load(path,&width,&height,&channels,4),&std::free);
+        if (!pixels || width!=expectedWidth || height!=expectedHeight)
+        {
+            lua_pushnil(lua);lua_pushliteral(lua,"Cannot decode image or dimensions changed");return 2;
+        }
+        lua_pushlstring(lua,reinterpret_cast<const char*>(pixels.get()),static_cast<size_t>(width)*height*4);
+        lua_pushinteger(lua,width);lua_pushinteger(lua,height);return 3;
+    }
+
     int onLoadDetailedTexture(lua_State *lua)
     {
         const int top   = lua_gettop(lua);
@@ -3580,6 +3601,7 @@ namespace mbm
             {"doSubscribe", doSubscribePlugin},
             {"loadTexture", onLoadDetailedTexture},
             {"readPngAlpha", onReadPngAlphaLua},
+            {"readImagePixels", onReadImagePixelsLua},
             {"createDirectories", onCreateDirectoriesLua},
             {"listFiles", onlistFiles},
             {"enableTextureFilter", enableTextureFilterLua},

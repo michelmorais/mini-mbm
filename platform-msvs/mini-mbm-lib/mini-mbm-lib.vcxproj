@@ -172,6 +172,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp" />
+    <ClCompile Include="..\..\third-party\stb\stb.c" />
     <ClCompile Include="..\..\src\lua-wrap\framework-android-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-directx-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-dummy-lua.cpp" />

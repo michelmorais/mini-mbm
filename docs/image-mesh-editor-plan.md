@@ -685,3 +685,88 @@ ou alterar tolerância; nenhum processamento contínuo em repouso.
 cancelamento, histórico, persistência, exportação e GUI em repouso.
 
 Próxima pendência da etapa 4: seleção automática de contornos.
+
+### Robustez das ligações entre furos (7.248.1)
+
+A triangulação conecta os furos por ordem geométrica, evitando iniciar por
+um furo oculto dos vértices externos por outros contornos. Em vértices
+repetidos pelas ligações, verifica também o setor interno correspondente.
+Nenhum contorno é movido, fundido ou simplificado por essa correção.
+Regressão inclui 500 combinações/ordens, aberturas próximas e traços estreitos,
+com verificação de fechamento e característica de Euler.
+
+### Etapa 4c - Seleção automática (7.249.0)
+
+Entregue seleção por transparência ou exclusão de cor de fundo, com captura da
+cor na imagem, limiares e escolha de componente conectado por clique. Destino
+explícito de novo módulo ou furo; cavidades internas não criam aberturas implícitas.
+Prévia e redução de pontos antes da confirmação; saída no formato poligonal
+existente, compatível com histórico, edição, persistência e exportação.
+
+Leitura CPU de RGBA sob demanda pela nova `mbm.readImagePixels`. Busca por
+corrotina cancelável, limitada a 262.144 células com passo informado e opção
+de recorte para maior precisão. Limites e ambiguidades recebem diagnósticos.
+Nenhuma detecção ou decodificação em repouso.
+
+`image_mesh_auto_smoke.lua` cobre alfa/cor, cavidades, captura, módulos/furos,
+cancelamento, mudança de projeto, persistência, exportação e GUI em repouso.
+A etapa 4 está entregue. Próxima revisão: pendências de progresso/cancelamento
+e limites finais da etapa 5, preservando as otimizações já implementadas.
+
+### Proposta adicional - Relevo desenhado por áreas (a implementar)
+
+Motivação: no `project-2.imesh`, as cores e sombras da textura não representam
+necessariamente profundidade. A pintura de altura existente permite retoques
+com pincel, mas não oferece áreas nomeadas cujos contornos e alturas possam ser
+alterados posteriormente como objetos separados. Esta proposta complementa a
+pintura e a seleção automática; ainda não é funcionalidade entregue.
+
+#### Primeira entrega proposta
+
+- Escolher a origem da altura: **Imagem** (comportamento atual), **Manual**
+  (plano de altura base ajustável) ou **Imagem + áreas manuais**. A textura
+  continua sendo usada normalmente nos três modos.
+- Desenhar regiões de relevo dentro de cada módulo usando retângulo, elipse,
+  polígono ou desenho livre. São máscaras de altura; não criam módulos nem
+  aberturas atravessando a peça.
+- Atribuir uma altura-alvo a cada região, na escala normalizada de 0 a 1 já
+  usada pelo mapa de alturas. O parâmetro Relevo converte essa escala em
+  unidades da mesh. No modo Manual, uma base intermediária permite desenhar
+  tanto áreas elevadas quanto sulcos abaixo dela, sem atravessar o verso.
+- Controlar a largura da transição entre a altura vizinha e a altura-alvo;
+  largura zero representa uma mudança abrupta no campo de alturas, cuja
+  aproximação geométrica continua sujeita à resolução e ao orçamento.
+- Listar regiões com nome, visibilidade/habilitação, altura e ordem. Permitir
+  selecionar, mover, redimensionar, editar vértices, duplicar e excluir.
+  Regiões posteriores prevalecem nas sobreposições; mostrar essa ordem na GUI.
+- Visualizar contornos coloridos sobre a textura e o mapa de alturas resultante
+  antes de aplicar à mesh. Identificar região selecionada e altura-alvo.
+
+#### Integração e compatibilidade
+
+Ordem proposta: obter a altura da imagem ou do plano base; compor as regiões
+manuais; aplicar os retoques de pincel existentes; aplicar a restrição da borda
+externa. Furos continuam recortando a superfície sem rebaixar a vizinhança.
+As regiões de altura são limitadas à área útil do módulo; o exterior e os furos
+não recebem geometria. Projetos antigos mantêm os resultados atuais.
+
+Salvar as regiões por módulo, em coordenadas normalizadas, com histórico de
+desfazer/refazer. Preservá-las ao mover/redimensionar e duplicar o módulo.
+Prévia 2D, geração 3D, refinamento adaptativo, simplificação e exportação devem
+consultar o mesmo campo de alturas composto. Regiões manuais precisam participar
+do refinamento local, como a pintura, sem depender somente das cores da imagem.
+Alterações só atualizam dados dependentes; não processar máscaras em repouso.
+
+#### Critérios de validação
+
+- Reproduzir no painel do projeto 2 uma moldura elevada, painel central em
+  altura menor e uma canaleta, independentemente das cores da textura.
+- Verificar alturas e transições, ordem de sobreposição, recorte contra o módulo
+  e furos, pintura posterior, borda fixa, orçamento e ausência de degenerações.
+- Conferir persistência, histórico, duplicação, prévia/exportação coerentes e
+  preservação dos projetos existentes.
+
+Uma entrega posterior poderá acrescentar **sulcos por linha**, com largura,
+altura-alvo e edição do trajeto. A primeira entrega usa áreas fechadas; canais
+estreitos podem ser desenhados como regiões. A proposta deve ser priorizada
+antes da implementação em relação ao acabamento pendente da etapa 5.

@@ -222,6 +222,7 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 | `mbm.existTexture` | `(name: string)` | bool | Whether a named texture is already loaded |
 | `mbm.loadTexture` | `(file: string, alpha?: bool)` | textureInfo | Load a texture file and return info table |
 | `mbm.readPngAlpha` | `(path: string)` | bytes, width, height or nil, error | Decode a PNG file on the CPU. Returns a binary string with one alpha byte per pixel, in row-major order from the top-left; images without transparency yield 255. Uses the supplied filesystem path, without asset-search dialogs. Intended for editor operations on demand, not per-frame calls. |
+| `mbm.readImagePixels` | `(path: string)` | bytes, width, height or nil, error | Decode an image supported by the engine's stb loader on the CPU (7.249.0). Returns a binary string of exactly `width*height*4` bytes: R, G, B, A per pixel, row-major from the top-left; absent alpha becomes 255. Rejects images over 16,777,216 pixels before decoding and dimensions that change while loading. Uses the supplied filesystem path without asset-search dialogs. Call on demand, never per frame. |
 | `mbm.createDirectories` | `(path: string)` | true or nil, error | Create a directory and missing parent directories. Succeeds if the directory already exists. Uses a filesystem path, without invoking a shell. |
 
 ### 3.9 Global Variables (cross-scene storage)

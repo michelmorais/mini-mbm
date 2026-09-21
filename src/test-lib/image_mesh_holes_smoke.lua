@@ -21,6 +21,9 @@ local function check(asset,open,holeCount)
  local function key(v) return string.format('%.5f/%.5f/%.5f',v.x+0.,v.y+0.,v.z+0.) end
  for i=1,#indices,3 do
   local a,b,c=vertices[indices[i]],vertices[indices[i+1]],vertices[indices[i+2]]
+  local ux,uy,uz=b.x-a.x,b.y-a.y,b.z-a.z
+  local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
+  assert((uy*vz-uz*vy)^2+(uz*vx-ux*vz)^2+(ux*vy-uy*vx)^2>1e-12,'degenerate triangle')
   volume=volume+(a.x*(b.y*c.z-b.z*c.y)+a.y*(b.z*c.x-b.x*c.z)+a.z*(b.x*c.y-b.y*c.x))/6
   for _,e in ipairs{{a,b},{b,c},{c,a}} do
    local aa,bb=key(e[1]),key(e[2]);assert(aa~=bb,'degenerate edge');unique[aa]=true;unique[bb]=true
@@ -101,6 +104,35 @@ local function run()
   assert(checked>0)
  end end
  print('HOLES PRESERVE RELIEF / OUTER BORDER ONLY / ADAPTIVE AND UNIFORM OK')
+ -- Unordered holes must bridge through the correct local sector, including
+ -- interior holes initially hidden from all outer vertices by other holes.
+ math.randomseed(147)
+ for trial=1,500 do
+  local rings={}
+  for y=0,2 do for x=0,2 do if math.random()<.75 then
+   local a,b=.1+x*.27,.1+y*.27;local size=trial%2==0 and .269 or .12
+   rings[#rings+1]={{x=a,y=b},{x=a+size,y=b},{x=a+size,y=b+size},{x=a,y=b+size}}
+  end end end
+  for i=#rings,2,-1 do local j=math.random(i);rings[i],rings[j]=rings[j],rings[i] end
+  local cut,why=mbm.generateImageMesh(image,{holes=rings,columns=1,rows=1,relief=0})
+  assert(cut,'hole order '..trial..': '..tostring(why))
+  local vertices,indices=check(cut,false,#rings);local area=0
+  for i=1,#indices,3 do local a,b,c=vertices[indices[i]],vertices[indices[i+1]],vertices[indices[i+2]]
+   if a.z<0 and b.z<0 and c.z<0 then area=area+math.abs(cross(a,b,c))/2 end
+  end
+  local size=trial%2==0 and .269 or .12
+  assert(math.abs(area-10000*(1-#rings*size*size))<.03,'incorrect area in close holes')
+ end
+ for _,gap in ipairs{.01,.001,.0001} do
+  local narrow={{x=.1,y=.1},{x=.9,y=.1},{x=.9,y=.9},{x=.5+gap,y=.9},
+   {x=.5+gap,y=.2},{x=.5,y=.2},{x=.5,y=.9},{x=.1,y=.9}}
+  for _,asHole in ipairs{false,true} do
+   local o={columns=1,rows=1,relief=0,shape=asHole and 'rectangle' or 'polygon'}
+   if asHole then o.holes={narrow} else o.contour=narrow end
+   local cut,why=mbm.generateImageMesh(image,o);assert(cut,why);check(cut,false,asHole and 1 or 0)
+  end
+ end
+ print('HOLES 500 ORDERS / CLOSE CONTOURS / NARROW STROKES / CLOSED / EULER OK')
  local budget,error=mbm.generateImageMesh(image,{holes=many,maxVertices=100});assert(not budget and error:find('budget'))
  print('HOLES AREA / EULER / MAX HOLES / CONCAVE / VALIDATION / MAP / BUDGET / ROUNDTRIP OK')
 end
