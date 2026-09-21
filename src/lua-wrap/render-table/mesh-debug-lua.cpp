@@ -3683,6 +3683,9 @@ namespace mbm
         lua_getfield(lua,optionIndex,"sideTexture");
         options.sideTexture=luaL_optstring(lua,-1,nullptr); lua_pop(lua,1);
         number("sideInset",options.sideInset); number("sideRepeatU",options.sideRepeatU); number("sideRepeatV",options.sideRepeatV);
+        lua_getfield(lua,optionIndex,"backTexture");
+        options.backTexture=luaL_optstring(lua,-1,nullptr); lua_pop(lua,1);
+        boolean("backExternal",options.backExternal);
         integer("backColor",options.backColor); boolean("backSolid",options.backSolid);
         integer("sideColor",options.sideColor);
         boolean("sideBandInvert",options.sideBandInvert);

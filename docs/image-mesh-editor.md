@@ -607,3 +607,13 @@ Use **Aplicar** para atualizar; projetos e presets preservam a opção.
 A mesh salva a cor como `#RRGGBBFF`, sem arquivo externo. Frente, fundo e
 laterais têm materiais separados; funciona com os quatro modos laterais,
 simplificação e exportação. Projetos/presets preservam modo e cor.
+
+**Textura e fundo > Textura externa** cria um fundo plano com uma imagem
+independente. **Escolher textura do fundo** seleciona o arquivo; a imagem inteira
+é ajustada à forma do módulo (proporções diferentes podem esticar a textura).
+O espelhamento horizontal permanece disponível. Sem arquivo escolhido, usa o
+recorte original; **Usar recorte da imagem original** remove a escolha externa.
+Aplique para atualizar. Arquivos inválidos ou acima de 16 milhões de pixels
+são rejeitados na geração; a transparência da imagem é preservada.
+Projetos/presets armazenam caminhos relativos. A exportação `.msh` referencia
+a imagem e não a copia; empacotamento portátil continua pendente.

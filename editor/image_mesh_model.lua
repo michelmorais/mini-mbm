@@ -25,7 +25,7 @@ M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=2
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
 M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTransition=0.1,heightTolerance=0.03,smoothPasses=0}
 M.simplifyDefaults={simplify=false,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
-M.backDefaults={backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
+M.backDefaults={backExternal=false,backTexture='',backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
 M.sideDefaults={sideMode='edge',sideBandInvert=false,sideInset=1,sideRepeatU=1,sideRepeatV=1,sideColor=0x808080,sideTexture=''}
 M.optionalDefaults={}
 for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.backDefaults,M.sideDefaults}) do
@@ -59,7 +59,8 @@ function M.region(project,id)
 end
 function M.backMode(project,region)
     local scope=region.overrides
-    if scope.backOpen==nil and scope.backRelief==nil and scope.backRemap==nil and scope.backSolid==nil then scope=project.defaults end
+    if scope.backOpen==nil and scope.backRelief==nil and scope.backRemap==nil and scope.backSolid==nil and scope.backExternal==nil then scope=project.defaults end
+    if scope.backExternal then return 'external' end
     if scope.backSolid then return 'solid' end
     if scope.backOpen then return 'open' end
     if scope.backRemap then return 'remap' end
@@ -71,7 +72,7 @@ function M.options(project,region)
     for k,v in pairs(region.overrides) do o[k]=v end
     for k,v in pairs(M.optionalDefaults) do if o[k]==nil then o[k]=v end end
     local backMode=M.backMode(project,region)
-    o.backOpen=backMode=='open'; o.backRemap=backMode=='remap'; o.backRelief=backMode=='relief'; o.backSolid=backMode=='solid'
+    o.backOpen=backMode=='open'; o.backRemap=backMode=='remap'; o.backRelief=backMode=='relief'; o.backSolid=backMode=='solid'; o.backExternal=backMode=='external'
     o.maxTriangles=2*o.maxVertices
     o.preserveAspect=o.preserveAspect~=false
     if o.preserveAspect then o.height=o.width*math.max(1,region.h-1)/math.max(1,region.w-1) end
@@ -88,10 +89,11 @@ function M.validateOptions(options,complete)
     assert(type(options)=='table','ime_invalid_options')
     for k,v in pairs(options) do
         if k=='sideMode' then assert(v=='edge' or v=='color' or v=='repeat' or v=='band','ime_invalid_options')
-        elseif k=='sideTexture' then assert(type(v)=='string' and #v<4096 and not v:find('%z'),'ime_invalid_options')
-        elseif k=='backSolid' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
+        elseif k=='sideTexture' or k=='backTexture' then assert(type(v)=='string' and #v<4096 and not v:find('%z'),'ime_invalid_options')
+        elseif k=='backExternal' or k=='backSolid' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
     end
+    assert(not (options.backExternal and (options.backSolid or options.backOpen or options.backRemap or options.backRelief)),'ime_invalid_options')
     assert(not (options.backSolid and (options.backOpen or options.backRemap or options.backRelief)),'ime_invalid_options')
     assert(not (options.backOpen and (options.backRemap or options.backRelief)) and
         not (options.backRemap and options.backRelief),'ime_invalid_options')

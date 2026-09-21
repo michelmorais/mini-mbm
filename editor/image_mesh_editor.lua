@@ -310,7 +310,7 @@ applyProperties=function()
         local settings={}; for k in pairs(Model.defaults) do settings[k]=values[k] end
         if E.editDefaults then p.defaults=settings; return end
         for _,r in ipairs(p.regions) do if E.selection[r.id] then
-            r.overrides={}; for k,v in pairs(settings) do if k=='backSolid' or k=='backOpen' or k=='backRemap' or k=='backRelief' or v~=p.defaults[k] then r.overrides[k]=v end end
+            r.overrides={}; for k,v in pairs(settings) do if k=='backExternal' or k=='backSolid' or k=='backOpen' or k=='backRemap' or k=='backRelief' or v~=p.defaults[k] then r.overrides[k]=v end end
         end end
         local r=assert(Model.region(p,E.selected),L('select_region'))
         r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop)
@@ -494,7 +494,7 @@ local function propertiesPanel()
         end
         E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
         end
-        BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end)
+        BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         Sides.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         if tImGui.CollapsingHeader(L('resolution_group')) then
         for _,key in ipairs({'columns','rows','ellipseSegments'}) do

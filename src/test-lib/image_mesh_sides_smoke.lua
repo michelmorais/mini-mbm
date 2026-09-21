@@ -168,6 +168,41 @@ local function run()
                 contour={{x=0,y=0},{x=1,y=0},{x=1,y=1},{x=.5,y=.6},{x=0,y=1}}}
             local original,r=mbm.generateImageMesh(path,o);assert(original,r)
             local ov,oi=data(original,r)
+            o.backExternal=true
+            for _,texture in ipairs{false,'',tilePath} do
+                o.backTexture=texture or nil
+                local ext,xr=mbm.generateImageMesh(path,o);assert(ext,xr)
+                local xv,xi=data(ext,xr)
+                assert(xr.vertices==r.vertices and xr.triangles==r.triangles)
+                assert(ext:getTotalSubset(1)==3 and ext:getTexture(1,2)==(texture==tilePath and tilePath or path))
+                for i,index in ipairs(oi) do assert(xi[i]==index) end
+                local front=ext:getTotalVertex(1,1);local back=ext:getTotalVertex(1,2)
+                for i,v in ipairs(xv) do
+                    for _,k in ipairs{'x','y','z','nx','ny','nz'} do close(v[k],ov[i][k]) end
+                    if i>front and i<=front+back and texture==tilePath then
+                        close(v.u,((v.x/100+.5)*7+.5)/8)
+                        close(v.v,((.5-v.y/100)*7+.5)/8)
+                    else close(v.u,ov[i].u);close(v.v,ov[i].v) end
+                end
+                o.backMirror=true
+                local mirror,mr=mbm.generateImageMesh(path,o);assert(mirror,mr)
+                local mv=data(mirror,mr)
+                for i,v in ipairs(xv) do
+                    close(mv[i].v,v.v)
+                    close(mv[i].u,(i>front and i<=front+back) and 1-v.u or v.u)
+                end
+                o.backMirror=false
+                assert(ext:simplify(.95,nil,1,true,0));data(ext,xr)
+                local file='/tmp/ime_external_'..shape..'_'..mode..'_'..tostring(adaptive)..'.msh'
+                assert(ext:save(file,false,false,true))
+                local loaded=meshDebug:new();assert(loaded:load(file));data(loaded,xr)
+                assert(loaded:getTexture(1,2)==ext:getTexture(1,2))
+            end
+            o.backTexture='/tmp/ime_missing_back_file.png'
+            local bad,err=mbm.generateImageMesh(path,o);assert(not bad and err:find('Back texture'))
+            o.backTexture=tilePath;o.backOpen=true
+            assert(not mbm.generateImageMesh(path,o),'external back conflict accepted')
+            o.backOpen=false;o.backExternal=false
             o.backSolid=true
             local solid,sr=mbm.generateImageMesh(path,o);assert(solid,sr)
             local sv,si=data(solid,sr)
@@ -233,6 +268,16 @@ local function run()
     assert(Presets.load('/tmp/ime_sides.imeshpreset').settings.sideTexture==tilePath,'preset relative path')
     assert(Presets.load('/tmp/ime_sides.imeshpreset').settings.sideBandInvert==true,'band inversion preset persistence')
     assert(Presets.load('/tmp/ime_sides.imeshpreset').settings.backSolid,'solid back preset persistence')
+    E.values.backSolid=false;E.values.backExternal=true;E.values.backTexture=tilePath;E.values.backMirror=true
+    assert(api.applyProperties())
+    assert(api.action(function(p) Presets.store(p,'External back',E.values) end))
+    api.saveProject('/tmp/ime_external_project.imesh')
+    api.openProject('/tmp/ime_external_project.imesh');api.select(1,false)
+    assert(E.values.backExternal and E.values.backTexture==tilePath and E.values.backMirror,'external back persistence')
+    Presets.save(E.project.presets[2],'/tmp/ime_external.imeshpreset',tUtil.save)
+    local preset=Presets.load('/tmp/ime_external.imeshpreset')
+    assert(preset.settings.backExternal and preset.settings.backTexture==tilePath,'external preset path')
+    print('EXTERNAL BACK / UV / MIRROR / SIMPLIFY / EXPORT / PERSISTENCE OK')
     assert(api.exportOne('/tmp/ime_sides_editor.msh'))
     local source,report=mbm.generateImageMesh(path,Model.options(E.project,E.project.regions[1]));assert(source,report)
     local loaded=meshDebug:new();assert(loaded:load('/tmp/ime_sides_editor.msh'))

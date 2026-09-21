@@ -2144,6 +2144,8 @@ assert(asset:save("panel.msh", false, false, true))
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
 | `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
+| `backExternal` | false | Flat back with an independent image material; mutually exclusive with other back modes |
+| `backTexture` | nil | Image path for backExternal; nil/empty uses original crop. Nonempty paths must decode and contain at most 16 million pixels |
 | `backSolid` | false | Flat opaque back with a separate solid-color material |
 | `backColor` | 0x808080 | RGB integer 0..0xFFFFFF, encoded as `#RRGGBBFF` when backSolid is true |
 | `backOpen` | false | Omit back vertices/triangles, retaining front and side walls ending at `+depth/2` |
@@ -2172,8 +2174,8 @@ refinement; enabling this option may reject an otherwise valid flat-back budget.
 The report's `minHeight`/`maxHeight` still describe one face's relief amplitude,
 not the combined thickness.
 
-`backOpen`, `backRelief`, `backRemap` and `backSolid` are mutually exclusive
-(`backSolid` was added in 7.240.0).
+`backOpen`, `backRelief`, `backRemap`, `backSolid` and `backExternal` are mutually exclusive
+(`backSolid` was added in 7.240.0, `backExternal` in 7.241.0).
 An open back is intentionally non-watertight. It removes back-only geometry
 from both budgets; the side-wall geometry and UVs remain unchanged. A remapped
 back retains flat-back topology and positions; UVs map normalized front-shape
@@ -2192,7 +2194,7 @@ edge mode's fallback. Rectangles inset their edges; ellipses retain their axes
 and center with reduced radii; polygon edges are offset and intersected.
 The inset must preserve a simple nested contour, edge directions and uncrossed
 mapping strips. Overly wide bands fail with the computed limit.
-These modes retain one subset unless `backSolid` is enabled, and do not change geometry.
+These modes retain one subset unless `backSolid` or `backExternal` is enabled, and do not change geometry.
 
 `color` uses an opaque `#RRGGBBFF` solid-color texture on subset 2.
 `repeat` uses the resolved image path on subset 2 (the source image when
@@ -2202,9 +2204,11 @@ return an error. This mode introduces UV seams
 at whole repetitions; UVs stay within [0,1], independent of runtime texture
 address mode. New perimeter splits are also propagated into front/back triangles
 to avoid T-junctions. Repetition may add geometry and exhaust the shared budget.
-Without `backSolid`, subset 1 retains front/back materials. With `backSolid`,
-there are three subsets: front (1), solid back (2), and sides (3), including
-edge/band sides. Geometry and front/side UVs remain unchanged; back UVs are (0.5,0.5). Vertex and index array access in the mesh-debug Lua API is per subset;
+Without `backSolid`/`backExternal`, subset 1 retains front/back materials. With either mode,
+there are three subsets: front (1), back (2), and sides (3), including
+edge/band sides. Geometry and front/side UVs remain unchanged; solid back UVs are (0.5,0.5). External back UVs span the entire selected image
+between pixel centers, fitted to the shape; `backMirror` reverses U. Empty paths
+retain source-crop UVs. External image alpha is preserved. Vertex and index array access in the mesh-debug Lua API is per subset;
 consumers must iterate all subsets.
 Export stores texture references; it does not copy external images.
 

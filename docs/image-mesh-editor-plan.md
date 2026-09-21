@@ -604,3 +604,15 @@ projetos/presets; não altera contorno, geometria nem normais.
 Quinto modo de fundo: plano opaco com seletor RGB, persistido em projetos/presets
 e exportado como material `#RRGGBBFF`. Três subsets preservam a independência
 das texturas frontal, traseira e lateral, inclusive na simplificação.
+
+### Textura externa do fundo (7.241.0)
+
+Entregue o sexto modo: fundo plano com arquivo de imagem independente e
+espelhamento horizontal. Imagem inteira ajustada à forma, UVs nos centros dos
+pixels e fallback para recorte original quando não há arquivo escolhido.
+Projetos/presets preservam caminhos relativos; exportação referencia a imagem.
+Testes cobrem formas regulares/côncavas, quatro modos laterais, UVs, geometria,
+espelhamento, simplificação, exportação e persistência.
+
+Próximo milestone: exportação portátil com texturas e margens de proteção.
+Depois: prévia de encaixe entre módulos.

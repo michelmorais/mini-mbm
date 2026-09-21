@@ -38,7 +38,11 @@ function M.exists(path)
     local f=io.open(path,'rb'); if not f then return false end; f:close(); return true
 end
 function M.texturePaths(project,convert)
-    local function options(o) if o.sideTexture and o.sideTexture~='' then o.sideTexture=convert(o.sideTexture) end end
+    local function options(o)
+        for _,key in ipairs{'sideTexture','backTexture'} do
+            if o[key] and o[key]~='' then o[key]=convert(o[key]) end
+        end
+    end
     options(project.defaults)
     for _,r in ipairs(project.regions) do options(r.overrides) end
     for _,preset in ipairs(project.presets or {}) do options(preset.settings) end

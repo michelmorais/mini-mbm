@@ -55,7 +55,8 @@ namespace mbm
         bool lockBorder = true;
         // Copy the final front relief outward on the back. UV mirroring is independent.
         bool backRelief = false, backMirror = false;
-        bool backOpen = false, backRemap = false, backSolid = false;
+        bool backOpen = false, backRemap = false, backSolid = false, backExternal = false;
+        const char *backTexture = nullptr; // borrowed, read only during generation
         uint32_t backColor = 0x808080;
         // Independent same-image UV rectangle; zero sizes use the front crop dimensions.
         uint32_t backX = 0, backY = 0, backCropWidth = 0, backCropHeight = 0;

@@ -66,8 +66,8 @@ namespace mbm
             !std::isfinite(o.borderWidth) || o.borderWidth < 0.0f || o.borderWidth > 0.5f ||
             o.columns == 0 || o.rows == 0 || o.columns > 255 || o.rows > 255)
             return fail(errorOut, errorOutLen, "Invalid dimensions, relief, border width or grid (1..255 cells per axis)");
-        if (static_cast<int>(o.backOpen)+o.backRelief+o.backRemap+o.backSolid>1)
-            return fail(errorOut,errorOutLen,"Back modes are mutually exclusive: open, copied relief, flat remap or solid color");
+        if (static_cast<int>(o.backOpen)+o.backRelief+o.backRemap+o.backSolid+o.backExternal>1)
+            return fail(errorOut,errorOutLen,"Back modes are mutually exclusive: open, copied relief, flat remap, solid color or external texture");
         if (o.sideMode!=IMAGE_MESH_SIDE::EDGE && o.sideMode!=IMAGE_MESH_SIDE::COLOR &&
             o.sideMode!=IMAGE_MESH_SIDE::REPEAT && o.sideMode!=IMAGE_MESH_SIDE::BAND)
             return fail(errorOut,errorOutLen,"Invalid side texture mode");
@@ -89,8 +89,24 @@ namespace mbm
             if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
             std::vector<IMAGE_MESH_POINT> sideInner;
+            const bool separateBack=o.backSolid || o.backExternal;
+            std::string backTexture=field.path;
+            int backImageWidth=0,backImageHeight=0;
+            const bool externalBackImage=o.backExternal && o.backTexture && *o.backTexture;
+            if (externalBackImage)
+            {
+                bool exists=false;
+                const char *resolved=util::getFullPath(o.backTexture,&exists);
+                int channels=0;
+                if (!exists || !resolved || !stbi_info(resolved,&backImageWidth,&backImageHeight,&channels) ||
+                    backImageWidth<1 || backImageHeight<1 || static_cast<uint64_t>(backImageWidth)*backImageHeight>16777216)
+                    return fail(errorOut,errorOutLen,"Back texture is missing or invalid (maximum 16 million pixels)");
+                backTexture=resolved;
+                std::unique_ptr<stbi_uc,decltype(&std::free)> decoded(stbi_load(backTexture.c_str(),&backImageWidth,&backImageHeight,&channels,4),&std::free);
+                if (!decoded) return fail(errorOut,errorOutLen,"Cannot decode back texture");
+            }
             std::string sideTexture=field.path;
-            const bool separateSides=o.backSolid || o.sideMode==IMAGE_MESH_SIDE::COLOR || o.sideMode==IMAGE_MESH_SIDE::REPEAT;
+            const bool separateSides=separateBack || o.sideMode==IMAGE_MESH_SIDE::COLOR || o.sideMode==IMAGE_MESH_SIDE::REPEAT;
             const bool repeatSourceCrop=o.sideMode==IMAGE_MESH_SIDE::REPEAT && (!o.sideTexture || !*o.sideTexture);
             uint32_t sideRows=1;
             if (o.sideMode==IMAGE_MESH_SIDE::BAND)
@@ -183,6 +199,9 @@ namespace mbm
                                   (o.backY+topology.points[source].y*(backHeight-1)+0.5f)/imageHeight);
                 else if (o.backMirror)
                     back.uv.x = (o.x + u*(cw-1) + 0.5f)/imageWidth;
+                if (externalBackImage)
+                    back.uv=VEC2((u*(backImageWidth-1)+.5f)/backImageWidth,
+                        (topology.points[source].y*(backImageHeight-1)+.5f)/backImageHeight);
                 vertices.push_back(back);
             }
             const auto triangle = [&](uint32_t a, uint32_t b, uint32_t c)
@@ -409,14 +428,14 @@ namespace mbm
             destination.setHasNormal(HAS_NOR_IN_FILE);
             destination.setHasTexture(HAS_TEX_EACH_FRAME);
             destination.addBuffer(3);
-            const uint32_t sideSubset=o.backSolid?2:1;
+            const uint32_t sideSubset=separateBack?2:1;
             uint32_t frontVertexCount=vertexCount,frontIndexCount=static_cast<uint32_t>(indices.size()),subsetCount=1;
-            if (o.backSolid) { frontVertexCount=gridSize; frontIndexCount=backIndexStart; subsetCount=3; }
+            if (separateBack) { frontVertexCount=gridSize; frontIndexCount=backIndexStart; subsetCount=3; }
             else if (separateSides) { frontVertexCount=sideVertexStart; frontIndexCount=sideIndexStart; subsetCount=2; }
             destination.addSubset(0);
             if (!destination.addVertex(0, 0, frontVertexCount))
                 return fail(errorOut, errorOutLen, "Cannot allocate mesh vertices");
-            if (o.backSolid)
+            if (separateBack)
             {
                 destination.addSubset(0);
                 if (!destination.addVertex(0,1,backSize))
@@ -443,10 +462,14 @@ namespace mbm
             }
             destination.getSubset(0, 0)->texture = path;
             if (!destination.addIndex(0,0,indices.data(),frontIndexCount,errorOut,errorOutLen)) return false;
-            if (o.backSolid)
+            if (separateBack)
             {
-                char color[10]; std::snprintf(color,sizeof(color),"#%06XFF",o.backColor);
-                destination.getSubset(0,1)->texture=color;
+                if (o.backSolid)
+                {
+                    char color[10]; std::snprintf(color,sizeof(color),"#%06XFF",o.backColor);
+                    backTexture=color;
+                }
+                destination.getSubset(0,1)->texture=backTexture;
                 for (size_t i=backIndexStart;i<sideIndexStart;++i) indices[i]=static_cast<uint16_t>(indices[i]-gridSize);
                 if (!destination.addIndex(0,1,indices.data()+backIndexStart,sideIndexStart-backIndexStart,errorOut,errorOutLen)) return false;
             }

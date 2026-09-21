@@ -33,17 +33,28 @@ function M.region(E,r)
     if mirror==nil then mirror=E.project.defaults.backMirror end
     return Model.backRegion(r,mirror)
 end
-function M.panel(E,apply)
+function M.panel(E,apply,dpCall)
     if not tImGui.CollapsingHeader(L('back_group')) then return end
     local v=E.values
     local index=1
-    if v.backSolid then index=5 elseif v.backRelief then index=2 elseif v.backOpen then index=3 elseif v.backRemap then index=4 end
-    local changed,choice=tImGui.Combo(L('back_geometry'),index,{L('back_flat'),L('back_copy'),L('back_open'),L('back_remap'),L('back_solid')})
+    if v.backExternal then index=6 elseif v.backSolid then index=5 elseif v.backRelief then index=2 elseif v.backOpen then index=3 elseif v.backRemap then index=4 end
+    local changed,choice=tImGui.Combo(L('back_geometry'),index,{L('back_flat'),L('back_copy'),L('back_open'),L('back_remap'),L('back_solid'),L('back_external')})
     if changed then
-        v.backRelief=choice==2; v.backOpen=choice==3; v.backRemap=choice==4; v.backSolid=choice==5
+        v.backRelief=choice==2; v.backOpen=choice==3; v.backRemap=choice==4; v.backSolid=choice==5; v.backExternal=choice==6
         if choice~=4 and E.tool=='back_uv' then E.tool='select'; E.canvasDirty=true end
     end
     if not v.backOpen and not v.backSolid then v.backMirror=tImGui.Checkbox(L('back_mirror'),v.backMirror) end
+    if v.backExternal then
+        if tImGui.Button(L('back_choose_texture')) then dpCall(function()
+            local path=mbm.openFile(v.backTexture,table.unpack(tUtil.supported_images))
+            if path then v.backTexture=path end
+        end) end
+        tImGui.TextWrapped(v.backTexture~='' and tUtil.getShortName(v.backTexture) or L('side_no_texture'))
+        if tImGui.IsItemHovered() and v.backTexture~='' then tImGui.SetTooltip(v.backTexture) end
+        if v.backTexture~='' and tImGui.Button(L('side_use_source')) then v.backTexture='' end
+        tImGui.TextWrapped(L('back_external_help'))
+        return
+    end
     if v.backSolid then
         local rgb=v.backColor
         local changed,color=tImGui.ColorEdit3(L('back_solid'),{r=((rgb>>16)&255)/255,g=((rgb>>8)&255)/255,b=(rgb&255)/255})
