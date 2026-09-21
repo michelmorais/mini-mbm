@@ -32,6 +32,7 @@ function onInitScene()
    local r=Model.add(p,'rectangle',(i-1)*32,0,32,32)
    r.overrides.depth=6+i*2
   end
+  p.regions[1].holes={{{x=.3,y=.3},{x=.6,y=.3},{x=.6,y=.6},{x=.3,y=.6}}}
   p.regions[2].overrides.simplify=true;p.regions[2].overrides.simplifyRatio=.95
   p.regions[3].overrides.sideMode='color';p.regions[3].overrides.backSolid=true
  end))

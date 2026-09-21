@@ -21,6 +21,7 @@
 ]]--
 
 local Model=require 'image_mesh_model'
+local HoleGeometry=require 'image_mesh_holes_geometry'
 local M={}
 function M.directory(path) return path:gsub('\\','/'):match('^(.*)/[^/]*$') or '.' end
 local function absolute(path) return path:match('^[/\\]') or path:match('^%a:') end
@@ -75,6 +76,12 @@ function M.load(path)
     project.nextId=loaded.nextId; project.defaults=Model.copy(loaded.defaults)
     for _,r in ipairs(loaded.regions) do
         local region={id=r.id,name=r.name,shape=r.shape,x=r.x,y=r.y,w=r.w,h=r.h,overrides=Model.copy(r.overrides)}
+        if r.holes then region.holes=Model.copy(r.holes) end
+        for _,hole in ipairs(region.holes or {}) do
+            if hole.primitive==nil and HoleGeometry.isEllipse(hole) then
+                hole.primitive='ellipse';hole.preserveShape=true
+            end
+        end
         if r.backCrop then region.backCrop={x=r.backCrop.x,y=r.backCrop.y,w=r.backCrop.w,h=r.backCrop.h} end
         if r.heightEdits then
             region.heightEdits={}

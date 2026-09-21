@@ -2128,6 +2128,7 @@ assert(asset:save("panel.msh", false, false, true))
 |---|---|---|
 | `shape` | `"rectangle"` | `"rectangle"`, `"ellipse"`, or `"polygon"` |
 | `ellipseSegments` | 48 | Ellipse perimeter segments, integer in [8, 128]; ignored for other shapes |
+| `holes` | nil | Array of up to 16 simple hole contours, each 3..128 normalized `{x,y}` points, either winding; strictly inside the outer shape, disjoint and non-nested |
 | `contour` | — | Polygon-only array of 3..128 `{x, y}` points in normalized crop coordinates [0, 1]; either winding accepted |
 | `x`, `y` | 0 | Zero-based crop origin in pixels, measured from image top-left |
 | `cropWidth`, `cropHeight` | 0 | Crop dimensions in pixels; 0 uses the remaining extent on that axis |
@@ -2152,8 +2153,8 @@ assert(asset:save("panel.msh", false, false, true))
 | `backRemap` | false | Flat back sampling an independent rectangle in the same source image |
 | `backX`, `backY` | 0 | Remap rectangle's zero-based top-left source pixel |
 | `backCropWidth`, `backCropHeight` | 0 | Remap rectangle dimensions; 0 uses corresponding front crop dimension; rectangle must fit inside the source image |
-| `lockBorder` | true | Force the perimeter to zero relief |
-| `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual contour |
+| `lockBorder` | true | Force the outer perimeter to zero relief; hole edges retain the local relief |
+| `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual outer contour (holes do not affect the transition) |
 | `sideMode` | `"edge"` | `"edge"`, `"color"`, `"repeat"`, or `"band"` |
 | `sideColor` | 0x808080 | Opaque RGB integer [0, 0xFFFFFF], used by color mode |
 | `sideTexture` | nil | Optional image path for repeat mode; nil/empty repeats the source crop. Explicit paths are validated and decoded before generating |
@@ -2400,3 +2401,23 @@ extra material texture references are written as basenames instead of resolving
 them to absolute paths. It does not copy images. Existing calls keep their prior
 behavior. The image-mesh portable exporter creates adjacent PNG files before
 saving with this flag; solid `#RRGGBBAA` references remain unchanged.
+
+### Image-mesh holes (7.246.0)
+
+`generateImageMesh` accepts `options.holes = { { {x=.2,y=.2}, {x=.4,y=.2},
+{x=.4,y=.5}, {x=.2,y=.5} }, ... }`. Coordinates are relative to the front crop.
+The CPU generator validates finite points, simplicity, nonzero area, strict
+containment and disjointness, then bridges the rings for triangulation; bridge
+edges are internal edges, never side walls. All perimeter loops participate in
+refinement and wall generation. Front/back triangles leave openings, with
+inward-facing internal walls. `lockBorder` and border distance apply only to the outer contour. Hole edges retain
+the sampled relief, and their internal walls extend to that local height.
+
+With holes, the back uses the front topology (including in adaptive mode) rather
+than a compact boundary-only back. Both budgets include all walls and vertices.
+Back modes, material splitting and normal generation remain supported. Edge,
+color and repeat side modes also apply to internal walls. Repeat U runs along
+the combined perimeter of all loops. For `band`, the external wall keeps the
+band mapping, while internal walls stretch the hole boundary texture with the
+existing opaque-texel fallback. `sideBandInvert` affects only the external band.
+Height/overlay maps leave hole interiors transparent.

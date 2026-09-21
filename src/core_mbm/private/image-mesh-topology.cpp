@@ -62,7 +62,7 @@ namespace {
     {
         if (o.backOpen)
             return budget(o,t.points.size()+4*t.boundary.size(),t.triangles.size()+2*t.boundary.size(),stage,error);
-        if (o.followImage && !o.backRelief)
+        if (o.followImage && !o.backRelief && o.holeCount==0)
             return budget(o,t.points.size()+5*t.boundary.size(),t.triangles.size()+3*t.boundary.size()-2,stage,error);
         return budget(o,2*t.points.size()+4*t.boundary.size(),
                       2*t.triangles.size()+2*t.boundary.size(),stage,error);
@@ -71,9 +71,101 @@ namespace {
     {
         return (static_cast<uint64_t>(std::min(a,b))<<32) | std::max(a,b);
     }
+    bool insideRing(const std::vector<IMAGE_MESH_POINT> &ring,const IMAGE_MESH_POINT &p)
+    {
+        bool inside=false;
+        for (size_t i=0,j=ring.size()-1;i<ring.size();j=i++)
+        {
+            const auto &a=ring[j],&b=ring[i];
+            if (onSegment(a,b,p)) return false;
+            if ((a.y>p.y)!=(b.y>p.y) && p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x) inside=!inside;
+        }
+        return inside;
+    }
+    bool addHoles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error)
+    {
+        if (!o.holeCount) return true;
+        const auto fail=[&](const char *why) { error=why;return false; };
+        if (!o.holes || o.holeCount>16) return fail("At most 16 hole contours are supported");
+        t.loopEnds.push_back(static_cast<uint32_t>(t.boundary.size()));
+        for (uint32_t h=0;h<o.holeCount;++h)
+        {
+            const auto &input=o.holes[h];
+            if (!input.points || input.count<3 || input.count>128) return fail("Each hole needs 3..128 points");
+            std::vector<IMAGE_MESH_POINT> ring(input.points,input.points+input.count);
+            double area=0;
+            for (size_t i=0;i<ring.size();++i)
+            {
+                const auto &a=ring[i],&b=ring[(i+1)%ring.size()],&c=ring[(i+2)%ring.size()];
+                if (!std::isfinite(a.x) || !std::isfinite(a.y) || a.x<0 || a.y<0 || a.x>1 || a.y>1)
+                    return fail("Hole coordinates must be finite and within 0..1");
+                if (std::hypot(a.x-b.x,a.y-b.y)<1e-6) return fail("Repeated or too close hole points");
+                if (std::abs(cross(a,b,c))<=epsilon && !onSegment(a,c,b)) return fail("Hole contour backtracks");
+                if (!insideRing(t.contour,a)) return fail("Hole must be strictly inside the outer contour");
+                for (size_t j=i+1;j<ring.size();++j)
+                    if (j!=(i+1)%ring.size() && (j+1)%ring.size()!=i && intersects(a,b,ring[j],ring[(j+1)%ring.size()]))
+                        return fail("Hole contour crosses or touches itself");
+                for (size_t j=0;j<t.contour.size();++j)
+                    if (intersects(a,b,t.contour[j],t.contour[(j+1)%t.contour.size()])) return fail("Hole touches or crosses the outer contour");
+                for (const auto &other:t.holes)
+                {
+                    if (insideRing(other,a) || insideRing(ring,other[0])) return fail("Holes cannot overlap or contain each other");
+                    for (size_t j=0;j<other.size();++j)
+                        if (intersects(a,b,other[j],other[(j+1)%other.size()])) return fail("Holes cannot touch or intersect");
+                }
+                area+=static_cast<double>(a.x)*b.y-static_cast<double>(a.y)*b.x;
+            }
+            if (std::abs(area)<1e-8) return fail("Hole has negligible area");
+            if (area>0) std::reverse(ring.begin(),ring.end());
+            t.holes.push_back(ring);
+            for (const auto &p:ring) { t.boundary.push_back(static_cast<uint32_t>(t.points.size()));t.points.push_back(p); }
+            t.loopEnds.push_back(static_cast<uint32_t>(t.boundary.size()));
+        }
+        return true;
+    }
+    bool bridgeHoles(const TOPOLOGY &t,std::vector<uint32_t> &path)
+    {
+        if (t.holes.empty()) return true;
+        path.assign(t.boundary.begin(),t.boundary.begin()+t.loopEnds[0]);
+        for (size_t hole=1;hole<t.loopEnds.size();++hole)
+        {
+            const uint32_t start=t.loopEnds[hole-1],end=t.loopEnds[hole];
+            double best=1e100;size_t chosen=0;uint32_t vertex=0;bool found=false;
+            for (size_t i=0;i<path.size();++i) for (uint32_t j=start;j<end;++j)
+            {
+                const auto a=path[i],b=t.boundary[j];const auto &p=t.points[a],&q=t.points[b];
+                const double length=std::hypot(p.x-q.x,p.y-q.y);
+                if (length>=best) continue;
+                const IMAGE_MESH_POINT mid={(p.x+q.x)*.5f,(p.y+q.y)*.5f};
+                if (!insideRing(t.contour,mid)) continue;
+                bool blocked=false;
+                for (const auto &r:t.holes) if (insideRing(r,mid)) { blocked=true;break; }
+                const auto hits=[&](uint32_t c,uint32_t d) {
+                    if (c==a || c==b || d==a || d==b)
+                    {
+                        const auto other=(c==a || c==b)?d:c;
+                        return other!=a && other!=b && onSegment(p,q,t.points[other]);
+                    }
+                    return intersects(p,q,t.points[c],t.points[d]);
+                };
+                for (size_t k=0;k<t.boundary.size() && !blocked;++k)
+                    blocked=hits(t.boundary[k],t.boundary[t.nextBoundary(k)]);
+                for (size_t k=0;k<path.size() && !blocked;++k) blocked=hits(path[k],path[(k+1)%path.size()]);
+                if (!blocked) { found=true;best=length;chosen=i;vertex=j; }
+            }
+            if (!found) return false;
+            std::vector<uint32_t> joined;
+            joined.insert(joined.end(),path.begin(),path.begin()+chosen+1);
+            for (uint32_t k=0;k<end-start;++k) joined.push_back(t.boundary[start+(vertex-start+k)%(end-start)]);
+            joined.push_back(t.boundary[vertex]);joined.push_back(path[chosen]);
+            joined.insert(joined.end(),path.begin()+chosen+1,path.end());path=std::move(joined);
+        }
+        return true;
+    }
     bool triangulateBoundary(const TOPOLOGY &t,std::vector<std::array<uint32_t,3>> &output)
     {
         auto remaining=t.boundary;
+        if (!bridgeHoles(t,remaining)) return false;
         while (remaining.size()>3)
         {
             bool found=false;
@@ -210,13 +302,14 @@ namespace {
             }
             if (!budget(o,t,"while aligning grooves",error)) return false;
         }
-        std::vector<uint32_t> boundary;
+        std::vector<uint32_t> boundary,ends;
         for (size_t i=0;i<t.boundary.size();++i)
         {
-            const auto a=t.boundary[i],b=t.boundary[(i+1)%t.boundary.size()]; boundary.push_back(a);
+            const auto a=t.boundary[i],b=t.boundary[t.nextBoundary(i)]; boundary.push_back(a);
             auto it=cuts.find(edgeKey(a,b)); if (it!=cuts.end()) boundary.push_back(it->second);
+            if (!t.loopEnds.empty() && t.nextBoundary(i)<=i) ends.push_back(static_cast<uint32_t>(boundary.size()));
         }
-        t.boundary=std::move(boundary); t.triangles=std::move(result);
+        t.boundary=std::move(boundary); t.loopEnds=std::move(ends); t.triangles=std::move(result);
         return budget(o,t,"while aligning grooves",error);
     }
     // Optimize the actual height approximation on both candidate triangulations.
@@ -304,11 +397,12 @@ namespace {
     }
     void splitEdges(TOPOLOGY &t,const std::map<uint64_t,uint32_t> &midpoints)
     {
-        std::vector<uint32_t> boundary;
+        std::vector<uint32_t> boundary,ends;
         for (size_t i=0;i<t.boundary.size();++i)
         {
-            const uint32_t a=t.boundary[i],b=t.boundary[(i+1)%t.boundary.size()]; boundary.push_back(a);
+            const uint32_t a=t.boundary[i],b=t.boundary[t.nextBoundary(i)]; boundary.push_back(a);
             const auto it=midpoints.find(edgeKey(a,b)); if (it!=midpoints.end()) boundary.push_back(it->second);
+            if (!t.loopEnds.empty() && t.nextBoundary(i)<=i) ends.push_back(static_cast<uint32_t>(boundary.size()));
         }
         std::vector<std::array<uint32_t,3>> triangles;
         for (const auto &tri:t.triangles)
@@ -338,7 +432,7 @@ namespace {
                 }
             }
         }
-        t.boundary=std::move(boundary); t.triangles=std::move(triangles);
+        t.boundary=std::move(boundary); t.loopEnds=std::move(ends); t.triangles=std::move(triangles);
     }
     bool needsPaintDetail(const std::array<uint32_t,3> &tri,const TOPOLOGY &t,
                           const HEIGHT_FIELD &field,const IMAGE_MESH_OPTIONS &o)
@@ -411,7 +505,7 @@ namespace {
         if (!o.twoLevels && (!alignTransition(o,t,field,0.0001f,error) || !alignTransition(o,t,field,0.9999f,error))) return false;
         improveRelief(o,t,field);
         if (!refinePainting(o,t,field,error)) return false;
-        if (!o.backOpen && !triangulateBoundary(t,t.backTriangles)) { error="Cannot triangulate simplified back"; return false; }
+        if (!o.backOpen && o.holeCount==0 && !triangulateBoundary(t,t.backTriangles)) { error="Cannot triangulate simplified back"; return false; }
         return budget(o,t,"after groove alignment",error);
     }
 
@@ -420,7 +514,7 @@ namespace {
 bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
 {
     const auto fail=[&](const char *message) { error=message; return false; };
-    if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE && !field)
+    if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE && !field && o.holeCount==0)
     {
         const uint64_t size=static_cast<uint64_t>(o.columns+1)*(o.rows+1);
         if (!budget(o,(o.backOpen?size:2*size)+8*(o.columns+o.rows),
@@ -494,7 +588,8 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error,
     if (area<0) std::reverse(t.points.begin(),t.points.end());
     t.contour=t.points;
     t.boundary.resize(t.points.size()); std::iota(t.boundary.begin(),t.boundary.end(),0u);
-    if (o.shape==IMAGE_MESH_SHAPE::ELLIPSE)
+    if (!addHoles(o,t,error)) return false;
+    if (o.shape==IMAGE_MESH_SHAPE::ELLIPSE && o.holeCount==0)
     {
         const uint32_t center=static_cast<uint32_t>(t.points.size());
         t.points.push_back({0.5f,0.5f});
@@ -543,9 +638,11 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error,
 float borderDistance(const IMAGE_MESH_POINT &p, const TOPOLOGY &t)
 {
     double nearest=1;
-    for (size_t i=0;i<t.contour.size();++i)
+    // Holes cut the height field; only the outer perimeter tapers its relief.
+    const auto &contour=t.contour;
+    for (size_t i=0;i<contour.size();++i)
     {
-        const auto &a=t.contour[i], &b=t.contour[(i+1)%t.contour.size()];
+        const auto &a=contour[i], &b=contour[(i+1)%contour.size()];
         const double dx=static_cast<double>(b.x)-a.x,dy=static_cast<double>(b.y)-a.y;
         const double u=std::clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy),0.0,1.0);
         nearest=std::min(nearest,std::hypot(p.x-a.x-u*dx,p.y-a.y-u*dy));

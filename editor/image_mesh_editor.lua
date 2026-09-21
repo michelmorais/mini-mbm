@@ -35,6 +35,7 @@ local Presets=require 'image_mesh_presets'
 local BackUv=require 'image_mesh_back_uv'
 local Asset=require 'image_mesh_asset'
 local Sides=require 'image_mesh_sides'
+local Holes=require 'image_mesh_holes'
 local Simplify=require 'image_mesh_simplify'
 local Comparison=require 'image_mesh_comparison'
 local Assembly=require 'image_mesh_assembly'
@@ -65,6 +66,7 @@ local function syncDraft()
     for k,v in pairs(Model.optionalDefaults) do if E.values[k]==nil then E.values[k]=v end end
     E.values.preserveAspect=E.values.preserveAspect~=false
     if (E.tool=='back_uv' and not BackUv.available(E)) or (E.tool=='side_band' and not Sides.available(E)) then E.tool='select' end
+    E.holeIndex=math.max(1,math.min(E.holeIndex or 1,r and #(r.holes or {}) or 0))
     E.point=1
 end
 local function changed()
@@ -317,7 +319,7 @@ applyProperties=function()
             r.overrides={}; for k,v in pairs(settings) do if k=='backExternal' or k=='backSolid' or k=='backOpen' or k=='backRemap' or k=='backRelief' or v~=p.defaults[k] then r.overrides[k]=v end end
         end end
         local r=assert(Model.region(p,E.selected),L('select_region'))
-        r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop)
+        r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop); r.holes=Model.copy(draft.holes)
     end)
 end
 local function menu()
@@ -509,6 +511,7 @@ local function propertiesPanel()
                 if E.heightError then tImGui.TextWrapped(E.heightError) end
             end
         end
+        Holes.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
         Paint.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
         if tImGui.CollapsingHeader(L('volume_group')) then
         E.values.preserveAspect=tImGui.Checkbox(L('preserveAspect'),E.values.preserveAspect)
@@ -594,6 +597,7 @@ local function regionsPanel()
             local names={L('select'),L('rectangle'),L('ellipse'),L('polygon'),L('pan')}; local tools={'select','rectangle','ellipse','polygon','pan'}
             if BackUv.available(E) then names[#names+1]=L('back_edit'); tools[#tools+1]='back_uv' end
             if Sides.available(E) then names[#names+1]=L('side_edit');tools[#tools+1]='side_band' end
+            if E.tool=='holes' or E.tool=='hole_draw' then names[#names+1]=L('holes_'..(E.tool=='holes' and 'edit' or 'draw'));tools[#tools+1]=E.tool end
             local index=1; for i,name in ipairs(tools) do if name==E.tool then index=i end end
             if E.paint and E.paint.enabled then names[#names+1]=L('paint_title'); index=#names end
             local modified,tool=tImGui.Combo(L('tool'),index,names)
@@ -603,7 +607,7 @@ local function regionsPanel()
                 tImGui.SameLine(); if tImGui.Button(L('cancel')) then Canvas.cancel(E) end
             end
             if tImGui.Button(L('fit_image')) then Canvas.fit(E) end
-            tImGui.TextWrapped(L(E.tool=='side_band' and 'side_canvas_help' or (E.tool=='back_uv' and 'back_canvas_help' or (E.paint and E.paint.enabled and 'paint_canvas_help' or 'canvas_help'))))
+            tImGui.TextWrapped(L((E.tool=='holes' or E.tool=='hole_draw') and 'holes_help' or E.tool=='side_band' and 'side_canvas_help' or (E.tool=='back_uv' and 'back_canvas_help' or (E.paint and E.paint.enabled and 'paint_canvas_help' or 'canvas_help'))))
         else
             tImGui.TextWrapped(L('preview_help'))
             setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
@@ -718,7 +722,7 @@ function onTouchDown(key,x,y)
                 if draftChanged() and not applyProperties() then return end
                 handled=Paint.input(E,action,'down',x,y)
             else handled=Canvas.input(E,handlers,'down',x,y) end
-            if (E.tool=='select' or E.tool=='back_uv' or E.tool=='side_band') and not handled then E.panDrag={x=x,y=y} end
+            if (E.tool=='select' or E.tool=='back_uv' or E.tool=='side_band' or E.tool=='holes') and not handled then E.panDrag={x=x,y=y} end
         elseif key==0 then E.panDrag={x=x,y=y}
         elseif key==1 or key==2 then E.panDrag={x=x,y=y} end
     elseif key==0 then E.orbitDrag={x=x,y=y} end
@@ -761,6 +765,7 @@ end
 function onEndScene() Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
+    testApi.holes=Holes
     testApi.setAssembly=setAssembly
     testApi.setComparison=setComparison
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject

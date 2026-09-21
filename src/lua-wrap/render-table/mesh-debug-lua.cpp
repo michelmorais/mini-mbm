@@ -3641,7 +3641,7 @@ namespace mbm
         return 1;
     }
 
-    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,int optionIndex=2)
+    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,IMAGE_MESH_HOLE *holes,IMAGE_MESH_POINT *holePoints,int optionIndex=2)
     {
         luaL_checktype(lua,optionIndex,LUA_TTABLE);
         const auto integer = [&](const char *name, uint32_t &value)
@@ -3731,6 +3731,31 @@ namespace mbm
             }
         }
         lua_pop(lua,1);
+        lua_getfield(lua,optionIndex,"holes");
+        if (!lua_isnil(lua,-1))
+        {
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const size_t count=lua_rawlen(lua,-1);
+            if (count>16) luaL_error(lua,"At most 16 holes are supported");
+            options.holes=holes; options.holeCount=static_cast<uint32_t>(count);
+            uint32_t offset=0;
+            for (size_t h=0;h<count;++h)
+            {
+                lua_rawgeti(lua,-1,h+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                const size_t n=lua_rawlen(lua,-1);
+                if (n<3 || n>128) luaL_error(lua,"Each hole needs 3..128 points");
+                holes[h].points=holePoints+offset;holes[h].count=static_cast<uint32_t>(n);
+                for (size_t i=0;i<n;++i)
+                {
+                    lua_rawgeti(lua,-1,i+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                    lua_getfield(lua,-1,"x");holePoints[offset].x=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,1);
+                    lua_getfield(lua,-1,"y");holePoints[offset].y=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,2);
+                    ++offset;
+                }
+                lua_pop(lua,1);
+            }
+        }
+        lua_pop(lua,1);
         lua_getfield(lua, optionIndex, "shape");
         if (!lua_isnil(lua, -1))
         {
@@ -3763,8 +3788,8 @@ namespace mbm
 
     int onGetImageMeshSideContourLua(lua_State *lua)
     {
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[128]; IMAGE_MESH_DAB dabs[4096];
-        readImageMeshOptions(lua,options,contour,dabs,1);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,1);
         uint32_t count=128; float maximum=0; char error[512]="";
         if (!getImageMeshSideContour(options,inner,count,maximum,error,sizeof(error)))
         {
@@ -3801,8 +3826,8 @@ namespace mbm
         const char *output=luaL_checkstring(lua,3);
         if (!lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
         const bool overlay=lua_toboolean(lua,4)!=0;
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096];
-        readImageMeshOptions(lua,options,contour,dabs);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints);
         char error[512]="";
         if (!generateImageMeshMap(path,options,output,overlay,error,sizeof(error)))
         {
@@ -3814,8 +3839,8 @@ namespace mbm
     int onGenerateImageMeshLua(lua_State *lua)
     {
         const char *path=luaL_checkstring(lua,1);
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096];
-        readImageMeshOptions(lua,options,contour,dabs);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints);
         lua_settop(lua, 2);
         lua_pushcfunction(lua, onNewMeshDebugLua);
         lua_call(lua, 0, 1);

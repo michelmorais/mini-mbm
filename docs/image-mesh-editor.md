@@ -683,3 +683,50 @@ Alterações aplicadas ao projeto regeneram a montagem preservando a câmera;
 wireframes são criados sob demanda. Não há geração, leitura de arquivos ou
 reposicionamento contínuo em repouso. Falha de geração libera as prévias
 parciais e apresenta o erro, sem repetir a geração a cada frame.
+
+## Furos manuais (7.246.0)
+
+Selecione o módulo e abra **Furos**. No modo de edição:
+
+- **Adicionar furo** cria um retângulo ou círculo de 16 pontos em uma posição livre,
+  buscando a partir do centro e mantendo o tamanho inicial. O novo furo fica selecionado.
+  Se a busca não encontrar espaço, o editor orienta a mover/redimensionar os furos
+  existentes ou usar **Desenhar furo**, sem alterar o projeto.
+  A inclusão é recusada se não couber na peça ou sobrepuser outro furo; nesse
+  caso, use desenho manual ou mova o furo existente antes de adicionar outro.
+- **Desenhar furo** permite clicar os vértices de um polígono e **Concluir furo**.
+- **Editar furos na cena** exibe alças nos vértices do furo selecionado. Arraste
+  uma alça para mudar a forma ou arraste dentro do furo para movê-lo. Espaço
+  vazio move a câmera. Escape cancela o gesto/desenho.
+- **Remover furo** exclui apenas o furo selecionado.
+
+Contornos rosa representam aberturas reais. Cada módulo aceita até 16 furos,
+com 3..128 pontos por furo. Eles devem ficar estritamente dentro da peça, sem
+contato, cruzamentos, sobreposição ou furos dentro de furos. Edições inválidas
+são rejeitadas ao finalizar o gesto. Vértices consecutivos repetidos e áreas
+degeneradas também são rejeitados.
+
+As aberturas removem faces da frente/verso e geram paredes internas. Funcionam
+com relevo, pintura, simplificação, todos os modos de fundo, montagem e exportação.
+Fixar altura da borda afeta apenas o contorno externo. Os furos recortam o relevo
+sem rebaixar sua vizinhança; suas paredes internas acompanham a altura local. Com furos, o fundo
+usa a triangulação da frente e pode consumir mais orçamento que o fundo compacto.
+Paredes internas usam o modo lateral selecionado; no modo **Faixa interna**,
+estica-se a textura da borda do furo, sem aplicar o contorno verde externo.
+
+Furos acompanham movimento/redimensionamento do módulo, participam de
+desfazer/refazer e são salvos no `.imesh`. Presets de geração preservam os furos
+existentes, sem copiá-los entre módulos. Não há detecção automática nesta etapa.
+
+### Redimensionar furos circulares (7.247.0)
+
+Furos criados como círculo têm **Manter forma circular/elíptica** habilitado.
+O furo selecionado mostra três alças: direita ajusta a largura, inferior ajusta
+a altura e inferior direita iguala os raios em pixels da imagem, formando um
+círculo. O centro permanece fixo; arrastar o interior move o furo.
+
+Desmarque para editar os vértices livremente. Ao marcar novamente, o editor
+reconstrói a elipse usando os limites atuais. A opção acompanha o furo no
+projeto e no histórico. Círculos/elipses regulares de 16 pontos de projetos
+antigos são reconhecidos ao abrir. Sobreposição e saída do módulo continuam
+sendo rejeitadas ao soltar a alça.

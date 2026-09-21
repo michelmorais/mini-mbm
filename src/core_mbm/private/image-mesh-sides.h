@@ -126,12 +126,12 @@ inline void sideSplitRepeats(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t)
         return std::hypot((t.points[b].x-t.points[a].x)*o.width,(t.points[b].y-t.points[a].y)*o.height);
     };
     double total=0;
-    for (size_t i=0;i<t.boundary.size();++i) total+=length(t.boundary[i],t.boundary[(i+1)%t.boundary.size()]);
-    std::vector<uint32_t> boundary;
+    for (size_t i=0;i<t.boundary.size();++i) total+=length(t.boundary[i],t.boundary[t.nextBoundary(i)]);
+    std::vector<uint32_t> boundary,ends;
     double walked=0;
     for (size_t i=0;i<t.boundary.size();++i)
     {
-        const auto a=t.boundary[i],b=t.boundary[(i+1)%t.boundary.size()];
+        const auto a=t.boundary[i],b=t.boundary[t.nextBoundary(i)];
         const auto p=t.points[a],q=t.points[b];
         const double distance=length(a,b),u0=walked/total*o.sideRepeatU,u1=(walked+distance)/total*o.sideRepeatU;
         boundary.push_back(a); uint32_t previous=a;
@@ -145,8 +145,9 @@ inline void sideSplitRepeats(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t)
             boundary.push_back(mid); previous=mid;
         }
         walked+=distance;
+        if (!t.loopEnds.empty() && t.nextBoundary(i)<=i) ends.push_back(static_cast<uint32_t>(boundary.size()));
     }
-    t.boundary=std::move(boundary);
+    t.boundary=std::move(boundary);t.loopEnds=std::move(ends);
 }
 inline IMAGE_MESH_POINT sideMap(const IMAGE_MESH_POINT &p,const std::vector<IMAGE_MESH_POINT> &outer,
                                const std::vector<IMAGE_MESH_POINT> &inner)

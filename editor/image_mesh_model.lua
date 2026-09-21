@@ -20,6 +20,7 @@
 
 ]]--
 
+local HoleGeometry=require 'image_mesh_holes_geometry'
 local M={}
 M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=24,rows=24,
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
@@ -79,6 +80,7 @@ function M.options(project,region)
     o.x=region.x; o.y=region.y; o.cropWidth=region.w; o.cropHeight=region.h
     o.shape=region.shape; o.contour=M.copy(region.contour)
     o.heightEdits=M.copy(region.heightEdits)
+    o.holes=M.copy(region.holes)
     if o.backRemap then
         local crop=region.backCrop or region
         o.backX=crop.x; o.backY=crop.y; o.backCropWidth=crop.w; o.backCropHeight=crop.h
@@ -166,6 +168,11 @@ function M.validate(p)
             assert(type(r.contour)=='table' and #r.contour>=3 and #r.contour<=128,'ime_invalid_contour')
             for _,point in ipairs(r.contour) do assert(type(point)=='table' and number(point.x,0,1) and number(point.y,0,1),'ime_invalid_contour') end
         end
+        if r.holes then
+            local outer=M.outline(r,r.overrides.ellipseSegments or p.defaults.ellipseSegments or 48)
+            for _,point in ipairs(outer) do point.x=(point.x-r.x)/math.max(1,r.w-1);point.y=(point.y-r.y)/math.max(1,r.h-1) end
+            HoleGeometry.validate(outer,r.holes)
+        end
     end
     return true
 end
@@ -241,6 +248,13 @@ function M.movePoint(r,before,index,x,y)
     local right=math.max(before.x+before.w-1,math.ceil(x))
     local bottom=math.max(before.y+before.h-1,math.ceil(y))
     r.x=left; r.y=top; r.w=right-left+1; r.h=bottom-top+1
+    if before.holes then
+        r.holes=M.copy(before.holes)
+        for _,hole in ipairs(r.holes) do for _,p in ipairs(hole) do
+            p.x=(before.x+p.x*(before.w-1)-left)/math.max(1,r.w-1)
+            p.y=(before.y+p.y*(before.h-1)-top)/math.max(1,r.h-1)
+        end end
+    end
     for i,p in ipairs(points) do
         r.contour[i]={x=(p.x-left)/math.max(1,r.w-1),y=(p.y-top)/math.max(1,r.h-1)}
     end

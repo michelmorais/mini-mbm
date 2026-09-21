@@ -21,6 +21,7 @@
 #define IMAGE_MESH_TOPOLOGY_H
 #include <core_mbm/image-mesh.h>
 #include <array>
+#include <algorithm>
 #include <string>
 #include <vector>
 namespace mbm { namespace image_mesh {
@@ -31,6 +32,16 @@ namespace mbm { namespace image_mesh {
         std::vector<std::array<uint32_t, 3>> triangles, backTriangles;
         std::vector<uint32_t> boundary;
         std::vector<IMAGE_MESH_POINT> contour;
+        std::vector<std::vector<IMAGE_MESH_POINT>> holes;
+        std::vector<uint32_t> loopEnds;
+        size_t nextBoundary(size_t i) const
+        {
+            if (loopEnds.empty()) return (i+1)%boundary.size();
+            const auto end=std::upper_bound(loopEnds.begin(),loopEnds.end(),i);
+            if (i+1<*end) return i+1;
+            return end==loopEnds.begin()?0:*(end-1);
+        }
+
     };
     bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &out, std::string &error, const HEIGHT_FIELD *field = nullptr);
     float borderDistance(const IMAGE_MESH_POINT &point, const TOPOLOGY &topology);

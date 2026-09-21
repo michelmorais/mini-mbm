@@ -140,7 +140,7 @@ namespace mbm
                 sideRows=static_cast<uint32_t>(std::ceil(o.sideRepeatV));
             }
             const uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
-            const bool compactBack=o.followImage && !o.backRelief;
+            const bool compactBack=o.followImage && !o.backRelief && o.holeCount==0;
             uint32_t backSize=gridSize;
             size_t backTriangles=topology.triangles.size();
             if (o.backOpen) { backSize=0; backTriangles=0; }
@@ -167,7 +167,8 @@ namespace mbm
             indices.reserve(triangleCount * 3);
             float minHeight = o.relief, maxHeight = 0.0f;
             std::vector<bool> boundary(gridSize, false);
-            for (uint32_t index : topology.boundary) boundary[index] = true;
+            const size_t outerEnd=topology.loopEnds.empty()?topology.boundary.size():topology.loopEnds[0];
+            for (size_t i=0;i<outerEnd;++i) boundary[topology.boundary[i]] = true;
             for (uint32_t pointIndex = 0; pointIndex < gridSize; ++pointIndex)
             {
                 const auto &point = topology.points[pointIndex];
@@ -280,11 +281,11 @@ namespace mbm
             if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
                 for (size_t i=0;i<topology.boundary.size();++i)
                 {
-                    const auto &a=vertices[topology.boundary[i]].position,&b=vertices[topology.boundary[(i+1)%topology.boundary.size()]].position;
+                    const auto &a=vertices[topology.boundary[i]].position,&b=vertices[topology.boundary[topology.nextBoundary(i)]].position;
                     sidePerimeter+=std::hypot(b.x-a.x,b.y-a.y);
                 }
             // Clockwise perimeter viewed from -Z. Duplicate side vertices for hard seams.
-            const auto side = [&](uint32_t a, uint32_t b)
+            const auto side = [&](uint32_t a, uint32_t b, bool hole)
             {
                 if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
                 {
@@ -328,7 +329,7 @@ namespace mbm
                 }
                 // Back-only UV mirroring must not twist the stretched border strip.
                 vertices[start+2].uv=vertices[a].uv; vertices[start+3].uv=vertices[b].uv;
-                if (o.sideMode==IMAGE_MESH_SIDE::BAND)
+                if (o.sideMode==IMAGE_MESH_SIDE::BAND && !hole)
                 {
                     for (uint32_t k=0;k<2;++k)
                     {
@@ -352,7 +353,7 @@ namespace mbm
                 triangle(start, start + 2, start + 1); triangle(start + 1, start + 2, start + 3);
             };
             for (size_t i = 0; i < topology.boundary.size(); ++i)
-                side(topology.boundary[i], topology.boundary[(i + 1) % topology.boundary.size()]);
+                side(topology.boundary[i], topology.boundary[topology.nextBoundary(i)],!topology.loopEnds.empty() && i>=topology.loopEnds[0]);
             // Prefer plateau faces over steep ramps when computing shared front
             // normals. Keeping vertices welded preserves simplification behavior.
             const bool preservePlateaus=o.followImage && o.twoLevels && o.relief>0;
@@ -583,6 +584,16 @@ namespace mbm
                 {
                     const auto &a=topology.contour[i],&b=topology.contour[j];
                     if ((a.y>p.y)!=(b.y>p.y) && p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x) inside=!inside;
+                }
+                for (const auto &hole:topology.holes)
+                {
+                    bool inHole=false;
+                    for (size_t i=0,j=hole.size()-1;i<hole.size();j=i++)
+                    {
+                        const auto &a=hole[i],&b=hole[j];
+                        if ((a.y>p.y)!=(b.y>p.y) && p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x) inHole=!inHole;
+                    }
+                    if (inHole) { inside=false;break; }
                 }
                 const float distance=image_mesh::borderDistance(p,topology);
                 if (!inside && distance>1e-6f) continue;

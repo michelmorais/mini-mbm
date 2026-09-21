@@ -39,6 +39,12 @@ namespace mbm
     };
 
     // Value-only request/result types. Image and mesh buffers remain implementation-owned.
+    struct IMAGE_MESH_HOLE
+    {
+        const IMAGE_MESH_POINT *points = nullptr;
+        uint32_t count = 0;
+    };
+
     struct IMAGE_MESH_OPTIONS
     {
         uint32_t x = 0, y = 0, cropWidth = 0, cropHeight = 0;
@@ -47,6 +53,9 @@ namespace mbm
         // Borrowed normalized crop coordinates, only read during this call (3..128 points).
         const IMAGE_MESH_POINT *contour = nullptr;
         uint32_t contourCount = 0;
+        // Borrowed simple disjoint contours, strictly inside the outer shape. Max 16 x 128 points.
+        const IMAGE_MESH_HOLE *holes = nullptr;
+        uint32_t holeCount = 0;
         uint32_t columns = 32, rows = 32;
         uint32_t maxVertices = 65535, maxTriangles = 131070;
         float width = 100.0f, height = 100.0f, depth = 20.0f, relief = 8.0f;

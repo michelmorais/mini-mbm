@@ -655,3 +655,19 @@ Prévias e arquivos temporários são liberados ao sair/abrir outro projeto.
 simplificação, wireframe, seleção sem regeneração, câmera, arquivos temporários
 e ausência de trabalho em repouso. Conferência visual com project-1.imesh.
 Arraste 3D, rotação individual e persistência da montagem ficam fora desta entrega.
+
+### Etapa 4a - Furos manuais (7.246.0)
+
+Entregues contornos internos por módulo (até 16 x 128 pontos), retângulo/círculo
+inicial e desenho poligonal manual. Edição de vértices e movimento no canvas,
+validação de contenção/cruzamentos, histórico e persistência. Triangulação da
+frente/verso respeita aberturas e gera paredes internas; refinamento acompanha
+todos os perímetros, sem paredes nas pontes internas da triangulação.
+
+Compatível com simplificação, modos de fundo/laterais, orçamento e exportação.
+A faixa UV interna permanece externa; paredes dos furos usam borda esticada
+nesse modo. Fundo adaptativo de peças furadas reutiliza a triangulação frontal.
+Testes cobrem fechamento, característica de Euler, área, normais, 16 furos,
+furos côncavos, limites, mapas, edição, histórico, presets e salvamento.
+
+Próximas pendências da etapa 4: desenho livre e seleção automática de contornos.
