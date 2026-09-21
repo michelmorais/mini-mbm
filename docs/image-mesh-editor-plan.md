@@ -624,3 +624,11 @@ relativos, recortes pelos UVs finais e margem replicada de 4 pixels. Materiais
 sólidos não exigem PNG; geometria/normais preservadas. Colisões recusadas e
 limpeza dos arquivos criados por módulo em caso de falha. Sem atlas compartilhado
 ou deduplicação entre módulos nesta entrega. Próximo milestone: prévia de encaixe.
+
+### Ajuste da exportação portátil (7.243.0)
+
+Sobrescrita habilitada para exportação portátil individual/em lote, preparando
+novos arquivos antes da substituição e restaurando backups em falhas normais.
+Padrão: imagem inteira em PNG, dimensões/pixels/UVs preservados, sem margem.
+Recorte com margem e remapeamento de UVs tornou-se checkbox opcional no menu
+Arquivo, desmarcado no início da sessão.

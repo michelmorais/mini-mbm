@@ -289,7 +289,7 @@ local function run()
         assert(not texture:find('/') and not texture:find('\\'),'portable texture not relative')
         assert(IO.exists('/tmp/ime_portable/'..texture))
         for _,v in ipairs(packed:getVertex(1,subset,1,packed:getTotalVertex(1,subset))) do
-            assert(v.u>0 and v.u<1 and v.v>0 and v.v<1,'padding missing')
+            assert(v.u>=0 and v.u<=1 and v.v>=0 and v.v<=1,'invalid original UV')
         end
     end
     data(packed,{})
@@ -302,10 +302,27 @@ local function run()
         local out=packedVertices[i]
         close(out.x,-v.x);close(out.y,v.y);close(out.z,-v.z)
         close(out.nx,-v.nx);close(out.ny,v.ny);close(out.nz,-v.nz)
+        close(out.u,v.u);close(out.v,v.v)
     end
     local function quiet(fn) return pcall(fn) end
-    assert(not pcall(Portable.save,asset,portable,quiet),'portable overwrote existing mesh')
+    assert(api.exportOne(portable,true),'portable overwrite failed')
+    local function bytes(file) local f=assert(io.open(file,'rb'));local b=f:read('a');f:close();return b end
+    local saved=bytes(portable)
+    local textureSaved=bytes('/tmp/ime_portable/module_texture_01.png')
+    -- Force a commit failure after the first texture was replaced; all backups must restore.
+    asset:setTexture(1,1,tilePath) -- replacement differs from original, testing real backup restoration
+    local rename=os.rename
+    os.rename=function(from,to)
+        if from:find('module_texture_02.png.ime-tmp-',1,true) then return nil,'simulated rename failure' end
+        return rename(from,to)
+    end
+    local committed=pcall(Portable.save,asset,portable,quiet)
+    os.rename=rename
+    assert(not committed,'injected commit failure ignored')
+    assert(bytes(portable)==saved and bytes('/tmp/ime_portable/module_texture_01.png')==textureSaved,'overwrite rollback damaged previous export')
     asset:setTexture(1,2,'/tmp/missing-portable-texture.png')
+    assert(not pcall(Portable.save,asset,portable,quiet))
+    assert(bytes(portable)==saved and bytes('/tmp/ime_portable/module_texture_01.png')==textureSaved,'generation failure damaged previous export')
     assert(not pcall(Portable.save,asset,'/tmp/ime_portable/failed.msh',quiet))
     assert(not IO.exists('/tmp/ime_portable/failed_texture_01.png'),'partial PNG not cleaned')
     assert(not IO.exists('/tmp/ime_portable/failed.msh'),'partial mesh not cleaned')
@@ -318,7 +335,16 @@ local function run()
     api.beginBatch('/tmp/ime_portable/batch',true)
     while E.batch do api.batchStep() end
     assert(IO.exists(batchPath),'portable batch export failed')
-    print('PORTABLE / RELATIVE PATHS / UV / COLLISIONS / CLEANUP / BATCH OK')
+    api.beginBatch('/tmp/ime_portable/batch',true)
+    while E.batch do api.batchStep() end
+    assert(IO.exists(batchPath),'portable batch overwrite failed')
+    E.portableCrop=true
+    assert(api.exportOne('/tmp/ime_portable/cropped.msh',true))
+    E.portableCrop=false
+    local cropped=meshDebug:new();assert(cropped:load('/tmp/ime_portable/cropped.msh'))
+    local cv=Asset.vertices(cropped)
+    assert(math.abs(cv[1].u-packedVertices[1].u)>1e-4,'optional crop did not remap UV')
+    print('PORTABLE / FULL IMAGE UV / OPTIONAL CROP / OVERWRITE / ROLLBACK / BATCH OK')
     assert(api.exportOne('/tmp/ime_sides_editor.msh'))
     local source,report=mbm.generateImageMesh(path,Model.options(E.project,E.project.regions[1]));assert(source,report)
     local loaded=meshDebug:new();assert(loaded:load('/tmp/ime_sides_editor.msh'))

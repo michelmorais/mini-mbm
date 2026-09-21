@@ -263,18 +263,18 @@ local function saveProject(path)
     tUtil.tTimerOverlay:set(4); tUtil.tTimerOverlay:restart()
     return true
 end
-local function exportOneImpl(path,portable)
+local function exportOneImpl(path,portable,crop)
     local r=assert(Model.region(E.project,E.selected),L('select_region'))
     local asset=generate(r)
-    if portable then Portable.save(asset,path,dpCall) else assert(asset:save(path,false,false,true),L('export_failed')) end
+    if portable then Portable.save(asset,path,dpCall,crop) else assert(asset:save(path,false,false,true),L('export_failed')) end
     E.status=L('exported')..' '..path; return true
 end
 local function exportOne(path,portable)
-    return Simplify.run(E,exportOneImpl,path,portable)
+    return Simplify.run(E,exportOneImpl,path,portable,E.portableCrop or false)
 end
 local function beginBatch(directory,portable)
     assert(#E.project.regions>0,L('select_region'))
-    E.batch={portable=portable,directory=directory,index=1,completed=0,failures={},project=Model.copy(E.project)}
+    E.batch={portableCrop=E.portableCrop or false,portable=portable,directory=directory,index=1,completed=0,failures={},project=Model.copy(E.project)}
 end
 local function batchStepImpl()
     local batch=E.batch; if not batch then return end
@@ -287,9 +287,8 @@ local function batchStepImpl()
     local ok,err=dpCall(function()
         local asset=generate(region,batch.project)
         local path=batch.directory..'/'..IO.exportName(region)
-        -- Do not silently overwrite an earlier export; the user chooses a fresh folder.
-        assert(not IO.exists(path),L('file_exists')..' '..path)
-        if batch.portable then Portable.save(asset,path,dpCall) else assert(asset:save(path,false,false,true),L('export_failed')) end
+        if not batch.portable then assert(not IO.exists(path),L('file_exists')..' '..path) end
+        if batch.portable then Portable.save(asset,path,dpCall,batch.portableCrop) else assert(asset:save(path,false,false,true),L('export_failed')) end
     end)
     if ok then batch.completed=batch.completed+1 else batch.failures[#batch.failures+1]=region.name..': '..tostring(err) end
     batch.index=batch.index+1
@@ -331,6 +330,9 @@ local function menu()
                 if path then exportOne(path) end
             end) end
             if tImGui.MenuItem(L('export_all')) then dpCall(function() local path=mbm.openFolder(L('export_folder')); if path then beginBatch(path) end end) end
+            tImGui.Separator()
+            E.portableCrop=tImGui.Checkbox(L('export_portable_crop'),E.portableCrop or false)
+            if tImGui.IsItemHovered() then tImGui.SetTooltip(L('export_portable_crop_help')) end
             if tImGui.MenuItem(L('export_portable_selected')) then dpCall(function()
                 local region=assert(Model.region(E.project,E.selected),L('select_region'))
                 local path=mbm.saveFile(string.format('module_%03d.msh',region.id),'msh')
