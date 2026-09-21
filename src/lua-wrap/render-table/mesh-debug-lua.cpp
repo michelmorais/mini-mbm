@@ -25,12 +25,14 @@ extern "C"
 }
 
 #include <map>
+#include <exception>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
+#include "image-mesh-job.h"
 #include <lua-wrap/render-table/animation-lua.h>
 #include <lua-wrap/render-table/mesh-lua.h>
 #include <lua-wrap/render-table/sprite-lua.h>
@@ -3873,6 +3875,166 @@ namespace mbm
         lua_pushboolean(lua,true); return 1;
     }
 
+    namespace
+    {
+        std::atomic<bool> imageMeshWorkerBusy{false};
+    }
+
+    IMAGE_MESH_JOB_LUA::IMAGE_MESH_JOB_LUA() = default;
+
+    IMAGE_MESH_JOB_LUA::~IMAGE_MESH_JOB_LUA()
+    {
+        cancelled.store(true);
+        if (worker.joinable()) worker.join();
+    }
+
+    void IMAGE_MESH_JOB_LUA::snapshot(const char *source,const IMAGE_MESH_OPTIONS &o)
+    {
+        path=source;options=o;
+        if (o.sideTexture) { side=o.sideTexture;options.sideTexture=side.c_str(); }
+        if (o.backTexture) { back=o.backTexture;options.backTexture=back.c_str(); }
+        if (o.contourCount) { contour.assign(o.contour,o.contour+o.contourCount);options.contour=contour.data(); }
+        if (o.heightEditCount) { dabs.assign(o.heightEdits,o.heightEdits+o.heightEditCount);options.heightEdits=dabs.data(); }
+        holes.resize(o.holeCount);holePoints.resize(o.holeCount);
+        for (size_t i=0;i<holes.size();++i)
+        {
+            const auto &h=o.holes[i];holePoints[i].assign(h.points,h.points+h.count);
+            holes[i]={holePoints[i].data(),h.count};
+        }
+        options.holes=holes.data();
+        areas.resize(o.heightAreaCount);areaPoints.resize(o.heightAreaCount);
+        for (size_t i=0;i<areas.size();++i)
+        {
+            const auto &a=o.heightAreas[i];areaPoints[i].assign(a.points,a.points+a.count);
+            areas[i]=a;areas[i].points=areaPoints[i].data();
+        }
+        options.heightAreas=areas.data();
+        options.progressContext=this;
+        options.progress=[](void *context,const char *label,float value) {
+            auto &job=*static_cast<IMAGE_MESH_JOB_LUA *>(context);
+            // Stage percentages are estimates. Never move backwards between refinement passes.
+            if (value>=job.progress.load(std::memory_order_relaxed))
+            {
+                job.stage.store(label,std::memory_order_relaxed);
+                job.progress.store(value,std::memory_order_relaxed);
+            }
+            return !job.cancelled.load(std::memory_order_relaxed);
+        };
+        result=std::make_unique<MESH_DEBUG_LUA>();
+    }
+
+    void IMAGE_MESH_JOB_LUA::run()
+    {
+        try
+        {
+            char message[512]="";
+            const bool ok=generateImageMesh(path.c_str(),options,result->mesh,report,message,sizeof(message));
+            if (!ok) error=message;
+            state.store(ok?STATE::COMPLETED:STATE::FAILED,std::memory_order_release);
+        }
+        catch (const std::exception &e)
+        {
+            error=e.what();state.store(STATE::FAILED,std::memory_order_release);
+        }
+        catch (...)
+        {
+            error="Image mesh worker failed";state.store(STATE::FAILED,std::memory_order_release);
+        }
+        imageMeshWorkerBusy.store(false,std::memory_order_release);
+    }
+
+    namespace
+    {
+        constexpr const char *imageMeshJobType="mbm.imageMeshJob";
+        IMAGE_MESH_JOB_LUA *imageMeshJob(lua_State *lua)
+        {
+            auto **job=static_cast<IMAGE_MESH_JOB_LUA **>(luaL_checkudata(lua,1,imageMeshJobType));
+            if (!*job) luaL_error(lua,"Image mesh job is closed");
+            return *job;
+        }
+        int onDestroyImageMeshJobLua(lua_State *lua)
+        {
+            auto **job=static_cast<IMAGE_MESH_JOB_LUA **>(luaL_checkudata(lua,1,imageMeshJobType));
+            delete *job;*job=nullptr;return 0;
+        }
+        int onCancelImageMeshJobLua(lua_State *lua)
+        {
+            auto *job=imageMeshJob(lua);
+            job->cancelled.store(true,std::memory_order_relaxed);
+            return 0;
+        }
+        int onGetImageMeshJobStatusLua(lua_State *lua)
+        {
+            auto *job=imageMeshJob(lua);
+            const auto state=job->state.load(std::memory_order_acquire);
+            const char *name="running";
+            if (state!=IMAGE_MESH_JOB_LUA::STATE::RUNNING)
+            {
+                if (job->worker.joinable()) job->worker.join();
+                if (job->taken) name="consumed";
+                else if (job->cancelled.load()) name="cancelled";
+                else if (state==IMAGE_MESH_JOB_LUA::STATE::COMPLETED) name="completed";
+                else name="failed";
+            }
+            lua_createtable(lua,0,4);
+            lua_pushstring(lua,name);lua_setfield(lua,-2,"state");
+            lua_pushnumber(lua,job->progress.load());lua_setfield(lua,-2,"progress");
+            lua_pushstring(lua,job->stage.load());lua_setfield(lua,-2,"stage");
+            if (state==IMAGE_MESH_JOB_LUA::STATE::FAILED && !job->cancelled.load())
+            { lua_pushstring(lua,job->error.c_str());lua_setfield(lua,-2,"error"); }
+            return 1;
+        }
+        int onTakeImageMeshJobResultLua(lua_State *lua)
+        {
+            auto *job=imageMeshJob(lua);
+            if (job->state.load(std::memory_order_acquire)!=IMAGE_MESH_JOB_LUA::STATE::COMPLETED || job->taken || job->cancelled.load())
+            { lua_pushnil(lua);lua_pushliteral(lua,"Image mesh result is unavailable");return 2; }
+            if (job->worker.joinable()) job->worker.join();
+            lua_pushcfunction(lua,onNewMeshDebugLua);lua_call(lua,0,1);
+            auto **asset=static_cast<MESH_DEBUG_LUA **>(lua_check_userType(lua,1,lua_gettop(lua),L_USER_TYPE_MESH_DEBUG));
+            delete *asset;*asset=job->result.release();job->taken=true;
+            lua_createtable(lua,0,4);
+            lua_pushinteger(lua,job->report.vertices);lua_setfield(lua,-2,"vertices");
+            lua_pushinteger(lua,job->report.triangles);lua_setfield(lua,-2,"triangles");
+            lua_pushnumber(lua,job->report.minHeight);lua_setfield(lua,-2,"minHeight");
+            lua_pushnumber(lua,job->report.maxHeight);lua_setfield(lua,-2,"maxHeight");
+            return 2;
+        }
+    }
+
+    int onStartImageMeshLua(lua_State *lua)
+    {
+        const char *path=luaL_checkstring(lua,1);
+        IMAGE_MESH_OPTIONS options;IMAGE_MESH_POINT contour[128],holePoints[2048],areaPoints[4096];
+        IMAGE_MESH_DAB dabs[4096];IMAGE_MESH_HOLE holes[16];IMAGE_MESH_HEIGHT_AREA areas[32];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
+        if (luaL_newmetatable(lua,imageMeshJobType))
+        {
+            const luaL_Reg methods[]={{"getStatus",onGetImageMeshJobStatusLua},{"cancel",onCancelImageMeshJobLua},
+                {"takeResult",onTakeImageMeshJobResultLua},{"__gc",onDestroyImageMeshJobLua},{nullptr,nullptr}};
+            luaL_setfuncs(lua,methods,0);lua_pushvalue(lua,-1);lua_setfield(lua,-2,"__index");
+            lua_pushliteral(lua,"image mesh job");lua_setfield(lua,-2,"__metatable");
+        }
+        lua_pop(lua,1);
+        auto **handle=static_cast<IMAGE_MESH_JOB_LUA **>(lua_newuserdatauv(lua,sizeof(IMAGE_MESH_JOB_LUA *),0));
+        *handle=nullptr;luaL_setmetatable(lua,imageMeshJobType);
+        bool expected=false;
+        if (!imageMeshWorkerBusy.compare_exchange_strong(expected,true))
+        { lua_pop(lua,1);lua_pushnil(lua);lua_pushliteral(lua,"Another image mesh generation is running");return 2; }
+        try
+        {
+            *handle=new IMAGE_MESH_JOB_LUA;
+            (*handle)->snapshot(path,options);
+            auto *job=*handle;job->worker=std::thread([job]() { job->run(); });
+        }
+        catch (const std::exception &e)
+        {
+            delete *handle;*handle=nullptr;imageMeshWorkerBusy.store(false);
+            lua_pop(lua,1);lua_pushnil(lua);lua_pushstring(lua,e.what());return 2;
+        }
+        return 1;
+    }
+
     int onGenerateImageMeshLua(lua_State *lua)
     {
         const char *path=luaL_checkstring(lua,1);
@@ -3913,7 +4075,7 @@ namespace mbm
 
     void registerClassAuto(lua_State *lua);
 
-    extern "C" int onLoadSpritePreviewMeshDebugLua(lua_State *lua)
+    int onLoadSpritePreviewMeshDebugLua(lua_State *lua)
     {
         SPRITE *sprite = getSpriteFromRawTable(lua, 1, 2);
         const char *path = luaL_optstring(lua, 3, nullptr);
@@ -3921,7 +4083,7 @@ namespace mbm
         return 1;
     }
 
-    extern "C" int onLoadMeshPreviewMeshDebugLua(lua_State *lua)
+    int onLoadMeshPreviewMeshDebugLua(lua_State *lua)
     {
         MESH *object = getMeshFromRawTable(lua, 1, 2);
         const char *path = luaL_optstring(lua, 3, nullptr);

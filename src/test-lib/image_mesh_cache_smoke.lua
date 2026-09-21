@@ -85,8 +85,8 @@ local function test()
 end
 function onInitScene()
  init();started=mbm.getTimeRun();calls=0
- local generate=mbm.generateImageMesh
- mbm.generateImageMesh=function(...) calls=calls+1;return generate(...) end
+ local generate=mbm.startImageMesh
+ mbm.startImageMesh=function(...) calls=calls+1;return generate(...) end
  task=coroutine.create(test)
 end
 function onLoop(delta)

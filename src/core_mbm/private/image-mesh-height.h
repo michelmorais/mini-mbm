@@ -21,6 +21,7 @@
 #define IMAGE_MESH_HEIGHT_H
 #include <core_mbm/image-mesh.h>
 #include "image-mesh-height-areas.h"
+#include "image-mesh-progress.h"
 #include <core_mbm/util-interface.h>
 #include <stb/stb-interface.h>
 #include <algorithm>
@@ -81,9 +82,11 @@ struct HEIGHT_FIELD
         if (o.x>=imageWidth || o.y>=imageHeight) return fail("Crop origin outside image");
         width=o.cropWidth?o.cropWidth:imageWidth-o.x; height=o.cropHeight?o.cropHeight:imageHeight-o.y;
         if (width>imageWidth-o.x || height>imageHeight-o.y) return fail("Crop outside image");
+        checkpoint(o,"decode",0.02f);
         pixels.reset(stbi_load(path.c_str(),&iw,&ih,&channels,4));
         if (!pixels || iw!=static_cast<int>(imageWidth) || ih!=static_cast<int>(imageHeight))
             return fail("Cannot decode image or dimensions changed");
+        checkpoint(o,"heights",0.08f);
         levels.resize(static_cast<size_t>(width)*height);
         for (uint32_t y=0;y<height;++y) for (uint32_t x=0;x<width;++x)
         {
@@ -98,6 +101,7 @@ struct HEIGHT_FIELD
         {
             for (uint32_t y=0;y<height;++y) for (uint32_t x=0;x<width;++x)
             {
+                if (x==0) checkpoint(o,"heights",0.08f+0.08f*(pass+static_cast<float>(y)/height)/passes);
                 const size_t index=static_cast<size_t>(y)*width+x;
                 float sum=0,weight=0;
                 for (int dy=-1;dy<=1;++dy) for (int dx=-1;dx<=1;++dx)
@@ -134,6 +138,7 @@ struct HEIGHT_FIELD
         std::vector<float> patch;
         for (uint32_t i=0;i<o.heightEditCount;++i)
         {
+            checkpoint(o,"painting",0.2f+0.04f*i/o.heightEditCount);
             const auto &d=o.heightEdits[i];
             const float cx=d.x*(width-1),cy=d.y*(height-1);
             const float radius=std::max(0.5f,d.radius*std::max(1u,std::min(width,height)-1));
@@ -147,6 +152,7 @@ struct HEIGHT_FIELD
             patch.resize(pw*ph);
             for (int y=y0;y<=y1;++y) for (int x=x0;x<=x1;++x)
             {
+                if (x==x0) checkpoint(o,"painting",0.2f+0.04f*i/o.heightEditCount);
                 const size_t index=static_cast<size_t>(y)*width+x;
                 const float old=painted[index];
                 const float distance=std::sqrt((x-cx)*(x-cx)+(y-cy)*(y-cy))/radius;
@@ -188,6 +194,7 @@ struct HEIGHT_FIELD
         paintMinX=width-1; paintMinY=height-1;
         for (uint32_t y=0;y<height;++y) for (uint32_t x=0;x<width;++x)
         {
+            if (x==0) checkpoint(o,"painting",0.24f);
             if (std::abs(painted[static_cast<size_t>(y)*width+x])<=1e-7f) continue;
             // One-pixel mask dilation covers all cells touching a corrected sample.
             for (uint32_t yy=y?y-1:0;yy<=std::min(y+1,height-1);++yy)

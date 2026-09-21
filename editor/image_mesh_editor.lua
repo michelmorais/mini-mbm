@@ -36,6 +36,7 @@ local Presets=require 'image_mesh_presets'
 local BackUv=require 'image_mesh_back_uv'
 local Asset=require 'image_mesh_asset'
 local GeometryCache=require 'image_mesh_cache'
+local Generation=require 'image_mesh_generation'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
 local Areas=require 'image_mesh_areas'
@@ -54,6 +55,7 @@ local function dpCall(fn,...)
     return table.unpack(result,1,result.n)
 end
 local function releasePreview()
+    E.previewStale=nil
     Assembly.release(E)
     Comparison.release(E)
     E.generationFailure=nil
@@ -146,12 +148,12 @@ end
 local function generate(region,project,keepOriginal,cacheOriginal)
     project=project or E.project
     local options=Model.options(project,region)
-    local asset,report=mbm.generateImageMesh(project.image.path,options)
+    local asset,report=Generation.generate(E,project.image.path,options)
     if not asset then error(generationError(region,report),0) end
     -- Match Mesh Debug's +Z front view. Rotate positions AND authored normals
     -- by 180 degrees around Y, preserving UVs, winding and smooth/hard edges.
     local vertices=Asset.vertices(asset,true)
-    if keepOriginal and options.simplify then Comparison.capture(E,asset,vertices) end
+    if keepOriginal and options.simplify then Comparison.capture(type(keepOriginal)=='table' and keepOriginal or E,asset,vertices) end
     if cacheOriginal and options.simplify then GeometryCache.original(E,asset) end
     Simplify.apply(E,asset,options,report)
     return asset,report
@@ -171,15 +173,18 @@ local function updateStatisticsImpl()
         GeometryCache.begin(E,region.id)
         local ok,asset,report=dpCall(generate,region,nil,false,true)
         if ok then GeometryCache.finish(E,asset,report) else GeometryCache.clear(E) end
-        cached=ok and {report=report} or {error=E.status}
+        if E.generationCancelled then cached=nil else cached=ok and {report=report} or {error=E.status} end
         E.statistics[E.selected]=cached
         E.statisticsBuilds=(E.statisticsBuilds or 0)+1
     end
-    E.report=cached.report; E.generationFailure=cached.error
+    E.report=cached and cached.report; E.generationFailure=cached and cached.error
 end
 local function updateStatistics(requested)
     if E.meshTask or E.paintDrag or (E.paint and E.paint.enabled and not requested) or not E.editMode or E.drag or not E.texture or E.selected==0 then return end
-    if E.statistics[E.selected] then return updateStatisticsImpl() end
+    if E.statistics[E.selected] then
+        if requested and E.statistics[E.selected].error then E.statistics[E.selected]=nil
+        else return updateStatisticsImpl() end
+    end
     if not requested then return end
     E.statisticsRequested=nil
     return Simplify.run(E,updateStatisticsImpl)
@@ -187,9 +192,9 @@ end
 local function rebuildImpl()
     if not E.dirty or E.drag or E.editMode then return end
     if E.assembly and E.assembly.enabled then return Assembly.build(E,generate,dpCall,camera) end
-    E.dirty=false; releasePreview()
+    E.dirty=false
     local r=Model.region(E.project,E.selected); if not r or not E.texture then return end
-    local path=tUtil.getTemporaryFilePath('.msh'); local object
+    local path=tUtil.getTemporaryFilePath('.msh'); local object;local staged={};local installed=false
     local ok=dpCall(function()
         local asset,report
         local cached=GeometryCache.get(E,r.id)
@@ -197,12 +202,14 @@ local function rebuildImpl()
             asset,report=cached.asset,cached.report
             if cached.originalPath then
                 local original=meshDebug:new(); assert(original:load(cached.originalPath),L('preview_failed'))
-                Comparison.capture(E,original,Asset.vertices(original))
+                Comparison.capture(staged,original,Asset.vertices(original))
             end
-        else asset,report=generate(r,nil,true) end
+        else asset,report=generate(r,nil,staged) end
         assert(asset:save(path,false,false,true),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true
+        releasePreview();E.comparison=staged.comparison;staged.comparison=nil
+        installed=true
         E.preview=object; E.previewPath=path; E.report=report; E.statistics[r.id]={report=report}; E.builds=E.builds+1
         Comparison.layout(E,asset)
         local o=Model.options(E.project,r)
@@ -217,11 +224,15 @@ local function rebuildImpl()
     end)
     GeometryCache.clear(E)
     if not ok then
-        E.generationFailure=E.status
-        Comparison.release(E)
-        Wire.release(E)
+        E.generationFailure=not E.generationCancelled and E.status or nil
+        Comparison.release(staged)
         if object then meshDebug:loadMeshPreview(object,nil); object:destroy() end
-        E.preview=nil; E.previewPath=nil; os.remove(path)
+        os.remove(path)
+        if installed then
+            Comparison.release(E);Wire.release(E);E.preview=nil;E.previewPath=nil
+        end
+        E.previewStale=E.preview~=nil
+        Comparison.sync(E)
     end
 end
 local function rebuild()
@@ -393,6 +404,7 @@ local function setEditMode(enabled)
     if E.editMode==enabled then return end
     Paint.cancel(E); Canvas.cancel(E); syncDraft(); E.orbitDrag=nil; E.panDrag=nil
     E.editMode=enabled
+    if not enabled and (E.previewStale or not E.preview) then E.dirty=true end
     Comparison.sync(E); Assembly.sync(E)
     if E.heightObject then E.heightObject.visible=enabled and E.heightView~=1 end
     Canvas.sync(E)
@@ -671,6 +683,7 @@ local function regionsPanel()
             end
         end
         if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
+        if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end
         tImGui.Separator()
         if E.missing then
             tImGui.Text(L('missing_image'))
@@ -737,11 +750,13 @@ function onInitScene()
 end
 function onLoop(delta)
     if E.autoTask then dpCall(Auto.resume,E) end
+    if E.imageJob and E.key==mbm.getKeyCode('ESC') then Generation.cancel(E);E.key=nil end
     if E.meshTask then dpCall(Simplify.resume,E) end
     tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil); menu(); tImGui.EndDisabled()
     tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil)
     regionsPanel(); Diagnostics.draw(E,{camera=camera,setMode=setEditMode,fit=Canvas.fit,zoom=Canvas.zoom})
     tImGui.EndDisabled()
+    Generation.panel(E)
     if not E.meshTask and E.key and not tImGui.GetWantCaptureKeyboard() then
         if E.control and E.key==mbm.getKeyCode('Z') then history(false)
         elseif E.control and E.key==mbm.getKeyCode('Y') then history(true)
@@ -819,8 +834,9 @@ end
 function onResizeWindow()
     E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
-function onEndScene() GeometryCache.clear(E); Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
+function onEndScene() Generation.cancel(E); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
+    testApi.generation=Generation
     testApi.auto=Auto; testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
     testApi.areas=Areas
     testApi.holes=Holes

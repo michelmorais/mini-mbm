@@ -18,7 +18,7 @@ local Canvas=require 'image_mesh_canvas'
 local IO=require 'image_mesh_io'
 local api={};assert(loadfile('editor/image_mesh_editor.lua'))(api)
 local init,loop=onInitScene,onLoop
-local started,baseline,heightBaseline
+local started,baseline,heightBaseline,task
 local function close(a,b) assert(math.abs(a-b)<.00001,tostring(a)..' != '..tostring(b)) end
 local function run()
  init()
@@ -56,14 +56,20 @@ local function run()
  assert(#saved.regions[1].heightAreas==4 and not saved.regions[1].heightAreas[4].enabled)
  assert(saved.regions[1].heightAreas[1].name=='Moldura');assert(Model.options(saved,saved.regions[1]).heightSource=='manual')
  api.openProject('/tmp/ime_areas_editor.imesh');api.select(1,false)
- assert(api.exportOne('/tmp/ime_areas_editor.msh'))
+ api.exportOne('/tmp/ime_areas_editor.msh');while E.meshTask do coroutine.yield() end
+ assert(IO.exists('/tmp/ime_areas_editor.msh'),E.status)
  E.heightView=2;E.heightRequested=true;api.updateHeightPreview();assert(E.heightObject,E.status)
  E.tool='height_areas';E.areaIndex=1;E.canvasDirty=true;Canvas.sync(E)
  started=mbm.getTimeRun()
  print('HEIGHT AREAS EDITOR MOVE / RESIZE / VERTEX / FREEHAND / ORDER / HISTORY / PERSISTENCE / EXPORT OK')
 end
-function onInitScene() local ok,err=xpcall(run,debug.traceback);if not ok then print('HEIGHT AREAS EDITOR FAIL '..tostring(err));mbm.quit() end end
+function onInitScene() task=coroutine.create(run);local ok,err=coroutine.resume(task);if not ok then print('HEIGHT AREAS EDITOR FAIL '..tostring(err));mbm.quit() end end
 function onLoop(delta)
+ if coroutine.status(task)~='dead' then
+  loop(delta);local ok,err=coroutine.resume(task)
+  if not ok then print('HEIGHT AREAS EDITOR FAIL '..tostring(err));mbm.quit() end
+  return
+ end
  if not started then return end
  local header=tImGui.CollapsingHeader
  tImGui.CollapsingHeader=function(label,...)

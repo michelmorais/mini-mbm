@@ -95,6 +95,10 @@ namespace mbm
         // relative to the shorter crop side, fades inward from each area edge.
         const IMAGE_MESH_HEIGHT_AREA *heightAreas = nullptr;
         uint32_t heightAreaCount = 0;
+        // Optional CPU progress/cancellation hook, called on the generating thread.
+        // Return false to cancel. Context must outlive the call; do not call Lua/GPU here.
+        bool (*progress)(void *context, const char *stage, float fraction) = nullptr;
+        void *progressContext = nullptr;
     };
 
     struct IMAGE_MESH_REPORT

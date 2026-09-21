@@ -859,3 +859,24 @@ contagem; isso confirma propriedades pendentes e gera a mesh completa, podendo
 levar alguns segundos. Entrar em 3D também atualiza a contagem. Arrastar áreas não
 dispara mais geração 3D apenas para contar faces. O mapa de alturas, quando visível,
 continua tendo sua atualização própria.
+
+## Geração em segundo plano (7.252.0)
+
+Calcular faces, criar a prévia 3D e gerar meshes para exportação/montagem agora
+usam uma tarefa de CPU em segundo plano. A janela **Gerando mesh** mostra a etapa
+atual e uma barra de progresso estimada. **Cancelar** ou Escape descarta a geração
+em andamento. Os controles de edição ficam protegidos até a tarefa terminar.
+
+Na prévia individual, a anterior é substituída somente depois que a nova estiver
+pronta. Ao cancelar ou falhar, a anterior é conservada e identificada como anterior,
+sem apresentar os ajustes novos como já gerados. A contagem cancelada continua
+pendente e pode ser solicitada novamente. Cancelar a geração durante um lote para
+o restante do lote; arquivos de módulos já concluídos permanecem exportados.
+Uma geração cancelada não grava sua mesh de saída.
+
+O cache da contagem de faces continua evitando trabalho repetido. A geração
+síncrona da API permanece disponível; o editor usa a nova API assíncrona. Leitura
+da textura na GPU, preparação da prévia e gravação de arquivos continuam na thread
+principal após o cálculo. A simplificação mantém seu processamento assíncrono
+anterior, mas o novo botão cancela a geração, não a simplificação. A atualização do
+mapa de alturas continua sendo uma operação própria e síncrona.

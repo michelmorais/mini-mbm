@@ -77,6 +77,7 @@ namespace mbm
         if (o.backColor>0xffffff) return fail(errorOut,errorOutLen,"Back color must be RGB 0..0xFFFFFF");
         try
         {
+            image_mesh::checkpoint(o,"decode",0.0f);
             image_mesh::HEIGHT_FIELD field;
             std::string topologyError;
             if (!field.load(imagePath,o,topologyError)) return fail(errorOut,errorOutLen,topologyError.c_str());
@@ -85,9 +86,11 @@ namespace mbm
             if (o.backRemap && (o.backX>=field.imageWidth || o.backY>=field.imageHeight ||
                 backWidth>field.imageWidth-o.backX || backHeight>field.imageHeight-o.backY))
                 return fail(errorOut,errorOutLen,"Back UV crop is outside the source image");
+            image_mesh::checkpoint(o,"topology",0.25f);
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
+            image_mesh::checkpoint(o,"surface",0.9f);
             std::vector<IMAGE_MESH_POINT> sideInner;
             const bool separateBack=o.backSolid || o.backExternal;
             std::string backTexture=field.path;
@@ -367,6 +370,7 @@ namespace mbm
             }
             for (size_t i = 0; i < indices.size(); i += 3)
             {
+                if (i%384==0) image_mesh::checkpoint(o,"normals",0.95f);
                 VERTEX &a = vertices[indices[i]], &b = vertices[indices[i + 1]], &c = vertices[indices[i + 2]];
                 // Double intermediates avoid cancellation on tiny groove triangles.
                 const double abx = static_cast<double>(b.position.x) - a.position.x;
@@ -419,6 +423,7 @@ namespace mbm
                     vertices[backIndex[i]].normal=VEC3(front.x,front.y,-front.z);
                 }
             }
+            image_mesh::checkpoint(o,"finalize",0.98f);
             destination.setMeshType(util::TYPE_MESH_3D);
             util::MATERIAL &material = destination.getMaterial();
             material.Specular = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
@@ -489,6 +494,7 @@ namespace mbm
             if (!destination.check(errorOut, errorOutLen)) return false;
             report.vertices = vertexCount; report.triangles = triangleCount;
             report.minHeight = minHeight; report.maxHeight = maxHeight;
+            image_mesh::checkpoint(o,"completed",1.0f);
             return true;
         }
         catch (const std::exception &e)

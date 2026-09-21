@@ -862,3 +862,42 @@ callbacks de mouse intercalados com frames e verifica zero chamadas ao gerador;
 o botão gera uma vez, a prévia 3D reutiliza a mesh, alterações deixam a contagem
 pendente e entrar em 3D atualiza o resultado. Regressões de cache/comparação e editor
 de áreas passaram. Build atualizado para 7.251.1.
+
+
+### Etapa 5 - Geração assíncrona com progresso e cancelamento (7.252.0)
+
+Entregue para a geração da mesh: `mbm.startImageMesh` cria uma tarefa com cópia
+própria dos parâmetros, contornos, áreas, pincel e caminhos. Um worker executa o
+mesmo gerador CPU da API síncrona. A thread principal consulta estado/progresso e
+só recebe o asset completo. Operações de Lua, GPU, prévia e exportação ficam na
+thread principal. A API síncrona continua disponível para os consumidores atuais.
+
+Checkpoints de cancelamento cobrem composição de áreas, filtros, pintura,
+triangulação, alinhamento, refinamento e montagem final. Progresso por etapa é
+estimado, não uma previsão de tempo restante. Cancelamento é cooperativo; decoder
+e alocações indivisíveis podem terminar antes de o pedido ser observado.
+
+O editor mostra uma janela de progresso com Cancelar/Escape fora dos controles
+bloqueados da edição. Uma geração cancelada não alimenta a contagem/cache, não
+sobrescreve exportações e interrompe o restante do lote. Na prévia individual, a
+anterior é preservada até a nova estar pronta e fica explicitamente identificada
+se a nova geração for cancelada ou falhar. O cache 7.251.0 continua sendo consumido
+sem iniciar outra tarefa. A contagem permanece sob demanda, conforme 7.251.1.
+
+O worker tem propriedade exclusiva do resultado e dados imutáveis de entrada;
+leitura do resultado acontece após publicação atômica e join. O coletor solicita
+cancelamento e aguarda o worker, sem thread solta acessando Lua após encerramento.
+Nenhuma regeneração, cópia de mesh ou upload contínuo foi adicionado ao idle.
+
+Validação Linux Debug: paridade exata de vértices/normais/UVs e materiais com a
+API síncrona, cópia de arrays/caminhos, progresso monotônico, frames durante a
+geração, exclusão de workers simultâneos, cancelamento, falhas, coleta e retry em
+`image_mesh_async_smoke.lua`. `image_mesh_async_editor_smoke.lua` verifica a janela,
+botão Cancelar, prévia anterior, retry, isolamento de exportação e limpeza. No
+projeto 2, a conferência visual registrou 253 frames durante a geração.
+
+Limites desta entrega: mapa de alturas/PNG continua síncrono; a simplificação
+conserva sua tarefa existente sem o novo cancelamento; gravação e carregamento da
+prévia permanecem na thread principal. A montagem de vários módulos conserva seu
+tratamento anterior de falhas, sem restauração de uma montagem parcialmente refeita.
+A revisão final de limites/diagnósticos da etapa 5 continua pendente.

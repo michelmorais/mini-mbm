@@ -104,7 +104,7 @@ local function test()
     -- Impossible target must fail visibly and never write the unsimplified fallback.
     e.values.simplifyRatio=0.001; e.values.simplifyBoundary=0; api.applyProperties()
     api.setEditMode(false); api.rebuild(); awaitTask()
-    assert(not e.preview and not e.comparison and e.generationFailure,'missing simplification failure or stale comparison')
+    assert(e.preview and e.previewStale and e.generationFailure,'failed generation did not preserve and label previous preview')
     os.remove('/tmp/ime-simplify-failed.msh')
     local ok=pcall(api.exportOne,'/tmp/ime-simplify-failed.msh'); awaitTask()
     assert(not IO.exists('/tmp/ime-simplify-failed.msh'),'failure exported unsimplified mesh')

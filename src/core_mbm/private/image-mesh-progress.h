@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,12 +17,15 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef VERSION_MBM_H
-#define VERSION_MBM_H
-
-// Format: "X.Y" or "X.Y.Z". Release history is maintained by the Git history and tags.
-#ifndef MBM_VERSION
-    #define MBM_VERSION "7.252.0"
-#endif
-
+#ifndef IMAGE_MESH_PROGRESS_H
+#define IMAGE_MESH_PROGRESS_H
+#include <core_mbm/image-mesh.h>
+#include <stdexcept>
+namespace mbm { namespace image_mesh {
+inline void checkpoint(const IMAGE_MESH_OPTIONS &o,const char *stage,float fraction)
+{
+    if (o.progress && !o.progress(o.progressContext,stage,fraction))
+        throw std::runtime_error("Image mesh generation cancelled");
+}
+} }
 #endif

@@ -20,6 +20,7 @@
 #ifndef IMAGE_MESH_HEIGHT_AREAS_H
 #define IMAGE_MESH_HEIGHT_AREAS_H
 #include <core_mbm/image-mesh.h>
+#include "image-mesh-progress.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -78,6 +79,7 @@ inline bool composeHeightAreas(const IMAGE_MESH_OPTIONS &o,uint32_t width,uint32
         const float transition=area.transition*std::max(1u,std::min(width,height)-1);
         for (uint32_t y=y0;y<=y1;++y) for (uint32_t x=x0;x<=x1;++x)
         {
+            if (x==x0) checkpoint(o,"areas",0.16f+0.04f*(index+static_cast<float>(y-y0)/(y1-y0+1))/std::max(1u,o.heightAreaCount));
             bool inside=false;double nearest=1e30;
             for (uint32_t i=0;i<area.count;++i)
             {

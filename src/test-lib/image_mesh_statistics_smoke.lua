@@ -38,6 +38,7 @@ local function test()
  end
  assert(not E.report and not E.generatedMesh)
  request=true;coroutine.yield()
+ while E.meshTask do coroutine.yield() end
  assert(not request and calls==1 and E.report and E.generatedMesh,'Calculate faces did not generate/cache')
  local triangles=E.report.triangles
  api.setEditMode(false);api.rebuild()
@@ -45,12 +46,12 @@ local function test()
  api.setEditMode(true)
  E.values.relief=E.values.relief+1;assert(api.applyProperties());coroutine.yield()
  assert(calls==1 and not E.report,'Apply in editing generated statistics automatically')
- api.setEditMode(false);api.rebuild();assert(calls==2 and E.preview,'3D failed to generate changed geometry')
+ api.setEditMode(false);api.rebuild();while E.meshTask do coroutine.yield() end;assert(calls==2 and E.preview,'3D failed to generate changed geometry')
  print('IMAGE MESH STATISTICS DRAG / IDLE / EXPLICIT BUTTON / CACHE / APPLY / 3D OK')
 end
 function onInitScene()
  init();started=mbm.getTimeRun();calls=0
- local native=mbm.generateImageMesh;mbm.generateImageMesh=function(...) calls=calls+1;return native(...) end
+ local native=mbm.startImageMesh;mbm.startImageMesh=function(...) calls=calls+1;return native(...) end
  local button=tImGui.Button;tImGui.Button=function(label,...)
   local pressed=button(label,...)
   if request and label==tLang.L('ime_faces_calculate') then request=false;return true end

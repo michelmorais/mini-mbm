@@ -260,7 +260,7 @@ namespace {
         return false;
     }
     // Local Delaunay flips improve skinny triangles without moving image samples.
-    void improveTriangles(TOPOLOGY &t)
+    void improveTriangles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t)
     {
         for (unsigned pass=0;pass<3;++pass)
         {
@@ -269,6 +269,7 @@ namespace {
             bool any=false;
             for (size_t i=0;i<t.triangles.size();++i)
             {
+                if ((i&127)==0) checkpoint(o,"topology",0.26f);
                 const auto tri=t.triangles[i];
                 for (unsigned e=0;e<3 && !changed[i];++e)
                 {
@@ -313,6 +314,7 @@ namespace {
         std::vector<std::array<uint32_t,3>> result;
         for (const auto &tri:t.triangles)
         {
+            checkpoint(o,"alignment",0.48f);
             float v[3]; for (unsigned i=0;i<3;++i) v[i]=field.transition(t.points[tri[i]].x,t.points[tri[i]].y,o);
             if ((v[0]<iso)==(v[1]<iso) && (v[1]<iso)==(v[2]<iso)) { result.push_back(tri); continue; }
             for (unsigned side=0;side<2;++side)
@@ -367,6 +369,7 @@ namespace {
             bool any=false;
             for (size_t i=0;i<t.triangles.size();++i)
             {
+                if ((i&127)==0) checkpoint(o,"alignment",0.5f+0.04f*pass);
                 const auto tri=t.triangles[i];
                 for (unsigned e=0;e<3 && !changed[i];++e)
                 {
@@ -490,7 +493,10 @@ namespace {
         const uint32_t y0=std::max(field.paintMinY*2,static_cast<uint32_t>(std::ceil(minY*ny)));
         const uint32_t y1=std::min(field.paintMaxY*2,static_cast<uint32_t>(std::floor(maxY*ny)));
         for (uint32_t y=y0;y<=y1;++y) for (uint32_t x=x0;x<=x1;++x)
+        {
+            if (x==x0) checkpoint(o,"refinement",0.8f);
             if (check({static_cast<float>(x)/nx,static_cast<float>(y)/ny})) return true;
+        }
         return false;
     }
     bool refinePainting(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,const HEIGHT_FIELD &field,std::string &error)
@@ -508,6 +514,7 @@ namespace {
             std::map<uint64_t,uint32_t> midpoints;
             for (const auto &tri:t.triangles)
             {
+                checkpoint(o,"refinement",0.8f+0.08f*pass/48);
                 if (!needsPaintDetail(tri,t,field,o)) continue;
                 unsigned longest=0;
                 for (unsigned e=1;e<3;++e)
@@ -642,10 +649,12 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &
     // Shared midpoint splits preserve conformity, including on the perimeter.
     for (unsigned pass=0;pass<20;++pass)
     {
-        if (field) improveTriangles(t);
+        checkpoint(o,"topology",0.26f+0.2f*pass/20);
+        if (field) improveTriangles(o,t);
         std::map<uint64_t,uint32_t> midpoints;
         for (const auto &tri:t.triangles)
         {
+            checkpoint(o,"topology",0.26f+0.2f*pass/20);
             unsigned longest=0;
             if (field)
             {

@@ -274,3 +274,12 @@ values and a borrowed texture-path pointer. The contour query writes into a
 caller-provided fixed-capacity point buffer. Offset validation, seam topology,
 decoded images, and temporary subset buffers remain private/local; no owned
 STL containers or runtime/backend storage are exposed by the public header.
+
+The 7.252.0 image-mesh cancellation/progress hook adds only an optional borrowed
+function pointer and context pointer to `IMAGE_MESH_OPTIONS`. It is called on the
+generating thread, must outlive that invocation, and returns false to cancel.
+No runtime storage, STL containers, GPU handles or engine `Impl` accessors are
+exposed. Checkpoints live in the private generator helpers; the Lua job owns its
+request snapshot, CPU result, atomics and worker in the private `image-mesh-job.h`
+state declaration, with its implementation in `mesh-debug-lua.cpp`.
+The worker never calls Lua and its owner joins it before destruction.

@@ -2231,6 +2231,51 @@ Its maximum is a conservative limit preserving topology, not a promise that
 arbitrarily complex polygons can inset by one pixel. Contour preview queries
 should run only when their inputs change.
 
+Asynchronous generation is available since 7.252.0:
+
+```lua
+local job, err = mbm.startImageMesh(imagePath, options)
+assert(job, err)
+-- Poll from onLoop; keep job reachable until finished. Do not busy-wait.
+local status = job:getStatus()
+-- status.state: "running", "completed", "failed", "cancelled", "consumed"
+-- status.progress: estimated fraction [0,1]; status.stage: processing stage
+if status.state == "completed" then
+    local meshD, report = job:takeResult() -- once; same result types as generateImageMesh
+elseif status.state == "failed" then
+    print(status.error)
+end
+-- job:cancel() requests cooperative cancellation before taking the result.
+```
+
+`startImageMesh` accepts the same image and options as `generateImageMesh`,
+which remains synchronous and unchanged in return shape. Malformed Lua arguments
+raise errors; worker-start failure or another active image-mesh worker returns
+`nil, message`. Geometry/image validation failures appear in `getStatus().error`
+with state `"failed"`. At most one image-mesh worker runs at a time in the Lua
+binding; existing completed jobs do not prevent another start.
+
+The job owns copies of the image path, texture paths, contours, holes, areas and
+brush dabs. Editing or collecting the source options after start cannot change it.
+It runs the CPU generator on a worker without invoking Lua or uploading GPU data.
+Take the finished result on the Lua thread, then create previews or export normally.
+`takeResult()` returns `nil, message` if unfinished, failed, cancelled or already
+consumed; successful consumption returns the `meshDebug` asset and report once.
+
+`cancel()` is nonblocking and cooperative. It requests a stop at a checkpoint,
+or discards a completed result that has not yet been taken. Decode/allocation and
+other indivisible operations must finish before the next checkpoint. Poll until
+the job leaves `"running"`; cancellation never exposes partial geometry. Garbage
+collection requests cancellation and joins the worker before freeing its state;
+there is no detached worker accessing a closed Lua state.
+
+Progress is monotonic and estimated by stage, not a time-to-completion guarantee.
+Stages are `decode`, `heights`, `areas`, `painting`, `topology`, `alignment`,
+`refinement`, `surface`, `normals`, `finalize`, and `completed`; unused stages may
+be skipped. Polling performs no regeneration or geometry scans. Simplification,
+PNG height-map generation and export are separate operations; this job does not
+make them cancellable or asynchronous.
+
 Height areas (`heightAreas`, since 7.250.0) use normalized crop coordinates,
 with 3–128 points per simple contour. Each area is an array of `{x,y}` points
 with fields `height` (default 0.75), `transition` (default 0.02), and `enabled`

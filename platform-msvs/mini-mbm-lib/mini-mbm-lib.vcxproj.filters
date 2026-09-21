@@ -506,6 +506,9 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-debug-lua.h">
       <Filter>Header Files\lua-wrap\render-table</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\lua-wrap\render-table\image-mesh-job.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-lua.h">
       <Filter>Header Files\lua-wrap\render-table</Filter>
     </ClInclude>
