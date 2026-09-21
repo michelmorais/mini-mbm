@@ -20,6 +20,7 @@
 
 ]]--
 
+local Asset=require 'image_mesh_asset'
 local Wire=require 'image_mesh_wireframe'
 local M={}
 function M.release(E)
@@ -50,7 +51,7 @@ end
 function M.layout(E,asset)
     local source=E.comparison
     if not source then return end
-    local final=bounds(asset:getVertex(1,1,1,asset:getTotalVertex(1,1)))
+    local final=bounds(Asset.vertices(asset))
     source.resultBounds=final
     local gap=math.max(source.bounds.width,final.width)*0.15
     source.gap=math.max(0.001,gap)

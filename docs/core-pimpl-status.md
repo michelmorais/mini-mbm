@@ -268,3 +268,9 @@ No render-object storage, backend handles or public container access was added.
 The 7.237.0 extension adds only boolean open/remap modes and four unsigned pixel
 rectangle values to `IMAGE_MESH_OPTIONS`. Geometry and UV assembly remain local
 to the generator; no new public mutable render storage or backend access is exposed.
+
+The 7.238.0 side-texture request adds a value enum, scalar inset/repeat/color
+values and a borrowed texture-path pointer. The contour query writes into a
+caller-provided fixed-capacity point buffer. Offset validation, seam topology,
+decoded images, and temporary subset buffers remain private/local; no owned
+STL containers or runtime/backend storage are exposed by the public header.

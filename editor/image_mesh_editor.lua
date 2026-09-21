@@ -32,6 +32,8 @@ local HeightPreview=require 'image_mesh_height_preview'
 local Paint=require 'image_mesh_paint'
 local Presets=require 'image_mesh_presets'
 local BackUv=require 'image_mesh_back_uv'
+local Asset=require 'image_mesh_asset'
+local Sides=require 'image_mesh_sides'
 local Simplify=require 'image_mesh_simplify'
 local Comparison=require 'image_mesh_comparison'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
@@ -59,7 +61,7 @@ local function syncDraft()
     E.values=Model.copy(E.editDefaults and E.project.defaults or (r and Model.options(E.project,r) or E.project.defaults))
     for k,v in pairs(Model.optionalDefaults) do if E.values[k]==nil then E.values[k]=v end end
     E.values.preserveAspect=E.values.preserveAspect~=false
-    if E.tool=='back_uv' and not BackUv.available(E) then E.tool='select' end
+    if (E.tool=='back_uv' and not BackUv.available(E)) or (E.tool=='side_band' and not Sides.available(E)) then E.tool='select' end
     E.point=1
 end
 local function changed()
@@ -75,7 +77,7 @@ local function selectRegion(id,extend)
     if E.drag then return end
     if extend then E.selection[id]=not E.selection[id] else E.selection={[id]=true} end
     E.selected=id
-    if E.tool=='back_uv' then E.tool='select' end
+    if E.tool=='back_uv' or E.tool=='side_band' then E.tool='select' end
     if not E.selection[id] then E.selected=0; for _,r in ipairs(E.project.regions) do if E.selection[r.id] then E.selected=r.id; break end end end
     E.generationFailure=nil
     HeightPreview.destroy(E); E.heightRequested=true
@@ -133,11 +135,7 @@ local function generate(region,project,keepOriginal)
     if not asset then error(generationError(region,report),0) end
     -- Match Mesh Debug's +Z front view. Rotate positions AND authored normals
     -- by 180 degrees around Y, preserving UVs, winding and smooth/hard edges.
-    local vertices=asset:getVertex(1,1,1,report.vertices)
-    for _,v in ipairs(vertices) do
-        v.x=-v.x; v.z=-v.z; v.nx=-v.nx; v.nz=-v.nz
-    end
-    asset:setVertex(1,1,1,vertices)
+    local vertices=Asset.vertices(asset,true)
     if keepOriginal and options.simplify then Comparison.capture(E,asset,vertices) end
     Simplify.apply(E,asset,options,report)
     return asset,report
@@ -209,8 +207,8 @@ local function loadTexture(path)
 end
 local function install(project,path,texture)
     Paint.destroy(E); if E.paint then E.paint.enabled=false end
-    releasePreview(); Canvas.destroy(E); E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
-    if E.tool=='back_uv' then E.tool='select' end
+    releasePreview(); Canvas.destroy(E); E.sideContour=nil; E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
+    if E.tool=='back_uv' or E.tool=='side_band' then E.tool='select' end
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
     E.polygon={}; E.drag=nil; E.missing=nil; E.zoom=1; E.viewRegion=nil
     E.primitive.w=math.max(2,math.floor(project.image.width/4)); E.primitive.h=math.max(2,math.floor(project.image.height/4))
@@ -312,7 +310,7 @@ applyProperties=function()
         local settings={}; for k in pairs(Model.defaults) do settings[k]=values[k] end
         if E.editDefaults then p.defaults=settings; return end
         for _,r in ipairs(p.regions) do if E.selection[r.id] then
-            r.overrides={}; for k,v in pairs(settings) do if k=='backOpen' or k=='backRemap' or k=='backRelief' or v~=p.defaults[k] then r.overrides[k]=v end end
+            r.overrides={}; for k,v in pairs(settings) do if k=='backSolid' or k=='backOpen' or k=='backRemap' or k=='backRelief' or v~=p.defaults[k] then r.overrides[k]=v end end
         end end
         local r=assert(Model.region(p,E.selected),L('select_region'))
         r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop)
@@ -497,6 +495,7 @@ local function propertiesPanel()
         E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
         end
         BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end)
+        Sides.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         if tImGui.CollapsingHeader(L('resolution_group')) then
         for _,key in ipairs({'columns','rows','ellipseSegments'}) do
             local c,v=tImGui.InputInt(L(key),E.values[key],1,10); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
@@ -563,16 +562,17 @@ local function regionsPanel()
         if E.editMode then
             local names={L('select'),L('rectangle'),L('ellipse'),L('polygon'),L('pan')}; local tools={'select','rectangle','ellipse','polygon','pan'}
             if BackUv.available(E) then names[#names+1]=L('back_edit'); tools[#tools+1]='back_uv' end
+            if Sides.available(E) then names[#names+1]=L('side_edit');tools[#tools+1]='side_band' end
             local index=1; for i,name in ipairs(tools) do if name==E.tool then index=i end end
             if E.paint and E.paint.enabled then names[#names+1]=L('paint_title'); index=#names end
             local modified,tool=tImGui.Combo(L('tool'),index,names)
-            if modified and tools[tool] then Paint.cancel(E); Paint.state(E).enabled=false; Canvas.cancel(E); E.tool=tools[tool]; if E.tool=='back_uv' then E.heightView=1 end end
+            if modified and tools[tool] then Paint.cancel(E); Paint.state(E).enabled=false; Canvas.cancel(E); E.tool=tools[tool]; if E.tool=='back_uv' or E.tool=='side_band' then E.heightView=1 end end
             if E.tool=='polygon' then
                 if tImGui.Button(L('finish_polygon')) then finishPolygon() end
                 tImGui.SameLine(); if tImGui.Button(L('cancel')) then Canvas.cancel(E) end
             end
             if tImGui.Button(L('fit_image')) then Canvas.fit(E) end
-            tImGui.TextWrapped(L(E.tool=='back_uv' and 'back_canvas_help' or (E.paint and E.paint.enabled and 'paint_canvas_help' or 'canvas_help')))
+            tImGui.TextWrapped(L(E.tool=='side_band' and 'side_canvas_help' or (E.tool=='back_uv' and 'back_canvas_help' or (E.paint and E.paint.enabled and 'paint_canvas_help' or 'canvas_help'))))
         else
             tImGui.TextWrapped(L('preview_help'))
             setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
@@ -686,7 +686,7 @@ function onTouchDown(key,x,y)
                 if draftChanged() and not applyProperties() then return end
                 handled=Paint.input(E,action,'down',x,y)
             else handled=Canvas.input(E,handlers,'down',x,y) end
-            if (E.tool=='select' or E.tool=='back_uv') and not handled then E.panDrag={x=x,y=y} end
+            if (E.tool=='select' or E.tool=='back_uv' or E.tool=='side_band') and not handled then E.panDrag={x=x,y=y} end
         elseif key==0 then E.panDrag={x=x,y=y}
         elseif key==1 or key==2 then E.panDrag={x=x,y=y} end
     elseif key==0 then E.orbitDrag={x=x,y=y} end

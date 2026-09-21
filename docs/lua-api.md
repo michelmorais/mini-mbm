@@ -2144,13 +2144,21 @@ assert(asset:save("panel.msh", false, false, true))
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
 | `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
+| `backSolid` | false | Flat opaque back with a separate solid-color material |
+| `backColor` | 0x808080 | RGB integer 0..0xFFFFFF, encoded as `#RRGGBBFF` when backSolid is true |
 | `backOpen` | false | Omit back vertices/triangles, retaining front and side walls ending at `+depth/2` |
 | `backRemap` | false | Flat back sampling an independent rectangle in the same source image |
 | `backX`, `backY` | 0 | Remap rectangle's zero-based top-left source pixel |
 | `backCropWidth`, `backCropHeight` | 0 | Remap rectangle dimensions; 0 uses corresponding front crop dimension; rectangle must fit inside the source image |
 | `lockBorder` | true | Force the perimeter to zero relief |
 | `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual contour |
-| `maxVertices` | 65535 | Total vertex budget, including back and duplicated side vertices; engine cap remains 65535 |
+| `sideMode` | `"edge"` | `"edge"`, `"color"`, `"repeat"`, or `"band"` |
+| `sideColor` | 0x808080 | Opaque RGB integer [0, 0xFFFFFF], used by color mode |
+| `sideTexture` | nil | Optional image path for repeat mode; nil/empty repeats the source crop. Explicit paths are validated and decoded before generating |
+| `sideRepeatU`, `sideRepeatV` | 1, 1 | Finite repeats around the whole world-space perimeter / through depth, each [0.1, 64] |
+| `sideInset` | 1 | Band width in source pixels, at least 1 and at most the contour-specific limit |
+| `sideBandInvert` | false | Band mode only: swap outer/inner UV endpoints across side depth; true places the inner contour next to the front and outer next to the back. Does not change front/back UVs or geometry |
+| `maxVertices` | 65535 | Total vertex budget, including back, duplicated side vertices and repetition seams; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
 
 **Image-mesh back controls (7.236.0).**
@@ -2164,7 +2172,8 @@ refinement; enabling this option may reject an otherwise valid flat-back budget.
 The report's `minHeight`/`maxHeight` still describe one face's relief amplitude,
 not the combined thickness.
 
-Since 7.237.0, `backOpen`, `backRelief` and `backRemap` are mutually exclusive.
+`backOpen`, `backRelief`, `backRemap` and `backSolid` are mutually exclusive
+(`backSolid` was added in 7.240.0).
 An open back is intentionally non-watertight. It removes back-only geometry
 from both budgets; the side-wall geometry and UVs remain unchanged. A remapped
 back retains flat-back topology and positions; UVs map normalized front-shape
@@ -2173,6 +2182,45 @@ that rectangle. No second image or material is created.
 
 These options affect mesh generation only; diagnostic height/overlay PNGs remain
 front-field diagnostics. The source texture is still referenced, not copied.
+
+**Side texture controls (7.238.0).**
+
+`edge` retains the previous stretched-edge UVs and opaque-texel fallback.
+`band` maps each wall from the outer source contour at the front to an inner
+contour at the rear. It uses the same image and preserves its alpha, without the
+edge mode's fallback. Rectangles inset their edges; ellipses retain their axes
+and center with reduced radii; polygon edges are offset and intersected.
+The inset must preserve a simple nested contour, edge directions and uncrossed
+mapping strips. Overly wide bands fail with the computed limit.
+These modes retain one subset unless `backSolid` is enabled, and do not change geometry.
+
+`color` uses an opaque `#RRGGBBFF` solid-color texture on subset 2.
+`repeat` uses the resolved image path on subset 2 (the source image when
+`sideTexture` is nil/empty). Source fallback UVs stay within the crop pixel
+centers, including when the source is an atlas. Invalid nonempty paths still
+return an error. This mode introduces UV seams
+at whole repetitions; UVs stay within [0,1], independent of runtime texture
+address mode. New perimeter splits are also propagated into front/back triangles
+to avoid T-junctions. Repetition may add geometry and exhaust the shared budget.
+Without `backSolid`, subset 1 retains front/back materials. With `backSolid`,
+there are three subsets: front (1), solid back (2), and sides (3), including
+edge/band sides. Geometry and front/side UVs remain unchanged; back UVs are (0.5,0.5). Vertex and index array access in the mesh-debug Lua API is per subset;
+consumers must iterate all subsets.
+Export stores texture references; it does not copy external images.
+
+```lua
+local inner, maximum = mbm.getImageMeshSideContour({
+    shape="rectangle", cropWidth=100, cropHeight=100, sideInset=5,
+})
+-- normalized crop points (x,y); no image decode, mesh or GPU allocation.
+-- On failure: nil, errorString, maximumInset (0 if no valid limit was found).
+```
+
+The query requires explicit crop dimensions >=2, accepts the shape/ellipse/
+polygon options above, and returns the same contour used by generation.
+Its maximum is a conservative limit preserving topology, not a promise that
+arbitrarily complex polygons can inset by one pixel. Contour preview queries
+should run only when their inputs change.
 
 Height painting (`heightEdits`) is shared by `generateImageMesh` and
 `generateImageMeshMap`. Each dab requires `{x, y, radius, strength, height, mode}`.
@@ -2212,7 +2260,7 @@ Height uses bilinear
 sampling of encoded RGB luminance (`0.2126 R + 0.7152 G + 0.0722 B`), without
 linear-light conversion. Optional filtering and two-height remapping happen before
 relief amplitude and border attenuation. Alpha does not create holes or alter height. Front and
-back use the original crop (including its transparency), and side walls stretch
+back use the original crop (including its transparency, unless remapped), and by default side walls stretch
 opaque boundary texels through the depth. If a wall segment crosses transparent
 texels, its four UVs use one nearby texel having the maximum alpha found within
 the crop. Thus a crop containing opaque pixels produces opaque fallback walls;

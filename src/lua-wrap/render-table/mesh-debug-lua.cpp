@@ -3641,12 +3641,12 @@ namespace mbm
         return 1;
     }
 
-    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs)
+    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,int optionIndex=2)
     {
-        luaL_checktype(lua,2,LUA_TTABLE);
+        luaL_checktype(lua,optionIndex,LUA_TTABLE);
         const auto integer = [&](const char *name, uint32_t &value)
         {
-            lua_getfield(lua, 2, name);
+            lua_getfield(lua, optionIndex, name);
             if (!lua_isnil(lua, -1))
             {
                 const lua_Integer input = luaL_checkinteger(lua, -1);
@@ -3658,13 +3658,13 @@ namespace mbm
         };
         const auto number = [&](const char *name, float &value)
         {
-            lua_getfield(lua, 2, name);
+            lua_getfield(lua, optionIndex, name);
             if (!lua_isnil(lua, -1)) value = static_cast<float>(luaL_checknumber(lua, -1));
             lua_pop(lua, 1);
         };
         const auto boolean = [&](const char *name, bool &value)
         {
-            lua_getfield(lua, 2, name);
+            lua_getfield(lua, optionIndex, name);
             if (!lua_isnil(lua, -1))
             {
                 luaL_checktype(lua, -1, LUA_TBOOLEAN);
@@ -3672,6 +3672,20 @@ namespace mbm
             }
             lua_pop(lua, 1);
         };
+        lua_getfield(lua,optionIndex,"sideMode");
+        const char *side=luaL_optstring(lua,-1,"edge");
+        if (std::strcmp(side,"edge")==0) options.sideMode=IMAGE_MESH_SIDE::EDGE;
+        else if (std::strcmp(side,"color")==0) options.sideMode=IMAGE_MESH_SIDE::COLOR;
+        else if (std::strcmp(side,"repeat")==0) options.sideMode=IMAGE_MESH_SIDE::REPEAT;
+        else if (std::strcmp(side,"band")==0) options.sideMode=IMAGE_MESH_SIDE::BAND;
+        else luaL_error(lua,"sideMode must be edge, color, repeat or band");
+        lua_pop(lua,1);
+        lua_getfield(lua,optionIndex,"sideTexture");
+        options.sideTexture=luaL_optstring(lua,-1,nullptr); lua_pop(lua,1);
+        number("sideInset",options.sideInset); number("sideRepeatU",options.sideRepeatU); number("sideRepeatV",options.sideRepeatV);
+        integer("backColor",options.backColor); boolean("backSolid",options.backSolid);
+        integer("sideColor",options.sideColor);
+        boolean("sideBandInvert",options.sideBandInvert);
         integer("x", options.x); integer("y", options.y);
         integer("cropWidth", options.cropWidth); integer("cropHeight", options.cropHeight);
         integer("columns", options.columns); integer("rows", options.rows);
@@ -3689,7 +3703,7 @@ namespace mbm
         integer("smoothPasses",options.smoothPasses);
         number("grooveThreshold",options.grooveThreshold); number("grooveTransition",options.grooveTransition);
         number("heightTolerance",options.heightTolerance);
-        lua_getfield(lua,2,"heightEdits");
+        lua_getfield(lua,optionIndex,"heightEdits");
         if (!lua_isnil(lua,-1))
         {
             luaL_checktype(lua,-1,LUA_TTABLE);
@@ -3714,7 +3728,7 @@ namespace mbm
             }
         }
         lua_pop(lua,1);
-        lua_getfield(lua, 2, "shape");
+        lua_getfield(lua, optionIndex, "shape");
         if (!lua_isnil(lua, -1))
         {
             const char *shape = luaL_checkstring(lua, -1);
@@ -3726,7 +3740,7 @@ namespace mbm
         lua_pop(lua, 1);
         if (options.shape == IMAGE_MESH_SHAPE::POLYGON)
         {
-            lua_getfield(lua, 2, "contour");
+            lua_getfield(lua, optionIndex, "contour");
             luaL_checktype(lua, -1, LUA_TTABLE);
             const size_t count = lua_rawlen(lua, -1);
             if (count < 3 || count > 128) luaL_error(lua, "contour needs 3..128 points");
@@ -3742,6 +3756,26 @@ namespace mbm
             }
             lua_pop(lua, 1);
         }
+    }
+
+    int onGetImageMeshSideContourLua(lua_State *lua)
+    {
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[128]; IMAGE_MESH_DAB dabs[4096];
+        readImageMeshOptions(lua,options,contour,dabs,1);
+        uint32_t count=128; float maximum=0; char error[512]="";
+        if (!getImageMeshSideContour(options,inner,count,maximum,error,sizeof(error)))
+        {
+            lua_pushnil(lua); lua_pushstring(lua,error); lua_pushnumber(lua,maximum); return 3;
+        }
+        lua_createtable(lua,static_cast<int>(count),0);
+        for (uint32_t i=0;i<count;++i)
+        {
+            lua_createtable(lua,0,2);
+            lua_pushnumber(lua,inner[i].x); lua_setfield(lua,-2,"x");
+            lua_pushnumber(lua,inner[i].y); lua_setfield(lua,-2,"y");
+            lua_rawseti(lua,-2,i+1);
+        }
+        lua_pushnumber(lua,maximum); return 2;
     }
 
     int onGenerateImageMeshMapLua(lua_State *lua)

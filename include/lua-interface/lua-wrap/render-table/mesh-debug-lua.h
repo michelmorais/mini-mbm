@@ -73,6 +73,7 @@ namespace mbm
     int onNewIndexMeshDebug(lua_State *lua);
     int onIndexMeshDebug(lua_State *lua);
     int onNewMeshDebugLua(lua_State *lua);
+    int onGetImageMeshSideContourLua(lua_State *lua);
     int onGenerateImageMeshLua(lua_State *lua);
     int onGenerateImageMeshMapLua(lua_State *lua);
     int onDestroyMeshDebugLua(lua_State *lua);

@@ -3495,6 +3495,7 @@ namespace mbm
             {"getSizeScreen", onGetSizeBackBuffer},
             {"getCamera", onGetCamera},
             {"getFps", onGetFps},
+            {"getImageMeshSideContour", onGetImageMeshSideContourLua},
             {"generateImageMesh", onGenerateImageMeshLua},
             {"generateImageMeshMap", onGenerateImageMeshMapLua},
             {"quit", onQuitEngine},

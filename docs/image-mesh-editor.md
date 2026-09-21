@@ -272,7 +272,8 @@ frame, sem reconstruir geometria em repouso. A geração de uma peça ainda é s
 Desde 7.228.0, **Simplificar geometria > Simplificar após gerar** habilita uma etapa
 opcional por módulo (ou nos padrões do projeto). **Aplicar** regenera a peça e
 simplifica o frame inteiro com o mesmo algoritmo do Mesh Debug. Há um único frame
-e um único subset no módulo, portanto não há seletores de escopo ou frames compartilhados.
+com um a três subsets, conforme os modos de textura lateral e fundo; todos participam da
+operação. Não há seletores de escopo ou frames compartilhados.
 
 - **Proporção de triângulos**: fração a manter, de 0,001 a 0,95; padrão 0,9.
   Por exemplo, 0,28 solicita aproximadamente 28% das faces de origem.
@@ -552,3 +553,57 @@ com histórico por gesto e preservação ao duplicar módulos. Cada módulo cons
 sua posição UV ao receber um preset; presets guardam o modo, não coordenadas
 específicas da imagem. As três escolhas de geometria especiais são exclusivas,
 inclusive ao combinar padrões do projeto com ajustes individuais.
+
+## Textura das laterais (7.238.0)
+
+A seção **Textura das laterais** oferece quatro modos:
+
+| Modo | Uso |
+|---|---|
+| **Borda esticada** | Comportamento anterior: estica os pixels do contorno ao longo da profundidade |
+| **Cor uniforme** | Escolhe uma cor RGB opaca para todas as paredes |
+| **Textura repetida** | Repete o recorte da imagem original por padrão, com outro arquivo opcional; ajusta repetições no perímetro inteiro e na profundidade. "Usar recorte da imagem original" remove a textura externa |
+| **Faixa interna do contorno** | Usa a faixa da própria imagem entre o contorno original e um contorno interno |
+
+Para a faixa, ajuste **Largura da faixa (px)** ou habilite
+**Redimensionar contorno interno** em modo de edição. A alça verde altera apenas
+o tamanho do contorno interno, sem deslocar o módulo. A textura lateral vai
+do limite externo junto à frente até o interno junto ao verso. O ajuste não
+modifica posições, índices ou normais. A faixa preserva a transparência da imagem.
+
+O mínimo é 1 pixel. O máximo é calculado por contorno para evitar cruzamentos,
+inversões de arestas e colapsos. Retângulos são reduzidos por lado; círculos
+permanecem concêntricos; elipses mantêm os eixos com raios reduzidos. Polígonos
+usam arestas deslocadas, sem criar furos ou dividir o contorno. Uma forma estreita
+demais pode não aceitar uma faixa de 1 pixel; o editor informa essa limitação.
+As medidas de UV usam centros de pixels: um recorte de 100 pixels cobre 99
+intervalos entre centros.
+
+Cor uniforme e repetição usam um segundo material. A prévia, comparação,
+wireframe, simplificação e exportação percorrem ambos os materiais. A repetição
+cria divisões nas UVs e na triangulação adjacente para funcionar sem depender
+do modo global de endereçamento da textura; isso pode aumentar a contagem de
+vértices e triângulos. Os limites continuam obrigatórios.
+
+Todos os parâmetros entram nos padrões do projeto, seleção múltipla e presets.
+Projetos antigos usam borda esticada. Caminhos de texturas são relativos ao
+projeto/preset quando estão sob sua pasta e são resolvidos ao abrir/importar.
+Se a textura estiver ausente, escolha novamente o arquivo nessa seção.
+A exportação referencia a imagem escolhida; empacotamento portátil permanece
+uma entrega separada. Cores uniformes não precisam de arquivo adicional.
+
+A edição por alça tem desfazer/refazer por gesto e cancelamento com Esc.
+Consultas de contorno e atualizações de linhas são armazenadas em cache;
+o editor em repouso não recalcula o limite nem reconstrói a geometria.
+
+No modo **Faixa interna do contorno**, **Inverter UV da faixa** troca o sentido
+da textura ao longo da profundidade da lateral. Desmarcado (padrão): contorno
+externo junto à frente e interno junto ao verso, continuando a frente em espelho.
+Marcado: interno junto à frente e externo junto ao verso. A mudança afeta somente
+os UVs laterais, sem alterar geometria, normais ou UVs das faces frontal/traseira.
+Use **Aplicar** para atualizar; projetos e presets preservam a opção.
+
+**Textura e fundo > Cor sólida** cria um fundo plano opaco com seletor RGB.
+A mesh salva a cor como `#RRGGBBFF`, sem arquivo externo. Frente, fundo e
+laterais têm materiais separados; funciona com os quatro modos laterais,
+simplificação e exportação. Projetos/presets preservam modo e cor.

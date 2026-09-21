@@ -30,6 +30,7 @@ namespace mbm
     enum class IMAGE_MESH_SHAPE { RECTANGLE, ELLIPSE, POLYGON };
     struct IMAGE_MESH_POINT { float x = 0, y = 0; };
 
+    enum class IMAGE_MESH_SIDE { EDGE, COLOR, REPEAT, BAND };
     enum class IMAGE_MESH_BRUSH { RAISE, LOWER, FLATTEN, SMOOTH };
     struct IMAGE_MESH_DAB
     {
@@ -54,9 +55,15 @@ namespace mbm
         bool lockBorder = true;
         // Copy the final front relief outward on the back. UV mirroring is independent.
         bool backRelief = false, backMirror = false;
-        bool backOpen = false, backRemap = false;
+        bool backOpen = false, backRemap = false, backSolid = false;
+        uint32_t backColor = 0x808080;
         // Independent same-image UV rectangle; zero sizes use the front crop dimensions.
         uint32_t backX = 0, backY = 0, backCropWidth = 0, backCropHeight = 0;
+        IMAGE_MESH_SIDE sideMode = IMAGE_MESH_SIDE::EDGE;
+        bool sideBandInvert = false; // Swap inner/outer UV endpoints across side depth (BAND only).
+        float sideInset = 1.0f, sideRepeatU = 1.0f, sideRepeatV = 1.0f;
+        uint32_t sideColor = 0x808080; // opaque RGB
+        const char *sideTexture = nullptr; // borrowed, read only during generation
         bool followImage = false, twoLevels = false;
         float grooveThreshold = 0.5f, grooveTransition = 0.1f, heightTolerance = 0.03f;
         uint32_t smoothPasses = 0;
@@ -78,6 +85,11 @@ namespace mbm
     API_IMPL bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                                     MESH_MBM_DEBUG &destination, IMAGE_MESH_REPORT &report,
                                     char *errorOut, int errorOutLen);
+    // CPU contour query. Crop dimensions are required; output capacity must be >=128.
+    // Maximum inset is returned even when the requested inset is out of range.
+    API_IMPL bool getImageMeshSideContour(const IMAGE_MESH_OPTIONS &options, IMAGE_MESH_POINT *points,
+                                          uint32_t &count, float &maximumInset,
+                                          char *errorOut, int errorOutLen);
     // Writes a cropped RGBA PNG: processed height or blue groove overlay; no mesh/GPU allocation.
     API_IMPL bool generateImageMeshMap(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                                        const char *outputPath, bool overlay,

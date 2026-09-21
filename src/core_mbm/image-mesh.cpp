@@ -24,6 +24,7 @@
 #include <core_mbm/util-interface.h>
 #include <stb/stb-interface.h>
 #include "private/image-mesh-height.h"
+#include "private/image-mesh-sides.h"
 #include <lodepng/lodepng.h>
 #include <algorithm>
 #include <cmath>
@@ -65,8 +66,15 @@ namespace mbm
             !std::isfinite(o.borderWidth) || o.borderWidth < 0.0f || o.borderWidth > 0.5f ||
             o.columns == 0 || o.rows == 0 || o.columns > 255 || o.rows > 255)
             return fail(errorOut, errorOutLen, "Invalid dimensions, relief, border width or grid (1..255 cells per axis)");
-        if ((o.backOpen && (o.backRelief || o.backRemap)) || (o.backRemap && o.backRelief))
-            return fail(errorOut,errorOutLen,"Back modes are mutually exclusive: open, copied relief or flat remap");
+        if (static_cast<int>(o.backOpen)+o.backRelief+o.backRemap+o.backSolid>1)
+            return fail(errorOut,errorOutLen,"Back modes are mutually exclusive: open, copied relief, flat remap or solid color");
+        if (o.sideMode!=IMAGE_MESH_SIDE::EDGE && o.sideMode!=IMAGE_MESH_SIDE::COLOR &&
+            o.sideMode!=IMAGE_MESH_SIDE::REPEAT && o.sideMode!=IMAGE_MESH_SIDE::BAND)
+            return fail(errorOut,errorOutLen,"Invalid side texture mode");
+        if (!std::isfinite(o.sideRepeatU) || !std::isfinite(o.sideRepeatV) || o.sideRepeatU<0.1f ||
+            o.sideRepeatV<0.1f || o.sideRepeatU>64 || o.sideRepeatV>64 || o.sideColor>0xffffff)
+            return fail(errorOut,errorOutLen,"Side repeats must be 0.1..64; color must be RGB 0..0xFFFFFF");
+        if (o.backColor>0xffffff) return fail(errorOut,errorOutLen,"Back color must be RGB 0..0xFFFFFF");
         try
         {
             image_mesh::HEIGHT_FIELD field;
@@ -80,6 +88,41 @@ namespace mbm
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
+            std::vector<IMAGE_MESH_POINT> sideInner;
+            std::string sideTexture=field.path;
+            const bool separateSides=o.backSolid || o.sideMode==IMAGE_MESH_SIDE::COLOR || o.sideMode==IMAGE_MESH_SIDE::REPEAT;
+            const bool repeatSourceCrop=o.sideMode==IMAGE_MESH_SIDE::REPEAT && (!o.sideTexture || !*o.sideTexture);
+            uint32_t sideRows=1;
+            if (o.sideMode==IMAGE_MESH_SIDE::BAND)
+            {
+                IMAGE_MESH_OPTIONS crop=o; crop.cropWidth=field.width; crop.cropHeight=field.height;
+                float maximum=0;
+                if (!image_mesh::sideContour(crop,topology.contour,sideInner,maximum,topologyError))
+                    return fail(errorOut,errorOutLen,topologyError.c_str());
+            }
+            else if (o.sideMode==IMAGE_MESH_SIDE::COLOR)
+            {
+                char color[10]; std::snprintf(color,sizeof(color),"#%06XFF",o.sideColor);
+                sideTexture=color;
+            }
+            else if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
+            {
+                if (repeatSourceCrop) sideTexture=field.path;
+                else
+                {
+                    bool exists=false;
+                    const char *resolved=o.sideTexture?util::getFullPath(o.sideTexture,&exists):nullptr;
+                    int w=0,h=0,channels=0;
+                    if (!exists || !resolved || !stbi_info(resolved,&w,&h,&channels) || w<1 || h<1 ||
+                        static_cast<uint64_t>(w)*h>16777216)
+                        return fail(errorOut,errorOutLen,"Side texture is missing or invalid (maximum 16 million pixels)");
+                    sideTexture=resolved;
+                    std::unique_ptr<stbi_uc,decltype(&std::free)> decoded(stbi_load(sideTexture.c_str(),&w,&h,&channels,4),&std::free);
+                    if (!decoded) return fail(errorOut,errorOutLen,"Cannot decode side texture");
+                }
+                image_mesh::sideSplitRepeats(o,topology);
+                sideRows=static_cast<uint32_t>(std::ceil(o.sideRepeatV));
+            }
             const uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
             const bool compactBack=o.followImage && !o.backRelief;
             uint32_t backSize=gridSize;
@@ -90,8 +133,15 @@ namespace mbm
                 backSize=static_cast<uint32_t>(topology.boundary.size());
                 backTriangles=topology.backTriangles.size();
             }
-            const uint32_t vertexCount=gridSize+backSize+4*static_cast<uint32_t>(topology.boundary.size());
-            const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+2*topology.boundary.size());
+            const uint32_t vertexCount=gridSize+backSize+4*sideRows*static_cast<uint32_t>(topology.boundary.size());
+            const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+2*sideRows*topology.boundary.size());
+            if (vertexCount>std::min(o.maxVertices,65535u) || triangleCount>o.maxTriangles)
+            {
+                const auto message="Geometry budget exceeded including side texture seams: vertices "+std::to_string(vertexCount)+
+                    ", limit "+std::to_string(std::min(o.maxVertices,65535u))+"; triangles "+std::to_string(triangleCount)+
+                    ", limit "+std::to_string(o.maxTriangles)+". Reduce side repeats or geometry resolution.";
+                return fail(errorOut,errorOutLen,message.c_str());
+            }
             const auto &path=field.path;
             const uint32_t imageWidth=field.imageWidth,imageHeight=field.imageHeight,cw=field.width,ch=field.height;
             const auto &pixels=field.pixels;
@@ -145,6 +195,7 @@ namespace mbm
             {
                 triangle(face[0], face[1], face[2]);
             }
+            const uint32_t backIndexStart=static_cast<uint32_t>(indices.size());
             if (!o.backOpen)
                 for (const auto &face : (compactBack?topology.backTriangles:topology.triangles))
                     triangle(backIndex[face[0]],backIndex[face[2]],backIndex[face[1]]);
@@ -204,9 +255,46 @@ namespace mbm
                 }
                 return false;
             };
+            const uint32_t sideVertexStart=static_cast<uint32_t>(vertices.size());
+            const uint32_t sideIndexStart=static_cast<uint32_t>(indices.size());
+            double sidePerimeter=0,sideWalked=0;
+            if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
+                for (size_t i=0;i<topology.boundary.size();++i)
+                {
+                    const auto &a=vertices[topology.boundary[i]].position,&b=vertices[topology.boundary[(i+1)%topology.boundary.size()]].position;
+                    sidePerimeter+=std::hypot(b.x-a.x,b.y-a.y);
+                }
             // Clockwise perimeter viewed from -Z. Duplicate side vertices for hard seams.
             const auto side = [&](uint32_t a, uint32_t b)
             {
+                if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
+                {
+                    const auto &pa=vertices[a].position,&pb=vertices[b].position;
+                    const double length=std::hypot(pb.x-pa.x,pb.y-pa.y);
+                    const double u0=sideWalked/sidePerimeter*o.sideRepeatU,u1=(sideWalked+length)/sidePerimeter*o.sideRepeatU;
+                    const double tile=std::floor((u0+u1)*.5);
+                    const float ua=static_cast<float>(std::clamp(u0-tile,0.0,1.0)),ub=static_cast<float>(std::clamp(u1-tile,0.0,1.0));
+                    for (uint32_t row=0;row<sideRows;++row)
+                    {
+                        const float va=static_cast<float>(row),vb=std::min(va+1,o.sideRepeatV);
+                        const uint32_t start=static_cast<uint32_t>(vertices.size());
+                        for (float v:{va,vb}) for (uint32_t point:{a,b})
+                        {
+                            VERTEX vertex=vertices[point];
+                            const float backZ=o.backRelief?-vertex.position.z:o.depth*.5f;
+                            vertex.position.z+=(backZ-vertex.position.z)*(v/o.sideRepeatV);
+                            vertex.uv=VEC2(point==a?ua:ub,v-va);
+                            if (repeatSourceCrop)
+                            {
+                                vertex.uv.x=(o.x+vertex.uv.x*(cw-1)+.5f)/imageWidth;
+                                vertex.uv.y=(o.y+vertex.uv.y*(ch-1)+.5f)/imageHeight;
+                            }
+                            vertices.push_back(vertex);
+                        }
+                        triangle(start,start+2,start+1); triangle(start+1,start+2,start+3);
+                    }
+                    sideWalked+=length; return;
+                }
                 const uint32_t start = static_cast<uint32_t>(vertices.size());
                 vertices.push_back(vertices[a]); vertices.push_back(vertices[b]);
                 if (o.backOpen)
@@ -221,7 +309,18 @@ namespace mbm
                 }
                 // Back-only UV mirroring must not twist the stretched border strip.
                 vertices[start+2].uv=vertices[a].uv; vertices[start+3].uv=vertices[b].uv;
-                if (sideNeedsOpaqueSample(topology.points[a], topology.points[b]))
+                if (o.sideMode==IMAGE_MESH_SIDE::BAND)
+                {
+                    for (uint32_t k=0;k<2;++k)
+                    {
+                        const auto inner=image_mesh::sideMap(topology.points[k==0?a:b],topology.contour,sideInner);
+                        vertices[start+2+k].uv=VEC2((o.x+inner.x*(cw-1)+.5f)/imageWidth,(o.y+inner.y*(ch-1)+.5f)/imageHeight);
+                        if (o.sideBandInvert) std::swap(vertices[start+k].uv,vertices[start+2+k].uv);
+                    }
+                }
+                else if (o.sideMode==IMAGE_MESH_SIDE::COLOR)
+                    for (uint32_t k=0;k<4;++k) vertices[start+k].uv=VEC2(.5f,.5f);
+                else if (sideNeedsOpaqueSample(topology.points[a], topology.points[b]))
                 {
                     prepareVisibleTexels();
                     const uint32_t x = std::min(cw-1, static_cast<uint32_t>(std::lround((topology.points[a].x + topology.points[b].x) * 0.5f * (cw-1))));
@@ -310,9 +409,25 @@ namespace mbm
             destination.setHasNormal(HAS_NOR_IN_FILE);
             destination.setHasTexture(HAS_TEX_EACH_FRAME);
             destination.addBuffer(3);
+            const uint32_t sideSubset=o.backSolid?2:1;
+            uint32_t frontVertexCount=vertexCount,frontIndexCount=static_cast<uint32_t>(indices.size()),subsetCount=1;
+            if (o.backSolid) { frontVertexCount=gridSize; frontIndexCount=backIndexStart; subsetCount=3; }
+            else if (separateSides) { frontVertexCount=sideVertexStart; frontIndexCount=sideIndexStart; subsetCount=2; }
             destination.addSubset(0);
-            if (!destination.addVertex(0, 0, vertexCount))
+            if (!destination.addVertex(0, 0, frontVertexCount))
                 return fail(errorOut, errorOutLen, "Cannot allocate mesh vertices");
+            if (o.backSolid)
+            {
+                destination.addSubset(0);
+                if (!destination.addVertex(0,1,backSize))
+                    return fail(errorOut,errorOutLen,"Cannot allocate back mesh vertices");
+            }
+            if (separateSides)
+            {
+                destination.addSubset(0);
+                if (!destination.addVertex(0,sideSubset,vertexCount-sideVertexStart))
+                    return fail(errorOut,errorOutLen,"Cannot allocate side mesh vertices");
+            }
             VEC3 *positions = destination.getPositionArray(0);
             VEC3 *normals = destination.getNormalArray(0);
             VEC2 *uvs = destination.getUvArray(0);
@@ -324,13 +439,26 @@ namespace mbm
                 if (!(length > 0)) return fail(errorOut, errorOutLen, "Degenerate geometry");
                 positions[i] = vertex.position;
                 normals[i] = VEC3(static_cast<float>(n.x / length), static_cast<float>(n.y / length), static_cast<float>(n.z / length));
-                uvs[i] = vertex.uv;
+                uvs[i] = o.backSolid && i>=gridSize && i<sideVertexStart ? VEC2(.5f,.5f) : vertex.uv;
             }
             destination.getSubset(0, 0)->texture = path;
-            if (!destination.addIndex(0, 0, indices.data(), static_cast<uint32_t>(indices.size()), errorOut, errorOutLen)) return false;
+            if (!destination.addIndex(0,0,indices.data(),frontIndexCount,errorOut,errorOutLen)) return false;
+            if (o.backSolid)
+            {
+                char color[10]; std::snprintf(color,sizeof(color),"#%06XFF",o.backColor);
+                destination.getSubset(0,1)->texture=color;
+                for (size_t i=backIndexStart;i<sideIndexStart;++i) indices[i]=static_cast<uint16_t>(indices[i]-gridSize);
+                if (!destination.addIndex(0,1,indices.data()+backIndexStart,sideIndexStart-backIndexStart,errorOut,errorOutLen)) return false;
+            }
+            if (separateSides)
+            {
+                destination.getSubset(0,sideSubset)->texture=sideTexture;
+                for (size_t i=sideIndexStart;i<indices.size();++i) indices[i]=static_cast<uint16_t>(indices[i]-sideVertexStart);
+                if (!destination.addIndex(0,sideSubset,indices.data()+sideIndexStart,static_cast<uint32_t>(indices.size())-sideIndexStart,errorOut,errorOutLen)) return false;
+            }
             // Consumers such as the simplifier use frame counts before the first save.
             auto *frame = destination.getFrameBuffer(0);
-            frame->headerFrame.totalSubset = 1;
+            frame->headerFrame.totalSubset = subsetCount;
             frame->headerFrame.sizeVertexBuffer = static_cast<int>(vertexCount);
             frame->headerFrame.sizeIndexBuffer = static_cast<int>(indices.size());
             if (destination.addAnimation("Static", 0, 0, 1.0f, 0, errorOut, errorOutLen) <= 0) return false;
@@ -343,6 +471,27 @@ namespace mbm
         {
             return fail(errorOut, errorOutLen, e.what());
         }
+    }
+    bool getImageMeshSideContour(const IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *points,
+                                 uint32_t &count,float &maximumInset,char *errorOut,int errorOutLen)
+    {
+        const uint32_t capacity=count; count=0; maximumInset=0;
+        if (errorOut && errorOutLen>0) errorOut[0]=0;
+        if (!points || capacity<128 || options.cropWidth<2 || options.cropHeight<2 ||
+            options.cropWidth>16777216 || options.cropHeight>16777216)
+            return fail(errorOut,errorOutLen,"Side contour requires a 128-point buffer and valid crop dimensions");
+        try
+        {
+            IMAGE_MESH_OPTIONS o=options;
+            o.columns=1; o.rows=1; o.width=100; o.height=100; o.followImage=false; o.maxVertices=65535; o.maxTriangles=131070;
+            image_mesh::TOPOLOGY topology; std::string error;
+            if (!image_mesh::buildTopology(o,topology,error)) return fail(errorOut,errorOutLen,error.c_str());
+            std::vector<IMAGE_MESH_POINT> inner;
+            if (!image_mesh::sideContour(o,topology.contour,inner,maximumInset,error)) return fail(errorOut,errorOutLen,error.c_str());
+            count=static_cast<uint32_t>(inner.size());
+            std::copy(inner.begin(),inner.end(),points); return true;
+        }
+        catch (const std::exception &e) { return fail(errorOut,errorOutLen,e.what()); }
     }
     bool generateImageMeshMap(const char *imagePath,const IMAGE_MESH_OPTIONS &o,const char *outputPath,
                               bool overlay,char *errorOut,int errorOutLen)

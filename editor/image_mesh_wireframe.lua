@@ -20,6 +20,7 @@
 
 ]]--
 
+local Asset=require 'image_mesh_asset'
 local M={}
 function M.release(E)
     if E.wireObject then E.wireObject:destroy(); E.wireObject=nil end
@@ -32,8 +33,7 @@ end
 function M.ensure(E,asset)
     if E.wireObject or not E.preview then return end
     if not asset then asset=meshDebug:new(); assert(asset:load(E.previewPath)) end
-    local vertices=asset:getVertex(1,1,1,asset:getTotalVertex(1,1))
-    local indices=asset:getIndex(1,1)
+    local vertices,indices=Asset.geometry(asset)
     local adjacency,edges={},{}
     local remap,positions={},{}
     for i,v in ipairs(vertices) do

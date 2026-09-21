@@ -566,3 +566,41 @@ câmera em espaço vazio, cancelamento, histórico, presets, persistência e exp
 
 Textura de outro arquivo, opções de repetição/cor das laterais e exportação
 portátil permanecem pendentes. Remap UV seleciona pixels da mesma imagem.
+
+### Etapa 3d - Texturas laterais e faixa interna (7.238.0)
+
+Entregues os quatro modos: borda esticada, cor uniforme, textura repetida e
+faixa interna do próprio contorno. A faixa possui limite geométrico, campo em
+pixels e alça verde no canvas, sem alterar o relevo. Repetição possui controles
+independentes no perímetro/profundidade, com divisões geométricas contabilizadas
+no orçamento e propagadas às faces adjacentes para preservar fechamento.
+
+Cor/repetição separam paredes em outro material; prévia, comparação, wireframe,
+simplificação e exportação foram adaptados a múltiplos subsets. Persistência de
+projetos/presets inclui caminhos relativos de textura. O modo antigo permanece
+como padrão. Consultas de contorno e linhas só mudam quando necessário.
+
+`image_mesh_sides_smoke.lua` verifica formas convexas/côncavas, geração regular
+e adaptativa, UVs, fechamento, materiais, simplificação, limites, exportação,
+alça, histórico, persistência, caminhos relativos, wireframe e repouso.
+
+Próximas pendências: textura do verso de outro arquivo, empacotamento portátil
+com margens e prévia de encaixe entre módulos.
+
+### Correção da textura repetida padrão (7.238.1)
+
+Selecionar textura repetida sem outro arquivo usa o recorte original, com UVs
+limitados aos centros dos pixels desse recorte. Arquivos externos continuam
+opcionais e validados; o editor permite voltar ao recorte original.
+
+### Inversão da faixa lateral (7.239.0)
+
+Checkbox exclusivo da faixa interna permite trocar os UVs das extremidades
+frente/verso da lateral. Mantém o sentido anterior por padrão e persiste em
+projetos/presets; não altera contorno, geometria nem normais.
+
+### Fundo com cor sólida (7.240.0)
+
+Quinto modo de fundo: plano opaco com seletor RGB, persistido em projetos/presets
+e exportado como material `#RRGGBBFF`. Três subsets preservam a independência
+das texturas frontal, traseira e lateral, inclusive na simplificação.

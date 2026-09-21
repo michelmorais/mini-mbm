@@ -37,9 +37,16 @@ end
 function M.exists(path)
     local f=io.open(path,'rb'); if not f then return false end; f:close(); return true
 end
+function M.texturePaths(project,convert)
+    local function options(o) if o.sideTexture and o.sideTexture~='' then o.sideTexture=convert(o.sideTexture) end end
+    options(project.defaults)
+    for _,r in ipairs(project.regions) do options(r.overrides) end
+    for _,preset in ipairs(project.presets or {}) do options(preset.settings) end
+end
 function M.save(project,path,serialize)
     Model.validate(project)
     local saved=Model.copy(project); saved.image.path=M.relative(project.image.path,path)
+    M.texturePaths(saved,function(texture) return M.relative(texture,path) end)
     local lines={}; serialize('project',saved,lines)
     local text=table.concat(lines,'\n')..'\nreturn project\n'
     assert(#text<=4*1024*1024,'ime_project_too_large')
@@ -75,6 +82,7 @@ function M.load(path)
         end end
         project.regions[#project.regions+1]=region
     end
+    M.texturePaths(project,function(texture) return M.resolve(texture,path) end)
     return project
 end
 function M.exportName(region)

@@ -21,6 +21,7 @@
 ]]--
 
 local Model=require 'image_mesh_model'
+local IO=require 'image_mesh_io'
 local M={}
 local function L(key) return tLang.L('ime_'..key) end
 local function cleanName(name)
@@ -65,7 +66,9 @@ end
 function M.save(preset,path,serialize)
     Model.validatePresets({preset})
     local lines={}
-    serialize('preset',{version=1,name=preset.name,settings=Model.settings(preset.settings)},lines)
+    local settings=Model.settings(preset.settings)
+    if settings.sideTexture~='' then settings.sideTexture=IO.relative(settings.sideTexture,path) end
+    serialize('preset',{version=1,name=preset.name,settings=settings},lines)
     local data=table.concat(lines,'\n')..'\nreturn preset\n'
     assert(#data<=65536,'ime_preset_invalid')
     local f,err=io.open(path,'wb'); assert(f,err)
@@ -80,7 +83,9 @@ function M.load(path)
     local value=fn()
     assert(type(value)=='table' and value.version==1,'ime_preset_invalid')
     Model.validatePresets({value})
-    return {name=cleanName(value.name),settings=Model.settings(value.settings)}
+    local settings=Model.settings(value.settings)
+    if settings.sideTexture~='' then settings.sideTexture=IO.resolve(settings.sideTexture,path) end
+    return {name=cleanName(value.name),settings=settings}
 end
 function M.draw(E,action,dpCall)
     if not tImGui.CollapsingHeader(L('presets')) then return end

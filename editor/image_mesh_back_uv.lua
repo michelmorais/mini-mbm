@@ -37,13 +37,23 @@ function M.panel(E,apply)
     if not tImGui.CollapsingHeader(L('back_group')) then return end
     local v=E.values
     local index=1
-    if v.backRelief then index=2 elseif v.backOpen then index=3 elseif v.backRemap then index=4 end
-    local changed,choice=tImGui.Combo(L('back_geometry'),index,{L('back_flat'),L('back_copy'),L('back_open'),L('back_remap')})
+    if v.backSolid then index=5 elseif v.backRelief then index=2 elseif v.backOpen then index=3 elseif v.backRemap then index=4 end
+    local changed,choice=tImGui.Combo(L('back_geometry'),index,{L('back_flat'),L('back_copy'),L('back_open'),L('back_remap'),L('back_solid')})
     if changed then
-        v.backRelief=choice==2; v.backOpen=choice==3; v.backRemap=choice==4
+        v.backRelief=choice==2; v.backOpen=choice==3; v.backRemap=choice==4; v.backSolid=choice==5
         if choice~=4 and E.tool=='back_uv' then E.tool='select'; E.canvasDirty=true end
     end
-    if not v.backOpen then v.backMirror=tImGui.Checkbox(L('back_mirror'),v.backMirror) end
+    if not v.backOpen and not v.backSolid then v.backMirror=tImGui.Checkbox(L('back_mirror'),v.backMirror) end
+    if v.backSolid then
+        local rgb=v.backColor
+        local changed,color=tImGui.ColorEdit3(L('back_solid'),{r=((rgb>>16)&255)/255,g=((rgb>>8)&255)/255,b=(rgb&255)/255})
+        if changed then
+            local function byte(n) return math.floor(Model.clampNumber(n,0,1,0)*255+.5) end
+            v.backColor=(byte(color.r)<<16)|(byte(color.g)<<8)|byte(color.b)
+        end
+        tImGui.TextWrapped(L('back_solid_help'))
+        return
+    end
     if v.backRemap and not E.editDefaults then
         local d=E.draft
         d.backCrop=d.backCrop or {x=d.x,y=d.y,w=d.w,h=d.h}
