@@ -28,11 +28,12 @@ M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTr
 M.simplifyDefaults={simplify=false,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
 M.backDefaults={backExternal=false,backTexture='',backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
 M.sideDefaults={sideMode='edge',sideBandInvert=false,sideInset=1,sideRepeatU=1,sideRepeatV=1,sideColor=0x808080,sideTexture=''}
+M.heightDefaults={heightSource='image',baseHeight=0.5}
 M.optionalDefaults={}
-for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.backDefaults,M.sideDefaults}) do
+for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.backDefaults,M.sideDefaults,M.heightDefaults}) do
     for k,v in pairs(defaults) do M.defaults[k]=v; M.optionalDefaults[k]=v end
 end
-local limits={backColor={0,16777215,true},sideInset={1,1000000},sideRepeatU={0.1,64},sideRepeatV={0.1,64},sideColor={0,16777215,true},simplifyRatio={0.001,0.95},simplifyBoundary={0,0.25},grooveThreshold={0,1},grooveTransition={0.001,1},heightTolerance={0.001,1},smoothPasses={0,4,true},width={0.001,1000000},height={0.001,1000000},depth={0.001,1000000},relief={0,1000000},
+local limits={baseHeight={0,1},backColor={0,16777215,true},sideInset={1,1000000},sideRepeatU={0.1,64},sideRepeatV={0.1,64},sideColor={0,16777215,true},simplifyRatio={0.001,0.95},simplifyBoundary={0,0.25},grooveThreshold={0,1},grooveTransition={0.001,1},heightTolerance={0.001,1},smoothPasses={0,4,true},width={0.001,1000000},height={0.001,1000000},depth={0.001,1000000},relief={0,1000000},
     columns={1,255,true},rows={1,255,true},borderWidth={0,0.5},maxVertices={1,65535,true},
     maxTriangles={1,131070,true},ellipseSegments={8,128,true}}
 local function number(v,lo,hi,integer)
@@ -81,6 +82,7 @@ function M.options(project,region)
     o.shape=region.shape; o.contour=M.copy(region.contour)
     o.heightEdits=M.copy(region.heightEdits)
     o.holes=M.copy(region.holes)
+    o.heightAreas=M.copy(region.heightAreas)
     if o.backRemap then
         local crop=region.backCrop or region
         o.backX=crop.x; o.backY=crop.y; o.backCropWidth=crop.w; o.backCropHeight=crop.h
@@ -90,7 +92,8 @@ end
 function M.validateOptions(options,complete)
     assert(type(options)=='table','ime_invalid_options')
     for k,v in pairs(options) do
-        if k=='sideMode' then assert(v=='edge' or v=='color' or v=='repeat' or v=='band','ime_invalid_options')
+        if k=='heightSource' then assert(v=='image' or v=='manual' or v=='mixed','ime_invalid_options')
+        elseif k=='sideMode' then assert(v=='edge' or v=='color' or v=='repeat' or v=='band','ime_invalid_options')
         elseif k=='sideTexture' or k=='backTexture' then assert(type(v)=='string' and #v<4096 and not v:find('%z'),'ime_invalid_options')
         elseif k=='backExternal' or k=='backSolid' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
@@ -167,6 +170,17 @@ function M.validate(p)
         if r.shape=='polygon' then
             assert(type(r.contour)=='table' and #r.contour>=3 and #r.contour<=128,'ime_invalid_contour')
             for _,point in ipairs(r.contour) do assert(type(point)=='table' and number(point.x,0,1) and number(point.y,0,1),'ime_invalid_contour') end
+        end
+        if r.heightAreas then
+            assert(type(r.heightAreas)=='table' and #r.heightAreas<=32,'ime_areas_limit')
+            for _,area in ipairs(r.heightAreas) do
+                assert(type(area)=='table' and #area>=3 and #area<=128,'ime_areas_invalid')
+                assert(type(area.name)=='string' and #area.name<=128 and not area.name:find('%c'),'ime_areas_invalid')
+                assert(type(area.enabled)=='boolean' and number(area.height,0,1) and number(area.transition,0,1),'ime_areas_invalid')
+                assert(area.shape=='rectangle' or area.shape=='ellipse' or area.shape=='polygon','ime_areas_invalid')
+                for _,point in ipairs(area) do assert(type(point)=='table' and number(point.x,0,1) and number(point.y,0,1),'ime_areas_invalid') end
+                assert(HoleGeometry.simple(area),'ime_areas_invalid')
+            end
         end
         if r.holes then
             local outer=M.outline(r,r.overrides.ellipseSegments or p.defaults.ellipseSegments or 48)
@@ -251,6 +265,13 @@ function M.movePoint(r,before,index,x,y)
     if before.holes then
         r.holes=M.copy(before.holes)
         for _,hole in ipairs(r.holes) do for _,p in ipairs(hole) do
+            p.x=(before.x+p.x*(before.w-1)-left)/math.max(1,r.w-1)
+            p.y=(before.y+p.y*(before.h-1)-top)/math.max(1,r.h-1)
+        end end
+    end
+    if before.heightAreas then
+        r.heightAreas=M.copy(before.heightAreas)
+        for _,area in ipairs(r.heightAreas) do for _,p in ipairs(area) do
             p.x=(before.x+p.x*(before.w-1)-left)/math.max(1,r.w-1)
             p.y=(before.y+p.y*(before.h-1)-top)/math.max(1,r.h-1)
         end end

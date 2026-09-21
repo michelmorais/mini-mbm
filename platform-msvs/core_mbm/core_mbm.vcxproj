@@ -191,6 +191,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\src\core_mbm\private\image-mesh-topology.h" />
     <ClInclude Include="..\..\src\core_mbm\private\image-mesh-height.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-height-areas.h" />
     <ClInclude Include="..\..\include\core_mbm\android-bridge.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gles-shader-source.h" />

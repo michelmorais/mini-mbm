@@ -24,6 +24,7 @@ local Model=require 'image_mesh_model'
 local BackUv=require 'image_mesh_back_uv'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
+local Areas=require 'image_mesh_areas'
 local Freehand=require 'image_mesh_freehand'
 local M={}
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -114,7 +115,9 @@ function M.sync(E)
         for _,p in ipairs(points) do vertices[#vertices+1]=p.x-w/2; vertices[#vertices+1]=h/2-p.y end
         if closed then vertices[#vertices+1]=vertices[1]; vertices[#vertices+1]=vertices[2] end
         local object=line:new('2dw',0,0,0); object:add(vertices); object:setScale(E.zoom,E.zoom)
-        if selected=='hole' then object:setColor(1,0.25,0.5)
+        if selected=='area' then object:setColor(0.2,0.9,1)
+        elseif selected=='area_disabled' then object:setColor(0.5,0.5,0.5)
+        elseif selected=='hole' then object:setColor(1,0.25,0.5)
         elseif selected=='side' then object:setColor(0.2,1,0.35)
         elseif selected=='back' then object:setColor(0.9,0.3,1)
         elseif selected then object:setColor(1,0.7,0.1) else object:setColor(0.2,0.8,1) end
@@ -126,13 +129,14 @@ function M.sync(E)
     end
     for _,r in ipairs(outlines(E)) do
         draw(r.points,true,E.selection[r.id])
-        if r.id==E.selected and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' and E.tool~='auto_contour' and E.tool~='auto_background' then
+        if r.id==E.selected and not Areas.active(E) and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' and E.tool~='auto_contour' and E.tool~='auto_background' then
             local region=Model.region(E.project,r.id)
             if region.shape=='polygon' then for _,p in ipairs(r.points) do handle(p.x,p.y) end
             else handle(region.x+region.w-1,region.y+region.h-1) end
         end
     end
     Holes.draw(E,draw,handle)
+    Areas.draw(E,draw,handle)
     if Sides.available(E) then
         local cached,region=Sides.contour(E)
         if cached and cached.points then
@@ -163,7 +167,8 @@ function M.input(E,H,event,mx,my)
     if not E.editMode or not E.texture or not E.canvasTransform then return end
     local origin=M.transform(E); local scale,scaleY=origin.scale,origin.scaleY
     if E.tool=='auto_contour' or E.tool=='auto_background' then return H.detect(event,mx,my,origin) end
-    if E.tool=='freehand' or E.tool=='hole_freehand' then return Freehand.input(E,event,mx,my,origin) end
+    if E.tool=='freehand' or E.tool=='hole_freehand' or E.tool=='area_freehand' then return Freehand.input(E,event,mx,my,origin) end
+    if Areas.active(E) then return Areas.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if E.tool=='holes' or E.tool=='hole_draw' then return Holes.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if E.tool=='side_band' then return Sides.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if E.tool=='back_uv' then return BackUv.input(E,H,event,mx,my,origin,M.handleRadius(E)) end

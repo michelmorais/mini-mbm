@@ -791,3 +791,48 @@ com orientação para ajustar a detecção ou desenhar manualmente.
 A imagem é decodificada uma vez por clique. A busca cede execução a cada bloco
 de trabalho para permitir cancelamento; depois de concluída não há releitura
 da imagem, reconstrução ou processamento contínuo.
+
+## Relevo desenhado por áreas (7.250.0)
+
+Em **Relevo desenhado**, escolha a **Origem das alturas**:
+
+- **Imagem**: mantém a interpretação automática e os retoques de pincel anteriores.
+- **Manual**: começa com a **Altura base (0-1)**. A textura não determina as alturas.
+- **Imagem + áreas manuais**: mantém o relevo automático fora das áreas desenhadas.
+
+Adicione retângulos/elipses ou desenhe polígonos/áreas à mão livre sobre o módulo.
+A primeira área em modo Imagem ativa o modo misto e o refinamento adaptativo.
+Selecione cada área na lista para definir nome, habilitação, altura-alvo e transição
+interna em pixels. A altura é multiplicada pelo relevo de **Volume e relevo**;
+por exemplo, base 0,4, área 0,8 e sulco 0,2 criam três níveis sem depender das cores.
+
+**Editar áreas na cena** mostra contornos: verde para a selecionada, ciano para
+as demais e cinza para desabilitadas. Arraste o interior para mover. Retângulos e
+elipses têm alça inferior direita que preserva a forma; polígonos têm alças nos
+vértices. Os campos de largura/altura redimensionam qualquer tipo pela caixa
+envolvente. Uma área fica dentro do recorte do módulo, mas pode ultrapassar seu
+contorno: a superfície e os furos recortam o resultado. Espaço vazio arrasta a câmera.
+
+A lista indica a ordem; **Antes/Depois** alteram a sobreposição. Áreas posteriores
+prevalecem. **Duplicar área** copia a área na mesma posição e seleciona a cópia;
+**Remover área** e as demais operações participam do histórico. Propriedades são
+confirmadas ao aplicar, salvar ou iniciar outra operação de edição.
+
+A transição mistura a altura anterior com a nova, da borda para dentro da área.
+Zero é uma mudança abrupta no mapa; a mesh continua limitada pelos pixels e pela
+resolução. Pincel é aplicado depois das áreas, e a borda externa fixa por último.
+Use **Modo > Mapa de alturas** e **Pré-visualizar ajustes** para examinar as alterações
+antes de **Aplicar**. No modo Manual, filtros da imagem e a visualização de sulcos
+azuis ficam ocultos. O refinamento adaptativo continua disponível, assim como
+simplificação, comparação e exportação.
+
+Até 32 áreas por módulo, cada uma com 3–128 pontos; há ainda um limite de 64 milhões
+de avaliações de arestas na rasterização. Áreas são persistidas no projeto,
+copiadas com o módulo e preservadas em coordenadas normalizadas ao redimensioná-lo.
+Presets guardam a origem/base e parâmetros de geração, não os contornos das áreas.
+Projetos anteriores mantêm a origem Imagem. Sulcos por linha com largura editável
+ficam para uma entrega posterior; por enquanto use áreas estreitas fechadas.
+
+Validação: `image_mesh_areas_smoke.lua` cobre composição, alturas, transições,
+ordem, pincel, furos e geração; `image_mesh_areas_editor_smoke.lua` cobre edição,
+histórico, persistência, exportação, GUI e ausência de reconstruções em repouso.

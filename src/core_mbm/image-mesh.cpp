@@ -356,7 +356,7 @@ namespace mbm
                 side(topology.boundary[i], topology.boundary[topology.nextBoundary(i)],!topology.loopEnds.empty() && i>=topology.loopEnds[0]);
             // Prefer plateau faces over steep ramps when computing shared front
             // normals. Keeping vertices welded preserves simplification behavior.
-            const bool preservePlateaus=o.followImage && o.twoLevels && o.relief>0;
+            const bool preservePlateaus=o.followImage && o.twoLevels && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.relief>0;
             std::vector<float> levels;
             std::vector<VEC3> plateauNormals;
             if (preservePlateaus)

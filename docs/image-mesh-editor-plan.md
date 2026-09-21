@@ -713,15 +713,15 @@ cancelamento, mudança de projeto, persistência, exportação e GUI em repouso.
 A etapa 4 está entregue. Próxima revisão: pendências de progresso/cancelamento
 e limites finais da etapa 5, preservando as otimizações já implementadas.
 
-### Proposta adicional - Relevo desenhado por áreas (a implementar)
+### Relevo desenhado por áreas (entregue em 7.250.0)
 
 Motivação: no `project-2.imesh`, as cores e sombras da textura não representam
 necessariamente profundidade. A pintura de altura existente permite retoques
 com pincel, mas não oferece áreas nomeadas cujos contornos e alturas possam ser
-alterados posteriormente como objetos separados. Esta proposta complementa a
-pintura e a seleção automática; ainda não é funcionalidade entregue.
+alterados posteriormente como objetos separados. As áreas editáveis complementam
+a pintura e a seleção automática desde a versão 7.250.0.
 
-#### Primeira entrega proposta
+#### Primeira entrega
 
 - Escolher a origem da altura: **Imagem** (comportamento atual), **Manual**
   (plano de altura base ajustável) ou **Imagem + áreas manuais**. A textura
@@ -744,7 +744,7 @@ pintura e a seleção automática; ainda não é funcionalidade entregue.
 
 #### Integração e compatibilidade
 
-Ordem proposta: obter a altura da imagem ou do plano base; compor as regiões
+Ordem implementada: obter a altura da imagem ou do plano base; compor as regiões
 manuais; aplicar os retoques de pincel existentes; aplicar a restrição da borda
 externa. Furos continuam recortando a superfície sem rebaixar a vizinhança.
 As regiões de altura são limitadas à área útil do módulo; o exterior e os furos
@@ -768,5 +768,8 @@ Alterações só atualizam dados dependentes; não processar máscaras em repous
 
 Uma entrega posterior poderá acrescentar **sulcos por linha**, com largura,
 altura-alvo e edição do trajeto. A primeira entrega usa áreas fechadas; canais
-estreitos podem ser desenhados como regiões. A proposta deve ser priorizada
-antes da implementação em relação ao acabamento pendente da etapa 5.
+estreitos podem ser desenhados como regiões. A primeira entrega foi priorizada antes do acabamento pendente da etapa 5.
+
+Entrega 7.250.0: modos Imagem/Manual/Misto, áreas editáveis com altura e transição,
+composição no campo de alturas, refinamento local, histórico, persistência e
+exportação. Testes de backend e editor em `src/test-lib/image_mesh_areas*_smoke.lua`.

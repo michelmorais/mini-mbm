@@ -45,6 +45,15 @@ namespace mbm
         uint32_t count = 0;
     };
 
+    enum class IMAGE_MESH_HEIGHT_SOURCE { IMAGE, MANUAL, MIXED };
+    struct IMAGE_MESH_HEIGHT_AREA
+    {
+        const IMAGE_MESH_POINT *points = nullptr;
+        uint32_t count = 0;
+        float height = 0.75f, transition = 0.02f;
+        bool enabled = true;
+    };
+
     struct IMAGE_MESH_OPTIONS
     {
         uint32_t x = 0, y = 0, cropWidth = 0, cropHeight = 0;
@@ -80,6 +89,12 @@ namespace mbm
         // Borrowed ordered dabs (max 4096). XY normalized to crop; radius relative to its shorter side.
         const IMAGE_MESH_DAB *heightEdits = nullptr;
         uint32_t heightEditCount = 0;
+        IMAGE_MESH_HEIGHT_SOURCE heightSource = IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
+        float baseHeight = 0.5f;
+        // Ordered borrowed normalized contours, max 32 x 128. Transition is
+        // relative to the shorter crop side, fades inward from each area edge.
+        const IMAGE_MESH_HEIGHT_AREA *heightAreas = nullptr;
+        uint32_t heightAreaCount = 0;
     };
 
     struct IMAGE_MESH_REPORT

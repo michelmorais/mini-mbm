@@ -74,8 +74,9 @@ function M.panel(E,finish,cancel)
  tImGui.TextWrapped(L('draw_help'))
 end
 function M.input(E,event,mx,my,origin)
- local r=E.tool=='hole_freehand' and Model.region(E.project,E.selected) or nil
- if E.tool=='hole_freehand' and not r then return false end
+ local scoped=E.tool=='hole_freehand' or E.tool=='area_freehand'
+ local r=scoped and Model.region(E.project,E.selected) or nil
+ if scoped and not r then return false end
  local left,top=r and r.x or 0,r and r.y or 0
  local right=left+(r and r.w or E.project.image.width)-1
  local bottom=top+(r and r.h or E.project.image.height)-1

@@ -3641,7 +3641,7 @@ namespace mbm
         return 1;
     }
 
-    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,IMAGE_MESH_HOLE *holes,IMAGE_MESH_POINT *holePoints,int optionIndex=2)
+    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,IMAGE_MESH_HOLE *holes,IMAGE_MESH_POINT *holePoints,IMAGE_MESH_HEIGHT_AREA *areas,IMAGE_MESH_POINT *areaPoints,int optionIndex=2)
     {
         luaL_checktype(lua,optionIndex,LUA_TTABLE);
         const auto integer = [&](const char *name, uint32_t &value)
@@ -3706,6 +3706,43 @@ namespace mbm
         integer("smoothPasses",options.smoothPasses);
         number("grooveThreshold",options.grooveThreshold); number("grooveTransition",options.grooveTransition);
         number("heightTolerance",options.heightTolerance);
+        lua_getfield(lua,optionIndex,"heightSource");
+        const char *heightSource=luaL_optstring(lua,-1,"image");
+        if (std::strcmp(heightSource,"image")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
+        else if (std::strcmp(heightSource,"manual")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
+        else if (std::strcmp(heightSource,"mixed")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MIXED;
+        else luaL_error(lua,"heightSource must be image, manual or mixed");
+        lua_pop(lua,1);number("baseHeight",options.baseHeight);
+        lua_getfield(lua,optionIndex,"heightAreas");
+        if (!lua_isnil(lua,-1))
+        {
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const size_t count=lua_rawlen(lua,-1);
+            if (count>32) luaL_error(lua,"heightAreas accepts at most 32 areas");
+            options.heightAreas=areas;options.heightAreaCount=static_cast<uint32_t>(count);
+            uint32_t offset=0;
+            for (size_t h=0;h<count;++h)
+            {
+                lua_rawgeti(lua,-1,h+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                const size_t n=lua_rawlen(lua,-1);
+                if (n<3 || n>128) luaL_error(lua,"Each height area needs 3..128 points");
+                auto &area=areas[h];area.points=areaPoints+offset;area.count=static_cast<uint32_t>(n);
+                lua_getfield(lua,-1,"height");area.height=static_cast<float>(luaL_optnumber(lua,-1,.75));lua_pop(lua,1);
+                lua_getfield(lua,-1,"transition");area.transition=static_cast<float>(luaL_optnumber(lua,-1,.02));lua_pop(lua,1);
+                lua_getfield(lua,-1,"enabled");
+                if (!lua_isnil(lua,-1)) { luaL_checktype(lua,-1,LUA_TBOOLEAN);area.enabled=lua_toboolean(lua,-1)!=0; }
+                lua_pop(lua,1);
+                for (size_t i=0;i<n;++i)
+                {
+                    lua_rawgeti(lua,-1,i+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                    lua_getfield(lua,-1,"x");areaPoints[offset].x=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,1);
+                    lua_getfield(lua,-1,"y");areaPoints[offset].y=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,2);
+                    ++offset;
+                }
+                lua_pop(lua,1);
+            }
+        }
+        lua_pop(lua,1);
         lua_getfield(lua,optionIndex,"heightEdits");
         if (!lua_isnil(lua,-1))
         {
@@ -3788,8 +3825,8 @@ namespace mbm
 
     int onGetImageMeshSideContourLua(lua_State *lua)
     {
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,1);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,1);
         uint32_t count=128; float maximum=0; char error[512]="";
         if (!getImageMeshSideContour(options,inner,count,maximum,error,sizeof(error)))
         {
@@ -3826,8 +3863,8 @@ namespace mbm
         const char *output=luaL_checkstring(lua,3);
         if (!lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
         const bool overlay=lua_toboolean(lua,4)!=0;
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
         char error[512]="";
         if (!generateImageMeshMap(path,options,output,overlay,error,sizeof(error)))
         {
@@ -3839,8 +3876,8 @@ namespace mbm
     int onGenerateImageMeshLua(lua_State *lua)
     {
         const char *path=luaL_checkstring(lua,1);
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
         lua_settop(lua, 2);
         lua_pushcfunction(lua, onNewMeshDebugLua);
         lua_call(lua, 0, 1);

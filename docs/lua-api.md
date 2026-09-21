@@ -2142,6 +2142,9 @@ assert(asset:save("panel.msh", false, false, true))
 | `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
 | `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
 | `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
+| `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas |
+| `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
+| `heightAreas` | nil | Up to 32 ordered closed contours with target height and inward transition; see below |
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
@@ -2228,13 +2231,51 @@ Its maximum is a conservative limit preserving topology, not a promise that
 arbitrarily complex polygons can inset by one pixel. Contour preview queries
 should run only when their inputs change.
 
+Height areas (`heightAreas`, since 7.250.0) use normalized crop coordinates,
+with 3–128 points per simple contour. Each area is an array of `{x,y}` points
+with fields `height` (default 0.75), `transition` (default 0.02), and `enabled`
+(default true). Height and transition are finite [0,1]. For example:
+
+```lua
+options.heightSource = "manual"
+options.baseHeight = 0.4
+options.heightAreas = {
+    { {x=.1,y=.1}, {x=.9,y=.1}, {x=.9,y=.9}, {x=.1,y=.9},
+      height=.8, transition=.02 },
+    { {x=.3,y=.3}, {x=.7,y=.3}, {x=.7,y=.7}, {x=.3,y=.7},
+      height=.2, transition=.01 },
+}
+```
+
+Composition order is image height (including inversion/filtering/two-level mapping)
+or manual base, then enabled areas in array order, then brush dabs, then outer
+border attenuation and world relief scale. Later areas blend over earlier ones.
+Transition is a distance relative to `max(1,min(cropWidth,cropHeight)-1)` pixels:
+weight increases linearly from zero at the contour to one that far inside it.
+Zero transition assigns the target at every covered pixel, including the edge;
+geometry still interpolates source pixels and is constrained by mesh density.
+The source texture and UVs remain unchanged. Areas may overlap and extend beyond
+the outer shape or across holes, but create geometry only in the module surface.
+Self-intersections, touching/backtracking edges and negligible areas are rejected.
+A per-call limit of 64 million raster edge evaluations bounds composition cost;
+reduce contour points or area sizes if exceeded.
+
+`"image"` ignores areas but retains the pre-existing brush behavior. `"manual"`
+ignores image brightness, inversion, smoothing and two-level detection; its mesh
+refinement also ignores the image threshold/transition settings. `"mixed"` applies
+areas over the processed image. Both generation and grayscale preview use the
+same composed raster, including local adaptive refinement when `followImage=true`.
+The blue overlay remains an image-detection diagnostic and does not display areas
+or brush corrections (the editor hides it in Manual mode). Editor-only area
+metadata `name` and `shape` are ignored by the native API.
+
 Height painting (`heightEdits`) is shared by `generateImageMesh` and
 `generateImageMeshMap`. Each dab requires `{x, y, radius, strength, height, mode}`.
 `x` and `y` are normalized crop coordinates [0,1]; `radius` is [0.001,1] times
 `max(1, min(cropWidth,cropHeight)-1)` pixels, with a minimum radius of half a pixel.
 `strength` and target `height` are finite [0,1]. Modes are `"raise"`, `"lower"`,
 `"flatten"` and `"smooth"`. Dabs run in array order after automatic filtering and
-two-level mapping, before relief amplitude and border attenuation. They use a
+two-level mapping and height areas, before relief amplitude and border attenuation. They use a
 smooth radial falloff and clamp heights to [0,1]. Raise/lower add/subtract strength;
 flatten blends toward the target; smooth blends toward the local 3x3 mean using
 a snapshot of each dab (no scan-order bias). The final painted float raster is interpolated in cells touching changed pixels;

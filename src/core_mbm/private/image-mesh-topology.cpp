@@ -541,8 +541,16 @@ namespace {
 
 }
 
-bool buildTopology(const IMAGE_MESH_OPTIONS &o, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
+bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
 {
+    // Manual heights must not inherit hidden image-detection thresholds.
+    IMAGE_MESH_OPTIONS o=options;
+    if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL)
+    {
+        o.twoLevels=false;
+        o.grooveThreshold=0.5f;
+        o.grooveTransition=0.1f;
+    }
     const auto fail=[&](const char *message) { error=message; return false; };
     if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE && !field && o.holeCount==0)
     {

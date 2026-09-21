@@ -36,6 +36,7 @@ local BackUv=require 'image_mesh_back_uv'
 local Asset=require 'image_mesh_asset'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
+local Areas=require 'image_mesh_areas'
 local Freehand=require 'image_mesh_freehand'
 local Auto=require 'image_mesh_auto'
 local Simplify=require 'image_mesh_simplify'
@@ -69,6 +70,7 @@ local function syncDraft()
     E.values.preserveAspect=E.values.preserveAspect~=false
     if (E.tool=='back_uv' and not BackUv.available(E)) or (E.tool=='side_band' and not Sides.available(E)) then E.tool='select' end
     E.holeIndex=math.max(1,math.min(E.holeIndex or 1,r and #(r.holes or {}) or 0))
+    E.areaIndex=math.max(1,math.min(E.areaIndex or 1,r and #(r.heightAreas or {}) or 0))
     E.point=1
 end
 local function changed()
@@ -253,6 +255,7 @@ local function draftChanged()
     end
     if E.editDefaults then return false end
     for _,key in ipairs({'name','x','y','w','h','shape'}) do if E.draft[key]~=region[key] then return true end end
+    if Areas.different(E.draft.heightAreas,region.heightAreas) then return true end
     local ca,cb=E.draft.backCrop,region.backCrop
     if (ca==nil)~=(cb==nil) then return true end
     if ca then for _,key in ipairs({'x','y','w','h'}) do if ca[key]~=cb[key] then return true end end end
@@ -322,7 +325,7 @@ applyProperties=function()
             r.overrides={}; for k,v in pairs(settings) do if k=='backExternal' or k=='backSolid' or k=='backOpen' or k=='backRemap' or k=='backRelief' or v~=p.defaults[k] then r.overrides[k]=v end end
         end end
         local r=assert(Model.region(p,E.selected),L('select_region'))
-        r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop); r.holes=Model.copy(draft.holes)
+        r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop); r.holes=Model.copy(draft.holes); r.heightAreas=Model.copy(draft.heightAreas)
     end)
 end
 local function menu()
@@ -479,10 +482,15 @@ local function propertiesPanel()
             end
             end
         end
+        Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
         if tImGui.CollapsingHeader(L('grooves_group')) then
+            local manual=E.values.heightSource=='manual'
             local imagePreview=E.editMode and not E.editDefaults
             if imagePreview then
-                local change,view=tImGui.Combo(L('height_view'),E.heightView,{L('original_image'),L('height_map'),L('groove_overlay')})
+                if manual and E.heightView==3 then E.heightView=2 end
+                local views={L('original_image'),L('height_map')}
+                if not manual then views[3]=L('groove_overlay') end
+                local change,view=tImGui.Combo(L('height_view'),E.heightView,views)
                 if change then E.heightView=view end
             end
             local original=imagePreview and E.heightView==1
@@ -490,19 +498,19 @@ local function propertiesPanel()
             local overlay=imagePreview and E.heightView==3
             local geometry=not map and not overlay
             if geometry then E.values.followImage=tImGui.Checkbox(L('followImage'),E.values.followImage) end
-            if not overlay then E.values.twoLevels=tImGui.Checkbox(L('twoLevels'),E.values.twoLevels) end
-            E.values.invert=tImGui.Checkbox(L('invert'),E.values.invert)
+            if not manual and not overlay then E.values.twoLevels=tImGui.Checkbox(L('twoLevels'),E.values.twoLevels) end
+            if not manual then E.values.invert=tImGui.Checkbox(L('invert'),E.values.invert) end
             for _,key in ipairs({'grooveThreshold','grooveTransition','heightTolerance'}) do
                 local visible=(key=='grooveThreshold' and (overlay or E.values.twoLevels or (geometry and E.values.followImage))) or
                     (key=='grooveTransition' and not overlay and E.values.twoLevels) or
                     (key=='heightTolerance' and geometry and E.values.followImage)
-                if visible and not original then
+                if visible and not original and (not manual or key=='heightTolerance') then
                     local lo=key=='grooveThreshold' and 0 or 0.001
                     local c,v=tImGui.SliderFloat(L(key),E.values[key],lo,1)
                     if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
                 end
             end
-            if not original then
+            if not original and not manual then
                 local c,v=tImGui.SliderInt(L('smoothPasses'),E.values.smoothPasses,0,4)
                 if c then E.values.smoothPasses=Model.clampOption('smoothPasses',v,E.values.smoothPasses) end
             end
@@ -601,6 +609,7 @@ local function regionsPanel()
             if BackUv.available(E) then names[#names+1]=L('back_edit'); tools[#tools+1]='back_uv' end
             if Sides.available(E) then names[#names+1]=L('side_edit');tools[#tools+1]='side_band' end
             if E.tool=='auto_background' then names[#names+1]=L('auto_pick');tools[#tools+1]=E.tool end
+            if Areas.active(E) then names[#names+1]=tLang.L('ime_areas_title');tools[#tools+1]=E.tool end
             if E.tool=='hole_freehand' then names[#names+1]=L('freehand_hole');tools[#tools+1]=E.tool end
             if E.tool=='holes' or E.tool=='hole_draw' then names[#names+1]=L('holes_'..(E.tool=='holes' and 'edit' or 'draw'));tools[#tools+1]=E.tool end
             local index=1; for i,name in ipairs(tools) do if name==E.tool then index=i end end
@@ -651,7 +660,7 @@ local function regionsPanel()
             if tImGui.Button(L('duplicate')) then action(function(p)
                 local originals=Model.copy(p.regions); local selection=E.selection; E.selection={}; local first
                 for _,r in ipairs(originals) do if selection[r.id] then local n=Model.add(p,r.shape,r.x,r.y,r.w,r.h,r.contour)
-                    n.overrides=Model.copy(r.overrides); n.heightEdits=Model.copy(r.heightEdits); n.backCrop=Model.copy(r.backCrop); n.name=r.name:sub(1,123)..'_copy'; first=first or n.id; E.selected=first; E.selection[n.id]=true
+                    n.overrides=Model.copy(r.overrides); n.heightEdits=Model.copy(r.heightEdits); n.heightAreas=Model.copy(r.heightAreas); n.holes=Model.copy(r.holes); n.backCrop=Model.copy(r.backCrop); n.name=r.name:sub(1,123)..'_copy'; first=first or n.id; E.selected=first; E.selection[n.id]=true
                 end end
             end) end
             tImGui.SameLine()
@@ -729,11 +738,12 @@ function onTouchDown(key,x,y)
     if E.editMode then
         if key==0 and E.tool~='pan' then
             local handled
+            if Areas.active(E) and draftChanged() and not applyProperties() then return end
             if Paint.state(E).enabled and not E.editDefaults then
                 if draftChanged() and not applyProperties() then return end
                 handled=Paint.input(E,action,'down',x,y)
             else handled=Canvas.input(E,handlers,'down',x,y) end
-            if (E.tool=='select' or E.tool=='back_uv' or E.tool=='side_band' or E.tool=='holes') and not handled then E.panDrag={x=x,y=y} end
+            if (E.tool=='select' or E.tool=='back_uv' or E.tool=='side_band' or E.tool=='holes' or E.tool=='height_areas') and not handled then E.panDrag={x=x,y=y} end
         elseif key==0 then E.panDrag={x=x,y=y}
         elseif key==1 or key==2 then E.panDrag={x=x,y=y} end
     elseif key==0 then E.orbitDrag={x=x,y=y} end
@@ -776,6 +786,7 @@ end
 function onEndScene() Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.auto=Auto; testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
+    testApi.areas=Areas
     testApi.holes=Holes
     testApi.setAssembly=setAssembly
     testApi.setComparison=setComparison

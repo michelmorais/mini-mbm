@@ -77,6 +77,7 @@ function M.load(path)
     for _,r in ipairs(loaded.regions) do
         local region={id=r.id,name=r.name,shape=r.shape,x=r.x,y=r.y,w=r.w,h=r.h,overrides=Model.copy(r.overrides)}
         if r.holes then region.holes=Model.copy(r.holes) end
+        if r.heightAreas then region.heightAreas=Model.copy(r.heightAreas) end
         for _,hole in ipairs(region.holes or {}) do
             if hole.primitive==nil and HoleGeometry.isEllipse(hole) then
                 hole.primitive='ellipse';hole.preserveShape=true

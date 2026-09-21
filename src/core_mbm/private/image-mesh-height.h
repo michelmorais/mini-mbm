@@ -20,6 +20,7 @@
 #ifndef IMAGE_MESH_HEIGHT_H
 #define IMAGE_MESH_HEIGHT_H
 #include <core_mbm/image-mesh.h>
+#include "image-mesh-height-areas.h"
 #include <core_mbm/util-interface.h>
 #include <stb/stb-interface.h>
 #include <algorithm>
@@ -64,6 +65,9 @@ struct HEIGHT_FIELD
     {
         const auto fail=[&](const char *m) { error=m; return false; };
         if (!source || !*source) return fail("Image path required");
+        if (o.heightSource<IMAGE_MESH_HEIGHT_SOURCE::IMAGE || o.heightSource>IMAGE_MESH_HEIGHT_SOURCE::MIXED ||
+            !std::isfinite(o.baseHeight) || o.baseHeight<0 || o.baseHeight>1)
+            return fail("Invalid heightSource or baseHeight [0,1]");
         if (!std::isfinite(o.grooveThreshold) || o.grooveThreshold<0 || o.grooveThreshold>1 ||
             !std::isfinite(o.grooveTransition) || o.grooveTransition<0.001f || o.grooveTransition>1 ||
             !std::isfinite(o.heightTolerance) || o.heightTolerance<0.001f || o.heightTolerance>1 || o.smoothPasses>4)
@@ -85,11 +89,12 @@ struct HEIGHT_FIELD
         {
             const auto *p=pixels.get()+(static_cast<size_t>(y+o.y)*imageWidth+x+o.x)*4;
             const float v=(0.2126f*p[0]+0.7152f*p[1]+0.0722f*p[2])/255.0f;
-            levels[static_cast<size_t>(y)*width+x]=o.invert?1-v:v;
+            levels[static_cast<size_t>(y)*width+x]=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL?o.baseHeight:(o.invert?1-v:v);
         }
         std::vector<float> filtered;
-        if (o.smoothPasses) filtered.resize(levels.size());
-        for (uint32_t pass=0;pass<o.smoothPasses;++pass)
+        const uint32_t passes=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL?0:o.smoothPasses;
+        if (passes) filtered.resize(levels.size());
+        for (uint32_t pass=0;pass<passes;++pass)
         {
             for (uint32_t y=0;y<height;++y) for (uint32_t x=0;x<width;++x)
             {
@@ -113,7 +118,7 @@ struct HEIGHT_FIELD
     {
         if (o.heightEditCount>4096 || (o.heightEditCount && !o.heightEdits))
         { error="Invalid heightEdits: maximum 4096 dabs"; return false; }
-        if (!o.heightEditCount) return true;
+        if (!o.heightEditCount && !o.heightAreaCount) return true;
         for (uint32_t i=0;i<o.heightEditCount;++i)
         {
             const auto &d=o.heightEdits[i];
@@ -124,6 +129,7 @@ struct HEIGHT_FIELD
         }
         painted.reserve(levels.size());
         for (float v:levels) painted.push_back(mapped(v,o));
+        if (!composeHeightAreas(o,width,height,painted,error)) return false;
         uint64_t work=0;
         std::vector<float> patch;
         for (uint32_t i=0;i<o.heightEditCount;++i)
@@ -224,12 +230,13 @@ struct HEIGHT_FIELD
         const float value=std::clamp(automatic+(interpolate(u,v,painted)-automatic)*weight,0.0f,1.0f);
         // Use the same plateau tolerance as normal classification; tiny near-flat
         // height differences on narrow refined faces otherwise tilt their normals.
-        if (o.twoLevels && value>=0.9999f) return 1;
-        if (o.twoLevels && value<=0.0001f) return 0;
+        if (o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.twoLevels && value>=0.9999f) return 1;
+        if (o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.twoLevels && value<=0.0001f) return 0;
         return value;
     }
     float transition(float u,float v,const IMAGE_MESH_OPTIONS &o) const
     {
+        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL) return surface(u,v,o);
         const float raw=sample(u,v);
         if (!hasPainting()) return raw;
         const float level=surface(u,v,o);
@@ -249,6 +256,7 @@ struct HEIGHT_FIELD
     }
     float mapped(float value,const IMAGE_MESH_OPTIONS &o) const
     {
+        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL) return o.baseHeight;
         if (!o.twoLevels) return value;
         const float t=std::clamp((value-o.grooveThreshold)/o.grooveTransition+0.5f,0.0f,1.0f);
         return t*t*(3-2*t);
