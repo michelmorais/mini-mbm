@@ -36,6 +36,8 @@ tMeshIslands =      require "mesh_debug_islands"
 tMeshTransform =    require "mesh_debug_transform"
 tXformGizmo   =     require "mesh_debug_transform_gizmo"
 tMeshExport   =     require "mesh_debug_export_helper"
+tMeshNormals  =     require "mesh_debug_normals"
+tMeshNormals.preview = require "mesh_debug_normal_preview"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -3549,7 +3551,7 @@ function updatePreviewMesh()
     iLastPreviewedIndex = iSelectedMeshIndex
     if iSelectedMeshIndex <= 0 or iSelectedMeshIndex > #tLoadedMeshes then return end
 
-    local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+    local tEntry = tMeshNormals.preview.entry(tLoadedMeshes[iSelectedMeshIndex])
     local meshD = tEntry.meshDebug
     local fileName = tEntry.fileName
     local info = tEntry.info or {}
@@ -3578,7 +3580,7 @@ function updatePreviewMesh()
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new(coordType)
-        ok = tPreviewMesh:load(loadPath)
+        ok = meshDebug:loadMeshPreview(tPreviewMesh,loadPath)
         -- Force the preview's position back to the origin immediately after load, overriding
         -- DEVICE::addRenderizable's z-order auto-assign (src/core_mbm/device-common.cpp:1173,
         -- `if (position.z == 0.0f) position.z = getNextZOrderControl3d()`). Every freshly
@@ -3826,11 +3828,15 @@ end
 -- check that first). Vertices not referenced by any triangle are absent from the result.
 function computeGeoNormalsForSubset(meshD, f, s)
     local okIdx, indices = dpCall(function() return meshD:getIndex(f, s) end)
-    if not okIdx or not indices then return {} end
+    if not okIdx then return {} end
     local okV, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
     if not okV or not nV or nV <= 0 then return {} end
     local okVerts, verts = dpCall(function() return meshD:getVertex(f, s, 1, nV) end)
     if not okVerts or not verts then return {} end
+    if not indices then
+        indices={}
+        for i=1,nV do indices[i]=i end -- non-indexed triangle list
+    end
 
     -- Deliberately NOT front-face-aware: MESH_MBM_DEBUG::calculateNormals() (mesh-manager.cpp,
     -- the actual engine algorithm behind addNormals()/"Recompute from geometry") always uses the
@@ -4215,7 +4221,7 @@ function refreshFrameFilterPreview(tEntry, index)
     if meshType == 'sprite' then
         tPreviewMesh = sprite:new(coordType); ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'mesh' then
-        tPreviewMesh = mesh:new(coordType);   ok = tPreviewMesh:load(tEntry.framePreviewPath)
+        tPreviewMesh = mesh:new(coordType);   ok = meshDebug:loadMeshPreview(tPreviewMesh,tEntry.framePreviewPath)
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new(coordType);       ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'particle' then
@@ -5984,6 +5990,11 @@ function simplifyLocalizedError(errorValue)
 end
 
 function simplifyShowFailure(errorValue, tEntry)
+    if tEntry and tEntry.tSimplifyState and tEntry.tSimplifyState.cancelRequested then
+        tEntry.tSimplifyState.lastError = nil
+        tUtil.showMessage(tLang.L('simplify_cancelled'), 5)
+        return
+    end
     if tEntry and tEntry.tSimplifyState then
         tEntry.tSimplifyState.lastError = tostring(errorValue or '')
     end
@@ -6012,14 +6023,31 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
     local started, startError = meshD:startSimplify(numericRatio, targetSubset,
         targetFrame, preserveDetails, boundaryCollapseThreshold)
     if not started then return nil, startError end
+    progressState.activeMesh = meshD
+    coroutine.yield()
     while true do
         local status = meshD:getSimplifyStatus()
+        if status.state ~= 'running' then
+            progressState.activeMesh = nil
+            if progressState.cancelRequested or status.state == 'cancelled' then
+                progressState.cancelRequested = true
+                return nil, tLang.L('simplify_cancelled')
+            end
+        end
         local localProgress = math.max(0, math.min(1, tonumber(status.progress) or 0))
         progressState.progress = (completedJobs + localProgress) / totalJobs
         if status.state == 'completed' then return status.report end
         if status.state == 'failed' then return nil, status.error end
         coroutine.yield()
     end
+end
+
+function simplifyCancel(tEntry)
+    local state = tEntry and tEntry.tSimplifyState
+    if not state or not state.running then return false end
+    state.cancelRequested = true
+    if state.activeMesh then state.activeMesh:cancelSimplify() end
+    return true
 end
 
 function simplifyApplyCoroutine(tEntry, meshD, index)
@@ -6157,6 +6185,7 @@ function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
     if simplifyState.running then return false end
     simplifyState.running = true
+    simplifyState.cancelRequested = nil
     simplifyState.progress = 0
     simplifyState.report = nil
     simplifyState.lastError = nil
@@ -7144,6 +7173,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     simplifyState.ratio = math.max(0.001, math.min(0.95,
         tonumber(simplifyState.ratio) or 0.9))
     tImGui.Text(tLang.L('simplify_geometry'))
+    tImGui.BeginDisabled(simplifyState.running == true)
 
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
     scopeIndex = tImGui.RadioButton(
@@ -7354,6 +7384,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         end
     end
     local applied = false
+    tImGui.EndDisabled()
     tImGui.BeginDisabled(not canSimplify)
     if tImGui.Button(tLang.L('simplify_apply') .. '##simplifyApply-' .. index) then
         applied = simplifyApply(tEntry, meshD, index)
@@ -7363,13 +7394,20 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         local progress = math.max(0, math.min(1, simplifyState.progress or 0))
         tImGui.ProgressBar(progress, {x=-1,y=0},
             string.format(tLang.L('simplify_progress_fmt'), progress * 100))
+        if simplifyState.cancelRequested then
+            tImGui.Text(tLang.L('simplify_cancelling'))
+        elseif tImGui.Button(tLang.L('cancel') .. '##simplifyCancel-' .. index) then
+            simplifyCancel(tEntry)
+        end
     end
     if tEntry.tSimplifyBackup then
         tImGui.SameLine()
+        tImGui.BeginDisabled(simplifyState.running == true)
         if tImGui.Button(tLang.L('simplify_revert') .. '##simplifyRevert-' .. index) then
             simplifyRestoreBackup(tEntry, index)
             applied = true
         end
+        tImGui.EndDisabled()
     end
     local report = simplifyState.report
     if report then
@@ -8021,13 +8059,12 @@ function showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk, vertices)
     end
     if triOk and geo and geo[v] then
         tImGui.SameLine()
-        if tImGui.Button(tLang.L('normal_recompute_short') .. '##nrecalc-' .. rid) then
-            local g = geo[v]
-            commitNormal(g.x, g.y, g.z)
+        if tImGui.Button(tLang.L('normal_apply_short') .. '##nrecalc-' .. rid) then
+            tMeshNormals.preview.begin({{entry=tEntry,index=index}},tEntry,1,s,v,nil,dpCall)
         end
         if tImGui.IsItemHovered(0) then
             tImGui.BeginTooltip()
-            tImGui.Text(tLang.L('normal_recompute'))
+            tImGui.Text(tLang.L(tMeshNormals.label(tEntry.normalMethod)))
             tImGui.EndTooltip()
         end
     end
@@ -8062,28 +8099,33 @@ function showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
     end
 
     local function bulkUpdate(fn)
+        local changed=0
         for v = 1, nV do
             local vd = vertices[v]
             if vd then
                 local nx, ny, nz = fn(v, vd, geo[v])
                 if nx then
                     vd.nx, vd.ny, vd.nz = nx, ny, nz
-                    dpCall(function() meshD:setVertex(1, s, v, vd) end)
+                    local ok=dpCall(function() meshD:setVertex(1, s, v, vd) end)
+                    if ok then changed=changed+1 end
                 end
             end
         end
+        tUtil.showMessage(string.format(tLang.L('normal_changed_fmt'),changed),4)
+        if changed==0 then return end
         tEntry.modified = true
         tEntry.bNormalsVizDirty = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     end
 
+    if triOk then tMeshNormals.draw(tImGui,tLang,tEntry,'normalMethod-'..index..'-'..s) end
     if tImGui.Button(tLang.L('normal_flip_all') .. '##nflipall-' .. index .. '-' .. s) then
         bulkUpdate(function(v, vd) return -vd.nx, -vd.ny, -vd.nz end)
     end
     if triOk then
         tImGui.SameLine()
-        if tImGui.Button(tLang.L('normal_recompute_all') .. '##nrecalcall-' .. index .. '-' .. s) then
-            bulkUpdate(function(v, vd, g) if g then return g.x, g.y, g.z end return nil end)
+        if tImGui.Button(tLang.L('normal_apply_all') .. '##nrecalcall-' .. index .. '-' .. s) then
+            tMeshNormals.preview.begin({{entry=tEntry,index=index}},tEntry,1,s,nil,nil,dpCall)
         end
     end
 
@@ -8225,6 +8267,7 @@ function showMeshOptions(tEntry, index)
             end
         end
         tImGui.SameLine()
+        tImGui.BeginDisabled(info and info.hasNormal or false)
         if tImGui.Button(tLang.L("add_normals") .. '##' .. index) then
             local nVertices = getMeshTotalVertices(meshD)
             meshD:addNormals()
@@ -8238,6 +8281,7 @@ function showMeshOptions(tEntry, index)
                 tUtil.showMessage('Added normals: ' .. shortName, 4)
             end
         end
+        tImGui.EndDisabled()
         showNormalsEditor(tEntry, meshD, index)
         tImGui.TreePop()
     elseif tEntry.tNormalLineGood or tEntry.tNormalLineBad then
@@ -10228,7 +10272,8 @@ local function runApplyAllOperation(sType, sOperationLabel, fnApply)
         details = {},
     }
     for _, target in ipairs(tTargets) do
-        local status, detail = fnApply(target.entry, target.index)
+        local ok,status,detail=dpCall(fnApply,target.entry,target.index)
+        if not ok then status,detail='failed',tostring(status) end
         if status == 'success' then
             summary.success = summary.success + 1
             iLastPreviewedIndex = 0
@@ -10279,6 +10324,7 @@ end
 local function applyAllAddNormals(sType)
     local totalVertices = 0
     local summary = runApplyAllOperation(sType, tLang.L('add_normals'), function(tEntry)
+        if tEntry.info and tEntry.info.hasNormal then return 'skipped',tLang.L('normal_already_exists') end
         totalVertices = totalVertices + getMeshTotalVertices(tEntry.meshDebug)
         tEntry.meshDebug:addNormals()
         if tEntry.info then tEntry.info.hasNormal = true end
@@ -10299,7 +10345,7 @@ end
 -- to All" bulk operation covers every animation frame, matching how removeNormals()/addNormals()
 -- already behave. geoNormal is only computed (via computeGeoNormalsForSubset) when needGeo is
 -- true and the subset's draw mode is TRIANGLES; it's nil otherwise.
-local function bulkUpdateAllNormals(meshD, needGeo, fnNormal)
+local function bulkUpdateAllNormals(meshD, needGeo, fnNormal, normalState)
     local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okF or not nFrames then return 0 end
     local okMode, modeDraw = dpCall(function() return meshD:getModeDraw() end)
@@ -10309,7 +10355,10 @@ local function bulkUpdateAllNormals(meshD, needGeo, fnNormal)
         local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
         if okS and nSubsets then
             for s = 1, nSubsets do
-                local geo = (needGeo and triOk) and computeGeoNormalsForSubset(meshD, f, s) or nil
+                local geo
+                if needGeo and triOk then
+                    geo=tMeshNormals.geometry(meshD,f,s,normalState or {},computeGeoNormalsForSubset)
+                end
                 local okV, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
                 if okV and nV and nV > 0 then
                     for v = 1, nV do
@@ -10318,7 +10367,7 @@ local function bulkUpdateAllNormals(meshD, needGeo, fnNormal)
                             local nx, ny, nz = fnNormal(vd, geo and geo[v])
                             if nx then
                                 vd.nx, vd.ny, vd.nz = nx, ny, nz
-                                dpCall(function() meshD:setVertex(f, s, v, vd) end)
+                                meshD:setVertex(f,s,v,vd)
                                 count = count + 1
                             end
                         end
@@ -10356,29 +10405,7 @@ local function applyAllFlipNormalsBulk(sType)
 end
 
 local function applyAllRecomputeNormalsBulk(sType)
-    local totalVertices = 0
-    local summary = runApplyAllOperation(sType, tLang.L('normal_recompute_all'), function(tEntry)
-        if not (tEntry.info and tEntry.info.hasNormal) then
-            return 'skipped', tLang.L('apply_all_no_matching_targets')
-        end
-        local count = bulkUpdateAllNormals(tEntry.meshDebug, true, function(vd, g)
-            if g then return g.x, g.y, g.z end
-            return nil
-        end)
-        if count == 0 then
-            return 'skipped', tLang.L('apply_all_no_matching_targets')
-        end
-        totalVertices = totalVertices + count
-        tEntry.modified = true
-        tEntry.bNormalsVizDirty = true
-        return 'success'
-    end)
-    if totalVertices > 0 then
-        tApplyAllWin.lastResultText = tApplyAllWin.lastResultText
-            .. string.format('\n%d vertices', totalVertices)
-        tUtil.showMessage(tApplyAllWin.lastResultText, 8)
-    end
-    return summary
+    return tMeshNormals.preview.begin(getApplyAllTargets(sType),tApplyAllWin,nil,nil,nil,nil,dpCall)
 end
 
 local function applyAllCentralize(sType)
@@ -10913,18 +10940,26 @@ local function applyAllCheck(sType)
     end)
 end
 
-local function applyAllSave(sType, bRecalcNormals)
-    local operationLabel = bRecalcNormals and tLang.L('save_all_calc_normals') or tLang.L('save_all_overwrite')
+local function applyAllSave(sType, bRecalcNormals, reviewed)
+    if bRecalcNormals then
+        return tMeshNormals.preview.begin(getApplyAllTargets(sType),tApplyAllWin,nil,nil,nil,
+            function(items)
+                local allowed={}
+                for _,item in ipairs(items) do allowed[item.source]=true end
+                applyAllSave(sType,false,allowed)
+            end,dpCall)
+    end
+    local operationLabel = tLang.L('save_all_overwrite')
     return runApplyAllOperation(sType, operationLabel, function(tEntry)
+        if reviewed and not reviewed[tEntry] then return 'skipped',tLang.L('apply_all_no_matching_targets') end
         local animErr = collectAnimFrameErrors(tEntry)
         if animErr then
             return 'failed', tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr
         end
         local wasLegacy = isLegacyTextureAnimationEffectStorage(tEntry.info)
-        local ok = tEntry.meshDebug:save(tEntry.fileName, bRecalcNormals, false)
+        local ok = tEntry.meshDebug:save(tEntry.fileName, false, false)
         if ok then
             tEntry.modified = false
-            if bRecalcNormals and tEntry.info then tEntry.info.hasNormal = true end
             local newInfo = refreshEntryInfoFromFile(tEntry)
             if wasLegacy and not isLegacyTextureAnimationEffectStorage(newInfo) then
                 return 'success', tLang.L('mesh_migrated_save_fmt'):format(tUtil.getShortName(tEntry.fileName))
@@ -10977,6 +11012,7 @@ function showApplyAllWindow()
             tImGui.Separator()
 
             if tImGui.TreeNodeEx(tLang.L('normals_label') .. '##applyAllNormals', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                tMeshNormals.draw(tImGui,tLang,win,'bulkNormalMethod')
                 if tImGui.Button(tLang.L('remove_normals') .. '##applyAllRemoveNormals') then
                     applyAllRemoveNormals(win.selectedType)
                 end
@@ -10989,7 +11025,7 @@ function showApplyAllWindow()
                     applyAllFlipNormalsBulk(win.selectedType)
                 end
                 tImGui.SameLine()
-                if tImGui.Button(tLang.L('normal_recompute_all') .. '##applyAllRecomputeNormals') then
+                if tImGui.Button(tLang.L('normal_apply_all') .. '##applyAllRecomputeNormals') then
                     applyAllRecomputeNormalsBulk(win.selectedType)
                 end
                 tImGui.TextDisabled(tLang.L('apply_all_normals_scope_note'))
@@ -11298,7 +11334,6 @@ function showApplyAllWindow()
                 if tImGui.Button(tLang.L('save_all_overwrite') .. '##applyAllSave') then
                     applyAllSave(win.selectedType, false)
                 end
-                tImGui.SameLine()
                 if tImGui.Button(tLang.L('save_all_calc_normals') .. '##applyAllSaveNormals') then
                     applyAllSave(win.selectedType, true)
                 end
@@ -12278,6 +12313,15 @@ function showListMeshesWindow()
 end
 
 function onLoop(delta)
+    if tMeshNormals.preview.pending then
+        tMeshNormals.preview.draw()
+        showCameraWindow()
+        showLightWindow()
+        updatePreviewMesh()
+        updateCam3dKeyboardMovement(delta)
+        tUtil.showOverlayMessage()
+        return
+    end
     for i = 1, #tLoadedMeshes do simplifyResume(tLoadedMeshes[i]) end
     main_menu_mesh_debug()
     showMixamoGuideDialog()
@@ -12311,6 +12355,13 @@ function onLoop(delta)
 end
 
 function onTouchDown(key, x, y)
+    if tMeshNormals.preview.pending then
+        if not tImGui.IsAnyWindowHovered() then
+            isClickedMouseleft, isClickedMouseRight = key==0, key==1
+            camera2d.mx, camera2d.my = x,y
+        end
+        return
+    end
     if not tImGui.IsAnyWindowHovered() then
         if (key == 0 or key == 1 or key == 2) and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
             local tEntry = tLoadedMeshes[iSelectedMeshIndex]
@@ -12410,7 +12461,7 @@ end
 
 function onTouchMove(key, x, y)
     if tImGui.IsAnyWindowHovered() then return end
-    if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+    if not tMeshNormals.preview.pending and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
         if tDragEntry.bXformOrbiting and bCameraMode3D then
             local c = tDragEntry.cam3d
@@ -12509,6 +12560,11 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if tMeshNormals.preview.pending then
+        isClickedMouseleft,isClickedMouseRight=false,false
+        camera2d.mx,camera2d.my=x,y
+        return
+    end
     isClickedMouseleft  = false
     isClickedMouseRight = false
     camera2d.mx = x
@@ -12564,6 +12620,8 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if key == mbm.getKeyCode('ESC') and simplifyCancel(tLoadedMeshes[iSelectedMeshIndex]) then return end
+    if tMeshNormals.preview.pending and (mbm.getKeyName(key)=='DOWN' or mbm.getKeyName(key)=='UP') then return end
     if mbm.getKeyName(key) == 'DOWN' then
         selectMeshIndex(iSelectedMeshIndex + 1)
     elseif mbm.getKeyName(key) == 'UP' then
@@ -12591,4 +12649,8 @@ function onKeyUp(key)
     elseif key == mbm.getKeyCode('pageup') or key == mbm.getKeyCode('pagedown') then
         tCam3dMove.vertical = 0
     end
+end
+
+function onEndScene()
+    tMeshNormals.preview.dispose()
 end

@@ -189,6 +189,10 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-topology.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-height.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-height-areas.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-progress.h" />
     <ClInclude Include="..\..\include\core_mbm\android-bridge.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gles-shader-source.h" />
@@ -216,6 +220,7 @@
     <ClInclude Include="..\..\include\core_mbm\frustum.h" />
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
     <ClInclude Include="..\..\include\core_mbm\image-resource.h" />
+    <ClInclude Include="..\..\include\core_mbm\image-mesh.h" />
     <ClInclude Include="..\..\include\core_mbm\joystick-base.h" />
     <ClInclude Include="..\..\include\core_mbm\log-util.h" />
     <ClInclude Include="..\..\include\core_mbm\mesh-manager.h" />
@@ -310,6 +315,7 @@
     <ClInclude Include="..\..\third-party\wave\WAVE.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\core_mbm\private\image-mesh-topology.cpp" />
     <ClCompile Include="..\..\include\joystick-win32\joystick-win32.cpp" />
     <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp" />
     <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp" />
@@ -343,6 +349,7 @@
     <ClCompile Include="..\..\src\core_mbm\frustum.cpp" />
     <ClCompile Include="..\..\src\core_mbm\header-mesh.cpp" />
     <ClCompile Include="..\..\src\core_mbm\image-resource.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\image-mesh.cpp" />
     <ClCompile Include="..\..\src\core_mbm\log-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\mesh-simplifier.cpp" />

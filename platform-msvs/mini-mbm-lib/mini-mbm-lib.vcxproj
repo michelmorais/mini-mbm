@@ -172,6 +172,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp" />
+    <ClCompile Include="..\..\third-party\stb\stb.c" />
     <ClCompile Include="..\..\src\lua-wrap\framework-android-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-directx-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-dummy-lua.cpp" />
@@ -267,6 +268,7 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\gif-view-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\line-mesh-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-debug-lua.h" />
+    <ClInclude Include="..\..\src\lua-wrap\render-table\image-mesh-job.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\no-gc-renderizable-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\particle-lua.h" />

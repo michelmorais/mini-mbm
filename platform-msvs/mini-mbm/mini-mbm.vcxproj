@@ -207,6 +207,7 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\gif-view-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\line-mesh-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-debug-lua.h" />
+    <ClInclude Include="..\..\src\lua-wrap\render-table\image-mesh-job.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\particle-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\render-2-texture-lua.h" />

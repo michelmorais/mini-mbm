@@ -58,6 +58,7 @@ Canonical weights retain at most four normalized nonnegative influences.
 Hard protections reject collapses that would violate:
 
 - open-boundary vertex locking in the default strict mode;
+- rejection of collapses that would pinch coincident attribute-seam edges together, even when their vertex indices differ;
 - manifold topology and triangle orientation;
 - source/frame geometry bounds;
 - the 16-bit index contract;
@@ -87,6 +88,14 @@ Authored physics/collision geometry is preserved and is not regenerated automati
 once per frame and displays a progress bar while the simplifier worker runs. It supports frame or checked-subset
 scope, an optional virtual frame for selected subsets, compatible shared-frame collapses, rollback,
 and Save As. No simplification work runs continuously while the editor is idle.
+
+Since 7.261.0, the progress controls offer **Cancel**; **Esc** cancels the selected
+mesh's active simplification. Cancellation discards the detached working mesh,
+including any subsets already simplified in that operation, and preserves the
+original mesh, its modified state, and the previous undo backup. Remaining subsets
+are not processed. Parameters and rollback are disabled during simplification;
+the user can apply again after cancellation completes. The worker cancellation is
+cooperative, so an indivisible processing step may finish before it stops.
 
 Split Capture supports canonical skeletal weights. It maps every rebuilt outside/captured vertex to
 its source weight, reconstructs the frame-global weight order, validates the detached mesh, and only

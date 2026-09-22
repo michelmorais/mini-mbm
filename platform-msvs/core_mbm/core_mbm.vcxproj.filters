@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-height.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-height-areas.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-progress.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\image-mesh-topology.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
@@ -120,6 +132,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\core_mbm\private\image-mesh-topology.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-animation-foundation.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
@@ -196,6 +211,9 @@
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\image-resource.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\image-mesh.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\log-util.h">
@@ -582,6 +600,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\image-resource.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\image-mesh.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\log-util.cpp">

@@ -42,7 +42,7 @@ local function octahedronVertices(nonIndexed)
     return vertices
 end
 
-local function makeClosedMesh(nonIndexed)
+local function makeClosedMesh(nonIndexed, inMemory)
     local asset = meshDebug:new()
     asset:setType('mesh')
     asset:setModeFrontFace('CW')
@@ -53,6 +53,7 @@ local function makeClosedMesh(nonIndexed)
     if indices then assert(asset:addIndex(frame, subset, indices)) end
     assert(asset:addAnim('Static', 1, 1, 1.0, 0))
     assert(asset:check())
+    if inMemory then return asset end
     local path = nonIndexed and '/tmp/mbm_nonindexed_closed_source.msh' or '/tmp/mbm_indexed_closed_source.msh'
     assert(asset:save(path, false, false, true))
     local restored = meshDebug:new()
@@ -78,6 +79,33 @@ end
 
 function onInitScene()
     started = mbm.getTimeRun()
+    for _, nonIndexed in ipairs({false, true}) do
+        local direct = makeClosedMesh(nonIndexed, true)
+        local directReport, directError = direct:simplify(0.5)
+        assert(directReport, directError)
+        assert(directReport.sourceTriangleCount == 8)
+        assert(directReport.resultTriangleCount == 4)
+        assert(direct:check())
+    end
+    -- Editing an indexed subset must update that subset, even with later subsets.
+    local edited = makeClosedMesh(false, true)
+    local second = edited:addSubSet(1)
+    local points, indices = octahedronVertices(false)
+    assert(edited:addVertex(1, second, points))
+    assert(edited:addIndex(1, second, indices))
+    assert(edited:addVertex(1, 1, {x=2, y=0, z=0}))
+    assert(edited:getTotalVertex(1, 1) == 7)
+    assert(edited:getTotalVertex(1, second) == 6)
+    assert(not edited:isIndexBuffer())
+    local preserved = edited:getVertex(1, second, 1)
+    assert(preserved.x == points[1].x and preserved.y == points[1].y and preserved.z == points[1].z)
+    assert(edited:addIndex(1, 1, indices))
+    assert(edited:addIndex(1, second, indices))
+    assert(edited:check())
+    local editedReport, editedError = edited:simplify(0.5, 1)
+    assert(editedReport, editedError)
+    assert(edited:getTotalVertex(1, second) == 6)
+    assert(edited:getTotalIndex(1, second) == #indices)
     local source = makeClosedMesh(false)
     local beforeVertices, beforeTriangles = totals(source)
     local report, simplifyError = source:simplify(0.5)

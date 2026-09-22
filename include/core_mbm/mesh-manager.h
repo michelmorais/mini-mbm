@@ -100,7 +100,8 @@ namespace mbm
         IDLE,
         RUNNING,
         SUCCEEDED,
-        FAILED
+        FAILED,
+        CANCELLED
     };
 
     struct BUFFER_MESH
@@ -352,6 +353,7 @@ namespace mbm
                                     const int targetFrameIndex = 0,
                                     const bool preserveDetails = true,
                                     const float boundaryCollapseThreshold = 0.0f);
+        API_IMPL bool cancelSimplify() noexcept;
         API_IMPL MESH_SIMPLIFY_STATE getSimplifyState(float &progress) noexcept;
         API_IMPL bool getSimplifyResult(MESH_SIMPLIFY_REPORT &report,
                                         char *errorOut, const int errorOutLen);
@@ -364,7 +366,7 @@ namespace mbm
         // `compress` (opt-in, default-off at every call site): when true, requests DEFLATE for
         // SECTION_FRAME_STATIC (the vertex/index buffer - the one section large enough for
         // compression to be worth it); every other section always stays uncompressed.
-        API_IMPL bool saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut);
+        API_IMPL bool saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut, const bool relativeTextures = false);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
         // Reads the v11 section/TLV format. This is the only mesh format core_mbm reads/writes -
         // v1-v10 support has been removed entirely.

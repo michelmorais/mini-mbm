@@ -64,7 +64,8 @@ namespace mbm::mesh_simplifier
     };
 
     bool simplify(const INPUT &input, uint32_t targetTriangleCount, OUTPUT &output,
-                  std::string &errorOut, const std::function<void(float)> &onProgress = {});
+                  std::string &errorOut, const std::function<void(float)> &onProgress = {},
+                  const std::function<bool()> &isCancelled = {});
 }
 
 #endif

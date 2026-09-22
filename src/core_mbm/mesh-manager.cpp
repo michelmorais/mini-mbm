@@ -293,7 +293,7 @@ namespace
     bool fillTextureReferenceForHeader(FILE *file,
                                        const std::string &textureReference,
                                        const util::TYPE_MESH typeMe,
-                                       char outNameTexture[64])
+                                       char outNameTexture[64], const bool relativeTextures)
     {
         memset(outNameTexture, 0, 64);
         if (textureReference.empty())
@@ -328,6 +328,7 @@ namespace
                                           "You must to load the font with 'save' flag enabled to save as png otherwise will not work...");
         }
 
+        if (relativeTextures) return true;
         bool exists = false;
         std::string fullPathTexture = util::getFullPath(outNameTexture, &exists);
         if (exists && fullPathTexture.size() < 64u)
@@ -1464,6 +1465,7 @@ namespace mbm
 
     MESH_MBM_DEBUG::~MESH_MBM_DEBUG()
     {
+        cancelSimplify();
         if (impl->simplifyWorker.joinable())
             impl->simplifyWorker.join();
         this->release();
@@ -2074,6 +2076,9 @@ namespace mbm
                 snprintf(errorOut, static_cast<size_t>(errorOutLen), "%s", message.c_str());
             return false;
         };
+        if (impl->simplifyState.load(std::memory_order_acquire)!=MESH_SIMPLIFY_STATE::RUNNING)
+            impl->simplifyCommitGate.store(0);
+        if (impl->simplifyCommitGate.load()==1) return fail("simplification cancelled");
         if (!std::isfinite(targetTriangleRatio) || targetTriangleRatio <= 0.0f || targetTriangleRatio >= 1.0f)
             return fail("target triangle ratio must be finite, greater than zero, and smaller than one");
         if (!std::isfinite(boundaryCollapseThreshold) ||
@@ -2458,7 +2463,8 @@ namespace mbm
         mesh_simplifier::OUTPUT simplified;
         std::string simplifyError;
         if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError,
-            [this](const float progress) { impl->simplifyProgress = progress; }))
+            [this](const float progress) { impl->simplifyProgress = progress; },
+            [this]() { return impl->simplifyCommitGate.load(std::memory_order_relaxed)==1; }))
             return fail(std::string("frame simplification failed: ") + simplifyError);
         if (simplified.triangleGroups.size() != simplified.indices.size() / 3 ||
             simplified.sourceContributions.size() != simplified.positions.size())
@@ -2881,6 +2887,10 @@ namespace mbm
         if (newUvs) memcpy(newUvs.get(), uvs.data(), uvs.size() * sizeof(VEC2));
         memcpy(newIndices.get(), indices.data(), indices.size() * sizeof(uint16_t));
 
+        int expectedGate=0;
+        if (!impl->simplifyCommitGate.compare_exchange_strong(expectedGate,2))
+            return fail("simplification cancelled");
+
         delete[] frame->position;
         delete[] frame->normal;
         delete[] frame->uv;
@@ -2957,6 +2967,7 @@ namespace mbm
         impl->simplifyReport = {};
         impl->simplifyError.clear();
         impl->simplifyProgress = 0.0f;
+        impl->simplifyCommitGate.store(0);
         impl->simplifyState.store(MESH_SIMPLIFY_STATE::RUNNING, std::memory_order_release);
         try
         {
@@ -2969,6 +2980,14 @@ namespace mbm
                     errorOut, static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
                     targetFrameIndex, preserveDetails, boundaryCollapseThreshold);
                 if (!success) impl->simplifyError = errorOut;
+                int expectedGate=0;
+                impl->simplifyCommitGate.compare_exchange_strong(expectedGate,2);
+                if (impl->simplifyCommitGate.load()==1)
+                {
+                    impl->simplifyError="simplification cancelled";
+                    impl->simplifyState.store(MESH_SIMPLIFY_STATE::CANCELLED,std::memory_order_release);
+                    return;
+                }
                 impl->simplifyState.store(success ? MESH_SIMPLIFY_STATE::SUCCEEDED
                                                   : MESH_SIMPLIFY_STATE::FAILED,
                                           std::memory_order_release);
@@ -2981,6 +3000,13 @@ namespace mbm
             return false;
         }
         return true;
+    }
+
+    bool MESH_MBM_DEBUG::cancelSimplify() noexcept
+    {
+        if (impl->simplifyState.load(std::memory_order_acquire)!=MESH_SIMPLIFY_STATE::RUNNING) return false;
+        int expectedGate=0;
+        return impl->simplifyCommitGate.compare_exchange_strong(expectedGate,1);
     }
 
     MESH_SIMPLIFY_STATE MESH_MBM_DEBUG::getSimplifyState(float &progress) noexcept
@@ -3520,7 +3546,7 @@ namespace mbm
         }
     }
     
-    bool MESH_MBM_DEBUG::saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut)
+    bool MESH_MBM_DEBUG::saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut, const bool relativeTextures)
     {
         if (this->impl->buffer.size() == 0)
             return false;
@@ -4249,7 +4275,7 @@ namespace mbm
 
                     util::SUBSET_DESC_V11 subsetDesc;
                     char nameTexture[64];
-                    if (!fillTextureReferenceForHeader(fp, pSubset->texture, impl->typeMe, nameTexture))
+                    if (!fillTextureReferenceForHeader(fp, pSubset->texture, impl->typeMe, nameTexture, relativeTextures))
                         return false;
                     subsetDesc.primaryTexture.storage = util::TEXTURE_REF_STORAGE_PATH;
                     subsetDesc.primaryTexture.path    = nameTexture;
@@ -4268,7 +4294,7 @@ namespace mbm
                         util::SUBSET_EXTRA_SLOT_V11 extraSlot;
                         extraSlot.role = static_cast<uint8_t>(legacyMaterialSlotTypeToTextureRole(slot.type));
                         char slotNameTexture[64];
-                        if (!fillTextureReferenceForHeader(fp, slot.texture, impl->typeMe, slotNameTexture))
+                        if (!fillTextureReferenceForHeader(fp, slot.texture, impl->typeMe, slotNameTexture, relativeTextures))
                             return false;
                         extraSlot.texture.storage = util::TEXTURE_REF_STORAGE_PATH;
                         extraSlot.texture.path    = slotNameTexture;
@@ -5353,6 +5379,7 @@ namespace mbm
                 pSubset->indexStart = static_cast<int>(lastCountIndex);
                 lastCountIndex += static_cast<uint32_t>(pSubset->indexCount);
             }
+            bufferCurrent->headerFrame.sizeIndexBuffer = lastCountIndex;
             return true;
         }
         else
@@ -5402,6 +5429,8 @@ namespace mbm
                     pSubset->indexCount = 0;
                     pSubset->indexStart = 0;
                 }
+                bufferCurrent->headerFrame.sizeIndexBuffer = 0;
+                pSubset = bufferCurrent->subset[indexSubset];
             }
             auto *oldPosition = reinterpret_cast<VEC3 *>(bufferCurrent->position);
             auto *oldNormal   = reinterpret_cast<VEC3 *>(bufferCurrent->normal);
@@ -5455,6 +5484,7 @@ namespace mbm
                 pSubset->vertexStart = static_cast<int>(lastCountVertex);
                 lastCountVertex += static_cast<uint32_t>(pSubset->vertexCount);
             }
+            bufferCurrent->headerFrame.sizeVertexBuffer = lastCountVertex;
             return true;
         }
         return false;

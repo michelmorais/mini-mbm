@@ -54,7 +54,6 @@
 #endif
 #include <version/version.h>
 #include <miniz-wrap/miniz-wrap.h>
-#include <lodepng/lodepng.h>
 #include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/render-table/tile-lua.h>
@@ -71,6 +70,8 @@
 #include <memory>
 #include <thread>
 #include <vector>
+#include <stb/stb-interface.h>
+#include <cstdlib>
 #include <audio-interface.h>
 #if defined ANDROID
     // no includes here
@@ -3280,7 +3281,7 @@ namespace mbm
         return 1;
     }
 
-    extern "C" int onCreateDirectoriesLua(lua_State *lua)
+    static int onCreateDirectoriesLua(lua_State *lua)
     {
         const char *path = luaL_checkstring(lua, 1);
         std::error_code error;
@@ -3295,26 +3296,33 @@ namespace mbm
         return 1;
     }
 
-    extern "C" int onReadPngAlphaLua(lua_State *lua)
+    static int onReadImagePixelsLua(lua_State *lua)
     {
         const char *path = luaL_checkstring(lua, 1);
-        std::vector<unsigned char> rgba;
-        unsigned int width = 0, height = 0;
-        const unsigned int error = lodepng::decode(rgba, width, height, path, LCT_RGBA, 8);
-        if (error)
+        static const char *formats[] = {"rgba", "alpha", nullptr};
+        const bool alphaOnly = luaL_checkoption(lua, 2, "rgba", formats) == 1;
+        int width=0,height=0,channels=0;
+        if (!stbi_info(path,&width,&height,&channels) || width<=0 || height<=0 ||
+            static_cast<uint64_t>(width)*height>16777216)
         {
-            lua_pushnil(lua);
-            lua_pushstring(lua, lodepng_error_text(error));
-            return 2;
+            lua_pushnil(lua);lua_pushliteral(lua,"Invalid image or more than 16 million pixels");return 2;
         }
-        std::string alpha;
-        alpha.resize(rgba.size() / 4);
-        for (size_t i = 0; i < alpha.size(); ++i)
-            alpha[i] = static_cast<char>(rgba[i * 4 + 3]);
-        lua_pushlstring(lua, alpha.data(), alpha.size());
-        lua_pushinteger(lua, width);
-        lua_pushinteger(lua, height);
-        return 3;
+        const int expectedWidth=width,expectedHeight=height;
+        std::unique_ptr<stbi_uc,decltype(&std::free)> pixels(stbi_load(path,&width,&height,&channels,4),&std::free);
+        if (!pixels || width!=expectedWidth || height!=expectedHeight)
+        {
+            lua_pushnil(lua);lua_pushliteral(lua,"Cannot decode image or dimensions changed");return 2;
+        }
+        const size_t pixelCount = static_cast<size_t>(width) * height;
+        if (alphaOnly)
+        {
+            // Compact in place: destination bytes precede unread RGBA source bytes.
+            for (size_t i = 0; i < pixelCount; ++i)
+                pixels.get()[i] = pixels.get()[i * 4 + 3];
+        }
+        const size_t byteCount = pixelCount * (alphaOnly ? 1 : 4);
+        lua_pushlstring(lua, reinterpret_cast<const char *>(pixels.get()), byteCount);
+        lua_pushinteger(lua,width);lua_pushinteger(lua,height);return 3;
     }
 
     int onLoadDetailedTexture(lua_State *lua)
@@ -3495,6 +3503,12 @@ namespace mbm
             {"getSizeScreen", onGetSizeBackBuffer},
             {"getCamera", onGetCamera},
             {"getFps", onGetFps},
+            {"getImageMeshSideContour", onGetImageMeshSideContourLua},
+            {"generateImageMesh", onGenerateImageMeshLua},
+            {"startImageMesh", onStartImageMeshLua},
+            {"startImageMeshMap", onStartImageMeshMapLua},
+            {"generateImageMeshMap", onGenerateImageMeshMapLua},
+            {"exportImageMeshTexture", onExportImageMeshTextureLua},
             {"quit", onQuitEngine},
             {"setColor", onSetColorBackground},
             {"showConsole", onShowConsoleMbm},
@@ -3575,7 +3589,7 @@ namespace mbm
             {"getSplash", OnGetSplash },
             {"doSubscribe", doSubscribePlugin},
             {"loadTexture", onLoadDetailedTexture},
-            {"readPngAlpha", onReadPngAlphaLua},
+            {"readImagePixels", onReadImagePixelsLua},
             {"createDirectories", onCreateDirectoriesLua},
             {"listFiles", onlistFiles},
             {"enableTextureFilter", enableTextureFilterLua},

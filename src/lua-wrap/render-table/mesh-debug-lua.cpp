@@ -25,11 +25,14 @@ extern "C"
 }
 
 #include <map>
+#include <exception>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <vector>
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
+#include "image-mesh-job.h"
 #include <lua-wrap/render-table/animation-lua.h>
 #include <lua-wrap/render-table/mesh-lua.h>
 #include <lua-wrap/render-table/sprite-lua.h>
@@ -40,6 +43,7 @@ extern "C"
 #include <lua-wrap/render-table/texture-view-lua.h>
 #include <lua-wrap/render-table/particle-lua.h>
 #include <core_mbm/mesh-manager.h>
+#include <core_mbm/image-mesh.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/shapes.h>
@@ -280,6 +284,13 @@ namespace mbm
         return 2;
     }
 
+    int onCancelSimplifyMeshDebugLua(lua_State *lua)
+    {
+        auto *asset=getMeshDebugFromRawTable(lua,1,1);
+        lua_pushboolean(lua,asset->mesh.cancelSimplify());
+        return 1;
+    }
+
     int onGetSimplifyStatusMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -287,11 +298,12 @@ namespace mbm
         const MESH_SIMPLIFY_STATE state = meshDebug->mesh.getSimplifyState(progress);
         const char *stateName = state == MESH_SIMPLIFY_STATE::RUNNING ? "running"
             : state == MESH_SIMPLIFY_STATE::SUCCEEDED ? "completed"
+            : state == MESH_SIMPLIFY_STATE::CANCELLED ? "cancelled"
             : state == MESH_SIMPLIFY_STATE::FAILED ? "failed" : "idle";
         lua_createtable(lua, 0, 4);
         lua_pushstring(lua, stateName); lua_setfield(lua, -2, "state");
         lua_pushnumber(lua, progress); lua_setfield(lua, -2, "progress");
-        if (state == MESH_SIMPLIFY_STATE::SUCCEEDED || state == MESH_SIMPLIFY_STATE::FAILED)
+        if (state == MESH_SIMPLIFY_STATE::SUCCEEDED || state == MESH_SIMPLIFY_STATE::FAILED || state == MESH_SIMPLIFY_STATE::CANCELLED)
         {
             MESH_SIMPLIFY_REPORT report;
             char errorOut[255] = "";
@@ -320,7 +332,7 @@ namespace mbm
         const bool      calUV         = top > 3 ? (lua_toboolean(lua, 4) ? true : false) : false;
         const bool      compress      = top > 4 ? (lua_toboolean(lua, 5) ? true : false) : false;
         char            strError[255] = "";
-        if (meshDebug->mesh.saveV11(fileName, calNormal, calUV, compress, strError,sizeof(strError)-1))
+        if (meshDebug->mesh.saveV11(fileName, calNormal, calUV, compress, strError,sizeof(strError)-1, top>5 && lua_toboolean(lua,6)))
         {
             MESH_MANAGER::getInstance()->fakeRelease(fileName);
             lua_pushboolean(lua, 1);
@@ -3495,6 +3507,7 @@ namespace mbm
                                           {"simplify", onSimplifyMeshDebugLua},
                                           {"startSimplify", onStartSimplifyMeshDebugLua},
                                           {"getSimplifyStatus", onGetSimplifyStatusMeshDebugLua},
+                                          {"cancelSimplify", onCancelSimplifyMeshDebugLua},
                                           {"save", onSaveMeshDebugLua},
                                           {"setType", onSetTypeMeshDebugLua},
                                           {"getType", onGetTypeMeshDebugLua},
@@ -3639,6 +3652,459 @@ namespace mbm
         return 1;
     }
 
+    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,IMAGE_MESH_HOLE *holes,IMAGE_MESH_POINT *holePoints,IMAGE_MESH_HEIGHT_AREA *areas,IMAGE_MESH_POINT *areaPoints,int optionIndex=2)
+    {
+        luaL_checktype(lua,optionIndex,LUA_TTABLE);
+        const auto integer = [&](const char *name, uint32_t &value)
+        {
+            lua_getfield(lua, optionIndex, name);
+            if (!lua_isnil(lua, -1))
+            {
+                const lua_Integer input = luaL_checkinteger(lua, -1);
+                if (input < 0 || static_cast<uint64_t>(input) > UINT32_MAX)
+                    luaL_error(lua, "%s must be an unsigned 32-bit integer", name);
+                value = static_cast<uint32_t>(input);
+            }
+            lua_pop(lua, 1);
+        };
+        const auto number = [&](const char *name, float &value)
+        {
+            lua_getfield(lua, optionIndex, name);
+            if (!lua_isnil(lua, -1)) value = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 1);
+        };
+        const auto boolean = [&](const char *name, bool &value)
+        {
+            lua_getfield(lua, optionIndex, name);
+            if (!lua_isnil(lua, -1))
+            {
+                luaL_checktype(lua, -1, LUA_TBOOLEAN);
+                value = lua_toboolean(lua, -1) != 0;
+            }
+            lua_pop(lua, 1);
+        };
+        lua_getfield(lua,optionIndex,"sideMode");
+        const char *side=luaL_optstring(lua,-1,"edge");
+        if (std::strcmp(side,"edge")==0) options.sideMode=IMAGE_MESH_SIDE::EDGE;
+        else if (std::strcmp(side,"color")==0) options.sideMode=IMAGE_MESH_SIDE::COLOR;
+        else if (std::strcmp(side,"repeat")==0) options.sideMode=IMAGE_MESH_SIDE::REPEAT;
+        else if (std::strcmp(side,"band")==0) options.sideMode=IMAGE_MESH_SIDE::BAND;
+        else luaL_error(lua,"sideMode must be edge, color, repeat or band");
+        lua_pop(lua,1);
+        lua_getfield(lua,optionIndex,"sideTexture");
+        options.sideTexture=luaL_optstring(lua,-1,nullptr); lua_pop(lua,1);
+        number("sideInset",options.sideInset); number("sideRepeatU",options.sideRepeatU); number("sideRepeatV",options.sideRepeatV);
+        lua_getfield(lua,optionIndex,"backTexture");
+        options.backTexture=luaL_optstring(lua,-1,nullptr); lua_pop(lua,1);
+        boolean("backExternal",options.backExternal);
+        integer("backColor",options.backColor); boolean("backSolid",options.backSolid);
+        integer("sideColor",options.sideColor);
+        boolean("sideBandInvert",options.sideBandInvert);
+        boolean("sideBandPerpendicular",options.sideBandPerpendicular);
+        integer("x", options.x); integer("y", options.y);
+        integer("cropWidth", options.cropWidth); integer("cropHeight", options.cropHeight);
+        integer("columns", options.columns); integer("rows", options.rows);
+        integer("maxVertices", options.maxVertices); integer("maxTriangles", options.maxTriangles);
+        number("width", options.width); number("height", options.height);
+        number("depth", options.depth); number("relief", options.relief);
+        number("borderWidth", options.borderWidth);
+        boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
+        boolean("backRelief", options.backRelief); boolean("backMirror", options.backMirror);
+        boolean("backOpen", options.backOpen); boolean("backRemap", options.backRemap);
+        integer("backX",options.backX); integer("backY",options.backY);
+        integer("backCropWidth",options.backCropWidth); integer("backCropHeight",options.backCropHeight);
+        integer("ellipseSegments", options.ellipseSegments);
+        boolean("followImage",options.followImage); boolean("twoLevels",options.twoLevels);
+        integer("smoothPasses",options.smoothPasses);
+        number("grooveThreshold",options.grooveThreshold); number("grooveTransition",options.grooveTransition);
+        number("heightTolerance",options.heightTolerance);
+        lua_getfield(lua,optionIndex,"heightImage");
+        options.heightImage=luaL_optstring(lua,-1,nullptr); lua_pop(lua,1);
+        boolean("heightImageToRegion",options.heightImageToRegion);
+        number("heightBlack",options.heightBlack); number("heightWhite",options.heightWhite); number("heightCurve",options.heightCurve);
+        lua_getfield(lua,optionIndex,"heightChannel");
+        const char *heightChannel=luaL_optstring(lua,-1,"luminance");
+        if (std::strcmp(heightChannel,"luminance")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE;
+        else if (std::strcmp(heightChannel,"red")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::RED;
+        else if (std::strcmp(heightChannel,"green")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::GREEN;
+        else if (std::strcmp(heightChannel,"blue")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::BLUE;
+        else if (std::strcmp(heightChannel,"alpha")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::ALPHA;
+        else luaL_error(lua,"heightChannel must be luminance, red, green, blue or alpha");
+        lua_pop(lua,1);
+        lua_getfield(lua,optionIndex,"heightSource");
+        const char *heightSource=luaL_optstring(lua,-1,"image");
+        if (std::strcmp(heightSource,"image")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
+        else if (std::strcmp(heightSource,"manual")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
+        else if (std::strcmp(heightSource,"mixed")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MIXED;
+        else luaL_error(lua,"heightSource must be image, manual or mixed");
+        lua_pop(lua,1);number("baseHeight",options.baseHeight);
+        lua_getfield(lua,optionIndex,"heightAreas");
+        if (!lua_isnil(lua,-1))
+        {
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const size_t count=lua_rawlen(lua,-1);
+            if (count>32) luaL_error(lua,"heightAreas accepts at most 32 areas");
+            options.heightAreas=areas;options.heightAreaCount=static_cast<uint32_t>(count);
+            uint32_t offset=0;
+            for (size_t h=0;h<count;++h)
+            {
+                lua_rawgeti(lua,-1,h+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                const size_t n=lua_rawlen(lua,-1);
+                auto &area=areas[h];
+                lua_getfield(lua,-1,"shape");
+                const char *areaShape=luaL_optstring(lua,-1,"polygon");
+                area.line=std::strcmp(areaShape,"line")==0;
+                if (!area.line && std::strcmp(areaShape,"polygon") && std::strcmp(areaShape,"rectangle") && std::strcmp(areaShape,"ellipse"))
+                    luaL_error(lua,"Invalid height area shape");
+                lua_pop(lua,1);
+                if (n<(area.line?2u:3u) || n>128) luaL_error(lua,"Height areas need 3..128 polygon points or 2..128 line points");
+                area.points=areaPoints+offset;area.count=static_cast<uint32_t>(n);
+                lua_getfield(lua,-1,"lineWidth");area.lineWidth=static_cast<float>(luaL_optnumber(lua,-1,.05));lua_pop(lua,1);
+                lua_getfield(lua,-1,"height");area.height=static_cast<float>(luaL_optnumber(lua,-1,.75));lua_pop(lua,1);
+                lua_getfield(lua,-1,"transition");area.transition=static_cast<float>(luaL_optnumber(lua,-1,.02));lua_pop(lua,1);
+                lua_getfield(lua,-1,"enabled");
+                if (!lua_isnil(lua,-1)) { luaL_checktype(lua,-1,LUA_TBOOLEAN);area.enabled=lua_toboolean(lua,-1)!=0; }
+                lua_pop(lua,1);
+                for (size_t i=0;i<n;++i)
+                {
+                    lua_rawgeti(lua,-1,i+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                    lua_getfield(lua,-1,"x");areaPoints[offset].x=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,1);
+                    lua_getfield(lua,-1,"y");areaPoints[offset].y=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,2);
+                    ++offset;
+                }
+                lua_pop(lua,1);
+            }
+        }
+        lua_pop(lua,1);
+        lua_getfield(lua,optionIndex,"heightEdits");
+        if (!lua_isnil(lua,-1))
+        {
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const size_t count=lua_rawlen(lua,-1);
+            if (count>4096) luaL_error(lua,"heightEdits accepts at most 4096 dabs");
+            options.heightEditCount=static_cast<uint32_t>(count); options.heightEdits=dabs;
+            for (size_t i=0;i<count;++i)
+            {
+                lua_rawgeti(lua,-1,static_cast<lua_Integer>(i+1)); luaL_checktype(lua,-1,LUA_TTABLE);
+                const auto read=[&](const char *key,float &v)
+                { lua_getfield(lua,-1,key); v=static_cast<float>(luaL_checknumber(lua,-1)); lua_pop(lua,1); };
+                read("x",dabs[i].x); read("y",dabs[i].y); read("radius",dabs[i].radius);
+                read("strength",dabs[i].strength); read("height",dabs[i].height);
+                lua_getfield(lua,-1,"mode");
+                const char *mode=luaL_checkstring(lua,-1);
+                if (std::strcmp(mode,"raise")==0) dabs[i].mode=IMAGE_MESH_BRUSH::RAISE;
+                else if (std::strcmp(mode,"lower")==0) dabs[i].mode=IMAGE_MESH_BRUSH::LOWER;
+                else if (std::strcmp(mode,"flatten")==0) dabs[i].mode=IMAGE_MESH_BRUSH::FLATTEN;
+                else if (std::strcmp(mode,"smooth")==0) dabs[i].mode=IMAGE_MESH_BRUSH::SMOOTH;
+                else luaL_error(lua,"heightEdits mode must be raise, lower, flatten or smooth");
+                lua_pop(lua,2);
+            }
+        }
+        lua_pop(lua,1);
+        lua_getfield(lua,optionIndex,"holes");
+        if (!lua_isnil(lua,-1))
+        {
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const size_t count=lua_rawlen(lua,-1);
+            if (count>16) luaL_error(lua,"At most 16 holes are supported");
+            options.holes=holes; options.holeCount=static_cast<uint32_t>(count);
+            uint32_t offset=0;
+            for (size_t h=0;h<count;++h)
+            {
+                lua_rawgeti(lua,-1,h+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                const size_t n=lua_rawlen(lua,-1);
+                if (n<3 || n>128) luaL_error(lua,"Each hole needs 3..128 points");
+                holes[h].points=holePoints+offset;holes[h].count=static_cast<uint32_t>(n);
+                for (size_t i=0;i<n;++i)
+                {
+                    lua_rawgeti(lua,-1,i+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                    lua_getfield(lua,-1,"x");holePoints[offset].x=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,1);
+                    lua_getfield(lua,-1,"y");holePoints[offset].y=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,2);
+                    ++offset;
+                }
+                lua_pop(lua,1);
+            }
+        }
+        lua_pop(lua,1);
+        lua_getfield(lua, optionIndex, "shape");
+        if (!lua_isnil(lua, -1))
+        {
+            const char *shape = luaL_checkstring(lua, -1);
+            if (std::strcmp(shape, "rectangle") == 0) options.shape = IMAGE_MESH_SHAPE::RECTANGLE;
+            else if (std::strcmp(shape, "ellipse") == 0) options.shape = IMAGE_MESH_SHAPE::ELLIPSE;
+            else if (std::strcmp(shape, "polygon") == 0) options.shape = IMAGE_MESH_SHAPE::POLYGON;
+            else luaL_error(lua, "shape must be rectangle, ellipse or polygon");
+        }
+        lua_pop(lua, 1);
+        if (options.shape == IMAGE_MESH_SHAPE::POLYGON)
+        {
+            lua_getfield(lua, optionIndex, "contour");
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            const size_t count = lua_rawlen(lua, -1);
+            if (count < 3 || count > 128) luaL_error(lua, "contour needs 3..128 points");
+            options.contourCount = static_cast<uint32_t>(count);
+            options.contour = contour;
+            for (size_t i = 0; i < count; ++i)
+            {
+                lua_rawgeti(lua, -1, static_cast<lua_Integer>(i + 1));
+                luaL_checktype(lua, -1, LUA_TTABLE);
+                lua_getfield(lua, -1, "x"); contour[i].x = static_cast<float>(luaL_checknumber(lua, -1)); lua_pop(lua, 1);
+                lua_getfield(lua, -1, "y"); contour[i].y = static_cast<float>(luaL_checknumber(lua, -1)); lua_pop(lua, 1);
+                lua_pop(lua, 1);
+            }
+            lua_pop(lua, 1);
+        }
+    }
+
+    int onGetImageMeshSideContourLua(lua_State *lua)
+    {
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[256]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,1);
+        uint32_t count=256; float maximum=0; char error[512]="";
+        if (!getImageMeshSideContour(options,inner,count,maximum,error,sizeof(error)))
+        {
+            lua_pushnil(lua); lua_pushstring(lua,error); lua_pushnumber(lua,maximum); return 3;
+        }
+        lua_createtable(lua,static_cast<int>(count),0);
+        for (uint32_t i=0;i<count;++i)
+        {
+            lua_createtable(lua,0,2);
+            lua_pushnumber(lua,inner[i].x); lua_setfield(lua,-2,"x");
+            lua_pushnumber(lua,inner[i].y); lua_setfield(lua,-2,"y");
+            lua_rawseti(lua,-2,i+1);
+        }
+        lua_pushnumber(lua,maximum); return 2;
+    }
+
+    int onExportImageMeshTextureLua(lua_State *lua)
+    {
+        const char *source=luaL_checkstring(lua,1),*output=luaL_checkstring(lua,2);
+        float bounds[4],transform[4];
+        for (int i=0;i<4;++i) bounds[i]=static_cast<float>(luaL_checknumber(lua,3+i));
+        const lua_Integer padding=luaL_optinteger(lua,7,4);
+        luaL_argcheck(lua,padding>=0 && padding<=32,7,"padding must be 0..32");
+        char error[512]="";
+        if (!exportImageMeshTexture(source,output,bounds,static_cast<uint32_t>(padding),transform,error,sizeof(error)))
+        { lua_pushnil(lua); lua_pushstring(lua,error); return 2; }
+        for (float value:transform) lua_pushnumber(lua,value);
+        return 4;
+    }
+
+    int onGenerateImageMeshMapLua(lua_State *lua)
+    {
+        const char *path=luaL_checkstring(lua,1);
+        const char *output=luaL_checkstring(lua,3);
+        if (!lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
+        const bool overlay=lua_toboolean(lua,4)!=0;
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
+        char error[512]="";
+        if (!generateImageMeshMap(path,options,output,overlay,error,sizeof(error)))
+        {
+            lua_pushnil(lua); lua_pushstring(lua,error); return 2;
+        }
+        lua_pushboolean(lua,true); return 1;
+    }
+
+    namespace
+    {
+        std::atomic<bool> imageMeshWorkerBusy{false};
+        std::atomic<bool> imageMapWorkerBusy{false};
+    }
+
+    IMAGE_MESH_JOB_LUA::IMAGE_MESH_JOB_LUA() = default;
+
+    IMAGE_MESH_JOB_LUA::~IMAGE_MESH_JOB_LUA()
+    {
+        cancelled.store(true);
+        if (worker.joinable()) worker.join();
+    }
+
+    void IMAGE_MESH_JOB_LUA::snapshot(const char *source,const IMAGE_MESH_OPTIONS &o)
+    {
+        path=source;options=o;
+        if (o.heightImage) { heightImage=o.heightImage;options.heightImage=heightImage.c_str(); }
+        if (o.sideTexture) { side=o.sideTexture;options.sideTexture=side.c_str(); }
+        if (o.backTexture) { back=o.backTexture;options.backTexture=back.c_str(); }
+        if (o.contourCount) { contour.assign(o.contour,o.contour+o.contourCount);options.contour=contour.data(); }
+        if (o.heightEditCount) { dabs.assign(o.heightEdits,o.heightEdits+o.heightEditCount);options.heightEdits=dabs.data(); }
+        holes.resize(o.holeCount);holePoints.resize(o.holeCount);
+        for (size_t i=0;i<holes.size();++i)
+        {
+            const auto &h=o.holes[i];holePoints[i].assign(h.points,h.points+h.count);
+            holes[i]={holePoints[i].data(),h.count};
+        }
+        options.holes=holes.data();
+        areas.resize(o.heightAreaCount);areaPoints.resize(o.heightAreaCount);
+        for (size_t i=0;i<areas.size();++i)
+        {
+            const auto &a=o.heightAreas[i];areaPoints[i].assign(a.points,a.points+a.count);
+            areas[i]=a;areas[i].points=areaPoints[i].data();
+        }
+        options.heightAreas=areas.data();
+        options.progressContext=this;
+        options.progress=[](void *context,const char *label,float value) {
+            auto &job=*static_cast<IMAGE_MESH_JOB_LUA *>(context);
+            // Stage percentages are estimates. Never move backwards between refinement passes.
+            if (value>=job.progress.load(std::memory_order_relaxed))
+            {
+                job.stage.store(label,std::memory_order_relaxed);
+                job.progress.store(value,std::memory_order_relaxed);
+            }
+            return !job.cancelled.load(std::memory_order_relaxed);
+        };
+        if (!mapJob) result=std::make_unique<MESH_DEBUG_LUA>();
+    }
+
+    void IMAGE_MESH_JOB_LUA::run()
+    {
+        try
+        {
+            char message[512]="";
+            const bool ok=mapJob?generateImageMeshMap(path.c_str(),options,output.c_str(),overlay,message,sizeof(message)):
+                generateImageMesh(path.c_str(),options,result->mesh,report,message,sizeof(message));
+            if (!ok) error=message;
+            state.store(ok?STATE::COMPLETED:STATE::FAILED,std::memory_order_release);
+        }
+        catch (const std::exception &e)
+        {
+            error=e.what();state.store(STATE::FAILED,std::memory_order_release);
+        }
+        catch (...)
+        {
+            error="Image mesh worker failed";state.store(STATE::FAILED,std::memory_order_release);
+        }
+        (mapJob?imageMapWorkerBusy:imageMeshWorkerBusy).store(false,std::memory_order_release);
+    }
+
+    namespace
+    {
+        constexpr const char *imageMeshJobType="mbm.imageMeshJob";
+        IMAGE_MESH_JOB_LUA *imageMeshJob(lua_State *lua)
+        {
+            auto **job=static_cast<IMAGE_MESH_JOB_LUA **>(luaL_checkudata(lua,1,imageMeshJobType));
+            if (!*job) luaL_error(lua,"Image mesh job is closed");
+            return *job;
+        }
+        int onDestroyImageMeshJobLua(lua_State *lua)
+        {
+            auto **job=static_cast<IMAGE_MESH_JOB_LUA **>(luaL_checkudata(lua,1,imageMeshJobType));
+            delete *job;*job=nullptr;return 0;
+        }
+        int onCancelImageMeshJobLua(lua_State *lua)
+        {
+            auto *job=imageMeshJob(lua);
+            job->cancelled.store(true,std::memory_order_relaxed);
+            return 0;
+        }
+        int onGetImageMeshJobStatusLua(lua_State *lua)
+        {
+            auto *job=imageMeshJob(lua);
+            const auto state=job->state.load(std::memory_order_acquire);
+            const char *name="running";
+            if (state!=IMAGE_MESH_JOB_LUA::STATE::RUNNING)
+            {
+                if (job->worker.joinable()) job->worker.join();
+                if (job->taken) name="consumed";
+                else if (job->cancelled.load()) name="cancelled";
+                else if (state==IMAGE_MESH_JOB_LUA::STATE::COMPLETED) name="completed";
+                else name="failed";
+            }
+            lua_createtable(lua,0,4);
+            lua_pushstring(lua,name);lua_setfield(lua,-2,"state");
+            lua_pushnumber(lua,job->progress.load());lua_setfield(lua,-2,"progress");
+            lua_pushstring(lua,job->stage.load());lua_setfield(lua,-2,"stage");
+            if (state==IMAGE_MESH_JOB_LUA::STATE::FAILED && !job->cancelled.load())
+            { lua_pushstring(lua,job->error.c_str());lua_setfield(lua,-2,"error"); }
+            return 1;
+        }
+        int onTakeImageMeshJobResultLua(lua_State *lua)
+        {
+            auto *job=imageMeshJob(lua);
+            if (job->state.load(std::memory_order_acquire)!=IMAGE_MESH_JOB_LUA::STATE::COMPLETED || job->taken || job->cancelled.load())
+            { lua_pushnil(lua);lua_pushliteral(lua,"Image mesh result is unavailable");return 2; }
+            if (job->worker.joinable()) job->worker.join();
+            if (job->mapJob) { job->taken=true;lua_pushboolean(lua,true);return 1; }
+            lua_pushcfunction(lua,onNewMeshDebugLua);lua_call(lua,0,1);
+            auto **asset=static_cast<MESH_DEBUG_LUA **>(lua_check_userType(lua,1,lua_gettop(lua),L_USER_TYPE_MESH_DEBUG));
+            delete *asset;*asset=job->result.release();job->taken=true;
+            lua_createtable(lua,0,4);
+            lua_pushinteger(lua,job->report.vertices);lua_setfield(lua,-2,"vertices");
+            lua_pushinteger(lua,job->report.triangles);lua_setfield(lua,-2,"triangles");
+            lua_pushnumber(lua,job->report.minHeight);lua_setfield(lua,-2,"minHeight");
+            lua_pushnumber(lua,job->report.maxHeight);lua_setfield(lua,-2,"maxHeight");
+            return 2;
+        }
+    }
+
+    static int startImageMeshJob(lua_State *lua, bool mapJob)
+    {
+        const char *path=luaL_checkstring(lua,1);
+        const char *output=mapJob?luaL_checkstring(lua,3):nullptr;
+        if (mapJob && !lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
+        const bool overlay=mapJob && lua_toboolean(lua,4)!=0;
+        IMAGE_MESH_OPTIONS options;IMAGE_MESH_POINT contour[128],holePoints[2048],areaPoints[4096];
+        IMAGE_MESH_DAB dabs[4096];IMAGE_MESH_HOLE holes[16];IMAGE_MESH_HEIGHT_AREA areas[32];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
+        if (luaL_newmetatable(lua,imageMeshJobType))
+        {
+            const luaL_Reg methods[]={{"getStatus",onGetImageMeshJobStatusLua},{"cancel",onCancelImageMeshJobLua},
+                {"takeResult",onTakeImageMeshJobResultLua},{"close",onDestroyImageMeshJobLua},{"__gc",onDestroyImageMeshJobLua},{nullptr,nullptr}};
+            luaL_setfuncs(lua,methods,0);lua_pushvalue(lua,-1);lua_setfield(lua,-2,"__index");
+            lua_pushliteral(lua,"image mesh job");lua_setfield(lua,-2,"__metatable");
+        }
+        lua_pop(lua,1);
+        auto **handle=static_cast<IMAGE_MESH_JOB_LUA **>(lua_newuserdatauv(lua,sizeof(IMAGE_MESH_JOB_LUA *),0));
+        *handle=nullptr;luaL_setmetatable(lua,imageMeshJobType);
+        bool expected=false;
+        auto &busy=mapJob?imageMapWorkerBusy:imageMeshWorkerBusy;
+        if (!busy.compare_exchange_strong(expected,true))
+        { lua_pop(lua,1);lua_pushnil(lua);lua_pushstring(lua,mapJob?"Another image map generation is running":"Another image mesh generation is running");return 2; }
+        try
+        {
+            *handle=new IMAGE_MESH_JOB_LUA;
+            (*handle)->mapJob=mapJob;(*handle)->overlay=overlay;
+            if (output) (*handle)->output=output;
+            (*handle)->snapshot(path,options);
+            auto *job=*handle;job->worker=std::thread([job]() { job->run(); });
+        }
+        catch (const std::exception &e)
+        {
+            delete *handle;*handle=nullptr;busy.store(false);
+            lua_pop(lua,1);lua_pushnil(lua);lua_pushstring(lua,e.what());return 2;
+        }
+        return 1;
+    }
+
+    int onStartImageMeshLua(lua_State *lua) { return startImageMeshJob(lua,false); }
+    int onStartImageMeshMapLua(lua_State *lua) { return startImageMeshJob(lua,true); }
+
+    int onGenerateImageMeshLua(lua_State *lua)
+    {
+        const char *path=luaL_checkstring(lua,1);
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
+        lua_settop(lua, 2);
+        lua_pushcfunction(lua, onNewMeshDebugLua);
+        lua_call(lua, 0, 1);
+        MESH_DEBUG_LUA *asset = getMeshDebugFromRawTable(lua, 1, 3);
+        IMAGE_MESH_REPORT report;
+        char error[512] = "";
+        if (!generateImageMesh(path, options, asset->mesh, report, error, sizeof(error)))
+        {
+            lua_pop(lua, 1);
+            lua_pushnil(lua);
+            lua_pushstring(lua, error);
+            return 2;
+        }
+        lua_newtable(lua);
+        lua_pushinteger(lua, report.vertices); lua_setfield(lua, -2, "vertices");
+        lua_pushinteger(lua, report.triangles); lua_setfield(lua, -2, "triangles");
+        lua_pushnumber(lua, report.minHeight); lua_setfield(lua, -2, "minHeight");
+        lua_pushnumber(lua, report.maxHeight); lua_setfield(lua, -2, "maxHeight");
+        return 2;
+    }
+
     int onDestroyMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3653,7 +4119,7 @@ namespace mbm
 
     void registerClassAuto(lua_State *lua);
 
-    extern "C" int onLoadSpritePreviewMeshDebugLua(lua_State *lua)
+    int onLoadSpritePreviewMeshDebugLua(lua_State *lua)
     {
         SPRITE *sprite = getSpriteFromRawTable(lua, 1, 2);
         const char *path = luaL_optstring(lua, 3, nullptr);
@@ -3661,7 +4127,7 @@ namespace mbm
         return 1;
     }
 
-    extern "C" int onLoadMeshPreviewMeshDebugLua(lua_State *lua)
+    int onLoadMeshPreviewMeshDebugLua(lua_State *lua)
     {
         MESH *object = getMeshFromRawTable(lua, 1, 2);
         const char *path = luaL_optstring(lua, 3, nullptr);

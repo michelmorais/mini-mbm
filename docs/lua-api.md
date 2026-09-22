@@ -221,7 +221,7 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 | `mbm.createTexture` | `(pixels: table, w, h, channels, name?, savePath?)` | string\|nil | Create a texture from a raw pixel table (RGB or RGBA) |
 | `mbm.existTexture` | `(name: string)` | bool | Whether a named texture is already loaded |
 | `mbm.loadTexture` | `(file: string, alpha?: bool)` | textureInfo | Load a texture file and return info table |
-| `mbm.readPngAlpha` | `(path: string)` | bytes, width, height or nil, error | Decode a PNG file on the CPU. Returns a binary string with one alpha byte per pixel, in row-major order from the top-left; images without transparency yield 255. Uses the supplied filesystem path, without asset-search dialogs. Intended for editor operations on demand, not per-frame calls. |
+| `mbm.readImagePixels` | `(path: string, format?: "rgba" or "alpha")` | bytes, width, height or nil, error | Decode an image supported by the engine's stb loader on the CPU. Default `"rgba"` returns exactly `width*height*4` bytes (R, G, B, A); `"alpha"` returns `width*height` alpha bytes. Both use row-major order from the top-left; absent alpha becomes 255. Rejects images over 16,777,216 pixels before decoding and dimensions that change while loading. Uses the supplied filesystem path without asset-search dialogs. Invalid format arguments raise a Lua argument error. Call on demand, never per frame. |
 | `mbm.createDirectories` | `(path: string)` | true or nil, error | Create a directory and missing parent directories. Succeeds if the directory already exists. Uses a filesystem path, without invoking a shell. |
 
 ### 3.9 Global Variables (cross-scene storage)
@@ -1459,6 +1459,9 @@ local report, err = meshD:simplify(targetTriangleRatio
 `targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
 quadric-error edge collapses, preserves open boundaries, UV seams, hard-normal splits, material
 metadata, and authored physics metadata, and commits only after the complete candidate is valid.
+Meshes authored in memory with `addVertex`/`addIndex` can be simplified directly;
+saving and reloading first is not required. These editing methods keep frame buffer
+counts synchronized with the subset ranges.
 Vertices touching an open edge are locked rather than merely constrained to slide along that edge;
 assets dominated by open or duplicated seam boundaries may therefore stop before the requested
 ratio and fail atomically instead of producing cracks.
@@ -1520,12 +1523,26 @@ local status = meshD:getSimplifyStatus()
 ```
 
 `startSimplify` returns immediately after creating the worker. `getSimplifyStatus()` returns a
-table with `state` (`idle`, `running`, `completed`, or `failed`) and normalized `progress` in
+table with `state` (`idle`, `running`, `completed`, `failed`, or `cancelled`) and normalized `progress` in
 `0..1`. A completed status also contains `report`; a failed status contains `error`. The worker,
 state, progress, and result are owned by that `meshDebug` instance and require no callback or
 engine-loop integration. Lua must poll from its normal `onLoop`. Do not read, save, or mutate the
 same instance while its state is `running`; use a detached working `meshDebug` and publish it only
-after completion. Destroying the instance waits for its worker to finish.
+after completion. Destroying the instance requests cooperative cancellation and waits for its worker to finish.
+
+Since 7.259.0, `meshD:cancelSimplify()` requests cooperative cancellation and returns
+`true` if accepted before the commit boundary. It returns `false` when no worker
+is running, cancellation was already requested, or replacement of the buffers has
+begun. Keep polling until terminal status; do not read or mutate the mesh while
+it remains `running`. Accepted cancellation produces `state="cancelled"` and an
+`error` message, preserving the original geometry, attributes, indices and weights.
+`startSimplify` may be called again after that terminal state.
+
+The worker checks cancellation during edge-collapse processing and once before
+installing its prepared buffers. An atomic gate arbitrates cancellation versus
+commit: a late request cannot report cancellation after modifying the source.
+Preparation, allocation and sorting may finish before the next check. The
+synchronous `simplify` method retains its existing behavior and return values.
 
 For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
 `meshD:simplify(0.5, nil, 0)` simplifies every compatible geometry frame with shared collapses.
@@ -2103,3 +2120,518 @@ The runtime advances clip time with the engine's `device->delta`, preserving the
 and frame-rate behavior. Easing is evaluated in the articulated track sampler before interpolating
 position, rotation, and scale. Cubic Bezier solves its normalized-time X curve before evaluating Y.
 Version-1 articulated sections default to Linear.
+
+
+## Image-based mesh generation
+
+`mbm.generateImageMesh(imagePath, options)` returns `asset, report` on success,
+where `asset` is a new `meshDebug` authoring object. Processing failures return
+`nil, errorMessage`; malformed Lua argument types and out-of-range integer fields
+raise a Lua error. This is a synchronous CPU operation: call when inputs change,
+not every frame. It does not save files or create GPU resources itself.
+
+```lua
+local asset, report = mbm.generateImageMesh("panels.png", {
+    x=40, y=28, cropWidth=232, cropHeight=212,
+    width=100, height=100, depth=20, relief=8,
+    columns=32, rows=32, lockBorder=true, borderWidth=0.1,
+})
+assert(asset, report)
+assert(asset:save("panel.msh", false, false, true))
+-- Keep generated normals and UVs: do not request their recalculation on save.
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `shape` | `"rectangle"` | `"rectangle"`, `"ellipse"`, or `"polygon"` |
+| `ellipseSegments` | 48 | Ellipse perimeter segments, integer in [8, 128]; ignored for other shapes |
+| `holes` | nil | Array of up to 16 simple hole contours, each 3..128 normalized `{x,y}` points, either winding; strictly inside the outer shape, disjoint and non-nested |
+| `contour` | — | Polygon-only array of 3..128 `{x, y}` points in normalized crop coordinates [0, 1]; either winding accepted |
+| `x`, `y` | 0 | Zero-based crop origin in pixels, measured from image top-left |
+| `cropWidth`, `cropHeight` | 0 | Crop dimensions in pixels; 0 uses the remaining extent on that axis |
+| `width`, `height`, `depth` | 100, 100, 20 | World dimensions; each finite and within [0.001, 1000000] |
+| `relief` | 8 | Nonnegative outward relief amplitude, at most 1000000 |
+| `columns`, `rows` | 32, 32 | Integers in [1, 255]. Rectangular grid cells per axis; contour refinement density for ellipses/polygons, subject to total budget |
+| `invert` | false | Invert luminance before filtering, groove detection and height mapping |
+| `followImage` | false | Adaptive image-guided front triangulation and transition alignment; simplified back only when `backRelief=false`; legacy topology when false |
+| `twoLevels` | false | Map intensity to low/high plateaus with a smoothstep transition |
+| `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
+| `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
+| `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
+| `heightImage` | nil | Optional height-only image path. Nil/empty uses the source image. Ignored in manual mode. Maximum 16,777,216 pixels. |
+| `heightImageToRegion` | false | False aligns the map with the whole source image; true fits the whole map to the current crop. Bilinear sampling for different resolutions. |
+| `heightBlack`, `heightWhite` | 0, 1 | Finite input endpoints: `0 <= black <= white <= 1`. Clamp/rescale selected height channel to [0,1]. Equal endpoints create a step (input >= point gives 1). |
+| `heightCurve` | 1 | Finite exponent [0.1,10], applied after black/white normalization and before inversion/filtering. Manual mode ignores tonal adjustments. |
+| `heightChannel` | `"luminance"` | `"luminance"`, `"red"`, `"green"`, `"blue"`, or `"alpha"`; image component used before inversion, filtering and groove mapping. Ignored by manual heights. |
+| `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas |
+| `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
+| `heightAreas` | nil | Up to 32 ordered closed contours with target height and inward transition; see below |
+| `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
+| `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
+| `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
+| `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
+| `backExternal` | false | Flat back with an independent image material; mutually exclusive with other back modes |
+| `backTexture` | nil | Image path for backExternal; nil/empty uses original crop. Nonempty paths must decode and contain at most 16 million pixels |
+| `backSolid` | false | Flat opaque back with a separate solid-color material |
+| `backColor` | 0x808080 | RGB integer 0..0xFFFFFF, encoded as `#RRGGBBFF` when backSolid is true |
+| `backOpen` | false | Omit back vertices/triangles, retaining front and side walls ending at `+depth/2` |
+| `backRemap` | false | Flat back sampling an independent rectangle in the same source image |
+| `backX`, `backY` | 0 | Remap rectangle's zero-based top-left source pixel |
+| `backCropWidth`, `backCropHeight` | 0 | Remap rectangle dimensions; 0 uses corresponding front crop dimension; rectangle must fit inside the source image |
+| `lockBorder` | true | Force the outer perimeter to zero relief; hole edges retain the local relief |
+| `borderWidth` | 0.1 | Linear transition width in normalized crop coordinates, [0, 0.5]; 0 pins only perimeter vertices; transition distance is measured in normalized crop coordinates to the actual outer contour (holes do not affect the transition) |
+| `sideMode` | `"edge"` | `"edge"`, `"color"`, `"repeat"`, or `"band"` |
+| `sideColor` | 0x808080 | Opaque RGB integer [0, 0xFFFFFF], used by color mode |
+| `sideTexture` | nil | Optional image path for repeat mode; nil/empty repeats the source crop. Explicit paths are validated and decoded before generating |
+| `sideRepeatU`, `sideRepeatV` | 1, 1 | Finite repeats around the whole world-space perimeter / through depth, each [0.1, 64] |
+| `sideInset` | 1 | Band width in source pixels, at least 1 and at most the contour-specific limit |
+| `sideBandPerpendicular` | false | Band mode only: translate UVs inward perpendicular to each edge in source-pixel coordinates, preserving the tangential coordinate. Separate bands may overlap at corners; translation stops at crop boundaries. Width is limited to half the smaller crop span |
+| `sideBandInvert` | false | Band mode only: swap outer/inner UV endpoints across side depth; true places the inner contour next to the front and outer next to the back. Does not change front/back UVs or geometry |
+| `maxVertices` | 65535 | Total vertex budget, including back, duplicated side vertices and repetition seams; engine cap remains 65535 |
+| `maxTriangles` | 131070 | Total triangle budget |
+
+**Image-mesh back controls (7.236.0).**
+
+`backRelief` and `backMirror` are strict optional booleans accepted by the image
+mesh options reader. Their defaults preserve existing geometry and UVs.
+Copied relief uses the same XY triangulation and final heights as the front,
+with reversed winding and reflected normals. It does not mirror the relief
+horizontally. Both budgets include the full back, including adaptive and painted
+refinement; enabling this option may reject an otherwise valid flat-back budget.
+The report's `minHeight`/`maxHeight` still describe one face's relief amplitude,
+not the combined thickness.
+
+`backOpen`, `backRelief`, `backRemap`, `backSolid` and `backExternal` are mutually exclusive
+(`backSolid` was added in 7.240.0, `backExternal` in 7.241.0).
+An open back is intentionally non-watertight. It removes back-only geometry
+from both budgets; the side-wall geometry and UVs remain unchanged. A remapped
+back retains flat-back topology and positions; UVs map normalized front-shape
+coordinates into the independent source rectangle. Mirroring is applied within
+that rectangle. No second image or material is created.
+
+These options affect mesh generation only; diagnostic height/overlay PNGs remain
+front-field diagnostics. The source texture is still referenced, not copied.
+
+Image-mesh height channels (7.254.0): `heightChannel` applies equally to
+`generateImageMesh`, `startImageMesh` and `generateImageMeshMap`. Luminance retains
+the existing formula `(0.2126*R + 0.7152*G + 0.0722*B)/255`; individual channels
+use their byte value divided by 255, without gamma conversion. Missing alpha is
+opaque (1). Channel selection does not alter texture references, UVs or the
+color source of the groove overlay. Manual mode uses `baseHeight`; mixed mode
+uses the selected channel outside manual areas. Filters, inversion, groove
+mapping, manual areas and brush edits retain their existing ordering.
+
+**Height levels (7.256.0).** The selected/resampled input channel is converted
+with `t=clamp((input-heightBlack)/(heightWhite-heightBlack),0,1)` then
+`pow(t,heightCurve)`. Equal black/white use `input >= heightWhite ? 1 : 0`
+instead of division. Values outside the allowed ranges fail validation, even
+in Manual mode. The default endpoints and exponent retain previous behavior.
+These options apply to source and separate height images, diagnostic maps and
+synchronous/asynchronous mesh generation; colors and UVs are unaffected.
+Inversion, smoothing, groove mapping, manual areas, brush edits and border
+constraints retain their existing downstream ordering.
+
+**Separate height image (7.255.0).** `heightImage` is shared by the synchronous,
+asynchronous and diagnostic-map APIs. The color texture, UVs, groove-overlay
+colors and export materials continue to use the original image. The worker copies
+the path before starting. Missing/invalid maps fail generation in Image/Mixed
+modes; Manual ignores the map, including a missing path.
+
+Alignment uses pixel centers at the endpoints: for whole-image alignment,
+`u=(cropX+x)/max(1,sourceWidth-1)` and likewise for Y; fitting a region uses
+`u=x/max(1,cropWidth-1)`. These normalized coordinates sample the map at
+`u*(mapWidth-1)`, with bilinear interpolation of the selected channel. A
+single-pixel map axis is constant. Sampling is onto the original crop resolution;
+a larger map does not independently increase mesh resolution. No gamma conversion
+or automatic aspect-ratio preservation is performed. Filters and edits retain
+their existing order. The temporary decoded height map is freed after sampling.
+
+**Side texture controls (7.238.0).**
+
+`edge` retains the previous stretched-edge UVs and opaque-texel fallback.
+`band` maps each wall from the outer source contour at the front to an inner
+contour at the rear. It uses the same image and preserves its alpha, without the
+edge mode's fallback. Rectangles inset their edges; ellipses retain their axes
+and center with reduced radii; polygon edges are offset and intersected.
+The inset must preserve a simple nested contour, edge directions and uncrossed
+mapping strips. Overly wide bands fail with the computed limit.
+These modes retain one subset unless `backSolid` or `backExternal` is enabled, and do not change geometry.
+
+`color` uses an opaque `#RRGGBBFF` solid-color texture on subset 2.
+`repeat` uses the resolved image path on subset 2 (the source image when
+`sideTexture` is nil/empty). Source fallback UVs stay within the crop pixel
+centers, including when the source is an atlas. Invalid nonempty paths still
+return an error. This mode introduces UV seams
+at whole repetitions; UVs stay within [0,1], independent of runtime texture
+address mode. New perimeter splits are also propagated into front/back triangles
+to avoid T-junctions. Repetition may add geometry and exhaust the shared budget.
+Without `backSolid`/`backExternal`, subset 1 retains front/back materials. With either mode,
+there are three subsets: front (1), back (2), and sides (3), including
+edge/band sides. Geometry and front/side UVs remain unchanged; solid back UVs are (0.5,0.5). External back UVs span the entire selected image
+between pixel centers, fitted to the shape; `backMirror` reverses U. Empty paths
+retain source-crop UVs. External image alpha is preserved. Vertex and index array access in the mesh-debug Lua API is per subset;
+consumers must iterate all subsets.
+Export stores texture references; it does not copy external images.
+
+```lua
+local inner, maximum = mbm.getImageMeshSideContour({
+    shape="rectangle", cropWidth=100, cropHeight=100, sideInset=5,
+})
+-- normalized crop points (x,y); no image decode, mesh or GPU allocation.
+-- On failure: nil, errorString, maximumInset (0 if no valid limit was found).
+```
+
+The query requires explicit crop dimensions >=2, accepts the shape/ellipse/
+polygon options above, and returns the same contour used by generation.
+With `sideBandPerpendicular=true`, the query instead returns consecutive endpoint pairs
+(one independent inner segment per edge, up to 256 points). The editor draws them as
+separate segments, not as one closed contour. The C++ query requires capacity >=256
+for this mode (>=128 otherwise). Each endpoint is clipped along its normal to the
+crop; width is limited to half the smaller pixel span. Geometry generation uses the
+same normal translation and keeps front/back materials and geometry unchanged.
+
+For the default contour mapping, its maximum is a conservative limit preserving topology, not a promise that
+arbitrarily complex polygons can inset by one pixel. Contour preview queries
+should run only when their inputs change.
+
+Asynchronous generation is available since 7.252.0:
+
+```lua
+local job, err = mbm.startImageMesh(imagePath, options)
+assert(job, err)
+-- Poll from onLoop; keep job reachable until finished. Do not busy-wait.
+local status = job:getStatus()
+-- status.state: "running", "completed", "failed", "cancelled", "consumed"
+-- status.progress: estimated fraction [0,1]; status.stage: processing stage
+if status.state == "completed" then
+    local meshD, report = job:takeResult() -- once; same result types as generateImageMesh
+elseif status.state == "failed" then
+    print(status.error)
+end
+-- job:cancel() requests cooperative cancellation before taking the result.
+```
+
+`startImageMesh` accepts the same image and options as `generateImageMesh`,
+which remains synchronous and unchanged in return shape. Malformed Lua arguments
+raise errors; worker-start failure or another active image-mesh worker returns
+`nil, message`. Geometry/image validation failures appear in `getStatus().error`
+with state `"failed"`. At most one image-mesh worker runs at a time in the Lua
+binding; existing completed jobs do not prevent another start.
+
+The job owns copies of the image path, texture paths, contours, holes, areas and
+brush dabs. Editing or collecting the source options after start cannot change it.
+It runs the CPU generator on a worker without invoking Lua or uploading GPU data.
+Take the finished result on the Lua thread, then create previews or export normally.
+`takeResult()` returns `nil, message` if unfinished, failed, cancelled or already
+consumed; successful consumption returns the `meshDebug` asset and report once.
+
+`cancel()` is nonblocking and cooperative. It requests a stop at a checkpoint,
+or discards a completed result that has not yet been taken. Decode/allocation and
+other indivisible operations must finish before the next checkpoint. Poll until
+the job leaves `"running"`; cancellation never exposes partial geometry. Garbage
+collection requests cancellation and joins the worker before freeing its state;
+there is no detached worker accessing a closed Lua state.
+
+Progress is monotonic and estimated by stage, not a time-to-completion guarantee.
+Stages are `decode`, `heights`, `areas`, `painting`, `topology`, `alignment`,
+`refinement`, `surface`, `normals`, `finalize`, and `completed`; unused stages may
+be skipped. Polling performs no regeneration or geometry scans. Simplification
+and mesh export remain separate operations. For asynchronous PNG previews, use
+`startImageMeshMap` (7.258.0), described below.
+
+Height areas (`heightAreas`, since 7.250.0) use normalized crop coordinates,
+with 3–128 points per simple contour, or 2–128 points for an open height line
+(`shape="line"`, since 7.257.0). Each area is an array of `{x,y}` points
+with fields `height` (default 0.75), `transition` (default 0.02), and `enabled`
+(default true). Height and transition are finite [0,1]. For example:
+
+```lua
+options.heightSource = "manual"
+options.baseHeight = 0.4
+options.heightAreas = {
+    { {x=.1,y=.1}, {x=.9,y=.1}, {x=.9,y=.9}, {x=.1,y=.9},
+      height=.8, transition=.02 },
+    { {x=.3,y=.3}, {x=.7,y=.3}, {x=.7,y=.7}, {x=.3,y=.7},
+      height=.2, transition=.01 },
+}
+```
+
+Composition order is image height (including inversion/filtering/two-level mapping)
+or manual base, then enabled areas in array order, then brush dabs, then outer
+border attenuation and world relief scale. Later areas blend over earlier ones.
+Transition is a distance relative to `max(1,min(cropWidth,cropHeight)-1)` pixels:
+weight increases linearly from zero at the contour to one that far inside it.
+Zero transition assigns the target at every covered pixel, including the edge;
+geometry still interpolates source pixels and is constrained by mesh density.
+The source texture and UVs remain unchanged. Areas may overlap and extend beyond
+the outer shape or across holes, but create geometry only in the module surface.
+For closed contours, self-intersections, touching/backtracking edges and negligible
+areas are rejected.
+A per-call limit of 64 million raster edge evaluations bounds composition cost;
+reduce contour points or area sizes if exceeded.
+
+Height lines use `shape="line"` and `lineWidth` (default 0.05, finite [0.001,1]).
+Width is the full strip width relative to `max(1,min(cropWidth,cropHeight)-1)`.
+Points describe an open path; segments are not connected back to the first point.
+Coverage is the union of round-ended segments (distance to the nearest segment
+at most half the width), with rounded joins. Self-crossings and repeated points
+are allowed; a zero-length segment becomes a disk. All centerline points must
+remain within [0,1]; coverage is clipped to the crop and the module geometry.
+
+`height`, `enabled`, ordering and brush composition work exactly as for closed
+areas. Transition is measured inward from the strip boundary. If transition is
+wider than the radius, even the center does not reach the target height. Lines
+share the limit of 32 areas, 128 points each and 64 million edge evaluations.
+Closed areas may optionally specify `shape="polygon"`, `"rectangle"` or
+`"ellipse"`; these labels retain the existing closed-contour treatment.
+
+```lua
+options.heightAreas = {
+    { {x=.2,y=.3}, {x=.5,y=.7}, {x=.8,y=.3},
+      shape="line", lineWidth=.05, height=.2, transition=0 },
+}
+```
+
+`"image"` ignores areas but retains the pre-existing brush behavior. `"manual"`
+ignores image brightness, inversion, smoothing and two-level detection; its mesh
+refinement also ignores the image threshold/transition settings. `"mixed"` applies
+areas over the processed image. Both generation and grayscale preview use the
+same composed raster, including local adaptive refinement when `followImage=true`.
+The blue overlay remains an image-detection diagnostic and does not display areas
+or brush corrections (the editor hides it in Manual mode). Editor-only area
+metadata `name` and `shape` are ignored by the native API.
+
+Height painting (`heightEdits`) is shared by `generateImageMesh` and
+`generateImageMeshMap`. Each dab requires `{x, y, radius, strength, height, mode}`.
+`x` and `y` are normalized crop coordinates [0,1]; `radius` is [0.001,1] times
+`max(1, min(cropWidth,cropHeight)-1)` pixels, with a minimum radius of half a pixel.
+`strength` and target `height` are finite [0,1]. Modes are `"raise"`, `"lower"`,
+`"flatten"` and `"smooth"`. Dabs run in array order after automatic filtering and
+two-level mapping and height areas, before relief amplitude and border attenuation. They use a
+smooth radial falloff and clamp heights to [0,1]. Raise/lower add/subtract strength;
+flatten blends toward the target; smooth blends toward the local 3x3 mean using
+a snapshot of each dab (no scan-order bias). The final painted float raster is interpolated in cells touching changed pixels;
+a dilated mask blends back to the automatic field around that area. Sampling far
+from the correction stays unchanged. With two levels, painted heights within
+0.0001 of an endpoint are snapped to that plateau, matching normal classification
+and avoiding tilted normals on tiny near-flat faces. Tiny features remain constrained by source pixels and mesh density.
+With `followImage=true`, transition alignment reads the corrected float height
+field when painting has an effect. After alignment and diagonal optimization,
+local conforming edge splits check painted cells and the surrounding transition,
+using half-pixel probes, triangle centroids and edge midpoints. The local sampled
+error target is `min(heightTolerance, 0.02)`; a 1/16-source-pixel edge-length floor
+and the existing geometry budgets bound refinement. This is not a continuous
+error guarantee or a limit on later simplification. Paint with zero net correction
+keeps the unpainted topology path. With `followImage=false`, density remains
+controlled by `columns` and `rows`.
+The contour clips the exported surface; painting never creates holes or changes UVs.
+The blue groove overlay still shows automatic threshold detection, not manual paint.
+
+Invalid numbers/counts are rejected. Painting has a per-build budget of 64 million
+bounding-box pixel operations (smooth counts nine per pixel); exceeding it returns
+`nil, message` rather than an incomplete asset/map. This CPU pass is synchronous.
+
+The generated material is matte (zero specular color and power).
+The origin is at the center of the base block. +Y points upward. The front faces
+-Z at `-depth/2 - height`; the flat back is at `+depth/2`. With `backRelief=true`,
+the back is at `+depth/2 + height`, so the thickness is `depth + 2*height`.
+Height uses bilinear
+sampling of encoded RGB luminance (`0.2126 R + 0.7152 G + 0.0722 B`), without
+linear-light conversion. Optional filtering and two-height remapping happen before
+relief amplitude and border attenuation. Alpha does not create holes or alter height. Front and
+back use the original crop (including its transparency, unless remapped), and by default side walls stretch
+opaque boundary texels through the depth. If a wall segment crosses transparent
+texels, its four UVs use one nearby texel having the maximum alpha found within
+the crop. Thus a crop containing opaque pixels produces opaque fallback walls;
+constant UVs prevent interpolation through another transparent gap. A crop with
+only partial transparency retains that maximum alpha, and a fully transparent
+crop remains transparent. This changes texture sampling only, not geometry or
+front/back UVs. UVs sample pixel centers to avoid adjacent panels at the border.
+The fallback lookup is allocated lazily, takes linear work in crop pixels, and
+uses four bytes per crop pixel (at most 64 MiB).
+
+With `followImage`, a bounded post-alignment pass tests diagonal flips against
+height samples shared by both candidate triangulations. It preserves aligned
+threshold edges and only accepts error reductions that do not worsen the pair's
+minimum XY triangle quality in world dimensions. Without `twoLevels`, additional
+near-extreme contours (0.0001 and 0.9999 processed intensity) capture ramp plateaus;
+these may increase geometry counts. This is local optimization, not a guaranteed
+maximum-error bound.
+
+When `followImage` and `twoLevels` are both enabled with nonzero relief, plateau
+faces take priority when averaging shared front vertex normals. A face is a
+plateau when all three mapped corner levels are at least 0.9999 (top) or at most
+0.0001 (floor), measured before border attenuation. A vertex incident to plateau
+faces uses their average unit normal; other vertices retain the ordinary average.
+This preserves plateau shading without duplicating vertices or introducing seams
+that constrain simplification. Positions, UVs, indices and geometry counts do not
+change; transition shading also changes through the shared normals. Other modes
+and side/flat-back normals retain their previous behavior. A copied relief back
+uses the reflected front normals, including plateau preservation.
+
+The source image must be decodable by the bundled stb loader and contain at most
+16,777,216 pixels. Topology and geometry limits are checked before decoding. Oversized grids,
+out-of-bounds crops, nonfinite values and invalid dimensions fail explicitly.
+`report` contains `vertices`, `triangles`, `minHeight`, and `maxHeight`; heights
+are sampled vertex displacements after inversion and border treatment.
+
+The generated mesh references the resolved original image, which is **not copied**.
+Keep it available on the engine's asset paths when loading exported meshes.
+The [Image Mesh Editor](image-mesh-editor.md) provides editable contours and holes,
+manual height areas and painting, project persistence, undo/redo, preview,
+simplification, and individual/batch export with optional portable textures.
+
+Each polygon contour must be simple, without touching edges or crossings; holes
+are supplied separately through the `holes` option. Consecutive
+forward collinear points are removed; duplicate/near-duplicate points, backtracking,
+nonfinite coordinates and negligible area are rejected. Ellipses are approximated
+by an inscribed polygon with `ellipseSegments` sides and an initial triangle fan
+from its center. Generic polygons use ear clipping to respect concavity;
+shared midpoint refinement preserves the boundary and produces conforming triangles.
+With `followImage=false`, `columns`/`rows` scale the refinement metric for these shapes: final front edges
+have squared length at most approximately 2 after multiplying normalized X/Y deltas
+by those resolutions. This is not a rectangular cell count for polygons. Exceeding
+the total budget rejects generation instead of silently reducing quality. Budget
+errors identify the exceeded resource(s), effective limit(s), and lower-bound
+counts already required, including front/back/sides. Refinement stops early, so
+these counts are not estimates of the final requested geometry. The Image Mesh
+Editor derives `maxTriangles = 2 * maxVertices`; direct API callers may still
+supply an independent triangle budget.
+
+With `followImage=true`, the initial contour triangulation is refined by sampled
+height interpolation error. Longest-edge splits are shared with adjacent faces;
+local Delaunay flips improve triangle shape before each refinement pass. Samples
+include triangle centers, edge midpoints, and a crop lattice capped at twice the
+requested columns/rows. Regions that are sufficiently flat keep larger faces.
+Columns/rows bound subdivision density, rather than forcing uniform cells;
+`heightTolerance` is a target over those samples, not a global certified error bound.
+Features below the sampling scale may need higher columns/rows.
+
+After refinement, edges are inserted along processed-image isovalues: the threshold
+for continuous relief, or both ends of the two-height transition. Shared edge
+intersections are solved against the filtered image. Eligible closed flat backs without
+holes use the original contour corners (two triangles for a quadrilateral), with side
+strips retriangulated to match while retaining all front samples. This optimization also
+applies when `followImage=false`. Repeated side textures and transparent edge-texture
+crops retain their seams. If reduction is unsafe, the generator retains boundary-only
+back triangulation where possible, or the full front topology as a fallback. Copied
+back relief and holed modules retain the front topology.
+Sharp transition fragments may legitimately be small. All final vertex/triangle
+budgets include back and walls; insufficient budgets still return an error.
+Filtering and thresholding cannot infer real depth from painted lighting or create holes.
+
+`mbm.generateImageMeshMap(imagePath, options, outputPngPath, overlay?)` writes a
+cropped RGBA PNG and returns `true`, or `nil, errorMessage` on processing failure.
+Malformed argument types still raise Lua errors. It shares image decoding,
+inversion, filtering, two-height mapping and border attenuation with the mesh
+operation. With `overlay=false` (default), RGB contains normalized relief in
+[0,255], before multiplication by the `relief` world amplitude; alpha is opaque
+inside the contour and zero outside. With `overlay=true`, pixels below the
+threshold are tinted blue over the original colors, preserving source alpha;
+the overlay depicts classification, not the border attenuation. Both images use
+the same rectangle/inscribed ellipse/simple polygon contour as the generator.
+
+Map generation performs no mesh/GPU allocation and ignores mesh budgets and
+refinement density, so it can diagnose settings that exceed mesh budgets. It
+writes the supplied output path; use a separate temporary file, not the source
+image. Call only when inputs change or explicitly requested.
+
+Since 7.258.0, `mbm.startImageMeshMap(imagePath, options, outputPngPath, overlay?)`
+returns a job with the same `getStatus()` / `cancel()` lifecycle as
+`startImageMesh`. One map worker and one geometry worker may run concurrently;
+a second active map worker returns `nil, message`. Paths and option arrays are
+copied before starting. Decode, height processing, rasterization and PNG encoding
+run on the worker; texture/GPU loading stays on the calling thread.
+
+After completion, `job:takeResult()` returns `true` once (the PNG is at the requested
+path), or `nil, message` when unavailable. Stages additionally include `map` and
+`encode`. Use an output file owned exclusively by this job, separate from inputs.
+Cancellation during indivisible PNG encoding may leave a file; only consume it
+after successful completion. The caller owns output cleanup after the job stops.
+Neither cancellation nor garbage collection deletes files or rolls back writes.
+The synchronous API keeps its existing behavior.
+
+Both job types support `job:close()`: request cancellation and join before releasing
+native state. It is idempotent; other operations on a closed handle raise an error.
+Use polling/cancel during interactive work; reserve blocking `close()` for completed
+jobs or teardown. A job's output file must not be deleted while its worker can
+still write it. The editor uses unique temporary paths, waits for terminal status
+before deleting obsolete output, and closes an active job on scene shutdown.
+
+```lua
+local job, err = mbm.startImageMeshMap("panel.png", options, temporaryPng, false)
+assert(job, err)
+-- Later, from onLoop:
+local status = job:getStatus()
+if status.state == "completed" then
+    assert(job:takeResult())
+    -- Load temporaryPng as a texture on this thread.
+    job:close()
+end
+```
+
+```lua
+local options = {
+    shape="ellipse", followImage=true, twoLevels=true,
+    grooveThreshold=0.45, grooveTransition=0.12, smoothPasses=2,
+    heightTolerance=0.03, columns=48, rows=48,
+}
+assert(mbm.generateImageMeshMap("panel.png", options, "height-preview.png", false))
+assert(mbm.generateImageMeshMap("panel.png", options, "groove-preview.png", true))
+local asset, report = mbm.generateImageMesh("panel.png", options)
+assert(asset, report)
+```
+
+```lua
+local asset, report = mbm.generateImageMesh("panel.png", {
+    shape="polygon", columns=24, rows=24,
+    contour={{x=0,y=0},{x=1,y=0},{x=1,y=0.4},
+             {x=0.4,y=0.4},{x=0.4,y=1},{x=0,y=1}},
+})
+assert(asset, report)
+```
+
+C++ callers can use `mbm::generateImageMesh` from `core_mbm/image-mesh.h` with an
+empty `MESH_MBM_DEBUG` destination and value-only options/report. Polygon options
+borrow `const IMAGE_MESH_POINT *contour` plus `contourCount` only for the duration
+of the call; no pointer is retained. On failure,
+discard the destination; generation does not promise transactional mutation.
+
+### Portable image-mesh export (7.242.0)
+
+`mbm.exportImageMeshTexture(source, outputPNG, minU, minV, maxU, maxV, padding=4)`
+decodes an image on the CPU, exports the rectangle needed by the UV bounds and
+replicates its edge pixels into a padding border (including alpha). Bounds must
+be finite, ordered and within [0,1]; padding is an integer in [0,32]. Source
+images are limited to 16 million pixels; padded output to 32 million. Returns `scaleU, scaleV, offsetU, offsetV`
+for `newUV = oldUV * scale + offset`, or `nil, error`. Fractional pixel bounds
+include neighboring samples required for linear filtering. Work runs only on
+explicit export. Padding reduces bleeding; it does not guarantee isolation at
+arbitrarily coarse mip levels.
+
+`meshDebug:save(path, recalculateNormal=false, recalculateUV=false, compress=false,
+relativeTextures=false)` accepts an optional final flag. When true, primary and
+extra material texture references are written as basenames instead of resolving
+them to absolute paths. It does not copy images. Existing calls keep their prior
+behavior. The image-mesh portable exporter creates adjacent PNG files before
+saving with this flag; solid `#RRGGBBAA` references remain unchanged.
+
+### Image-mesh holes (7.246.0)
+
+`generateImageMesh` accepts `options.holes = { { {x=.2,y=.2}, {x=.4,y=.2},
+{x=.4,y=.5}, {x=.2,y=.5} }, ... }`. Coordinates are relative to the front crop.
+The CPU generator validates finite points, simplicity, nonzero area, strict
+containment and disjointness, then bridges the rings for triangulation; bridge
+edges are internal edges, never side walls. All perimeter loops participate in
+refinement and wall generation. Front/back triangles leave openings, with
+inward-facing internal walls. `lockBorder` and border distance apply only to the outer contour. Hole edges retain
+the sampled relief, and their internal walls extend to that local height.
+
+With holes, the back uses the front topology (including in adaptive mode) rather
+than a compact boundary-only back. Both budgets include all walls and vertices.
+Back modes, material splitting and normal generation remain supported. Edge,
+color and repeat side modes also apply to internal walls. Repeat U runs along
+the combined perimeter of all loops. For `band`, the external wall keeps the
+band mapping, while internal walls stretch the hole boundary texture with the
+existing opaque-texel fallback. `sideBandInvert` affects only the external band.
+Height/overlay maps leave hole interiors transparent.

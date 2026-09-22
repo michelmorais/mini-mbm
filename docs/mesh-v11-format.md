@@ -757,3 +757,12 @@ Backlogged items that do not change the on-disk layout:
   `BACKGROUND`'s texture-only `loadAsync` sub-paths stay synchronous-but-callback-shaped by design.
   A real implementation would mirror `MESH_MANAGER::loadAsync`'s worker-thread decode + main-thread
   GPU-finish design.
+
+### Optional relative texture export
+
+Since 7.242.0, `MESH_MBM_DEBUG::saveV11` accepts a final optional
+`relativeTextures=false` argument. When enabled, primary/extra material texture
+references keep their basename instead of being expanded by the asset search
+paths. The binary layout is unchanged; the existing 63-byte writer limit still
+applies. The image-mesh portable exporter limits generated PNG basenames to
+63 bytes and writes them alongside the mesh. This flag alone does not copy files.
