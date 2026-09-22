@@ -990,3 +990,29 @@ mapa externo, padrões antigos, snapshot assíncrono, projeto/preset e históric
 Regressões de mapas separados, canais e contagem sob demanda passaram.
 Sulcos por linha e as limitações de responsividade registradas continuam como
 trabalhos posteriores.
+
+### Controle artístico - Sulcos por linha (7.257.0)
+
+Entregue a extensão das áreas manuais: trajeto aberto com 2..128 pontos, largura
+transversal e altura-alvo. A composição usa distância ao segmento mais próximo,
+com pontas e junções arredondadas; cruzamentos não exigem criar polígonos simples
+nem acumulam profundidade. Reutiliza filtros posteriores, pintura, refinamento,
+recorte da superfície/furos, orçamento e snapshot assíncrono existentes.
+
+A GUI permite adicionar uma linha inicial ou desenhar por cliques e concluir,
+arrastar pontos/conjunto, ajustar largura/altura/transição, inserir/remover pontos,
+duplicar, reordenar e desabilitar. Linha é uma área na mesma ordem de composição.
+Projeto e histórico preservam tipo, largura e trajeto. Não há geração ao arrastar;
+contornos de visualização são reconstruídos somente quando o canvas está sujo.
+
+Validação: `image_mesh_height_line_smoke.lua` cobre largura em recorte não quadrado,
+pontas arredondadas, transição, preservação externa, cruzamentos, modos, limites,
+cópia assíncrona, persistência e histórico. `image_mesh_height_line_editor_smoke.lua`
+exercita desenho, alças, largura, duplicação, desfazer, reabertura e ausência de
+contagem implícita. Regressões das áreas fechadas e de seu editor passaram.
+Build Linux Debug atualizado para 7.257.0.
+
+Limites: largura normalizada entre 0,001 e 1 do menor lado; resolução do mapa e
+orçamento continuam limitando sulcos finos. Transições maiores que o raio suavizam
+toda a faixa sem alcançar a altura-alvo. Esta entrega usa segmentos entre pontos,
+sem edição de curvas Bézier; o mapa diagnóstico continua síncrono.

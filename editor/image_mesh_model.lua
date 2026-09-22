@@ -179,12 +179,13 @@ function M.validate(p)
         if r.heightAreas then
             assert(type(r.heightAreas)=='table' and #r.heightAreas<=32,'ime_areas_limit')
             for _,area in ipairs(r.heightAreas) do
-                assert(type(area)=='table' and #area>=3 and #area<=128,'ime_areas_invalid')
+                assert(type(area)=='table' and #area>=(area.shape=='line' and 2 or 3) and #area<=128,'ime_areas_invalid')
                 assert(type(area.name)=='string' and #area.name<=128 and not area.name:find('%c'),'ime_areas_invalid')
                 assert(type(area.enabled)=='boolean' and number(area.height,0,1) and number(area.transition,0,1),'ime_areas_invalid')
-                assert(area.shape=='rectangle' or area.shape=='ellipse' or area.shape=='polygon','ime_areas_invalid')
+                assert(area.shape=='rectangle' or area.shape=='ellipse' or area.shape=='polygon' or area.shape=='line','ime_areas_invalid')
                 for _,point in ipairs(area) do assert(type(point)=='table' and number(point.x,0,1) and number(point.y,0,1),'ime_areas_invalid') end
-                assert(HoleGeometry.simple(area),'ime_areas_invalid')
+                if area.shape=='line' then assert(number(area.lineWidth,.001,1),'ime_areas_invalid')
+                else assert(HoleGeometry.simple(area),'ime_areas_invalid') end
             end
         end
         if r.holes then

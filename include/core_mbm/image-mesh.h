@@ -53,6 +53,8 @@ namespace mbm
         uint32_t count = 0;
         float height = 0.75f, transition = 0.02f;
         bool enabled = true;
+        bool line = false; // Open centerline with round caps/joins, at least two points.
+        float lineWidth = 0.05f; // Full width relative to the shorter crop side.
     };
 
     struct IMAGE_MESH_OPTIONS

@@ -296,3 +296,8 @@ of the path. No owned storage or backend state is added to the public request.
 The 7.256.0 tonal controls add three value-only floats to the image-mesh request.
 Normalization and response-curve evaluation stay inside the private height-field
 sampler. No new buffers, ownership or runtime/backend exposure are introduced.
+
+The 7.257.0 open height-line option extends `IMAGE_MESH_HEIGHT_AREA` with a boolean
+and normalized width. It reuses the borrowed point array and private raster
+composition/refinement; no public owned container or backend state is introduced.
+The existing job snapshot copies both scalars with each area and owns the points.

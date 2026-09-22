@@ -2316,7 +2316,8 @@ PNG height-map generation and export are separate operations; this job does not
 make them cancellable or asynchronous.
 
 Height areas (`heightAreas`, since 7.250.0) use normalized crop coordinates,
-with 3–128 points per simple contour. Each area is an array of `{x,y}` points
+with 3–128 points per simple contour, or 2–128 points for an open height line
+(`shape="line"`, since 7.257.0). Each area is an array of `{x,y}` points
 with fields `height` (default 0.75), `transition` (default 0.02), and `enabled`
 (default true). Height and transition are finite [0,1]. For example:
 
@@ -2340,9 +2341,32 @@ Zero transition assigns the target at every covered pixel, including the edge;
 geometry still interpolates source pixels and is constrained by mesh density.
 The source texture and UVs remain unchanged. Areas may overlap and extend beyond
 the outer shape or across holes, but create geometry only in the module surface.
-Self-intersections, touching/backtracking edges and negligible areas are rejected.
+For closed contours, self-intersections, touching/backtracking edges and negligible
+areas are rejected.
 A per-call limit of 64 million raster edge evaluations bounds composition cost;
 reduce contour points or area sizes if exceeded.
+
+Height lines use `shape="line"` and `lineWidth` (default 0.05, finite [0.001,1]).
+Width is the full strip width relative to `max(1,min(cropWidth,cropHeight)-1)`.
+Points describe an open path; segments are not connected back to the first point.
+Coverage is the union of round-ended segments (distance to the nearest segment
+at most half the width), with rounded joins. Self-crossings and repeated points
+are allowed; a zero-length segment becomes a disk. All centerline points must
+remain within [0,1]; coverage is clipped to the crop and the module geometry.
+
+`height`, `enabled`, ordering and brush composition work exactly as for closed
+areas. Transition is measured inward from the strip boundary. If transition is
+wider than the radius, even the center does not reach the target height. Lines
+share the limit of 32 areas, 128 points each and 64 million edge evaluations.
+Closed areas may optionally specify `shape="polygon"`, `"rectangle"` or
+`"ellipse"`; these labels retain the existing closed-contour treatment.
+
+```lua
+options.heightAreas = {
+    { {x=.2,y=.3}, {x=.5,y=.7}, {x=.8,y=.3},
+      shape="line", lineWidth=.05, height=.2, transition=0 },
+}
+```
 
 `"image"` ignores areas but retains the pre-existing brush behavior. `"manual"`
 ignores image brightness, inversion, smoothing and two-level detection; its mesh

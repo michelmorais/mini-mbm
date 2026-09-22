@@ -25,16 +25,17 @@ local Help=require 'image_mesh_help'
 local Geometry=require 'image_mesh_holes_geometry'
 local Freehand=require 'image_mesh_freehand'
 local Holes=require 'image_mesh_holes'
+local HeightLine=require 'image_mesh_height_line'
 local M={}
 local function L(key) return tLang.L('ime_areas_'..key) end
 local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
-function M.active(E) return E.tool=='height_areas' or E.tool=='area_draw' or E.tool=='area_freehand' end
+function M.active(E) return E.tool=='height_areas' or E.tool=='area_draw' or E.tool=='area_freehand' or E.tool=='area_line' end
 function M.different(a,b)
  a,b=a or {},b or {}
  if #a~=#b then return true end
  for i,area in ipairs(a) do
   local other=b[i]
-  for _,key in ipairs({'name','shape','enabled','height','transition'}) do if area[key]~=other[key] then return true end end
+  for _,key in ipairs({'name','shape','enabled','height','transition','lineWidth'}) do if area[key]~=other[key] then return true end end
   if #area~=#other then return true end
   for j,p in ipairs(area) do if p.x~=other[j].x or p.y~=other[j].y then return true end end
  end
@@ -50,12 +51,14 @@ function M.add(E,action,shape,points)
   assert(#r.heightAreas<32,'ime_areas_limit')
   local area=Model.copy(points or {})
   if not points then
-   if shape=='ellipse' then
+   if shape=='line' then area={{x=.3,y=.5},{x=.7,y=.5}}
+   elseif shape=='ellipse' then
     for i=0,31 do local a=i*math.pi/16;area[#area+1]={x=.5+.2*math.cos(a),y=.5+.2*math.sin(a)} end
    else area={{x=.3,y=.3},{x=.7,y=.3},{x=.7,y=.7},{x=.3,y=.7}} end
   end
   area.name=L('name')..' '..(#r.heightAreas+1);area.shape=shape
-  area.height=.75;area.transition=.02;area.enabled=true
+  area.height=shape=='line' and .25 or .75;area.transition=shape=='line' and 0 or .02;area.enabled=true
+  if shape=='line' then area.lineWidth=.05 end
   r.heightAreas[#r.heightAreas+1]=area
   if Model.options(project,r).heightSource=='image' then r.overrides.heightSource='mixed';r.overrides.followImage=true end
  end)
@@ -63,10 +66,11 @@ function M.add(E,action,shape,points)
  return ok
 end
 function M.finish(E,action)
- local r=Model.region(E.project,E.selected);if not r or #E.polygon<3 then return false end
+ local isLine=E.tool=='area_line'
+ local r=Model.region(E.project,E.selected);if not r or #E.polygon<(isLine and 2 or 3) then return false end
  local points={}
  for _,p in ipairs(E.polygon) do points[#points+1]={x=(p.x-r.x)/math.max(1,r.w-1),y=(p.y-r.y)/math.max(1,r.h-1)} end
- return M.add(E,action,'polygon',points)
+ return M.add(E,action,isLine and 'line' or 'polygon',points)
 end
 function M.change(E,action,kind)
  local index=E.areaIndex or 1
@@ -132,12 +136,25 @@ function M.panel(E,action,apply)
   local span=math.max(1,math.min(E.draft.w,E.draft.h)-1)
   c,v=tImGui.InputFloat(L('transition'),a.transition*span,.5,5,'%.2f');if c then a.transition=Model.clampNumber(v,0,span,a.transition*span)/span end
   Help.show('transition')
+  if a.shape=='line' then
+   c,v=tImGui.InputFloat(L('line_width'),a.lineWidth*span,1,10,'%.2f')
+   if c then a.lineWidth=Model.clampNumber(v,.001*span,span,a.lineWidth*span)/span end
+   tImGui.TextWrapped(L('line_help'))
+   E.areaPoint=clamp(E.areaPoint or 1,1,#a)
+   c,v=tImGui.SliderInt(L('line_point'),E.areaPoint,1,#a);if c then E.areaPoint=clamp(v,1,#a) end
+   if #a<128 and tImGui.Button(L('line_insert')) then
+    local index=math.min(E.areaPoint,#a-1);local p,q=a[index],a[index+1]
+    table.insert(a,index+1,{x=(p.x+q.x)/2,y=(p.y+q.y)/2});E.areaPoint=index+1
+   end
+   if #a>2 and tImGui.Button(L('line_remove')) then table.remove(a,E.areaPoint);E.areaPoint=math.min(E.areaPoint,#a) end
+  else
   local b=Geometry.bounds(a);local w,h=math.max(1,E.draft.w-1),math.max(1,E.draft.h-1)
   c,v=tImGui.InputFloat(L('width'),2*b.rx*w,1,10,'%.2f');if c then M.resize(a,Model.clampNumber(v,1,w,2*b.rx*w)/w,2*b.ry) end
   Help.show('size')
   b=Geometry.bounds(a)
   c,v=tImGui.InputFloat(L('height_px'),2*b.ry*h,1,10,'%.2f');if c then M.resize(a,2*b.rx,Model.clampNumber(v,1,h,2*b.ry*h)/h) end
   Help.show('size')
+  end
   for _,kind in ipairs({'up','down','duplicate','remove'}) do
    if kind=='down' or kind=='remove' then tImGui.SameLine() end
    if tImGui.Button(L(kind)) and apply() then M.change(E,action,kind) end
@@ -150,13 +167,15 @@ function M.panel(E,action,apply)
  end
  tImGui.Separator()
  if E.editMode then
-  c,v=tImGui.Combo(L('primitive'),E.areaPrimitive or 1,{L('rectangle'),L('ellipse')});if c then E.areaPrimitive=v end
-  if tImGui.Button(L('add')) and apply() then M.add(E,action,E.areaPrimitive==2 and 'ellipse' or 'rectangle') end
+  c,v=tImGui.Combo(L('primitive'),E.areaPrimitive or 1,{L('rectangle'),L('ellipse'),L('line')});if c then E.areaPrimitive=v end
+  if tImGui.Button(L('add')) and apply() then M.add(E,action,({'rectangle','ellipse','line'})[E.areaPrimitive or 1]) end
+  if tImGui.Button(L('draw_line')) and apply() then activate(E);E.tool='area_line' end
   if tImGui.Button(L('draw')) and apply() then activate(E);E.tool='area_draw' end
   tImGui.SameLine()
   if tImGui.Button(L('freehand')) and apply() then activate(E);E.tool='area_freehand' end
   if E.tool=='area_freehand' then Freehand.panel(E,function() M.finish(E,action) end,function() activate(E) end) end
-  if E.tool=='area_draw' then
+  if E.tool=='area_draw' or E.tool=='area_line' then
+   if E.tool=='area_line' then tImGui.TextWrapped(L('line_help')) end
    if tImGui.Button(L('finish')) then M.finish(E,action) end
    tImGui.SameLine();if tImGui.Button(tLang.L('ime_cancel')) then activate(E) end
   end
@@ -164,7 +183,7 @@ function M.panel(E,action,apply)
  tImGui.TextWrapped(L('help'))
 end
 function M.handles(r,a)
- if a.shape=='polygon' then return Holes.points(r,a) end
+ if a.shape=='polygon' or a.shape=='line' then return Holes.points(r,a) end
  local b=Geometry.bounds(a)
  return {{x=r.x+(b.x+b.rx)*(r.w-1),y=r.y+(b.y+b.ry)*(r.h-1),resize=true}}
 end
@@ -173,14 +192,15 @@ function M.draw(E,draw,handle)
  local r=Model.region(E.project,E.selected);if not r then return end
  for i,a in ipairs(r.heightAreas or {}) do
   local color=not a.enabled and 'area_disabled' or (i==E.areaIndex and 'side' or 'area')
-  draw(Holes.points(r,a),true,color)
+  if a.shape=='line' then HeightLine.draw(r,a,draw,color) end
+  draw(Holes.points(r,a),a.shape~='line',color)
   if i==E.areaIndex and E.tool=='height_areas' then for _,p in ipairs(M.handles(r,a)) do handle(p.x,p.y,color) end end
  end
 end
 function M.input(E,H,event,mx,my,origin,radius)
  local r=Model.region(E.project,E.selected);if not r then return false end
  local x,y=(mx-origin.x)/origin.scale,(my-origin.y)/origin.scaleY
- if E.tool=='area_draw' then
+ if E.tool=='area_draw' or E.tool=='area_line' then
   E.cursor={x=x,y=y}
   if event=='down' and x>=r.x and y>=r.y and x<=r.x+r.w-1 and y<=r.y+r.h-1 then
    if #E.polygon<128 then E.polygon[#E.polygon+1]={x=x,y=y} end
@@ -196,9 +216,10 @@ function M.input(E,H,event,mx,my,origin,radius)
   if selected then for j,p in ipairs(M.handles(r,selected)) do
    if math.abs(p.x-x)*origin.scale<=radius+6 and math.abs(p.y-y)*origin.scaleY<=radius+6 then index=E.areaIndex or 1;point=j;resize=p.resize;break end
   end end
-  if not index then for i=#areas,1,-1 do if Model.contains(Holes.points(r,areas[i]),x,y) then index=i;break end end end
+  if not index then for i=#areas,1,-1 do if (areas[i].shape=='line' and HeightLine.contains(r,areas[i],x,y)) or (areas[i].shape~='line' and Model.contains(Holes.points(r,areas[i]),x,y)) then index=i;break end end end
   if not index then return false end
   E.areaIndex=index;E.canvasDirty=true
+  if point and areas[index].shape=='line' then E.areaPoint=point end
   E.drag={mode='height_area',index=index,point=point,resize=resize,x=x,y=y,before=Model.copy(E.project),area=Model.copy(areas[index])}
   return true
  end

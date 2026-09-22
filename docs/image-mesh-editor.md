@@ -963,3 +963,27 @@ Os ajustes afetam a fonte original ou o mapa externo, depois da leitura do canal
 e antes da inversão/filtros. Não alteram a textura de cor nem as alturas-alvo das
 áreas manuais. São salvos no projeto/presets e participam do histórico. Projetos
 antigos mantêm o comportamento anterior pelos valores padrão.
+
+### Sulcos e ressaltos por linha (7.257.0)
+
+Nos modos Manual ou Misto, em **Relevos e sulcos**, escolha **Linha / sulco** nas
+primitivas das áreas de altura ou use **Desenhar linha de altura**. Clique nos
+pontos do trajeto e use **Concluir área**; são necessários pelo menos dois pontos.
+O trajeto é aberto, com largura transversal e pontas/junções arredondadas.
+
+As alças editam os pontos. Arrastar a faixa move o conjunto. **Largura da linha
+(px)** controla a espessura; **Ponto do trajeto** permite escolher onde inserir ou
+remover pontos. Alterações de propriedades exigem Aplicar. A linha também pode
+ser duplicada, reordenada, desabilitada ou removida como qualquer área.
+
+A altura é absoluta: abaixo da base cria sulco; acima cria ressalto. A transição
+avança para dentro da faixa; se superar metade da largura, o centro não alcança
+a altura-alvo completa. Cruzamentos são permitidos e não acumulam profundidade
+na mesma linha. Áreas posteriores continuam prevalecendo, e a pintura vem depois.
+Os limites dos módulos e seus furos recortam a geometria normalmente.
+
+Largura e trajeto são salvos no projeto e participam do histórico. A largura é
+armazenada como fração do menor lado do recorte; redimensionar o módulo também
+escala a largura. Linhas compartilham o limite de 32 áreas e 128 pontos por área.
+A resolução do campo de alturas e o orçamento limitam a fidelidade dos sulcos
+muito estreitos. A edição não dispara contagem automática de faces.

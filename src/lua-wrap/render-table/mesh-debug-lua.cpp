@@ -3740,8 +3740,16 @@ namespace mbm
             {
                 lua_rawgeti(lua,-1,h+1);luaL_checktype(lua,-1,LUA_TTABLE);
                 const size_t n=lua_rawlen(lua,-1);
-                if (n<3 || n>128) luaL_error(lua,"Each height area needs 3..128 points");
-                auto &area=areas[h];area.points=areaPoints+offset;area.count=static_cast<uint32_t>(n);
+                auto &area=areas[h];
+                lua_getfield(lua,-1,"shape");
+                const char *areaShape=luaL_optstring(lua,-1,"polygon");
+                area.line=std::strcmp(areaShape,"line")==0;
+                if (!area.line && std::strcmp(areaShape,"polygon") && std::strcmp(areaShape,"rectangle") && std::strcmp(areaShape,"ellipse"))
+                    luaL_error(lua,"Invalid height area shape");
+                lua_pop(lua,1);
+                if (n<(area.line?2u:3u) || n>128) luaL_error(lua,"Height areas need 3..128 polygon points or 2..128 line points");
+                area.points=areaPoints+offset;area.count=static_cast<uint32_t>(n);
+                lua_getfield(lua,-1,"lineWidth");area.lineWidth=static_cast<float>(luaL_optnumber(lua,-1,.05));lua_pop(lua,1);
                 lua_getfield(lua,-1,"height");area.height=static_cast<float>(luaL_optnumber(lua,-1,.75));lua_pop(lua,1);
                 lua_getfield(lua,-1,"transition");area.transition=static_cast<float>(luaL_optnumber(lua,-1,.02));lua_pop(lua,1);
                 lua_getfield(lua,-1,"enabled");
