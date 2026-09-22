@@ -572,6 +572,13 @@ local function propertiesPanel()
                 Help.show('smoothPasses')
                 if c then E.values.smoothPasses=Model.clampOption('smoothPasses',v,E.values.smoothPasses) end
             end
+            E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
+            Help.show('lockBorder')
+            if E.values.lockBorder then
+                local c,v=tImGui.InputFloat(L('borderWidth'),E.values.borderWidth,0.05,0.5,'%.3f')
+                if c then E.values.borderWidth=Model.clampOption('borderWidth',v,E.values.borderWidth) end
+                Help.show('borderWidth')
+            end
             local help='grooves_help'
             if map then help='height_map_help' elseif overlay then help='groove_overlay_help' end
             tImGui.TextWrapped(L(help))
@@ -591,17 +598,14 @@ local function propertiesPanel()
         if E.values.preserveAspect and E.draft and not E.editDefaults then
             E.values.height=E.values.width*math.max(1,E.draft.h-1)/math.max(1,E.draft.w-1)
         end
-        for _,key in ipairs({'width','height','depth','relief','borderWidth'}) do
+        for _,key in ipairs({'width','height','depth','relief'}) do
             if key=='height' and E.values.preserveAspect then
                 if not E.editDefaults then tImGui.Text(L(key)..': '..string.format('%.3f',E.values.height)) end
             else
-                local step=key=='borderWidth' and 0.05 or 0.1
-                local c,v=tImGui.InputFloat(L(key),E.values[key],step,step*10,'%.3f'); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
-                if key=='relief' or key=='borderWidth' or key=='depth' then Help.show(key) end
+                local c,v=tImGui.InputFloat(L(key),E.values[key],0.1,1,'%.3f'); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
+                if key=='relief' or key=='depth' then Help.show(key) end
             end
         end
-        E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
-        Help.show('lockBorder')
         end
         BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         Sides.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
@@ -727,23 +731,23 @@ local function regionsPanel()
                 local edited,value=tImGui.InputText(L('name'),E.draft.name)
                 if edited then E.draft.name=value end
             end
+            if E.draft then
+                if E.report and not E.drag then
+                    tImGui.TextWrapped(string.format(L('faces_compact'),E.draft.name,compactCount(E.report.triangles)))
+                    if tImGui.IsItemHovered() then
+                        Help.tooltip(string.format(L('counts'),E.report.vertices,E.report.triangles))
+                    end
+                elseif not E.generationFailure then tImGui.Text(L(E.meshTask and 'faces_calculating' or 'faces_pending')) end
+                if E.editMode and not E.report and not E.drag and not E.paintDrag then
+                    if tImGui.Button(L('faces_calculate')) then
+                        if not draftChanged() or applyProperties() then E.statisticsRequested=true end
+                    end
+                    if tImGui.IsItemHovered() then Help.tooltip(L('faces_calculate_help')) end
+                end
+            end
             tImGui.Separator()
         end
         Assembly.panel(E,setAssembly,camera)
-        if E.draft then
-            if E.report and not E.drag then
-                tImGui.TextWrapped(string.format(L('faces_compact'),E.draft.name,compactCount(E.report.triangles)))
-                if tImGui.IsItemHovered() then
-                    Help.tooltip(string.format(L('counts'),E.report.vertices,E.report.triangles))
-                end
-            elseif not E.generationFailure then tImGui.Text(L(E.meshTask and 'faces_calculating' or 'faces_pending')) end
-            if E.editMode and not E.report and not E.drag and not E.paintDrag then
-                if tImGui.Button(L('faces_calculate')) then
-                    if not draftChanged() or applyProperties() then E.statisticsRequested=true end
-                end
-                if tImGui.IsItemHovered() then Help.tooltip(L('faces_calculate_help')) end
-            end
-        end
         if E.texture then Budget.panel(E) end
         if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
         if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end

@@ -143,8 +143,9 @@ duplicated, scaled with the module, and included in undo/redo and export.
 
 ## Volume and relief
 
-**Volume and relief** controls world dimensions, base depth, relief amplitude,
-and fixed border height. **Preserve image aspect ratio** derives world height
+**Volume and relief** controls world dimensions, base depth, and relief amplitude.
+**Relief and grooves** contains fixed border height and its transition width,
+shown when border locking is enabled. **Preserve image aspect ratio** derives world height
 from world width using the crop's pixel-center spans, `(h - 1) / (w - 1)`, with
 minimum one-pixel spans. Disable it for independent width and height.
 
