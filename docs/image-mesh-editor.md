@@ -103,6 +103,13 @@ reduction, and confirm it as a new module or a hole. Internal cavities do not
 become holes automatically. Hole detection is restricted to the module crop;
 new-module detection can optionally use that crop too.
 
+Enclosed cavities are excluded before tracing the outer boundary, so contacts
+between internal color patches do not invalidate an otherwise valid silhouette.
+Diagonal background connections to the exterior remain open. Ambiguous pixel
+corners are trimmed by one quarter of a sampling cell to keep the traced boundary
+from touching itself; other invalid contours are still rejected. On fully opaque images the alpha threshold has
+no effect: use background-color tolerance to adjust the selection.
+
 Detection uses the original pixels, not height filters or painting. Fully opaque
 images need background-color separation if the desired shape is not the whole
 connected crop. The search grid is limited to 262,144 cells and reports its sampling

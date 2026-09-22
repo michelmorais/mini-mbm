@@ -53,18 +53,61 @@ function M.trace(bytes,width,height,crop,sx,sy,options,tick)
   visit(x-1,y);visit(x+1,y);visit(x,y-1);visit(x,y+1)
   if head%2048==0 then tick() end
  end
- local edges={};local count=0;local stride=w+1
+ -- Only the exterior boundary is requested. Enclosed background cavities may
+ -- touch each other at a corner without making that exterior ambiguous.
+ -- Use eight-connected background so a diagonal opening to the exterior is
+ -- not silently sealed; ambiguous pixel corners are separated below.
+ local outside,background={},{}
+ local function visitBackground(x,y)
+  if x<0 or y<0 or x>=w or y>=h then return end
+  local id=y*w+x
+  if seen[id]==true or outside[id] then return end
+  outside[id]=true;background[#background+1]=id
+ end
+ for x=0,w-1 do visitBackground(x,0);visitBackground(x,h-1) end
+ for y=0,h-1 do visitBackground(0,y);visitBackground(w-1,y) end
+ local backgroundHead=1
+ while backgroundHead<=#background do
+  local id=background[backgroundHead];backgroundHead=backgroundHead+1
+  local x,y=id%w,math.floor(id/w)
+  for dy=-1,1 do for dx=-1,1 do
+   if dx~=0 or dy~=0 then visitBackground(x+dx,y+dy) end
+  end end
+  if backgroundHead%2048==0 then tick() end
+ end
+ local edges={};local count=0;local stride=(w+1)*4
  local function add(x,y,xx,yy)
   local a,b=y*stride+x,yy*stride+xx
   assert(not edges[a],'ime_auto_touch')
   edges[a]=b;count=count+1;assert(count<=65536,'ime_auto_complex')
  end
+ local function occupied(x,y)
+  return x>=0 and y>=0 and x<w and y<h and not outside[y*w+x]
+ end
+ local function corner(x,y)
+  local a,b=occupied(x-1,y-1),occupied(x,y-1)
+  local c,d=occupied(x-1,y),occupied(x,y)
+  return a==d and b==c and a~=b
+ end
  for i,id in ipairs(queue) do
   local x,y=id%w,math.floor(id/w)
-  if y==0 or not seen[id-w] then add(x,y,x+1,y) end
-  if x==w-1 or not seen[id+1] then add(x+1,y,x+1,y+1) end
-  if y==h-1 or not seen[id+w] then add(x+1,y+1,x,y+1) end
-  if x==0 or not seen[id-1] then add(x,y+1,x,y) end
+  local top=y==0 or outside[id-w]
+  local right=x==w-1 or outside[id+1]
+  local bottom=y==h-1 or outside[id+w]
+  local left=x==0 or outside[id-1]
+  local tl=corner(x,y) and 1 or 0;local tr=corner(x+1,y) and 1 or 0
+  local br=corner(x+1,y+1) and 1 or 0;local bl=corner(x,y+1) and 1 or 0
+  local xx,yy=x*4,y*4
+  if top then add(xx+tl,yy,xx+4-tr,yy) end
+  if right then add(xx+4,yy+tr,xx+4,yy+4-br) end
+  if bottom then add(xx+4-br,yy+4,xx+bl,yy+4) end
+  if left then add(xx,yy+4-bl,xx,yy+tl) end
+  -- Trim only ambiguous pixel corners by a quarter cell. This keeps diagonal
+  -- background passages open and produces distinct, non-touching ring vertices.
+  if tl==1 and top and left then add(xx,yy+1,xx+1,yy) end
+  if tr==1 and top and right then add(xx+3,yy,xx+4,yy+1) end
+  if br==1 and right and bottom then add(xx+4,yy+3,xx+3,yy+4) end
+  if bl==1 and bottom and left then add(xx+1,yy+4,xx,yy+3) end
   if i%2048==0 then tick() end
  end
  local best,bestArea=nil,0
@@ -85,8 +128,8 @@ function M.trace(bytes,width,height,crop,sx,sy,options,tick)
  for i,p in ipairs(best) do
   local a,b=best[(i+#best-2)%#best+1],best[i%#best+1]
   if (p.x-a.x)*(b.y-p.y)~=(p.y-a.y)*(b.x-p.x) then
-   points[#points+1]={x=math.min(crop.x+crop.w-1,math.max(crop.x,crop.x+p.x*step-.5)),
-                    y=math.min(crop.y+crop.h-1,math.max(crop.y,crop.y+p.y*step-.5))}
+   points[#points+1]={x=math.min(crop.x+crop.w-1,math.max(crop.x,crop.x+p.x*step/4-.5)),
+                    y=math.min(crop.y+crop.h-1,math.max(crop.y,crop.y+p.y*step/4-.5))}
   end
   if i%2048==0 then tick() end
  end

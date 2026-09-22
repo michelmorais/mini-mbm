@@ -43,7 +43,7 @@ local function run()
  local mask={1,1,1,1,0,1,1,1,0};local data={}
  for _,v in ipairs(mask) do data[#data+1]=string.char(255,255,255,v*255) end
  local valid,why=pcall(Detect.trace,table.concat(data),3,3,{x=0,y=0,w=3,h=3},0,0,options,function() end)
- assert(not valid and tostring(why):find('ime_auto_touch'),'touching contour accepted')
+ assert(valid and require('image_mesh_holes_geometry').simple(why),'diagonal corner not separated')
  local ticks=0
  local large=string.rep(string.char(255,255,255,255),1024*1024)
  local outline,coarse,total=Detect.trace(large,1024,1024,{x=0,y=0,w=1024,h=1024},100,100,options,function() ticks=ticks+1 end)

@@ -23,6 +23,7 @@
 local Model=require 'image_mesh_model'
 local Detect=require 'image_mesh_detect'
 local Freehand=require 'image_mesh_freehand'
+local Help=require 'image_mesh_help'
 local M={}
 local function L(key) return tLang.L('ime_auto_'..key) end
 function M.cancel(E)
@@ -75,6 +76,9 @@ function M.panel(E,finishModule,finishHole)
  c,v=tImGui.Combo(L('mode'),a.mode,{L('alpha'),L('background')})
  if c then a.mode=v;reset() end
  c,v=tImGui.SliderInt(L('alpha_limit'),a.alpha,0,254)
+ if tImGui.IsItemHovered() then
+  Help.tooltip(L('alpha_help'))
+ end
  if c then a.alpha=math.max(0,math.min(254,v));reset() end
  if a.mode==2 then
   c,v=tImGui.ColorEdit4(L('color'),a.color)
