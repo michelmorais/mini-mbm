@@ -8,6 +8,9 @@ local M = {}
 
 -- String tables
 M.en = {
+    ime_view_panel = "Editor view",
+    ime_mode_edit = "Editing",
+    ime_mode_view = "Viewing",
     ime_generation_previous = "Showing the previous preview. The latest settings have not been generated.",
     ime_generation_title = "Generating mesh",
     ime_generation_decode = "Reading image",
@@ -304,6 +307,8 @@ M.en = {
     ime_canvas_help = "Select: drag a shape to move it, or empty space to pan. Drawing tools: drag to draw. Wheel: zoom at cursor. Corner: resize.",
     ime_finish_polygon = "Finish polygon",
     ime_edit_defaults = "Edit project defaults",
+    ime_edit_defaults_help = "Editing project defaults in the groups below. Module names and contours are not project defaults. Changes apply to new modules and parameters inherited by existing modules; individual overrides are preserved.",
+    ime_apply_defaults = "Apply project defaults",
     ime_side_group = "Side textures",
     ime_side_mode = "Side mode",
     ime_side_edge = "Stretched edge",
@@ -3424,6 +3429,9 @@ M.en = {
 }
 
 M.pt_br = {
+    ime_view_panel = "Modo do editor",
+    ime_mode_edit = "Edição",
+    ime_mode_view = "Visualização",
     ime_generation_previous = "Exibindo a prévia anterior. Os ajustes mais recentes não foram gerados.",
     ime_generation_title = "Gerando mesh",
     ime_generation_decode = "Lendo imagem",
@@ -3719,6 +3727,8 @@ M.pt_br = {
     ime_canvas_help = "Selecionar: arraste a forma para movê-la, ou o vazio para mover a câmera. Ferramentas de desenho: arraste para desenhar. Roda: zoom no cursor. Canto: tamanho.",
     ime_finish_polygon = "Concluir poligono",
     ime_edit_defaults = "Editar padroes do projeto",
+    ime_edit_defaults_help = "Editando os padrões do projeto nos grupos abaixo. Nome e contorno pertencem ao módulo. As alterações valem para novos módulos e parâmetros herdados pelos existentes; sobrescritas individuais são preservadas.",
+    ime_apply_defaults = "Aplicar padrões do projeto",
     ime_side_group = "Textura das laterais",
     ime_side_mode = "Modo das laterais",
     ime_side_edge = "Borda esticada",

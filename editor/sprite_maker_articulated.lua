@@ -285,7 +285,7 @@ local function generate(replace)
     local rings=G.form(E.kind,E.rect,alphaMode and 64 or E.budget,E.form)
     if alphaMode then
         if not E.alpha[img.path] then
-            local bytes,w,h=mbm.readPngAlpha(img.path)
+            local bytes,w,h=mbm.readImagePixels(img.path, "alpha")
             assert(bytes,w); assert(w==img.width and h==img.height,'alpha_dimensions_mismatch')
             E.alpha[img.path]=bytes
         end

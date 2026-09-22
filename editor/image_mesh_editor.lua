@@ -470,14 +470,7 @@ local function primitivePanel()
 end
 local function propertiesPanel()
     tImGui.PushItemWidth(math.max(90,tImGui.GetContentRegionAvail().x*0.42))
-    local defaults=tImGui.Checkbox(L('edit_defaults'),E.editDefaults or false)
-    if defaults~=(E.editDefaults or false) then E.editDefaults=defaults; syncDraft() end
     if E.draft or E.editDefaults then
-        if not E.editDefaults then
-            local d=E.draft
-            local edited,value=tImGui.InputText(L('name'),d.name); if edited then d.name=value end
-        end
-        tImGui.Separator()
         Presets.draw(E,action,dpCall)
         if not E.editDefaults then
             local d=E.draft
@@ -589,6 +582,10 @@ local function propertiesPanel()
         end
         Holes.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
         Paint.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
+        if E.openDefaultsVolume then
+            tImGui.SetNextItemOpen(true,0)
+            E.openDefaultsVolume=nil
+        end
         if tImGui.CollapsingHeader(L('volume_group')) then
         E.values.preserveAspect=tImGui.Checkbox(L('preserveAspect'),E.values.preserveAspect)
         if E.values.preserveAspect and E.draft and not E.editDefaults then
@@ -657,7 +654,7 @@ local function propertiesPanel()
                 end
             end
         end
-        if tImGui.Button(L('apply')) then applyProperties() end
+        if tImGui.Button(L(E.editDefaults and 'apply_defaults' or 'apply')) then applyProperties() end
         if not E.editDefaults then
             tImGui.SameLine(); if tImGui.Button(L('inherit')) then action(function(p) for _,r in ipairs(p.regions) do if E.selection[r.id] then r.overrides={} end end end) end
         end
@@ -696,42 +693,9 @@ local function regionsPanel()
             tImGui.TextWrapped(L('preview_help'))
             setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
         end
-        Assembly.panel(E,setAssembly,camera)
-        if E.draft then
-            if E.report and not E.drag then
-                tImGui.TextWrapped(string.format(L('faces_compact'),E.draft.name,compactCount(E.report.triangles)))
-                if tImGui.IsItemHovered() then
-                    Help.tooltip(string.format(L('counts'),E.report.vertices,E.report.triangles))
-                end
-            elseif not E.generationFailure then tImGui.Text(L(E.meshTask and 'faces_calculating' or 'faces_pending')) end
-            if E.editMode and not E.report and not E.drag and not E.paintDrag then
-                if tImGui.Button(L('faces_calculate')) then
-                    if not draftChanged() or applyProperties() then E.statisticsRequested=true end
-                end
-                if tImGui.IsItemHovered() then Help.tooltip(L('faces_calculate_help')) end
-            end
-        end
-        Budget.panel(E)
-        if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
-        if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end
-        tImGui.Separator()
-        if E.missing then
-            tImGui.Text(L('missing_image'))
-            if tImGui.Button(L('relink')) then dpCall(function() local path=mbm.openFile('',table.unpack(tUtil.supported_images)); if path then relink(path) end end) end
-            tImGui.SameLine(); if tImGui.Button(L('cancel')) then E.missing=nil end
-        end
         if E.texture then
             if E.editMode then primitivePanel() end
             tImGui.Text(tUtil.getShortName(E.project.image.path))
-            if tImGui.CollapsingHeader(L('grid')) then
-                for _,key in ipairs({'columns','rows','marginX','marginY','gapX','gapY'}) do
-                    local count=key=='columns' or key=='rows'
-                    local hi=count and 64 or E.project.image[key:sub(-1)=='X' and 'width' or 'height']
-                    local edit,value=tImGui.InputInt(L('grid_'..key),E.grid[key],1,10)
-                    if edit then E.grid[key]=Model.clampNumber(value,count and 1 or 0,hi,E.grid[key],true) end
-                end
-                if tImGui.Button(L('create_grid')) then action(function(p) local ids=Model.grid(p,E.grid); E.selected=ids[1]; E.selection={}; for _,id in ipairs(ids) do E.selection[id]=true end end) end
-            end
             if tImGui.Button(L('duplicate')) then action(function(p)
                 local originals=Model.copy(p.regions); local selection=E.selection; E.selection={}; local first
                 for _,r in ipairs(originals) do if selection[r.id] then local n=Model.add(p,r.shape,r.x,r.y,r.w,r.h,r.contour)
@@ -754,7 +718,51 @@ local function regionsPanel()
             end
             end
             tImGui.EndChild()
-            tImGui.Separator(); propertiesPanel()
+            local defaults=tImGui.Checkbox(L('edit_defaults'),E.editDefaults or false)
+            if defaults~=(E.editDefaults or false) then
+                E.editDefaults=defaults; E.openDefaultsVolume=defaults or nil; syncDraft()
+            end
+            if E.editDefaults then tImGui.TextWrapped(L('edit_defaults_help')) end
+            if E.draft and not E.editDefaults then
+                local edited,value=tImGui.InputText(L('name'),E.draft.name)
+                if edited then E.draft.name=value end
+            end
+            tImGui.Separator()
+        end
+        Assembly.panel(E,setAssembly,camera)
+        if E.draft then
+            if E.report and not E.drag then
+                tImGui.TextWrapped(string.format(L('faces_compact'),E.draft.name,compactCount(E.report.triangles)))
+                if tImGui.IsItemHovered() then
+                    Help.tooltip(string.format(L('counts'),E.report.vertices,E.report.triangles))
+                end
+            elseif not E.generationFailure then tImGui.Text(L(E.meshTask and 'faces_calculating' or 'faces_pending')) end
+            if E.editMode and not E.report and not E.drag and not E.paintDrag then
+                if tImGui.Button(L('faces_calculate')) then
+                    if not draftChanged() or applyProperties() then E.statisticsRequested=true end
+                end
+                if tImGui.IsItemHovered() then Help.tooltip(L('faces_calculate_help')) end
+            end
+        end
+        if E.texture then Budget.panel(E) end
+        if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
+        if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end
+        if E.missing then
+            tImGui.Text(L('missing_image'))
+            if tImGui.Button(L('relink')) then dpCall(function() local path=mbm.openFile('',table.unpack(tUtil.supported_images)); if path then relink(path) end end) end
+            tImGui.SameLine(); if tImGui.Button(L('cancel')) then E.missing=nil end
+        end
+        if E.texture then
+            if tImGui.CollapsingHeader(L('grid')) then
+                for _,key in ipairs({'columns','rows','marginX','marginY','gapX','gapY'}) do
+                    local count=key=='columns' or key=='rows'
+                    local hi=count and 64 or E.project.image[key:sub(-1)=='X' and 'width' or 'height']
+                    local edit,value=tImGui.InputInt(L('grid_'..key),E.grid[key],1,10)
+                    if edit then E.grid[key]=Model.clampNumber(value,count and 1 or 0,hi,E.grid[key],true) end
+                end
+                if tImGui.Button(L('create_grid')) then action(function(p) local ids=Model.grid(p,E.grid); E.selected=ids[1]; E.selection={}; for _,id in ipairs(ids) do E.selection[id]=true end end) end
+            end
+            propertiesPanel()
         else tImGui.Text(L('open_help')) end
         if E.status~=E.generationFailure then tImGui.TextWrapped(E.status) end
         if E.batch then

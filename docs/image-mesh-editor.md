@@ -33,7 +33,10 @@ pending properties. Invalid properties prevent overwriting the project.
 ## Workspace and navigation
 
 The left **Regions** panel contains tools, the module list, and the selected
-module's properties. The right side contains camera controls and, in 3D, lighting.
+module's properties. Shape creation and the module list precede the budget diagnostics
+and region-grid controls. Budget diagnostics appear only after an image is loaded.
+The right-side **Editor view** panel selects **Editing** or **Viewing** and contains
+the corresponding camera controls. Lighting appears in the 3D view.
 The image and mesh are displayed directly in the engine scene.
 
 | Mode | Scene controls |
@@ -68,6 +71,12 @@ regions without replacing existing ones. Individual crops remain editable.
   contour changes affect the primary selection only.
 - Project defaults provide inherited parameters. Resetting a selection to the
   defaults clears its overrides.
+
+**Edit project defaults** switches the property groups below to project-wide
+settings and opens **Volume and relief**. Module-specific fields such as the name
+and contour are hidden. **Apply project defaults** commits the settings for new
+modules and inherited parameters of existing ones; individual overrides remain.
+Uncheck the option to return to the selected module's properties.
 
 Contours may be concave but must be simple: crossings, self-contact, duplicate
 points, and degenerate areas are rejected. Circles are editable ellipses; later

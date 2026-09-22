@@ -45,10 +45,9 @@ end
 local function cameraPanel(E,H)
     local c=E.orbit
     local mode=E.editMode and 0 or 1
-    local selected=tImGui.RadioButton(L('camera_2d')..'##ime_mode',mode,0)
-    tImGui.SameLine(); selected=tImGui.RadioButton(L('camera_3d')..'##ime_mode',selected,1)
+    local selected=tImGui.RadioButton(L('ime_mode_edit')..'##ime_mode',mode,0)
+    tImGui.SameLine(); selected=tImGui.RadioButton(L('ime_mode_view')..'##ime_mode',selected,1)
     if selected~=mode then H.setMode(selected==0) end
-    tImGui.Separator()
     if E.editMode then
         local camera=E.camera2d
         local rx,x=tImGui.DragFloat('X##ime_cam2',camera.x,1,0,0,'%.2f',0)
@@ -114,7 +113,7 @@ function M.draw(E,H)
     local cameraHeight=math.min(370,math.floor((height-30)*0.47))
     tImGui.SetNextWindowPos({x=width-E.rightbar,y=25},E.flags.always)
     tImGui.SetNextWindowSize({x=E.rightbar,y=cameraHeight},E.flags.always)
-    if tImGui.Begin(L('camera_panel')..' 3D / 2D###ime_camera',false,E.flags.fixed) then
+    if tImGui.Begin(L('ime_view_panel')..'###ime_camera',false,E.flags.fixed) then
         tImGui.PushItemWidth(130); cameraPanel(E,H); tImGui.PopItemWidth()
     end
     tImGui.End()
