@@ -87,6 +87,9 @@ struct HEIGHT_FIELD
             return fail("Invalid groove threshold [0,1], transition/tolerance [0.001,1], or smoothing passes [0,4]");
         if (o.heightChannel<IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE || o.heightChannel>IMAGE_MESH_HEIGHT_CHANNEL::ALPHA)
             return fail("Invalid heightChannel");
+        if (!std::isfinite(o.heightBlack) || !std::isfinite(o.heightWhite) || !std::isfinite(o.heightCurve) ||
+            o.heightBlack<0 || o.heightWhite>1 || o.heightBlack>o.heightWhite || o.heightCurve<0.1f || o.heightCurve>10)
+            return fail("Invalid height levels: 0 <= black <= white <= 1; curve [0.1,10]");
         bool exists=false; const char *resolved=util::getFullPath(source,&exists);
         path=exists?resolved:source;
         int iw=0,ih=0,channels=0;
@@ -136,6 +139,12 @@ struct HEIGHT_FIELD
                 const float top=sample(x0,y0)*(1-fx)+sample(x1,y0)*fx;
                 const float bottom=sample(x0,y1)*(1-fx)+sample(x1,y1)*fx;
                 v=top*(1-fy)+bottom*fy;
+            }
+            if (o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL)
+            {
+                if (o.heightBlack==o.heightWhite) v=v>=o.heightWhite?1.0f:0.0f;
+                else v=std::clamp((v-o.heightBlack)/(o.heightWhite-o.heightBlack),0.0f,1.0f);
+                if (o.heightCurve!=1.0f) v=std::pow(v,o.heightCurve);
             }
             levels[static_cast<size_t>(y)*width+x]=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL?o.baseHeight:(o.invert?1-v:v);
         }

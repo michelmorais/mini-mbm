@@ -97,6 +97,8 @@ namespace mbm
         const char *heightImage = nullptr;
         // false: map the whole source image; true: fit the whole map to this crop.
         bool heightImageToRegion = false;
+        // Normalize/clamp black..white, then pow(value, heightCurve), before inversion.
+        float heightBlack = 0.0f, heightWhite = 1.0f, heightCurve = 1.0f;
         // Ordered borrowed normalized contours, max 32 x 128. Transition is
         // relative to the shorter crop side, fades inward from each area edge.
         const IMAGE_MESH_HEIGHT_AREA *heightAreas = nullptr;

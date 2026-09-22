@@ -3711,6 +3711,7 @@ namespace mbm
         lua_getfield(lua,optionIndex,"heightImage");
         options.heightImage=luaL_optstring(lua,-1,nullptr); lua_pop(lua,1);
         boolean("heightImageToRegion",options.heightImageToRegion);
+        number("heightBlack",options.heightBlack); number("heightWhite",options.heightWhite); number("heightCurve",options.heightCurve);
         lua_getfield(lua,optionIndex,"heightChannel");
         const char *heightChannel=luaL_optstring(lua,-1,"luminance");
         if (std::strcmp(heightChannel,"luminance")==0) options.heightChannel=IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE;

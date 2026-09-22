@@ -2144,6 +2144,8 @@ assert(asset:save("panel.msh", false, false, true))
 | `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
 | `heightImage` | nil | Optional height-only image path. Nil/empty uses the source image. Ignored in manual mode. Maximum 16,777,216 pixels. |
 | `heightImageToRegion` | false | False aligns the map with the whole source image; true fits the whole map to the current crop. Bilinear sampling for different resolutions. |
+| `heightBlack`, `heightWhite` | 0, 1 | Finite input endpoints: `0 <= black <= white <= 1`. Clamp/rescale selected height channel to [0,1]. Equal endpoints create a step (input >= point gives 1). |
+| `heightCurve` | 1 | Finite exponent [0.1,10], applied after black/white normalization and before inversion/filtering. Manual mode ignores tonal adjustments. |
 | `heightChannel` | `"luminance"` | `"luminance"`, `"red"`, `"green"`, `"blue"`, or `"alpha"`; image component used before inversion, filtering and groove mapping. Ignored by manual heights. |
 | `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas |
 | `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
@@ -2201,6 +2203,16 @@ opaque (1). Channel selection does not alter texture references, UVs or the
 color source of the groove overlay. Manual mode uses `baseHeight`; mixed mode
 uses the selected channel outside manual areas. Filters, inversion, groove
 mapping, manual areas and brush edits retain their existing ordering.
+
+**Height levels (7.256.0).** The selected/resampled input channel is converted
+with `t=clamp((input-heightBlack)/(heightWhite-heightBlack),0,1)` then
+`pow(t,heightCurve)`. Equal black/white use `input >= heightWhite ? 1 : 0`
+instead of division. Values outside the allowed ranges fail validation, even
+in Manual mode. The default endpoints and exponent retain previous behavior.
+These options apply to source and separate height images, diagnostic maps and
+synchronous/asynchronous mesh generation; colors and UVs are unaffected.
+Inversion, smoothing, groove mapping, manual areas, brush edits and border
+constraints retain their existing downstream ordering.
 
 **Separate height image (7.255.0).** `heightImage` is shared by the synchronous,
 asynchronous and diagnostic-map APIs. The color texture, UVs, groove-overlay

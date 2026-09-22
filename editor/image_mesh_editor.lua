@@ -543,6 +543,17 @@ local function propertiesPanel()
                 if tImGui.IsItemHovered() then tImGui.SetTooltip(L('height_channel_help')) end
             end
             local original=imagePreview and E.heightView==1
+            if not manual and not original and tImGui.CollapsingHeader(L('height_levels')) then
+                local c,value=tImGui.InputFloat(L('height_black'),E.values.heightBlack,.01,.1,'%.3f')
+                if c then E.values.heightBlack=Model.clampNumber(value,0,E.values.heightWhite,E.values.heightBlack) end
+                c,value=tImGui.InputFloat(L('height_white'),E.values.heightWhite,.01,.1,'%.3f')
+                if c then E.values.heightWhite=Model.clampNumber(value,E.values.heightBlack,1,E.values.heightWhite) end
+                c,value=tImGui.InputFloat(L('height_curve'),E.values.heightCurve,.05,.5,'%.3f')
+                if c then E.values.heightCurve=Model.clampOption('heightCurve',value,E.values.heightCurve) end
+                tImGui.TextWrapped(L('height_levels_help'))
+                if E.values.heightBlack==E.values.heightWhite then tImGui.TextWrapped(L('height_levels_threshold')) end
+                if tImGui.Button(L('height_levels_reset')) then E.values.heightBlack=0;E.values.heightWhite=1;E.values.heightCurve=1 end
+            end
             local map=imagePreview and E.heightView==2
             local overlay=imagePreview and E.heightView==3
             local geometry=not map and not overlay

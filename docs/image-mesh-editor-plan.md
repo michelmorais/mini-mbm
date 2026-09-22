@@ -969,3 +969,24 @@ estatísticas e geração assíncrona passaram no build Linux Debug.
 
 Sulcos por linha seguem como extensão futura das áreas manuais. O mapa diagnóstico
 continua síncrono; esta entrega acrescenta uma fonte, não altera seu agendamento.
+
+### Controle artístico - Níveis e curva de altura (7.256.0)
+
+Entregues os pontos de preto/branco e a curva de resposta previstos no plano.
+O intervalo de entrada é normalizado e limitado a 0..1; a curva usa expoente
+0,1..10, antes da inversão e dos filtros. Pontos iguais têm comportamento de
+degrau definido. O estreitamento do intervalo ajusta o contraste das alturas.
+As fontes original e externa compartilham o processamento. Manual ignora os
+ajustes; os padrões 0/1/1 preservam os projetos anteriores.
+
+GUI com limites coerentes, restauração dos padrões, ocultação em Manual e na
+visualização original; persistência, presets e histórico integrados. Não há nova
+varredura por frame: o processamento adicional ocorre dentro da amostragem já
+solicitada. O worker copia os escalares junto com a requisição existente.
+
+Validação Linux Debug: `image_mesh_levels_smoke.lua` cobre mapa/posição dos
+vértices, curva, inversão, pontos iguais, parâmetros inválidos, modo Manual,
+mapa externo, padrões antigos, snapshot assíncrono, projeto/preset e histórico.
+Regressões de mapas separados, canais e contagem sob demanda passaram.
+Sulcos por linha e as limitações de responsividade registradas continuam como
+trabalhos posteriores.

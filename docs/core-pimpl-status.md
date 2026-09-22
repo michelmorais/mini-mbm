@@ -292,3 +292,7 @@ The 7.255.0 separate height image adds a borrowed path and an alignment boolean
 to `IMAGE_MESH_OPTIONS`. Decoding and bilinear resampling use a private temporary
 buffer in the height-field implementation. The asynchronous binding owns a copy
 of the path. No owned storage or backend state is added to the public request.
+
+The 7.256.0 tonal controls add three value-only floats to the image-mesh request.
+Normalization and response-curve evaluation stay inside the private height-field
+sampler. No new buffers, ownership or runtime/backend exposure are introduced.

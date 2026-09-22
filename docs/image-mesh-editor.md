@@ -943,3 +943,23 @@ Projeto e presets guardam o caminho relativo quando possível, não uma cópia d
 pixels; mantenha o arquivo disponível ao reabrir. A configuração participa do
 histórico e é copiada ao iniciar geração assíncrona. Geração do mapa de diagnóstico
 continua síncrona, conforme os limites já documentados.
+
+### Níveis e curva de altura (7.256.0)
+
+Em **Relevos e sulcos**, abra **Níveis e curva de altura**. O grupo aparece nos
+modos Imagem/Misto, na prévia 3D ou ao visualizar o mapa/sulcos em edição; fica
+oculto na visualização original e no modo Manual.
+
+- **Ponto preto**: entradas nesse valor ou abaixo passam a altura normalizada 0.
+- **Ponto branco**: entradas nesse valor ou acima passam a 1.
+- **Curva de resposta**: 1 preserva os valores intermediários; acima de 1 rebaixa,
+  abaixo de 1 eleva. Intervalo permitido: 0,1 a 10.
+
+O intervalo preto/branco é redistribuído entre 0 e 1. Pontos iguais produzem um
+degrau: a entrada no ponto ou acima vira 1, abaixo vira 0. A GUI impede inverter
+os pontos. **Restaurar níveis de altura** repõe 0/1/1. Confirme com Aplicar.
+
+Os ajustes afetam a fonte original ou o mapa externo, depois da leitura do canal
+e antes da inversão/filtros. Não alteram a textura de cor nem as alturas-alvo das
+áreas manuais. São salvos no projeto/presets e participam do histórico. Projetos
+antigos mantêm o comportamento anterior pelos valores padrão.
