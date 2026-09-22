@@ -15,6 +15,7 @@
 
 #include "mesh-simplifier.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -186,7 +187,8 @@ namespace mbm::mesh_simplifier
 
         bool preservesTopology(const uint32_t a, const uint32_t b, const uint32_t edgeTriangleCount,
                                const std::vector<TRIANGLE> &triangles,
-                               const std::vector<std::vector<uint32_t>> &adjacent)
+                               const std::vector<std::vector<uint32_t>> &adjacent,
+                               const std::vector<uint32_t> &positionAliases)
         {
             std::unordered_set<uint32_t> neighborsA;
             std::unordered_set<uint32_t> neighborsB;
@@ -206,7 +208,19 @@ namespace mbm::mesh_simplifier
             uint32_t sharedNeighborCount = 0;
             for (const uint32_t neighbor : neighborsA)
                 if (neighborsB.find(neighbor) != neighborsB.end()) ++sharedNeighborCount;
-            return sharedNeighborCount == edgeTriangleCount;
+            if (sharedNeighborCount != edgeTriangleCount) return false;
+            // Attribute seams can duplicate a geometric neighbor inside one subset.
+            // Joining their opposite vertices would pinch two separate seam edges
+            // into an edge with four geometric incidences, despite valid index links.
+            std::unordered_map<uint32_t,uint32_t> geometricNeighbors;
+            geometricNeighbors.reserve(neighborsA.size());
+            for (const uint32_t left:neighborsA) geometricNeighbors.emplace(positionAliases[left],left);
+            for (const uint32_t right:neighborsB)
+            {
+                const auto found=geometricNeighbors.find(positionAliases[right]);
+                if (found!=geometricNeighbors.end() && found->second!=right) return false;
+            }
+            return true;
         }
     }
 
@@ -280,6 +294,22 @@ namespace mbm::mesh_simplifier
                 onProgress(requestedRemoval > 0
                     ? static_cast<float>(removed) / static_cast<float>(requestedRemoval) : 1.0f);
             }
+            // Refresh exact-position aliases once per pass, keeping seam link checks
+            // linear in valence even at a minimally triangulated cap's large corners.
+            const auto positionHash=[](const std::array<float,3> &p)
+            {
+                size_t hash=0;
+                for (float value:p) hash^=std::hash<float>{}(value)+0x9e3779b9u+(hash<<6)+(hash>>2);
+                return hash;
+            };
+            std::unordered_map<std::array<float,3>,uint32_t,decltype(positionHash)> aliases(0,positionHash);
+            aliases.reserve(positions.size());
+            std::vector<uint32_t> positionAliases(positions.size());
+            for (uint32_t i=0;i<positions.size();++i)
+            {
+                const auto &p=positions[i];
+                positionAliases[i]=aliases.emplace(std::array<float,3>{p.x,p.y,p.z},i).first->second;
+            }
             std::vector<QUADRIC> quadrics(positions.size());
             std::vector<std::vector<uint32_t>> adjacent(positions.size());
             std::vector<VEC3> triangleNormals(triangles.size());
@@ -346,7 +376,7 @@ namespace mbm::mesh_simplifier
                     lengthSquared(positions[b] - positions[a]) <= boundaryEdgeLimit * boundaryEdgeLimit;
                 if (touchesBoundary && !collapsibleBoundary)
                 { ++output.boundaryRejectedCollapseCount; continue; }
-                if (!preservesTopology(a, b, entry.second.count, triangles, adjacent))
+                if (!preservesTopology(a, b, entry.second.count, triangles, adjacent, positionAliases))
                 { ++output.topologyRejectedCollapseCount; continue; }
                 QUADRIC combined = quadrics[a]; combined += quadrics[b];
                 VEC3 point;

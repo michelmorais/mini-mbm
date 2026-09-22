@@ -85,7 +85,7 @@ local function run()
                 while side<=#ev and ev[side].z>0 do side=side+1 end
                 for i=1,side-1 do close(ev[i].u,vv[i].u);close(ev[i].v,vv[i].v) end
                 for i=side,#ev do
-                    if (i-side)%4<2 then close(ev[i].u,vv[i].u);close(ev[i].v,vv[i].v)
+                    if vv[i].z<0 then close(ev[i].u,vv[i].u);close(ev[i].v,vv[i].v)
                     else assert(math.abs(ev[i].u-vv[i].u)+math.abs(ev[i].v-vv[i].v)>1e-6,'inner band UV was not applied') end
                 end
             end
@@ -101,9 +101,10 @@ local function run()
             while sideStart<=#vv and vv[sideStart].z>0 do sideStart=sideStart+1 end
             for i,v in ipairs(vv) do
                 for _,k in ipairs{'x','y','z','nx','ny','nz'} do close(v[k],iv[i][k]) end
-                local other=i
-                if mode=='band' and i>=sideStart then other=i+((i-sideStart)%4<2 and 2 or -2) end
-                close(iv[i].u,vv[other].u);close(iv[i].v,vv[other].v)
+                if mode=='band' and i>=sideStart then
+                    if v.z>0 then close(iv[i].u,ev[i].u);close(iv[i].v,ev[i].v)
+                    else assert(math.abs(iv[i].u-v.u)+math.abs(iv[i].v-v.v)>1e-6,'inverted front needs inner UV') end
+                else close(iv[i].u,v.u);close(iv[i].v,v.v) end
             end
             if mode=='band' then
                 local file='/tmp/ime_band_inverted_'..shape..'_'..tostring(adaptive)..'.msh'

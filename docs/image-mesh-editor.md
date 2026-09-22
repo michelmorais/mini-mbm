@@ -300,6 +300,16 @@ The front uses the source-image crop. Back geometry/material choices are:
 | Solid color | Flat back with an opaque RGB material |
 | External texture | Flat back using a separate image, fitted to the module shape |
 
+Eligible flat backs are automatically triangulated from the original contour corners,
+without copying the front's refinement samples: a quadrilateral back uses two triangles.
+The walls retain all front relief samples and are retriangulated to meet the reduced
+back without T-junctions. This happens during generation, before optional simplification,
+and also applies to the direct generation API. Front geometry and normals are unchanged.
+Back UV mapping and materials are retained; inner-band wall UVs keep their front/rear
+mapping, with interpolation following the new wall triangles. Holed modules, copied
+back relief, repeated side textures, transparent edge-texture crops, and contours or
+strips that cannot be safely reduced keep the existing topology.
+
 Horizontal back-texture mirroring is independent of copied relief. A relief back
 requires additional geometry; all of it counts toward the budget. Solid colors
 are stored as `#RRGGBBFF` and need no texture file.

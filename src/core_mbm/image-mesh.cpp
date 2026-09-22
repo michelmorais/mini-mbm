@@ -143,7 +143,44 @@ namespace mbm
                 sideRows=static_cast<uint32_t>(std::ceil(o.sideRepeatV));
             }
             const uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
-            const bool compactBack=o.followImage && !o.backRelief && o.holeCount==0;
+            std::vector<size_t> backCorners;
+            std::vector<std::array<uint32_t,3>> minimalTriangles;
+            bool minimalBack=!o.backOpen && !o.backRelief && o.holeCount==0 &&
+                o.sideMode!=IMAGE_MESH_SIDE::REPEAT;
+            // Per-edge opaque fallback UVs are discontinuous and need the original strips.
+            if (minimalBack && o.sideMode!=IMAGE_MESH_SIDE::COLOR && o.sideMode!=IMAGE_MESH_SIDE::BAND)
+                for (uint32_t y=0;y<field.height && minimalBack;++y)
+                    for (uint32_t x=0;x<field.width;++x)
+                        if (field.pixels.get()[(static_cast<size_t>(y+o.y)*field.imageWidth+x+o.x)*4+3]!=255)
+                        { minimalBack=false; break; }
+            minimalBack=minimalBack && image_mesh::minimalBack(topology,backCorners,minimalTriangles);
+            std::vector<std::vector<std::array<uint32_t,3>>> minimalSides;
+            if (minimalBack)
+            {
+                minimalSides.resize(backCorners.size());
+                for (size_t c=0;c<backCorners.size();++c)
+                {
+                    image_mesh::checkpoint(o,"sides",0.90f);
+                    const size_t first=backCorners[c],last=backCorners[(c+1)%backCorners.size()];
+                    const auto &a=topology.points[topology.boundary[first]], &b=topology.points[topology.boundary[last]];
+                    const double dx=b.x-a.x,dy=b.y-a.y,length=dx*dx+dy*dy;
+                    std::vector<IMAGE_MESH_POINT> strip;
+                    size_t i=first;
+                    for (;;)
+                    {
+                        const auto &p=topology.points[topology.boundary[i]];
+                        const float height=o.lockBorder?0:field.surface(p.x,p.y,o)*o.relief;
+                        strip.push_back({static_cast<float>(((p.x-a.x)*dx+(p.y-a.y)*dy)/length),
+                            (o.relief-height)/(o.depth+o.relief)});
+                        if (i==last) break;
+                        i=(i+1)%topology.boundary.size();
+                    }
+                    strip.push_back({1,1}); strip.push_back({0,1});
+                    // A varying front height makes a nonconvex strip: a fan can cross it.
+                    if (!image_mesh::triangulatePolygon(strip,minimalSides[c])) { minimalBack=false; break; }
+                }
+            }
+            const bool compactBack=o.followImage && !o.backRelief && o.holeCount==0 && !topology.backTriangles.empty();
             uint32_t backSize=gridSize;
             size_t backTriangles=topology.triangles.size();
             if (o.backOpen) { backSize=0; backTriangles=0; }
@@ -152,8 +189,13 @@ namespace mbm
                 backSize=static_cast<uint32_t>(topology.boundary.size());
                 backTriangles=topology.backTriangles.size();
             }
-            const uint32_t vertexCount=gridSize+backSize+4*sideRows*static_cast<uint32_t>(topology.boundary.size());
-            const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+2*sideRows*topology.boundary.size());
+            if (minimalBack) { backSize=static_cast<uint32_t>(backCorners.size()); backTriangles=minimalTriangles.size(); }
+            const uint32_t sideVertices=minimalBack?static_cast<uint32_t>(topology.boundary.size()+3*backCorners.size()):
+                4*sideRows*static_cast<uint32_t>(topology.boundary.size());
+            const uint32_t sideTriangles=minimalBack?static_cast<uint32_t>(topology.boundary.size()+backCorners.size()):
+                2*sideRows*static_cast<uint32_t>(topology.boundary.size());
+            const uint32_t vertexCount=gridSize+backSize+sideVertices;
+            const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+sideTriangles);
             if (vertexCount>std::min(o.maxVertices,65535u) || triangleCount>o.maxTriangles)
             {
                 const auto message="Geometry budget exceeded including side texture seams: vertices "+std::to_string(vertexCount)+
@@ -193,7 +235,9 @@ namespace mbm
             std::vector<uint32_t> backIndex(gridSize);
             for (uint32_t i=0;i<backSize;++i)
             {
-                const uint32_t source=compactBack?topology.boundary[i]:i;
+                uint32_t source=i;
+                if (minimalBack) source=topology.boundary[backCorners[i]];
+                else if (compactBack) source=topology.boundary[i];
                 backIndex[source]=gridSize+i;
                 VERTEX back = vertices[source];
                 back.position.z = o.backRelief ? -back.position.z : o.depth * 0.5f;
@@ -220,8 +264,13 @@ namespace mbm
             }
             const uint32_t backIndexStart=static_cast<uint32_t>(indices.size());
             if (!o.backOpen)
-                for (const auto &face : (compactBack?topology.backTriangles:topology.triangles))
+            {
+                const auto *faces=&topology.triangles;
+                if (minimalBack) faces=&minimalTriangles;
+                else if (compactBack) faces=&topology.backTriangles;
+                for (const auto &face:*faces)
                     triangle(backIndex[face[0]],backIndex[face[2]],backIndex[face[1]]);
+            }
             // Transparent atlas margins must not turn a closed solid into invisible walls.
             // Build a nearest-max-alpha lookup only if a side crosses transparent texels.
             // Two Manhattan-distance sweeps keep lookup work linear in crop pixels.
@@ -355,8 +404,41 @@ namespace mbm
                 }
                 triangle(start, start + 2, start + 1); triangle(start + 1, start + 2, start + 3);
             };
-            for (size_t i = 0; i < topology.boundary.size(); ++i)
-                side(topology.boundary[i], topology.boundary[topology.nextBoundary(i)],!topology.loopEnds.empty() && i>=topology.loopEnds[0]);
+            if (minimalBack)
+            {
+                for (size_t c=0;c<backCorners.size();++c)
+                {
+                    image_mesh::checkpoint(o,"sides",0.94f);
+                    const size_t first=backCorners[c],last=backCorners[(c+1)%backCorners.size()];
+                    const uint32_t start=static_cast<uint32_t>(vertices.size());
+                    const auto append=[&](size_t boundaryIndex,bool rear)
+                    {
+                        const uint32_t source=topology.boundary[boundaryIndex];
+                        const auto &p=topology.points[source];
+                        VERTEX v=vertices[source];
+                        if (rear) v.position.z=o.depth*.5f;
+                        if (o.sideMode==IMAGE_MESH_SIDE::COLOR) v.uv=VEC2(.5f,.5f);
+                        else if (o.sideMode==IMAGE_MESH_SIDE::BAND && (rear!=o.sideBandInvert))
+                        {
+                            const auto inner=image_mesh::sideMap(p,topology.contour,sideInner);
+                            v.uv=VEC2((o.x+inner.x*(cw-1)+.5f)/imageWidth,(o.y+inner.y*(ch-1)+.5f)/imageHeight);
+                        }
+                        vertices.push_back(v);
+                    };
+                    size_t i=first;
+                    for (;;)
+                    {
+                        append(i,false);
+                        if (i==last) break;
+                        i=(i+1)%topology.boundary.size();
+                    }
+                    append(last,true); append(first,true);
+                    for (const auto &face:minimalSides[c]) triangle(start+face[0],start+face[2],start+face[1]);
+                }
+            }
+            else
+                for (size_t i = 0; i < topology.boundary.size(); ++i)
+                    side(topology.boundary[i], topology.boundary[topology.nextBoundary(i)],!topology.loopEnds.empty() && i>=topology.loopEnds[0]);
             // Prefer plateau faces over steep ramps when computing shared front
             // normals. Keeping vertices welded preserves simplification behavior.
             const bool preservePlateaus=o.followImage && o.twoLevels && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.relief>0;

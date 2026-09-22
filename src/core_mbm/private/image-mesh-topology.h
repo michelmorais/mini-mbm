@@ -44,6 +44,11 @@ namespace mbm { namespace image_mesh {
 
     };
     bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &out, std::string &error, const HEIGHT_FIELD *field = nullptr);
+    // Private polygon triangulation shared by minimal backs and their side strips.
+    bool triangulatePolygon(const std::vector<IMAGE_MESH_POINT> &points,
+                            std::vector<std::array<uint32_t,3>> &triangles);
+    bool minimalBack(const TOPOLOGY &topology, std::vector<size_t> &corners,
+                     std::vector<std::array<uint32_t,3>> &triangles);
     float borderDistance(const IMAGE_MESH_POINT &point, const TOPOLOGY &topology);
 } }
 #endif

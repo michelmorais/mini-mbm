@@ -58,6 +58,7 @@ Canonical weights retain at most four normalized nonnegative influences.
 Hard protections reject collapses that would violate:
 
 - open-boundary vertex locking in the default strict mode;
+- rejection of collapses that would pinch coincident attribute-seam edges together, even when their vertex indices differ;
 - manifold topology and triangle orientation;
 - source/frame geometry bounds;
 - the 16-bit index contract;

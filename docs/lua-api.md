@@ -2501,8 +2501,13 @@ Features below the sampling scale may need higher columns/rows.
 
 After refinement, edges are inserted along processed-image isovalues: the threshold
 for continuous relief, or both ends of the two-height transition. Shared edge
-intersections are solved against the filtered image. When `backRelief=false`, the back is triangulated
-using boundary vertices only; it does not duplicate interior relief vertices.
+intersections are solved against the filtered image. Eligible closed flat backs without
+holes use the original contour corners (two triangles for a quadrilateral), with side
+strips retriangulated to match while retaining all front samples. This optimization also
+applies when `followImage=false`. Repeated side textures and transparent edge-texture
+crops retain their seams. If reduction is unsafe, the generator retains boundary-only
+back triangulation where possible, or the full front topology as a fallback. Copied
+back relief and holed modules retain the front topology.
 Sharp transition fragments may legitimately be small. All final vertex/triangle
 budgets include back and walls; insufficient budgets still return an error.
 Filtering and thresholding cannot infer real depth from painted lighting or create holes.

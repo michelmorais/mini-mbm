@@ -542,10 +542,58 @@ namespace {
         if (!o.twoLevels && (!alignTransition(o,t,field,0.0001f,error) || !alignTransition(o,t,field,0.9999f,error))) return false;
         improveRelief(o,t,field);
         if (!refinePainting(o,t,field,error)) return false;
-        if (!o.backOpen && o.holeCount==0 && !triangulateBoundary(t,t.backTriangles)) { error="Cannot triangulate simplified back"; return false; }
+        // A compact cap is optional; retain the front topology if ear clipping fails.
+        if (!o.backOpen && !o.backRelief && o.holeCount==0 && !triangulateBoundary(t,t.backTriangles))
+            t.backTriangles.clear();
         return budget(o,t,"after groove alignment",error);
     }
 
+}
+
+bool triangulatePolygon(const std::vector<IMAGE_MESH_POINT> &points,
+                        std::vector<std::array<uint32_t,3>> &triangles)
+{
+    if (points.size()<3) return false;
+    TOPOLOGY polygon;
+    polygon.points=points;
+    for (uint32_t i=0;i<points.size();++i) polygon.boundary.push_back(i);
+    if (!triangulateBoundary(polygon,triangles)) return false;
+    for (const auto &face:triangles)
+        if (cross(points[face[0]],points[face[1]],points[face[2]])<=epsilon) return false;
+    return true;
+}
+
+bool minimalBack(const TOPOLOGY &t, std::vector<size_t> &corners,
+                 std::vector<std::array<uint32_t,3>> &triangles)
+{
+    if (!t.holes.empty() || t.contour.size()<3) return false;
+    // Retain original corners exactly; only remove samples introduced on straight edges.
+    for (size_t i=0;i<t.boundary.size();++i)
+    {
+        const auto &p=t.points[t.boundary[i]];
+        for (const auto &corner:t.contour)
+            if (p.x==corner.x && p.y==corner.y) { corners.push_back(i); break; }
+    }
+    if (corners.size()!=t.contour.size() || corners.size()==t.boundary.size()) return false;
+    std::vector<IMAGE_MESH_POINT> points;
+    for (size_t c=0;c<corners.size();++c)
+    {
+        const size_t first=corners[c],last=corners[(c+1)%corners.size()];
+        const auto &a=t.points[t.boundary[first]], &b=t.points[t.boundary[last]];
+        const double dx=b.x-a.x,dy=b.y-a.y,length=dx*dx+dy*dy;
+        double previous=0;
+        for (size_t i=(first+1)%t.boundary.size();i!=last;i=(i+1)%t.boundary.size())
+        {
+            const auto &p=t.points[t.boundary[i]];
+            const double along=((p.x-a.x)*dx+(p.y-a.y)*dy)/length;
+            if (std::abs(cross(a,b,p))>1e-7*std::sqrt(length) || along<=previous || along>=1) return false;
+            previous=along;
+        }
+        points.push_back(a);
+    }
+    if (!triangulatePolygon(points,triangles)) return false;
+    for (auto &face:triangles) for (auto &v:face) v=t.boundary[corners[v]];
+    return true;
 }
 
 bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
