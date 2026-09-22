@@ -582,6 +582,9 @@ local function propertiesPanel()
             local help='grooves_help'
             if map then help='height_map_help' elseif overlay then help='groove_overlay_help' end
             tImGui.TextWrapped(L(help))
+            local reliefChanged,relief=tImGui.InputFloat(L('relief'),E.values.relief,0.1,1,'%.3f')
+            if reliefChanged then E.values.relief=Model.clampOption('relief',relief,E.values.relief) end
+            Help.show('relief')
             if imagePreview then
                 if E.heightView~=1 and tImGui.Button(L('preview_adjustments')) then E.heightRequested=true end
                 HeightPreview.panel(E)
@@ -598,12 +601,12 @@ local function propertiesPanel()
         if E.values.preserveAspect and E.draft and not E.editDefaults then
             E.values.height=E.values.width*math.max(1,E.draft.h-1)/math.max(1,E.draft.w-1)
         end
-        for _,key in ipairs({'width','height','depth','relief'}) do
+        for _,key in ipairs({'width','height','depth'}) do
             if key=='height' and E.values.preserveAspect then
                 if not E.editDefaults then tImGui.Text(L(key)..': '..string.format('%.3f',E.values.height)) end
             else
                 local c,v=tImGui.InputFloat(L(key),E.values[key],0.1,1,'%.3f'); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
-                if key=='relief' or key=='depth' then Help.show(key) end
+                if key=='depth' then Help.show(key) end
             end
         end
         end

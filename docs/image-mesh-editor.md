@@ -73,7 +73,7 @@ regions without replacing existing ones. Individual crops remain editable.
   defaults clears its overrides.
 
 **Edit project defaults** switches the property groups below to project-wide
-settings and opens **Volume and relief**. Module-specific fields such as the name
+settings and opens **Volume**. Module-specific fields such as the name
 and contour are hidden. **Apply project defaults** commits the settings for new
 modules and inherited parameters of existing ones; individual overrides remain.
 Uncheck the option to return to the selected module's properties.
@@ -143,8 +143,8 @@ duplicated, scaled with the module, and included in undo/redo and export.
 
 ## Volume and relief
 
-**Volume and relief** controls world dimensions, base depth, and relief amplitude.
-**Relief and grooves** contains fixed border height and its transition width,
+**Volume** controls world dimensions and base depth.
+**Relief and grooves** contains relief amplitude, fixed border height, and its transition width,
 shown when border locking is enabled. **Preserve image aspect ratio** derives world height
 from world width using the crop's pixel-center spans, `(h - 1) / (w - 1)`, with
 minimum one-pixel spans. Disable it for independent width and height.
