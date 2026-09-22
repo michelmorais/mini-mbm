@@ -100,7 +100,8 @@ namespace mbm
         IDLE,
         RUNNING,
         SUCCEEDED,
-        FAILED
+        FAILED,
+        CANCELLED
     };
 
     struct BUFFER_MESH
@@ -352,6 +353,7 @@ namespace mbm
                                     const int targetFrameIndex = 0,
                                     const bool preserveDetails = true,
                                     const float boundaryCollapseThreshold = 0.0f);
+        API_IMPL bool cancelSimplify() noexcept;
         API_IMPL MESH_SIMPLIFY_STATE getSimplifyState(float &progress) noexcept;
         API_IMPL bool getSimplifyResult(MESH_SIMPLIFY_REPORT &report,
                                         char *errorOut, const int errorOutLen);

@@ -1,128 +1,131 @@
-# Processamento de normais no Mesh Debug
+# Normal Processing in Mesh Debug
 
-A tabela de normais oferece a escolha **Processamento de normais**. A seleção
-vale para os botões **Aplicar** de cada vértice e **Aplicar método em todas** do
-subset. O escopo da tabela continua sendo o frame 1. O padrão é reparação.
+Mesh Debug offers three normal-processing methods. The normal table defaults to
+repair and applies the selected method to an individual vertex or the whole subset
+in frame 1. The **Apply to all** window has an independent method selection for
+batch operations across frames and subsets.
 
-- **Reparar normais inválidas**: preserva exatamente vetores finitos, não nulos,
-  com comprimento dentro de 0,001 de 1 e orientação compatível com a média
-  geométrica (produto escalar positivo). Vetores com direção compatível mas
-  comprimento incorreto são normalizados, sem substituir sua direção. Normais
-  nulas, não finitas ou invertidas são substituídas pela média geométrica quando
-  existe uma direção calculável. Sem essa referência, vetores finitos não nulos
-  ainda podem ter seu comprimento reparado; normais irrecuperáveis ficam intactas.
-- **Recalcular - preservar superfícies**: identifica regiões de faces conectadas
-  por arestas, agrupando vizinhas cujo ângulo entre normais não excede o limite
-  escolhido (25 graus por padrão; ajustável de 1 a 89). Nas fronteiras entre
-  regiões, prioriza a região com maior área total, usando a média das normais
-  unitárias de suas faces incidentes. Regiões com pelo menos 95% da área da maior
-  contribuem juntas, evitando preferência arbitrária em quinas simétricas.
-  Não usa normais anteriores, mapa de alturas nem um eixo privilegiado.
-- **Recalcular - suavização uniforme**: substitui os vetores pela média normalizada
-  das normais unitárias das faces adjacentes. Esse método sobrescreve normais
-  personalizadas e pode alterar o sombreamento de uma mesh do Image Mesh Editor.
+## Methods
 
-A validação de orientação é uma convenção baseada no winding e não prova que uma
-normal aponta para fora de qualquer sólido. O teste não inverte o resultado em
-função da declaração CW/CCW. Triângulos degenerados não fornecem direção útil.
-Listas de triângulos indexadas e não indexadas são suportadas; vértices não são
-fundidos por posição. Reparação não reconstrói a classificação de patamares que
-foi usada pelo Image Mesh Editor. Um arquivo já recalculado com normais válidas
-não recupera automaticamente o sombreamento anterior no modo Reparar. O modo
-Preservar superfícies faz uma nova inferência geométrica, sem garantia de reproduzir
-normais artisticamente editadas ou todos os detalhes de um gerador especializado.
+| Method | Behavior |
+|---|---|
+| Repair invalid normals | Preserves valid authored vectors, normalizes recoverable lengths, and replaces invalid directions when a geometric reference is available |
+| Recompute - preserve surfaces | Infers connected surface regions and prioritizes dominant regions at shared vertices |
+| Recompute - uniform smoothing | Replaces normals with the normalized average of adjacent unit face normals |
 
-## Operações em lote
+### Repair invalid normals
 
-A janela **Aplicar a todos** tem sua própria seleção de método. O botão de
-processamento percorre todos os frames e subsets dos arquivos do tipo escolhido.
-Normais preservadas/inalteradas não marcam a entrada como modificada. Entradas
-sem normais são ignoradas pelo processamento; **Adicionar normais** serve para
-criá-las e ignora arquivos que já possuem normais, evitando sobrescrita acidental.
+A vector is preserved exactly when it is finite, nonzero, within 0.001 of unit
+length, and points in a direction compatible with the geometric average (positive
+dot product). Compatible vectors with incorrect lengths are normalized without
+changing their direction. Zero, nonfinite, or reversed vectors are replaced with
+the geometric average when a usable reference exists.
 
-**Salvar todos (método de normais selecionado)** aplica a política selecionada
-em cópias para revisão. Somente **Confirmar e salvar** grava os arquivos,
-com o recálculo implícito da engine desabilitado. Se não houver
-normais, cria-as e aplica o método escolhido (Reparar usa suavização uniforme
-nesse caso, pois não há vetores personalizados a preservar). Arquivos que não usam TRIANGLES são ignorados nessa operação.
-O salvamento comum continua preservando os vetores atuais. Falhas de salvamento são
-registradas por item e não interrompem os demais arquivos do lote. Uma falha ao
-preparar a prévia descarta todas as cópias, preservando o lote original.
+Without a geometric reference, finite nonzero vectors can still have their length
+repaired; unrecoverable vectors remain unchanged. Degenerate triangles do not
+provide useful directions. Orientation is derived from winding and does not prove
+that a vector points outward from an arbitrary solid; the calculation does not
+flip its result based on the declared CW/CCW mode.
 
-A seleção do método não altera a geometria nem aplica operações por si só. Ela é
-estado temporário da sessão. A computação geométrica da tabela permanece em cache;
-os loops completos de processamento executam apenas ao acionar um botão. Não há
-novo trabalho de varredura de geometria contínuo no editor ocioso.
+Repair does not recreate the plateau classification used by the Image Mesh Editor.
+If a file has already been recomputed with different but valid normals, repair
+cannot automatically recover its previous shading.
 
-## Verificação
+### Recompute while preserving surfaces
 
-- `src/test-lib/mesh_debug_normals_test.lua`: política pura de reparação,
-  normalização, NaN/infinito, orientação e substituição uniforme.
-- `src/test-lib/mesh_debug_normals_smoke.lua`: dois frames com dois subsets,
-  preservação de normais personalizadas, operação idempotente, salvamento/reabertura,
-  processamento uniforme, falha isolada no lote, triângulos não indexados e UI.
+Faces connected by shared edges belong to the same region when neighboring face
+normals differ by no more than the chosen angle. The default is 25 degrees; the
+range is 1–89 degrees.
 
-## Preservar superfícies: uso e limites
+At a vertex shared by different regions, the region with the largest total area
+receives priority. The result averages unit normals of incident faces belonging
+to that region. Regions with at least 95% of the largest region's area contribute
+together, avoiding arbitrary preferences at symmetric corners.
 
-Escolha o método e o ângulo, aplique ao subset ou aos arquivos carregados e examine
-a prévia 3D sob diferentes direções de luz. Os três métodos abrem uma revisão
-reversível antes de alterar a mesh autoral. **Confirmar** aceita as cópias com
-normais alteradas e marca os arquivos como modificados, sem salvamento implícito.
-O botão de salvamento com método selecionado exige **Confirmar e salvar**.
-A largura do combobox é fixa em 320 px, tanto na tabela quanto na janela de lote.
+This is a geometric inference. It uses neither existing normals, a height map,
+nor a preferred world axis. Region growth follows local continuity, so a curved
+surface can form one region even if its endpoints have very different orientations.
+Large angles may merge a wall with a plateau; small angles may fragment curved
+surfaces. Dominant area is a heuristic, not a semantic top/bottom classification.
 
-Regiões crescem por continuidade local: uma superfície curva pode formar uma única
-região mesmo quando a diferença de orientação entre suas extremidades é grande.
-Ângulos altos podem unir uma parede ao patamar; baixos podem fragmentar superfícies
-curvas. A maior área é uma heurística de superfície dominante, não uma classificação
-semântica de topo/fundo. Em arestas compartilhadas por mais de duas faces, as regiões
-não são unidas. Sem índices compartilhados (incluindo listas não indexadas), não se
-infere conectividade por posição; não há soldagem de UVs, índices ou vértices.
-Normais de quinas sem uma região dominante são misturadas. Não são criadas costuras
-nem novos vértices; posições, UVs, índices e contagens ficam inalterados.
+Regions do not join across edges shared by more than two faces. Without shared
+indices, including non-indexed triangle lists, connectivity is not inferred from
+coincident positions. The operation does not weld vertices or UVs, split seams,
+or add vertices. Positions, UVs, indices, and counts remain unchanged. Corners
+without a dominant region receive blended normals.
 
-A prévia de meshes usa o carregamento isolado do editor, inclusive com filtro
-de frames, para exibir o arquivo temporário editado sem reutilizar uma mesh
-do cache de renderização. Ela só é recarregada quando a entrada muda.
+Use the preview under several light directions before confirming. This method
+can recover useful surface shading but cannot guarantee reconstruction of artistic
+normals or the output of a specialized generator.
 
-O agrupamento executa somente quando o método é acionado, nunca ao desenhar o
-combobox ou alterar o ângulo. Usa estruturas lineares no número de faces/arestas
-e conjuntos disjuntos para encontrar componentes conectados. O cache geométrico
-usado para status/visualização continua independente dessa operação.
+### Uniform smoothing
 
-Milestone concluído em 7.232.0: modo geométrico individual/lote/salvamento,
-controle de ângulo, largura fixa, testes de invariância por rotação, regiões de
-áreas equivalentes, triângulos degenerados e preservação de contagens. No exemplo
-module_002-recompute-all.msh, a inferência recuperou visualmente os patamares,
-comparada com a exportação original. Isso é validação desse exemplo, não garantia
-para qualquer malha.
+Uniform smoothing averages adjacent unit face normals and normalizes the result.
+It replaces authored normals and can change the appearance of meshes from the
+Image Mesh Editor, whose plateau normals receive specialized treatment.
 
-## Prévia reversível (7.233.0)
+Both indexed and non-indexed triangle lists are supported. Vertices are not
+merged by position.
 
-O processamento por vértice, subset e lote usa cópias isoladas da mesh atual,
-incluindo edições ainda não salvas. A janela mostra o método, a contagem de normais
-a alterar e as meshes propostas. O combo permite escolher o alvo no lote;
-**Visualizar original** alterna entre a mesh autoral e a proposta. Câmera e luz
-continuam disponíveis. Os demais controles de edição ficam indisponíveis durante
-a revisão, evitando modificações concorrentes.
+## Reversible preview
 
-**Cancelar** ou fechar a janela descarta a proposta. A mesh autoral, suas edições
-anteriores e seu estado de modificação permanecem intactos. **Confirmar** aceita
-todas as meshes listadas, após verificar que os alvos ainda são os mesmos.
-Os temporários são removidos ao confirmar, cancelar, sair da cena ou falhar na
-preparação. O salvamento combinado grava apenas os alvos incluídos na revisão;
-uma falha de gravação mantém a alteração em memória para permitir novo salvamento.
+All three methods prepare isolated copies of the current mesh, including unsaved
+edits. The review window shows the method, the number of normals to change, and
+the proposed meshes. For a batch, select the target from the list. **Show original**
+switches between the authored mesh and its proposal; camera and lighting remain
+available. Other editing controls are unavailable during review.
 
-Sem alterações necessárias, o processamento comum só informa esse resultado;
-no fluxo combinado com salvamento, a revisão permanece disponível mesmo com zero
-normais alteradas. Meshes sem normais são ignoradas no processamento comum e
-recebem normais na cópia do fluxo combinado. Operações manuais de componentes,
-inversão, adição e remoção de normais mantêm seus fluxos existentes.
+- **Confirm** accepts all listed proposals after checking that the targets are
+  still the same. Entries are marked modified, without saving implicitly.
+- **Cancel** or closing the window discards proposals, preserving the original
+  mesh, previous edits, and modified state.
+- **Confirm and save** is required for the combined processing-and-saving command.
 
-As cópias e o cálculo são feitos ao solicitar a operação. Alternar o alvo ou a
-visualização invalida a prévia; o loop ocioso só desenha os controles e atualiza a
-câmera, sem recalcular normais ou reconstruir continuamente as meshes.
+Temporary files are removed after confirmation, cancellation, preparation failure,
+or scene exit. A preparation failure discards all proposals. Ordinary processing
+reports when no changes are needed; the combined save workflow still offers a
+review when the number of changed normals is zero.
 
-O smoke test também verifica isolamento antes de confirmar, cancelamento com
-edições anteriores, escopo por vértice/subset, múltiplos alvos, falha de preparação,
-limpeza de temporários, salvamento adiado e ausência de recálculo no loop ocioso.
+The preview uses isolated editor loading so temporary files do not reuse a mesh
+from the shared render cache. Frame filtering is supported. Copies and computation
+are created on request; switching targets or original/proposal invalidates the
+preview, without continuously recalculating normals or rebuilding meshes while idle.
+
+## Batch operations and saving
+
+**Apply to all** processes every frame and subset of the selected asset type.
+Preserved/unchanged normals do not mark an entry modified. Ordinary processing
+skips entries without normals. **Add normals** creates them only where missing,
+avoiding accidental replacement of existing vectors.
+
+**Save all (selected normal method)** prepares copies for review. It creates
+missing normals and applies the chosen method; Repair uses uniform smoothing when
+there are no authored vectors to preserve. Assets not using TRIANGLES are skipped.
+Only **Confirm and save** writes files, with the engine's implicit normal
+recomputation disabled. Ordinary saving preserves the current vectors.
+
+Save failures are reported per item and do not stop the remaining batch. A failed
+save retains the accepted in-memory changes so saving can be retried. Only targets
+included in the review are saved.
+
+Method selection is temporary session state and does not itself modify geometry.
+Both method selectors have a fixed width. Angle changes do not run surface grouping;
+grouping runs when the processing operation is requested. Geometric status and
+visualization use a separate cache. Manual component editing, inversion, addition,
+and removal of normals retain their own workflows.
+
+## Implementation and verification
+
+Surface grouping uses face/edge data and disjoint sets for connected components.
+It does not run while drawing the method selector. The algorithms and preview
+helpers live in the editor's normal-processing modules.
+
+- `src/test-lib/mesh_debug_normals_test.lua` covers repair, normalization,
+  NaN/infinity, orientation, and uniform replacement.
+- `src/test-lib/mesh_debug_normals_smoke.lua` covers multiple frames/subsets,
+  authored normals, idempotence, save/reload, non-indexed geometry, batch failures,
+  review isolation, cancellation, temporary-file cleanup, and idle behavior.
+
+See [Image Mesh Editor](image-mesh-editor.md#geometry-normals-and-budgets) for
+relief-specific normals and [Mesh Simplification](mesh-simplification.md) for
+operations that change geometry.

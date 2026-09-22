@@ -82,7 +82,7 @@ local function changed()
     E.statisticsRequested=nil
     GeometryCache.clear(E)
     E.statistics={}
-    HeightPreview.destroy(E)
+    HeightPreview.invalidate(E)
     E.generationFailure=nil
     E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
     Comparison.sync(E); Assembly.sync(E)
@@ -238,6 +238,7 @@ local function loadTexture(path)
     return texture
 end
 local function install(project,path,texture)
+    HeightPreview.destroy(E)
     Paint.destroy(E); if E.paint then E.paint.enabled=false end
     releasePreview(); E.assembly=nil; Canvas.destroy(E); E.sideContour=nil; E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     if E.tool=='back_uv' or E.tool=='side_band' then E.tool='select' end
@@ -583,7 +584,7 @@ local function propertiesPanel()
             tImGui.TextWrapped(L(help))
             if imagePreview then
                 if E.heightView~=1 and tImGui.Button(L('preview_adjustments')) then E.heightRequested=true end
-                if E.heightError then tImGui.TextWrapped(E.heightError) end
+                HeightPreview.panel(E)
             end
         end
         Holes.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
@@ -755,7 +756,6 @@ local function regionsPanel()
             tImGui.EndChild()
             tImGui.Separator(); propertiesPanel()
         else tImGui.Text(L('open_help')) end
-        if E.simplifyProgress then tImGui.ProgressBar(E.simplifyProgress,{x=-1,y=0},string.format(tLang.L('simplify_progress_fmt'),E.simplifyProgress*100)) end
         if E.status~=E.generationFailure then tImGui.TextWrapped(E.status) end
         if E.batch then
             tImGui.ProgressBar((E.batch.index-1)/#E.batch.project.regions,{x=-1,y=0},L('exporting'))
@@ -779,7 +779,7 @@ function onInitScene()
 end
 function onLoop(delta)
     if E.autoTask then dpCall(Auto.resume,E) end
-    if E.imageJob and E.key==mbm.getKeyCode('ESC') then Generation.cancel(E);E.key=nil end
+    if (E.imageJob or E.simplifyAsset) and E.key==mbm.getKeyCode('ESC') then Generation.cancel(E);E.key=nil end
     if E.meshTask then dpCall(Simplify.resume,E) end
     tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil); menu(); tImGui.EndDisabled()
     tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil)
@@ -863,7 +863,7 @@ end
 function onResizeWindow()
     E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
-function onEndScene() Generation.cancel(E); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.destroy(E); releasePreview(); Canvas.destroy(E) end
+function onEndScene() Generation.cancel(E); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.shutdown(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.generation=Generation
     testApi.auto=Auto; testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end

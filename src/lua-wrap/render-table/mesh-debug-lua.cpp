@@ -284,6 +284,13 @@ namespace mbm
         return 2;
     }
 
+    int onCancelSimplifyMeshDebugLua(lua_State *lua)
+    {
+        auto *asset=getMeshDebugFromRawTable(lua,1,1);
+        lua_pushboolean(lua,asset->mesh.cancelSimplify());
+        return 1;
+    }
+
     int onGetSimplifyStatusMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -291,11 +298,12 @@ namespace mbm
         const MESH_SIMPLIFY_STATE state = meshDebug->mesh.getSimplifyState(progress);
         const char *stateName = state == MESH_SIMPLIFY_STATE::RUNNING ? "running"
             : state == MESH_SIMPLIFY_STATE::SUCCEEDED ? "completed"
+            : state == MESH_SIMPLIFY_STATE::CANCELLED ? "cancelled"
             : state == MESH_SIMPLIFY_STATE::FAILED ? "failed" : "idle";
         lua_createtable(lua, 0, 4);
         lua_pushstring(lua, stateName); lua_setfield(lua, -2, "state");
         lua_pushnumber(lua, progress); lua_setfield(lua, -2, "progress");
-        if (state == MESH_SIMPLIFY_STATE::SUCCEEDED || state == MESH_SIMPLIFY_STATE::FAILED)
+        if (state == MESH_SIMPLIFY_STATE::SUCCEEDED || state == MESH_SIMPLIFY_STATE::FAILED || state == MESH_SIMPLIFY_STATE::CANCELLED)
         {
             MESH_SIMPLIFY_REPORT report;
             char errorOut[255] = "";
@@ -3499,6 +3507,7 @@ namespace mbm
                                           {"simplify", onSimplifyMeshDebugLua},
                                           {"startSimplify", onStartSimplifyMeshDebugLua},
                                           {"getSimplifyStatus", onGetSimplifyStatusMeshDebugLua},
+                                          {"cancelSimplify", onCancelSimplifyMeshDebugLua},
                                           {"save", onSaveMeshDebugLua},
                                           {"setType", onSetTypeMeshDebugLua},
                                           {"getType", onGetTypeMeshDebugLua},
@@ -3899,6 +3908,7 @@ namespace mbm
     namespace
     {
         std::atomic<bool> imageMeshWorkerBusy{false};
+        std::atomic<bool> imageMapWorkerBusy{false};
     }
 
     IMAGE_MESH_JOB_LUA::IMAGE_MESH_JOB_LUA() = default;
@@ -3942,7 +3952,7 @@ namespace mbm
             }
             return !job.cancelled.load(std::memory_order_relaxed);
         };
-        result=std::make_unique<MESH_DEBUG_LUA>();
+        if (!mapJob) result=std::make_unique<MESH_DEBUG_LUA>();
     }
 
     void IMAGE_MESH_JOB_LUA::run()
@@ -3950,7 +3960,8 @@ namespace mbm
         try
         {
             char message[512]="";
-            const bool ok=generateImageMesh(path.c_str(),options,result->mesh,report,message,sizeof(message));
+            const bool ok=mapJob?generateImageMeshMap(path.c_str(),options,output.c_str(),overlay,message,sizeof(message)):
+                generateImageMesh(path.c_str(),options,result->mesh,report,message,sizeof(message));
             if (!ok) error=message;
             state.store(ok?STATE::COMPLETED:STATE::FAILED,std::memory_order_release);
         }
@@ -3962,7 +3973,7 @@ namespace mbm
         {
             error="Image mesh worker failed";state.store(STATE::FAILED,std::memory_order_release);
         }
-        imageMeshWorkerBusy.store(false,std::memory_order_release);
+        (mapJob?imageMapWorkerBusy:imageMeshWorkerBusy).store(false,std::memory_order_release);
     }
 
     namespace
@@ -4012,6 +4023,7 @@ namespace mbm
             if (job->state.load(std::memory_order_acquire)!=IMAGE_MESH_JOB_LUA::STATE::COMPLETED || job->taken || job->cancelled.load())
             { lua_pushnil(lua);lua_pushliteral(lua,"Image mesh result is unavailable");return 2; }
             if (job->worker.joinable()) job->worker.join();
+            if (job->mapJob) { job->taken=true;lua_pushboolean(lua,true);return 1; }
             lua_pushcfunction(lua,onNewMeshDebugLua);lua_call(lua,0,1);
             auto **asset=static_cast<MESH_DEBUG_LUA **>(lua_check_userType(lua,1,lua_gettop(lua),L_USER_TYPE_MESH_DEBUG));
             delete *asset;*asset=job->result.release();job->taken=true;
@@ -4024,16 +4036,19 @@ namespace mbm
         }
     }
 
-    int onStartImageMeshLua(lua_State *lua)
+    static int startImageMeshJob(lua_State *lua, bool mapJob)
     {
         const char *path=luaL_checkstring(lua,1);
+        const char *output=mapJob?luaL_checkstring(lua,3):nullptr;
+        if (mapJob && !lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
+        const bool overlay=mapJob && lua_toboolean(lua,4)!=0;
         IMAGE_MESH_OPTIONS options;IMAGE_MESH_POINT contour[128],holePoints[2048],areaPoints[4096];
         IMAGE_MESH_DAB dabs[4096];IMAGE_MESH_HOLE holes[16];IMAGE_MESH_HEIGHT_AREA areas[32];
         readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
         if (luaL_newmetatable(lua,imageMeshJobType))
         {
             const luaL_Reg methods[]={{"getStatus",onGetImageMeshJobStatusLua},{"cancel",onCancelImageMeshJobLua},
-                {"takeResult",onTakeImageMeshJobResultLua},{"__gc",onDestroyImageMeshJobLua},{nullptr,nullptr}};
+                {"takeResult",onTakeImageMeshJobResultLua},{"close",onDestroyImageMeshJobLua},{"__gc",onDestroyImageMeshJobLua},{nullptr,nullptr}};
             luaL_setfuncs(lua,methods,0);lua_pushvalue(lua,-1);lua_setfield(lua,-2,"__index");
             lua_pushliteral(lua,"image mesh job");lua_setfield(lua,-2,"__metatable");
         }
@@ -4041,21 +4056,27 @@ namespace mbm
         auto **handle=static_cast<IMAGE_MESH_JOB_LUA **>(lua_newuserdatauv(lua,sizeof(IMAGE_MESH_JOB_LUA *),0));
         *handle=nullptr;luaL_setmetatable(lua,imageMeshJobType);
         bool expected=false;
-        if (!imageMeshWorkerBusy.compare_exchange_strong(expected,true))
-        { lua_pop(lua,1);lua_pushnil(lua);lua_pushliteral(lua,"Another image mesh generation is running");return 2; }
+        auto &busy=mapJob?imageMapWorkerBusy:imageMeshWorkerBusy;
+        if (!busy.compare_exchange_strong(expected,true))
+        { lua_pop(lua,1);lua_pushnil(lua);lua_pushstring(lua,mapJob?"Another image map generation is running":"Another image mesh generation is running");return 2; }
         try
         {
             *handle=new IMAGE_MESH_JOB_LUA;
+            (*handle)->mapJob=mapJob;(*handle)->overlay=overlay;
+            if (output) (*handle)->output=output;
             (*handle)->snapshot(path,options);
             auto *job=*handle;job->worker=std::thread([job]() { job->run(); });
         }
         catch (const std::exception &e)
         {
-            delete *handle;*handle=nullptr;imageMeshWorkerBusy.store(false);
+            delete *handle;*handle=nullptr;busy.store(false);
             lua_pop(lua,1);lua_pushnil(lua);lua_pushstring(lua,e.what());return 2;
         }
         return 1;
     }
+
+    int onStartImageMeshLua(lua_State *lua) { return startImageMeshJob(lua,false); }
+    int onStartImageMeshMapLua(lua_State *lua) { return startImageMeshJob(lua,true); }
 
     int onGenerateImageMeshLua(lua_State *lua)
     {

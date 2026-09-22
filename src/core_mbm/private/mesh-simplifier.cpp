@@ -211,8 +211,14 @@ namespace mbm::mesh_simplifier
     }
 
     bool simplify(const INPUT &input, const uint32_t targetTriangleCount, OUTPUT &output,
-                  std::string &errorOut, const std::function<void(float)> &onProgress)
+                  std::string &errorOut, const std::function<void(float)> &onProgress,
+                  const std::function<bool()> &isCancelled)
     {
+        const auto cancelled=[&]() {
+            if (!isCancelled || !isCancelled()) return false;
+            errorOut="simplification cancelled";return true;
+        };
+        if (cancelled()) return false;
         output = {};
         if (input.positions.empty() || input.indices.empty() || input.indices.size() % 3 != 0)
         { errorOut = "indexed triangle input is empty or malformed"; return false; }
@@ -282,6 +288,7 @@ namespace mbm::mesh_simplifier
             edges.reserve(triangles.size() * 2);
             for (uint32_t i = 0; i < triangles.size(); ++i)
             {
+                if ((i & 255u)==0 && cancelled()) return false;
                 const TRIANGLE &triangle = triangles[i];
                 const VEC3 normal = normalized(cross(positions[triangle.b] - positions[triangle.a],
                                                      positions[triangle.c] - positions[triangle.a]));
@@ -298,6 +305,7 @@ namespace mbm::mesh_simplifier
             { return static_cast<int>(std::floor(static_cast<double>(value) / cellSize)); };
             for (uint32_t i = 0; i < triangles.size(); ++i)
             {
+                if ((i & 255u)==0 && cancelled()) return false;
                 const TRIANGLE &triangle = triangles[i];
                 const VEC3 &a = positions[triangle.a], &b = positions[triangle.b], &c = positions[triangle.c];
                 const int minX = cellCoordinate(std::min(a.x, std::min(b.x, c.x)));
@@ -327,6 +335,7 @@ namespace mbm::mesh_simplifier
             candidates.reserve(edges.size());
             for (const auto &entry : edges)
             {
+                if (cancelled()) return false;
                 const uint32_t a = static_cast<uint32_t>(entry.first >> 32u);
                 const uint32_t b = static_cast<uint32_t>(entry.first);
                 const bool touchesBoundary = boundary[a] || boundary[b];
@@ -442,6 +451,7 @@ namespace mbm::mesh_simplifier
             };
             for (const CANDIDATE &candidate : candidates)
             {
+                if (cancelled()) return false;
                 if (used[candidate.a] || used[candidate.b]) continue;
                 bool overlapsSelectedTriangle = false;
                 for (const uint32_t vertex : {candidate.a, candidate.b})
@@ -579,6 +589,7 @@ namespace mbm::mesh_simplifier
         const double maximumAbsoluteError = std::max(std::sqrt(maximumCost), std::sqrt(maximumPoseCost));
         output.maximumRelativeError = sourceDiagonal > 1.0e-20
             ? static_cast<float>(maximumAbsoluteError / sourceDiagonal) : 0.0f;
+        if (cancelled()) return false;
         if (onProgress) onProgress(1.0f);
         return true;
     }

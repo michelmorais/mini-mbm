@@ -1460,6 +1460,9 @@ local report, err = meshD:simplify(targetTriangleRatio
 `targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
 quadric-error edge collapses, preserves open boundaries, UV seams, hard-normal splits, material
 metadata, and authored physics metadata, and commits only after the complete candidate is valid.
+Meshes authored in memory with `addVertex`/`addIndex` can be simplified directly;
+saving and reloading first is not required. These editing methods keep frame buffer
+counts synchronized with the subset ranges.
 Vertices touching an open edge are locked rather than merely constrained to slide along that edge;
 assets dominated by open or duplicated seam boundaries may therefore stop before the requested
 ratio and fail atomically instead of producing cracks.
@@ -1521,12 +1524,26 @@ local status = meshD:getSimplifyStatus()
 ```
 
 `startSimplify` returns immediately after creating the worker. `getSimplifyStatus()` returns a
-table with `state` (`idle`, `running`, `completed`, or `failed`) and normalized `progress` in
+table with `state` (`idle`, `running`, `completed`, `failed`, or `cancelled`) and normalized `progress` in
 `0..1`. A completed status also contains `report`; a failed status contains `error`. The worker,
 state, progress, and result are owned by that `meshDebug` instance and require no callback or
 engine-loop integration. Lua must poll from its normal `onLoop`. Do not read, save, or mutate the
 same instance while its state is `running`; use a detached working `meshDebug` and publish it only
-after completion. Destroying the instance waits for its worker to finish.
+after completion. Destroying the instance requests cooperative cancellation and waits for its worker to finish.
+
+Since 7.259.0, `meshD:cancelSimplify()` requests cooperative cancellation and returns
+`true` if accepted before the commit boundary. It returns `false` when no worker
+is running, cancellation was already requested, or replacement of the buffers has
+begun. Keep polling until terminal status; do not read or mutate the mesh while
+it remains `running`. Accepted cancellation produces `state="cancelled"` and an
+`error` message, preserving the original geometry, attributes, indices and weights.
+`startSimplify` may be called again after that terminal state.
+
+The worker checks cancellation during edge-collapse processing and once before
+installing its prepared buffers. An atomic gate arbitrates cancellation versus
+commit: a late request cannot report cancellation after modifying the source.
+Preparation, allocation and sorting may finish before the next check. The
+synchronous `simplify` method retains its existing behavior and return values.
 
 For example, `meshD:simplify(0.5, nil, 3)` simplifies the complete third geometry frame.
 `meshD:simplify(0.5, nil, 0)` simplifies every compatible geometry frame with shared collapses.
@@ -2311,9 +2328,9 @@ there is no detached worker accessing a closed Lua state.
 Progress is monotonic and estimated by stage, not a time-to-completion guarantee.
 Stages are `decode`, `heights`, `areas`, `painting`, `topology`, `alignment`,
 `refinement`, `surface`, `normals`, `finalize`, and `completed`; unused stages may
-be skipped. Polling performs no regeneration or geometry scans. Simplification,
-PNG height-map generation and export are separate operations; this job does not
-make them cancellable or asynchronous.
+be skipped. Polling performs no regeneration or geometry scans. Simplification
+and mesh export remain separate operations. For asynchronous PNG previews, use
+`startImageMeshMap` (7.258.0), described below.
 
 Height areas (`heightAreas`, since 7.250.0) use normalized crop coordinates,
 with 3–128 points per simple contour, or 2–128 points for an open height line
@@ -2453,11 +2470,12 @@ are sampled vertex displacements after inversion and border treatment.
 
 The generated mesh references the resolved original image, which is **not copied**.
 Keep it available on the engine's asset paths when loading exported meshes.
-The [Image Mesh Editor](image-mesh-editor.md) provides selection, project persistence,
-undo/redo, preview and batch export. Portable texture packaging, holes and height
-painting remain planned in [Image Mesh Editor plan](image-mesh-editor-plan.md).
+The [Image Mesh Editor](image-mesh-editor.md) provides editable contours and holes,
+manual height areas and painting, project persistence, undo/redo, preview,
+simplification, and individual/batch export with optional portable textures.
 
-Polygons must be simple, without holes, touching edges or crossings. Consecutive
+Each polygon contour must be simple, without touching edges or crossings; holes
+are supplied separately through the `holes` option. Consecutive
 forward collinear points are removed; duplicate/near-duplicate points, backtracking,
 nonfinite coordinates and negligible area are rejected. Ellipses are approximated
 by an inscribed polygon with `ellipseSegments` sides and an initial triangle fan
@@ -2505,6 +2523,40 @@ Map generation performs no mesh/GPU allocation and ignores mesh budgets and
 refinement density, so it can diagnose settings that exceed mesh budgets. It
 writes the supplied output path; use a separate temporary file, not the source
 image. Call only when inputs change or explicitly requested.
+
+Since 7.258.0, `mbm.startImageMeshMap(imagePath, options, outputPngPath, overlay?)`
+returns a job with the same `getStatus()` / `cancel()` lifecycle as
+`startImageMesh`. One map worker and one geometry worker may run concurrently;
+a second active map worker returns `nil, message`. Paths and option arrays are
+copied before starting. Decode, height processing, rasterization and PNG encoding
+run on the worker; texture/GPU loading stays on the calling thread.
+
+After completion, `job:takeResult()` returns `true` once (the PNG is at the requested
+path), or `nil, message` when unavailable. Stages additionally include `map` and
+`encode`. Use an output file owned exclusively by this job, separate from inputs.
+Cancellation during indivisible PNG encoding may leave a file; only consume it
+after successful completion. The caller owns output cleanup after the job stops.
+Neither cancellation nor garbage collection deletes files or rolls back writes.
+The synchronous API keeps its existing behavior.
+
+Both job types support `job:close()`: request cancellation and join before releasing
+native state. It is idempotent; other operations on a closed handle raise an error.
+Use polling/cancel during interactive work; reserve blocking `close()` for completed
+jobs or teardown. A job's output file must not be deleted while its worker can
+still write it. The editor uses unique temporary paths, waits for terminal status
+before deleting obsolete output, and closes an active job on scene shutdown.
+
+```lua
+local job, err = mbm.startImageMeshMap("panel.png", options, temporaryPng, false)
+assert(job, err)
+-- Later, from onLoop:
+local status = job:getStatus()
+if status.state == "completed" then
+    assert(job:takeResult())
+    -- Load temporaryPng as a texture on this thread.
+    job:close()
+end
+```
 
 ```lua
 local options = {

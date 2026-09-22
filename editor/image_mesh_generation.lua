@@ -23,6 +23,7 @@
 local M={}
 function M.cancel(E)
  if E.imageJob then E.imageJob:cancel();E.generationCancelling=true end
+ if E.simplifyAsset then E.simplifyCancelRequested=true;E.simplifyAsset:cancelSimplify() end
 end
 function M.generate(E,path,options)
  E.generationCancelled=nil;E.generationCancelling=nil
@@ -46,13 +47,13 @@ function M.generate(E,path,options)
  end
 end
 function M.panel(E)
- if not E.imageJob then return end
+ if not E.imageJob and not E.simplifyAsset then return end
  local open=tImGui.Begin(tLang.L('ime_generation_title'),false,E.flags.auto)
  if open then
-  tImGui.Text(tLang.L('ime_generation_'..(E.generationStage or 'decode')))
-  tImGui.ProgressBar(E.generationProgress or 0,{x=300,y=0})
+  tImGui.Text(E.simplifyAsset and tLang.L('simplify_geometry') or tLang.L('ime_generation_'..(E.generationStage or 'decode')))
+  tImGui.ProgressBar(E.simplifyProgress or E.generationProgress or 0,{x=300,y=0})
   tImGui.TextWrapped(tLang.L('ime_generation_help'))
-  if E.generationCancelling then tImGui.Text(tLang.L('ime_generation_cancelling'))
+  if E.generationCancelling or E.simplifyCancelRequested then tImGui.Text(tLang.L('ime_generation_cancelling'))
   elseif tImGui.Button(tLang.L('ime_cancel')) then M.cancel(E) end
  end
  tImGui.End()

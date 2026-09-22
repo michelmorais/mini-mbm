@@ -43,9 +43,19 @@ function M.apply(E,asset,options,report)
     local started,err=asset:startSimplify(options.simplifyRatio,nil,1,
         options.simplifyDetails,options.simplifyBoundary)
     if not started then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
+    E.simplifyAsset=asset;E.simplifyCancelRequested=nil;E.simplifyProgress=0
+    coroutine.yield()
     while true do
         local status=asset:getSimplifyStatus()
-        E.simplifyProgress=status.progress or 0
+        if status.state~='running' then
+            local cancelled=E.simplifyCancelRequested or status.state=='cancelled'
+            E.simplifyAsset=nil;E.simplifyCancelRequested=nil;E.simplifyProgress=nil
+            if cancelled then
+                E.generationCancelled=true;E.batch=nil;E.statisticsRequested=nil
+                error('ime_generation_cancelled',0)
+            end
+        end
+        if status.state=='running' then E.simplifyProgress=status.progress or 0 end
         if status.state=='failed' then
             error(string.format(tLang.L('simplify_failed_fmt'),tostring(status.error)),0)
         end

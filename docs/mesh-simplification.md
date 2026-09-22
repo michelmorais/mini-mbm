@@ -88,6 +88,14 @@ once per frame and displays a progress bar while the simplifier worker runs. It 
 scope, an optional virtual frame for selected subsets, compatible shared-frame collapses, rollback,
 and Save As. No simplification work runs continuously while the editor is idle.
 
+Since 7.261.0, the progress controls offer **Cancel**; **Esc** cancels the selected
+mesh's active simplification. Cancellation discards the detached working mesh,
+including any subsets already simplified in that operation, and preserves the
+original mesh, its modified state, and the previous undo backup. Remaining subsets
+are not processed. Parameters and rollback are disabled during simplification;
+the user can apply again after cancellation completes. The worker cancellation is
+cooperative, so an indivisible processing step may finish before it stops.
+
 Split Capture supports canonical skeletal weights. It maps every rebuilt outside/captured vertex to
 its source weight, reconstructs the frame-global weight order, validates the detached mesh, and only
 then replaces the editor object. Skeleton hierarchy and animation clips remain available after

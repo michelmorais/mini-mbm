@@ -29,19 +29,24 @@ function M.state(E)
     if not E.assembly then E.assembly={enabled=false,columns=3,gapX=0,gapY=0,slots={},items={}} end
     return E.assembly
 end
-function M.release(E)
-    local a=E.assembly;if not a then return end
-    for _,item in ipairs(a.items) do
+local function releaseItems(items)
+    for _,item in ipairs(items) do
         Wire.release(item)
         if item.preview then meshDebug:loadMeshPreview(item.preview,nil);item.preview:destroy() end
         if item.previewPath then os.remove(item.previewPath) end
     end
+end
+function M.release(E)
+    local a=E.assembly;if not a then return end
+    releaseItems(a.items)
+    if a.pending then releaseItems(a.pending.items);a.pending=nil end
     a.items={};a.revision=nil
 end
 function M.sync(E)
     local a=E.assembly;if not a then return end
+    if a.enabled then E.previewStale=#a.items>0 and a.revision~=E.revision or nil end
     for _,item in ipairs(a.items) do
-        local visible=a.enabled and not E.editMode and not E.dirty and item.slot.visible
+        local visible=a.enabled and not E.editMode and item.slot.visible
         item.preview.visible=visible and not E.wireframe
         if item.wireObject then item.wireObject.visible=visible and E.wireframe end
     end
@@ -80,16 +85,18 @@ function M.build(E,generate,dpCall,camera)
         for _,item in ipairs(a.items) do if item.id==E.selected then E.report=item.report end end
         M.sync(E);return
     end
-    M.release(E)
+    local staged={items={},slots=Model.copy(a.slots),gapX=a.gapX,gapY=a.gapY}
+    local staging={assembly=staged}
+    a.pending=staged
+    local statistics={}
     local ok=dpCall(function()
         for i,region in ipairs(E.project.regions) do
-            local slot=a.slots[region.id] or {column=(i-1)%a.columns,row=math.floor((i-1)/a.columns),z=0,visible=true}
-            a.slots[region.id]=slot
+            local slot=staged.slots[region.id] or {column=(i-1)%a.columns,row=math.floor((i-1)/a.columns),z=0,visible=true}
+            staged.slots[region.id]=slot
             local item={id=region.id,slot=slot,previewPath=tUtil.getTemporaryFilePath('.msh')}
-            a.items[#a.items+1]=item
+            staged.items[#staged.items+1]=item
             local asset,report=generate(region)
-            item.report=report;E.statistics[region.id]={report=report}
-            if region.id==E.selected then E.report=report end
+            item.report=report;statistics[region.id]={report=report}
             local vertices=Asset.vertices(asset)
             local x0,x1,y0,y1=math.huge,-math.huge,math.huge,-math.huge
             for _,v in ipairs(vertices) do x0=math.min(x0,v.x);x1=math.max(x1,v.x);y0=math.min(y0,v.y);y1=math.max(y1,v.y) end
@@ -101,11 +108,23 @@ function M.build(E,generate,dpCall,camera)
             item.preview.alwaysRender=true;item.preview.visible=false
             if E.wireframe then Wire.ensure(item,asset) end
         end
-        M.layout(E);a.revision=E.revision;a.builds=(a.builds or 0)+1
+        M.layout(staging)
+    end)
+    a.pending=nil
+    if ok then
+        releaseItems(a.items)
+        a.items=staged.items;a.slots=staged.slots;a.revision=E.revision
+        a.builds=(a.builds or 0)+1;a.layouts=(a.layouts or 0)+1
+        E.fitDistance=staging.fitDistance;E.statistics=statistics
+        E.report=statistics[E.selected] and statistics[E.selected].report
+        E.generationFailure=nil
         if a.fitPending then E.orbit.fx=0;E.orbit.fy=0;E.orbit.fz=0;E.orbit.distance=E.fitDistance or E.orbit.distance;camera();a.fitPending=false end
         E.status=L('ready')
-    end)
-    if not ok then M.release(E);E.generationFailure=E.status end
+    else
+        releaseItems(staged.items)
+        E.report=nil
+        E.generationFailure=not E.generationCancelled and E.status or nil
+    end
     M.sync(E)
 end
 function M.arrange(E)

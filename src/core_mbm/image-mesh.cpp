@@ -584,6 +584,7 @@ namespace mbm
             std::vector<unsigned char> rgba(static_cast<size_t>(field.width)*field.height*4,0);
             for (uint32_t y=0;y<field.height;++y) for (uint32_t x=0;x<field.width;++x)
             {
+                if (x==0) image_mesh::checkpoint(o,"map",0.3f+0.6f*static_cast<float>(y)/field.height);
                 const IMAGE_MESH_POINT p{static_cast<float>(x)/std::max(1u,field.width-1),static_cast<float>(y)/std::max(1u,field.height-1)};
                 bool inside=false;
                 for (size_t i=0,j=topology.contour.size()-1;i<topology.contour.size();j=i++)
@@ -617,8 +618,10 @@ namespace mbm
                         (intensity<o.grooveThreshold?source[c]*0.35f+(c==2?255.0f:40.0f)*0.65f:source[c]):level*255));
                 out[3]=overlay?source[3]:255;
             }
+            image_mesh::checkpoint(o,"encode",0.95f);
             const unsigned code=lodepng::encode(outputPath,rgba,field.width,field.height);
             if (code) return fail(errorOut,errorOutLen,lodepng_error_text(code));
+            image_mesh::checkpoint(o,"completed",1.0f);
             return true;
         }
         catch (const std::exception &e) { return fail(errorOut,errorOutLen,e.what()); }

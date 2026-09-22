@@ -5990,6 +5990,11 @@ function simplifyLocalizedError(errorValue)
 end
 
 function simplifyShowFailure(errorValue, tEntry)
+    if tEntry and tEntry.tSimplifyState and tEntry.tSimplifyState.cancelRequested then
+        tEntry.tSimplifyState.lastError = nil
+        tUtil.showMessage(tLang.L('simplify_cancelled'), 5)
+        return
+    end
     if tEntry and tEntry.tSimplifyState then
         tEntry.tSimplifyState.lastError = tostring(errorValue or '')
     end
@@ -6018,14 +6023,31 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
     local started, startError = meshD:startSimplify(numericRatio, targetSubset,
         targetFrame, preserveDetails, boundaryCollapseThreshold)
     if not started then return nil, startError end
+    progressState.activeMesh = meshD
+    coroutine.yield()
     while true do
         local status = meshD:getSimplifyStatus()
+        if status.state ~= 'running' then
+            progressState.activeMesh = nil
+            if progressState.cancelRequested or status.state == 'cancelled' then
+                progressState.cancelRequested = true
+                return nil, tLang.L('simplify_cancelled')
+            end
+        end
         local localProgress = math.max(0, math.min(1, tonumber(status.progress) or 0))
         progressState.progress = (completedJobs + localProgress) / totalJobs
         if status.state == 'completed' then return status.report end
         if status.state == 'failed' then return nil, status.error end
         coroutine.yield()
     end
+end
+
+function simplifyCancel(tEntry)
+    local state = tEntry and tEntry.tSimplifyState
+    if not state or not state.running then return false end
+    state.cancelRequested = true
+    if state.activeMesh then state.activeMesh:cancelSimplify() end
+    return true
 end
 
 function simplifyApplyCoroutine(tEntry, meshD, index)
@@ -6163,6 +6185,7 @@ function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
     if simplifyState.running then return false end
     simplifyState.running = true
+    simplifyState.cancelRequested = nil
     simplifyState.progress = 0
     simplifyState.report = nil
     simplifyState.lastError = nil
@@ -7150,6 +7173,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     simplifyState.ratio = math.max(0.001, math.min(0.95,
         tonumber(simplifyState.ratio) or 0.9))
     tImGui.Text(tLang.L('simplify_geometry'))
+    tImGui.BeginDisabled(simplifyState.running == true)
 
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
     scopeIndex = tImGui.RadioButton(
@@ -7360,6 +7384,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         end
     end
     local applied = false
+    tImGui.EndDisabled()
     tImGui.BeginDisabled(not canSimplify)
     if tImGui.Button(tLang.L('simplify_apply') .. '##simplifyApply-' .. index) then
         applied = simplifyApply(tEntry, meshD, index)
@@ -7369,13 +7394,20 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         local progress = math.max(0, math.min(1, simplifyState.progress or 0))
         tImGui.ProgressBar(progress, {x=-1,y=0},
             string.format(tLang.L('simplify_progress_fmt'), progress * 100))
+        if simplifyState.cancelRequested then
+            tImGui.Text(tLang.L('simplify_cancelling'))
+        elseif tImGui.Button(tLang.L('cancel') .. '##simplifyCancel-' .. index) then
+            simplifyCancel(tEntry)
+        end
     end
     if tEntry.tSimplifyBackup then
         tImGui.SameLine()
+        tImGui.BeginDisabled(simplifyState.running == true)
         if tImGui.Button(tLang.L('simplify_revert') .. '##simplifyRevert-' .. index) then
             simplifyRestoreBackup(tEntry, index)
             applied = true
         end
+        tImGui.EndDisabled()
     end
     local report = simplifyState.report
     if report then
@@ -12588,6 +12620,7 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if key == mbm.getKeyCode('ESC') and simplifyCancel(tLoadedMeshes[iSelectedMeshIndex]) then return end
     if tMeshNormals.preview.pending and (mbm.getKeyName(key)=='DOWN' or mbm.getKeyName(key)=='UP') then return end
     if mbm.getKeyName(key) == 'DOWN' then
         selectMeshIndex(iSelectedMeshIndex + 1)

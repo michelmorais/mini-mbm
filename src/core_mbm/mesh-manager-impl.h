@@ -162,6 +162,8 @@ namespace mbm
         std::thread simplifyWorker;
         std::atomic<MESH_SIMPLIFY_STATE> simplifyState{MESH_SIMPLIFY_STATE::IDLE};
         std::atomic<float> simplifyProgress{0.0f};
+        // 0 accepts cancellation, 1 cancelled, 2 commit/terminal result owns the operation.
+        std::atomic<int> simplifyCommitGate{0};
         MESH_SIMPLIFY_REPORT simplifyReport;
         std::string simplifyError;
     };
