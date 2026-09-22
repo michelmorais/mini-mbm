@@ -82,7 +82,7 @@ local function run()
  local concave={{x=.2,y=.2},{x=.5,y=.2},{x=.5,y=.3},{x=.3,y=.3},{x=.3,y=.5},{x=.2,y=.5}}
  local ca,ce=mbm.generateImageMesh(image,{holes={concave},columns=4,rows=4});assert(ca,ce);check(ca,false,1)
  assert(mbm.generateImageMeshMap(image,areaOptions,'/tmp/ime_holes_map.png',false))
- local alpha,w,h=mbm.readPngAlpha('/tmp/ime_holes_map.png');assert(alpha and alpha:byte(22*w+18+1)==0,'height map filled hole')
+ local alpha,w,h=mbm.readImagePixels('/tmp/ime_holes_map.png', "alpha");assert(alpha and alpha:byte(22*w+18+1)==0,'height map filled hole')
  -- A cut must not taper the surrounding height field towards the hole edges.
  local white={};for i=1,64*64*3 do white[i]=255 end
  local whiteImage='/tmp/ime_holes_white.png'
