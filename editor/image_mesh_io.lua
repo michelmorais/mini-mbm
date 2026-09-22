@@ -75,7 +75,7 @@ function M.load(path)
     end
     project.nextId=loaded.nextId; project.defaults=Model.copy(loaded.defaults)
     for _,r in ipairs(loaded.regions) do
-        local region={id=r.id,name=r.name,shape=r.shape,x=r.x,y=r.y,w=r.w,h=r.h,overrides=Model.copy(r.overrides)}
+        local region={id=r.id,name=r.name,locked=r.locked==true,shape=r.shape,x=r.x,y=r.y,w=r.w,h=r.h,overrides=Model.copy(r.overrides)}
         if r.holes then region.holes=Model.copy(r.holes) end
         if r.heightAreas then region.heightAreas=Model.copy(r.heightAreas) end
         for _,hole in ipairs(region.holes or {}) do

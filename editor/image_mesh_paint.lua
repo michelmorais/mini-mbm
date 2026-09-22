@@ -54,7 +54,7 @@ function M.input(E,action,kind,sx,sy)
     local settings=M.state(E)
     if not settings.enabled or not E.editMode or E.editDefaults then return false end
     local r=Model.region(E.project,E.selected)
-    if not r then return false end
+    if not r or r.locked then return false end
     local x,y=point(E,sx,sy)
     settings.x,settings.y=x,y
     settings.hover=inside(r,x,y)
@@ -124,13 +124,13 @@ end
 function M.sync(E)
     local p=M.state(E)
     local visible=p.enabled and p.hover and E.editMode and not E.editDefaults and E.selected~=0 and not E.panDrag and not tImGui.GetWantCaptureMouse()
-    if not visible then if p.cursor then p.cursor.visible=false end; return end
+    local r=visible and Model.region(E.project,E.selected)
+    if not r or r.locked then if p.cursor then p.cursor.visible=false end; return end
     if not p.cursor then
         local vertices={}
         for i=0,64 do local a=i*math.pi/32;vertices[#vertices+1]=math.cos(a);vertices[#vertices+1]=math.sin(a) end
         p.cursor=line:new('2dw',0,0,-0.5);p.cursor:add(vertices);p.cursor:setColor(1,1,0.2)
     end
-    local r=Model.region(E.project,E.selected)
     local radius=math.max(0.5,p.radius*math.max(1,math.min(r.w,r.h)-1))*E.zoom
     local x,y=(p.x-E.project.image.width/2)*E.zoom,(E.project.image.height/2-p.y)*E.zoom
     if p.cx~=x or p.cy~=y or p.cr~=radius then

@@ -76,6 +76,11 @@ local function syncDraft()
     if (E.tool=='back_uv' and not BackUv.available(E)) or (E.tool=='side_band' and not Sides.available(E)) then E.tool='select' end
     E.holeIndex=math.max(1,math.min(E.holeIndex or 1,r and #(r.holes or {}) or 0))
     E.areaIndex=math.max(1,math.min(E.areaIndex or 1,r and #(r.heightAreas or {}) or 0))
+    if r and r.locked then
+        Paint.cancel(E);Paint.state(E).enabled=false
+        if Areas.active(E) or E.tool=='holes' or E.tool=='hole_draw' or E.tool=='hole_freehand' or
+            E.tool=='side_band' or E.tool=='back_uv' then E.tool='select' end
+    end
     E.point=1
 end
 local function changed()
@@ -107,6 +112,15 @@ local function action(fn)
     local ok=dpCall(function() fn(candidate); Model.ensureBackCrops(candidate); Model.validate(candidate) end)
     if not ok then E.selected=selected; E.selection=selection; return false end
     Model.commit(E.history,before); E.project=candidate; changed(); return true
+end
+local function setRegionLocked(locked)
+    if not E.draft or E.editDefaults then return false end
+    local draft,values=E.draft,E.values
+    Paint.cancel(E)
+    if not action(function(p) Model.region(p,E.selected).locked=locked end) then return false end
+    draft.locked=locked;E.draft=draft;E.values=values
+    E.polygon={};E.stroke=nil;E.autoTask=nil;E.autoSource=nil
+    return true
 end
 local function commitDrag(before)
     local ok=dpCall(Model.validate,E.project)
@@ -717,7 +731,7 @@ local function regionsPanel()
             tImGui.Text(L('selection_help'))
             if tImGui.BeginChild('ime_region_list',{x=0,y=130},true,0) then
             for _,r in ipairs(E.project.regions) do
-                if tImGui.Selectable(r.name..'##region'..r.id,E.selection[r.id] or false) then selectRegion(r.id,E.control) end
+                if tImGui.Selectable(r.name..(r.locked and ' ['..L('locked')..']' or '')..'##region'..r.id,E.selection[r.id] or false) then selectRegion(r.id,E.control) end
                 if r.id==E.selected then
                     local mode=E.editDefaults and (r.overrides.heightSource or E.project.defaults.heightSource or 'image') or E.values.heightSource
                     Help.show('mode_'..mode)
@@ -733,6 +747,9 @@ local function regionsPanel()
             if E.draft and not E.editDefaults then
                 local edited,value=tImGui.InputText(L('name'),E.draft.name)
                 if edited then E.draft.name=value end
+                local locked=tImGui.Checkbox(L('lock_region'),E.draft.locked or false)
+                if locked~=(E.draft.locked or false) then setRegionLocked(locked) end
+                if tImGui.IsItemHovered() then Help.tooltip(L('lock_region_help')) end
             end
             if E.draft then
                 if E.report and not E.drag then
@@ -833,9 +850,9 @@ function onTouchDown(key,x,y)
     if E.editMode then
         if key==0 and E.tool~='pan' then
             local handled
-            if Areas.active(E) and draftChanged() and not applyProperties() then return end
+            if not (E.draft and E.draft.locked) and Areas.active(E) and draftChanged() and not applyProperties() then return end
             if Paint.state(E).enabled and not E.editDefaults then
-                if draftChanged() and not applyProperties() then return end
+                if not (E.draft and E.draft.locked) and draftChanged() and not applyProperties() then return end
                 handled=Paint.input(E,action,'down',x,y)
             else handled=Canvas.input(E,handlers,'down',x,y) end
             if (E.tool=='select' or E.tool=='back_uv' or E.tool=='side_band' or E.tool=='holes' or E.tool=='height_areas') and not handled then E.panDrag={x=x,y=y} end
@@ -886,6 +903,7 @@ if type(testApi)=='table' then
     testApi.holes=Holes
     testApi.setAssembly=setAssembly
     testApi.setComparison=setComparison
+    testApi.setRegionLocked=setRegionLocked
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink

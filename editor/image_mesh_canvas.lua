@@ -35,7 +35,7 @@ end
 local function outlines(E)
     if not E.outlines then
         E.outlines={}
-        for _,r in ipairs(E.project.regions) do E.outlines[#E.outlines+1]={id=r.id,points=Model.outline(r)} end
+        for _,r in ipairs(E.project.regions) do E.outlines[#E.outlines+1]={id=r.id,locked=r.locked,points=Model.outline(r)} end
     end
     return E.outlines
 end
@@ -123,13 +123,15 @@ function M.sync(E)
         elseif selected then object:setColor(1,0.7,0.1) else object:setColor(0.2,0.8,1) end
         E.sceneLines[#E.sceneLines+1]=object
     end
+    local selectedRegion=Model.region(E.project,E.selected)
     local function handle(px,py,color)
+        if selectedRegion and selectedRegion.locked then return end
         local dx,dy=M.handleRadius(E)/scale,M.handleRadius(E)/scaleY
         draw({{x=px-dx,y=py-dy},{x=px+dx,y=py-dy},{x=px+dx,y=py+dy},{x=px-dx,y=py+dy}},true,color or true)
     end
     for _,r in ipairs(outlines(E)) do
         draw(r.points,true,E.selection[r.id])
-        if r.id==E.selected and not Areas.active(E) and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' and E.tool~='auto_contour' and E.tool~='auto_background' then
+        if not r.locked and r.id==E.selected and not Areas.active(E) and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' and E.tool~='auto_contour' and E.tool~='auto_background' then
             local region=Model.region(E.project,r.id)
             if region.shape=='polygon' then for _,p in ipairs(r.points) do handle(p.x,p.y) end
             else handle(region.x+region.w-1,region.y+region.h-1) end
@@ -168,6 +170,10 @@ end
 function M.input(E,H,event,mx,my)
     if not E.editMode or not E.texture or not E.canvasTransform then return end
     local origin=M.transform(E); local scale,scaleY=origin.scale,origin.scaleY
+    local selected=Model.region(E.project,E.selected)
+    local locked=selected and selected.locked
+    if locked and (Areas.active(E) or E.tool=='holes' or E.tool=='hole_draw' or
+        E.tool=='hole_freehand' or E.tool=='side_band' or E.tool=='back_uv') then return false end
     if E.tool=='auto_contour' or E.tool=='auto_background' then return H.detect(event,mx,my,origin) end
     if E.tool=='freehand' or E.tool=='hole_freehand' or E.tool=='area_freehand' then return Freehand.input(E,event,mx,my,origin) end
     if Areas.active(E) then return Areas.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
@@ -182,7 +188,7 @@ function M.input(E,H,event,mx,my)
     E.cursor={x=x,y=y}
     if E.drag or #E.polygon>0 then E.canvasDirty=true end
     local handled=false
-    local selected=Model.region(E.project,E.selected)
+    if locked then selected=nil end
     local rawX,rawY=(mx-origin.x)/scale,(my-origin.y)/scaleY
     local nearResize=E.tool=='select' and selected and selected.shape~='polygon' and
         math.abs(selected.x+selected.w-1-rawX)*scale<=M.handleRadius(E)+6 and
@@ -203,7 +209,7 @@ function M.input(E,H,event,mx,my)
                 elseif nearResize then mode='resize';id=selected.id end
             end
             if not id then for i=#imagePoints,1,-1 do local r=imagePoints[i]
-                if Model.contains(r.points,x,y) then id=r.id; mode='move'; break end
+                if not r.locked and Model.contains(r.points,x,y) then id=r.id; mode='move'; break end
             end end
             if id then
                 handled=true

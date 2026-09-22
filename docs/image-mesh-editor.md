@@ -66,6 +66,12 @@ regions without replacing existing ones. Individual crops remain editable.
 - Drag a region to move it; use resize handles or numeric crop fields for its size.
 - Polygon vertices can be moved, inserted, or removed. Moving a vertex beyond the
   crop expands it within the image while keeping the other vertices in place.
+- **Lock module in scene**, below the selected module name, keeps a module visible
+  but excludes it from scene picking and mouse edits, including painting, holes,
+  height areas and UV handles. Clicks can reach unlocked modules beneath it.
+  Select a locked module in the ImGui list to edit its properties or unlock it.
+  Locking is saved in the project and supports Undo/Redo; it does not affect mesh
+  generation or export. Existing projects load unlocked, and duplicates start unlocked.
 - Ctrl+click extends the selection. Duplicate and Delete affect the selection.
 - Applying generation parameters affects all selected regions; name, crop, and
   contour changes affect the primary selection only.

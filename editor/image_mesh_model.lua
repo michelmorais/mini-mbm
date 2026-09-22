@@ -152,6 +152,7 @@ function M.validate(p)
     for _,r in ipairs(p.regions) do
         assert(type(r)=='table' and number(r.id,1,p.nextId-1,true) and not seen[r.id],'ime_invalid_project'); seen[r.id]=true
         assert(type(r.name)=='string' and #r.name>0 and #r.name<=128,'ime_invalid_name')
+        assert(r.locked==nil or type(r.locked)=='boolean','ime_invalid_project')
         assert(r.shape=='rectangle' or r.shape=='ellipse' or r.shape=='polygon','ime_invalid_shape')
         assert(number(r.x,0,p.image.width-1,true) and number(r.y,0,p.image.height-1,true) and
             number(r.w,1,p.image.width-r.x,true) and number(r.h,1,p.image.height-r.y,true),'ime_invalid_crop')
@@ -199,7 +200,7 @@ end
 function M.add(p,shape,x,y,w,h,contour)
     assert(#p.regions<256,'ime_region_limit')
     local r={id=p.nextId,name=string.format('module_%03d',p.nextId),shape=shape,x=x,y=y,w=w,h=h,
-        contour=M.copy(contour),overrides={}}
+        contour=M.copy(contour),overrides={},locked=false}
     p.nextId=p.nextId+1; p.regions[#p.regions+1]=r; return r
 end
 -- Presets become ordinary editable regions; no new project schema is needed.
