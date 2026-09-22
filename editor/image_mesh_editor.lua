@@ -629,11 +629,14 @@ local function propertiesPanel()
         if tImGui.CollapsingHeader(L('resolution_group')) then
         for _,key in ipairs({'columns','rows','ellipseSegments'}) do
             local c,v=tImGui.InputInt(L(key),E.values[key],1,10); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
+            Help.show(key)
         end
         local c,v=tImGui.InputInt(L('maxVertices'),E.values.maxVertices)
         if c then E.values.maxVertices=Model.clampOption('maxVertices',v,E.values.maxVertices) end
+        Help.show('maxVertices')
         tImGui.TextWrapped(L('vertex_budget_help'))
         tImGui.Text(string.format(L('triangle_budget_auto'),2*E.values.maxVertices))
+        Help.show('maxTriangles')
         end
         if tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)
