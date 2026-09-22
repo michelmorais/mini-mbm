@@ -21,6 +21,7 @@
 ]]--
 
 local Model=require 'image_mesh_model'
+local Help=require 'image_mesh_help'
 local M={}
 local function L(key) return tLang.L('ime_'..key) end
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -50,7 +51,7 @@ function M.panel(E,apply,dpCall)
             if path then v.backTexture=path end
         end) end
         tImGui.TextWrapped(v.backTexture~='' and tUtil.getShortName(v.backTexture) or L('side_no_texture'))
-        if tImGui.IsItemHovered() and v.backTexture~='' then tImGui.SetTooltip(v.backTexture) end
+        if tImGui.IsItemHovered() and v.backTexture~='' then Help.tooltip(v.backTexture) end
         if v.backTexture~='' and tImGui.Button(L('side_use_source')) then v.backTexture='' end
         tImGui.TextWrapped(L('back_external_help'))
         return

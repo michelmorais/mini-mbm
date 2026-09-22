@@ -364,7 +364,7 @@ local function menu()
             if tImGui.MenuItem(L('export_all')) then dpCall(function() local path=mbm.openFolder(L('export_folder')); if path then beginBatch(path) end end) end
             tImGui.Separator()
             E.portableCrop=tImGui.Checkbox(L('export_portable_crop'),E.portableCrop or false)
-            if tImGui.IsItemHovered() then tImGui.SetTooltip(L('export_portable_crop_help')) end
+            if tImGui.IsItemHovered() then Help.tooltip(L('export_portable_crop_help')) end
             if tImGui.MenuItem(L('export_portable_selected')) then dpCall(function()
                 local region=assert(Model.region(E.project,E.selected),L('select_region'))
                 local path=mbm.saveFile(string.format('module_%03d.msh',region.id),'msh')
@@ -525,7 +525,7 @@ local function propertiesPanel()
                 end) end
                 if E.values.heightImage~='' then
                     tImGui.TextWrapped(tUtil.getShortName(E.values.heightImage))
-                    if tImGui.IsItemHovered() then tImGui.SetTooltip(E.values.heightImage) end
+                    if tImGui.IsItemHovered() then Help.tooltip(E.values.heightImage) end
                     local c,index=tImGui.Combo(L('height_image_alignment'),E.values.heightImageToRegion and 2 or 1,
                         {L('height_image_whole'),L('height_image_region')})
                     if c then E.values.heightImageToRegion=index==2 end
@@ -540,10 +540,12 @@ local function propertiesPanel()
                 end
                 local changed,selected=tImGui.Combo(L('height_channel'),index,labels)
                 if changed then E.values.heightChannel=channels[selected] end
-                if tImGui.IsItemHovered() then tImGui.SetTooltip(L('height_channel_help')) end
+                if tImGui.IsItemHovered() then Help.tooltip(L('height_channel_help')) end
             end
             local original=imagePreview and E.heightView==1
-            if not manual and not original and tImGui.CollapsingHeader(L('height_levels')) then
+            if not manual and not original then
+                tImGui.Separator()
+                tImGui.Text(L('height_levels'))
                 local c,value=tImGui.InputFloat(L('height_black'),E.values.heightBlack,.01,.1,'%.3f')
                 if c then E.values.heightBlack=Model.clampNumber(value,0,E.values.heightWhite,E.values.heightBlack) end
                 c,value=tImGui.InputFloat(L('height_white'),E.values.heightWhite,.01,.1,'%.3f')
@@ -622,13 +624,13 @@ local function propertiesPanel()
                 if E.report and not E.editDefaults then
                     local source=E.report.sourceTriangles or E.report.triangles
                     tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'),source,math.max(1,math.floor(source*E.values.simplifyRatio))))
-                    if tImGui.IsItemHovered() then tImGui.SetTooltip(L('simplify_estimate_hint')) end
+                    if tImGui.IsItemHovered() then Help.tooltip(L('simplify_estimate_hint')) end
                 else tImGui.TextWrapped(L('simplify_estimate_pending')) end
                 E.values.simplifyDetails=tImGui.Checkbox(tLang.L('simplify_preserve_details'),E.values.simplifyDetails)
-                if tImGui.IsItemHovered() then tImGui.SetTooltip(tLang.L('simplify_preserve_details_tooltip')) end
+                if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_preserve_details_tooltip')) end
                 c,v=tImGui.SliderFloat(tLang.L('simplify_boundary_threshold'),E.values.simplifyBoundary,0,0.25,'%.3f')
                 if c then E.values.simplifyBoundary=Model.clampOption('simplifyBoundary',v,E.values.simplifyBoundary) end
-                if tImGui.IsItemHovered() then tImGui.SetTooltip(tLang.L('simplify_boundary_threshold_tooltip')) end
+                if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_boundary_threshold_tooltip')) end
                 tImGui.TextWrapped(L('simplify_help'))
             end
             if E.report and E.report.simplification then
@@ -649,7 +651,7 @@ local function propertiesPanel()
                         E.report.sourceTriangles,E.report.triangles,100*(1-E.report.triangles/E.report.sourceTriangles)))
                     tImGui.Text(string.format(L('comparison_error'),E.report.simplification.maximumGeometricError,
                         E.report.simplification.maximumRelativeError*100))
-                    if tImGui.IsItemHovered() then tImGui.SetTooltip(L('comparison_error_help')) end
+                    if tImGui.IsItemHovered() then Help.tooltip(L('comparison_error_help')) end
                     tImGui.TextWrapped(L('comparison_export'))
                 end
             end
@@ -698,14 +700,14 @@ local function regionsPanel()
             if E.report and not E.drag then
                 tImGui.TextWrapped(string.format(L('faces_compact'),E.draft.name,compactCount(E.report.triangles)))
                 if tImGui.IsItemHovered() then
-                    tImGui.BeginTooltip(); tImGui.Text(string.format(L('counts'),E.report.vertices,E.report.triangles)); tImGui.EndTooltip()
+                    Help.tooltip(string.format(L('counts'),E.report.vertices,E.report.triangles))
                 end
             elseif not E.generationFailure then tImGui.Text(L(E.meshTask and 'faces_calculating' or 'faces_pending')) end
             if E.editMode and not E.report and not E.drag and not E.paintDrag then
                 if tImGui.Button(L('faces_calculate')) then
                     if not draftChanged() or applyProperties() then E.statisticsRequested=true end
                 end
-                if tImGui.IsItemHovered() then tImGui.SetTooltip(L('faces_calculate_help')) end
+                if tImGui.IsItemHovered() then Help.tooltip(L('faces_calculate_help')) end
             end
         end
         Budget.panel(E)

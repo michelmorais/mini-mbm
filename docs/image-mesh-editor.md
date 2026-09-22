@@ -946,7 +946,7 @@ continua síncrona, conforme os limites já documentados.
 
 ### Níveis e curva de altura (7.256.0)
 
-Em **Relevos e sulcos**, abra **Níveis e curva de altura**. O grupo aparece nos
+Em **Relevos e sulcos**, os controles aparecem sob o título **Níveis e curva de altura**, sem grupo recolhível. O título aparece nos
 modos Imagem/Misto, na prévia 3D ou ao visualizar o mapa/sulcos em edição; fica
 oculto na visualização original e no modo Manual.
 

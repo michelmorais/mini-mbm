@@ -22,7 +22,14 @@
 
 -- Tooltips resolve text only on hover; no geometry or preview work here.
 local M={}
+function M.tooltip(text)
+ if not tImGui.BeginTooltip() then return end
+ tImGui.PushTextWrapPos(420)
+ tImGui.Text(text)
+ tImGui.PopTextWrapPos()
+ tImGui.EndTooltip()
+end
 function M.show(key)
- if tImGui.IsItemHovered() then tImGui.SetTooltip(tLang.L('ime_tip_'..key)) end
+ if tImGui.IsItemHovered() then M.tooltip(tLang.L('ime_tip_'..key)) end
 end
 return M

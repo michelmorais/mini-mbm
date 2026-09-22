@@ -21,6 +21,7 @@
 ]]--
 
 local Model=require 'image_mesh_model'
+local Help=require 'image_mesh_help'
 local M={}
 local function L(key) return tLang.L('ime_'..key) end
 function M.available(E)
@@ -78,7 +79,7 @@ function M.panel(E,apply,dpCall)
             if path then values.sideTexture=path end
         end) end
         tImGui.TextWrapped(values.sideTexture~='' and tUtil.getShortName(values.sideTexture) or L('side_no_texture'))
-        if tImGui.IsItemHovered() and values.sideTexture~='' then tImGui.SetTooltip(values.sideTexture) end
+        if tImGui.IsItemHovered() and values.sideTexture~='' then Help.tooltip(values.sideTexture) end
         if values.sideTexture~='' and tImGui.Button(L('side_use_source')) then values.sideTexture='' end
         for _,key in ipairs({'sideRepeatU','sideRepeatV'}) do
             local c,v=tImGui.InputFloat(L(key),values[key],.1,1,'%.2f')
@@ -87,7 +88,7 @@ function M.panel(E,apply,dpCall)
         tImGui.TextWrapped(L('side_repeat_help'))
     elseif values.sideMode=='band' then
         values.sideBandInvert=tImGui.Checkbox(L('side_band_invert'),values.sideBandInvert or false)
-        if tImGui.IsItemHovered() then tImGui.SetTooltip(L('side_band_invert_help')) end
+        if tImGui.IsItemHovered() then Help.tooltip(L('side_band_invert_help')) end
         local cached
         if not E.editDefaults then cached=M.contour(E) end
         local maximum=cached and cached.maximum or 1000000
