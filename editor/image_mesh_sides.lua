@@ -37,17 +37,32 @@ function M.contour(E)
         if not region then return end
         local options=Model.options(E.project,region);options.sideInset=1
         local first,limit,maximum=mbm.getImageMeshSideContour(options)
-        cached={project=E.project,region=region,revision=E.revision,id=E.selected,maximum=first and limit or maximum,error=not first and limit}
+        cached={project=E.project,region=region,revision=E.revision,id=E.selected,perpendicular=options.sideBandPerpendicular,maximum=first and limit or maximum,error=not first and limit}
         if first then
             options.sideInset=limit
             local last,err=mbm.getImageMeshSideContour(options)
             if last then cached.first=first;cached.last=last else cached.error=err end
+        end
+        cached.handleIndex=1
+        if cached.perpendicular and cached.first and cached.last then
+            local longest=0
+            for i,a in ipairs(cached.first) do
+                local b=cached.last[i]
+                local length=((b.x-a.x)*(region.w-1))^2+((b.y-a.y)*(region.h-1))^2
+                if length>longest then longest=length;cached.handleIndex=i end
+            end
         end
         E.sideContour=cached;E.sideQueries=(E.sideQueries or 0)+1
     end
     local width=region.overrides.sideInset or E.project.defaults.sideInset or 1
     if cached.first and cached.last and cached.width~=width then
         cached.width=width;cached.points={}
+        if cached.perpendicular then
+            local options=Model.options(E.project,region);options.sideInset=math.min(width,cached.maximum)
+            cached.points=mbm.getImageMeshSideContour(options)
+            E.sideQueries=(E.sideQueries or 0)+1
+            return cached,region
+        end
         local fraction=0
         if cached.maximum>1 then fraction=(math.min(width,cached.maximum)-1)/(cached.maximum-1) end
         for i,a in ipairs(cached.first) do local b=cached.last[i]
@@ -87,6 +102,10 @@ function M.panel(E,apply,dpCall)
         end
         tImGui.TextWrapped(L('side_repeat_help'))
     elseif values.sideMode=='band' then
+        local changed,choice=tImGui.Combo(L('side_band_mapping'),values.sideBandPerpendicular and 2 or 1,
+            {L('side_band_contour_mapping'),L('side_band_perpendicular')})
+        if changed then values.sideBandPerpendicular=choice==2 end
+        if tImGui.IsItemHovered() then Help.tooltip(L('side_band_perpendicular_help')) end
         values.sideBandInvert=tImGui.Checkbox(L('side_band_invert'),values.sideBandInvert or false)
         if tImGui.IsItemHovered() then Help.tooltip(L('side_band_invert_help')) end
         local cached
@@ -108,22 +127,28 @@ function M.panel(E,apply,dpCall)
                 end
             end
         end
-        tImGui.TextWrapped(L('side_band_help'))
+        tImGui.TextWrapped(L(values.sideBandPerpendicular and 'side_band_perpendicular_help' or 'side_band_help'))
     end
 end
 function M.input(E,H,event,mx,my,origin,radius)
     if not M.available(E) then return false end
     local cached,region=M.contour(E)
     if not cached or not cached.points or cached.maximum<=1 then return false end
-    local point=cached.points[1]
+    local point=cached.points[cached.handleIndex or 1]
     local hx=region.x+point.x*(region.w-1);local hy=region.y+point.y*(region.h-1)
     local x=(mx-origin.x)/origin.scale;local y=(my-origin.y)/origin.scaleY
     local near=math.abs(x-hx)*origin.scale<=radius+6 and math.abs(y-hy)*origin.scaleY<=radius+6
     if event=='down' and near then
-        local a,b=cached.first[1],cached.last[1]
+        local a,b=cached.first[cached.handleIndex or 1],cached.last[cached.handleIndex or 1]
         E.drag={mode='side_inset',before=Model.copy(E.project),id=region.id,x=x,y=y,width=cached.width,
             dx=(b.x-a.x)*(region.w-1)/(cached.maximum-1),dy=(b.y-a.y)*(region.h-1)/(cached.maximum-1),
             maximum=cached.maximum}
+        local d=E.drag
+        if cached.perpendicular then
+            local length=math.sqrt(d.dx*d.dx+d.dy*d.dy)
+            if length<1e-8 then E.drag=nil;return false end
+            d.dx=d.dx/length;d.dy=d.dy/length
+        end
         return true
     end
     local d=E.drag

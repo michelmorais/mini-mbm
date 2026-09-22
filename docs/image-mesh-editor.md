@@ -332,6 +332,16 @@ collapsed or crossing contours. Rectangles shrink by side, circles stay concentr
 and polygons use offset edges. Some narrow contours cannot support a valid band.
 The green handle changes inset size only. **Invert band UV** swaps its depth direction:
 by default, the outer contour meets the front and the inner contour meets the back.
+The band mapping selector offers **Follow inner contour** (the default for existing
+projects) and **Perpendicular to edge**. Perpendicular mapping translates texture
+samples inward without shifting their position along each edge. It is useful for
+continuing masonry joints onto side walls without the convergence caused by a
+smaller inner contour. Each edge has its own band; the green preview uses separate
+inner segments, which can overlap at corners. At crop limits the normal translation
+is shortened. Width is limited to half the smaller crop span. UV inversion works
+with either mapping. This setting is saved in projects and generation presets.
+The original drawing still determines the sampled joints; this mode does not detect
+or straighten them automatically.
 
 Repeated textures can add UV seams and geometry. Materials participate in preview,
 wireframe, simplification, and export. Image transparency is preserved; stretched

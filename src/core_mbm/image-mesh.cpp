@@ -206,6 +206,7 @@ namespace mbm
             const auto &path=field.path;
             const uint32_t imageWidth=field.imageWidth,imageHeight=field.imageHeight,cw=field.width,ch=field.height;
             const auto &pixels=field.pixels;
+            IMAGE_MESH_OPTIONS sideOptions=o;sideOptions.cropWidth=cw;sideOptions.cropHeight=ch;
             std::vector<VERTEX> vertices;
             std::vector<uint16_t> indices;
             vertices.reserve(vertexCount);
@@ -385,7 +386,10 @@ namespace mbm
                 {
                     for (uint32_t k=0;k<2;++k)
                     {
-                        const auto inner=image_mesh::sideMap(topology.points[k==0?a:b],topology.contour,sideInner);
+                        const auto &point=topology.points[k==0?a:b];
+                        const auto inner=o.sideBandPerpendicular?
+                            image_mesh::sidePerpendicular(sideOptions,point,topology.points[a],topology.points[b]):
+                            image_mesh::sideMap(point,topology.contour,sideInner);
                         vertices[start+2+k].uv=VEC2((o.x+inner.x*(cw-1)+.5f)/imageWidth,(o.y+inner.y*(ch-1)+.5f)/imageHeight);
                         if (o.sideBandInvert) std::swap(vertices[start+k].uv,vertices[start+2+k].uv);
                     }
@@ -420,7 +424,9 @@ namespace mbm
                         if (o.sideMode==IMAGE_MESH_SIDE::COLOR) v.uv=VEC2(.5f,.5f);
                         else if (o.sideMode==IMAGE_MESH_SIDE::BAND && (rear!=o.sideBandInvert))
                         {
-                            const auto inner=image_mesh::sideMap(p,topology.contour,sideInner);
+                            const auto inner=o.sideBandPerpendicular?
+                                image_mesh::sidePerpendicular(sideOptions,p,topology.points[topology.boundary[first]],topology.points[topology.boundary[last]]):
+                                image_mesh::sideMap(p,topology.contour,sideInner);
                             v.uv=VEC2((o.x+inner.x*(cw-1)+.5f)/imageWidth,(o.y+inner.y*(ch-1)+.5f)/imageHeight);
                         }
                         vertices.push_back(v);
@@ -632,9 +638,9 @@ namespace mbm
     {
         const uint32_t capacity=count; count=0; maximumInset=0;
         if (errorOut && errorOutLen>0) errorOut[0]=0;
-        if (!points || capacity<128 || options.cropWidth<2 || options.cropHeight<2 ||
+        if (!points || capacity<(options.sideBandPerpendicular?256u:128u) || options.cropWidth<2 || options.cropHeight<2 ||
             options.cropWidth>16777216 || options.cropHeight>16777216)
-            return fail(errorOut,errorOutLen,"Side contour requires a 128-point buffer and valid crop dimensions");
+            return fail(errorOut,errorOutLen,"Side contour requires 128 points (256 for perpendicular bands) and valid crop dimensions");
         try
         {
             IMAGE_MESH_OPTIONS o=options;

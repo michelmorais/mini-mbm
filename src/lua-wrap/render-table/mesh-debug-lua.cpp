@@ -3700,6 +3700,7 @@ namespace mbm
         integer("backColor",options.backColor); boolean("backSolid",options.backSolid);
         integer("sideColor",options.sideColor);
         boolean("sideBandInvert",options.sideBandInvert);
+        boolean("sideBandPerpendicular",options.sideBandPerpendicular);
         integer("x", options.x); integer("y", options.y);
         integer("cropWidth", options.cropWidth); integer("cropHeight", options.cropHeight);
         integer("columns", options.columns); integer("rows", options.rows);
@@ -3857,9 +3858,9 @@ namespace mbm
 
     int onGetImageMeshSideContourLua(lua_State *lua)
     {
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[256]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
         readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,1);
-        uint32_t count=128; float maximum=0; char error[512]="";
+        uint32_t count=256; float maximum=0; char error[512]="";
         if (!getImageMeshSideContour(options,inner,count,maximum,error,sizeof(error)))
         {
             lua_pushnil(lua); lua_pushstring(lua,error); lua_pushnumber(lua,maximum); return 3;

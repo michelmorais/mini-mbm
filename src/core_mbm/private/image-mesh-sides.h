@@ -86,11 +86,42 @@ inline bool sideOffset(const IMAGE_MESH_OPTIONS &o,const std::vector<SIDE_POINT>
     }
     return area>1e-6;
 }
+// Keep the tangential pixel coordinate unchanged. At crop limits shorten the
+// translation along its normal, rather than clamping X/Y independently.
+inline IMAGE_MESH_POINT sidePerpendicular(const IMAGE_MESH_OPTIONS &o,const IMAGE_MESH_POINT &p,
+                                         const IMAGE_MESH_POINT &a,const IMAGE_MESH_POINT &b)
+{
+    const double w=o.cropWidth-1.0,h=o.cropHeight-1.0;
+    const double dx=(b.x-a.x)*w,dy=(b.y-a.y)*h,length=std::hypot(dx,dy);
+    if (length<1e-12) return p;
+    const double nx=-dy/length,ny=dx/length,x=p.x*w,y=p.y*h;
+    double distance=o.sideInset;
+    if (nx>0) distance=std::min(distance,(w-x)/nx);
+    else if (nx<0) distance=std::min(distance,-x/nx);
+    if (ny>0) distance=std::min(distance,(h-y)/ny);
+    else if (ny<0) distance=std::min(distance,-y/ny);
+    distance=std::max(0.0,distance);
+    return {static_cast<float>((x+nx*distance)/w),static_cast<float>((y+ny*distance)/h)};
+}
 inline bool sideContour(const IMAGE_MESH_OPTIONS &o,const std::vector<IMAGE_MESH_POINT> &contour,
                         std::vector<IMAGE_MESH_POINT> &inner,float &maximum,std::string &error)
 {
     maximum=0;
     if (o.cropWidth<2 || o.cropHeight<2 || contour.size()<3) { error="Side band needs a crop of at least 2 x 2 pixels"; return false; }
+    if (o.sideBandPerpendicular)
+    {
+        maximum=static_cast<float>(std::min(o.cropWidth-1.0,o.cropHeight-1.0)*.5);
+        if (!std::isfinite(o.sideInset) || o.sideInset<1 || o.sideInset>maximum)
+        { error="Perpendicular band width must be in [1,"+std::to_string(maximum)+"] pixels"; return false; }
+        inner.clear();
+        for (size_t i=0;i<contour.size();++i)
+        {
+            const auto &a=contour[i],&b=contour[(i+1)%contour.size()];
+            inner.push_back(sidePerpendicular(o,a,a,b));
+            inner.push_back(sidePerpendicular(o,b,a,b));
+        }
+        return true;
+    }
     std::vector<SIDE_POINT> outer,trial;
     for (const auto &p:contour) outer.push_back({p.x*(o.cropWidth-1.0),p.y*(o.cropHeight-1.0)});
     double lo=0,hi=std::min(o.cropWidth-1.0,o.cropHeight-1.0)*.5;

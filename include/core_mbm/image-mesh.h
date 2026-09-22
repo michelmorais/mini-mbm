@@ -82,6 +82,7 @@ namespace mbm
         // Independent same-image UV rectangle; zero sizes use the front crop dimensions.
         uint32_t backX = 0, backY = 0, backCropWidth = 0, backCropHeight = 0;
         IMAGE_MESH_SIDE sideMode = IMAGE_MESH_SIDE::EDGE;
+        bool sideBandPerpendicular = false; // Translate UVs perpendicular to each edge (BAND only).
         bool sideBandInvert = false; // Swap inner/outer UV endpoints across side depth (BAND only).
         float sideInset = 1.0f, sideRepeatU = 1.0f, sideRepeatV = 1.0f;
         uint32_t sideColor = 0x808080; // opaque RGB
@@ -124,7 +125,8 @@ namespace mbm
     API_IMPL bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                                     MESH_MBM_DEBUG &destination, IMAGE_MESH_REPORT &report,
                                     char *errorOut, int errorOutLen);
-    // CPU contour query. Crop dimensions are required; output capacity must be >=128.
+    // CPU contour query. Capacity >=128 (>=256 for perpendicular endpoint pairs).
+    // Crop dimensions are required. Perpendicular output contains two endpoints per edge.
     // Maximum inset is returned even when the requested inset is out of range.
     API_IMPL bool getImageMeshSideContour(const IMAGE_MESH_OPTIONS &options, IMAGE_MESH_POINT *points,
                                           uint32_t &count, float &maximumInset,

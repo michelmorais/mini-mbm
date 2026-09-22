@@ -142,8 +142,10 @@ function M.sync(E)
         if cached and cached.points then
             local points={}
             for _,p in ipairs(cached.points) do points[#points+1]={x=region.x+p.x*(region.w-1),y=region.y+p.y*(region.h-1)} end
-            draw(points,true,'side')
-            if E.tool=='side_band' then handle(points[1].x,points[1].y,'side') end
+            if cached.perpendicular then
+                for i=1,#points,2 do draw({points[i],points[i+1]},false,'side') end
+            else draw(points,true,'side') end
+            if E.tool=='side_band' then local p=points[cached.handleIndex or 1];handle(p.x,p.y,'side') end
         end
     end
     if BackUv.available(E) then

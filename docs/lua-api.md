@@ -2185,6 +2185,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `sideTexture` | nil | Optional image path for repeat mode; nil/empty repeats the source crop. Explicit paths are validated and decoded before generating |
 | `sideRepeatU`, `sideRepeatV` | 1, 1 | Finite repeats around the whole world-space perimeter / through depth, each [0.1, 64] |
 | `sideInset` | 1 | Band width in source pixels, at least 1 and at most the contour-specific limit |
+| `sideBandPerpendicular` | false | Band mode only: translate UVs inward perpendicular to each edge in source-pixel coordinates, preserving the tangential coordinate. Separate bands may overlap at corners; translation stops at crop boundaries. Width is limited to half the smaller crop span |
 | `sideBandInvert` | false | Band mode only: swap outer/inner UV endpoints across side depth; true places the inner contour next to the front and outer next to the back. Does not change front/back UVs or geometry |
 | `maxVertices` | 65535 | Total vertex budget, including back, duplicated side vertices and repetition seams; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
@@ -2282,7 +2283,14 @@ local inner, maximum = mbm.getImageMeshSideContour({
 
 The query requires explicit crop dimensions >=2, accepts the shape/ellipse/
 polygon options above, and returns the same contour used by generation.
-Its maximum is a conservative limit preserving topology, not a promise that
+With `sideBandPerpendicular=true`, the query instead returns consecutive endpoint pairs
+(one independent inner segment per edge, up to 256 points). The editor draws them as
+separate segments, not as one closed contour. The C++ query requires capacity >=256
+for this mode (>=128 otherwise). Each endpoint is clipped along its normal to the
+crop; width is limited to half the smaller pixel span. Geometry generation uses the
+same normal translation and keeps front/back materials and geometry unchanged.
+
+For the default contour mapping, its maximum is a conservative limit preserving topology, not a promise that
 arbitrarily complex polygons can inset by one pixel. Contour preview queries
 should run only when their inputs change.
 
