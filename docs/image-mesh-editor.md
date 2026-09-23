@@ -9,8 +9,7 @@ semantic shape of the depicted object. Painted shadows can become geometry when
 image brightness is used as height. Manual relief or a separate height image gives
 more direct control.
 
-Planned work: [Manual curved relief](image-mesh-manual-curved-plan.md)
-(design proposal; not implemented).
+Design and delivery record: [Manual curved relief](image-mesh-manual-curved-plan.md).
 
 ## Launch and workflow
 
@@ -55,6 +54,106 @@ Lighting affects only the 3D scene. Ambient color, directional-light color and
 direction, and light reset are available. Camera, light, and wireframe changes do
 not regenerate geometry or alter exported data. Changing properties on the same
 module preserves its camera view; selecting another module provides a new framing.
+
+## Manual curved relief
+
+In **Relief and grooves**, select **Manual curved**. Set **Contour thickness** and
+**Target thickness** in final mesh units, then **Apply**. For a saw blade, use 1 and 8.
+These are total thicknesses, independent of the saved Depth and Relief settings.
+
+- Center X/Y are normalized within the region. Radius 0 gives a point; a positive
+  radius gives a circular flat plateau. Radius is measured in the final mesh plane,
+  so a non-square crop does not turn the target into an ellipse in the mesh.
+- **Move center / resize target** applies pending properties and activates canvas
+  handles. Drag the center handle to move it, or the right circle handle to resize.
+  Release commits one Undo step; Escape cancels the drag.
+- **Swap thickness values** reverses the growth. **Symmetric thickness** distributes
+  half the total thickness on each side of Z=0. With it disabled, the native back
+  plane is fixed at half the smaller endpoint thickness; the front receives the
+  full thickness variation. The editor rotates the native mesh for its front view.
+- The profile is linear along rays from the center to the actual contour, including
+  teeth and recesses. The center must see the entire contour from inside, and the
+  circle must remain strictly inside without touching it. Invalid configurations
+  report an error; generation does not silently select another algorithm.
+- Holes are unsupported. The back is closed and uses the source texture; horizontal
+  back UV mirroring and side texture modes remain available. Other saved back modes,
+  image height adjustments, painting, height areas and automatic simplification are
+  inactive. Switching modes retains their saved settings/data.
+- The height map shows total thickness divided by the larger endpoint thickness.
+  It shares the native field with mesh generation. There is no groove overlay.
+
+The mesh includes the point or the circular target boundary explicitly. Columns/rows
+set initial sampling; the generator refines rings until midpoint and centroid height
+samples meet Height tolerance, as a fraction of the endpoint thickness difference.
+This is a sampled error target, not a certified global bound. The circular boundary
+is represented by chords. Vertex/triangle budgets can stop refinement with a diagnostic.
+Equal endpoint values produce a uniform solid. Thickness values must be at least 0.001.
+The legacy point/circle controls remain linear. Extended target shapes and profiles
+are available after explicit conversion to the hierarchy below. Automatic simplification
+remains deferred.
+
+### Targets and local regions (7.267.0)
+
+Use **Edit targets and local regions** to explicitly convert the current point/circle
+profile. Old projects retain their previous geometry until this action. Conversion
+is undoable; circles become 32-point polygonal ellipses and use the hierarchy's
+nearest-target interpolation, so the result need not match the legacy radial surface.
+
+Use **Back to relief** at the top of the hierarchy panel to apply pending edits and
+return to the compact relief controls. This exits canvas target editing and preserves
+the entire hierarchy. **Edit targets and local regions** opens it again and immediately
+activates target editing on the canvas; there is no second activation button. A status
+message identifies the active mode and explains why the module contour cannot be
+manipulated until **Back to relief** is used. Selecting
+another module also closes the panel; the hierarchy remains active in generation.
+
+Select the outer contour or a closed node and choose a new shape. **Set shape target**
+defines its thickness destination; **Create detail region** creates an independent
+area that can receive its own target. Hover either button for an explanation and
+example. Each owner admits one target. Point and line targets
+are terminal; a closed target without a target is flat. A local region inherits the
+underlying border and is neutral until it has a target or local children. Two local
+regions can control independent details side by side. Their order has no effect.
+
+The canvas center handle moves a node with all descendants; the lower-right corner
+resizes a closed subtree. The default numeric fields edit the whole shape's center
+and horizontal/vertical half-size, including descendants. Circles/ellipses and
+rectangles retain their shape; explicitly convert them to polygons to edit vertices.
+Line endpoints and polygon vertices are available under **Edit vertices (advanced)**,
+with fields labeled **Selected vertex X/Y**. Numeric edits and canvas drags reject
+non-finite/out-of-bounds coordinates, collapsed edges, self-intersection, non-convex
+targets, invalid containment/visibility and overlapping independent regions. A message
+at the end of the panel explains the rejection; numeric edits also show a temporary
+warning with the field, rejected value and reason, without taking keyboard focus or
+moving the controls. The previous geometry is retained. Validation
+runs on edits, not during idle frames. Native generation keeps its own validation.
+Removing a node removes its
+descendants; undo/redo restores the complete hierarchy. Changes use Apply and the
+existing generation/export queue. Labels precede numeric fields to fit narrow panels.
+
+Closed targets must be convex and fit entirely in the parent's visibility kernel.
+Local regions may be concave, but independent regions must not touch, overlap or
+contain one another. Nesting must be explicit. Generation reports invalid placements;
+the editor lets you adjust them. Limits: 32 nodes, 128 points per node, depth 8.
+A flat back is fixed at Z=0 for the hierarchy. Polyline targets and blending overlapping regions are deferred.
+
+### Transition profiles per target (7.268.0)
+
+Select a target under **Edit targets and local regions**. **Transition from owner to
+this target** chooses Linear, Smooth or Bézier for that specific incoming transition.
+Omitted profiles remain Linear, preserving existing projects. Local regions use the
+profile of their target; selecting the region itself does not expose a profile.
+
+Smooth uses a smoothstep profile. Bézier has two yellow handles draggable vertically,
+plus two sliders. Horizontal handle positions are fixed at 1/3 and 2/3. The controls
+stay in [0,1] and cannot cross, so the thickness stays between the border and target
+values. The graph shows normalized progress toward the target thickness, including
+when that thickness is lower than the border. It is not a literal mesh cross-section.
+The graph updates immediately; Apply uses the existing preview/export workflow.
+Each link in a chain can use a different profile. Profiles participate in undo/redo,
+project persistence, duplication, maps and asynchronous generation. The graph samples
+are cached and rebuilt only when the profile or controls change. Smooth endpoint
+slopes do not remove geometric corners or guarantee smoothness across inherited borders.
 
 ## Regions and contours
 

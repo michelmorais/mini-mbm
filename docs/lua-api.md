@@ -2163,11 +2163,16 @@ assert(asset:save("panel.msh", false, false, true))
 | `heightBlack`, `heightWhite` | 0, 1 | Finite input endpoints: `0 <= black <= white <= 1`. Clamp/rescale selected height channel to [0,1]. Equal endpoints create a step (input >= point gives 1). |
 | `heightCurve` | 1 | Finite exponent [0.1,10], applied after black/white normalization and before inversion/filtering. Manual mode ignores tonal adjustments. |
 | `heightChannel` | `"luminance"` | `"luminance"`, `"red"`, `"green"`, `"blue"`, or `"alpha"`; image component used before inversion, filtering and groove mapping. Ignored by manual heights. |
-| `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas |
+| `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas; `"curved"` uses radial total thickness (see below) |
+| `curvedX`, `curvedY` | 0.5, 0.5 | Curved target center in normalized crop coordinates [0,1] |
+| `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
+| `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
+| `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
+| `curvedNodes` | nil | Optional hierarchy of targets and independent local regions; absent preserves the legacy profile, an empty table makes the root flat |
 | `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
 | `heightAreas` | nil | Up to 32 ordered closed contours with target height and inward transition; see below |
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
-| `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
+| `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief (endpoint thickness difference for curved mode); finite [0.001,1], constrained by density and sampling |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
 | `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
 | `backExternal` | false | Flat back with an independent image material; mutually exclusive with other back modes |
@@ -2189,6 +2194,94 @@ assert(asset:save("panel.msh", false, false, true))
 | `sideBandInvert` | false | Band mode only: swap outer/inner UV endpoints across side depth; true places the inner contour next to the front and outer next to the back. Does not change front/back UVs or geometry |
 | `maxVertices` | 65535 | Total vertex budget, including back, duplicated side vertices and repetition seams; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
+
+Without `curvedNodes`, `heightSource="curved"` preserves the legacy profile: it is linear from the real outer contour to a
+movable point or circular plateau. The source image still supplies color/UVs. The
+center must lie strictly inside the contour's visibility kernel; the target circle
+must be strictly inside the contour. Holes are rejected. Rectangle, polygon, and
+polygonal ellipse outlines are supported. Center/radius validation is shared by
+synchronous and asynchronous mesh/map generation.
+
+Depth/relief, border attenuation, image-derived heights, height image, inversion,
+filtering, two-level detection, painted dabs and height areas do not affect this mode.
+Stored back geometry/material flags are inactive: the back is closed, source-textured,
+and controlled by `curvedSymmetric`. `backMirror` and side texture settings still apply.
+Swap `curvedEdge` and `curvedTarget` to invert thickness. The option reader still
+type-checks supplied fields; shared validation also checks tonal/channel ranges
+even though they are inactive.
+
+The native field maps thickness to the existing extrusion pipeline using
+`depth=min(curvedEdge,curvedTarget)` and
+`relief=abs(curvedTarget-curvedEdge)/(curvedSymmetric and 2 or 1)`.
+Consequently report `minHeight`/`maxHeight` retain their meaning as outward front
+relief displacements, rather than total thickness. The map PNG instead encodes total
+thickness divided by the larger endpoint thickness; requesting an overlay in curved
+mode also returns this grayscale thickness map.
+
+The topology contains a center vertex and, for positive radius, a sampled target ring.
+Columns/rows seed its density. Mid-edge/centroid samples drive deterministic ring
+refinement up to the requested `heightTolerance`, subject to geometry budgets and a
+bounded number of passes. This does not certify a global interpolation-error bound.
+A circle is approximated by chords. The editor disables subsequent simplification
+for curved meshes; calling the general mesh simplifier directly does not preserve
+these radial/plateau constraints by contract.
+
+**Curved hierarchy (7.267.0).** Optional `curvedNodes` replaces the legacy center/radius
+profile. It is an array of at most 32 nodes; every node is an array of 1..128
+normalized crop points `{x=..., y=...}`, with these fields:
+
+| Field | Meaning |
+|---|---|
+| `parent` | Required integer: 0 is the outer contour; otherwise the index of an earlier node. Maximum depth is 8. |
+| `role` | Required `"target"` or `"region"`. Each closed owner has at most one target and may have multiple local regions. |
+| `thickness` | Total target thickness, finite [0.001,1000000], default 8. Validated but ignored for inherited local regions. |
+| `profile` | Since 7.268.0: `"linear"` (default), `"smooth"`, or `"bezier"`, controlling the transition from the owner to this target. Validated but ignored on local-region nodes. |
+| `bezier1`, `bezier2` | Since 7.268.0: vertical cubic controls, defaults 0 and 1. Finite and ordered: `0 <= bezier1 <= bezier2 <= 1`. Validated even when the profile is not Bézier. |
+
+One point or two points define a terminal point/segment target. Three or more points
+define a simple closed contour. Closed targets must be convex; local regions may
+be concave. All nodes must be strictly inside their parent. A target must lie entirely
+inside its owner's visibility kernel. Independent local regions cannot overlap,
+touch or contain one another; explicitly nested regions are allowed. Holes remain
+unsupported. Invalid geometry returns a diagnostic instead of a partial mesh.
+
+The root border has `curvedEdge` thickness. A closed target without another target
+is a plateau; its children may create further transitions. A local region inherits
+its owner's underlying height at its border and transitions to its own target.
+Without a target it leaves that underlying field unchanged, apart from any local
+children. Sibling order does not change the height field. For each transition the
+sample projects to the nearest point on the target; the outward ray finds the owner
+border. With normalized progress `t` from that border (0) to the target (1), the
+thickness is `borderThickness + (targetThickness-borderThickness)*f(t)`:
+
+- Linear: `f(t)=t` (unchanged default).
+- Smooth: `f(t)=t*t*(3-2*t)`.
+- Bézier: `f(t)=3*(1-t)^2*t*bezier1 + 3*(1-t)*t^2*bezier2 + t^3`.
+
+The cubic's horizontal controls are fixed at 1/3 and 2/3, making its X coordinate
+identical to `t`. Ordered vertical controls preserve monotonicity and endpoint
+thicknesses without overshoot, for rising and falling transitions. The profile
+belongs to the arriving target, not its owner or siblings. Smooth has zero endpoint
+slope in the normalized profile; it does not promise global surface smoothness at
+polygon corners or local borders with spatially varying inherited heights.
+
+```lua
+curvedNodes = {
+    {parent=0, role="target", thickness=8, {x=.5,y=.15}, {x=.5,y=.85}},
+    {parent=0, role="region", {x=.1,y=.2}, {x=.4,y=.2}, {x=.4,y=.8}, {x=.1,y=.8}},
+    {parent=2, role="target", thickness=3, profile="bezier", bezier1=.15, bezier2=.8,
+        {x=.25,y=.35}, {x=.25,y=.65}},
+}
+```
+
+Node points and segments are inserted into the triangulation before adaptive
+refinement, preserving narrow controls. Float precision, geometry budgets, and a
+20-pass refinement cap still apply. `heightTolerance` is a sampled normalized error,
+not a certified global bound. Hierarchy minimum/maximum thickness comes from the root
+and all targets; `depth` is that minimum and `relief` their difference divided by
+2 for symmetric thickness, otherwise 1. Reports still measure front relief. Maps
+normalize total thickness by the maximum. Asynchronous jobs deep-copy node geometry and profile parameters.
+Editor-only `shape` and `name` metadata is persisted in `.imesh` but ignored by the API.
 
 **Image-mesh back controls (7.236.0).**
 

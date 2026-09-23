@@ -1,0 +1,160 @@
+--[[
+-------------------------------------------------------------------------------------------------------------------------|
+| MIT License (MIT)                                                                                                      |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+|                                                                                                                        |
+| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
+| documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
+| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |
+| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |
+|                                                                                                                        |
+| The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |
+| the Software.                                                                                                          |
+|                                                                                                                        |
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE   |
+| WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR  |
+| COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
+| OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
+|                                                                                                                        |
+|------------------------------------------------------------------------------------------------------------------------|
+
+]]--
+
+local Geometry=require 'image_mesh_holes_geometry'
+local M={}
+local function number(v,lo,hi) return type(v)=='number' and v==v and v>=lo and v<=hi end
+function M.validate(nodes)
+ if nodes==nil then return end
+ assert(type(nodes)=='table' and #nodes<=32,'ime_curved_nodes_invalid')
+ local targets,depth={}, {[0]=0}
+ for i,n in ipairs(nodes) do
+  assert(type(n)=='table' and number(n.parent,0,i-1) and n.parent%1==0,'ime_curved_nodes_invalid')
+  assert(n.role=='target' or n.role=='region','ime_curved_nodes_invalid')
+  assert(type(n.name)=='string' and #n.name<=128 and not n.name:find('%c'),'ime_curved_nodes_invalid')
+  assert(number(n.thickness,.001,1000000),'ime_curved_nodes_invalid')
+  assert(n.profile==nil or n.profile=='linear' or n.profile=='smooth' or n.profile=='bezier','ime_curved_profile_invalid')
+  assert(n.bezier1==nil or number(n.bezier1,0,1),'ime_curved_profile_invalid')
+  assert(n.bezier2==nil or number(n.bezier2,0,1),'ime_curved_profile_invalid')
+  local b1,b2=n.bezier1 or 0,n.bezier2 or 1
+  assert(number(b1,0,1) and number(b2,0,1) and b1<=b2,'ime_curved_profile_invalid')
+  assert(n.shape=='point' or n.shape=='line' or n.shape=='ellipse' or n.shape=='rectangle' or n.shape=='polygon','ime_curved_nodes_invalid')
+  assert(#n>=1 and #n<=128 and (n.shape~='point' or #n==1) and (n.shape~='line' or #n==2),'ime_curved_nodes_invalid')
+  for _,p in ipairs(n) do assert(type(p)=='table' and number(p.x,0,1) and number(p.y,0,1),'ime_curved_nodes_invalid') end
+  if n.shape~='point' and n.shape~='line' then assert(#n>=3 and Geometry.simple(n),'ime_curved_nodes_invalid') end
+  assert(n.role~='region' or #n>=3,'ime_curved_nodes_invalid')
+  assert(n.parent==0 or #nodes[n.parent]>=3,'ime_curved_nodes_terminal')
+  depth[i]=depth[n.parent]+1;assert(depth[i]<=8,'ime_curved_nodes_invalid')
+  if n.role=='target' then assert(not targets[n.parent],'ime_curved_nodes_target_exists');targets[n.parent]=i end
+ end
+end
+function M.same(a,b)
+ if type(a)~=type(b) then return false end
+ if type(a)~='table' then return a==b end
+ for k,v in pairs(a) do if not M.same(v,b[k]) then return false end end
+ for k in pairs(b) do if a[k]==nil then return false end end
+ return true
+end
+function M.bounds(points) return Geometry.bounds(points) end
+function M.descendant(nodes,index,parent)
+ while index>0 do if index==parent then return true end;index=nodes[index].parent end
+ return parent==0
+end
+function M.shape(kind,x,y,rx,ry)
+ if kind=='point' then return {{x=x,y=y}} end
+ if kind=='line' then return {{x=x,y=y-ry},{x=x,y=y+ry}} end
+ if kind=='rectangle' then return {{x=x-rx,y=y-ry},{x=x+rx,y=y-ry},{x=x+rx,y=y+ry},{x=x-rx,y=y+ry}} end
+ if kind=='polygon' then return {{x=x,y=y-ry},{x=x+rx,y=y+ry},{x=x-rx,y=y+ry}} end
+ local points={}
+ for i=0,31 do local a=i*math.pi/16;points[#points+1]={x=x+rx*math.cos(a),y=y+ry*math.sin(a)} end
+ return points
+end
+function M.convert(region,options)
+ local kind=options.curvedRadius>0 and 'ellipse' or 'point'
+ local n=M.shape(kind,options.curvedX,options.curvedY,options.curvedRadius/options.width,options.curvedRadius/options.height)
+ n.shape=kind;n.parent=0;n.role='target';n.thickness=options.curvedTarget;n.name='1'
+ region.curvedNodes={n}
+end
+function M.add(region,parent,role,kind,thickness)
+ local nodes=assert(region.curvedNodes,'ime_curved_nodes_invalid')
+ assert(#nodes<32 and parent>=0 and parent<=#nodes,'ime_curved_nodes_invalid')
+ assert(parent==0 or #nodes[parent]>=3,'ime_curved_nodes_terminal')
+ if role=='target' then for _,n in ipairs(nodes) do assert(n.parent~=parent or n.role~='target','ime_curved_nodes_target_exists') end end
+ assert(role~='region' or (kind~='point' and kind~='line'),'ime_curved_nodes_invalid')
+ local b=parent==0 and {x=.5,y=.5,rx=.5,ry=.5} or M.bounds(nodes[parent])
+ local n=M.shape(kind,b.x,b.y,b.rx*.4,b.ry*.4)
+ n.parent=parent;n.role=role;n.shape=kind;n.thickness=thickness;n.name=tostring(#nodes+1)
+ nodes[#nodes+1]=n;return #nodes
+end
+function M.remove(nodes,index)
+ local remap,out={[0]=0},{}
+ for i,n in ipairs(nodes) do if not M.descendant(nodes,i,index) then remap[i]=#out+1;out[#out+1]=n end end
+ for _,n in ipairs(out) do n.parent=assert(remap[n.parent]) end
+ return out
+end
+-- Event-time validation: return a reason instead of mutating or throwing.
+local function cross(a,b,c) return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x) end
+local function winding(points)
+ local area=0
+ for i,a in ipairs(points) do local b=points[i%#points+1];area=area+a.x*b.y-a.y*b.x end
+ return area<0 and -1 or 1
+end
+function M.geometry(nodes,outer)
+ for _,n in ipairs(nodes) do
+  for _,p in ipairs(n) do
+   if not number(p.x,0,1) or not number(p.y,0,1) then return false,'edit_bounds' end
+  end
+  if #n==2 and (n[1].x-n[2].x)^2+(n[1].y-n[2].y)^2<1e-12 then return false,'edit_line' end
+  if #n>=3 then
+   if not Geometry.simple(n) then return false,'edit_crossing' end
+   if n.role=='target' then
+    local sign=winding(n)
+    for i,a in ipairs(n) do
+     if sign*cross(a,n[i%#n+1],n[(i+1)%#n+1]) < -1e-10 then return false,'edit_convex' end
+    end
+   end
+  end
+  local parent=n.parent==0 and outer or nodes[n.parent]
+  if not Geometry.canPlace(parent,{},n) then return false,'edit_inside' end
+  if n.role=='target' then
+   local sign=winding(parent)
+   for _,p in ipairs(n) do for i,a in ipairs(parent) do
+    if sign*cross(a,parent[i%#parent+1],p)<=1e-10 then return false,'edit_visibility' end
+   end end
+  end
+ end
+ for i,a in ipairs(nodes) do if a.role=='region' then
+  for j=i+1,#nodes do local b=nodes[j]
+   if b.role=='region' and not M.descendant(nodes,i,j) and not M.descendant(nodes,j,i) then
+    if not Geometry.canPlace(outer,{a},b) then return false,'edit_overlap' end
+   end
+  end
+ end end
+ return true
+end
+function M.transform(nodes,index,key,value)
+ if not number(value,0,1) then return false end
+ local b=M.bounds(nodes[index]);local dx,dy,sx,sy=0,0,1,1
+ if key=='x' then dx=value-b.x
+ elseif key=='y' then dy=value-b.y
+ elseif key=='rx' then if b.rx<=0 or value<=0 then return false end;sx=value/b.rx
+ elseif key=='ry' then if b.ry<=0 or value<=0 then return false end;sy=value/b.ry end
+ for i,n in ipairs(nodes) do if M.descendant(nodes,i,index) then
+  for _,p in ipairs(n) do p.x=b.x+(p.x-b.x)*sx+dx;p.y=b.y+(p.y-b.y)*sy+dy end
+ end end
+ return true
+end
+function M.profileValue(node,t)
+ if node.profile=='smooth' then return t*t*(3-2*t) end
+ if node.profile=='bezier' then
+  local u=1-t
+  return 3*u*u*t*(node.bezier1 or 0)+3*u*t*t*(node.bezier2 or 1)+t*t*t
+ end
+ return t
+end
+function M.range(options)
+ if options.curvedNodes==nil then return math.min(options.curvedEdge,options.curvedTarget),math.max(options.curvedEdge,options.curvedTarget) end
+ local lo,hi=options.curvedEdge,options.curvedEdge
+ for _,n in ipairs(options.curvedNodes) do if n.role=='target' then lo=math.min(lo,n.thickness);hi=math.max(hi,n.thickness) end end
+ return lo,hi
+end
+return M

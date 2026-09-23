@@ -27,7 +27,7 @@ local function L(key) return tLang.L('ime_'..key) end
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
 function M.available(E)
     if E.editDefaults or not E.draft then return false end
-    return Model.backMode(E.project,E.draft)=='remap'
+    return Model.options(E.project,E.draft).heightSource~='curved' and Model.backMode(E.project,E.draft)=='remap'
 end
 function M.region(E,r)
     local mirror=r.overrides.backMirror
@@ -37,6 +37,11 @@ end
 function M.panel(E,apply,dpCall)
     if not tImGui.CollapsingHeader(L('back_group')) then return end
     local v=E.values
+    if v.heightSource=='curved' then
+        tImGui.TextWrapped(tLang.L('ime_curved_back'))
+        v.backMirror=tImGui.Checkbox(L('back_mirror'),v.backMirror)
+        return
+    end
     local index=1
     if v.backExternal then index=6 elseif v.backSolid then index=5 elseif v.backRelief then index=2 elseif v.backOpen then index=3 elseif v.backRemap then index=4 end
     local changed,choice=tImGui.Combo(L('back_geometry'),index,{L('back_flat'),L('back_copy'),L('back_open'),L('back_remap'),L('back_solid'),L('back_external')})

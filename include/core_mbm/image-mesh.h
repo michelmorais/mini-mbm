@@ -46,7 +46,7 @@ namespace mbm
     };
 
     enum class IMAGE_MESH_HEIGHT_CHANNEL { LUMINANCE, RED, GREEN, BLUE, ALPHA };
-    enum class IMAGE_MESH_HEIGHT_SOURCE { IMAGE, MANUAL, MIXED };
+    enum class IMAGE_MESH_HEIGHT_SOURCE { IMAGE, MANUAL, MIXED, CURVED };
     struct IMAGE_MESH_HEIGHT_AREA
     {
         const IMAGE_MESH_POINT *points = nullptr;
@@ -55,6 +55,21 @@ namespace mbm
         bool enabled = true;
         bool line = false; // Open centerline with round caps/joins, at least two points.
         float lineWidth = 0.05f; // Full width relative to the shorter crop side.
+    };
+
+    enum class IMAGE_MESH_CURVED_PROFILE { LINEAR, SMOOTH, BEZIER };
+
+    // Borrowed value-only hierarchy. Parent 0 is the module contour; other parents
+    // refer to an earlier node (1-based). A point/segment is terminal.
+    struct IMAGE_MESH_CURVED_NODE
+    {
+        const IMAGE_MESH_POINT *points = nullptr;
+        uint32_t count = 0, parent = 0;
+        float thickness = 8.0f;
+        IMAGE_MESH_CURVED_PROFILE profile = IMAGE_MESH_CURVED_PROFILE::LINEAR;
+        // Cubic Bezier controls (1/3, bezier1), (2/3, bezier2); 0 <= b1 <= b2 <= 1.
+        float bezier1 = 0.0f, bezier2 = 1.0f;
+        bool inherited = false; // Local region; otherwise the owner's sole target.
     };
 
     struct IMAGE_MESH_OPTIONS
@@ -95,6 +110,13 @@ namespace mbm
         uint32_t heightEditCount = 0;
         IMAGE_MESH_HEIGHT_SOURCE heightSource = IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
         float baseHeight = 0.5f;
+        // CURVED: total thickness, movable normalized center, radius in mesh units.
+        float curvedX = 0.5f, curvedY = 0.5f, curvedRadius = 0.0f;
+        float curvedEdge = 1.0f, curvedTarget = 8.0f;
+        bool curvedSymmetric = true;
+        bool curvedHierarchy = false; // false retains the original radial point/circle path
+        const IMAGE_MESH_CURVED_NODE *curvedNodes = nullptr;
+        uint32_t curvedNodeCount = 0; // at most 32 nodes, 128 points each, depth <= 8
         IMAGE_MESH_HEIGHT_CHANNEL heightChannel = IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE;
         // Borrowed optional height-only image. Empty uses the source texture.
         const char *heightImage = nullptr;
@@ -120,6 +142,7 @@ namespace mbm
 
     // CPU-only extrusion of a rectangle, ellipse or simple polygon. Destination must have no frames.
     // Crop uses zero-based top-left pixels; zero crop dimensions mean remaining image.
+    // CURVED uses total endpoint thickness and ignores legacy height/back controls.
     // Front faces -Z; relief extends outward. Back is optional, at +depth/2 plus copied relief when enabled. Texture references
     // the resolved source image (not copied). On failure discard the destination.
     API_IMPL bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,

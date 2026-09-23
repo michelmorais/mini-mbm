@@ -48,6 +48,8 @@ namespace mbm
         std::vector<IMAGE_MESH_DAB> dabs;
         std::vector<IMAGE_MESH_HOLE> holes;
         std::vector<IMAGE_MESH_HEIGHT_AREA> areas;
+        std::vector<IMAGE_MESH_CURVED_NODE> curvedNodes;
+        std::vector<std::vector<IMAGE_MESH_POINT>> curvedPoints;
         std::vector<std::vector<IMAGE_MESH_POINT>> holePoints,areaPoints;
         bool taken=false, mapJob=false, overlay=false;
 

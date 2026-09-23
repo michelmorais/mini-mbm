@@ -596,8 +596,258 @@ bool minimalBack(const TOPOLOGY &t, std::vector<size_t> &corners,
     return true;
 }
 
+// Ring topology preserves the exact authored contour and the target boundary.
+// Refinement is deterministic and checks mid-edge/centroid height error against
+// heightTolerance (fraction of the thickness range), before returning a mesh.
+static bool curvedTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD &field)
+{
+    const auto &contour=field.curved.contour;
+    uint32_t resolution=std::max(o.columns,o.rows);
+    uint32_t rings=o.curvedRadius>0?std::max(1u,o.rows):1;
+    const double metric=std::min(o.width,o.height);
+    for (unsigned pass=0;pass<8;++pass)
+    {
+        checkpoint(o,"topology",0.3f+0.07f*pass);
+        std::vector<IMAGE_MESH_POINT> outer;
+        for (size_t i=0;i<contour.size();++i)
+        {
+            const auto &a=contour[i], &b=contour[(i+1)%contour.size()];
+            const double length=std::hypot((b.x-a.x)*o.width,(b.y-a.y)*o.height);
+            const double requested=std::ceil(length*resolution/metric);
+            if (requested>65535) { error="Manual curved: resolution exceeds geometry budget"; return false; }
+            const uint32_t count=std::max(1u,static_cast<uint32_t>(requested));
+            const uint64_t partial=outer.size()+count,layers=o.curvedRadius>0?rings+1:1;
+            if (!budget(o,2*(1+partial*layers)+4*partial,2*partial*(2*layers-1)+2*partial,
+                        "for manual curved relief",error)) return false;
+            checkpoint(o,"topology",0.3f+0.07f*pass);
+            for (uint32_t j=0;j<count;++j)
+            {
+                const float f=static_cast<float>(j)/count;
+                outer.push_back({a.x+(b.x-a.x)*f,a.y+(b.y-a.y)*f});
+            }
+        }
+        const uint64_t n=outer.size(),layers=o.curvedRadius>0?rings+1:1;
+        const uint64_t points=1+n*layers,faces=n*(2*layers-1);
+        if (!budget(o,2*points+4*n,2*faces+2*n,"for manual curved relief",error)) return false;
+        t=TOPOLOGY{};t.contour=contour;
+        t.points.push_back({o.curvedX,o.curvedY});
+        for (uint32_t layer=0;layer<layers;++layer)
+        {
+            const float fraction=layers==1?1:static_cast<float>(layer)/rings;
+            for (const auto &b:outer)
+            {
+                const double distance=std::hypot((b.x-o.curvedX)*o.width,(b.y-o.curvedY)*o.height);
+                const double f=o.curvedRadius/distance+(1-o.curvedRadius/distance)*fraction;
+                t.points.push_back({static_cast<float>(o.curvedX+(b.x-o.curvedX)*f),
+                                    static_cast<float>(o.curvedY+(b.y-o.curvedY)*f)});
+            }
+        }
+        const auto count=static_cast<uint32_t>(n);
+        for (uint32_t i=0;i<count;++i)
+        {
+            const uint32_t j=(i+1)%count;
+            t.triangles.push_back({0,1+i,1+j});
+            for (uint32_t layer=1;layer<layers;++layer)
+            {
+                const uint32_t a=1+(layer-1)*count+i,b=1+(layer-1)*count+j;
+                const uint32_t c=a+count,d=b+count;
+                t.triangles.push_back({a,c,d});t.triangles.push_back({a,d,b});
+            }
+            t.boundary.push_back(1+(static_cast<uint32_t>(layers)-1)*count+i);
+            // Keep perimeter coordinates bit-identical to the input interpolation.
+            t.points[t.boundary.back()]=outer[i];
+        }
+        t.loopEnds.push_back(static_cast<uint32_t>(t.boundary.size()));
+        bool refine=false;
+        for (const auto &face:t.triangles)
+        {
+            checkpoint(o,"topology",0.35f+0.07f*pass);
+            float levels[3];
+            for (unsigned j=0;j<3;++j) levels[j]=field.surface(t.points[face[j]].x,t.points[face[j]].y,o);
+            for (unsigned j=0;j<4;++j)
+            {
+                const auto &a=t.points[face[j%3]],&b=t.points[face[(j+1)%3]],&c=t.points[face[(j+2)%3]];
+                const float x=j==3?(a.x+b.x+c.x)/3:(a.x+b.x)/2;
+                const float y=j==3?(a.y+b.y+c.y)/3:(a.y+b.y)/2;
+                const float linear=j==3?(levels[0]+levels[1]+levels[2])/3:(levels[j]+levels[(j+1)%3])/2;
+                if (std::abs(field.surface(x,y,o)-linear)>o.heightTolerance) { refine=true;break; }
+            }
+            if (refine) break;
+        }
+        if (!refine) return true;
+        resolution*=2;rings*=2;
+    }
+    error="Manual curved: requested height tolerance could not be reached";
+    return false;
+}
+
+// Insert authored constraints before refinement so narrow regions and zero-width
+// ridges cannot disappear between samples. All edge intersections are shared.
+static bool hierarchyBudget(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t,std::string &error)
+{
+    return budget(o,2*t.points.size()+4*t.boundary.size(),2*t.triangles.size()+2*t.boundary.size(),
+                  "for manual curved hierarchy",error);
+}
+static bool hierarchyPoint(TOPOLOGY &t,IMAGE_MESH_POINT p,uint32_t &id,std::string &error)
+{
+    // Normalized coordinates are floats; sub-ULP cuts can collapse after centering.
+    constexpr double near=2e-7;
+    for (uint32_t i=0;i<t.points.size();++i)
+        if (std::hypot(p.x-t.points[i].x,p.y-t.points[i].y)<=near) { id=i;return true; }
+    for (size_t i=0;i<t.triangles.size();++i)
+    {
+        const auto face=t.triangles[i];
+        bool inside=true;int edge=-1;
+        for (unsigned e=0;e<3;++e)
+        {
+            const auto &a=t.points[face[e]],&b=t.points[face[(e+1)%3]];
+            const double length=std::hypot(b.x-a.x,b.y-a.y),signedDistance=cross(a,b,p)/length;
+            if (signedDistance < -near) { inside=false;break; }
+            if (std::abs(signedDistance)<=near) edge=static_cast<int>(e);
+        }
+        if (!inside) continue;
+        id=static_cast<uint32_t>(t.points.size());
+        if (edge>=0)
+        {
+            const uint32_t a=face[edge],b=face[(edge+1)%3];
+            const auto pa=t.points[a],pb=t.points[b];
+            const double dx=pb.x-pa.x,dy=pb.y-pa.y;
+            const double f=std::clamp(((p.x-pa.x)*dx+(p.y-pa.y)*dy)/(dx*dx+dy*dy),0.0,1.0);
+            p={static_cast<float>(pa.x+f*dx),static_cast<float>(pa.y+f*dy)};
+            t.points.push_back(p);splitEdges(t,{{edgeKey(a,b),id}});
+        }
+        else
+        {
+            t.points.push_back(p);t.triangles[i]={face[0],face[1],id};
+            t.triangles.push_back({face[1],face[2],id});t.triangles.push_back({face[2],face[0],id});
+        }
+        return true;
+    }
+    error="Curved hierarchy: cannot insert a control point into the surface";return false;
+}
+static bool hierarchySegment(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,uint32_t first,uint32_t last,std::string &error)
+{
+    const auto a=t.points[first],b=t.points[last];
+    const double dx=static_cast<double>(b.x)-a.x,dy=static_cast<double>(b.y)-a.y,length=std::hypot(dx,dy);
+    if (length<1e-8) { error="Curved hierarchy: control edge is too short";return false; }
+    // Normalized coordinates are floats; sub-ULP cuts can collapse after centering.
+    constexpr double near=2e-7;
+    std::map<uint64_t,uint32_t> cuts;
+    std::vector<std::array<uint32_t,3>> result;
+    for (const auto &face:t.triangles)
+    {
+        checkpoint(o,"topology",0.35f);
+        double side[3];bool positive=false,negative=false;
+        double minAlong=2,maxAlong=-1;
+        for (unsigned e=0;e<3;++e)
+        {
+            side[e]=cross(a,b,t.points[face[e]])/length;
+            if (std::abs(side[e])<=near) side[e]=0;
+            positive=positive || side[e]>0;negative=negative || side[e]<0;
+        }
+        if (!positive || !negative) { result.push_back(face);continue; }
+        for (unsigned e=0;e<3;++e)
+        {
+            const unsigned j=(e+1)%3;
+            const auto p=t.points[face[e]],q=t.points[face[j]];
+            if (side[e]==0 || side[e]*side[j]<0)
+            {
+                const double f=side[e]==0?0:side[e]/(side[e]-side[j]);
+                const double along=((p.x+f*(q.x-p.x)-a.x)*dx+(p.y+f*(q.y-p.y)-a.y)*dy)/(length*length);
+                minAlong=std::min(minAlong,along);maxAlong=std::max(maxAlong,along);
+            }
+        }
+        if (maxAlong<=near || minAlong>=1-near) { result.push_back(face);continue; }
+        const auto cut=[&](unsigned e,unsigned j)
+        {
+            if (side[e]==0) return face[e];
+            if (side[j]==0) return face[j];
+            const uint64_t key=edgeKey(face[e],face[j]);auto found=cuts.find(key);
+            if (found!=cuts.end()) return found->second;
+            const auto p=t.points[face[e]],q=t.points[face[j]];
+            const double f=side[e]/(side[e]-side[j]);
+            const uint32_t id=static_cast<uint32_t>(t.points.size());
+            t.points.push_back({static_cast<float>(p.x+f*(q.x-p.x)),static_cast<float>(p.y+f*(q.y-p.y))});
+            cuts[key]=id;return id;
+        };
+        for (unsigned half=0;half<2;++half)
+        {
+            std::vector<uint32_t> polygon;
+            for (unsigned e=0;e<3;++e)
+            {
+                const unsigned j=(e+1)%3;
+                if (half==0?side[e]>=0:side[e]<=0) polygon.push_back(face[e]);
+                if (side[e]*side[j]<0) polygon.push_back(cut(e,j));
+            }
+            polygon.erase(std::unique(polygon.begin(),polygon.end()),polygon.end());
+            if (polygon.size()>1 && polygon.front()==polygon.back()) polygon.pop_back();
+            for (size_t j=1;j+1<polygon.size();++j)
+                result.push_back({polygon[0],polygon[j],polygon[j+1]});
+        }
+        if (!budget(o,2*t.points.size()+4*t.boundary.size(),2*(result.size()+t.triangles.size())+2*t.boundary.size(),
+                    "for manual curved hierarchy",error)) return false;
+    }
+    t.triangles=std::move(result);return hierarchyBudget(o,t,error);
+}
+static bool hierarchyTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD &field)
+{
+    IMAGE_MESH_OPTIONS outline=o;outline.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
+    outline.columns=outline.rows=1;outline.followImage=false;
+    if (!buildTopology(outline,t,error)) return false;
+    for (size_t i=1;i<field.curved.hierarchy.domains.size();++i)
+    {
+        const auto &points=field.curved.hierarchy.domains[i].normalized;
+        std::vector<uint32_t> ids;
+        for (const auto &p:points)
+        {
+            checkpoint(o,"topology",0.3f);
+            uint32_t id=0;if (!hierarchyPoint(t,p,id,error)) return false;ids.push_back(id);
+            if (!hierarchyBudget(o,t,error)) return false;
+        }
+        const size_t edges=ids.size()>2?ids.size():ids.size()-1;
+        for (size_t j=0;j<edges;++j)
+            if (!hierarchySegment(o,t,ids[j],ids[(j+1)%ids.size()],error)) return false;
+    }
+    for (unsigned pass=0;pass<20;++pass)
+    {
+        std::map<uint64_t,uint32_t> midpoints;
+        for (const auto &face:t.triangles)
+        {
+            checkpoint(o,"topology",0.4f+0.02f*pass);
+            const auto a=t.points[face[0]],b=t.points[face[1]],c=t.points[face[2]];
+            const float ha=field.surface(a.x,a.y,o),hb=field.surface(b.x,b.y,o),hc=field.surface(c.x,c.y,o);
+            const bool inaccurate=std::abs(field.surface((a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3,o)-(ha+hb+hc)/3)>o.heightTolerance ||
+                std::abs(field.surface((a.x+b.x)/2,(a.y+b.y)/2,o)-(ha+hb)/2)>o.heightTolerance ||
+                std::abs(field.surface((b.x+c.x)/2,(b.y+c.y)/2,o)-(hb+hc)/2)>o.heightTolerance ||
+                std::abs(field.surface((c.x+a.x)/2,(c.y+a.y)/2,o)-(hc+ha)/2)>o.heightTolerance;
+            unsigned longest=0;
+            for (unsigned e=1;e<3;++e)
+                if (edgeLength(t.points[face[e]],t.points[face[(e+1)%3]],o)>
+                    edgeLength(t.points[face[longest]],t.points[face[(longest+1)%3]],o)) longest=e;
+            const uint32_t ia=face[longest],ib=face[(longest+1)%3];
+            const auto pa=t.points[ia],pb=t.points[ib];
+            if (!inaccurate && edgeLength(pa,pb,o)<=2.000001) continue;
+            if (std::hypot(pa.x-pb.x,pa.y-pb.y)<1e-7)
+            { error="Curved hierarchy: tolerance requires edges below numeric resolution";return false; }
+            const uint64_t key=edgeKey(ia,ib);if (midpoints.count(key)) continue;
+            midpoints[key]=static_cast<uint32_t>(t.points.size());
+            t.points.push_back({(pa.x+pb.x)/2,(pa.y+pb.y)/2});
+            if (!hierarchyBudget(o,t,error)) return false;
+        }
+        if (midpoints.empty()) return true;
+        splitEdges(t,midpoints);
+        if (!hierarchyBudget(o,t,error)) return false;
+    }
+    error="Curved hierarchy: surface refinement did not converge";return false;
+}
+
 bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
 {
+    if (options.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && field)
+    {
+        if (options.curvedHierarchy) return hierarchyTopology(options,t,error,*field);
+        return curvedTopology(options,t,error,*field);
+    }
     // Manual heights must not inherit hidden image-detection thresholds.
     IMAGE_MESH_OPTIONS o=options;
     if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL)

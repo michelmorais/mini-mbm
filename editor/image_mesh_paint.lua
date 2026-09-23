@@ -52,6 +52,7 @@ local function dab(E,x,y)
 end
 function M.input(E,action,kind,sx,sy)
     local settings=M.state(E)
+    if E.values and E.values.heightSource=='curved' then return false end
     if not settings.enabled or not E.editMode or E.editDefaults then return false end
     local r=Model.region(E.project,E.selected)
     if not r or r.locked then return false end
@@ -89,6 +90,7 @@ function M.input(E,action,kind,sx,sy)
     return true
 end
 function M.panel(E,action,apply)
+    if E.values and E.values.heightSource=='curved' then M.state(E).enabled=false; return end
     if not E.draft or E.editDefaults or not E.editMode then return end
     if not tImGui.CollapsingHeader(L('title')) then return end
     local settings=M.state(E)

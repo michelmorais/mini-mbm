@@ -41,6 +41,7 @@ local Budget=require 'image_mesh_budget'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
 local Areas=require 'image_mesh_areas'
+local Curved=require 'image_mesh_curved'
 local Freehand=require 'image_mesh_freehand'
 local Auto=require 'image_mesh_auto'
 local Simplify=require 'image_mesh_simplify'
@@ -78,9 +79,12 @@ local function syncDraft()
     E.areaIndex=math.max(1,math.min(E.areaIndex or 1,r and #(r.heightAreas or {}) or 0))
     if r and r.locked then
         Paint.cancel(E);Paint.state(E).enabled=false
-        if Areas.active(E) or E.tool=='holes' or E.tool=='hole_draw' or E.tool=='hole_freehand' or
+        if E.tool=='curved' or Areas.active(E) or E.tool=='holes' or E.tool=='hole_draw' or E.tool=='hole_freehand' or
             E.tool=='side_band' or E.tool=='back_uv' then E.tool='select' end
     end
+    if E.values.heightSource~='curved' and E.tool=='curved' then E.tool='select' end
+    if E.values.heightSource=='curved' then Paint.state(E).enabled=false;if Areas.active(E) then E.tool='select' end end
+    E.curvedNode=math.max(0,math.min(E.curvedNode or 0,r and #(r.curvedNodes or {}) or 0))
     E.point=1
 end
 local function changed()
@@ -99,6 +103,8 @@ local function selectRegion(id,extend)
     if E.drag then return end
     if extend then E.selection[id]=not E.selection[id] else E.selection={[id]=true} end
     E.selected=id
+    E.curvedPanelOpen=false;E.graphEditError=nil
+    if E.tool=='curved' then E.tool='select' end
     if E.tool=='back_uv' or E.tool=='side_band' then E.tool='select' end
     if not E.selection[id] then E.selected=0; for _,r in ipairs(E.project.regions) do if E.selection[r.id] then E.selected=r.id; break end end end
     E.generationFailure=nil
@@ -152,6 +158,7 @@ end
 local function generate(region,project,keepOriginal,cacheOriginal)
     project=project or E.project
     local options=Model.options(project,region)
+    if options.heightSource=='curved' then options.simplify=false end
     local asset,report=Generation.generate(E,project.image.path,options)
     if not asset then error(Budget.error(region,report),0) end
     -- Match Mesh Debug's +Z front view. Rotate positions AND authored normals
@@ -218,7 +225,7 @@ local function rebuildImpl()
         E.preview=object; E.previewPath=path; E.report=report; E.statistics[r.id]={report=report}; E.builds=E.builds+1
         Comparison.layout(E,asset)
         local o=Model.options(E.project,r)
-        E.fitDistance=math.max(o.width,o.height,o.depth+o.relief)*2.7
+        E.fitDistance=math.max(o.width,o.height,o.heightSource=='curved' and select(2,Model.curved.range(o)) or o.depth+o.relief)*2.7
         E.singleFitDistance=E.fitDistance
         -- Rebuilding the same module must not disturb the user's comparison view.
         if E.viewRegion~=r.id then E.orbit.distance=E.fitDistance; camera() end
@@ -292,6 +299,7 @@ local function draftChanged()
     if E.editDefaults then return false end
     for _,key in ipairs({'name','x','y','w','h','shape'}) do if E.draft[key]~=region[key] then return true end end
     if Areas.different(E.draft.heightAreas,region.heightAreas) then return true end
+    if not Model.curved.same(E.draft.curvedNodes,region.curvedNodes) then return true end
     local ca,cb=E.draft.backCrop,region.backCrop
     if (ca==nil)~=(cb==nil) then return true end
     if ca then for _,key in ipairs({'x','y','w','h'}) do if ca[key]~=cb[key] then return true end end end
@@ -361,7 +369,7 @@ applyProperties=function()
             r.overrides={}; for k,v in pairs(settings) do if k=='backExternal' or k=='backSolid' or k=='backOpen' or k=='backRemap' or k=='backRelief' or v~=p.defaults[k] then r.overrides[k]=v end end
         end end
         local r=assert(Model.region(p,E.selected),L('select_region'))
-        r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop); r.holes=Model.copy(draft.holes); r.heightAreas=Model.copy(draft.heightAreas)
+        r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop); r.holes=Model.copy(draft.holes); r.heightAreas=Model.copy(draft.heightAreas); r.curvedNodes=Model.copy(draft.curvedNodes)
     end)
 end
 local function menu()
@@ -514,94 +522,100 @@ local function propertiesPanel()
         end
         if tImGui.CollapsingHeader(L('grooves_group')) then
             Areas.modePanel(E)
-            local manual=E.values.heightSource=='manual'
-            local imagePreview=E.editMode and not E.editDefaults
-            if imagePreview then
-                if manual and E.heightView==3 then E.heightView=2 end
-                local views={L('original_image'),L('height_map')}
-                if not manual then views[3]=L('groove_overlay') end
-                local change,view=tImGui.Combo(L('height_view'),E.heightView,views)
-                if change then E.heightView=view end
-                Help.show('view_'..E.heightView)
-            end
-            Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
-            tImGui.Separator()
-            if not manual then
-                if tImGui.Button(L('height_image_choose')) then dpCall(function()
-                    local path=mbm.openFile(E.values.heightImage,table.unpack(tUtil.supported_images))
-                    if path then E.values.heightImage=path end
-                end) end
-                if E.values.heightImage~='' then
-                    tImGui.TextWrapped(tUtil.getShortName(E.values.heightImage))
-                    if tImGui.IsItemHovered() then Help.tooltip(E.values.heightImage) end
-                    local c,index=tImGui.Combo(L('height_image_alignment'),E.values.heightImageToRegion and 2 or 1,
-                        {L('height_image_whole'),L('height_image_region')})
-                    if c then E.values.heightImageToRegion=index==2 end
-                    if tImGui.Button(L('height_image_clear')) then E.values.heightImage='' end
-                else tImGui.TextWrapped(L('height_image_source')) end
-                tImGui.TextWrapped(L('height_image_help'))
-                local channels={'luminance','red','green','blue','alpha'}
-                local labels,index={},1
-                for i,key in ipairs(channels) do
-                    labels[i]=L('channel_'..key)
-                    if E.values.heightChannel==key then index=i end
+            if E.values.heightSource=='curved' then
+                Curved.panel(E,function() if draftChanged() then return applyProperties() end return true end,action)
+                if E.editMode and not E.editDefaults then HeightPreview.panel(E) end
+                if E.graphEditError then tImGui.TextWrapped(E.graphEditError) end
+            else
+                local manual=E.values.heightSource=='manual'
+                local imagePreview=E.editMode and not E.editDefaults
+                if imagePreview then
+                    if manual and E.heightView==3 then E.heightView=2 end
+                    local views={L('original_image'),L('height_map')}
+                    if not manual then views[3]=L('groove_overlay') end
+                    local change,view=tImGui.Combo(L('height_view'),E.heightView,views)
+                    if change then E.heightView=view end
+                    Help.show('view_'..E.heightView)
                 end
-                local changed,selected=tImGui.Combo(L('height_channel'),index,labels)
-                if changed then E.values.heightChannel=channels[selected] end
-                if tImGui.IsItemHovered() then Help.tooltip(L('height_channel_help')) end
-            end
-            local original=imagePreview and E.heightView==1
-            if not manual and not original then
+                Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
                 tImGui.Separator()
-                tImGui.Text(L('height_levels'))
-                local c,value=tImGui.InputFloat(L('height_black'),E.values.heightBlack,.01,.1,'%.3f')
-                if c then E.values.heightBlack=Model.clampNumber(value,0,E.values.heightWhite,E.values.heightBlack) end
-                c,value=tImGui.InputFloat(L('height_white'),E.values.heightWhite,.01,.1,'%.3f')
-                if c then E.values.heightWhite=Model.clampNumber(value,E.values.heightBlack,1,E.values.heightWhite) end
-                c,value=tImGui.InputFloat(L('height_curve'),E.values.heightCurve,.05,.5,'%.3f')
-                if c then E.values.heightCurve=Model.clampOption('heightCurve',value,E.values.heightCurve) end
-                tImGui.TextWrapped(L('height_levels_help'))
-                if E.values.heightBlack==E.values.heightWhite then tImGui.TextWrapped(L('height_levels_threshold')) end
-                if tImGui.Button(L('height_levels_reset')) then E.values.heightBlack=0;E.values.heightWhite=1;E.values.heightCurve=1 end
-            end
-            local map=imagePreview and E.heightView==2
-            local overlay=imagePreview and E.heightView==3
-            local geometry=not map and not overlay
-            if geometry then E.values.followImage=tImGui.Checkbox(L('followImage'),E.values.followImage); Help.show('adaptive') end
-            if not manual and not overlay then E.values.twoLevels=tImGui.Checkbox(L('twoLevels'),E.values.twoLevels); Help.show('twoLevels') end
-            if not manual then E.values.invert=tImGui.Checkbox(L('invert'),E.values.invert); Help.show('invert') end
-            for _,key in ipairs({'grooveThreshold','grooveTransition','heightTolerance'}) do
-                local visible=(key=='grooveThreshold' and (overlay or E.values.twoLevels or (geometry and E.values.followImage))) or
-                    (key=='grooveTransition' and not overlay and E.values.twoLevels) or
-                    (key=='heightTolerance' and geometry and E.values.followImage)
-                if visible and not original and (not manual or key=='heightTolerance') then
-                    local lo=key=='grooveThreshold' and 0 or 0.001
-                    local c,v=tImGui.SliderFloat(L(key),E.values[key],lo,1)
-                    Help.show(key)
-                    if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
+                if not manual then
+                    if tImGui.Button(L('height_image_choose')) then dpCall(function()
+                        local path=mbm.openFile(E.values.heightImage,table.unpack(tUtil.supported_images))
+                        if path then E.values.heightImage=path end
+                    end) end
+                    if E.values.heightImage~='' then
+                        tImGui.TextWrapped(tUtil.getShortName(E.values.heightImage))
+                        if tImGui.IsItemHovered() then Help.tooltip(E.values.heightImage) end
+                        local c,index=tImGui.Combo(L('height_image_alignment'),E.values.heightImageToRegion and 2 or 1,
+                            {L('height_image_whole'),L('height_image_region')})
+                        if c then E.values.heightImageToRegion=index==2 end
+                        if tImGui.Button(L('height_image_clear')) then E.values.heightImage='' end
+                    else tImGui.TextWrapped(L('height_image_source')) end
+                    tImGui.TextWrapped(L('height_image_help'))
+                    local channels={'luminance','red','green','blue','alpha'}
+                    local labels,index={},1
+                    for i,key in ipairs(channels) do
+                        labels[i]=L('channel_'..key)
+                        if E.values.heightChannel==key then index=i end
+                    end
+                    local changed,selected=tImGui.Combo(L('height_channel'),index,labels)
+                    if changed then E.values.heightChannel=channels[selected] end
+                    if tImGui.IsItemHovered() then Help.tooltip(L('height_channel_help')) end
                 end
-            end
-            if not original and not manual then
-                local c,v=tImGui.SliderInt(L('smoothPasses'),E.values.smoothPasses,0,4)
-                Help.show('smoothPasses')
-                if c then E.values.smoothPasses=Model.clampOption('smoothPasses',v,E.values.smoothPasses) end
-            end
-            E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
-            Help.show('lockBorder')
-            if E.values.lockBorder then
-                local c,v=tImGui.InputFloat(L('borderWidth'),E.values.borderWidth,0.05,0.5,'%.3f')
-                if c then E.values.borderWidth=Model.clampOption('borderWidth',v,E.values.borderWidth) end
-                Help.show('borderWidth')
-            end
-            local help='grooves_help'
-            if map then help='height_map_help' elseif overlay then help='groove_overlay_help' end
-            tImGui.TextWrapped(L(help))
-            local reliefChanged,relief=tImGui.InputFloat(L('relief'),E.values.relief,0.1,1,'%.3f')
-            if reliefChanged then E.values.relief=Model.clampOption('relief',relief,E.values.relief) end
-            Help.show('relief')
-            if imagePreview then
-                if E.heightView~=1 and tImGui.Button(L('preview_adjustments')) then E.heightRequested=true end
-                HeightPreview.panel(E)
+                local original=imagePreview and E.heightView==1
+                if not manual and not original then
+                    tImGui.Separator()
+                    tImGui.Text(L('height_levels'))
+                    local c,value=tImGui.InputFloat(L('height_black'),E.values.heightBlack,.01,.1,'%.3f')
+                    if c then E.values.heightBlack=Model.clampNumber(value,0,E.values.heightWhite,E.values.heightBlack) end
+                    c,value=tImGui.InputFloat(L('height_white'),E.values.heightWhite,.01,.1,'%.3f')
+                    if c then E.values.heightWhite=Model.clampNumber(value,E.values.heightBlack,1,E.values.heightWhite) end
+                    c,value=tImGui.InputFloat(L('height_curve'),E.values.heightCurve,.05,.5,'%.3f')
+                    if c then E.values.heightCurve=Model.clampOption('heightCurve',value,E.values.heightCurve) end
+                    tImGui.TextWrapped(L('height_levels_help'))
+                    if E.values.heightBlack==E.values.heightWhite then tImGui.TextWrapped(L('height_levels_threshold')) end
+                    if tImGui.Button(L('height_levels_reset')) then E.values.heightBlack=0;E.values.heightWhite=1;E.values.heightCurve=1 end
+                end
+                local map=imagePreview and E.heightView==2
+                local overlay=imagePreview and E.heightView==3
+                local geometry=not map and not overlay
+                if geometry then E.values.followImage=tImGui.Checkbox(L('followImage'),E.values.followImage); Help.show('adaptive') end
+                if not manual and not overlay then E.values.twoLevels=tImGui.Checkbox(L('twoLevels'),E.values.twoLevels); Help.show('twoLevels') end
+                if not manual then E.values.invert=tImGui.Checkbox(L('invert'),E.values.invert); Help.show('invert') end
+                for _,key in ipairs({'grooveThreshold','grooveTransition','heightTolerance'}) do
+                    local visible=(key=='grooveThreshold' and (overlay or E.values.twoLevels or (geometry and E.values.followImage))) or
+                        (key=='grooveTransition' and not overlay and E.values.twoLevels) or
+                        (key=='heightTolerance' and geometry and E.values.followImage)
+                    if visible and not original and (not manual or key=='heightTolerance') then
+                        local lo=key=='grooveThreshold' and 0 or 0.001
+                        local c,v=tImGui.SliderFloat(L(key),E.values[key],lo,1)
+                        Help.show(key)
+                        if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
+                    end
+                end
+                if not original and not manual then
+                    local c,v=tImGui.SliderInt(L('smoothPasses'),E.values.smoothPasses,0,4)
+                    Help.show('smoothPasses')
+                    if c then E.values.smoothPasses=Model.clampOption('smoothPasses',v,E.values.smoothPasses) end
+                end
+                E.values.lockBorder=tImGui.Checkbox(L('lockBorder'),E.values.lockBorder)
+                Help.show('lockBorder')
+                if E.values.lockBorder then
+                    local c,v=tImGui.InputFloat(L('borderWidth'),E.values.borderWidth,0.05,0.5,'%.3f')
+                    if c then E.values.borderWidth=Model.clampOption('borderWidth',v,E.values.borderWidth) end
+                    Help.show('borderWidth')
+                end
+                local help='grooves_help'
+                if map then help='height_map_help' elseif overlay then help='groove_overlay_help' end
+                tImGui.TextWrapped(L(help))
+                local reliefChanged,relief=tImGui.InputFloat(L('relief'),E.values.relief,0.1,1,'%.3f')
+                if reliefChanged then E.values.relief=Model.clampOption('relief',relief,E.values.relief) end
+                Help.show('relief')
+                if imagePreview then
+                    if E.heightView~=1 and tImGui.Button(L('preview_adjustments')) then E.heightRequested=true end
+                    HeightPreview.panel(E)
+                end
             end
         end
         Holes.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
@@ -616,7 +630,9 @@ local function propertiesPanel()
             E.values.height=E.values.width*math.max(1,E.draft.h-1)/math.max(1,E.draft.w-1)
         end
         for _,key in ipairs({'width','height','depth'}) do
-            if key=='height' and E.values.preserveAspect then
+            if key=='depth' and E.values.heightSource=='curved' then
+                -- Total thickness is controlled by the curved profile.
+            elseif key=='height' and E.values.preserveAspect then
                 if not E.editDefaults then tImGui.Text(L(key)..': '..string.format('%.3f',E.values.height)) end
             else
                 local c,v=tImGui.InputFloat(L(key),E.values[key],0.1,1,'%.3f'); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
@@ -638,7 +654,7 @@ local function propertiesPanel()
         tImGui.Text(string.format(L('triangle_budget_auto'),2*E.values.maxVertices))
         Help.show('maxTriangles')
         end
-        if tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
+        if E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)
             if E.values.simplify then
                 local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.001,0.95,'%.3f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
@@ -697,6 +713,7 @@ local function regionsPanel()
             if BackUv.available(E) then names[#names+1]=L('back_edit'); tools[#tools+1]='back_uv' end
             if Sides.available(E) then names[#names+1]=L('side_edit');tools[#tools+1]='side_band' end
             if E.tool=='auto_background' then names[#names+1]=L('auto_pick');tools[#tools+1]=E.tool end
+            if E.tool=='curved' then names[#names+1]=tLang.L('ime_curved_title');tools[#tools+1]='curved' end
             if Areas.active(E) then names[#names+1]=tLang.L('ime_areas_title');tools[#tools+1]=E.tool end
             if E.tool=='hole_freehand' then names[#names+1]=L('freehand_hole');tools[#tools+1]=E.tool end
             if E.tool=='holes' or E.tool=='hole_draw' then names[#names+1]=L('holes_'..(E.tool=='holes' and 'edit' or 'draw'));tools[#tools+1]=E.tool end
@@ -723,7 +740,7 @@ local function regionsPanel()
             if tImGui.Button(L('duplicate')) then action(function(p)
                 local originals=Model.copy(p.regions); local selection=E.selection; E.selection={}; local first
                 for _,r in ipairs(originals) do if selection[r.id] then local n=Model.add(p,r.shape,r.x,r.y,r.w,r.h,r.contour)
-                    n.overrides=Model.copy(r.overrides); n.heightEdits=Model.copy(r.heightEdits); n.heightAreas=Model.copy(r.heightAreas); n.holes=Model.copy(r.holes); n.backCrop=Model.copy(r.backCrop); n.name=r.name:sub(1,123)..'_copy'; first=first or n.id; E.selected=first; E.selection[n.id]=true
+                    n.overrides=Model.copy(r.overrides); n.heightEdits=Model.copy(r.heightEdits); n.heightAreas=Model.copy(r.heightAreas); n.curvedNodes=Model.copy(r.curvedNodes); n.holes=Model.copy(r.holes); n.backCrop=Model.copy(r.backCrop); n.name=r.name:sub(1,123)..'_copy'; first=first or n.id; E.selected=first; E.selection[n.id]=true
                 end end
             end) end
             tImGui.SameLine()
@@ -755,18 +772,19 @@ local function regionsPanel()
                 if tImGui.IsItemHovered() then Help.tooltip(L('lock_region_help')) end
             end
             if E.draft then
-                if E.report and not E.drag then
+                if E.report then
                     tImGui.TextWrapped(string.format(L('faces_compact'),E.draft.name,compactCount(E.report.triangles)))
                     if tImGui.IsItemHovered() then
                         Help.tooltip(string.format(L('counts'),E.report.vertices,E.report.triangles))
                     end
-                elseif not E.generationFailure then tImGui.Text(L(E.meshTask and 'faces_calculating' or 'faces_pending')) end
-                if E.editMode and not E.report and not E.drag and not E.paintDrag then
-                    if tImGui.Button(L('faces_calculate')) then
-                        if not draftChanged() or applyProperties() then E.statisticsRequested=true end
-                    end
-                    if tImGui.IsItemHovered() then Help.tooltip(L('faces_calculate_help')) end
+                else tImGui.Text(L(E.meshTask and 'faces_calculating' or 'faces_pending')) end
+                local canCalculate=E.editMode and not E.report and not E.drag and not E.paintDrag and not E.meshTask
+                tImGui.BeginDisabled(not canCalculate)
+                if tImGui.Button(L('faces_calculate')) and canCalculate then
+                    if not draftChanged() or applyProperties() then E.statisticsRequested=true end
                 end
+                if tImGui.IsItemHovered() then Help.tooltip(L('faces_calculate_help')) end
+                tImGui.EndDisabled()
             end
             tImGui.Separator()
         end
@@ -853,12 +871,12 @@ function onTouchDown(key,x,y)
     if E.editMode then
         if key==0 and E.tool~='pan' then
             local handled
-            if not (E.draft and E.draft.locked) and Areas.active(E) and draftChanged() and not applyProperties() then return end
+            if not (E.draft and E.draft.locked) and (Areas.active(E) or E.tool=='curved') and draftChanged() and not applyProperties() then return end
             if Paint.state(E).enabled and not E.editDefaults then
                 if not (E.draft and E.draft.locked) and draftChanged() and not applyProperties() then return end
                 handled=Paint.input(E,action,'down',x,y)
             else handled=Canvas.input(E,handlers,'down',x,y) end
-            if (E.tool=='select' or E.tool=='back_uv' or E.tool=='side_band' or E.tool=='holes' or E.tool=='height_areas') and not handled then E.panDrag={x=x,y=y} end
+            if (E.tool=='select' or E.tool=='curved' or E.tool=='back_uv' or E.tool=='side_band' or E.tool=='holes' or E.tool=='height_areas') and not handled then E.panDrag={x=x,y=y} end
         elseif key==0 then E.panDrag={x=x,y=y}
         elseif key==1 or key==2 then E.panDrag={x=x,y=y} end
     elseif key==0 then E.orbitDrag={x=x,y=y} end
@@ -902,6 +920,7 @@ function onEndScene() Generation.cancel(E); GeometryCache.clear(E); Paint.destro
 if type(testApi)=='table' then
     testApi.generation=Generation
     testApi.auto=Auto; testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end
+    testApi.curved=Curved
     testApi.areas=Areas
     testApi.holes=Holes
     testApi.setAssembly=setAssembly

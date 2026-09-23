@@ -65,7 +65,7 @@ function M.layout(E)
     local depth=0
     for _,item in ipairs(a.items) do
         item.x=item.x-cx-item.centerX;item.y=item.y-cy-item.centerY
-        item.z=-item.depth/2+item.slot.z
+        item.z=(item.curvedFlat and 0 or -item.depth/2)+item.slot.z
         item.preview:setPos(item.x,item.y,item.z)
         if item.wireObject then item.wireObject:setPos(item.x,item.y,item.z) end
         depth=math.max(depth,item.depth+item.relief+math.abs(item.slot.z))
@@ -101,7 +101,12 @@ function M.build(E,generate,dpCall,camera)
             local x0,x1,y0,y1=math.huge,-math.huge,math.huge,-math.huge
             for _,v in ipairs(vertices) do x0=math.min(x0,v.x);x1=math.max(x1,v.x);y0=math.min(y0,v.y);y1=math.max(y1,v.y) end
             item.width=x1-x0;item.height=y1-y0;item.centerX=(x0+x1)/2;item.centerY=(y0+y1)/2
-            local o=Model.options(E.project,region);item.depth=o.depth;item.relief=o.relief
+            local o=Model.options(E.project,region)
+            if o.heightSource=='curved' then
+                local lo,hi=Model.curved.range(o)
+                item.depth=lo;item.relief=hi-lo
+                item.curvedFlat=o.curvedNodes~=nil and not o.curvedSymmetric
+            else item.depth=o.depth;item.relief=o.relief end
             assert(asset:save(item.previewPath,false,false,true),tLang.L('ime_export_failed'))
             item.preview=mesh:new('3d');item.preview.visible=false
             assert(meshDebug:loadMeshPreview(item.preview,item.previewPath),tLang.L('ime_preview_failed'))

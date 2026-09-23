@@ -52,10 +52,11 @@ namespace mbm
         }
     }
 
-    bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &o,
+    bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                            MESH_MBM_DEBUG &destination, IMAGE_MESH_REPORT &report,
                            char *errorOut, int errorOutLen)
     {
+        const IMAGE_MESH_OPTIONS o=image_mesh::curvedOptions(options);
         report = IMAGE_MESH_REPORT{};
         if (errorOut && errorOutLen > 0) errorOut[0] = 0;
         if (!imagePath || !*imagePath || destination.getTotalFrames() != 0)
@@ -445,9 +446,12 @@ namespace mbm
             else
                 for (size_t i = 0; i < topology.boundary.size(); ++i)
                     side(topology.boundary[i], topology.boundary[topology.nextBoundary(i)],!topology.loopEnds.empty() && i>=topology.loopEnds[0]);
+            if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedHierarchy && !o.curvedSymmetric)
+                for (auto &v:vertices) v.position.z-=o.depth*0.5f; // Stable flat back at Z=0.
             // Prefer plateau faces over steep ramps when computing shared front
             // normals. Keeping vertices welded preserves simplification behavior.
-            const bool preservePlateaus=o.followImage && o.twoLevels && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.relief>0;
+            const bool preservePlateaus=o.relief>0 && (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
+                (o.followImage && o.twoLevels && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL));
             std::vector<float> levels;
             std::vector<VEC3> plateauNormals;
             if (preservePlateaus)
@@ -482,7 +486,7 @@ namespace mbm
                     const uint32_t ia=indices[i],ib=indices[i+1],ic=indices[i+2];
                     const float low=std::min({levels[ia],levels[ib],levels[ic]});
                     const float high=std::max({levels[ia],levels[ib],levels[ic]});
-                    if (low>=0.9999f || high<=0.0001f)
+                    if (low>=0.9999f || high<=0.0001f || (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedHierarchy && high-low<1e-6f))
                     {
                         for (uint32_t index : {ia,ib,ic})
                         {
@@ -654,10 +658,11 @@ namespace mbm
         }
         catch (const std::exception &e) { return fail(errorOut,errorOutLen,e.what()); }
     }
-    bool generateImageMeshMap(const char *imagePath,const IMAGE_MESH_OPTIONS &o,const char *outputPath,
+    bool generateImageMeshMap(const char *imagePath,const IMAGE_MESH_OPTIONS &options,const char *outputPath,
                               bool overlay,char *errorOut,int errorOutLen)
     {
         if (errorOut && errorOutLen>0) errorOut[0]=0;
+        const IMAGE_MESH_OPTIONS o=image_mesh::curvedOptions(options);
         if (!outputPath || !*outputPath) return fail(errorOut,errorOutLen,"Output PNG path required");
         if (!std::isfinite(o.borderWidth) || o.borderWidth<0 || o.borderWidth>0.5f)
             return fail(errorOut,errorOutLen,"Invalid border width");
@@ -666,6 +671,7 @@ namespace mbm
             image_mesh::HEIGHT_FIELD field; std::string error;
             if (!field.load(imagePath,o,error)) return fail(errorOut,errorOutLen,error.c_str());
             IMAGE_MESH_OPTIONS outline=o;
+            if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED) outline.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
             outline.followImage=false; outline.columns=outline.rows=1; outline.maxVertices=65535; outline.maxTriangles=131070;
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(outline,topology,error)) return fail(errorOut,errorOutLen,error.c_str());
@@ -692,19 +698,21 @@ namespace mbm
                 }
                 const float distance=image_mesh::borderDistance(p,topology);
                 if (!inside && distance>1e-6f) continue;
-                const float intensity=field.sample(p.x,p.y);
+                const float intensity=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED?0:field.sample(p.x,p.y);
                 float level=field.surface(p.x,p.y,o);
                 if (o.lockBorder)
                 {
                     if (distance<1e-7f) level=0;
                     else if (o.borderWidth>0) level*=std::min(1.0f,distance/o.borderWidth);
                 }
+                if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED)
+                    level=(o.depth+level*o.relief*(o.curvedSymmetric?2:1))/(o.depth+o.relief*(o.curvedSymmetric?2:1));
                 auto *out=rgba.data()+(static_cast<size_t>(y)*field.width+x)*4;
                 const auto *source=field.pixels.get()+(static_cast<size_t>(y+o.y)*field.imageWidth+x+o.x)*4;
                 for (unsigned c=0;c<3;++c)
-                    out[c]=static_cast<unsigned char>(std::lround(overlay?
+                    out[c]=static_cast<unsigned char>(std::lround(overlay && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::CURVED?
                         (intensity<o.grooveThreshold?source[c]*0.35f+(c==2?255.0f:40.0f)*0.65f:source[c]):level*255));
-                out[3]=overlay?source[3]:255;
+                out[3]=overlay && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::CURVED?source[3]:255;
             }
             image_mesh::checkpoint(o,"encode",0.95f);
             const unsigned code=lodepng::encode(outputPath,rgba,field.width,field.height);

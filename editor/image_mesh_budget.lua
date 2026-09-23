@@ -23,6 +23,7 @@
 local M={}
 local function L(key) return tLang.L('ime_'..key) end
 local stages={
+    {'for manual curved relief','curved'},
     {'including side texture seams','seams'},
     {'during painted height refinement','painting'},
     {'while aligning grooves','alignment'},

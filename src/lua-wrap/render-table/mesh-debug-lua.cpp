@@ -3652,7 +3652,7 @@ namespace mbm
         return 1;
     }
 
-    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,IMAGE_MESH_HOLE *holes,IMAGE_MESH_POINT *holePoints,IMAGE_MESH_HEIGHT_AREA *areas,IMAGE_MESH_POINT *areaPoints,int optionIndex=2)
+    static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,IMAGE_MESH_HOLE *holes,IMAGE_MESH_POINT *holePoints,IMAGE_MESH_HEIGHT_AREA *areas,IMAGE_MESH_POINT *areaPoints,IMAGE_MESH_CURVED_NODE *nodes,IMAGE_MESH_POINT *nodePoints,int optionIndex=2)
     {
         luaL_checktype(lua,optionIndex,LUA_TTABLE);
         const auto integer = [&](const char *name, uint32_t &value)
@@ -3736,8 +3736,51 @@ namespace mbm
         if (std::strcmp(heightSource,"image")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
         else if (std::strcmp(heightSource,"manual")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
         else if (std::strcmp(heightSource,"mixed")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MIXED;
-        else luaL_error(lua,"heightSource must be image, manual or mixed");
+        else if (std::strcmp(heightSource,"curved")==0) options.heightSource=IMAGE_MESH_HEIGHT_SOURCE::CURVED;
+        else luaL_error(lua,"heightSource must be image, manual, mixed or curved");
         lua_pop(lua,1);number("baseHeight",options.baseHeight);
+        number("curvedX",options.curvedX); number("curvedY",options.curvedY);
+        number("curvedRadius",options.curvedRadius); number("curvedEdge",options.curvedEdge);
+        number("curvedTarget",options.curvedTarget); boolean("curvedSymmetric",options.curvedSymmetric);
+        lua_getfield(lua,optionIndex,"curvedNodes");
+        if (!lua_isnil(lua,-1))
+        {
+            luaL_checktype(lua,-1,LUA_TTABLE);
+            const size_t count=lua_rawlen(lua,-1);
+            if (count>32) luaL_error(lua,"curvedNodes accepts at most 32 nodes");
+            options.curvedHierarchy=true;options.curvedNodes=nodes;options.curvedNodeCount=static_cast<uint32_t>(count);
+            for (size_t i=0;i<count;++i)
+            {
+                lua_rawgeti(lua,-1,i+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                auto &node=nodes[i];
+                lua_getfield(lua,-1,"parent");const lua_Integer parent=luaL_checkinteger(lua,-1);lua_pop(lua,1);
+                if (parent<0 || parent>static_cast<lua_Integer>(i)) luaL_error(lua,"Curved parent must precede its child (0 = root)");
+                node.parent=static_cast<uint32_t>(parent);
+                lua_getfield(lua,-1,"role");const char *role=luaL_checkstring(lua,-1);
+                if (std::strcmp(role,"region")!=0 && std::strcmp(role,"target")!=0) luaL_error(lua,"Curved role must be target or region");
+                node.inherited=std::strcmp(role,"region")==0;lua_pop(lua,1);
+                lua_getfield(lua,-1,"thickness");node.thickness=static_cast<float>(luaL_optnumber(lua,-1,8));lua_pop(lua,1);
+                lua_getfield(lua,-1,"profile");const char *profile=luaL_optstring(lua,-1,"linear");
+                if (std::strcmp(profile,"linear")==0) node.profile=IMAGE_MESH_CURVED_PROFILE::LINEAR;
+                else if (std::strcmp(profile,"smooth")==0) node.profile=IMAGE_MESH_CURVED_PROFILE::SMOOTH;
+                else if (std::strcmp(profile,"bezier")==0) node.profile=IMAGE_MESH_CURVED_PROFILE::BEZIER;
+                else luaL_error(lua,"Curved profile must be linear, smooth or bezier");
+                lua_pop(lua,1);
+                lua_getfield(lua,-1,"bezier1");node.bezier1=static_cast<float>(luaL_optnumber(lua,-1,0));lua_pop(lua,1);
+                lua_getfield(lua,-1,"bezier2");node.bezier2=static_cast<float>(luaL_optnumber(lua,-1,1));lua_pop(lua,1);
+                const size_t n=lua_rawlen(lua,-1);
+                if (n<1 || n>128 || (node.inherited && n<3)) luaL_error(lua,"Curved target needs 1..128 points; a local region needs at least 3");
+                node.count=static_cast<uint32_t>(n);node.points=nodePoints+i*128;
+                for (size_t j=0;j<n;++j)
+                {
+                    lua_rawgeti(lua,-1,j+1);luaL_checktype(lua,-1,LUA_TTABLE);
+                    lua_getfield(lua,-1,"x");nodePoints[i*128+j].x=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,1);
+                    lua_getfield(lua,-1,"y");nodePoints[i*128+j].y=static_cast<float>(luaL_checknumber(lua,-1));lua_pop(lua,2);
+                }
+                lua_pop(lua,1);
+            }
+        }
+        lua_pop(lua,1);
         lua_getfield(lua,optionIndex,"heightAreas");
         if (!lua_isnil(lua,-1))
         {
@@ -3859,7 +3902,8 @@ namespace mbm
     int onGetImageMeshSideContourLua(lua_State *lua)
     {
         IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[256]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,1);
+        IMAGE_MESH_CURVED_NODE nodes[32];IMAGE_MESH_POINT nodePoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,nodes,nodePoints,1);
         uint32_t count=256; float maximum=0; char error[512]="";
         if (!getImageMeshSideContour(options,inner,count,maximum,error,sizeof(error)))
         {
@@ -3897,7 +3941,8 @@ namespace mbm
         if (!lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
         const bool overlay=lua_toboolean(lua,4)!=0;
         IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
+        IMAGE_MESH_CURVED_NODE nodes[32];IMAGE_MESH_POINT nodePoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,nodes,nodePoints);
         char error[512]="";
         if (!generateImageMeshMap(path,options,output,overlay,error,sizeof(error)))
         {
@@ -3942,6 +3987,13 @@ namespace mbm
             areas[i]=a;areas[i].points=areaPoints[i].data();
         }
         options.heightAreas=areas.data();
+        curvedNodes.resize(o.curvedNodeCount);curvedPoints.resize(o.curvedNodeCount);
+        for (size_t i=0;i<curvedNodes.size();++i)
+        {
+            const auto &node=o.curvedNodes[i];curvedPoints[i].assign(node.points,node.points+node.count);
+            curvedNodes[i]=node;curvedNodes[i].points=curvedPoints[i].data();
+        }
+        options.curvedNodes=curvedNodes.data();
         options.progressContext=this;
         options.progress=[](void *context,const char *label,float value) {
             auto &job=*static_cast<IMAGE_MESH_JOB_LUA *>(context);
@@ -4045,7 +4097,8 @@ namespace mbm
         const bool overlay=mapJob && lua_toboolean(lua,4)!=0;
         IMAGE_MESH_OPTIONS options;IMAGE_MESH_POINT contour[128],holePoints[2048],areaPoints[4096];
         IMAGE_MESH_DAB dabs[4096];IMAGE_MESH_HOLE holes[16];IMAGE_MESH_HEIGHT_AREA areas[32];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
+        IMAGE_MESH_CURVED_NODE nodes[32];IMAGE_MESH_POINT nodePoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,nodes,nodePoints);
         if (luaL_newmetatable(lua,imageMeshJobType))
         {
             const luaL_Reg methods[]={{"getStatus",onGetImageMeshJobStatusLua},{"cancel",onCancelImageMeshJobLua},
@@ -4083,7 +4136,8 @@ namespace mbm
     {
         const char *path=luaL_checkstring(lua,1);
         IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints);
+        IMAGE_MESH_CURVED_NODE nodes[32];IMAGE_MESH_POINT nodePoints[4096];
+        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,nodes,nodePoints);
         lua_settop(lua, 2);
         lua_pushcfunction(lua, onNewMeshDebugLua);
         lua_call(lua, 0, 1);

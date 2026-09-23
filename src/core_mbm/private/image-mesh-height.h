@@ -21,6 +21,7 @@
 #define IMAGE_MESH_HEIGHT_H
 #include <core_mbm/image-mesh.h>
 #include "image-mesh-height-areas.h"
+#include "image-mesh-curved.h"
 #include "image-mesh-progress.h"
 #include <core_mbm/util-interface.h>
 #include <stb/stb-interface.h>
@@ -33,6 +34,7 @@
 namespace mbm { namespace image_mesh {
 struct HEIGHT_FIELD
 {
+    CURVED_FIELD curved;
     uint32_t imageWidth=0,imageHeight=0,width=0,height=0;
     std::string path;
     std::unique_ptr<stbi_uc,decltype(&std::free)> pixels{nullptr,&std::free};
@@ -78,7 +80,7 @@ struct HEIGHT_FIELD
     {
         const auto fail=[&](const char *m) { error=m; return false; };
         if (!source || !*source) return fail("Image path required");
-        if (o.heightSource<IMAGE_MESH_HEIGHT_SOURCE::IMAGE || o.heightSource>IMAGE_MESH_HEIGHT_SOURCE::MIXED ||
+        if (o.heightSource<IMAGE_MESH_HEIGHT_SOURCE::IMAGE || o.heightSource>IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
             !std::isfinite(o.baseHeight) || o.baseHeight<0 || o.baseHeight>1)
             return fail("Invalid heightSource or baseHeight [0,1]");
         if (!std::isfinite(o.grooveThreshold) || o.grooveThreshold<0 || o.grooveThreshold>1 ||
@@ -103,6 +105,7 @@ struct HEIGHT_FIELD
         pixels.reset(stbi_load(path.c_str(),&iw,&ih,&channels,4));
         if (!pixels || iw!=static_cast<int>(imageWidth) || ih!=static_cast<int>(imageHeight))
             return fail("Cannot decode image or dimensions changed");
+        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED) return curved.prepare(o,error);
         std::unique_ptr<stbi_uc,decltype(&std::free)> heightPixels{nullptr,&std::free};
         int hw=0,hh=0;
         if (o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.heightImage && *o.heightImage)
@@ -283,6 +286,7 @@ struct HEIGHT_FIELD
     float sample(float u,float v) const { return interpolate(u,v,levels); }
     float surface(float u,float v,const IMAGE_MESH_OPTIONS &o) const
     {
+        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED) return curved.level(u,v,o);
         const float automatic=mapped(sample(u,v),o);
         if (!hasPainting()) return automatic;
         const float weight=interpolate(u,v,paintMask);

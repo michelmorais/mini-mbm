@@ -94,9 +94,9 @@ function M.resize(area,width,height)
  for _,p in ipairs(area) do p.x=x+(p.x-x)*width/(2*b.rx);p.y=y+(p.y-y)*height/(2*b.ry) end
 end
 function M.modePanel(E)
- local sources={'image','manual','mixed'};local index=1
+ local sources={'image','manual','mixed','curved'};local index=1
  for i,v in ipairs(sources) do if E.values.heightSource==v then index=i end end
- local c,v=tImGui.Combo(L('source'),index,{L('image'),L('manual'),L('mixed')})
+ local c,v=tImGui.Combo(L('source'),index,{L('image'),L('manual'),L('mixed'),tLang.L('ime_curved_title')})
  if c then E.values.heightSource=sources[v];if v~=1 then E.values.followImage=true end;if v==2 and E.heightView==3 then E.heightView=2 end end
  Help.show('mode_'..E.values.heightSource)
  if E.values.heightSource=='manual' then
@@ -107,6 +107,7 @@ function M.modePanel(E)
 end
 function M.panel(E,action,apply)
  if E.editDefaults or not E.draft then return end
+ if E.values.heightSource=='curved' then return end
  if E.values.heightSource=='image' then
   if #(E.draft.heightAreas or {})>0 then tImGui.TextWrapped(L('inactive_mode')) end
   return
