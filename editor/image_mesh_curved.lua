@@ -30,9 +30,7 @@ function M.panel(E,apply,action)
  if E.draft and E.draft.curvedNodes and not E.editDefaults then return Graph.panel(E,apply,action) end
  local convert=false
  if E.draft and not E.editDefaults then
-  tImGui.BeginDisabled(E.values.curvedFaceted)
   convert=tImGui.Button(L('enable_hierarchy'))
-  tImGui.EndDisabled()
  end
  if convert and apply() then
   if action(function(p) local r=Model.region(p,E.selected);Model.curved.convert(r,Model.options(p,r));E.curvedNode=1 end) then

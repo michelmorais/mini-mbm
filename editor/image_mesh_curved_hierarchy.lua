@@ -116,7 +116,9 @@ function M.panel(E,apply,action)
   if M.close(E,apply) then return end
  end
  for _,key in ipairs({'curvedEdge','heightTolerance'}) do
+  tImGui.BeginDisabled(key=='heightTolerance' and E.values.curvedFaceted)
   local c,n=input(L(key),E.values[key],key)
+  tImGui.EndDisabled()
   if c then E.values[key]=Model.clampOption(key,n,E.values[key]) end
  end
  E.values.curvedSymmetric=tImGui.Checkbox(L('symmetric'),E.values.curvedSymmetric)
@@ -148,7 +150,8 @@ function M.panel(E,apply,action)
   if n.role=='target' then
    local changed,value=input(L('curvedTarget'),n.thickness,'thickness')
    if changed then n.thickness=Model.clampOption('curvedTarget',value,n.thickness) end
-   Profile.panel(E,n)
+   if E.values.curvedFaceted then tImGui.TextWrapped(tLang.L('ime_facets_linear'))
+   else Profile.panel(E,n) end
   else tImGui.TextWrapped(L('inherited')) end
   geometryPanel(E,selected)
   if tImGui.Button(L('remove_node')) and apply() then
@@ -171,12 +174,16 @@ function M.panel(E,apply,action)
    end) end
   end
   if not hasTarget then
+   tImGui.BeginDisabled(E.values.curvedFaceted and kinds[E.curvedKind]=='line')
    local clicked=tImGui.Button(L('add_target'))
+   tImGui.EndDisabled()
    if tImGui.IsItemHovered() then Help.tooltip(L('add_target_help')) end
    if clicked then add('target');return end
   end
   if E.curvedKind>=3 then
+   tImGui.BeginDisabled(E.values.curvedFaceted)
    local clicked=tImGui.Button(L('add_region'))
+   tImGui.EndDisabled()
    if tImGui.IsItemHovered() then Help.tooltip(L('add_region_help')) end
    if clicked then add('region');return end
   end

@@ -26,9 +26,7 @@ local function L(key) return tLang.L('ime_facets_'..key) end
 function M.panel(E)
  local v=E.values
  local hierarchy=E.draft and E.draft.curvedNodes and not E.editDefaults
- tImGui.BeginDisabled(hierarchy and not v.curvedFaceted)
  v.curvedFaceted=tImGui.Checkbox(L('enabled'),v.curvedFaceted)
- tImGui.EndDisabled()
  if hierarchy then tImGui.TextWrapped(L('hierarchy')) end
  if not v.curvedFaceted then return end
  for _,item in ipairs{{'sectors','curvedFacetSectors'},{'rings','curvedFacetRings'}} do

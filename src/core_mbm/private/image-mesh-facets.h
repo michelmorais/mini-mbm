@@ -21,6 +21,7 @@
 #define IMAGE_MESH_FACETS_H
 #include "image-mesh-topology.h"
 #include "image-mesh-progress.h"
+#include "image-mesh-curved-hierarchy.h"
 #include <cmath>
 #include <limits>
 namespace mbm { namespace image_mesh {
@@ -113,6 +114,116 @@ struct FACET_FIELD
             topology.boundary.push_back(1+(layers-1)*n+i);
         }
         topology.loopEnds.push_back(n);
+        return index(error);
+    }
+    bool prepareHierarchy(const IMAGE_MESH_OPTIONS &o,const CURVED_HIERARCHY &hierarchy,std::string &error)
+    {
+        const auto fail=[&](const char *message) { error=message;return false; };
+        if (o.curvedFacetSectors<8 || o.curvedFacetSectors>128 || o.curvedFacetRings<1 || o.curvedFacetRings>16)
+            return fail("Faceting requires 8..128 sectors and 1..16 rings");
+        const auto &domains=hierarchy.domains;
+        std::vector<uint32_t> chain;
+        for (int node=0;node>=0;node=domains[node].target)
+        {
+            const auto &d=domains[node];
+            if (!d.locals.empty() || d.points.size()==2)
+                return fail("Faceting supports a chain of convex targets and an optional terminal point; local regions and lines are not supported");
+            for (size_t i=0;d.points.size()>2 && i<d.points.size();++i)
+                if (CURVED_HIERARCHY::cross(d.points[i],d.points[(i+1)%d.points.size()],d.points[(i+2)%d.points.size()]) < -hierarchy.tolerance*hierarchy.tolerance)
+                    return fail("Automatic faceting requires convex contours and targets");
+            chain.push_back(static_cast<uint32_t>(node));
+        }
+        // One shared origin inside the innermost target makes every ring conforming.
+        // All corners of all targets contribute rays, preserving each boundary exactly.
+        IMAGE_MESH_POINT center{0,0};
+        const auto &last=domains[chain.back()];
+        double cx=0,cy=0;
+        for (const auto &p:last.normalized) { cx+=p.x;cy+=p.y; }
+        center.x=static_cast<float>(cx/last.normalized.size());center.y=static_cast<float>(cy/last.normalized.size());
+        constexpr double pi=3.14159265358979323846;
+        std::vector<double> rays;
+        for (uint32_t i=0;i<o.curvedFacetSectors;++i) rays.push_back(2*pi*i/o.curvedFacetSectors);
+        for (uint32_t node:chain) if (domains[node].points.size()>2)
+            for (const auto &p:domains[node].normalized)
+            {
+                double angle=std::atan2((p.y-center.y)*o.height,(p.x-center.x)*o.width);
+                if (angle<0) angle+=2*pi;
+                rays.push_back(angle);
+            }
+        std::sort(rays.begin(),rays.end());
+        rays.erase(std::unique(rays.begin(),rays.end(),[](double a,double b){return b-a<1e-6;}),rays.end());
+        if (rays.size()>1 && rays.front()+2*pi-rays.back()<1e-6) rays.pop_back();
+        const uint32_t n=static_cast<uint32_t>(rays.size());
+        const double scale=o.relief*(o.curvedSymmetric?2:1);
+        const auto normalized=[&](double h){return scale>0?static_cast<float>(std::clamp((h-o.depth)/scale,0.0,1.0)):0.0f;};
+        topology=TOPOLOGY{};topology.contour=domains[0].normalized;heights.clear();
+        topology.points.push_back(center);heights.push_back(normalized(last.thickness));
+        std::vector<IMAGE_MESH_POINT> inner(n,center);
+        double innerHeight=last.thickness;
+        uint32_t layers=0;
+        // Generate from the central table/peak outward, sharing the target ring
+        // between its two adjacent transitions (no cracks or overlapping faces).
+        for (size_t k=chain.size();k-->0;)
+        {
+            const auto &d=domains[chain[k]];
+            if (d.points.size()==1) continue;
+            std::vector<IMAGE_MESH_POINT> outer;
+            for (double angle:rays)
+            {
+                checkpoint(o,"facets",0.2f);
+                const double dx=std::cos(angle)/o.width,dy=std::sin(angle)/o.height;
+                double hit=std::numeric_limits<double>::infinity();
+                IMAGE_MESH_POINT point{};
+                for (size_t i=0;i<d.normalized.size();++i)
+                {
+                    const auto &a=d.normalized[i],&b=d.normalized[(i+1)%d.normalized.size()];
+                    const double ax=a.x-center.x,ay=a.y-center.y,ex=b.x-a.x,ey=b.y-a.y,det=dx*ey-dy*ex;
+                    if (std::abs(det)<1e-20) continue;
+                    const double r=(ax*ey-ay*ex)/det,e=(ax*dy-ay*dx)/det;
+                    if (r>0 && r<hit && e>=-1e-7 && e<=1.0000001)
+                    {
+                        hit=r;
+                        point={static_cast<float>(center.x+r*dx),static_cast<float>(center.y+r*dy)};
+                        if (std::abs(e)<1e-7) point=a;
+                        else if (std::abs(1-e)<1e-7) point=b;
+                    }
+                }
+                if (!std::isfinite(hit)) return fail("Faceting could not reach a target contour");
+                outer.push_back(point);
+            }
+            const uint32_t bands=k+1==chain.size()?1:o.curvedFacetRings;
+            for (uint32_t band=1;band<=bands;++band)
+            {
+                const double f=static_cast<double>(band)/bands;
+                const uint32_t start=static_cast<uint32_t>(topology.points.size());
+                for (uint32_t i=0;i<n;++i)
+                {
+                    topology.points.push_back(band==bands?outer[i]:IMAGE_MESH_POINT{
+                        static_cast<float>(inner[i].x+(outer[i].x-inner[i].x)*f),
+                        static_cast<float>(inner[i].y+(outer[i].y-inner[i].y)*f)});
+                    heights.push_back(normalized(innerHeight+(d.thickness-innerHeight)*f));
+                }
+                for (uint32_t i=0;i<n;++i)
+                {
+                    const uint32_t j=(i+1)%n;
+                    if (!layers) topology.triangles.push_back({0,start+i,start+j});
+                    else
+                    {
+                        topology.triangles.push_back({start-n+i,start+i,start+j});
+                        topology.triangles.push_back({start-n+i,start+j,start-n+j});
+                    }
+                }
+                ++layers;
+            }
+            inner=std::move(outer);innerHeight=d.thickness;
+        }
+        for (uint32_t i=0;i<n;++i) topology.boundary.push_back(1+(layers-1)*n+i);
+        topology.loopEnds.push_back(n);
+        return index(error);
+    }
+    bool index(std::string &error)
+    {
+        const auto fail=[&](const char *message) { error=message;return false; };
         for (auto &bin:bins) bin.clear();
         for (uint32_t i=0;i<topology.triangles.size();++i)
         {

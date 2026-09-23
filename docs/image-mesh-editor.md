@@ -93,7 +93,7 @@ The legacy point/circle controls remain linear. Extended target shapes and profi
 are available after explicit conversion to the hierarchy below. Optional constrained
 simplification is available since 7.270.0 (see below).
 
-### Automatic faceting for diamonds (7.272.0)
+### Automatic faceting for diamonds (7.273.0)
 
 Select **Manual curved** on a module using the point/circle profile, then enable
 **Automatic faceting**. Start with an ellipse, **Minimum sectors = 8** and
@@ -113,9 +113,19 @@ represent those same planes. Grid resolution, adaptive tolerance and simplificat
 are inactive in this mode; the editor disables their controls and retains their
 saved values. Facet seams duplicate vertices, which count toward the geometry budget.
 
-Target hierarchies are not supported in this first version. The facet checkbox is
-disabled for a module with a hierarchy, and hierarchy conversion is disabled while
-faceting is active. Use a module with the point/circle profile. Settings participate
+Target chains are also supported: use **Edit targets and local regions** to convert
+or edit the hierarchy, then add nested convex targets with their own thicknesses.
+For example, contour 1, intermediate polygon 5, inner polygon 8 creates two slopes
+and a flat central table. A terminal point creates a peak instead. An empty hierarchy
+is flat. Local regions and line targets are unsupported; their add buttons are disabled
+while faceting is active. Existing incompatible hierarchies produce a generation error.
+
+A shared radial origin is the arithmetic mean of the innermost polygon's vertices,
+or the terminal point. Rays through every polygon corner preserve all target borders;
+minimum sectors adds rays and transition rings subdivides each target connection.
+Moving a target can change the triangulation throughout the chain. Bézier/smooth
+profiles remain saved but are inactive; transitions are linear between thicknesses,
+and the profile panel explains this while faceting is enabled. Settings participate
 in Apply, undo/redo, `.imesh`, asynchronous generation and export. The mode is off by
 default for existing projects. Export preserves the hard facet normals.
 

@@ -2168,7 +2168,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
 | `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
 | `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
-| `curvedFaceted` | false | Automatic planar faceting of the legacy curved point/circle profile (7.272.0); convex outer contour required, `curvedNodes` must be absent |
+| `curvedFaceted` | false | Automatic planar faceting of the curved point/circle profile or nested convex target chain (7.273.0); convex outer contour required |
 | `curvedFacetSectors` | 8 | Integer [8,128], minimum angular sectors; outer polygon corners may add sectors. For ellipses, also replaces `ellipseSegments` while active |
 | `curvedFacetRings` | 1 | Integer [1,16], uniform transition bands between contour and center/table |
 | `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion (7.270.0); ignored outside curved mode and while `curvedFaceted=true` |
@@ -2256,10 +2256,17 @@ These fields are absent when the pass is inactive; existing `vertices`/`triangle
 still describe the entire final mesh. Async jobs copy all three input options,
 report stage `curved_simplify`, and support cancellation during the pass.
 
-**Automatic faceting (7.272.0).** `curvedFaceted=true` uses a coarse, piecewise-planar
-surface instead of the radial analytic profile. It supports the legacy point/circle
-controls only, on convex outer contours. `curvedNodes` is rejected, including an
-empty hierarchy. Other height modes ignore the facet settings. Existing center,
+**Automatic faceting (7.273.0).** `curvedFaceted=true` uses a coarse, piecewise-planar
+surface instead of the radial analytic profile. It supports legacy point/circle
+controls and `curvedNodes` chains, on convex outer contours. Chains accept convex
+closed targets and an optional terminal point; local regions and lines are rejected.
+An empty chain makes the root flat. The shared ray origin is the arithmetic mean of
+the innermost polygon vertices, or the terminal point. All polygon corners add rays;
+each target boundary retains its authored thickness. The final polygon's interior is
+flat. Rings divide each connection linearly; saved smooth/Bézier profiles are inactive.
+Moving a target may change triangulation across the chain. Existing hierarchy
+containment/size/depth validation still applies. Other height modes ignore the facet
+settings. For the legacy profile, existing center,
 radius, total endpoint thickness, inversion by swapping endpoints and symmetric/flat
 back rules still apply. Radius zero produces a peak; positive radius locates the
 vertices of the polygonal central table.

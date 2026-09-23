@@ -1,6 +1,6 @@
 # Image Mesh Editor — Plano do modo Manual curvo
 
-Status: **Facetamento automático entregue em 7.272.0 (marco 13). Expansões restantes na seção 7.**
+Status: **Facetamento com hierarquia entregue em 7.273.0 (marco 14). Próxima prioridade: formas sem interpolação radial.**
 Data: **2026-09-23**
 
 Este documento registra o contrato, a implementação inicial e as expansões do modo.
@@ -268,8 +268,9 @@ a preservação pelo simplificador fica adiada com a simplificação desativada.
 ## 7. Expansões posteriores
 
 Composição com pintura e áreas;
-formas que não admitem interpolação radial; múltiplos alvos; facetamento com
-hierarquias, edição manual de arestas e padrões de lapidação adicionais.
+formas que não admitem interpolação radial (próxima prioridade acordada);
+facetamento com regiões locais independentes, edição manual de arestas e padrões
+de lapidação adicionais.
 Cada expansão deve definir seu comportamento antes de entrar na implementação.
 
 ## 8. Contrato consolidado — cadeias e regiões locais (2026-09-23)
@@ -510,3 +511,38 @@ prévia de alturas/exportação e ociosidade aprovado. Regressões do editor de 
 geração de malhas por imagem e furos curvos aprovadas.
 A malha facetada exportada pelo teste do editor foi carregada em 3D pelo `testLib`,
 com encerramento normal após 3 segundos.
+
+
+## 14. Facetamento com hierarquia de alvos — 7.273.0
+
+Escopo acordado: cadeia de polígonos convexos encaixados, com espessura por alvo,
+platô final ou ponto terminal. Regiões locais e linhas ficam fora deste modo.
+O contorno externo também deve ser convexo. Hierarquia vazia gera superfície plana.
+
+O centro comum é a média dos vértices do último polígono ou o ponto terminal.
+Raios passam pelos cantos de todos os polígonos e pelos setores mínimos. Anéis
+subdividem cada ligação. As bordas são compartilhadas entre as transições, sem
+fendas; cada alvo conserva sua espessura. Mover um alvo pode alterar a triangulação
+da cadeia. Perfis suave/Bézier ficam preservados, mas inativos no facetamento;
+a altura varia linearmente entre os alvos. Platôs internos não recebem anéis extras.
+
+Furos recortam os planos existentes. Mapa, verso, materiais, orçamento de normais
+independentes, geração assíncrona e persistência mantêm o contrato do marco 13.
+A conversão para hierarquia fica disponível com facetamento ativo. Botões para
+adicionar regiões locais e alvos em linha ficam desabilitados nesse modo.
+Validações anteriores de contenção, quantidade e profundidade continuam aplicáveis.
+
+Próximo marco prioritário, por escolha do usuário: formas que não admitem
+interpolação radial, com definição do contrato de transição interna e alvos em
+polilinha antes da implementação. Pintura e outras expansões ficam depois.
+
+
+Validação do marco 14: builds `mini-mbm` e `testLib` aprovados; testes nativos
+verificam alturas nas bordas de alvos com formatos/centros diferentes, mesa e pico,
+transições ascendentes/descendentes, normais, fechamento/Euler/volume, furos,
+mapa coerente, verso plano, exportação, entradas não suportadas e execução assíncrona.
+Teste ImGui cobre conversão de círculo (incluindo direções quase coincidentes),
+histórico, preservação de Bézier, salvar/reabrir, mapa, exportação e ociosidade.
+Regressão dos perfis sem facetamento aprovada. Malha exportada carregada em 3D
+pelo `testLib`, com encerramento normal após 3 segundos. Interação manual ainda
+requer a validação visual do usuário.

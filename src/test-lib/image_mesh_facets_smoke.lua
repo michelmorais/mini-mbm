@@ -125,7 +125,8 @@ local function run()
  o.curvedFacetSectors=old
  for _,n in ipairs{0,17} do o.curvedFacetRings=n;local a,e=mbm.generateImageMesh(path,o);assert(not a and e:find('Faceting'),e) end
  o.curvedFacetRings=3
- o.curvedNodes={};local a,e=mbm.generateImageMesh(path,o);assert(not a and e:find('hierarchy'),e);o.curvedNodes=nil
+ o.curvedNodes={};span=generate();close(span(.5,.5),1)
+ o.curvedNodes=nil;local a,e
  local contour=o.contour;o.contour={{x=0,y=0},{x=1,y=0},{x=1,y=1},{x=.5,y=.8},{x=0,y=1}}
  a,e=mbm.generateImageMesh(path,o);assert(not a and e:find('convex'),e);o.contour=contour
  local shape,radius,rings=o.shape,o.curvedRadius,o.curvedFacetRings
@@ -133,6 +134,32 @@ local function run()
  o.maxVertices=80;a,e=mbm.generateImageMesh(path,o);assert(not a and e:find('side/facet seams'),e)
  o.maxVertices=nil;o.shape=shape;o.curvedRadius=radius;o.curvedFacetRings=rings;o.curvedX=.45;o.curvedY=.47
  print('FACETS MAP / VALIDATION / HARD EDGE BUDGET OK')
+ -- Conforming rings must preserve every authored target height, even when the
+ -- targets have different corner counts, centers and stored curve profiles.
+ o.shape='rectangle';o.contour=nil;o.curvedFacetRings=2
+ local first=rect(.2,.2,.8,.8);first.parent=0;first.role='target';first.thickness=5
+ local second={{x=.43,y=.35},{x=.65,y=.4},{x=.55,y=.65},parent=1,role='target',thickness=8}
+ o.curvedNodes={first,second};span=generate()
+ for _,n in ipairs(o.curvedNodes) do for _,p in ipairs(n) do close(span(p.x,p.y),n.thickness,.001) end end
+ close(span(.53,.46),8,.001)
+ local baseline=span
+ second.profile='bezier';second.bezier1=1;second.bezier2=0
+ span=generate()
+ for _,p in ipairs{{.1,.3},{.3,.45},{.7,.7},{.53,.46}} do close(span(p[1],p[2]),baseline(p[1],p[2]),.001) end
+ o.holes={rect(.15,.42,.48,.55)};span=generate();assert(span(.3,.5)==-math.huge)
+ for _,p in ipairs{{.1,.3},{.3,.65},{.7,.7},{.53,.46}} do close(span(p[1],p[2]),baseline(p[1],p[2]),.001) end
+ o.holes=nil;o.curvedSymmetric=false;span=generate();local _,_,back=span(.53,.46);close(back,0,.001)
+ o.curvedSymmetric=true
+ o.curvedNodes[3]={{x=.54,y=.46},parent=2,role='target',thickness=3};span=generate();close(span(.54,.46),3,.001)
+ local ok,e=mbm.generateImageMeshMap(path,o,map);assert(ok,e)
+ local rgba,w,h=mbm.readImagePixels(map)
+ for y=12,52,4 do for x=12,52,4 do close(rgba:byte((y*w+x)*4+1)/255,span(x/64,y/64)/8,.0041) end end
+ local asset=select(2,generate());assert(asset:save('/tmp/ime_facet_chain.msh',false,false,true))
+ o.curvedNodes[3]=nil
+ second.role='region';a,e=mbm.generateImageMesh(path,o);assert(not a and e:find('local regions'),e);second.role='target'
+ local saved=o.curvedNodes[2];o.curvedNodes[2]={{x=.4,y=.4},{x=.6,y=.6},parent=1,role='target',thickness=8}
+ a,e=mbm.generateImageMesh(path,o);assert(not a and e:find('lines'),e);o.curvedNodes[2]=saved
+ print('FACETS CHAIN / HEIGHTS / SHARED RINGS / HOLES / MAP / PEAK / FLAT BACK / UNSUPPORTED INPUT OK')
  pending=assert(mbm.startImageMesh(path,o));o.curvedFaceted=false;o.curvedFacetSectors=64
  started=mbm.getTimeRun()
 end

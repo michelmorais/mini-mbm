@@ -47,6 +47,28 @@ local function run()
  repeat api.updateHeightPreview();coroutine.yield() until E.heightObject or E.heightError
  assert(E.heightObject,E.heightError)
  print('FACETS EDITOR UI / HISTORY / SAVE / REOPEN / EXPORT / MAP OK')
+ assert(api.action(function(p)
+  local r=p.regions[1];Model.curved.convert(r,Model.options(p,r))
+  Model.curved.add(r,1,'target','rectangle',12)
+  r.curvedNodes[1].profile='bezier';r.curvedNodes[1].bezier1=1;r.curvedNodes[1].bezier2=0
+ end))
+ api.undo(false);assert(not E.project.regions[1].curvedNodes)
+ api.undo(true);assert(#E.project.regions[1].curvedNodes==2)
+ E.tool='curved';E.curvedPanelOpen=true;E.curvedNode=1
+ api.saveProject('/tmp/ime_facet_chain_editor.imesh')
+ api.openProject('/tmp/ime_facet_chain_editor.imesh');api.select(1,false)
+ local chain=E.project.regions[1].curvedNodes
+ assert(#chain==2 and chain[1].profile=='bezier' and chain[2].thickness==12)
+ assert(Model.options(E.project,E.project.regions[1]).curvedFaceted)
+ E.tool='curved';E.curvedPanelOpen=true;E.curvedNode=1
+ api.exportOne('/tmp/ime_facet_chain_editor.msh');while E.meshTask do coroutine.yield() end
+ assert(IO.exists('/tmp/ime_facet_chain_editor.msh'),E.status)
+ api.updateStatistics();while E.meshTask do coroutine.yield() end
+ assert(E.report and E.report.vertices==E.report.triangles*3,E.status)
+ E.heightView=2;E.heightRequested=true
+ repeat api.updateHeightPreview();coroutine.yield() until E.heightObject or E.heightError
+ assert(E.heightObject,E.heightError)
+ print('FACETS EDITOR CHAIN / CONVERSION / HISTORY / PROFILE PRESERVATION / SAVE / MAP / EXPORT OK')
  started=mbm.getTimeRun()
 end
 function onInitScene()

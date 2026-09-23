@@ -73,8 +73,11 @@ struct CURVED_FIELD
         TOPOLOGY t;
         if (!buildTopology(outline,t,error)) return false;
         contour=std::move(t.contour);holes=std::move(t.holes);
-        if (o.curvedFaceted && o.curvedHierarchy) return fail("Faceting requires the point/circle profile, without a target hierarchy");
-        if (o.curvedHierarchy) return hierarchy.prepare(o,contour,error);
+        if (o.curvedHierarchy)
+        {
+            if (!hierarchy.prepare(o,contour,error)) return false;
+            return !o.curvedFaceted || facets.prepareHierarchy(o,hierarchy,error);
+        }
         const double tolerance=std::max(o.width,o.height)*1e-6;
         for (size_t i=0;i<contour.size();++i)
         {
