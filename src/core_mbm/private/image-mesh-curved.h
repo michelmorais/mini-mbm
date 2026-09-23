@@ -29,6 +29,7 @@ namespace mbm { namespace image_mesh {
 inline IMAGE_MESH_OPTIONS curvedOptions(IMAGE_MESH_OPTIONS o)
 {
     if (o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::CURVED) return o;
+    if (o.curvedInterior) o.curvedSimplify=false;
     if (o.curvedFaceted)
     {
         o.curvedSimplify=false;
@@ -73,6 +74,11 @@ struct CURVED_FIELD
         TOPOLOGY t;
         if (!buildTopology(outline,t,error)) return false;
         contour=std::move(t.contour);holes=std::move(t.holes);
+        if (o.curvedInterior)
+        {
+            if (!prepareInterior(o,facets.topology,facets.heights,error)) return false;
+            return facets.index(error);
+        }
         if (o.curvedHierarchy)
         {
             if (!hierarchy.prepare(o,contour,error)) return false;
@@ -96,7 +102,7 @@ struct CURVED_FIELD
     }
     float level(float u,float v,const IMAGE_MESH_OPTIONS &o) const
     {
-        if (o.curvedFaceted) return facets.level(u,v);
+        if (o.curvedFaceted || o.curvedInterior) return facets.level(u,v);
         if (o.curvedHierarchy) return hierarchy.level(u,v,o);
         const double dx=(static_cast<double>(u)-o.curvedX)*o.width,dy=(static_cast<double>(v)-o.curvedY)*o.height;
         const double radius=std::hypot(dx,dy);

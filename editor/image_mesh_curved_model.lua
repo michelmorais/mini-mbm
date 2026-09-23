@@ -38,12 +38,12 @@ function M.validate(nodes)
   assert(n.bezier3==nil or number(n.bezier3,0,1),'ime_curved_profile_invalid')
   assert(n.bezier4==nil or number(n.bezier4,0,1),'ime_curved_profile_invalid')
   assert(n.bezierPoints==nil or n.bezierPoints==2 or n.bezierPoints==3 or n.bezierPoints==4,'ime_curved_profile_invalid')
-  assert(n.shape=='point' or n.shape=='line' or n.shape=='ellipse' or n.shape=='rectangle' or n.shape=='polygon','ime_curved_nodes_invalid')
-  assert(#n>=1 and #n<=128 and (n.shape~='point' or #n==1) and (n.shape~='line' or #n==2),'ime_curved_nodes_invalid')
+  assert(n.shape=='polyline' or n.shape=='point' or n.shape=='line' or n.shape=='ellipse' or n.shape=='rectangle' or n.shape=='polygon','ime_curved_nodes_invalid')
+  assert(#n>=1 and #n<=128 and (n.shape~='point' or #n==1) and (n.shape~='line' or #n==2) and (n.shape~='polyline' or #n>=2),'ime_curved_nodes_invalid')
   for _,p in ipairs(n) do assert(type(p)=='table' and number(p.x,0,1) and number(p.y,0,1),'ime_curved_nodes_invalid') end
-  if n.shape~='point' and n.shape~='line' then assert(#n>=3 and Geometry.simple(n),'ime_curved_nodes_invalid') end
-  assert(n.role~='region' or #n>=3,'ime_curved_nodes_invalid')
-  assert(n.parent==0 or #nodes[n.parent]>=3,'ime_curved_nodes_terminal')
+  if n.shape~='point' and n.shape~='line' and n.shape~='polyline' then assert(#n>=3 and Geometry.simple(n),'ime_curved_nodes_invalid') end
+  assert(n.role~='region' or (#n>=3 and n.shape~='polyline'),'ime_curved_nodes_invalid')
+  assert(n.parent==0 or (#nodes[n.parent]>=3 and nodes[n.parent].shape~='polyline'),'ime_curved_nodes_terminal')
   depth[i]=depth[n.parent]+1;assert(depth[i]<=8,'ime_curved_nodes_invalid')
   if n.role=='target' then assert(not targets[n.parent],'ime_curved_nodes_target_exists');targets[n.parent]=i end
  end
@@ -62,7 +62,7 @@ function M.descendant(nodes,index,parent)
 end
 function M.shape(kind,x,y,rx,ry)
  if kind=='point' then return {{x=x,y=y}} end
- if kind=='line' then return {{x=x,y=y-ry},{x=x,y=y+ry}} end
+ if kind=='line' or kind=='polyline' then return {{x=x,y=y-ry},{x=x,y=y+ry}} end
  if kind=='rectangle' then return {{x=x-rx,y=y-ry},{x=x+rx,y=y-ry},{x=x+rx,y=y+ry},{x=x-rx,y=y+ry}} end
  if kind=='polygon' then return {{x=x,y=y-ry},{x=x+rx,y=y+ry},{x=x-rx,y=y+ry}} end
  local points={}
@@ -78,13 +78,25 @@ end
 function M.add(region,parent,role,kind,thickness)
  local nodes=assert(region.curvedNodes,'ime_curved_nodes_invalid')
  assert(#nodes<32 and parent>=0 and parent<=#nodes,'ime_curved_nodes_invalid')
- assert(parent==0 or #nodes[parent]>=3,'ime_curved_nodes_terminal')
+ assert(parent==0 or (#nodes[parent]>=3 and nodes[parent].shape~='polyline'),'ime_curved_nodes_terminal')
  if role=='target' then for _,n in ipairs(nodes) do assert(n.parent~=parent or n.role~='target','ime_curved_nodes_target_exists') end end
- assert(role~='region' or (kind~='point' and kind~='line'),'ime_curved_nodes_invalid')
+ assert(role~='region' or (kind~='point' and kind~='line' and kind~='polyline'),'ime_curved_nodes_invalid')
  local b=parent==0 and {x=.5,y=.5,rx=.5,ry=.5} or M.bounds(nodes[parent])
  local n=M.shape(kind,b.x,b.y,b.rx*.4,b.ry*.4)
  n.parent=parent;n.role=role;n.shape=kind;n.thickness=thickness;n.name=tostring(#nodes+1)
  nodes[#nodes+1]=n;return #nodes
+end
+-- Only invoked when adding an interior target, never from the draw loop.
+function M.seedInterior(node,outer,holes)
+ local best,score
+ for y=1,39 do for x=1,39 do
+  local cx,cy=x/40,y/40
+  local candidate=node.shape=='point' and {{x=cx,y=cy}} or {{x=cx,y=cy-.005},{x=cx,y=cy+.005}}
+  local distance=(cx-.5)^2+(cy-.5)^2
+  if (not score or distance<score) and Geometry.openInside(outer,holes,candidate) then best=candidate;score=distance end
+ end end
+ assert(best,'ime_curved_edit_interior')
+ for i,p in ipairs(best) do node[i]=p end
 end
 function M.remove(nodes,index)
  local remap,out={[0]=0},{}
@@ -99,8 +111,18 @@ local function winding(points)
  for i,a in ipairs(points) do local b=points[i%#points+1];area=area+a.x*b.y-a.y*b.x end
  return area<0 and -1 or 1
 end
-function M.geometry(nodes,outer)
+function M.geometry(nodes,outer,interior,holes)
+ if interior then
+  if #nodes==0 then return true end
+  if #nodes~=1 then return false,'edit_interior' end
+  local n=nodes[1]
+  if n.parent~=0 or n.role~='target' or (n.shape~='point' and n.shape~='line' and n.shape~='polyline') then return false,'edit_interior' end
+  for _,p in ipairs(n) do if not number(p.x,0,1) or not number(p.y,0,1) then return false,'edit_bounds' end end
+  if not Geometry.openInside(outer,holes,n) then return false,'edit_interior' end
+  return true
+ end
  for _,n in ipairs(nodes) do
+  if n.shape=='polyline' then return false,'edit_interior_mode' end
   for _,p in ipairs(n) do
    if not number(p.x,0,1) or not number(p.y,0,1) then return false,'edit_bounds' end
   end

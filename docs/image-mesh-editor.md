@@ -93,6 +93,33 @@ The legacy point/circle controls remain linear. Extended target shapes and profi
 are available after explicit conversion to the hierarchy below. Optional constrained
 simplification is available since 7.270.0 (see below).
 
+### Interior transition for concave shapes (7.274.0)
+
+In **Manual curved**, enable **Transition through the interior**, then open
+**Edit targets and local regions**. In this mode, a new hierarchy starts empty.
+Select the root and add a **Polyline** target. Its initial short segment is placed
+inside the piece. Expand **Vertices (advanced)** to insert vertices and edit the
+path along the U/S shape; the canvas also exposes its vertices. The path stays open.
+Set the contour thickness and the target's thickness, then Apply. A point or straight
+line target is also supported. An empty hierarchy stays flat at the contour thickness.
+
+This mode calculates a smooth-shaded surface through the piece's internal mesh,
+without radial visibility requirements or connections across external gaps. All
+outer and hole borders retain the contour thickness. Targets cannot cross the
+contour, holes or themselves; invalid vertex edits produce a message and keep the
+previous geometry. A hole influences nearby heights, unlike the post-cut behavior
+of radial relief. **Columns/rows** set the resolution; the result is a discrete
+approximation and can change with resolution. The transition need not be linear.
+
+The first version accepts a single root point/line/polyline. Closed targets,
+additional hierarchy levels, local regions and faceting are unsupported. Saved
+Bézier/smooth profiles, adaptive tolerance and simplification remain inactive.
+Existing incompatible hierarchies are preserved and generation reports the reason;
+remove their targets or use another module to author the interior target. Changing
+back to radial mode also preserves the polyline, which must then be removed or
+replaced with a supported radial target. Save/reopen, undo/redo, height maps, symmetric
+or flat back, materials and mesh export are supported.
+
 ### Automatic faceting for diamonds (7.273.0)
 
 Select **Manual curved** on a module using the point/circle profile, then enable
@@ -172,7 +199,7 @@ Closed targets must be convex and fit entirely in the parent's visibility kernel
 Local regions may be concave, but independent regions must not touch, overlap or
 contain one another. Nesting must be explicit. Generation reports invalid placements;
 the editor lets you adjust them. Limits: 32 nodes, 128 points per node, depth 8.
-A flat back is fixed at Z=0 for the hierarchy. Polyline targets and blending overlapping regions are deferred.
+A flat back is fixed at Z=0 for the hierarchy. In radial mode, polyline targets and blending overlapping regions are unsupported.
 
 ### Transition profiles per target (7.268.0)
 
@@ -663,3 +690,6 @@ Run engine tests using the repository's
 [engine-testing instructions](../.agents/skills/engine-testing/SKILL.md).
 The public scripting contract is documented in
 [Lua API: image-based mesh generation](lua-api.md#image-based-mesh-generation).
+
+Interior-transition smoke tests: `src/test-lib/image_mesh_interior_smoke.lua` and
+`src/test-lib/image_mesh_interior_editor_smoke.lua`.

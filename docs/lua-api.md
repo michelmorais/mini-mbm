@@ -2168,10 +2168,11 @@ assert(asset:save("panel.msh", false, false, true))
 | `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
 | `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
 | `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
+| `curvedInterior` | false | Discrete harmonic interior transition (7.274.0); requires `curvedNodes` with zero or one root point, segment or polyline target; incompatible with faceting |
 | `curvedFaceted` | false | Automatic planar faceting of the curved point/circle profile or nested convex target chain (7.273.0); convex outer contour required |
 | `curvedFacetSectors` | 8 | Integer [8,128], minimum angular sectors; outer polygon corners may add sectors. For ellipses, also replaces `ellipseSegments` while active |
 | `curvedFacetRings` | 1 | Integer [1,16], uniform transition bands between contour and center/table |
-| `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion (7.270.0); ignored outside curved mode and while `curvedFaceted=true` |
+| `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion (7.270.0); ignored outside curved mode and while `curvedFaceted=true` or `curvedInterior=true` |
 | `curvedSimplifyRatio` | 0.5 | Requested fraction of front triangles to retain, finite [0.01,1]; a goal, not a guarantee |
 | `curvedSimplifyError` | 0.01 | Maximum additional normalized height error, finite [0.0001,0.25], compared with the dense generated surface |
 | `curvedNodes` | nil | Optional hierarchy of targets and independent local regions; absent preserves the legacy profile, an empty table makes the root flat |
@@ -2201,7 +2202,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `maxVertices` | 65535 | Total vertex budget, including back, duplicated side vertices and repetition seams; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
 
-Without `curvedNodes` and with `curvedFaceted=false`, `heightSource="curved"` preserves the legacy profile: it is linear from the real outer contour to a
+Without `curvedNodes` and with both `curvedFaceted=false` and `curvedInterior=false`, `heightSource="curved"` preserves the legacy profile: it is linear from the real outer contour to a
 movable point or circular plateau. The source image still supplies color/UVs. The
 center must lie strictly inside the contour's visibility kernel; the target circle
 must be strictly inside the contour. Holes are supported since 7.271.0 as through-cuts
@@ -2255,6 +2256,32 @@ normalized error bound, not a measured maximum), and `curvedTargetReached`.
 These fields are absent when the pass is inactive; existing `vertices`/`triangles`
 still describe the entire final mesh. Async jobs copy all three input options,
 report stage `curved_simplify`, and support cancellation during the pass.
+
+**Interior transition (7.274.0).** `curvedInterior=true` computes a discrete harmonic
+surface on a constrained triangulation of the piece. `curvedNodes` must be present:
+an empty table produces a flat piece at `curvedEdge`; otherwise supply exactly one
+root target (`parent=0`, `role="target"`), a point, two-point segment, or open
+`shape="polyline"` with 2..128 points. All target points and segments must be strictly
+inside the contour and outside holes. Self-intersections, backtracking and touching
+boundaries are rejected. Convexity and radial visibility are not required.
+
+The outer and hole boundaries are fixed at `curvedEdge`, and every target segment
+is fixed at its `thickness`. Positive edge weights equal inverse edge length in
+world dimensions. A preconditioned conjugate-gradient solve propagates the heights
+only through the mesh interior, without bridging voids. Intermediate heights remain
+between the two endpoint thicknesses. This is a resolution-dependent discrete
+surface with smooth normals, not a promise of a globally differentiable surface or
+linear growth with distance. `columns` and `rows` control tessellation; refinement
+is not driven by `heightTolerance`. Mesh and height map evaluate the same piecewise
+linear field. Unlike radial/faceted holes, interior holes participate in the solve
+and alter nearby heights; a target cannot run through a hole.
+
+Facet mode is incompatible. Simplification and authored transition profiles are
+inactive; their saved values remain intact. Closed targets, multiple targets and
+local regions are not supported in this first interior milestone. Symmetric/flat
+backs, materials, vertex/triangle budgets, export and asynchronous cancellation
+remain supported. Flat back is at Z=0. A failed solve produces an error, not a partial
+mesh. Geometry and field preparation happen only on requested generation/map tasks.
 
 **Automatic faceting (7.273.0).** `curvedFaceted=true` uses a coarse, piecewise-planar
 surface instead of the radial analytic profile. It supports legacy point/circle
@@ -2321,6 +2348,7 @@ normalized crop points `{x=..., y=...}`, with these fields:
 
 | Field | Meaning |
 |---|---|
+| `shape` | Optional: `"polyline"` makes 2..128 points an open target, only with `curvedInterior=true`. Otherwise point count determines geometry as below. |
 | `parent` | Required integer: 0 is the outer contour; otherwise the index of an earlier node. Maximum depth is 8. |
 | `role` | Required `"target"` or `"region"`. Each closed owner has at most one target and may have multiple local regions. |
 | `thickness` | Total target thickness, finite [0.001,1000000], default 8. Validated but ignored for inherited local regions. |
@@ -2329,12 +2357,13 @@ normalized crop points `{x=..., y=...}`, with these fields:
 | `bezier1`, `bezier2` | Since 7.268.0: first two vertical controls, defaults 0 and 1. Each must be finite and within [0,1]; since 7.268.1 they may cross. |
 | `bezier3`, `bezier4` | Since 7.269.0: additional vertical controls, each defaulting to 1. All supplied controls are validated in [0,1], even when unused or the profile is not Bézier. |
 
-One point or two points define a terminal point/segment target. Three or more points
-define a simple closed contour. Closed targets must be convex; local regions may
+Outside interior transition, one point or two points define a terminal point/segment
+target. Three or more points define a simple closed contour. Closed targets must be convex; local regions may
 be concave. All nodes must be strictly inside their parent. A target must lie entirely
 inside its owner's visibility kernel. Independent local regions cannot overlap,
-touch or contain one another; explicitly nested regions are allowed. Holes remain
-unsupported. Invalid geometry returns a diagnostic instead of a partial mesh.
+touch or contain one another; explicitly nested regions are allowed. Holes cut the
+radial surface after evaluating virtual controls (see Curved holes above). Invalid
+geometry returns a diagnostic instead of a partial mesh.
 
 The root border has `curvedEdge` thickness. A closed target without another target
 is a plateau; its children may create further transitions. A local region inherits

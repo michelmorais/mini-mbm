@@ -109,6 +109,7 @@ struct CURVED_HIERARCHY
             if (i)
             {
                 const auto &node=o.curvedNodes[i-1];
+                if (node.polyline) return fail(i,"Polyline targets require interior transition");
                 if (node.parent>=i || !node.points || node.count<1 || node.count>128 ||
                     (node.inherited && node.count<3) || !std::isfinite(node.thickness) || node.thickness<0.001f || node.thickness>1000000)
                     return fail(i,"invalid owner, contour or thickness");

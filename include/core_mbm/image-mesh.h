@@ -70,6 +70,7 @@ namespace mbm
         // Internal Bezier controls, evenly spaced in X; each Y is in [0,1].
         uint32_t bezierPoints = 2; // 2, 3 or 4 internal controls; endpoints stay fixed.
         float bezier1 = 0.0f, bezier2 = 1.0f, bezier3 = 1.0f, bezier4 = 1.0f;
+        bool polyline = false; // Open target with 2..128 points; interior transition only.
         bool inherited = false; // Local region; otherwise the owner's sole target.
     };
 
@@ -115,6 +116,7 @@ namespace mbm
         float curvedX = 0.5f, curvedY = 0.5f, curvedRadius = 0.0f;
         float curvedEdge = 1.0f, curvedTarget = 8.0f;
         bool curvedSymmetric = true;
+        bool curvedInterior = false; // Discrete harmonic surface inside the contour.
         bool curvedFaceted = false;
         uint32_t curvedFacetSectors = 8, curvedFacetRings = 1;
         bool curvedSimplify = false;

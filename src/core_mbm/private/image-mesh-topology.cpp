@@ -846,6 +846,143 @@ static bool hierarchyTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::strin
     return refineCurved(o,t,error,field);
 }
 
+// A positive weighted graph Laplacian on the constrained interior triangulation.
+// Dirichlet values on every boundary and target prevent shortcuts across concavities
+// or holes. A Jacobi-preconditioned conjugate-gradient solve is worker-owned.
+bool prepareInterior(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::vector<float> &heights,std::string &error)
+{
+    const auto fail=[&](const char *message){error=message;return false;};
+    if (o.curvedFaceted) return fail("Interior transition cannot be combined with faceting");
+    if (o.curvedHierarchy && o.curvedNodeCount==0)
+    {
+        IMAGE_MESH_OPTIONS flat=o;flat.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;flat.followImage=false;
+        if (!buildTopology(flat,t,error)) return false;
+        heights.assign(t.points.size(),0);return true;
+    }
+    if (!o.curvedHierarchy || o.curvedNodeCount!=1 || !o.curvedNodes)
+        return fail("Interior transition requires exactly one root point, line or polyline target");
+    const auto &node=o.curvedNodes[0];
+    if (node.parent || node.inherited || !node.points || node.count<1 || node.count>128 ||
+        (!node.polyline && node.count>2) || (node.polyline && node.count<2) ||
+        !std::isfinite(node.thickness) || node.thickness<.001f || node.thickness>1000000)
+        return fail("Interior transition requires a root point, line or polyline with valid thickness");
+    IMAGE_MESH_OPTIONS outline=o;outline.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;outline.followImage=false;
+    if (!buildTopology(outline,t,error)) return false;
+    const auto inDomain=[&](const IMAGE_MESH_POINT &p)
+    {
+        if (!insideRing(t.contour,p)) return false;
+        for (const auto &hole:t.holes) if (insideRing(hole,p)) return false;
+        return true;
+    };
+    const auto hitsBoundary=[&](const IMAGE_MESH_POINT &a,const IMAGE_MESH_POINT &b)
+    {
+        for (size_t i=0;i<t.boundary.size();++i)
+            if (intersects(a,b,t.points[t.boundary[i]],t.points[t.boundary[t.nextBoundary(i)]])) return true;
+        return false;
+    };
+    for (uint32_t i=0;i<node.count;++i)
+    {
+        const auto &p=node.points[i];
+        if (!std::isfinite(p.x) || !std::isfinite(p.y) || p.x<0 || p.x>1 || p.y<0 || p.y>1 || !inDomain(p) || hitsBoundary(p,p))
+            return fail("Interior target must stay strictly inside the shape, outside holes");
+        if (!i) continue;
+        const auto &a=node.points[i-1];
+        if (std::hypot(p.x-a.x,p.y-a.y)<1e-6 || hitsBoundary(a,p))
+            return fail("Interior target segment touches or crosses a boundary, or is too short");
+        if (i>1 && std::abs(cross(node.points[i-2],a,p))<=epsilon &&
+            (a.x-node.points[i-2].x)*(p.x-a.x)+(a.y-node.points[i-2].y)*(p.y-a.y)<=0)
+            return fail("Interior polyline must not backtrack");
+        for (uint32_t j=1;j+1<i;++j)
+            if (intersects(a,p,node.points[j-1],node.points[j])) return fail("Interior polyline must not cross itself");
+    }
+    std::vector<uint32_t> ids;
+    for (uint32_t i=0;i<node.count;++i)
+    {
+        checkpoint(o,"topology",.3f);
+        uint32_t id=0;if (!hierarchyPoint(t,node.points[i],id,error)) return false;
+        ids.push_back(id);
+    }
+    for (size_t i=1;i<ids.size();++i) if (!hierarchySegment(o,t,ids[i-1],ids[i],error)) return false;
+    if (!hierarchyBudget(o,t,error)) return false;
+    const size_t n=t.points.size();
+    std::vector<int> fixed(n,-1);
+    for (uint32_t i:t.boundary) fixed[i]=0;
+    for (uint32_t i:ids) fixed[i]=1;
+    // Insertion can subdivide a target into multiple edges. Pin all their vertices.
+    for (size_t i=0;i<n;++i) for (uint32_t j=1;j<node.count;++j)
+    {
+        const auto &p=t.points[i],&a=node.points[j-1],&b=node.points[j];
+        const double dx=b.x-a.x,dy=b.y-a.y,f=((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy);
+        if (f>=-1e-7 && f<=1.0000001 && std::hypot(p.x-a.x-f*dx,p.y-a.y-f*dy)<3e-7)
+        {
+            if (fixed[i]==0) return fail("Interior target is too close to a boundary");
+            fixed[i]=1;
+        }
+    }
+    for (uint32_t id:ids) for (uint32_t boundary:t.boundary)
+        if (id==boundary) return fail("Interior target is too close to a boundary");
+    std::map<uint64_t,double> edges;
+    for (const auto &f:t.triangles) for (unsigned j=0;j<3;++j)
+    {
+        const uint32_t a=f[j],b=f[(j+1)%3];const auto &pa=t.points[a],&pb=t.points[b];
+        const double length=std::hypot((pa.x-pb.x)*o.width,(pa.y-pb.y)*o.height);
+        if (length<1e-12) return fail("Interior triangulation has a degenerate edge");
+        edges[edgeKey(a,b)]=1/length;
+    }
+    std::vector<std::vector<std::pair<uint32_t,double>>> neighbors(n);
+    std::vector<double> diagonal(n,0),rhs(n,0),x(n,0),r(n),z(n),direction(n),product(n);
+    for (const auto &edge:edges)
+    {
+        const uint32_t a=static_cast<uint32_t>(edge.first>>32),b=static_cast<uint32_t>(edge.first);
+        const double weight=edge.second;
+        for (const auto &pair:{std::make_pair(a,b),std::make_pair(b,a)})
+        {
+            const uint32_t i=pair.first,j=pair.second;
+            if (fixed[i]>=0) continue;
+            diagonal[i]+=weight;
+            if (fixed[j]>=0) rhs[i]+=weight*fixed[j];
+            else neighbors[i].push_back({j,weight});
+        }
+    }
+    double rz=0,rhsNorm=0;
+    for (size_t i=0;i<n;++i) if (fixed[i]<0)
+    {
+        if (!(diagonal[i]>0)) return fail("Interior triangulation has an isolated vertex");
+        r[i]=rhs[i];z[i]=r[i]/diagonal[i];direction[i]=z[i];rz+=r[i]*z[i];rhsNorm+=rhs[i]*rhs[i];
+    }
+    const double threshold=std::max(1e-24,rhsNorm*1e-14);
+    bool solved=rhsNorm<=threshold;
+    for (unsigned iteration=0;!solved && iteration<4096;++iteration)
+    {
+        checkpoint(o,"interior",.35f+.2f*iteration/4096);
+        double denominator=0;
+        for (size_t i=0;i<n;++i) if (fixed[i]<0)
+        {
+            product[i]=diagonal[i]*direction[i];
+            for (const auto &edge:neighbors[i]) product[i]-=edge.second*direction[edge.first];
+            denominator+=direction[i]*product[i];
+        }
+        if (!(denominator>0) || !std::isfinite(denominator)) return fail("Interior surface solver did not converge");
+        const double alpha=rz/denominator;double next=0,norm=0;
+        for (size_t i=0;i<n;++i) if (fixed[i]<0)
+        {
+            x[i]+=alpha*direction[i];r[i]-=alpha*product[i];z[i]=r[i]/diagonal[i];
+            next+=r[i]*z[i];norm+=r[i]*r[i];
+        }
+        solved=norm<=threshold;
+        if (!solved) for (size_t i=0;i<n;++i) if (fixed[i]<0) direction[i]=z[i]+next/rz*direction[i];
+        rz=next;
+    }
+    if (!solved) return fail("Interior surface solver did not converge; reduce grid resolution");
+    heights.resize(n);
+    for (size_t i=0;i<n;++i)
+    {
+        const double value=fixed[i]>=0?fixed[i]:std::clamp(x[i],0.0,1.0);
+        heights[i]=node.thickness==o.curvedEdge?0:static_cast<float>(node.thickness>o.curvedEdge?value:1-value);
+    }
+    return true;
+}
+
 // Cut the already constrained surface. Control points inside holes remain part of
 // the analytic field, but no unused vertices survive in the exported geometry.
 static bool cutCurvedHoles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD &field)
@@ -935,6 +1072,7 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &
 {
     if (options.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && field)
     {
+        if (options.curvedInterior) { t=field->curved.facets.topology;return hierarchyBudget(options,t,error); }
         if (options.curvedFaceted)
         {
             t=field->curved.facets.topology;

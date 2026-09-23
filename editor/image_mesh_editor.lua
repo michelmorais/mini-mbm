@@ -658,7 +658,8 @@ local function propertiesPanel()
         end
         if E.values.heightSource=='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             if E.values.curvedFaceted then tImGui.TextWrapped(tLang.L('ime_facets_simplify')) end
-            tImGui.BeginDisabled(E.values.curvedFaceted)
+            if E.values.curvedInterior then tImGui.TextWrapped(tLang.L('ime_curved_interior_resolution')) end
+            tImGui.BeginDisabled(E.values.curvedFaceted or E.values.curvedInterior)
             E.values.curvedSimplify=tImGui.Checkbox(L('curved_simplify'),E.values.curvedSimplify)
             if tImGui.IsItemHovered() then Help.tooltip(L('curved_simplify_help')) end
             if E.values.curvedSimplify then

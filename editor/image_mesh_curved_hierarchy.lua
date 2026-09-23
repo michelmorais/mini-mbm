@@ -26,7 +26,7 @@ local Profile=require 'image_mesh_curved_profile'
 local C=Model.curved
 local M={}
 local function L(key) return tLang.L('ime_curved_'..key) end
-local kinds={'point','line','ellipse','rectangle','polygon'}
+local kinds={'point','line','ellipse','rectangle','polygon','polyline'}
 local function input(label,value,id)
  tImGui.TextWrapped(label);tImGui.SetNextItemWidth(-1)
  return tImGui.InputFloat('##ime_graph_'..id,value,.01,1,'%.3f')
@@ -49,7 +49,7 @@ end
 function M.edit(E,change,field,value)
  local candidate=Model.copy(E.draft.curvedNodes)
  if change(candidate)==false then return reject(E,'edit_bounds',field,value) end
- local valid,reason=C.geometry(candidate,outer(E,E.draft))
+ local valid,reason=C.geometry(candidate,outer(E,E.draft),E.values.curvedInterior,E.draft.holes)
  if not valid then return reject(E,reason,field,value) end
  E.draft.curvedNodes=candidate;E.graphEditError=nil;E.graphLabelsSource=nil
  return true
@@ -65,7 +65,7 @@ local function geometryPanel(E,index)
    if changed then M.edit(E,function(nodes) return C.transform(nodes,index,key,value) end,'shape_'..key,value) end
   end
  end
- if #n>2 and n.shape~='polygon' then
+ if #n>2 and n.shape~='polygon' and n.shape~='polyline' then
   tImGui.TextWrapped(L('primitive_help'))
   if tImGui.Button(L('convert_polygon')) then
    M.edit(E,function(nodes) nodes[index].shape='polygon' end)
@@ -83,14 +83,15 @@ local function geometryPanel(E,index)
   local changed,value=input(L('vertex_'..axis),p[axis],'vertex_'..axis)
   if changed then M.edit(E,function(nodes) nodes[index][E.curvedPoint][axis]=value end,'vertex_'..axis,value) end
  end
- if #n>=3 then
+ if #n>=3 or n.shape=='polyline' then
   if #n<128 and tImGui.Button(L('add_vertex')) then
    if M.edit(E,function(nodes)
     local points=nodes[index];local a,b=points[E.curvedPoint],points[E.curvedPoint%#points+1]
+    if n.shape=='polyline' and E.curvedPoint==#points then a=points[#points-1];b=points[#points];E.curvedPoint=#points-1 end
     table.insert(points,E.curvedPoint+1,{x=(a.x+b.x)/2,y=(a.y+b.y)/2})
    end) then E.curvedPoint=E.curvedPoint+1 end
   end
-  if #n>3 and tImGui.Button(L('remove_vertex')) then
+  if #n>(n.shape=='polyline' and 2 or 3) and tImGui.Button(L('remove_vertex')) then
    if M.edit(E,function(nodes) table.remove(nodes[index],E.curvedPoint) end) then E.curvedPoint=1 end
   end
  end
@@ -116,7 +117,7 @@ function M.panel(E,apply,action)
   if M.close(E,apply) then return end
  end
  for _,key in ipairs({'curvedEdge','heightTolerance'}) do
-  tImGui.BeginDisabled(key=='heightTolerance' and E.values.curvedFaceted)
+  tImGui.BeginDisabled(key=='heightTolerance' and (E.values.curvedFaceted or E.values.curvedInterior))
   local c,n=input(L(key),E.values[key],key)
   tImGui.EndDisabled()
   if c then E.values[key]=Model.clampOption(key,n,E.values[key]) end
@@ -150,7 +151,8 @@ function M.panel(E,apply,action)
   if n.role=='target' then
    local changed,value=input(L('curvedTarget'),n.thickness,'thickness')
    if changed then n.thickness=Model.clampOption('curvedTarget',value,n.thickness) end
-   if E.values.curvedFaceted then tImGui.TextWrapped(tLang.L('ime_facets_linear'))
+   if E.values.curvedInterior then tImGui.TextWrapped(L('interior_profiles'))
+   elseif E.values.curvedFaceted then tImGui.TextWrapped(tLang.L('ime_facets_linear'))
    else Profile.panel(E,n) end
   else tImGui.TextWrapped(L('inherited')) end
   geometryPanel(E,selected)
@@ -161,7 +163,7 @@ function M.panel(E,apply,action)
    return
   end
  end
- if not n or #n>=3 then
+ if not n or (#n>=3 and n.shape~='polyline' and not E.values.curvedInterior) then
   E.curvedKind=E.curvedKind or 1
   local labels=E.graphKinds
   tImGui.TextWrapped(L('shape'));tImGui.SetNextItemWidth(-1)
@@ -170,18 +172,22 @@ function M.panel(E,apply,action)
   local hasTarget=E.graphTargets[selected]
   local function add(role)
    if apply() then action(function(project)
-    E.curvedNode=C.add(Model.region(project,E.selected),selected,role,kinds[E.curvedKind],E.values.curvedTarget)
+    local r=Model.region(project,E.selected)
+    E.curvedNode=C.add(r,selected,role,kinds[E.curvedKind],E.values.curvedTarget)
+    if E.values.curvedInterior then C.seedInterior(r.curvedNodes[E.curvedNode],outer(E,r),r.holes) end
    end) end
   end
   if not hasTarget then
-   tImGui.BeginDisabled(E.values.curvedFaceted and kinds[E.curvedKind]=='line')
+   tImGui.BeginDisabled((E.values.curvedFaceted and (kinds[E.curvedKind]=='line' or kinds[E.curvedKind]=='polyline')) or
+    (not E.values.curvedInterior and kinds[E.curvedKind]=='polyline') or
+    (E.values.curvedInterior and (E.curvedKind>=3 and E.curvedKind<=5)))
    local clicked=tImGui.Button(L('add_target'))
    tImGui.EndDisabled()
    if tImGui.IsItemHovered() then Help.tooltip(L('add_target_help')) end
    if clicked then add('target');return end
   end
   if E.curvedKind>=3 then
-   tImGui.BeginDisabled(E.values.curvedFaceted)
+   tImGui.BeginDisabled(E.values.curvedFaceted or E.values.curvedInterior or E.curvedKind==6)
    local clicked=tImGui.Button(L('add_region'))
    tImGui.EndDisabled()
    if tImGui.IsItemHovered() then Help.tooltip(L('add_region_help')) end
@@ -197,12 +203,12 @@ function M.draw(E,draw,handle,r)
  local nodes=r.curvedNodes
  for i,n in ipairs(nodes) do
   local points={};for j,p in ipairs(n) do points[j]={x=r.x+p.x*(r.w-1),y=r.y+p.y*(r.h-1)} end
-  if #points>1 then draw(points,#points>2,'area') end
+  if #points>1 then draw(points,#points>2 and n.shape~='polyline','area') end
   if #points==1 then handle(points[1].x,points[1].y,'area') end
   if i==E.curvedNode and E.tool=='curved' then
    local b=C.bounds(points);handle(b.x,b.y,'area')
    if #points>2 then handle(b.x+b.rx,b.y+b.ry,'area') end
-   if #points<=2 or n.shape=='polygon' then for _,p in ipairs(points) do handle(p.x,p.y,'area') end end
+   if #points<=2 or n.shape=='polygon' or n.shape=='polyline' then for _,p in ipairs(points) do handle(p.x,p.y,'area') end end
   end
  end
 end
@@ -219,7 +225,7 @@ function M.input(E,H,event,mx,my,origin,radius,r)
    local b=C.bounds(n)
    if #n>2 and near(b.x+b.rx,b.y+b.ry) then mode='resize'
    elseif near(b.x,b.y) then mode='move'
-   elseif #n<=2 or n.shape=='polygon' then
+   elseif #n<=2 or n.shape=='polygon' or n.shape=='polyline' then
     for j,p in ipairs(n) do if near(p.x,p.y) then mode='vertex';point=j;break end end
    end
   end
@@ -242,10 +248,10 @@ function M.input(E,H,event,mx,my,origin,radius,r)
    for j,p in ipairs(n) do local old=d.nodes[i][j]
     if d.operation=='move' then p.x=old.x+dx;p.y=old.y+dy
     elseif d.operation=='resize' then p.x=b.x+(old.x-b.x)*sx;p.y=b.y+(old.y-b.y)*sy
-    elseif i==d.index and j==d.point then p.x=x;p.y=y;if #n>2 then n.shape='polygon' end end
+    elseif i==d.index and j==d.point then p.x=x;p.y=y;if #n>2 and n.shape~='polyline' then n.shape='polygon' end end
    end
   end end
-  local valid,reason=C.geometry(nodes,outer(E,r))
+  local valid,reason=C.geometry(nodes,outer(E,r),Model.options(E.project,r).curvedInterior,r.holes)
   if not valid then r.curvedNodes=previous;E.graphEditError=L(reason);return true end
   E.graphEditError=nil;d.changed=true;E.canvasDirty=true
  elseif event=='up' then E.drag=nil;if d.changed then H.commitDrag(d.before) end;E.canvasDirty=true end

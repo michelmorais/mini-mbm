@@ -3740,6 +3740,7 @@ namespace mbm
         else luaL_error(lua,"heightSource must be image, manual, mixed or curved");
         lua_pop(lua,1);number("baseHeight",options.baseHeight);
         number("curvedX",options.curvedX); number("curvedY",options.curvedY);
+        boolean("curvedInterior",options.curvedInterior);
         boolean("curvedFaceted",options.curvedFaceted);
         integer("curvedFacetSectors",options.curvedFacetSectors);integer("curvedFacetRings",options.curvedFacetRings);
         boolean("curvedSimplify",options.curvedSimplify);
@@ -3763,6 +3764,8 @@ namespace mbm
                 lua_getfield(lua,-1,"role");const char *role=luaL_checkstring(lua,-1);
                 if (std::strcmp(role,"region")!=0 && std::strcmp(role,"target")!=0) luaL_error(lua,"Curved role must be target or region");
                 node.inherited=std::strcmp(role,"region")==0;lua_pop(lua,1);
+                lua_getfield(lua,-1,"shape");const char *shape=luaL_optstring(lua,-1,"");
+                node.polyline=std::strcmp(shape,"polyline")==0;lua_pop(lua,1);
                 lua_getfield(lua,-1,"thickness");node.thickness=static_cast<float>(luaL_optnumber(lua,-1,8));lua_pop(lua,1);
                 lua_getfield(lua,-1,"profile");const char *profile=luaL_optstring(lua,-1,"linear");
                 if (std::strcmp(profile,"linear")==0) node.profile=IMAGE_MESH_CURVED_PROFILE::LINEAR;

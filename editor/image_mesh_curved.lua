@@ -26,6 +26,11 @@ local Facets=require 'image_mesh_facets'
 local M={hierarchy=Graph}
 local function L(key) return tLang.L('ime_curved_'..key) end
 function M.panel(E,apply,action)
+ local v=E.values
+ tImGui.BeginDisabled(v.curvedFaceted)
+ v.curvedInterior=tImGui.Checkbox(L('interior'),v.curvedInterior)
+ tImGui.EndDisabled()
+ if v.curvedInterior then tImGui.TextWrapped(L('interior_help')) end
  Facets.panel(E)
  if E.draft and E.draft.curvedNodes and not E.editDefaults then return Graph.panel(E,apply,action) end
  local convert=false
@@ -33,23 +38,28 @@ function M.panel(E,apply,action)
   convert=tImGui.Button(L('enable_hierarchy'))
  end
  if convert and apply() then
-  if action(function(p) local r=Model.region(p,E.selected);Model.curved.convert(r,Model.options(p,r));E.curvedNode=1 end) then
+  if action(function(p)
+   local r=Model.region(p,E.selected)
+   if E.values.curvedInterior then r.curvedNodes={};E.curvedNode=0
+   else Model.curved.convert(r,Model.options(p,r));E.curvedNode=1 end
+  end) then
    Graph.open(E,function() return true end)
   end
   return
  end
- local v=E.values
- for _,key in ipairs({'curvedEdge','curvedTarget','curvedX','curvedY','curvedRadius','heightTolerance'}) do
+ local keys=v.curvedInterior and {'curvedEdge','heightTolerance'} or {'curvedEdge','curvedTarget','curvedX','curvedY','curvedRadius','heightTolerance'}
+ for _,key in ipairs(keys) do
   tImGui.TextWrapped(L(key))
   tImGui.SetNextItemWidth(-1)
-  tImGui.BeginDisabled(key=='heightTolerance' and v.curvedFaceted)
+  tImGui.BeginDisabled(key=='heightTolerance' and (v.curvedFaceted or v.curvedInterior))
   local c,n=tImGui.InputFloat('##ime_curved_'..key,v[key],.01,1,'%.3f')
   tImGui.EndDisabled()
   if c then v[key]=Model.clampOption(key,n,v[key]) end
   if key=='curvedRadius' then tImGui.TextWrapped(L('radius_help')) end
  end
- if tImGui.Button(L('invert')) then v.curvedEdge,v.curvedTarget=v.curvedTarget,v.curvedEdge end
+ if not v.curvedInterior and tImGui.Button(L('invert')) then v.curvedEdge,v.curvedTarget=v.curvedTarget,v.curvedEdge end
  v.curvedSymmetric=tImGui.Checkbox(L('symmetric'),v.curvedSymmetric)
+ if v.curvedInterior then tImGui.TextWrapped(L('interior_resolution'));return end
  tImGui.TextWrapped(L('help'))
  if E.editMode and not E.editDefaults then
   if E.heightView==3 then E.heightView=2 end

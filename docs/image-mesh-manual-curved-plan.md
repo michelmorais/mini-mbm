@@ -1,6 +1,6 @@
 # Image Mesh Editor — Plano do modo Manual curvo
 
-Status: **Facetamento com hierarquia entregue em 7.273.0 (marco 14). Próxima prioridade: formas sem interpolação radial.**
+Status: **Transição pelo interior entregue em 7.274.0 (marco 15).**
 Data: **2026-09-23**
 
 Este documento registra o contrato, a implementação inicial e as expansões do modo.
@@ -546,3 +546,41 @@ histórico, preservação de Bézier, salvar/reabrir, mapa, exportação e ocios
 Regressão dos perfis sem facetamento aprovada. Malha exportada carregada em 3D
 pelo `testLib`, com encerramento normal após 3 segundos. Interação manual ainda
 requer a validação visual do usuário.
+
+
+## 15. Transição pelo interior — 7.274.0
+
+Escolha confirmada pelo usuário: superfície suave calculada dentro da peça,
+fixando alturas de borda e alvo; não há promessa de crescimento linear radial.
+Opção `curvedInterior=false` por padrão. Primeiro escopo: hierarquia vazia (plana)
+ou um único alvo raiz em ponto, segmento ou `shape="polyline"` com 2..128 vértices.
+Polilinhas são abertas, sem cruzamentos, retornos sobre si mesmas ou contato com
+bordas. Alvos fechados, regiões locais, múltiplos alvos e facetamento ficam fora.
+
+A triangulação respeita contorno côncavo, furos e segmentos do alvo. Um Laplaciano
+discreto de grafo, com pesos positivos inversos ao comprimento no espaço da peça,
+resolve as alturas internas por gradientes conjugados precondicionados. Bordas
+externas e de furos têm `curvedEdge`; o alvo tem sua espessura. Nenhuma aresta cruza
+vazios. Mapa e malha compartilham o campo linear por triângulo, com normais suaves.
+É uma aproximação dependente da resolução, não uma superfície globalmente C1.
+
+Colunas/linhas controlam a resolução. Tolerância adaptativa, perfis radiais e
+simplificação ficam inativos, mantendo os valores salvos. Furos participam do
+cálculo e alteram as alturas ao redor; alvos não podem atravessá-los. Verso plano
+em Z=0 ou simétrico, materiais, orçamento, cancelamento e exportação permanecem.
+Falha de convergência deve retornar diagnóstico sem malha parcial.
+
+O editor permite criar a hierarquia vazia e adicionar a polilinha em posição
+inicial válida dentro do contorno. Edição de vértices rejeita segmentos inválidos
+com mensagem. Preservar o caminho aberto no desenho, edição, histórico e arquivo.
+Cálculo e busca da posição inicial só ocorrem em ações; nada é resolvido por frame.
+
+
+Validação: build Linux Debug (`mini-mbm` e `testLib`) aprovado. Testes nativos
+cobrem U/S, dimensões não quadradas, polilinha/ponto/segmento, hierarquia vazia,
+alturas fixas, malha fechada, ausência de faces nos vãos, coerência do mapa,
+furos como bordas fixas, inversão, verso plano, limites, autocruzamentos e retornos,
+snapshot assíncrono e cancelamento sem resultado parcial. Teste ImGui cobre posição
+inicial válida, edição/rejeição com mensagem, histórico, salvar/reabrir, mapa,
+exportação e ociosidade. Regressões de facetamento e perfis radiais aprovadas.
+Malha exportada carregada em 3D no `testLib` por 3 segundos, encerrando normalmente.
