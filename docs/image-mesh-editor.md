@@ -71,7 +71,7 @@ These are total thicknesses, independent of the saved Depth and Relief settings.
   half the total thickness on each side of Z=0. With it disabled, the native back
   plane is fixed at half the smaller endpoint thickness; the front receives the
   full thickness variation. The editor rotates the native mesh for its front view.
-- The profile is linear along rays from the center to the actual contour, including
+- With automatic faceting disabled, the profile is linear along rays from the center to the actual contour, including
   teeth and recesses. The center must see the entire contour from inside, and the
   circle must remain strictly inside without touching it. Invalid configurations
   report an error; generation does not silently select another algorithm.
@@ -92,6 +92,32 @@ Equal endpoint values produce a uniform solid. Thickness values must be at least
 The legacy point/circle controls remain linear. Extended target shapes and profiles
 are available after explicit conversion to the hierarchy below. Optional constrained
 simplification is available since 7.270.0 (see below).
+
+### Automatic faceting for diamonds (7.272.0)
+
+Select **Manual curved** on a module using the point/circle profile, then enable
+**Automatic faceting**. Start with an ellipse, **Minimum sectors = 8** and
+**Transition rings = 1**. Set the contour and target thicknesses, choose a positive
+radius for a central table (or zero for a peak), then Apply.
+
+The mode generates planar triangular faces with independent normals. It supports
+convex outlines; polygon corners are preserved and may require extra sectors.
+Ellipses use the sector count for their polygonal silhouette, replacing the saved
+ellipse segmentation while the mode is active. Increasing ring count divides the
+linear transition; bands can remain coplanar. This first milestone is a basic
+sector/ring cut, not a gemological brilliant-cut preset.
+
+The center can move, thicknesses can be swapped, and both symmetric and flat backs
+are supported. Holes cut the existing planes and build inner walls. Height maps
+represent those same planes. Grid resolution, adaptive tolerance and simplification
+are inactive in this mode; the editor disables their controls and retains their
+saved values. Facet seams duplicate vertices, which count toward the geometry budget.
+
+Target hierarchies are not supported in this first version. The facet checkbox is
+disabled for a module with a hierarchy, and hierarchy conversion is disabled while
+faceting is active. Use a module with the point/circle profile. Settings participate
+in Apply, undo/redo, `.imesh`, asynchronous generation and export. The mode is off by
+default for existing projects. Export preserves the hard facet normals.
 
 ### Targets and local regions (7.267.0)
 
@@ -398,7 +424,8 @@ higher resolution. The output always consists of triangles, not a QUAD mesh.
 
 With adaptive geometry and Two heights, plateau faces receive priority when
 computing normals shared with steep transitions. This preserves flat top/bottom
-shading without duplicating vertices. Other vertices use adjacent-face averaging;
+shading without duplicating vertices. Automatic faceting instead duplicates vertices
+and gives each triangle its geometric normal. Other vertices use adjacent-face averaging;
 front, back, and side boundaries retain their intended normal separation.
 Exports preserve generated normals. Uniform recomputation in Mesh Debug replaces
 this specialized shading; see [normal processing](mesh-debug-normals.md).
@@ -613,6 +640,8 @@ Representative automated coverage in `src/test-lib/` includes:
 - `image_mesh_smoke.lua`: geometry, validation, export/reload, and rendering.
 - `image_mesh_relief_smoke.lua`: sampled relief interpolation and adaptive geometry.
 - `image_mesh_areas_smoke.lua` and `image_mesh_height_line_smoke.lua`: manual heights.
+- `image_mesh_facets_smoke.lua`: planar field, hard normals, sectors/rings, holes, materials, map agreement, export, vertex budget, snapshots and cancellation.
+- `image_mesh_facets_editor_smoke.lua`: ImGui controls, history, save/reopen, export/map and idle behavior.
 - `image_mesh_curved_holes_smoke.lua`: curved through-cuts, target/line intersections, 16 holes, concavity, watertightness, Euler/area/volume, side modes, maps, async snapshots and cancellation.
 - `image_mesh_curved_holes_editor_smoke.lua`: move/resize, invalid edits, history, persistence, preview/export, ImGui guidance and idle behavior.
 - `image_mesh_simplify_smoke.lua`: preview, comparison, export, history, and cache reuse.

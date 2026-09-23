@@ -27,6 +27,8 @@ for _,language in ipairs({'en','pt_br'}) do
     assert(result:find(string.format(L('budget_exact'),L('maxVertices'),70000,65535),1,true))
     assert(not result:find('100000',1,true),'resource within its budget was reported as exceeded')
     assert(result:find(L('budget_advice_seams'),1,true))
+    result=Budget.error(region,'Geometry budget exceeded including side/facet seams: vertices 960, limit 800; triangles 320, limit 1600.')
+    assert(result:find(L('budget_stage_facets'),1,true) and result:find(L('budget_advice_facets'),1,true))
     assert(Budget.error(region,'Unexpected native error')=='module_002: Unexpected native error')
     local lines={}
     tImGui={CollapsingHeader=function() return true end,TextWrapped=function(text) lines[#lines+1]=text end}

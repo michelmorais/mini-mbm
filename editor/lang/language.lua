@@ -23,6 +23,16 @@ M.en = {
     ime_curved_simplify_limited = "Partial reduction: protected geometry, error tolerance or processing limit prevented reaching the requested fraction.",
     ime_generation_curved_simplify = "Simplifying curved relief",
     ime_generation_curved_holes = "Cutting holes in curved relief",
+    ime_facets_enabled = "Automatic faceting",
+    ime_facets_sectors = "Minimum sectors",
+    ime_facets_rings = "Transition rings",
+    ime_facets_hierarchy = "Automatic faceting uses the point/circle profile. Target hierarchies are not supported in this milestone.",
+    ime_facets_help = "Planar triangular faces with hard normals. Use a point for a peak or a radius for a central table. Convex outlines only. Polygon corners can add sectors; ellipses use the sector count for their outline. Rings divide the linear transition and can remain coplanar. Grid resolution and height tolerance are inactive.",
+    ime_facets_simplify = "Simplification is inactive while faceting is enabled, to preserve the cut pattern.",
+    ime_generation_facets = "Building planar facets",
+    ime_budget_stage_facets = "The budget includes vertices duplicated for independent facet normals.",
+    ime_budget_advice_facets = "Reduce facet sectors/rings or side repeats. Simplification is inactive during faceting.",
+
     ime_holes_curved_help = "Holes cut through the curved surface. Targets keep controlling the relief even inside a hole. Inner walls follow the local thickness; holes do not set a new thickness.",
 
     ime_generation_heights = "Computing image heights",
@@ -3550,6 +3560,16 @@ M.pt_br = {
     ime_curved_simplify_limited = "Redução parcial: geometria protegida, tolerância ou limite de processamento impediram atingir a fração solicitada.",
     ime_generation_curved_simplify = "Simplificando relevo curvo",
     ime_generation_curved_holes = "Recortando furos no relevo curvo",
+    ime_facets_enabled = "Facetamento automático",
+    ime_facets_sectors = "Setores mínimos",
+    ime_facets_rings = "Anéis de transição",
+    ime_facets_hierarchy = "O facetamento automático usa o perfil de ponto/círculo. Hierarquias de alvos ainda não são suportadas neste marco.",
+    ime_facets_help = "Faces triangulares planas com normais independentes. Use ponto para um pico ou raio para um platô central. Apenas contornos convexos. Cantos do polígono podem adicionar setores; elipses usam a quantidade de setores no contorno. Anéis dividem a transição linear e podem permanecer coplanares. Resolução da grade e tolerância de altura ficam inativas.",
+    ime_facets_simplify = "A simplificação fica inativa durante o facetamento para preservar o padrão de lapidação.",
+    ime_generation_facets = "Construindo facetas planas",
+    ime_budget_stage_facets = "O orçamento inclui vértices duplicados para as normais independentes das facetas.",
+    ime_budget_advice_facets = "Reduza setores/anéis ou repetições laterais. A simplificação fica inativa durante o facetamento.",
+
     ime_holes_curved_help = "Furos atravessam a superfície curva. Alvos continuam controlando o relevo mesmo dentro de um furo. As paredes internas seguem a espessura local; furos não definem uma nova espessura.",
 
     ime_generation_heights = "Calculando alturas da imagem",

@@ -686,7 +686,7 @@ static bool curvedTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &
 static bool hierarchyBudget(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t,std::string &error)
 {
     return budget(o,2*t.points.size()+4*t.boundary.size(),2*t.triangles.size()+2*t.boundary.size(),
-                  "for manual curved hierarchy",error);
+                  o.curvedFaceted?"for automatic faceting":"for manual curved hierarchy",error);
 }
 static bool hierarchyPoint(TOPOLOGY &t,IMAGE_MESH_POINT p,uint32_t &id,std::string &error)
 {
@@ -928,13 +928,18 @@ static bool cutCurvedHoles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &
     }
     for (auto &v:t.boundary) v=remap[v];
     t.points.swap(compact);
-    return hierarchyBudget(o,t,error) && refineCurved(o,t,error,field);
+    return hierarchyBudget(o,t,error) && (o.curvedFaceted || refineCurved(o,t,error,field));
 }
 
 bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
 {
     if (options.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && field)
     {
+        if (options.curvedFaceted)
+        {
+            t=field->curved.facets.topology;
+            return hierarchyBudget(options,t,error) && cutCurvedHoles(options,t,error,*field);
+        }
         const bool built=options.curvedHierarchy?hierarchyTopology(options,t,error,*field):curvedTopology(options,t,error,*field);
         return built && cutCurvedHoles(options,t,error,*field);
     }

@@ -3740,6 +3740,8 @@ namespace mbm
         else luaL_error(lua,"heightSource must be image, manual, mixed or curved");
         lua_pop(lua,1);number("baseHeight",options.baseHeight);
         number("curvedX",options.curvedX); number("curvedY",options.curvedY);
+        boolean("curvedFaceted",options.curvedFaceted);
+        integer("curvedFacetSectors",options.curvedFacetSectors);integer("curvedFacetRings",options.curvedFacetRings);
         boolean("curvedSimplify",options.curvedSimplify);
         number("curvedSimplifyRatio",options.curvedSimplifyRatio);number("curvedSimplifyError",options.curvedSimplifyError);
         number("curvedRadius",options.curvedRadius); number("curvedEdge",options.curvedEdge);

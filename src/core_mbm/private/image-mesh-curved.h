@@ -22,12 +22,18 @@
 #include "image-mesh-topology.h"
 #include "image-mesh-progress.h"
 #include "image-mesh-curved-hierarchy.h"
+#include "image-mesh-facets.h"
 #include <cmath>
 #include <limits>
 namespace mbm { namespace image_mesh {
 inline IMAGE_MESH_OPTIONS curvedOptions(IMAGE_MESH_OPTIONS o)
 {
     if (o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::CURVED) return o;
+    if (o.curvedFaceted)
+    {
+        o.curvedSimplify=false;
+        if (o.shape==IMAGE_MESH_SHAPE::ELLIPSE) o.ellipseSegments=o.curvedFacetSectors;
+    }
     float low=std::min(o.curvedEdge,o.curvedTarget),high=std::max(o.curvedEdge,o.curvedTarget);
     if (o.curvedHierarchy)
     {
@@ -49,6 +55,7 @@ struct CURVED_FIELD
     std::vector<IMAGE_MESH_POINT> contour;
     std::vector<std::vector<IMAGE_MESH_POINT>> holes;
     CURVED_HIERARCHY hierarchy;
+    FACET_FIELD facets;
     bool prepare(const IMAGE_MESH_OPTIONS &o,std::string &error)
     {
         const auto fail=[&](const char *message) { error=message; return false; };
@@ -66,6 +73,7 @@ struct CURVED_FIELD
         TOPOLOGY t;
         if (!buildTopology(outline,t,error)) return false;
         contour=std::move(t.contour);holes=std::move(t.holes);
+        if (o.curvedFaceted && o.curvedHierarchy) return fail("Faceting requires the point/circle profile, without a target hierarchy");
         if (o.curvedHierarchy) return hierarchy.prepare(o,contour,error);
         const double tolerance=std::max(o.width,o.height)*1e-6;
         for (size_t i=0;i<contour.size();++i)
@@ -81,10 +89,11 @@ struct CURVED_FIELD
             if (std::hypot(cx-along*dx,cy-along*dy)<=o.curvedRadius+tolerance)
                 return fail("Manual curved: target circle touches or crosses the contour; reduce its radius");
         }
-        return true;
+        return !o.curvedFaceted || facets.prepare(o,contour,error);
     }
     float level(float u,float v,const IMAGE_MESH_OPTIONS &o) const
     {
+        if (o.curvedFaceted) return facets.level(u,v);
         if (o.curvedHierarchy) return hierarchy.level(u,v,o);
         const double dx=(static_cast<double>(u)-o.curvedX)*o.width,dy=(static_cast<double>(v)-o.curvedY)*o.height;
         const double radius=std::hypot(dx,dy);

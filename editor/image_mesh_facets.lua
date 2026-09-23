@@ -1,6 +1,7 @@
-/*-----------------------------------------------------------------------------------------------------------------------|
+--[[
+-------------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -15,14 +16,26 @@
 | COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
-|-----------------------------------------------------------------------------------------------------------------------*/
+|------------------------------------------------------------------------------------------------------------------------|
 
-#ifndef VERSION_MBM_H
-#define VERSION_MBM_H
+]]--
 
-// Format: "X.Y" or "X.Y.Z". Release history is maintained by the Git history and tags.
-#ifndef MBM_VERSION
-    #define MBM_VERSION "7.272.0"
-#endif
-
-#endif
+local Model=require 'image_mesh_model'
+local M={}
+local function L(key) return tLang.L('ime_facets_'..key) end
+function M.panel(E)
+ local v=E.values
+ local hierarchy=E.draft and E.draft.curvedNodes and not E.editDefaults
+ tImGui.BeginDisabled(hierarchy and not v.curvedFaceted)
+ v.curvedFaceted=tImGui.Checkbox(L('enabled'),v.curvedFaceted)
+ tImGui.EndDisabled()
+ if hierarchy then tImGui.TextWrapped(L('hierarchy')) end
+ if not v.curvedFaceted then return end
+ for _,item in ipairs{{'sectors','curvedFacetSectors'},{'rings','curvedFacetRings'}} do
+  tImGui.TextWrapped(L(item[1]));tImGui.SetNextItemWidth(-1)
+  local changed,n=tImGui.InputInt('##ime_facets_'..item[1],v[item[2]])
+  if changed then v[item[2]]=Model.clampOption(item[2],n,v[item[2]]) end
+ end
+ tImGui.TextWrapped(L('help'))
+end
+return M

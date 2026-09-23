@@ -201,13 +201,16 @@ namespace mbm
                 4*sideRows*static_cast<uint32_t>(topology.boundary.size());
             const uint32_t sideTriangles=minimalBack?static_cast<uint32_t>(topology.boundary.size()+backCorners.size()):
                 2*sideRows*static_cast<uint32_t>(topology.boundary.size());
-            const uint32_t vertexCount=gridSize+backSize+sideVertices;
+            uint32_t vertexCount=gridSize+backSize+sideVertices;
+            const bool faceted=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedFaceted;
             const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+sideTriangles);
-            if (vertexCount>std::min(o.maxVertices,65535u) || triangleCount>o.maxTriangles)
+            const uint32_t requiredVertices=faceted?3*triangleCount:vertexCount;
+            if (requiredVertices>std::min(o.maxVertices,65535u) || triangleCount>o.maxTriangles)
             {
-                const auto message="Geometry budget exceeded including side texture seams: vertices "+std::to_string(vertexCount)+
+                const auto message=std::string(faceted?"Geometry budget exceeded including side/facet seams: vertices ":
+                    "Geometry budget exceeded including side texture seams: vertices ")+std::to_string(requiredVertices)+
                     ", limit "+std::to_string(std::min(o.maxVertices,65535u))+"; triangles "+std::to_string(triangleCount)+
-                    ", limit "+std::to_string(o.maxTriangles)+". Reduce side repeats or geometry resolution.";
+                    ", limit "+std::to_string(o.maxTriangles)+(faceted?". Reduce facet sectors/rings or side repeats.":". Reduce side repeats or geometry resolution.");
                 return fail(errorOut,errorOutLen,message.c_str());
             }
             const auto &path=field.path;
@@ -335,7 +338,7 @@ namespace mbm
                 }
                 return false;
             };
-            const uint32_t sideVertexStart=static_cast<uint32_t>(vertices.size());
+            uint32_t sideVertexStart=static_cast<uint32_t>(vertices.size());
             const uint32_t sideIndexStart=static_cast<uint32_t>(indices.size());
             double sidePerimeter=0,sideWalked=0;
             if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
@@ -456,7 +459,7 @@ namespace mbm
                 for (auto &v:vertices) v.position.z-=o.depth*0.5f; // Stable flat back at Z=0.
             // Prefer plateau faces over steep ramps when computing shared front
             // normals. Keeping vertices welded preserves simplification behavior.
-            const bool preservePlateaus=o.relief>0 && (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
+            const bool preservePlateaus=!faceted && o.relief>0 && (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
                 (o.followImage && o.twoLevels && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL));
             std::vector<float> levels;
             std::vector<VEC3> plateauNormals;
@@ -466,6 +469,8 @@ namespace mbm
                 for (const auto &p : topology.points) levels.push_back(field.surface(p.x,p.y,o));
                 plateauNormals.resize(gridSize,VEC3(0,0,0));
             }
+            std::vector<VERTEX> facetVertices;
+            if (faceted) facetVertices.reserve(indices.size());
             for (size_t i = 0; i < indices.size(); i += 3)
             {
                 if (i%384==0) image_mesh::checkpoint(o,"normals",0.95f);
@@ -503,7 +508,11 @@ namespace mbm
                 }
                 for (auto *vertex : {&a, &b, &c})
                 {
-                    vertex->normal.x += normal.x; vertex->normal.y += normal.y; vertex->normal.z += normal.z;
+                    if (faceted)
+                    {
+                        facetVertices.push_back(*vertex);facetVertices.back().normal=normal;
+                    }
+                    else { vertex->normal.x += normal.x; vertex->normal.y += normal.y; vertex->normal.z += normal.z; }
                 }
             }
             for (uint32_t i=0;i<plateauNormals.size();++i)
@@ -511,7 +520,7 @@ namespace mbm
                 const auto &normal=plateauNormals[i];
                 if (normal.x!=0 || normal.y!=0 || normal.z!=0) vertices[i].normal=normal;
             }
-            if (o.backRelief)
+            if (o.backRelief && !faceted)
             {
                 // Identical sampled relief on both sides must retain identical smoothing,
                 // including the front's authored plateau normals.
@@ -520,6 +529,12 @@ namespace mbm
                     const auto &front=vertices[i].normal;
                     vertices[backIndex[i]].normal=VEC3(front.x,front.y,-front.z);
                 }
+            }
+            if (faceted)
+            {
+                vertices.swap(facetVertices);vertexCount=static_cast<uint32_t>(vertices.size());
+                sideVertexStart=sideIndexStart;
+                for (uint32_t i=0;i<indices.size();++i) indices[i]=static_cast<uint16_t>(i);
             }
             image_mesh::checkpoint(o,"finalize",0.98f);
             destination.setMeshType(util::TYPE_MESH_3D);

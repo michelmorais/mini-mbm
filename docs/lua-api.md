@@ -2168,7 +2168,10 @@ assert(asset:save("panel.msh", false, false, true))
 | `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
 | `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
 | `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
-| `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion (7.270.0); ignored outside curved mode |
+| `curvedFaceted` | false | Automatic planar faceting of the legacy curved point/circle profile (7.272.0); convex outer contour required, `curvedNodes` must be absent |
+| `curvedFacetSectors` | 8 | Integer [8,128], minimum angular sectors; outer polygon corners may add sectors. For ellipses, also replaces `ellipseSegments` while active |
+| `curvedFacetRings` | 1 | Integer [1,16], uniform transition bands between contour and center/table |
+| `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion (7.270.0); ignored outside curved mode and while `curvedFaceted=true` |
 | `curvedSimplifyRatio` | 0.5 | Requested fraction of front triangles to retain, finite [0.01,1]; a goal, not a guarantee |
 | `curvedSimplifyError` | 0.01 | Maximum additional normalized height error, finite [0.0001,0.25], compared with the dense generated surface |
 | `curvedNodes` | nil | Optional hierarchy of targets and independent local regions; absent preserves the legacy profile, an empty table makes the root flat |
@@ -2198,7 +2201,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `maxVertices` | 65535 | Total vertex budget, including back, duplicated side vertices and repetition seams; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
 
-Without `curvedNodes`, `heightSource="curved"` preserves the legacy profile: it is linear from the real outer contour to a
+Without `curvedNodes` and with `curvedFaceted=false`, `heightSource="curved"` preserves the legacy profile: it is linear from the real outer contour to a
 movable point or circular plateau. The source image still supplies color/UVs. The
 center must lie strictly inside the contour's visibility kernel; the target circle
 must be strictly inside the contour. Holes are supported since 7.271.0 as through-cuts
@@ -2252,6 +2255,34 @@ normalized error bound, not a measured maximum), and `curvedTargetReached`.
 These fields are absent when the pass is inactive; existing `vertices`/`triangles`
 still describe the entire final mesh. Async jobs copy all three input options,
 report stage `curved_simplify`, and support cancellation during the pass.
+
+**Automatic faceting (7.272.0).** `curvedFaceted=true` uses a coarse, piecewise-planar
+surface instead of the radial analytic profile. It supports the legacy point/circle
+controls only, on convex outer contours. `curvedNodes` is rejected, including an
+empty hierarchy. Other height modes ignore the facet settings. Existing center,
+radius, total endpoint thickness, inversion by swapping endpoints and symmetric/flat
+back rules still apply. Radius zero produces a peak; positive radius locates the
+vertices of the polygonal central table.
+
+`curvedFacetSectors` seeds angular rays; outer polygon vertices add rays as necessary
+to preserve corners. An ellipse is first approximated using that sector count, so
+its faceted silhouette can differ from the saved `ellipseSegments` approximation.
+`curvedFacetRings` divides the transition into uniform radial bands with linear
+endpoint thickness interpolation. Bands can remain coplanar; this is not a prescribed
+gemological brilliant cut. Nonplanar strips are split into triangles. Columns, rows,
+and adaptive height tolerance no longer determine tessellation (their general
+argument ranges still apply). The protected simplifier is inactive while faceting
+is enabled; its saved settings need not be cleared.
+
+Mesh generation, maps and hole intersections evaluate the same planar field. Holes
+subdivide existing facet planes without reverting to a curved analytic surface.
+Every output triangle has three independent vertices with its geometric unit normal,
+including back and side faces; UVs and material subsets are preserved. The complete
+vertex budget therefore includes `3 * report.triangles`, subject to the engine's
+65,535-vertex ceiling. The report's displacement conventions remain unchanged.
+Exports keep the authored normals. Async jobs copy the three scalar options and
+report the `facets` stage during field preparation; cancellation remains cooperative.
+Projects omitting the fields retain the previous curved path and smoothing.
 
 **Holes in curved relief (7.271.0).** The existing `holes` option also works with
 legacy point/circle profiles and `curvedNodes`. Holes cut both surfaces and create

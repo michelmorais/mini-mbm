@@ -115,6 +115,8 @@ namespace mbm
         float curvedX = 0.5f, curvedY = 0.5f, curvedRadius = 0.0f;
         float curvedEdge = 1.0f, curvedTarget = 8.0f;
         bool curvedSymmetric = true;
+        bool curvedFaceted = false;
+        uint32_t curvedFacetSectors = 8, curvedFacetRings = 1;
         bool curvedSimplify = false;
         float curvedSimplifyRatio = 0.5f, curvedSimplifyError = 0.01f;
         bool curvedHierarchy = false; // false retains the original radial point/circle path

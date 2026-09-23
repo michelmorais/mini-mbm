@@ -22,11 +22,19 @@
 
 local Model=require 'image_mesh_model'
 local Graph=require 'image_mesh_curved_hierarchy'
+local Facets=require 'image_mesh_facets'
 local M={hierarchy=Graph}
 local function L(key) return tLang.L('ime_curved_'..key) end
 function M.panel(E,apply,action)
+ Facets.panel(E)
  if E.draft and E.draft.curvedNodes and not E.editDefaults then return Graph.panel(E,apply,action) end
- if E.draft and not E.editDefaults and tImGui.Button(L('enable_hierarchy')) and apply() then
+ local convert=false
+ if E.draft and not E.editDefaults then
+  tImGui.BeginDisabled(E.values.curvedFaceted)
+  convert=tImGui.Button(L('enable_hierarchy'))
+  tImGui.EndDisabled()
+ end
+ if convert and apply() then
   if action(function(p) local r=Model.region(p,E.selected);Model.curved.convert(r,Model.options(p,r));E.curvedNode=1 end) then
    Graph.open(E,function() return true end)
   end
@@ -36,7 +44,9 @@ function M.panel(E,apply,action)
  for _,key in ipairs({'curvedEdge','curvedTarget','curvedX','curvedY','curvedRadius','heightTolerance'}) do
   tImGui.TextWrapped(L(key))
   tImGui.SetNextItemWidth(-1)
+  tImGui.BeginDisabled(key=='heightTolerance' and v.curvedFaceted)
   local c,n=tImGui.InputFloat('##ime_curved_'..key,v[key],.01,1,'%.3f')
+  tImGui.EndDisabled()
   if c then v[key]=Model.clampOption(key,n,v[key]) end
   if key=='curvedRadius' then tImGui.TextWrapped(L('radius_help')) end
  end

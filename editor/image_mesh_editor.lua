@@ -643,10 +643,12 @@ local function propertiesPanel()
         BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         Sides.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         if tImGui.CollapsingHeader(L('resolution_group')) then
+        tImGui.BeginDisabled(E.values.heightSource=='curved' and E.values.curvedFaceted)
         for _,key in ipairs({'columns','rows','ellipseSegments'}) do
             local c,v=tImGui.InputInt(L(key),E.values[key],1,10); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
             Help.show(key)
         end
+        tImGui.EndDisabled()
         local c,v=tImGui.InputInt(L('maxVertices'),E.values.maxVertices)
         if c then E.values.maxVertices=Model.clampOption('maxVertices',v,E.values.maxVertices) end
         Help.show('maxVertices')
@@ -655,6 +657,8 @@ local function propertiesPanel()
         Help.show('maxTriangles')
         end
         if E.values.heightSource=='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
+            if E.values.curvedFaceted then tImGui.TextWrapped(tLang.L('ime_facets_simplify')) end
+            tImGui.BeginDisabled(E.values.curvedFaceted)
             E.values.curvedSimplify=tImGui.Checkbox(L('curved_simplify'),E.values.curvedSimplify)
             if tImGui.IsItemHovered() then Help.tooltip(L('curved_simplify_help')) end
             if E.values.curvedSimplify then
@@ -670,6 +674,7 @@ local function propertiesPanel()
                     E.report.curvedResultTriangles,E.report.curvedMaximumError))
                 if not E.report.curvedTargetReached then tImGui.TextWrapped(L('curved_simplify_limited')) end
             end
+            tImGui.EndDisabled()
         end
         if E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)

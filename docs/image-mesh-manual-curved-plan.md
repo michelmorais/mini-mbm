@@ -1,6 +1,6 @@
 # Image Mesh Editor — Plano do modo Manual curvo
 
-Status: **Furos no relevo curvo entregues em 7.271.0 (marco 12). Expansões restantes na seção 7.**
+Status: **Facetamento automático entregue em 7.272.0 (marco 13). Expansões restantes na seção 7.**
 Data: **2026-09-23**
 
 Este documento registra o contrato, a implementação inicial e as expansões do modo.
@@ -268,7 +268,8 @@ a preservação pelo simplificador fica adiada com a simplificação desativada.
 ## 7. Expansões posteriores
 
 Composição com pintura e áreas;
-formas que não admitem interpolação radial; múltiplos alvos e facetamento.
+formas que não admitem interpolação radial; múltiplos alvos; facetamento com
+hierarquias, edição manual de arestas e padrões de lapidação adicionais.
 Cada expansão deve definir seu comportamento antes de entrar na implementação.
 
 ## 8. Contrato consolidado — cadeias e regiões locais (2026-09-23)
@@ -475,3 +476,37 @@ modo legado, perfis, simplificação e furos dos outros modos aprovadas. Projeto
 `sharp.imesh` testado com furo central em memória, sem alterar o original.
 A cópia da serra com furo central e simplificação foi exportada em `/tmp` e
 carregada em 3D pelo `testLib`, com encerramento normal após 3 segundos.
+
+## 13. Facetamento automático — 7.272.0
+
+Escolha do usuário: lapidação automática por setores e anéis, antes de edição
+manual de arestas. Primeiro marco: perfil legado de ponto/círculo e contorno
+convexo, sem hierarquia. Ponto forma um pico; raio forma um platô poligonal central.
+O contorno poligonal conserva os cantos, adicionando setores quando necessário;
+elipses usam a contagem de setores na aproximação do contorno.
+
+Campos opcionais: `curvedFaceted=false`, `curvedFacetSectors=8` (8..128),
+`curvedFacetRings=1` (1..16). Anéis uniformes dividem a transição linear; planos
+coplanares não ganham uma aresta visual artificial. Não é uma simulação de corte
+brilhante gemológico. Mantém espessuras totais, centro móvel e verso simétrico/plano.
+
+A superfície é linear por triângulo, compartilhada por mapa, geometria e recortes.
+Furos subdividem os planos sem arredondar a lapidação. Normais independentes por
+triângulo, UVs e materiais preservados. O orçamento inclui vértices duplicados nas
+arestas duras. Simplificação fica inativa, com a configuração salva preservada.
+Grade e tolerância adaptativa ficam inativas; setores/anéis controlam a geometria.
+
+- [x] Gerar a superfície facetada e compartilhar a avaliação com mapa/furos.
+- [x] Normais planas, materiais, verso e orçamento de vértices duplicados.
+- [x] UI, ajuda, validação, histórico, persistência, geração assíncrona e exportação.
+- [x] Testar planos/normais, contorno, recortes, mapa, compatibilidade e ociosidade.
+
+Validação: builds `mini-mbm` e `testLib`; teste nativo de normais por face,
+fechamento/Euler/volume, setores/anéis, pico/platô, centro deslocado, inversão,
+espessuras iguais, verso plano, recortes coplanares, materiais, mapa coerente com
+a geometria, limites de entradas e orçamento com vértices duplicados, salvar/carregar,
+snapshot assíncrono e cancelamento. Teste ImGui de controles, histórico, persistência,
+prévia de alturas/exportação e ociosidade aprovado. Regressões do editor de perfis,
+geração de malhas por imagem e furos curvos aprovadas.
+A malha facetada exportada pelo teste do editor foi carregada em 3D pelo `testLib`,
+com encerramento normal após 3 segundos.
