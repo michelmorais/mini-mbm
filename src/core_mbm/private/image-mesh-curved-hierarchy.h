@@ -127,6 +127,7 @@ struct CURVED_HIERARCHY
                 if (node.count>=3)
                 {
                     IMAGE_MESH_OPTIONS shape=o;shape.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
+                    shape.holes=nullptr;shape.holeCount=0; // Cutouts do not constrain virtual controls.
                     shape.shape=IMAGE_MESH_SHAPE::POLYGON;shape.contour=node.points;shape.contourCount=node.count;
                     shape.columns=shape.rows=1;shape.maxVertices=65535;shape.maxTriangles=131070;
                     TOPOLOGY t;

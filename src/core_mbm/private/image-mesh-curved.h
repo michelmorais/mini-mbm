@@ -47,6 +47,7 @@ inline IMAGE_MESH_OPTIONS curvedOptions(IMAGE_MESH_OPTIONS o)
 struct CURVED_FIELD
 {
     std::vector<IMAGE_MESH_POINT> contour;
+    std::vector<std::vector<IMAGE_MESH_POINT>> holes;
     CURVED_HIERARCHY hierarchy;
     bool prepare(const IMAGE_MESH_OPTIONS &o,std::string &error)
     {
@@ -56,7 +57,6 @@ struct CURVED_FIELD
             !std::isfinite(o.curvedRadius) || o.curvedRadius<0 || o.curvedRadius>1000000 ||
             !std::isfinite(o.curvedX) || !std::isfinite(o.curvedY) || o.curvedX<0 || o.curvedX>1 || o.curvedY<0 || o.curvedY>1)
             return fail("Manual curved: invalid center, radius or thickness (minimum 0.001)");
-        if (o.holeCount) return fail("Manual curved: holes are not supported");
         if (o.backOpen || o.backRemap || o.backSolid || o.backExternal)
             return fail("Manual curved: use a closed source-textured back");
         // Reuse the existing contour validation, with no field/refinement or curved recursion.
@@ -65,7 +65,7 @@ struct CURVED_FIELD
         outline.columns=outline.rows=1; outline.maxVertices=65535; outline.maxTriangles=131070;
         TOPOLOGY t;
         if (!buildTopology(outline,t,error)) return false;
-        contour=std::move(t.contour);
+        contour=std::move(t.contour);holes=std::move(t.holes);
         if (o.curvedHierarchy) return hierarchy.prepare(o,contour,error);
         const double tolerance=std::max(o.width,o.height)*1e-6;
         for (size_t i=0;i<contour.size();++i)

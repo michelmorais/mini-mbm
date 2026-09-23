@@ -2201,7 +2201,8 @@ assert(asset:save("panel.msh", false, false, true))
 Without `curvedNodes`, `heightSource="curved"` preserves the legacy profile: it is linear from the real outer contour to a
 movable point or circular plateau. The source image still supplies color/UVs. The
 center must lie strictly inside the contour's visibility kernel; the target circle
-must be strictly inside the contour. Holes are rejected. Rectangle, polygon, and
+must be strictly inside the contour. Holes are supported since 7.271.0 as through-cuts
+(see below). Rectangle, polygon, and
 polygonal ellipse outlines are supported. Center/radius validation is shared by
 synchronous and asynchronous mesh/map generation.
 
@@ -2221,7 +2222,7 @@ relief displacements, rather than total thickness. The map PNG instead encodes t
 thickness divided by the larger endpoint thickness; requesting an overlay in curved
 mode also returns this grayscale thickness map.
 
-The topology contains a center vertex and, for positive radius, a sampled target ring.
+Before optional hole cuts, the topology contains a center vertex and, for positive radius, a sampled target ring.
 Columns/rows seed its density. Mid-edge/centroid samples drive deterministic ring
 refinement up to the requested `heightTolerance`, subject to geometry budgets and a
 bounded number of passes. This does not certify a global interpolation-error bound.
@@ -2231,7 +2232,7 @@ radial/plateau constraints by contract.
 
 **Constrained curved simplification (7.270.0).** `curvedSimplify=true` removes interior
 vertices and retriangulates their cavities before front/back/side construction.
-It keeps contour vertices, authored target/local-region outlines (including inserted
+It keeps all remaining contour/hole vertices, authored target/local-region outlines (including inserted
 points on their segments), legacy center/circle-ring vertices and sampled local
 extrema. Retained vertices keep their positions/UVs; normals are recomputed.
 A conservative error bound propagates through triangle intersections, relative to
@@ -2251,6 +2252,30 @@ normalized error bound, not a measured maximum), and `curvedTargetReached`.
 These fields are absent when the pass is inactive; existing `vertices`/`triangles`
 still describe the entire final mesh. Async jobs copy all three input options,
 report stage `curved_simplify`, and support cancellation during the pass.
+
+**Holes in curved relief (7.271.0).** The existing `holes` option also works with
+legacy point/circle profiles and `curvedNodes`. Holes cut both surfaces and create
+inner walls at the local thickness; they do not change the analytic height field
+or introduce a new thickness target. A hole may contain a virtual control point,
+cut a target line, or cross target/local-region boundaries. Controls still obey
+hierarchy containment and visibility rules on the complete outer contour, independent
+of holes. The original control data remains unchanged.
+
+The existing limits apply: up to 16 simple contours of 3..128 points, strictly inside
+the module, with no touching, overlap or nesting between holes. Polygonal circles,
+ellipses and concave holes are supported. Generation inserts cut constraints into
+the curved triangulation, removes interior faces and unused points, reconstructs
+oriented boundary loops and refines the remaining surface. Excessive numeric proximity
+or geometry budgets produce a diagnostic instead of partial/open geometry. Dense
+uncut construction and intermediate cuts must fit the budget before simplification.
+
+Inner walls use the existing side material rules, including hole-edge sampling for
+`sideMode="band"`. Symmetric relief and flat backs use the same cuts. Protected
+simplification retains hole boundary vertices. Height maps are transparent inside
+holes and keep the same thickness values on the remaining surface. Async mesh/map
+jobs already snapshot `holes`; mesh generation includes a `curved_holes` progress
+stage and cooperative cancellation. With no holes, the original topology path is
+retained. No additional option or persistence format is required.
 
 **Curved hierarchy (7.267.0).** Optional `curvedNodes` replaces the legacy center/radius
 profile. It is an array of at most 32 nodes; every node is an array of 1..128

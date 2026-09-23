@@ -80,7 +80,7 @@ inline bool protectedPoint(uint32_t index,const TOPOLOGY &t,const IMAGE_MESH_OPT
     const POINT p=point(t.points[index]);
     if (!o.curvedHierarchy)
     {
-        if (index==0) return true;
+        if (std::hypot(p.x-o.curvedX,p.y-o.curvedY)<=4e-7) return true;
         const double r=std::hypot((p.x-o.curvedX)*o.width,(p.y-o.curvedY)*o.height);
         return o.curvedRadius>0 && std::abs(r-o.curvedRadius)<=1e-6*std::max(o.width,o.height);
     }

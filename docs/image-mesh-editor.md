@@ -75,14 +75,15 @@ These are total thicknesses, independent of the saved Depth and Relief settings.
   teeth and recesses. The center must see the entire contour from inside, and the
   circle must remain strictly inside without touching it. Invalid configurations
   report an error; generation does not silently select another algorithm.
-- Holes are unsupported. The back is closed and uses the source texture; horizontal
+- Holes cut the curved surface without changing its thickness profile (7.271.0).
+  The back uses the source texture and the same openings; horizontal
   back UV mirroring and side texture modes remain available. Other saved back modes,
   image height adjustments, painting, height areas and the general simplifier are
   inactive. Switching modes retains their saved settings/data.
 - The height map shows total thickness divided by the larger endpoint thickness.
   It shares the native field with mesh generation. There is no groove overlay.
 
-The mesh includes the point or the circular target boundary explicitly. Columns/rows
+Before optional hole cuts, the mesh includes the point or the circular target boundary explicitly. Columns/rows
 set initial sampling; the generator refines rings until midpoint and centroid height
 samples meet Height tolerance, as a fraction of the endpoint thickness difference.
 This is a sampled error target, not a certified global bound. The circular boundary
@@ -253,6 +254,24 @@ outer contour. Inner walls use the side material; with an inner contour band,
 they stretch the hole-edge texture instead of using the outer band's inset.
 Holes can increase back-face triangulation and geometry usage. They are saved,
 duplicated, scaled with the module, and included in undo/redo and export.
+
+### Holes in Manual curved mode (7.271.0)
+
+Use the same **Holes** panel while editing a module with Manual curved relief.
+Add a circle for a saw's central opening, or a rectangle/polygon for another cutout.
+The hole removes material through the whole thickness and builds inner walls with
+the existing side material. It does not change the surrounding thickness profile.
+
+Targets and local regions remain virtual surface controls: a target can be inside
+a hole, and a hole can cross a target line or a region boundary. Moving a hole does
+not move those controls. The usual containment/visibility rules for the controls
+still refer to the complete outer contour. Hole contours must remain strictly inside
+that contour and separate from one another.
+
+Symmetric relief, flat backs, protected simplification, undo/redo, project files,
+preview and export share the same cuts. Simplification preserves hole borders.
+The height map is transparent inside openings. Fine cuts can increase geometry:
+the dense surface and intermediate cuts must fit the budget before simplification.
 
 ## Volume and relief
 
@@ -594,6 +613,8 @@ Representative automated coverage in `src/test-lib/` includes:
 - `image_mesh_smoke.lua`: geometry, validation, export/reload, and rendering.
 - `image_mesh_relief_smoke.lua`: sampled relief interpolation and adaptive geometry.
 - `image_mesh_areas_smoke.lua` and `image_mesh_height_line_smoke.lua`: manual heights.
+- `image_mesh_curved_holes_smoke.lua`: curved through-cuts, target/line intersections, 16 holes, concavity, watertightness, Euler/area/volume, side modes, maps, async snapshots and cancellation.
+- `image_mesh_curved_holes_editor_smoke.lua`: move/resize, invalid edits, history, persistence, preview/export, ImGui guidance and idle behavior.
 - `image_mesh_simplify_smoke.lua`: preview, comparison, export, history, and cache reuse.
 - `image_mesh_map_async_editor_smoke.lua`: diagnostic-map replacement/cancellation.
 - `image_mesh_simplify_cancel_smoke.lua`: cancellation and export preservation.

@@ -73,7 +73,7 @@ local function run()
  o.curvedX=0;local bad,err=mbm.generateImageMesh(path,o);assert(not bad and err:find('center'),err)
  o.curvedX=.5;o.curvedRadius=30;bad,err=mbm.generateImageMesh(path,o);assert(not bad and err:find('circle'),err)
  o.curvedRadius=0;o.holes={{{x=.1,y=.1},{x=.2,y=.1},{x=.2,y=.2},{x=.1,y=.2}}}
- bad,err=mbm.generateImageMesh(path,o);assert(not bad and err:find('holes'),err);o.holes=nil
+ bad,err=mbm.generateImageMesh(path,o);assert(bad,err);assert(bad:check());o.holes=nil
  o.maxVertices=10;bad,err=mbm.generateImageMesh(path,o);assert(not bad and err:find('budget'),err);o.maxVertices=65535
  o.curvedTarget=0;bad,err=mbm.generateImageMesh(path,o);assert(not bad,err);o.curvedTarget=8
  o.shape='ellipse';o.ellipseSegments=32;o.curvedRadius=10

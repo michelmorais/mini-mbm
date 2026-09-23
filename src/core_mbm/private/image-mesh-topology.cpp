@@ -789,25 +789,8 @@ static bool hierarchySegment(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,uint32_t fi
     }
     t.triangles=std::move(result);return hierarchyBudget(o,t,error);
 }
-static bool hierarchyTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD &field)
+static bool refineCurved(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD &field)
 {
-    IMAGE_MESH_OPTIONS outline=o;outline.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
-    outline.columns=outline.rows=1;outline.followImage=false;
-    if (!buildTopology(outline,t,error)) return false;
-    for (size_t i=1;i<field.curved.hierarchy.domains.size();++i)
-    {
-        const auto &points=field.curved.hierarchy.domains[i].normalized;
-        std::vector<uint32_t> ids;
-        for (const auto &p:points)
-        {
-            checkpoint(o,"topology",0.3f);
-            uint32_t id=0;if (!hierarchyPoint(t,p,id,error)) return false;ids.push_back(id);
-            if (!hierarchyBudget(o,t,error)) return false;
-        }
-        const size_t edges=ids.size()>2?ids.size():ids.size()-1;
-        for (size_t j=0;j<edges;++j)
-            if (!hierarchySegment(o,t,ids[j],ids[(j+1)%ids.size()],error)) return false;
-    }
     for (unsigned pass=0;pass<20;++pass)
     {
         std::map<uint64_t,uint32_t> midpoints;
@@ -840,13 +823,120 @@ static bool hierarchyTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::strin
     }
     error="Curved hierarchy: surface refinement did not converge";return false;
 }
+static bool hierarchyTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD &field)
+{
+    IMAGE_MESH_OPTIONS outline=o;outline.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
+    outline.columns=outline.rows=1;outline.followImage=false;
+    outline.holes=nullptr;outline.holeCount=0; // Controls also exist inside later cutouts.
+    if (!buildTopology(outline,t,error)) return false;
+    for (size_t i=1;i<field.curved.hierarchy.domains.size();++i)
+    {
+        const auto &points=field.curved.hierarchy.domains[i].normalized;
+        std::vector<uint32_t> ids;
+        for (const auto &p:points)
+        {
+            checkpoint(o,"topology",0.3f);
+            uint32_t id=0;if (!hierarchyPoint(t,p,id,error)) return false;ids.push_back(id);
+            if (!hierarchyBudget(o,t,error)) return false;
+        }
+        const size_t edges=ids.size()>2?ids.size():ids.size()-1;
+        for (size_t j=0;j<edges;++j)
+            if (!hierarchySegment(o,t,ids[j],ids[(j+1)%ids.size()],error)) return false;
+    }
+    return refineCurved(o,t,error,field);
+}
+
+// Cut the already constrained surface. Control points inside holes remain part of
+// the analytic field, but no unused vertices survive in the exported geometry.
+static bool cutCurvedHoles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD &field)
+{
+    if (!o.holeCount) return true;
+    const auto fail=[&](const char *reason) { error=reason;return false; };
+    const uint32_t outerStart=t.boundary.front();
+    for (const auto &hole:field.curved.holes)
+    {
+        std::vector<uint32_t> ids;
+        for (const auto &p:hole)
+        {
+            checkpoint(o,"curved_holes",0.82f);
+            uint32_t id=0;if (!hierarchyPoint(t,p,id,error)) return false;ids.push_back(id);
+            if (!hierarchyBudget(o,t,error)) return false;
+        }
+        for (size_t i=0;i<ids.size();++i)
+            if (!hierarchySegment(o,t,ids[i],ids[(i+1)%ids.size()],error)) return false;
+    }
+    std::vector<std::array<uint32_t,3>> kept;
+    for (const auto &face:t.triangles)
+    {
+        checkpoint(o,"curved_holes",0.83f);
+        const auto &a=t.points[face[0]],&b=t.points[face[1]],&c=t.points[face[2]];
+        const IMAGE_MESH_POINT center{(a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3};
+        bool removed=false;
+        for (const auto &hole:field.curved.holes) if (insideRing(hole,center)) { removed=true;break; }
+        if (!removed) kept.push_back(face);
+    }
+    t.triangles.swap(kept);
+    // Recover actual cut edges, including intersections with authored controls.
+    // Using topology rather than nearest-point sorting avoids cracks and T-junctions.
+    struct EDGE { uint32_t a=0,b=0,count=0; };
+    std::map<uint64_t,EDGE> edges;
+    for (const auto &f:t.triangles) for (unsigned k=0;k<3;++k)
+    {
+        const uint32_t a=f[k],b=f[(k+1)%3];auto &e=edges[edgeKey(a,b)];
+        if (e.count && (e.count!=1 || e.a!=b || e.b!=a))
+            return fail("Curved holes: non-manifold cut; move or resize the hole");
+        if (!e.count) { e.a=a;e.b=b; }++e.count;
+    }
+    std::map<uint32_t,uint32_t> next;
+    for (const auto &entry:edges)
+    {
+        const auto &e=entry.second;
+        if (e.count==1 && !next.emplace(e.a,e.b).second)
+            return fail("Curved holes: cut boundaries touch at numeric resolution; move or resize the hole");
+    }
+    t.boundary.clear();t.loopEnds.clear();t.backTriangles.clear();
+    uint32_t start=outerStart;
+    while (!next.empty())
+    {
+        if (t.loopEnds.size()>o.holeCount) return fail("Curved holes: unexpected cut boundary; move or resize the hole");
+        const size_t begin=t.boundary.size();uint32_t v=start;
+        do
+        {
+            const auto it=next.find(v);
+            if (it==next.end()) return fail("Curved holes: incomplete cut boundary; move or resize the hole");
+            t.boundary.push_back(v);v=it->second;next.erase(it);
+        } while (v!=start);
+        if (t.boundary.size()-begin<3) return fail("Curved holes: degenerate cut boundary");
+        double area=0;
+        for (size_t i=begin;i<t.boundary.size();++i)
+        {
+            const auto &a=t.points[t.boundary[i]],&b=t.points[t.boundary[i+1<t.boundary.size()?i+1:begin]];
+            area+=static_cast<double>(a.x)*b.y-static_cast<double>(a.y)*b.x;
+        }
+        if (t.loopEnds.empty()?area<=0:area>=0) return fail("Curved holes: invalid cut orientation");
+        t.loopEnds.push_back(static_cast<uint32_t>(t.boundary.size()));
+        if (!next.empty()) start=next.begin()->first;
+    }
+    if (t.loopEnds.size()!=o.holeCount+1) return fail("Curved holes: a hole is below numeric resolution");
+    t.holes=field.curved.holes;
+    std::vector<uint32_t> remap(t.points.size(),UINT32_MAX);
+    std::vector<IMAGE_MESH_POINT> compact;
+    for (auto &f:t.triangles) for (auto &v:f)
+    {
+        if (remap[v]==UINT32_MAX) { remap[v]=static_cast<uint32_t>(compact.size());compact.push_back(t.points[v]); }
+        v=remap[v];
+    }
+    for (auto &v:t.boundary) v=remap[v];
+    t.points.swap(compact);
+    return hierarchyBudget(o,t,error) && refineCurved(o,t,error,field);
+}
 
 bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
 {
     if (options.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && field)
     {
-        if (options.curvedHierarchy) return hierarchyTopology(options,t,error,*field);
-        return curvedTopology(options,t,error,*field);
+        const bool built=options.curvedHierarchy?hierarchyTopology(options,t,error,*field):curvedTopology(options,t,error,*field);
+        return built && cutCurvedHoles(options,t,error,*field);
     }
     // Manual heights must not inherit hidden image-detection thresholds.
     IMAGE_MESH_OPTIONS o=options;

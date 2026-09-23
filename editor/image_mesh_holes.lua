@@ -75,6 +75,7 @@ function M.panel(E,action,apply)
  local r=Model.region(E.project,E.selected)
  local holes=r.holes or {}
  tImGui.Text(string.format(L('count'),#holes))
+ if E.values.heightSource=='curved' then tImGui.TextWrapped(L('curved_help')) end
  if E.editMode then
   local c,v=tImGui.Combo(L('primitive'),E.holePrimitive or 1,{L('rectangle'),L('circle')})
   if c then E.holePrimitive=v end

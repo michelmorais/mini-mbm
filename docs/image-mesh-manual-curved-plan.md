@@ -1,6 +1,6 @@
 # Image Mesh Editor — Plano do modo Manual curvo
 
-Status: **Marcos 1 a 11 entregues; simplificação protegida em 7.270.0. Expansões restantes na seção 7.**
+Status: **Furos no relevo curvo entregues em 7.271.0 (marco 12). Expansões restantes na seção 7.**
 Data: **2026-09-23**
 
 Este documento registra o contrato, a implementação inicial e as expansões do modo.
@@ -168,7 +168,8 @@ controle de triangulação e normais. Facetamento não faz parte da primeira ent
 | Unidade dos valores | Espessura total; simétrica por padrão |
 | Centro inicial | (0,5; 0,5); erro explícito se inválido, sem reposicionamento automático |
 | Círculo | Compartilha o centro radial; raio em unidades finais da malha |
-| Formas não radiais e furos | Rejeitados com diagnóstico |
+| Formas não radiais | Rejeitadas com diagnóstico |
+| Furos | Recortes passantes desde o marco 12; não alteram o campo de espessura |
 | Espessura zero | Não suportada; mínimo 0,001 |
 | Pintura e áreas | Dados preservados e inativos neste modo |
 | Travamento de borda | Inativo; o perfil já fixa a espessura externa |
@@ -267,7 +268,7 @@ a preservação pelo simplificador fica adiada com a simplificação desativada.
 ## 7. Expansões posteriores
 
 Composição com pintura e áreas;
-formas que não admitem interpolação radial; furos; múltiplos alvos e facetamento.
+formas que não admitem interpolação radial; múltiplos alvos e facetamento.
 Cada expansão deve definir seu comportamento antes de entrar na implementação.
 
 ## 8. Contrato consolidado — cadeias e regiões locais (2026-09-23)
@@ -434,3 +435,43 @@ Regressões nativas do modo legado, hierarquia e perfis aprovadas. Malha exporta
 carregada em 3D no `testLib`. Projeto `sharp.imesh` lido e gerado em memória, sem
 alterar o arquivo: 7.381 para 4.471 faces de superfície, limite normalizado de erro
 0,009973 para tolerância 0,01.
+
+## 12. Furos no relevo curvo — 7.271.0
+
+Prioridade escolhida pelo usuário após o marco 11. Furos são recortes passantes da
+superfície calculada, sem alterar o campo de espessura. Alvos continuam sendo
+controles virtuais e podem ficar dentro dos recortes; limites de alvos e regiões
+podem ser atravessados pelos furos. A hierarquia continua válida sobre o contorno
+externo completo. Furos não viram novos alvos nem novos pontos de espessura.
+
+Reutilizar `holes` e o painel Furos: até 16 contornos simples com 3..128 pontos,
+estritamente internos, sem contato, sobreposição ou encaixe entre furos. Criar as
+paredes internas com a espessura local e os materiais de lateral existentes.
+Recortar frente e verso nas distribuições simétrica e verso plano. Proteger todas
+as bordas dos furos na simplificação; mapas ficam transparentes no interior removido.
+Projetos sem furos mantêm o caminho anterior. Não editar arquivos do usuário.
+
+- [x] Recorte conforme à triangulação e refinamento da superfície restante.
+- [x] Integração com paredes, normais, simplificação e mapa de alturas.
+- [x] Painel, diagnóstico, histórico, persistência, prévia e exportação.
+- [x] Testes de furos cruzando alvos/linhas, múltiplos furos, validação,
+      simetria/verso plano, fechamento, cancelamento, regressão e ociosidade.
+
+Implementação privada: a geometria curva completa recebe os segmentos dos furos,
+os triângulos internos são removidos, as bordas são reconstruídas pelas arestas
+restantes e a superfície é refinada novamente. A geração inteira, inclusive
+intermediários, respeita o orçamento; recortes não garantem caber em um orçamento
+no qual a superfície completa não caberia. As bordas recebem paredes e proteção
+na simplificação. A proteção do pico legado usa sua posição, pois o recorte pode
+remover o centro e reordenar os vértices.
+
+Validação: builds `mini-mbm`/`testLib`; testes nativos de platô, pico removido,
+alvos encaixados/atravessados, linha Bézier, verso plano, raiz plana, 16 furos,
+contornos côncavos/elípticos, materiais laterais, fechamento, Euler, área e volume,
+mapa transparente, snapshot assíncrono e cancelamento sem resultado parcial.
+Teste ImGui de movimento/redimensionamento, rejeição de posição inválida,
+histórico, salvar/reabrir, exportação, mapa e ociosidade aprovado. Regressões do
+modo legado, perfis, simplificação e furos dos outros modos aprovadas. Projeto
+`sharp.imesh` testado com furo central em memória, sem alterar o original.
+A cópia da serra com furo central e simplificação foi exportada em `/tmp` e
+carregada em 3D pelo `testLib`, com encerramento normal após 3 segundos.
