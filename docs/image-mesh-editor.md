@@ -9,6 +9,9 @@ semantic shape of the depicted object. Painted shadows can become geometry when
 image brightness is used as height. Manual relief or a separate height image gives
 more direct control.
 
+Planned work: [Manual curved relief](image-mesh-manual-curved-plan.md)
+(design proposal; not implemented).
+
 ## Launch and workflow
 
 Choose **Image Mesh Editor** in the launcher, or run from the repository root:
