@@ -3740,6 +3740,8 @@ namespace mbm
         else luaL_error(lua,"heightSource must be image, manual, mixed or curved");
         lua_pop(lua,1);number("baseHeight",options.baseHeight);
         number("curvedX",options.curvedX); number("curvedY",options.curvedY);
+        boolean("curvedSimplify",options.curvedSimplify);
+        number("curvedSimplifyRatio",options.curvedSimplifyRatio);number("curvedSimplifyError",options.curvedSimplifyError);
         number("curvedRadius",options.curvedRadius); number("curvedEdge",options.curvedEdge);
         number("curvedTarget",options.curvedTarget); boolean("curvedSymmetric",options.curvedSymmetric);
         lua_getfield(lua,optionIndex,"curvedNodes");
@@ -4090,6 +4092,13 @@ namespace mbm
             lua_pushinteger(lua,job->report.triangles);lua_setfield(lua,-2,"triangles");
             lua_pushnumber(lua,job->report.minHeight);lua_setfield(lua,-2,"minHeight");
             lua_pushnumber(lua,job->report.maxHeight);lua_setfield(lua,-2,"maxHeight");
+            if (job->report.curvedSourceTriangles)
+            {
+                lua_pushinteger(lua,job->report.curvedSourceTriangles);lua_setfield(lua,-2,"curvedSourceTriangles");
+                lua_pushinteger(lua,job->report.curvedResultTriangles);lua_setfield(lua,-2,"curvedResultTriangles");
+                lua_pushnumber(lua,job->report.curvedMaximumError);lua_setfield(lua,-2,"curvedMaximumError");
+                lua_pushboolean(lua,job->report.curvedTargetReached);lua_setfield(lua,-2,"curvedTargetReached");
+            }
             return 2;
         }
     }
@@ -4161,6 +4170,13 @@ namespace mbm
         lua_pushinteger(lua, report.triangles); lua_setfield(lua, -2, "triangles");
         lua_pushnumber(lua, report.minHeight); lua_setfield(lua, -2, "minHeight");
         lua_pushnumber(lua, report.maxHeight); lua_setfield(lua, -2, "maxHeight");
+        if (report.curvedSourceTriangles)
+        {
+            lua_pushinteger(lua,report.curvedSourceTriangles);lua_setfield(lua,-2,"curvedSourceTriangles");
+            lua_pushinteger(lua,report.curvedResultTriangles);lua_setfield(lua,-2,"curvedResultTriangles");
+            lua_pushnumber(lua,report.curvedMaximumError);lua_setfield(lua,-2,"curvedMaximumError");
+            lua_pushboolean(lua,report.curvedTargetReached);lua_setfield(lua,-2,"curvedTargetReached");
+        }
         return 2;
     }
 

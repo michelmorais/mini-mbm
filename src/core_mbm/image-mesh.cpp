@@ -25,6 +25,7 @@
 #include <stb/stb-interface.h>
 #include "private/image-mesh-height.h"
 #include "private/image-mesh-sides.h"
+#include "private/image-mesh-curved-simplify.h"
 #include <lodepng/lodepng.h>
 #include <algorithm>
 #include <cmath>
@@ -67,6 +68,10 @@ namespace mbm
             !std::isfinite(o.borderWidth) || o.borderWidth < 0.0f || o.borderWidth > 0.5f ||
             o.columns == 0 || o.rows == 0 || o.columns > 255 || o.rows > 255)
             return fail(errorOut, errorOutLen, "Invalid dimensions, relief, border width or grid (1..255 cells per axis)");
+        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedSimplify &&
+            (!std::isfinite(o.curvedSimplifyRatio) || o.curvedSimplifyRatio<0.01f || o.curvedSimplifyRatio>1 ||
+             !std::isfinite(o.curvedSimplifyError) || o.curvedSimplifyError<0.0001f || o.curvedSimplifyError>0.25f))
+            return fail(errorOut,errorOutLen,"Invalid curved simplification ratio (0.01..1) or error (0.0001..0.25)");
         if (static_cast<int>(o.backOpen)+o.backRelief+o.backRemap+o.backSolid+o.backExternal>1)
             return fail(errorOut,errorOutLen,"Back modes are mutually exclusive: open, copied relief, flat remap, solid color or external texture");
         if (o.sideMode!=IMAGE_MESH_SIDE::EDGE && o.sideMode!=IMAGE_MESH_SIDE::COLOR &&
@@ -91,6 +96,7 @@ namespace mbm
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
+            image_mesh::curved_simplify::run(o,field,topology,report);
             image_mesh::checkpoint(o,"surface",0.9f);
             std::vector<IMAGE_MESH_POINT> sideInner;
             const bool separateBack=o.backSolid || o.backExternal;

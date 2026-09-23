@@ -77,7 +77,7 @@ These are total thicknesses, independent of the saved Depth and Relief settings.
   report an error; generation does not silently select another algorithm.
 - Holes are unsupported. The back is closed and uses the source texture; horizontal
   back UV mirroring and side texture modes remain available. Other saved back modes,
-  image height adjustments, painting, height areas and automatic simplification are
+  image height adjustments, painting, height areas and the general simplifier are
   inactive. Switching modes retains their saved settings/data.
 - The height map shows total thickness divided by the larger endpoint thickness.
   It shares the native field with mesh generation. There is no groove overlay.
@@ -89,8 +89,8 @@ This is a sampled error target, not a certified global bound. The circular bound
 is represented by chords. Vertex/triangle budgets can stop refinement with a diagnostic.
 Equal endpoint values produce a uniform solid. Thickness values must be at least 0.001.
 The legacy point/circle controls remain linear. Extended target shapes and profiles
-are available after explicit conversion to the hierarchy below. Automatic simplification
-remains deferred.
+are available after explicit conversion to the hierarchy below. Optional constrained
+simplification is available since 7.270.0 (see below).
 
 ### Targets and local regions (7.267.0)
 
@@ -461,9 +461,31 @@ wireframe, simplification, and export. Image transparency is preserved; stretche
 outer-edge segments crossing transparent pixels can sample a more opaque pixel
 inside the crop. Solid side colors are opaque.
 
+## Constrained curved simplification (7.270.0)
+
+In Manual curved mode, open **Simplification** and enable **Simplify curved relief**.
+Set **Faces to keep** (0.5 requests half the front triangles) and **Additional error**
+(default 0.01, or 1% of the thickness range), then Apply. The panel reports before/after
+front face counts and the conservative error bound. A partial-reduction notice means
+constraints, tolerance or the bounded processing pass prevented the requested ratio.
+
+Contour vertices, target/local-region boundaries, the legacy peak/circle ring and
+sampled local extrema remain fixed. Interior vertices may be removed; front/back
+and sides are then generated together with fresh normals. Error is bounded against
+the dense generated surface, not directly against the analytic field; initial surface
+sampling still has its own `heightTolerance`. Dense generation must fit the vertex
+budget before this pass can run. Maps continue to show the analytic thickness field.
+
+This option is off by default, including in old projects with a saved generic
+simplification setting. Apply, undo/redo, `.imesh`, asynchronous generation and
+export use the same options. Each generation starts from the dense surface, so
+repeated Apply does not accumulate losses. The pass runs only during generation,
+supports cancellation and adds no recurring work while the editor is idle.
+The generic side-by-side simplification comparison is not available for this mode.
+
 ## Simplification and comparison
 
-Enable **Simplify after generation** to use the same simplifier as Mesh Debug over
+For image/manual/mixed relief, enable **Simplify after generation** to use the same simplifier as Mesh Debug over
 the whole generated frame, including its materials:
 
 - Triangle ratio: 0.001–0.95, default 0.9; the fraction to retain.

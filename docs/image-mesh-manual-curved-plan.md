@@ -1,6 +1,6 @@
 # Image Mesh Editor — Plano do modo Manual curvo
 
-Status: **Primeira versão linear implementada (7.266.0); expansões listadas ao final.**
+Status: **Marcos 1 a 11 entregues; simplificação protegida em 7.270.0. Expansões restantes na seção 7.**
 Data: **2026-09-23**
 
 Este documento registra o contrato, a implementação inicial e as expansões do modo.
@@ -173,7 +173,7 @@ controle de triangulação e normais. Facetamento não faz parte da primeira ent
 | Pintura e áreas | Dados preservados e inativos neste modo |
 | Travamento de borda | Inativo; o perfil já fixa a espessura externa |
 | Materiais e verso | Verso fechado com textura de origem; modos antigos inativos |
-| Simplificação | Inativa; preservação das restrições no simplificador fica adiada |
+| Simplificação | Opcional e com restrições preservadas desde o marco 11 |
 | Persistência | Parâmetros por região com herança dos defaults, campos opcionais |
 | Precisão | Refinamento por amostragem dentro do orçamento; círculo representado por cordas |
 
@@ -216,7 +216,7 @@ parâmetros. Projetos antigos devem abrir com o mesmo resultado anterior.
 - [x] Refinar a superfície conforme erro e orçamento; o caso linear também deve ser
   verificado, pois a triangulação pode aproximar mal a função radial.
 - [x] Fechar laterais e calcular normais nas duas distribuições de espessura.
-- [ ] Proteger pico, contorno e transição do platô no simplificador (adiado; simplificação inativa).
+- [x] Proteger pico, contorno e transição do platô no simplificador (marco 11, 7.270.0).
 - [x] Integrar cancelamento e progresso aos trabalhos assíncronos existentes.
 
 ### Etapa 3 — Integrar a edição
@@ -266,7 +266,7 @@ a preservação pelo simplificador fica adiada com a simplificação desativada.
 
 ## 7. Expansões posteriores
 
-Simplificação com preservação de restrições; composição com pintura e áreas;
+Composição com pintura e áreas;
 formas que não admitem interpolação radial; furos; múltiplos alvos e facetamento.
 Cada expansão deve definir seu comportamento antes de entrar na implementação.
 
@@ -400,3 +400,37 @@ valores participam de Apply, histórico, persistência, cópia assíncrona e exp
 Validação: testes nativos de graus 4/5, ondulação sem ultrapassagem, limites dos
 controles adicionais e snapshot assíncrono; testes do editor de elevação de grau,
 radiobuttons 2/3/4, histórico, persistência, mapa, exportação e cache ocioso.
+
+## 11. Simplificação protegida — 7.270.0
+
+Opção separada do simplificador geral, desligada por padrão. `curvedSimplify`,
+`curvedSimplifyRatio` (0.01..1, padrão 0.5) e `curvedSimplifyError`
+(0.0001..0.25, padrão 0.01) participam de Apply, histórico, persistência,
+snapshot assíncrono e exportação. Nenhum projeto antigo ativa a redução sozinho.
+
+A redução remove vértices internos e retriangula a cavidade antes da extrusão.
+Preserva vértices do contorno, dos alvos e regiões locais, pico/círculo legado e
+extremos locais amostrados. Vértices mantidos não se deslocam; normais são recalculadas.
+Cada substituição propaga um limite conservador do erro relativo à malha densa
+original, comparando as superfícies lineares nas interseções dos triângulos.
+A tolerância adicional multiplica a variação total de espessura; não substitui
+nem certifica a tolerância amostrada da geração inicial.
+
+A fração é uma meta: restrições, erro, precisão float, cavidades com mais de
+32 triângulos ou limite de 32 passagens podem interromper a redução antes.
+O resultado parcial é válido e a UI informa isso. A malha densa ainda precisa
+caber no orçamento antes de simplificar. Mapas continuam usando o campo analítico.
+Comparação lado a lado do simplificador geral permanece fora deste marco.
+
+Relatório específico: faces da superfície antes/depois, limite conservador de erro
+e indicador de meta alcançada. Cancelamento é verificado durante o processamento;
+nenhum trabalho de simplificação ocorre continuamente no editor ocioso.
+
+Validação: builds `mini-mbm` e `testLib`; testes nativo e ImGui específicos de
+simplificação (contorno, platôs encaixados, linha Bézier com ondulação, regiões
+independentes, verso plano, limite conservador, redução parcial, parâmetros inválidos,
+mapa inalterado, snapshot/cancelamento, histórico, persistência, exportação e ociosidade).
+Regressões nativas do modo legado, hierarquia e perfis aprovadas. Malha exportada
+carregada em 3D no `testLib`. Projeto `sharp.imesh` lido e gerado em memória, sem
+alterar o arquivo: 7.381 para 4.471 faces de superfície, limite normalizado de erro
+0,009973 para tolerância 0,01.

@@ -2168,6 +2168,9 @@ assert(asset:save("panel.msh", false, false, true))
 | `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
 | `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
 | `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
+| `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion (7.270.0); ignored outside curved mode |
+| `curvedSimplifyRatio` | 0.5 | Requested fraction of front triangles to retain, finite [0.01,1]; a goal, not a guarantee |
+| `curvedSimplifyError` | 0.01 | Maximum additional normalized height error, finite [0.0001,0.25], compared with the dense generated surface |
 | `curvedNodes` | nil | Optional hierarchy of targets and independent local regions; absent preserves the legacy profile, an empty table makes the root flat |
 | `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
 | `heightAreas` | nil | Up to 32 ordered closed contours with target height and inward transition; see below |
@@ -2222,9 +2225,32 @@ The topology contains a center vertex and, for positive radius, a sampled target
 Columns/rows seed its density. Mid-edge/centroid samples drive deterministic ring
 refinement up to the requested `heightTolerance`, subject to geometry budgets and a
 bounded number of passes. This does not certify a global interpolation-error bound.
-A circle is approximated by chords. The editor disables subsequent simplification
-for curved meshes; calling the general mesh simplifier directly does not preserve
-these radial/plateau constraints by contract.
+A circle is approximated by chords. The editor disables the general post-generation
+simplifier for curved meshes; calling that simplifier directly does not preserve
+radial/plateau constraints by contract.
+
+**Constrained curved simplification (7.270.0).** `curvedSimplify=true` removes interior
+vertices and retriangulates their cavities before front/back/side construction.
+It keeps contour vertices, authored target/local-region outlines (including inserted
+points on their segments), legacy center/circle-ring vertices and sampled local
+extrema. Retained vertices keep their positions/UVs; normals are recomputed.
+A conservative error bound propagates through triangle intersections, relative to
+the original dense piecewise-linear surface, avoiding cumulative tolerance drift.
+Multiply `curvedSimplifyError` by the total thickness range for the additional
+thickness error, or by `relief` for displacement on the front face. This does not
+turn the initial sampled `heightTolerance` into a global analytic-field guarantee.
+The dense mesh must fit the existing budgets first. The pass may stop before the
+requested ratio because of constraints, tolerance, float degeneracy, bounded cavity
+size (32 incident triangles), or its 32-pass processing limit. Partial reduction
+is successful generation. Ratio/error ranges are checked for active mesh simplification.
+Height maps use the original analytic field and are unaffected.
+
+Both sync and async mesh reports then include `curvedSourceTriangles` and
+`curvedResultTriangles` (front surface only), `curvedMaximumError` (conservative
+normalized error bound, not a measured maximum), and `curvedTargetReached`.
+These fields are absent when the pass is inactive; existing `vertices`/`triangles`
+still describe the entire final mesh. Async jobs copy all three input options,
+report stage `curved_simplify`, and support cancellation during the pass.
 
 **Curved hierarchy (7.267.0).** Optional `curvedNodes` replaces the legacy center/radius
 profile. It is an array of at most 32 nodes; every node is an array of 1..128

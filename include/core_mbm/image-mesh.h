@@ -115,6 +115,8 @@ namespace mbm
         float curvedX = 0.5f, curvedY = 0.5f, curvedRadius = 0.0f;
         float curvedEdge = 1.0f, curvedTarget = 8.0f;
         bool curvedSymmetric = true;
+        bool curvedSimplify = false;
+        float curvedSimplifyRatio = 0.5f, curvedSimplifyError = 0.01f;
         bool curvedHierarchy = false; // false retains the original radial point/circle path
         const IMAGE_MESH_CURVED_NODE *curvedNodes = nullptr;
         uint32_t curvedNodeCount = 0; // at most 32 nodes, 128 points each, depth <= 8
@@ -139,6 +141,9 @@ namespace mbm
     {
         uint32_t vertices = 0, triangles = 0;
         float minHeight = 0.0f, maxHeight = 0.0f;
+        uint32_t curvedSourceTriangles = 0, curvedResultTriangles = 0;
+        float curvedMaximumError = 0.0f; // Conservative normalized height error bound.
+        bool curvedTargetReached = false;
     };
 
     // CPU-only extrusion of a rectangle, ellipse or simple polygon. Destination must have no frames.

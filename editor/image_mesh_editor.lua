@@ -654,6 +654,23 @@ local function propertiesPanel()
         tImGui.Text(string.format(L('triangle_budget_auto'),2*E.values.maxVertices))
         Help.show('maxTriangles')
         end
+        if E.values.heightSource=='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
+            E.values.curvedSimplify=tImGui.Checkbox(L('curved_simplify'),E.values.curvedSimplify)
+            if tImGui.IsItemHovered() then Help.tooltip(L('curved_simplify_help')) end
+            if E.values.curvedSimplify then
+                local c,v=tImGui.SliderFloat(L('curved_simplify_ratio'),E.values.curvedSimplifyRatio,.01,1,'%.2f')
+                if c then E.values.curvedSimplifyRatio=Model.clampOption('curvedSimplifyRatio',v,E.values.curvedSimplifyRatio) end
+                c,v=tImGui.SliderFloat(L('curved_simplify_error'),E.values.curvedSimplifyError,.0001,.25,'%.4f')
+                if c then E.values.curvedSimplifyError=Model.clampOption('curvedSimplifyError',v,E.values.curvedSimplifyError) end
+                if tImGui.IsItemHovered() then Help.tooltip(L('curved_simplify_error_help')) end
+                tImGui.TextWrapped(L('curved_simplify_help'))
+            end
+            if E.report and E.report.curvedSourceTriangles and not E.editDefaults then
+                tImGui.TextWrapped(string.format(L('curved_simplify_result'),E.report.curvedSourceTriangles,
+                    E.report.curvedResultTriangles,E.report.curvedMaximumError))
+                if not E.report.curvedTargetReached then tImGui.TextWrapped(L('curved_simplify_limited')) end
+            end
+        end
         if E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)
             if E.values.simplify then
