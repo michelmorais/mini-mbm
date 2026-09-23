@@ -35,8 +35,9 @@ function M.validate(nodes)
   assert(n.profile==nil or n.profile=='linear' or n.profile=='smooth' or n.profile=='bezier','ime_curved_profile_invalid')
   assert(n.bezier1==nil or number(n.bezier1,0,1),'ime_curved_profile_invalid')
   assert(n.bezier2==nil or number(n.bezier2,0,1),'ime_curved_profile_invalid')
-  local b1,b2=n.bezier1 or 0,n.bezier2 or 1
-  assert(number(b1,0,1) and number(b2,0,1) and b1<=b2,'ime_curved_profile_invalid')
+  assert(n.bezier3==nil or number(n.bezier3,0,1),'ime_curved_profile_invalid')
+  assert(n.bezier4==nil or number(n.bezier4,0,1),'ime_curved_profile_invalid')
+  assert(n.bezierPoints==nil or n.bezierPoints==2 or n.bezierPoints==3 or n.bezierPoints==4,'ime_curved_profile_invalid')
   assert(n.shape=='point' or n.shape=='line' or n.shape=='ellipse' or n.shape=='rectangle' or n.shape=='polygon','ime_curved_nodes_invalid')
   assert(#n>=1 and #n<=128 and (n.shape~='point' or #n==1) and (n.shape~='line' or #n==2),'ime_curved_nodes_invalid')
   for _,p in ipairs(n) do assert(type(p)=='table' and number(p.x,0,1) and number(p.y,0,1),'ime_curved_nodes_invalid') end
@@ -143,9 +144,42 @@ function M.transform(nodes,index,key,value)
  end end
  return true
 end
+function M.resizeProfile(node,count)
+ assert(count==2 or count==3 or count==4,'ime_curved_profile_invalid')
+ local old=node.bezierPoints or 2
+ local values={[0]=0}
+ for i=1,old do values[i]=node['bezier'..i] or (i==1 and 0 or 1) end
+ values[old+1]=1
+ if count>old then
+  while old<count do
+   local elevated={[0]=0,[old+2]=1}
+   for i=1,old+1 do local w=i/(old+2);elevated[i]=w*values[i-1]+(1-w)*values[i] end
+   values=elevated;old=old+1
+  end
+ elseif count<old then
+  local reduced={}
+  for i=1,count do
+   local x=i*(old+1)/(count+1);local lo=math.floor(x);local w=x-lo
+   reduced[i]=values[lo]*(1-w)+values[lo+1]*w
+  end
+  values=reduced
+ end
+ node.bezierPoints=count
+ for i=1,count do node['bezier'..i]=values[i] end
+end
 function M.profileValue(node,t)
  if node.profile=='smooth' then return t*t*(3-2*t) end
  if node.profile=='bezier' then
+  local count=node.bezierPoints or 2
+  if count>2 then
+   local values={[0]=0}
+   for i=1,count do values[i]=node['bezier'..i] or (i==1 and 0 or 1) end
+   values[count+1]=1
+   for remaining=count+1,1,-1 do
+    for i=0,remaining-1 do values[i]=values[i]+(values[i+1]-values[i])*t end
+   end
+   return values[0]
+  end
   local u=1-t
   return 3*u*u*t*(node.bezier1 or 0)+3*u*t*t*(node.bezier2 or 1)+t*t*t
  end

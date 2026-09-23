@@ -144,11 +144,16 @@ this target** chooses Linear, Smooth or Bézier for that specific incoming trans
 Omitted profiles remain Linear, preserving existing projects. Local regions use the
 profile of their target; selecting the region itself does not expose a profile.
 
-Smooth uses a smoothstep profile. Bézier has two yellow handles draggable vertically,
-plus two sliders. Horizontal handle positions are fixed at 1/3 and 2/3. The controls
-stay in [0,1] and cannot cross, so the thickness stays between the border and target
+Smooth uses a smoothstep profile. Since 7.269.0, Bézier offers radio buttons for
+**2, 3 or 4 internal control points**, in addition to the fixed border/target endpoints.
+Each yellow handle is draggable vertically and has a slider. Horizontal positions
+are evenly spaced. The controls are independent in [0,1] and may cross vertically;
+3 or 4 controls can create waves, while thickness stays between the border and target
 values. The graph shows normalized progress toward the target thickness, including
 when that thickness is lower than the border. It is not a literal mesh cross-section.
+Increasing the control count uses degree elevation and preserves the current curve.
+Reducing it resamples the control polygon and approximates the profile, so the shape
+may change. Existing projects default to two controls with the same cubic evaluation.
 The graph updates immediately; Apply uses the existing preview/export workflow.
 Each link in a chain can use a different profile. Profiles participate in undo/redo,
 project persistence, duplication, maps and asynchronous generation. The graph samples

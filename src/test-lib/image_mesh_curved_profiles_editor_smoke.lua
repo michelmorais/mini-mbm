@@ -110,12 +110,19 @@ local function run()
  print('PROFILES EDITOR REJECT INVALID / MOVE CENTER WITH CHILDREN OK')
 
  E.draft.curvedNodes[1].profile='smooth'
- E.draft.curvedNodes[2].profile='bezier';E.draft.curvedNodes[2].bezier1=.15;E.draft.curvedNodes[2].bezier2=.8
+ E.draft.curvedNodes[2].profile='bezier';E.draft.curvedNodes[2].bezier1=.8;E.draft.curvedNodes[2].bezier2=.2
+ local edited=E.draft.curvedNodes[2];local original=Model.copy(edited)
+ for count=3,4 do
+  Model.curved.resizeProfile(edited,count)
+  for i=0,16 do close(Model.curved.profileValue(edited,i/16),Model.curved.profileValue(original,i/16)) end
+ end
+ edited.bezier3=.75;edited.bezier4=.25
+
  assert(api.applyProperties());api.undo(false);assert(nodes()[2].profile==nil)
  api.undo(true);assert(nodes()[1].profile=='smooth' and nodes()[2].profile=='bezier')
- close(Model.curved.profileValue(nodes()[2],.5),.48125)
+ close(Model.curved.profileValue(nodes()[2],.5),.5484375)
  api.saveProject('/tmp/ime_profiles_editor.imesh')
- local saved=IO.load('/tmp/ime_profiles_editor.imesh');local o=Model.options(saved,saved.regions[1]);assert(#o.curvedNodes==4);close(o.curvedNodes[2].thickness,4);assert(o.curvedNodes[1].profile=='smooth');close(o.curvedNodes[2].bezier1,.15);close(o.curvedNodes[2].bezier2,.8)
+ local saved=IO.load('/tmp/ime_profiles_editor.imesh');local o=Model.options(saved,saved.regions[1]);assert(#o.curvedNodes==4);close(o.curvedNodes[2].thickness,4);assert(o.curvedNodes[1].profile=='smooth');assert(o.curvedNodes[2].bezierPoints==4);close(o.curvedNodes[2].bezier1,.48);close(o.curvedNodes[2].bezier2,.54);close(o.curvedNodes[2].bezier3,.75);close(o.curvedNodes[2].bezier4,.25)
  api.openProject('/tmp/ime_profiles_editor.imesh');api.select(1,false)
  api.exportOne('/tmp/ime_profiles_editor.msh');while E.meshTask do coroutine.yield() end
  assert(IO.exists('/tmp/ime_profiles_editor.msh'),E.status)
@@ -142,13 +149,35 @@ function onInitScene()
  task=coroutine.create(run);local ok,err=coroutine.resume(task)
  if not ok then print('PROFILES EDITOR FAIL '..tostring(err));mbm.quit() end
 end
+local radioStage=2
 function onLoop(delta)
+ local slider,radio=tImGui.SliderFloat,tImGui.RadioButton
+ local inject=started and radioStage<=4
+ if inject then
+  tImGui.RadioButton=function(label,...)
+   local selected=radio(label,...)
+   if label==tostring(radioStage)..'##ime_bezier_points_'..radioStage then return radioStage end
+   return selected
+  end
+  tImGui.SliderFloat=function(label,...)
+   local changed,value=slider(label,...)
+   if label=='##ime_bezier1' then return true,.9 end
+   if label=='##ime_bezier2' then return true,.1 end
+   return changed,value
+  end
+ end
  local header=tImGui.CollapsingHeader
  tImGui.CollapsingHeader=function(label,...)
   if label==tLang.L('ime_grooves_group') then tImGui.SetNextItemOpen(true,0) end
   return header(label,...)
  end
- loop(delta);tImGui.CollapsingHeader=header
+ loop(delta);tImGui.CollapsingHeader=header;tImGui.SliderFloat=slider;tImGui.RadioButton=radio
+ if inject then
+  close(api.state.draft.curvedNodes[2].bezier1,.9)
+  close(api.state.draft.curvedNodes[2].bezier2,.1)
+  assert(api.state.draft.curvedNodes[2].bezierPoints==radioStage)
+  print('PROFILES EDITOR RADIO / INDEPENDENT SLIDERS OK '..radioStage);radioStage=radioStage+1
+ end
  if coroutine.status(task)~='dead' then
   local ok,err=coroutine.resume(task)
   if not ok then print('PROFILES EDITOR FAIL '..tostring(err));mbm.quit() end

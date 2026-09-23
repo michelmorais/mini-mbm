@@ -2236,7 +2236,9 @@ normalized crop points `{x=..., y=...}`, with these fields:
 | `role` | Required `"target"` or `"region"`. Each closed owner has at most one target and may have multiple local regions. |
 | `thickness` | Total target thickness, finite [0.001,1000000], default 8. Validated but ignored for inherited local regions. |
 | `profile` | Since 7.268.0: `"linear"` (default), `"smooth"`, or `"bezier"`, controlling the transition from the owner to this target. Validated but ignored on local-region nodes. |
-| `bezier1`, `bezier2` | Since 7.268.0: vertical cubic controls, defaults 0 and 1. Finite and ordered: `0 <= bezier1 <= bezier2 <= 1`. Validated even when the profile is not Bézier. |
+| `bezierPoints` | Since 7.269.0: number of internal control points, integer 2 (default), 3 or 4. The two endpoints are additional and fixed. |
+| `bezier1`, `bezier2` | Since 7.268.0: first two vertical controls, defaults 0 and 1. Each must be finite and within [0,1]; since 7.268.1 they may cross. |
+| `bezier3`, `bezier4` | Since 7.269.0: additional vertical controls, each defaulting to 1. All supplied controls are validated in [0,1], even when unused or the profile is not Bézier. |
 
 One point or two points define a terminal point/segment target. Three or more points
 define a simple closed contour. Closed targets must be convex; local regions may
@@ -2256,11 +2258,14 @@ thickness is `borderThickness + (targetThickness-borderThickness)*f(t)`:
 
 - Linear: `f(t)=t` (unchanged default).
 - Smooth: `f(t)=t*t*(3-2*t)`.
-- Bézier: `f(t)=3*(1-t)^2*t*bezier1 + 3*(1-t)*t^2*bezier2 + t^3`.
+- Bézier with 2 controls: `f(t)=3*(1-t)^2*t*bezier1 + 3*(1-t)*t^2*bezier2 + t^3`.
 
-The cubic's horizontal controls are fixed at 1/3 and 2/3, making its X coordinate
-identical to `t`. Ordered vertical controls preserve monotonicity and endpoint
-thicknesses without overshoot, for rising and falling transitions. The profile
+With `k=bezierPoints`, the Bézier degree is `d=k+1`; endpoints are `(0,0)` and
+`(1,1)` and internal control `i` is `(i/d, bezier_i)`. Equally spaced X coordinates
+make X identical to `t`. For 3 or 4 controls, the evaluator uses de Casteljau on the
+vertical coordinates. Values remain in [0,1], preserving endpoint thicknesses and
+preventing overshoot. Two internal controls also preserve monotonicity; with 3 or 4,
+crossed controls can produce rises and falls inside that interval. The profile
 belongs to the arriving target, not its owner or siblings. Smooth has zero endpoint
 slope in the normalized profile; it does not promise global surface smoothness at
 polygon corners or local borders with spatially varying inherited heights.

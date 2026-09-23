@@ -350,7 +350,7 @@ a borda herdada; o perfil fica no alvo da região. Cada ligação é independent
 - Linear: `f(t)=t`.
 - Suave: `f(t)=t*t*(3-2*t)`, com derivada zero nos extremos do perfil normalizado.
 - Bézier cúbica: extremos `(0,0)` e `(1,1)`; controles `(1/3,b1)` e `(2/3,b2)`.
-  Manter `0 <= b1 <= b2 <= 1` garante progressão monotônica e sem ultrapassagem
+  Manter cada controle em `[0,1]` garante progressão monotônica e sem ultrapassagem
   das espessuras dos extremos. X fixo permite edição por dois controles de curvatura.
 - Aplicar `f` à progressão espacial já calculada. Não modificar contornos, hierarquia,
   contenção ou regras de sobreposição. Suave não promete suavidade global nos cantos
@@ -374,3 +374,29 @@ Validação:
   aprovadas; omitir perfil continua equivalendo a linear.
 - Malha Bézier exportada carregada em 3D pelo `testLib`, com saída normal.
 - Projeto real `sharp.imesh` gerado em memória nos três perfis, sem alterar o arquivo.
+
+### Ajuste 7.268.1: controles Bézier independentes
+
+Removida a restrição conservadora `b1 <= b2`. Com os extremos fixos e X dos
+controles em 1/3 e 2/3, cada Y em [0,1] já preserva progressão monotônica e limites
+de espessura. A UI permite cruzamento vertical; a API e o projeto validam os limites
+individualmente. Testes incluem (0.8,0.2), (1,0), limites inválidos, histórico e persistência.
+
+## 10. Bézier com 2, 3 ou 4 controles internos — 7.269.0
+
+Decisão: manter todos os controles em [0,1]; a proposta de ampliar esse limite foi
+abandonada antes da entrega. Acrescentar radiobuttons 2/3/4 por alvo, além dos dois
+extremos fixos. Projetos existentes usam 2, com a mesma avaliação cúbica anterior.
+
+Com `k` controles internos, o grau é `k+1` e as posições X são `i/(k+1)`.
+Os controles continuam independentes. Com 3/4, podem criar ondulações internas,
+sem ultrapassar as espessuras dos extremos. Não há garantia de monotonicidade
+nesses dois novos modos. O motor avalia por de Casteljau sem alocar por amostra.
+
+Aumentar a quantidade preserva a curva por elevação de grau. Reduzir aproxima o
+polígono de controle; a interface explica que a curva pode mudar. Contagem e novos
+valores participam de Apply, histórico, persistência, cópia assíncrona e exportação.
+
+Validação: testes nativos de graus 4/5, ondulação sem ultrapassagem, limites dos
+controles adicionais e snapshot assíncrono; testes do editor de elevação de grau,
+radiobuttons 2/3/4, histórico, persistência, mapa, exportação e cache ocioso.

@@ -29,8 +29,7 @@ local guideColor={r=.55,g=.55,b=.55,a=.7}
 local controlColor={r=1,g=.75,b=.2,a=1}
 local function L(key) return tLang.L('ime_curved_'..key) end
 local function control(n,index,value)
- if index==1 then n.bezier1=math.max(0,math.min(n.bezier2 or 1,value))
- else n.bezier2=math.min(1,math.max(n.bezier1 or 0,value)) end
+ n['bezier'..index]=math.max(0,math.min(1,value))
 end
 function M.panel(E,n)
  local index=1
@@ -39,10 +38,19 @@ function M.panel(E,n)
  local changed,value=tImGui.Combo('##ime_curved_profile',index,{L('profile_linear'),L('profile_smooth'),L('profile_bezier')})
  if changed then n.profile=profiles[value];E.profileDrag=nil end
  if tImGui.IsItemHovered() then Help.tooltip(L('profile_help')) end
+ local count=n.bezierPoints or 2
  if n.profile=='bezier' then
-  for i=1,2 do
+  tImGui.TextWrapped(L('bezier_points'))
+  local selected=count
+  for i=2,4 do
+   if i>2 then tImGui.SameLine() end
+   selected=tImGui.RadioButton(tostring(i)..'##ime_bezier_points_'..i,selected,i)
+   if tImGui.IsItemHovered() then Help.tooltip(L('bezier_points_help')) end
+  end
+  if selected~=count then C.resizeProfile(n,selected);count=selected;E.profileDrag=nil end
+  for i=1,count do
    tImGui.TextWrapped(L('bezier'..i));tImGui.SetNextItemWidth(-1)
-   local c,v=tImGui.SliderFloat('##ime_bezier'..i,n['bezier'..i] or (i-1),0,1,'%.3f')
+   local c,v=tImGui.SliderFloat('##ime_bezier'..i,n['bezier'..i] or (i==1 and 0 or 1),0,1,'%.3f')
    if c then control(n,i,v) end
   end
  end
@@ -57,19 +65,23 @@ function M.panel(E,n)
   local mouse=tImGui.GetMousePos()
   if tImGui.IsItemClicked(0) then
    E.profileDrag=nil
-   for i=1,2 do local p=point(i/3,n['bezier'..i] or (i-1))
+   for i=1,count do local p=point(i/(count+1),n['bezier'..i] or (i==1 and 0 or 1))
     if (p.x-mouse.x)^2+(p.y-mouse.y)^2<=100 then E.profileDrag=i end
    end
   end
   if tImGui.IsItemActive() and E.profileDrag then control(n,E.profileDrag,(y0-mouse.y)/h)
   else E.profileDrag=nil end
-  local a,b=point(1/3,n.bezier1 or 0),point(2/3,n.bezier2 or 1)
-  tImGui.AddLine(point(0,0),a,guideColor,1);tImGui.AddLine(a,b,guideColor,1);tImGui.AddLine(b,point(1,1),guideColor,1)
-  tImGui.AddCircleFilled(a,5,controlColor,12);tImGui.AddCircleFilled(b,5,controlColor,12)
+  local previous=point(0,0)
+  for i=1,count do
+   local p=point(i/(count+1),n['bezier'..i] or (i==1 and 0 or 1))
+   tImGui.AddLine(previous,p,guideColor,1);tImGui.AddCircleFilled(p,5,controlColor,12);previous=p
+  end
+  tImGui.AddLine(previous,point(1,1),guideColor,1)
  end
  local profile,b1,b2=n.profile or 'linear',n.bezier1 or 0,n.bezier2 or 1
- if E.profileKind~=profile or E.profileB1~=b1 or E.profileB2~=b2 then
-  E.profileKind=profile;E.profileB1=b1;E.profileB2=b2;E.profileSamples={}
+ local b3,b4=n.bezier3 or 1,n.bezier4 or 1
+ if E.profileKind~=profile or E.profileCount~=count or E.profileB1~=b1 or E.profileB2~=b2 or E.profileB3~=b3 or E.profileB4~=b4 then
+  E.profileKind=profile;E.profileCount=count;E.profileB1=b1;E.profileB2=b2;E.profileB3=b3;E.profileB4=b4;E.profileSamples={}
   for i=0,48 do E.profileSamples[i+1]=C.profileValue(n,i/48) end
   E.profileBuilds=(E.profileBuilds or 0)+1
  end

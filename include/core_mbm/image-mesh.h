@@ -67,8 +67,9 @@ namespace mbm
         uint32_t count = 0, parent = 0;
         float thickness = 8.0f;
         IMAGE_MESH_CURVED_PROFILE profile = IMAGE_MESH_CURVED_PROFILE::LINEAR;
-        // Cubic Bezier controls (1/3, bezier1), (2/3, bezier2); 0 <= b1 <= b2 <= 1.
-        float bezier1 = 0.0f, bezier2 = 1.0f;
+        // Internal Bezier controls, evenly spaced in X; each Y is in [0,1].
+        uint32_t bezierPoints = 2; // 2, 3 or 4 internal controls; endpoints stay fixed.
+        float bezier1 = 0.0f, bezier2 = 1.0f, bezier3 = 1.0f, bezier4 = 1.0f;
         bool inherited = false; // Local region; otherwise the owner's sole target.
     };
 

@@ -3768,6 +3768,11 @@ namespace mbm
                 lua_pop(lua,1);
                 lua_getfield(lua,-1,"bezier1");node.bezier1=static_cast<float>(luaL_optnumber(lua,-1,0));lua_pop(lua,1);
                 lua_getfield(lua,-1,"bezier2");node.bezier2=static_cast<float>(luaL_optnumber(lua,-1,1));lua_pop(lua,1);
+                lua_getfield(lua,-1,"bezier3");node.bezier3=static_cast<float>(luaL_optnumber(lua,-1,1));lua_pop(lua,1);
+                lua_getfield(lua,-1,"bezier4");node.bezier4=static_cast<float>(luaL_optnumber(lua,-1,1));lua_pop(lua,1);
+                lua_getfield(lua,-1,"bezierPoints");const lua_Integer controls=luaL_optinteger(lua,-1,2);lua_pop(lua,1);
+                if (controls<2 || controls>4) luaL_error(lua,"Bezier needs 2, 3 or 4 internal controls");
+                node.bezierPoints=static_cast<uint32_t>(controls);
                 const size_t n=lua_rawlen(lua,-1);
                 if (n<1 || n>128 || (node.inherited && n<3)) luaL_error(lua,"Curved target needs 1..128 points; a local region needs at least 3");
                 node.count=static_cast<uint32_t>(n);node.points=nodePoints+i*128;

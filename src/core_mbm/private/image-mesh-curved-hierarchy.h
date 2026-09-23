@@ -38,7 +38,8 @@ struct CURVED_HIERARCHY
         int target=-1;
         double thickness=0,minX=0,minY=0,maxX=0,maxY=0;
         IMAGE_MESH_CURVED_PROFILE profile=IMAGE_MESH_CURVED_PROFILE::LINEAR;
-        double bezier1=0,bezier2=1;
+        uint32_t bezierPoints=2;
+        double bezier1=0,bezier2=1,bezier3=1,bezier4=1;
         bool inherited=false;
     };
     std::vector<DOMAIN> domains;
@@ -113,10 +114,11 @@ struct CURVED_HIERARCHY
                     return fail(i,"invalid owner, contour or thickness");
                 if (node.profile!=IMAGE_MESH_CURVED_PROFILE::LINEAR && node.profile!=IMAGE_MESH_CURVED_PROFILE::SMOOTH &&
                     node.profile!=IMAGE_MESH_CURVED_PROFILE::BEZIER) return fail(i,"invalid transition profile");
-                if (!std::isfinite(node.bezier1) || !std::isfinite(node.bezier2) ||
-                    node.bezier1<0 || node.bezier2>1 || node.bezier1>node.bezier2)
-                    return fail(i,"Bezier controls require 0 <= bezier1 <= bezier2 <= 1");
+                if (node.bezierPoints<2 || node.bezierPoints>4) return fail(i,"Bezier needs 2, 3 or 4 internal controls");
+                for (float value:{node.bezier1,node.bezier2,node.bezier3,node.bezier4})
+                    if (!std::isfinite(value) || value<0 || value>1) return fail(i,"Bezier controls must each be in [0,1]");
                 d.profile=node.profile;d.bezier1=node.bezier1;d.bezier2=node.bezier2;
+                d.bezierPoints=node.bezierPoints;d.bezier3=node.bezier3;d.bezier4=node.bezier4;
                 d.parent=node.parent;d.inherited=node.inherited;d.thickness=node.thickness;
                 d.depth=domains[d.parent].depth+1;
                 if (d.depth>8) return fail(i,"maximum hierarchy depth is 8");
@@ -208,8 +210,19 @@ struct CURVED_HIERARCHY
         if (target.profile==IMAGE_MESH_CURVED_PROFILE::SMOOTH) weight=t*t*(3-2*t);
         else if (target.profile==IMAGE_MESH_CURVED_PROFILE::BEZIER)
         {
-            const double u=1-t;
-            weight=3*u*u*t*target.bezier1+3*u*t*t*target.bezier2+t*t*t;
+            if (target.bezierPoints==2)
+            {
+                const double u=1-t;
+                weight=3*u*u*t*target.bezier1+3*u*t*t*target.bezier2+t*t*t;
+            }
+            else
+            {
+                double values[6]={0,target.bezier1,target.bezier2,target.bezier3,target.bezier4,1};
+                const uint32_t degree=target.bezierPoints+1;values[degree]=1;
+                for (uint32_t remaining=degree;remaining>0;--remaining)
+                    for (uint32_t i=0;i<remaining;++i) values[i]+=(values[i+1]-values[i])*t;
+                weight=values[0];
+            }
         }
         return h+(target.thickness-h)*weight;
     }
