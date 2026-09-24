@@ -809,7 +809,9 @@ local function regionsPanel()
             end
             tImGui.Separator()
         end
+        tImGui.BeginDisabled(E.meshTask~=nil)
         Assembly.panel(E,setAssembly,camera)
+        tImGui.EndDisabled()
         if E.texture then Budget.panel(E) end
         if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
         if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end

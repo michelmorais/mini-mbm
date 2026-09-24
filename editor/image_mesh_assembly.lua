@@ -29,6 +29,44 @@ function M.state(E)
     if not E.assembly then E.assembly={enabled=false,columns=3,gapX=0,gapY=0,slots={},items={}} end
     return E.assembly
 end
+local function slots(E)
+    local a=M.state(E)
+    if a.order then return a end
+    a.order={};a.nextSlot=0;a.configRevision=0
+    for i,r in ipairs(E.project.regions) do
+        a.order[#a.order+1]=r.id;a.nextSlot=math.max(a.nextSlot,r.id)
+        a.slots[r.id]={regionId=r.id,column=(i-1)%a.columns,row=math.floor((i-1)/a.columns),z=0,visible=true}
+    end
+    a.selectedSlot=a.slots[E.selected] and E.selected or a.order[1]
+    return a
+end
+local function invalidate(E,a)
+    a.configRevision=a.configRevision+1;E.dirty=true;M.sync(E)
+end
+function M.add(E,regionId)
+    if E.meshTask or not Model.region(E.project,regionId) then return false end
+    local a=slots(E);a.nextSlot=a.nextSlot+1
+    local index=#a.order
+    a.slots[a.nextSlot]={regionId=regionId,column=index%a.columns,row=math.floor(index/a.columns),z=0,visible=true}
+    a.order[#a.order+1]=a.nextSlot;a.selectedSlot=a.nextSlot
+    invalidate(E,a);return true
+end
+function M.choose(E,id,regionId)
+    if E.meshTask or not Model.region(E.project,regionId) then return false end
+    local a=slots(E);local slot=a.slots[id]
+    if not slot then return false end
+    if slot.regionId~=regionId then slot.regionId=regionId;invalidate(E,a) end
+    return true
+end
+function M.remove(E,id)
+    if E.meshTask then return false end
+    local a=slots(E)
+    for i,key in ipairs(a.order) do if key==id then
+        table.remove(a.order,i);a.slots[id]=nil;a.selectedSlot=a.order[math.min(i,#a.order)]
+        invalidate(E,a);return true
+    end end
+    return false
+end
 local function releaseItems(items)
     for _,item in ipairs(items) do
         Wire.release(item)
@@ -44,7 +82,7 @@ function M.release(E)
 end
 function M.sync(E)
     local a=E.assembly;if not a then return end
-    if a.enabled then E.previewStale=#a.items>0 and a.revision~=E.revision or nil end
+    if a.enabled then E.previewStale=#a.items>0 and (a.revision~=E.revision or a.builtConfig~=a.configRevision) or nil end
     for _,item in ipairs(a.items) do
         local visible=a.enabled and not E.editMode and item.slot.visible
         item.preview.visible=visible and not E.wireframe
@@ -79,9 +117,16 @@ function M.ensureWire(E)
     M.layout(E)
 end
 function M.build(E,generate,dpCall,camera)
-    local a=M.state(E)
+    local a=slots(E)
+    for i=#a.order,1,-1 do
+        local id=a.order[i]
+        if not Model.region(E.project,a.slots[id].regionId) then
+            a.slots[id]=nil;table.remove(a.order,i);a.configRevision=a.configRevision+1
+        end
+    end
+    if not a.slots[a.selectedSlot] then a.selectedSlot=a.order[1] end
     E.dirty=false
-    if a.revision==E.revision then
+    if a.revision==E.revision and a.builtConfig==a.configRevision then
         for _,item in ipairs(a.items) do if item.id==E.selected then E.report=item.report end end
         M.sync(E);return
     end
@@ -89,13 +134,19 @@ function M.build(E,generate,dpCall,camera)
     local staging={assembly=staged}
     a.pending=staged
     local statistics={}
+    local assets={}
     local ok=dpCall(function()
-        for i,region in ipairs(E.project.regions) do
-            local slot=staged.slots[region.id] or {column=(i-1)%a.columns,row=math.floor((i-1)/a.columns),z=0,visible=true}
-            staged.slots[region.id]=slot
-            local item={id=region.id,slot=slot,previewPath=tUtil.getTemporaryFilePath('.msh')}
+        for _,id in ipairs(a.order) do
+            local slot=staged.slots[id]
+            local region=assert(Model.region(E.project,slot.regionId))
+            local item={id=region.id,instanceId=id,slot=slot,previewPath=tUtil.getTemporaryFilePath('.msh')}
             staged.items[#staged.items+1]=item
-            local asset,report=generate(region)
+            local cached=assets[region.id]
+            if not cached then
+                local asset,report=generate(region)
+                cached={asset=asset,report=report};assets[region.id]=cached
+            end
+            local asset,report=cached.asset,cached.report
             item.report=report;statistics[region.id]={report=report}
             local vertices=Asset.vertices(asset)
             local x0,x1,y0,y1=math.huge,-math.huge,math.huge,-math.huge
@@ -118,7 +169,7 @@ function M.build(E,generate,dpCall,camera)
     a.pending=nil
     if ok then
         releaseItems(a.items)
-        a.items=staged.items;a.slots=staged.slots;a.revision=E.revision
+        a.items=staged.items;a.slots=staged.slots;a.revision=E.revision;a.builtConfig=a.configRevision
         a.builds=(a.builds or 0)+1;a.layouts=(a.layouts or 0)+1
         E.fitDistance=staging.fitDistance;E.statistics=statistics
         E.report=statistics[E.selected] and statistics[E.selected].report
@@ -134,8 +185,8 @@ function M.build(E,generate,dpCall,camera)
 end
 function M.arrange(E)
     local a=M.state(E)
-    for i,r in ipairs(E.project.regions) do
-        local slot=a.slots[r.id] or {z=0,visible=true};a.slots[r.id]=slot
+    for i,id in ipairs(a.order or {}) do
+        local slot=a.slots[id]
         slot.column=(i-1)%a.columns;slot.row=math.floor((i-1)/a.columns)
     end
     M.layout(E);M.sync(E)
@@ -147,6 +198,7 @@ function M.panel(E,toggle,camera)
     local enabled=tImGui.Checkbox(L('enabled'),a.enabled)
     if enabled~=a.enabled then toggle(enabled) end
     if not a.enabled then return end
+    a=slots(E)
     local changed,value=tImGui.InputInt(L('columns'),a.columns,1,1)
     if changed then a.columns=Model.clampNumber(value,1,64,a.columns,true);M.arrange(E) end
     local layout=false
@@ -155,7 +207,37 @@ function M.panel(E,toggle,camera)
         local c,v=tImGui.InputFloat(L('gap')..' '..axis,a[key],1,10,'%.2f')
         if c then a[key]=Model.clampNumber(v,0,1000000,a[key]);layout=true end
     end
-    local slot=a.slots[E.selected]
+    if a.choicesRevision~=E.revision or a.choicesConfig~=a.configRevision then
+        a.moduleNames={};a.moduleIds={};a.instanceNames={}
+        for i,r in ipairs(E.project.regions) do a.moduleNames[i]=r.name;a.moduleIds[i]=r.id end
+        for i,id in ipairs(a.order) do
+            local r=Model.region(E.project,a.slots[id].regionId)
+            a.instanceNames[i]=i..': '..(r and r.name or '?')
+        end
+        a.choicesRevision=E.revision;a.choicesConfig=a.configRevision
+    end
+    local selected=1
+    for i,id in ipairs(a.order) do if id==a.selectedSlot then selected=i;break end end
+    if #a.order>0 then
+        local c,v=tImGui.Combo(L('object')..'##ime_assembly_instance',selected,a.instanceNames)
+        if c then a.selectedSlot=a.order[v] end
+    end
+    local slot=a.slots[a.selectedSlot]
+    local source=1
+    local sourceId=slot and slot.regionId or a.addRegion or E.selected
+    for i,id in ipairs(a.moduleIds) do if id==sourceId then source=i;break end end
+    if #a.moduleIds>0 then
+        local c,v=tImGui.Combo(L('module')..'##ime_assembly_source',source,a.moduleNames)
+        if c then
+            source=v
+            if slot then M.choose(E,a.selectedSlot,a.moduleIds[v]) else a.addRegion=a.moduleIds[v] end
+        end
+    end
+    if tImGui.Button(L('add')) then M.add(E,a.moduleIds[source]) end
+    if slot then
+        tImGui.SameLine()
+        if tImGui.Button(L('remove')) then M.remove(E,a.selectedSlot);slot=nil end
+    end
     if slot then
         tImGui.Separator();tImGui.Text(L('selected'))
         for _,key in ipairs{'column','row'} do

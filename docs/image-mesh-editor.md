@@ -645,21 +645,30 @@ to 3D. See [Mesh Simplification](mesh-simplification.md) for the shared algorith
 ## Assembly preview
 
 In 3D, enable **Show assembled modules** in the assembly controls. This replaces
-individual simplification comparison with all modules and their current materials.
+individual simplification comparison with a configurable set of preview objects
+and their current materials. Initially there is one object per project module.
+Since 7.278.0, select **Preview object** and choose its **Source module** independently.
+**Add copy** adds another object using that source; **Remove object** removes only
+the preview instance. A project with a single module can therefore test two or more
+copies side by side without duplicating the editable module.
 
-Set grid columns, X/Y spacing, and Arrange to distribute modules in project order.
-Cells use the largest module dimensions. Select a module to change its zero-based
-row/column, depth offset, or visibility. Fit Assembly centers the view. Base front
+Set grid columns, X/Y spacing, and Arrange to distribute objects in preview order.
+Cells use the largest displayed module dimensions. Select a preview object to change
+its zero-based row/column, depth offset, or visibility, independently of other copies. Fit Assembly centers the view. Base front
 planes align at Z=0 before relief and per-module depth offsets.
 
 Placement uses numeric controls; it is a session preview, not saved/exported scene
 layout or project history. Disabling it restores the individual view. Edit mode
 hides the assembly; opening another project clears it.
 
-Updates prepare all modules before replacing the visible assembly. Failure or
+Updates generate each distinct source module once, then load independent preview
+instances before replacing the visible assembly. Objects referencing deleted source
+modules are removed on rebuild; newly created modules can be chosen as sources. Failure or
 cancellation preserves the previous assembly, camera, and framing, labels it as
 outdated, and discards partial results. Only a complete successful update publishes
-new geometry and counts. Layout, selection, and visibility changes reuse ready meshes.
+new geometry and counts. Layout, object selection, and visibility changes reuse
+ready meshes. Adding/removing objects or changing their source invalidates the
+assembly; its controls are disabled while a generation task is running.
 
 ## Projects, presets, and export
 
