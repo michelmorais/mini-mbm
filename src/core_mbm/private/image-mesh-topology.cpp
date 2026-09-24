@@ -663,19 +663,20 @@ static bool curvedTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &
             t.points[t.boundary.back()]=outer[i];
         }
         t.loopEnds.push_back(static_cast<uint32_t>(t.boundary.size()));
+        // Painting refines locally afterward; a central dab must not force global ring doubling.
         bool refine=false;
         for (const auto &face:t.triangles)
         {
             checkpoint(o,"topology",0.35f+0.07f*pass);
             float levels[3];
-            for (unsigned j=0;j<3;++j) levels[j]=field.surface(t.points[face[j]].x,t.points[face[j]].y,o);
+            for (unsigned j=0;j<3;++j) levels[j]=field.curved.level(t.points[face[j]].x,t.points[face[j]].y,o);
             for (unsigned j=0;j<4;++j)
             {
                 const auto &a=t.points[face[j%3]],&b=t.points[face[(j+1)%3]],&c=t.points[face[(j+2)%3]];
                 const float x=j==3?(a.x+b.x+c.x)/3:(a.x+b.x)/2;
                 const float y=j==3?(a.y+b.y+c.y)/3:(a.y+b.y)/2;
                 const float linear=j==3?(levels[0]+levels[1]+levels[2])/3:(levels[j]+levels[(j+1)%3])/2;
-                if (std::abs(field.surface(x,y,o)-linear)>o.heightTolerance) { refine=true;break; }
+                if (std::abs(field.curved.level(x,y,o)-linear)>o.heightTolerance) { refine=true;break; }
             }
             if (refine) break;
         }
@@ -840,11 +841,11 @@ static bool refineCurved(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &er
         {
             checkpoint(o,"topology",0.4f+0.02f*pass);
             const auto a=t.points[face[0]],b=t.points[face[1]],c=t.points[face[2]];
-            const float ha=field.surface(a.x,a.y,o),hb=field.surface(b.x,b.y,o),hc=field.surface(c.x,c.y,o);
-            const bool inaccurate=std::abs(field.surface((a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3,o)-(ha+hb+hc)/3)>o.heightTolerance ||
-                std::abs(field.surface((a.x+b.x)/2,(a.y+b.y)/2,o)-(ha+hb)/2)>o.heightTolerance ||
-                std::abs(field.surface((b.x+c.x)/2,(b.y+c.y)/2,o)-(hb+hc)/2)>o.heightTolerance ||
-                std::abs(field.surface((c.x+a.x)/2,(c.y+a.y)/2,o)-(hc+ha)/2)>o.heightTolerance;
+            const float ha=field.curved.level(a.x,a.y,o),hb=field.curved.level(b.x,b.y,o),hc=field.curved.level(c.x,c.y,o);
+            const bool inaccurate=std::abs(field.curved.level((a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3,o)-(ha+hb+hc)/3)>o.heightTolerance ||
+                std::abs(field.curved.level((a.x+b.x)/2,(a.y+b.y)/2,o)-(ha+hb)/2)>o.heightTolerance ||
+                std::abs(field.curved.level((b.x+c.x)/2,(b.y+c.y)/2,o)-(hb+hc)/2)>o.heightTolerance ||
+                std::abs(field.curved.level((c.x+a.x)/2,(c.y+a.y)/2,o)-(hc+ha)/2)>o.heightTolerance;
             unsigned longest=0;
             for (unsigned e=1;e<3;++e)
                 if (edgeLength(t.points[face[e]],t.points[face[(e+1)%3]],o)>
@@ -1114,14 +1115,18 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &
 {
     if (options.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && field)
     {
-        if (options.curvedInterior) { t=field->curved.facets.topology;return hierarchyBudget(options,t,error); }
+        if (options.curvedInterior)
+        {
+            t=field->curved.facets.topology;
+            return hierarchyBudget(options,t,error) && refinePainting(options,t,*field,error);
+        }
         if (options.curvedFaceted)
         {
             t=field->curved.facets.topology;
             return hierarchyBudget(options,t,error) && cutCurvedHoles(options,t,error,*field);
         }
         const bool built=options.curvedHierarchy?hierarchyTopology(options,t,error,*field):curvedTopology(options,t,error,*field);
-        return built && cutCurvedHoles(options,t,error,*field);
+        return built && cutCurvedHoles(options,t,error,*field) && refinePainting(options,t,*field,error);
     }
     // Manual heights must not inherit hidden image-detection thresholds.
     IMAGE_MESH_OPTIONS o=options;

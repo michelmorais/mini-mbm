@@ -52,7 +52,7 @@ local function dab(E,x,y)
 end
 function M.input(E,action,kind,sx,sy)
     local settings=M.state(E)
-    if E.values and E.values.heightSource=='curved' then return false end
+    if E.values and E.values.heightSource=='curved' and (not E.values.curvedPainting or E.values.curvedFaceted) then return false end
     if not settings.enabled or not E.editMode or E.editDefaults then return false end
     local r=Model.region(E.project,E.selected)
     if not r or r.locked then return false end
@@ -90,10 +90,32 @@ function M.input(E,action,kind,sx,sy)
     return true
 end
 function M.panel(E,action,apply)
-    if E.values and E.values.heightSource=='curved' then M.state(E).enabled=false; return end
     if not E.draft or E.editDefaults or not E.editMode then return end
     if not tImGui.CollapsingHeader(L('title')) then return end
     local settings=M.state(E)
+    local curved=E.values.heightSource=='curved'
+    if curved then
+        if E.values.curvedFaceted then settings.enabled=false;tImGui.TextWrapped(L('curved_faceted'));return end
+        local active=tImGui.Checkbox(L('curved_enabled'),E.values.curvedPainting)
+        if active~=E.values.curvedPainting then
+            M.cancel(E);settings.enabled=false
+            local previous=E.values.curvedPainting
+            E.values.curvedPainting=active
+            if not apply() then E.values.curvedPainting=previous;return end
+            E.heightRequested=true
+        end
+        tImGui.TextWrapped(L('curved_help'))
+        if not E.values.curvedPainting then settings.enabled=false;return end
+        local region=Model.region(E.project,E.selected)
+        local c=settings.curvedRange
+        if not c or c.edge~=E.values.curvedEdge or c.target~=E.values.curvedTarget or c.nodes~=region.curvedNodes then
+            local lo,hi=Model.curved.range({curvedEdge=E.values.curvedEdge,curvedTarget=E.values.curvedTarget,curvedNodes=region.curvedNodes})
+            c={edge=E.values.curvedEdge,target=E.values.curvedTarget,nodes=region.curvedNodes,lo=lo,hi=hi}
+            settings.curvedRange=c
+        end
+        tImGui.Text(string.format(L('curved_range'),c.lo,c.hi))
+        if c.hi==c.lo then settings.enabled=false;tImGui.TextWrapped(L('curved_flat'));return end
+    end
     local enabled=tImGui.Checkbox(L('enabled'),settings.enabled)
     if enabled~=settings.enabled then
         M.cancel(E)
@@ -118,14 +140,15 @@ function M.panel(E,action,apply)
     end
     local r=Model.region(E.project,E.selected)
     tImGui.Text(string.format(L('count'),#(r.heightEdits or {})))
-    tImGui.TextWrapped(L('help'))
+    if not curved then tImGui.TextWrapped(L('help')) end
     if #(r.heightEdits or {})>0 and tImGui.Button(L('clear')) then
         action(function(p) Model.region(p,E.selected).heightEdits=nil end)
     end
 end
 function M.sync(E)
     local p=M.state(E)
-    local visible=p.enabled and p.hover and E.editMode and not E.editDefaults and E.selected~=0 and not E.panDrag and not tImGui.GetWantCaptureMouse()
+    local allowed=not E.values or E.values.heightSource~='curved' or (E.values.curvedPainting and not E.values.curvedFaceted)
+    local visible=allowed and p.enabled and p.hover and E.editMode and not E.editDefaults and E.selected~=0 and not E.panDrag and not tImGui.GetWantCaptureMouse()
     local r=visible and Model.region(E.project,E.selected)
     if not r or r.locked then if p.cursor then p.cursor.visible=false end; return end
     if not p.cursor then

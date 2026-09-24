@@ -2168,6 +2168,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
 | `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
 | `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
+| `curvedPainting` | false | Apply `heightEdits` after the curved field, bounded by its thickness range (7.276.0); inactive during faceting. Old saved strokes remain inactive until explicitly enabled |
 | `curvedInterior` | false | Discrete harmonic interior transition (7.274.0); requires `curvedNodes` with zero or one root point, segment or polyline target; incompatible with faceting |
 | `curvedFaceted` | false | Automatic planar faceting of the curved point/circle profile or nested convex target chain (7.273.0); convex outer contour required |
 | `curvedFacetSectors` | 8 | Integer [8,128], minimum angular sectors; outer polygon corners may add sectors. For ellipses, also replaces `ellipseSegments` while active |
@@ -2211,7 +2212,8 @@ polygonal ellipse outlines are supported. Center/radius validation is shared by
 synchronous and asynchronous mesh/map generation.
 
 Depth/relief, border attenuation, image-derived heights, height image, inversion,
-filtering, two-level detection, painted dabs and height areas do not affect this mode.
+filtering, two-level detection and height areas do not affect this mode. Painted dabs
+are inactive unless `curvedPainting=true` (7.276.0).
 Stored back geometry/material flags are inactive: the back is closed, source-textured,
 and controlled by `curvedSymmetric`. `backMirror` and side texture settings still apply.
 Swap `curvedEdge` and `curvedTarget` to invert thickness. The option reader still
@@ -2616,6 +2618,21 @@ same composed raster, including local adaptive refinement when `followImage=true
 The blue overlay remains an image-detection diagnostic and does not display areas
 or brush corrections (the editor hides it in Manual mode). Editor-only area
 metadata `name` and `shape` are ignored by the native API.
+
+**Painting over curves (7.276.0).** With `heightSource="curved"` and
+`curvedPainting=true`, the existing brushes compose after the radial/hierarchical
+or interior field. Normalized height 0 maps to the minimum authored thickness and
+1 to the maximum; this interpretation also applies to inverted profiles. Targets,
+outer borders and hole rims may change height, but holes remain cut out. Symmetric
+extrusion and a flat back retain their respective distribution rules. Equal minimum
+and maximum thickness makes painting a no-op. Removing `heightEdits` restores the
+base curve; disabling `curvedPainting` preserves the strokes without applying them.
+Faceting keeps strokes inactive to preserve planar faces. Manual height areas are
+still inactive. Geometry first approximates the base curve, then refines painted
+areas locally; optional curved simplification operates on that final surface. The
+editor's original/simplified comparison uses identical painting on both meshes.
+The raster base is evaluated near strokes only, with a margin for interpolation
+and smoothing. Cancellation and existing painting/geometry budgets still apply.
 
 Height painting (`heightEdits`) is shared by `generateImageMesh` and
 `generateImageMeshMap`. Each dab requires `{x, y, radius, strength, height, mode}`.

@@ -199,6 +199,11 @@ M.en = {
     ime_areas_invalid = "Invalid height area: use a simple closed contour with 3-128 points or a line with 2-128 points and width in [0.001,1]. Points must stay inside the crop.",
 
     ime_paint_canvas_help = "Drag inside the selected module to paint. Release to update. Esc cancels; Ctrl+Z undoes a stroke. Outside the module: pan.",
+    ime_paint_curved_enabled = "Apply painting over curve",
+    ime_paint_curved_help = "Painting is applied after the curve and can change targets and borders, within the piece's thickness range. Height 0 is the minimum; 1 is the maximum. Drag to paint and release to update. Ctrl+Z undoes a stroke; Esc cancels. Clear painting restores the curve; disabling it preserves strokes.",
+    ime_paint_curved_range = "Thickness range: %.3f to %.3f",
+    ime_paint_curved_flat = "Painting needs different minimum and maximum thicknesses. Change the contour or target thickness first.",
+    ime_paint_curved_faceted = "Painting is inactive during faceting to preserve planar faces. Strokes remain saved.",
     ime_paint_title = "Height painting",
     ime_paint_enabled = "Paint selected module",
     ime_paint_brush = "Brush",
@@ -3745,6 +3750,11 @@ M.pt_br = {
     ime_areas_invalid = "Área de altura inválida: use um contorno simples fechado com 3-128 pontos ou uma linha com 2-128 pontos e largura em [0.001,1]. Os pontos devem ficar dentro do recorte.",
 
     ime_paint_canvas_help = "Arraste dentro do módulo selecionado para pintar. Solte para atualizar. Esc cancela; Ctrl+Z desfaz um traço. Fora do módulo: mover câmera.",
+    ime_paint_curved_enabled = "Aplicar pintura sobre a curva",
+    ime_paint_curved_help = "A pintura é aplicada após a curva e pode alterar alvos e bordas, dentro do intervalo de espessuras da peça. Altura 0 é a mínima; 1 é a máxima. Arraste para pintar e solte para atualizar. Ctrl+Z desfaz um traço; Esc cancela. Limpar a pintura restaura a curva; desativar preserva os traços.",
+    ime_paint_curved_range = "Intervalo de espessura: %.3f a %.3f",
+    ime_paint_curved_flat = "A pintura precisa de espessuras mínima e máxima diferentes. Altere primeiro a espessura do contorno ou de um alvo.",
+    ime_paint_curved_faceted = "A pintura fica inativa durante o facetamento para preservar as faces planas. Os traços continuam salvos.",
     ime_paint_title = "Pintura de altura",
     ime_paint_enabled = "Pintar módulo selecionado",
     ime_paint_brush = "Pincel",

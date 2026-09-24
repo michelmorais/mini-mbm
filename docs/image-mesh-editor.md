@@ -78,7 +78,7 @@ These are total thicknesses, independent of the saved Depth and Relief settings.
 - Holes cut the curved surface without changing its thickness profile (7.271.0).
   The back uses the source texture and the same openings; horizontal
   back UV mirroring and side texture modes remain available. Other saved back modes,
-  image height adjustments, painting, height areas and the general simplifier are
+  image height adjustments, height areas and the general simplifier are
   inactive. Switching modes retains their saved settings/data.
 - The height map shows total thickness divided by the larger endpoint thickness.
   It shares the native field with mesh generation. There is no groove overlay.
@@ -451,6 +451,18 @@ per generation. Adaptive geometry refines changed areas locally; otherwise the
 chosen grid resolution controls detail. Geometry budgets still apply, and optional
 simplification can approximate painted details afterward.
 
+In **Manual curved** mode (7.276.0), open **Height painting** while editing the
+module and enable **Apply painting over curve**, then **Paint selected module**.
+This is explicitly opt-in, so old strokes previously inactive in curved mode do
+not change existing projects. The panel shows the thickness interval: normalized
+height 0 is its minimum and 1 its maximum. Painting is a final edit and may alter
+targets and borders; holes remain cut out. Clearing restores the curve, while
+unchecking the option retains strokes for later use. Equal thicknesses provide
+no interval to paint; the panel explains how to make one. Faceting keeps painting
+inactive to preserve planar faces. Radial hierarchies and interior transitions
+are supported; local refinement captures fine strokes. Curve simplification and
+its original/result comparison both use the painted surface.
+
 ## Geometry, normals, and budgets
 
 **Follow image shapes (adaptive)** refines relief according to sampled interpolation
@@ -693,6 +705,8 @@ Representative automated coverage in `src/test-lib/` includes:
 - `image_mesh_areas_smoke.lua` and `image_mesh_height_line_smoke.lua`: manual heights.
 - `image_mesh_facets_smoke.lua`: planar field, hard normals, sectors/rings, holes, materials, map agreement, export, vertex budget, snapshots and cancellation.
 - `image_mesh_facets_editor_smoke.lua`: ImGui controls, history, save/reopen, export/map and idle behavior.
+- `image_mesh_curved_paint_smoke.lua`: bounded brushes, targets/borders, holes, interior transition, simplification, maps, budgets and asynchronous snapshots.
+- `image_mesh_curved_paint_editor_smoke.lua`: real enable control, stroke history, persistence, painted original/result comparison, export and idle behavior.
 - `image_mesh_curved_quality_smoke.lua`: saw-like outline, Bézier hierarchy, thin-triangle regression, target-edge heights, hole/manifold checks and angle-weighted normals.
 - `image_mesh_curved_holes_smoke.lua`: curved through-cuts, target/line intersections, 16 holes, concavity, watertightness, Euler/area/volume, side modes, maps, async snapshots and cancellation.
 - `image_mesh_curved_holes_editor_smoke.lua`: move/resize, invalid edits, history, persistence, preview/export, ImGui guidance and idle behavior.

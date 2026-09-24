@@ -637,3 +637,49 @@ Validação: teste ImGui da simplificação curva cobre cache e geração direta
 contagens reais, câmera, visibilidade, wireframe, cancelamento da referência,
 persistência/exportação e ociosidade. Regressões da comparação geral e do cache
 verificam orientação, isolamento da exportação, limpeza de temporários e histórico.
+
+
+## 17. Pintura sobre o relevo curvo — 7.276.0
+
+Prioridade escolhida pelo usuário após validar a comparação da simplificação.
+Status: implementado.
+
+Escopo: reutilizar os pincéis Elevar, Rebaixar, Nivelar e Suavizar sobre
+a superfície calculada pela curva. Os traços permanecem separados dos parâmetros
+da hierarquia: limpar a pintura recupera a curva; alterar a curva reaplica os
+traços na ordem salva. Manter desfazer/refazer por traço e persistência no projeto.
+
+Decisão aprovada pelo usuário: a pintura final pode alterar bordas e alvos,
+limitada ao intervalo de espessuras da hierarquia. A hierarquia permanece como
+base separada; seus parâmetros não são reescritos pelos pincéis.
+
+- [x] Habilitação explícita no modo curvo, sem ativar silenciosamente traços
+  antigos que estavam inativos nesse modo.
+- [x] Composição compartilhada por mapa de altura, prévia, cálculo e exportação.
+- [x] Refinamento nas áreas pintadas para representar pinceladas menores que a
+  grade; respeitar orçamento, progresso e cancelamento.
+- [x] Compatibilidade com hierarquia radial, transição pelo interior, furos e
+  distribuição simétrica ou com verso plano. Preservar o recorte dos furos.
+- [x] Comparação original/simplificado usando a mesma pintura nos dois resultados.
+- [x] Explicar intensidade e altura normalizada em relação às espessuras da peça;
+  diagnosticar casos sem intervalo de espessura.
+- [x] Validar os quatro pincéis, limpar, histórico, salvar/reabrir, detalhes finos,
+  mapas/exportação e ausência de trabalhos repetidos com o editor ocioso.
+
+Facetamento e composição com áreas manuais ficam fora deste primeiro marco:
+pintura livre modifica a planaridade das facetas e requer um contrato próprio.
+Dados desses modos devem continuar preservados ao alternar configurações.
+
+
+Validação em Linux Debug: testes nativos de pincéis, intervalo/inversão, alvo,
+bordas, furos, verso plano, transição pelo interior, simplificação, mapa e snapshot
+assíncrono. Teste do editor cobre traços, histórico, persistência, exportação e
+ociosidade. Refinamento da curva precede o refinamento local da pintura, evitando
+aumento global da resolução para acomodar um pincel localizado. `curvedPainting`
+inicia desativado para preservar o comportamento de projetos anteriores.
+
+Comparação verificada com a pintura tanto no original quanto no simplificado.
+Regressões de pincéis existentes e qualidade da hierarquia aprovadas; malha
+exportada carregada no `testLib` 3D por 3 segundos, com encerramento normal.
+Interações foram exercitadas pelos callbacks e controles ImGui nos testes;
+arrastar fisicamente com o mouse permanece para validação do usuário.

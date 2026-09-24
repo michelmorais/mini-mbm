@@ -105,7 +105,37 @@ struct HEIGHT_FIELD
         pixels.reset(stbi_load(path.c_str(),&iw,&ih,&channels,4));
         if (!pixels || iw!=static_cast<int>(imageWidth) || ih!=static_cast<int>(imageHeight))
             return fail("Cannot decode image or dimensions changed");
-        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED) return curved.prepare(o,error);
+        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED)
+        {
+            if (!curved.prepare(o,error)) return false;
+            if (!o.curvedPainting || o.curvedFaceted) return true;
+            if (!validateDabs(o,error)) return false;
+            if (!o.heightEditCount || o.relief==0) return true;
+            // Only evaluate the curved base near strokes. The margin covers smoothing,
+            // mask dilation and bilinear sampling; untouched regions keep the analytic field.
+            int x0=static_cast<int>(width)-1,y0=static_cast<int>(height)-1,x1=0,y1=0;
+            for (uint32_t i=0;i<o.heightEditCount;++i)
+            {
+                const auto &d=o.heightEdits[i];
+                const float radius=std::max(0.5f,d.radius*std::max(1u,std::min(width,height)-1))+4;
+                const float x=d.x*(width-1),y=d.y*(height-1);
+                x0=std::min(x0,std::max(0,static_cast<int>(std::floor(x-radius))));
+                y0=std::min(y0,std::max(0,static_cast<int>(std::floor(y-radius))));
+                x1=std::max(x1,std::min(static_cast<int>(width)-1,static_cast<int>(std::ceil(x+radius))));
+                y1=std::max(y1,std::min(static_cast<int>(height)-1,static_cast<int>(std::ceil(y+radius))));
+            }
+            levels.assign(static_cast<size_t>(width)*height,0);
+            for (int y=y0;y<=y1;++y)
+            {
+                checkpoint(o,"heights",0.12f);
+                for (int x=x0;x<=x1;++x)
+                    levels[static_cast<size_t>(y)*width+x]=curved.level(
+                        static_cast<float>(x)/std::max(1u,width-1),static_cast<float>(y)/std::max(1u,height-1),o);
+            }
+            IMAGE_MESH_OPTIONS painting=o;
+            painting.heightAreas=nullptr;painting.heightAreaCount=0;
+            return paint(painting,error);
+        }
         std::unique_ptr<stbi_uc,decltype(&std::free)> heightPixels{nullptr,&std::free};
         int hw=0,hh=0;
         if (o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.heightImage && *o.heightImage)
@@ -176,11 +206,10 @@ struct HEIGHT_FIELD
         }
         return paint(o,error);
     }
-    bool paint(const IMAGE_MESH_OPTIONS &o,std::string &error)
+    static bool validateDabs(const IMAGE_MESH_OPTIONS &o,std::string &error)
     {
         if (o.heightEditCount>4096 || (o.heightEditCount && !o.heightEdits))
         { error="Invalid heightEdits: maximum 4096 dabs"; return false; }
-        if (!o.heightEditCount && !o.heightAreaCount) return true;
         for (uint32_t i=0;i<o.heightEditCount;++i)
         {
             const auto &d=o.heightEdits[i];
@@ -189,6 +218,12 @@ struct HEIGHT_FIELD
                 !unit(d.strength) || !unit(d.height) || d.mode<IMAGE_MESH_BRUSH::RAISE || d.mode>IMAGE_MESH_BRUSH::SMOOTH)
             { error="Invalid heightEdits dab: coordinates/strength/height [0,1], radius [0.001,1]"; return false; }
         }
+        return true;
+    }
+    bool paint(const IMAGE_MESH_OPTIONS &o,std::string &error)
+    {
+        if (!validateDabs(o,error)) return false;
+        if (!o.heightEditCount && !o.heightAreaCount) return true;
         painted.reserve(levels.size());
         for (float v:levels) painted.push_back(mapped(v,o));
         if (!composeHeightAreas(o,width,height,painted,error)) return false;
@@ -286,8 +321,8 @@ struct HEIGHT_FIELD
     float sample(float u,float v) const { return interpolate(u,v,levels); }
     float surface(float u,float v,const IMAGE_MESH_OPTIONS &o) const
     {
-        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED) return curved.level(u,v,o);
-        const float automatic=mapped(sample(u,v),o);
+        const float automatic=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED ?
+            curved.level(u,v,o):mapped(sample(u,v),o);
         if (!hasPainting()) return automatic;
         const float weight=interpolate(u,v,paintMask);
         if (weight==0) return automatic;

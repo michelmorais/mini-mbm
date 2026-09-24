@@ -83,7 +83,10 @@ local function syncDraft()
             E.tool=='side_band' or E.tool=='back_uv' then E.tool='select' end
     end
     if E.values.heightSource~='curved' and E.tool=='curved' then E.tool='select' end
-    if E.values.heightSource=='curved' then Paint.state(E).enabled=false;if Areas.active(E) then E.tool='select' end end
+    if E.values.heightSource=='curved' then
+        if not E.values.curvedPainting or E.values.curvedFaceted then Paint.state(E).enabled=false end
+        if Areas.active(E) then E.tool='select' end
+    end
     E.curvedNode=math.max(0,math.min(E.curvedNode or 0,r and #(r.curvedNodes or {}) or 0))
     E.point=1
 end
