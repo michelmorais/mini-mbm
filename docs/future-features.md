@@ -10,12 +10,16 @@ than delaying the delivered workflow.
 
 ### Coplanar-region follow-up
 
-The conservative first implementation is delivered in 7.280.0; see
+The Coplanar delivery is **complete through M8 / 7.289.0**, with its
+[final acceptance audit](mesh-coplanar-acceptance.md). The items below are optional
+improvements driven by real assets, not blockers for this delivery.
+
+The conservative first implementation was delivered in 7.280.0; see
 [Mesh Simplification](mesh-simplification.md#coplanar-modes-72800) and the
 [design/validation record](mesh-coplanar-optimization-plan.md).
 
 Certified retriangulation of eligible regions with up to 16 holes is delivered in
-7.283.0, with every boundary segment retained. Remaining work:
+7.283.0, with every boundary segment retained. Optional follow-ups:
 
 - approximate contour reduction and broader boundary coordination; exact collinear
   boundary coordination is delivered as an opt-in feature in 7.284.0;

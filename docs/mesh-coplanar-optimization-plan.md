@@ -1,8 +1,34 @@
 # Coplanar mesh optimization — investigation and delivery milestones
 
-Status: **M1 delivered in 7.280.0; M2 in 7.283.0; opt-in M3 in 7.284.0; M4 in 7.285.0; M5 in 7.286.0; M6 in 7.287.0; M7 in 7.288.0; M8 in 7.289.0**. Initial investigation
+Status: **delivery completed at M8 / 7.289.0; final acceptance audit completed**.
+See [the final acceptance matrix and reproducible validation](mesh-coplanar-acceptance.md).
+
+History: **M1 delivered in 7.280.0; M2 in 7.283.0; opt-in M3 in 7.284.0; M4 in 7.285.0; M5 in 7.286.0; M6 in 7.287.0; M7 in 7.288.0; M8 in 7.289.0**. Initial investigation
 against `547b569f`, 2026-09-24. The design below was recorded before implementation;
 this delivery record states the implemented scope and remaining validation limits.
+
+## Final milestone: acceptance audit and closure (completed)
+
+Recorded before work. Freeze feature scope at M8: no new algorithms or UI options.
+Audit the original requirements against implementation and existing evidence;
+exercise saved/imported repository assets through the native load/simplify/save
+flow as well as existing editor, cancellation and geometry fixtures. Review strict
+floating-point build assumptions and validate the private numerical helpers at
+both native long-double and binary64 precision without claiming platform emulation.
+Fix demonstrated issues only. Publish a final acceptance matrix, actual test commands
+and results, retained limitations, and an explicit completed status. Reclassify
+follow-up ideas as optional improvements driven by real assets, not unfinished
+requirements. Non-GLES runtime and native mouse interaction may remain unexecuted
+and must be called out; do not imply cross-platform runtime parity from source review.
+
+Closure result: original requirements are mapped to implementation and evidence in
+[Final acceptance](mesh-coplanar-acceptance.md). The complete GCC validation and
+Clang structural validation pass, including binary64 helper checks and a real OBJ
+parse/load/simplify/save/reload fixture. Existing engine assets retain their geometry
+when ineligible; the OBJ reduces 256 -> 60 or 4 faces. No production-code correction
+or feature-version bump was needed. Runtime platform/mouse/precision limits are
+explicitly retained. All remaining feature ideas are optional follow-ups; this
+Coplanar delivery has no further implementation milestone queued.
 
 ## Milestone 8: strict 3D obstacle separation (7.289.0)
 

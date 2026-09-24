@@ -1,5 +1,8 @@
 # Mesh Simplification
 
+The Coplanar delivery is complete through 7.289.0. See the
+[final acceptance matrix, validation commands and limits](mesh-coplanar-acceptance.md).
+
 Mini MBM provides two polygon-reduction workflows with different asset boundaries:
 
 - Blender importer reduction for high-density static GLB/FBX sources before MSH subset chunking;
@@ -7,7 +10,8 @@ Mini MBM provides two polygon-reduction workflows with different asset boundarie
 
 Both workflows retain the engine's `uint16_t` vertex-index contract. Simplification reduces the
 existing topology; it is not a remesh operation that rebuilds and reprojects an arbitrary surface.
-The editor range for native MSH simplification is 0.1% through 95%. Before starting, editors compare
+The QEM target-ratio range in the native MSH editors is 0.1% through 95%;
+Coplanar-only does not use a target ratio. Before starting, editors compare
 the estimated result vertex count with the 65,535 indexed-mesh limit. The native path repeats the
 check after exact attribute joining and fails before edge-collapse passes when the conservative
 logical estimate still cannot fit.
