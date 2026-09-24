@@ -25,6 +25,7 @@ local BackUv=require 'image_mesh_back_uv'
 local Sides=require 'image_mesh_sides'
 local Holes=require 'image_mesh_holes'
 local Areas=require 'image_mesh_areas'
+local Curved=require 'image_mesh_curved'
 local Freehand=require 'image_mesh_freehand'
 local M={}
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -131,7 +132,7 @@ function M.sync(E)
     end
     for _,r in ipairs(outlines(E)) do
         draw(r.points,true,E.selection[r.id])
-        if not r.locked and r.id==E.selected and not Areas.active(E) and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' and E.tool~='auto_contour' and E.tool~='auto_background' then
+        if not r.locked and r.id==E.selected and not Areas.active(E) and E.tool~='curved' and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' and E.tool~='auto_contour' and E.tool~='auto_background' then
             local region=Model.region(E.project,r.id)
             if region.shape=='polygon' then for _,p in ipairs(r.points) do handle(p.x,p.y) end
             else handle(region.x+region.w-1,region.y+region.h-1) end
@@ -139,6 +140,7 @@ function M.sync(E)
     end
     Holes.draw(E,draw,handle)
     Areas.draw(E,draw,handle)
+    Curved.draw(E,draw,handle)
     if Sides.available(E) then
         local cached,region=Sides.contour(E)
         if cached and cached.points then
@@ -172,10 +174,11 @@ function M.input(E,H,event,mx,my)
     local origin=M.transform(E); local scale,scaleY=origin.scale,origin.scaleY
     local selected=Model.region(E.project,E.selected)
     local locked=selected and selected.locked
-    if locked and (Areas.active(E) or E.tool=='holes' or E.tool=='hole_draw' or
+    if locked and (E.tool=='curved' or Areas.active(E) or E.tool=='holes' or E.tool=='hole_draw' or
         E.tool=='hole_freehand' or E.tool=='side_band' or E.tool=='back_uv') then return false end
     if E.tool=='auto_contour' or E.tool=='auto_background' then return H.detect(event,mx,my,origin) end
     if E.tool=='freehand' or E.tool=='hole_freehand' or E.tool=='area_freehand' then return Freehand.input(E,event,mx,my,origin) end
+    if E.tool=='curved' then return Curved.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if Areas.active(E) then return Areas.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if E.tool=='holes' or E.tool=='hole_draw' then return Holes.input(E,H,event,mx,my,origin,M.handleRadius(E)) end
     if E.tool=='side_band' then return Sides.input(E,H,event,mx,my,origin,M.handleRadius(E)) end

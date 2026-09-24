@@ -201,6 +201,7 @@
     <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-context.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-parity-asset.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\mesh-planar.h" />
     <ClInclude Include="..\..\src\core_mbm\private\mesh-simplifier.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-render-capability.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-execution-policy.h" />

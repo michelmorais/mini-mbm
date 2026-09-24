@@ -78,6 +78,7 @@ function M.load(path)
         local region={id=r.id,name=r.name,locked=r.locked==true,shape=r.shape,x=r.x,y=r.y,w=r.w,h=r.h,overrides=Model.copy(r.overrides)}
         if r.holes then region.holes=Model.copy(r.holes) end
         if r.heightAreas then region.heightAreas=Model.copy(r.heightAreas) end
+        if r.curvedNodes then region.curvedNodes=Model.copy(r.curvedNodes) end
         for _,hole in ipairs(region.holes or {}) do
             if hole.primitive==nil and HoleGeometry.isEllipse(hole) then
                 hole.primitive='ellipse';hole.preserveShape=true

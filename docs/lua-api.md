@@ -1453,10 +1453,60 @@ invariants, Mesh Debug integration, and importer relationship.
 
 ```lua
 local report, err = meshD:simplify(targetTriangleRatio
-    [, targetSubset [, targetFrame [, preserveDetails [, boundaryCollapseThreshold]]]])
+    [, targetSubset [, targetFrame [, preserveDetails [, boundaryCollapseThreshold [, mode [, planarTolerance [, planarAngle [, planarReduceBoundaries]]]]]]]]])
 ```
 
-`targetTriangleRatio` must be finite, greater than zero, and smaller than one. The operation uses
+Optional `mode` is `"qem"` (default), `"coplanar_qem"`, or
+`"coplanar"`. The default retains existing QEM behavior. Coplanar runs before QEM
+in combined mode, with the absolute target derived from the original triangle
+count; QEM is skipped if the prepass already reaches it. Coplanar-only ignores the
+ratio (it may be `nil`) and preserves ineligible regions. It skips skeletal,
+articulated and multi-frame assets. See [coplanar limits](mesh-simplification.md#coplanar-modes).
+
+The optional `planarTolerance` defaults to `1e-7` and must be
+finite in `[0, 0.01]`. It limits distance to the fixed seed plane as a fraction of
+the original connected subset diagonal; zero requires exact coplanarity. It does
+not relax the angular, attribute, topology or neighbor checks and does not alter
+QEM. It is not the final geometric error bound (see `planarMaximumError`). The
+asynchronous worker captures the value at start. Invalid numeric values fail
+without publishing a result (async: `state="failed"`).
+
+Optional `planarAngle` is finite in `[0, 5]`, in degrees, default
+`0.05`. It bounds each face normal against the fixed seed plane, including the
+replacement triangles. The default uses the dot threshold `0.99999962`
+for compatibility; other values use their cosine. Distance and angle limits apply
+together; increasing only the angle may leave the result unchanged. Both native
+and asynchronous forms capture/validate this parameter just like `planarTolerance`.
+
+Optional boolean `planarReduceBoundaries` defaults to false. It
+coordinates exact collinear boundary samples across certified exact-plane charts,
+including coincident seam aliases. It retains corners, locks, unselected contacts,
+uncertified neighbors and attribute charts. The report includes
+`planarBoundaryRemovedVertices` (geometric samples, not physical alias count) and
+`planarBoundaryFallback` (coordination was discarded, retaining the completed
+interior-only pass). All dependent regions must certify before any coordinated
+result is published. See [coordination limits](mesh-simplification.md#coordinated-straight-boundaries).
+
+Exactly planar generic regions may also preserve varying raw
+normals when every source corner matches one affine field with zero computed
+residual and all normals lie in the reference seed corner normal's open hemisphere. Near-planar
+regions and curved-specific generation still require constant raw normals. This
+does not relax normal seams or non-affine shading fields.
+
+The report includes `unchanged`, `qemRan`, `planarSkipped`, `planarRegions`,
+`planarRejectedRegions`, `planarRemovedTriangles`, `planarHoles`, `planarAttributes`,
+`planarTopology`, `planarSurroundings`, `planarWorkLimit`, `planarMaximumError` and
+`planarMaximumUvError`. Bounds describe the planar stage only; QEM errors remain
+separate. Small/no-reduction regions are not counted as rejected regions.
+Eligible regions may include up to 16 disjoint internal holes.
+`planarHoles` counts rejected loop/bridge validation, not the number of holes in
+successfully simplified regions. Original boundary segments remain unless optional exact straight contraction is enabled; touching
+or nested loops and uncertain triangulations fall back unchanged.
+A coplanar-only no-op leaves native buffers intact. A combined failure or accepted
+cancellation publishes neither stage. The synchronous and asynchronous forms
+accept identical modes and return the same report fields.
+
+`targetTriangleRatio` must be finite, greater than zero, and smaller than one in modes that include QEM. The operation uses
 quadric-error edge collapses, preserves open boundaries, UV seams, hard-normal splits, material
 metadata, and authored physics metadata, and commits only after the complete candidate is valid.
 Meshes authored in memory with `addVertex`/`addIndex` can be simplified directly;
@@ -1518,7 +1568,7 @@ Editor tools should use the instance-owned asynchronous form for large meshes:
 
 ```lua
 local started, err = meshD:startSimplify(targetTriangleRatio,
-    targetSubset, targetFrame, preserveDetails, boundaryCollapseThreshold)
+    targetSubset, targetFrame, preserveDetails, boundaryCollapseThreshold, mode, planarTolerance, planarAngle, planarReduceBoundaries)
 local status = meshD:getSimplifyStatus()
 ```
 
@@ -1530,7 +1580,7 @@ engine-loop integration. Lua must poll from its normal `onLoop`. Do not read, sa
 same instance while its state is `running`; use a detached working `meshDebug` and publish it only
 after completion. Destroying the instance requests cooperative cancellation and waits for its worker to finish.
 
-Since 7.259.0, `meshD:cancelSimplify()` requests cooperative cancellation and returns
+`meshD:cancelSimplify()` requests cooperative cancellation and returns
 `true` if accepted before the commit boundary. It returns `false` when no worker
 is running, cancellation was already requested, or replacement of the buffers has
 begun. Keep polling until terminal status; do not read or mutate the mesh while
@@ -2163,11 +2213,26 @@ assert(asset:save("panel.msh", false, false, true))
 | `heightBlack`, `heightWhite` | 0, 1 | Finite input endpoints: `0 <= black <= white <= 1`. Clamp/rescale selected height channel to [0,1]. Equal endpoints create a step (input >= point gives 1). |
 | `heightCurve` | 1 | Finite exponent [0.1,10], applied after black/white normalization and before inversion/filtering. Manual mode ignores tonal adjustments. |
 | `heightChannel` | `"luminance"` | `"luminance"`, `"red"`, `"green"`, `"blue"`, or `"alpha"`; image component used before inversion, filtering and groove mapping. Ignored by manual heights. |
-| `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas |
+| `heightSource` | `"image"` | `"image"` preserves automatic heights, `"manual"` uses `baseHeight`, `"mixed"` combines image heights with ordered areas; `"curved"` uses radial total thickness (see below) |
+| `curvedX`, `curvedY` | 0.5, 0.5 | Curved target center in normalized crop coordinates [0,1] |
+| `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
+| `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
+| `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
+| `heightFinishing` | true | Apply areas then brush dabs (7.277.0); false restores the base without deleting edits |
+| `curvedPainting` | false | Enable finishing over the curved field, bounded by its thickness range; applies areas and then dabs since 7.277.0; inactive during faceting |
+| `curvedInterior` | false | Discrete harmonic interior transition (7.274.0); requires `curvedNodes` with zero or one root point, segment or polyline target; incompatible with faceting |
+| `curvedFaceted` | false | Automatic planar faceting of the curved point/circle profile or nested convex target chain (7.273.0); convex outer contour required |
+| `curvedFacetSectors` | 8 | Integer [8,128], minimum angular sectors; outer polygon corners may add sectors. For ellipses, also replaces `ellipseSegments` while active |
+| `curvedFacetRings` | 1 | Integer [1,16], uniform transition bands between contour and center/table |
+| `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion (7.270.0); ignored outside curved mode and while `curvedFaceted=true` or `curvedInterior=true` |
+| `curvedSimplifyMode` | `"specific"` | Since 7.280.0: `"specific"`, `"coplanar_specific"`, or `"coplanar"`. Coplanar runs first on exact horizontal plateaus; coplanar-only never invokes the specific reducer or QEM. Active only with `curvedSimplify=true`. |
+| `curvedSimplifyRatio` | 0.5 | Requested fraction of front triangles to retain, finite [0.01,1]; a goal, not a guarantee |
+| `curvedSimplifyError` | 0.01 | Maximum additional normalized height error, finite [0.0001,0.25], compared with the dense generated surface |
+| `curvedNodes` | nil | Optional hierarchy of targets and independent local regions; absent preserves the legacy profile, an empty table makes the root flat |
 | `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
-| `heightAreas` | nil | Up to 32 ordered closed contours with target height and inward transition; see below |
+| `heightAreas` | nil | Up to 32 ordered closed contours or open lines with flatten/raise/lower operation and inward transition; see below |
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
-| `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief; finite [0.001,1], constrained by density and sampling |
+| `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief (endpoint thickness difference for curved mode); finite [0.001,1], constrained by density and sampling |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
 | `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
 | `backExternal` | false | Flat back with an independent image material; mutually exclusive with other back modes |
@@ -2189,6 +2254,219 @@ assert(asset:save("panel.msh", false, false, true))
 | `sideBandInvert` | false | Band mode only: swap outer/inner UV endpoints across side depth; true places the inner contour next to the front and outer next to the back. Does not change front/back UVs or geometry |
 | `maxVertices` | 65535 | Total vertex budget, including back, duplicated side vertices and repetition seams; engine cap remains 65535 |
 | `maxTriangles` | 131070 | Total triangle budget |
+
+Without `curvedNodes` and with both `curvedFaceted=false` and `curvedInterior=false`, `heightSource="curved"` preserves the legacy profile: it is linear from the real outer contour to a
+movable point or circular plateau. The source image still supplies color/UVs. The
+center must lie strictly inside the contour's visibility kernel; the target circle
+must be strictly inside the contour. Holes are supported since 7.271.0 as through-cuts
+(see below). Rectangle, polygon, and
+polygonal ellipse outlines are supported. Center/radius validation is shared by
+synchronous and asynchronous mesh/map generation.
+
+Depth/relief, border attenuation, image-derived heights, height image, inversion,
+filtering and two-level detection do not affect this mode. Areas and painted dabs
+are inactive unless `curvedPainting=true` and `heightFinishing=true`.
+Stored back geometry/material flags are inactive: the back is closed, source-textured,
+and controlled by `curvedSymmetric`. `backMirror` and side texture settings still apply.
+Swap `curvedEdge` and `curvedTarget` to invert thickness. The option reader still
+type-checks supplied fields; shared validation also checks tonal/channel ranges
+even though they are inactive.
+
+The native field maps thickness to the existing extrusion pipeline using
+`depth=min(curvedEdge,curvedTarget)` and
+`relief=abs(curvedTarget-curvedEdge)/(curvedSymmetric and 2 or 1)`.
+Consequently report `minHeight`/`maxHeight` retain their meaning as outward front
+relief displacements, rather than total thickness. The map PNG instead encodes total
+thickness divided by the larger endpoint thickness; requesting an overlay in curved
+mode also returns this grayscale thickness map.
+
+Before optional hole cuts, the topology contains a center vertex and, for positive radius, a sampled target ring.
+Columns/rows seed its density. Mid-edge/centroid samples drive deterministic ring
+refinement up to the requested `heightTolerance`, subject to geometry budgets and a
+bounded number of passes. This does not certify a global interpolation-error bound.
+A circle is approximated by chords. The editor disables the general post-generation
+simplifier for curved meshes; calling that simplifier directly does not preserve
+radial/plateau constraints by contract.
+
+Since 7.280.0, curved reports also include `curvedPlanarRemovedTriangles`. The planar
+prepass preserves controls/extrema and the generator's constant-normal plateau
+policy, and contributes zero initial height error. In `"coplanar"` mode the ratio
+is not a target and `curvedTargetReached` is true; options still undergo the same
+range validation. In combined mode the specific target uses the original dense
+front count. Existing faceted/interior exclusions remain in force.
+
+**Constrained curved simplification (7.270.0).** `curvedSimplify=true` removes interior
+vertices and retriangulates their cavities before front/back/side construction.
+It keeps all remaining contour/hole vertices, authored target/local-region outlines (including inserted
+points on their segments), legacy center/circle-ring vertices and sampled local
+extrema. Retained vertices keep their positions/UVs; normals are recomputed.
+A conservative error bound propagates through triangle intersections, relative to
+the original dense piecewise-linear surface, avoiding cumulative tolerance drift.
+Multiply `curvedSimplifyError` by the total thickness range for the additional
+thickness error, or by `relief` for displacement on the front face. This does not
+turn the initial sampled `heightTolerance` into a global analytic-field guarantee.
+The dense mesh must fit the existing budgets first. The pass may stop before the
+requested ratio because of constraints, tolerance, float degeneracy, bounded cavity
+size (32 incident triangles), or its 32-pass processing limit. Partial reduction
+is successful generation. Ratio/error ranges are checked for active mesh simplification.
+Height maps use the original analytic field and are unaffected.
+
+Both sync and async mesh reports then include `curvedSourceTriangles` and
+`curvedResultTriangles` (front surface only), `curvedMaximumError` (conservative
+normalized error bound, not a measured maximum), and `curvedTargetReached`.
+These fields are absent when the pass is inactive; existing `vertices`/`triangles`
+still describe the entire final mesh. Async jobs copy all three input options,
+report stage `curved_simplify`, and support cancellation during the pass.
+
+**Interior transition (7.274.0).** `curvedInterior=true` computes a discrete harmonic
+surface on a constrained triangulation of the piece. `curvedNodes` must be present:
+an empty table produces a flat piece at `curvedEdge`; otherwise supply exactly one
+root target (`parent=0`, `role="target"`), a point, two-point segment, or open
+`shape="polyline"` with 2..128 points. All target points and segments must be strictly
+inside the contour and outside holes. Self-intersections, backtracking and touching
+boundaries are rejected. Convexity and radial visibility are not required.
+
+In the base interior field, the outer and hole boundaries are fixed at `curvedEdge`,
+and every target segment is fixed at its `thickness`. Optional height finishing
+is applied afterward and may alter those heights. Positive edge weights equal
+inverse edge length in world dimensions. A preconditioned conjugate-gradient solve propagates the heights
+only through the mesh interior, without bridging voids. Intermediate heights remain
+between the two endpoint thicknesses. This is a resolution-dependent discrete
+surface with smooth normals, not a promise of a globally differentiable surface or
+linear growth with distance. `columns` and `rows` control base tessellation; its
+resolution is not driven by `heightTolerance`. Finishing can add local refinement.
+Mesh and height map use the same piecewise linear base field before finishing. Unlike radial/faceted holes, interior holes participate in the solve
+and alter nearby heights; a target cannot run through a hole.
+
+Facet mode is incompatible. Simplification and authored transition profiles are
+inactive; their saved values remain intact. Closed targets, multiple targets and
+local regions are not supported by the interior transition. Symmetric/flat
+backs, materials, vertex/triangle budgets, export and asynchronous cancellation
+remain supported. Flat back is at Z=0. A failed solve produces an error, not a partial
+mesh. Geometry and field preparation happen only on requested generation/map tasks.
+
+**Automatic faceting (7.273.0).** `curvedFaceted=true` uses a coarse, piecewise-planar
+surface instead of the radial analytic profile. It supports legacy point/circle
+controls and `curvedNodes` chains, on convex outer contours. Chains accept convex
+closed targets and an optional terminal point; local regions and lines are rejected.
+An empty chain makes the root flat. The shared ray origin is the arithmetic mean of
+the innermost polygon vertices, or the terminal point. All polygon corners add rays;
+each target boundary retains its authored thickness. The final polygon's interior is
+flat. Rings divide each connection linearly; saved smooth/Bézier profiles are inactive.
+Moving a target may change triangulation across the chain. Existing hierarchy
+containment/size/depth validation still applies. Other height modes ignore the facet
+settings. For the legacy profile, existing center,
+radius, total endpoint thickness, inversion by swapping endpoints and symmetric/flat
+back rules still apply. Radius zero produces a peak; positive radius locates the
+vertices of the polygonal central table.
+
+`curvedFacetSectors` seeds angular rays; outer polygon vertices add rays as necessary
+to preserve corners. An ellipse is first approximated using that sector count, so
+its faceted silhouette can differ from the saved `ellipseSegments` approximation.
+`curvedFacetRings` divides the transition into uniform radial bands with linear
+endpoint thickness interpolation. Bands can remain coplanar; this is not a prescribed
+gemological brilliant cut. Nonplanar strips are split into triangles. Columns, rows,
+and adaptive height tolerance no longer determine tessellation (their general
+argument ranges still apply). The protected simplifier is inactive while faceting
+is enabled; its saved settings need not be cleared.
+
+Mesh generation, maps and hole intersections evaluate the same planar field. Holes
+subdivide existing facet planes without reverting to a curved analytic surface.
+Every output triangle has three independent vertices with its geometric unit normal,
+including back and side faces; UVs and material subsets are preserved. The complete
+vertex budget therefore includes `3 * report.triangles`, subject to the engine's
+65,535-vertex ceiling. The report's displacement conventions remain unchanged.
+Exports keep the authored normals. Async jobs copy the three scalar options and
+report the `facets` stage during field preparation; cancellation remains cooperative.
+Projects omitting the fields retain the previous curved path and smoothing.
+
+**Holes in curved relief (7.271.0).** The existing `holes` option also works with
+legacy point/circle profiles and `curvedNodes`. Holes cut both surfaces and create
+inner walls at the local thickness; they do not change the analytic height field
+or introduce a new thickness target. A hole may contain a virtual control point,
+cut a target line, or cross target/local-region boundaries. Controls still obey
+hierarchy containment and visibility rules on the complete outer contour, independent
+of holes. The original control data remains unchanged.
+
+The existing limits apply: up to 16 simple contours of 3..128 points, strictly inside
+the module, with no touching, overlap or nesting between holes. Polygonal circles,
+ellipses and concave holes are supported. Generation inserts cut constraints into
+the curved triangulation, removes interior faces and unused points, reconstructs
+oriented boundary loops and refines the remaining surface. Excessive numeric proximity
+or geometry budgets produce a diagnostic instead of partial/open geometry. Dense
+uncut construction and intermediate cuts must fit the budget before simplification.
+
+Inner walls use the existing side material rules, including hole-edge sampling for
+`sideMode="band"`. Symmetric relief and flat backs use the same cuts. Protected
+simplification retains hole boundary vertices. Height maps are transparent inside
+holes and keep the same thickness values on the remaining surface. Async mesh/map
+jobs already snapshot `holes`; mesh generation includes a `curved_holes` progress
+stage and cooperative cancellation. With no holes, the original topology path is
+retained. No additional option or persistence format is required.
+
+**Curved hierarchy (7.267.0).** Optional `curvedNodes` replaces the legacy center/radius
+profile. It is an array of at most 32 nodes; every node is an array of 1..128
+normalized crop points `{x=..., y=...}`, with these fields:
+
+| Field | Meaning |
+|---|---|
+| `shape` | Optional: `"polyline"` makes 2..128 points an open target, only with `curvedInterior=true`. Otherwise point count determines geometry as below. |
+| `parent` | Required integer: 0 is the outer contour; otherwise the index of an earlier node. Maximum depth is 8. |
+| `role` | Required `"target"` or `"region"`. Each closed owner has at most one target and may have multiple local regions. |
+| `thickness` | Total target thickness, finite [0.001,1000000], default 8. Validated but ignored for inherited local regions. |
+| `profile` | Since 7.268.0: `"linear"` (default), `"smooth"`, or `"bezier"`, controlling the transition from the owner to this target. Validated but ignored on local-region nodes. |
+| `bezierPoints` | Since 7.269.0: number of internal control points, integer 2 (default), 3 or 4. The two endpoints are additional and fixed. |
+| `bezier1`, `bezier2` | Since 7.268.0: first two vertical controls, defaults 0 and 1. Each must be finite and within [0,1]; since 7.268.1 they may cross. |
+| `bezier3`, `bezier4` | Since 7.269.0: additional vertical controls, each defaulting to 1. All supplied controls are validated in [0,1], even when unused or the profile is not Bézier. |
+
+Outside interior transition, one point or two points define a terminal point/segment
+target. Three or more points define a simple closed contour. Closed targets must be convex; local regions may
+be concave. All nodes must be strictly inside their parent. A target must lie entirely
+inside its owner's visibility kernel. Independent local regions cannot overlap,
+touch or contain one another; explicitly nested regions are allowed. Holes cut the
+radial surface after evaluating virtual controls (see Curved holes above). Invalid
+geometry returns a diagnostic instead of a partial mesh.
+
+The root border has `curvedEdge` thickness. A closed target without another target
+is a plateau; its children may create further transitions. A local region inherits
+its owner's underlying height at its border and transitions to its own target.
+Without a target it leaves that underlying field unchanged, apart from any local
+children. Sibling order does not change the height field. For each transition the
+sample projects to the nearest point on the target; the outward ray finds the owner
+border. With normalized progress `t` from that border (0) to the target (1), the
+thickness is `borderThickness + (targetThickness-borderThickness)*f(t)`:
+
+- Linear: `f(t)=t` (unchanged default).
+- Smooth: `f(t)=t*t*(3-2*t)`.
+- Bézier with 2 controls: `f(t)=3*(1-t)^2*t*bezier1 + 3*(1-t)*t^2*bezier2 + t^3`.
+
+With `k=bezierPoints`, the Bézier degree is `d=k+1`; endpoints are `(0,0)` and
+`(1,1)` and internal control `i` is `(i/d, bezier_i)`. Equally spaced X coordinates
+make X identical to `t`. For 3 or 4 controls, the evaluator uses de Casteljau on the
+vertical coordinates. Values remain in [0,1], preserving endpoint thicknesses and
+preventing overshoot. Two internal controls also preserve monotonicity; with 3 or 4,
+crossed controls can produce rises and falls inside that interval. The profile
+belongs to the arriving target, not its owner or siblings. Smooth has zero endpoint
+slope in the normalized profile; it does not promise global surface smoothness at
+polygon corners or local borders with spatially varying inherited heights.
+
+```lua
+curvedNodes = {
+    {parent=0, role="target", thickness=8, {x=.5,y=.15}, {x=.5,y=.85}},
+    {parent=0, role="region", {x=.1,y=.2}, {x=.4,y=.2}, {x=.4,y=.8}, {x=.1,y=.8}},
+    {parent=2, role="target", thickness=3, profile="bezier", bezier1=.15, bezier2=.8,
+        {x=.25,y=.35}, {x=.25,y=.65}},
+}
+```
+
+Node points and segments are inserted into the triangulation before adaptive
+refinement, preserving narrow controls. Float precision, geometry budgets, and a
+20-pass refinement cap still apply. `heightTolerance` is a sampled normalized error,
+not a certified global bound. Hierarchy minimum/maximum thickness comes from the root
+and all targets; `depth` is that minimum and `relief` their difference divided by
+2 for symmetric thickness, otherwise 1. Reports still measure front relief. Maps
+normalize total thickness by the maximum. Asynchronous jobs deep-copy node geometry and profile parameters.
+Editor-only `shape` and `name` metadata is persisted in `.imesh` but ignored by the API.
 
 **Image-mesh back controls (7.236.0).**
 
@@ -2342,7 +2620,7 @@ and mesh export remain separate operations. For asynchronous PNG previews, use
 Height areas (`heightAreas`, since 7.250.0) use normalized crop coordinates,
 with 3–128 points per simple contour, or 2–128 points for an open height line
 (`shape="line"`, since 7.257.0). Each area is an array of `{x,y}` points
-with fields `height` (default 0.75), `transition` (default 0.02), and `enabled`
+with fields `mode` (default `"flatten"`, since 7.277.0), `height` (default 0.75), `transition` (default 0.02), and `enabled`
 (default true). Height and transition are finite [0,1]. For example:
 
 ```lua
@@ -2356,8 +2634,12 @@ options.heightAreas = {
 }
 ```
 
-Composition order is image height (including inversion/filtering/two-level mapping)
-or manual base, then enabled areas in array order, then brush dabs, then outer
+`mode="flatten"` blends toward the target `height`; `"raise"` adds `height * weight`
+and `"lower"` subtracts it. Results are clamped to [0,1] after each area. Existing
+areas without a mode retain flatten behavior. The weight is the inward transition.
+
+Composition order is image height (including inversion/filtering/two-level mapping),
+manual base or curved field, then enabled areas in array order, then brush dabs, then outer
 border attenuation and world relief scale. Later areas blend over earlier ones.
 Transition is a distance relative to `max(1,min(cropWidth,cropHeight)-1)` pixels:
 weight increases linearly from zero at the contour to one that far inside it.
@@ -2392,14 +2674,34 @@ options.heightAreas = {
 }
 ```
 
-`"image"` ignores areas but retains the pre-existing brush behavior. `"manual"`
+Since 7.277.0, `"image"` also applies enabled areas; switching from mixed to image
+no longer disables them. Use `heightFinishing=false` to disable the entire finishing
+stage, or disable individual areas. `"manual"`
 ignores image brightness, inversion, smoothing and two-level detection; its mesh
 refinement also ignores the image threshold/transition settings. `"mixed"` applies
 areas over the processed image. Both generation and grayscale preview use the
 same composed raster, including local adaptive refinement when `followImage=true`.
 The blue overlay remains an image-detection diagnostic and does not display areas
 or brush corrections (the editor hides it in Manual mode). Editor-only area
-metadata `name` and `shape` are ignored by the native API.
+metadata `name` is ignored by the native API. `shape="line"` selects an open
+centerline; `"polygon"` (default), `"rectangle"` and `"ellipse"` use the supplied
+points as a closed polygon rather than generating a primitive.
+
+**Painting over curves (7.276.0).** With `heightSource="curved"` and
+`curvedPainting=true` and `heightFinishing=true`, areas then brushes compose after the radial/hierarchical
+or interior field. Normalized height 0 maps to the minimum authored thickness and
+1 to the maximum; this interpretation also applies to inverted profiles. Targets,
+outer borders and hole rims may change height, but holes remain cut out. Symmetric
+extrusion and a flat back retain their respective distribution rules. Equal minimum
+and maximum thickness makes finishing a no-op. Removing `heightEdits` removes
+brush corrections but retains enabled areas. Remove both `heightEdits` and
+`heightAreas`, or disable `heightFinishing` or `curvedPainting`, to restore the base
+curve. Disabling either flag preserves the stored edits.
+Faceting keeps finishing inactive to preserve planar faces. Geometry first
+approximates the base curve, then refines edited areas locally; optional curved simplification operates on that final surface. The
+editor's original/simplified comparison uses identical painting on both meshes.
+The raster base is evaluated in a bounding rectangle covering areas and strokes,
+with a margin for interpolation and smoothing. Cancellation and existing painting/geometry budgets still apply.
 
 Height painting (`heightEdits`) is shared by `generateImageMesh` and
 `generateImageMeshMap`. Each dab requires `{x, y, radius, strength, height, mode}`.

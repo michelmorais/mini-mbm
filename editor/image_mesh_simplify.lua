@@ -41,7 +41,7 @@ end
 function M.apply(E,asset,options,report)
     if not options.simplify then return end
     local started,err=asset:startSimplify(options.simplifyRatio,nil,1,
-        options.simplifyDetails,options.simplifyBoundary)
+        options.simplifyDetails,options.simplifyBoundary,options.simplifyMode or 'qem',options.planarTolerance,options.planarAngle,options.planarReduceBoundaries)
     if not started then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
     E.simplifyAsset=asset;E.simplifyCancelRequested=nil;E.simplifyProgress=0
     coroutine.yield()

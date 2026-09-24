@@ -46,15 +46,33 @@ namespace mbm
     };
 
     enum class IMAGE_MESH_HEIGHT_CHANNEL { LUMINANCE, RED, GREEN, BLUE, ALPHA };
-    enum class IMAGE_MESH_HEIGHT_SOURCE { IMAGE, MANUAL, MIXED };
+    enum class IMAGE_MESH_HEIGHT_SOURCE { IMAGE, MANUAL, MIXED, CURVED };
     struct IMAGE_MESH_HEIGHT_AREA
     {
         const IMAGE_MESH_POINT *points = nullptr;
         uint32_t count = 0;
         float height = 0.75f, transition = 0.02f;
+        IMAGE_MESH_BRUSH mode = IMAGE_MESH_BRUSH::FLATTEN; // Raise/lower by height, or flatten to height.
         bool enabled = true;
         bool line = false; // Open centerline with round caps/joins, at least two points.
         float lineWidth = 0.05f; // Full width relative to the shorter crop side.
+    };
+
+    enum class IMAGE_MESH_CURVED_PROFILE { LINEAR, SMOOTH, BEZIER };
+
+    // Borrowed value-only hierarchy. Parent 0 is the module contour; other parents
+    // refer to an earlier node (1-based). A point/segment is terminal.
+    struct IMAGE_MESH_CURVED_NODE
+    {
+        const IMAGE_MESH_POINT *points = nullptr;
+        uint32_t count = 0, parent = 0;
+        float thickness = 8.0f;
+        IMAGE_MESH_CURVED_PROFILE profile = IMAGE_MESH_CURVED_PROFILE::LINEAR;
+        // Internal Bezier controls, evenly spaced in X; each Y is in [0,1].
+        uint32_t bezierPoints = 2; // 2, 3 or 4 internal controls; endpoints stay fixed.
+        float bezier1 = 0.0f, bezier2 = 1.0f, bezier3 = 1.0f, bezier4 = 1.0f;
+        bool polyline = false; // Open target with 2..128 points; interior transition only.
+        bool inherited = false; // Local region; otherwise the owner's sole target.
     };
 
     struct IMAGE_MESH_OPTIONS
@@ -95,6 +113,21 @@ namespace mbm
         uint32_t heightEditCount = 0;
         IMAGE_MESH_HEIGHT_SOURCE heightSource = IMAGE_MESH_HEIGHT_SOURCE::IMAGE;
         float baseHeight = 0.5f;
+        // CURVED: total thickness, movable normalized center, radius in mesh units.
+        float curvedX = 0.5f, curvedY = 0.5f, curvedRadius = 0.0f;
+        float curvedEdge = 1.0f, curvedTarget = 8.0f;
+        bool curvedSymmetric = true;
+        bool heightFinishing = true; // Apply areas and brushes without discarding saved edits.
+        bool curvedPainting = false; // Final bounded brush edits; inactive for faceting.
+        bool curvedInterior = false; // Discrete harmonic surface inside the contour.
+        bool curvedFaceted = false;
+        uint32_t curvedFacetSectors = 8, curvedFacetRings = 1;
+        bool curvedSimplify = false;
+        uint32_t curvedSimplifyMode = 0; // 0: specific, 1: coplanar + specific, 2: coplanar only
+        float curvedSimplifyRatio = 0.5f, curvedSimplifyError = 0.01f;
+        bool curvedHierarchy = false; // false retains the original radial point/circle path
+        const IMAGE_MESH_CURVED_NODE *curvedNodes = nullptr;
+        uint32_t curvedNodeCount = 0; // at most 32 nodes, 128 points each, depth <= 8
         IMAGE_MESH_HEIGHT_CHANNEL heightChannel = IMAGE_MESH_HEIGHT_CHANNEL::LUMINANCE;
         // Borrowed optional height-only image. Empty uses the source texture.
         const char *heightImage = nullptr;
@@ -116,10 +149,15 @@ namespace mbm
     {
         uint32_t vertices = 0, triangles = 0;
         float minHeight = 0.0f, maxHeight = 0.0f;
+        uint32_t curvedSourceTriangles = 0, curvedResultTriangles = 0;
+        uint32_t curvedPlanarRemovedTriangles = 0;
+        float curvedMaximumError = 0.0f; // Conservative normalized height error bound.
+        bool curvedTargetReached = false;
     };
 
     // CPU-only extrusion of a rectangle, ellipse or simple polygon. Destination must have no frames.
     // Crop uses zero-based top-left pixels; zero crop dimensions mean remaining image.
+    // CURVED uses total endpoint thickness and ignores legacy height/back controls.
     // Front faces -Z; relief extends outward. Back is optional, at +depth/2 plus copied relief when enabled. Texture references
     // the resolved source image (not copied). On failure discard the destination.
     API_IMPL bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,

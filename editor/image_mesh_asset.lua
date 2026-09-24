@@ -38,7 +38,12 @@ function M.geometry(asset)
     for subset=1,asset:getTotalSubset(1) do
         local offset=#all
         for _,v in ipairs(asset:getVertex(1,subset,1,asset:getTotalVertex(1,subset))) do all[#all+1]=v end
-        for _,i in ipairs(asset:getIndex(1,subset)) do indices[#indices+1]=offset+i end
+        local subsetIndices=asset:getIndex(1,subset)
+        if subsetIndices then
+            for _,i in ipairs(subsetIndices) do indices[#indices+1]=offset+i end
+        else
+            for i=offset+1,#all do indices[#indices+1]=i end
+        end
     end
     return all,indices
 end

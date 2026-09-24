@@ -79,6 +79,23 @@ function M.canPlace(outer,holes,ring)
  end
  return true
 end
+-- Open targets: validate their segments without inventing a closing edge.
+function M.openInside(outer,holes,path)
+ for i,p in ipairs(path) do
+  if not M.inside(outer,p) then return false end
+  for _,hole in ipairs(holes or {}) do if M.inside(hole,p) then return false end end
+  local a=i>1 and path[i-1] or p
+  if i>1 and (a.x-p.x)^2+(a.y-p.y)^2<1e-12 then return false end
+  if i>2 and math.abs(cross(path[i-2],a,p))<=epsilon and
+   (a.x-path[i-2].x)*(p.x-a.x)+(a.y-path[i-2].y)*(p.y-a.y)<=0 then return false end
+  for j=2,i-2 do if hit(a,p,path[j-1],path[j]) then return false end end
+  for j,b in ipairs(outer) do if hit(a,p,b,outer[j%#outer+1]) then return false end end
+  for _,hole in ipairs(holes or {}) do
+   for j,b in ipairs(hole) do if hit(a,p,b,hole[j%#hole+1]) then return false end end
+  end
+ end
+ return true
+end
 function M.validate(outer,holes)
  if holes==nil then return true end
  assert(type(holes)=='table' and #holes<=16,'ime_holes_limit')

@@ -25,6 +25,7 @@
 #include <stb/stb-interface.h>
 #include "private/image-mesh-height.h"
 #include "private/image-mesh-sides.h"
+#include "private/image-mesh-curved-simplify.h"
 #include <lodepng/lodepng.h>
 #include <algorithm>
 #include <cmath>
@@ -52,10 +53,11 @@ namespace mbm
         }
     }
 
-    bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &o,
+    bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                            MESH_MBM_DEBUG &destination, IMAGE_MESH_REPORT &report,
                            char *errorOut, int errorOutLen)
     {
+        const IMAGE_MESH_OPTIONS o=image_mesh::curvedOptions(options);
         report = IMAGE_MESH_REPORT{};
         if (errorOut && errorOutLen > 0) errorOut[0] = 0;
         if (!imagePath || !*imagePath || destination.getTotalFrames() != 0)
@@ -66,6 +68,11 @@ namespace mbm
             !std::isfinite(o.borderWidth) || o.borderWidth < 0.0f || o.borderWidth > 0.5f ||
             o.columns == 0 || o.rows == 0 || o.columns > 255 || o.rows > 255)
             return fail(errorOut, errorOutLen, "Invalid dimensions, relief, border width or grid (1..255 cells per axis)");
+        if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedSimplify &&
+            (!std::isfinite(o.curvedSimplifyRatio) || o.curvedSimplifyRatio<0.01f || o.curvedSimplifyRatio>1 ||
+             !std::isfinite(o.curvedSimplifyError) || o.curvedSimplifyError<0.0001f || o.curvedSimplifyError>0.25f))
+            return fail(errorOut,errorOutLen,"Invalid curved simplification ratio (0.01..1) or error (0.0001..0.25)");
+        if (o.curvedSimplifyMode>2) return fail(errorOut,errorOutLen,"Invalid curved simplification mode");
         if (static_cast<int>(o.backOpen)+o.backRelief+o.backRemap+o.backSolid+o.backExternal>1)
             return fail(errorOut,errorOutLen,"Back modes are mutually exclusive: open, copied relief, flat remap, solid color or external texture");
         if (o.sideMode!=IMAGE_MESH_SIDE::EDGE && o.sideMode!=IMAGE_MESH_SIDE::COLOR &&
@@ -90,6 +97,7 @@ namespace mbm
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
+            image_mesh::curved_simplify::run(o,field,topology,report);
             image_mesh::checkpoint(o,"surface",0.9f);
             std::vector<IMAGE_MESH_POINT> sideInner;
             const bool separateBack=o.backSolid || o.backExternal;
@@ -194,13 +202,16 @@ namespace mbm
                 4*sideRows*static_cast<uint32_t>(topology.boundary.size());
             const uint32_t sideTriangles=minimalBack?static_cast<uint32_t>(topology.boundary.size()+backCorners.size()):
                 2*sideRows*static_cast<uint32_t>(topology.boundary.size());
-            const uint32_t vertexCount=gridSize+backSize+sideVertices;
+            uint32_t vertexCount=gridSize+backSize+sideVertices;
+            const bool faceted=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedFaceted;
             const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+sideTriangles);
-            if (vertexCount>std::min(o.maxVertices,65535u) || triangleCount>o.maxTriangles)
+            const uint32_t requiredVertices=faceted?3*triangleCount:vertexCount;
+            if (requiredVertices>std::min(o.maxVertices,65535u) || triangleCount>o.maxTriangles)
             {
-                const auto message="Geometry budget exceeded including side texture seams: vertices "+std::to_string(vertexCount)+
+                const auto message=std::string(faceted?"Geometry budget exceeded including side/facet seams: vertices ":
+                    "Geometry budget exceeded including side texture seams: vertices ")+std::to_string(requiredVertices)+
                     ", limit "+std::to_string(std::min(o.maxVertices,65535u))+"; triangles "+std::to_string(triangleCount)+
-                    ", limit "+std::to_string(o.maxTriangles)+". Reduce side repeats or geometry resolution.";
+                    ", limit "+std::to_string(o.maxTriangles)+(faceted?". Reduce facet sectors/rings or side repeats.":". Reduce side repeats or geometry resolution.");
                 return fail(errorOut,errorOutLen,message.c_str());
             }
             const auto &path=field.path;
@@ -328,7 +339,7 @@ namespace mbm
                 }
                 return false;
             };
-            const uint32_t sideVertexStart=static_cast<uint32_t>(vertices.size());
+            uint32_t sideVertexStart=static_cast<uint32_t>(vertices.size());
             const uint32_t sideIndexStart=static_cast<uint32_t>(indices.size());
             double sidePerimeter=0,sideWalked=0;
             if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
@@ -445,9 +456,12 @@ namespace mbm
             else
                 for (size_t i = 0; i < topology.boundary.size(); ++i)
                     side(topology.boundary[i], topology.boundary[topology.nextBoundary(i)],!topology.loopEnds.empty() && i>=topology.loopEnds[0]);
+            if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedHierarchy && !o.curvedSymmetric)
+                for (auto &v:vertices) v.position.z-=o.depth*0.5f; // Stable flat back at Z=0.
             // Prefer plateau faces over steep ramps when computing shared front
             // normals. Keeping vertices welded preserves simplification behavior.
-            const bool preservePlateaus=o.followImage && o.twoLevels && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL && o.relief>0;
+            const bool preservePlateaus=!faceted && o.relief>0 && (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
+                (o.followImage && o.twoLevels && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL));
             std::vector<float> levels;
             std::vector<VEC3> plateauNormals;
             if (preservePlateaus)
@@ -456,6 +470,10 @@ namespace mbm
                 for (const auto &p : topology.points) levels.push_back(field.surface(p.x,p.y,o));
                 plateauNormals.resize(gridSize,VEC3(0,0,0));
             }
+            const bool angleWeighted=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED &&
+                o.curvedHierarchy && !o.curvedFaceted && !o.curvedInterior;
+            std::vector<VERTEX> facetVertices;
+            if (faceted) facetVertices.reserve(indices.size());
             for (size_t i = 0; i < indices.size(); i += 3)
             {
                 if (i%384==0) image_mesh::checkpoint(o,"normals",0.95f);
@@ -473,27 +491,47 @@ namespace mbm
                 const double faceLength = std::sqrt(nx * nx + ny * ny + nz * nz);
                 if (!(faceLength > 0))
                     return fail(errorOut, errorOutLen, "Degenerate triangle after coordinate conversion");
-                // Match Mesh Debug's per-subset "Recalculate all": average unit face
-                // normals, so large triangles do not dominate smaller groove faces.
+                // Start from unit face normals, as in Mesh Debug. Curved hierarchies
+                // additionally weight the contribution by each corner angle below.
                 const VEC3 normal(static_cast<float>(nx / faceLength),
                     static_cast<float>(ny / faceLength), static_cast<float>(nz / faceLength));
+                // Curved constraints can leave thin triangles. Weight each face by
+                // its corner angle so tiny wedges cannot dominate smooth shading.
+                double weights[3]={1,1,1};
+                if (angleWeighted)
+                {
+                    const double dot=abx*acx+aby*acy+abz*acz;
+                    weights[0]=std::atan2(faceLength,dot);
+                    weights[1]=std::atan2(faceLength,abx*abx+aby*aby+abz*abz-dot);
+                    weights[2]=std::atan2(faceLength,acx*acx+acy*acy+acz*acz-dot);
+                }
                 if (preservePlateaus && i/3<topology.triangles.size())
                 {
                     const uint32_t ia=indices[i],ib=indices[i+1],ic=indices[i+2];
                     const float low=std::min({levels[ia],levels[ib],levels[ic]});
                     const float high=std::max({levels[ia],levels[ib],levels[ic]});
-                    if (low>=0.9999f || high<=0.0001f)
+                    if (low>=0.9999f || high<=0.0001f || (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedHierarchy && high-low<1e-6f))
                     {
-                        for (uint32_t index : {ia,ib,ic})
+                        for (unsigned corner=0;corner<3;++corner)
                         {
-                            auto &sum=plateauNormals[index];
-                            sum.x+=normal.x; sum.y+=normal.y; sum.z+=normal.z;
+                            auto &sum=plateauNormals[indices[i+corner]];
+                            const float weight=static_cast<float>(weights[corner]);
+                            sum.x+=normal.x*weight; sum.y+=normal.y*weight; sum.z+=normal.z*weight;
                         }
                     }
                 }
-                for (auto *vertex : {&a, &b, &c})
+                for (unsigned corner=0;corner<3;++corner)
                 {
-                    vertex->normal.x += normal.x; vertex->normal.y += normal.y; vertex->normal.z += normal.z;
+                    auto *vertex=&vertices[indices[i+corner]];
+                    if (faceted)
+                    {
+                        facetVertices.push_back(*vertex);facetVertices.back().normal=normal;
+                    }
+                    else
+                    {
+                        const float weight=static_cast<float>(weights[corner]);
+                        vertex->normal.x+=normal.x*weight; vertex->normal.y+=normal.y*weight; vertex->normal.z+=normal.z*weight;
+                    }
                 }
             }
             for (uint32_t i=0;i<plateauNormals.size();++i)
@@ -501,7 +539,7 @@ namespace mbm
                 const auto &normal=plateauNormals[i];
                 if (normal.x!=0 || normal.y!=0 || normal.z!=0) vertices[i].normal=normal;
             }
-            if (o.backRelief)
+            if (o.backRelief && !faceted)
             {
                 // Identical sampled relief on both sides must retain identical smoothing,
                 // including the front's authored plateau normals.
@@ -510,6 +548,12 @@ namespace mbm
                     const auto &front=vertices[i].normal;
                     vertices[backIndex[i]].normal=VEC3(front.x,front.y,-front.z);
                 }
+            }
+            if (faceted)
+            {
+                vertices.swap(facetVertices);vertexCount=static_cast<uint32_t>(vertices.size());
+                sideVertexStart=sideIndexStart;
+                for (uint32_t i=0;i<indices.size();++i) indices[i]=static_cast<uint16_t>(i);
             }
             image_mesh::checkpoint(o,"finalize",0.98f);
             destination.setMeshType(util::TYPE_MESH_3D);
@@ -654,10 +698,11 @@ namespace mbm
         }
         catch (const std::exception &e) { return fail(errorOut,errorOutLen,e.what()); }
     }
-    bool generateImageMeshMap(const char *imagePath,const IMAGE_MESH_OPTIONS &o,const char *outputPath,
+    bool generateImageMeshMap(const char *imagePath,const IMAGE_MESH_OPTIONS &options,const char *outputPath,
                               bool overlay,char *errorOut,int errorOutLen)
     {
         if (errorOut && errorOutLen>0) errorOut[0]=0;
+        const IMAGE_MESH_OPTIONS o=image_mesh::curvedOptions(options);
         if (!outputPath || !*outputPath) return fail(errorOut,errorOutLen,"Output PNG path required");
         if (!std::isfinite(o.borderWidth) || o.borderWidth<0 || o.borderWidth>0.5f)
             return fail(errorOut,errorOutLen,"Invalid border width");
@@ -666,6 +711,7 @@ namespace mbm
             image_mesh::HEIGHT_FIELD field; std::string error;
             if (!field.load(imagePath,o,error)) return fail(errorOut,errorOutLen,error.c_str());
             IMAGE_MESH_OPTIONS outline=o;
+            if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED) outline.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
             outline.followImage=false; outline.columns=outline.rows=1; outline.maxVertices=65535; outline.maxTriangles=131070;
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(outline,topology,error)) return fail(errorOut,errorOutLen,error.c_str());
@@ -692,19 +738,21 @@ namespace mbm
                 }
                 const float distance=image_mesh::borderDistance(p,topology);
                 if (!inside && distance>1e-6f) continue;
-                const float intensity=field.sample(p.x,p.y);
+                const float intensity=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED?0:field.sample(p.x,p.y);
                 float level=field.surface(p.x,p.y,o);
                 if (o.lockBorder)
                 {
                     if (distance<1e-7f) level=0;
                     else if (o.borderWidth>0) level*=std::min(1.0f,distance/o.borderWidth);
                 }
+                if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED)
+                    level=(o.depth+level*o.relief*(o.curvedSymmetric?2:1))/(o.depth+o.relief*(o.curvedSymmetric?2:1));
                 auto *out=rgba.data()+(static_cast<size_t>(y)*field.width+x)*4;
                 const auto *source=field.pixels.get()+(static_cast<size_t>(y+o.y)*field.imageWidth+x+o.x)*4;
                 for (unsigned c=0;c<3;++c)
-                    out[c]=static_cast<unsigned char>(std::lround(overlay?
+                    out[c]=static_cast<unsigned char>(std::lround(overlay && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::CURVED?
                         (intensity<o.grooveThreshold?source[c]*0.35f+(c==2?255.0f:40.0f)*0.65f:source[c]):level*255));
-                out[3]=overlay?source[3]:255;
+                out[3]=overlay && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::CURVED?source[3]:255;
             }
             image_mesh::checkpoint(o,"encode",0.95f);
             const unsigned code=lodepng::encode(outputPath,rgba,field.width,field.height);

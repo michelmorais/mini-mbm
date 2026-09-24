@@ -4,9 +4,20 @@ This file tracks intentional follow-up work that should not be mixed into an act
 
 ## Mesh simplification follow-up
 
-The current [Mesh Simplification](mesh-simplification.md) workflow is complete for production use.
-Further work should be driven by real assets encountered during normal project development rather
-than delaying the delivered workflow.
+Current API behavior and capabilities are documented in
+[Mesh Simplification](mesh-simplification.md). Follow-up work should be driven by
+real assets encountered during project development.
+
+### Coplanar-region follow-up
+
+Potential extensions beyond the [current coplanar limits](mesh-simplification.md#coplanar-modes):
+
+- approximate contour reduction and broader boundary coordination;
+- non-affine attribute constraints, approximate varying-normal certificates and
+  deformation certificates;
+- broader certificates for uncertain/complex contacts and acceleration for heavily
+  overlapping neighborhoods;
+- larger approximate tolerances, additional backend parity and visual diagnostics.
 
 ### Visual diagnostics
 
@@ -22,7 +33,8 @@ than delaying the delivered workflow.
 - reduce temporary allocations and repeated candidate/triangle set construction;
 - add a broad phase for deformation-sample clearance checks and avoid redundant pose evaluations;
 - measure Debug and Release behavior on high-density static, skeletal, and layered meshes;
-- expose progress and cancellation for long editor operations without allowing partial commits.
+- preserve the existing simplifier progress, cancellation and atomic publication when adding new
+  processing stages; add checkpoints and measure cancellation latency inside expensive stages.
 
 ## Explicit blend-state API
 

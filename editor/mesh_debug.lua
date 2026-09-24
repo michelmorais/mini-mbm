@@ -38,6 +38,7 @@ tXformGizmo   =     require "mesh_debug_transform_gizmo"
 tMeshExport   =     require "mesh_debug_export_helper"
 tMeshNormals  =     require "mesh_debug_normals"
 tMeshNormals.preview = require "mesh_debug_normal_preview"
+local Simplification = require "mesh_debug_simplification"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -3390,6 +3391,7 @@ function removeMeshFromTable(index)
     local wasSelected = (iSelectedMeshIndex == index)
     local removed = table.remove(tLoadedMeshes, index)
     if removed then
+        require("mesh_debug_info_wireframe").release(removed)
         if removed.tXformPreviewMesh then removed.tXformPreviewMesh:destroy() end
         tXformGizmo.destroy(removed)
         if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
@@ -3420,6 +3422,8 @@ function removeMeshFromTable(index)
 end
 
 function destroyPreviewMesh()
+    for _,entry in ipairs(tLoadedMeshes or {}) do require("mesh_debug_info_wireframe").release(entry) end
+    for _,entry in ipairs(tLoadedMeshes or {}) do Simplification.release(entry,false) end
     if tPreviewMesh then
         tPreviewMesh.tFont = nil
         tPreviewMesh:destroy()
@@ -5844,6 +5848,7 @@ function splitCaptureDiscardBackup(tEntry)
 end
 
 function simplifyDiscardBackup(tEntry)
+    Simplification.release(tEntry,true)
     local backup = tEntry and tEntry.tSimplifyBackup
     if not backup then return end
     meshDebug:fakeRelease(backup.path)
@@ -6021,7 +6026,7 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
     local numericRatio = tonumber(ratio)
     if not numericRatio then return nil, tLang.L('simplify_invalid_ratio') end
     local started, startError = meshD:startSimplify(numericRatio, targetSubset,
-        targetFrame, preserveDetails, boundaryCollapseThreshold)
+        targetFrame, preserveDetails, boundaryCollapseThreshold, progressState.mode or 'qem', progressState.planarTolerance, progressState.planarAngle, progressState.planarReduceBoundaries)
     if not started then return nil, startError end
     progressState.activeMesh = meshD
     coroutine.yield()
@@ -6077,7 +6082,8 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh, sourceFrame)
     local aggregateReport = nil
     local useVirtualFrame = simplifyState.scope == 'subsets' and
-        simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2
+        simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2 and
+        (simplifyState.mode or 'qem') == 'qem'
     if useVirtualFrame then
         local report, simplifyError = simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
             sourceFrame, targets, simplifyState.ratio, simplifyState.preserveDetails,
@@ -6106,6 +6112,16 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
             if not aggregateReport then
                 aggregateReport = splitCaptureCopyTable(report)
             else
+                aggregateReport.unchanged = aggregateReport.unchanged and report.unchanged
+                aggregateReport.qemRan = aggregateReport.qemRan or report.qemRan
+                aggregateReport.planarSkipped = aggregateReport.planarSkipped or report.planarSkipped
+                aggregateReport.planarBoundaryFallback = aggregateReport.planarBoundaryFallback or report.planarBoundaryFallback
+                for _,field in ipairs({'planarRegions','planarRejectedRegions','planarRemovedTriangles',
+                    'planarHoles','planarAttributes','planarTopology','planarSurroundings','planarWorkLimit','planarBoundaryRemovedVertices'}) do
+                    aggregateReport[field]=(aggregateReport[field] or 0)+(report[field] or 0)
+                end
+                aggregateReport.planarMaximumError=math.max(aggregateReport.planarMaximumError or 0,report.planarMaximumError or 0)
+                aggregateReport.planarMaximumUvError=math.max(aggregateReport.planarMaximumUvError or 0,report.planarMaximumUvError or 0)
                 aggregateReport.resultVertexCount = report.resultVertexCount
                 aggregateReport.resultTriangleCount = report.resultTriangleCount
                 aggregateReport.maximumGeometricError = math.max(
@@ -6133,8 +6149,17 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     aggregateReport.sourceTriangleCount = sourceTriangles
     aggregateReport.resultVertexCount = resultVertices
     aggregateReport.resultTriangleCount = resultTriangles
+    if aggregateReport.unchanged then
+        meshDebug:fakeRelease(pendingBackup.path)
+        os.remove(pendingBackup.path)
+        simplifyState.report=aggregateReport
+        simplifyState.lastError=nil
+        tUtil.showMessage(tLang.L('simplify_unchanged'),5)
+        return true
+    end
     simplifyDiscardBackup(tEntry)
     tEntry.tSimplifyBackup = pendingBackup
+    dpCall(Simplification.record,tEntry,workingMesh,sourceFrame,aggregateReport)
     simplifyState.report = aggregateReport
     simplifyState.lastError = nil
     tEntry.meshDebug = workingMesh
@@ -6149,6 +6174,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         aggregateReport.sourceTriangleCount, aggregateReport.resultTriangleCount), 5)
     local reduction = aggregateReport.sourceTriangleCount > 0 and
         (1 - aggregateReport.resultTriangleCount / aggregateReport.sourceTriangleCount) * 100 or 0
+    if aggregateReport.qemRan==false then return true end
     print(string.format(tLang.L('simplify_terminal_quality_fmt'),
         simplifyQualityLabel(aggregateReport), reduction,
         (aggregateReport.maximumRelativeError or 0) * 100,
@@ -7175,6 +7201,17 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tImGui.Text(tLang.L('simplify_geometry'))
     tImGui.BeginDisabled(simplifyState.running == true)
 
+    tImGui.SetNextItemWidth(240)
+    local mode=require('mesh_simplify_modes').select(simplifyState.mode,false,'mesh-debug-'..index)
+    if mode~=simplifyState.mode then simplifyState.mode=mode;simplifyState.report=nil end
+    if mode~='qem' then
+        local tolerance,angle,reduceBoundaries=require('mesh_simplify_modes').planarSettings(
+            simplifyState.planarTolerance,simplifyState.planarAngle,'mesh-debug-'..index,simplifyState.planarReduceBoundaries,true)
+        if tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle or reduceBoundaries~=simplifyState.planarReduceBoundaries then
+            simplifyState.planarTolerance=tolerance;simplifyState.planarAngle=angle;simplifyState.planarReduceBoundaries=reduceBoundaries;simplifyState.report=nil
+        end
+        tImGui.TextWrapped(tLang.L('simplify_planar_help'))
+    end
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
     scopeIndex = tImGui.RadioButton(
         tLang.L('simplify_scope_frame') .. '##simplifyFrame-' .. index, scopeIndex, 1)
@@ -7253,7 +7290,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 end
             end
         end
-        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames)
+        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames or simplifyState.mode ~= 'qem')
         local virtualFrame = tImGui.Checkbox(
             tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
             simplifyState.virtualFrame == true)
@@ -7287,6 +7324,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
     end
 
+    tImGui.BeginDisabled(simplifyState.mode=='coplanar')
     tImGui.PushItemWidth(180)
     local ratioChanged, ratio = tImGui.DragFloat(
         tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
@@ -7320,7 +7358,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local availableVertices = math.max(0, 65535 - preservedVertices)
     local maximumSafeRatio = sourceVertices > 0 and
         math.min(0.95, availableVertices / sourceVertices) or 0.95
-    local exceedsIndexLimit = estimatedVertices > 65535
+    local exceedsIndexLimit = simplifyState.mode=='qem' and estimatedVertices > 65535
     if exceedsIndexLimit then
         tImGui.TextWrapped(string.format(tLang.L('simplify_uint16_limit_fmt'),
             estimatedVertices, maximumSafeRatio * 100))
@@ -7372,6 +7410,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tImGui.EndTooltip()
     end
 
+    tImGui.EndDisabled()
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
         #tEntry.tPendingOps == 0 and hasSelection and not simplifyState.running and
@@ -7410,41 +7449,44 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tImGui.EndDisabled()
     end
     local report = simplifyState.report
+    require('mesh_simplify_modes').report(report)
     if report then
         local reduction = report.sourceTriangleCount > 0 and
             (1 - report.resultTriangleCount / report.sourceTriangleCount) * 100 or 0
         tImGui.Text(string.format(tLang.L('simplify_report_geometry_fmt'),
             report.sourceVertexCount, report.resultVertexCount,
             report.sourceTriangleCount, report.resultTriangleCount))
-        tImGui.Text(string.format(tLang.L('simplify_report_quality_fmt'),
-            simplifyQualityLabel(report), reduction, (report.maximumRelativeError or 0) * 100))
-        tImGui.TextWrapped(string.format(tLang.L('simplify_report_rejections_fmt'),
-            report.collapseCount or 0, report.boundaryRejectedCollapseCount or 0,
-            report.topologyRejectedCollapseCount or 0,
-            report.orientationRejectedCollapseCount or 0,
-            report.invalidRejectedCollapseCount or 0))
-        if (report.boundaryCollapseCount or 0) > 0 then
-            tImGui.Text(string.format(tLang.L('simplify_report_boundary_collapses_fmt'),
-                report.boundaryCollapseCount))
-        end
-        tImGui.Text(string.format(tLang.L('simplify_report_structure_fmt'),
-            report.degenerateTriangleCount or 0, report.nonManifoldEdgeCount or 0,
-            report.connectedComponentCount or 0))
-        if simplifyState.preserveDetails then
-            tImGui.Text(string.format(tLang.L('simplify_report_details_fmt'),
-                report.detailPenalizedCollapseCount or 0,
-                report.detailPenalizedCandidateCount or 0))
-        end
-        tImGui.Text(string.format(tLang.L('simplify_report_clearance_fmt'),
-            report.clearanceRejectedCollapseCount or 0))
-        if report.skinWeightAware then
-            tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
-                report.sampledPoseCount or 0, report.sampledClipCount or 0,
-                report.maximumPoseError or 0))
-        end
-        if report.geometryFrameAware then
-            tImGui.Text(string.format(tLang.L('simplify_report_frames_fmt'),
-                report.geometryFrameCount or 0, report.maximumFrameError or 0))
+        if report.qemRan~=false then
+            tImGui.Text(string.format(tLang.L('simplify_report_quality_fmt'),
+                simplifyQualityLabel(report), reduction, (report.maximumRelativeError or 0) * 100))
+            tImGui.TextWrapped(string.format(tLang.L('simplify_report_rejections_fmt'),
+                report.collapseCount or 0, report.boundaryRejectedCollapseCount or 0,
+                report.topologyRejectedCollapseCount or 0,
+                report.orientationRejectedCollapseCount or 0,
+                report.invalidRejectedCollapseCount or 0))
+            if (report.boundaryCollapseCount or 0) > 0 then
+                tImGui.Text(string.format(tLang.L('simplify_report_boundary_collapses_fmt'),
+                    report.boundaryCollapseCount))
+            end
+            tImGui.Text(string.format(tLang.L('simplify_report_structure_fmt'),
+                report.degenerateTriangleCount or 0, report.nonManifoldEdgeCount or 0,
+                report.connectedComponentCount or 0))
+            if simplifyState.preserveDetails then
+                tImGui.Text(string.format(tLang.L('simplify_report_details_fmt'),
+                    report.detailPenalizedCollapseCount or 0,
+                    report.detailPenalizedCandidateCount or 0))
+            end
+            tImGui.Text(string.format(tLang.L('simplify_report_clearance_fmt'),
+                report.clearanceRejectedCollapseCount or 0))
+            if report.skinWeightAware then
+                tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
+                    report.sampledPoseCount or 0, report.sampledClipCount or 0,
+                    report.maximumPoseError or 0))
+            end
+            if report.geometryFrameAware then
+                tImGui.Text(string.format(tLang.L('simplify_report_frames_fmt'),
+                    report.geometryFrameCount or 0, report.maximumFrameError or 0))
+            end
         end
     end
     local blockedByTopology = tostring(simplifyState.lastError or ''):find(
@@ -7928,11 +7970,6 @@ function showFrameNode(tEntry, meshD, index)
     tEntry.tSplitCapture = tEntry.tSplitCapture or {active=false, initialized=false}
     tEntry.tSplitCaptures = tEntry.tSplitCaptures or {}
     showSplitCapture(tEntry, meshD, index)
-    tImGui.Separator()
-    if showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets) then
-        tImGui.TreePop()
-        return
-    end
 
     -- Save As (visible after Execute, when mesh is modified in-memory)
     if tEntry.modified then
@@ -8234,6 +8271,9 @@ function showMeshOptions(tEntry, index)
     end
 
     if openNode(tEntry, 'meshinfo', tLang.L("mesh_info"), 0, 'meshinfo-' .. index) then
+        require("mesh_debug_info_wireframe").panel(tEntry,tPreviewMesh,
+            index==iSelectedMeshIndex and iLastPreviewedIndex==index and bCameraMode3D and
+            tPreviewMesh~=nil and not ((tEntry.tSimplifyState or {}).running),dpCall)
         showMeshInfoTable(tEntry, index)
         tImGui.TreePop()
     end
@@ -9443,6 +9483,8 @@ function showMeshOptions(tEntry, index)
 
     -- Frame node: view/queue frame+subset edits (outside Animations)
     showFrameNode(tEntry, meshD, index)
+    Simplification.draw(tEntry,meshD,index,showSimplifyGeometry,dpCall,applyCam3d,
+        index==iSelectedMeshIndex and bCameraMode3D and tPreviewMesh~=nil)
 
     -- Articulated Animation node: persistent parts/pivots and named clips
     showArticulatedAnimationNode(tEntry, meshD, index)
@@ -11439,6 +11481,7 @@ function main_menu_mesh_debug()
             showApplyToAllMenu()
             tImGui.Separator()
             if tImGui.MenuItem(tLang.L("clear_all")) then
+                for _,entry in ipairs(tLoadedMeshes) do require("mesh_debug_info_wireframe").release(entry);simplifyCancel(entry);simplifyDiscardBackup(entry) end
                 tLoadedMeshes = {}
                 iSelectedMeshIndex = 0
                 iLastPreviewedIndex = 0
@@ -11447,6 +11490,7 @@ function main_menu_mesh_debug()
             end
             tImGui.Separator()
             if tImGui.MenuItem(tLang.L("menu_quit")) then
+                for _,entry in ipairs(tLoadedMeshes) do require("mesh_debug_info_wireframe").release(entry);simplifyCancel(entry);simplifyDiscardBackup(entry) end
                 mbm.quit()
             end
             tImGui.EndMenu()
@@ -12314,6 +12358,8 @@ end
 
 function onLoop(delta)
     if tMeshNormals.preview.pending then
+        require("mesh_debug_info_wireframe").hide(tLoadedMeshes[iSelectedMeshIndex])
+        Simplification.hide(tLoadedMeshes[iSelectedMeshIndex])
         tMeshNormals.preview.draw()
         showCameraWindow()
         showLightWindow()
@@ -12335,6 +12381,17 @@ function onLoop(delta)
     showListTexturesWindow()
     showListMeshesWindow()
     updatePreviewMesh()
+    if tLoadedMeshes[iSelectedMeshIndex] and tLoadedMeshes[iSelectedMeshIndex].sOpenNode~='meshinfo' then
+        require("mesh_debug_info_wireframe").hide(tLoadedMeshes[iSelectedMeshIndex])
+    end
+    Simplification.sync(tLoadedMeshes[iSelectedMeshIndex],tPreviewMesh,
+        bCameraMode3D and tLoadedMeshes[iSelectedMeshIndex] and
+        tLoadedMeshes[iSelectedMeshIndex].sOpenNode=='simplification' and
+        not ((tLoadedMeshes[iSelectedMeshIndex].tSimplifyState or {}).running))
+    require("mesh_debug_info_wireframe").sync(tLoadedMeshes[iSelectedMeshIndex],
+        bCameraMode3D and tLoadedMeshes[iSelectedMeshIndex] and
+        tLoadedMeshes[iSelectedMeshIndex].sOpenNode=='meshinfo' and
+        not ((tLoadedMeshes[iSelectedMeshIndex].tSimplifyState or {}).running))
     updateCam3dKeyboardMovement(delta)
     -- Frame Pick popup (per loaded mesh)
     for i = 1, #tLoadedMeshes do
