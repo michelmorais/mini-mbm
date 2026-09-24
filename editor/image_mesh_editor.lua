@@ -325,6 +325,11 @@ local function draftChanged()
     for i,p in ipairs(a) do if p.x~=b[i].x or p.y~=b[i].y then return true end end
     return false
 end
+local function suggestedProjectName()
+    if E.path then return E.path end
+    local name=tUtil.getShortName(E.project.image.path):gsub('%.[^%.]+$','')
+    return (name~='' and name or 'project')..'.imesh'
+end
 local function saveProject(path)
     -- Save the settings currently displayed, even if Apply was not pressed yet.
     if draftChanged() and not applyProperties() then return false end
@@ -394,8 +399,8 @@ local function menu()
         if tImGui.BeginMenu(tLang.L('menu_file')) then
             if tImGui.MenuItem(L('open_image')) then requestReplace(function() local path=mbm.openFile(E.project.image.path,table.unpack(tUtil.supported_images)); if path then openImage(path) end end) end
             if tImGui.MenuItem(L('open_project')) then requestReplace(function() local path=mbm.openFile(E.path or '', 'imesh'); if path then openProject(path) end end) end
-            if tImGui.MenuItem(L('save'),'Ctrl+S') then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end) end
-            if tImGui.MenuItem(L('save_as')) then dpCall(function() local path=mbm.saveFile(E.path or 'project.imesh','imesh'); if path then saveProject(path) end end) end
+            if tImGui.MenuItem(L('save'),'Ctrl+S') then dpCall(function() local path=E.path or mbm.saveFile(suggestedProjectName(),'imesh'); if path then saveProject(path) end end) end
+            if tImGui.MenuItem(L('save_as')) then dpCall(function() local path=mbm.saveFile(suggestedProjectName(),'imesh'); if path then saveProject(path) end end) end
             if tImGui.MenuItem(L('export_selected')) then dpCall(function()
                 local region=assert(Model.region(E.project,E.selected),L('select_region'))
                 local path=mbm.saveFile(string.format('module_%03d.msh',region.id),'msh')
@@ -905,7 +910,7 @@ function onLoop(delta)
     if not E.meshTask and E.key and not tImGui.GetWantCaptureKeyboard() then
         if E.control and E.key==mbm.getKeyCode('Z') then history(false)
         elseif E.control and E.key==mbm.getKeyCode('Y') then history(true)
-        elseif E.control and E.key==mbm.getKeyCode('S') and not E.paintDrag then dpCall(function() local path=E.path or mbm.saveFile('project.imesh','imesh'); if path then saveProject(path) end end)
+        elseif E.control and E.key==mbm.getKeyCode('S') and not E.paintDrag then dpCall(function() local path=E.path or mbm.saveFile(suggestedProjectName(),'imesh'); if path then saveProject(path) end end)
         elseif E.key==mbm.getKeyCode('ESC') then Paint.cancel(E); Canvas.cancel(E); syncDraft() end
     end
     E.key=nil; rebuild(); updateStatistics(E.statisticsRequested); batchStep()
