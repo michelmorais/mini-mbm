@@ -1,8 +1,300 @@
-# Coplanar mesh optimization — investigation and first milestone
+# Coplanar mesh optimization — investigation and delivery milestones
 
-Status: **integration decision accepted; not implemented**. Investigation against `547b569f`, 2026-09-24.
-This records the design before implementation. It does not change the existing
-`simplify()` contract or announce a shipped feature.
+Status: **M1 delivered in 7.280.0; M2 in 7.283.0; opt-in M3 in 7.284.0; M4 in 7.285.0; M5 in 7.286.0**. Initial investigation
+against `547b569f`, 2026-09-24. The design below was recorded before implementation;
+this delivery record states the implemented scope and remaining validation limits.
+
+## Milestone 5: strict coplanar obstacle separation (7.286.0)
+
+Recorded before implementation. Refine only the exact-plane, coplanar-obstacle
+branch after the existing box/slab broad checks. Certify strict separation of an
+obstacle from every replacement triangle using both triangles' edge half-planes
+(the convex separating-axis test), with the region's area epsilon as an uncertainty
+guard. Handle either obstacle winding. Touching, degenerate, overlapping or
+uncertain pairs remain rejected by this new branch. Preserve the existing fast
+box-boundary contacts and noncoplanar contact policy. Approximate regions retain
+the old conservative behavior. Count each triangle-pair check against the existing
+2,000,000-operation budget and cancellation checkpoints; no spatial index or
+additional editor options/public storage are introduced.
+
+Acceptance: islands strictly inside holes and exterior concave notches may now
+coexist with a reduced region; verify selected and whole-frame scopes, reversed
+winding, inclined geometry, boundary reduction on/off and unchanged obstacle
+attributes/indices. Intersecting, enclosing, touching and near-planar cases retain
+the original mesh. Run topology/attribute, worker/editor cancellation, QEM, curved
+and rendering regressions. Both generic editors inherit the native improvement;
+no idle work, deformation-policy or QEM change.
+
+M5 validation: Linux Debug build and Lua syntax checks pass. The new obstacle
+suite covers holes and exterior concave notches, horizontal/inclined regions,
+both obstacle windings, selected-subset/whole-frame scope and boundary reduction
+on/off. The holed region reduces 120 -> 40 or 120 -> 8 while its independent
+island remains intact; the concave fixture reaches 40 or 10 faces. Overlapping,
+enclosing, edge/point-touching and degenerate obstacles reject the transformation,
+as does the near-planar fixture. Obstacle verification compares oriented faces
+and corner attributes, allowing existing whole-frame physical vertex reordering.
+
+Coplanar, hole, boundary, affine-normal, cancellation/progress/undo, Image Mesh
+preview/export/project/idle, QEM and curved regressions pass. Rendered island
+before/after images were inspected; mean channel difference is 0.06345 on the
+0..255 scale (maximum 205 at isolated raster edges). Existing topology/coverage,
+attribute and seam regressions still pass. No native mouse or non-GLES runtime
+validation was performed. This adds no spatial acceleration and no guarantee
+that every disjoint obstacle will certify; epsilon, work limits and the unchanged
+noncoplanar contact policy may still conservatively reject valid regions. No
+new-branch budget exhaustion or cancellation timing was specifically injected.
+The existing 4,097-region coordination-budget fallback regression also passes.
+
+## Milestone 4: exact affine normal fields (7.285.0)
+
+Recorded before implementation. Extend the generic pass to exactly planar regions
+with raw corner normals that satisfy one affine field in the seed-plane projection.
+Require zero computed residual (no new normal tolerance), finite nonzero normals
+strictly in the seed normal's open hemisphere, and test every source corner,
+including aliases. Constant normals keep their existing path. Varying normals on
+approximately planar geometry remain rejected. Curved-specific generation retains
+its constant-normal policy. No QEM, editor option or public signature changes.
+
+Standard GLES, DX9, DX11 and Metal lighting interpolates linearly transformed raw
+normals and normalizes in the fragment shader. An identical affine raw field on an
+identical plane therefore preserves its input throughout the region, not only at
+the boundary. Custom nonlinear vertex shaders are outside this certificate.
+Floating-point predicates remain conservative numerical certificates, not symbolic
+exact arithmetic. Roundoff may reject valid fields; never add an epsilon to accept
+normal residuals in this milestone.
+
+Acceptance: dense affine-normal planes with/without boundary reduction, inclined
+planes, holes, non-unit raw normals, interpolation samples and source values;
+reject nonlinear/normalized fields, zero/cancelling normals and near-planar varying
+fields. Run existing topology, seam, material, cancellation, editor, QEM and curved
+regressions plus lit/checker rendered comparisons. Animation exclusions, work
+limits and publication/cancellation remain unchanged. Record actual results below.
+
+M4 validation: Linux Debug build and Lua syntax checks pass. Dense affine-normal
+planes (horizontal and inclined) reduce 128 -> 30, or 128 -> 2 with coordinated
+boundaries; holed grids reduce 120 -> 40 or 120 -> 8. Tests verify raw source
+normals and interpolated values across every output triangle. Adjacent material
+charts with distinct affine normal fields retain their separate values and reduce
+to four faces total. Nonlinear/unit-normalized fields, zero/cancelling fields and
+near-planar varying fields remain byte-for-byte unchanged.
+
+Existing coplanar, holes, boundary, cancellation/undo, Image Mesh preview/export/
+project/idle, QEM and curved-specific suites pass. Rendered checker plus directional
+and point lighting comparisons pass; the affine-normal before/after images were
+inspected. Mean channel difference is 0.0664 on the 0..255 scale, with isolated
+raster-edge differences (maximum 205), not pixel identity. Other backends were
+inspected in source only, not executed. Custom nonlinear vertex shaders and
+non-affine normal approximation remain outside this milestone. No editor loop or
+public API storage changed; both generic editors inherit the shared native pass.
+
+## Milestone 3: coordinated straight-boundary reduction (7.284.0)
+
+Recorded before implementation. Add opt-in `planarReduceBoundaries=false` to the
+generic pipeline/API and both editors. Preserve legacy results when disabled.
+Curved generation keeps authored locks/boundaries and does not enable this option.
+Only exactly planar certified regions participate. Remove a sample only when its
+3D position lies exactly inside its two collinear boundary neighbors, every source
+face incident at that position belongs to a participating region, all aliases have
+the same two geometric neighbors, at most two regions meet there, and no lock or
+unselected surrounding triangle retains that position. Preserve material/UV/normal
+charts independently; never weld physical seam attributes.
+
+Collect certificates on the original input, coordinate decisions by exact position,
+then retriangulate from the original source with the shared removal mask. Original
+boundary unions remain identical; source attribute and obstacle certificates remain
+mandatory. Verify both sides again. If any dependent region rejects its candidate,
+discard the entire optional boundary stage and keep the completed M2 candidate.
+Cancellation still publishes neither stage. Keep progress monotonic, no idle scans,
+and cap coordination at 32,768 boundary entries / 4,096 certified regions. Expose
+removed geometric sample count and boundary-stage fallback separately in reports.
+
+Acceptance: dense rectangle 128 -> 2 when enabled (128 -> 30 when disabled),
+straight holed loops, adjacent materials and UV charts, planar cap/wall junctions,
+selected-scope contacts, nonplanar/attribute/lock protection, all-or-nothing fallback,
+no geometric T-junctions, geometry/attribute coverage, deterministic no-op/repeat,
+worker/editor cancellation/undo/export/project round-trip and rendered comparisons.
+No approximate silhouette reduction, general curved-wall remeshing or deformation
+certificate is included. Update docs, version and actual validation record.
+
+M3 validation (Linux Debug / OpenGL ES): dense flat/inclined grids reduce from
+128 to 2 faces, a rectangular hole from 120 to 8, two holes from 124 to 14,
+and concave inner/outer boundaries to 10. Disabled mode retains 30/40-face results.
+Tests cover repeat/no-op, source attribute values, dense coverage, geometric
+T-junctions across every subset, material seams, same-subset UV aliases, a planar
+cap/perpendicular wall (4 faces total), unselected/attribute-ineligible walls,
+near-planar boundary protection, folded planar strips, failed-QEM rollback and
+save/reload. Ineligible selected subsets may reorder physical vertices while
+retaining their original oriented triangles and corner attributes.
+
+Worker and Mesh Debug cancellation/retry/progress/undo tests pass with coordinated
+holed boundaries. Image Mesh persists the option, defaults old projects to false,
+retains the open-back fixture's independent quad contacts (94 faces), and reduces
+its eligible closed flat box to 12 faces. Preview/export and idle-cache checks pass;
+curved-specific fixture counts remain unchanged. The 4,097-region stress test
+retains the completed 8,194-face interior-only result and reports boundary fallback.
+Rendered checker/lighting comparisons pass and before/after images were inspected.
+
+Remaining limits: no native mouse interaction or non-GLES backend validation;
+no allocation-failure injection or forced dependency-certificate failure. The
+coordination-cap fallback and transaction rollback/cancellation paths were exercised.
+The original general intersection/numerical limits still apply. Curved generation
+and unsupported animation remain outside this optional boundary stage.
+
+## Milestone 2: certified hole-bearing regions (7.283.0)
+
+Scope recorded before implementation: extend the shared coplanar pass to a single
+simple outer loop and up to 16 disjoint, strictly internal holes. Retain every
+boundary vertex/segment, winding, subset, UV and raw normal; no new vertices and
+no coordinated boundary decimation in this milestone. Existing angle/distance and
+attribute checks remain mandatory. Animated inputs remain excluded.
+
+Reuse the existing generator's visible-bridge/ear-clipping approach conceptually,
+with the generic pass's long-double projection, work budget and cancellation.
+Validate every loop, nesting/orientation, Euler characteristic, visible bridges,
+positive output faces, exact directed boundary and paired interior incidence.
+Reject crossing or touching loops, uncertain bridges, incomplete triangulations,
+obstacles and exhausted budgets without publishing a partial result. Bound work
+by the existing 2,048 boundary-vertex and 2,000,000 operation limits, including
+bridge discovery and output validation. A valid region with B retained boundary
+vertices and H holes can reach B + 2H - 2 faces.
+
+Acceptance: one/multiple holes, concave outer/inner loops, inclined/reversed/scaled
+inputs, shared walls/materials, attribute rejection, nearby obstacles, deterministic
+repeat/no-op, cancellation/undo/save/reload and both generic editor flows. Compare
+coverage, directed boundaries, winding, intersections and attributes independently
+of counts; render checker/lighting before and after. Preserve legacy disk/QEM and
+specific curved regression results. Report actual coverage and remaining limits.
+
+M2 validation on Linux Debug / OpenGL ES: build and numeric tests passed for a
+single hole (120 -> 40 faces), two holes (124 -> 42), concave hole (122 -> 40),
+concave exterior with a hole (88 -> 40), and 16 holes (768 -> 174). The 17-hole
+fixture preserves its source and reports the work limit. Tests compare directed
+boundaries, source attributes, orientation, area, dense coverage samples, edge
+crossings and T-junctions. Inclined/reversed/translated/scaled and near-planar
+fixtures, touching-loop/attribute/obstacle rejection, inner-wall subset retention,
+determinism, repeat no-op and save/reload passed.
+
+Real worker/Mesh Debug cancellation, retry, late cancel, prior undo and report
+paths passed with a holed fixture. Image Mesh project/preview/export validation
+removed 352 triangles from its holed fixture; idle-cache, legacy settings and
+curved-specific checks also passed. Existing QEM and Image Mesh hole-generation
+regressions passed. Checker renders of one/multiple and concave holes passed;
+mean RGBA differences for one and two holes were 0.0671158 and 0.0475845 on a
+0..255 scale (isolated raster edges reached 205), and images were inspected.
+
+Limits: general spatial intersection solving, coordinated boundary decimation,
+non-affine/variable-normal certificates and deformation remain outside M2.
+Other backends, native mouse interaction, allocation-failure injection and exhaustive
+numeric adversaries were not tested. The 2,000,000-operation budget may reject
+otherwise valid regions; this is intentional conservative fallback.
+
+## Follow-up: angular editor control (7.282.0)
+
+Use a shared DragFloat in degrees for `planarAngle` (0..5, default 0.05), with
+wrapped 420-pixel tooltips. Compare each original and replacement face normal to
+the fixed seed plane, never only to the previously accepted neighbor. Preserve the
+legacy dot threshold at the default. Keep `planarTolerance` as a separate advanced
+distance safeguard (displayed as percentage of the domain diagonal); saved projects
+retain their distance setting and receive the legacy angular default. Curved
+plateaus remain exact. Append the angular parameter to both generic APIs, capture
+it in workers, validate finite/range constraints, and test real geometric effect,
+invalid input, editor forwarding, project persistence and unchanged defaults.
+
+Validation on Linux Debug / OpenGL ES: build, angular/distance numeric fixtures,
+invalid-input rollback, native/editor cancellation and undo, project save/default
+migration, QEM regression and rendered comparisons passed. The angular fixture
+retained 128 triangles at the legacy threshold, rejected a replacement exceeding
+1 deg, and reached 30 at 5 deg with distance fraction 0.01. Mean rendered RGBA
+difference was 0.0892944/255 (isolated raster-edge maximum 205). The shared degrees
+widget and forced tooltip were rendered and visually inspected; native mouse drag
+interaction and other render backends were not exercised.
+
+## Follow-up: configurable plane distance (7.281.0)
+
+Expose `planarTolerance` in the generic synchronous/asynchronous API and both
+editors, default `1e-7`, finite range `[0, 0.01]`, relative to each connected subset
+domain diagonal. Zero requires exact coplanarity. Preserve the fixed seed plane,
+angular guard (configurable in 7.282.0), attributes, topology, obstacle checks and transactional publication.
+The parameter limits distance to the plane, not the final surface deviation;
+`planarMaximumError` remains the measured conservative surface-difference bound.
+Show existing rejection counters and explain that small/non-saving candidates are
+not counted as rejected regions. Persist Image Mesh settings with legacy defaults.
+Curved generation retains exact plateaus and its existing height-error contract.
+Validated on Linux Debug / OpenGL ES: shallow nonplanar fixture retains 128 faces
+at the default and reaches 30 at `1e-4`; its reported geometry bound remains below
+0.002 world units. Zero/exact mode, invalid numeric values without mutation,
+attribute/hole/angular fallbacks at the maximum tolerance, asynchronous cancellation
+and retry, Mesh Debug parameter forwarding/undo/report drawing, Image Mesh project
+persistence/default migration/idle cache, and existing QEM and curved-relief smoke
+tests passed. Rendered shallow before/after checker images were inspected; mean
+RGBA difference was 0.070694 on a 0..255 scale (isolated edge maximum 205).
+Native mouse editing and other render backends were not exercised.
+
+## Delivery record
+
+Implemented the shared private `mesh-planar.h` pass, optional native/Lua modes,
+Mesh Debug and Image Mesh general selectors, and the curved generator's separate
+Specific / Coplanar + Specific / Coplanar only modes. QEM remains the default and
+`mesh-simplifier.cpp` itself is unchanged. No planar geometry scan runs in idle
+editor frames. Mesh Debug's virtual grouping is QEM-only; other modes keep full
+neighbor context and process selected subsets individually.
+
+Differences from the initial algorithm sketch below:
+
+- Plane distance is fixed at `1e-7 * L` for each original connected subset domain;
+  raw normals must match exactly. UV affine residual is at most `5e-7`, bounding
+  old/new interpolation difference by `1e-6`. The initial release used fixed conservative settings; 7.281.0 exposes
+  the plane distance as described above, retaining the other guards.
+- Geometry is bounded by both surfaces' distance from the same fixed plane, with
+  the dominant-axis projection factor included. This is a sufficient uniform bound
+  over the common projected domain; it does not require enumerating triangle
+  overlaps. Boundaries, vertex links, disk topology and projected orientation are
+  checked before deterministic ear clipping. The generator's specialized polygon
+  helper remains untouched because its tolerances/coordinate contract differ.
+- Whole-frame obstacles use conservative slab/projected-bounding-box rejection,
+  with exact unchanged boundary contacts allowed. Valid regions may be rejected.
+  There is no general intersection solver or spatial tree in this first delivery.
+  Boundary size is capped at 2,048 and budgeted boundary/ear/obstacle work at
+  2,000,000 operations per region.
+- Curved generation only accepts exact horizontal plateaus covered by its existing
+  constant-normal policy. It preserves authored locks and extrema, contributes
+  zero initial height error, and leaves the specific reducer's original target and
+  accumulated error scheme intact. Faceted/interior exclusions remain unchanged.
+- Shader programs are not stored in the mesh simplifier's input. The certificate
+  is for stored geometry/UVs/normals; arbitrary custom vertex deformation or
+  procedural shader output cannot be certified by this operation.
+
+Executed after implementation on Linux Debug / OpenGL ES:
+
+- `mesh_coplanar_smoke.lua`: dense/inclined/concave grids, holes, non-affine interior
+  UVs, varying normals, near-planar/bent inputs, both windings, non-indexed input,
+  material boundaries, same-subset UV seams, preserved neighboring walls,
+  protected interior contacts, original-count combined targets, failed-QEM rollback,
+  no-op, multi-frame skip and save/reload; scaled/translated fixtures, a four-face
+  fan reduced to two, nonmanifold rejection and compaction of a source buffer with
+  65,536 vertices (including unused entries).
+- `mesh_coplanar_cancel_smoke.lua`: native cancellation/retry/progress/late cancel;
+  Mesh Debug cancellation, completed no-op keeping prior undo, restore and report UI.
+- `image_mesh_coplanar_smoke.lua`: all general modes through preview, project save,
+  export/reload and idle cache; legacy mode default; all curved modes and curved
+  project settings. Curved fixture: 716 front faces -> 490 planar-only (226 removed),
+  or -> 358 with the specific reducer, matching the original 0.5 target.
+- `mesh_coplanar_visual_smoke.lua`: off-screen engine renders of flat, inclined,
+  concave, material-boundary and neighboring-wall fixtures with checker UVs and
+  configured directional/point lighting,
+  identical oblique camera, nonblank-render assertion and pixel comparison.
+  Mean RGBA differences were respectively 0.0660, 0.0550, 0.0629, 0.0304 and 0.0619 on a 0..255
+  scale; isolated raster-edge differences reached 205. The images were inspected,
+  not assumed equivalent solely from a passing mean-error threshold.
+- Existing QEM, native/editor cancellation, Image Mesh general preview/export/batch,
+  curved numeric/editor, and geometry-cache smoke tests passed. Existing modes
+  retain their original fixture counts.
+
+The wider acceptance matrix below remains a reference for follow-up coverage.
+Automated native mouse interaction, other render backends, adversarial allocation
+failure injection, exhaustive near-uint16 budgets and every proposed visual fixture
+have not been verified here. Passing these fixtures is not a proof for arbitrary
+meshes/shaders. The documented conservative fallbacks remain part of the contract.
 
 ## Findings in the current implementation
 
@@ -210,14 +502,14 @@ failed work must not replace the prior preview/comparison; do not publish or sav
 an intermediate planar mesh when the combined operation fails. Existing completed
 batch outputs keep their existing semantics; cancellation stops remaining work.
 
-Image Mesh's **specific curved-relief simplifier remains separate**. Currently
-`generate()` forces `options.simplify=false` for `heightSource=='curved'`, and the
-editor displays the `curvedSimplify` controls instead of general simplification.
-Preserve that routing and its ratio/error controls in M1; adding generic modes
-does not implicitly chain QEM onto curved-relief generation. Likewise, preserve
-the completed minimal-back generation optimization. A later decision to expose
-general simplification after curved generation would require explicit ordering,
-separate reports and a new error-budget contract.
+Image Mesh's **specific curved-relief simplifier remains separate from QEM**,
+but also gains Specific (default), Planar + Specific and Planar only modes.
+Run the planar stage on generation topology before the specific reducer, keeping
+boundary/control locks and original height samples. The original face count sets
+the specific reducer target; carry the planar geometric error into its existing
+accumulated error budget. The first implementation can require exact coplanarity
+here so that the initial height error is zero. Neither this path nor its planar-only
+mode implicitly invokes QEM. Keep the completed minimal-back optimization.
 
 Other similarly named operations found during the audit are Blender importer
 decimation, freehand contour simplification and articulated sprite contour
@@ -271,8 +563,8 @@ consumers; do not replace their algorithms as part of this delivery.
 
 Implementation should add a private planar-region module beside `mesh-simplifier`
 and an optional, backwards-compatible setting on the existing public/Lua workflow.
-Names/signatures are to be finalized in implementation; no new callable method is
-claimed here. Reuse instance-owned worker/state/progress/cancel and undo; keep
+The implemented Lua mode names are `qem`, `coplanar_qem` and `coplanar`;
+see `docs/lua-api.md` for signatures and report fields. Reuse instance-owned worker/state/progress/cancel and undo; keep
 scratch data in `MESH_MBM_DEBUG::Impl` or private helpers. Expose no new containers,
 backend handles or mutable internal geometry through public headers.
 
@@ -429,7 +721,6 @@ exit status. The sandbox initially could not connect to X11; the same launch
 worked with approved local-display access. The preexisting binary was older than
 the source version, so results above were rerun after rebuilding.
 
-No before/after rendering comparison for a new optimizer has been performed:
-there is no new optimizer yet. Concavity, holes, attribute certificates,
-near-coplanar acceptance and junction/intersection preservation remain the
-implementation acceptance gates above, not conclusions from these baseline tests.
+These were baseline results before implementation. New optimizer validation is
+recorded in the delivery record above; the baseline alone makes no assertion about
+coplanar equivalence.

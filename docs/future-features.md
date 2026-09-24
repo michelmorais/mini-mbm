@@ -8,21 +8,23 @@ The current [Mesh Simplification](mesh-simplification.md) workflow is complete f
 Further work should be driven by real assets encountered during normal project development rather
 than delaying the delivered workflow.
 
-### Coplanar-region optimization
+### Coplanar-region follow-up
 
-- Investigation and the accepted integration plan are recorded in
-  [Coplanar mesh optimization](mesh-coplanar-optimization-plan.md); implementation is pending.
-- Add an optional static-region prepass before QEM, disabled by default, with unchanged
-  boundary segmentation and certified geometry/attribute interpolation. Do not infer equivalence
-  from triangle normals alone or reuse sampled skeletal poses as a proof for arbitrary deformation.
-- Expose QEM (default), Planar + QEM, and Planar only modes. Planar only runs the same
-  certified stage without a reduction-ratio target or implicit QEM fallback.
-- Extend all generic simplifier consumers, currently Mesh Debug and Image Mesh Editor's general
-  simplification, including project settings, preview/comparison, statistics and export flows.
-  Preserve Image Mesh's separate curved-relief simplifier and its current generation routing.
-- Keep uncertain regions unchanged, preserve the complete transaction/cancellation behavior, and
-  validate numeric and visual results against the original mesh.
-- This is separate from the completed Image Mesh minimal-back optimization and curved-relief reducer.
+The conservative first implementation is delivered in 7.280.0; see
+[Mesh Simplification](mesh-simplification.md#coplanar-modes-72800) and the
+[design/validation record](mesh-coplanar-optimization-plan.md).
+
+Certified retriangulation of eligible regions with up to 16 holes is delivered in
+7.283.0, with every boundary segment retained. Remaining work:
+
+- approximate contour reduction and broader boundary coordination; exact collinear
+  boundary coordination is delivered as an opt-in feature in 7.284.0;
+- non-affine attribute constraints, approximate varying-normal certificates and
+  deformation certificates; exact affine raw-normal fields on exactly planar
+  generic regions are supported since 7.285.0;
+- spatial acceleration and broader noncoplanar obstacle certificates; strict
+  separation of coplanar obstacles from replacement triangles is delivered in 7.286.0;
+- larger approximate tolerances, additional backend parity and visual diagnostics.
 
 ### Visual diagnostics
 

@@ -135,6 +135,13 @@ namespace mbm
 #define MBM_SIMPLIFY_INT(field) lua_pushinteger(lua, report.field); lua_setfield(lua, -2, #field)
 #define MBM_SIMPLIFY_NUM(field) lua_pushnumber(lua, report.field); lua_setfield(lua, -2, #field)
 #define MBM_SIMPLIFY_BOOL(field) lua_pushboolean(lua, report.field); lua_setfield(lua, -2, #field)
+            MBM_SIMPLIFY_BOOL(unchanged); MBM_SIMPLIFY_BOOL(qemRan); MBM_SIMPLIFY_BOOL(planarSkipped);
+            MBM_SIMPLIFY_INT(planarRegions); MBM_SIMPLIFY_INT(planarRejectedRegions);
+            MBM_SIMPLIFY_INT(planarRemovedTriangles); MBM_SIMPLIFY_INT(planarHoles);
+            MBM_SIMPLIFY_INT(planarAttributes); MBM_SIMPLIFY_INT(planarTopology);
+            MBM_SIMPLIFY_INT(planarSurroundings); MBM_SIMPLIFY_INT(planarWorkLimit);
+            MBM_SIMPLIFY_INT(planarBoundaryRemovedVertices); MBM_SIMPLIFY_BOOL(planarBoundaryFallback);
+            MBM_SIMPLIFY_NUM(planarMaximumError); MBM_SIMPLIFY_NUM(planarMaximumUvError);
             MBM_SIMPLIFY_INT(sourceVertexCount); MBM_SIMPLIFY_INT(resultVertexCount);
             MBM_SIMPLIFY_INT(sourceTriangleCount); MBM_SIMPLIFY_INT(resultTriangleCount);
             MBM_SIMPLIFY_NUM(maximumGeometricError); MBM_SIMPLIFY_BOOL(skinWeightAware);
@@ -221,7 +228,13 @@ namespace mbm
     int onSimplifyMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const float ratio = static_cast<float>(luaL_checknumber(lua, 2));
+        const char *modeNames[] = {"qem", "coplanar_qem", "coplanar", nullptr};
+        const auto mode = static_cast<MESH_SIMPLIFY_MODE>(luaL_checkoption(lua, 7, "qem", modeNames));
+        const float planarTolerance = static_cast<float>(luaL_optnumber(lua, 8, 1e-7));
+        const float planarAngle = static_cast<float>(luaL_optnumber(lua, 9, 0.05));
+        const bool planarReduceBoundaries = !lua_isnoneornil(lua, 10) && lua_toboolean(lua, 10);
+        const float ratio = mode == MESH_SIMPLIFY_MODE::COPLANAR ? 1.0f
+            : static_cast<float>(luaL_checknumber(lua, 2));
         int targetSubsetIndex = -1;
         if (lua_gettop(lua) >= 3 && !lua_isnil(lua, 3))
         {
@@ -244,7 +257,7 @@ namespace mbm
         if (!meshDebug->mesh.simplify(ratio, report, errorOut,
                                       static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
                                       targetFrameIndex, preserveDetails,
-                                      boundaryCollapseThreshold))
+                                      boundaryCollapseThreshold, mode, planarTolerance, planarAngle, planarReduceBoundaries))
         {
             lua_pushnil(lua);
             lua_pushstring(lua, errorOut);
@@ -257,7 +270,13 @@ namespace mbm
     int onStartSimplifyMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const float ratio = static_cast<float>(luaL_checknumber(lua, 2));
+        const char *modeNames[] = {"qem", "coplanar_qem", "coplanar", nullptr};
+        const auto mode = static_cast<MESH_SIMPLIFY_MODE>(luaL_checkoption(lua, 7, "qem", modeNames));
+        const float planarTolerance = static_cast<float>(luaL_optnumber(lua, 8, 1e-7));
+        const float planarAngle = static_cast<float>(luaL_optnumber(lua, 9, 0.05));
+        const bool planarReduceBoundaries = !lua_isnoneornil(lua, 10) && lua_toboolean(lua, 10);
+        const float ratio = mode == MESH_SIMPLIFY_MODE::COPLANAR ? 1.0f
+            : static_cast<float>(luaL_checknumber(lua, 2));
         int targetSubsetIndex = -1;
         if (!lua_isnoneornil(lua, 3))
         {
@@ -274,7 +293,7 @@ namespace mbm
         const float boundaryCollapseThreshold = lua_isnoneornil(lua, 6)
             ? 0.0f : static_cast<float>(luaL_checknumber(lua, 6));
         if (meshDebug->mesh.startSimplify(ratio, targetSubsetIndex, targetFrameIndex,
-                                          preserveDetails, boundaryCollapseThreshold))
+                                          preserveDetails, boundaryCollapseThreshold, mode, planarTolerance, planarAngle, planarReduceBoundaries))
         {
             lua_pushboolean(lua, 1);
             return 1;
@@ -3746,6 +3765,10 @@ namespace mbm
         boolean("curvedFaceted",options.curvedFaceted);
         integer("curvedFacetSectors",options.curvedFacetSectors);integer("curvedFacetRings",options.curvedFacetRings);
         boolean("curvedSimplify",options.curvedSimplify);
+        lua_getfield(lua,optionIndex,"curvedSimplifyMode");
+        const char *curvedModes[] = {"specific","coplanar_specific","coplanar",nullptr};
+        options.curvedSimplifyMode=static_cast<uint32_t>(luaL_checkoption(lua,-1,"specific",curvedModes));
+        lua_pop(lua,1);
         number("curvedSimplifyRatio",options.curvedSimplifyRatio);number("curvedSimplifyError",options.curvedSimplifyError);
         number("curvedRadius",options.curvedRadius); number("curvedEdge",options.curvedEdge);
         number("curvedTarget",options.curvedTarget); boolean("curvedSymmetric",options.curvedSymmetric);
@@ -4110,6 +4133,7 @@ namespace mbm
             {
                 lua_pushinteger(lua,job->report.curvedSourceTriangles);lua_setfield(lua,-2,"curvedSourceTriangles");
                 lua_pushinteger(lua,job->report.curvedResultTriangles);lua_setfield(lua,-2,"curvedResultTriangles");
+            lua_pushinteger(lua,job->report.curvedPlanarRemovedTriangles);lua_setfield(lua,-2,"curvedPlanarRemovedTriangles");
                 lua_pushnumber(lua,job->report.curvedMaximumError);lua_setfield(lua,-2,"curvedMaximumError");
                 lua_pushboolean(lua,job->report.curvedTargetReached);lua_setfield(lua,-2,"curvedTargetReached");
             }
@@ -4188,6 +4212,7 @@ namespace mbm
         {
             lua_pushinteger(lua,report.curvedSourceTriangles);lua_setfield(lua,-2,"curvedSourceTriangles");
             lua_pushinteger(lua,report.curvedResultTriangles);lua_setfield(lua,-2,"curvedResultTriangles");
+            lua_pushinteger(lua,report.curvedPlanarRemovedTriangles);lua_setfield(lua,-2,"curvedPlanarRemovedTriangles");
             lua_pushnumber(lua,report.curvedMaximumError);lua_setfield(lua,-2,"curvedMaximumError");
             lua_pushboolean(lua,report.curvedTargetReached);lua_setfield(lua,-2,"curvedTargetReached");
         }

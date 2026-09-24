@@ -590,6 +590,12 @@ inside the crop. Solid side colors are opaque.
 ## Constrained curved simplification (7.270.0)
 
 In Manual curved mode, open **Simplification** and enable **Simplify curved relief**.
+Since 7.280.0, Method offers **Curved relief** (the existing default), **Coplanar +
+curved relief**, and **Coplanar only**. The coplanar stage runs first and only
+accepts exact horizontal plateaus compatible with the generator's normal policy;
+controls/extrema and the dense-source error baseline are retained. No QEM runs in
+these modes. Ratio/error widgets are disabled in Coplanar only; unchanged saved
+values remain available when switching back.
 Set **Faces to keep** (0.5 requests half the front triangles) and **Additional error**
 (default 0.01, or 1% of the thickness range), then Apply. The panel reports before/after
 front face counts and the conservative error bound. A partial-reduction notice means
@@ -621,6 +627,43 @@ regenerate geometry. Cancelling reference generation does not install a partial
 comparison. Export generates only the selected result, without the reference.
 
 ## Simplification and comparison
+
+Since 7.280.0, general Method offers **QEM** (default), **Coplanar + QEM**, and
+**Coplanar only**, with the same native implementation as Mesh Debug. Mode is saved
+per project/default/region, invalidates generated caches when applied, and is used
+by preview, requested statistics, comparison, assembly and single/batch export.
+Since 7.281.0, the general coplanar modes also expose a plane-distance limit
+(`planarTolerance`, default `1e-7`, range `0..0.01`). It is saved with region/default
+options and participates in the existing preview/export cache. Old projects receive
+the default. Rejection categories are displayed with the result. Curved generation
+still uses exact plateaus; the general tolerance does not change its height-error
+budget.
+
+Since 7.282.0, **Coplanar angle** uses DragFloat in degrees (0..5, default 0.05).
+The independent plane-distance setting is under **Advanced coplanar limits**, also
+using DragFloat, displayed as a percentage (0..1%, default 0.00001%). `planarAngle`
+is saved with the other simplification options. Legacy projects retain their distance
+setting and receive the previous angular default. Both tooltips wrap at 420 pixels.
+
+Since 7.283.0, the shared coplanar pass can reduce eligible regions containing up
+to 16 disjoint internal holes while retaining every outer/inner boundary segment.
+This also applies to eligible exact plateaus in the curved coplanar prepass. No
+new editor toggle or idle processing is added. Neighbor, attribute and topology
+checks still apply and can retain the original triangulation.
+
+Since 7.284.0, **Reduce straight boundaries** enables shared exact collinear
+boundary contraction in the general modes. It is saved as `planarReduceBoundaries`
+and defaults to false in both new and legacy projects. Neighbor charts must accept
+the same removal; source UVs/normals and geometric coverage remain certified.
+The report shows removed geometric samples and any whole-stage fallback.
+Separate side quads may protect their corner samples. Eligible continuous planar
+sides, such as minimal flat-back generation, can coordinate with the front.
+The specialized curved pipeline retains its authored boundaries and ignores this
+general-only setting. Details: [shared boundary limits](mesh-simplification.md#coordinated-straight-boundaries-72840).
+
+Old projects keep their enable switch and default to QEM. Coplanar-only disables
+ratio/QEM controls and reports its own geometry/UV bounds. See
+[the shared limits](mesh-simplification.md#coplanar-modes-72800).
 
 For image/manual/mixed relief, enable **Simplify after generation** to use the same simplifier as Mesh Debug over
 the whole generated frame, including its materials:

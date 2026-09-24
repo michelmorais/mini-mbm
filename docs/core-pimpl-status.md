@@ -92,7 +92,13 @@ created on the main thread.
 
 The editor simplification worker, progress, state, report, error, and cancellation
 arbitration remain in `MESH_MBM_DEBUG::Impl`. Public operations start, query, cancel,
-and collect work without exposing the worker or mutable state.
+and collect work without exposing the worker or mutable state. The 7.280.0
+`MESH_SIMPLIFY_MODE` and added report fields are scalar values. Planar adjacency,
+corner attributes, region certificates and scratch candidates live in the private
+`mesh-planar.h` helper; the optional prepass shares the same final commit gate.
+Image Mesh's curved mode and planar count also remain scalar options/report data.
+The 7.284.0 boundary option and counters are scalar; coordinated certificates,
+position-alias contacts and masks remain temporary private helper state.
 
 Prepared geometry buffers retain local ownership until commit. The cancellation
 and commit gate ensures that an accepted native cancellation precedes replacement

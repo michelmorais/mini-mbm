@@ -22,6 +22,7 @@
 #include "image-mesh-height.h"
 #include "image-mesh-topology.h"
 #include "image-mesh-progress.h"
+#include "mesh-planar.h"
 #include <limits>
 
 namespace mbm { namespace image_mesh {
@@ -116,7 +117,50 @@ inline void run(const IMAGE_MESH_OPTIONS &o,const HEIGHT_FIELD &field,TOPOLOGY &
         higher[f[j]]=higher[f[j]] || heights[f[k]]>heights[f[j]]+1e-7;
     }
     for (size_t i=0;i<locked.size();++i) locked[i]=locked[i] || (lower[i]!=higher[i]);
-    for (unsigned pass=0;pass<32 && t.triangles.size()>target;++pass)
+    if (o.curvedSimplifyMode != 0)
+    {
+        mesh_simplifier::INPUT input, result;
+        mesh_simplifier::planar::ATTRIBUTES attributes;
+        attributes.exact = true;
+        attributes.locked = locked;
+        for (size_t i=0; i<t.points.size(); ++i)
+        {
+            const auto &p=t.points[i];
+            const float height=static_cast<float>(heights[i])*o.relief;
+            input.positions.emplace_back((p.x-0.5f)*o.width,(0.5f-p.y)*o.height,-o.depth*0.5f-height);
+        }
+        // Only exact horizontal plateaus with the generator's constant-normal
+        // policy are eligible. Sloped/curved faces stay separate, preserving
+        // height controls and the specific reducer's immutable error baseline.
+        for (uint32_t f=0; f<t.triangles.size(); ++f)
+        {
+            const auto &face=t.triangles[f];
+            const auto level=heights[face[0]];
+            const bool plateau=level==heights[face[1]] && level==heights[face[2]] &&
+                (o.relief==0 || level>=0.9999 || level<=0.0001 || o.curvedHierarchy);
+            input.triangleGroups.push_back(plateau?0:f+1);
+            for (auto v:face)
+            {
+                input.indices.push_back(v);
+                attributes.uv.emplace_back(t.points[v].x,t.points[v].y);
+                if (!plateau) attributes.locked[v]=true;
+            }
+        }
+        mesh_simplifier::planar::REPORT planarReport;
+        std::string error;
+        if (!mesh_simplifier::planar::run(input,attributes,result,planarReport,error,
+            [&](float progress) { checkpoint(o,"curved_simplify",0.87f+0.005f*progress); }))
+            throw std::runtime_error(error);
+        if (planarReport.removed)
+        {
+            t.triangles.clear();
+            for (size_t i=0;i<result.indices.size();i+=3)
+                t.triangles.push_back({result.indices[i],result.indices[i+1],result.indices[i+2]});
+            errors.assign(t.triangles.size(),0);
+        }
+        report.curvedPlanarRemovedTriangles=planarReport.removed;
+    }
+    for (unsigned pass=0;o.curvedSimplifyMode!=2 && pass<32 && t.triangles.size()>target;++pass)
     {
         std::vector<std::vector<uint32_t>> incident(t.points.size());
         for (uint32_t i=0;i<t.triangles.size();++i) for (auto v:t.triangles[i]) incident[v].push_back(i);
@@ -125,7 +169,7 @@ inline void run(const IMAGE_MESH_OPTIONS &o,const HEIGHT_FIELD &field,TOPOLOGY &
         size_t remaining=t.triangles.size();
         for (uint32_t v=0;v<t.points.size() && remaining>target;++v)
         {
-            if ((v&63)==0) checkpoint(o,"curved_simplify",0.87f+0.02f*pass/32);
+            if ((v&63)==0) checkpoint(o,"curved_simplify",(o.curvedSimplifyMode?0.875f:0.87f)+0.015f*pass/32);
             const auto &fan=incident[v];
             if (locked[v] || touched[v] || fan.size()<3 || fan.size()>32 || remaining<target+2) continue;
             std::vector<std::array<uint32_t,2>> edges;
@@ -202,7 +246,7 @@ inline void run(const IMAGE_MESH_OPTIONS &o,const HEIGHT_FIELD &field,TOPOLOGY &
     for (auto &v:t.boundary) v=remap[v];
     t.points.swap(compact);
     report.curvedResultTriangles=static_cast<uint32_t>(t.triangles.size());
-    report.curvedTargetReached=t.triangles.size()<=target;
+    report.curvedTargetReached=o.curvedSimplifyMode==2 || t.triangles.size()<=target;
     report.curvedMaximumError=static_cast<float>(*std::max_element(errors.begin(),errors.end()));
 }
 } // namespace curved_simplify

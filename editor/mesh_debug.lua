@@ -6021,7 +6021,7 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
     local numericRatio = tonumber(ratio)
     if not numericRatio then return nil, tLang.L('simplify_invalid_ratio') end
     local started, startError = meshD:startSimplify(numericRatio, targetSubset,
-        targetFrame, preserveDetails, boundaryCollapseThreshold)
+        targetFrame, preserveDetails, boundaryCollapseThreshold, progressState.mode or 'qem', progressState.planarTolerance, progressState.planarAngle, progressState.planarReduceBoundaries)
     if not started then return nil, startError end
     progressState.activeMesh = meshD
     coroutine.yield()
@@ -6077,7 +6077,8 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh, sourceFrame)
     local aggregateReport = nil
     local useVirtualFrame = simplifyState.scope == 'subsets' and
-        simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2
+        simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2 and
+        (simplifyState.mode or 'qem') == 'qem'
     if useVirtualFrame then
         local report, simplifyError = simplifyVirtualSubsetBatch(workingMesh, pendingBackup.path,
             sourceFrame, targets, simplifyState.ratio, simplifyState.preserveDetails,
@@ -6106,6 +6107,16 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
             if not aggregateReport then
                 aggregateReport = splitCaptureCopyTable(report)
             else
+                aggregateReport.unchanged = aggregateReport.unchanged and report.unchanged
+                aggregateReport.qemRan = aggregateReport.qemRan or report.qemRan
+                aggregateReport.planarSkipped = aggregateReport.planarSkipped or report.planarSkipped
+                aggregateReport.planarBoundaryFallback = aggregateReport.planarBoundaryFallback or report.planarBoundaryFallback
+                for _,field in ipairs({'planarRegions','planarRejectedRegions','planarRemovedTriangles',
+                    'planarHoles','planarAttributes','planarTopology','planarSurroundings','planarWorkLimit','planarBoundaryRemovedVertices'}) do
+                    aggregateReport[field]=(aggregateReport[field] or 0)+(report[field] or 0)
+                end
+                aggregateReport.planarMaximumError=math.max(aggregateReport.planarMaximumError or 0,report.planarMaximumError or 0)
+                aggregateReport.planarMaximumUvError=math.max(aggregateReport.planarMaximumUvError or 0,report.planarMaximumUvError or 0)
                 aggregateReport.resultVertexCount = report.resultVertexCount
                 aggregateReport.resultTriangleCount = report.resultTriangleCount
                 aggregateReport.maximumGeometricError = math.max(
@@ -6133,6 +6144,14 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     aggregateReport.sourceTriangleCount = sourceTriangles
     aggregateReport.resultVertexCount = resultVertices
     aggregateReport.resultTriangleCount = resultTriangles
+    if aggregateReport.unchanged then
+        meshDebug:fakeRelease(pendingBackup.path)
+        os.remove(pendingBackup.path)
+        simplifyState.report=aggregateReport
+        simplifyState.lastError=nil
+        tUtil.showMessage(tLang.L('simplify_unchanged'),5)
+        return true
+    end
     simplifyDiscardBackup(tEntry)
     tEntry.tSimplifyBackup = pendingBackup
     simplifyState.report = aggregateReport
@@ -6149,6 +6168,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         aggregateReport.sourceTriangleCount, aggregateReport.resultTriangleCount), 5)
     local reduction = aggregateReport.sourceTriangleCount > 0 and
         (1 - aggregateReport.resultTriangleCount / aggregateReport.sourceTriangleCount) * 100 or 0
+    if aggregateReport.qemRan==false then return true end
     print(string.format(tLang.L('simplify_terminal_quality_fmt'),
         simplifyQualityLabel(aggregateReport), reduction,
         (aggregateReport.maximumRelativeError or 0) * 100,
@@ -7175,6 +7195,17 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tImGui.Text(tLang.L('simplify_geometry'))
     tImGui.BeginDisabled(simplifyState.running == true)
 
+    tImGui.SetNextItemWidth(240)
+    local mode=require('mesh_simplify_modes').select(simplifyState.mode,false,'mesh-debug-'..index)
+    if mode~=simplifyState.mode then simplifyState.mode=mode;simplifyState.report=nil end
+    if mode~='qem' then
+        local tolerance,angle,reduceBoundaries=require('mesh_simplify_modes').planarSettings(
+            simplifyState.planarTolerance,simplifyState.planarAngle,'mesh-debug-'..index,simplifyState.planarReduceBoundaries)
+        if tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle or reduceBoundaries~=simplifyState.planarReduceBoundaries then
+            simplifyState.planarTolerance=tolerance;simplifyState.planarAngle=angle;simplifyState.planarReduceBoundaries=reduceBoundaries;simplifyState.report=nil
+        end
+        tImGui.TextWrapped(tLang.L('simplify_planar_help'))
+    end
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
     scopeIndex = tImGui.RadioButton(
         tLang.L('simplify_scope_frame') .. '##simplifyFrame-' .. index, scopeIndex, 1)
@@ -7253,7 +7284,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 end
             end
         end
-        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames)
+        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames or simplifyState.mode ~= 'qem')
         local virtualFrame = tImGui.Checkbox(
             tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
             simplifyState.virtualFrame == true)
@@ -7287,6 +7318,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
     end
 
+    tImGui.BeginDisabled(simplifyState.mode=='coplanar')
     tImGui.PushItemWidth(180)
     local ratioChanged, ratio = tImGui.DragFloat(
         tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
@@ -7320,7 +7352,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local availableVertices = math.max(0, 65535 - preservedVertices)
     local maximumSafeRatio = sourceVertices > 0 and
         math.min(0.95, availableVertices / sourceVertices) or 0.95
-    local exceedsIndexLimit = estimatedVertices > 65535
+    local exceedsIndexLimit = simplifyState.mode=='qem' and estimatedVertices > 65535
     if exceedsIndexLimit then
         tImGui.TextWrapped(string.format(tLang.L('simplify_uint16_limit_fmt'),
             estimatedVertices, maximumSafeRatio * 100))
@@ -7372,6 +7404,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tImGui.EndTooltip()
     end
 
+    tImGui.EndDisabled()
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
         #tEntry.tPendingOps == 0 and hasSelection and not simplifyState.running and
@@ -7410,41 +7443,44 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tImGui.EndDisabled()
     end
     local report = simplifyState.report
+    require('mesh_simplify_modes').report(report)
     if report then
         local reduction = report.sourceTriangleCount > 0 and
             (1 - report.resultTriangleCount / report.sourceTriangleCount) * 100 or 0
         tImGui.Text(string.format(tLang.L('simplify_report_geometry_fmt'),
             report.sourceVertexCount, report.resultVertexCount,
             report.sourceTriangleCount, report.resultTriangleCount))
-        tImGui.Text(string.format(tLang.L('simplify_report_quality_fmt'),
-            simplifyQualityLabel(report), reduction, (report.maximumRelativeError or 0) * 100))
-        tImGui.TextWrapped(string.format(tLang.L('simplify_report_rejections_fmt'),
-            report.collapseCount or 0, report.boundaryRejectedCollapseCount or 0,
-            report.topologyRejectedCollapseCount or 0,
-            report.orientationRejectedCollapseCount or 0,
-            report.invalidRejectedCollapseCount or 0))
-        if (report.boundaryCollapseCount or 0) > 0 then
-            tImGui.Text(string.format(tLang.L('simplify_report_boundary_collapses_fmt'),
-                report.boundaryCollapseCount))
-        end
-        tImGui.Text(string.format(tLang.L('simplify_report_structure_fmt'),
-            report.degenerateTriangleCount or 0, report.nonManifoldEdgeCount or 0,
-            report.connectedComponentCount or 0))
-        if simplifyState.preserveDetails then
-            tImGui.Text(string.format(tLang.L('simplify_report_details_fmt'),
-                report.detailPenalizedCollapseCount or 0,
-                report.detailPenalizedCandidateCount or 0))
-        end
-        tImGui.Text(string.format(tLang.L('simplify_report_clearance_fmt'),
-            report.clearanceRejectedCollapseCount or 0))
-        if report.skinWeightAware then
-            tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
-                report.sampledPoseCount or 0, report.sampledClipCount or 0,
-                report.maximumPoseError or 0))
-        end
-        if report.geometryFrameAware then
-            tImGui.Text(string.format(tLang.L('simplify_report_frames_fmt'),
-                report.geometryFrameCount or 0, report.maximumFrameError or 0))
+        if report.qemRan~=false then
+            tImGui.Text(string.format(tLang.L('simplify_report_quality_fmt'),
+                simplifyQualityLabel(report), reduction, (report.maximumRelativeError or 0) * 100))
+            tImGui.TextWrapped(string.format(tLang.L('simplify_report_rejections_fmt'),
+                report.collapseCount or 0, report.boundaryRejectedCollapseCount or 0,
+                report.topologyRejectedCollapseCount or 0,
+                report.orientationRejectedCollapseCount or 0,
+                report.invalidRejectedCollapseCount or 0))
+            if (report.boundaryCollapseCount or 0) > 0 then
+                tImGui.Text(string.format(tLang.L('simplify_report_boundary_collapses_fmt'),
+                    report.boundaryCollapseCount))
+            end
+            tImGui.Text(string.format(tLang.L('simplify_report_structure_fmt'),
+                report.degenerateTriangleCount or 0, report.nonManifoldEdgeCount or 0,
+                report.connectedComponentCount or 0))
+            if simplifyState.preserveDetails then
+                tImGui.Text(string.format(tLang.L('simplify_report_details_fmt'),
+                    report.detailPenalizedCollapseCount or 0,
+                    report.detailPenalizedCandidateCount or 0))
+            end
+            tImGui.Text(string.format(tLang.L('simplify_report_clearance_fmt'),
+                report.clearanceRejectedCollapseCount or 0))
+            if report.skinWeightAware then
+                tImGui.Text(string.format(tLang.L('simplify_report_pose_fmt'),
+                    report.sampledPoseCount or 0, report.sampledClipCount or 0,
+                    report.maximumPoseError or 0))
+            end
+            if report.geometryFrameAware then
+                tImGui.Text(string.format(tLang.L('simplify_report_frames_fmt'),
+                    report.geometryFrameCount or 0, report.maximumFrameError or 0))
+            end
         end
     end
     local blockedByTopology = tostring(simplifyState.lastError or ''):find(

@@ -122,7 +122,7 @@ function M.panel(E,select,wire,safe)
     wire(tImGui.Checkbox(L('wireframe')..'##comparison',E.wireframe))
     tImGui.Text(string.format(L('comparison_counts'),E.report.sourceVertices,E.report.vertices,
         E.report.sourceTriangles,E.report.triangles,100*(1-E.report.triangles/E.report.sourceTriangles)))
-    if E.report.simplification then
+    if E.report.simplification and E.report.simplification.qemRan~=false then
         tImGui.Text(string.format(L('comparison_error'),E.report.simplification.maximumGeometricError,
             E.report.simplification.maximumRelativeError*100))
         if tImGui.IsItemHovered() then Help.tooltip(L('comparison_error_help')) end

@@ -65,8 +65,17 @@ namespace mbm
         float weights[4];
     };
 
+    enum class MESH_SIMPLIFY_MODE : uint8_t { QEM, COPLANAR_QEM, COPLANAR };
+
     struct MESH_SIMPLIFY_REPORT
     {
+        bool unchanged = false, qemRan = false, planarSkipped = false;
+        uint32_t planarRegions = 0, planarRejectedRegions = 0, planarRemovedTriangles = 0;
+        uint32_t planarHoles = 0, planarAttributes = 0, planarTopology = 0;
+        uint32_t planarSurroundings = 0, planarWorkLimit = 0;
+        float planarMaximumError = 0, planarMaximumUvError = 0;
+        uint32_t planarBoundaryRemovedVertices = 0;
+        bool planarBoundaryFallback = false;
         uint32_t sourceVertexCount = 0;
         uint32_t resultVertexCount = 0;
         uint32_t sourceTriangleCount = 0;
@@ -339,12 +348,22 @@ namespace mbm
         // sequence to every compatible non-skeletal frame. Multi-frame skeletal and articulated
         // assets remain unsupported. boundaryCollapseThreshold=0 locks open boundaries; positive
         // values allow clean boundary edges up to that fraction of the source diagonal to collapse.
+        // mode defaults to the unchanged QEM path. COPLANAR ignores the ratio;
+        // COPLANAR_QEM uses the original absolute target and one final transaction.
+        // Planar bounds describe only the prepass. Animated inputs skip that stage.
+        // planarTolerance in [0, 0.01] bounds plane distance / connected-domain diagonal.
+        // planarAngle in [0, 5] bounds face-normal angle to the fixed seed plane, in degrees.
+        // planarReduceBoundaries coordinates exact straight boundary samples across charts.
         API_IMPL bool simplify(const float targetTriangleRatio, MESH_SIMPLIFY_REPORT &report,
                                char *errorOut, const int errorOutLen,
                                const int targetSubsetIndex = -1,
                                const int targetFrameIndex = 0,
                                const bool preserveDetails = true,
-                               const float boundaryCollapseThreshold = 0.0f);
+                               const float boundaryCollapseThreshold = 0.0f,
+                               const MESH_SIMPLIFY_MODE mode = MESH_SIMPLIFY_MODE::QEM,
+                               const float planarTolerance = 1e-7f,
+                               const float planarAngle = 0.05f,
+                               const bool planarReduceBoundaries = false);
         // Editor/tooling-only asynchronous counterpart. The worker, progress, report, and error
         // belong to this MESH_MBM_DEBUG instance; no engine-loop pump is involved. Do not access
         // or mutate this instance while RUNNING. Starting a new job replaces a completed result.
@@ -352,7 +371,11 @@ namespace mbm
                                     const int targetSubsetIndex = -1,
                                     const int targetFrameIndex = 0,
                                     const bool preserveDetails = true,
-                                    const float boundaryCollapseThreshold = 0.0f);
+                                    const float boundaryCollapseThreshold = 0.0f,
+                                    const MESH_SIMPLIFY_MODE mode = MESH_SIMPLIFY_MODE::QEM,
+                                    const float planarTolerance = 1e-7f,
+                                    const float planarAngle = 0.05f,
+                                    const bool planarReduceBoundaries = false);
         API_IMPL bool cancelSimplify() noexcept;
         API_IMPL MESH_SIMPLIFY_STATE getSimplifyState(float &progress) noexcept;
         API_IMPL bool getSimplifyResult(MESH_SIMPLIFY_REPORT &report,
