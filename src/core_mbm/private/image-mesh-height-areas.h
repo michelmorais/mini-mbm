@@ -44,7 +44,8 @@ inline bool composeHeightAreas(const IMAGE_MESH_OPTIONS &o,uint32_t width,uint32
     {
         const auto &area=o.heightAreas[index];
         if (!area.points || area.count<(area.line?2u:3u) || area.count>128 || !std::isfinite(area.height) || area.height<0 || area.height>1 ||
-            !std::isfinite(area.transition) || area.transition<0 || area.transition>1)
+            !std::isfinite(area.transition) || area.transition<0 || area.transition>1 ||
+            area.mode<IMAGE_MESH_BRUSH::RAISE || area.mode>IMAGE_MESH_BRUSH::FLATTEN)
             return fail("Invalid height area: 3..128 polygon points or 2..128 line points, height and transition in [0,1]");
         if (area.line && (!std::isfinite(area.lineWidth) || area.lineWidth<0.001f || area.lineWidth>1))
             return fail("Height line width must be in [0.001,1]");
@@ -82,7 +83,7 @@ inline bool composeHeightAreas(const IMAGE_MESH_OPTIONS &o,uint32_t width,uint32
             minX=std::max(0.0f,minX-radius/std::max(1u,width-1));maxX=std::min(1.0f,maxX+radius/std::max(1u,width-1));
             minY=std::max(0.0f,minY-radius/std::max(1u,height-1));maxY=std::min(1.0f,maxY+radius/std::max(1u,height-1));
         }
-        if (!area.enabled || o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::IMAGE) continue;
+        if (!area.enabled) continue;
         const uint32_t x0=static_cast<uint32_t>(std::floor(minX*(width-1))),x1=static_cast<uint32_t>(std::ceil(maxX*(width-1)));
         const uint32_t y0=static_cast<uint32_t>(std::floor(minY*(height-1))),y1=static_cast<uint32_t>(std::ceil(maxY*(height-1)));
         work+=static_cast<uint64_t>(x1-x0+1)*(y1-y0+1)*area.count;
@@ -109,7 +110,9 @@ inline bool composeHeightAreas(const IMAGE_MESH_OPTIONS &o,uint32_t width,uint32
             else if (!inside && nearest>1e-5) continue;
             const float weight=transition>0?std::min(1.0f,static_cast<float>(nearest)/transition):1;
             auto &value=values[static_cast<size_t>(y)*width+x];
-            value+=(area.height-value)*weight;
+            if (area.mode==IMAGE_MESH_BRUSH::RAISE) value=std::min(1.0f,value+area.height*weight);
+            else if (area.mode==IMAGE_MESH_BRUSH::LOWER) value=std::max(0.0f,value-area.height*weight);
+            else value+=(area.height-value)*weight;
         }
     }
     return true;

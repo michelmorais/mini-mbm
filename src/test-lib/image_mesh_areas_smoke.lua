@@ -42,7 +42,7 @@ function onInitScene()
   o.heightAreas={a};a.transition=.125;m=map();close(m(16,24),.5);close(m(20,24),.65);close(m(24,24),.8)
   a.transition=0;o.heightEdits={{x=.5,y=.5,radius=.1,strength=1,height=.1,mode='flatten'}}
   m=map();close(m(32,32),.1);o.heightEdits=nil
-  o.heightSource='image';o.twoLevels=false;o.invert=false;o.smoothPasses=0;m=map();close(m(20,20),20/64)
+  o.heightSource='image';o.twoLevels=false;o.invert=false;o.smoothPasses=0;m=map();close(m(20,20),.8) -- Image now shares final areas
   o.heightSource='mixed';m=map();close(m(20,20),.8);close(m(5,5),5/64)
   o.heightSource='manual';o.heightAreas={a,b}
   local mesh,report=mbm.generateImageMesh(path,o);assert(mesh,report)

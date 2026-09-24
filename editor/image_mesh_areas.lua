@@ -35,7 +35,7 @@ function M.different(a,b)
  if #a~=#b then return true end
  for i,area in ipairs(a) do
   local other=b[i]
-  for _,key in ipairs({'name','shape','enabled','height','transition','lineWidth'}) do if area[key]~=other[key] then return true end end
+  for _,key in ipairs({'name','shape','enabled','height','transition','lineWidth','mode'}) do if area[key]~=other[key] then return true end end
   if #area~=#other then return true end
   for j,p in ipairs(area) do if p.x~=other[j].x or p.y~=other[j].y then return true end end
  end
@@ -56,11 +56,12 @@ function M.add(E,action,shape,points)
     for i=0,31 do local a=i*math.pi/16;area[#area+1]={x=.5+.2*math.cos(a),y=.5+.2*math.sin(a)} end
    else area={{x=.3,y=.3},{x=.7,y=.3},{x=.7,y=.7},{x=.3,y=.7}} end
   end
+  area.mode='flatten'
   area.name=L('name')..' '..(#r.heightAreas+1);area.shape=shape
   area.height=shape=='line' and .25 or .75;area.transition=shape=='line' and 0 or .02;area.enabled=true
   if shape=='line' then area.lineWidth=.05 end
   r.heightAreas[#r.heightAreas+1]=area
-  if Model.options(project,r).heightSource=='image' then r.overrides.heightSource='mixed';r.overrides.followImage=true end
+  r.overrides.followImage=true
  end)
  if ok then E.areaIndex=#Model.region(E.project,E.selected).heightAreas;activate(E) end
  return ok
@@ -107,11 +108,6 @@ function M.modePanel(E)
 end
 function M.panel(E,action,apply)
  if E.editDefaults or not E.draft then return end
- if E.values.heightSource=='curved' then return end
- if E.values.heightSource=='image' then
-  if #(E.draft.heightAreas or {})>0 then tImGui.TextWrapped(L('inactive_mode')) end
-  return
- end
  tImGui.Separator();tImGui.Text(L('title'))
  local c,v
  local areas=E.draft.heightAreas or {}
@@ -126,13 +122,17 @@ function M.panel(E,action,apply)
   a.enabled=tImGui.Checkbox(L('enabled'),a.enabled)
   Help.show('enabled')
   if not a.enabled then tImGui.TextWrapped(L('disabled')) end
-  c,v=tImGui.SliderFloat(L('height'),a.height,0,1,'%.3f');if c then a.height=Model.clampNumber(v,0,1,a.height) end
+  local modes={'flatten','raise','lower'};local mode=1
+  for i,k in ipairs(modes) do if a.mode==k then mode=i end end
+  c,v=tImGui.Combo(L('operation'),mode,{tLang.L('ime_paint_flatten'),tLang.L('ime_paint_raise'),tLang.L('ime_paint_lower')})
+  if c then a.mode=modes[v] end
+  c,v=tImGui.SliderFloat((a.mode=='raise' or a.mode=='lower') and L('amount') or L('height'),a.height,0,1,'%.3f');if c then a.height=Model.clampNumber(v,0,1,a.height) end
   Help.show('height')
-  tImGui.TextWrapped(string.format(L('world_height'),a.height,E.values.relief,a.height*E.values.relief))
-  if E.values.heightSource=='manual' then
+  if E.values.heightSource~='curved' then tImGui.TextWrapped(string.format(L('world_height'),a.height,E.values.relief,a.height*E.values.relief)) end
+  if E.values.heightSource=='manual' and (a.mode==nil or a.mode=='flatten') then
    tImGui.TextWrapped(string.format(L('relative_height'),(a.height-E.values.baseHeight)*E.values.relief))
   end
-  tImGui.TextWrapped(L('height_help'))
+  tImGui.TextWrapped(L('finish_help'))
   if tImGui.Button(tLang.L('ime_apply')..'##height_area') then apply();return end
   local span=math.max(1,math.min(E.draft.w,E.draft.h)-1)
   c,v=tImGui.InputFloat(L('transition'),a.transition*span,.5,5,'%.2f');if c then a.transition=Model.clampNumber(v,0,span,a.transition*span)/span end

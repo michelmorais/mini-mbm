@@ -76,8 +76,10 @@ struct HEIGHT_FIELD
         }
         return 0;
     }
-    bool load(const char *source,const IMAGE_MESH_OPTIONS &o,std::string &error)
+    bool load(const char *source,const IMAGE_MESH_OPTIONS &options,std::string &error)
     {
+        IMAGE_MESH_OPTIONS o=options;
+        if (!o.heightFinishing) { o.heightEditCount=0;o.heightAreaCount=0; }
         const auto fail=[&](const char *m) { error=m; return false; };
         if (!source || !*source) return fail("Image path required");
         if (o.heightSource<IMAGE_MESH_HEIGHT_SOURCE::IMAGE || o.heightSource>IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
@@ -110,7 +112,7 @@ struct HEIGHT_FIELD
             if (!curved.prepare(o,error)) return false;
             if (!o.curvedPainting || o.curvedFaceted) return true;
             if (!validateDabs(o,error)) return false;
-            if (!o.heightEditCount || o.relief==0) return true;
+            if ((!o.heightEditCount && !o.heightAreaCount) || o.relief==0) return true;
             // Only evaluate the curved base near strokes. The margin covers smoothing,
             // mask dilation and bilinear sampling; untouched regions keep the analytic field.
             int x0=static_cast<int>(width)-1,y0=static_cast<int>(height)-1,x1=0,y1=0;
@@ -124,6 +126,28 @@ struct HEIGHT_FIELD
                 x1=std::max(x1,std::min(static_cast<int>(width)-1,static_cast<int>(std::ceil(x+radius))));
                 y1=std::max(y1,std::min(static_cast<int>(height)-1,static_cast<int>(std::ceil(y+radius))));
             }
+            if (o.heightAreaCount>32 || (o.heightAreaCount && !o.heightAreas))
+                return fail("heightAreas accepts at most 32 contours");
+            for (uint32_t i=0;i<o.heightAreaCount;++i)
+            {
+                const auto &area=o.heightAreas[i];
+                if (!area.points || area.count>128 || area.count<(area.line?2u:3u))
+                    return fail("Invalid height area points");
+                if (area.line && (!std::isfinite(area.lineWidth) || area.lineWidth<0.001f || area.lineWidth>1))
+                    return fail("Height line width must be in [0.001,1]");
+                const float margin=4+(area.line?area.lineWidth*std::max(1u,std::min(width,height)-1)*0.5f:0);
+                for (uint32_t j=0;j<area.count;++j)
+                {
+                    const auto &p=area.points[j];
+                    if (!std::isfinite(p.x) || !std::isfinite(p.y) || p.x<0 || p.x>1 || p.y<0 || p.y>1)
+                        return fail("Height area points must be normalized crop coordinates in [0,1]");
+                    const float x=p.x*(width-1),y=p.y*(height-1);
+                    x0=std::min(x0,std::max(0,static_cast<int>(std::floor(x-margin))));
+                    y0=std::min(y0,std::max(0,static_cast<int>(std::floor(y-margin))));
+                    x1=std::max(x1,std::min(static_cast<int>(width)-1,static_cast<int>(std::ceil(x+margin))));
+                    y1=std::max(y1,std::min(static_cast<int>(height)-1,static_cast<int>(std::ceil(y+margin))));
+                }
+            }
             levels.assign(static_cast<size_t>(width)*height,0);
             for (int y=y0;y<=y1;++y)
             {
@@ -132,9 +156,7 @@ struct HEIGHT_FIELD
                     levels[static_cast<size_t>(y)*width+x]=curved.level(
                         static_cast<float>(x)/std::max(1u,width-1),static_cast<float>(y)/std::max(1u,height-1),o);
             }
-            IMAGE_MESH_OPTIONS painting=o;
-            painting.heightAreas=nullptr;painting.heightAreaCount=0;
-            return paint(painting,error);
+            return paint(o,error);
         }
         std::unique_ptr<stbi_uc,decltype(&std::free)> heightPixels{nullptr,&std::free};
         int hw=0,hh=0;

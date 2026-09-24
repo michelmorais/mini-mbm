@@ -2168,7 +2168,8 @@ assert(asset:save("panel.msh", false, false, true))
 | `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
 | `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
 | `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
-| `curvedPainting` | false | Apply `heightEdits` after the curved field, bounded by its thickness range (7.276.0); inactive during faceting. Old saved strokes remain inactive until explicitly enabled |
+| `heightFinishing` | true | Apply areas then brush dabs (7.277.0); false restores the base without deleting edits |
+| `curvedPainting` | false | Enable finishing over the curved field, bounded by its thickness range; applies areas and then dabs since 7.277.0; inactive during faceting |
 | `curvedInterior` | false | Discrete harmonic interior transition (7.274.0); requires `curvedNodes` with zero or one root point, segment or polyline target; incompatible with faceting |
 | `curvedFaceted` | false | Automatic planar faceting of the curved point/circle profile or nested convex target chain (7.273.0); convex outer contour required |
 | `curvedFacetSectors` | 8 | Integer [8,128], minimum angular sectors; outer polygon corners may add sectors. For ellipses, also replaces `ellipseSegments` while active |
@@ -2178,7 +2179,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `curvedSimplifyError` | 0.01 | Maximum additional normalized height error, finite [0.0001,0.25], compared with the dense generated surface |
 | `curvedNodes` | nil | Optional hierarchy of targets and independent local regions; absent preserves the legacy profile, an empty table makes the root flat |
 | `baseHeight` | 0.5 | Finite normalized base height [0,1], used only in manual mode |
-| `heightAreas` | nil | Up to 32 ordered closed contours with target height and inward transition; see below |
+| `heightAreas` | nil | Up to 32 ordered closed contours or open lines with flatten/raise/lower operation and inward transition; see below |
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief (endpoint thickness difference for curved mode); finite [0.001,1], constrained by density and sampling |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
@@ -2212,8 +2213,8 @@ polygonal ellipse outlines are supported. Center/radius validation is shared by
 synchronous and asynchronous mesh/map generation.
 
 Depth/relief, border attenuation, image-derived heights, height image, inversion,
-filtering, two-level detection and height areas do not affect this mode. Painted dabs
-are inactive unless `curvedPainting=true` (7.276.0).
+filtering and two-level detection do not affect this mode. Areas and painted dabs
+are inactive unless `curvedPainting=true` and `heightFinishing=true`.
 Stored back geometry/material flags are inactive: the back is closed, source-textured,
 and controlled by `curvedSymmetric`. `backMirror` and side texture settings still apply.
 Swap `curvedEdge` and `curvedTarget` to invert thickness. The option reader still
@@ -2267,20 +2268,21 @@ root target (`parent=0`, `role="target"`), a point, two-point segment, or open
 inside the contour and outside holes. Self-intersections, backtracking and touching
 boundaries are rejected. Convexity and radial visibility are not required.
 
-The outer and hole boundaries are fixed at `curvedEdge`, and every target segment
-is fixed at its `thickness`. Positive edge weights equal inverse edge length in
-world dimensions. A preconditioned conjugate-gradient solve propagates the heights
+In the base interior field, the outer and hole boundaries are fixed at `curvedEdge`,
+and every target segment is fixed at its `thickness`. Optional height finishing
+is applied afterward and may alter those heights. Positive edge weights equal
+inverse edge length in world dimensions. A preconditioned conjugate-gradient solve propagates the heights
 only through the mesh interior, without bridging voids. Intermediate heights remain
 between the two endpoint thicknesses. This is a resolution-dependent discrete
 surface with smooth normals, not a promise of a globally differentiable surface or
-linear growth with distance. `columns` and `rows` control tessellation; refinement
-is not driven by `heightTolerance`. Mesh and height map evaluate the same piecewise
-linear field. Unlike radial/faceted holes, interior holes participate in the solve
+linear growth with distance. `columns` and `rows` control base tessellation; its
+resolution is not driven by `heightTolerance`. Finishing can add local refinement.
+Mesh and height map use the same piecewise linear base field before finishing. Unlike radial/faceted holes, interior holes participate in the solve
 and alter nearby heights; a target cannot run through a hole.
 
 Facet mode is incompatible. Simplification and authored transition profiles are
 inactive; their saved values remain intact. Closed targets, multiple targets and
-local regions are not supported in this first interior milestone. Symmetric/flat
+local regions are not supported by the interior transition. Symmetric/flat
 backs, materials, vertex/triangle budgets, export and asynchronous cancellation
 remain supported. Flat back is at Z=0. A failed solve produces an error, not a partial
 mesh. Geometry and field preparation happen only on requested generation/map tasks.
@@ -2560,7 +2562,7 @@ and mesh export remain separate operations. For asynchronous PNG previews, use
 Height areas (`heightAreas`, since 7.250.0) use normalized crop coordinates,
 with 3–128 points per simple contour, or 2–128 points for an open height line
 (`shape="line"`, since 7.257.0). Each area is an array of `{x,y}` points
-with fields `height` (default 0.75), `transition` (default 0.02), and `enabled`
+with fields `mode` (default `"flatten"`, since 7.277.0), `height` (default 0.75), `transition` (default 0.02), and `enabled`
 (default true). Height and transition are finite [0,1]. For example:
 
 ```lua
@@ -2574,8 +2576,12 @@ options.heightAreas = {
 }
 ```
 
-Composition order is image height (including inversion/filtering/two-level mapping)
-or manual base, then enabled areas in array order, then brush dabs, then outer
+`mode="flatten"` blends toward the target `height`; `"raise"` adds `height * weight`
+and `"lower"` subtracts it. Results are clamped to [0,1] after each area. Existing
+areas without a mode retain flatten behavior. The weight is the inward transition.
+
+Composition order is image height (including inversion/filtering/two-level mapping),
+manual base or curved field, then enabled areas in array order, then brush dabs, then outer
 border attenuation and world relief scale. Later areas blend over earlier ones.
 Transition is a distance relative to `max(1,min(cropWidth,cropHeight)-1)` pixels:
 weight increases linearly from zero at the contour to one that far inside it.
@@ -2610,29 +2616,34 @@ options.heightAreas = {
 }
 ```
 
-`"image"` ignores areas but retains the pre-existing brush behavior. `"manual"`
+Since 7.277.0, `"image"` also applies enabled areas; switching from mixed to image
+no longer disables them. Use `heightFinishing=false` to disable the entire finishing
+stage, or disable individual areas. `"manual"`
 ignores image brightness, inversion, smoothing and two-level detection; its mesh
 refinement also ignores the image threshold/transition settings. `"mixed"` applies
 areas over the processed image. Both generation and grayscale preview use the
 same composed raster, including local adaptive refinement when `followImage=true`.
 The blue overlay remains an image-detection diagnostic and does not display areas
 or brush corrections (the editor hides it in Manual mode). Editor-only area
-metadata `name` and `shape` are ignored by the native API.
+metadata `name` is ignored by the native API. `shape="line"` selects an open
+centerline; `"polygon"` (default), `"rectangle"` and `"ellipse"` use the supplied
+points as a closed polygon rather than generating a primitive.
 
 **Painting over curves (7.276.0).** With `heightSource="curved"` and
-`curvedPainting=true`, the existing brushes compose after the radial/hierarchical
+`curvedPainting=true` and `heightFinishing=true`, areas then brushes compose after the radial/hierarchical
 or interior field. Normalized height 0 maps to the minimum authored thickness and
 1 to the maximum; this interpretation also applies to inverted profiles. Targets,
 outer borders and hole rims may change height, but holes remain cut out. Symmetric
 extrusion and a flat back retain their respective distribution rules. Equal minimum
-and maximum thickness makes painting a no-op. Removing `heightEdits` restores the
-base curve; disabling `curvedPainting` preserves the strokes without applying them.
-Faceting keeps strokes inactive to preserve planar faces. Manual height areas are
-still inactive. Geometry first approximates the base curve, then refines painted
-areas locally; optional curved simplification operates on that final surface. The
+and maximum thickness makes finishing a no-op. Removing `heightEdits` removes
+brush corrections but retains enabled areas. Remove both `heightEdits` and
+`heightAreas`, or disable `heightFinishing` or `curvedPainting`, to restore the base
+curve. Disabling either flag preserves the stored edits.
+Faceting keeps finishing inactive to preserve planar faces. Geometry first
+approximates the base curve, then refines edited areas locally; optional curved simplification operates on that final surface. The
 editor's original/simplified comparison uses identical painting on both meshes.
-The raster base is evaluated near strokes only, with a margin for interpolation
-and smoothing. Cancellation and existing painting/geometry budgets still apply.
+The raster base is evaluated in a bounding rectangle covering areas and strokes,
+with a margin for interpolation and smoothing. Cancellation and existing painting/geometry budgets still apply.
 
 Height painting (`heightEdits`) is shared by `generateImageMesh` and
 `generateImageMeshMap`. Each dab requires `{x, y, radius, strength, height, mode}`.

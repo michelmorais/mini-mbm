@@ -3740,6 +3740,7 @@ namespace mbm
         else luaL_error(lua,"heightSource must be image, manual, mixed or curved");
         lua_pop(lua,1);number("baseHeight",options.baseHeight);
         number("curvedX",options.curvedX); number("curvedY",options.curvedY);
+        boolean("heightFinishing",options.heightFinishing);
         boolean("curvedPainting",options.curvedPainting);
         boolean("curvedInterior",options.curvedInterior);
         boolean("curvedFaceted",options.curvedFaceted);
@@ -3816,6 +3817,13 @@ namespace mbm
                 if (n<(area.line?2u:3u) || n>128) luaL_error(lua,"Height areas need 3..128 polygon points or 2..128 line points");
                 area.points=areaPoints+offset;area.count=static_cast<uint32_t>(n);
                 lua_getfield(lua,-1,"lineWidth");area.lineWidth=static_cast<float>(luaL_optnumber(lua,-1,.05));lua_pop(lua,1);
+                lua_getfield(lua,-1,"mode");
+                const char *areaMode=luaL_optstring(lua,-1,"flatten");
+                if (!std::strcmp(areaMode,"raise")) area.mode=IMAGE_MESH_BRUSH::RAISE;
+                else if (!std::strcmp(areaMode,"lower")) area.mode=IMAGE_MESH_BRUSH::LOWER;
+                else if (!std::strcmp(areaMode,"flatten")) area.mode=IMAGE_MESH_BRUSH::FLATTEN;
+                else luaL_error(lua,"Height area mode must be raise, lower or flatten");
+                lua_pop(lua,1);
                 lua_getfield(lua,-1,"height");area.height=static_cast<float>(luaL_optnumber(lua,-1,.75));lua_pop(lua,1);
                 lua_getfield(lua,-1,"transition");area.transition=static_cast<float>(luaL_optnumber(lua,-1,.02));lua_pop(lua,1);
                 lua_getfield(lua,-1,"enabled");

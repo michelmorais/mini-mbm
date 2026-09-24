@@ -23,6 +23,7 @@
 local Model=require 'image_mesh_model'
 local Canvas=require 'image_mesh_canvas'
 local Help=require 'image_mesh_help'
+local Areas=require 'image_mesh_areas'
 local M={}
 local modes={'raise','lower','flatten','smooth'}
 local function L(k) return tLang.L('ime_paint_'..k) end
@@ -54,6 +55,7 @@ end
 function M.input(E,action,kind,sx,sy)
     local settings=M.state(E)
     if E.values and E.values.heightSource=='curved' and (not E.values.curvedPainting or E.values.curvedFaceted) then return false end
+    if E.values and E.values.heightFinishing==false then return false end
     if not settings.enabled or not E.editMode or E.editDefaults then return false end
     local r=Model.region(E.project,E.selected)
     if not r or r.locked then return false end
@@ -94,6 +96,14 @@ function M.panel(E,action,apply)
     if not E.draft or E.editDefaults or not E.editMode then return end
     if not tImGui.CollapsingHeader(L('title')) then return end
     local settings=M.state(E)
+    local finishing=tImGui.Checkbox(L('finishing'),E.values.heightFinishing~=false)
+    if finishing~=(E.values.heightFinishing~=false) then
+        M.cancel(E);settings.enabled=false
+        local previous=E.values.heightFinishing;E.values.heightFinishing=finishing
+        if not apply() then E.values.heightFinishing=previous;return end
+        E.heightRequested=true
+    end
+    if not finishing then settings.enabled=false;tImGui.TextWrapped(L('finishing_off'));return end
     local curved=E.values.heightSource=='curved'
     if curved then
         if E.values.curvedFaceted then settings.enabled=false;tImGui.TextWrapped(L('curved_faceted'));return end
@@ -117,6 +127,23 @@ function M.panel(E,action,apply)
         tImGui.Text(string.format(L('curved_range'),c.lo,c.hi))
         if c.hi==c.lo then settings.enabled=false;tImGui.TextWrapped(L('curved_flat'));return end
     end
+    local tool=settings.finishTool or 1
+    if Areas.active(E) then tool=2 end
+    local changed,selected=tImGui.Combo(L('tool')..'##ime_height_finishing_tool',tool,{L('tool_brush'),L('tool_areas')})
+    if changed and apply() then
+        M.cancel(E);settings.enabled=false;settings.finishTool=selected;tool=selected
+        E.tool=selected==2 and 'height_areas' or 'select';E.canvasDirty=true
+        E.heightView=2;E.heightRequested=true
+    end
+    local r=Model.region(E.project,E.selected)
+    if (#(r.heightAreas or {})>0 or #(r.heightEdits or {})>0) and tImGui.Button(L('clear_all')) then
+        M.cancel(E)
+        action(function(p) local region=Model.region(p,E.selected);region.heightAreas=nil;region.heightEdits=nil end)
+        E.heightRequested=true
+        return
+    end
+    tImGui.TextWrapped(L('order'))
+    if tool==2 then Areas.panel(E,action,apply);return end
     local enabled=tImGui.Checkbox(L('enabled'),settings.enabled)
     if enabled~=settings.enabled then
         M.cancel(E)
@@ -147,7 +174,7 @@ function M.panel(E,action,apply)
 end
 function M.sync(E)
     local p=M.state(E)
-    local allowed=not E.values or E.values.heightSource~='curved' or (E.values.curvedPainting and not E.values.curvedFaceted)
+    local allowed=not E.values or (E.values.heightFinishing~=false and (E.values.heightSource~='curved' or (E.values.curvedPainting and not E.values.curvedFaceted)))
     local visible=allowed and p.enabled and p.hover and E.editMode and not E.editDefaults and E.selected~=0 and not E.panDrag and not tImGui.GetWantCaptureMouse()
     local r=visible and Model.region(E.project,E.selected)
     if not r or r.locked then if p.cursor then p.cursor.visible=false end; return end

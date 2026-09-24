@@ -52,6 +52,7 @@ namespace mbm
         const IMAGE_MESH_POINT *points = nullptr;
         uint32_t count = 0;
         float height = 0.75f, transition = 0.02f;
+        IMAGE_MESH_BRUSH mode = IMAGE_MESH_BRUSH::FLATTEN; // Raise/lower by height, or flatten to height.
         bool enabled = true;
         bool line = false; // Open centerline with round caps/joins, at least two points.
         float lineWidth = 0.05f; // Full width relative to the shorter crop side.
@@ -116,6 +117,7 @@ namespace mbm
         float curvedX = 0.5f, curvedY = 0.5f, curvedRadius = 0.0f;
         float curvedEdge = 1.0f, curvedTarget = 8.0f;
         bool curvedSymmetric = true;
+        bool heightFinishing = true; // Apply areas and brushes without discarding saved edits.
         bool curvedPainting = false; // Final bounded brush edits; inactive for faceting.
         bool curvedInterior = false; // Discrete harmonic surface inside the contour.
         bool curvedFaceted = false;

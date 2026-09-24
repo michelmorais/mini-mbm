@@ -1,15 +1,14 @@
 # Image Mesh Editor
 
 An offline editor for turning image regions into textured 3D modules. It supports
-image-derived relief, manually drawn heights, brush corrections, holes, editable
-contours, simplification, and individual or batch export.
+image-derived and manual relief, curved target hierarchies, interior transitions,
+automatic faceting, height finishing with areas and brushes, holes, editable
+contours, simplification with comparison, and individual or batch export.
 
 The image supplies colors and optional height data; the editor does not infer the
 semantic shape of the depicted object. Painted shadows can become geometry when
 image brightness is used as height. Manual relief or a separate height image gives
 more direct control.
-
-Design and delivery record: [Manual curved relief](image-mesh-manual-curved-plan.md).
 
 ## Launch and workflow
 
@@ -60,6 +59,9 @@ module preserves its camera view; selecting another module provides a new framin
 In **Relief and grooves**, select **Manual curved**. Set **Contour thickness** and
 **Target thickness** in final mesh units, then **Apply**. For a saw blade, use 1 and 8.
 These are total thicknesses, independent of the saved Depth and Relief settings.
+The point/circle controls below describe the initial radial profile; the following
+sections cover target hierarchies, interior transitions and automatic faceting.
+Shared height finishing is described under [Height painting](#height-painting).
 
 - Center X/Y are normalized within the region. Radius 0 gives a point; a positive
   radius gives a circular flat plateau. Radius is measured in the final mesh plane,
@@ -78,7 +80,7 @@ These are total thicknesses, independent of the saved Depth and Relief settings.
 - Holes cut the curved surface without changing its thickness profile (7.271.0).
   The back uses the source texture and the same openings; horizontal
   back UV mirroring and side texture modes remain available. Other saved back modes,
-  image height adjustments, height areas and the general simplifier are
+  image height adjustments and the general simplifier are
   inactive. Switching modes retains their saved settings/data.
 - The height map shows total thickness divided by the larger endpoint thickness.
   It shares the native field with mesh generation. There is no groove overlay.
@@ -105,15 +107,17 @@ line target is also supported. An empty hierarchy stays flat at the contour thic
 
 This mode calculates a smooth-shaded surface through the piece's internal mesh,
 without radial visibility requirements or connections across external gaps. All
-outer and hole borders retain the contour thickness. Targets cannot cross the
+outer and hole borders retain the contour thickness in the base surface, before
+optional height finishing. Targets cannot cross the
 contour, holes or themselves; invalid vertex edits produce a message and keep the
 previous geometry. A hole influences nearby heights, unlike the post-cut behavior
 of radial relief. **Columns/rows** set the resolution; the result is a discrete
 approximation and can change with resolution. The transition need not be linear.
 
-The first version accepts a single root point/line/polyline. Closed targets,
+The interior transition accepts a single root point/line/polyline. Closed targets,
 additional hierarchy levels, local regions and faceting are unsupported. Saved
-Bézier/smooth profiles, adaptive tolerance and simplification remain inactive.
+Bézier/smooth profiles and simplification remain inactive. Adaptive tolerance does
+not drive the interior base solve; optional finishing adds local refinement afterward.
 Existing incompatible hierarchies are preserved and generation reports the reason;
 remove their targets or use another module to author the interior target. Changing
 back to radial mode also preserves the polyline, which must then be removed or
@@ -355,9 +359,10 @@ Choose the relief mode in **Relief and grooves**:
 
 | Source | Height definition |
 |---|---|
-| Image | Processed image values, followed by brush corrections |
+| Image | Processed image values, followed by enabled areas and brush corrections |
 | Manual | A normalized base height plus enabled manual areas and brush corrections; image colors do not determine height |
-| Image + manual areas | Processed image values overridden by manual areas, followed by brush corrections |
+| Image + manual areas | Processed image values, followed by enabled areas and brush corrections; retained as the mixed mode |
+| Manual curved | Total thickness from the radial hierarchy or interior field, optionally followed by areas and brush corrections; faceting keeps finishing inactive |
 
 Image modes can use luminance, red, green, blue, or alpha. An image without alpha
 supplies alpha 1. The channel changes height sampling, not the displayed material.
@@ -410,19 +415,22 @@ to retry. Panning and zooming reuse the map.
 
 ### Drawn height areas and lines
 
-In Manual or mixed mode, add rectangles/ellipses or draw polygons/freehand areas.
-Adding the first area in Image mode selects mixed mode and adaptive refinement.
-Each area has a name, enabled flag, normalized target height, and inward transition
-width. World height is the normalized target multiplied by relief amplitude.
+In **Height painting**, select **Areas** to add rectangles/ellipses or draw
+polygons/freehand areas. Available for Image, Manual, mixed and curved relief;
+faceting keeps finishing inactive. Adding an area enables adaptive refinement
+without changing the base relief mode.
+Each area has a name, enabled flag, operation (Flatten, Raise or Lower), normalized
+height/amount and inward transition width. Flatten sets a target; Raise and Lower
+add or subtract the amount from the previous result, clamped to 0–1. World height is the normalized target multiplied by relief amplitude.
 For example, base 0.4, raised area 0.8, and groove 0.2 define three independent levels.
 
 Move areas by dragging inside them; use handles or width/height fields to resize.
 Areas stay within the crop but may extend outside the module contour, which clips
-the final geometry together with holes. Later areas override earlier ones; reorder,
+the final geometry together with holes. Areas apply in list order; reorder,
 duplicate, disable, or remove them in the list. Disabled areas remain saved.
 
 **Line/groove** creates an open path of 2–128 points with editable width and rounded
-caps/joins. The target height is absolute, not an accumulated displacement.
+caps/joins. Flatten uses an absolute target; Raise and Lower use a relative amount.
 Self-crossings are allowed and do not add depth. Transition proceeds inward; if it
 exceeds half the width, the center cannot reach the full target height.
 
@@ -432,6 +440,15 @@ budget. Areas are saved and duplicated with the module; presets do not copy them
 Brush corrections follow area composition, and fixed outer-border treatment comes last.
 
 ### Height painting
+
+Since 7.277.0 this panel groups **Brush** and **Areas** as final height editing.
+Unchecking **Apply height finishing** bypasses all areas and brush strokes without erasing
+anything. **Clear areas and brush strokes** restores the base and is undoable.
+The order is base relief, enabled areas in list order, then brush strokes.
+Turning off brush input alone does not disable existing edits. Switching base
+modes keeps edits and reapplies them, including in Image mode; curved finishing
+still requires its explicit opt-in. Fixed-border treatment in non-curved modes
+continues to apply after finishing.
 
 Enable painting for the selected module to apply pending settings and show its
 height map. Raise, Lower, Flatten, and Smooth operate within a brush whose **Diameter (%)**
@@ -455,12 +472,14 @@ chosen grid resolution controls detail. Geometry budgets still apply, and option
 simplification can approximate painted details afterward.
 
 In **Manual curved** mode (7.276.0), open **Height painting** while editing the
-module and enable **Apply painting over curve**, then **Paint selected module**.
+module and enable **Apply finishing over curve**, then choose **Brush** or **Areas**.
+For freehand brush strokes, enable **Paint selected module**.
 This is explicitly opt-in, so old strokes previously inactive in curved mode do
 not change existing projects. The panel shows the thickness interval: normalized
 height 0 is its minimum and 1 its maximum. Painting is a final edit and may alter
-targets and borders; holes remain cut out. Clearing restores the curve, while
-unchecking the option retains strokes for later use. Equal thicknesses provide
+targets and borders; holes remain cut out. **Clear areas and brush strokes**
+restores the curve; clearing only brush strokes retains the areas. Unchecking
+finishing retains both areas and strokes for later use. Equal thicknesses provide
 no interval to paint; the panel explains how to make one. Faceting keeps painting
 inactive to preserve planar faces. Radial hierarchies and interior transitions
 are supported; local refinement captures fine strokes. Curve simplification and
@@ -708,6 +727,8 @@ Representative automated coverage in `src/test-lib/` includes:
 - `image_mesh_areas_smoke.lua` and `image_mesh_height_line_smoke.lua`: manual heights.
 - `image_mesh_facets_smoke.lua`: planar field, hard normals, sectors/rings, holes, materials, map agreement, export, vertex budget, snapshots and cancellation.
 - `image_mesh_facets_editor_smoke.lua`: ImGui controls, history, save/reopen, export/map and idle behavior.
+- `image_mesh_finishing_smoke.lua`: areas and brushes in all height modes, operation order, bounded results, disabling, maps and curved geometry.
+- `image_mesh_finishing_editor_smoke.lua`: area operations/history, clear-and-undo, persistence, original/result comparison, export and idle UI.
 - `image_mesh_curved_paint_smoke.lua`: bounded brushes, targets/borders, holes, interior transition, simplification, maps, budgets and asynchronous snapshots.
 - `image_mesh_curved_paint_editor_smoke.lua`: real enable control, stroke history, persistence, painted original/result comparison, export and idle behavior.
 - `image_mesh_curved_quality_smoke.lua`: saw-like outline, Bézier hierarchy, thin-triangle regression, target-edge heights, hole/manifold checks and angle-weighted normals.

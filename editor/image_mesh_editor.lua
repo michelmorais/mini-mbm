@@ -85,6 +85,10 @@ local function syncDraft()
     if E.values.heightSource~='curved' and E.tool=='curved' then E.tool='select' end
     if E.values.heightSource=='curved' then
         if not E.values.curvedPainting or E.values.curvedFaceted then Paint.state(E).enabled=false end
+        if (not E.values.curvedPainting or E.values.curvedFaceted) and Areas.active(E) then E.tool='select' end
+    end
+    if E.values.heightFinishing==false then
+        Paint.state(E).enabled=false
         if Areas.active(E) then E.tool='select' end
     end
     E.curvedNode=math.max(0,math.min(E.curvedNode or 0,r and #(r.curvedNodes or {}) or 0))
@@ -549,7 +553,6 @@ local function propertiesPanel()
                     if change then E.heightView=view end
                     Help.show('view_'..E.heightView)
                 end
-                Areas.panel(E,action,function() if draftChanged() then return applyProperties() end return true end)
                 tImGui.Separator()
                 if not manual then
                     if tImGui.Button(L('height_image_choose')) then dpCall(function()

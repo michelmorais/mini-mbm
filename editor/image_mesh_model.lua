@@ -29,7 +29,7 @@ M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTr
 M.simplifyDefaults={simplify=false,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
 M.backDefaults={backExternal=false,backTexture='',backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
 M.sideDefaults={sideMode='edge',sideBandPerpendicular=false,sideBandInvert=false,sideInset=1,sideRepeatU=1,sideRepeatV=1,sideColor=0x808080,sideTexture=''}
-M.heightDefaults={curvedPainting=false,curvedInterior=false,curvedFaceted=false,curvedFacetSectors=8,curvedFacetRings=1,curvedSimplify=false,curvedSimplifyRatio=.5,curvedSimplifyError=.01,curvedX=.5,curvedY=.5,curvedRadius=0,curvedEdge=1,curvedTarget=8,curvedSymmetric=true,heightSource='image',baseHeight=0.5,heightChannel='luminance',heightImage='',heightImageToRegion=false,heightBlack=0,heightWhite=1,heightCurve=1}
+M.heightDefaults={heightFinishing=true,curvedPainting=false,curvedInterior=false,curvedFaceted=false,curvedFacetSectors=8,curvedFacetRings=1,curvedSimplify=false,curvedSimplifyRatio=.5,curvedSimplifyError=.01,curvedX=.5,curvedY=.5,curvedRadius=0,curvedEdge=1,curvedTarget=8,curvedSymmetric=true,heightSource='image',baseHeight=0.5,heightChannel='luminance',heightImage='',heightImageToRegion=false,heightBlack=0,heightWhite=1,heightCurve=1}
 M.optionalDefaults={}
 for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.backDefaults,M.sideDefaults,M.heightDefaults}) do
     for k,v in pairs(defaults) do M.defaults[k]=v; M.optionalDefaults[k]=v end
@@ -98,7 +98,7 @@ function M.validateOptions(options,complete)
         elseif k=='heightChannel' then assert(v=='luminance' or v=='red' or v=='green' or v=='blue' or v=='alpha','ime_invalid_options')
         elseif k=='sideMode' then assert(v=='edge' or v=='color' or v=='repeat' or v=='band','ime_invalid_options')
         elseif k=='sideTexture' or k=='backTexture' or k=='heightImage' then assert(type(v)=='string' and #v<4096 and not v:find('%z'),'ime_invalid_options')
-        elseif k=='curvedPainting' or k=='curvedInterior' or k=='curvedFaceted' or k=='curvedSimplify' or k=='curvedSymmetric' or k=='heightImageToRegion' or k=='backExternal' or k=='backSolid' or k=='sideBandPerpendicular' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
+        elseif k=='heightFinishing' or k=='curvedPainting' or k=='curvedInterior' or k=='curvedFaceted' or k=='curvedSimplify' or k=='curvedSymmetric' or k=='heightImageToRegion' or k=='backExternal' or k=='backSolid' or k=='sideBandPerpendicular' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
     end
     if options.heightBlack~=nil and options.heightWhite~=nil then assert(options.heightBlack<=options.heightWhite,'ime_height_levels_invalid') end
@@ -185,6 +185,7 @@ function M.validate(p)
             for _,area in ipairs(r.heightAreas) do
                 assert(type(area)=='table' and #area>=(area.shape=='line' and 2 or 3) and #area<=128,'ime_areas_invalid')
                 assert(type(area.name)=='string' and #area.name<=128 and not area.name:find('%c'),'ime_areas_invalid')
+                assert(area.mode==nil or area.mode=='raise' or area.mode=='lower' or area.mode=='flatten','ime_areas_invalid')
                 assert(type(area.enabled)=='boolean' and number(area.height,0,1) and number(area.transition,0,1),'ime_areas_invalid')
                 assert(area.shape=='rectangle' or area.shape=='ellipse' or area.shape=='polygon' or area.shape=='line','ime_areas_invalid')
                 for _,point in ipairs(area) do assert(type(point)=='table' and number(point.x,0,1) and number(point.y,0,1),'ime_areas_invalid') end
