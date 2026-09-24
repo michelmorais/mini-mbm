@@ -8,6 +8,17 @@ The current [Mesh Simplification](mesh-simplification.md) workflow is complete f
 Further work should be driven by real assets encountered during normal project development rather
 than delaying the delivered workflow.
 
+### Coplanar-region optimization
+
+- Investigation and the proposed first milestone are recorded in
+  [Coplanar mesh optimization](mesh-coplanar-optimization-plan.md); implementation is pending.
+- Add an explicit static-region operation to the Mesh Debug simplification panel, with unchanged
+  boundary segmentation and certified geometry/attribute interpolation. Do not infer equivalence
+  from triangle normals alone or reuse sampled skeletal poses as a proof for arbitrary deformation.
+- Keep uncertain regions unchanged, preserve the complete transaction/cancellation behavior, and
+  validate numeric and visual results against the original mesh.
+- This is separate from the completed Image Mesh minimal-back optimization and curved-relief reducer.
+
 ### Visual diagnostics
 
 - add a Mesh Debug overlay for open boundaries, high-error regions, elongated faces, disconnected
@@ -22,7 +33,8 @@ than delaying the delivered workflow.
 - reduce temporary allocations and repeated candidate/triangle set construction;
 - add a broad phase for deformation-sample clearance checks and avoid redundant pose evaluations;
 - measure Debug and Release behavior on high-density static, skeletal, and layered meshes;
-- expose progress and cancellation for long editor operations without allowing partial commits.
+- preserve the existing simplifier progress, cancellation and atomic publication when adding new
+  processing stages; add checkpoints and measure cancellation latency inside expensive stages.
 
 ## Explicit blend-state API
 

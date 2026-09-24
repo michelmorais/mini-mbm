@@ -80,6 +80,11 @@ penalties, and inter-subset clearance rejections. Mesh Debug classifies relative
 through 3%, `Attention` through 10%, and `Risky` above 10%; the numeric value remains available for
 model-specific judgment.
 
+These cost-derived diagnostics do not certify a bound over the complete source surface or
+preservation of interior attribute interpolation after retriangulation. In particular, the current
+Mesh Debug adapter reconstructs UVs and normals from per-subset source contributions; it does not
+pass those attribute arrays into the private simplifier or certify a region-wide affine field.
+
 Authored physics/collision geometry is preserved and is not regenerated automatically.
 
 ## Mesh Debug workflow
@@ -105,3 +110,13 @@ one subset per detected island, with configurable connectivity, position toleran
 face count.
 
 Deferred diagnostics and performance work is tracked in [Future Features](future-features.md).
+
+## Proposed coplanar-region operation
+
+The current reducer does not extract and retriangulate connected planar regions. The
+[investigation and first-milestone plan](mesh-coplanar-optimization-plan.md) proposes a separate,
+explicit operation in the simplification panel for static regions with certified attributes and
+unchanged boundary segments. It records conservative fallback for holes, unsupported deformation
+and uncertain geometry, plus numeric and visual acceptance criteria. This operation is not yet
+implemented and is separate from Image Mesh's existing minimal-back generation and curved-relief
+simplification.
