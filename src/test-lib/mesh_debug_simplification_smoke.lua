@@ -34,6 +34,22 @@ local function operation()
  assert(simplifyApply(entry,entry.meshDebug,iSelectedMeshIndex))
  while entry.tSimplifyState.running do simplifyResume(entry);coroutine.yield() end
  updatePreviewMesh()
+ local InfoWire=require 'mesh_debug_info_wireframe'
+ assert(InfoWire.set(entry,tPreviewMesh,true,safe))
+ local infoView=entry.infoWireView;local infoWire=infoView.wireObject
+ for _=1,10 do
+  tPreviewMesh.visible=true;InfoWire.sync(entry,true)
+  assert(infoWire.visible and not tPreviewMesh.visible and infoView.wireBuilds==1)
+ end
+ InfoWire.sync(entry,false);assert(not infoWire.visible and tPreviewMesh.visible)
+ assert(InfoWire.set(entry,tPreviewMesh,false,safe))
+ InfoWire.sync(entry,true);assert(not infoWire.visible and tPreviewMesh.visible)
+ assert(InfoWire.set(entry,tPreviewMesh,true,safe));assert(entry.infoWireView.wireObject==infoWire)
+ stage='info';rendered=0
+ for _=1,8 do coroutine.yield() end
+ entry.infoTestRT:destroy();entry.infoTestRT=nil
+ InfoWire.release(entry);assert(not entry.infoWireView and tPreviewMesh.visible)
+ stage=nil
  assert(entry.simplifyComparison and entry.simplifyComparison.triangles==8)
  assert(View.ensure(entry,safe));local view=entry.simplifyComparisonView
  local original=meshDebug:new();assert(original:load(view.original.previewPath));assert(original:getTotalIndex(1,1)==360)
@@ -103,6 +119,21 @@ end
 function onLoop()
  local ok,e=coroutine.resume(job)
  if not ok then print('MESH DEBUG SIMPLIFICATION FAIL '..tostring(e));mbm.quit();return end
+ if stage=='info' then
+  local InfoWire=require 'mesh_debug_info_wireframe'
+  entry.sOpenNode='meshinfo'
+  tImGui.Begin('Mesh Info wireframe test',false,0)
+  local drawn,why=safe(showMeshOptions,entry,iSelectedMeshIndex)
+  tImGui.End();assert(drawn,why)
+  InfoWire.sync(entry,true);rendered=rendered+1
+  assert(entry.infoWireView.wireObject.visible and not tPreviewMesh.visible)
+  if rendered==1 then
+   local rt=render2texture:new('2ds');assert(rt:create(512,512,true,'md-info-wireframe'))
+   assert(rt:add(entry.infoWireView.wireObject))
+   local camera=rt:getCamera('3d');camera:setPos(4,4,-15);camera:setFocus(4,4,0)
+   camera:setNear(.1);camera:setFar(100);entry.infoTestRT=rt
+  elseif rendered==6 then assert(entry.infoTestRT:save('/tmp/md-info-wireframe.png')) end
+ end
  if stage=='render' and entry.simplifyComparisonView then
   tImGui.SetNextWindowSize({x=420,y=650},tImGui.Flags('ImGuiCond_Always'))
   tImGui.Begin('Simplification test',false,0)

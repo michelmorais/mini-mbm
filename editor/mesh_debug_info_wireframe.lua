@@ -20,31 +20,61 @@
 
 ]]--
 
+local Wire=require 'image_mesh_wireframe'
 local M={}
-function M.vertices(asset,rotate)
-    local all={}
-    for subset=1,asset:getTotalSubset(1) do
-        local list=asset:getVertex(1,subset,1,asset:getTotalVertex(1,subset))
-        for _,v in ipairs(list) do
-            if rotate then v.x=-v.x;v.z=-v.z;v.nx=-v.nx;v.nz=-v.nz end
-            all[#all+1]=v
-        end
-        if rotate then asset:setVertex(1,subset,1,list) end
-    end
-    return all
+function M.hide(entry)
+    local view=entry and entry.infoWireView
+    if not view then return end
+    if view.active and view.preview then view.preview.visible=view.mainVisible end
+    view.active=false
+    if view.wireObject then view.wireObject.visible=false end
 end
-function M.geometry(asset)
-    local all,indices={},{}
-    for subset=1,asset:getTotalSubset(1) do
-        local offset=#all
-        for _,v in ipairs(asset:getVertex(1,subset,1,asset:getTotalVertex(1,subset))) do all[#all+1]=v end
-        local subsetIndices=asset:getIndex(1,subset)
-        if subsetIndices then
-            for _,i in ipairs(subsetIndices) do indices[#indices+1]=offset+i end
-        else
-            for i=offset+1,#all do indices[#indices+1]=i end
-        end
+function M.release(entry)
+    if not entry then return end
+    M.hide(entry)
+    if entry.infoWireView then Wire.release(entry.infoWireView) end
+    entry.infoWireView=nil
+end
+function M.set(entry,preview,enabled,safe)
+    if not enabled then
+        if entry.infoWireView then entry.infoWireView.enabled=false end
+        M.hide(entry);return true
     end
-    return all,indices
+    if not preview then return false end
+    local view=entry.infoWireView
+    if view and view.preview~=preview then M.release(entry);view=nil end
+    if not view then view={preview=preview};entry.infoWireView=view end
+    local ok,err=safe(function()
+        assert(entry.meshDebug:getModeDraw()=='TRIANGLES',tLang.L('capture_requires_triangles'))
+        Wire.ensure(view,entry.meshDebug)
+        view.wireObject:setPos(0,0,0)
+    end)
+    if not ok then M.release(entry);entry.infoWireError=tostring(err);return false end
+    entry.infoWireError=nil
+    view.enabled=true
+    return true
+end
+function M.sync(entry,active)
+    local view=entry and entry.infoWireView
+    if not view then return end
+    if not active or not view.enabled then M.hide(entry);return end
+    if not view.active then view.mainVisible=view.preview.visible;view.active=true end
+    view.preview.visible=false
+    view.wireObject.visible=true
+end
+function M.panel(entry,preview,available,safe)
+    if not entry.info or entry.info.type~='mesh' then return end
+    local view=entry.infoWireView
+    tImGui.BeginDisabled(not available)
+    local enabled=tImGui.Checkbox(tLang.L('md_info_wireframe'),view and view.enabled==true or false)
+    if tImGui.IsItemHovered() then
+        require('mesh_simplify_modes').tooltip(tLang.L('md_info_wireframe_help'))
+    end
+    tImGui.EndDisabled()
+    if available and enabled~=(view and view.enabled==true or false) then
+        if view then view.enabled=enabled end
+        M.set(entry,preview,enabled,safe)
+    end
+    if entry.infoWireError then tImGui.TextWrapped(entry.infoWireError) end
 end
 return M

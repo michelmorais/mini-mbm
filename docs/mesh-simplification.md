@@ -191,8 +191,9 @@ regions does not imply that the entire mesh was eligible.
 Since 7.282.0, **Coplanar angle** is the primary editor control, a DragFloat in
 degrees (`planarAngle`, default 0.05, range 0..5). Both original and replacement
 triangles are checked against the fixed seed plane, preventing chained angular
-drift. **Advanced coplanar limits** retains the independent distance safeguard,
-displayed as a percentage (0..1%, default 0.00001%) with DragFloat. This percentage
+drift. The independent distance safeguard is displayed directly in Mesh Debug's
+Simplification tree and under **Advanced coplanar limits** in Image Mesh Editor,
+as a percentage (0..1%, default 0.00001%) with DragFloat. This percentage
 is divided by 100 for the stored/API `planarTolerance` fraction. Tooltips wrap at
 420 pixels. Existing project settings retain their stored distance and receive the
 legacy angular default. The specialized curved pass still accepts exact plateaus.

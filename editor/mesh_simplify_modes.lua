@@ -40,7 +40,7 @@ function M.tooltip(text)
     tImGui.EndTooltip()
 end
 -- Keep distance and angle independent; changing units must not change saved geometry.
-function M.planarSettings(tolerance,angle,id,reduceBoundaries)
+function M.planarSettings(tolerance,angle,id,reduceBoundaries,inlineDistance)
     tolerance=tolerance or 1e-7
     angle=angle or .05
     local flags=tImGui.Flags('ImGuiSliderFlags_AlwaysClamp')
@@ -49,7 +49,7 @@ function M.planarSettings(tolerance,angle,id,reduceBoundaries)
         angle,.01,0,5,'%.3f deg',flags)
     if tImGui.IsItemHovered() then M.tooltip(tLang.L('simplify_planar_angle_help')) end
     if changed and result==result then angle=math.max(0,math.min(5,result)) end
-    if tImGui.CollapsingHeader(tLang.L('simplify_planar_advanced')..'##'..id) then
+    if inlineDistance or tImGui.CollapsingHeader(tLang.L('simplify_planar_advanced')..'##'..id) then
         tImGui.SetNextItemWidth(240)
         changed,result=tImGui.DragFloat(tLang.L('simplify_planar_tolerance')..'##'..id,
             tolerance*100,.00001,0,1,'%.6f %%',flags)

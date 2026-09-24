@@ -29,6 +29,8 @@ objects, cached frame/subset metadata and panel rendering. The original simplify
 worker, algorithms and undo transaction remain in place. Frame no longer calls
 `showSimplifyGeometry`; its sibling Simplification tree does. Existing target scope,
 QEM/coplanar settings, reports, progress, cancellation and undo are retained.
+Plane distance (percentage of the diagonal) appears directly below the coplanar
+angle control, without a nested expandable section.
 
 Comparison is opt-in after a successful change. The source is the undo file and the
 result is a separate immutable snapshot, so a no-op or editing inputs cannot relabel
@@ -75,3 +77,18 @@ timeout -s KILL 60 ./bin/debug/linux_x86/mini-mbm --scene src/test-lib/mesh_debu
 
 Require the `MESH DEBUG SIMPLIFICATION WORKTREE / COMPARISON / WIREFRAME / IDLE / CANCEL / NOOP / UNDO / CLEANUP OK`
 sentinel, not only process exit status. The test writes only disposable `/tmp` assets.
+
+## Mesh Info wireframe (7.291.0)
+
+Mesh Info also offers Wireframe for the selected mesh in 3D. It displays triangle
+edges from all subsets of frame 1, using static base geometry (no animated or
+skeletal deformation). Indexed and nonindexed triangle lists are supported.
+The filled preview is hidden while this view is active. Leaving Info restores it;
+returning reuses the cached lines. Preview reload, edits, selection changes, removal
+and Clear All release the cache. Generation occurs only when the checkbox is enabled,
+not during idle drawing. The simplification comparison has its own wireframe setting.
+
+Validation: the existing Mesh Debug integration scene also renders the real Info
+panel, checks wireframe visibility and cache reuse, and captures
+`/tmp/md-info-wireframe.png` (visually inspected on Linux/OpenGL ES). Native mouse
+interaction and other render backends were not exercised.
