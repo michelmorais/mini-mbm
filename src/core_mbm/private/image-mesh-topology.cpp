@@ -25,6 +25,7 @@
 #include <utility>
 #include <map>
 #include <numeric>
+#include <set>
 
 namespace mbm { namespace image_mesh {
 namespace {
@@ -260,9 +261,10 @@ namespace {
         return false;
     }
     // Local Delaunay flips improve skinny triangles without moving image samples.
-    void improveTriangles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t)
+    void improveTriangles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,
+                          const std::set<uint64_t> *constraints=nullptr,unsigned passes=3)
     {
-        for (unsigned pass=0;pass<3;++pass)
+        for (unsigned pass=0;pass<passes;++pass)
         {
             std::map<uint64_t,std::pair<size_t,uint32_t>> neighbors;
             std::vector<bool> changed(t.triangles.size(),false);
@@ -277,10 +279,13 @@ namespace {
                     const auto key=edgeKey(a,b); const auto it=neighbors.find(key);
                     if (it==neighbors.end()) { neighbors[key]={i,c}; continue; }
                     const size_t j=it->second.first; const uint32_t d=it->second.second;
-                    if (changed[j]) continue;
+                    if (changed[j] || (constraints && constraints->count(key))) continue;
                     const auto &pa=t.points[a],&pb=t.points[b],&pc=t.points[c],&pd=t.points[d];
                     if (cross(pc,pd,pb)<=epsilon || cross(pd,pc,pa)<=epsilon) continue;
-                    const double ax=pa.x-pd.x,ay=pa.y-pd.y,bx=pb.x-pd.x,by=pb.y-pd.y,cx=pc.x-pd.x,cy=pc.y-pd.y;
+                    const double sx=constraints?o.width/std::max(o.width,o.height):1;
+                    const double sy=constraints?o.height/std::max(o.width,o.height):1;
+                    const double ax=(pa.x-pd.x)*sx,ay=(pa.y-pd.y)*sy,bx=(pb.x-pd.x)*sx,by=(pb.y-pd.y)*sy,
+                                 cx=(pc.x-pd.x)*sx,cy=(pc.y-pd.y)*sy;
                     const double det=(ax*ax+ay*ay)*(bx*cy-by*cx)-(bx*bx+by*by)*(ax*cy-ay*cx)+(cx*cx+cy*cy)*(ax*by-ay*bx);
                     if (det<=1e-12) continue;
                     t.triangles[i]={c,d,b}; t.triangles[j]={d,c,a}; changed[i]=changed[j]=true; any=true;
@@ -789,10 +794,47 @@ static bool hierarchySegment(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,uint32_t fi
     }
     t.triangles=std::move(result);return hierarchyBudget(o,t,error);
 }
+// Longest-edge bisection alone retains the thin triangles inherited from ear
+// clipping and target insertion. Reconnect those triangles without moving samples
+// or crossing authored target/local-region boundaries.
+static void improveCurvedTriangles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,const HEIGHT_FIELD &field)
+{
+    if (!o.curvedHierarchy) return;
+    std::vector<std::vector<uint32_t>> memberships(t.points.size());
+    uint32_t segment=0;
+    for (size_t domain=1;domain<field.curved.hierarchy.domains.size();++domain)
+    {
+        const auto &points=field.curved.hierarchy.domains[domain].normalized;
+        const size_t edges=points.size()>2?points.size():points.size()-1;
+        for (size_t e=0;e<edges;++e,++segment)
+        {
+            checkpoint(o,"topology",.4f);
+            const auto &a=points[e],&b=points[(e+1)%points.size()];
+            const double dx=b.x-a.x,dy=b.y-a.y,length=std::hypot(dx,dy);
+            for (uint32_t i=0;i<t.points.size();++i)
+            {
+                const auto &p=t.points[i];
+                const double along=((p.x-a.x)*dx+(p.y-a.y)*dy)/(length*length);
+                if (along>=-2e-7/length && along<=1+2e-7/length && std::abs(cross(a,b,p))/length<=3e-7)
+                    memberships[i].push_back(segment);
+            }
+        }
+    }
+    std::set<uint64_t> constraints;
+    for (const auto &tri:t.triangles) for (unsigned e=0;e<3;++e)
+    {
+        const uint32_t a=tri[e],b=tri[(e+1)%3];
+        for (uint32_t segment:memberships[a])
+            if (std::binary_search(memberships[b].begin(),memberships[b].end(),segment))
+            { constraints.insert(edgeKey(a,b));break; }
+    }
+    improveTriangles(o,t,&constraints,16);
+}
 static bool refineCurved(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD &field)
 {
     for (unsigned pass=0;pass<20;++pass)
     {
+        improveCurvedTriangles(o,t,field);
         std::map<uint64_t,uint32_t> midpoints;
         for (const auto &face:t.triangles)
         {

@@ -42,12 +42,17 @@ local function inspect(mesh,report,o)
   end
   -- Geometric edge accounting includes duplicated normal/UV seams.
   local edges,unique={},{}
-  local area,volume=0,0
+  local area,volume,areaCorrection=0,0,0
   local function key(p) return string.format('%.5f,%.5f,%.5f',p.x+0.,p.y+0.,p.z+0.) end
   for _,p in ipairs(vertices) do close(p.nx*p.nx+p.ny*p.ny+p.nz*p.nz,1,.001) end
   for i=1,#indices,3 do
    local a,b,c=vertices[indices[i]],vertices[indices[i+1]],vertices[indices[i+2]]
-   if a.z<0 and b.z<0 and c.z<0 then area=area+math.abs((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x))/2 end
+   if a.z<0 and b.z<0 and c.z<0 then
+    -- This Lua build uses float32. Compensated accumulation avoids losing area
+    -- when a regularized triangulation contributes thousands of small faces.
+    local term=math.abs((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x))/2-areaCorrection
+    local sum=area+term;areaCorrection=(sum-area)-term;area=sum
+   end
    volume=volume+(a.x*(b.y*c.z-b.z*c.y)+a.y*(b.z*c.x-b.x*c.z)+a.z*(b.x*c.y-b.y*c.x))/6
    for _,pair in ipairs{{a,b},{b,c},{c,a}} do
     local ka,kb=key(pair[1]),key(pair[2]);assert(ka~=kb);unique[ka]=true;unique[kb]=true

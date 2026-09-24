@@ -584,3 +584,33 @@ snapshot assíncrono e cancelamento sem resultado parcial. Teste ImGui cobre pos
 inicial válida, edição/rejeição com mensagem, histórico, salvar/reabrir, mapa,
 exportação e ociosidade. Regressões de facetamento e perfis radiais aprovadas.
 Malha exportada carregada em 3D no `testLib` por 3 segundos, encerrando normalmente.
+
+
+## Correção 7.274.1 — vincos artificiais na hierarquia curva
+
+Investigação do `sharp.imesh` confirmado pelo usuário: sem simplificação, alturas
+nos vértices concordavam com o campo, mas a inserção de alvos seguida apenas por
+bisseção da maior aresta preservava triângulos muito estreitos da triangulação
+inicial. A média uniforme das normais de faces amplificava os vincos visuais.
+
+Correção: trocas locais de diagonais durante o refinamento, protegendo segmentos
+de alvos/regiões e contornos, sem mover amostras. Normais da hierarquia radial são
+ponderadas pelo ângulo do canto, mantendo a preferência dos platôs e simetria do
+verso. Facetamento e transição pelo interior mantêm seus caminhos próprios.
+
+No projeto original, com as mesmas curvas, grade 24 x 24, tolerância 0,03 e
+simplificação desativada: 15.436 para 6.464 triângulos totais. Faces de superfície
+com área projetada / maior aresta ao quadrado menor que 0,001: 447 para 10.
+A redução é consequência da melhor triangulação, não de simplificação habilitada.
+Comparação lado a lado no renderizador com iluminação idêntica confirma a remoção
+dos vincos finos artificiais. Ondulações determinadas pelos dentes, perfis e
+mudanças de inclinação continuam fazendo parte do relevo. Projeto do usuário
+permaneceu sem alterações; reproduções e imagens de comparação foram salvas em `/tmp`.
+
+Teste de regressão independente: `image_mesh_curved_quality_smoke.lua`, com
+contorno dentado, alvo circular Bézier, alvo retangular interno e furo. Verifica
+qualidade de triângulos, alturas nas bordas dos alvos, fechamento/Euler/volume,
+normais angulares e exportação. Testes de perfis, furos e simplificação também
+exercitados. A soma de área no teste de furos usa compensação numérica para o Lua
+float32: a soma ingênua de milhares de faces produzia 9999,922 para área real 10000;
+a tolerância existente foi preservada.

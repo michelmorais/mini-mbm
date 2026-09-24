@@ -462,7 +462,10 @@ higher resolution. The output always consists of triangles, not a QUAD mesh.
 With adaptive geometry and Two heights, plateau faces receive priority when
 computing normals shared with steep transitions. This preserves flat top/bottom
 shading without duplicating vertices. Automatic faceting instead duplicates vertices
-and gives each triangle its geometric normal. Other vertices use adjacent-face averaging;
+and gives each triangle its geometric normal. Since 7.274.1, radial curved hierarchies
+regularize their constrained triangulation during refinement and use corner-angle
+weighted normals. This removes artificial wrinkles caused by long thin triangles;
+control edges, holes and plateau preference remain protected. Other vertices use adjacent-face averaging;
 front, back, and side boundaries retain their intended normal separation.
 Exports preserve generated normals. Uniform recomputation in Mesh Debug replaces
 this specialized shading; see [normal processing](mesh-debug-normals.md).
@@ -679,6 +682,7 @@ Representative automated coverage in `src/test-lib/` includes:
 - `image_mesh_areas_smoke.lua` and `image_mesh_height_line_smoke.lua`: manual heights.
 - `image_mesh_facets_smoke.lua`: planar field, hard normals, sectors/rings, holes, materials, map agreement, export, vertex budget, snapshots and cancellation.
 - `image_mesh_facets_editor_smoke.lua`: ImGui controls, history, save/reopen, export/map and idle behavior.
+- `image_mesh_curved_quality_smoke.lua`: saw-like outline, Bézier hierarchy, thin-triangle regression, target-edge heights, hole/manifold checks and angle-weighted normals.
 - `image_mesh_curved_holes_smoke.lua`: curved through-cuts, target/line intersections, 16 holes, concavity, watertightness, Euler/area/volume, side modes, maps, async snapshots and cancellation.
 - `image_mesh_curved_holes_editor_smoke.lua`: move/resize, invalid edits, history, persistence, preview/export, ImGui guidance and idle behavior.
 - `image_mesh_simplify_smoke.lua`: preview, comparison, export, history, and cache reuse.

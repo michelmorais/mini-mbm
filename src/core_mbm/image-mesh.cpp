@@ -469,6 +469,8 @@ namespace mbm
                 for (const auto &p : topology.points) levels.push_back(field.surface(p.x,p.y,o));
                 plateauNormals.resize(gridSize,VEC3(0,0,0));
             }
+            const bool angleWeighted=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED &&
+                o.curvedHierarchy && !o.curvedFaceted && !o.curvedInterior;
             std::vector<VERTEX> facetVertices;
             if (faceted) facetVertices.reserve(indices.size());
             for (size_t i = 0; i < indices.size(); i += 3)
@@ -488,10 +490,20 @@ namespace mbm
                 const double faceLength = std::sqrt(nx * nx + ny * ny + nz * nz);
                 if (!(faceLength > 0))
                     return fail(errorOut, errorOutLen, "Degenerate triangle after coordinate conversion");
-                // Match Mesh Debug's per-subset "Recalculate all": average unit face
-                // normals, so large triangles do not dominate smaller groove faces.
+                // Start from unit face normals, as in Mesh Debug. Curved hierarchies
+                // additionally weight the contribution by each corner angle below.
                 const VEC3 normal(static_cast<float>(nx / faceLength),
                     static_cast<float>(ny / faceLength), static_cast<float>(nz / faceLength));
+                // Curved constraints can leave thin triangles. Weight each face by
+                // its corner angle so tiny wedges cannot dominate smooth shading.
+                double weights[3]={1,1,1};
+                if (angleWeighted)
+                {
+                    const double dot=abx*acx+aby*acy+abz*acz;
+                    weights[0]=std::atan2(faceLength,dot);
+                    weights[1]=std::atan2(faceLength,abx*abx+aby*aby+abz*abz-dot);
+                    weights[2]=std::atan2(faceLength,acx*acx+acy*acy+acz*acz-dot);
+                }
                 if (preservePlateaus && i/3<topology.triangles.size())
                 {
                     const uint32_t ia=indices[i],ib=indices[i+1],ic=indices[i+2];
@@ -499,20 +511,26 @@ namespace mbm
                     const float high=std::max({levels[ia],levels[ib],levels[ic]});
                     if (low>=0.9999f || high<=0.0001f || (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedHierarchy && high-low<1e-6f))
                     {
-                        for (uint32_t index : {ia,ib,ic})
+                        for (unsigned corner=0;corner<3;++corner)
                         {
-                            auto &sum=plateauNormals[index];
-                            sum.x+=normal.x; sum.y+=normal.y; sum.z+=normal.z;
+                            auto &sum=plateauNormals[indices[i+corner]];
+                            const float weight=static_cast<float>(weights[corner]);
+                            sum.x+=normal.x*weight; sum.y+=normal.y*weight; sum.z+=normal.z*weight;
                         }
                     }
                 }
-                for (auto *vertex : {&a, &b, &c})
+                for (unsigned corner=0;corner<3;++corner)
                 {
+                    auto *vertex=&vertices[indices[i+corner]];
                     if (faceted)
                     {
                         facetVertices.push_back(*vertex);facetVertices.back().normal=normal;
                     }
-                    else { vertex->normal.x += normal.x; vertex->normal.y += normal.y; vertex->normal.z += normal.z; }
+                    else
+                    {
+                        const float weight=static_cast<float>(weights[corner]);
+                        vertex->normal.x+=normal.x*weight; vertex->normal.y+=normal.y*weight; vertex->normal.z+=normal.z*weight;
+                    }
                 }
             }
             for (uint32_t i=0;i<plateauNormals.size();++i)
