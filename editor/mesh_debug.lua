@@ -38,6 +38,7 @@ tXformGizmo   =     require "mesh_debug_transform_gizmo"
 tMeshExport   =     require "mesh_debug_export_helper"
 tMeshNormals  =     require "mesh_debug_normals"
 tMeshNormals.preview = require "mesh_debug_normal_preview"
+local Simplification = require "mesh_debug_simplification"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -3420,6 +3421,7 @@ function removeMeshFromTable(index)
 end
 
 function destroyPreviewMesh()
+    for _,entry in ipairs(tLoadedMeshes or {}) do Simplification.release(entry,false) end
     if tPreviewMesh then
         tPreviewMesh.tFont = nil
         tPreviewMesh:destroy()
@@ -5844,6 +5846,7 @@ function splitCaptureDiscardBackup(tEntry)
 end
 
 function simplifyDiscardBackup(tEntry)
+    Simplification.release(tEntry,true)
     local backup = tEntry and tEntry.tSimplifyBackup
     if not backup then return end
     meshDebug:fakeRelease(backup.path)
@@ -6154,6 +6157,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     end
     simplifyDiscardBackup(tEntry)
     tEntry.tSimplifyBackup = pendingBackup
+    dpCall(Simplification.record,tEntry,workingMesh,sourceFrame,aggregateReport)
     simplifyState.report = aggregateReport
     simplifyState.lastError = nil
     tEntry.meshDebug = workingMesh
@@ -7964,11 +7968,6 @@ function showFrameNode(tEntry, meshD, index)
     tEntry.tSplitCapture = tEntry.tSplitCapture or {active=false, initialized=false}
     tEntry.tSplitCaptures = tEntry.tSplitCaptures or {}
     showSplitCapture(tEntry, meshD, index)
-    tImGui.Separator()
-    if showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets) then
-        tImGui.TreePop()
-        return
-    end
 
     -- Save As (visible after Execute, when mesh is modified in-memory)
     if tEntry.modified then
@@ -9479,6 +9478,8 @@ function showMeshOptions(tEntry, index)
 
     -- Frame node: view/queue frame+subset edits (outside Animations)
     showFrameNode(tEntry, meshD, index)
+    Simplification.draw(tEntry,meshD,index,showSimplifyGeometry,dpCall,applyCam3d,
+        index==iSelectedMeshIndex and bCameraMode3D and tPreviewMesh~=nil)
 
     -- Articulated Animation node: persistent parts/pivots and named clips
     showArticulatedAnimationNode(tEntry, meshD, index)
@@ -11475,6 +11476,7 @@ function main_menu_mesh_debug()
             showApplyToAllMenu()
             tImGui.Separator()
             if tImGui.MenuItem(tLang.L("clear_all")) then
+                for _,entry in ipairs(tLoadedMeshes) do simplifyCancel(entry);simplifyDiscardBackup(entry) end
                 tLoadedMeshes = {}
                 iSelectedMeshIndex = 0
                 iLastPreviewedIndex = 0
@@ -11483,6 +11485,7 @@ function main_menu_mesh_debug()
             end
             tImGui.Separator()
             if tImGui.MenuItem(tLang.L("menu_quit")) then
+                for _,entry in ipairs(tLoadedMeshes) do simplifyCancel(entry);simplifyDiscardBackup(entry) end
                 mbm.quit()
             end
             tImGui.EndMenu()
@@ -12350,6 +12353,7 @@ end
 
 function onLoop(delta)
     if tMeshNormals.preview.pending then
+        Simplification.hide(tLoadedMeshes[iSelectedMeshIndex])
         tMeshNormals.preview.draw()
         showCameraWindow()
         showLightWindow()
@@ -12371,6 +12375,10 @@ function onLoop(delta)
     showListTexturesWindow()
     showListMeshesWindow()
     updatePreviewMesh()
+    Simplification.sync(tLoadedMeshes[iSelectedMeshIndex],tPreviewMesh,
+        bCameraMode3D and tLoadedMeshes[iSelectedMeshIndex] and
+        tLoadedMeshes[iSelectedMeshIndex].sOpenNode=='simplification' and
+        not ((tLoadedMeshes[iSelectedMeshIndex].tSimplifyState or {}).running))
     updateCam3dKeyboardMovement(delta)
     -- Frame Pick popup (per loaded mesh)
     for i = 1, #tLoadedMeshes do

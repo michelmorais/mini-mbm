@@ -44,7 +44,8 @@ function M.ensure(E,asset)
         a,b=remap[a],remap[b]
         if a==b then return end
         if a>b then a,b=b,a end
-        local key=a*65536+b
+        -- Subsets concatenated for a preview can exceed 65,536 vertices.
+        local key=string.pack('I8I8',a,b)
         if edges[key] then return end
         edges[key]=true
         adjacency[a]=adjacency[a] or {}; adjacency[b]=adjacency[b] or {}
@@ -72,7 +73,7 @@ function M.ensure(E,asset)
                 local a=stack[#stack]; local neighbors=adjacency[a]
                 local b=table.remove(neighbors)
                 if b then
-                    local key=math.min(a,b)*65536+math.max(a,b)
+                    local key=string.pack('I8I8',math.min(a,b),math.max(a,b))
                     if edges[key] then edges[key]=nil; append(b); stack[#stack+1]=b end
                 else
                     stack[#stack]=nil

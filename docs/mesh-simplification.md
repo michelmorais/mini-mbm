@@ -93,7 +93,10 @@ Authored physics/collision geometry is preserved and is not regenerated automati
 
 ## Mesh Debug workflow
 
-`Simplify Geometry` appears after Split Start Capture. The editor polls its detached working mesh
+Since 7.290.0, **Simplification** is a separate Mesh Debug work tree, alongside
+**Frame**. Frame retains frame/subset editing and Split Capture; method selection
+and all simplification inputs, reports, cancel and undo live in Simplification.
+The editor polls its detached working mesh
 once per frame and displays a progress bar while the simplifier worker runs. It supports frame or checked-subset
 scope, an optional virtual frame for selected subsets, compatible shared-frame collapses, rollback,
 and Save As. No simplification work runs continuously while the editor is idle.
@@ -105,6 +108,23 @@ original mesh, its modified state, and the previous undo backup. Remaining subse
 are not processed. Parameters and rollback are disabled during simplification;
 the user can apply again after cancellation completes. The worker cancellation is
 cooperative, so an indivisible processing step may finish before it stops.
+
+After a successful change, the Simplification tree offers original/result comparison
+side by side, independent visibility, wireframe, vertex/triangle counts and fit-to-view.
+The immutable result snapshot is paired with the existing pre-operation undo snapshot.
+No-op, failed or cancelled operations retain the previous pair. Later geometry/settings
+edits do not silently change the pair labelled "last simplification". Undo, a new
+successful simplification, removing/clearing meshes or the Quit menu discards it.
+Changing previews/selection releases display objects; comparison can be requested again
+from the stored pair. Comparison is available for the selected mesh in 3D view.
+
+The view uses static base geometry from the operation's reference frame (frame 1 for
+shared-frame jobs), with normals, UVs, textures, material and culling copied. It does
+not play skeletal/articulated deformation, frame animation or custom animated shader
+effects. The panel explicitly describes that limit. Source/result offsets affect only
+preview renderables, never mesh data, saving or exports. Geometry extraction, file
+loading and wire generation occur on request; idle synchronization only updates
+visibility. See [work tree implementation and validation](mesh-debug-simplification-worktree.md).
 
 Split Capture supports canonical skeletal weights. It maps every rebuilt outside/captured vertex to
 its source weight, reconstructs the frame-global weight order, validates the detached mesh, and only
