@@ -96,6 +96,9 @@ and collect work without exposing the worker or mutable state. The 7.280.0
 `MESH_SIMPLIFY_MODE` and added report fields are scalar values. Planar adjacency,
 corner attributes, region certificates and scratch candidates live in the private
 `mesh-planar.h` helper; the optional prepass shares the same final commit gate.
+Since 7.287.0, its obstacle broad phase uses request-local boxes and a balanced
+index in private `mesh-planar-index.h`; no index, container or cache crosses the
+public manager boundary.
 Image Mesh's curved mode and planar count also remain scalar options/report data.
 The 7.284.0 boundary option and counters are scalar; coordinated certificates,
 position-alias contacts and masks remain temporary private helper state.

@@ -188,7 +188,18 @@ strictly disjoint from every replacement triangle using both triangles' edge
 half-planes. This allows separate islands inside holes or exterior concave notches.
 The area epsilon protects uncertain separation; touching, degenerate and overlapping
 pairs fail this new branch. Approximately planar regions retain the previous
-conservative obstacle policy. This is a bounded narrow test, not a spatial index;
+conservative obstacle policy.
+
+Since 7.287.0, a private balanced AABB index over original selected and unselected
+triangles replaces the per-region whole-frame scan. Queries use inclusive bounds
+on the two projection axes and deliberately ignore the dropped axis; they cannot
+remove candidates required by the previous projected-box check. Candidates retain
+source/context order before the unchanged narrow certificates. Node/leaf visits
+share the region work budget. Index construction and queries check cancellation;
+standard-library partition/sort calls finish before the next checkpoint. Index
+storage is linear in source/context triangle count, request-local, and rebuilt for
+the optional coordinated-boundary rerun. No idle scans or persistent cache are
+introduced. Highly overlapping projections may gain little and exhaust the budget;
 large or uncertain neighborhoods can still reject valid regions.
 Work is capped at 2,048 total boundary vertices, 16 holes and 2,000,000 budgeted
 boundary/bridge/ear/certificate/obstacle operations per region, with cancellation

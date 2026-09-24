@@ -17,6 +17,7 @@
 #ifndef MBM_MESH_PLANAR_H
 #define MBM_MESH_PLANAR_H
 #include "mesh-simplifier.h"
+#include "mesh-planar-index.h"
 #include <array>
 #include <map>
 #include <set>
@@ -130,6 +131,26 @@ inline bool runRegions(const INPUT &in,const ATTRIBUTES &attr,INPUT &out,REPORT 
         for (unsigned k=0;k<3;++k) faces[f][k]=in.indices[3*f+k];
         for (unsigned k=0;k<3;++k) edges[edge(faces[f][k],faces[f][(k+1)%3])].faces.push_back(f);
     }
+    std::vector<OBSTACLE_BOX> obstacleBoxes;
+    obstacleBoxes.reserve(count+attr.surroundings.size());
+    for (size_t i=0;i<count+attr.surroundings.size();++i)
+    {
+        if ((i&255)==0 && cancelled()) return false;
+        const auto triangle=i<count ? std::array<VEC3,3>{in.positions[faces[i][0]],
+            in.positions[faces[i][1]],in.positions[faces[i][2]]} : attr.surroundings[i-count];
+        OBSTACLE_BOX box;
+        box.lo=box.hi={triangle[0].x,triangle[0].y,triangle[0].z};
+        for (const auto &p:triangle)
+        {
+            const std::array<long double,3> value{p.x,p.y,p.z};
+            for (unsigned a=0;a<3;++a)
+            { box.lo[a]=std::min(box.lo[a],value[a]);box.hi[a]=std::max(box.hi[a],value[a]); }
+        }
+        obstacleBoxes.push_back(box);
+    }
+    OBSTACLE_INDEX obstacleIndex;
+    if (!obstacleIndex.build(obstacleBoxes,cancelled)) return false;
+    std::vector<size_t> obstacleCandidates;
     std::vector<bool> visited(count,false),removed(count,false);
     std::vector<std::array<uint32_t,3>> added;
     std::vector<uint32_t> addedGroups;
@@ -594,14 +615,29 @@ inline bool runRegions(const INPUT &in,const ATTRIBUTES &attr,INPUT &out,REPORT 
             if (contact.size()==2 && contactNext.at(contact[0])!=contact[1] && contactNext.at(contact[1])!=contact[0]) return true;
             return false;
         };
-        for (uint32_t f=0;f<count && valid;++f)
+        // Query the same projected rectangle as the old whole-frame scan.
+        // Ignoring the dropped axis preserves slab/near-plane conservatism.
+        OBSTACLE_BOX queryBox;
+        const auto first=point(in.positions[ring[0]]);
+        queryBox.lo=queryBox.hi={first.x,first.y,first.z};
+        for (auto v:ring)
         {
-            if ((f&255)==0 && cancelled()) return false;
-            if (members.count(f)) continue;
-            valid=!obstacle({in.positions[faces[f][0]],in.positions[faces[f][1]],in.positions[faces[f][2]]});
+            const auto &p=in.positions[v];const std::array<long double,3> value{p.x,p.y,p.z};
+            for (unsigned a=0;a<3;++a)
+            { queryBox.lo[a]=std::min(queryBox.lo[a],value[a]);queryBox.hi[a]=std::max(queryBox.hi[a],value[a]); }
         }
-        for (const auto &tri:attr.surroundings)
-        { if (cancelled()) return false;if (obstacle(tri)) { valid=false;break; } }
+        valid=obstacleIndex.query(obstacleBoxes,queryBox,drop,obstacleCandidates,tick);
+        for (auto id:obstacleCandidates)
+        {
+            if (!valid) break;
+            if (cancelled()) return false;
+            if (id<count)
+            {
+                if (members.count(static_cast<uint32_t>(id))) continue;
+                valid=!obstacle({in.positions[faces[id][0]],in.positions[faces[id][1]],in.positions[faces[id][2]]});
+            }
+            else valid=!obstacle(attr.surroundings[id-count]);
+        }
         if (!valid) { if (over) ++report.budget;else ++report.surroundings;++report.rejected;continue; }
         if (certified && maxDistance==0 && !certified->overflow)
         {

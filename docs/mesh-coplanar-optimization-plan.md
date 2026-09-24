@@ -1,8 +1,63 @@
 # Coplanar mesh optimization — investigation and delivery milestones
 
-Status: **M1 delivered in 7.280.0; M2 in 7.283.0; opt-in M3 in 7.284.0; M4 in 7.285.0; M5 in 7.286.0**. Initial investigation
+Status: **M1 delivered in 7.280.0; M2 in 7.283.0; opt-in M3 in 7.284.0; M4 in 7.285.0; M5 in 7.286.0; M6 in 7.287.0**. Initial investigation
 against `547b569f`, 2026-09-24. The design below was recorded before implementation;
 this delivery record states the implemented scope and remaining validation limits.
+
+## Milestone 6: indexed obstacle broad phase (7.287.0)
+
+Recorded before implementation. Build a private balanced AABB hierarchy over source
+and unselected-context triangle bounds once per runRegions invocation. Query only
+the two retained projection axes, using the region boundary rectangle; intentionally
+ignore the dropped axis so the broad phase is a conservative superset of the old
+projected-box check even for approximate planes. Inclusive bounds retain contacts.
+Feed candidates in original source/context order to the unchanged slab, contact
+and strict-separation certificates. Never index progressively replaced geometry.
+
+Index construction/query cancellation is mandatory. Query traversal shares the
+region work budget; exhaustion rejects that region and publishes no partial region.
+Keep the index and scratch state private, built only on request, no public settings
+or persistent cache. The optional coordinated-boundary rerun builds its own index.
+No promise of speedup for overlapping projections or small meshes.
+
+Acceptance: independently compare indexed candidates against brute-force inclusive
+box overlap for all projection axes, boundary contacts, degenerate boxes and
+randomized inputs; deterministic ordering and cancellation. Run all coplanar,
+obstacle, hole, attributes, editor, QEM and curved regression suites. Compare the
+4,097-region fixture output and elapsed time before/after; report measurements
+without treating a single timing as a general benchmark. Inspect rendered output.
+
+M6 validation: Linux Debug build passes. The standalone structural test
+`src/test-lib/unit/mesh-planar-index-test.cpp` compares 1,200 queries on 4,097
+boxes against an independent exhaustive overlap test, for all three dropped axes,
+including inclusive point/edge contacts and zero-extent boxes. It verifies sorted
+candidate identity, interrupted construction/query cleanup, retry and empty input.
+It visits 153,481 nodes/leaf entries versus 4,916,400 exhaustive box checks; these
+are structural counts, not equivalent-cost CPU operations. Run with:
+
+```sh
+c++ -std=c++17 -O2 -Wall -Wextra -pedantic src/test-lib/unit/mesh-planar-index-test.cpp -o /tmp/planar-index-test
+/tmp/planar-index-test
+```
+
+The real-engine 4,097-region coordination-limit fixture retains exactly 8,194
+result faces, 4,097 accepted regions and boundary fallback. One local before/after
+wall-clock measurement (same Linux Debug executable configuration and fixture)
+changed from 26.831 s to 0.970 s, including startup. This is not a general benchmark;
+small meshes and overlapping projections may not improve. Build/query scratch is
+linear, and partition/sort calls have cancellation checks around, not inside, them.
+The existing work cap now includes index traversal, so marginal budget cases may
+fall back differently. No spatial scratch becomes persistent or publicly exposed.
+
+The structural test also passes AddressSanitizer/UndefinedBehaviorSanitizer with
+leak detection disabled (LeakSanitizer cannot run under this sandbox's ptrace).
+All existing coplanar, obstacle-separation, hole, boundary, affine-normal, worker/
+editor cancellation/progress/undo, Image Mesh preview/export/project/idle, QEM and
+curved suites pass. Rendered checker/lighting comparisons pass; island before/after
+images were inspected (mean channel difference 0.063446 on 0..255, unchanged from
+M5). No native mouse interaction or non-GLES runtime validation was performed.
+No dedicated full-pipeline fixture forces exhaustion specifically during indexed
+query; structural interruption and existing coordination-limit fallback are tested.
 
 ## Milestone 5: strict coplanar obstacle separation (7.286.0)
 

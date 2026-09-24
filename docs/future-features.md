@@ -22,8 +22,9 @@ Certified retriangulation of eligible regions with up to 16 holes is delivered i
 - non-affine attribute constraints, approximate varying-normal certificates and
   deformation certificates; exact affine raw-normal fields on exactly planar
   generic regions are supported since 7.285.0;
-- spatial acceleration and broader noncoplanar obstacle certificates; strict
-  separation of coplanar obstacles from replacement triangles is delivered in 7.286.0;
+- broader noncoplanar obstacle certificates and acceleration for heavily overlapping
+  projections; strict coplanar separation is delivered in 7.286.0 and a request-local
+  indexed projected-box broad phase in 7.287.0;
 - larger approximate tolerances, additional backend parity and visual diagnostics.
 
 ### Visual diagnostics
