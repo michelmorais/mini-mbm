@@ -19,7 +19,7 @@ local function create(kind,tri,slope,reverse,near)
  if near then for _,p in ipairs(v) do p.z=p.z+1e-8*p.x*p.x end end
  local d=meshDebug:new();d:setType('mesh');d:setModeFrontFace('CCW');d:addFrame(3);d:addSubSet(1)
  assert(d:addVertex(1,1,v));assert(d:addIndex(1,1,idx));d:addSubSet(1)
- local ov={};for _,p in ipairs(tri) do ov[#ov+1]={x=p[1],y=p[2],z=slope*p[1],u=p[1]/8,v=p[2]/8,nx=0,ny=0,nz=2} end
+ local ov={};for _,p in ipairs(tri) do ov[#ov+1]={x=p[1],y=p[2],z=slope*p[1]+(p[3] or 0),u=p[1]/8,v=p[2]/8,nx=0,ny=0,nz=2} end
  assert(d:addVertex(1,2,ov));assert(d:addIndex(1,2,reverse and {3,2,1} or {1,2,3}))
  return d
 end
@@ -38,10 +38,14 @@ local function subsetSignature(d)
  end
  table.sort(triangles);return table.concat(triangles,';')
 end
+local api=...
+if type(api)=='table' then api.create=create;api.subsetSignature=subsetSignature;return end
 function onInitScene()
  local ok,e=xpcall(function()
   for _,kind in ipairs{'hole','outer_concave'} do
    local tri=kind=='hole' and {{3.5,3.5},{4.5,3.5},{4,4.5}} or {{6,6},{7,6},{6,7}}
+   for _,height in ipairs{0,1,1e-8} do
+   for i,p in ipairs(tri) do p[3]=(i==1 and -height or height) end
    for _,slope in ipairs{0,.5} do for _,reverse in ipairs{false,true} do
     for _,reduce in ipairs{false,true} do for _,selected in ipairs{false,true} do
      local d=create(kind,tri,slope,reverse);local before=subsetSignature(d)
@@ -52,6 +56,7 @@ function onInitScene()
      assert(assert(d:simplify(nil,selected and 1 or nil,1,true,0,'coplanar',nil,nil,reduce)).unchanged)
     end end
    end end
+   end
   end
   local rejected={
    {{2.5,3.5},{4.5,3.5},{4,4.5}}, -- crosses inner boundary
@@ -61,10 +66,17 @@ function onInitScene()
    {{-10,-10},{30,-10},{-10,30}}, -- surrounds the region
    {{3.5,3.5},{4,4},{4.5,4.5}}, -- degenerate obstacle
   }
-  for _,tri in ipairs(rejected) do
+  for _,height in ipairs{0,1,1e-8} do
+  for n,tri in ipairs(rejected) do
+   -- Keep an actual plane-contact edge on solid material, not just projected overlap.
+   for i,p in ipairs(tri) do
+    p[3]=(i==3 and n<#rejected) and height or 0
+    if n==3 or n==5 then p[3]=i==1 and -height or height end
+   end
    local d=create('hole',tri,0,false);local before=helper.signature(d)
    local r=assert(d:simplify(nil,1,1,true,0,'coplanar',nil,nil,true))
-   assert(r.unchanged and r.planarSurroundings>0 and helper.signature(d)==before,'unsafe obstacle accepted')
+   assert(r.unchanged and r.planarSurroundings>0 and helper.signature(d)==before,'unsafe obstacle accepted case='..n..' height='..height)
+  end
   end
   local d=create('hole',{{3.5,3.5},{4.5,3.5},{4,4.5}},0,false,true);local before=helper.signature(d)
   local r=assert(d:simplify(nil,1,1,true,0,'coplanar'))

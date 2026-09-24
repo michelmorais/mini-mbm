@@ -25,11 +25,17 @@ function onInitScene()
   mbm.setLightEnabled('3d',true);mbm.setAmbientLight('3d',.3,.3,.3)
   mbm.setDirectionalLight('3d',0,0,-1,.6,.6,.6)
   mbm.setPointLight('3d',2,3,10,30,.3,.2,.1)
-  for _,case in ipairs{{'island',0},{'affine_normal',0},{'flat',0},{'inclined',.5},{'concave',0},{'materials',0},{'wall',0},{'shallow',0},{'angular',0},{'hole',0},{'multiple',.5},{'inner_concave',0},{'outer_concave',0}} do
-   local d,vertices,indices=helper.grid(case[1]=='island' and 'hole' or case[1],case[2]);d:setTexture(1,1,texture)
-   if case[1]=='island' then
+  for _,case in ipairs{{'spatial_island',0},{'inclined_island',0},{'island',0},{'affine_normal',0},{'flat',0},{'inclined',.5},{'concave',0},{'materials',0},{'wall',0},{'shallow',0},{'angular',0},{'hole',0},{'multiple',.5},{'inner_concave',0},{'outer_concave',0}} do
+   local d,vertices,indices=helper.grid((case[1]=='island' or case[1]=='inclined_island' or case[1]=='spatial_island') and 'hole' or case[1],case[2]);d:setTexture(1,1,texture)
+   if case[1]=='island' or case[1]=='inclined_island' or case[1]=='spatial_island' then
+    local height=case[1]=='inclined_island' and .5 or 0
     d:addSubSet(1)
-    assert(d:addVertex(1,2,{{x=3.5,y=3.5,z=0,nx=0,ny=0,nz=2,u=0,v=0},{x=4.5,y=3.5,z=0,nx=0,ny=0,nz=2,u=1,v=0},{x=4,y=4.5,z=0,nx=0,ny=0,nz=2,u=.5,v=1}}))
+    local island={{x=3.5,y=3.5,z=-height,nx=0,ny=0,nz=2,u=0,v=0},{x=4.5,y=3.5,z=height,nx=0,ny=0,nz=2,u=1,v=0},{x=4,y=4.5,z=height,nx=0,ny=0,nz=2,u=.5,v=1}}
+    if case[1]=='spatial_island' then
+     island[1].x=4;island[1].z=-1;island[2].x=4;island[2].y=4.5;island[2].z=-1
+     island[3].x=7;island[3].y=4;island[3].z=11
+    end
+    assert(d:addVertex(1,2,island))
     assert(d:addIndex(1,2,{1,2,3}));d:setTexture(1,2,'#FF6060FF')
    elseif case[1]=='materials' then
     d:addSubSet(1)

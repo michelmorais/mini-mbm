@@ -1,8 +1,109 @@
 # Coplanar mesh optimization — investigation and delivery milestones
 
-Status: **M1 delivered in 7.280.0; M2 in 7.283.0; opt-in M3 in 7.284.0; M4 in 7.285.0; M5 in 7.286.0; M6 in 7.287.0**. Initial investigation
+Status: **M1 delivered in 7.280.0; M2 in 7.283.0; opt-in M3 in 7.284.0; M4 in 7.285.0; M5 in 7.286.0; M6 in 7.287.0; M7 in 7.288.0; M8 in 7.289.0**. Initial investigation
 against `547b569f`, 2026-09-24. The design below was recorded before implementation;
 this delivery record states the implemented scope and remaining validation limits.
+
+## Milestone 8: strict 3D obstacle separation (7.289.0)
+
+Recorded before implementation. For exactly planar regions, add a sufficient
+3D triangle-separation certificate after the existing full-projection test, only
+for noncoplanar, nondegenerate obstacles. Test candidate face normals, obstacle
+normal and edge-cross-edge directions. Any computed finite nonzero direction is
+safe as a separation witness; no claim of complete triangle intersection solving.
+Each obstacle must separate from every replacement triangle. Preserve prior
+boundary-contact handling if the new certificate fails; work exhaustion rejects.
+
+Bound projection arithmetic outward with nextafter after subtraction, multiplication
+and addition, including a positive clearance guard of max(plane tolerance,
+region scale * 1e-12), conservatively scaled by axis L1 norm. Reject nonfinite or
+uncertain intervals. This avoids accepting a roundoff-only gap or reconstructing
+unstable plane intersections. Keep the index, source geometry, attribute/animation
+policies, public API and QEM unchanged. Count axis work against the existing budget.
+
+Acceptance: spatially disjoint obstacles whose projections cover solid material,
+including plane crossings confined to a hole and perpendicular pieces; reject real
+crossings, boundary contact and near-contact. Cover winding, projection axes,
+scale/translation, both scopes and boundary settings. Independently test the new
+private predicate, interval enclosure, intersecting-pair symmetry and budget/cancel
+interruption. Run engine topology/attributes, index, editor, QEM, curved and visual
+regressions. No guarantee of accepting all separated geometry or speedup.
+
+M8 validation: Linux Debug build and changed Lua syntax checks pass. The new
+spatial engine fixture covers a triangle whose projection reaches solid material
+but whose plane cut remains inside the hole, and a perpendicular triangle with
+zero-area projection. Across three cyclic axis rotations, scales 1/1024, 1 and
+1024 with translations, both windings/scopes and boundary modes, the surrounding
+region reduces 120 -> 40 or 120 -> 8. Oriented obstacle faces and attributes remain
+unchanged. Real plane crossings, inner-boundary contacts, degenerate obstacles and
+approximately planar regions retain their originals. Prior obstacle rejection
+fixtures were adjusted to retain actual intersections/uncertified contacts: projected
+overlap alone is no longer grounds for rejection; authored boundary-edge contacts
+continue through the existing allowed-contact policy.
+
+The standalone `src/test-lib/unit/mesh-planar-separation-test.cpp` verifies 10,000
+integer-reference interval enclosures and shared-vertex pairs, rounding/cancellation
+arithmetic cases, transverse intersections, touching pairs, near-gap margins,
+scaled/translated separations in all axes, nonfinite/degenerate inputs and interrupted
+axis checks. It passes normal and AddressSanitizer/UndefinedBehaviorSanitizer builds
+(leak detection disabled due to sandbox ptrace); a fast-math build confirms that the
+new certificate disables itself. The unchanged index passes 1,200 exhaustive query
+comparisons. Run the spatial predicate test with:
+
+```sh
+c++ -std=c++17 -O2 -Wall -Wextra -pedantic src/test-lib/unit/mesh-planar-separation-test.cpp -o /tmp/planar-separation-test
+/tmp/planar-separation-test
+```
+
+All existing coplanar, obstacle, hole, boundary, affine-normal, coordination-limit,
+worker/editor cancellation/progress/undo, Image Mesh preview/export/project/idle,
+QEM and curved regressions pass. Rendered comparisons pass and spatial-island
+images were inspected; mean channel difference 0.063446 on 0..255, maximum 205
+at isolated raster edges. No non-GLES runtime or native mouse interaction was
+executed, and no full-pipeline test forces exhaustion specifically in the new 3D
+branch. Interval safety assumes strict floating-point arithmetic; the guarded
+fast-math configurations return to prior certificates. No general intersection
+solver, deformation certificate or performance improvement is claimed.
+
+## Milestone 7: projected separation of inclined obstacles (7.288.0)
+
+Recorded before implementation. Extend strict projected triangle separation from
+coplanar obstacles to inclined obstacles around an exactly planar region. If the
+entire projected obstacle is strictly separated from every replacement triangle,
+its 3D geometry cannot intersect the region, even when it crosses the seed plane
+inside a hole or exterior notch. Reuse the existing half-plane certificate, area
+epsilon, work budget and cancellation. Preserve existing coplanar box contacts
+and noncoplanar boundary contacts. Overlapping/degenerate projections, uncertain
+separation and approximate regions retain their previous conservative policy.
+No arbitrary triangle-plane intersection reconstruction or contact relaxation.
+
+Acceptance: crossing-plane and near-plane inclined islands inside holes/notches,
+both obstacle windings, inclined region planes, selected/whole-frame scopes and
+boundary reduction on/off. Obstacles projecting onto solid geometry or touching
+its boundary must still reject; preserve obstacle oriented faces and attributes.
+Run existing index, topology, attributes, QEM, curved, worker/editor cancellation
+and visual regressions. Both generic editors inherit the native change without
+new controls, idle work or changes to animation exclusions.
+
+M7 validation: Linux Debug build and changed Lua syntax checks pass. Obstacle
+fixtures now exercise zero, +/-1 and +/-1e-8 offsets from the region plane, for
+holes/notches, both windings, horizontal/inclined region planes, both scopes and
+boundary settings. Eligible holed regions reduce 120 -> 40 or 120 -> 8; concave
+fixtures reach 40 or 10. Oriented obstacle faces and corner attributes remain
+unchanged. Projected boundary contacts, overlapping/enclosing obstacles and
+zero-area projections remain protected; near-planar regions retain the old guard.
+Small offsets can round to zero on inclined float fixtures; horizontal fixtures
+retain the nonzero near-plane offsets.
+
+Existing coplanar, holes, boundary, affine-normal, index (1,200 exhaustive
+comparisons), coordination-budget fallback, worker/editor cancellation/progress/
+undo, Image Mesh preview/export/project/idle, QEM and curved regressions pass.
+Rendered comparisons pass and inclined-island before/after images were inspected;
+mean channel difference 0.062233 on the 0..255 scale, maximum 205 at isolated
+raster edges. No non-GLES backend or native mouse interaction was executed, and
+no dedicated test forces exhaustion inside the newly eligible obstacle branch.
+The existing work budget includes all triangle-pair checks. Overlapping projections
+remain deliberately conservative even when their 3D intersection could be absent.
 
 ## Milestone 6: indexed obstacle broad phase (7.287.0)
 

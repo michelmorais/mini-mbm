@@ -187,7 +187,24 @@ exactly coplanar obstacles with overlapping projected bounds may be certified
 strictly disjoint from every replacement triangle using both triangles' edge
 half-planes. This allows separate islands inside holes or exterior concave notches.
 The area epsilon protects uncertain separation; touching, degenerate and overlapping
-pairs fail this new branch. Approximately planar regions retain the previous
+pairs fail this new branch. Since 7.288.0, the same strict full-projection
+certificate also accepts inclined obstacles, including pieces crossing the seed
+plane entirely inside a hole or exterior notch. Disjoint projected domains imply
+disjoint 3D geometry. This projected test alone does not certify degenerate or
+overlapping projections; the previous noncoplanar boundary-contact checks remain.
+This is not a general triangle-plane intersection certificate.
+Since 7.289.0, a noncoplanar obstacle that fails full-projection separation may
+instead certify a strict 3D gap from every replacement triangle. The private
+predicate tries both face-normal and edge-cross-edge directions; outward-rounded
+projection intervals prevent roundoff-only gaps. Its clearance guard is the greater
+of the plane-distance tolerance and `1e-12 * L`, scaled conservatively by the axis
+L1 norm. Axis tests share the existing work budget. Degenerate/uncertain pairs do
+not gain an exemption, and existing boundary contacts remain eligible through the
+previous fallback. This is a sufficient separation certificate, not a complete
+intersection solver. Builds declaring fast floating-point math disable this new
+certificate because its interval bounds require strict arithmetic. No new user
+parameter is introduced, and QEM retains its existing behavior.
+Approximately planar regions retain the previous
 conservative obstacle policy.
 
 Since 7.287.0, a private balanced AABB index over original selected and unselected

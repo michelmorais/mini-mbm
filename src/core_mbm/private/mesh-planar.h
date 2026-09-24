@@ -18,6 +18,7 @@
 #define MBM_MESH_PLANAR_H
 #include "mesh-simplifier.h"
 #include "mesh-planar-index.h"
+#include "mesh-planar-separation.h"
 #include <array>
 #include <map>
 #include <set>
@@ -579,16 +580,18 @@ inline bool runRegions(const INPUT &in,const ATTRIBUTES &attr,INPUT &out,REPORT 
             if (std::max({p[0].x,p[1].x,p[2].x})<lo.x || std::min({p[0].x,p[1].x,p[2].x})>hi.x ||
                 std::max({p[0].y,p[1].y,p[2].y})<lo.y || std::min({p[0].y,p[1].y,p[2].y})>hi.y) return false;
             if (maxDistance!=0) return true;
-            // Coplanar adjacent charts may touch the projected bounding box, but not overlap it.
-            if (d[0]==0 && d[1]==0 && d[2]==0)
-            {
-                if (std::max({p[0].x,p[1].x,p[2].x})<=lo.x || std::min({p[0].x,p[1].x,p[2].x})>=hi.x ||
-                    std::max({p[0].y,p[1].y,p[2].y})<=lo.y || std::min({p[0].y,p[1].y,p[2].y})>=hi.y) return false;
+            const bool coplanar=d[0]==0 && d[1]==0 && d[2]==0;
+            // Preserve the existing coplanar box-boundary contact rule.
+            if (coplanar && (std::max({p[0].x,p[1].x,p[2].x})<=lo.x || std::min({p[0].x,p[1].x,p[2].x})>=hi.x ||
+                std::max({p[0].y,p[1].y,p[2].y})<=lo.y || std::min({p[0].y,p[1].y,p[2].y})>=hi.y)) return false;
+            // Disjoint full projections imply disjoint 3D geometry, even when an
+            // inclined obstacle crosses the seed plane inside a hole or notch.
+            const auto strictlySeparated=[&]() {
                 // Overlapping boxes need not mean overlapping domains (holes/notches).
                 // Require a strict separating edge for every candidate triangle.
                 // Closed contacts and numerically uncertain pairs stay protected.
                 const auto signedArea=orient(p[0],p[1],p[2]);
-                if (std::abs(signedArea)<=areaEpsilon) return true;
+                if (std::abs(signedArea)<=areaEpsilon) return false;
                 const auto separated=[&](const POINT *a,const POINT *b,long double sign) {
                     for (unsigned k=0;k<3;++k)
                         if (sign*orient(a[k],a[(k+1)%3],b[0])<-areaEpsilon &&
@@ -598,12 +601,34 @@ inline bool runRegions(const INPUT &in,const ATTRIBUTES &attr,INPUT &out,REPORT 
                 };
                 for (const auto &face:replacement)
                 {
-                    if (!tick()) return true;
+                    if (!tick()) return false;
                     const POINT q[3]={projected.at(face[0]),projected.at(face[1]),projected.at(face[2])};
-                    if (!separated(q,p,1) && !separated(p,q,signedArea>0?1:-1)) return true;
+                    if (!separated(q,p,1) && !separated(p,q,signedArea>0?1:-1)) return false;
                 }
-                return false;
-            }
+                return true;
+            };
+            if (strictlySeparated()) return false;
+            if (over || coplanar) return true;
+            // A 3D gap can exist even when the full projections overlap.
+            // Outward interval projections certify it without constructing an
+            // intersection segment. Keep the previous contact fallback on failure.
+            const auto spatiallySeparated=[&]() {
+                SEPARATION_TRIANGLE obstacleTriangle;
+                for (unsigned k=0;k<3;++k) obstacleTriangle[k]={tri[k].x,tri[k].y,tri[k].z};
+                const auto obstacleNormal=cross(sub(point(tri[1]),point(tri[0])),sub(point(tri[2]),point(tri[0])));
+                if (dot(obstacleNormal,obstacleNormal)<=areaEpsilon*areaEpsilon) return false;
+                const auto clearance=std::max(tolerance,scale*1e-12L);
+                for (const auto &face:replacement)
+                {
+                    SEPARATION_TRIANGLE candidate;
+                    for (unsigned k=0;k<3;++k)
+                    { const auto &v=in.positions[face[k]];candidate[k]={v.x,v.y,v.z}; }
+                    if (!strictlySeparated3D(candidate,obstacleTriangle,clearance,tick)) return false;
+                }
+                return true;
+            };
+            if (spatiallySeparated()) return false;
+            if (over) return true;
             if (std::min({d[0],d[1],d[2]})<0 && std::max({d[0],d[1],d[2]})>0) return true;
             std::vector<uint32_t> contact;
             for (unsigned k=0;k<3;++k) if (std::abs(d[k])<=tolerance)
