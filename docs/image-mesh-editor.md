@@ -434,8 +434,11 @@ Brush corrections follow area composition, and fixed outer-border treatment come
 ### Height painting
 
 Enable painting for the selected module to apply pending settings and show its
-height map. Raise, Lower, Flatten, and Smooth operate within a brush radius shown
-in image pixels. Strength ranges from 0.01 to 1; Flatten uses a target height in 0–1.
+height map. Raise, Lower, Flatten, and Smooth operate within a brush whose **Diameter (%)**
+is relative to the selected module's shorter side (0.2–100%, default 16%).
+At 100%, the circle spans that side, not twice its size. The same setting scales
+with the selected module; the effective diameter has a 1 image-pixel minimum.
+Stored strokes still use normalized radius and keep their original size. Strength ranges from 0.01 to 1; Flatten uses a target height in 0–1.
 
 Drag inside the module and release to commit a stroke. Each stroke is one undo
 operation; Esc discards it. Clear Painting is also undoable. Empty space pans the

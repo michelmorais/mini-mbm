@@ -22,6 +22,7 @@
 
 local Model=require 'image_mesh_model'
 local Canvas=require 'image_mesh_canvas'
+local Help=require 'image_mesh_help'
 local M={}
 local modes={'raise','lower','flatten','smooth'}
 local function L(k) return tLang.L('ime_paint_'..k) end
@@ -127,10 +128,9 @@ function M.panel(E,action,apply)
     end
     local edited,value=tImGui.Combo(L('brush'),settings.mode,{L('raise'),L('lower'),L('flatten'),L('smooth')})
     if edited then settings.mode=value end
-    local region=Model.region(E.project,E.selected)
-    local size=math.max(1,math.min(region.w,region.h)-1)
-    local radiusChanged,radius=tImGui.SliderFloat(L('radius'),math.max(0.5,settings.radius*size),math.max(0.5,size*0.001),size,'%.1f')
-    if radiusChanged then settings.radius=Model.clampNumber(radius/size,0.001,1,settings.radius) end
+    local diameterChanged,diameter=tImGui.SliderFloat(L('radius'),settings.radius*200,0.2,100,'%.1f%%')
+    if diameterChanged then settings.radius=Model.clampNumber(diameter/200,0.001,0.5,settings.radius) end
+    if tImGui.IsItemHovered() then Help.tooltip(L('radius_help')) end
     for _,item in ipairs({{'strength',0.01,1},{'height',0,1}}) do
         local key=item[1]
         if key~='height' or settings.mode==3 then
