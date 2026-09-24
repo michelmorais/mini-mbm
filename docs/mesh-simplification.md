@@ -123,3 +123,8 @@ the original triangle target and one transaction; QEM runs only if further reduc
 and uncertain geometry, plus numeric and visual acceptance criteria. This prepass is not yet
 implemented and is separate from Image Mesh's existing minimal-back generation and curved-relief
 simplification.
+
+The planned modes apply to both Mesh Debug and Image Mesh Editor's **general** simplification,
+through the shared native implementation. Image Mesh's existing enable switch and legacy project
+defaults remain compatible. Its specific curved-relief simplifier retains its separate controls
+and current routing; generic mode selection does not automatically chain QEM onto curved generation.

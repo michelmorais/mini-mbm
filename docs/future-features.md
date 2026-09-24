@@ -17,6 +17,9 @@ than delaying the delivered workflow.
   from triangle normals alone or reuse sampled skeletal poses as a proof for arbitrary deformation.
 - Expose QEM (default), Planar + QEM, and Planar only modes. Planar only runs the same
   certified stage without a reduction-ratio target or implicit QEM fallback.
+- Extend all generic simplifier consumers, currently Mesh Debug and Image Mesh Editor's general
+  simplification, including project settings, preview/comparison, statistics and export flows.
+  Preserve Image Mesh's separate curved-relief simplifier and its current generation routing.
 - Keep uncertain regions unchanged, preserve the complete transaction/cancellation behavior, and
   validate numeric and visual results against the original mesh.
 - This is separate from the completed Image Mesh minimal-back optimization and curved-relief reducer.

@@ -29,7 +29,8 @@ than interpreting the current quality labels as a proof.
 ## Milestone 1: conservative static-region retriangulation
 
 Deliver an optional **Optimize planar regions before QEM** stage in Mesh Debug's
-existing simplification action, also available as **Planar only**. Expose three
+existing simplification action and Image Mesh Editor's general simplification,
+also available as **Planar only**. Expose three
 mutually exclusive modes: **QEM** (default), **Planar + QEM**, and **Planar only**.
 Preserve the current QEM path, parameters and failure behavior in the default mode.
 The planar stage initially supports:
@@ -177,6 +178,52 @@ neighbor checks, and before final allocation/publication.
 
 ## Integration decision
 
+### Editor coverage
+
+The three modes must reach **all consumers of the engine's generic simplifier**,
+not just Mesh Debug. The inspected Lua call sites currently are:
+
+| Consumer | Integration points |
+|---|---|
+| Mesh Debug | `editor/mesh_debug.lua`: `simplifyAwait`, selected-subset/frame/virtual-frame orchestration and simplification panel. |
+| Image Mesh Editor, general simplification | `editor/image_mesh_simplify.lua`: `M.apply` calls `asset:startSimplify`; `editor/image_mesh_editor.lua`: `generate` routes preview, requested statistics, single export, batch export and assembly generation through it. |
+
+Use the same native implementation and mode semantics in both editors. Keep UI
+labels/help consistent and localized; do not duplicate the planar algorithm in Lua.
+Before delivery, repeat the call-site search for synchronous `simplify` and
+asynchronous `startSimplify` to include any additional generic consumers.
+
+For Image Mesh, preserve the existing simplification enable/disable switch.
+When enabled, expose QEM (default), Planar + QEM and Planar only. Existing project
+files without a mode retain their current behavior: disabled remains disabled,
+enabled defaults to QEM. Extend `image_mesh_model.lua` defaults and validation,
+project save/load, region option copying, cache invalidation and parameter-change
+detection so mode changes cannot reuse geometry or reports from another mode.
+Keep saved QEM parameters when switching to Planar only, but do not apply them.
+
+Update `image_mesh_comparison.lua` and statistics to distinguish planar metrics
+from QEM cost-derived errors; a planar-only result must not assume QEM report fields
+exist. Compare the generated mesh before general simplification with the final
+result. Route progress/cancellation through `image_mesh_generation.lua` and the
+existing coroutine helper, preserving detached preview publication. Cancelled or
+failed work must not replace the prior preview/comparison; do not publish or save
+an intermediate planar mesh when the combined operation fails. Existing completed
+batch outputs keep their existing semantics; cancellation stops remaining work.
+
+Image Mesh's **specific curved-relief simplifier remains separate**. Currently
+`generate()` forces `options.simplify=false` for `heightSource=='curved'`, and the
+editor displays the `curvedSimplify` controls instead of general simplification.
+Preserve that routing and its ratio/error controls in M1; adding generic modes
+does not implicitly chain QEM onto curved-relief generation. Likewise, preserve
+the completed minimal-back generation optimization. A later decision to expose
+general simplification after curved generation would require explicit ordering,
+separate reports and a new error-budget contract.
+
+Other similarly named operations found during the audit are Blender importer
+decimation, freehand contour simplification and articulated sprite contour
+simplification. They do not call the engine's generic reducer and are not mode
+consumers; do not replace their algorithms as part of this delivery.
+
 | Integration | Decision |
 |---|---|
 | Optional prepass before QEM | **Accepted M1 choice.** Disabled by default; examines original geometry/attributes, then passes its validated candidate to the existing QEM reducer if needed. |
@@ -282,6 +329,15 @@ a subsequent QEM pass; combined-flow assertions follow separately.
 
 Additional combined-flow acceptance gates:
 
+- Run all three general modes through Mesh Debug and Image Mesh Editor. For Image
+  Mesh cover preview, explicit statistics, original/result comparison, single and
+  batch export, assembly generation, cancellation and retry. Check physical counts
+  and geometry after save/reload, not only UI labels.
+- Round-trip new Image Mesh project mode settings and load legacy projects with
+  general simplification both enabled and disabled. Mode changes invalidate cached
+  geometry/reports; idle frames do not trigger regeneration or planar scans.
+- Re-run specific curved-relief and minimal-back fixtures. Their settings,
+  generation routing, output and cancellation behavior must remain unchanged.
 - Planar-only mode: verify eligible reduction, unsupported/fully ineligible no-op,
   undo preservation on no-op, cancellation, save/reload and unchanged retained
   attributes. Verify QEM never runs, regardless of the saved ratio value.
@@ -322,8 +378,10 @@ Record the exercised backend and do not claim untested backend parity.
 3. Add adapter reconstruction by source identity, whole-frame context, immutable
    fallback, physical-limit checks and atomic worker publication. Cover no-op,
    cancellation races, allocation/validation failure and save/reload.
-4. Expose the three modes in Lua and Mesh Debug with localized ASCII-safe text,
-   cached reports, existing undo/cancel flow and an explicit idle-loop audit.
+4. Expose the three modes in Lua, Mesh Debug and Image Mesh Editor's general
+   simplification with localized ASCII-safe text, project compatibility, cached
+   reports, existing undo/cancel flow and an explicit idle-loop audit. Cover every
+   generation/export consumer and preserve the specific curved-relief workflow.
 5. Run the full acceptance matrix and visual comparisons. Update
    `docs/mesh-simplification.md`, `docs/lua-api.md`, `docs/core-pimpl-status.md`
    if the public/internal boundary changes, and `include/version/version.h`
