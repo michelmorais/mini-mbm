@@ -420,7 +420,29 @@ local function menu()
             if tImGui.MenuItem(L('redo'),'Ctrl+Y') then history(true) end
             tImGui.EndMenu()
         end
-        if tImGui.BeginMenu(tLang.L('menu_options')) then tLang.renderLanguageSubmenu(); tImGui.EndMenu() end
+        if tImGui.BeginMenu(tLang.L('menu_options')) then
+            tLang.renderLanguageSubmenu()
+            if tImGui.BeginMenu(tLang.L('background_color')..'##ime_background') then
+                local colors={
+                    {'default',{r=.1,g=.12,b=.15,a=1}},
+                    {'white',{r=1,g=1,b=1,a=1}}, {'black',{r=0,g=0,b=0,a=1}},
+                    {'red',{r=1,g=0,b=0,a=1}}, {'green',{r=0,g=1,b=0,a=1}},
+                    {'blue',{r=0,g=0,b=1,a=1}}, {'cyan',{r=0,g=1,b=1,a=1}},
+                    {'yellow',{r=1,g=1,b=0,a=1}}, {'magenta',{r=1,g=0,b=1,a=1}}
+                }
+                local size=tImGui.GetTextLineHeight()
+                for _,entry in ipairs(colors) do
+                    local color=entry[2];local pos=tImGui.GetCursorScreenPos()
+                    tImGui.AddRectFilled(pos,{x=pos.x+size,y=pos.y+size},color,0,0)
+                    tImGui.Dummy({x=size,y=size});tImGui.SameLine()
+                    if tImGui.MenuItem(tLang.L(entry[1])..'##ime_background_'..entry[1],nil,E.background==entry[1]) then
+                        mbm.setColor(color.r,color.g,color.b);E.background=entry[1]
+                    end
+                end
+                tImGui.EndMenu()
+            end
+            tImGui.EndMenu()
+        end
         tImGui.Text(E.modified and '*' or ''); tImGui.EndMainMenuBar()
     end
     if tImGui.BeginPopupModal('ime_discard',true,E.flags.auto) then
@@ -845,6 +867,7 @@ function onInitScene()
     E.screenW,E.screenH=mbm.getRealSizeScreen()
     E.flags={always=tImGui.Flags('ImGuiCond_Always'),auto=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'),
         fixed=tImGui.Flags('ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoResize','ImGuiWindowFlags_NoCollapse')}
+    E.background='default'
     mbm.setColor(0.1,0.12,0.15); mbm.setLightEnabled('3d',true); mbm.setAmbientLight('3d',0.35,0.35,0.35)
     E.light=0.7; mbm.setDirectionalLight('3d',-0.4,-0.5,-1,E.light,E.light,E.light)
     E.camera2d=mbm.getCamera('2d'); mbm.setLightEnabled('2dw',false)

@@ -49,6 +49,12 @@ Drawing tools use their own gestures. Switching modes cancels unfinished drawing
 or dragging; apply pending property fields before switching. GUI clicks do not
 manipulate scene objects. Resize handles grow with zoom within screen-space limits.
 
+**Options > Background Color** offers the default editor background plus white,
+black, red, green, blue, cyan, yellow and magenta, with color swatches as in Mesh
+Debug. The choice affects the scene background in editing and 3D viewing, persists
+for the session, and does not change materials, project data or exported meshes.
+It does not regenerate geometry. Default restores the editor's original dark color.
+
 Lighting affects only the 3D scene. Ambient color, directional-light color and
 direction, and light reset are available. Camera, light, and wireframe changes do
 not regenerate geometry or alter exported data. Changing properties on the same
