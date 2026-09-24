@@ -290,6 +290,7 @@ local function openImage(path)
     E.status=L('open_help'); return true
 end
 local function openProject(path)
+    mbm.addPath(IO.directory(path))
     local project=IO.load(path)
     if not IO.exists(project.image.path) then E.missing={project=project,path=path}; E.status=L('missing_image'); return false end
     local texture=loadTexture(project.image.path)
