@@ -22,6 +22,8 @@
 
 local Asset=require 'image_mesh_asset'
 local Wire=require 'image_mesh_wireframe'
+local Help=require 'image_mesh_help'
+local function L(key) return tLang.L('ime_'..key) end
 local M={}
 function M.release(E)
     local source=E.comparison
@@ -104,5 +106,27 @@ function M.select(E,sideBySide)
     E.orbit.distance=sideBySide and math.max(E.orbit.distance,E.fitDistance) or E.comparison.singleDistance
     M.sync(E)
     return true
+end
+function M.panel(E,select,wire,safe)
+    if not E.comparison or E.editMode or E.dirty or E.meshTask or not E.report or not E.report.sourceTriangles then return end
+    tImGui.Separator(); tImGui.Text(L('comparison'))
+    local sideBySide=tImGui.Checkbox(L('comparison_side_by_side'),E.compareSideBySide)
+    if sideBySide~=E.compareSideBySide then safe(select,sideBySide) end
+    if E.compareSideBySide then
+        local originalOnLeft=math.cos(E.orbit.azimuth)<0
+        local source=E.comparison
+        local original=tImGui.Checkbox(L(originalOnLeft and 'comparison_show_original_left' or 'comparison_show_original_right')..'###ime_show_original',source.showOriginal)
+        local simplified=tImGui.Checkbox(L(originalOnLeft and 'comparison_show_simplified_right' or 'comparison_show_simplified_left')..'###ime_show_simplified',source.showSimplified)
+        if original~=source.showOriginal or simplified~=source.showSimplified then M.visibility(E,original,simplified) end
+    end
+    wire(tImGui.Checkbox(L('wireframe')..'##comparison',E.wireframe))
+    tImGui.Text(string.format(L('comparison_counts'),E.report.sourceVertices,E.report.vertices,
+        E.report.sourceTriangles,E.report.triangles,100*(1-E.report.triangles/E.report.sourceTriangles)))
+    if E.report.simplification then
+        tImGui.Text(string.format(L('comparison_error'),E.report.simplification.maximumGeometricError,
+            E.report.simplification.maximumRelativeError*100))
+        if tImGui.IsItemHovered() then Help.tooltip(L('comparison_error_help')) end
+    end
+    tImGui.TextWrapped(L('comparison_export'))
 end
 return M

@@ -166,6 +166,15 @@ local function generate(region,project,keepOriginal,cacheOriginal)
     local vertices=Asset.vertices(asset,true)
     if keepOriginal and options.simplify then Comparison.capture(type(keepOriginal)=='table' and keepOriginal or E,asset,vertices) end
     if cacheOriginal and options.simplify then GeometryCache.original(E,asset) end
+    if report.curvedSourceTriangles and (keepOriginal or cacheOriginal) then
+        local originalOptions=Model.copy(options);originalOptions.curvedSimplify=false
+        local original,originalReport=Generation.generate(E,project.image.path,originalOptions)
+        if not original then error(Budget.error(region,originalReport),0) end
+        local originalVertices=Asset.vertices(original,true)
+        if keepOriginal then Comparison.capture(type(keepOriginal)=='table' and keepOriginal or E,original,originalVertices) end
+        if cacheOriginal then GeometryCache.original(E,original) end
+        report.sourceVertices=originalReport.vertices;report.sourceTriangles=originalReport.triangles
+    end
     report.vertexLimit=math.min(options.maxVertices,65535); report.triangleLimit=options.maxTriangles
     Simplify.apply(E,asset,options,report)
     return asset,report
@@ -676,6 +685,7 @@ local function propertiesPanel()
                 if not E.report.curvedTargetReached then tImGui.TextWrapped(L('curved_simplify_limited')) end
             end
             tImGui.EndDisabled()
+            Comparison.panel(E,setComparison,setWireframe,dpCall)
         end
         if E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)
@@ -696,25 +706,7 @@ local function propertiesPanel()
             end
             if E.report and E.report.simplification then
                 tImGui.Text(string.format(tLang.L('simplify_success_fmt'),E.report.sourceTriangles,E.report.triangles))
-                if E.comparison and not E.editMode and not E.dirty then
-                    tImGui.Separator(); tImGui.Text(L('comparison'))
-                    local sideBySide=tImGui.Checkbox(L('comparison_side_by_side'),E.compareSideBySide)
-                    if sideBySide~=E.compareSideBySide then dpCall(setComparison,sideBySide) end
-                    if E.compareSideBySide then
-                        local originalOnLeft=math.cos(E.orbit.azimuth)<0
-                        local source=E.comparison
-                        local original=tImGui.Checkbox(L(originalOnLeft and 'comparison_show_original_left' or 'comparison_show_original_right')..'###ime_show_original',source.showOriginal)
-                        local simplified=tImGui.Checkbox(L(originalOnLeft and 'comparison_show_simplified_right' or 'comparison_show_simplified_left')..'###ime_show_simplified',source.showSimplified)
-                        if original~=source.showOriginal or simplified~=source.showSimplified then Comparison.visibility(E,original,simplified) end
-                    end
-                    setWireframe(tImGui.Checkbox(L('wireframe')..'##comparison',E.wireframe))
-                    tImGui.Text(string.format(L('comparison_counts'),E.report.sourceVertices,E.report.vertices,
-                        E.report.sourceTriangles,E.report.triangles,100*(1-E.report.triangles/E.report.sourceTriangles)))
-                    tImGui.Text(string.format(L('comparison_error'),E.report.simplification.maximumGeometricError,
-                        E.report.simplification.maximumRelativeError*100))
-                    if tImGui.IsItemHovered() then Help.tooltip(L('comparison_error_help')) end
-                    tImGui.TextWrapped(L('comparison_export'))
-                end
+                Comparison.panel(E,setComparison,setWireframe,dpCall)
             end
         end
         if tImGui.Button(L(E.editDefaults and 'apply_defaults' or 'apply')) then applyProperties() end

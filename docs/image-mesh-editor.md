@@ -567,7 +567,18 @@ simplification setting. Apply, undo/redo, `.imesh`, asynchronous generation and
 export use the same options. Each generation starts from the dense surface, so
 repeated Apply does not accumulate losses. The pass runs only during generation,
 supports cancellation and adds no recurring work while the editor is idle.
-The generic side-by-side simplification comparison is not available for this mode.
+Since 7.275.0, the 3D preview also offers **Comparison / Side by side** in this
+section, with the same visibility and wireframe controls as generic simplification.
+The original uses identical options with only `curvedSimplify=false`; the result
+uses the selected reduction. Comparison counts refer to the complete meshes, while
+the curved reduction/error summary above refers to the front surface. No generic
+simplifier error is substituted for the curved error bound.
+
+Preparing a curved comparison requires an additional asynchronous generation for
+the reference. An explicitly requested statistics calculation caches both meshes;
+switching to 3D reuses them. Visibility, wireframe and comparison toggles do not
+regenerate geometry. Cancelling reference generation does not install a partial
+comparison. Export generates only the selected result, without the reference.
 
 ## Simplification and comparison
 

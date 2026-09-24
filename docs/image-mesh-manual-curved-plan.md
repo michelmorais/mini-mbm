@@ -614,3 +614,26 @@ normais angulares e exportação. Testes de perfis, furos e simplificação tamb
 exercitados. A soma de área no teste de furos usa compensação numérica para o Lua
 float32: a soma ingênua de milhares de faces produzia 9999,922 para área real 10000;
 a tolerância existente foi preservada.
+
+
+## 16. Comparação da simplificação curva — 7.275.0
+
+Solicitação do usuário: oferecer a mesma comparação original/simplificado já
+existente no simplificador geral. Painel compartilhado na prévia 3D, com modo
+lado a lado, visibilidade independente e wireframe para as duas malhas.
+
+Referência gerada com as mesmas opções e `curvedSimplify=false`; resultado com a
+redução selecionada. Contagens da comparação descrevem as malhas completas; o
+resumo da simplificação curva continua mostrando faces da superfície e seu erro
+normalizado. Não apresentar o erro geométrico do simplificador geral neste modo.
+
+A referência é gerada em uma segunda tarefa nativa apenas quando é necessário
+preparar/cachear a comparação. Calcular faces guarda resultado e referência para
+reutilizar na prévia 3D. Exportação não gera a referência. Alternar comparação,
+visibilidade e wireframe não recalcula geometria. Cancelamento/falha descarta a
+comparação pendente; o painel aguarda relatório válido e geração concluída.
+
+Validação: teste ImGui da simplificação curva cobre cache e geração direta,
+contagens reais, câmera, visibilidade, wireframe, cancelamento da referência,
+persistência/exportação e ociosidade. Regressões da comparação geral e do cache
+verificam orientação, isolamento da exportação, limpeza de temporários e histórico.
