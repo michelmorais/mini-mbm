@@ -111,12 +111,15 @@ face count.
 
 Deferred diagnostics and performance work is tracked in [Future Features](future-features.md).
 
-## Proposed coplanar-region operation
+## Planned coplanar modes
 
 The current reducer does not extract and retriangulate connected planar regions. The
-[investigation and first-milestone plan](mesh-coplanar-optimization-plan.md) proposes a separate,
-explicit operation in the simplification panel for static regions with certified attributes and
-unchanged boundary segments. It records conservative fallback for holes, unsupported deformation
-and uncertain geometry, plus numeric and visual acceptance criteria. This operation is not yet
+[investigation and first-milestone plan](mesh-coplanar-optimization-plan.md) records the accepted
+optional prepass before QEM for static regions with certified attributes and unchanged boundary
+segments, also available as a planar-only mode without subsequent QEM. The three planned modes
+are QEM (the default), Planar + QEM, and Planar only. Planar only has no target-ratio requirement;
+an unchanged result preserves the source and previous undo. The combined action uses
+the original triangle target and one transaction; QEM runs only if further reduction is needed. It records conservative fallback for holes, unsupported deformation
+and uncertain geometry, plus numeric and visual acceptance criteria. This prepass is not yet
 implemented and is separate from Image Mesh's existing minimal-back generation and curved-relief
 simplification.

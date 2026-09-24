@@ -1,6 +1,6 @@
 # Coplanar mesh optimization — investigation and first milestone
 
-Status: **proposed, not implemented**. Investigation against `547b569f`, 2026-09-24.
+Status: **integration decision accepted; not implemented**. Investigation against `547b569f`, 2026-09-24.
 This records the design before implementation. It does not change the existing
 `simplify()` contract or announce a shipped feature.
 
@@ -28,8 +28,11 @@ than interpreting the current quality labels as a proof.
 
 ## Milestone 1: conservative static-region retriangulation
 
-Deliver an explicit **Optimize planar regions** operation in Mesh Debug's
-simplification panel, independent of the target-ratio slider. Initially support:
+Deliver an optional **Optimize planar regions before QEM** stage in Mesh Debug's
+existing simplification action, also available as **Planar only**. Expose three
+mutually exclusive modes: **QEM** (default), **Planar + QEM**, and **Planar only**.
+Preserve the current QEM path, parameters and failure behavior in the default mode.
+The planar stage initially supports:
 
 - Static, single-frame 3D triangle-list meshes, indexed or non-indexed.
 - Complete-frame or selected-subset scope, always retaining read-only access to
@@ -65,9 +68,10 @@ checked at the adapter/editor boundary before exposing the operation as safe.
 
 ### Animation policy
 
-M1 rejects skeletal data (including weights without clips), multiple geometry
-frames, articulated Parts/animation, and known vertex-deformation effects before
-mutation. Rejecting only nonempty `deformationDeltas` is insufficient: a weighted
+The M1 planar stage skips skeletal data (including weights without clips), multiple
+geometry frames, articulated Parts/animation, and known vertex-deformation effects
+before mutation, reporting the reason. The combined action can continue with the
+existing QEM path for assets it already supports. Rejecting only nonempty `deformationDeltas` is insufficient: a weighted
 mesh with no sampled clip still deforms. Do not optimize the current preview pose
 and silently bake it. Existing QEM simplification remains independently available
 with its existing behavior.
@@ -175,39 +179,85 @@ neighbor checks, and before final allocation/publication.
 
 | Integration | Decision |
 |---|---|
-| Automatic prepass before QEM | Defer. Later collapses can invalidate the planar/attribute certificate; QEM failure would also discard a useful planar reduction when the requested ratio is unreachable. |
-| Automatic postpass after QEM | Defer. It certifies only the already changed surface, may be less eligible, and cannot recover source UV detail lost by the earlier operation. |
-| Explicit operation in the same panel | **M1 choice.** Has a clear source, independent tolerances and no impossible target-ratio requirement. Users can run QEM separately, but its result must not inherit the planar guarantee. |
+| Optional prepass before QEM | **Accepted M1 choice.** Disabled by default; examines original geometry/attributes, then passes its validated candidate to the existing QEM reducer if needed. |
+| Postpass after QEM | Not selected. It cannot certify equivalence to attributes already changed by QEM. |
+| Planar-only operation | **Include in M1.** Expose the same certified stage as a user-selectable mode, with no subsequent QEM approximation. |
 
-Implementation should add a private planar-region module beside `mesh-simplifier`,
-a distinct public operation/report with scalar options or a value-only options
-type, and a corresponding Lua entry point. Names/signatures are to be finalized
-in implementation; no new callable method is claimed here. Reuse the instance's
-worker/state/progress/cancel ownership and undo transaction, not a second runtime
-engine pump. Keep worker data in `MESH_MBM_DEBUG::Impl`; expose no new containers,
+### Planar-only contract
+
+- Run the same discovery, certification and fallback logic as the combined
+  prepass, optimizing all eligible regions within the selected scope and work
+  budgets. No target-ratio requirement and no implicit QEM fallback.
+- Disable ratio and QEM-specific controls in this mode; retain their values for
+  switching back. Expose only applicable planar options and scope controls.
+- Leave unsupported assets/regions unchanged and report the reason. If nothing
+  changes, do not replace the source, mark it modified or consume the previous undo.
+- Preserve the planar certificate through final publication: no later QEM
+  reconstruction or normal normalization. The achievable count follows the
+  validated boundary and attribute constraints, not an arbitrary percentage.
+- Use the same detached transaction, progress, cancellation, final physical-index
+  checks, undo and Save As mechanisms as the combined action.
+
+### Combined action contract
+
+- With the option off, execute the existing QEM path without planar discovery,
+  new eligibility restrictions or changes to existing success/failure behavior.
+- Compute the absolute triangle target **once from the original selected scope**,
+  retaining existing rounding and minimum-count rules. Never apply the user's
+  ratio again to the smaller intermediate mesh. For example, 1,000 source faces
+  at ratio 0.5 still targets 500 after a planar reduction to 700, not 350.
+- If planar optimization reaches or passes that target, skip QEM. Certified whole
+  regions may reduce below the requested target; report the achieved count.
+- Otherwise run the existing QEM algorithm with the remaining absolute target.
+  A planar no-op or unsupported region does not prevent QEM from running.
+- Keep both stages inside one detached transaction, one progress/cancel lifecycle
+  and one undo. QEM failure discards even successful planar work; never publish
+  the intermediate mesh as a silent partial success. A fatal planar input/error
+  also aborts; ordinary ineligibility is a reported skip, not a fatal failure.
+- Preserve the immutable original and its provenance across both stages. Do not
+  let an intermediate worker commit close the cancellation gate for the whole
+  action; only final publication arbitrates cancel versus commit.
+- The planar certificate applies **only to the intermediate result**. The final
+  QEM result retains QEM's approximation semantics. Report stage counts/errors
+  separately; do not label a QEM-modified result as attribute-equivalent to the
+  original. A skipped QEM stage must not run QEM attribute normalization.
+
+Implementation should add a private planar-region module beside `mesh-simplifier`
+and an optional, backwards-compatible setting on the existing public/Lua workflow.
+Names/signatures are to be finalized in implementation; no new callable method is
+claimed here. Reuse instance-owned worker/state/progress/cancel and undo; keep
+scratch data in `MESH_MBM_DEBUG::Impl` or private helpers. Expose no new containers,
 backend handles or mutable internal geometry through public headers.
 
-Do not pass a synthetic reduction ratio to reuse QEM preflight. Count accepted
-physical vertices directly, including per-subset/seam duplicates, before enforcing
-the existing 65,535-vertex contract. Inputs above that indexed limit may succeed
-only if the complete validated indexed output fits. Otherwise preserve the source.
+Keep legacy preflight unchanged when the option is off. When on, perform input
+validation first, then evaluate stage-specific constraints against the appropriate
+candidate. Count physical output vertices including seam/subset duplication before
+final publication. Do not reject a potentially valid combined result solely using
+a ratio estimate derived from the wrong stage, and do not bypass the existing
+65,535-vertex output contract. If the current adapter cannot represent a large
+intermediate candidate, retain the source and report the limit rather than narrow
+indices or publish partial buffers.
 
-The UI action reuses selected-subset controls but must not use the current helper
-that discards unselected geometry. Disable shared-frame/virtual-frame collapse
-options and ratio controls for this operation. Cancellation, Esc, progress, undo
-and Save As retain their transaction semantics. An all-ineligible/no-reduction
-result returns an explicit unchanged report and must not replace the mesh, mark
-it modified or consume the previous undo. The panel displays cached reports only.
+The ratio and existing QEM controls remain available in modes that include QEM.
+Keep full original-frame
+context for planar validation even when selected-subset/virtual-frame QEM operates
+on isolated geometry. Do not run the planar stage on the current virtual helper's
+already stripped mesh. Unsupported scopes skip the planar stage explicitly without
+removing existing QEM functionality. Cancellation, Esc, progress, undo and Save As
+retain their transaction semantics. The panel displays cached reports only.
 
-The report distinguishes source/result counts, accepted/rejected region counts,
-triangles removed, measured geometry/UV/normal bounds, and stable rejection reasons
-(`animated`, `holes`, `attributes`, `topology`, `intersection`, `numeric`,
-`work_limit`, `no_reduction`). QEM collapse counts and cost-derived errors must
-not be reused to describe these measurements.
+The planar report distinguishes source/intermediate counts, accepted/rejected
+region counts, triangles removed, measured geometry/UV/normal bounds and stable
+reasons (`animated`, `holes`, `attributes`, `topology`, `intersection`, `numeric`,
+`work_limit`, `no_reduction`). The combined report also includes final counts and
+whether QEM ran. QEM cost-derived errors remain distinct from certified planar
+measurements; they must not be added together as a claimed global error bound.
 
 ## Acceptance matrix
 
-All assertions compare against the original input, not just `meshDebug:check()`.
+The geometric/attribute assertions below test the planar stage against the original
+input, not just `meshDebug:check()`. They do not assert unchanged attributes after
+a subsequent QEM pass; combined-flow assertions follow separately.
 
 | Fixture | Required M1 result |
 |---|---|
@@ -224,11 +274,30 @@ All assertions compare against the original input, not just `meshDebug:check()`.
 | Planar cap joined to curved wall; duplicated seam junction | Wall bytes/attributes unchanged; every cap boundary segment matches the original junction, no T-junction or crack. |
 | Nearby sheets, crossings, contacts at interior vertices | No new intersection or disconnected contact. Reject uncertain candidate, including same-material neighbors. |
 | Nonmanifold edges, bow-ties, duplicate/reversed faces, zero-area faces, NaN/Inf | Deterministic fallback or input error before publication; no repair disguised as optimization. |
-| Skeletal bind pose with/without clips; morph frames; articulated Parts | Explicit unsupported result and original geometry/animation metadata unchanged. |
+| Skeletal bind pose with/without clips; morph frames; articulated Parts | Planar stage skipped with reason and original data unchanged at this stage; combined flow retains existing QEM support. |
 | Non-indexed input; counts around the physical uint16 limit | Exact attribute joining only where eligible; checked output limits before publication; no narrowing overflow. |
 | Cancel in each expensive phase; failure after one accepted region; repeated apply | Entire original/modified flag/undo preserved on failure or cancel; no partial results; retry works; late cancellation cannot report success after commit. |
-| Fully ineligible mesh; already minimal mesh | Successful unchanged report; no undo replacement or modified flag. |
+| Fully ineligible mesh; already minimal mesh | Planar unchanged report; combined flow still attempts QEM under its existing contract. |
 | Repeated run and idle editor | Deterministic geometry/report; second run no further reduction; idle loop performs no discovery, topology rebuild, serialization or geometry upload for this operation. |
+
+Additional combined-flow acceptance gates:
+
+- Planar-only mode: verify eligible reduction, unsupported/fully ineligible no-op,
+  undo preservation on no-op, cancellation, save/reload and unchanged retained
+  attributes. Verify QEM never runs, regardless of the saved ratio value.
+- Switching among all three modes retains parameter values; the default QEM
+  mode preserves legacy behavior and planar-only disables QEM-specific controls.
+- Option disabled: existing static, skeletal, frame, Part, subset and virtual-frame
+  fixtures retain their original results, errors and cancellation behavior.
+- Option enabled: verify no-op prepass, partial reduction followed by QEM, and
+  target already reached with QEM skipped. Assert targets use original counts,
+  including subset batches and rounding; verify intermediate/final report counts.
+- Cancel during either stage or fail QEM after a successful prepass: original,
+  modified flag and previous undo remain intact. Retry and late-cancel races pass.
+- Planar eligibility failure for animation or holes must not become a new QEM
+  rejection. Compare the unchanged prepass input passed to QEM with the legacy path.
+- Progress is monotonic across stages, all publication happens once, and disabled
+  or idle editor frames never run planar discovery.
 
 For eligible fixtures, validate area/coverage, winding, connected components,
 boundary incidence, no new intersections and attribute bounds, as well as counts.
@@ -253,7 +322,7 @@ Record the exercised backend and do not claim untested backend parity.
 3. Add adapter reconstruction by source identity, whole-frame context, immutable
    fallback, physical-limit checks and atomic worker publication. Cover no-op,
    cancellation races, allocation/validation failure and save/reload.
-4. Expose the operation in Lua and Mesh Debug with localized ASCII-safe text,
+4. Expose the three modes in Lua and Mesh Debug with localized ASCII-safe text,
    cached reports, existing undo/cancel flow and an explicit idle-loop audit.
 5. Run the full acceptance matrix and visual comparisons. Update
    `docs/mesh-simplification.md`, `docs/lua-api.md`, `docs/core-pimpl-status.md`

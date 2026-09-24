@@ -10,11 +10,13 @@ than delaying the delivered workflow.
 
 ### Coplanar-region optimization
 
-- Investigation and the proposed first milestone are recorded in
+- Investigation and the accepted integration plan are recorded in
   [Coplanar mesh optimization](mesh-coplanar-optimization-plan.md); implementation is pending.
-- Add an explicit static-region operation to the Mesh Debug simplification panel, with unchanged
+- Add an optional static-region prepass before QEM, disabled by default, with unchanged
   boundary segmentation and certified geometry/attribute interpolation. Do not infer equivalence
   from triangle normals alone or reuse sampled skeletal poses as a proof for arbitrary deformation.
+- Expose QEM (default), Planar + QEM, and Planar only modes. Planar only runs the same
+  certified stage without a reduction-ratio target or implicit QEM fallback.
 - Keep uncertain regions unchanged, preserve the complete transaction/cancellation behavior, and
   validate numeric and visual results against the original mesh.
 - This is separate from the completed Image Mesh minimal-back optimization and curved-relief reducer.
