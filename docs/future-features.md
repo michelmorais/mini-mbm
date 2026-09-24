@@ -4,33 +4,19 @@ This file tracks intentional follow-up work that should not be mixed into an act
 
 ## Mesh simplification follow-up
 
-The current [Mesh Simplification](mesh-simplification.md) workflow is complete for production use.
-Further work should be driven by real assets encountered during normal project development rather
-than delaying the delivered workflow.
+Current API behavior and capabilities are documented in
+[Mesh Simplification](mesh-simplification.md). Follow-up work should be driven by
+real assets encountered during project development.
 
 ### Coplanar-region follow-up
 
-The Coplanar delivery is **complete through M8 / 7.289.0**, with its
-[final acceptance audit](mesh-coplanar-acceptance.md). The items below are optional
-improvements driven by real assets, not blockers for this delivery.
+Potential extensions beyond the [current coplanar limits](mesh-simplification.md#coplanar-modes):
 
-The conservative first implementation was delivered in 7.280.0; see
-[Mesh Simplification](mesh-simplification.md#coplanar-modes-72800) and the
-[design/validation record](mesh-coplanar-optimization-plan.md).
-
-Certified retriangulation of eligible regions with up to 16 holes is delivered in
-7.283.0, with every boundary segment retained. Optional follow-ups:
-
-- approximate contour reduction and broader boundary coordination; exact collinear
-  boundary coordination is delivered as an opt-in feature in 7.284.0;
+- approximate contour reduction and broader boundary coordination;
 - non-affine attribute constraints, approximate varying-normal certificates and
-  deformation certificates; exact affine raw-normal fields on exactly planar
-  generic regions are supported since 7.285.0;
+  deformation certificates;
 - broader certificates for uncertain/complex contacts and acceleration for heavily
-  overlapping neighborhoods; strict coplanar separation is delivered in 7.286.0,
-  an indexed projected-box broad phase in 7.287.0, full-projection separation of
-  inclined obstacles in 7.288.0, and strict 3D separation with outward-rounded
-  projection intervals in 7.289.0;
+  overlapping neighborhoods;
 - larger approximate tolerances, additional backend parity and visual diagnostics.
 
 ### Visual diagnostics

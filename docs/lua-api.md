@@ -1456,14 +1456,14 @@ local report, err = meshD:simplify(targetTriangleRatio
     [, targetSubset [, targetFrame [, preserveDetails [, boundaryCollapseThreshold [, mode [, planarTolerance [, planarAngle [, planarReduceBoundaries]]]]]]]]])
 ```
 
-Since 7.280.0, optional `mode` is `"qem"` (default), `"coplanar_qem"`, or
+Optional `mode` is `"qem"` (default), `"coplanar_qem"`, or
 `"coplanar"`. The default retains existing QEM behavior. Coplanar runs before QEM
 in combined mode, with the absolute target derived from the original triangle
 count; QEM is skipped if the prepass already reaches it. Coplanar-only ignores the
 ratio (it may be `nil`) and preserves ineligible regions. It skips skeletal,
-articulated and multi-frame assets. See [coplanar limits](mesh-simplification.md#coplanar-modes-72800).
+articulated and multi-frame assets. See [coplanar limits](mesh-simplification.md#coplanar-modes).
 
-Since 7.281.0, the final optional `planarTolerance` defaults to `1e-7` and must be
+The optional `planarTolerance` defaults to `1e-7` and must be
 finite in `[0, 0.01]`. It limits distance to the fixed seed plane as a fraction of
 the original connected subset diagonal; zero requires exact coplanarity. It does
 not relax the angular, attribute, topology or neighbor checks and does not alter
@@ -1471,34 +1471,34 @@ QEM. It is not the final geometric error bound (see `planarMaximumError`). The
 asynchronous worker captures the value at start. Invalid numeric values fail
 without publishing a result (async: `state="failed"`).
 
-Since 7.282.0, optional `planarAngle` is finite in `[0, 5]`, in degrees, default
+Optional `planarAngle` is finite in `[0, 5]`, in degrees, default
 `0.05`. It bounds each face normal against the fixed seed plane, including the
-replacement triangles. The default uses the previous dot threshold `0.99999962`
+replacement triangles. The default uses the dot threshold `0.99999962`
 for compatibility; other values use their cosine. Distance and angle limits apply
 together; increasing only the angle may leave the result unchanged. Both native
 and asynchronous forms capture/validate this parameter just like `planarTolerance`.
 
-Since 7.284.0, optional boolean `planarReduceBoundaries` defaults to false. It
+Optional boolean `planarReduceBoundaries` defaults to false. It
 coordinates exact collinear boundary samples across certified exact-plane charts,
 including coincident seam aliases. It retains corners, locks, unselected contacts,
-uncertified neighbors and attribute charts. The report adds
+uncertified neighbors and attribute charts. The report includes
 `planarBoundaryRemovedVertices` (geometric samples, not physical alias count) and
 `planarBoundaryFallback` (coordination was discarded, retaining the completed
 interior-only pass). All dependent regions must certify before any coordinated
-result is published. See [coordination limits](mesh-simplification.md#coordinated-straight-boundaries-72840).
+result is published. See [coordination limits](mesh-simplification.md#coordinated-straight-boundaries).
 
-Since 7.285.0, exactly planar generic regions may also preserve varying raw
+Exactly planar generic regions may also preserve varying raw
 normals when every source corner matches one affine field with zero computed
-residual and all normals lie in the seed normal's open hemisphere. Near-planar
+residual and all normals lie in the reference seed corner normal's open hemisphere. Near-planar
 regions and curved-specific generation still require constant raw normals. This
-adds no parameter and does not relax normal seams or non-affine shading fields.
+does not relax normal seams or non-affine shading fields.
 
-The report adds `unchanged`, `qemRan`, `planarSkipped`, `planarRegions`,
+The report includes `unchanged`, `qemRan`, `planarSkipped`, `planarRegions`,
 `planarRejectedRegions`, `planarRemovedTriangles`, `planarHoles`, `planarAttributes`,
 `planarTopology`, `planarSurroundings`, `planarWorkLimit`, `planarMaximumError` and
 `planarMaximumUvError`. Bounds describe the planar stage only; QEM errors remain
 separate. Small/no-reduction regions are not counted as rejected regions.
-Since 7.283.0, eligible regions may include up to 16 disjoint internal holes.
+Eligible regions may include up to 16 disjoint internal holes.
 `planarHoles` counts rejected loop/bridge validation, not the number of holes in
 successfully simplified regions. Original boundary segments remain unless optional exact straight contraction is enabled; touching
 or nested loops and uncertain triangulations fall back unchanged.
@@ -1580,7 +1580,7 @@ engine-loop integration. Lua must poll from its normal `onLoop`. Do not read, sa
 same instance while its state is `running`; use a detached working `meshDebug` and publish it only
 after completion. Destroying the instance requests cooperative cancellation and waits for its worker to finish.
 
-Since 7.259.0, `meshD:cancelSimplify()` requests cooperative cancellation and returns
+`meshD:cancelSimplify()` requests cooperative cancellation and returns
 `true` if accepted before the commit boundary. It returns `false` when no worker
 is running, cancellation was already requested, or replacement of the buffers has
 begun. Keep polling until terminal status; do not read or mutate the mesh while

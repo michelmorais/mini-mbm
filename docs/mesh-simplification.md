@@ -1,300 +1,285 @@
 # Mesh Simplification
 
-The Coplanar delivery is complete through 7.289.0. See the
-[final acceptance matrix, validation commands and limits](mesh-coplanar-acceptance.md).
+Mini MBM provides QEM reduction and conservative coplanar retriangulation for
+existing 3D triangle-list meshes. Mesh Debug and Image Mesh Editor share the
+generic simplifier. Blender import decimation and the Image Mesh curved-relief
+simplifier are separate workflows.
 
-Mini MBM provides two polygon-reduction workflows with different asset boundaries:
+## API and modes
 
-- Blender importer reduction for high-density static GLB/FBX sources before MSH subset chunking;
-- atomic `meshDebug:simplify()` reduction for an existing MSH.
+The native API is `MESH_MBM_DEBUG::simplify()` with `MESH_SIMPLIFY_MODE` and
+`MESH_SIMPLIFY_REPORT`, declared in
+[`mesh-manager.h`](../include/core_mbm/mesh-manager.h). The Lua API is:
 
-Both workflows retain the engine's `uint16_t` vertex-index contract. Simplification reduces the
-existing topology; it is not a remesh operation that rebuilds and reprojects an arbitrary surface.
-The QEM target-ratio range in the native MSH editors is 0.1% through 95%;
-Coplanar-only does not use a target ratio. Before starting, editors compare
-the estimated result vertex count with the 65,535 indexed-mesh limit. The native path repeats the
-check after exact attribute joining and fails before edge-collapse passes when the conservative
-logical estimate still cannot fit.
-Mesh Debug exposes the ratio as a clamped drag field: drag to adjust it continuously or activate
-text entry to type an exact value.
-In the default strict mode it also derives a hard lower bound from locked open/seam boundaries. If
-the boundary vertices alone exceed the indexed vertex limit, or their edges require more triangles
-than requested, the job fails during preflight rather than running until no legal collapse remains.
+```lua
+local report, err = meshD:simplify(ratio, subset, frame, preserveDetails,
+    boundaryCollapseThreshold, mode, planarTolerance, planarAngle,
+    planarReduceBoundaries)
+```
 
-## Blender importer
+Arguments after `ratio` are optional. See
+[Lua API - Triangle simplification](lua-api.md#triangle-simplification) for the
+complete argument, report and error reference.
 
-`Reduce polygons before import` runs Blender's Collapse decimation on supported static visible mesh
-objects before material bucketing and 65,535-vertex chunking. It never modifies the source GLB/FBX.
-Armatures, skin weights, shape keys, mesh-cache animation, and animated mesh objects are rejected by
-this importer option instead of being reduced incorrectly.
+| Mode | Lua value | Behavior |
+|---|---|---|
+| QEM (default) | `"qem"` | Quadric-error edge collapses with topology, attribute-seam and deformation protections |
+| Coplanar + QEM | `"coplanar_qem"` | Retriangulate eligible regions, then run QEM only if needed to reach the target derived from the original triangle count |
+| Coplanar only | `"coplanar"` | Reduce eligible regions without a target ratio or QEM fallback; `ratio` may be `nil` |
 
-## MSH API
+```lua
+-- Coplanar only, whole first frame, default tolerances, retain boundary samples.
+local report, err = meshD:simplify(nil, nil, 1, true, 0, "coplanar")
 
-The Lua signatures, arguments, return fields, and failure behavior are defined in
-[Lua API - Triangle simplification](lua-api.md#triangle-simplification). The native entry point is
-`MESH_MBM_DEBUG::simplify()`. Editor-facing asynchronous work uses instance-owned
-`startSimplify()`, `getSimplifyState()`, and `getSimplifyResult()` methods. Its thread and result
-live in `MESH_MBM_DEBUG::Impl`; the runtime engine loop has no Mesh Debug pump or dependency.
+-- Coplanar before QEM, targeting half the original faces, with straight boundaries.
+local report, err = meshD:simplify(0.5, nil, 1, true, 0,
+    "coplanar_qem", 1e-7, 0.05, true)
+```
 
-The operation accepts indexed or non-indexed 3D triangle lists. It builds a detached candidate,
-validates the complete result, and replaces the source only on success. A successful non-indexed
-input becomes an indexed MSH while retaining the 16-bit index limit.
+`subset` is a one-based subset index; `nil` selects the complete frame.
+`frame` defaults to 1; zero requests a shared QEM collapse sequence across
+compatible geometry frames. QEM ratios must be finite and strictly between zero
+and one; editor controls restrict them to 0.1% through 95%.
 
-The same API internally selects the applicable path for:
+The input may be indexed or nonindexed. A changed result is indexed and must fit
+the engine's 65,535-vertex limit. Subsets retain their order and material assignment;
+articulated Parts remain separate topology domains. Authored physics/collision
+geometry is preserved, not regenerated.
 
-- static geometry;
-- canonical skeletons, weights, and animation clips;
-- one selected non-skeletal geometry frame;
-- one shared collapse sequence across compatible geometry frames;
-- articulated Parts and their animation metadata.
+### Transactions and asynchronous work
 
-Whole-frame reduction operates across material subsets while preserving their order and material
-assignment. Articulated Parts remain separate topology domains because they can animate
-independently. Subset-only reduction is also available; Mesh Debug coordinates multi-subset batches
-in Lua and commits them atomically.
+Both stages build a detached candidate and share a final commit gate. A combined
+failure discards both stages. A coplanar-only no-op leaves native buffers intact;
+a region that cannot be certified retains its original triangulation.
 
-## Safety and quality
+For large meshes, use an instance-owned worker on a detached working mesh:
 
-The simplifier uses edge-projected quadric-error collapse ranking and applies the same interpolation
-factor to positions, normals, UVs, deformation samples, source contributions, and skin weights.
-Canonical weights retain at most four normalized nonnegative influences.
+```lua
+local started, err = workingMesh:startSimplify(0.5, nil, 1, true, 0,
+    "coplanar_qem", 1e-7, 0.05, false)
+-- Poll from the editor loop while work is active:
+local status = workingMesh:getSimplifyStatus()
+-- On user cancellation:
+local accepted = workingMesh:cancelSimplify()
+```
 
-Hard protections reject collapses that would violate:
+Status includes `state` (`idle`, `running`, `completed`, `failed`, `cancelled`)
+and `progress` in 0..1; completion includes `report`, failure/cancellation includes
+`error`. Do not read, save or mutate the working instance while it is running.
+Publish it only after completion. Accepted native cancellation precedes buffer
+replacement and preserves the source; keep polling until terminal status.
+Cancellation is cooperative, so sorting/allocation or another indivisible step
+may finish before the next checkpoint. Destruction requests cancellation and joins
+the worker. C++ exposes `startSimplify`, `getSimplifyState`, `getSimplifyResult`
+and `cancelSimplify`; worker state remains private to the instance.
 
-- open-boundary vertex locking in the default strict mode;
-- rejection of collapses that would pinch coincident attribute-seam edges together, even when their vertex indices differ;
-- manifold topology and triangle orientation;
-- source/frame geometry bounds;
-- the 16-bit index contract;
-- material-subset and articulated-Part invariants;
-- clearance between nearby disconnected subsets, including sampled deformations.
+## Coplanar modes
 
-`Preserve details` is a default-on soft preference rather than a validity rule. It penalizes
-collapses near sharp edges and strong normal variation so flatter regions are reduced first.
+The coplanar stage accepts connected static regions within a subset/attribute
+chart, including inclined planes, concave contours and one outer loop with up to
+16 strictly internal, disjoint holes. It skips assets with canonical skeletal data,
+articulated Parts or multiple geometry frames; coplanarity in one pose does not
+certify equivalence during deformation. QEM remains available for those assets.
 
-`Boundary collapse threshold` is an opt-in geometric relaxation measured as a fraction of the
-source bounding-box diagonal. Zero retains the strict behavior. A positive value permits only
-short, clean open-boundary edges to collapse; boundary-to-interior edges, irregular boundaries,
-orientation flips, and non-manifold results remain rejected. This is intended for assets dominated
-by small disconnected pieces or duplicated seams that cannot otherwise make progress.
+Every boundary segment and retained corner attribute is preserved by default.
+The optional straight-boundary operation below can remove certified collinear
+samples. Regions are not assumed to become two triangles: with `B` retained
+boundary vertices and `H` holes, an accepted triangulation has `B + 2H - 2` faces.
+For example, an 8x8 grid has 128 faces and 32 boundary vertices: it reduces to 30
+faces with boundaries retained, or two if straight-boundary removal is eligible.
+No reduction does not imply that the input is globally minimal.
 
-The report includes source/result counts, geometric and sampled-pose errors, achieved relative
-error, structural validation counts, committed collapses, protected-candidate counters, detail
-penalties, and inter-subset clearance rejections. Mesh Debug classifies relative error as `Good`
-through 3%, `Attention` through 10%, and `Risky` above 10%; the numeric value remains available for
-model-specific judgment.
+### Tolerances and attributes
 
-These cost-derived diagnostics do not certify a bound over the complete source surface or
-preservation of interior attribute interpolation after retriangulation. In particular, the current
-Mesh Debug adapter reconstructs UVs and normals from per-subset source contributions; it does not
-pass those attribute arrays into the private simplifier or certify a region-wide affine field.
+| Setting | Default | Range and meaning |
+|---|---:|---|
+| `planarTolerance` | `1e-7` | Finite 0..0.01; distance to a fixed seed plane as a fraction of the original connected subset domain's bounding-box diagonal `L`. Zero requires exact coplanarity. |
+| `planarAngle` | `0.05` | Finite 0..5 degrees; source and replacement face normals must satisfy the angle against the fixed seed plane. |
+| `planarReduceBoundaries` | `false` | Enable coordinated removal of exact straight-boundary samples. |
 
-Authored physics/collision geometry is preserved and is not regenerated automatically.
+Distance and angle apply together; increasing one alone need not increase
+reduction. The seed plane and domain scale remain fixed while grouping faces,
+preventing accumulated pairwise drift. No vertex positions move. The conservative
+surface error bound can reach `2 * sqrt(3) * planarTolerance * L`; the report
+provides the bound for accepted regions, separately from the input distance limit.
+
+Preserving only boundary attributes is insufficient. The stage checks **all source
+corners** against their projected interpolation fields:
+
+- UVs must match one affine field with residual at most `5e-7` per component.
+  Twice the maximum residual bounds the interpolated UV difference.
+- Present raw normals must be finite and nonzero. Exactly planar generic regions
+  accept constant normals or one affine raw-normal field with zero computed
+  residual. All normals must lie in the reference seed corner normal's open
+  hemisphere, preventing a zero interpolated normal.
+- Approximately planar regions and the specialized curved generator require
+  identical raw normals. Normal seams and non-affine fields are not relaxed by
+  the geometric tolerance; roundoff may reject an otherwise affine field.
+
+These certificates concern stored geometry, UVs, raw normals and their
+interpolation. Arbitrary nonlinear procedural vertex/shader effects are outside
+the contract. A subsequent QEM stage does not inherit coplanar attribute or
+surface-error bounds.
+
+### Topology, neighbors and limits
+
+The candidate must preserve orientation, boundary coverage, paired interior edges
+and connected vertex fans. Hole bridges reuse existing vertices. Ambiguous,
+touching or nested loops, uncertain triangulations, degeneracy and invalid contacts
+retain the original region. Material subsets and attribute charts are not merged.
+Selected-subset processing keeps read-only whole-frame neighbor context to avoid
+new cracks, T-junctions and intersections with surrounding surfaces.
+
+Obstacle checks accept certified separation or supported existing boundary
+contacts. Exactly planar regions can also certify strict projected separation
+from coplanar or inclined obstacles, or a strict 3D gap from noncoplanar obstacles.
+The 3D test uses outward-rounded intervals and a clearance guard based on
+`max(planarTolerance * L, 1e-12 * L)`. It is a sufficient separation certificate,
+not a complete intersection solver. Approximately planar regions use more
+conservative obstacle checks. Uncertain contacts remain unchanged.
+
+The request-local obstacle index reduces neighborhood searches without dropping
+inclusive projected candidates. Heavily overlapping neighborhoods may still
+exhaust the budget. No spatial discovery runs in idle editor frames.
+
+| Limit | Value |
+|---|---:|
+| Total outer/inner boundary vertices per region | 2,048 |
+| Internal holes per region | 16 |
+| Budgeted boundary/bridge/triangulation/certificate/obstacle operations per region | 2,000,000 |
+| Certified regions for boundary coordination | 4,096 |
+| Boundary entries for coordination | 32,768 |
+
+Exhausted limits cause conservative fallback. Floating-point precision can change
+acceptance and face counts; bit-identical cross-platform output is not promised.
+The interval-based 3D separation certificate requires strict arithmetic and
+disables itself in builds declaring fast floating-point math. This does not make
+the complete simplifier safe under arbitrary fast-math flags.
+
+### Coordinated straight boundaries
+
+`planarReduceBoundaries` removes only exactly collinear 3D samples from exactly
+planar certified charts. It neither moves vertices nor changes the union of
+boundary segments. All original corners still participate in attribute checks.
+
+Removal decisions are coordinated by exact position, including aliases across
+UV/material seams. Every incident face must belong to a certified region with the
+same two geometric neighbors on each side; at most two regions may meet. Corners,
+locks, unselected neighbors, uncertified regions and conflicting segmentation
+protect the sample. Regions with fewer than three source triangles remain
+protected. Separate side quads can therefore prevent removal even when they look
+planar.
+
+The operation first builds the interior-only result, then constructs and validates
+a coordinated candidate from the original input. If any dependency or coordination
+budget fails, it retains the completed interior-only result. No partially coordinated
+boundary is published. Use whole-frame scope to coordinate across subsets;
+selected-subset jobs preserve unselected neighbor samples. The option has no effect
+in QEM-only mode or the specialized curved-relief boundary policy.
+
+### Reports
+
+| Fields | Meaning |
+|---|---|
+| `sourceVertexCount`, `resultVertexCount`, `sourceTriangleCount`, `resultTriangleCount` | Source and final counts |
+| `unchanged`, `qemRan`, `planarSkipped` | No geometry change, QEM execution, or coplanar exclusion by asset policy |
+| `planarRegions`, `planarRejectedRegions`, `planarRemovedTriangles` | Accepted/rejected regions and removed faces |
+| `planarHoles`, `planarAttributes`, `planarTopology`, `planarSurroundings`, `planarWorkLimit` | Rejection categories; `planarHoles` counts loop/bridge failures, not preserved holes |
+| `planarMaximumError`, `planarMaximumUvError` | Coplanar-stage geometry and UV bounds |
+| `planarBoundaryRemovedVertices`, `planarBoundaryFallback` | Removed geometric samples counted once across aliases; fallback to the interior-only result |
+
+Small or non-reducing candidates are not counted as rejected regions. Zero
+rejections does not mean the entire mesh was eligible. QEM diagnostics remain
+separate from coplanar measurements.
+
+## QEM safety and quality
+
+QEM ranks edge-projected quadric-error collapses. Positions, deformation samples,
+source contributions and skin weights use the same interpolation factor. The
+Mesh Debug adapter reconstructs per-subset UVs and normals from source
+contributions. Canonical weights retain at most four normalized nonnegative
+influences. QEM supports static, skeletal, selected/shared geometry-frame and
+articulated meshes with their corresponding protections.
+
+Hard protections cover manifold topology, orientation, source/frame bounds,
+material/Part domains, the index limit, coincident attribute-seam pinching and
+clearance between disconnected subsets, including sampled deformations.
+Open-boundary vertices are locked by default. Conservative indexed-size and
+locked-boundary lower bounds can reject an impossible target before collapses.
+Other protections may also prevent reaching the requested target; failure is atomic.
+
+`preserveDetails` defaults to true and adds a soft penalty near sharp edges and
+strong normal variation. `boundaryCollapseThreshold` defaults to zero. A positive
+value relaxes only short, clean open-boundary edges, measured relative to the
+source bounding-box diagonal; irregular boundaries, boundary-to-interior edges,
+flips and non-manifold results remain rejected.
+
+Reports include counts, collapses, geometric/sampled-pose and relative errors,
+structural validation and protected-candidate counters. Mesh Debug labels relative
+error Good through 3%, Attention through 10%, and Risky above 10%. These cost-derived
+QEM diagnostics do not certify a bound over the complete surface or region-wide
+attribute interpolation; the coplanar stage performs its own independent checks.
 
 ## Mesh Debug workflow
 
-Since 7.290.0, **Simplification** is a separate Mesh Debug work tree, alongside
-**Frame**. Frame retains frame/subset editing and Split Capture; method selection
-and all simplification inputs, reports, cancel and undo live in Simplification.
-The editor polls its detached working mesh
-once per frame and displays a progress bar while the simplifier worker runs. It supports frame or checked-subset
-scope, an optional virtual frame for selected subsets, compatible shared-frame collapses, rollback,
-and Save As. No simplification work runs continuously while the editor is idle.
+**Simplification** is a separate work tree alongside **Frame**. It contains method,
+frame/checked-subset scope, QEM/coplanar inputs, progress, reports, cancellation
+and undo. Virtual-subset batching is available only for QEM; coplanar modes process
+selected subsets individually while retaining the complete working mesh as context.
+The angle uses DragFloat in degrees. Plane distance appears directly below it as
+0..1% of the diagonal (default 0.00001%), converted to the API fraction by dividing
+by 100. Tooltips wrap their text.
 
-Since 7.261.0, the progress controls offer **Cancel**; **Esc** cancels the selected
-mesh's active simplification. Cancellation discards the detached working mesh,
-including any subsets already simplified in that operation, and preserves the
-original mesh, its modified state, and the previous undo backup. Remaining subsets
-are not processed. Parameters and rollback are disabled during simplification;
-the user can apply again after cancellation completes. The worker cancellation is
-cooperative, so an indivisible processing step may finish before it stops.
+Processing starts only on request. The editor polls active work and publishes a
+complete detached mesh. Cancel or Esc discards the working copy, including subsets
+already processed in the batch, and preserves the original, modified state and
+previous undo backup. Parameters and rollback are disabled during processing.
 
-After a successful change, the Simplification tree offers original/result comparison
-side by side, independent visibility, wireframe, vertex/triangle counts and fit-to-view.
-The immutable result snapshot is paired with the existing pre-operation undo snapshot.
-No-op, failed or cancelled operations retain the previous pair. Later geometry/settings
-edits do not silently change the pair labelled "last simplification". Undo, a new
-successful simplification, removing/clearing meshes or the Quit menu discards it.
-Changing previews/selection releases display objects; comparison can be requested again
-from the stored pair. Comparison is available for the selected mesh in 3D view.
+### Comparison and wireframe
 
-The view uses static base geometry from the operation's reference frame (frame 1 for
-shared-frame jobs), with normals, UVs, textures, material and culling copied. It does
-not play skeletal/articulated deformation, frame animation or custom animated shader
-effects. The panel explicitly describes that limit. Source/result offsets affect only
-preview renderables, never mesh data, saving or exports. Geometry extraction, file
-loading and wire generation occur on request; idle synchronization only updates
-visibility. See [work tree implementation and validation](mesh-debug-simplification-worktree.md).
+The Simplification tree offers a side-by-side comparison of the last successful
+operation, independent original/result visibility, wireframe, counts and fit-to-view.
+An immutable result snapshot is paired with the pre-operation undo snapshot.
+No-op, failed or cancelled operations preserve the previous pair; later edits do
+not silently change it. Undo, a new successful operation, removal, Clear All or
+the Quit menu discards it. Changing selection/preview releases display objects;
+comparison can be requested again from the stored pair.
 
-Split Capture supports canonical skeletal weights. It maps every rebuilt outside/captured vertex to
-its source weight, reconstructs the frame-global weight order, validates the detached mesh, and only
-then replaces the editor object. Skeleton hierarchy and animation clips remain available after
-save/reload. [Automatic capture](mesh-debug-auto-capture.md) uses the same transaction and creates
-one subset per detected island, with configurable connectivity, position tolerance and minimum
-face count.
+Comparison is available for the selected mesh in 3D. It shows static base geometry
+from the operation's reference frame (frame 1 for shared-frame jobs), retaining
+normals, UVs, textures, material and culling. It does not play skeletal/articulated
+deformation, frame animation or custom animated shader effects. Offsets affect
+only display objects, never saved/exported geometry. Geometry loading and wire
+construction happen on request; idle synchronization updates visibility only.
 
-Deferred diagnostics and performance work is tracked in [Future Features](future-features.md).
+**Mesh Info** also offers an independent Wireframe option for all subsets of
+frame 1 of a 3D triangle-list mesh, indexed or nonindexed. It replaces the filled
+preview with static base-geometry edges while Info is active. Leaving Info restores
+the filled preview; returning reuses cached lines. Edits, preview reload, selection
+changes, removal and Clear All release the cache.
 
-## Coplanar modes (7.280.0)
+## Image Mesh Editor
 
-Mesh Debug and Image Mesh Editor's general simplification share three modes:
+General simplification uses the same QEM, Coplanar + QEM and Coplanar-only modes.
+Settings persist with project/default/region options and apply to preview,
+comparison and export. The angle uses degrees; the independent distance percentage
+is under **Advanced coplanar limits**. Straight-boundary reduction defaults to false.
 
-- **QEM** (default): the existing reducer and parameters.
-- **Coplanar + QEM**: validate/retriangulate eligible regions first, then run QEM
-  only if necessary. The absolute target is computed from the original scope,
-  never by applying the ratio again to the intermediate result.
-- **Coplanar only**: no ratio target or QEM fallback. Reduce all eligible regions;
-  an unchanged result preserves the native buffers and Mesh Debug's previous undo.
+The separate specific-relief workflow offers **Curved relief**, **Coplanar + curved
+relief** and **Coplanar only**. Its coplanar stage accepts exact horizontal plateaus
+compatible with constant normals, keeping controls, extrema and authored boundaries
+locked. Its initial height error is zero; subsequent curved simplification retains
+the original target and accumulated height-error budget. General coplanar distance
+and straight-boundary options do not relax this policy. Faceted/interior generation
+retains its simplification restrictions. Eligible flat-back optimization is part
+of generation and does not require invoking generic simplification.
 
-Both stages use one detached transaction and final commit gate. Failure in QEM
-also discards successful coplanar work. Progress, cancellation, Esc and undo follow
-that transaction. Coplanar measurements describe the intermediate surface; QEM's
-subsequent approximation does not inherit its attribute-equivalence bound.
+See [Image Mesh Editor](image-mesh-editor.md) for generation, project and export controls.
 
-With boundary reduction disabled (the default), the implementation retains
-**every** boundary segment and source vertex attribute. It handles connected static regions, including concave contours,
-within one subset/attribute chart. Since 7.283.0, one outer loop with up to 16
-strictly internal, disjoint holes is supported. Uncertified varying normals, non-affine UVs,
-ambiguous topology/contacts and excessive work fall back unchanged. Skeletal,
-articulated and multi-frame assets skip this stage; QEM remains available. Selected
-subsets retain read-only whole-frame neighbor context. Mesh Debug's virtual-subset
-batching is available only in QEM mode; the other modes process selected subsets
-individually with the complete working mesh still present.
+## Blender importer
 
-Region growth uses a fixed seed plane, distance at most `planarTolerance * L` (`L` is the
-source connected subset domain's logical bounding-box diagonal) and a configurable angular threshold
-(default dot `0.99999962`, approximately 0.05 degrees). Retained normals must be finite and nonzero. Constant raw normals retain their
-existing behavior. Since 7.285.0, exactly planar generic regions also accept
-varying raw normals matching one affine field at every source corner with zero
-computed residual. All normals must lie strictly in the seed normal's open
-hemisphere, preventing a zero interpolated normal. Approximately planar regions
-and curved-specific generation still require identical raw normals. The certificate
-preserves the interpolated field used by standard fragment lighting; custom
-nonlinear vertex shaders are outside its scope. Numerical roundoff can reject
-otherwise affine fields; no normal-error tolerance is introduced. UVs must match one affine field with residual at most `5e-7`
-per component at **all** source corners. Twice the maximum residual bounds the
-interpolated UV difference. The geometric bound compares both projected fields
-to the same plane and includes the dominant-axis projection factor; this avoids
-accumulating error while growing a region. No vertex positions are moved.
-
-Since 7.281.0, `planarTolerance` is configurable in Mesh Debug and
-Image Mesh general simplification: default `1e-7`, finite range `[0, 0.01]`, zero
-for exact coplanarity. For example, `0.0001` allows plane distance up to 0.01% of
-`L`. Distance and angle are independent guards; increasing one alone need not improve
-reduction. The conservative surface error bound can reach `2 * sqrt(3) *
-planarTolerance * L` and is reported separately. Increasing tolerance does not
-permit seams, uncertified attributes, invalid holes or uncertain neighbor contacts to be ignored.
-The report UI lists holes, attributes, topology, neighbors and work-limit rejection
-counts. Small/no-saving candidates are not counted as rejected; zero rejected
-regions does not imply that the entire mesh was eligible.
-
-Since 7.282.0, **Coplanar angle** is the primary editor control, a DragFloat in
-degrees (`planarAngle`, default 0.05, range 0..5). Both original and replacement
-triangles are checked against the fixed seed plane, preventing chained angular
-drift. The independent distance safeguard is displayed directly in Mesh Debug's
-Simplification tree and under **Advanced coplanar limits** in Image Mesh Editor,
-as a percentage (0..1%, default 0.00001%) with DragFloat. This percentage
-is divided by 100 for the stored/API `planarTolerance` fraction. Tooltips wrap at
-420 pixels. Existing project settings retain their stored distance and receive the
-legacy angular default. The specialized curved pass still accepts exact plateaus.
-
-Projection, oriented edge/vertex links, simple nonintersecting boundary loops,
-positive faces and the Euler characteristic with holes are checked before ear
-clipping. Visible bridges join inner loops for triangulation without inserting
-vertices; bridge endpoint IDs are reused. The candidate must retain the exact
-directed boundary multiset (after any certified straight contraction), paired opposite interior edges and connected vertex
-fans. Positive projected faces with this oriented boundary preserve domain winding
-and coverage, including hole interiors. Uncertain segment contacts are rejected.
-All boundary samples survive unless optional coordinated straight reduction certifies them. The pass rejects uncertain triangulation and
-uses a conservative whole-frame obstacle test: separated bounding boxes/slabs are
-safe; certain exact-plane boundary contacts are also accepted. Since 7.286.0,
-exactly coplanar obstacles with overlapping projected bounds may be certified
-strictly disjoint from every replacement triangle using both triangles' edge
-half-planes. This allows separate islands inside holes or exterior concave notches.
-The area epsilon protects uncertain separation; touching, degenerate and overlapping
-pairs fail this new branch. Since 7.288.0, the same strict full-projection
-certificate also accepts inclined obstacles, including pieces crossing the seed
-plane entirely inside a hole or exterior notch. Disjoint projected domains imply
-disjoint 3D geometry. This projected test alone does not certify degenerate or
-overlapping projections; the previous noncoplanar boundary-contact checks remain.
-This is not a general triangle-plane intersection certificate.
-Since 7.289.0, a noncoplanar obstacle that fails full-projection separation may
-instead certify a strict 3D gap from every replacement triangle. The private
-predicate tries both face-normal and edge-cross-edge directions; outward-rounded
-projection intervals prevent roundoff-only gaps. Its clearance guard is the greater
-of the plane-distance tolerance and `1e-12 * L`, scaled conservatively by the axis
-L1 norm. Axis tests share the existing work budget. Degenerate/uncertain pairs do
-not gain an exemption, and existing boundary contacts remain eligible through the
-previous fallback. This is a sufficient separation certificate, not a complete
-intersection solver. Builds declaring fast floating-point math disable this new
-certificate because its interval bounds require strict arithmetic. No new user
-parameter is introduced, and QEM retains its existing behavior.
-Approximately planar regions retain the previous
-conservative obstacle policy.
-
-Since 7.287.0, a private balanced AABB index over original selected and unselected
-triangles replaces the per-region whole-frame scan. Queries use inclusive bounds
-on the two projection axes and deliberately ignore the dropped axis; they cannot
-remove candidates required by the previous projected-box check. Candidates retain
-source/context order before the unchanged narrow certificates. Node/leaf visits
-share the region work budget. Index construction and queries check cancellation;
-standard-library partition/sort calls finish before the next checkpoint. Index
-storage is linear in source/context triangle count, request-local, and rebuilt for
-the optional coordinated-boundary rerun. No idle scans or persistent cache are
-introduced. Highly overlapping projections may gain little and exhaust the budget;
-large or uncertain neighborhoods can still reject valid regions.
-Work is capped at 2,048 total boundary vertices, 16 holes and 2,000,000 budgeted
-boundary/bridge/ear/certificate/obstacle operations per region, with cancellation
-checkpoints. An eligible region with B retained boundary vertices and H holes
-reaches B + 2H - 2 faces, using the final retained B. Touching/nested
-loops, uncertain bridges and exhausted budgets preserve the original region.
-`planarHoles` counts loop/bridge validation rejections, not successfully preserved
-holes; work-limit and topology rejections retain their own counters. The certificate concerns stored geometry,
-UVs and normals, not arbitrary procedural vertex effects or shader-specific output.
-
-Reports separate planar accepted/rejected counts, removed faces, rejection categories,
-geometry/UV bounds, `planarSkipped`, `qemRan` and `unchanged` from QEM diagnostics.
-An 8x8 grid retains its 32 boundary segments and reduces from 128 to 30 faces by default;
-with eligible straight-boundary reduction enabled it reaches two.
-See the [design and validation record](mesh-coplanar-optimization-plan.md).
-
-### Coordinated straight boundaries (7.284.0)
-
-**Reduce straight boundaries** (`planarReduceBoundaries`, default false) is shared
-by Mesh Debug and Image Mesh general simplification. It only removes exactly
-collinear 3D samples from exactly planar certified charts. It never moves vertices,
-merges attribute charts or changes the union of their boundary segments. All source
-corners still participate in the original affine attribute certificate.
-
-Decisions are coordinated by exact position, including aliases across UV/material
-seams. Every incident source face must belong to a certified boundary region, with
-the same two geometric neighbors on every side; at most two regions may meet.
-Corners, locks, unselected surrounding vertices, uncertified regions and conflicting
-segmentation protect the sample. Some generated side quads are separate charts;
-their corners remain protected even when their geometry looks planar. Existing
-planar faces with no interior reduction can participate in coordination, but regions
-of fewer than three source triangles remain protected in this milestone.
-
-The pass first completes the original interior-only candidate, then builds and
-revalidates one coordinated candidate **from the original input**. It verifies all
-dependent regions and keeps the interior-only candidate if any dependency or budget
-fails. No partially coordinated borders are published. Limits are 4,096 certified
-regions and 32,768 boundary entries, in addition to existing per-region budgets.
-Cancellation discards the entire simplification; QEM still runs only after this
-stage and retains the original absolute target. The option does not change QEM-only.
-
-Reports add `planarBoundaryRemovedVertices` (geometric positions, counted once
-across aliases) and `planarBoundaryFallback` (the optional stage retained the
-completed interior-only result). Mesh Debug's selected-subset jobs retain unselected
-neighbor samples; use the whole-frame scope to coordinate across subsets together.
-General settings persist in Image Mesh projects, with false for older projects.
-No discovery runs in idle frames. Approximate contour changes, varying-normal
-certificates and general curved-wall remeshing remain outside this feature.
-
-Image Mesh's specific curved-relief path offers **Curved relief**, **Coplanar +
-curved relief**, and **Coplanar only** independently of QEM. Its prepass accepts
-only exact horizontal plateaus compatible with the generator's constant-normal
-policy, keeping controls and extrema locked. The initial height error remains zero;
-subsequent specific simplification retains its original target and accumulated
-error budget. Faceted/interior workflows keep their existing simplification
-restrictions. The completed minimal-back generation optimization is unchanged.
+**Reduce polygons before import** uses Blender Collapse decimation on supported
+static visible mesh objects before material bucketing and 65,535-vertex chunking.
+It never modifies the source GLB/FBX. Armatures, skin weights, shape keys, mesh-cache
+animation and animated mesh objects are rejected by this importer option. Imported
+meshes can subsequently use the generic simplifier within its asset policy.
