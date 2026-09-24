@@ -697,9 +697,9 @@ static bool hierarchyBudget(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t,std::s
 static bool hierarchyPoint(TOPOLOGY &t,IMAGE_MESH_POINT p,uint32_t &id,std::string &error)
 {
     // Normalized coordinates are floats; sub-ULP cuts can collapse after centering.
-    constexpr double near=2e-7;
+    constexpr double epsilon=2e-7;
     for (uint32_t i=0;i<t.points.size();++i)
-        if (std::hypot(p.x-t.points[i].x,p.y-t.points[i].y)<=near) { id=i;return true; }
+        if (std::hypot(p.x-t.points[i].x,p.y-t.points[i].y)<=epsilon) { id=i;return true; }
     for (size_t i=0;i<t.triangles.size();++i)
     {
         const auto face=t.triangles[i];
@@ -708,8 +708,8 @@ static bool hierarchyPoint(TOPOLOGY &t,IMAGE_MESH_POINT p,uint32_t &id,std::stri
         {
             const auto &a=t.points[face[e]],&b=t.points[face[(e+1)%3]];
             const double length=std::hypot(b.x-a.x,b.y-a.y),signedDistance=cross(a,b,p)/length;
-            if (signedDistance < -near) { inside=false;break; }
-            if (std::abs(signedDistance)<=near) edge=static_cast<int>(e);
+            if (signedDistance < -epsilon) { inside=false;break; }
+            if (std::abs(signedDistance)<=epsilon) edge=static_cast<int>(e);
         }
         if (!inside) continue;
         id=static_cast<uint32_t>(t.points.size());
@@ -737,7 +737,7 @@ static bool hierarchySegment(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,uint32_t fi
     const double dx=static_cast<double>(b.x)-a.x,dy=static_cast<double>(b.y)-a.y,length=std::hypot(dx,dy);
     if (length<1e-8) { error="Curved hierarchy: control edge is too short";return false; }
     // Normalized coordinates are floats; sub-ULP cuts can collapse after centering.
-    constexpr double near=2e-7;
+    constexpr double epsilon=2e-7;
     std::map<uint64_t,uint32_t> cuts;
     std::vector<std::array<uint32_t,3>> result;
     for (const auto &face:t.triangles)
@@ -748,7 +748,7 @@ static bool hierarchySegment(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,uint32_t fi
         for (unsigned e=0;e<3;++e)
         {
             side[e]=cross(a,b,t.points[face[e]])/length;
-            if (std::abs(side[e])<=near) side[e]=0;
+            if (std::abs(side[e])<=epsilon) side[e]=0;
             positive=positive || side[e]>0;negative=negative || side[e]<0;
         }
         if (!positive || !negative) { result.push_back(face);continue; }
@@ -763,7 +763,7 @@ static bool hierarchySegment(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,uint32_t fi
                 minAlong=std::min(minAlong,along);maxAlong=std::max(maxAlong,along);
             }
         }
-        if (maxAlong<=near || minAlong>=1-near) { result.push_back(face);continue; }
+        if (maxAlong<=epsilon || minAlong>=1-epsilon) { result.push_back(face);continue; }
         const auto cut=[&](unsigned e,unsigned j)
         {
             if (side[e]==0) return face[e];

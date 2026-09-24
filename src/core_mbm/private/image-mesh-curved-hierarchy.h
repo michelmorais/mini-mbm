@@ -21,6 +21,7 @@
 #define IMAGE_MESH_CURVED_HIERARCHY_H
 #include "image-mesh-topology.h"
 #include "image-mesh-progress.h"
+#include <algorithm>
 #include <cmath>
 #include <limits>
 namespace mbm { namespace image_mesh {
@@ -29,7 +30,7 @@ namespace mbm { namespace image_mesh {
 struct CURVED_HIERARCHY
 {
     struct POINT { double x=0,y=0; };
-    struct DOMAIN
+    struct CURVED_DOMAIN
     {
         std::vector<IMAGE_MESH_POINT> normalized;
         std::vector<POINT> points;
@@ -42,7 +43,7 @@ struct CURVED_HIERARCHY
         double bezier1=0,bezier2=1,bezier3=1,bezier4=1;
         bool inherited=false;
     };
-    std::vector<DOMAIN> domains;
+    std::vector<CURVED_DOMAIN> domains;
     double tolerance=1e-6;
     static double cross(POINT a,POINT b,POINT c)
     { return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x); }
@@ -53,7 +54,7 @@ struct CURVED_HIERARCHY
         return {a.x+dx*t,a.y+dy*t};
     }
     static double distance(POINT a,POINT b) { return std::hypot(a.x-b.x,a.y-b.y); }
-    POINT nearest(const DOMAIN &d,POINT p) const
+    POINT nearest(const CURVED_DOMAIN &d,POINT p) const
     {
         POINT best=d.points[0];double minimum=distance(best,p);
         const size_t edges=d.points.size()>2?d.points.size():d.points.size()-1;
@@ -65,7 +66,7 @@ struct CURVED_HIERARCHY
         }
         return best;
     }
-    bool contains(const DOMAIN &d,POINT p,bool strict=false) const
+    bool contains(const CURVED_DOMAIN &d,POINT p,bool strict=false) const
     {
         if (p.x<d.minX-tolerance || p.x>d.maxX+tolerance || p.y<d.minY-tolerance || p.y>d.maxY+tolerance) return false;
         if (distance(nearest(d,p),p)<=tolerance) return !strict;
@@ -84,7 +85,7 @@ struct CURVED_HIERARCHY
             distance(projection(c,a,b),c)<=tolerance || distance(projection(d,a,b),d)<=tolerance) return true;
         return cross(a,b,c)*cross(a,b,d)<0 && cross(c,d,a)*cross(c,d,b)<0;
     }
-    bool boundariesIntersect(const DOMAIN &a,const DOMAIN &b) const
+    bool boundariesIntersect(const CURVED_DOMAIN &a,const CURVED_DOMAIN &b) const
     {
         const size_t edges=a.points.size()>2?a.points.size():a.points.size()-1;
         for (size_t i=0;i<edges;++i) for (size_t j=0;j<b.points.size();++j)
