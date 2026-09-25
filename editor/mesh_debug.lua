@@ -6737,7 +6737,7 @@ function splitCaptureRefreshResolved(analysis)
     return analysis.resolved
 end
 
-function splitCaptureApply(tEntry, meshD, resolved)
+function splitCaptureApply(tEntry, meshD, resolved, sourceMesh)
     tEntry.tSplitCapturedSignatures = tEntry.tSplitCapturedSignatures or {}
     local sourceHadNormals = tEntry.info and tEntry.info.hasNormal == true
     local sourceNormalStateKnown = tEntry.info and tEntry.info.hasNormal ~= nil
@@ -6747,7 +6747,9 @@ function splitCaptureApply(tEntry, meshD, resolved)
         return left.frame > right.frame or (left.frame == right.frame and left.subset > right.subset)
     end)
     for _, group in ipairs(resolved.groups) do
-        if splitCaptureGetSubsetSignature(meshD, group.frame, group.subset) ~= group.signature then
+        -- Backup serialization can rewrite texture paths without an edit to the source.
+        -- Keep stale-analysis detection tied to the mesh that was actually analyzed.
+        if splitCaptureGetSubsetSignature(sourceMesh or meshD, group.frame, group.subset) ~= group.signature then
             return nil, tLang.L('capture_mesh_changed')
         end
     end
@@ -6812,7 +6814,7 @@ function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
         info = splitCaptureCopyTable(tEntry.info),
         tSplitCapturedSignatures = splitCaptureCopyTable(tEntry.tSplitCapturedSignatures),
     }
-    local applied, faces, framesOrError = dpCall(splitCaptureApply, workingEntry, workingMesh, resolved)
+    local applied, faces, framesOrError = dpCall(splitCaptureApply, workingEntry, workingMesh, resolved, meshD)
     if not applied then framesOrError, faces = faces, nil end
     if not faces then
         meshDebug:fakeRelease(pendingBackup.path); os.remove(pendingBackup.path)

@@ -113,6 +113,25 @@ local function tests()
     unchanged:translateFrame(1,1,0,0,1)
     splitCaptureCommitAnalysis(entry,unchanged,1,entry.tSplitCapture,stale.resolved[1])
     assert(entry.meshDebug==unchanged and entry.tSplitCaptureBackup==nil,'stale analysis')
+    -- A backup can expand a relative texture path. Validate against the live source,
+    -- not the serialized working copy, for the manual Start Capture -> Apply flow.
+    d=makeMesh(true,false)
+    mbm.addPath('src/test-lib/')
+    d:setTexture(1,1,'Crate_1.png')
+    local manualEntry={meshDebug=d,info={hasNormal=true},tSplitCapture={active=false}}
+    local capture=assert(splitCaptureAnalyze(manualEntry,d,box))
+    splitCaptureCommitAnalysis(manualEntry,d,1,manualEntry.tSplitCapture,capture.resolved[1])
+    assert(manualEntry.meshDebug~=d and manualEntry.tSplitCaptureBackup,
+        'manual capture rejected unchanged mesh after texture path serialization')
+    assert(manualEntry.tSplitCapture.lastFaces==3)
+    splitCaptureDiscardBackup(manualEntry)
+    d=makeMesh(true,false)
+    manualEntry={meshDebug=d,info={hasNormal=true},tSplitCapture={active=false}}
+    capture=assert(splitCaptureAnalyze(manualEntry,d,box))
+    d:setTexture(1,1,'Crate_1.png')
+    splitCaptureCommitAnalysis(manualEntry,d,1,manualEntry.tSplitCapture,capture.resolved[1])
+    assert(manualEntry.meshDebug==d and not manualEntry.tSplitCaptureBackup,
+        'a real texture edit must invalidate manual capture')
     -- Render the real auto-capture result UI, with an idle-analysis counter.
     builds=0; local build=tMeshIslands.build
     tMeshIslands.build=function(...) builds=builds+1; return build(...) end
