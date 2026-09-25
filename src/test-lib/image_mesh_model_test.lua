@@ -111,3 +111,18 @@ for _,mode in ipairs{'coplanar','coplanar_qem'} do assert(not pcall(M.validateOp
 M.validateOptions({simplifyMode='qem'},false);M.validateOptions({simplifyMode='cgal'},false)
 M.validateOptions({simplifyMode='cgal_qem'},false)
 print('IMAGE MESH SIMPLIFICATION MIGRATION / READ-ONLY INPUT / CURRENT MODES OK')
+
+-- Independent method checkboxes represent all four combinations independently.
+local modes=require 'mesh_simplify_modes'
+for _,mode in ipairs{'none','qem','cgal','cgal_qem'} do
+ M.validateOptions({simplifyMode=mode},false)
+ for _,method in ipairs{'cgal','qem'} do
+  local other=method=='cgal' and 'qem' or 'cgal'
+  for _,enabled in ipairs{false,true} do
+   local result=modes.setEnabled(mode,method,enabled)
+   assert(modes.enabled(result,method)==enabled)
+   assert(modes.enabled(result,other)==modes.enabled(mode,other))
+  end
+ end
+end
+print('SIMPLIFICATION INDEPENDENT CHECKBOX STATES OK')

@@ -75,8 +75,8 @@ local function totals(asset)
     end
     return v,t
 end
-local function import(job)
-    local data=Obj.read(job.output)
+local function import(job,data)
+    data=data or Obj.read(job.output)
     local bySubset={}
     for _,g in ipairs(data.groups) do
         local s=tonumber(g.name:match('^subset_(%d+)$'))
@@ -84,13 +84,13 @@ local function import(job)
         bySubset[s]=g
     end
     local result=meshDebug:new();result:setType('mesh');result:setModeDraw('TRIANGLES');result:addFrame(3)
-    local total=job.sourceVertices
+    local total=select(1,totals(job.asset))
     local targets={}
     for s,source in pairs(job.sources) do
         local g=assert(bySubset[s],'Output lost a subset')
         targets[#targets+1]=s
         -- Recompute face normals explicitly; OBJ preserves UVs, not authored normals.
-        if source.normals then
+        if source.normals and not job.deferNormals then
             local vertices,indices,keys={},{},{}
             for i=1,#g.indices,3 do
                 local a,b,c=g.vertices[g.indices[i]],g.vertices[g.indices[i+1]],g.vertices[g.indices[i+2]]
@@ -108,7 +108,7 @@ local function import(job)
             end
             g.vertices,g.indices=vertices,indices
         end
-        total=total-source.count+#g.vertices
+        total=total-job.asset:getTotalVertex(1,s)+#g.vertices
     end
     assert(total<=job.maxVertices,'CGAL result exceeds vertex limit: '..job.maxVertices)
     table.sort(targets)
@@ -138,8 +138,9 @@ local function import(job)
         cgal=job.report}
     return report
 end
-function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals)
+function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferNormals)
     local job={asset=asset,files={},sources={},state='running',started=mbm.getTimeRun(),maxVertices=math.min(maxVertices or 65535,65535)}
+    job.deferNormals=deferNormals==true
     local ok,err=safe(function()
         assert(M.getPath()~='',tLang.L('cgal_missing'))
         assert(asset:getTotalFrame()==1 and (not frame or frame==0 or frame==1) and asset:getModeDraw()=='TRIANGLES'
@@ -161,6 +162,26 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals)
             tostring(angle or .05),tostring(distance or 1e-7),'0.000001',job.reportPath},hidden=true}))
     end)
     if not ok then cleanup(job);return nil,err end
+    -- Face-normal splits are rendering attributes, not open boundaries for QEM.
+    -- Keep CGAL's shared position/UV topology until both geometric passes finish.
+    function job:finalizeNormals()
+        if not self.deferNormals then return true end
+        local ok,value=safe(function()
+            local data={groups={}}
+            for subset in pairs(self.sources) do
+                local vertices=self.asset:getVertex(1,subset,1,self.asset:getTotalVertex(1,subset))
+                local indices=self.asset:getIndex(1,subset)
+                if not indices or #indices==0 then
+                    indices={};for i=1,#vertices do indices[i]=i end
+                end
+                data.groups[#data.groups+1]={name='subset_'..subset,vertices=vertices,indices=indices}
+            end
+            self.deferNormals=false
+            return import(self,data)
+        end)
+        if not ok then return nil,value end
+        return true,value.resultVertexCount
+    end
     function job:cancelSimplify()
         self.cancelled=true
         if self.process then self.process:cancel() end

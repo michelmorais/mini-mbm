@@ -622,7 +622,10 @@ comparison. Export generates only the selected result, without the reference.
 
 ## Simplification and comparison
 
-General Method offers **QEM** (default), **Coplanar (CGAL external)** and **CGAL + QEM**.
+The general simplification panel has a **CGAL** checkbox with its angle/distance
+parameters, a separator, and a **QEM** checkbox with its ratio/detail/boundary
+parameters. Parameters remain visible but disabled when their method is unchecked.
+Check both for CGAL followed by QEM; uncheck both to disable simplification.
 Settings are saved per project/default/region and apply to preview, statistics,
 comparison, assembly and export. QEM runs in the engine; coplanar reduction runs
 in the independently configured [mbm-cgal](https://github.com/michelmorais/mbm-cgal)
@@ -636,7 +639,7 @@ is sampled, not a certified bound. UV seams and materials are retained; existing
 normals are reconstructed as face normals. The ratio, Preserve Details and
 boundary-collapse controls apply to QEM, including its stage in the combined mode. No simplification runs on idle frames.
 
-For image/manual/mixed relief, enable **Simplify after generation**. Both editors
+For image/manual/mixed relief, enable **CGAL**, **QEM**, or both. Both editors
 use the chosen backend over the whole generated frame, including its materials.
 QEM controls:
 
@@ -779,7 +782,7 @@ Interior-transition smoke tests: `src/test-lib/image_mesh_interior_smoke.lua` an
 
 ### External CGAL simplification
 
-General simplification now includes **Coplanar (CGAL external)**. Configure the
+General simplification includes an independent **CGAL** checkbox. Configure the
 standalone `mbm-cgal-planar` executable under **Options > CGAL executable** and
 click **Save path**. Mesh Debug shares this preference; project files store the
 `cgal` or `cgal_qem` mode and angle/distance, not the machine-specific executable path.

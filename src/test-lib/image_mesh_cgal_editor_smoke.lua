@@ -35,21 +35,53 @@ local function test()
  local builds=E.builds;for _=1,5 do coroutine.yield() end;assert(E.builds==builds,'idle rebuilt')
  api.exportOne('/tmp/cgal-integrated.msh');await()
  local d=meshDebug:new();assert(d:load('/tmp/cgal-integrated.msh'));assert(d:check())
- for _,ratio in ipairs{.6,.4} do
-  E.values.simplifyMode='cgal_qem';E.values.simplifyRatio=ratio;E.values.simplifyBoundary=.05
+ for _,ratio in ipairs{.6,.4,.046} do
+  E.values.simplifyMode='cgal_qem';E.values.simplifyRatio=ratio;E.values.simplifyBoundary=0
   assert(api.applyProperties());api.rebuild();await()
   local report=assert(E.report and E.report.simplification,E.status)
   assert(report.backend=='cgal_qem' and report.sourceTriangleCount==12570,E.status)
-  assert(report.qemRan==(ratio==.4),'wrong QEM stage decision')
+  assert(report.qemRan==(ratio<.6),'wrong QEM stage decision')
   assert(report.resultTriangleCount<=6882 and E.preview,'combined result missing')
   if ratio==.6 then assert(report.resultTriangleCount==6882,'ratio applied twice')
-  else assert(report.resultTriangleCount==5028,'original triangle target not reached') end
+  else assert(report.resultTriangleCount==math.floor(12570*ratio),'original triangle target not reached') end
   print('COMBINED ratio '..ratio..': '..report.sourceTriangleCount..' -> '..report.resultTriangleCount)
+ end
+ -- The completed combined mesh must restore face normals after QEM.
+ api.exportOne('/tmp/cgal-combined.msh');await()
+ local final=meshDebug:new();assert(final:load('/tmp/cgal-combined.msh'));assert(final:check())
+ for subset=1,final:getTotalSubset(1) do
+  local vertices=final:getVertex(1,subset,1,final:getTotalVertex(1,subset))
+  local indices=final:getIndex(1,subset)
+  for i=1,#indices,3 do
+   local a,b,c=vertices[indices[i]],vertices[indices[i+1]],vertices[indices[i+2]]
+   local ux,uy,uz=b.x-a.x,b.y-a.y,b.z-a.z
+   local vx,vy,vz=c.x-a.x,c.y-a.y,c.z-a.z
+   local nx,ny,nz=uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx
+   local length=math.sqrt(nx*nx+ny*ny+nz*nz)
+   for _,v in ipairs{a,b,c} do
+    assert((nx*v.nx+ny*v.ny+nz*v.nz)/length>.999,'final face normals were not restored')
+   end
+  end
  end
  assert(api.saveProject('/tmp/cgal-combined.imesh'))
  local combined=IO.load('/tmp/cgal-combined.imesh')
  assert(Model.options(combined,combined.regions[1]).simplifyMode=='cgal_qem')
- print('IMAGE CGAL EDITOR SMOKE OK '..E.report.sourceTriangles..' -> '..E.report.triangles)
+ -- QEM-only must not invoke the external worker, including after a combined preview.
+ local start=Cgal.start
+ Cgal.start=function() error('QEM-only invoked CGAL') end
+ E.values.simplifyMode='qem'
+ assert(api.applyProperties());api.rebuild();await()
+ assert(E.report and E.report.triangles==578 and not E.report.simplification.cgal,E.status)
+ Cgal.start=start
+ E.values.simplify=false;E.values.simplifyMode='none'
+ assert(api.applyProperties());api.rebuild();await()
+ assert(E.report and not E.report.simplification and E.report.triangles==12570,E.status)
+ assert(api.saveProject('/tmp/cgal-disabled.imesh'))
+ local disabled=IO.load('/tmp/cgal-disabled.imesh')
+ local options=Model.options(disabled,disabled.regions[1])
+ assert(not options.simplify and options.simplifyMode=='none')
+ assert(options.planarAngle==5 and options.simplifyRatio==.046,'disabled methods lost parameters')
+ print('IMAGE CGAL EDITOR SMOKE OK: individual/combined/disabled/persistence')
 end
 function onInitScene() init();started=mbm.getTimeRun();task=coroutine.create(test) end
 function onLoop(delta)

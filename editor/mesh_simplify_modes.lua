@@ -22,16 +22,33 @@
 
 -- Shared editor UI for native, external and combined simplification.
 local M={}
-function M.select(value,id)
-    local modes={'qem','cgal','cgal_qem'}
-    local labels={tLang.L('simplify_mode_qem'),tLang.L('cgal_mode'),tLang.L('cgal_qem_mode')}
-    local index=value=='cgal_qem' and 3 or (value=='cgal' and 2 or 1)
-    local changed,selected=tImGui.Combo(tLang.L('simplify_mode')..'##'..id,index,labels,-1)
-    local mode=modes[changed and selected or index]
-    if mode=='cgal' or mode=='cgal_qem' then
-        tImGui.TextWrapped(tLang.L(mode=='cgal_qem' and 'cgal_qem_help' or 'cgal_help'))
-        if require('mesh_cgal').getPath()=='' then tImGui.TextWrapped(tLang.L('cgal_missing')) end
-    end
+function M.enabled(mode,method)
+    return mode=='cgal_qem' or (mode or 'qem')==method
+end
+function M.setEnabled(mode,method,enabled)
+    local cgal=M.enabled(mode,'cgal')
+    local qem=M.enabled(mode,'qem')
+    if method=='cgal' then cgal=enabled else qem=enabled end
+    if cgal and qem then return 'cgal_qem' end
+    if cgal then return 'cgal' end
+    if qem then return 'qem' end
+    return 'none'
+end
+function M.cgalBlock(mode,tolerance,angle,id)
+    local enabled=tImGui.Checkbox('CGAL##cgal-'..id,M.enabled(mode,'cgal'))
+    mode=M.setEnabled(mode,'cgal',enabled)
+    tImGui.BeginDisabled(not enabled)
+    tolerance,angle=M.cgalSettings(tolerance,angle,id)
+    tImGui.TextWrapped(tLang.L('cgal_help'))
+    tImGui.EndDisabled()
+    if enabled and require('mesh_cgal').getPath()=='' then tImGui.TextWrapped(tLang.L('cgal_missing')) end
+    return mode,tolerance,angle
+end
+function M.qemCheckbox(mode,id)
+    tImGui.Separator()
+    local enabled=tImGui.Checkbox('QEM##qem-'..id,M.enabled(mode,'qem'))
+    mode=M.setEnabled(mode,'qem',enabled)
+    if mode=='cgal_qem' then tImGui.TextWrapped(tLang.L('cgal_qem_help')) end
     return mode
 end
 function M.tooltip(text)

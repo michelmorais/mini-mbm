@@ -39,7 +39,7 @@ function M.run(E,fn,...)
     return M.resume(E)
 end
 function M.apply(E,asset,options,report)
-    if not options.simplify then return end
+    if not options.simplify or options.simplifyMode=='none' then return end
     local worker,err=require('mesh_simplify_pipeline').start(asset,options.simplifyMode,
         options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,
         options.planarAngle,options.planarTolerance,options.maxVertices,true)

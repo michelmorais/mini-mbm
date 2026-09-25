@@ -45,6 +45,8 @@ local function test()
  assert(e.meshDebug:getTexture(1,1)=='#6080FFFF')
  for _,v in ipairs(e.meshDebug:getVertex(1,1,1,e.meshDebug:getTotalVertex(1,1))) do assert(math.abs(v.u-v.x/8)<1e-6 and math.abs(v.v-v.y/8)<1e-6) end
  assert(simplifyRestoreBackup(e,iSelectedMeshIndex));assert(helper.signature(e.meshDebug)==original)
+ e.tSimplifyState.mode='none'
+ assert(not simplifyApply(e,e.meshDebug,iSelectedMeshIndex));assert(helper.signature(e.meshDebug)==original)
  e.tSimplifyState.mode='cgal_qem'
  assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e)
  assert(e.tSimplifyState.report.backend=='cgal_qem' and not e.tSimplifyState.report.qemRan)
@@ -101,6 +103,14 @@ local function test()
    assert(scoped:getTotalIndex(1,2)/3<=6,'combined target used whole frame or intermediate count')
   end
  end
+ -- The shared intermediate mesh fits, but final face normals can exceed the budget.
+ local budgetMesh=helper.grid('bent')
+ local budgetJob=assert(Pipeline.start(budgetMesh,'cgal_qem',.9,nil,1,true,0,0,0,40,true))
+ local budgetStatus
+ repeat budgetStatus=budgetJob:getSimplifyStatus();coroutine.yield() until budgetStatus.state~='running'
+ assert(budgetMesh:getTotalIndex(1,1)/3<128,'budget test did not reach final reconstruction')
+ assert(budgetStatus.state=='failed' and budgetStatus.error:find('vertex limit',1,true),
+  'final normal reconstruction did not enforce the vertex budget')
  for _=1,5 do coroutine.yield() end
  print('CGAL EDITOR SMOKE OK: config/reduction/UV/material/subset/revert/cancel/failure')
 end

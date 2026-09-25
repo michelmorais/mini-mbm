@@ -6227,7 +6227,7 @@ end
 
 function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
-    if simplifyState.running then return false end
+    if simplifyState.running or simplifyState.mode=='none' then return false end
     simplifyState.running = true
     simplifyState.cancelRequested = nil
     simplifyState.progress = 0
@@ -7240,16 +7240,6 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tImGui.Text(tLang.L('simplify_geometry'))
     tImGui.BeginDisabled(simplifyState.running == true)
 
-    tImGui.SetNextItemWidth(240)
-    local mode=require('mesh_simplify_modes').select(simplifyState.mode,'mesh-debug-'..index)
-    if mode~=simplifyState.mode then simplifyState.mode=mode;simplifyState.report=nil end
-    if mode=='cgal' or mode=='cgal_qem' then
-        local tolerance,angle=require('mesh_simplify_modes').cgalSettings(
-            simplifyState.planarTolerance,simplifyState.planarAngle,'mesh-debug-'..index)
-        if tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle then
-            simplifyState.planarTolerance=tolerance;simplifyState.planarAngle=angle;simplifyState.report=nil
-        end
-    end
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
     scopeIndex = tImGui.RadioButton(
         tLang.L('simplify_scope_frame') .. '##simplifyFrame-' .. index, scopeIndex, 1)
@@ -7328,23 +7318,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 end
             end
         end
-        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames or simplifyState.mode ~= 'qem')
-        local virtualFrame = tImGui.Checkbox(
-            tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
-            simplifyState.virtualFrame == true)
-        if virtualFrame ~= simplifyState.virtualFrame then
-            simplifyState.virtualFrame = virtualFrame
-            simplifyState.report = nil
-        end
-        tImGui.EndDisabled()
-        if tImGui.IsItemHovered(0) then
-            tImGui.BeginTooltip()
-            tImGui.PushTextWrapPos(420)
-            tImGui.Text(tLang.L('simplify_virtual_frame_tooltip'))
-            tImGui.PopTextWrapPos()
-            tImGui.EndTooltip()
-        end
-        if simplifyState.virtualFrame and selectedCount >= 2 then
+        if simplifyState.mode=='qem' and simplifyState.virtualFrame and selectedCount >= 2 then
             estimatedTriangles = math.max(selectedCount,
                 math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
         end
@@ -7362,7 +7336,33 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
     end
 
-    tImGui.BeginDisabled(simplifyState.mode=='cgal')
+    local modes=require('mesh_simplify_modes')
+    local mode,tolerance,angle=modes.cgalBlock(simplifyState.mode,
+        simplifyState.planarTolerance,simplifyState.planarAngle,'mesh-debug-'..index)
+    mode=modes.qemCheckbox(mode,'mesh-debug-'..index)
+    if mode~=simplifyState.mode or tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle then
+        simplifyState.mode=mode;simplifyState.planarTolerance=tolerance
+        simplifyState.planarAngle=angle;simplifyState.report=nil
+    end
+    if simplifyState.scope=='subsets' then
+        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames or simplifyState.mode ~= 'qem')
+        local virtualFrame = tImGui.Checkbox(
+            tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
+            simplifyState.virtualFrame == true)
+        if virtualFrame ~= simplifyState.virtualFrame then
+            simplifyState.virtualFrame = virtualFrame
+            simplifyState.report = nil
+        end
+        tImGui.EndDisabled()
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(420)
+            tImGui.Text(tLang.L('simplify_virtual_frame_tooltip'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
+    end
+    tImGui.BeginDisabled(not modes.enabled(simplifyState.mode,'qem'))
     tImGui.PushItemWidth(180)
     local ratioChanged, ratio = tImGui.DragFloat(
         tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
@@ -7372,7 +7372,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         simplifyState.ratio = ratio
         simplifyState.report = nil
         if simplifyState.scope == 'subsets' then
-            if simplifyState.virtualFrame and selectedCount >= 2 then
+            if simplifyState.mode=='qem' and simplifyState.virtualFrame and selectedCount >= 2 then
                 estimatedTriangles = math.max(selectedCount, math.floor(sourceTriangles * ratio))
             else
                 estimatedTriangles = 0
@@ -7403,7 +7403,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     end
     tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
     tImGui.EndDisabled()
-    tImGui.BeginDisabled(simplifyState.mode=='cgal')
+    tImGui.BeginDisabled(not modes.enabled(simplifyState.mode,'qem'))
     local preserveDetails = tImGui.Checkbox(
         tLang.L('simplify_preserve_details') .. '##simplifyPreserveDetails-' .. index,
         simplifyState.preserveDetails)
@@ -7419,7 +7419,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tImGui.EndTooltip()
     end
     tImGui.EndDisabled()
-    tImGui.BeginDisabled(simplifyState.mode=='cgal')
+    tImGui.BeginDisabled(not modes.enabled(simplifyState.mode,'qem'))
     tImGui.PushItemWidth(180)
     local boundaryLabelKey = 'simplify_boundary_threshold'
     local boundaryLabel = tLang.L(boundaryLabelKey)
@@ -7456,10 +7456,11 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
         #tEntry.tPendingOps == 0 and hasSelection and not simplifyState.running and
-        not exceedsIndexLimit
+        not exceedsIndexLimit and simplifyState.mode~='none'
     if not canSimplify then
         if not exceedsIndexLimit then
-            local messageKey = #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
+            local messageKey = simplifyState.mode=='none' and 'simplify_select_method'
+                or #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
                 or 'simplify_select_at_least_one_subset'
             tImGui.TextDisabled(tLang.L(messageKey))
         end

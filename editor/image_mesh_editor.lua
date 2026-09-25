@@ -723,14 +723,14 @@ local function propertiesPanel()
             Comparison.panel(E,setComparison,setWireframe,dpCall)
         end
         if E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
-            E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)
-            if E.values.simplify then
-                E.values.simplifyMode=require('mesh_simplify_modes').select(E.values.simplifyMode,'image-general')
-                if E.values.simplifyMode=='cgal' or E.values.simplifyMode=='cgal_qem' then
-                    E.values.planarTolerance,E.values.planarAngle=require('mesh_simplify_modes').cgalSettings(
-                        E.values.planarTolerance,E.values.planarAngle,'image-general')
-                end
-                tImGui.BeginDisabled(E.values.simplifyMode=='cgal')
+            do
+                local modes=require('mesh_simplify_modes')
+                local mode=E.values.simplify and E.values.simplifyMode or 'none'
+                mode,E.values.planarTolerance,E.values.planarAngle=modes.cgalBlock(
+                    mode,E.values.planarTolerance,E.values.planarAngle,'image-general')
+                E.values.simplifyMode=modes.qemCheckbox(mode,'image-general')
+                E.values.simplify=E.values.simplifyMode~='none'
+                tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
                 local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.001,0.95,'%.3f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
                 if c then E.values.simplifyRatio=Model.clampOption('simplifyRatio',v,E.values.simplifyRatio) end
                 if E.report and not E.editDefaults then
@@ -739,11 +739,11 @@ local function propertiesPanel()
                     if tImGui.IsItemHovered() then Help.tooltip(L('simplify_estimate_hint')) end
                 else tImGui.TextWrapped(L('simplify_estimate_pending')) end
                 tImGui.EndDisabled()
-                tImGui.BeginDisabled(E.values.simplifyMode=='cgal')
+                tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
                 E.values.simplifyDetails=tImGui.Checkbox(tLang.L('simplify_preserve_details'),E.values.simplifyDetails)
                 if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_preserve_details_tooltip')) end
                 tImGui.EndDisabled()
-                tImGui.BeginDisabled(E.values.simplifyMode=='cgal')
+                tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
                 c,v=tImGui.SliderFloat(tLang.L('simplify_boundary_threshold'),E.values.simplifyBoundary,0,0.25,'%.3f')
                 if c then E.values.simplifyBoundary=Model.clampOption('simplifyBoundary',v,E.values.simplifyBoundary) end
                 if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_boundary_threshold_tooltip')) end

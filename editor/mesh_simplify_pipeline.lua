@@ -31,6 +31,7 @@ local function triangles(asset,subset,frame)
     return count
 end
 function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,maxVertices,normals)
+    if mode=='none' then return nil,'No simplification method selected' end
     if mode~='cgal' and mode~='cgal_qem' then
         local ok,err=asset:startSimplify(ratio,subset,frame,details,boundary)
         if not ok then return nil,err end
@@ -44,8 +45,9 @@ function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,m
         end
         target=math.max(1,math.floor(source*ratio))
     end
-    local worker,err=require('mesh_cgal').start(asset,subset,frame,angle,distance,maxVertices,normals)
+    local worker,err=require('mesh_cgal').start(asset,subset,frame,angle,distance,maxVertices,normals,mode=='cgal_qem')
     if not worker or mode=='cgal' then return worker,err end
+    local cgalWorker=worker
     local job={stage='cgal'}
     local cgalReport,terminal,cancelled
     function job:cancelSimplify()
@@ -80,6 +82,9 @@ function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,m
             report.sourceTriangleCount=cgalReport.sourceTriangleCount
             report.unchanged=cgalReport.unchanged and report.unchanged
         end
+        local ok,vertices=cgalWorker:finalizeNormals()
+        if not ok then terminal={state='failed',error=vertices};return terminal end
+        if vertices then status.report.resultVertexCount=vertices end
         terminal=status
         return terminal
     end

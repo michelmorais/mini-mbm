@@ -81,7 +81,7 @@ inside `APPDATA` (Windows), otherwise `HOME`. It is read once per editor session
 restart an already open second editor after changing it elsewhere.
 `MBM_CGAL_CONFIG` overrides the preference file for isolated tests.
 
-Select **Coplanar (CGAL external)**. Angle is 0..60 degrees (default 0.05); distance
+Enable the **CGAL** checkbox. Angle is 0..60 degrees (default 0.05); distance
 is 0..10% of the exported input diagonal (default 0.00001%). These control CGAL
 region/corner detection. UV tolerance is fixed at `1e-6`. Ratios, Preserve Details
 and QEM boundary-collapse thresholds do not apply to this backend.
@@ -141,7 +141,7 @@ changes, removal and Clear All release the cache.
 
 ## Image Mesh Editor
 
-General simplification offers QEM, CGAL and CGAL + QEM. Settings persist with project/default/
+General simplification offers independent CGAL and QEM checkboxes. Settings persist with project/default/
 region options and apply to preview, comparison, statistics and export. The external
 executable path is a machine preference, not part of the `.imesh` project.
 
@@ -187,3 +187,17 @@ preservation applies to its intermediate output: QEM may further change UVs
 and geometry. CGAL sampled error describes the first stage; native QEM quality
 metrics describe changes from that intermediate mesh, not total pipeline error.
 No extra processing runs while the editor is idle.
+
+The GUI groups the CGAL checkbox and its angle/distance parameters first, then
+a separator and the QEM checkbox with its ratio/details/boundary parameters.
+Unchecked methods retain their settings in disabled controls. Both checked
+select the combined pipeline; neither checked disables simplification (and
+disables Apply in Mesh Debug). Image Mesh projects retain the existing mode
+representation, with `none` for neither method, and `simplify=false` when off.
+
+The combined pipeline retains CGAL's shared position/UV indices during QEM.
+Face normals are reconstructed only after both geometric passes finish (also
+when QEM is skipped). Splitting vertices for face normals before QEM would
+create artificial open boundaries and could reject otherwise feasible targets.
+UV seams remain separate; the configured boundary threshold is not overridden.
+The final reconstruction rechecks the vertex budget before publishing the mesh.
