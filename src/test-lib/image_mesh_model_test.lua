@@ -109,4 +109,5 @@ assert(migrated.regions[1].overrides.planarReduceBoundaries==nil)
 file=assert(io.open(filename,'rb'));assert(file:read('*a')==bytes);file:close();os.remove(filename)
 for _,mode in ipairs{'coplanar','coplanar_qem'} do assert(not pcall(M.validateOptions,{simplifyMode=mode},false)) end
 M.validateOptions({simplifyMode='qem'},false);M.validateOptions({simplifyMode='cgal'},false)
+M.validateOptions({simplifyMode='cgal_qem'},false)
 print('IMAGE MESH SIMPLIFICATION MIGRATION / READ-ONLY INPUT / CURRENT MODES OK')

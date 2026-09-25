@@ -35,6 +35,20 @@ local function test()
  local builds=E.builds;for _=1,5 do coroutine.yield() end;assert(E.builds==builds,'idle rebuilt')
  api.exportOne('/tmp/cgal-integrated.msh');await()
  local d=meshDebug:new();assert(d:load('/tmp/cgal-integrated.msh'));assert(d:check())
+ for _,ratio in ipairs{.6,.4} do
+  E.values.simplifyMode='cgal_qem';E.values.simplifyRatio=ratio;E.values.simplifyBoundary=.05
+  assert(api.applyProperties());api.rebuild();await()
+  local report=assert(E.report and E.report.simplification,E.status)
+  assert(report.backend=='cgal_qem' and report.sourceTriangleCount==12570,E.status)
+  assert(report.qemRan==(ratio==.4),'wrong QEM stage decision')
+  assert(report.resultTriangleCount<=6882 and E.preview,'combined result missing')
+  if ratio==.6 then assert(report.resultTriangleCount==6882,'ratio applied twice')
+  else assert(report.resultTriangleCount==5028,'original triangle target not reached') end
+  print('COMBINED ratio '..ratio..': '..report.sourceTriangleCount..' -> '..report.resultTriangleCount)
+ end
+ assert(api.saveProject('/tmp/cgal-combined.imesh'))
+ local combined=IO.load('/tmp/cgal-combined.imesh')
+ assert(Model.options(combined,combined.regions[1]).simplifyMode=='cgal_qem')
  print('IMAGE CGAL EDITOR SMOKE OK '..E.report.sourceTriangles..' -> '..E.report.triangles)
 end
 function onInitScene() init();started=mbm.getTimeRun();task=coroutine.create(test) end

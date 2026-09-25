@@ -20,16 +20,16 @@
 
 ]]--
 
--- Shared editor UI: native QEM or the external CGAL process.
+-- Shared editor UI for native, external and combined simplification.
 local M={}
 function M.select(value,id)
-    local modes={'qem','cgal'}
-    local labels={tLang.L('simplify_mode_qem'),tLang.L('cgal_mode')}
-    local index=value=='cgal' and 2 or 1
+    local modes={'qem','cgal','cgal_qem'}
+    local labels={tLang.L('simplify_mode_qem'),tLang.L('cgal_mode'),tLang.L('cgal_qem_mode')}
+    local index=value=='cgal_qem' and 3 or (value=='cgal' and 2 or 1)
     local changed,selected=tImGui.Combo(tLang.L('simplify_mode')..'##'..id,index,labels,-1)
     local mode=modes[changed and selected or index]
-    if mode=='cgal' then
-        tImGui.TextWrapped(tLang.L('cgal_help'))
+    if mode=='cgal' or mode=='cgal_qem' then
+        tImGui.TextWrapped(tLang.L(mode=='cgal_qem' and 'cgal_qem_help' or 'cgal_help'))
         if require('mesh_cgal').getPath()=='' then tImGui.TextWrapped(tLang.L('cgal_missing')) end
     end
     return mode
@@ -59,9 +59,10 @@ function M.cgalSettings(tolerance,angle,id)
 end
 function M.report(report)
     if not report then return end
-    if report.backend=='cgal' then
+    if report.cgal then
         tImGui.TextWrapped(string.format(tLang.L('cgal_report'),report.cgal.regions,report.cgal.sampled_error_fraction*100))
     end
+    if report.backend=='cgal_qem' and report.qemRan then tImGui.TextWrapped(tLang.L('cgal_qem_report')) end
     if report.unchanged then tImGui.TextWrapped(tLang.L('simplify_unchanged')) end
 end
 return M

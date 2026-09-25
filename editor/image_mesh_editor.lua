@@ -726,7 +726,7 @@ local function propertiesPanel()
             E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)
             if E.values.simplify then
                 E.values.simplifyMode=require('mesh_simplify_modes').select(E.values.simplifyMode,'image-general')
-                if E.values.simplifyMode=='cgal' then
+                if E.values.simplifyMode=='cgal' or E.values.simplifyMode=='cgal_qem' then
                     E.values.planarTolerance,E.values.planarAngle=require('mesh_simplify_modes').cgalSettings(
                         E.values.planarTolerance,E.values.planarAngle,'image-general')
                 end

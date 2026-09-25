@@ -6043,16 +6043,10 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
                        progressState, completedJobs, totalJobs)
     local numericRatio = tonumber(ratio)
     if not numericRatio then return nil, tLang.L('simplify_invalid_ratio') end
-    local worker=meshD
-    local started,startError
-    if progressState.mode=='cgal' then
-        worker,startError=require('mesh_cgal').start(meshD,targetSubset,targetFrame,progressState.planarAngle,progressState.planarTolerance,nil,progressState.cgalHasNormals)
-        started=worker~=nil
-    else
-        started,startError=meshD:startSimplify(numericRatio, targetSubset,
-        targetFrame, preserveDetails, boundaryCollapseThreshold)
-    end
-    if not started then return nil, startError end
+    local worker,startError=require('mesh_simplify_pipeline').start(meshD,progressState.mode,
+        numericRatio,targetSubset,targetFrame,preserveDetails,boundaryCollapseThreshold,
+        progressState.planarAngle,progressState.planarTolerance,nil,progressState.cgalHasNormals)
+    if not worker then return nil,startError end
     progressState.activeMesh = worker
     coroutine.yield()
     while true do
@@ -6096,7 +6090,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
         return false
     end
-    if simplifyState.mode=='cgal' then
+    if simplifyState.mode=='cgal' or simplifyState.mode=='cgal_qem' then
         simplifyState.cgalHasNormals=meshDebug:getInfo(pendingBackup.path).hasNormal==true
     end
     local targets = {'frame'}
@@ -6141,7 +6135,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
                 aggregateReport = splitCaptureCopyTable(report)
             else
                 aggregateReport.unchanged = aggregateReport.unchanged and report.unchanged
-                if report.backend=='cgal' then
+                if report.cgal then
                     aggregateReport.cgal.regions=aggregateReport.cgal.regions+report.cgal.regions
                     aggregateReport.cgal.sampled_error_fraction=math.max(aggregateReport.cgal.sampled_error_fraction,report.cgal.sampled_error_fraction)
                 end
@@ -7249,7 +7243,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tImGui.SetNextItemWidth(240)
     local mode=require('mesh_simplify_modes').select(simplifyState.mode,'mesh-debug-'..index)
     if mode~=simplifyState.mode then simplifyState.mode=mode;simplifyState.report=nil end
-    if mode=='cgal' then
+    if mode=='cgal' or mode=='cgal_qem' then
         local tolerance,angle=require('mesh_simplify_modes').cgalSettings(
             simplifyState.planarTolerance,simplifyState.planarAngle,'mesh-debug-'..index)
         if tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle then

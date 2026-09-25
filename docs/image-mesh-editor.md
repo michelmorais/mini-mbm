@@ -622,7 +622,7 @@ comparison. Export generates only the selected result, without the reference.
 
 ## Simplification and comparison
 
-General Method offers **QEM** (default) and **Coplanar (CGAL external)**.
+General Method offers **QEM** (default), **Coplanar (CGAL external)** and **CGAL + QEM**.
 Settings are saved per project/default/region and apply to preview, statistics,
 comparison, assembly and export. QEM runs in the engine; coplanar reduction runs
 in the independently configured [mbm-cgal](https://github.com/michelmorais/mbm-cgal)
@@ -634,7 +634,7 @@ The saved fields are `planarAngle` and `planarTolerance` (distance fraction).
 These controls affect CGAL region/corner detection. Its reported surface error
 is sampled, not a certified bound. UV seams and materials are retained; existing
 normals are reconstructed as face normals. The ratio, Preserve Details and
-boundary-collapse controls apply only to QEM. No simplification runs on idle frames.
+boundary-collapse controls apply to QEM, including its stage in the combined mode. No simplification runs on idle frames.
 
 For image/manual/mixed relief, enable **Simplify after generation**. Both editors
 use the chosen backend over the whole generated frame, including its materials.
@@ -782,7 +782,7 @@ Interior-transition smoke tests: `src/test-lib/image_mesh_interior_smoke.lua` an
 General simplification now includes **Coplanar (CGAL external)**. Configure the
 standalone `mbm-cgal-planar` executable under **Options > CGAL executable** and
 click **Save path**. Mesh Debug shares this preference; project files store the
-`cgal` mode and angle/distance, not the machine-specific executable path.
+`cgal` or `cgal_qem` mode and angle/distance, not the machine-specific executable path.
 
 Preview and export run the external tool asynchronously, preserving UV seams and
 materials while reconstructing face normals. Smooth authored normals are not
@@ -791,3 +791,9 @@ engine's 65,535-vertex frame limit. Cancellation or process/import failure retai
 the previous preview. The dedicated curved-relief simplifier is unchanged.
 See [MBM CGAL](https://github.com/michelmorais/mbm-cgal)
 for build instructions, supported geometry, timeouts and report details.
+
+In **CGAL + QEM**, CGAL runs first and QEM reduces its result only if needed
+to meet the ratio of the original triangle count. Both stages form one
+preview/undo operation. QEM may change geometry and UVs beyond CGAL tolerances;
+the CGAL error report describes the intermediate result, not the final QEM
+output. See [combined simplification](mesh-simplification.md#combined-cgal--qem).

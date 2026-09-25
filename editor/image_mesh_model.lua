@@ -94,7 +94,7 @@ end
 function M.validateOptions(options,complete)
     assert(type(options)=='table','ime_invalid_options')
     for k,v in pairs(options) do
-        if k=='simplifyMode' then assert(v=='qem' or v=='cgal','ime_invalid_options')
+        if k=='simplifyMode' then assert(v=='qem' or v=='cgal' or v=='cgal_qem','ime_invalid_options')
         elseif k=='heightSource' then assert(v=='image' or v=='manual' or v=='mixed' or v=='curved','ime_invalid_options')
         elseif k=='heightChannel' then assert(v=='luminance' or v=='red' or v=='green' or v=='blue' or v=='alpha','ime_invalid_options')
         elseif k=='sideMode' then assert(v=='edge' or v=='color' or v=='repeat' or v=='band','ime_invalid_options')

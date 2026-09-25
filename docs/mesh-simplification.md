@@ -1,7 +1,7 @@
 # Mesh Simplification
 
 Mesh Debug and Image Mesh Editor offer native **QEM** reduction and optional
-**Coplanar (CGAL external)** reduction. Blender import decimation and the Image
+**Coplanar (CGAL external)** reduction, plus sequential **CGAL + QEM**. Blender import decimation and the Image
 Mesh curved-relief simplifier are separate workflows.
 
 ## Native QEM API
@@ -141,7 +141,7 @@ changes, removal and Clear All release the cache.
 
 ## Image Mesh Editor
 
-General simplification offers QEM and CGAL. Settings persist with project/default/
+General simplification offers QEM, CGAL and CGAL + QEM. Settings persist with project/default/
 region options and apply to preview, comparison, statistics and export. The external
 executable path is a machine preference, not part of the `.imesh` project.
 
@@ -170,3 +170,20 @@ independently built executable and `MBM_CGAL_CONFIG` to a temporary preference p
 `image_mesh_cgal_editor_smoke.lua` additionally uses `MBM_CGAL_PROJECT` for the
 measured authored fixture, checking preview/export and idle cache reuse.
 Standalone geometry/UV/protocol tests run in the mbm-cgal repository.
+
+## Combined CGAL + QEM
+
+Both editors offer **CGAL + QEM** (`cgal_qem`). The external CGAL pass runs
+first. If its result exceeds the target triangle count, native QEM processes
+that result. The ratio refers to the original selected geometry, not the
+intermediate CGAL mesh; QEM is skipped when CGAL already meets the target.
+Native topology and boundary constraints can prevent reaching the target.
+Angle and distance control CGAL; ratio, preserve-details and boundary controls
+apply to QEM. Selected subsets retain independent targets.
+
+Both stages use a disposable working mesh, with one final application and one
+undo operation. Cancellation or failure discards the working result. CGAL UV
+preservation applies to its intermediate output: QEM may further change UVs
+and geometry. CGAL sampled error describes the first stage; native QEM quality
+metrics describe changes from that intermediate mesh, not total pipeline error.
+No extra processing runs while the editor is idle.

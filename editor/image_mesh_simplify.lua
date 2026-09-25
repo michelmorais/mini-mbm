@@ -40,16 +40,10 @@ function M.run(E,fn,...)
 end
 function M.apply(E,asset,options,report)
     if not options.simplify then return end
-    local worker=asset
-    local started,err
-    if options.simplifyMode=='cgal' then
-        worker,err=require('mesh_cgal').start(asset,nil,1,options.planarAngle,options.planarTolerance,options.maxVertices,true)
-        started=worker~=nil
-    else
-        started,err=asset:startSimplify(options.simplifyRatio,nil,1,
-        options.simplifyDetails,options.simplifyBoundary)
-    end
-    if not started then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
+    local worker,err=require('mesh_simplify_pipeline').start(asset,options.simplifyMode,
+        options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,
+        options.planarAngle,options.planarTolerance,options.maxVertices,true)
+    if not worker then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
     E.simplifyAsset=worker;E.simplifyCancelRequested=nil;E.simplifyProgress=0
     coroutine.yield()
     while true do
