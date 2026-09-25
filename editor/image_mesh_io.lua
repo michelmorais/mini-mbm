@@ -65,7 +65,26 @@ function M.load(path)
     local data=f:read(4*1024*1024+1); f:close()
     assert(data and #data<=4*1024*1024,'ime_project_too_large')
     local fn,loadError=load(data,'@'..path,'t',{}); assert(fn,loadError)
-    local loaded=fn(); Model.validate(loaded)
+    local loaded=fn()
+    -- Normalize saved editor settings before validating the current schema.
+    -- This is data migration only; no retired algorithm is available at runtime.
+    local function migrate(options)
+        if type(options)~='table' then return end
+        if options.simplifyMode=='coplanar' or options.simplifyMode=='coplanar_qem' then options.simplifyMode='cgal' end
+        if options.curvedSimplifyMode=='coplanar' then options.curvedSimplify=false end
+        options.curvedSimplifyMode=nil
+        options.planarReduceBoundaries=nil
+    end
+    if type(loaded)=='table' then
+        migrate(loaded.defaults)
+        if type(loaded.regions)=='table' then for _,region in pairs(loaded.regions) do
+            if type(region)=='table' then migrate(region.overrides) end
+        end end
+        if type(loaded.presets)=='table' then for _,preset in pairs(loaded.presets) do
+            if type(preset)=='table' then migrate(preset.settings) end
+        end end
+    end
+    Model.validate(loaded)
     -- Retain only the versioned data schema, never arbitrary extra tables from a file.
     local project=Model.new(M.resolve(loaded.image.path,path),loaded.image.width,loaded.image.height)
     if loaded.presets then

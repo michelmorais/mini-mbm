@@ -39,6 +39,7 @@ tMeshExport   =     require "mesh_debug_export_helper"
 tMeshNormals  =     require "mesh_debug_normals"
 tMeshNormals.preview = require "mesh_debug_normal_preview"
 local Simplification = require "mesh_debug_simplification"
+local CaptureVolume = require "mesh_debug_capture_volume"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -5719,15 +5720,23 @@ function splitCaptureBuildBox(t, previewName)
             table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z)
         end
     end
+    local curvedLines
+    if t.volumeType and t.volumeType ~= 'cube' then
+        verts, curvedLines = CaptureVolume.geometry(t.volumeType, hw, hh, hd)
+    end
     local name = previewName or ('mesh_debug_split_capture_' .. tostring(os.clock()))
     t.tShape = shape:new('3d', t.x, t.y, t.z)
-    t.tShape:create(verts, nil, name)
+    t.tShape:create(CaptureVolume.doubleSided(verts), nil, name)
     t.tShape:setColor(1, 0.65, 0.05, 0.12)
     t.tShape.alwaysOnTop = true
     -- drawBounding() generates local coordinates, so the outline must share
     -- the capture volume's world-space center.
     t.tLine = line:new('3d', t.x, t.y, t.z)
-    t.tLine:drawBounding(t.tShape, false)
+    if curvedLines then
+        for _, points in ipairs(curvedLines) do t.tLine:add(points) end
+    else
+        t.tLine:drawBounding(t.tShape, false)
+    end
     t.tLine:setColor(1, 0.75, 0.1)
 
     if previewName then
@@ -5737,6 +5746,15 @@ function splitCaptureBuildBox(t, previewName)
         t.tLine.alwaysOnTop = true
         splitCaptureMoveBox(t)
         return
+    end
+
+    if curvedLines then
+        -- A slightly expanded auxiliary box gives curved volumes the same axis
+        -- cues as the cube, with faces outside the actual capture surface.
+        -- Only guide vertices change; the volume geometry and AABB stay exact.
+        for _, corner in ipairs(corners) do
+            corner.x, corner.y, corner.z = corner.x * 1.08, corner.y * 1.08, corner.z * 1.08
+        end
     end
 
     -- Hover overlays are built together with the capture box, then only their
@@ -5786,7 +5804,7 @@ function splitCaptureBuildBox(t, previewName)
             end
         end
         local faceShape = shape:new('3d', t.x, t.y, t.z)
-        faceShape:create(faceVertices, nil, name .. '_hover_face_' .. axis)
+        faceShape:create(CaptureVolume.doubleSided(faceVertices), nil, name .. '_hover_face_' .. axis)
         faceShape:setColor(axisColors[axis][1], axisColors[axis][2], axisColors[axis][3], 0.32)
         faceShape.alwaysOnTop = true
         faceShape.visible = false
@@ -6025,13 +6043,14 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
                        progressState, completedJobs, totalJobs)
     local numericRatio = tonumber(ratio)
     if not numericRatio then return nil, tLang.L('simplify_invalid_ratio') end
-    local started, startError = meshD:startSimplify(numericRatio, targetSubset,
-        targetFrame, preserveDetails, boundaryCollapseThreshold, progressState.mode or 'qem', progressState.planarTolerance, progressState.planarAngle, progressState.planarReduceBoundaries)
-    if not started then return nil, startError end
-    progressState.activeMesh = meshD
+    local worker,startError=require('mesh_simplify_pipeline').start(meshD,progressState.mode,
+        numericRatio,targetSubset,targetFrame,preserveDetails,boundaryCollapseThreshold,
+        progressState.planarAngle,progressState.planarTolerance,nil,progressState.cgalHasNormals)
+    if not worker then return nil,startError end
+    progressState.activeMesh = worker
     coroutine.yield()
     while true do
-        local status = meshD:getSimplifyStatus()
+        local status = worker:getSimplifyStatus()
         if status.state ~= 'running' then
             progressState.activeMesh = nil
             if progressState.cancelRequested or status.state == 'cancelled' then
@@ -6070,6 +6089,9 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         os.remove(pendingBackup.path)
         tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
         return false
+    end
+    if simplifyState.mode=='cgal' or simplifyState.mode=='cgal_qem' then
+        simplifyState.cgalHasNormals=meshDebug:getInfo(pendingBackup.path).hasNormal==true
     end
     local targets = {'frame'}
     if simplifyState.scope == 'subsets' then
@@ -6113,15 +6135,11 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
                 aggregateReport = splitCaptureCopyTable(report)
             else
                 aggregateReport.unchanged = aggregateReport.unchanged and report.unchanged
-                aggregateReport.qemRan = aggregateReport.qemRan or report.qemRan
-                aggregateReport.planarSkipped = aggregateReport.planarSkipped or report.planarSkipped
-                aggregateReport.planarBoundaryFallback = aggregateReport.planarBoundaryFallback or report.planarBoundaryFallback
-                for _,field in ipairs({'planarRegions','planarRejectedRegions','planarRemovedTriangles',
-                    'planarHoles','planarAttributes','planarTopology','planarSurroundings','planarWorkLimit','planarBoundaryRemovedVertices'}) do
-                    aggregateReport[field]=(aggregateReport[field] or 0)+(report[field] or 0)
+                if report.cgal then
+                    aggregateReport.cgal.regions=aggregateReport.cgal.regions+report.cgal.regions
+                    aggregateReport.cgal.sampled_error_fraction=math.max(aggregateReport.cgal.sampled_error_fraction,report.cgal.sampled_error_fraction)
                 end
-                aggregateReport.planarMaximumError=math.max(aggregateReport.planarMaximumError or 0,report.planarMaximumError or 0)
-                aggregateReport.planarMaximumUvError=math.max(aggregateReport.planarMaximumUvError or 0,report.planarMaximumUvError or 0)
+                aggregateReport.qemRan = aggregateReport.qemRan or report.qemRan
                 aggregateReport.resultVertexCount = report.resultVertexCount
                 aggregateReport.resultTriangleCount = report.resultTriangleCount
                 aggregateReport.maximumGeometricError = math.max(
@@ -6209,7 +6227,7 @@ end
 
 function simplifyApply(tEntry, meshD, index)
     local simplifyState = tEntry.tSimplifyState
-    if simplifyState.running then return false end
+    if simplifyState.running or simplifyState.mode=='none' then return false end
     simplifyState.running = true
     simplifyState.cancelRequested = nil
     simplifyState.progress = 0
@@ -6444,6 +6462,7 @@ function splitCaptureGetSubsetSignature(meshD, frame, subset)
 end
 
 function splitCapturePointInside(p, box)
+    if box.volumeType and box.volumeType ~= "cube" then return CaptureVolume.contains(p, box) end
     return p.x >= box.aabbMin.x and p.x <= box.aabbMax.x and
            p.y >= box.aabbMin.y and p.y <= box.aabbMax.y and
            p.z >= box.aabbMin.z and p.z <= box.aabbMax.z
@@ -6452,6 +6471,7 @@ end
 -- Complete triangle/AABB overlap test (box axes, triangle normal, and the nine edge-cross-axis
 -- separating axes). It selects whole source triangles; it does not clip or invent vertices.
 function splitCaptureTriangleIntersectsBox(a, b, c, box)
+    if box.volumeType and box.volumeType ~= "cube" then return CaptureVolume.intersects(a, b, c, box) end
     local cx = (box.aabbMin.x + box.aabbMax.x) * 0.5
     local cy = (box.aabbMin.y + box.aabbMax.y) * 0.5
     local cz = (box.aabbMin.z + box.aabbMax.z) * 0.5
@@ -6675,7 +6695,10 @@ function splitCaptureResolveAlgorithm(algorithm, filterIslands, threshold)
     return resolved
 end
 
-function destroySplitCaptureIslandMarkers(tEntry)
+function destroySplitCaptureIslandMarkers(tEntry, keepWire)
+    if not keepWire then
+        require("mesh_debug_capture_wireframe").release(tEntry)
+    end
     for _, marker in ipairs(tEntry.tSplitCaptureIslandMarkers or {}) do marker:destroy() end
     tEntry.tSplitCaptureIslandMarkers = nil
     for _, box in ipairs(tEntry.tSplitCaptureIslandBoxes or {}) do splitCaptureDestroy(box) end
@@ -6687,13 +6710,13 @@ function updateSplitCaptureIslandMarkers(tEntry, index, analysis, resolved)
     local showBoxes = analysis.autoCapture and analysis.showIslandBoxes == true
     local showCenters = analysis.showIslandCenters == true
     if not (analysis.filterIslands or analysis.autoCapture) or not (showCenters or showBoxes) then
-        destroySplitCaptureIslandMarkers(tEntry)
+        destroySplitCaptureIslandMarkers(tEntry, true)
         return
     end
     local markerKey = tostring(analysis.resolvedCacheKey) .. ':' .. tostring(analysis.selected) ..
         ':' .. tostring(showCenters) .. ':' .. tostring(showBoxes)
     if tEntry.sSplitCaptureIslandMarkerKey == markerKey and tEntry.tSplitCaptureIslandMarkers then return end
-    destroySplitCaptureIslandMarkers(tEntry)
+    destroySplitCaptureIslandMarkers(tEntry, true)
     tEntry.tSplitCaptureIslandMarkers = {}
     tEntry.tSplitCaptureIslandBoxes = {}
     tEntry.iSplitCaptureIslandMarkerGeneration = (tEntry.iSplitCaptureIslandMarkerGeneration or 0) + 1
@@ -6926,6 +6949,7 @@ function showSplitCaptureAnalysis(tEntry, meshD, index, sp)
     end
     local selected = resolvedResults[analysis.selected]
     updateSplitCaptureIslandMarkers(tEntry, index, analysis, selected)
+    require("mesh_debug_capture_wireframe").update(tEntry, selected)
     if analysis.autoCapture then
         tImGui.Text(string.format(tLang.L('capture_auto_subsets_fmt'), selected.subsets))
     end
@@ -7040,6 +7064,19 @@ function showSplitCapture(tEntry, meshD, index)
     if not sp then return end
     tImGui.Separator()
     tImGui.Text('Split')
+    tImGui.SameLine()
+    local volumeTypes = {'cube', 'sphere', 'cylinder'}
+    local currentType = sp.volumeType == 'sphere' and 2 or (sp.volumeType == 'cylinder' and 3 or 1)
+    tImGui.PushItemWidth(160)
+    local typeChanged, typeIndex = tImGui.Combo('##splitVolume-' .. index, currentType,
+        {tLang.L('capture_volume_cube'), tLang.L('capture_volume_sphere'), tLang.L('capture_volume_cylinder')})
+    tImGui.PopItemWidth()
+    if typeChanged then
+        sp.volumeType = volumeTypes[typeIndex]
+        destroySplitCaptureIslandMarkers(tEntry)
+        sp.analysis = nil
+        if sp.active then splitCaptureBuildBox(sp) end
+    end
     local oldActive = sp.active == true
     local newActive = tImGui.Checkbox('Start Capture##splitCapture-' .. index, oldActive)
     sp.active = newActive
@@ -7203,17 +7240,6 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     tImGui.Text(tLang.L('simplify_geometry'))
     tImGui.BeginDisabled(simplifyState.running == true)
 
-    tImGui.SetNextItemWidth(240)
-    local mode=require('mesh_simplify_modes').select(simplifyState.mode,false,'mesh-debug-'..index)
-    if mode~=simplifyState.mode then simplifyState.mode=mode;simplifyState.report=nil end
-    if mode~='qem' then
-        local tolerance,angle,reduceBoundaries=require('mesh_simplify_modes').planarSettings(
-            simplifyState.planarTolerance,simplifyState.planarAngle,'mesh-debug-'..index,simplifyState.planarReduceBoundaries,true)
-        if tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle or reduceBoundaries~=simplifyState.planarReduceBoundaries then
-            simplifyState.planarTolerance=tolerance;simplifyState.planarAngle=angle;simplifyState.planarReduceBoundaries=reduceBoundaries;simplifyState.report=nil
-        end
-        tImGui.TextWrapped(tLang.L('simplify_planar_help'))
-    end
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
     scopeIndex = tImGui.RadioButton(
         tLang.L('simplify_scope_frame') .. '##simplifyFrame-' .. index, scopeIndex, 1)
@@ -7292,23 +7318,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
                 end
             end
         end
-        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames or simplifyState.mode ~= 'qem')
-        local virtualFrame = tImGui.Checkbox(
-            tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
-            simplifyState.virtualFrame == true)
-        if virtualFrame ~= simplifyState.virtualFrame then
-            simplifyState.virtualFrame = virtualFrame
-            simplifyState.report = nil
-        end
-        tImGui.EndDisabled()
-        if tImGui.IsItemHovered(0) then
-            tImGui.BeginTooltip()
-            tImGui.PushTextWrapPos(420)
-            tImGui.Text(tLang.L('simplify_virtual_frame_tooltip'))
-            tImGui.PopTextWrapPos()
-            tImGui.EndTooltip()
-        end
-        if simplifyState.virtualFrame and selectedCount >= 2 then
+        if simplifyState.mode=='qem' and simplifyState.virtualFrame and selectedCount >= 2 then
             estimatedTriangles = math.max(selectedCount,
                 math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
         end
@@ -7326,7 +7336,33 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             math.floor(sourceTriangles * (simplifyState.ratio or 0.9)))
     end
 
-    tImGui.BeginDisabled(simplifyState.mode=='coplanar')
+    local modes=require('mesh_simplify_modes')
+    local mode,tolerance,angle=modes.cgalBlock(simplifyState.mode,
+        simplifyState.planarTolerance,simplifyState.planarAngle,'mesh-debug-'..index)
+    mode=modes.qemCheckbox(mode,'mesh-debug-'..index)
+    if mode~=simplifyState.mode or tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle then
+        simplifyState.mode=mode;simplifyState.planarTolerance=tolerance
+        simplifyState.planarAngle=angle;simplifyState.report=nil
+    end
+    if simplifyState.scope=='subsets' then
+        tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames or simplifyState.mode ~= 'qem')
+        local virtualFrame = tImGui.Checkbox(
+            tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
+            simplifyState.virtualFrame == true)
+        if virtualFrame ~= simplifyState.virtualFrame then
+            simplifyState.virtualFrame = virtualFrame
+            simplifyState.report = nil
+        end
+        tImGui.EndDisabled()
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(420)
+            tImGui.Text(tLang.L('simplify_virtual_frame_tooltip'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
+    end
+    tImGui.BeginDisabled(not modes.enabled(simplifyState.mode,'qem'))
     tImGui.PushItemWidth(180)
     local ratioChanged, ratio = tImGui.DragFloat(
         tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
@@ -7336,7 +7372,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         simplifyState.ratio = ratio
         simplifyState.report = nil
         if simplifyState.scope == 'subsets' then
-            if simplifyState.virtualFrame and selectedCount >= 2 then
+            if simplifyState.mode=='qem' and simplifyState.virtualFrame and selectedCount >= 2 then
                 estimatedTriangles = math.max(selectedCount, math.floor(sourceTriangles * ratio))
             else
                 estimatedTriangles = 0
@@ -7366,6 +7402,8 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             estimatedVertices, maximumSafeRatio * 100))
     end
     tImGui.TextWrapped(tLang.L('simplify_quality_notice'))
+    tImGui.EndDisabled()
+    tImGui.BeginDisabled(not modes.enabled(simplifyState.mode,'qem'))
     local preserveDetails = tImGui.Checkbox(
         tLang.L('simplify_preserve_details') .. '##simplifyPreserveDetails-' .. index,
         simplifyState.preserveDetails)
@@ -7380,6 +7418,8 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tImGui.PopTextWrapPos()
         tImGui.EndTooltip()
     end
+    tImGui.EndDisabled()
+    tImGui.BeginDisabled(not modes.enabled(simplifyState.mode,'qem'))
     tImGui.PushItemWidth(180)
     local boundaryLabelKey = 'simplify_boundary_threshold'
     local boundaryLabel = tLang.L(boundaryLabelKey)
@@ -7416,10 +7456,11 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
         #tEntry.tPendingOps == 0 and hasSelection and not simplifyState.running and
-        not exceedsIndexLimit
+        not exceedsIndexLimit and simplifyState.mode~='none'
     if not canSimplify then
         if not exceedsIndexLimit then
-            local messageKey = #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
+            local messageKey = simplifyState.mode=='none' and 'simplify_select_method'
+                or #tEntry.tPendingOps > 0 and 'simplify_unavailable_pending_ops'
                 or 'simplify_select_at_least_one_subset'
             tImGui.TextDisabled(tLang.L(messageKey))
         end
@@ -11511,6 +11552,7 @@ function main_menu_mesh_debug()
         end
         if tImGui.BeginMenu(tLang.L("menu_options")) then
             tLang.renderLanguageSubmenu()
+            require('mesh_cgal').menu()
             tImGui.Separator()
             local pressedLT, _ = tImGui.MenuItem(tLang.L('list_textures'))
             if pressedLT then
@@ -12711,5 +12753,6 @@ function onKeyUp(key)
 end
 
 function onEndScene()
+    require('mesh_cgal').shutdown()
     tMeshNormals.preview.dispose()
 end

@@ -20,54 +20,32 @@
 
 ]]--
 
--- One engine worker at a time. Callers keep their normal control flow across yields.
-local M={}
-function M.resume(E)
-    local task=E.meshTask
-    if not task then return end
-    local result=table.pack(coroutine.resume(task))
-    if not result[1] or coroutine.status(task)=='dead' then
-        E.meshTask=nil; E.simplifyProgress=nil
-    end
-    if not result[1] then error(result[2],0) end
-    return table.unpack(result,2,result.n)
+local Wire = require 'image_mesh_wireframe'
+local M = {}
+function M.release(entry)
+    if entry.captureWire then Wire.release(entry.captureWire) end
+    entry.captureWire = nil
 end
-function M.run(E,fn,...)
-    if E.meshTask then return false end
-    local args=table.pack(...)
-    E.meshTask=coroutine.create(function() return fn(table.unpack(args,1,args.n)) end)
-    return M.resume(E)
-end
-function M.apply(E,asset,options,report)
-    if not options.simplify or options.simplifyMode=='none' then return end
-    local worker,err=require('mesh_simplify_pipeline').start(asset,options.simplifyMode,
-        options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,
-        options.planarAngle,options.planarTolerance,options.maxVertices,true)
-    if not worker then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
-    E.simplifyAsset=worker;E.simplifyCancelRequested=nil;E.simplifyProgress=0
-    coroutine.yield()
-    while true do
-        local status=worker:getSimplifyStatus()
-        if status.state~='running' then
-            local cancelled=E.simplifyCancelRequested or status.state=='cancelled'
-            E.simplifyAsset=nil;E.simplifyCancelRequested=nil;E.simplifyProgress=nil
-            if cancelled then
-                E.generationCancelled=true;E.batch=nil;E.statisticsRequested=nil
-                error('ime_generation_cancelled',0)
-            end
+function M.update(entry, resolved)
+    if entry.captureWire and entry.captureWire.resolved == resolved then return end
+    M.release(entry)
+    local groups = resolved.groups
+    local adapter = {}
+    function adapter:getTotalSubset() return #groups end
+    function adapter:getTotalVertex(_,s) return #groups[s].vertices end
+    function adapter:getVertex(_,s) return groups[s].vertices end
+    function adapter:getIndex(_,s)
+        local indices = {}
+        for _,tri in ipairs(groups[s].triangles) do
+            for _,v in ipairs(tri) do indices[#indices+1]=v end
         end
-        if status.state=='running' then E.simplifyProgress=status.progress or 0 end
-        if status.state=='failed' then
-            error(string.format(tLang.L('simplify_failed_fmt'),tostring(status.error)),0)
-        end
-        if status.state=='completed' then
-            report.simplification=status.report
-            report.sourceTriangles=report.triangles; report.sourceVertices=report.vertices
-            report.triangles=status.report.resultTriangleCount
-            report.vertices=status.report.resultVertexCount
-            return
-        end
-        coroutine.yield()
+        return indices
     end
+    local view = {preview=true, resolved=resolved}
+    entry.captureWire = view
+    Wire.ensure(view, adapter)
+    view.wireObject:setPos(0,0,0)
+    view.wireObject.alwaysOnTop = true
+    view.wireObject.visible = true
 end
 return M

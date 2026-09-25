@@ -1,7 +1,19 @@
 # Mesh Debug automatic capture
 
-In **Frame -> Split**, manual capture still uses **Start Capture** to position a box. Unchecking
-it displays **Capture Results** immediately below that control, before the automatic-capture block.
+In **Frame -> Split**, manual capture uses the fixed-width (160 px) selector after **Split** to choose
+**Cube** (default), **Sphere (globe)** or **Cylinder (Z)**. **Start Capture** displays
+a yellow translucent volume. **Center** positions it and **Size** specifies its full X/Y/Z
+dimensions. Unequal dimensions produce an ellipsoid or an elliptical cylinder; cylinder caps
+lie in XY and its depth runs along Z. Unchecking **Start Capture** displays **Capture Results** immediately below that control, before the automatic-capture block.
+
+The four manual algorithms select whole source triangles by face center, all vertices, any
+vertex, or intersection with the chosen volume. Intersection also detects faces crossing the
+volume with no vertex inside. Capture does not cut triangles along the volume boundary.
+
+Selecting an algorithm displays its accepted triangles as a cyan wireframe with `alwaysOnTop`,
+including faces hidden behind the source mesh. The wireframe includes the captured groups across
+analyzed frames and follows the island filter. It is cached by resolved result and is released
+on apply, cancel, restarting capture, changing volume type, or leaving the Frame node/mesh.
 
 **Auto capture** detects connected triangle groups throughout the checked frames/subsets without
 using the box. It skips groups already captured in the current editor session. Each accepted island
@@ -70,6 +82,11 @@ The fixture and its textures are external to the repository. From the repository
 
 ```sh
 bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/mesh_debug_islands_test.lua
+bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/mesh_debug_capture_volume_test.lua
+
+timeout -s KILL 20 bin/debug/linux_x86/mini-mbm \
+  --scene src/test-lib/mesh_debug_capture_volume_smoke.lua \
+  --disable_select_monitor --nosplash -w 850 -h 550
 
 timeout -s KILL 20 bin/debug/linux_x86/mini-mbm \
   --scene src/test-lib/mesh_debug_auto_capture_smoke.lua \
