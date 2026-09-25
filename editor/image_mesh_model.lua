@@ -26,7 +26,7 @@ local M={curved=CurvedModel}
 M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=24,rows=24,
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
 M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTransition=0.1,heightTolerance=0.03,smoothPasses=0}
-M.simplifyDefaults={simplify=false,simplifyMode='qem',planarTolerance=1e-7,planarAngle=.05,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
+M.simplifyDefaults={simplify=false,simplifyMode='qem',planarTolerance=.05,planarAngle=10,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
 M.backDefaults={backExternal=false,backTexture='',backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
 M.sideDefaults={sideMode='edge',sideBandPerpendicular=false,sideBandInvert=false,sideInset=1,sideRepeatU=1,sideRepeatV=1,sideColor=0x808080,sideTexture=''}
 M.heightDefaults={heightFinishing=true,curvedPainting=false,curvedInterior=false,curvedFaceted=false,curvedFacetSectors=8,curvedFacetRings=1,curvedSimplify=false,curvedSimplifyRatio=.5,curvedSimplifyError=.01,curvedX=.5,curvedY=.5,curvedRadius=0,curvedEdge=1,curvedTarget=8,curvedSymmetric=true,heightSource='image',baseHeight=0.5,heightChannel='luminance',heightImage='',heightImageToRegion=false,heightBlack=0,heightWhite=1,heightCurve=1}

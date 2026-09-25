@@ -59,8 +59,8 @@ function M.tooltip(text)
     tImGui.EndTooltip()
 end
 function M.cgalSettings(tolerance,angle,id)
-    tolerance=tolerance or 1e-7
-    angle=angle or .05
+    tolerance=tolerance or .05
+    angle=angle or 10
     local flags=tImGui.Flags('ImGuiSliderFlags_AlwaysClamp')
     tImGui.SetNextItemWidth(240)
     local changed,result=tImGui.DragFloat(tLang.L('cgal_angle')..'##'..id,

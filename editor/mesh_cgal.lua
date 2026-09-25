@@ -159,7 +159,7 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
         job.files={input,input:sub(1,-5)..'.mtl',job.output,job.reportPath}
         Obj.export(asset,input,subset)
         job.process=assert(mbm.executeProcessAsync({executable=path,arguments={input,job.output,
-            tostring(angle or .05),tostring(distance or 1e-7),'0.000001',job.reportPath},hidden=true}))
+            tostring(angle or 10),tostring(distance or .05),'0.000001',job.reportPath},hidden=true}))
     end)
     if not ok then cleanup(job);return nil,err end
     -- Face-normal splits are rendering attributes, not open boundaries for QEM.

@@ -81,8 +81,8 @@ inside `APPDATA` (Windows), otherwise `HOME`. It is read once per editor session
 restart an already open second editor after changing it elsewhere.
 `MBM_CGAL_CONFIG` overrides the preference file for isolated tests.
 
-Enable the **CGAL** checkbox. Angle is 0..60 degrees (default 0.05); distance
-is 0..10% of the exported input diagonal (default 0.00001%). These control CGAL
+Enable the **CGAL** checkbox. Angle is 0..60 degrees (default 10); distance
+is 0..10% of the exported input diagonal (default 5%). These control CGAL
 region/corner detection. UV tolerance is fixed at `1e-6`. Ratios, Preserve Details
 and QEM boundary-collapse thresholds do not apply to this backend.
 

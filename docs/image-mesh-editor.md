@@ -631,8 +631,8 @@ comparison, assembly and export. QEM runs in the engine; coplanar reduction runs
 in the independently configured [mbm-cgal](https://github.com/michelmorais/mbm-cgal)
 executable. No CGAL library is linked into the engine.
 
-CGAL exposes **Coplanar angle** (0..60 degrees, default 0.05) and independent
-**Plane distance** (0..10% of the whole exported input diagonal, default 0.00001%).
+CGAL exposes **Coplanar angle** (0..60 degrees, default 10) and independent
+**Plane distance** (0..10% of the whole exported input diagonal, default 5%).
 The saved fields are `planarAngle` and `planarTolerance` (distance fraction).
 These controls affect CGAL region/corner detection. Its reported surface error
 is sampled, not a certified bound. UV seams and materials are retained; existing
