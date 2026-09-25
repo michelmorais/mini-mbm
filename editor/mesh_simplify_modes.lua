@@ -36,6 +36,7 @@ function M.setEnabled(mode,method,enabled)
 end
 function M.cgalBlock(mode,tolerance,angle,id)
     local enabled=tImGui.Checkbox('CGAL##cgal-'..id,M.enabled(mode,'cgal'))
+    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_method_tooltip')) end
     mode=M.setEnabled(mode,'cgal',enabled)
     tImGui.BeginDisabled(not enabled)
     tolerance,angle=M.cgalSettings(tolerance,angle,id)
@@ -47,6 +48,7 @@ end
 function M.qemCheckbox(mode,id)
     tImGui.Separator()
     local enabled=tImGui.Checkbox('QEM##qem-'..id,M.enabled(mode,'qem'))
+    if tImGui.IsItemHovered() then M.tooltip(tLang.L('qem_method_tooltip')) end
     mode=M.setEnabled(mode,'qem',enabled)
     if mode=='cgal_qem' then tImGui.TextWrapped(tLang.L('cgal_qem_help')) end
     return mode
