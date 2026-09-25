@@ -30,8 +30,14 @@ local function triangles(asset,subset,frame)
     end
     return count
 end
-function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,maxVertices,normals)
+function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,maxVertices,normals,remeshSettings)
     if mode=='none' then return nil,'No simplification method selected' end
+    if mode=='remesh' then
+        return require('mesh_cgal').startRemesh(asset,subset,frame,
+            remeshSettings and remeshSettings.edgeLengthFraction or .03,
+            remeshSettings and remeshSettings.iterations or 3,
+            remeshSettings and remeshSettings.featureAngle or 45,maxVertices,normals)
+    end
     if mode~='cgal' and mode~='cgal_qem' then
         local ok,err=asset:startSimplify(ratio,subset,frame,details,boundary)
         if not ok then return nil,err end

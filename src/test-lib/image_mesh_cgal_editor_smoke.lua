@@ -81,6 +81,29 @@ local function test()
  local options=Model.options(disabled,disabled.regions[1])
  assert(not options.simplify and options.simplifyMode=='none')
  assert(options.planarAngle==5 and options.simplifyRatio==.046,'disabled methods lost parameters')
+ local remeshExecutable=os.getenv('MBM_CGAL_REMESH_EXECUTABLE')
+ if remeshExecutable and remeshExecutable~='' then
+  assert(Cgal.setRemeshPath(remeshExecutable,false))
+  E.values.simplify=false;E.values.simplifyMode='none';E.values.remesh=true
+  E.values.remeshEdgeLengthFraction=.05;E.values.remeshIterations=2;E.values.remeshFeatureAngle=45
+  assert(api.applyProperties());api.rebuild();await()
+  assert(E.status:find('self-intersections',1,true),'unsafe result was not rejected: '..tostring(E.status))
+  -- Keep all source edges on this detailed relief to avoid smoothing across thin features.
+  E.values.remeshFeatureAngle=0
+  assert(api.applyProperties());api.rebuild();await()
+  assert(E.report and E.report.remesh,E.status)
+  assert(E.report.remesh.source_triangles==12570 and E.report.remesh.result_triangles>0)
+  assert(E.report.triangles==E.report.remesh.result_triangles)
+ end
+ if os.getenv('MBM_CGAL_AUDIT_EXECUTABLE') then
+  local AuditUI=require 'mesh_audit_ui'
+  E.audit=E.audit or {}
+  local path,builds=E.previewPath,E.builds
+  assert(AuditUI.start(E.audit,path))
+  while E.audit.job do coroutine.yield() end
+  assert(E.audit.status.report and E.audit.status.report.triangles==E.report.triangles,E.audit.status.error)
+  assert(E.previewPath==path and E.builds==builds,'audit rebuilt image mesh')
+ end
  print('IMAGE CGAL EDITOR SMOKE OK: individual/combined/disabled/persistence')
 end
 function onInitScene() init();started=mbm.getTimeRun();task=coroutine.create(test) end

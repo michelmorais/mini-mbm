@@ -25,6 +25,32 @@ local M={}
 function M.enabled(mode,method)
     return mode=='cgal_qem' or (mode or 'qem')==method
 end
+function M.remeshCheckbox(mode,id)
+    local enabled=tImGui.Checkbox(tLang.L('cgal_remesh_method')..'##remesh-'..id,mode=='remesh')
+    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_remesh_method_tooltip')) end
+    if enabled~=(mode=='remesh') then mode=enabled and 'remesh' or 'none' end
+    return mode
+end
+function M.remeshSettings(edgeLengthFraction,iterations,featureAngle,id)
+    local originalEdge,originalIterations,originalAngle=edgeLengthFraction,iterations,featureAngle
+    tImGui.SetNextItemWidth(240)
+    local changed,value=tImGui.SliderFloat(tLang.L('cgal_remesh_edge_length')..'##remesh-edge-'..id,
+        edgeLengthFraction,.002,.25,'%.3f')
+    if changed then edgeLengthFraction=math.max(.002,math.min(.25,value)) end
+    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_remesh_edge_length_tooltip')) end
+    tImGui.SetNextItemWidth(240)
+    changed,value=tImGui.SliderInt(tLang.L('cgal_remesh_iterations')..'##remesh-iterations-'..id,
+        iterations,1,10)
+    if changed then iterations=math.max(1,math.min(10,value)) end
+    tImGui.SetNextItemWidth(240)
+    changed,value=tImGui.SliderFloat(tLang.L('cgal_remesh_feature_angle')..'##remesh-feature-'..id,
+        featureAngle,0,180,'%.1f deg')
+    if changed then featureAngle=math.max(0,math.min(180,value)) end
+    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_remesh_feature_angle_tooltip')) end
+    tImGui.TextWrapped(tLang.L('cgal_remesh_help'))
+    return edgeLengthFraction,iterations,featureAngle,
+        edgeLengthFraction~=originalEdge or iterations~=originalIterations or featureAngle~=originalAngle
+end
 function M.setEnabled(mode,method,enabled)
     local cgal=M.enabled(mode,'cgal')
     local qem=M.enabled(mode,'qem')
@@ -78,6 +104,11 @@ function M.cgalSettings(tolerance,angle,id)
 end
 function M.report(report)
     if not report then return end
+    if report.remesh then
+        tImGui.TextWrapped(string.format(tLang.L('cgal_remesh_report'),
+            report.remesh.source_triangles,report.remesh.result_triangles,
+            report.remesh.sampled_error_fraction*100))
+    end
     if report.cgal then
         tImGui.TextWrapped(string.format(tLang.L('cgal_report'),report.cgal.regions,report.cgal.sampled_error_fraction*100))
     end

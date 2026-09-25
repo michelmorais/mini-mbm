@@ -666,6 +666,18 @@ export of the cancelled result. In a batch, remaining modules stop while complet
 exports remain. Retry explicitly by applying settings or returning from edit mode
 to 3D. See [Mesh Simplification](mesh-simplification.md) for the shared algorithm.
 
+## Isotropic Remesh
+
+**Remesh Geometry** is a separate optional stage, not another simplification
+method. It can run after QEM/CGAL simplification or by itself, including on
+curved image-mesh output. Configure `mbm-cgal-remesh` under **Options > CGAL
+executable**. Its edge-length target is relative to the generated mesh diagonal;
+the number of triangles can increase, and exceeding the configured geometry
+budget fails the generation rather than silently dropping the remesh result.
+Material/UV charts and detected sharp edges are constrained; shading normals are
+reconstructed and authored physics shapes are retained. This offline worker handles only static generated geometry and
+does not perform semantic retopology, create quad flow or bake textures.
+
 ## Assembly preview
 
 In 3D, enable **Show assembled modules** in the assembly controls. This replaces
@@ -800,3 +812,10 @@ to meet the ratio of the original triangle count. Both stages form one
 preview/undo operation. QEM may change geometry and UVs beyond CGAL tolerances;
 the CGAL error report describes the intermediate result, not the final QEM
 output. See [combined simplification](mesh-simplification.md#combined-cgal--qem).
+
+## Read-only Mesh Audit
+
+The **Analyze mesh / Analisar malha** panel reports a stored-frame-1 snapshot
+without changing geometry. Configure `mbm-cgal-audit` in the CGAL options;
+analysis is explicit and supports cancellation and JSON export. See
+[Mesh Audit](mesh-audit.md) for the public Lua API and diagnostic limitations.

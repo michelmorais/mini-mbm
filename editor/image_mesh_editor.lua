@@ -756,6 +756,24 @@ local function propertiesPanel()
                 Comparison.panel(E,setComparison,setWireframe,dpCall)
             end
         end
+        if tImGui.CollapsingHeader(L('cgal_remesh_title')) then
+            E.values.remesh=tImGui.Checkbox(L('cgal_remesh_enable'),E.values.remesh==true)
+            if E.values.remesh then
+                local modes=require('mesh_simplify_modes')
+                local changed
+                E.values.remeshEdgeLengthFraction,E.values.remeshIterations,E.values.remeshFeatureAngle,changed=
+                    modes.remeshSettings(E.values.remeshEdgeLengthFraction,E.values.remeshIterations,
+                        E.values.remeshFeatureAngle,'image-mesh')
+                if changed and E.report then E.report.remesh=nil end
+                if require('mesh_cgal').getRemeshPath()=='' then tImGui.TextWrapped(L('cgal_remesh_missing')) end
+            end
+            if E.report and E.report.remesh and not E.editDefaults then
+                local result=E.report.remesh
+                tImGui.TextWrapped(string.format(L('cgal_remesh_report'),
+                    result.source_triangles,result.result_triangles,
+                    (result.maximum_relative_error or 0)*100))
+            end
+        end
         if tImGui.Button(L(E.editDefaults and 'apply_defaults' or 'apply')) then applyProperties() end
         if not E.editDefaults then
             tImGui.SameLine(); if tImGui.Button(L('inherit')) then action(function(p) for _,r in ipairs(p.regions) do if E.selection[r.id] then r.overrides={} end end end) end
@@ -855,6 +873,9 @@ local function regionsPanel()
         tImGui.EndDisabled()
         if E.texture then Budget.panel(E) end
         if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
+        E.audit=E.audit or {}
+        require('mesh_audit_ui').draw(E.audit,E.previewPath,'image-mesh',tImGui,L,
+            E.meshTask~=nil or E.previewStale==true or E.editMode)
         if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end
         if E.missing then
             tImGui.Text(L('missing_image'))
@@ -896,6 +917,7 @@ function onInitScene()
     Diagnostics.init(E); syncDraft(); tUtil.sMessageOverlay=L('welcome')
 end
 function onLoop(delta)
+    require("mesh_audit_ui").update()
     if E.autoTask then dpCall(Auto.resume,E) end
     if (E.imageJob or E.simplifyAsset) and E.key==mbm.getKeyCode('ESC') then Generation.cancel(E);E.key=nil end
     if E.meshTask then dpCall(Simplify.resume,E) end
@@ -981,7 +1003,7 @@ end
 function onResizeWindow()
     E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
-function onEndScene() Generation.cancel(E); require('mesh_cgal').shutdown(); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.shutdown(E); releasePreview(); Canvas.destroy(E) end
+function onEndScene() require("mesh_audit_ui").shutdown(); Generation.cancel(E); require('mesh_cgal').shutdown(); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.shutdown(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.generation=Generation
     testApi.auto=Auto; testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end

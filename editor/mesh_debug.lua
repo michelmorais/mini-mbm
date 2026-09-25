@@ -3269,7 +3269,9 @@ function addMeshToTable(fileName)
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
         tSimplifyState       = {ratio = 0.9, scope = 'frame', selectedSubsets = {},
-                                virtualFrame = false, report = nil},
+                                virtualFrame = false, report = nil, mode = 'qem',
+                                remeshEdgeLengthFraction = 0.03, remeshIterations = 3,
+                                remeshFeatureAngle = 45},
         tSimplifyBackup      = nil,
         tCheckedRemove       = tCheckedRm,
         bShowFramePick       = false,
@@ -6045,7 +6047,9 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
     if not numericRatio then return nil, tLang.L('simplify_invalid_ratio') end
     local worker,startError=require('mesh_simplify_pipeline').start(meshD,progressState.mode,
         numericRatio,targetSubset,targetFrame,preserveDetails,boundaryCollapseThreshold,
-        progressState.planarAngle,progressState.planarTolerance,nil,progressState.cgalHasNormals)
+        progressState.planarAngle,progressState.planarTolerance,nil,progressState.cgalHasNormals,
+        {edgeLengthFraction=progressState.remeshEdgeLengthFraction,
+         iterations=progressState.remeshIterations,featureAngle=progressState.remeshFeatureAngle})
     if not worker then return nil,startError end
     progressState.activeMesh = worker
     coroutine.yield()
@@ -6090,7 +6094,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
         return false
     end
-    if simplifyState.mode=='cgal' or simplifyState.mode=='cgal_qem' then
+    if simplifyState.mode=='cgal' or simplifyState.mode=='cgal_qem' or simplifyState.mode=='remesh' then
         simplifyState.cgalHasNormals=meshDebug:getInfo(pendingBackup.path).hasNormal==true
     end
     local targets = {'frame'}
@@ -6139,6 +6143,13 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
                     aggregateReport.cgal.regions=aggregateReport.cgal.regions+report.cgal.regions
                     aggregateReport.cgal.sampled_error_fraction=math.max(aggregateReport.cgal.sampled_error_fraction,report.cgal.sampled_error_fraction)
                 end
+                if report.remesh then
+                    if aggregateReport.remesh then
+                        aggregateReport.remesh.charts=aggregateReport.remesh.charts+report.remesh.charts
+                        aggregateReport.remesh.sampled_error_fraction=math.max(
+                            aggregateReport.remesh.sampled_error_fraction,report.remesh.sampled_error_fraction)
+                    else aggregateReport.remesh=splitCaptureCopyTable(report.remesh) end
+                end
                 aggregateReport.qemRan = aggregateReport.qemRan or report.qemRan
                 aggregateReport.resultVertexCount = report.resultVertexCount
                 aggregateReport.resultTriangleCount = report.resultTriangleCount
@@ -6167,7 +6178,13 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     aggregateReport.sourceTriangleCount = sourceTriangles
     aggregateReport.resultVertexCount = resultVertices
     aggregateReport.resultTriangleCount = resultTriangles
-    if aggregateReport.unchanged then
+    if aggregateReport.remesh then
+        aggregateReport.remesh.source_triangles=sourceTriangles
+        aggregateReport.remesh.result_triangles=resultTriangles
+        aggregateReport.remesh.maximum_relative_error=aggregateReport.maximumRelativeError or
+            aggregateReport.remesh.sampled_error_fraction or 0
+    end
+    if aggregateReport.unchanged and simplifyState.mode~='remesh' then
         meshDebug:fakeRelease(pendingBackup.path)
         os.remove(pendingBackup.path)
         simplifyState.report=aggregateReport
@@ -6188,7 +6205,8 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     destroyNormalVisualization(tEntry)
     destroyPhysicsVisualization(tEntry)
     if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
-    tUtil.showMessage(string.format(tLang.L('simplify_success_fmt'),
+    local successKey=simplifyState.mode=='remesh' and 'cgal_remesh_success_fmt' or 'simplify_success_fmt'
+    tUtil.showMessage(string.format(tLang.L(successKey),
         aggregateReport.sourceTriangleCount, aggregateReport.resultTriangleCount), 5)
     local reduction = aggregateReport.sourceTriangleCount > 0 and
         (1 - aggregateReport.resultTriangleCount / aggregateReport.sourceTriangleCount) * 100 or 0
@@ -7225,7 +7243,8 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local simplifyState = tEntry.tSimplifyState or {
         ratio = 0.9, scope = 'frame', selectedFrame = 1,
         sharedFrames = false, selectedSubsets = {}, virtualFrame = false,
-        preserveDetails = true, report = nil
+        preserveDetails = true, report = nil, mode = 'qem',
+        remeshEdgeLengthFraction = 0.03, remeshIterations = 3, remeshFeatureAngle = 45
     }
     tEntry.tSimplifyState = simplifyState
     simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
@@ -7235,6 +7254,13 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     simplifyState.preserveDetails = simplifyState.preserveDetails ~= false
     simplifyState.boundaryCollapseThreshold = math.max(0, math.min(1,
         tonumber(simplifyState.boundaryCollapseThreshold) or 0))
+    simplifyState.mode = simplifyState.mode or 'qem'
+    simplifyState.remeshEdgeLengthFraction = math.max(.002, math.min(.25,
+        tonumber(simplifyState.remeshEdgeLengthFraction) or .03))
+    simplifyState.remeshIterations = math.max(1, math.min(10,
+        math.floor(tonumber(simplifyState.remeshIterations) or 3)))
+    simplifyState.remeshFeatureAngle = math.max(0, math.min(180,
+        tonumber(simplifyState.remeshFeatureAngle) or 45))
     simplifyState.ratio = math.max(0.001, math.min(0.95,
         tonumber(simplifyState.ratio) or 0.9))
     tImGui.Text(tLang.L('simplify_geometry'))
@@ -7337,9 +7363,18 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     end
 
     local modes=require('mesh_simplify_modes')
-    local mode,tolerance,angle=modes.cgalBlock(simplifyState.mode,
-        simplifyState.planarTolerance,simplifyState.planarAngle,'mesh-debug-'..index)
-    mode=modes.qemCheckbox(mode,'mesh-debug-'..index)
+    local mode=modes.remeshCheckbox(simplifyState.mode,'mesh-debug-'..index)
+    local tolerance,angle=simplifyState.planarTolerance,simplifyState.planarAngle
+    if mode~='remesh' then
+        mode,tolerance,angle=modes.cgalBlock(mode,tolerance,angle,'mesh-debug-'..index)
+        mode=modes.qemCheckbox(mode,'mesh-debug-'..index)
+    else
+        local settingsChanged
+        simplifyState.remeshEdgeLengthFraction,simplifyState.remeshIterations,simplifyState.remeshFeatureAngle,settingsChanged=
+            modes.remeshSettings(simplifyState.remeshEdgeLengthFraction,simplifyState.remeshIterations,
+                simplifyState.remeshFeatureAngle,'mesh-debug-'..index)
+        if settingsChanged then simplifyState.report=nil end
+    end
     if mode~=simplifyState.mode or tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle then
         simplifyState.mode=mode;simplifyState.planarTolerance=tolerance
         simplifyState.planarAngle=angle;simplifyState.report=nil
@@ -7362,6 +7397,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
             tImGui.EndTooltip()
         end
     end
+    if simplifyState.mode~='remesh' then
     tImGui.BeginDisabled(not modes.enabled(simplifyState.mode,'qem'))
     tImGui.PushItemWidth(180)
     local ratioChanged, ratio = tImGui.DragFloat(
@@ -7453,10 +7489,12 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     end
 
     tImGui.EndDisabled()
+    end
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and
         #tEntry.tPendingOps == 0 and hasSelection and not simplifyState.running and
-        not exceedsIndexLimit and simplifyState.mode~='none'
+        not exceedsIndexLimit and simplifyState.mode~='none' and
+        not (simplifyState.mode=='remesh' and nFrames~=1)
     if not canSimplify then
         if not exceedsIndexLimit then
             local messageKey = simplifyState.mode=='none' and 'simplify_select_method'
@@ -7468,14 +7506,15 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     local applied = false
     tImGui.EndDisabled()
     tImGui.BeginDisabled(not canSimplify)
-    if tImGui.Button(tLang.L('simplify_apply') .. '##simplifyApply-' .. index) then
+    local applyKey=simplifyState.mode=='remesh' and 'cgal_remesh_apply' or 'simplify_apply'
+    if tImGui.Button(tLang.L(applyKey) .. '##simplifyApply-' .. index) then
         applied = simplifyApply(tEntry, meshD, index)
     end
     tImGui.EndDisabled()
     if simplifyState.running then
         local progress = math.max(0, math.min(1, simplifyState.progress or 0))
         tImGui.ProgressBar(progress, {x=-1,y=0},
-            string.format(tLang.L('simplify_progress_fmt'), progress * 100))
+            string.format(tLang.L(simplifyState.mode=='remesh' and 'cgal_remesh_progress' or 'simplify_progress_fmt'), progress * 100))
         if simplifyState.cancelRequested then
             tImGui.Text(tLang.L('simplify_cancelling'))
         elseif tImGui.Button(tLang.L('cancel') .. '##simplifyCancel-' .. index) then
@@ -9528,6 +9567,10 @@ function showMeshOptions(tEntry, index)
     showFrameNode(tEntry, meshD, index)
     Simplification.draw(tEntry,meshD,index,showSimplifyGeometry,dpCall,applyCam3d,
         index==iSelectedMeshIndex and bCameraMode3D and tPreviewMesh~=nil)
+
+    tEntry.audit=tEntry.audit or {}
+    require('mesh_audit_ui').draw(tEntry.audit,meshD,'mesh-debug-'..index,tImGui,tLang.L,
+        (tEntry.tSimplifyState and tEntry.tSimplifyState.running) or #tEntry.tPendingOps>0)
 
     -- Articulated Animation node: persistent parts/pivots and named clips
     showArticulatedAnimationNode(tEntry, meshD, index)
@@ -12401,6 +12444,7 @@ function showListMeshesWindow()
 end
 
 function onLoop(delta)
+    require("mesh_audit_ui").update()
     if tMeshNormals.preview.pending then
         require("mesh_debug_info_wireframe").hide(tLoadedMeshes[iSelectedMeshIndex])
         Simplification.hide(tLoadedMeshes[iSelectedMeshIndex])
@@ -12753,6 +12797,7 @@ function onKeyUp(key)
 end
 
 function onEndScene()
+    require("mesh_audit_ui").shutdown()
     require('mesh_cgal').shutdown()
     tMeshNormals.preview.dispose()
 end

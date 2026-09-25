@@ -2880,3 +2880,10 @@ the combined perimeter of all loops. For `band`, the external wall keeps the
 band mapping, while internal walls stretch the hole boundary texture with the
 existing opaque-texel fallback. `sideBandInvert` affects only the external band.
 Height/overlay maps leave hole interiors transparent.
+
+## Optional offline Mesh Audit module
+
+`require "mesh_audit"` (from `editor/`) exposes read-only asynchronous OBJ/OFF and
+meshDebug snapshot analysis through the optional `mbm-cgal-audit` process. It is
+a Lua module, not a new native `mbm` method. See [Mesh Audit](mesh-audit.md) for
+`startFile`, `startMesh`, job status/cancellation, options and the JSON contract.

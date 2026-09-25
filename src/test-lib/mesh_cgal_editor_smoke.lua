@@ -111,6 +111,40 @@ local function test()
  assert(budgetMesh:getTotalIndex(1,1)/3<128,'budget test did not reach final reconstruction')
  assert(budgetStatus.state=='failed' and budgetStatus.error:find('vertex limit',1,true),
   'final normal reconstruction did not enforce the vertex budget')
+ local remeshExecutable=os.getenv('MBM_CGAL_REMESH_EXECUTABLE')
+ if remeshExecutable and remeshExecutable~='' then
+  assert(Cgal.setRemeshPath(remeshExecutable,false))
+  e.tSimplifyState.mode='remesh';e.tSimplifyState.remeshEdgeLengthFraction=.06
+  e.tSimplifyState.remeshIterations=2;e.tSimplifyState.remeshFeatureAngle=45
+  assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e)
+  assert(e.tSimplifyState.report and e.tSimplifyState.report.backend=='remesh',e.tSimplifyState.lastError)
+  assert(e.tSimplifyState.report.resultTriangleCount>e.tSimplifyState.report.sourceTriangleCount)
+  assert(simplifyRestoreBackup(e,iSelectedMeshIndex));assert(helper.signature(e.meshDebug)==original)
+  assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));assert(simplifyCancel(e));await(e)
+  assert(helper.signature(e.meshDebug)==original)
+
+  local remeshMesh=helper.grid('flat');remeshMesh:setTexture(1,1,'#6080FFFF')
+  remeshMesh:setMaterialTexture(1,1,'normal','#8080FFFF')
+    remeshMesh:setPhysics({{type='cube',center={x=0,y=0,z=0},half={x=.5,y=.5,z=.1}}})
+  local remesh=assert(Cgal.startRemesh(remeshMesh,nil,1,.15,2,45,65535,true))
+  local remeshStatus
+  repeat remeshStatus=remesh:getSimplifyStatus();coroutine.yield() until remeshStatus.state~='running'
+  assert(remeshStatus.state=='completed',remeshStatus.error)
+  assert(remeshStatus.report.backend=='remesh' and remeshStatus.report.remesh)
+  assert(remeshMesh:check() and remeshMesh:getTotalIndex(1,1)>0)
+  assert(remeshMesh:getTexture(1,1)=='#6080FFFF')
+  assert(remeshMesh:getMaterialTexture(1,1,'normal')=='#8080FFFF')
+    local physics=remeshMesh:getPhysics();assert(#physics==1 and physics[1].type=='cube')
+ end
+ if os.getenv('MBM_CGAL_AUDIT_EXECUTABLE') then
+  local AuditUI=require 'mesh_audit_ui'
+  e.audit=e.audit or {}
+  local snapshot=helper.signature(e.meshDebug)
+  assert(AuditUI.start(e.audit,e.meshDebug))
+  while e.audit.job do coroutine.yield() end
+  assert(e.audit.status.report and e.audit.status.report.triangles==128,e.audit.status.error)
+  assert(snapshot==helper.signature(e.meshDebug),'audit mutated Mesh Debug asset')
+ end
  for _=1,5 do coroutine.yield() end
  print('CGAL EDITOR SMOKE OK: config/reduction/UV/material/subset/revert/cancel/failure')
 end

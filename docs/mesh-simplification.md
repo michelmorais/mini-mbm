@@ -167,8 +167,13 @@ meshes can subsequently use the generic simplifier within its asset policy.
 subset isolation, reduction, revert, cancellation, invalid executables, process
 errors, vertex budgets and unsupported input. Set `MBM_CGAL_EXECUTABLE` to the
 independently built executable and `MBM_CGAL_CONFIG` to a temporary preference path.
+To include isotropic Remesh, also set `MBM_CGAL_REMESH_EXECUTABLE` to
+`mbm-cgal-remesh`; the optional branch verifies a completed remesh and retained
+textures/material roles and physics shapes, plus apply/revert/cancel and triangle-count increases.
 `image_mesh_cgal_editor_smoke.lua` additionally uses `MBM_CGAL_PROJECT` for the
-measured authored fixture, checking preview/export and idle cache reuse.
+measured authored fixture, checking preview/export and idle cache reuse. With
+`MBM_CGAL_REMESH_EXECUTABLE`, it also verifies the post-generation Remesh stage, rejection of new self-intersections,
+and a successful retry with all source edges constrained.
 Standalone geometry/UV/protocol tests run in the mbm-cgal repository.
 
 ## Combined CGAL + QEM
@@ -201,3 +206,31 @@ when QEM is skipped). Splitting vertices for face normals before QEM would
 create artificial open boundaries and could reject otherwise feasible targets.
 UV seams remain separate; the configured boundary threshold is not overridden.
 The final reconstruction rechecks the vertex budget before publishing the mesh.
+
+## Isotropic Remesh
+
+`mbm-cgal-remesh` is a separate optional offline worker, not a simplification
+backend. Mesh Debug and Image Mesh expose it as **Remesh** with a target edge
+length, iteration count and feature angle. It may increase triangle count and
+does not target an exact polygon budget. The worker accepts static triangulated
+OBJ, constrains UV/material charts, open borders and detected sharp edges, then
+reports sampled deviation and topology checks. UVs are transferred from the
+closest point in the corresponding source chart; shading normals are
+reconstructed and authored physics shapes are copied to the remeshed asset.
+Skeletal weights and animation are not transferred by this OBJ contract, and
+such inputs are rejected. Remesh does not perform semantic/quad retopology. The
+editor applies the result as one reversible operation only after worker and
+geometry-budget checks succeed.
+
+New self-intersections, changes in component count or closedness reject the result
+with an explicit diagnostic. Isotropic remeshing does not guarantee an
+intersection-free result for arbitrary settings on thin or detailed surfaces.
+Lower the target edge length or feature angle when needed; a feature angle of
+`0` constrains all source edges and limits smoothing. Vertex limits still apply.
+
+## Read-only Mesh Audit
+
+The **Analyze mesh / Analisar malha** panel reports a stored-frame-1 snapshot
+without changing geometry. Configure `mbm-cgal-audit` in the CGAL options;
+analysis is explicit and supports cancellation and JSON export. See
+[Mesh Audit](mesh-audit.md) for the public Lua API and diagnostic limitations.

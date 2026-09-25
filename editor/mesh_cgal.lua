@@ -18,7 +18,9 @@ local M={}
 local active={}
 local Obj=require 'mesh_cgal_obj'
 local preference=os.getenv('MBM_CGAL_CONFIG') or ((os.getenv('APPDATA') or os.getenv('HOME') or '.')..'/.mini-mbm-cgal-path')
+local remeshPreference=os.getenv('MBM_CGAL_REMESH_CONFIG') or ((os.getenv('APPDATA') or os.getenv('HOME') or '.')..'/.mini-mbm-cgal-remesh-path')
 local loaded,path,draft=false,'',''
+local remeshLoaded,remeshPath,remeshDraft=false,'',''
 local function safe(fn,...)
     local r=table.pack(pcall(fn,...))
     if not r[1] then print('[mesh_cgal] '..tostring(r[2])) end
@@ -43,6 +45,25 @@ function M.setPath(value,persist)
     loaded=true;path=value;draft=value
     return true
 end
+function M.getRemeshPath()
+    if not remeshLoaded then
+        remeshLoaded=true
+        local f=io.open(remeshPreference,'r')
+        if f then remeshPath=f:read('*l') or '';f:close() end
+        remeshDraft=remeshPath
+    end
+    return remeshPath
+end
+function M.setRemeshPath(value,persist)
+    assert(type(value)=='string' and not value:find('[%z\r\n]'),'Invalid remesh executable path')
+    if persist then
+        local f,err=io.open(remeshPreference,'w');if not f then return nil,err end
+        local ok,why=f:write(value,'\n');local closed,closeError=f:close()
+        if not ok or not closed then return nil,why or closeError end
+    end
+    remeshLoaded=true;remeshPath=value;remeshDraft=value
+    return true
+end
 function M.panel()
     M.getPath()
     tImGui.SetNextItemWidth(360)
@@ -58,6 +79,23 @@ function M.panel()
         if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_saved')) end
     end
     tImGui.TextWrapped(tLang.L('cgal_help'))
+    tImGui.Separator()
+    M.getRemeshPath()
+    tImGui.SetNextItemWidth(360)
+    changed,value=tImGui.InputText(tLang.L('cgal_remesh_executable'),remeshDraft,4096)
+    if changed then remeshDraft=value end
+    if tImGui.Button(tLang.L('cgal_remesh_browse')) then
+        local picked=mbm.openFile(remeshDraft,package.config:sub(1,1)=='\\' and '*.exe' or '*')
+        if picked and picked~='' then remeshDraft=picked end
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('cgal_remesh_save')) then
+        local ok,err=M.setRemeshPath(remeshDraft,true)
+        if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_saved')) end
+    end
+    tImGui.TextWrapped(tLang.L('cgal_remesh_help'))
+    tImGui.Separator()
+    require('mesh_audit_ui').settings(tImGui,tLang.L)
 end
 function M.menu()
     if tImGui.BeginMenu(tLang.L('cgal_settings')) then M.panel();tImGui.EndMenu() end
@@ -121,6 +159,7 @@ local function import(job,data)
         if source.texture then result:setTexture(1,i,source.texture) end
         for role,texture in pairs(source.roles) do if texture and texture~='' then result:setMaterialTexture(1,i,role,texture) end end
     end
+    if job.physics and #job.physics>0 then result:setPhysics(job.physics) end
     if not job.normals then result:removeNormals() end
     assert(result:check(),'Invalid CGAL geometry')
     -- Caller owns a disposable working mesh; the visible asset is committed only on success.
@@ -132,20 +171,23 @@ local function import(job,data)
     end
     assert(job.asset:check(),'Invalid reconstructed mesh')
     local vertices,triangles=totals(job.asset)
-    local report={backend='cgal',qemRan=false,sourceVertexCount=job.sourceVertices,sourceTriangleCount=job.sourceTriangles,
-        resultVertexCount=vertices,resultTriangleCount=triangles,unchanged=triangles>=job.sourceTriangles,
-        maximumGeometricError=job.report.sampled_bidirectional_error,maximumRelativeError=job.report.sampled_error_fraction,
-        cgal=job.report}
+    local report={backend=job.kind,qemRan=false,sourceVertexCount=job.sourceVertices,sourceTriangleCount=job.sourceTriangles,
+        resultVertexCount=vertices,resultTriangleCount=triangles,unchanged=job.kind=='cgal' and triangles>=job.sourceTriangles,
+        maximumGeometricError=job.report.sampled_bidirectional_error,maximumRelativeError=job.report.sampled_error_fraction}
+    if job.kind=='remesh' then report.remesh=job.report else report.cgal=job.report end
     return report
 end
-function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferNormals)
-    local job={asset=asset,files={},sources={},state='running',started=mbm.getTimeRun(),maxVertices=math.min(maxVertices or 65535,65535)}
+function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferNormals,remesh)
+    local job={asset=asset,files={},sources={},state='running',started=mbm.getTimeRun(),maxVertices=math.min(maxVertices or 65535,65535),
+        kind=remesh and 'remesh' or 'cgal'}
     job.deferNormals=deferNormals==true
     local ok,err=safe(function()
-        assert(M.getPath()~='',tLang.L('cgal_missing'))
+        local executable=job.kind=='remesh' and M.getRemeshPath() or M.getPath()
+        assert(executable~='',tLang.L(job.kind=='remesh' and 'cgal_remesh_missing' or 'cgal_missing'))
         assert(asset:getTotalFrame()==1 and (not frame or frame==0 or frame==1) and asset:getModeDraw()=='TRIANGLES'
             and not asset:hasSkeletalVertexWeights() and ((asset:getSkeletonBindReport(false) or {}).boneCount or 0)==0 and asset:getTotalArticulatedParts()==0,tLang.L('cgal_static_only'))
         job.sourceVertices,job.sourceTriangles=totals(asset)
+        job.physics=asset:getPhysics()
         for s=1,asset:getTotalSubset(1) do
             if not subset or s==subset then
                 local source={count=asset:getTotalVertex(1,s),normals=hasNormals~=false,texture=asset:getTexture(1,s),roles={}}
@@ -158,8 +200,14 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
         job.output=input..'.result.obj';job.reportPath=input..'.report'
         job.files={input,input:sub(1,-5)..'.mtl',job.output,job.reportPath}
         Obj.export(asset,input,subset)
-        job.process=assert(mbm.executeProcessAsync({executable=path,arguments={input,job.output,
-            tostring(angle or 10),tostring(distance or .05),'0.000001',job.reportPath},hidden=true}))
+        local arguments
+        if remesh then
+            arguments={input,job.output,tostring(remesh.edgeLengthFraction),tostring(remesh.iterations),
+                tostring(remesh.featureAngle),job.reportPath}
+        else
+            arguments={input,job.output,tostring(angle or 10),tostring(distance or .05),'0.000001',job.reportPath}
+        end
+        job.process=assert(mbm.executeProcessAsync({executable=executable,arguments=arguments,hidden=true}))
     end)
     if not ok then cleanup(job);return nil,err end
     -- Face-normal splits are rendering attributes, not open boundaries for QEM.
@@ -199,13 +247,16 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
             local line=''
             if f then line=f:read('*a');f:close() end
             if code~=0 then
-                local detail=line:match('^CGAL_FAIL ([^\r\n]+)') or ''
+                local detail=line:match('CGAL_FAIL ([^\r\n]+)') or ''
                 error(string.format(tLang.L('cgal_exit'),tostring(code))..' '..detail,0)
             end
-            assert(line:match('^CGAL_RESULT '),tLang.L('cgal_protocol'))
+            local prefix=self.kind=='remesh' and '^CGAL_REMESH_RESULT ' or '^CGAL_RESULT '
+            assert(line:match(prefix),tLang.L('cgal_protocol'))
             self.report={}
             for key,number in line:gmatch('([%w_]+)=([^%s]+)') do self.report[key]=tonumber(number) end
-            assert(self.report.uv_enabled==1 and self.report.result_triangles and self.report.sampled_error_fraction,tLang.L('cgal_protocol'))
+            assert(self.report.result_triangles and self.report.sampled_error_fraction and
+                ((self.kind=='remesh' and self.report.charts) or (self.kind=='cgal' and self.report.uv_enabled==1)),
+                tLang.L('cgal_protocol'))
             return import(self)
         end)
         cleanup(self)
@@ -216,6 +267,14 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
     end
     active[job]=true
     return job
+end
+function M.startRemesh(asset,subset,frame,edgeLengthFraction,iterations,featureAngle,maxVertices,hasNormals)
+    local fraction,passes,angle=tonumber(edgeLengthFraction),tonumber(iterations),tonumber(featureAngle)
+    if not fraction or fraction~=fraction or fraction<=0 or fraction>.25 then return nil,'Invalid target edge-length fraction' end
+    if not passes or passes%1~=0 or passes<1 or passes>10 then return nil,'Invalid remesh iteration count' end
+    if not angle or angle~=angle or angle<0 or angle>180 then return nil,'Invalid feature angle' end
+    return M.start(asset,subset,frame,nil,nil,maxVertices,hasNormals,false,
+        {edgeLengthFraction=fraction,iterations=passes,featureAngle=angle})
 end
 function M.shutdown()
     for job in pairs(active) do job:cancelSimplify();cleanup(job) end

@@ -81,6 +81,15 @@ for _,bad in ipairs({{simplifyRatio=0},{simplifyRatio=1},{simplifyBoundary=-1},{
 end
 print('IMAGE MESH SIMPLIFICATION SETTINGS / LEGACY PROJECT OK')
 
+local remeshDefaults=M.settings({})
+assert(remeshDefaults.remesh==false and remeshDefaults.remeshEdgeLengthFraction==.03)
+assert(remeshDefaults.remeshIterations==3 and remeshDefaults.remeshFeatureAngle==45)
+for _,bad in ipairs({{remesh=1},{remeshEdgeLengthFraction=0},{remeshEdgeLengthFraction=.251},
+    {remeshIterations=0},{remeshIterations=1.5},{remeshFeatureAngle=-1},{remeshFeatureAngle=181}}) do
+    assert(not pcall(M.validateOptions,bad,false))
+end
+print('IMAGE MESH REMESH SETTINGS / VALIDATION OK')
+
 -- Saved options migrate as data without exposing removed native algorithms.
 local function encode(value)
     if type(value)=='table' then
@@ -126,3 +135,16 @@ for _,mode in ipairs{'none','qem','cgal','cgal_qem'} do
  end
 end
 print('SIMPLIFICATION INDEPENDENT CHECKBOX STATES OK')
+
+-- Checkbox returns the new value (one result), including on idle frames.
+local oldImGui,oldLang=tImGui,tLang
+tLang={L=function(key)return key end}
+for _,initial in ipairs{'qem','cgal','none','remesh'} do
+ for _,checked in ipairs{false,true} do
+  tImGui={Checkbox=function()return checked end,IsItemHovered=function()return false end}
+  local expected=checked and 'remesh' or (initial=='remesh' and 'none' or initial)
+  assert(modes.remeshCheckbox(initial,'test')==expected)
+ end
+end
+tImGui,tLang=oldImGui,oldLang
+print('REMESH CHECKBOX TOGGLE / IDLE OK')

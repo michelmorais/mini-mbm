@@ -39,12 +39,46 @@ function M.run(E,fn,...)
     return M.resume(E)
 end
 function M.apply(E,asset,options,report)
-    if not options.simplify or options.simplifyMode=='none' then return end
-    local worker,err=require('mesh_simplify_pipeline').start(asset,options.simplifyMode,
-        options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,
-        options.planarAngle,options.planarTolerance,options.maxVertices,true)
+    if options.simplify and options.simplifyMode~='none' then
+        local worker,err=require('mesh_simplify_pipeline').start(asset,options.simplifyMode,
+            options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,
+            options.planarAngle,options.planarTolerance,options.maxVertices,true,
+            {edgeLengthFraction=options.remeshEdgeLengthFraction,
+             iterations=options.remeshIterations,featureAngle=options.remeshFeatureAngle})
+        if not worker then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
+        E.simplifyAsset=worker;E.simplifyCancelRequested=nil;E.simplifyProgress=0
+        coroutine.yield()
+        while true do
+            local status=worker:getSimplifyStatus()
+            if status.state~='running' then
+                local cancelled=E.simplifyCancelRequested or status.state=='cancelled'
+                E.simplifyAsset=nil;E.simplifyCancelRequested=nil;E.simplifyProgress=nil
+                if cancelled then
+                    E.generationCancelled=true;E.batch=nil;E.statisticsRequested=nil
+                    error('ime_generation_cancelled',0)
+                end
+            end
+            if status.state=='running' then E.simplifyProgress=status.progress or 0 end
+            if status.state=='failed' then
+                error(string.format(tLang.L('simplify_failed_fmt'),tostring(status.error)),0)
+            end
+            if status.state=='completed' then
+                report.simplification=status.report
+                report.sourceTriangles=report.triangles; report.sourceVertices=report.vertices
+                report.triangles=status.report.resultTriangleCount
+                report.vertices=status.report.resultVertexCount
+                break
+            end
+            coroutine.yield()
+        end
+    end
+    if not options.remesh then return end
+    local worker,err=require('mesh_cgal').startRemesh(asset,nil,1,
+        options.remeshEdgeLengthFraction,options.remeshIterations,options.remeshFeatureAngle,
+        options.maxVertices,true)
     if not worker then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
     E.simplifyAsset=worker;E.simplifyCancelRequested=nil;E.simplifyProgress=0
+    local sourceTriangles,sourceVertices=report.triangles,report.vertices
     coroutine.yield()
     while true do
         local status=worker:getSimplifyStatus()
@@ -61,8 +95,12 @@ function M.apply(E,asset,options,report)
             error(string.format(tLang.L('simplify_failed_fmt'),tostring(status.error)),0)
         end
         if status.state=='completed' then
-            report.simplification=status.report
-            report.sourceTriangles=report.triangles; report.sourceVertices=report.vertices
+            report.remesh=status.report.remesh
+            report.remesh.source_triangles=sourceTriangles
+            report.remesh.source_vertices=sourceVertices
+            report.remesh.result_triangles=status.report.resultTriangleCount
+            report.remesh.result_vertices=status.report.resultVertexCount
+            report.remesh.maximum_relative_error=status.report.maximumRelativeError or 0
             report.triangles=status.report.resultTriangleCount
             report.vertices=status.report.resultVertexCount
             return
