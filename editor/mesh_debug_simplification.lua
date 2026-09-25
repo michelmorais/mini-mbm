@@ -196,16 +196,22 @@ function M.panel(entry,safe,applyCamera,available)
     if not available then tImGui.TextWrapped(L('comparison_unavailable')) end
     tImGui.TextWrapped(L('display_only'))
 end
-function M.draw(entry,asset,index,drawSettings,safe,applyCamera,available)
-    local wantOpen=entry.sOpenNode=='simplification'
-    tImGui.SetNextItemOpen(wantOpen,tImGui.Flags('ImGuiCond_Always'))
-    local open=tImGui.TreeNodeEx(L('tree')..'##simplification-'..index,0)
-    if tImGui.IsItemClicked() then entry.sOpenNode=wantOpen and nil or 'simplification' end
+function M.draw(entry,asset,index,drawSettings,safe,applyCamera,available,node,openTree)
+    node=node or 'simplification'
+    local label=node=='remesh' and tLang.L('cgal_remesh_method') or L('tree')
+    local open
+    if openTree then open=openTree(entry,node,label,0,node..'-'..index)
+    else
+        local wantOpen=entry.sOpenNode==node
+        tImGui.SetNextItemOpen(wantOpen,tImGui.Flags('ImGuiCond_Always'))
+        open=tImGui.TreeNodeEx(label,0,node..'-'..index)
+        if tImGui.IsItemClicked() then entry.sOpenNode=wantOpen and nil or node end
+    end
     if not open then return end
     if (entry.info or {}).type~='mesh' then tImGui.TextWrapped(L('mesh_only'))
     else
         local frames,subsets=M.catalog(entry,asset)
-        if frames>0 then drawSettings(entry,asset,index,frames,subsets) end
+        if frames>0 then drawSettings(entry,asset,index,frames,subsets,node) end
         local state=entry.tSimplifyState or {}
         M.panel(entry,safe,applyCamera,available and not state.running)
     end

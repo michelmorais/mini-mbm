@@ -36,7 +36,7 @@ function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,m
         return require('mesh_cgal').startRemesh(asset,subset,frame,
             remeshSettings and remeshSettings.edgeLengthFraction or .03,
             remeshSettings and remeshSettings.iterations or 3,
-            remeshSettings and remeshSettings.featureAngle or 45,maxVertices,normals)
+            remeshSettings and remeshSettings.featureAngle or 45,maxVertices,normals,remeshSettings and remeshSettings.targetTriangles)
     end
     if mode~='cgal' and mode~='cgal_qem' then
         local ok,err=asset:startSimplify(ratio,subset,frame,details,boundary)

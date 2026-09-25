@@ -39,6 +39,7 @@ mbm={getTimeRun=function()return time end,executeProcessAsync=function(spec)
  processes[#processes+1]=p;return p
 end}
 local job=assert(A.startFile('/tmp/source.obj',{selfIntersections=false}))
+assert(calls[1].arguments[#calls[1].arguments]=='--quiet')
 assert(calls[1].executable=='/tmp/audit worker' and calls[1].arguments[4]=='--skip-self-intersections')
 assert(job:getStatus().state=='running')
 local path=calls[1].arguments[3];local f=assert(io.open(path,'w'));f:write(json);f:close()
@@ -67,3 +68,8 @@ UI.draw(state,'/tmp/third.obj','test',{TreeNode=function()return false end},func
 assert(not state.status and not state.json)
 UI.shutdown()
 print('MESH AUDIT UI OK: source change / cancellation / stale report / idle')
+
+local verbose=assert(A.startFile('/tmp/source.obj',{printJson=true}))
+for _,arg in ipairs(calls[#calls].arguments) do assert(arg~='--quiet') end
+verbose:cancel()
+print('MESH AUDIT JSON OUTPUT OK: default quiet / explicit terminal output')

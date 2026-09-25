@@ -31,13 +31,37 @@ function M.remeshCheckbox(mode,id)
     if enabled~=(mode=='remesh') then mode=enabled and 'remesh' or 'none' end
     return mode
 end
-function M.remeshSettings(edgeLengthFraction,iterations,featureAngle,id)
+function M.remeshTarget(state,id)
+    local enabled=state.remeshTargetEnabled==true
+    local selected=tImGui.Checkbox(tLang.L('cgal_remesh_target_enable')..'##target-'..id,enabled)
+    local count=state.remeshTargetTriangles or 1000
+    local changed=false
+    if selected then
+        tImGui.SetNextItemWidth(240)
+        local edited,value=tImGui.InputInt(tLang.L('cgal_remesh_target_count')..'##target-count-'..id,count,100,1000)
+        if edited then count=math.max(2,math.min(100000,value));changed=true end
+        tImGui.TextWrapped(tLang.L('cgal_remesh_target_help'))
+    end
+    state.remeshTargetEnabled=selected;state.remeshTargetTriangles=count
+    return changed or enabled~=selected
+end
+function M.targetReport(report)
+    if report and (report.target_triangles or 0)>0 then
+        tImGui.TextWrapped(string.format(tLang.L('cgal_remesh_target_report'),report.target_triangles,
+            report.target_result_triangles or report.result_triangles,(report.target_relative_error or 0)*100))
+        if report.target_reached~=1 then tImGui.TextWrapped(tLang.L('cgal_remesh_target_missed')) end
+    end
+end
+function M.remeshSettings(edgeLengthFraction,iterations,featureAngle,id,targetEnabled)
     local originalEdge,originalIterations,originalAngle=edgeLengthFraction,iterations,featureAngle
+    local changed,value
+    if not targetEnabled then
     tImGui.SetNextItemWidth(240)
-    local changed,value=tImGui.SliderFloat(tLang.L('cgal_remesh_edge_length')..'##remesh-edge-'..id,
+    changed,value=tImGui.SliderFloat(tLang.L('cgal_remesh_edge_length')..'##remesh-edge-'..id,
         edgeLengthFraction,.002,.25,'%.3f')
     if changed then edgeLengthFraction=math.max(.002,math.min(.25,value)) end
     if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_remesh_edge_length_tooltip')) end
+    end
     tImGui.SetNextItemWidth(240)
     changed,value=tImGui.SliderInt(tLang.L('cgal_remesh_iterations')..'##remesh-iterations-'..id,
         iterations,1,10)
@@ -105,6 +129,7 @@ end
 function M.report(report)
     if not report then return end
     if report.remesh then
+        M.targetReport(report.remesh)
         tImGui.TextWrapped(string.format(tLang.L('cgal_remesh_report'),
             report.remesh.source_triangles,report.remesh.result_triangles,
             report.remesh.sampled_error_fraction*100))

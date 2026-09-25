@@ -42,7 +42,8 @@ end
 | `job:cancel()` | Cancel and remove temporary files; terminal jobs keep their state |
 | `job:destroy()` | Cancel if needed and release resources; safe to repeat |
 
-Options: `executable` overrides the configured path for one job;
+Options: `printJson=true` enables JSON output in the terminal (default false; requires a worker supporting `--quiet`).
+`executable` overrides the configured path for one job;
 `selfIntersections=false` skips that expensive check; `timeout` is a positive
 number of seconds (default 300). `startMesh` additionally accepts `frame`
 (default 1) and `subset` (default all subsets in that frame), both 1-based.
@@ -65,7 +66,7 @@ JSON `null` fields become absent/nil fields in Lua. Always inspect the associate
 
 Mesh Debug exposes **Analyze mesh / Analisar malha** per loaded asset. Image Mesh
 Editor analyzes the selected generated preview. Their **Options > CGAL
-executable** panel also configures the Audit executable. Audit results are
+executable** panel also configures the Audit executable. Selecting an executable saves its path automatically. Audit results are
 snapshots of stored frame 1: explicitly analyze again after editing. Reports
 are not undo/history mutations and do not change the asset's modified state.
 
@@ -82,7 +83,8 @@ poll pending jobs and draw cached reports; no mesh scans, loads or serialization
 occur while idle.
 
 The C++ worker shares topology checks with Remesh. Mesh Audit does not repair
-geometry or implement the proposed triangle-target search.
+geometry. Approximate triangle-target search is available in Remesh, which
+uses surface area and topology diagnostics internally; running Audit first is optional.
 
 ## Validation
 

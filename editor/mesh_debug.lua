@@ -6048,7 +6048,8 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
     local worker,startError=require('mesh_simplify_pipeline').start(meshD,progressState.mode,
         numericRatio,targetSubset,targetFrame,preserveDetails,boundaryCollapseThreshold,
         progressState.planarAngle,progressState.planarTolerance,nil,progressState.cgalHasNormals,
-        {edgeLengthFraction=progressState.remeshEdgeLengthFraction,
+        {targetTriangles=progressState.remeshTargetEnabled and (progressState.remeshSubsetTarget or progressState.remeshTargetTriangles) or nil,
+         edgeLengthFraction=progressState.remeshEdgeLengthFraction,
          iterations=progressState.remeshIterations,featureAngle=progressState.remeshFeatureAngle})
     if not worker then return nil,startError end
     progressState.activeMesh = worker
@@ -6106,6 +6107,26 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         table.sort(targets)
     end
     local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh, sourceFrame)
+    local targetBudgets
+    if simplifyState.mode=='remesh' and simplifyState.remeshTargetEnabled and simplifyState.scope=='subsets' then
+        local remaining=simplifyState.remeshTargetTriangles or 1000
+        if remaining < 2*#targets then
+            meshDebug:fakeRelease(pendingBackup.path);os.remove(pendingBackup.path)
+            simplifyShowFailure('Triangle target must allow at least 2 triangles per selected subset',tEntry)
+            return false
+        end
+        targetBudgets={}
+        local weights,total={},0
+        for i,s in ipairs(targets) do
+            weights[i]=simplifySubsetTriangles(workingMesh:getTotalIndex(sourceFrame,s),workingMesh:getTotalVertex(sourceFrame,s))
+            total=total+weights[i]
+        end
+        for i=1,#targets do
+            local share=i==#targets and remaining or math.max(2,math.min(remaining-2*(#targets-i),math.floor(remaining*weights[i]/math.max(1,total))))
+            targetBudgets[i]=share;remaining=remaining-share;total=total-weights[i]
+        end
+    end
+
     local aggregateReport = nil
     local useVirtualFrame = simplifyState.scope == 'subsets' and
         simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2 and
@@ -6123,6 +6144,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         aggregateReport = splitCaptureCopyTable(report)
     else
         for targetIndex, targetSubset in ipairs(targets) do
+            simplifyState.remeshSubsetTarget=targetBudgets and targetBudgets[targetIndex] or nil
             local subset = nil
             if targetSubset ~= 'frame' then subset = targetSubset end
             local report, simplifyError = simplifyAwait(workingMesh, simplifyState.ratio,
@@ -6178,7 +6200,19 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     aggregateReport.sourceTriangleCount = sourceTriangles
     aggregateReport.resultVertexCount = resultVertices
     aggregateReport.resultTriangleCount = resultTriangles
+    simplifyState.remeshSubsetTarget=nil
     if aggregateReport.remesh then
+        if simplifyState.remeshTargetEnabled then
+            local achieved=resultTriangles
+            if targetBudgets then
+                achieved=0
+                for _,s in ipairs(targets) do achieved=achieved+simplifySubsetTriangles(workingMesh:getTotalIndex(sourceFrame,s),workingMesh:getTotalVertex(sourceFrame,s)) end
+            end
+            aggregateReport.remesh.target_triangles=simplifyState.remeshTargetTriangles or 1000
+            aggregateReport.remesh.target_relative_error=math.abs(achieved-aggregateReport.remesh.target_triangles)/aggregateReport.remesh.target_triangles
+            aggregateReport.remesh.target_reached=aggregateReport.remesh.target_relative_error<=.05 and 1 or 0
+            aggregateReport.remesh.target_result_triangles=achieved
+        end
         aggregateReport.remesh.source_triangles=sourceTriangles
         aggregateReport.remesh.result_triangles=resultTriangles
         aggregateReport.remesh.maximum_relative_error=aggregateReport.maximumRelativeError or
@@ -7239,7 +7273,7 @@ function showSplitCapture(tEntry, meshD, index)
     end
 end
 
-function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
+function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
     local simplifyState = tEntry.tSimplifyState or {
         ratio = 0.9, scope = 'frame', selectedFrame = 1,
         sharedFrames = false, selectedSubsets = {}, virtualFrame = false,
@@ -7247,6 +7281,17 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         remeshEdgeLengthFraction = 0.03, remeshIterations = 3, remeshFeatureAngle = 45
     }
     tEntry.tSimplifyState = simplifyState
+    local isRemesh = node == 'remesh'
+    if simplifyState.running and (simplifyState.mode == 'remesh') ~= isRemesh then
+        tImGui.TextWrapped(tLang.L('mesh_operation_other_running'))
+        return
+    end
+    if isRemesh and simplifyState.mode ~= 'remesh' then
+        simplifyState.simplificationMode = simplifyState.mode or 'qem'
+        simplifyState.mode = 'remesh'
+    elseif not isRemesh and simplifyState.mode == 'remesh' then
+        simplifyState.mode = simplifyState.simplificationMode or 'qem'
+    end
     simplifyState.scope = simplifyState.scope == 'subsets' and 'subsets' or 'frame'
     simplifyState.selectedSubsets = simplifyState.selectedSubsets or {}
     simplifyState.selectedFrame = math.max(1, math.min(nFrames, simplifyState.selectedFrame or 1))
@@ -7263,7 +7308,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
         tonumber(simplifyState.remeshFeatureAngle) or 45))
     simplifyState.ratio = math.max(0.001, math.min(0.95,
         tonumber(simplifyState.ratio) or 0.9))
-    tImGui.Text(tLang.L('simplify_geometry'))
+    if not isRemesh then tImGui.Text(tLang.L('simplify_geometry')) end
     tImGui.BeginDisabled(simplifyState.running == true)
 
     local scopeIndex = simplifyState.scope == 'subsets' and 2 or 1
@@ -7363,23 +7408,24 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets)
     end
 
     local modes=require('mesh_simplify_modes')
-    local mode=modes.remeshCheckbox(simplifyState.mode,'mesh-debug-'..index)
+    local mode=simplifyState.mode
     local tolerance,angle=simplifyState.planarTolerance,simplifyState.planarAngle
     if mode~='remesh' then
         mode,tolerance,angle=modes.cgalBlock(mode,tolerance,angle,'mesh-debug-'..index)
         mode=modes.qemCheckbox(mode,'mesh-debug-'..index)
     else
+        if modes.remeshTarget(simplifyState,'mesh-debug-'..index) then simplifyState.report=nil end
         local settingsChanged
         simplifyState.remeshEdgeLengthFraction,simplifyState.remeshIterations,simplifyState.remeshFeatureAngle,settingsChanged=
             modes.remeshSettings(simplifyState.remeshEdgeLengthFraction,simplifyState.remeshIterations,
-                simplifyState.remeshFeatureAngle,'mesh-debug-'..index)
+                simplifyState.remeshFeatureAngle,'mesh-debug-'..index,simplifyState.remeshTargetEnabled)
         if settingsChanged then simplifyState.report=nil end
     end
     if mode~=simplifyState.mode or tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle then
         simplifyState.mode=mode;simplifyState.planarTolerance=tolerance
         simplifyState.planarAngle=angle;simplifyState.report=nil
     end
-    if simplifyState.scope=='subsets' then
+    if not isRemesh and simplifyState.scope=='subsets' then
         tImGui.BeginDisabled(selectedCount < 2 or simplifyState.sharedFrames or simplifyState.mode ~= 'qem')
         local virtualFrame = tImGui.Checkbox(
             tLang.L('simplify_virtual_frame') .. '##simplifyVirtualFrame-' .. index,
@@ -9566,11 +9612,13 @@ function showMeshOptions(tEntry, index)
     -- Frame node: view/queue frame+subset edits (outside Animations)
     showFrameNode(tEntry, meshD, index)
     Simplification.draw(tEntry,meshD,index,showSimplifyGeometry,dpCall,applyCam3d,
-        index==iSelectedMeshIndex and bCameraMode3D and tPreviewMesh~=nil)
+        index==iSelectedMeshIndex and bCameraMode3D and tPreviewMesh~=nil,'simplification',openNode)
+    Simplification.draw(tEntry,meshD,index,showSimplifyGeometry,dpCall,applyCam3d,
+        index==iSelectedMeshIndex and bCameraMode3D and tPreviewMesh~=nil,'remesh',openNode)
 
     tEntry.audit=tEntry.audit or {}
     require('mesh_audit_ui').draw(tEntry.audit,meshD,'mesh-debug-'..index,tImGui,tLang.L,
-        (tEntry.tSimplifyState and tEntry.tSimplifyState.running) or #tEntry.tPendingOps>0)
+        (tEntry.tSimplifyState and tEntry.tSimplifyState.running) or #tEntry.tPendingOps>0,tEntry,openNode)
 
     -- Articulated Animation node: persistent parts/pivots and named clips
     showArticulatedAnimationNode(tEntry, meshD, index)
@@ -12474,7 +12522,8 @@ function onLoop(delta)
     end
     Simplification.sync(tLoadedMeshes[iSelectedMeshIndex],tPreviewMesh,
         bCameraMode3D and tLoadedMeshes[iSelectedMeshIndex] and
-        tLoadedMeshes[iSelectedMeshIndex].sOpenNode=='simplification' and
+        (tLoadedMeshes[iSelectedMeshIndex].sOpenNode=='simplification' or
+         tLoadedMeshes[iSelectedMeshIndex].sOpenNode=='remesh') and
         not ((tLoadedMeshes[iSelectedMeshIndex].tSimplifyState or {}).running))
     require("mesh_debug_info_wireframe").sync(tLoadedMeshes[iSelectedMeshIndex],
         bCameraMode3D and tLoadedMeshes[iSelectedMeshIndex] and

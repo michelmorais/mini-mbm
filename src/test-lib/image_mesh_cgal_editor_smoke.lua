@@ -94,6 +94,18 @@ local function test()
   assert(E.report and E.report.remesh,E.status)
   assert(E.report.remesh.source_triangles==12570 and E.report.remesh.result_triangles>0)
   assert(E.report.triangles==E.report.remesh.result_triangles)
+  local grid=dofile('src/test-lib/mesh_simplification_fixture.lua').grid('flat')
+  local targetReport={triangles=128,vertices=81}
+  require('image_mesh_simplify').apply({},grid,{remesh=true,remeshTargetEnabled=true,remeshTargetTriangles=500,
+      remeshEdgeLengthFraction=.03,remeshIterations=3,remeshFeatureAngle=45,maxVertices=65535},targetReport)
+  assert(targetReport.remesh.target_triangles==500 and targetReport.remesh.target_reached==1)
+  assert(targetReport.triangles==grid:getTotalIndex(1,1)/3)
+  E.values.remeshTargetEnabled=true;E.values.remeshTargetTriangles=3000
+  assert(api.applyProperties());assert(api.saveProject('/tmp/cgal-target.imesh'))
+  local targetProject=IO.load('/tmp/cgal-target.imesh')
+  local targetOptions=Model.options(targetProject,targetProject.regions[1])
+  assert(targetOptions.remeshTargetEnabled and targetOptions.remeshTargetTriangles==3000)
+
  end
  if os.getenv('MBM_CGAL_AUDIT_EXECUTABLE') then
   local AuditUI=require 'mesh_audit_ui'

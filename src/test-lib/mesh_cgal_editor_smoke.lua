@@ -20,6 +20,7 @@ local Cgal=require 'mesh_cgal'
 local helper=dofile('src/test-lib/mesh_simplification_fixture.lua')
 local init,loop=onInitScene,onLoop
 local task,started
+local openGeometryNodes={}
 local function await(entry)
  while entry.tSimplifyState.running do simplifyResume(entry);coroutine.yield() end
 end
@@ -38,6 +39,18 @@ local function test()
  assert(helper.signature(e.meshDebug)==original)
  e.sOpenNode='simplification';e.tSimplifyState={scope='frame',selectedFrame=1,ratio=.5,preserveDetails=true,
   boundaryCollapseThreshold=0,mode='cgal',planarAngle=5,planarTolerance=.01}
+ -- Switching tree panels retains the chosen simplification method and never runs work.
+ coroutine.yield()
+ e.sOpenNode='remesh';coroutine.yield()
+ assert(e.tSimplifyState.mode=='remesh' and not e.tSimplifyState.running)
+ e.sOpenNode='simplification';coroutine.yield()
+ assert(e.tSimplifyState.mode=='cgal' and helper.signature(e.meshDebug)==original)
+ for _,node in ipairs{'audit','remesh','simplification','audit'} do
+  e.sOpenNode=node;coroutine.yield()
+  assert(#openGeometryNodes==1 and openGeometryNodes[1]==node,'geometry trees must be exclusive')
+ end
+ e.sOpenNode='simplification';coroutine.yield()
+
  assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e)
  assert(e.tSimplifyState.report and e.tSimplifyState.report.backend=='cgal',e.tSimplifyState.lastError)
  assert(e.meshDebug:getTotalIndex(1,1)==6)
@@ -114,15 +127,43 @@ local function test()
  local remeshExecutable=os.getenv('MBM_CGAL_REMESH_EXECUTABLE')
  if remeshExecutable and remeshExecutable~='' then
   assert(Cgal.setRemeshPath(remeshExecutable,false))
-  e.tSimplifyState.mode='remesh';e.tSimplifyState.remeshEdgeLengthFraction=.06
+  e.sOpenNode='remesh';e.tSimplifyState.mode='remesh';e.tSimplifyState.remeshEdgeLengthFraction=.06
   e.tSimplifyState.remeshIterations=2;e.tSimplifyState.remeshFeatureAngle=45
   assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e)
   assert(e.tSimplifyState.report and e.tSimplifyState.report.backend=='remesh',e.tSimplifyState.lastError)
   assert(e.tSimplifyState.report.resultTriangleCount>e.tSimplifyState.report.sourceTriangleCount)
+  assert(simplifyRestoreBackup(e,iSelectedMeshIndex))
+  for _,target in ipairs{80,500} do
+   e.tSimplifyState.remeshTargetEnabled=true;e.tSimplifyState.remeshTargetTriangles=target
+   assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e)
+   local report=assert(e.tSimplifyState.report,e.tSimplifyState.lastError).remesh
+   assert(report.target_triangles==target)
+   local actual=e.meshDebug:getTotalIndex(1,1)/3
+   local errorFraction=math.abs(actual-target)/target
+   assert(math.abs(report.target_relative_error-errorFraction)<1e-9)
+   assert(report.target_reached==(errorFraction<=.05 and 1 or 0))
+   if target==500 then assert(errorFraction<=.05) else assert(actual<128) end
+   assert(simplifyRestoreBackup(e,iSelectedMeshIndex));assert(helper.signature(e.meshDebug)==original)
+  end
+  e.tSimplifyState.remeshTargetEnabled=false
+  assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e)
+
   assert(simplifyRestoreBackup(e,iSelectedMeshIndex));assert(helper.signature(e.meshDebug)==original)
   assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));assert(simplifyCancel(e));await(e)
   assert(helper.signature(e.meshDebug)==original)
 
+  local scopedTarget=helper.grid('flat');scopedTarget:copySubsetFrom(1,scopedTarget,1,1)
+  assert(scopedTarget:save('/tmp/remesh-subset-target.msh',false,false,true))
+  assert(addMeshToTable('/tmp/remesh-subset-target.msh'))
+  local scopedEntry=tLoadedMeshes[#tLoadedMeshes]
+  scopedEntry.tSimplifyState={scope='subsets',selectedFrame=1,selectedSubsets={[1]=true,[2]=true},ratio=.5,
+      mode='remesh',remeshTargetEnabled=true,remeshTargetTriangles=500,
+      remeshEdgeLengthFraction=.03,remeshIterations=3,remeshFeatureAngle=45}
+  assert(simplifyApply(scopedEntry,scopedEntry.meshDebug,#tLoadedMeshes));await(scopedEntry)
+  local scopedReport=assert(scopedEntry.tSimplifyState.report,scopedEntry.tSimplifyState.lastError).remesh
+  assert(scopedReport.target_triangles==500 and scopedReport.target_reached==1)
+  assert(scopedReport.target_result_triangles==scopedEntry.meshDebug:getTotalIndex(1,1)/3+scopedEntry.meshDebug:getTotalIndex(1,2)/3)
+  assert(simplifyRestoreBackup(scopedEntry,#tLoadedMeshes))
   local remeshMesh=helper.grid('flat');remeshMesh:setTexture(1,1,'#6080FFFF')
   remeshMesh:setMaterialTexture(1,1,'normal','#8080FFFF')
     remeshMesh:setPhysics({{type='cube',center={x=0,y=0,z=0},half={x=.5,y=.5,z=.1}}})
@@ -150,8 +191,33 @@ local function test()
 end
 function onInitScene() init();started=mbm.getTimeRun();task=coroutine.create(test) end
 function onLoop(delta)
+ openGeometryNodes={}
+ local tree=tImGui.TreeNodeEx
+ tImGui.TreeNodeEx=function(...)
+  local label,flags,id=...
+  local opened=tree(...)
+  if opened and id then
+   if id:match('^audit%-mesh%-debug%-') then openGeometryNodes[#openGeometryNodes+1]='audit'
+   elseif id:match('^remesh%-') then openGeometryNodes[#openGeometryNodes+1]='remesh'
+   elseif id:match('^simplification%-') then openGeometryNodes[#openGeometryNodes+1]='simplification' end
+  end
+  return opened
+ end
  loop(delta)
- if tImGui.Begin('CGAL configuration smoke',false,0) then Cgal.panel() end
+ tImGui.TreeNodeEx=tree
+ if tImGui.Begin('CGAL configuration smoke',false,0) then
+  local seen={}
+  local button,input=tImGui.Button,tImGui.InputText
+  local function check(label)
+   assert(not seen[label],'Duplicate CGAL configuration ID: '..label)
+   seen[label]=true
+  end
+  tImGui.Button=function(label,...) check(label);return button(label,...) end
+  tImGui.InputText=function(label,...) check(label);return input(label,...) end
+  local ok,err=pcall(Cgal.panel)
+  tImGui.Button,tImGui.InputText=button,input
+  if not ok then print('CGAL EDITOR SMOKE FAIL '..tostring(err));mbm.quit() end
+ end
  tImGui.End()
  if coroutine.status(task)=='dead' then mbm.quit();return end
  local ok,e=coroutine.resume(task);if not ok then print('CGAL EDITOR SMOKE FAIL '..debug.traceback(task,tostring(e)));mbm.quit() end

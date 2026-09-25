@@ -132,6 +132,7 @@ local function launch(source,options,files)
         assert(type(job.timeout)=='number' and job.timeout>0 and job.timeout<math.huge,'Invalid audit timeout')
         local args={source,'--report',reportPath}
         if options.selfIntersections==false then args[#args+1]='--skip-self-intersections' end
+        if options.printJson~=true then args[#args+1]='--quiet' end
         job.process=assert(mbm.executeProcessAsync({executable=executable,arguments=args,hidden=true}))
     end)
     if not ok then cleanup(job);return nil,err end

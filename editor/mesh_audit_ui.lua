@@ -18,19 +18,23 @@ local Audit=require 'mesh_audit'
 local M={}
 local pending={}
 local draft
-function M.settings(I,L)
+function M.settings(I,L,notify)
     if draft==nil then draft=Audit.getPath() end
     I.SetNextItemWidth(360)
-    local changed,value=I.InputText(L('audit_executable'),draft,4096)
+    local changed,value=I.InputText(L('audit_executable')..'##audit_executable',draft,4096,I.Flags('ImGuiInputTextFlags_ReadOnly'))
     if changed then draft=value end
-    if I.Button(L('audit_browse')) then
+    if I.Button(L('audit_browse')..'##audit_browse') then
+        I.CloseCurrentPopup()
         local value=mbm.openFile(draft,package.config:sub(1,1)=='\\' and '*.exe' or '*')
-        if value and value~='' then draft=value end
-    end
-    I.SameLine()
-    if I.Button(L('audit_save')) then
-        local ok,err=Audit.setPath(draft,true)
-        M.configError=not ok and tostring(err) or nil
+        if value and value~='' then
+            local ok,err=Audit.setPath(value,true)
+            if ok then draft=value end
+            M.configError=not ok and tostring(err) or nil
+            if notify then
+                if ok then notify.showMessage(L('cgal_saved')) else notify.showMessageWarn(tostring(err)) end
+            end
+        end
+        return
     end
     if M.configError then I.TextWrapped(M.configError) end
 end
@@ -67,17 +71,27 @@ function M.start(state,source,options)
     if job then pending[state]=true end
     return job~=nil
 end
-function M.draw(state,source,id,I,L,disabled)
+function M.draw(state,source,id,I,L,disabled,treeOwner,openTree)
     if state.source~=source then
         if state.job then state.job:destroy();state.job=nil;pending[state]=nil end
         state.source=source;state.status=nil;state.json=nil;state.exportError=nil
     end
-    if not I.TreeNode(L('audit_title')..'##audit-'..id) then return end
+    local open
+    if openTree then open=openTree(treeOwner,'audit',L('audit_title'),0,'audit-'..id)
+    else open=I.TreeNode(L('audit_title')..'##audit-'..id) end
+    if not open then return end
     I.TextWrapped(L('audit_snapshot'))
     I.BeginDisabled(state.job~=nil or disabled==true or source==nil)
-    if I.Button(L('audit_run')..'##audit-run-'..id) then M.start(state,source,{selfIntersections=state.intersections~=false}) end
+    if I.Button(L('audit_run')..'##audit-run-'..id) then M.start(state,source,{selfIntersections=state.intersections~=false,printJson=state.printJson==true}) end
     I.SameLine()
     state.intersections=I.Checkbox(L('audit_intersections')..'##audit-self-'..id,state.intersections~=false)
+    if I.IsItemHovered() and I.BeginTooltip() then
+        I.PushTextWrapPos(420)
+        I.Text(L('audit_intersections_tooltip'))
+        I.PopTextWrapPos()
+        I.EndTooltip()
+    end
+    state.printJson=I.Checkbox(L('audit_print_json')..'##audit-json-'..id,state.printJson==true)
     I.EndDisabled()
     if state.job then
         I.Text(L('audit_running'))

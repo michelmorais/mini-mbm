@@ -234,3 +234,29 @@ The **Analyze mesh / Analisar malha** panel reports a stored-frame-1 snapshot
 without changing geometry. Configure `mbm-cgal-audit` in the CGAL options;
 analysis is explicit and supports cancellation and JSON export. See
 [Mesh Audit](mesh-audit.md) for the public Lua API and diagnostic limitations.
+
+### Approximate Remesh triangle count
+
+Enable **Target triangle count / Quantidade-alvo de triângulos** in the separate
+Mesh Debug Remesh tree or the Image Mesh Remesh section. Enter 500, 3000, 10000,
+or another integer from 2 to 100000. The fixed-width length control is hidden
+while this mode is enabled; its previous value is retained.
+
+The external worker estimates edge length from source surface area and makes
+up to eight trials against the original surface, keeping the closest valid
+result found. It aims for a 5% tolerance without relaxing boundary, UV/material
+or sharp-feature constraints. The result can be outside tolerance, and the UI
+shows that explicitly alongside requested and achieved triangle counts.
+Existing source validation, vertex limits, cancellation, comparison and revert
+still apply. No automatic simplification pass is added.
+
+In Mesh Debug the target applies to the selected frame or selected subsets as
+one total. Multiple subsets receive proportional integer budgets based on their
+source triangle counts, with a minimum of two each. In Image Mesh the target
+applies separately to each generated region and is saved in project/default
+options as `remeshTargetEnabled` and `remeshTargetTriangles`.
+
+The optional Lua API `mesh_cgal.startRemesh` accepts a final ninth argument
+`targetTriangles` after `hasNormals`. Omit it to retain edge-length behavior.
+`mesh_simplify_pipeline.start` accepts `targetTriangles` in its Remesh settings.
+The worker must support `--target-triangles`; rebuild/install mbm-cgal first.

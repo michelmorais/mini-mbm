@@ -67,35 +67,35 @@ end
 function M.panel()
     M.getPath()
     tImGui.SetNextItemWidth(360)
-    local changed,value=tImGui.InputText(tLang.L('cgal_executable'),draft,4096)
+    local changed,value=tImGui.InputText(tLang.L('cgal_executable')..'##cgal_executable',draft,4096,tImGui.Flags('ImGuiInputTextFlags_ReadOnly'))
     if changed then draft=value end
-    if tImGui.Button(tLang.L('cgal_browse')) then
+    if tImGui.Button(tLang.L('cgal_browse')..'##cgal_browse') then
+        tImGui.CloseCurrentPopup()
         local picked=mbm.openFile(draft,package.config:sub(1,1)=='\\' and '*.exe' or '*')
-        if picked and picked~='' then draft=picked end
-    end
-    tImGui.SameLine()
-    if tImGui.Button(tLang.L('cgal_save')) then
-        local ok,err=M.setPath(draft,true)
-        if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_saved')) end
+        if picked and picked~='' then
+            local ok,err=M.setPath(picked,true)
+            if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_saved')) end
+        end
+        return
     end
     tImGui.TextWrapped(tLang.L('cgal_help'))
     tImGui.Separator()
     M.getRemeshPath()
     tImGui.SetNextItemWidth(360)
-    changed,value=tImGui.InputText(tLang.L('cgal_remesh_executable'),remeshDraft,4096)
+    changed,value=tImGui.InputText(tLang.L('cgal_remesh_executable')..'##cgal_remesh_executable',remeshDraft,4096,tImGui.Flags('ImGuiInputTextFlags_ReadOnly'))
     if changed then remeshDraft=value end
-    if tImGui.Button(tLang.L('cgal_remesh_browse')) then
+    if tImGui.Button(tLang.L('cgal_remesh_browse')..'##cgal_remesh_browse') then
+        tImGui.CloseCurrentPopup()
         local picked=mbm.openFile(remeshDraft,package.config:sub(1,1)=='\\' and '*.exe' or '*')
-        if picked and picked~='' then remeshDraft=picked end
-    end
-    tImGui.SameLine()
-    if tImGui.Button(tLang.L('cgal_remesh_save')) then
-        local ok,err=M.setRemeshPath(remeshDraft,true)
-        if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_saved')) end
+        if picked and picked~='' then
+            local ok,err=M.setRemeshPath(picked,true)
+            if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_saved')) end
+        end
+        return
     end
     tImGui.TextWrapped(tLang.L('cgal_remesh_help'))
     tImGui.Separator()
-    require('mesh_audit_ui').settings(tImGui,tLang.L)
+    require('mesh_audit_ui').settings(tImGui,tLang.L,tUtil)
 end
 function M.menu()
     if tImGui.BeginMenu(tLang.L('cgal_settings')) then M.panel();tImGui.EndMenu() end
@@ -204,6 +204,7 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
         if remesh then
             arguments={input,job.output,tostring(remesh.edgeLengthFraction),tostring(remesh.iterations),
                 tostring(remesh.featureAngle),job.reportPath}
+            if remesh.targetTriangles then arguments[#arguments+1]='--target-triangles';arguments[#arguments+1]=tostring(remesh.targetTriangles) end
         else
             arguments={input,job.output,tostring(angle or 10),tostring(distance or .05),'0.000001',job.reportPath}
         end
@@ -268,13 +269,14 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
     active[job]=true
     return job
 end
-function M.startRemesh(asset,subset,frame,edgeLengthFraction,iterations,featureAngle,maxVertices,hasNormals)
+function M.startRemesh(asset,subset,frame,edgeLengthFraction,iterations,featureAngle,maxVertices,hasNormals,targetTriangles)
+    if targetTriangles~=nil and (type(targetTriangles)~='number' or targetTriangles%1~=0 or targetTriangles<2 or targetTriangles>100000) then return nil,'Invalid triangle target (2..100000)' end
     local fraction,passes,angle=tonumber(edgeLengthFraction),tonumber(iterations),tonumber(featureAngle)
     if not fraction or fraction~=fraction or fraction<=0 or fraction>.25 then return nil,'Invalid target edge-length fraction' end
     if not passes or passes%1~=0 or passes<1 or passes>10 then return nil,'Invalid remesh iteration count' end
     if not angle or angle~=angle or angle<0 or angle>180 then return nil,'Invalid feature angle' end
     return M.start(asset,subset,frame,nil,nil,maxVertices,hasNormals,false,
-        {edgeLengthFraction=fraction,iterations=passes,featureAngle=angle})
+        {edgeLengthFraction=fraction,iterations=passes,featureAngle=angle,targetTriangles=targetTriangles})
 end
 function M.shutdown()
     for job in pairs(active) do job:cancelSimplify();cleanup(job) end
