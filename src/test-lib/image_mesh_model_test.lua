@@ -80,3 +80,33 @@ for _,bad in ipairs({{simplifyRatio=0},{simplifyRatio=1},{simplifyBoundary=-1},{
     assert(not pcall(M.validateOptions,bad,false))
 end
 print('IMAGE MESH SIMPLIFICATION SETTINGS / LEGACY PROJECT OK')
+
+-- Saved options migrate as data without exposing removed native algorithms.
+local function encode(value)
+    if type(value)=='table' then
+        local fields={}
+        for key,item in pairs(value) do fields[#fields+1]='['..encode(key)..']='..encode(item) end
+        return '{'..table.concat(fields,',')..'}'
+    end
+    if type(value)=='string' then return string.format('%q',value) end
+    return tostring(value)
+end
+local savedProject=M.new('/tmp/source.png',65,65)
+M.add(savedProject,'rectangle',0,0,65,65)
+savedProject.defaults.simplifyMode='coplanar'
+savedProject.defaults.curvedSimplifyMode='specific'
+savedProject.defaults.planarReduceBoundaries=true
+savedProject.regions[1].overrides={simplifyMode='coplanar_qem',curvedSimplify=true,curvedSimplifyMode='coplanar',planarReduceBoundaries=false}
+savedProject.presets={{name='Existing',settings=M.copy(savedProject.defaults)}}
+local filename='/tmp/ime-simplify-migration.imesh'
+local bytes='return '..encode(savedProject)
+local file=assert(io.open(filename,'wb'));assert(file:write(bytes));file:close()
+local migrated=IO.load(filename)
+assert(migrated.defaults.simplifyMode=='cgal' and migrated.defaults.planarReduceBoundaries==nil)
+assert(migrated.defaults.curvedSimplifyMode==nil and migrated.presets[1].settings.simplifyMode=='cgal')
+assert(migrated.regions[1].overrides.simplifyMode=='cgal' and migrated.regions[1].overrides.curvedSimplify==false)
+assert(migrated.regions[1].overrides.planarReduceBoundaries==nil)
+file=assert(io.open(filename,'rb'));assert(file:read('*a')==bytes);file:close();os.remove(filename)
+for _,mode in ipairs{'coplanar','coplanar_qem'} do assert(not pcall(M.validateOptions,{simplifyMode=mode},false)) end
+M.validateOptions({simplifyMode='qem'},false);M.validateOptions({simplifyMode='cgal'},false)
+print('IMAGE MESH SIMPLIFICATION MIGRATION / READ-ONLY INPUT / CURRENT MODES OK')

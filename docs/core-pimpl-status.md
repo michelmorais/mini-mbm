@@ -93,15 +93,9 @@ created on the main thread.
 The editor simplification worker, progress, state, report, error, and cancellation
 arbitration reside in `MESH_MBM_DEBUG::Impl`. Public operations start, query,
 cancel, and collect work without exposing the worker or mutable state.
-`MESH_SIMPLIFY_MODE`, options and report fields are scalar values.
-
-Planar adjacency, corner attributes, region certificates, coordinated boundary
-contacts and scratch candidates are temporary private state in `mesh-planar.h`.
-The request-local obstacle index resides in `mesh-planar-index.h`; spatial
-separation and interval arithmetic reside in `mesh-planar-separation.h`.
-These helpers expose no containers, caches or mutable storage through the public
-manager boundary. Image Mesh's curved mode and planar counts also use scalar
-options and reports.
+QEM options and report fields are scalar values. The editor's CGAL adapter
+communicates with a separately configured executable using temporary OBJ files;
+no CGAL library or process state is exposed through engine headers.
 
 Prepared geometry buffers retain local ownership until commit. The cancellation
 and commit gate ensures that an accepted native cancellation precedes replacement

@@ -8,17 +8,6 @@ Current API behavior and capabilities are documented in
 [Mesh Simplification](mesh-simplification.md). Follow-up work should be driven by
 real assets encountered during project development.
 
-### Coplanar-region follow-up
-
-Potential extensions beyond the [current coplanar limits](mesh-simplification.md#coplanar-modes):
-
-- approximate contour reduction and broader boundary coordination;
-- non-affine attribute constraints, approximate varying-normal certificates and
-  deformation certificates;
-- broader certificates for uncertain/complex contacts and acceleration for heavily
-  overlapping neighborhoods;
-- larger approximate tolerances, additional backend parity and visual diagnostics.
-
 ### Visual diagnostics
 
 - add a Mesh Debug overlay for open boundaries, high-error regions, elongated faces, disconnected

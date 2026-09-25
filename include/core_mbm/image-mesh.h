@@ -123,7 +123,6 @@ namespace mbm
         bool curvedFaceted = false;
         uint32_t curvedFacetSectors = 8, curvedFacetRings = 1;
         bool curvedSimplify = false;
-        uint32_t curvedSimplifyMode = 0; // 0: specific, 1: coplanar + specific, 2: coplanar only
         float curvedSimplifyRatio = 0.5f, curvedSimplifyError = 0.01f;
         bool curvedHierarchy = false; // false retains the original radial point/circle path
         const IMAGE_MESH_CURVED_NODE *curvedNodes = nullptr;
@@ -150,7 +149,6 @@ namespace mbm
         uint32_t vertices = 0, triangles = 0;
         float minHeight = 0.0f, maxHeight = 0.0f;
         uint32_t curvedSourceTriangles = 0, curvedResultTriangles = 0;
-        uint32_t curvedPlanarRemovedTriangles = 0;
         float curvedMaximumError = 0.0f; // Conservative normalized height error bound.
         bool curvedTargetReached = false;
     };

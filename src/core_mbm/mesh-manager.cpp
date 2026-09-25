@@ -21,7 +21,6 @@
 #include "mesh-manager-impl.h"
 #include "private/skeletal-parity-asset.h"
 #include "private/mesh-simplifier.h"
-#include "private/mesh-planar.h"
 #include <skeletal-gpu-upload.h>
 #include <draw-compatibility.h>
 #include <shader-var-cfg.h>
@@ -2068,9 +2067,7 @@ namespace mbm
                                   char *errorOut, const int errorOutLen,
                                   const int targetSubsetIndex, const int targetFrameIndex,
                                   const bool preserveDetails,
-                                  const float boundaryCollapseThreshold, const MESH_SIMPLIFY_MODE mode,
-                                  const float planarTolerance, const float planarAngle,
-                                  const bool planarReduceBoundaries)
+                                  const float boundaryCollapseThreshold)
     {
         report = {};
         auto fail = [errorOut, errorOutLen](const std::string &message)
@@ -2082,14 +2079,7 @@ namespace mbm
         if (impl->simplifyState.load(std::memory_order_acquire)!=MESH_SIMPLIFY_STATE::RUNNING)
             impl->simplifyCommitGate.store(0);
         if (impl->simplifyCommitGate.load()==1) return fail("simplification cancelled");
-        if (mode != MESH_SIMPLIFY_MODE::QEM && mode != MESH_SIMPLIFY_MODE::COPLANAR_QEM &&
-            mode != MESH_SIMPLIFY_MODE::COPLANAR) return fail("invalid simplification mode");
-        if (!std::isfinite(planarAngle) || planarAngle < 0.0f || planarAngle > 5.0f)
-            return fail("planar angle must be finite and between zero and five degrees");
-        if (!std::isfinite(planarTolerance) || planarTolerance < 0.0f || planarTolerance > 0.01f)
-            return fail("planar tolerance must be finite and between zero and 0.01");
-        if (mode != MESH_SIMPLIFY_MODE::COPLANAR &&
-            (!std::isfinite(targetTriangleRatio) || targetTriangleRatio <= 0.0f || targetTriangleRatio >= 1.0f))
+        if (!std::isfinite(targetTriangleRatio) || targetTriangleRatio <= 0.0f || targetTriangleRatio >= 1.0f)
             return fail("target triangle ratio must be finite, greater than zero, and smaller than one");
         if (!std::isfinite(boundaryCollapseThreshold) ||
             boundaryCollapseThreshold < 0.0f || boundaryCollapseThreshold > 1.0f)
@@ -2289,11 +2279,6 @@ namespace mbm
         };
 
         mesh_simplifier::INPUT input;
-        mesh_simplifier::planar::ATTRIBUTES planarAttributes;
-        const bool planarRequested = mode != MESH_SIMPLIFY_MODE::QEM;
-        const bool planarEligible = planarRequested && !hasCanonicalData &&
-            impl->buffer.size() == 1 && impl->articulatedParts.empty();
-        report.planarSkipped = planarRequested && !planarEligible;
         input.preserveDetails = preserveDetails;
         input.boundaryCollapseThreshold = boundaryCollapseThreshold;
         input.deformationDeltas.resize(deformationDeltas.size());
@@ -2318,21 +2303,7 @@ namespace mbm
             const int sourceElementCount = sourceIndexed ? subset->indexCount : subset->vertexCount;
             report.sourceTriangleCount += static_cast<uint32_t>(sourceElementCount / 3);
             if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
-            {
-                if (planarEligible) for (int i = 0; i < sourceElementCount; i += 3)
-                {
-                    std::array<VEC3,3> triangle;
-                    for (int k = 0; k < 3; ++k)
-                    {
-                        const uint32_t v = sourceIndexed ? frame->indexBuffer[subset->indexStart+i+k]
-                            : static_cast<uint32_t>(subset->vertexStart+i+k);
-                        if (v >= report.sourceVertexCount) return fail("invalid surrounding triangle index");
-                        triangle[k] = sourcePositions[v];
-                    }
-                    planarAttributes.surroundings.push_back(triangle);
-                }
                 continue;
-            }
             activeSourceVertexCount += static_cast<uint64_t>(subset->vertexCount);
 
             std::unordered_map<uint32_t, uint32_t> localByGlobal;
@@ -2413,58 +2384,19 @@ namespace mbm
                     existingLogical = logicalIndex;
                 }
                 input.indices.push_back(existingLogical);
-                if (planarEligible)
-                {
-                    if (sourceNormals) planarAttributes.normal.push_back(sourceNormals[globalIndex]);
-                    if (sourceUvs) planarAttributes.uv.push_back(sourceUvs[globalIndex]);
-                }
             }
             input.triangleGroups.insert(input.triangleGroups.end(),
                 static_cast<size_t>(sourceElementCount / 3), subsetIndex);
         }
 
         const uint32_t activeSourceTriangles = static_cast<uint32_t>(input.indices.size() / 3);
-        if (mode != MESH_SIMPLIFY_MODE::COPLANAR && activeSourceTriangles < 2)
+        if (activeSourceTriangles < 2)
             return fail("target simplification scope requires at least two triangles");
         const uint64_t preservedSourceVertexCount = targetSubsetIndex >= 0 &&
             activeSourceVertexCount < report.sourceVertexCount
             ? report.sourceVertexCount - activeSourceVertexCount : 0u;
-        if (planarEligible)
-        {
-            planarAttributes.tolerance = planarTolerance;
-            planarAttributes.angle = planarAngle;
-            planarAttributes.reduceBoundaries = planarReduceBoundaries;
-            mesh_simplifier::INPUT candidate;
-            mesh_simplifier::planar::REPORT planarReport;
-            std::string planarError;
-            if (!mesh_simplifier::planar::run(input, planarAttributes, candidate, planarReport, planarError,
-                [this](float progress) { impl->simplifyProgress = progress * 0.4f; },
-                [this]() { return impl->simplifyCommitGate.load(std::memory_order_relaxed) == 1; }))
-                return fail(planarError);
-            report.planarRegions = planarReport.accepted;
-            report.planarRejectedRegions = planarReport.rejected;
-            report.planarRemovedTriangles = planarReport.removed;
-            report.planarHoles = planarReport.holes;
-            report.planarAttributes = planarReport.attributes;
-            report.planarTopology = planarReport.topology;
-            report.planarSurroundings = planarReport.surroundings;
-            report.planarWorkLimit = planarReport.budget;
-            report.planarBoundaryRemovedVertices = planarReport.boundaryRemoved;
-            report.planarBoundaryFallback = planarReport.boundaryFallback;
-            report.planarMaximumError = static_cast<float>(planarReport.error);
-            report.planarMaximumUvError = static_cast<float>(planarReport.uvError);
-            if (planarReport.removed) input = std::move(candidate);
-        }
-        if (mode == MESH_SIMPLIFY_MODE::COPLANAR && report.planarRemovedTriangles == 0)
-        {
-            report.unchanged = true;
-            report.resultVertexCount = report.sourceVertexCount;
-            report.resultTriangleCount = report.sourceTriangleCount;
-            if (impl->simplifyCommitGate.load() == 1) return fail("simplification cancelled");
-            impl->simplifyProgress = 1;
-            return true;
-        }
-        if (report.planarRemovedTriangles == 0 && !input.positions.empty())
+
+        if (!input.positions.empty())
         {
             const double estimatedTargetVertices = static_cast<double>(preservedSourceVertexCount) +
                 std::ceil(static_cast<double>(input.positions.size()) * targetTriangleRatio);
@@ -2485,9 +2417,7 @@ namespace mbm
             ? static_cast<uint32_t>(frame->subset.size()) : 1u;
         const uint32_t targetTriangles = std::max<uint32_t>(minimumTriangles,
             static_cast<uint32_t>(std::floor(activeSourceTriangles *
-                (mode == MESH_SIMPLIFY_MODE::COPLANAR ? 1.0f : targetTriangleRatio))));
-        const bool runQem = mode != MESH_SIMPLIFY_MODE::COPLANAR &&
-            (report.planarRemovedTriangles == 0 || input.indices.size()/3 > targetTriangles);
+                targetTriangleRatio)));
         auto edgeKey = [](uint32_t a, uint32_t b)
         {
             if (a > b) std::swap(a, b);
@@ -2510,7 +2440,7 @@ namespace mbm
             lockedBoundaryVertices.insert(static_cast<uint32_t>(entry.first >> 32u));
             lockedBoundaryVertices.insert(static_cast<uint32_t>(entry.first));
         }
-        if (runQem && boundaryCollapseThreshold == 0.0f &&
+        if (boundaryCollapseThreshold == 0.0f &&
             preservedSourceVertexCount + lockedBoundaryVertices.size() > UINT16_MAX)
         {
             char message[255] = "";
@@ -2520,7 +2450,7 @@ namespace mbm
             return fail(message);
         }
         const uint64_t boundaryTriangleFloor = (boundaryEdgeCount + 2u) / 3u;
-        if (runQem && boundaryCollapseThreshold == 0.0f && boundaryTriangleFloor > targetTriangles)
+        if (boundaryCollapseThreshold == 0.0f && boundaryTriangleFloor > targetTriangles)
         {
             char message[255] = "";
             const double minimumBoundaryRatio = static_cast<double>(boundaryTriangleFloor) /
@@ -2534,24 +2464,11 @@ namespace mbm
         }
         mesh_simplifier::OUTPUT simplified;
         std::string simplifyError;
-        if (runQem)
-        {
-            report.qemRan = true;
-            if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError,
-                [this, planarRequested](float progress) {
-                    impl->simplifyProgress = planarRequested ? 0.4f + progress * 0.6f : progress;
-                }, [this]() { return impl->simplifyCommitGate.load(std::memory_order_relaxed)==1; }))
-                return fail(std::string("frame simplification failed: ") + simplifyError);
-        }
-        else
-        {
-            simplified.positions = input.positions;
-            simplified.indices = input.indices;
-            simplified.triangleGroups = input.triangleGroups;
-            simplified.sourceContributions.resize(input.positions.size());
-            for (uint32_t i=0; i<input.positions.size(); ++i)
-                simplified.sourceContributions[i].push_back({i,1.0f});
-        }
+        report.qemRan = true;
+        if (!mesh_simplifier::simplify(input, targetTriangles, simplified, simplifyError,
+            [this](float progress) { impl->simplifyProgress = progress; },
+            [this]() { return impl->simplifyCommitGate.load(std::memory_order_relaxed)==1; }))
+            return fail(std::string("frame simplification failed: ") + simplifyError);
         if (simplified.triangleGroups.size() != simplified.indices.size() / 3 ||
             simplified.sourceContributions.size() != simplified.positions.size())
             return fail("frame simplification returned inconsistent topology metadata");
@@ -2588,28 +2505,6 @@ namespace mbm
             if (targetSubsetIndex >= 0 && subsetIndex != static_cast<uint32_t>(targetSubsetIndex))
             {
                 const util::SUBSET_DEBUG *sourceSubset = frame->subset[subsetIndex];
-                if (!runQem)
-                {
-                    if (positions.size()+sourceSubset->vertexCount>UINT16_MAX)
-                        return fail("simplified frame still exceeds the uint16 vertex-index limit");
-                    for (int i=0;i<sourceSubset->vertexCount;++i)
-                    {
-                        const uint32_t v=static_cast<uint32_t>(sourceSubset->vertexStart+i);
-                        positions.push_back(sourcePositions[v]);
-                        if (sourceNormals) normals.push_back(sourceNormals[v]);
-                        if (sourceUvs) uvs.push_back(sourceUvs[v]);
-                    }
-                    const int count=sourceIndexed?sourceSubset->indexCount:sourceSubset->vertexCount;
-                    for (int i=0;i<count;++i)
-                    {
-                        const int v=sourceIndexed?frame->indexBuffer[sourceSubset->indexStart+i]-sourceSubset->vertexStart:i;
-                        if (v<0 || v>=sourceSubset->vertexCount) return fail("index outside preserved subset");
-                        indices.push_back(static_cast<uint16_t>(range.vertexStart+v));
-                    }
-                    range.vertexCount=sourceSubset->vertexCount;
-                    range.indexCount=count;
-                    continue;
-                }
                 std::unordered_map<uint32_t, uint32_t> copiedByGlobal;
                 copiedByGlobal.reserve(static_cast<size_t>(sourceSubset->vertexCount));
                 const int sourceElementCount = sourceIndexed
@@ -2656,16 +2551,6 @@ namespace mbm
                     const uint32_t physicalIndex = static_cast<uint32_t>(positions.size());
                     physical = physicalByLogical.emplace(logicalOutput, physicalIndex).first;
                     positions.push_back(simplified.positions[logicalOutput]);
-
-                    if (!runQem)
-                    {
-                        const auto source = simplified.sourceContributions[logicalOutput][0].first;
-                        const auto global = logicalSources[source].globalBySubset.at(subsetIndex);
-                        if (sourceNormals) normals.push_back(sourceNormals[global]);
-                        if (sourceUvs) uvs.push_back(sourceUvs[global]);
-                        indices.push_back(static_cast<uint16_t>(physicalIndex));
-                        continue;
-                    }
 
                     VEC3 blendedNormal(0.0f, 0.0f, 0.0f);
                     VEC2 blendedUv(0.0f, 0.0f);
@@ -3077,9 +2962,7 @@ namespace mbm
                                        const int targetSubsetIndex,
                                        const int targetFrameIndex,
                                        const bool preserveDetails,
-                                       const float boundaryCollapseThreshold, const MESH_SIMPLIFY_MODE mode,
-                                       const float planarTolerance, const float planarAngle,
-                                       const bool planarReduceBoundaries)
+                                       const float boundaryCollapseThreshold)
     {
         if (impl->simplifyState.load(std::memory_order_acquire) == MESH_SIMPLIFY_STATE::RUNNING)
             return false;
@@ -3094,7 +2977,7 @@ namespace mbm
         {
             impl->simplifyWorker = std::thread([this, targetTriangleRatio, targetSubsetIndex,
                                                 targetFrameIndex, preserveDetails,
-                                                boundaryCollapseThreshold, mode, planarTolerance, planarAngle, planarReduceBoundaries]()
+                                                boundaryCollapseThreshold]()
             {
                 char errorOut[255] = "";
                 bool success = false;
@@ -3102,7 +2985,7 @@ namespace mbm
                 {
                     success = simplify(targetTriangleRatio, impl->simplifyReport,
                         errorOut, static_cast<int>(sizeof(errorOut)), targetSubsetIndex,
-                        targetFrameIndex, preserveDetails, boundaryCollapseThreshold, mode, planarTolerance, planarAngle, planarReduceBoundaries);
+                        targetFrameIndex, preserveDetails, boundaryCollapseThreshold);
                 }
                 catch (...)
                 {

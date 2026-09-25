@@ -428,6 +428,7 @@ local function menu()
         end
         if tImGui.BeginMenu(tLang.L('menu_options')) then
             tLang.renderLanguageSubmenu()
+            require('mesh_cgal').menu()
             if tImGui.BeginMenu(tLang.L('background_color')..'##ime_background') then
                 local colors={
                     {'default',{r=.1,g=.12,b=.15,a=1}},
@@ -706,23 +707,16 @@ local function propertiesPanel()
             E.values.curvedSimplify=tImGui.Checkbox(L('curved_simplify'),E.values.curvedSimplify)
             if tImGui.IsItemHovered() then Help.tooltip(L('curved_simplify_help')) end
             if E.values.curvedSimplify then
-                E.values.curvedSimplifyMode=require('mesh_simplify_modes').select(E.values.curvedSimplifyMode,true,'image-curved')
-                if E.values.curvedSimplifyMode~='specific' then tImGui.TextWrapped(tLang.L('simplify_planar_curved_exact')) end
-                tImGui.BeginDisabled(E.values.curvedSimplifyMode=='coplanar')
                 local c,v=tImGui.SliderFloat(L('curved_simplify_ratio'),E.values.curvedSimplifyRatio,.01,1,'%.2f')
                 if c then E.values.curvedSimplifyRatio=Model.clampOption('curvedSimplifyRatio',v,E.values.curvedSimplifyRatio) end
                 c,v=tImGui.SliderFloat(L('curved_simplify_error'),E.values.curvedSimplifyError,.0001,.25,'%.4f')
                 if c then E.values.curvedSimplifyError=Model.clampOption('curvedSimplifyError',v,E.values.curvedSimplifyError) end
                 if tImGui.IsItemHovered() then Help.tooltip(L('curved_simplify_error_help')) end
                 tImGui.TextWrapped(L('curved_simplify_help'))
-                tImGui.EndDisabled()
             end
             if E.report and E.report.curvedSourceTriangles and not E.editDefaults then
                 tImGui.TextWrapped(string.format(L('curved_simplify_result'),E.report.curvedSourceTriangles,
                     E.report.curvedResultTriangles,E.report.curvedMaximumError))
-                if (E.report.curvedPlanarRemovedTriangles or 0)>0 then
-                    tImGui.Text(string.format(tLang.L('simplify_planar_removed'),E.report.curvedPlanarRemovedTriangles))
-                end
                 if not E.report.curvedTargetReached then tImGui.TextWrapped(L('curved_simplify_limited')) end
             end
             tImGui.EndDisabled()
@@ -731,13 +725,12 @@ local function propertiesPanel()
         if E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             E.values.simplify=tImGui.Checkbox(L('simplify_after'),E.values.simplify)
             if E.values.simplify then
-                E.values.simplifyMode=require('mesh_simplify_modes').select(E.values.simplifyMode,false,'image-general')
-                if E.values.simplifyMode~='qem' then
-                    E.values.planarTolerance,E.values.planarAngle,E.values.planarReduceBoundaries=require('mesh_simplify_modes').planarSettings(
-                        E.values.planarTolerance,E.values.planarAngle,'image-general',E.values.planarReduceBoundaries)
-                    tImGui.TextWrapped(tLang.L('simplify_planar_help'))
+                E.values.simplifyMode=require('mesh_simplify_modes').select(E.values.simplifyMode,'image-general')
+                if E.values.simplifyMode=='cgal' then
+                    E.values.planarTolerance,E.values.planarAngle=require('mesh_simplify_modes').cgalSettings(
+                        E.values.planarTolerance,E.values.planarAngle,'image-general')
                 end
-                tImGui.BeginDisabled(E.values.simplifyMode=='coplanar')
+                tImGui.BeginDisabled(E.values.simplifyMode=='cgal')
                 local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.001,0.95,'%.3f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
                 if c then E.values.simplifyRatio=Model.clampOption('simplifyRatio',v,E.values.simplifyRatio) end
                 if E.report and not E.editDefaults then
@@ -745,8 +738,12 @@ local function propertiesPanel()
                     tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'),source,math.max(1,math.floor(source*E.values.simplifyRatio))))
                     if tImGui.IsItemHovered() then Help.tooltip(L('simplify_estimate_hint')) end
                 else tImGui.TextWrapped(L('simplify_estimate_pending')) end
+                tImGui.EndDisabled()
+                tImGui.BeginDisabled(E.values.simplifyMode=='cgal')
                 E.values.simplifyDetails=tImGui.Checkbox(tLang.L('simplify_preserve_details'),E.values.simplifyDetails)
                 if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_preserve_details_tooltip')) end
+                tImGui.EndDisabled()
+                tImGui.BeginDisabled(E.values.simplifyMode=='cgal')
                 c,v=tImGui.SliderFloat(tLang.L('simplify_boundary_threshold'),E.values.simplifyBoundary,0,0.25,'%.3f')
                 if c then E.values.simplifyBoundary=Model.clampOption('simplifyBoundary',v,E.values.simplifyBoundary) end
                 if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_boundary_threshold_tooltip')) end
@@ -984,7 +981,7 @@ end
 function onResizeWindow()
     E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
-function onEndScene() Generation.cancel(E); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.shutdown(E); releasePreview(); Canvas.destroy(E) end
+function onEndScene() Generation.cancel(E); require('mesh_cgal').shutdown(); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.shutdown(E); releasePreview(); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.generation=Generation
     testApi.auto=Auto; testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end

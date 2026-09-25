@@ -17,7 +17,7 @@
 package.path='editor/?.lua;'..package.path
 dofile('editor/mesh_debug.lua')
 local View=require 'mesh_debug_simplification'
-local helper={};assert(loadfile('src/test-lib/mesh_coplanar_smoke.lua'))(helper)
+local helper=dofile('src/test-lib/mesh_simplification_fixture.lua')
 local initialize=onInitScene
 local job,stage,rendered,entry
 local function safe(fn,...)
@@ -30,7 +30,7 @@ local function operation()
  assert(addMeshToTable('/tmp/md-simplify-source.msh'))
  entry=tLoadedMeshes[#tLoadedMeshes];iSelectedMeshIndex=#tLoadedMeshes
  entry.sOpenNode='simplification';entry.tSimplifyState={scope='frame',selectedFrame=1,ratio=.5,preserveDetails=true,
-  boundaryCollapseThreshold=0,mode='coplanar',planarReduceBoundaries=true}
+  boundaryCollapseThreshold=0,mode='qem'}
  assert(simplifyApply(entry,entry.meshDebug,iSelectedMeshIndex))
  while entry.tSimplifyState.running do simplifyResume(entry);coroutine.yield() end
  updatePreviewMesh()
@@ -50,10 +50,10 @@ local function operation()
  entry.infoTestRT:destroy();entry.infoTestRT=nil
  InfoWire.release(entry);assert(not entry.infoWireView and tPreviewMesh.visible)
  stage=nil
- assert(entry.simplifyComparison and entry.simplifyComparison.triangles==8)
+ assert(entry.simplifyComparison and entry.simplifyComparison.triangles==entry.tSimplifyState.report.resultTriangleCount)
  assert(View.ensure(entry,safe));local view=entry.simplifyComparisonView
  local original=meshDebug:new();assert(original:load(view.original.previewPath));assert(original:getTotalIndex(1,1)==360)
- local result=meshDebug:new();assert(result:load(view.result.previewPath));assert(result:getTotalIndex(1,1)==24)
+ local result=meshDebug:new();assert(result:load(view.result.previewPath));assert(result:getTotalIndex(1,1)==entry.tSimplifyState.report.resultTriangleCount*3 and result:getTotalIndex(1,1)<360)
  local frozen=helper.signature(entry.meshDebug)
  view.enabled=true;View.fit(entry,applyCam3d);View.sync(entry,tPreviewMesh,true)
  assert(not tPreviewMesh.visible and view.original.preview.visible and view.result.preview.visible)
@@ -71,14 +71,11 @@ local function operation()
  assert(simplifyApply(entry,entry.meshDebug,iSelectedMeshIndex));assert(simplifyCancel(entry))
  while entry.tSimplifyState.running do simplifyResume(entry);coroutine.yield() end
  assert(entry.simplifyComparison==record)
- assert(simplifyApply(entry,entry.meshDebug,iSelectedMeshIndex))
- while entry.tSimplifyState.running do simplifyResume(entry);coroutine.yield() end
- assert(entry.tSimplifyState.report.unchanged and entry.simplifyComparison==record)
  entry.tSimplifyState.mode='qem';entry.tSimplifyState.ratio=.001
  assert(simplifyApply(entry,entry.meshDebug,iSelectedMeshIndex))
  while entry.tSimplifyState.running do simplifyResume(entry);coroutine.yield() end
  assert(entry.simplifyComparison==record and helper.signature(entry.meshDebug)==frozen)
- entry.tSimplifyState.mode='coplanar'
+ entry.tSimplifyState.mode='qem'
  stage='render';rendered=0
  for _=1,12 do coroutine.yield() end
  entry.testRT:destroy();entry.testRT=nil
@@ -111,7 +108,7 @@ local function operation()
  assert(other.simplifyComparisonView.original.lo[1]==64 and other.simplifyComparisonView.result.lo[1]==64)
  assert(other.meshDebug:getTotalIndex(1,1)==384,'unselected frame changed')
  simplifyDiscardBackup(other)
- print('MESH DEBUG SIMPLIFICATION WORKTREE / COMPARISON / WIREFRAME / IDLE / CANCEL / NOOP / UNDO / CLEANUP OK')
+ print('MESH DEBUG SIMPLIFICATION WORKTREE / COMPARISON / WIREFRAME / IDLE / CANCEL / UNDO / CLEANUP OK')
 end
 function onInitScene()
  initialize();job=coroutine.create(operation)

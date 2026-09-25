@@ -20,48 +20,32 @@
 
 ]]--
 
--- Shared editor UI: native QEM or the external CGAL process.
-local M={}
-function M.select(value,id)
-    local modes={'qem','cgal'}
-    local labels={tLang.L('simplify_mode_qem'),tLang.L('cgal_mode')}
-    local index=value=='cgal' and 2 or 1
-    local changed,selected=tImGui.Combo(tLang.L('simplify_mode')..'##'..id,index,labels,-1)
-    local mode=modes[changed and selected or index]
-    if mode=='cgal' then
-        tImGui.TextWrapped(tLang.L('cgal_help'))
-        if require('mesh_cgal').getPath()=='' then tImGui.TextWrapped(tLang.L('cgal_missing')) end
+local Wire = require 'image_mesh_wireframe'
+local M = {}
+function M.release(entry)
+    if entry.captureWire then Wire.release(entry.captureWire) end
+    entry.captureWire = nil
+end
+function M.update(entry, resolved)
+    if entry.captureWire and entry.captureWire.resolved == resolved then return end
+    M.release(entry)
+    local groups = resolved.groups
+    local adapter = {}
+    function adapter:getTotalSubset() return #groups end
+    function adapter:getTotalVertex(_,s) return #groups[s].vertices end
+    function adapter:getVertex(_,s) return groups[s].vertices end
+    function adapter:getIndex(_,s)
+        local indices = {}
+        for _,tri in ipairs(groups[s].triangles) do
+            for _,v in ipairs(tri) do indices[#indices+1]=v end
+        end
+        return indices
     end
-    return mode
-end
-function M.tooltip(text)
-    if not tImGui.BeginTooltip() then return end
-    tImGui.PushTextWrapPos(420)
-    tImGui.Text(text)
-    tImGui.PopTextWrapPos()
-    tImGui.EndTooltip()
-end
-function M.cgalSettings(tolerance,angle,id)
-    tolerance=tolerance or 1e-7
-    angle=angle or .05
-    local flags=tImGui.Flags('ImGuiSliderFlags_AlwaysClamp')
-    tImGui.SetNextItemWidth(240)
-    local changed,result=tImGui.DragFloat(tLang.L('cgal_angle')..'##'..id,
-        angle,.1,0,60,'%.3f deg',flags)
-    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_angle_help')) end
-    if changed and result==result then angle=math.max(0,math.min(60,result)) end
-    tImGui.SetNextItemWidth(240)
-    changed,result=tImGui.DragFloat(tLang.L('cgal_distance')..'##'..id,
-        tolerance*100,.001,0,10,'%.6f %%',flags)
-    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_distance_help')) end
-    if changed and result==result then tolerance=math.max(0,math.min(.1,result/100)) end
-    return tolerance,angle
-end
-function M.report(report)
-    if not report then return end
-    if report.backend=='cgal' then
-        tImGui.TextWrapped(string.format(tLang.L('cgal_report'),report.cgal.regions,report.cgal.sampled_error_fraction*100))
-    end
-    if report.unchanged then tImGui.TextWrapped(tLang.L('simplify_unchanged')) end
+    local view = {preview=true, resolved=resolved}
+    entry.captureWire = view
+    Wire.ensure(view, adapter)
+    view.wireObject:setPos(0,0,0)
+    view.wireObject.alwaysOnTop = true
+    view.wireObject.visible = true
 end
 return M
