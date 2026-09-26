@@ -11850,7 +11850,12 @@ function showImageMeshProjectTree(tToRemove,tProjectsToRemove)
 
     for projectIndex,project in ipairs(tImageMeshProjects) do
         local label=project.name..' [Image Mesh]'
-        if tImGui.TreeNodeEx(label,0,'image-mesh-project-'..project.path) then
+        tImGui.SetNextItemOpen(project.treeExpanded==true,tImGui.Flags('ImGuiCond_Always'))
+        local projectOpen=tImGui.TreeNodeEx(label,0,'image-mesh-project-'..project.path)
+        if projectOpen then
+            for otherIndex,otherProject in ipairs(tImageMeshProjects) do
+                if otherIndex~=projectIndex then otherProject.treeExpanded=false end
+            end
             project.treeExpanded=true
             local hadMeshes=project.meshEntries and #project.meshEntries>0 or false
             local firstMeshIndex=nil

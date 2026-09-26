@@ -42,9 +42,13 @@ local function fileName(path)
 end
 
 local function shortHash(value)
-    local hash=0
-    for index=1,#value do hash=(hash*33+value:byte(index))%4294967296 end
-    return string.format('%08x',hash)
+    local hashA,hashB=0,5381
+    for index=1,#value do
+        local byte=value:byte(index)
+        hashA=(hashA*33+byte)%4294967296
+        hashB=(hashB*65599+byte)%4294967296
+    end
+    return string.format('%08x%08x',hashA,hashB)
 end
 
 local function directory(path)
@@ -91,7 +95,7 @@ end
 -- Dropbox-generated filenames, so exporting a temporary mesh directly with the source basename
 -- truncates the extension and makes Mesh Debug ask the user to locate a nonexistent texture.
 -- Give each distinct source texture a short alias inside the OS temporary folder instead. The
--- folder hash keeps aliases unique because the engine's texture cache is keyed by basename.
+-- project/source hash keeps aliases unique because the engine's texture cache is keyed by basename.
 local function useTemporaryTextureAliases(entry,asset)
     local sep=package.config:sub(1,1)
     for subset=1,asset:getTotalSubset(1) do
@@ -107,7 +111,8 @@ local function useTemporaryTextureAliases(entry,asset)
                 assert(#extension<=24 and extension:match('^%.[%w]+$'),
                     'ime_texture_extension_missing: '..texture)
                 entry.nextTempTextureId=entry.nextTempTextureId+1
-                alias=string.format('i%s_t%03d%s',entry.tempTextureNamespace,
+                local namespace=shortHash(normalize(entry.path)..'\0'..normalize(resolved))
+                alias=string.format('i%s_t%03d%s',namespace,
                     entry.nextTempTextureId,extension)
                 local destination=entry.tempDirectory..sep..alias
                 assert(copyFile(resolved,destination),'ime_texture_copy_failed: '..texture)
@@ -187,7 +192,6 @@ local function createTask(entry)
         local folder=tUtil.getTemporaryFilePath('_mini_mbm_imesh')
         assert(mbm.createDirectories(folder),'ime_temporary_folder_failed')
         entry.tempDirectory=folder
-        entry.tempTextureNamespace=shortHash(normalize(folder))
         mbm.addPath(folder)
     end
     entry.worker={}
