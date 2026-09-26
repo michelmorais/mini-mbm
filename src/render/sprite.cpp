@@ -70,6 +70,7 @@ namespace mbm
         }
         sprite.setInternalFileName(fileName);
         sprite.restartAnimation();
+        sprite.startAutoplayAnimation();
         sprite.updateAABB();
         return true;
     }
@@ -92,6 +93,7 @@ namespace mbm
                 return false;
             this->setInternalFileName(fileName);
             this->restartAnimation();
+            this->startAutoplayAnimation();
             this->updateAABB();
             return true;
         }
@@ -133,6 +135,7 @@ namespace mbm
             }
             this->setInternalFileName(fileNameCopy.c_str());
             this->restartAnimation();
+            this->startAutoplayAnimation();
             this->updateAABB();
             if (callback)
                 callback(true);
@@ -144,6 +147,23 @@ namespace mbm
         if (this->mesh)
             return this->mesh->getFilenameMesh();
         return nullptr;
+    }
+
+    void SPRITE::startAutoplayAnimation()
+    {
+        if (!this->mesh)
+            return;
+        const char *name = this->mesh->getAutoplayAnimationName();
+        if (!name || !name[0])
+            return;
+        if (this->mesh->getAutoplayAnimationKind() == util::AUTOPLAY_ANIMATION_FRAME)
+        {
+            this->setAnimation(name);
+            return;
+        }
+        if (this->mesh->getAutoplayAnimationKind() == util::AUTOPLAY_ANIMATION_ARTICULATED)
+            this->playArticulatedAnimation(
+                name, this->mesh->getArticulatedAnimationDefaultPriority(name));
     }
 
     bool SPRITE::playArticulatedAnimation(const char *name, const int priority,

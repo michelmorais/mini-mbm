@@ -315,6 +315,8 @@ namespace mbm
         API_IMPL uint32_t getTotalAnimationHeaders() const noexcept;
         API_IMPL util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnimationHeader(const uint32_t index) const noexcept;
         API_IMPL void appendAnimationHeader(util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead) noexcept;
+        API_IMPL bool isAutoplayAnimation(const char *kind, const char *name) const noexcept;
+        API_IMPL bool setAutoplayAnimation(const char *kind, const char *name);
         API_IMPL void clearBlendOperations() noexcept;
         API_IMPL void resizeBlendOperations(const uint32_t totalAnimations);
         API_IMPL void setBlendOperation(const uint32_t index, const int blendOperation);
@@ -720,6 +722,9 @@ namespace mbm
         API_IMPL const util::INFO_ANIMATION &getAnimationInfo() const noexcept;
         API_IMPL uint32_t getTotalAnimations() const noexcept;
         API_IMPL util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnimationHeader(const uint32_t index) const noexcept;
+        API_IMPL uint8_t getAutoplayAnimationKind() const noexcept;
+        API_IMPL const char *getAutoplayAnimationName() const noexcept;
+        API_IMPL int getArticulatedAnimationDefaultPriority(const char *name) const noexcept;
         API_IMPL virtual ~MESH_MBM();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();

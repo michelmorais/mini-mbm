@@ -47,6 +47,11 @@ structures. This data resides in `MESH_MBM::Impl` or `MESH_MBM_DEBUG::Impl`.
 Public queries return scalar values or copy fixed records rather than exposing
 vectors, maps, or mutable references.
 
+The optional V11 autoplay target (kind and animation name) stays in those same
+asset PIMPLs. Mesh Debug changes it through a validating setter; runtime
+renderables read it through narrow getters and keep their playback state per
+instance.
+
 Each renderizable's animation manager owns its playback state. Opaque
 `SKELETAL_ANIMATION_PLAYER` and `ARTICULATED_ANIMATION_PLAYER` implementations keep
 clip selection, time, pause, blending, masks, evaluated transforms, palettes, and

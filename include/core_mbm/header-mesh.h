@@ -571,6 +571,15 @@ namespace util
         SECTION_SKELETAL_SKELETON  = 41, // canonical runtime skeleton, docs Sec. 6h
         SECTION_SKELETAL_WEIGHTS   = 42, // canonical runtime weights, docs Sec. 6h
         SECTION_SKELETAL_ANIMATION = 43, // canonical skeletal clips, docs Sec. 6h
+        SECTION_AUTOPLAY_ANIMATION = 44, // optional animation selected for new runtime instances
+    };
+
+    enum AUTOPLAY_ANIMATION_KIND_V11 : uint8_t
+    {
+        AUTOPLAY_ANIMATION_NONE        = 0,
+        AUTOPLAY_ANIMATION_FRAME       = 1,
+        AUTOPLAY_ANIMATION_ARTICULATED = 2,
+        AUTOPLAY_ANIMATION_SKELETAL    = 3,
     };
 
     enum SECTION_COMPRESSION : uint8_t
@@ -726,6 +735,13 @@ namespace util
         uint16_t    blendState;
         uint8_t     hasFx;           // bool - if 1, an FX_HEADER_V11 follows
         API_IMPL ANIMATION_HEADER_V11() noexcept;
+    };
+
+    struct AUTOPLAY_ANIMATION_V11 // payload for SECTION_AUTOPLAY_ANIMATION
+    {
+        uint8_t     kind; // AUTOPLAY_ANIMATION_KIND_V11; NONE is not stored as a section
+        std::string name;
+        API_IMPL AUTOPLAY_ANIMATION_V11() noexcept;
     };
 
     struct ARTICULATED_PARTS_HEADER_V11 // payload header for SECTION_ARTICULATED_PARTS

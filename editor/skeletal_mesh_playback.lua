@@ -20,24 +20,44 @@
 
 ]]--
 
--- Read-only runtime preview. Cache clip names until the preview instance changes.
+-- Read-only runtime preview. Cache authored clip names until the Mesh Debug object changes.
 local M = {}
 
-function M.draw(entry, preview, ready, call)
-    if not preview or not preview.getTotalSkeletalAnimations then
-        tImGui.TextDisabled(tLang.L('mesh_debug_skeletal_no_clips'))
-        return
-    end
+function M.draw(entry, data, preview, ready, call, onEdit)
     local state = entry.skeletalPlayback
-    if not state or state.preview ~= preview then
-        state = {preview = preview, clips = {}, selected = 1, mode = 1, weight = 0.5}
+    if not state or state.data ~= data then
+        state = {data = data, clips = {}, selected = 1, mode = 1, weight = 0.5}
         entry.skeletalPlayback = state
-        for i = 1, preview:getTotalSkeletalAnimations() do
-            state.clips[i] = preview:getSkeletalAnimationName(i)
+        local ok, clips = call(function() return data:getSkeletalAnimationReport() end)
+        if ok and type(clips) == 'table' then
+            for _, clip in ipairs(clips) do
+                if type(clip.name) == 'string' then
+                    state.clips[#state.clips + 1] = clip.name
+                end
+            end
         end
     end
     if #state.clips == 0 then
         tImGui.TextDisabled(tLang.L('mesh_debug_skeletal_no_clips'))
+        return
+    end
+    tImGui.PushItemWidth(220)
+    local changed, selected = tImGui.Combo(tLang.L('swl_skeletal_clip'), state.selected, state.clips)
+    if changed then state.selected = selected end
+    tImGui.PopItemWidth()
+    local clipName = state.clips[state.selected]
+    local autoplay = data:isAutoplayAnimation('skeletal', clipName)
+    local newAutoplay = tImGui.Checkbox(
+        tLang.L('autoplay_animation_on_load') .. '##skeletalAutoplay', autoplay)
+    if newAutoplay ~= autoplay then
+        local ok, updated = call(function()
+            if newAutoplay then return data:setAutoplayAnimation('skeletal', clipName) end
+            return data:setAutoplayAnimation('', '')
+        end)
+        if ok and updated and onEdit then onEdit() end
+    end
+    if not preview or not preview.getTotalSkeletalAnimations then
+        tImGui.TextDisabled(tLang.L('mesh_debug_skeletal_preview_unavailable'))
         return
     end
     local function apply(fn)
@@ -47,8 +67,6 @@ function M.draw(entry, preview, ready, call)
     end
     tImGui.BeginDisabled(not ready)
     tImGui.PushItemWidth(220)
-    local changed, selected = tImGui.Combo(tLang.L('swl_skeletal_clip'), state.selected, state.clips)
-    if changed and ready then state.selected = selected end
     local modeChanged, mode = tImGui.Combo(tLang.L('mesh_debug_skeletal_mode'), state.mode,
         {tLang.L('mesh_debug_skeletal_base'), tLang.L('swl_layer_mode_absolute'), tLang.L('swl_layer_mode_additive')})
     if modeChanged and ready then state.mode = mode end

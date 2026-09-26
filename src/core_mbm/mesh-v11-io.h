@@ -80,11 +80,13 @@ namespace util
     bool writeShaderStepV11(FILE *fp, const util::SHADER_STEP_V11 &in);
     bool writeFxHeaderV11(FILE *fp, const util::FX_HEADER_V11 &in);
     bool writeAnimationHeaderV11(FILE *fp, const util::ANIMATION_HEADER_V11 &in);
+    bool writeAutoplayAnimationV11(FILE *fp, const util::AUTOPLAY_ANIMATION_V11 &in);
 
     bool readShaderVarV11(util::MEM_CURSOR_V11 &fp, util::SHADER_VAR_V11 &out);
     bool readShaderStepV11(util::MEM_CURSOR_V11 &fp, util::SHADER_STEP_V11 &out);
     bool readFxHeaderV11(util::MEM_CURSOR_V11 &fp, util::FX_HEADER_V11 &out);
     bool readAnimationHeaderV11(util::MEM_CURSOR_V11 &fp, util::ANIMATION_HEADER_V11 &out);
+    bool readAutoplayAnimationV11(util::MEM_CURSOR_V11 &fp, util::AUTOPLAY_ANIMATION_V11 &out);
 
     // Articulated rigid-animation payload serializers.
     bool writeArticulatedPartsHeaderV11(FILE *fp, const util::ARTICULATED_PARTS_HEADER_V11 &in);

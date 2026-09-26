@@ -868,6 +868,24 @@ namespace mbm
         return 1;
     }
 
+    int onIsAutoplayAnimationMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *kind = luaL_checkstring(lua, 2);
+        const char *name = luaL_checkstring(lua, 3);
+        lua_pushboolean(lua, meshDebug->mesh.isAutoplayAnimation(kind, name));
+        return 1;
+    }
+
+    int onSetAutoplayAnimationMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *kind = luaL_optstring(lua, 2, "");
+        const char *name = luaL_optstring(lua, 3, "");
+        lua_pushboolean(lua, meshDebug->mesh.setAutoplayAnimation(kind, name));
+        return 1;
+    }
+
     int onGetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3521,6 +3539,8 @@ namespace mbm
 										  {"setModeFrontFace", onSetMode_FrontFaceMeshDebugLua},
 			                              {"getModeFrontFace", onGetMode_FrontFaceMeshDebugLua},
                                           {"getVersion", onGetVersionMeshDebugLua},
+                                          {"isAutoplayAnimation", onIsAutoplayAnimationMeshDebugLua},
+                                          {"setAutoplayAnimation", onSetAutoplayAnimationMeshDebugLua},
                                           {"getMaterial", onGetMaterialMeshDebugLua},
                                           {"setMaterial", onSetMaterialMeshDebugLua},
                                           {"setPhysics", onSetPhysicsMeshDebugLua},

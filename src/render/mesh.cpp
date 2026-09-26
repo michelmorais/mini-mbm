@@ -141,6 +141,7 @@ namespace mbm
             return false;
         this->setInternalFileName(fileName);
         this->restartAnimation();
+        this->startAutoplayAnimation();
         this->updateAABB();
         return true;
     }
@@ -181,10 +182,35 @@ namespace mbm
             }
             this->setInternalFileName(fileNameCopy.c_str());
             this->restartAnimation();
+            this->startAutoplayAnimation();
             this->updateAABB();
             if (callback)
                 callback(true);
         });
+    }
+
+    void MESH::startAutoplayAnimation()
+    {
+        if (!this->mesh)
+            return;
+        const char *name = this->mesh->getAutoplayAnimationName();
+        if (!name || !name[0])
+            return;
+        switch (this->mesh->getAutoplayAnimationKind())
+        {
+            case util::AUTOPLAY_ANIMATION_FRAME:
+                this->setAnimation(name);
+                break;
+            case util::AUTOPLAY_ANIMATION_ARTICULATED:
+                this->playArticulatedAnimation(
+                    name, this->mesh->getArticulatedAnimationDefaultPriority(name));
+                break;
+            case util::AUTOPLAY_ANIMATION_SKELETAL:
+                this->playSkeletalAnimation(name);
+                break;
+            default:
+                break;
+        }
     }
 
     const char * MESH::getFileName() const

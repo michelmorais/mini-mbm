@@ -671,6 +671,11 @@ namespace util
         hasFx            = 0;
     }
 
+    AUTOPLAY_ANIMATION_V11::AUTOPLAY_ANIMATION_V11() noexcept
+    {
+        kind = AUTOPLAY_ANIMATION_NONE;
+    }
+
     ARTICULATED_PARTS_HEADER_V11::ARTICULATED_PARTS_HEADER_V11() noexcept
     {
         partCount = 0;

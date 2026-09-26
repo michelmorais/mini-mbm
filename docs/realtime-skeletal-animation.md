@@ -142,6 +142,11 @@ The base plus optional layer is composed in local TRS, after which the hierarchy
 LBS/DQS palette are rebuilt. Layer state and layer masks are per-instance runtime state and are not
 serialized into the mesh.
 
+Mesh V11 can also name one autoplay clip in optional `SECTION_AUTOPLAY_ANIMATION` (44). A newly
+loaded `MESH` starts the selected skeletal clip after its animation data is ready. Frame and
+articulated clips use the same selection section and can be selected from Mesh Debug; autoplay
+selection is asset metadata, while player time remains per instance.
+
 The complete Lua signatures and return values are documented in
 [Lua API - Canonical skeletal playback](lua-api.md#canonical-skeletal-playback-mesh-gpucpu-lbsdqs-profile).
 

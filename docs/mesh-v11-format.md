@@ -88,6 +88,7 @@ enum SECTION_TYPE : uint16_t
     SECTION_SKELETAL_SKELETON  = 41,
     SECTION_SKELETAL_WEIGHTS   = 42,
     SECTION_SKELETAL_ANIMATION = 43,
+    SECTION_AUTOPLAY_ANIMATION = 44,
 };
 ```
 
@@ -100,10 +101,8 @@ unrecognized `type` is **not** actually a safe no-op for every reader — only t
 `MESH_MBM_DEBUG::getInfo` file-probe genuinely skips unknown types. Both real content loaders
 (`parse_v11_intermediate`, the shared runtime/`MESH_MBM` path, and `MESH_MBM_DEBUG::loadV11`, the
 editor path) hard-fail on a `type` they don't have an explicit branch for. Every section type above
-therefore needs explicit (if only parse-and-discard) handling in both of those functions before it's
-safe to write to disk — see `SECTION_VERTEX_SKIN_WEIGHTS`'s own rollout in Sec. 6g for the concrete
-pattern this implies (a shared parse function, one real consumer, one "parsed but intentionally
-unused" consumer).
+therefore needs explicit handling in both of those functions before it's safe to write to disk. The
+autoplay section is read by both loaders and retained in their runtime/editor mesh records.
 
 Sections of repeated kinds (`SECTION_ANIMATION`, `SECTION_FRAME_STATIC`) appear back-to-back in
 ascending index order; nothing in the envelope encodes "which animation/frame index is this," the
@@ -666,13 +665,25 @@ mask affect sampling; absent channels/tracks use bind-local values. Quaternions 
 rotation representation and use antipodal sign correction during interpolation. No Euler intent,
 player state, blend priority, fade, timeline selection, or backend data is persisted in version 1.
 
+### `SECTION_AUTOPLAY_ANIMATION = 44`, version 1
+
+```text
+uint8 kind                        // 1=frame, 2=articulated, 3=skeletal
+string name                       // required; selects one animation in the corresponding family
+```
+
+The section is optional and appears at most once. A newly loaded `MESH` starts the selected frame,
+articulated, or skeletal clip. `SPRITE` starts frame and articulated selections. Playback state
+remains per instance. The editor stores the selected animation kind and name here without changing
+the existing animation payloads. An unset selection is represented by omitting the section.
+
 ### Rollout and old-reader behavior
 
-The completed rollout order was: field serializers and payload validators; parse support in
-`parse_v11_intermediate` and `MESH_MBM_DEBUG::loadV11`; corruption tests; then writer emission,
-`sectionCount` increments, and a save/reload section-order fixture. Existing binaries that predate
-types 41–43 will reject files containing them. This is an explicit feature-version boundary, not
-silent fallback.
+The canonical skeletal sections 41–43 were rolled out with field serializers and payload validators,
+parse support in `parse_v11_intermediate` and `MESH_MBM_DEBUG::loadV11`, corruption tests, writer
+emission, `sectionCount` increments, and a save/reload section-order fixture. Existing binaries that
+predate an optional section type reject files containing it. This is an explicit feature-version
+boundary, not silent fallback; the same reader boundary applies to autoplay section 44.
 
 There is deliberately no legacy skeletal writer mode. Readers, writers, structs, enum members,
 storage, and public Mesh Debug APIs for retired numeric types 11 and 40 have been removed. A file
