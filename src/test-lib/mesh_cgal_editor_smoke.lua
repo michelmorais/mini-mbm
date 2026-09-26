@@ -28,6 +28,7 @@ local function test()
  local executable=assert(os.getenv('MBM_CGAL_EXECUTABLE'))
  assert(Cgal.setPath(executable,true))
  package.loaded.mesh_cgal=nil;Cgal=require 'mesh_cgal';assert(Cgal.getPath()==executable)
+ assert(Cgal.setRepairPath(assert(os.getenv('MBM_CGAL_REPAIR_EXECUTABLE')),false))
  local d=helper.grid('flat');d:setTexture(1,1,'#6080FFFF');d:setMaterialTexture(1,1,'normal','#8080FFFF')
  assert(d:save('/tmp/cgal-editor-source.msh',false,false,true));assert(addMeshToTable('/tmp/cgal-editor-source.msh'))
  local e=tLoadedMeshes[#tLoadedMeshes];iSelectedMeshIndex=#tLoadedMeshes
@@ -67,10 +68,12 @@ local function test()
  assert(simplifyRestoreBackup(e,iSelectedMeshIndex));assert(helper.signature(e.meshDebug)==original)
  assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));assert(simplifyCancel(e));await(e)
  assert(helper.signature(e.meshDebug)==original)
- Cgal.setPath('/tmp/missing-cgal-executable',false)
+ local folder=require 'mesh_cgal_folder'
+ local configuredFolder=folder.getDirectory()
+ assert(folder.setDirectory('/tmp/missing-cgal-tools',false))
  assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e);assert(helper.signature(e.meshDebug)==original)
  assert(e.tSimplifyState.lastError)
- Cgal.setPath(executable,false)
+ assert(folder.setDirectory(configuredFolder,false))
  local bad=helper.grid('flat');local frozen=helper.signature(bad)
  local failed=assert(Cgal.start(bad,nil,1,61,.01));local failedStatus
  repeat failedStatus=failed:getSimplifyStatus();coroutine.yield() until failedStatus.state~='running'
@@ -133,21 +136,11 @@ local function test()
   assert(e.tSimplifyState.report and e.tSimplifyState.report.backend=='remesh',e.tSimplifyState.lastError)
   assert(e.tSimplifyState.report.resultTriangleCount>e.tSimplifyState.report.sourceTriangleCount)
   assert(simplifyRestoreBackup(e,iSelectedMeshIndex))
-  for _,target in ipairs{80,500} do
-   e.tSimplifyState.remeshTargetEnabled=true;e.tSimplifyState.remeshTargetTriangles=target
-   assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e)
-   local report=assert(e.tSimplifyState.report,e.tSimplifyState.lastError).remesh
-   assert(report.target_triangles==target)
-   local actual=e.meshDebug:getTotalIndex(1,1)/3
-   local errorFraction=math.abs(actual-target)/target
-   assert(math.abs(report.target_relative_error-errorFraction)<1e-9)
-   assert(report.target_reached==(errorFraction<=.05 and 1 or 0))
-   if target==500 then assert(errorFraction<=.05) else assert(actual<128) end
-   assert(simplifyRestoreBackup(e,iSelectedMeshIndex));assert(helper.signature(e.meshDebug)==original)
-  end
-  e.tSimplifyState.remeshTargetEnabled=false
+  -- Legacy state cannot reactivate triangle-target search.
+  e.tSimplifyState.remeshTargetEnabled=true;e.tSimplifyState.remeshTargetTriangles=500
   assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));await(e)
 
+  assert(e.tSimplifyState.report.remesh.target_triangles==0)
   assert(simplifyRestoreBackup(e,iSelectedMeshIndex));assert(helper.signature(e.meshDebug)==original)
   assert(simplifyApply(e,e.meshDebug,iSelectedMeshIndex));assert(simplifyCancel(e));await(e)
   assert(helper.signature(e.meshDebug)==original)
@@ -157,12 +150,12 @@ local function test()
   assert(addMeshToTable('/tmp/remesh-subset-target.msh'))
   local scopedEntry=tLoadedMeshes[#tLoadedMeshes]
   scopedEntry.tSimplifyState={scope='subsets',selectedFrame=1,selectedSubsets={[1]=true,[2]=true},ratio=.5,
-      mode='remesh',remeshTargetEnabled=true,remeshTargetTriangles=500,
+      mode='remesh',
       remeshEdgeLengthFraction=.03,remeshIterations=3,remeshFeatureAngle=45}
   assert(simplifyApply(scopedEntry,scopedEntry.meshDebug,#tLoadedMeshes));await(scopedEntry)
   local scopedReport=assert(scopedEntry.tSimplifyState.report,scopedEntry.tSimplifyState.lastError).remesh
-  assert(scopedReport.target_triangles==500 and scopedReport.target_reached==1)
-  assert(scopedReport.target_result_triangles==scopedEntry.meshDebug:getTotalIndex(1,1)/3+scopedEntry.meshDebug:getTotalIndex(1,2)/3)
+  assert(scopedReport.target_triangles==0)
+  assert(scopedReport.result_triangles==scopedEntry.meshDebug:getTotalIndex(1,1)/3+scopedEntry.meshDebug:getTotalIndex(1,2)/3)
   assert(simplifyRestoreBackup(scopedEntry,#tLoadedMeshes))
   local remeshMesh=helper.grid('flat');remeshMesh:setTexture(1,1,'#6080FFFF')
   remeshMesh:setMaterialTexture(1,1,'normal','#8080FFFF')

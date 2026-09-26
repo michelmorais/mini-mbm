@@ -44,7 +44,7 @@ function M.apply(E,asset,options,report)
             options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,
             options.planarAngle,options.planarTolerance,options.maxVertices,true,
             {edgeLengthFraction=options.remeshEdgeLengthFraction,
-             iterations=options.remeshIterations,featureAngle=options.remeshFeatureAngle})
+             iterations=options.remeshIterations,featureAngle=options.remeshFeatureAngle,repairTopology=options.cgalRepairTopology~=false})
         if not worker then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
         E.simplifyAsset=worker;E.simplifyCancelRequested=nil;E.simplifyProgress=0
         coroutine.yield()
@@ -75,7 +75,7 @@ function M.apply(E,asset,options,report)
     if not options.remesh then return end
     local worker,err=require('mesh_cgal').startRemesh(asset,nil,1,
         options.remeshEdgeLengthFraction,options.remeshIterations,options.remeshFeatureAngle,
-        options.maxVertices,true,options.remeshTargetEnabled and options.remeshTargetTriangles or nil)
+        options.maxVertices,true,nil,options.remeshRepairTopology)
     if not worker then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
     E.simplifyAsset=worker;E.simplifyCancelRequested=nil;E.simplifyProgress=0
     local sourceTriangles,sourceVertices=report.triangles,report.vertices

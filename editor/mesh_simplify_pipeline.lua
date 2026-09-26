@@ -35,8 +35,9 @@ function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,m
     if mode=='remesh' then
         return require('mesh_cgal').startRemesh(asset,subset,frame,
             remeshSettings and remeshSettings.edgeLengthFraction or .03,
-            remeshSettings and remeshSettings.iterations or 3,
-            remeshSettings and remeshSettings.featureAngle or 45,maxVertices,normals,remeshSettings and remeshSettings.targetTriangles)
+            remeshSettings and remeshSettings.iterations or 10,
+            remeshSettings and remeshSettings.featureAngle or 14.5,maxVertices,normals,nil,
+            remeshSettings and remeshSettings.repairTopology)
     end
     if mode~='cgal' and mode~='cgal_qem' then
         local ok,err=asset:startSimplify(ratio,subset,frame,details,boundary)
@@ -51,7 +52,7 @@ function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,m
         end
         target=math.max(1,math.floor(source*ratio))
     end
-    local worker,err=require('mesh_cgal').start(asset,subset,frame,angle,distance,maxVertices,normals,mode=='cgal_qem')
+    local worker,err=require('mesh_cgal').start(asset,subset,frame,angle,distance,maxVertices,normals,mode=='cgal_qem',nil,remeshSettings and remeshSettings.repairTopology)
     if not worker or mode=='cgal' then return worker,err end
     local cgalWorker=worker
     local job={stage='cgal'}

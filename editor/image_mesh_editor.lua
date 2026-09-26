@@ -727,7 +727,7 @@ local function propertiesPanel()
                 local modes=require('mesh_simplify_modes')
                 local mode=E.values.simplify and E.values.simplifyMode or 'none'
                 mode,E.values.planarTolerance,E.values.planarAngle=modes.cgalBlock(
-                    mode,E.values.planarTolerance,E.values.planarAngle,'image-general')
+                    mode,E.values.planarTolerance,E.values.planarAngle,'image-general',E.values)
                 E.values.simplifyMode=modes.qemCheckbox(mode,'image-general')
                 E.values.simplify=E.values.simplifyMode~='none'
                 tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
@@ -761,16 +761,16 @@ local function propertiesPanel()
             if E.values.remesh then
                 local modes=require('mesh_simplify_modes')
                 local changed
-                if modes.remeshTarget(E.values,'image-mesh') and E.report then E.report.remesh=nil end
+                if modes.repairOption(E.values,'image-mesh') and E.report then E.report.remesh=nil end
                 E.values.remeshEdgeLengthFraction,E.values.remeshIterations,E.values.remeshFeatureAngle,changed=
                     modes.remeshSettings(E.values.remeshEdgeLengthFraction,E.values.remeshIterations,
-                        E.values.remeshFeatureAngle,'image-mesh',E.values.remeshTargetEnabled)
+                        E.values.remeshFeatureAngle,'image-mesh')
                 if changed and E.report then E.report.remesh=nil end
                 if require('mesh_cgal').getRemeshPath()=='' then tImGui.TextWrapped(L('cgal_remesh_missing')) end
             end
             if E.report and E.report.remesh and not E.editDefaults then
                 local result=E.report.remesh
-                require('mesh_simplify_modes').targetReport(result)
+                require('mesh_simplify_modes').repairReport(result)
                 tImGui.TextWrapped(string.format(L('cgal_remesh_report'),
                     result.source_triangles,result.result_triangles,
                     (result.maximum_relative_error or 0)*100))

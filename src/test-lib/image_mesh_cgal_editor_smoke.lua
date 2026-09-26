@@ -98,13 +98,13 @@ local function test()
   local targetReport={triangles=128,vertices=81}
   require('image_mesh_simplify').apply({},grid,{remesh=true,remeshTargetEnabled=true,remeshTargetTriangles=500,
       remeshEdgeLengthFraction=.03,remeshIterations=3,remeshFeatureAngle=45,maxVertices=65535},targetReport)
-  assert(targetReport.remesh.target_triangles==500 and targetReport.remesh.target_reached==1)
+  assert(targetReport.remesh.target_triangles==0)
   assert(targetReport.triangles==grid:getTotalIndex(1,1)/3)
   E.values.remeshTargetEnabled=true;E.values.remeshTargetTriangles=3000
   assert(api.applyProperties());assert(api.saveProject('/tmp/cgal-target.imesh'))
   local targetProject=IO.load('/tmp/cgal-target.imesh')
   local targetOptions=Model.options(targetProject,targetProject.regions[1])
-  assert(targetOptions.remeshTargetEnabled and targetOptions.remeshTargetTriangles==3000)
+  assert(targetOptions.remeshEdgeLengthFraction==E.values.remeshEdgeLengthFraction)
 
  end
  if os.getenv('MBM_CGAL_AUDIT_EXECUTABLE') then

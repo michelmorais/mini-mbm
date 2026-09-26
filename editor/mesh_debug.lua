@@ -3270,8 +3270,8 @@ function addMeshToTable(fileName)
         tPendingOps          = {},
         tSimplifyState       = {ratio = 0.9, scope = 'frame', selectedSubsets = {},
                                 virtualFrame = false, report = nil, mode = 'qem',
-                                remeshEdgeLengthFraction = 0.03, remeshIterations = 3,
-                                remeshFeatureAngle = 45},
+                                remeshEdgeLengthFraction = 0.03, remeshIterations = 10,
+                                remeshFeatureAngle = 14.5},
         tSimplifyBackup      = nil,
         tCheckedRemove       = tCheckedRm,
         bShowFramePick       = false,
@@ -5895,7 +5895,7 @@ function simplifyRestoreBackup(tEntry, index)
     if not backup then return false end
     local restored = meshDebug:new()
     if not restored:load(backup.path) then
-        tUtil.showMessageWarn(tLang.L('simplify_revert_failed'))
+        tUtil.showMessageWarn(tLang.L((backup.revertPrefix or 'simplify')..'_revert_failed'))
         return false
     end
     destroyNormalVisualization(tEntry)
@@ -5907,9 +5907,10 @@ function simplifyRestoreBackup(tEntry, index)
     tEntry.tTransformBoundsCache = nil
     tEntry.bNormalsVizDirty = true
     tEntry.bPhysicsVizDirty = true
+    local successKey=(backup.revertPrefix or 'simplify')..'_revert_success'
     simplifyDiscardBackup(tEntry)
     if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
-    tUtil.showMessage(tLang.L('simplify_revert_success'), 5)
+    tUtil.showMessage(tLang.L(successKey), 5)
     return true
 end
 
@@ -6045,12 +6046,19 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
                        progressState, completedJobs, totalJobs)
     local numericRatio = tonumber(ratio)
     if not numericRatio then return nil, tLang.L('simplify_invalid_ratio') end
-    local worker,startError=require('mesh_simplify_pipeline').start(meshD,progressState.mode,
+    local worker,startError
+    if progressState.repairOnly then
+        worker,startError=require('mesh_cgal').startRepair(meshD,targetSubset,targetFrame,nil,progressState.cgalHasNormals)
+    else
+        worker,startError=require('mesh_simplify_pipeline').start(meshD,progressState.mode,
         numericRatio,targetSubset,targetFrame,preserveDetails,boundaryCollapseThreshold,
         progressState.planarAngle,progressState.planarTolerance,nil,progressState.cgalHasNormals,
-        {targetTriangles=progressState.remeshTargetEnabled and (progressState.remeshSubsetTarget or progressState.remeshTargetTriangles) or nil,
+        {
          edgeLengthFraction=progressState.remeshEdgeLengthFraction,
-         iterations=progressState.remeshIterations,featureAngle=progressState.remeshFeatureAngle})
+         iterations=progressState.remeshIterations,featureAngle=progressState.remeshFeatureAngle,
+         repairTopology=(progressState.mode=='remesh' and progressState.remeshRepairTopology~=false) or
+             (progressState.mode~='remesh' and progressState.cgalRepairTopology~=false)})
+    end
     if not worker then return nil,startError end
     progressState.activeMesh = worker
     coroutine.yield()
@@ -6095,7 +6103,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         tUtil.showMessageWarn(tLang.L('simplify_backup_failed'))
         return false
     end
-    if simplifyState.mode=='cgal' or simplifyState.mode=='cgal_qem' or simplifyState.mode=='remesh' then
+    if simplifyState.repairOnly or simplifyState.mode=='cgal' or simplifyState.mode=='cgal_qem' or simplifyState.mode=='remesh' then
         simplifyState.cgalHasNormals=meshDebug:getInfo(pendingBackup.path).hasNormal==true
     end
     local targets = {'frame'}
@@ -6107,28 +6115,8 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         table.sort(targets)
     end
     local sourceVertices, sourceTriangles = simplifyGeometryTotals(workingMesh, sourceFrame)
-    local targetBudgets
-    if simplifyState.mode=='remesh' and simplifyState.remeshTargetEnabled and simplifyState.scope=='subsets' then
-        local remaining=simplifyState.remeshTargetTriangles or 1000
-        if remaining < 2*#targets then
-            meshDebug:fakeRelease(pendingBackup.path);os.remove(pendingBackup.path)
-            simplifyShowFailure('Triangle target must allow at least 2 triangles per selected subset',tEntry)
-            return false
-        end
-        targetBudgets={}
-        local weights,total={},0
-        for i,s in ipairs(targets) do
-            weights[i]=simplifySubsetTriangles(workingMesh:getTotalIndex(sourceFrame,s),workingMesh:getTotalVertex(sourceFrame,s))
-            total=total+weights[i]
-        end
-        for i=1,#targets do
-            local share=i==#targets and remaining or math.max(2,math.min(remaining-2*(#targets-i),math.floor(remaining*weights[i]/math.max(1,total))))
-            targetBudgets[i]=share;remaining=remaining-share;total=total-weights[i]
-        end
-    end
-
     local aggregateReport = nil
-    local useVirtualFrame = simplifyState.scope == 'subsets' and
+    local useVirtualFrame = not simplifyState.repairOnly and simplifyState.scope == 'subsets' and
         simplifyState.virtualFrame == true and not simplifyState.sharedFrames and #targets >= 2 and
         (simplifyState.mode or 'qem') == 'qem'
     if useVirtualFrame then
@@ -6144,7 +6132,6 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
         aggregateReport = splitCaptureCopyTable(report)
     else
         for targetIndex, targetSubset in ipairs(targets) do
-            simplifyState.remeshSubsetTarget=targetBudgets and targetBudgets[targetIndex] or nil
             local subset = nil
             if targetSubset ~= 'frame' then subset = targetSubset end
             local report, simplifyError = simplifyAwait(workingMesh, simplifyState.ratio,
@@ -6161,13 +6148,24 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
                 aggregateReport = splitCaptureCopyTable(report)
             else
                 aggregateReport.unchanged = aggregateReport.unchanged and report.unchanged
+                if report.repair then
+                    for _,field in ipairs({'repair_split_vertices','repair_reversed_faces'}) do
+                        aggregateReport.repair[field]=(aggregateReport.repair[field] or 0)+(report.repair[field] or 0)
+                    end
+                end
                 if report.cgal then
                     aggregateReport.cgal.regions=aggregateReport.cgal.regions+report.cgal.regions
+                    for _,field in ipairs({'repair_split_vertices','repair_reversed_faces'}) do
+                        aggregateReport.cgal[field]=(aggregateReport.cgal[field] or 0)+(report.cgal[field] or 0)
+                    end
                     aggregateReport.cgal.sampled_error_fraction=math.max(aggregateReport.cgal.sampled_error_fraction,report.cgal.sampled_error_fraction)
                 end
                 if report.remesh then
                     if aggregateReport.remesh then
                         aggregateReport.remesh.charts=aggregateReport.remesh.charts+report.remesh.charts
+                        for _,field in ipairs({'repair_split_vertices','repair_reversed_faces'}) do
+                            aggregateReport.remesh[field]=(aggregateReport.remesh[field] or 0)+(report.remesh[field] or 0)
+                        end
                         aggregateReport.remesh.sampled_error_fraction=math.max(
                             aggregateReport.remesh.sampled_error_fraction,report.remesh.sampled_error_fraction)
                     else aggregateReport.remesh=splitCaptureCopyTable(report.remesh) end
@@ -6200,33 +6198,23 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     aggregateReport.sourceTriangleCount = sourceTriangles
     aggregateReport.resultVertexCount = resultVertices
     aggregateReport.resultTriangleCount = resultTriangles
-    simplifyState.remeshSubsetTarget=nil
     if aggregateReport.remesh then
-        if simplifyState.remeshTargetEnabled then
-            local achieved=resultTriangles
-            if targetBudgets then
-                achieved=0
-                for _,s in ipairs(targets) do achieved=achieved+simplifySubsetTriangles(workingMesh:getTotalIndex(sourceFrame,s),workingMesh:getTotalVertex(sourceFrame,s)) end
-            end
-            aggregateReport.remesh.target_triangles=simplifyState.remeshTargetTriangles or 1000
-            aggregateReport.remesh.target_relative_error=math.abs(achieved-aggregateReport.remesh.target_triangles)/aggregateReport.remesh.target_triangles
-            aggregateReport.remesh.target_reached=aggregateReport.remesh.target_relative_error<=.05 and 1 or 0
-            aggregateReport.remesh.target_result_triangles=achieved
-        end
         aggregateReport.remesh.source_triangles=sourceTriangles
         aggregateReport.remesh.result_triangles=resultTriangles
         aggregateReport.remesh.maximum_relative_error=aggregateReport.maximumRelativeError or
             aggregateReport.remesh.sampled_error_fraction or 0
     end
-    if aggregateReport.unchanged and simplifyState.mode~='remesh' then
+    if aggregateReport.unchanged and (simplifyState.repairOnly or simplifyState.mode~='remesh') then
         meshDebug:fakeRelease(pendingBackup.path)
         os.remove(pendingBackup.path)
         simplifyState.report=aggregateReport
         simplifyState.lastError=nil
-        tUtil.showMessage(tLang.L('simplify_unchanged'),5)
+        tUtil.showMessage(tLang.L(simplifyState.repairOnly and 'cgal_repair_unchanged' or 'simplify_unchanged'),5)
         return true
     end
     simplifyDiscardBackup(tEntry)
+    pendingBackup.revertPrefix=simplifyState.repairOnly and 'cgal_repair' or
+        simplifyState.mode=='remesh' and 'cgal_remesh' or 'simplify'
     tEntry.tSimplifyBackup = pendingBackup
     dpCall(Simplification.record,tEntry,workingMesh,sourceFrame,aggregateReport)
     simplifyState.report = aggregateReport
@@ -6239,7 +6227,7 @@ function simplifyApplyCoroutine(tEntry, meshD, index)
     destroyNormalVisualization(tEntry)
     destroyPhysicsVisualization(tEntry)
     if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
-    local successKey=simplifyState.mode=='remesh' and 'cgal_remesh_success_fmt' or 'simplify_success_fmt'
+    local successKey=simplifyState.repairOnly and 'cgal_repair_success_fmt' or simplifyState.mode=='remesh' and 'cgal_remesh_success_fmt' or 'simplify_success_fmt'
     tUtil.showMessage(string.format(tLang.L(successKey),
         aggregateReport.sourceTriangleCount, aggregateReport.resultTriangleCount), 5)
     local reduction = aggregateReport.sourceTriangleCount > 0 and
@@ -6267,19 +6255,22 @@ function simplifyResume(tEntry)
     if not ok then
         simplifyState.running = false
         simplifyState.co = nil
+        simplifyState.repairOnly = nil
         simplifyShowFailure(errorValue, tEntry)
         return
     end
     if coroutine.status(co) == 'dead' then
         simplifyState.running = false
         simplifyState.co = nil
+        simplifyState.repairOnly = nil
         simplifyState.progress = simplifyState.report and 1 or 0
     end
 end
 
-function simplifyApply(tEntry, meshD, index)
+function simplifyApply(tEntry, meshD, index, repairOnly)
     local simplifyState = tEntry.tSimplifyState
-    if simplifyState.running or simplifyState.mode=='none' then return false end
+    if simplifyState.running or (simplifyState.mode=='none' and not repairOnly) then return false end
+    simplifyState.repairOnly=repairOnly==true
     simplifyState.running = true
     simplifyState.cancelRequested = nil
     simplifyState.progress = 0
@@ -6290,6 +6281,22 @@ function simplifyApply(tEntry, meshD, index)
     end)
     simplifyResume(tEntry)
     return true
+end
+
+function simplifyRepairNow(tEntry)
+    local state=tEntry.tSimplifyState
+    if state.running or #tEntry.tPendingOps>0 or tEntry.meshDebug:getTotalFrame()~=1 then
+        tUtil.showMessageWarn(tLang.L('cgal_static_only'));return false
+    end
+    if state.scope=='subsets' then
+        local selected=false
+        for _,enabled in pairs(state.selectedSubsets or {}) do if enabled then selected=true;break end end
+        if not selected then tUtil.showMessageWarn(tLang.L('simplify_select_at_least_one_subset'));return false end
+    end
+    for index,entry in ipairs(tLoadedMeshes) do
+        if entry==tEntry then return simplifyApply(entry,entry.meshDebug,index,true) end
+    end
+    return false
 end
 
 function splitCaptureCreateBackup(tEntry, meshD)
@@ -7278,7 +7285,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
         ratio = 0.9, scope = 'frame', selectedFrame = 1,
         sharedFrames = false, selectedSubsets = {}, virtualFrame = false,
         preserveDetails = true, report = nil, mode = 'qem',
-        remeshEdgeLengthFraction = 0.03, remeshIterations = 3, remeshFeatureAngle = 45
+        remeshEdgeLengthFraction = 0.03, remeshIterations = 10, remeshFeatureAngle = 14.5
     }
     tEntry.tSimplifyState = simplifyState
     local isRemesh = node == 'remesh'
@@ -7302,10 +7309,10 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
     simplifyState.mode = simplifyState.mode or 'qem'
     simplifyState.remeshEdgeLengthFraction = math.max(.002, math.min(.25,
         tonumber(simplifyState.remeshEdgeLengthFraction) or .03))
-    simplifyState.remeshIterations = math.max(1, math.min(10,
-        math.floor(tonumber(simplifyState.remeshIterations) or 3)))
+    simplifyState.remeshIterations = math.max(1, math.min(50,
+        math.floor(tonumber(simplifyState.remeshIterations) or 10)))
     simplifyState.remeshFeatureAngle = math.max(0, math.min(180,
-        tonumber(simplifyState.remeshFeatureAngle) or 45))
+        tonumber(simplifyState.remeshFeatureAngle) or 14.5))
     simplifyState.ratio = math.max(0.001, math.min(0.95,
         tonumber(simplifyState.ratio) or 0.9))
     if not isRemesh then tImGui.Text(tLang.L('simplify_geometry')) end
@@ -7411,14 +7418,15 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
     local mode=simplifyState.mode
     local tolerance,angle=simplifyState.planarTolerance,simplifyState.planarAngle
     if mode~='remesh' then
-        mode,tolerance,angle=modes.cgalBlock(mode,tolerance,angle,'mesh-debug-'..index)
+        mode,tolerance,angle=modes.cgalBlock(mode,tolerance,angle,'mesh-debug-'..index,simplifyState,simplifyRepairNow,tEntry)
         mode=modes.qemCheckbox(mode,'mesh-debug-'..index)
     else
-        if modes.remeshTarget(simplifyState,'mesh-debug-'..index) then simplifyState.report=nil end
+        if modes.repairOption(simplifyState,'mesh-debug-'..index) then simplifyState.report=nil end
+        modes.repairButton('mesh-debug-'..index,simplifyRepairNow,tEntry,nFrames~=1 or #tEntry.tPendingOps>0)
         local settingsChanged
         simplifyState.remeshEdgeLengthFraction,simplifyState.remeshIterations,simplifyState.remeshFeatureAngle,settingsChanged=
             modes.remeshSettings(simplifyState.remeshEdgeLengthFraction,simplifyState.remeshIterations,
-                simplifyState.remeshFeatureAngle,'mesh-debug-'..index,simplifyState.remeshTargetEnabled)
+                simplifyState.remeshFeatureAngle,'mesh-debug-'..index)
         if settingsChanged then simplifyState.report=nil end
     end
     if mode~=simplifyState.mode or tolerance~=simplifyState.planarTolerance or angle~=simplifyState.planarAngle then
@@ -7560,7 +7568,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
     if simplifyState.running then
         local progress = math.max(0, math.min(1, simplifyState.progress or 0))
         tImGui.ProgressBar(progress, {x=-1,y=0},
-            string.format(tLang.L(simplifyState.mode=='remesh' and 'cgal_remesh_progress' or 'simplify_progress_fmt'), progress * 100))
+            string.format(tLang.L(simplifyState.repairOnly and 'cgal_repair_progress' or simplifyState.mode=='remesh' and 'cgal_remesh_progress' or 'simplify_progress_fmt'), progress * 100))
         if simplifyState.cancelRequested then
             tImGui.Text(tLang.L('simplify_cancelling'))
         elseif tImGui.Button(tLang.L('cancel') .. '##simplifyCancel-' .. index) then
@@ -7570,7 +7578,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
     if tEntry.tSimplifyBackup then
         tImGui.SameLine()
         tImGui.BeginDisabled(simplifyState.running == true)
-        if tImGui.Button(tLang.L('simplify_revert') .. '##simplifyRevert-' .. index) then
+        if tImGui.Button(tLang.L((tEntry.tSimplifyBackup.revertPrefix or 'simplify')..'_revert') .. '##simplifyRevert-' .. index) then
             simplifyRestoreBackup(tEntry, index)
             applied = true
         end

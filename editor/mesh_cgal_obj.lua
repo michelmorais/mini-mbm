@@ -19,7 +19,7 @@ local function newFile(path)
     local existing=io.open(path,'rb')
     if existing then existing:close();error('Output already exists: '..path) end
 end
-function M.export(asset,path,selectedSubset)
+function M.export(asset,path,selectedSubset,preserveTopology)
     assert(path:match('%.obj$'),'expected .obj output')
     local materialPath=path:sub(1,-5)..'.mtl'
     newFile(path);newFile(materialPath)
@@ -34,8 +34,12 @@ function M.export(asset,path,selectedSubset)
         local remap,uvmap={},{}
         for i,v in ipairs(list) do
             local key=string.format('%.17g %.17g %.17g',v.x+0.0,v.y+0.0,v.z+0.0)
-            if not positions[key] then vertices[#vertices+1]='v '..key;positions[key]=#vertices end
-            remap[i]=positions[key]
+            if preserveTopology then
+                vertices[#vertices+1]='v '..key;remap[i]=#vertices
+            else
+                if not positions[key] then vertices[#vertices+1]='v '..key;positions[key]=#vertices end
+                remap[i]=positions[key]
+            end
             assert(v.u and v.v,'missing source UV')
             uvs[#uvs+1]=string.format('vt %.17g %.17g',v.u,1-v.v);uvmap[i]=#uvs
         end
@@ -102,7 +106,8 @@ function M.read(path)
                 count=count+1
                 local vi,ti=pair:match('^(%d+)/(%d+)$');vi,ti=assert(tonumber(vi)),assert(tonumber(ti))
                 local point,uv=assert(positions[vi]),assert(uvs[ti])
-                local key=string.format('%.17g %.17g %.17g %.17g %.17g',point.x,point.y,point.z,uv.u,uv.v)
+                -- Preserve explicit topology splits even when position and UV match.
+                local key=string.format('%d %.17g %.17g',vi,uv.u,uv.v)
                 local index=group.keys[key]
                 if not index then
                     local p,t=assert(positions[vi]),assert(uvs[ti]);index=#group.vertices+1

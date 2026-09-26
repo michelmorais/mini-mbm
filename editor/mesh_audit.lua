@@ -25,6 +25,8 @@ local function protect(fn,...)
     return table.unpack(result,1,result.n)
 end
 function M.getPath()
+    local discovered=require('mesh_cgal_folder').getPath('mbm-cgal-audit')
+    if discovered~=nil then return discovered end
     if configured==nil then
         configured=os.getenv('MBM_CGAL_AUDIT_EXECUTABLE') or ''
         if configured=='' then

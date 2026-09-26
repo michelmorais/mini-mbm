@@ -17,26 +17,8 @@
 local Audit=require 'mesh_audit'
 local M={}
 local pending={}
-local draft
 function M.settings(I,L,notify)
-    if draft==nil then draft=Audit.getPath() end
-    I.SetNextItemWidth(360)
-    local changed,value=I.InputText(L('audit_executable')..'##audit_executable',draft,4096,I.Flags('ImGuiInputTextFlags_ReadOnly'))
-    if changed then draft=value end
-    if I.Button(L('audit_browse')..'##audit_browse') then
-        I.CloseCurrentPopup()
-        local value=mbm.openFile(draft,package.config:sub(1,1)=='\\' and '*.exe' or '*')
-        if value and value~='' then
-            local ok,err=Audit.setPath(value,true)
-            if ok then draft=value end
-            M.configError=not ok and tostring(err) or nil
-            if notify then
-                if ok then notify.showMessage(L('cgal_saved')) else notify.showMessageWarn(tostring(err)) end
-            end
-        end
-        return
-    end
-    if M.configError then I.TextWrapped(M.configError) end
+    require('mesh_cgal').panel()
 end
 function M.update()
     for state in pairs(pending) do

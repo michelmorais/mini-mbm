@@ -17,8 +17,11 @@
 local M={}
 local active={}
 local Obj=require 'mesh_cgal_obj'
+local Folder=require 'mesh_cgal_folder'
 local preference=os.getenv('MBM_CGAL_CONFIG') or ((os.getenv('APPDATA') or os.getenv('HOME') or '.')..'/.mini-mbm-cgal-path')
 local remeshPreference=os.getenv('MBM_CGAL_REMESH_CONFIG') or ((os.getenv('APPDATA') or os.getenv('HOME') or '.')..'/.mini-mbm-cgal-remesh-path')
+local repairPreference=os.getenv('MBM_CGAL_REPAIR_CONFIG') or ((os.getenv('APPDATA') or os.getenv('HOME') or '.')..'/.mini-mbm-cgal-repair-path')
+local repairLoaded,repairPath,repairDraft=false,'',''
 local loaded,path,draft=false,'',''
 local remeshLoaded,remeshPath,remeshDraft=false,'',''
 local function safe(fn,...)
@@ -27,6 +30,8 @@ local function safe(fn,...)
     return table.unpack(r,1,r.n)
 end
 function M.getPath()
+    local discovered=Folder.getPath('mbm-cgal-planar')
+    if discovered~=nil then return discovered end
     if not loaded then
         loaded=true
         local f=io.open(preference,'r')
@@ -46,6 +51,8 @@ function M.setPath(value,persist)
     return true
 end
 function M.getRemeshPath()
+    local discovered=Folder.getPath('mbm-cgal-remesh')
+    if discovered~=nil then return discovered end
     if not remeshLoaded then
         remeshLoaded=true
         local f=io.open(remeshPreference,'r')
@@ -64,38 +71,83 @@ function M.setRemeshPath(value,persist)
     remeshLoaded=true;remeshPath=value;remeshDraft=value
     return true
 end
+function M.getRepairPath()
+    local discovered=Folder.getPath('mbm-cgal-repair')
+    if discovered~=nil then return discovered end
+    if not repairLoaded then
+        repairLoaded=true
+        local f=io.open(repairPreference,'r')
+        if f then repairPath=f:read('*l') or '';f:close()
+        else
+            local companion=M.getRemeshPath()
+            if companion=='' then companion=M.getPath() end
+            local directory=companion:match('^(.*[/\\])')
+            if directory then
+                local candidate=directory..'mbm-cgal-repair'..(companion:match('%.exe$') and '.exe' or '')
+                local executable=io.open(candidate,'rb')
+                if executable then executable:close();repairPath=candidate end
+            end
+        end
+        repairDraft=repairPath
+    end
+    return repairPath
+end
+function M.setRepairPath(value,persist)
+    assert(type(value)=='string' and not value:find('[%z\r\n]'),'Invalid repair executable path')
+    if persist then
+        local f,err=io.open(repairPreference,'w');if not f then return nil,err end
+        local ok,why=f:write(value,'\n');local closed,closeError=f:close()
+        if not ok or not closed then return nil,why or closeError end
+    end
+    repairLoaded=true;repairPath=value;repairDraft=value
+    return true
+end
+local executableDescriptions={
+    ['mbm-cgal-planar']='cgal_description_planar',
+    ['mbm-cgal-remesh']='cgal_description_remesh',
+    ['mbm-cgal-repair']='cgal_description_repair',
+    ['mbm-cgal-audit']='cgal_description_audit',
+}
 function M.panel()
-    M.getPath()
-    tImGui.SetNextItemWidth(360)
-    local changed,value=tImGui.InputText(tLang.L('cgal_executable')..'##cgal_executable',draft,4096,tImGui.Flags('ImGuiInputTextFlags_ReadOnly'))
-    if changed then draft=value end
-    if tImGui.Button(tLang.L('cgal_browse')..'##cgal_browse') then
+    local directory=Folder.getDirectory()
+    if directory==nil then
+        local previous=M.getPath()
+        if previous=='' then previous=M.getRemeshPath() end
+        if previous=='' then previous=M.getRepairPath() end
+        if previous=='' then previous=require('mesh_audit').getPath() end
+        directory=previous:match('^(.*)[/\\]') or ''
+        Folder.setDirectory(directory,false)
+    end
+    tImGui.SetNextItemWidth(420)
+    tImGui.InputText(tLang.L('cgal_folder')..'##cgal_folder',directory,4096,tImGui.Flags('ImGuiInputTextFlags_ReadOnly'))
+    if tImGui.Button(tLang.L('cgal_folder_browse')..'##cgal_folder_browse') then
         tImGui.CloseCurrentPopup()
-        local picked=mbm.openFile(draft,package.config:sub(1,1)=='\\' and '*.exe' or '*')
+        local picked=mbm.openFolder(tLang.L('cgal_folder_browse'),directory)
         if picked and picked~='' then
-            local ok,err=M.setPath(picked,true)
-            if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_saved')) end
+            local ok,err=Folder.setDirectory(picked,true)
+            if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_folder_saved')) end
         end
         return
     end
-    tImGui.TextWrapped(tLang.L('cgal_help'))
-    tImGui.Separator()
-    M.getRemeshPath()
-    tImGui.SetNextItemWidth(360)
-    changed,value=tImGui.InputText(tLang.L('cgal_remesh_executable')..'##cgal_remesh_executable',remeshDraft,4096,tImGui.Flags('ImGuiInputTextFlags_ReadOnly'))
-    if changed then remeshDraft=value end
-    if tImGui.Button(tLang.L('cgal_remesh_browse')..'##cgal_remesh_browse') then
-        tImGui.CloseCurrentPopup()
-        local picked=mbm.openFile(remeshDraft,package.config:sub(1,1)=='\\' and '*.exe' or '*')
-        if picked and picked~='' then
-            local ok,err=M.setRemeshPath(picked,true)
-            if not ok then tUtil.showMessageWarn(tostring(err)) else tUtil.showMessage(tLang.L('cgal_saved')) end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('cgal_folder_refresh')..'##cgal_folder_refresh') then Folder.refresh() end
+    if tImGui.BeginTable('##cgal_executables',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg'),{x=800,y=0}) then
+        tImGui.TableSetupColumn(tLang.L('cgal_executable'),tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'))
+        tImGui.TableSetupColumn(tLang.L('cgal_folder_status'),tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'))
+        tImGui.TableSetupColumn(tLang.L('cgal_folder_description'),tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
+        tImGui.TableHeadersRow()
+        for _,name in ipairs(Folder.names) do
+            local available=Folder.getPath(name)~=''
+            tImGui.TableNextRow()
+            tImGui.TableNextColumn();tImGui.Text(name..(package.config:sub(1,1)=='\\' and '.exe' or ''))
+            tImGui.TableNextColumn()
+            if available then tImGui.TextColored({r=.25,g=.85,b=.35,a=1},tLang.L('cgal_folder_available'))
+            else tImGui.TextColored({r=.95,g=.55,b=.25,a=1},tLang.L('cgal_folder_missing')) end
+            tImGui.TableNextColumn();tImGui.TextWrapped(tLang.L(executableDescriptions[name]))
         end
-        return
+        tImGui.EndTable()
     end
-    tImGui.TextWrapped(tLang.L('cgal_remesh_help'))
-    tImGui.Separator()
-    require('mesh_audit_ui').settings(tImGui,tLang.L,tUtil)
+    tImGui.TextWrapped(tLang.L('cgal_folder_help'))
 end
 function M.menu()
     if tImGui.BeginMenu(tLang.L('cgal_settings')) then M.panel();tImGui.EndMenu() end
@@ -114,6 +166,23 @@ local function totals(asset)
     return v,t
 end
 local function import(job,data)
+    if job.kind=='repair' and job.report.repair_split_vertices==0 and job.report.repair_reversed_faces==0 then
+        -- Keep the original buffers and ordering when the worker changed no topology.
+        return {backend='repair',qemRan=false,unchanged=true,repair=job.report,
+            sourceVertexCount=job.sourceVertices,sourceTriangleCount=job.sourceTriangles,
+            resultVertexCount=job.sourceVertices,resultTriangleCount=job.sourceTriangles,
+            maximumGeometricError=0,maximumRelativeError=0}
+    end
+    -- The editor discards pure planar passes that do not reduce triangles.
+    -- Avoid rebuilding flat normals (and exhausting the index budget) for a
+    -- result that will not be applied. Combined QEM still needs its input mesh.
+    if not data and job.kind=='cgal' and not job.deferNormals and
+        job.report.result_triangles>=job.exportedTriangles then
+        return {backend='cgal',qemRan=false,unchanged=true,cgal=job.report,
+            sourceVertexCount=job.sourceVertices,sourceTriangleCount=job.sourceTriangles,
+            resultVertexCount=job.sourceVertices,resultTriangleCount=job.sourceTriangles,
+            maximumGeometricError=0,maximumRelativeError=0}
+    end
     data=data or Obj.read(job.output)
     local bySubset={}
     for _,g in ipairs(data.groups) do
@@ -127,8 +196,13 @@ local function import(job,data)
     for s,source in pairs(job.sources) do
         local g=assert(bySubset[s],'Output lost a subset')
         targets[#targets+1]=s
-        -- Recompute face normals explicitly; OBJ preserves UVs, not authored normals.
-        if source.normals and not job.deferNormals then
+        -- OBJ preserves UVs, not authored normals. Remesh uses connected smooth
+        -- fans; planar keeps its existing per-face reconstruction.
+        if job.kind=='repair' then
+            require('mesh_cgal_repair').restore(job.asset,s,g,source.normals)
+        elseif source.normals and job.kind=='remesh' then
+            require('mesh_cgal_normals').rebuild(g,job.featureAngle)
+        elseif source.normals and not job.deferNormals then
             local vertices,indices,keys={},{},{}
             for i=1,#g.indices,3 do
                 local a,b,c=g.vertices[g.indices[i]],g.vertices[g.indices[i+1]],g.vertices[g.indices[i+2]]
@@ -137,8 +211,8 @@ local function import(job,data)
                 local nx,ny,nz=uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx
                 local length=math.sqrt(nx*nx+ny*ny+nz*nz);assert(length>0,'Degenerate output triangle')
                 nx,ny,nz=nx/length,ny/length,nz/length
-                for _,v in ipairs({a,b,c}) do
-                    local key=string.format('%.17g %.17g %.17g %.17g %.17g %.7g %.7g %.7g',v.x,v.y,v.z,v.u,v.v,nx,ny,nz)
+                for corner,v in ipairs({a,b,c}) do
+                    local key=string.format('%d %.7g %.7g %.7g',g.indices[i+corner-1],nx,ny,nz)
                     local index=keys[key]
                     if not index then index=#vertices+1;keys[key]=index;vertices[index]={x=v.x,y=v.y,z=v.z,u=v.u,v=v.v,nx=nx,ny=ny,nz=nz} end
                     indices[#indices+1]=index
@@ -173,17 +247,20 @@ local function import(job,data)
     local vertices,triangles=totals(job.asset)
     local report={backend=job.kind,qemRan=false,sourceVertexCount=job.sourceVertices,sourceTriangleCount=job.sourceTriangles,
         resultVertexCount=vertices,resultTriangleCount=triangles,unchanged=job.kind=='cgal' and triangles>=job.sourceTriangles,
-        maximumGeometricError=job.report.sampled_bidirectional_error,maximumRelativeError=job.report.sampled_error_fraction}
-    if job.kind=='remesh' then report.remesh=job.report else report.cgal=job.report end
+        maximumGeometricError=job.report.sampled_bidirectional_error or 0,maximumRelativeError=job.report.sampled_error_fraction or 0}
+    if job.kind=='repair' then report.repair=job.report
+    elseif job.kind=='remesh' then report.remesh=job.report else report.cgal=job.report end
     return report
 end
-function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferNormals,remesh)
+function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferNormals,remesh,repairTopology,repairOnly)
+    if repairTopology~=nil and type(repairTopology)~='boolean' then return nil,'Invalid topology repair option' end
     local job={asset=asset,files={},sources={},state='running',started=mbm.getTimeRun(),maxVertices=math.min(maxVertices or 65535,65535),
-        kind=remesh and 'remesh' or 'cgal'}
+        kind=repairOnly and 'repair' or remesh and 'remesh' or 'cgal'}
     job.deferNormals=deferNormals==true
+    job.featureAngle=remesh and remesh.featureAngle
     local ok,err=safe(function()
-        local executable=job.kind=='remesh' and M.getRemeshPath() or M.getPath()
-        assert(executable~='',tLang.L(job.kind=='remesh' and 'cgal_remesh_missing' or 'cgal_missing'))
+        local executable=job.kind=='repair' and M.getRepairPath() or job.kind=='remesh' and M.getRemeshPath() or M.getPath()
+        assert(executable~='',tLang.L(job.kind=='repair' and 'cgal_repair_missing' or job.kind=='remesh' and 'cgal_remesh_missing' or 'cgal_missing'))
         assert(asset:getTotalFrame()==1 and (not frame or frame==0 or frame==1) and asset:getModeDraw()=='TRIANGLES'
             and not asset:hasSkeletalVertexWeights() and ((asset:getSkeletonBindReport(false) or {}).boneCount or 0)==0 and asset:getTotalArticulatedParts()==0,tLang.L('cgal_static_only'))
         job.sourceVertices,job.sourceTriangles=totals(asset)
@@ -199,15 +276,35 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
         local input=tUtil.getTemporaryFilePath('.obj')
         job.output=input..'.result.obj';job.reportPath=input..'.report'
         job.files={input,input:sub(1,-5)..'.mtl',job.output,job.reportPath}
-        Obj.export(asset,input,subset)
+        local exportedVertices
+        -- Coincident vertices can encode intentional topology splits (including
+        -- saved repairs). Preserve their indices at both interchange stages.
+        exportedVertices,job.exportedTriangles=Obj.export(asset,input,subset,true)
         local arguments
-        if remesh then
+        if repairOnly then
+            arguments={input,job.output,job.reportPath,'--preserve-topology'}
+        elseif remesh then
             arguments={input,job.output,tostring(remesh.edgeLengthFraction),tostring(remesh.iterations),
                 tostring(remesh.featureAngle),job.reportPath}
             if remesh.targetTriangles then arguments[#arguments+1]='--target-triangles';arguments[#arguments+1]=tostring(remesh.targetTriangles) end
+            arguments[#arguments+1]='--preserve-topology'
         else
             arguments={input,job.output,tostring(angle or 10),tostring(distance or .05),'0.000001',job.reportPath}
+            arguments[#arguments+1]='--preserve-topology'
         end
+        local prepare=not repairOnly and (repairTopology or (remesh and remesh.repairTopology))
+        if prepare then
+            local repairExecutable=M.getRepairPath()
+            assert(repairExecutable~='',tLang.L('cgal_repair_missing'))
+            local prepared=input..'.repaired.obj'
+            job.repairReportPath=input..'.repair-report'
+            job.files[#job.files+1]=prepared;job.files[#job.files+1]=prepared..'.tmp'
+            job.files[#job.files+1]=job.repairReportPath
+            arguments[1]=prepared
+            job.nextProcess={executable=executable,arguments=arguments,hidden=true}
+            executable=repairExecutable;arguments={input,prepared,job.repairReportPath,'--preserve-topology'}
+        end
+        job.files[#job.files+1]=job.output..'.tmp'
         job.process=assert(mbm.executeProcessAsync({executable=executable,arguments=arguments,hidden=true}))
     end)
     if not ok then cleanup(job);return nil,err end
@@ -244,22 +341,51 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
         local code=self.process:getExitCode()
         local success,value=safe(function()
             if self.cancelled then return end
-            local f=io.open(self.reportPath,'r')
+            local f=io.open(self.nextProcess and self.repairReportPath or self.reportPath,'r')
             local line=''
             if f then line=f:read('*a');f:close() end
             if code~=0 then
                 local detail=line:match('CGAL_FAIL ([^\r\n]+)') or ''
+                if detail=='OBJ is not an oriented manifold after exact-position welding' then
+                    -- Older workers retain this diagnostic even with welding disabled.
+                    error(tLang.L('cgal_invalid_topology')..' OBJ is not an oriented manifold',0)
+                end
                 error(string.format(tLang.L('cgal_exit'),tostring(code))..' '..detail,0)
             end
-            local prefix=self.kind=='remesh' and '^CGAL_REMESH_RESULT ' or '^CGAL_RESULT '
+            if self.nextProcess then
+                assert(line:match('^CGAL_REPAIR_RESULT '),tLang.L('cgal_protocol'))
+                self.preparation={}
+                for key,number in line:gmatch('([%w_]+)=([^%s]+)') do self.preparation[key]=tonumber(number) end
+                assert(self.preparation.source_triangles==self.exportedTriangles and
+                    self.preparation.result_triangles==self.exportedTriangles and self.preparation.repair_enabled==1 and
+                    self.preparation.repair_split_vertices and self.preparation.repair_reversed_faces,
+                    tLang.L('cgal_protocol'))
+                self.process:destroy();self.process=nil
+                self.process=assert(mbm.executeProcessAsync(self.nextProcess))
+                self.nextProcess=nil
+                return 'prepared'
+            end
+            local prefix=self.kind=='repair' and '^CGAL_REPAIR_RESULT ' or self.kind=='remesh' and '^CGAL_REMESH_RESULT ' or '^CGAL_RESULT '
             assert(line:match(prefix),tLang.L('cgal_protocol'))
             self.report={}
             for key,number in line:gmatch('([%w_]+)=([^%s]+)') do self.report[key]=tonumber(number) end
-            assert(self.report.result_triangles and self.report.sampled_error_fraction and
-                ((self.kind=='remesh' and self.report.charts) or (self.kind=='cgal' and self.report.uv_enabled==1)),
-                tLang.L('cgal_protocol'))
+            if self.kind=='repair' then
+                assert(self.report.source_triangles==self.exportedTriangles and
+                    self.report.result_triangles==self.exportedTriangles and self.report.repair_enabled==1 and
+                    self.report.repair_split_vertices and self.report.repair_reversed_faces,tLang.L('cgal_protocol'))
+            else
+                assert(self.report.result_triangles and self.report.sampled_error_fraction and
+                    ((self.kind=='remesh' and self.report.charts) or (self.kind=='cgal' and self.report.uv_enabled==1)),
+                    tLang.L('cgal_protocol'))
+            end
+            if self.preparation then
+                for _,key in ipairs({'repair_enabled','repair_split_vertices','repair_reversed_faces'}) do
+                    self.report[key]=self.preparation[key]
+                end
+            end
             return import(self)
         end)
+        if success and value=='prepared' then return {state='running',progress=0} end
         cleanup(self)
         self.state=self.cancelled and 'cancelled' or (success and 'completed' or 'failed')
         if self.timeout then self.state='failed';value=tLang.L('cgal_timeout') end
@@ -269,14 +395,18 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
     active[job]=true
     return job
 end
-function M.startRemesh(asset,subset,frame,edgeLengthFraction,iterations,featureAngle,maxVertices,hasNormals,targetTriangles)
+function M.startRemesh(asset,subset,frame,edgeLengthFraction,iterations,featureAngle,maxVertices,hasNormals,targetTriangles,repairTopology)
+    if repairTopology~=nil and type(repairTopology)~='boolean' then return nil,'Invalid topology repair option' end
     if targetTriangles~=nil and (type(targetTriangles)~='number' or targetTriangles%1~=0 or targetTriangles<2 or targetTriangles>100000) then return nil,'Invalid triangle target (2..100000)' end
     local fraction,passes,angle=tonumber(edgeLengthFraction),tonumber(iterations),tonumber(featureAngle)
     if not fraction or fraction~=fraction or fraction<=0 or fraction>.25 then return nil,'Invalid target edge-length fraction' end
-    if not passes or passes%1~=0 or passes<1 or passes>10 then return nil,'Invalid remesh iteration count' end
+    if not passes or passes%1~=0 or passes<1 or passes>50 then return nil,'Invalid remesh iteration count' end
     if not angle or angle~=angle or angle<0 or angle>180 then return nil,'Invalid feature angle' end
     return M.start(asset,subset,frame,nil,nil,maxVertices,hasNormals,false,
-        {edgeLengthFraction=fraction,iterations=passes,featureAngle=angle,targetTriangles=targetTriangles})
+        {edgeLengthFraction=fraction,iterations=passes,featureAngle=angle,targetTriangles=targetTriangles,repairTopology=repairTopology==true})
+end
+function M.startRepair(asset,subset,frame,maxVertices,hasNormals)
+    return M.start(asset,subset,frame,nil,nil,maxVertices,hasNormals,false,nil,nil,true)
 end
 function M.shutdown()
     for job in pairs(active) do job:cancelSimplify();cleanup(job) end

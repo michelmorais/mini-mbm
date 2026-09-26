@@ -54,7 +54,7 @@ end
 function M.record(entry,asset,frame,report)
     M.release(entry,true)
     entry.simplifyComparisonError=nil
-    local record={path=tUtil.getTemporaryFilePath('_simplify_result.msh'),frame=frame,
+    local record={path=tUtil.getTemporaryFilePath('_simplify_result.msh'),frame=frame,operation=report.backend,
         sourceVertices=report.sourceVertexCount,vertices=report.resultVertexCount,
         sourceTriangles=report.sourceTriangleCount,triangles=report.resultTriangleCount}
     if not asset:save(record.path,false,false,true) then
@@ -171,7 +171,10 @@ function M.panel(entry,safe,applyCamera,available)
     local record=entry.simplifyComparison
     if not record then tImGui.TextWrapped(entry.simplifyComparisonError or L('comparison_pending'));return end
     if entry.simplifyComparisonError then tImGui.TextWrapped(entry.simplifyComparisonError) end
-    tImGui.Separator();tImGui.Text(L('comparison'))
+    tImGui.Separator()
+    local title=record.operation=='repair' and 'comparison_repair' or
+        record.operation=='remesh' and 'comparison_remesh' or 'comparison'
+    tImGui.Text(L(title))
     tImGui.TextWrapped(string.format(L('comparison_frame'),record.frame))
     tImGui.Text(string.format(L('comparison_counts'),record.sourceVertices,record.vertices,record.sourceTriangles,record.triangles,
         record.sourceTriangles>0 and 100*(1-record.triangles/record.sourceTriangles) or 0))

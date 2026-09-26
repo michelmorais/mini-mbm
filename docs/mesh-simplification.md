@@ -75,11 +75,18 @@ attribute interpolation.
 
 The executable, build files, standalone tests and licenses live in
 [mbm-cgal](https://github.com/michelmorais/mbm-cgal), independently of the engine.
-In either editor, use **Options > CGAL executable**, choose the executable and
-click **Save path**. The shared preference is plain text in `.mini-mbm-cgal-path`
-inside `APPDATA` (Windows), otherwise `HOME`. It is read once per editor session;
-restart an already open second editor after changing it elsewhere.
-`MBM_CGAL_CONFIG` overrides the preference file for isolated tests.
+In either editor, use **Options > CGAL executable** and choose the folder containing
+`mbm-cgal-planar`, `mbm-cgal-remesh`, `mbm-cgal-repair` and `mbm-cgal-audit`
+(with `.exe` on Windows). A table shows each file found in green; missing tools
+remain unavailable without preventing use of the others. This checks file presence,
+not execution permissions or binary compatibility. **Refresh** rescans after an
+installation change. There are no filesystem scans during idle drawing.
+The shared folder preference is `.mini-mbm-cgal-folder` inside `APPDATA` (Windows),
+otherwise `HOME`; `MBM_CGAL_FOLDER_CONFIG` overrides that file for tests.
+It takes priority over legacy individual paths. Without a saved folder, legacy
+paths remain usable and the panel initially suggests a folder from them.
+Select that folder to persist it. Restart another open editor to reload changes.
+Legacy `MBM_CGAL_CONFIG` still overrides the individual planar preference file.
 
 Enable the **CGAL** checkbox. Angle is 0..60 degrees (default 10); distance
 is 0..10% of the exported input diagonal (default 5%). These control CGAL
@@ -92,11 +99,22 @@ timeout, nonzero exit, invalid output or vertex-budget overflow leaves the visib
 mesh unchanged. Files are cleaned after work/scene shutdown. CGAL provides no
 numerical progress estimate; the editor keeps its cancel control available.
 
+Both CGAL workers require an oriented manifold. The editor preserves mesh vertex
+indices in OBJ and passes `--preserve-topology` to repair, planar and Remesh.
+Coincident positions are not merged: explicit splits, including UV/normal seams
+and saved repairs, remain separate. Non-manifold connections or inconsistent
+face orientation can reject input before
+reduction starts; changing the triangle target cannot resolve that rejection.
+The editor identifies this topology error separately from executable failures
+and directs the user to the mesh audit. The editor enables topology repair by default for CGAL and Remesh;
+the CLI workers require the explicit flag described below.
+
 Supported input is a single-frame triangle mesh without skeletal data or
 articulated parts. UV seams, subset order/IDs, diffuse and normal/specular/emissive/
 mask textures are retained. Geometry is replaced in the working asset, retaining
 asset-level material, animation effects, winding/culling and physics. Existing
-normals are reconstructed as face normals; authored smooth shading is not retained.
+normals are reconstructed as face normals for planar reduction; Remesh uses
+connected smooth fans as described below. Authored normals are not transferred.
 Meshes without normals remain without them. Results must fit 65,535 frame vertices
 and Image Mesh's configured vertex budget. Sampled geometry error is not a
 certified surface bound. CGAL is not linked into the engine or selected through
@@ -217,6 +235,14 @@ OBJ, constrains UV/material charts, open borders and detected sharp edges, then
 reports sampled deviation and topology checks. UVs are transferred from the
 closest point in the corresponding source chart; shading normals are
 reconstructed and authored physics shapes are copied to the remeshed asset.
+For each subset, the importer averages area-weighted normals through consistently
+oriented edges shared by exactly two faces within the feature-angle threshold.
+It shares normals only within connected fans of existing vertex indices; it does
+not weld positions or bridge UV/material seams, boundaries or non-manifold edges.
+Sharper edges retain separate normals. This replaces the previous flat-normal
+expansion, which could exceed 65,535 vertices even when the worker result fit.
+Inputs without normals remain without them; the final vertex-budget check remains
+mandatory. The shading can therefore differ from the previous faceted result.
 Skeletal weights and animation are not transferred by this OBJ contract, and
 such inputs are rejected. Remesh does not perform semantic/quad retopology. The
 editor applies the result as one reversible operation only after worker and
@@ -235,28 +261,152 @@ without changing geometry. Configure `mbm-cgal-audit` in the CGAL options;
 analysis is explicit and supports cancellation and JSON export. See
 [Mesh Audit](mesh-audit.md) for the public Lua API and diagnostic limitations.
 
-### Approximate Remesh triangle count
+### Remesh controls
 
-Enable **Target triangle count / Quantidade-alvo de triângulos** in the separate
-Mesh Debug Remesh tree or the Image Mesh Remesh section. Enter 500, 3000, 10000,
-or another integer from 2 to 100000. The fixed-width length control is hidden
-while this mode is enabled; its previous value is retained.
+Mesh Debug and Image Mesh use target edge length directly (fraction of the
+processed geometry bounding-box diagonal, range 0.002..0.25, default 0.03).
+The triangle-count checkbox, count field, presets, automatic conversion and
+per-subset triangle-budget allocation have been removed. Iterations, feature
+angle and optional topology repair remain available. Results report achieved
+counts without a triangle-count goal or tolerance warning.
 
-The external worker estimates edge length from source surface area and makes
-up to eight trials against the original surface, keeping the closest valid
-result found. It aims for a 5% tolerance without relaxing boundary, UV/material
-or sharp-feature constraints. The result can be outside tolerance, and the UI
-shows that explicitly alongside requested and achieved triangle counts.
-Existing source validation, vertex limits, cancellation, comparison and revert
-still apply. No automatic simplification pass is added.
+Old Image Mesh projects with `remeshTargetEnabled` and `remeshTargetTriangles`
+remain readable, but those fields are ignored by editor processing. The saved
+edge length is used, or its default if absent. No geometry scan or conversion is
+performed while loading or drawing the controls.
 
-In Mesh Debug the target applies to the selected frame or selected subsets as
-one total. Multiple subsets receive proportional integer budgets based on their
-source triangle counts, with a minimum of two each. In Image Mesh the target
-applies separately to each generated region and is saved in project/default
-options as `remeshTargetEnabled` and `remeshTargetTriangles`.
+For compatibility with direct integrations, the low-level
+`mesh_cgal.startRemesh` ninth argument and external worker `--target-triangles`
+remain supported; neither editor nor `mesh_simplify_pipeline` enables them.
 
-The optional Lua API `mesh_cgal.startRemesh` accepts a final ninth argument
-`targetTriangles` after `hasNormals`. Omit it to retain edge-length behavior.
-`mesh_simplify_pipeline.start` accepts `targetTriangles` in its Remesh settings.
-The worker must support `--target-triangles`; rebuild/install mbm-cgal first.
+### Topology preparation for CGAL and Remesh
+
+**Repair topology before processing / Reparar topologia antes de processar**
+appears first in the operation settings and defaults to on for CGAL and Remesh.
+Explicit saved false values remain false. It invokes the configured
+`mbm-cgal-repair` first, then passes its temporary OBJ to the selected worker
+with `--preserve-topology`. The same repair executable powers **Repair now**.
+The repair worker
+orients the triangle soup and duplicates vertices at non-manifold connections,
+preserving all nondegenerate source triangles, positions, corner UVs and materials
+during this preparation. It may open seams or split connected components. It does
+not fill holes, remove degenerate faces, or resolve self-intersections; degenerate
+faces still fail. Remeshing can subsequently move vertices and change triangles.
+
+The result report includes the number of split vertices and reversed faces.
+Topology comparisons (components, closedness, self-intersections) use the repaired
+input as the baseline. Existing source self-intersections can remain; a successful
+result is not a certificate of intersection-free geometry. Imported OBJ vertex
+identities remain distinct even when position and UV match, including during
+normal reconstruction, subsequent exports and MSH save/load. Repeating repair
+on unchanged repaired geometry must report zero new splits and reversed faces.
+
+`mesh_cgal.startRemesh` accepts an optional tenth boolean `repairTopology`;
+`mesh_simplify_pipeline.start` accepts `repairTopology` in Remesh settings.
+Image Mesh saves `remeshRepairTopology` and `cgalRepairTopology` with
+project/default/region options. The pipeline passes `repairTopology` to both
+CGAL and Remesh. The low-level `mesh_cgal.start` accepts an eleventh argument
+`repairTopology` after its internal Remesh settings slot; absent flags retain
+the strict worker behavior for direct API callers.
+The original asset is committed only after successful processing; cancellation,
+failure and revert retain their existing behavior. A pure planar CGAL result
+that does not reduce triangles is reported unchanged and is not imported (including
+its preparation splits); this avoids reconstructing normals for discarded output.
+CGAL + QEM still imports its intermediate topology for the QEM stage.
+
+`src/test-lib/mesh_cgal_repair_editor_smoke.lua` checks the repair-disabled
+failure, repair-enabled import, material retention, backup restore, cancellation,
+shortcut state changes and preservation of explicit OBJ vertex splits. Set
+`MBM_CGAL_REMESH_EXECUTABLE` and `MBM_CGAL_REPAIR_EXECUTABLE` to the workers.
+Real-mesh save/load coverage lives in the separate roundtrip smoke described below.
+
+### Remesh defaults and iteration limits
+
+New editor settings use 10 iterations (range 1..50), feature angle 14.5 degrees,
+repair enabled and edge-length fraction 0.03. Saved iteration, angle and length
+settings remain intact. The feature angle uses DragFloat at 0.1 degree per drag
+step with two decimal places; Ctrl+click permits exact numeric entry. Smaller
+feature angles constrain more edges. More iterations can improve regularity but
+also increase smoothing and time; they do not guarantee a smaller triangle count
+or better preservation of details. Worker CLI defaults for iterations and feature
+angle match the editor; repair remains an explicit CLI flag.
+
+### Standalone topology repair
+
+The separate external `mbm-cgal-repair` executable performs only the topology
+preparation, using the same routine as both workers:
+
+```sh
+mbm-cgal-repair source.obj repaired.obj repair-report.txt
+mbm-cgal-planar repaired.obj reduced.obj 10 .05 .000001 planar-report.txt --preserve-topology
+```
+
+The CLI consumes attributed triangular OBJ, not MSH, and does not transfer authored
+normals. Positions, triangle count, corner UVs and materials survive repair.
+`--preserve-topology` tells the downstream reader to respect separate OBJ vertex
+indices instead of welding them back together; it is available on planar and
+Remesh after all positional arguments. Strict mesh validation still applies.
+The repair executable also accepts this flag when processing an already repaired
+OBJ. The editor always uses this flag, including for standalone repair, and
+exports distinct source vertex indices. Raw CLI calls still weld by default. There is no new standalone repair tree in the GUI.
+
+The 31,091-triangle `i2-v01-c6097637-msh01.msh` sample has 24,491 indexed
+render vertices. Preserving those indices requires zero splits and zero face
+reversals. Earlier results reporting 22 splits first welded the mesh to 15,553
+positions; that preparation recreated the non-manifold connections on each run.
+Those historical counts and reduction measurements describe a different input
+connectivity. Preserving render seams can constrain reduction/remeshing further.
+Audit still analyzes exact-position-welded geometry and can therefore report
+connections that are absent from the indexed surface used for processing.
+
+### Repair executable configuration and immediate repair
+
+**Options > CGAL executable** discovers repair in the shared folder and lists it
+alongside the other tools. `mesh_cgal.getRepairPath()` resolves that selection.
+The legacy `setRepairPath(path,persist)` API and `.mini-mbm-cgal-repair-path`
+preference (overridden by `MBM_CGAL_REPAIR_CONFIG`) remain supported when no
+shared folder is configured.
+
+In Mesh Debug, **Repair now / Reparar agora** sits below the repair checkbox;
+a separator ends the repair group. It works independently of the checkbox and
+selected reduction method, using the current frame/subset scope. It requires a
+static, single-frame triangle mesh and no queued edits. It does not simplify or
+remesh. It uses the existing asynchronous progress, cancel, comparison, backup
+and revert machinery; failure leaves the visible asset untouched. A repair
+report with zero split vertices and zero reversed faces is a no-op: the editor
+keeps the original mesh buffers, modified flag, undo backup and comparison. It
+explicitly reports that no changes were applied and no save is required for that
+operation; previously pending edits still require saving. Changed repairs report
+their topology changes. Comparison headings identify the operation that produced
+the stored result (repair, remesh or simplification), even after a later no-op.
+
+`mesh_cgal.startRepair(asset,subset,frame,maxVertices,hasNormals)` exposes the
+same worker. Its `repair` result contains split-vertex and reversed-face counts.
+The OBJ repair worker preserves face order and exact positions. The Lua importer
+uses that correspondence to retain source corner UVs and authored normals, flipping
+normal signs for reversed faces and preserving explicit topology splits. This
+avoids rebuilding a separate flat normal at every corner of a smooth source.
+The CLI itself still does not write normals. Material roles and physics use the
+same import path as CGAL/Remesh. The Image Mesh editor's checkbox uses the same
+configured preparation worker; the manual repair button belongs to Mesh Debug.
+
+### Repair regression checks
+
+The engine repair smoke verifies immediate repair, no-op handling, source corner
+attributes, undo and comparison identification.
+`src/test-lib/mesh_cgal_repair_roundtrip_smoke.lua` verifies a genuinely
+non-manifold fixture, MSH save/load with identical vertex/index data, zero
+changes on repeat repair, and planar processing without another repair.
+Set `MBM_CGAL_REPAIR_EXECUTABLE` and `MBM_CGAL_EXECUTABLE` to the workers;
+optional `MBM_CGAL_REPAIR_MESH` adds a real mesh (the source is never overwritten).
+
+
+`src/test-lib/mesh_cgal_normals_smoke.lua` checks smooth/sharp edges, disconnected
+seams, non-manifold edges, corner attributes and unit normals with bundled Lua.
+`src/test-lib/mesh_cgal_remesh_import_smoke.lua` runs the real engine using
+`MBM_CGAL_REPAIR_MESH`, `MBM_CGAL_REPAIR_EXECUTABLE` and
+`MBM_CGAL_REMESH_EXECUTABLE`, checks the vertex limit and normals, then saves and
+reloads a temporary result without changing the source. The 31,091-triangle
+sample, at 20,000 target / 10 iterations / 14.5 feature angle, imports as 33,251
+render vertices and 22,781 triangles. The target remains unmet (13.905% over);
+fixing normal reconstruction does not alter the CGAL triangle result.

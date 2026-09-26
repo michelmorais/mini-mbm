@@ -31,45 +31,49 @@ function M.remeshCheckbox(mode,id)
     if enabled~=(mode=='remesh') then mode=enabled and 'remesh' or 'none' end
     return mode
 end
-function M.remeshTarget(state,id)
-    local enabled=state.remeshTargetEnabled==true
-    local selected=tImGui.Checkbox(tLang.L('cgal_remesh_target_enable')..'##target-'..id,enabled)
-    local count=state.remeshTargetTriangles or 1000
-    local changed=false
-    if selected then
-        tImGui.SetNextItemWidth(240)
-        local edited,value=tImGui.InputInt(tLang.L('cgal_remesh_target_count')..'##target-count-'..id,count,100,1000)
-        if edited then count=math.max(2,math.min(100000,value));changed=true end
-        tImGui.TextWrapped(tLang.L('cgal_remesh_target_help'))
-    end
-    state.remeshTargetEnabled=selected;state.remeshTargetTriangles=count
-    return changed or enabled~=selected
+function M.repairOption(state,id,kind)
+    local field=kind=='cgal' and 'cgalRepairTopology' or 'remeshRepairTopology'
+    local enabled=state[field]~=false
+    state[field]=tImGui.Checkbox(tLang.L('cgal_remesh_repair')..'##repair-'..id,enabled)
+    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_remesh_repair_help')) end
+    return enabled~=state[field]
 end
-function M.targetReport(report)
-    if report and (report.target_triangles or 0)>0 then
-        tImGui.TextWrapped(string.format(tLang.L('cgal_remesh_target_report'),report.target_triangles,
-            report.target_result_triangles or report.result_triangles,(report.target_relative_error or 0)*100))
-        if report.target_reached~=1 then tImGui.TextWrapped(tLang.L('cgal_remesh_target_missed')) end
-    end
+function M.repairButton(id,action,context,disabled)
+    tImGui.BeginDisabled(disabled==true)
+    if tImGui.Button(tLang.L('cgal_repair_now')..'##repair-now-'..id) then action(context) end
+    tImGui.EndDisabled()
+    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_repair_now_help')) end
+    tImGui.Separator()
 end
-function M.remeshSettings(edgeLengthFraction,iterations,featureAngle,id,targetEnabled)
+function M.repairReport(report)
+    if report and report.repair_enabled==1 then
+        tImGui.TextWrapped(string.format(tLang.L('cgal_remesh_repair_report'),
+            report.repair_split_vertices or 0,report.repair_reversed_faces or 0))
+        if report.repair_split_vertices==0 and report.repair_reversed_faces==0 then
+            tImGui.TextWrapped(tLang.L('cgal_repair_no_changes'))
+        else
+            tImGui.TextWrapped(tLang.L('cgal_repair_changes'))
+        end
+    end
+
+end
+function M.remeshSettings(edgeLengthFraction,iterations,featureAngle,id)
     local originalEdge,originalIterations,originalAngle=edgeLengthFraction,iterations,featureAngle
     local changed,value
-    if not targetEnabled then
     tImGui.SetNextItemWidth(240)
     changed,value=tImGui.SliderFloat(tLang.L('cgal_remesh_edge_length')..'##remesh-edge-'..id,
         edgeLengthFraction,.002,.25,'%.3f')
     if changed then edgeLengthFraction=math.max(.002,math.min(.25,value)) end
     if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_remesh_edge_length_tooltip')) end
-    end
     tImGui.SetNextItemWidth(240)
     changed,value=tImGui.SliderInt(tLang.L('cgal_remesh_iterations')..'##remesh-iterations-'..id,
-        iterations,1,10)
-    if changed then iterations=math.max(1,math.min(10,value)) end
+        iterations,1,50)
+    if changed then iterations=math.max(1,math.min(50,value)) end
+    if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_remesh_iterations_help')) end
     tImGui.SetNextItemWidth(240)
-    changed,value=tImGui.SliderFloat(tLang.L('cgal_remesh_feature_angle')..'##remesh-feature-'..id,
-        featureAngle,0,180,'%.1f deg')
-    if changed then featureAngle=math.max(0,math.min(180,value)) end
+    changed,value=tImGui.DragFloat(tLang.L('cgal_remesh_feature_angle')..'##remesh-feature-'..id,
+        featureAngle,.1,0,180,'%.2f deg',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
+    if changed and value==value then featureAngle=math.max(0,math.min(180,value)) end
     if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_remesh_feature_angle_tooltip')) end
     tImGui.TextWrapped(tLang.L('cgal_remesh_help'))
     return edgeLengthFraction,iterations,featureAngle,
@@ -84,7 +88,9 @@ function M.setEnabled(mode,method,enabled)
     if qem then return 'qem' end
     return 'none'
 end
-function M.cgalBlock(mode,tolerance,angle,id)
+function M.cgalBlock(mode,tolerance,angle,id,state,repairAction,repairContext)
+    if state and M.repairOption(state,id,'cgal') then state.report=nil end
+    if repairAction then M.repairButton(id,repairAction,repairContext) end
     local enabled=tImGui.Checkbox('CGAL##cgal-'..id,M.enabled(mode,'cgal'))
     if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_method_tooltip')) end
     mode=M.setEnabled(mode,'cgal',enabled)
@@ -127,17 +133,22 @@ function M.cgalSettings(tolerance,angle,id)
     return tolerance,angle
 end
 function M.report(report)
+    if report and report.backend=='repair' and report.unchanged then
+        tImGui.TextWrapped(tLang.L('cgal_repair_unchanged'))
+    end
     if not report then return end
+    if report.repair then M.repairReport(report.repair) end
     if report.remesh then
-        M.targetReport(report.remesh)
+        M.repairReport(report.remesh)
         tImGui.TextWrapped(string.format(tLang.L('cgal_remesh_report'),
             report.remesh.source_triangles,report.remesh.result_triangles,
             report.remesh.sampled_error_fraction*100))
     end
     if report.cgal then
+        M.repairReport(report.cgal)
         tImGui.TextWrapped(string.format(tLang.L('cgal_report'),report.cgal.regions,report.cgal.sampled_error_fraction*100))
     end
     if report.backend=='cgal_qem' and report.qemRan then tImGui.TextWrapped(tLang.L('cgal_qem_report')) end
-    if report.unchanged then tImGui.TextWrapped(tLang.L('simplify_unchanged')) end
+    if report.unchanged and report.backend~='repair' then tImGui.TextWrapped(tLang.L('simplify_unchanged')) end
 end
 return M

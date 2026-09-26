@@ -66,7 +66,9 @@ JSON `null` fields become absent/nil fields in Lua. Always inspect the associate
 
 Mesh Debug exposes **Analyze mesh / Analisar malha** per loaded asset. Image Mesh
 Editor analyzes the selected generated preview. Their **Options > CGAL
-executable** panel also configures the Audit executable. Selecting an executable saves its path automatically. Audit results are
+executable** panel selects a shared tools folder and shows whether
+`mbm-cgal-audit` (`.exe` on Windows) is present in its availability table.
+Selecting a folder saves it automatically; Refresh rescans the files. Audit results are
 snapshots of stored frame 1: explicitly analyze again after editing. Reports
 are not undo/history mutations and do not change the asset's modified state.
 
@@ -77,8 +79,9 @@ mesh variant. All three panels support disabling self-intersection checks,
 cancellation and JSON export. Export asks for a destination using the normal
 save dialog.
 
-Preference file: `MBM_CGAL_AUDIT_CONFIG`, or `.mini-mbm-cgal-audit-path` under
-APPDATA/HOME. Analysis is only launched on explicit request. Per-frame callbacks
+The shared `.mini-mbm-cgal-folder` preference (`MBM_CGAL_FOLDER_CONFIG` override)
+takes priority. Without a selected folder, the legacy audit preference remains
+`MBM_CGAL_AUDIT_CONFIG`, or `.mini-mbm-cgal-audit-path` under APPDATA/HOME. Analysis is only launched on explicit request. Per-frame callbacks
 poll pending jobs and draw cached reports; no mesh scans, loads or serialization
 occur while idle.
 
