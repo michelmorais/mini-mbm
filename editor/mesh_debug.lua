@@ -40,6 +40,7 @@ tMeshNormals  =     require "mesh_debug_normals"
 tMeshNormals.preview = require "mesh_debug_normal_preview"
 local Simplification = require "mesh_debug_simplification"
 local CaptureVolume = require "mesh_debug_capture_volume"
+tImageMeshWorktree = require "image_mesh_worktree"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -133,6 +134,9 @@ function onInitScene()
     camera3d:setFar(9999999)
     bCameraMode3D         = false
     tLoadedMeshes         = {}
+    tMeshEntryIndex       = {}
+    tRegularMeshEntries   = {}
+    tImageMeshProjects    = {}
     sLastMeshPath         = mbm.get('user_home') or mbm.get('HOME') or '~'
     sLastFolderPath       = sLastMeshPath
     bShowMeshTree         = true
@@ -3194,7 +3198,7 @@ function onLoadObj()
 end
 
 function onLoadMeshFromFile()
-    local fileName = mbm.openMultiFile(sLastMeshPath, "spt", "msh", "fnt", "tile", "ptl")
+    local fileName = mbm.openMultiFile(sLastMeshPath, "spt", "msh", "fnt", "tile", "ptl", "imesh")
     if fileName then
         local tFiles = {}
         if type(fileName) == 'string' then
@@ -3202,15 +3206,37 @@ function onLoadMeshFromFile()
         elseif type(fileName) == 'table' then
             tFiles = fileName
         end
+        local loadedMeshes, loadedProjects = 0, 0
         for i = 1, #tFiles do
-            addMeshToTable(tFiles[i])
+            local path = tFiles[i]
+            if path:lower():match('%.imesh$') then
+                if addImageMeshProject(path) then loadedProjects = loadedProjects + 1 end
+            elseif addMeshToTable(path) then
+                loadedMeshes = loadedMeshes + 1
+            end
         end
         if #tFiles > 0 then
             sLastMeshPath = tFiles[1]
             bShowMeshTree = true
-            tUtil.showMessage(string.format(tLang.L("loaded_meshes_fmt"), #tFiles))
+            tUtil.showMessage(string.format(tLang.L('mesh_debug_loaded_assets_fmt'),
+                loadedMeshes, loadedProjects))
         end
     end
+end
+
+function addImageMeshProject(path)
+    if not path or path=='' then return false end
+    for _,entry in ipairs(tImageMeshProjects or {}) do
+        if tImageMeshWorktree.samePath(entry.path,path) then return false end
+    end
+    local ok,entry=dpCall(tImageMeshWorktree.load,path)
+    if not ok or not entry then
+        tUtil.showMessageWarn(tLang.L(tostring(entry)))
+        return false
+    end
+    tImageMeshProjects[#tImageMeshProjects+1]=entry
+    bShowMeshTree=true
+    return true
 end
 
 function onLoadMeshFromFolder()
@@ -3219,18 +3245,31 @@ function onLoadMeshFromFolder()
         dirname = dirname:gsub("\\", "/")
         sLastFolderPath = dirname
         local tFiles = tUtil.getMeshFilesFromFolder(dirname)
-        local iAdded = 0
+        local iAdded, projectsAdded = 0, 0
         for i = 1, #tFiles do
             if addMeshToTable(tFiles[i]) then
                 iAdded = iAdded + 1
             end
         end
+        local directoryEntries = mbm.listFiles(dirname, false)
+        if directoryEntries then
+            local sep = directoryEntries.separator or '/'
+            for _,directoryEntry in ipairs(directoryEntries) do
+                for _,name in ipairs(directoryEntry) do
+                    if name:lower():match('%.imesh$') then
+                        local path = directoryEntry.path .. sep .. name
+                        if addImageMeshProject(path) then projectsAdded = projectsAdded + 1 end
+                    end
+                end
+            end
+        end
         bShowMeshTree = true
-        tUtil.showMessage(string.format(tLang.L("loaded_meshes_folder_fmt"), iAdded, #tFiles))
+        tUtil.showMessage(string.format(tLang.L('mesh_debug_loaded_folder_assets_fmt'),
+            iAdded, projectsAdded))
     end
 end
 
-function addMeshToTable(fileName)
+function addMeshToTable(fileName,imageMeshProjectOwner,imageMeshRegion)
     if not fileName or fileName:len() == 0 then return false end
     local meshD = meshDebug:new()
     if not meshD:load(fileName) then
@@ -3256,6 +3295,9 @@ function addMeshToTable(fileName)
     end
     table.insert(tLoadedMeshes, {
         fileName = fileName,
+        imageMeshProjectOwner = imageMeshProjectOwner,
+        imageMeshRegionId = imageMeshRegion and imageMeshRegion.id or nil,
+        imageMeshRegionName = imageMeshRegion and imageMeshRegion.name or nil,
         meshDebug = meshD,
         info = info,
         loaded = true,
@@ -3293,6 +3335,10 @@ function addMeshToTable(fileName)
         tPhysicsBoundsCache  = nil,
         tPhysicsExtentCache  = nil
     })
+    tMeshEntryIndex[tLoadedMeshes[#tLoadedMeshes]]=#tLoadedMeshes
+    if not imageMeshProjectOwner then
+        tRegularMeshEntries[#tRegularMeshEntries+1]=tLoadedMeshes[#tLoadedMeshes]
+    end
     -- Auto-switch camera to 3D when a mesh (.msh) file is loaded
     if info.type == 'mesh' and not bCameraMode3D then
         setMeshDebugCameraMode3d(true)
@@ -3393,6 +3439,10 @@ end
 function removeMeshFromTable(index)
     local wasSelected = (iSelectedMeshIndex == index)
     local removed = table.remove(tLoadedMeshes, index)
+    if removed then tMeshEntryIndex[removed]=nil end
+    for meshIndex=index,#tLoadedMeshes do
+        tMeshEntryIndex[tLoadedMeshes[meshIndex]]=meshIndex
+    end
     if removed then
         require("mesh_debug_info_wireframe").release(removed)
         if removed.tXformPreviewMesh then removed.tXformPreviewMesh:destroy() end
@@ -3421,6 +3471,17 @@ function removeMeshFromTable(index)
     elseif iSelectedMeshIndex > index then
         iSelectedMeshIndex = iSelectedMeshIndex - 1
         iLastPreviewedIndex = 0
+    end
+    if removed and removed.imageMeshProjectOwner then
+        tImageMeshWorktree.forgetRegion(removed.imageMeshProjectOwner,removed.imageMeshRegionId)
+        meshDebug:fakeRelease(removed.fileName)
+    elseif removed then
+        for regularIndex=#tRegularMeshEntries,1,-1 do
+            if tRegularMeshEntries[regularIndex]==removed then
+                table.remove(tRegularMeshEntries,regularIndex)
+                break
+            end
+        end
     end
 end
 
@@ -3519,6 +3580,17 @@ function selectMeshIndex(newIndex)
         tNew.cam3d.fz        = c.fz
     end
     iSelectedMeshIndex = newIndex
+    -- Reveal a keyboard-selected Image Mesh region so the tree does not clear its selection.
+    if tNew and tNew.imageMeshProjectOwner then
+        for _, project in ipairs(tImageMeshProjects or {}) do
+            project.treeExpanded = (project == tNew.imageMeshProjectOwner)
+        end
+    end
+    -- Normal review temporarily owns candidate meshes, but keyboard navigation should still
+    -- update the selection restored when that review is confirmed or cancelled.
+    if tMeshNormals.preview.pending then
+        tMeshNormals.preview.pending.selected = newIndex
+    end
 end
 
 -- Returns map[origAnimIdx] = filteredAnimIdx (integer) if the animation survives the frame
@@ -11635,11 +11707,19 @@ function main_menu_mesh_debug()
             showApplyToAllMenu()
             tImGui.Separator()
             if tImGui.MenuItem(tLang.L("clear_all")) then
-                for _,entry in ipairs(tLoadedMeshes) do require("mesh_debug_info_wireframe").release(entry);simplifyCancel(entry);simplifyDiscardBackup(entry) end
+                for _,entry in ipairs(tLoadedMeshes) do
+                    require("mesh_debug_info_wireframe").release(entry)
+                    simplifyCancel(entry);simplifyDiscardBackup(entry)
+                    if entry.imageMeshProjectOwner then meshDebug:fakeRelease(entry.fileName) end
+                end
                 tLoadedMeshes = {}
+                tMeshEntryIndex = {}
+                tRegularMeshEntries = {}
                 iSelectedMeshIndex = 0
                 iLastPreviewedIndex = 0
                 destroyPreviewMesh()
+                for _,project in ipairs(tImageMeshProjects) do tImageMeshWorktree.dispose(project) end
+                tImageMeshProjects = {}
                 tUtil.showMessage(tLang.L("cleared_all_meshes"))
             end
             tImGui.Separator()
@@ -11735,8 +11815,167 @@ function main_menu_mesh_debug()
     end
 end
 
+function resumeImageMeshProjects()
+    local project,event=tImageMeshWorktree.advance()
+    if not project or not event then return end
+    local path=event.path
+    if not addMeshToTable(path,project,event.region) then
+        meshDebug:fakeRelease(path)
+        os.remove(path)
+        tImageMeshWorktree.markFailed(project,tLang.L('ime_preview_failed'))
+        return
+    end
+    local entry=tLoadedMeshes[#tLoadedMeshes]
+    entry.cam3d.distance=tImageMeshWorktree.fitDistance(project.project,event.region)
+    tImageMeshWorktree.markBuilt(project,event.region,path,entry)
+    if project.autoSelectPending and project.treeExpanded then
+        project.autoSelectPending=nil
+        iSelectedMeshIndex=#tLoadedMeshes
+        iLastPreviewedIndex=0
+    end
+end
+
+function removeImageMeshProject(index)
+    local project=table.remove(tImageMeshProjects,index)
+    if not project then return end
+    for meshIndex=#tLoadedMeshes,1,-1 do
+        local entry=tLoadedMeshes[meshIndex]
+        if entry.imageMeshProjectOwner==project then
+            local path=entry.fileName
+            removeMeshFromTable(meshIndex)
+            os.remove(path)
+        end
+    end
+    tImageMeshWorktree.dispose(project)
+end
+
+function showImageMeshProjectTree(tToRemove,tProjectsToRemove)
+    if #tImageMeshProjects==0 then return end
+    local title=string.format('%s (%d)##imageMeshProjects',
+        tLang.L('mesh_debug_image_mesh_projects'),#tImageMeshProjects)
+    if not tImGui.TreeNodeEx(title,tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen'),
+            'image-mesh-projects-root') then
+        for _,project in ipairs(tImageMeshProjects) do project.treeExpanded=false end
+        return
+    end
+
+    for projectIndex,project in ipairs(tImageMeshProjects) do
+        local label=project.name..' [Image Mesh]'
+        tImGui.SetNextItemOpen(project.treeExpanded==true,tImGui.Flags('ImGuiCond_Always'))
+        local projectOpen=tImGui.TreeNodeEx(label,0,'image-mesh-project-'..project.path)
+        if projectOpen then
+            for otherIndex,otherProject in ipairs(tImageMeshProjects) do
+                if otherIndex~=projectIndex then otherProject.treeExpanded=false end
+            end
+            project.treeExpanded=true
+            local hadMeshes=project.meshEntries and #project.meshEntries>0 or false
+            local firstMeshIndex=nil
+            for _,entry in ipairs(project.meshEntries or {}) do
+                firstMeshIndex=firstMeshIndex or tMeshEntryIndex[entry]
+            end
+            local wasIdle=project.status=='idle' or project.status=='cancelled'
+            local ok=tImageMeshWorktree.ensure(project)
+            if wasIdle and not hadMeshes and ok then project.autoSelectPending=true end
+            if project.autoSelectPending and hadMeshes and firstMeshIndex then
+                project.autoSelectPending=nil
+                iSelectedMeshIndex=firstMeshIndex
+                iLastPreviewedIndex=0
+            end
+
+            if project.status=='queued' then
+                tImGui.Text(tLang.L('mesh_debug_image_mesh_queued'))
+                if tImGui.Button(tLang.L('mesh_debug_image_mesh_cancel')..'##imesh-cancel-'..projectIndex) then
+                    tImageMeshWorktree.cancel(project)
+                end
+            elseif project.status=='generating' then
+                tImGui.Text(string.format(tLang.L('mesh_debug_image_mesh_generating_fmt'),
+                    project.currentRegion or '',project.currentIndex or 0,#project.project.regions))
+                tImGui.ProgressBar(tImageMeshWorktree.progress(project),{x=-1,y=0})
+                if tImGui.Button(tLang.L('mesh_debug_image_mesh_cancel')..'##imesh-cancel-'..projectIndex) then
+                    tImageMeshWorktree.cancel(project)
+                end
+            elseif project.status=='cancelling' then
+                tImGui.Text(tLang.L('mesh_debug_image_mesh_cancelling'))
+                tImGui.ProgressBar(tImageMeshWorktree.progress(project),{x=-1,y=0})
+            elseif project.status=='failed' then
+                tImGui.TextWrapped(string.format(tLang.L('mesh_debug_image_mesh_failed_fmt'),
+                    tImageMeshWorktree.displayError(project)))
+                if tImGui.Button(tLang.L('mesh_debug_image_mesh_retry')..'##imesh-retry-'..projectIndex) then
+                    if tImageMeshWorktree.retry(project) and not hadMeshes then
+                        project.autoSelectPending=true
+                    end
+                end
+            elseif project.status=='cancelled' then
+                tImGui.Text(tLang.L('mesh_debug_image_mesh_cancelled'))
+                if tImGui.Button(tLang.L('mesh_debug_image_mesh_retry')..'##imesh-retry-'..projectIndex) then
+                    if tImageMeshWorktree.retry(project) and not hadMeshes then
+                        project.autoSelectPending=true
+                    end
+                end
+            elseif #project.project.regions==0 then
+                tImGui.Text(tLang.L('mesh_debug_image_mesh_empty'))
+            elseif project.status=='ready' then
+                tImGui.Text(string.format(tLang.L('mesh_debug_image_mesh_ready_fmt'),
+                    #(project.meshEntries or {})))
+            else
+                tImGui.TextWrapped(tLang.L('mesh_debug_image_mesh_expand_help'))
+            end
+
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('mesh_debug_image_mesh_remove')..'##imesh-remove-'..projectIndex) then
+                tProjectsToRemove[#tProjectsToRemove+1]=projectIndex
+            end
+
+            for _,entry in ipairs(project.meshEntries or {}) do
+                local meshIndex=tMeshEntryIndex[entry]
+                if meshIndex then
+                    local isSelected=iSelectedMeshIndex==meshIndex
+                    local rowLabel=string.format('%s [%s]',entry.imageMeshRegionName or
+                        tUtil.getShortName(entry.fileName),entry.info and entry.info.type or 'mesh')
+                    local flags=isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or
+                        tImGui.Flags('ImGuiTreeNodeFlags_None')
+                    tImGui.SetNextItemOpen(isSelected,tImGui.Flags('ImGuiCond_Always'))
+                    if tImGui.TreeNodeEx(rowLabel,flags,'imesh-region-'..meshIndex) then
+                        iSelectedMeshIndex=meshIndex
+                        showMeshOptions(entry,meshIndex)
+                        if tImGui.Button(tLang.L('remove_from_list')..'##imesh-region-remove-'..meshIndex) then
+                            tToRemove[#tToRemove+1]=meshIndex
+                        end
+                        tImGui.TreePop()
+                    else
+                        if isSelected then iSelectedMeshIndex=0 end
+                        if entry.tNormalLineGood or entry.tNormalLineBad then destroyNormalVisualization(entry) end
+                        if entry.tPhysicsLine then destroyPhysicsVisualization(entry) end
+                        if entry.tXformPreviewMesh then
+                            entry.tXformPreviewMesh:destroy()
+                            entry.tXformPreviewMesh=nil
+                        end
+                        tXformGizmo.destroy(entry)
+                        destroyTransformSubsetHoverMarker(entry)
+                        destroySplitCaptureIslandMarkers(entry)
+                    end
+                end
+            end
+            tImGui.TreePop()
+        else
+            project.treeExpanded=false
+            for _,entry in ipairs(tLoadedMeshes) do
+                if entry.imageMeshProjectOwner==project and iSelectedMeshIndex>0 and
+                    tLoadedMeshes[iSelectedMeshIndex]==entry then
+                    iSelectedMeshIndex=0
+                    break
+                end
+            end
+        end
+    end
+    tImGui.TreePop()
+end
+
 function showMeshTreeWindow()
-    if not bShowMeshTree then return end
+    if not bShowMeshTree then
+        for _,project in ipairs(tImageMeshProjects or {}) do project.treeExpanded=false end
+        return
+    end
 
     -- The tree contains long articulated labels (frame/subset identity, pivot channels and
     -- keyframe controls). Keep a usable minimum while still allowing the user to resize it.
@@ -11751,7 +11990,7 @@ function showMeshTreeWindow()
 
     if is_opened then
         if tImGui.BeginMenuBar() then
-            if tImGui.MenuItem('Load Mesh(s)') then
+            if tImGui.MenuItem(tLang.L('load_meshes')) then
                 onLoadMeshFromFile()
             end
             if tImGui.MenuItem(tLang.L("load_from_folder")) then
@@ -11764,14 +12003,16 @@ function showMeshTreeWindow()
             tImGui.EndMenuBar()
         end
 
-        tImGui.TextDisabled(string.format('%d mesh(es) loaded', #tLoadedMeshes))
+        tImGui.TextDisabled(string.format(tLang.L('mesh_debug_tree_counts_fmt'),
+            #tLoadedMeshes,#tImageMeshProjects))
 
-        if #tLoadedMeshes == 0 then
-            tImGui.TextWrapped(tLang.L("use_file_menu_or_load"))
-        else
-            local tToRemove = {}
-            for i = 1, #tLoadedMeshes do
-                local tEntry = tLoadedMeshes[i]
+        local tToRemove,tProjectsToRemove={},{}
+        if #tRegularMeshEntries==0 and #tImageMeshProjects==0 then
+            tImGui.TextWrapped(tLang.L('use_file_menu_or_load'))
+        end
+        for _,tEntry in ipairs(tRegularMeshEntries) do
+            local i=tMeshEntryIndex[tEntry]
+            if i then
                 local shortName = tUtil.getShortName(tEntry.fileName)
                 local typeStr = (tEntry.info and tEntry.info.type) or '?'
                 local hasFilt = false
@@ -11779,38 +12020,25 @@ function showMeshTreeWindow()
                     if v == false then hasFilt = true; break end
                 end
                 local label = string.format('%s [%s]%s%s', shortName, typeStr,
-                    tEntry.modified and ' *' or '',
-                    hasFilt and ' ~' or '')
-
+                    tEntry.modified and ' *' or '',hasFilt and ' ~' or '')
                 local isSelected = (iSelectedMeshIndex == i)
                 tImGui.SetNextItemOpen(isSelected, tImGui.Flags('ImGuiCond_Always'))
-                local flags = isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or tImGui.Flags('ImGuiTreeNodeFlags_None')
+                local flags = isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or
+                    tImGui.Flags('ImGuiTreeNodeFlags_None')
 
                 if tImGui.TreeNodeEx(label, flags, 'mesh-' .. i) then
                     iSelectedMeshIndex = i
                     showMeshOptions(tEntry, i)
                     if tImGui.Button(tLang.L("remove_from_list") .. '##' .. i) then
-                        table.insert(tToRemove, i)
+                        tToRemove[#tToRemove+1] = i
                     end
                     tImGui.TreePop()
                 else
-                    if i == iSelectedMeshIndex then
-                        iSelectedMeshIndex = 0
-                    end
-                    -- showMeshOptions (and its own Normals-node auto-cancel) only runs for the
-                    -- currently expanded/selected entry, so a collapsed entry's normal-viz lines
-                    -- would otherwise never get destroyed and leak on screen after switching to
-                    -- another mesh. Enforce it here unconditionally instead.
+                    if i == iSelectedMeshIndex then iSelectedMeshIndex = 0 end
                     if tEntry.tNormalLineGood or tEntry.tNormalLineBad then
                         destroyNormalVisualization(tEntry)
                     end
-                    -- Same leak class, same fix, for the Physics node's wireframe line.
-                    if tEntry.tPhysicsLine then
-                        destroyPhysicsVisualization(tEntry)
-                    end
-                    -- Same pre-existing leak class for the Transform tab's preview clone (its
-                    -- own auto-cancel likewise only ran inside showMeshOptions, i.e. only while
-                    -- this entry was the selected one).
+                    if tEntry.tPhysicsLine then destroyPhysicsVisualization(tEntry) end
                     if tEntry.tXformPreviewMesh then
                         tEntry.tXformPreviewMesh:destroy()
                         tEntry.tXformPreviewMesh = nil
@@ -11820,13 +12048,14 @@ function showMeshTreeWindow()
                     destroySplitCaptureIslandMarkers(tEntry)
                 end
             end
-            for j = #tToRemove, 1, -1 do
-                removeMeshFromTable(tToRemove[j])
-            end
         end
+        showImageMeshProjectTree(tToRemove,tProjectsToRemove)
+        for j = #tToRemove, 1, -1 do removeMeshFromTable(tToRemove[j]) end
+        for j = #tProjectsToRemove, 1, -1 do removeImageMeshProject(tProjectsToRemove[j]) end
     end
     if closed_clicked then
         bShowMeshTree = false
+        for _,project in ipairs(tImageMeshProjects) do project.treeExpanded=false end
     end
     tImGui.End()
 end
@@ -12533,6 +12762,7 @@ function onLoop(delta)
     showCameraWindow()
     showLightWindow()
     showMeshTreeWindow()
+    resumeImageMeshProjects()
     showApplyAllWindow()
     showListTexturesWindow()
     showListMeshesWindow()
@@ -12835,10 +13065,10 @@ end
 
 function onKeyDown(key)
     if key == mbm.getKeyCode('ESC') and simplifyCancel(tLoadedMeshes[iSelectedMeshIndex]) then return end
-    if tMeshNormals.preview.pending and (mbm.getKeyName(key)=='DOWN' or mbm.getKeyName(key)=='UP') then return end
-    if mbm.getKeyName(key) == 'DOWN' then
+    local keyName = mbm.getKeyName(key)
+    if keyName == 'DOWN' then
         selectMeshIndex(iSelectedMeshIndex + 1)
-    elseif mbm.getKeyName(key) == 'UP' then
+    elseif keyName == 'UP' then
         selectMeshIndex(iSelectedMeshIndex - 1)
     elseif key == mbm.getKeyCode('W') then
         tCam3dMove.forward = 1
@@ -12867,6 +13097,11 @@ end
 
 function onEndScene()
     require("mesh_audit_ui").shutdown()
+    for _,entry in ipairs(tLoadedMeshes or {}) do
+        if entry.imageMeshProjectOwner then meshDebug:fakeRelease(entry.fileName) end
+    end
+    for _,project in ipairs(tImageMeshProjects or {}) do tImageMeshWorktree.dispose(project) end
+    tImageMeshProjects={}
     require('mesh_cgal').shutdown()
     tMeshNormals.preview.dispose()
 end
