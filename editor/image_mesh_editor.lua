@@ -757,7 +757,7 @@ local function propertiesPanel()
                 Comparison.panel(E,setComparison,setWireframe,dpCall)
             end
         end
-        if tImGui.CollapsingHeader(L('cgal_remesh_title')) then
+        if tImGui.CollapsingHeader(tLang.L('cgal_remesh_title')) then
             E.values.remesh=tImGui.Checkbox(L('cgal_remesh_enable'),E.values.remesh==true)
             if E.values.remesh then
                 local modes=require('mesh_simplify_modes')
