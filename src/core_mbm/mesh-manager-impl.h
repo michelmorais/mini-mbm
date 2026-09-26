@@ -102,6 +102,7 @@ namespace mbm
         util::MATERIAL material;
         INFO_PHYSICS infoPhysics;
         util::INFO_ANIMATION infoAnimation;
+        util::AUTOPLAY_ANIMATION_V11 autoplayAnimation;
         util::INFO_DRAW_MODE info_mode;
         BUFFER_MESH *buffer;
         std::string fileName;
@@ -137,6 +138,7 @@ namespace mbm
         util::HEADER_MESH headerMesh;
         INFO_PHYSICS infoPhysics;
         util::INFO_ANIMATION infoAnimation;
+        util::AUTOPLAY_ANIMATION_V11 autoplayAnimation;
         util::INFO_DRAW_MODE info_mode;
         VEC2 zoomEditorSprite;
         util::TYPE_MESH typeMe;

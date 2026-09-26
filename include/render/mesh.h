@@ -141,6 +141,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     struct SKELETAL_POSE_SHARING_STATE;
     struct CPU_SKELETAL_RENDER_STATE;
     bool                     finishLoad(const char *fileName);
+    void                     startAutoplayAnimation();
     bool                     render() override;
     bool                     onRestoreDevice() override;
     bool                     isOnFrustum() override;

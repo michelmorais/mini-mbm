@@ -5668,10 +5668,10 @@ function showMeshExportBuildDialog()
 end
 
 -- Articulated authoring moved to mesh_maker_articulated.lua.
-function showArticulatedAnimationNode(tEntry, meshD, index)
+function showArticulatedAnimationNode(tEntry, meshD, index, onEdit)
     if not openNode(tEntry,'articulated',tLang.L('articulated_animation'),0,'articulated-'..index) then return end
     require('articulated_mesh_playback').draw(tEntry,meshD,tPreviewMesh,
-        index==iSelectedMeshIndex and tPreviewMesh~=nil and not tEntry.modified,dpCall)
+        index==iSelectedMeshIndex and tPreviewMesh~=nil and not tEntry.modified,dpCall,onEdit)
     tImGui.TreePop()
 end
 
@@ -9488,6 +9488,17 @@ function showMeshOptions(tEntry, index)
                 end)
                 if ok and name then
                     if tImGui.TreeNodeEx(name or ('Anim ' .. i), 0, 'anim-' .. index .. '-' .. i) then
+                        local autoplay = meshD:isAutoplayAnimation('frame', name)
+                        local newAutoplay = tImGui.Checkbox(
+                            tLang.L('autoplay_animation_on_load') .. '##autoplay-frame-' .. index .. '-' .. i,
+                            autoplay)
+                        if newAutoplay ~= autoplay then
+                            local okSet, set = dpCall(function()
+                                if newAutoplay then return meshD:setAutoplayAnimation('frame', name) end
+                                return meshD:setAutoplayAnimation('', '')
+                            end)
+                            if okSet and set then onEdit() end
+                        end
                         tImGui.Text(tLang.L("name"))
                         tImGui.PushItemWidth(220)
                         local mod, newName = tImGui.InputText('##animName-' .. index .. '-' .. i, name or '', flags)
@@ -9629,12 +9640,13 @@ function showMeshOptions(tEntry, index)
         (tEntry.tSimplifyState and tEntry.tSimplifyState.running) or #tEntry.tPendingOps>0,tEntry,openNode)
 
     -- Articulated Animation node: persistent parts/pivots and named clips
-    showArticulatedAnimationNode(tEntry, meshD, index)
+    showArticulatedAnimationNode(tEntry, meshD, index, onEdit)
 
     if openNode(tEntry, 'skeletal', tLang.L('mesh_debug_skeletal_animation'), 0, 'skeletal-' .. index) then
         require('skeletal_mesh_playback').draw(tEntry,
+            meshD,
             index == iSelectedMeshIndex and tPreviewMesh or nil,
-            index == iSelectedMeshIndex and tPreviewMesh ~= nil and not tEntry.modified, dpCall)
+            index == iSelectedMeshIndex and tPreviewMesh ~= nil and not tEntry.modified, dpCall,onEdit)
         tImGui.TreePop()
     end
 

@@ -38,6 +38,7 @@
 
 #include <cfloat>
 #include <cmath>
+#include <cstring>
 #include <string>
 #include <algorithm> // std::sort
 #include <unordered_map>
@@ -125,6 +126,7 @@ namespace mbm
         util::INFO_DRAW_MODE     info_mode;
         mbm::INFO_PHYSICS        infoPhysics;
         util::INFO_ANIMATION     infoAnimation;
+        util::AUTOPLAY_ANIMATION_V11 autoplayAnimation;
         std::vector<std::string> extraPaths;
         std::vector<IntermediateFrameV11> frames;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
@@ -167,6 +169,7 @@ namespace mbm
             : typeMe(other.typeMe), material(other.material),
               positionOffset_deprecated(other.positionOffset_deprecated),
               angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
+              autoplayAnimation(std::move(other.autoplayAnimation)),
               extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
               articulatedParts(std::move(other.articulatedParts)),
               articulatedClips(std::move(other.articulatedClips)),
@@ -203,6 +206,7 @@ namespace mbm
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
             infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
             infoAnimation.lsHeaderAnim = std::move(other.infoAnimation.lsHeaderAnim);
+            autoplayAnimation = std::move(other.autoplayAnimation);
             extraInfo       = other.extraInfo;
             other.extraInfo = nullptr;
             return *this;
@@ -1098,6 +1102,16 @@ namespace
                 }
                 out.infoAnimation.lsHeaderAnim.push_back(infoHead);
             }
+            else if (staged.header.type == util::SECTION_AUTOPLAY_ANIMATION)
+            {
+                if (staged.header.sectionVersion != 1 ||
+                    out.autoplayAnimation.kind != util::AUTOPLAY_ANIMATION_NONE ||
+                    !util::readAutoplayAnimationV11(tmp, out.autoplayAnimation))
+                {
+                    errorOut = "failed to parse SECTION_AUTOPLAY_ANIMATION";
+                    return false;
+                }
+            }
             else if (staged.header.type == util::SECTION_ARTICULATED_PARTS)
             {
                 if (staged.header.sectionVersion != 1 ||
@@ -1196,6 +1210,18 @@ namespace
 
 namespace mbm
 {
+    namespace
+    {
+        uint8_t autoplayAnimationKindFromName(const char *kind) noexcept
+        {
+            if (!kind || !kind[0]) return util::AUTOPLAY_ANIMATION_NONE;
+            if (std::strcmp(kind, "frame") == 0) return util::AUTOPLAY_ANIMATION_FRAME;
+            if (std::strcmp(kind, "articulated") == 0) return util::AUTOPLAY_ANIMATION_ARTICULATED;
+            if (std::strcmp(kind, "skeletal") == 0) return util::AUTOPLAY_ANIMATION_SKELETAL;
+            return util::AUTOPLAY_ANIMATION_NONE;
+        }
+    }
+
     ARTICULATED_ANIMATION_PLAYER::ARTICULATED_ANIMATION_PLAYER()
         : impl(std::make_unique<Impl>())
     {
@@ -1617,6 +1643,9 @@ namespace mbm
     void MESH_MBM_DEBUG::setMeshType(const util::TYPE_MESH type) noexcept
     {
         this->impl->typeMe = type;
+        if (type == util::TYPE_MESH_SPRITE &&
+            impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_SKELETAL)
+            impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
     }
 
     // Peeks a mesh file's header without fully loading it (editor file-browser preview). A non-v11
@@ -1853,6 +1882,60 @@ namespace mbm
     {
         if (infoHead)
             this->impl->infoAnimation.lsHeaderAnim.push_back(infoHead);
+    }
+
+    bool MESH_MBM_DEBUG::isAutoplayAnimation(const char *kind, const char *name) const noexcept
+    {
+        return name && autoplayAnimationKindFromName(kind) == impl->autoplayAnimation.kind &&
+               impl->autoplayAnimation.name == name;
+    }
+
+    bool MESH_MBM_DEBUG::setAutoplayAnimation(const char *kind, const char *name)
+    {
+        const uint8_t kindValue = autoplayAnimationKindFromName(kind);
+        if (kindValue == util::AUTOPLAY_ANIMATION_NONE)
+        {
+            if (kind && kind[0])
+                return false;
+            impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
+            return true;
+        }
+        if (!name || !name[0])
+            return false;
+
+        bool found = false;
+        if (kindValue == util::AUTOPLAY_ANIMATION_FRAME)
+        {
+            for (const auto *animation : impl->infoAnimation.lsHeaderAnim)
+            {
+                if (animation && animation->headerAnim &&
+                    std::strcmp(animation->headerAnim->nameAnimation, name) == 0)
+                {
+                    if (found)
+                        return false;
+                    found = true;
+                }
+            }
+        }
+        else if (kindValue == util::AUTOPLAY_ANIMATION_ARTICULATED)
+        {
+            found = std::any_of(impl->articulatedClips.begin(), impl->articulatedClips.end(),
+                                [name](const ARTICULATED_CLIP_DATA &clip)
+                                { return clip.header.name == name; });
+        }
+        else if (kindValue == util::AUTOPLAY_ANIMATION_SKELETAL)
+        {
+            if (impl->typeMe == util::TYPE_MESH_SPRITE)
+                return false;
+            found = std::any_of(impl->canonicalAnimations.clips.begin(), impl->canonicalAnimations.clips.end(),
+                                [name](const skeletal::SKELETAL_CLIP &clip)
+                                { return clip.name == name; });
+        }
+        if (!found)
+            return false;
+        impl->autoplayAnimation.kind = kindValue;
+        impl->autoplayAnimation.name = name;
+        return true;
     }
 
     void MESH_MBM_DEBUG::clearBlendOperations() noexcept
@@ -3503,6 +3586,11 @@ namespace mbm
     {
         if (index >= static_cast<uint32_t>(this->impl->infoAnimation.lsHeaderAnim.size()))
             return;
+        const util::INFO_ANIMATION::INFO_HEADER_ANIM *removed = this->impl->infoAnimation.lsHeaderAnim[index];
+        if (removed && removed->headerAnim &&
+            impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_FRAME &&
+            impl->autoplayAnimation.name == removed->headerAnim->nameAnimation)
+            impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
         delete this->impl->infoAnimation.lsHeaderAnim[index];
         this->impl->infoAnimation.lsHeaderAnim.erase(
             this->impl->infoAnimation.lsHeaderAnim.begin() + static_cast<ptrdiff_t>(index));
@@ -3654,6 +3742,7 @@ namespace mbm
                                      + (hasCanonicalAnimations ? 1u : 0u)
                                      + (impl->articulatedParts.empty() ? 0u : 1u)
                                      + (impl->articulatedClips.empty() ? 0u : 1u)
+                                     + (impl->autoplayAnimation.kind != util::AUTOPLAY_ANIMATION_NONE ? 1u : 0u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
                                      + this->getTotalAnimationHeaders()
                                      + ((impl->typeMe == util::TYPE_MESH_PARTICLE) ? 1u : 0u)
@@ -4052,6 +4141,20 @@ namespace mbm
             if (!ok)
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_ANIMATION for animation [%s] [%s]",
                                           headerAnim->nameAnimation, fileOut);
+        }
+
+        if (impl->autoplayAnimation.kind != util::AUTOPLAY_ANIMATION_NONE)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_AUTOPLAY_ANIMATION;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                return util::writeAutoplayAnimationV11(fp, this->impl->autoplayAnimation);
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__,
+                                          "failed to write SECTION_AUTOPLAY_ANIMATION [%s]", fileOut);
         }
 
         // SECTION_DETAIL_PARTICLE, all stages bundled into one section ---------------------------------------
@@ -4592,6 +4695,15 @@ namespace mbm
                 if (!infoHead)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ANIMATION [%s]", fileNamePath);
                 this->appendAnimationHeader(infoHead);
+            }
+            else if (sectionHeader.type == util::SECTION_AUTOPLAY_ANIMATION)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (sectionHeader.sectionVersion != 1 ||
+                    impl->autoplayAnimation.kind != util::AUTOPLAY_ANIMATION_NONE ||
+                    !util::readAutoplayAnimationV11(tmp, impl->autoplayAnimation))
+                    return log_util::onFailed(fp, __FILE__, __LINE__,
+                                              "failed to parse SECTION_AUTOPLAY_ANIMATION [%s]", fileNamePath);
             }
             else if (sectionHeader.type == util::SECTION_ARTICULATED_PARTS)
             {
@@ -5537,10 +5649,14 @@ namespace mbm
             strncpy(infoHead->headerAnim->nameAnimation, nameAnimation, sizeof(infoHead->headerAnim->nameAnimation) - 1);
         else
             strncpy(infoHead->headerAnim->nameAnimation, "default",sizeof(infoHead->headerAnim->nameAnimation) - 1);
+        infoHead->headerAnim->nameAnimation[sizeof(infoHead->headerAnim->nameAnimation) - 1] = '\0';
         infoHead->headerAnim->initialFrame     = initialFrame;
         infoHead->headerAnim->finalFrame       = finalFrame;
         infoHead->headerAnim->timeBetweenFrame = timeBetweenFrame <= 0.0f ? 0.0f : timeBetweenFrame;
         infoHead->headerAnim->typeAnimation    = typeAnimation;
+        if (impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_FRAME &&
+            impl->autoplayAnimation.name == infoHead->headerAnim->nameAnimation)
+            impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
         return impl->headerMesh.totalAnimation;
     }
 
@@ -5584,10 +5700,24 @@ namespace mbm
                 strncpy(errorOut, "headerAnim null",lenError);
             return false;
         }
+        const std::string oldName = infoHead->headerAnim->nameAnimation;
         if (nameAnimation)
             strncpy(infoHead->headerAnim->nameAnimation, nameAnimation, sizeof(infoHead->headerAnim->nameAnimation) - 1);
         else
             strncpy(infoHead->headerAnim->nameAnimation, "default",sizeof(infoHead->headerAnim->nameAnimation)-1);
+        infoHead->headerAnim->nameAnimation[sizeof(infoHead->headerAnim->nameAnimation) - 1] = '\0';
+        if (impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_FRAME)
+        {
+            if (impl->autoplayAnimation.name == oldName)
+                impl->autoplayAnimation.name = infoHead->headerAnim->nameAnimation;
+            uint32_t matchingAnimations = 0;
+            for (const auto *animation : impl->infoAnimation.lsHeaderAnim)
+                if (animation && animation->headerAnim &&
+                    impl->autoplayAnimation.name == animation->headerAnim->nameAnimation)
+                    ++matchingAnimations;
+            if (matchingAnimations != 1)
+                impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
+        }
         infoHead->headerAnim->initialFrame     = initialFrame;
         infoHead->headerAnim->finalFrame       = finalFrame;
         infoHead->headerAnim->timeBetweenFrame = timeBetweenFrame <= 0.0f ? 0.0f : timeBetweenFrame;
@@ -5907,6 +6037,7 @@ namespace mbm
         if (!name || !name[0]) return fail("canonical clip name must not be empty");
         if (!std::isfinite(duration) || duration < 0.0f)
             return fail("canonical clip duration must be finite and non-negative");
+        const std::string oldName = impl->canonicalAnimations.clips[clipIndex].name;
         skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
         for (uint32_t index = 0; index < candidate.clips.size(); ++index)
             if (index != clipIndex && candidate.clips[index].name == name)
@@ -5918,6 +6049,9 @@ namespace mbm
         if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
             return fail("updated canonical clip would be invalid; duration may not exclude existing keys");
         impl->canonicalAnimations = std::move(candidate);
+        if (impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_SKELETAL &&
+            impl->autoplayAnimation.name == oldName)
+            impl->autoplayAnimation.name = name;
         return true;
     }
 
@@ -5930,6 +6064,7 @@ namespace mbm
                                                        "canonical clip index is out of range");
             return false;
         }
+        const std::string removedName = impl->canonicalAnimations.clips[clipIndex].name;
         skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
         candidate.clips.erase(candidate.clips.begin() + clipIndex);
         if (candidate.clips.empty()) candidate = {};
@@ -5940,6 +6075,9 @@ namespace mbm
             return false;
         }
         impl->canonicalAnimations = std::move(candidate);
+        if (impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_SKELETAL &&
+            impl->autoplayAnimation.name == removedName)
+            impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
         return true;
     }
 
@@ -8232,6 +8370,8 @@ namespace mbm
         impl->canonicalAnimations = skeletal::CANONICAL_ANIMATIONS();
         impl->canonicalWeights = skeletal::CANONICAL_WEIGHTS();
         impl->canonicalSkeleton = skeletal::CANONICAL_SKELETON();
+        if (impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_SKELETAL)
+            impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
         return true;
     }
 
@@ -8507,6 +8647,7 @@ namespace mbm
             }
         }
         auto &header = impl->articulatedClips[index].header;
+        const std::string oldName = header.name;
         header.name = clipName;
         float greatestKeyTime = 0.0f;
         for (const auto &track : impl->articulatedClips[index].tracks)
@@ -8517,6 +8658,9 @@ namespace mbm
         header.defaultPriority = priority;
         header.loop = loop ? 1 : 0;
         header.blendMode = blendMode;
+        if (impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_ARTICULATED &&
+            impl->autoplayAnimation.name == oldName)
+            impl->autoplayAnimation.name = clipName;
         return true;
     }
 
@@ -8618,7 +8762,11 @@ namespace mbm
             if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation index out of range");
             return false;
         }
+        const std::string removedName = impl->articulatedClips[animationIndex].header.name;
         impl->articulatedClips.erase(impl->articulatedClips.begin() + animationIndex);
+        if (impl->autoplayAnimation.kind == util::AUTOPLAY_ANIMATION_ARTICULATED &&
+            impl->autoplayAnimation.name == removedName)
+            impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
         return true;
     }
 
@@ -8955,6 +9103,7 @@ namespace mbm
         this->impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         this->impl->infoPhysics.release();
         this->impl->infoAnimation.release();
+        impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
         impl->canonicalSkeleton = {};
@@ -9168,6 +9317,26 @@ namespace mbm
         return static_cast<uint32_t>(this->impl->infoAnimation.lsHeaderAnim.size());
     }
 
+    uint8_t MESH_MBM::getAutoplayAnimationKind() const noexcept
+    {
+        return this->impl->autoplayAnimation.kind;
+    }
+
+    const char *MESH_MBM::getAutoplayAnimationName() const noexcept
+    {
+        return this->impl->autoplayAnimation.name.empty() ? nullptr : this->impl->autoplayAnimation.name.c_str();
+    }
+
+    int MESH_MBM::getArticulatedAnimationDefaultPriority(const char *name) const noexcept
+    {
+        if (!name)
+            return 0;
+        for (const ARTICULATED_CLIP_DATA &clip : this->impl->articulatedClips)
+            if (clip.header.name == name)
+                return clip.header.defaultPriority;
+        return 0;
+    }
+
     util::INFO_ANIMATION::INFO_HEADER_ANIM * MESH_MBM::getAnimationHeader(const uint32_t index) const noexcept
     {
         if (index < this->impl->infoAnimation.lsHeaderAnim.size())
@@ -9239,6 +9408,7 @@ namespace mbm
         impl->buffer = nullptr;
         this->impl->infoPhysics.release();
         this->impl->infoAnimation.release();
+        impl->autoplayAnimation = util::AUTOPLAY_ANIMATION_V11();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
         impl->canonicalSkeleton = {};
@@ -11531,6 +11701,7 @@ namespace mbm
         impl->infoPhysics.lsSphere      = std::move(in.infoPhysics.lsSphere);
         impl->infoPhysics.lsTriangle    = std::move(in.infoPhysics.lsTriangle);
         impl->infoAnimation.lsHeaderAnim = std::move(in.infoAnimation.lsHeaderAnim);
+        impl->autoplayAnimation = std::move(in.autoplayAnimation);
         impl->articulatedParts = std::move(in.articulatedParts);
         impl->articulatedClips = std::move(in.articulatedClips);
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);

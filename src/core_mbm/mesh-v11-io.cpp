@@ -403,6 +403,15 @@ namespace util
                writeBytes(fp, &in.hasFx, sizeof(in.hasFx));
     }
 
+    bool writeAutoplayAnimationV11(FILE *fp, const util::AUTOPLAY_ANIMATION_V11 &in)
+    {
+        return in.kind >= util::AUTOPLAY_ANIMATION_FRAME &&
+               in.kind <= util::AUTOPLAY_ANIMATION_SKELETAL &&
+               !in.name.empty() &&
+               writeBytes(fp, &in.kind, sizeof(in.kind)) &&
+               writeStringV11(fp, in.name);
+    }
+
     bool readShaderVarV11(util::MEM_CURSOR_V11 &fp, util::SHADER_VAR_V11 &out)
     {
         return readBytes(fp, &out.typeVar, sizeof(out.typeVar)) &&
@@ -449,6 +458,14 @@ namespace util
                readI32LE(fp, out.typeAnimation) &&
                readU16LE(fp, out.blendState) &&
                readBytes(fp, &out.hasFx, sizeof(out.hasFx));
+    }
+
+    bool readAutoplayAnimationV11(util::MEM_CURSOR_V11 &fp, util::AUTOPLAY_ANIMATION_V11 &out)
+    {
+        return readBytes(fp, &out.kind, sizeof(out.kind)) &&
+               out.kind >= util::AUTOPLAY_ANIMATION_FRAME &&
+               out.kind <= util::AUTOPLAY_ANIMATION_SKELETAL &&
+               readStringV11(fp, out.name) && !out.name.empty() && fp.pos == fp.size;
     }
 
     bool writeArticulatedPartsHeaderV11(FILE *fp, const util::ARTICULATED_PARTS_HEADER_V11 &in)

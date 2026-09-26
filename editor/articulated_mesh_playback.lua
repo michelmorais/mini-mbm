@@ -22,7 +22,7 @@
 
 -- Read-only articulated playback for Mesh Debug. Authoring lives in its own editor.
 local M={}
-function M.draw(entry,data,preview,ready,call)
+function M.draw(entry,data,preview,ready,call,onEdit)
     local s=entry.articulatedPlayback
     if not s or s.data~=data or s.preview~=preview then
         s={data=data,preview=preview,clips={},selected=1}; entry.articulatedPlayback=s
@@ -39,16 +39,27 @@ function M.draw(entry,data,preview,ready,call)
         local c=s.clips[s.selected]
         return preview:playArticulatedAnimation(c.name,c.priority,0,1)
     end
-    tImGui.BeginDisabled(not ready)
     tImGui.PushItemWidth(220)
     if tImGui.BeginCombo(tLang.L('articulated_clip'),s.clips[s.selected].name) then
         for i,c in ipairs(s.clips) do
             -- Selection must not interrupt the active clip or restart one that has ended.
-            if tImGui.Selectable(c.name..'##artPlay'..i,s.selected==i) and ready then s.selected=i end
+            if tImGui.Selectable(c.name..'##artPlay'..i,s.selected==i) then s.selected=i end
         end
         tImGui.EndCombo()
     end
     tImGui.PopItemWidth()
+    local clip = s.clips[s.selected]
+    local autoplay = data:isAutoplayAnimation('articulated', clip.name)
+    local newAutoplay = tImGui.Checkbox(
+        tLang.L('autoplay_animation_on_load') .. '##artAutoplay' .. tostring(s.selected), autoplay)
+    if newAutoplay ~= autoplay then
+        local ok, updated = call(function()
+            if newAutoplay then return data:setAutoplayAnimation('articulated', clip.name) end
+            return data:setAutoplayAnimation('', '')
+        end)
+        if ok and updated and onEdit then onEdit() end
+    end
+    tImGui.BeginDisabled(not ready)
     if tImGui.Button(tLang.L('ase_play')) and ready then call(play) end
     tImGui.SameLine()
     if tImGui.Button(tLang.L('ase_pause')) and ready then call(function() return preview:pauseArticulatedAnimation(s.clips[s.selected].name) end) end

@@ -1422,8 +1422,24 @@ restoration. This operation belongs to the `meshDebug` factory table, not to
 cache behavior and the usual skeletal initialization path.
 
 
-The editor-only `meshDebug` object exposes Mesh V11 authoring operations. To reorder subsets inside
-a frame, use:
+The editor-only `meshDebug` object exposes Mesh V11 authoring operations.
+
+Mesh Debug can also mark one animation to start on each newly loaded instance of the saved V11
+asset:
+
+```lua
+local selected = meshD:isAutoplayAnimation(kind, name)
+local changed = meshD:setAutoplayAnimation(kind, name)
+```
+
+`kind` is `"frame"`, `"articulated"`, or `"skeletal"`; `name` must match an animation in that
+family. Both methods return a boolean. `setAutoplayAnimation("", "")` clears the selection. Setting
+another animation replaces the previous selection. Frame animation names must be unique for this
+selection to succeed. Sprite assets support frame and articulated autoplay; skeletal autoplay is
+available for Mesh assets. The selection is persisted in the optional V11 autoplay section, and
+playback state itself remains per instance.
+
+To reorder subsets inside a frame, use:
 
 ```lua
 local moved = meshD:moveSubsetUp(frame, subset)
