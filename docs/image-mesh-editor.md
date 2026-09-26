@@ -526,6 +526,16 @@ final counts. Pending edits and old previews are not presented as current result
 Errors identify the exceeded resource and processing stage and suggest relevant
 adjustments to density, contours, relief, painting, or side-texture seams.
 
+## Mesh Debug project preview
+
+Mesh Debug accepts `.imesh` projects through **Load Mesh(s)** and **Load from
+Folder**. Loading a project only adds it to the Image Mesh projects tree. Expand
+the project to build each region with the generation, simplification, and remesh
+settings saved in the project; the resulting meshes appear as children and are
+previewed in 3D. Generated `.msh` files live in an operating-system temporary
+folder and are removed when the project is removed or Mesh Debug closes, so its
+project folder does not accumulate generated geometry.
+
 ## Materials: back and sides
 
 The front uses the source-image crop. Back geometry/material choices are:

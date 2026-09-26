@@ -47,6 +47,7 @@ local Auto=require 'image_mesh_auto'
 local Simplify=require 'image_mesh_simplify'
 local Comparison=require 'image_mesh_comparison'
 local Assembly=require 'image_mesh_assembly'
+local ImageMeshBuild=require 'image_mesh_build'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
     primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=0.3,elevation=0.3,distance=300},status='',point=1}
@@ -164,26 +165,24 @@ local function camera()
 end
 local function generate(region,project,keepOriginal,cacheOriginal)
     project=project or E.project
-    local options=Model.options(project,region)
-    if options.heightSource=='curved' then options.simplify=false end
-    local asset,report=Generation.generate(E,project.image.path,options)
-    if not asset then error(Budget.error(region,report),0) end
-    -- Match Mesh Debug's +Z front view. Rotate positions AND authored normals
-    -- by 180 degrees around Y, preserving UVs, winding and smooth/hard edges.
-    local vertices=Asset.vertices(asset,true)
-    if keepOriginal and options.simplify then Comparison.capture(type(keepOriginal)=='table' and keepOriginal or E,asset,vertices) end
-    if cacheOriginal and options.simplify then GeometryCache.original(E,asset) end
-    if report.curvedSourceTriangles and (keepOriginal or cacheOriginal) then
-        local originalOptions=Model.copy(options);originalOptions.curvedSimplify=false
-        local original,originalReport=Generation.generate(E,project.image.path,originalOptions)
-        if not original then error(Budget.error(region,originalReport),0) end
-        local originalVertices=Asset.vertices(original,true)
-        if keepOriginal then Comparison.capture(type(keepOriginal)=='table' and keepOriginal or E,original,originalVertices) end
-        if cacheOriginal then GeometryCache.original(E,original) end
-        report.sourceVertices=originalReport.vertices;report.sourceTriangles=originalReport.triangles
-    end
-    report.vertexLimit=math.min(options.maxVertices,65535); report.triangleLimit=options.maxTriangles
-    Simplify.apply(E,asset,options,report)
+    local callbacks={
+        needsCurvedSource=keepOriginal or cacheOriginal,
+        beforeSimplify=function(asset,report,vertices,options)
+            if keepOriginal and options.simplify then
+                Comparison.capture(type(keepOriginal)=='table' and keepOriginal or E,asset,vertices)
+            end
+            if cacheOriginal and options.simplify then GeometryCache.original(E,asset) end
+        end,
+        curvedSource=function(original,originalReport,originalVertices)
+            if keepOriginal then
+                Comparison.capture(type(keepOriginal)=='table' and keepOriginal or E,
+                    original,originalVertices)
+            end
+            if cacheOriginal then GeometryCache.original(E,original) end
+        end,
+    }
+    local asset,report=ImageMeshBuild.generate(E,project,region,callbacks)
+    if not asset then error(report,0) end
     return asset,report
 end
 local function compactCount(value)
