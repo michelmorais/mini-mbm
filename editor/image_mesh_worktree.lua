@@ -25,6 +25,7 @@ local IO=require 'image_mesh_io'
 local Model=require 'image_mesh_model'
 local Generation=require 'image_mesh_generation'
 local Build=require 'image_mesh_build'
+local TextureAliases=require 'image_mesh_texture_aliases'
 
 local M={}
 local activeEntry=nil
@@ -39,16 +40,6 @@ end
 
 local function fileName(path)
     return path:gsub('\\','/'):match('([^/]+)$') or path
-end
-
-local function shortHash(value)
-    local hashA,hashB=0,5381
-    for index=1,#value do
-        local byte=value:byte(index)
-        hashA=(hashA*33+byte)%4294967296
-        hashB=(hashB*65599+byte)%4294967296
-    end
-    return string.format('%08x%08x',hashA,hashB)
 end
 
 local function directory(path)
@@ -75,52 +66,8 @@ local function removeDirectory(path)
     end
 end
 
-local function copyFile(source,destination)
-    local input=io.open(source,'rb')
-    if not input then return false end
-    local output=io.open(destination,'wb')
-    if not output then input:close();return false end
-    while true do
-        local chunk=input:read(64*1024)
-        if not chunk then break end
-        if not output:write(chunk) then
-            input:close();output:close();return false
-        end
-    end
-    input:close()
-    return output:close()
-end
-
--- Mesh V11 stores a texture reference in a 64-byte field. Image Mesh projects can use long
--- Dropbox-generated filenames, so exporting a temporary mesh directly with the source basename
--- truncates the extension and makes Mesh Debug ask the user to locate a nonexistent texture.
--- Give each distinct source texture a short alias inside the OS temporary folder instead. The
--- project/source hash keeps aliases unique because the engine's texture cache is keyed by basename.
 local function useTemporaryTextureAliases(entry,asset)
-    local sep=package.config:sub(1,1)
-    for subset=1,asset:getTotalSubset(1) do
-        local texture=asset:getTexture(1,subset)
-        if texture and texture~='' and texture:sub(1,1)~='#' then
-            local resolved=texture
-            if not IO.exists(resolved) then resolved=mbm.getFullPath(texture) or texture end
-            assert(IO.exists(resolved),'ime_texture_missing: '..texture)
-            local alias=entry.tempTextureAliases[resolved]
-            if not alias then
-                local base=fileName(resolved)
-                local extension=base:match('(%.[^%.]+)$') or ''
-                assert(#extension<=24 and extension:match('^%.[%w]+$'),
-                    'ime_texture_extension_missing: '..texture)
-                entry.nextTempTextureId=entry.nextTempTextureId+1
-                local namespace=shortHash(normalize(entry.path)..'\0'..normalize(resolved))
-                alias=string.format('i%s_t%03d%s',namespace,
-                    entry.nextTempTextureId,extension)
-                local destination=entry.tempDirectory..sep..alias
-                assert(copyFile(resolved,destination),'ime_texture_copy_failed: '..texture)
-                entry.tempTextureAliases[resolved]=alias
-            end
-            assert(asset:setTexture(1,subset,alias),'ime_texture_alias_failed: '..texture)
-        end
-    end
+    TextureAliases.apply(entry,asset,entry.tempDirectory,entry.path,true)
 end
 
 local function addProjectPaths(project,path)

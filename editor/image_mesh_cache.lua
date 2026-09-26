@@ -22,6 +22,7 @@
 
 -- One completed statistics mesh, already oriented for the editor.
 -- Exporters never receive this mutable asset: portable export may rewrite UVs.
+local TextureAliases=require 'image_mesh_texture_aliases'
 local M={}
 function M.clear(E)
  local c=E.generatedMesh
@@ -32,10 +33,10 @@ function M.begin(E,id)
  M.clear(E)
  E.generatedMesh={id=id,revision=E.revision}
 end
-function M.original(E,asset)
+function M.original(E,asset,textureNamespace)
  local c=assert(E.generatedMesh)
  c.originalPath=tUtil.getTemporaryFilePath('.msh')
- assert(asset:save(c.originalPath,false,false,true),tLang.L('ime_export_failed'))
+ assert(TextureAliases.savePreview(asset,c.originalPath,textureNamespace),tLang.L('ime_export_failed'))
 end
 function M.finish(E,asset,report)
  local c=assert(E.generatedMesh);c.asset=asset;c.report=report

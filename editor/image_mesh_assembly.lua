@@ -23,6 +23,7 @@
 local Asset=require 'image_mesh_asset'
 local Wire=require 'image_mesh_wireframe'
 local Model=require 'image_mesh_model'
+local TextureAliases=require 'image_mesh_texture_aliases'
 local M={}
 local function L(k) return tLang.L('ime_assembly_'..k) end
 function M.state(E)
@@ -158,7 +159,7 @@ function M.build(E,generate,dpCall,camera)
                 item.depth=lo;item.relief=hi-lo
                 item.curvedFlat=o.curvedNodes~=nil and not o.curvedSymmetric
             else item.depth=o.depth;item.relief=o.relief end
-            assert(asset:save(item.previewPath,false,false,true),tLang.L('ime_export_failed'))
+            assert(TextureAliases.savePreview(asset,item.previewPath,E.path or E.project.image.path),tLang.L('ime_export_failed'))
             item.preview=mesh:new('3d');item.preview.visible=false
             assert(meshDebug:loadMeshPreview(item.preview,item.previewPath),tLang.L('ime_preview_failed'))
             item.preview.alwaysRender=true;item.preview.visible=false

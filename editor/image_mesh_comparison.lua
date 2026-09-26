@@ -23,6 +23,7 @@
 local Asset=require 'image_mesh_asset'
 local Wire=require 'image_mesh_wireframe'
 local Help=require 'image_mesh_help'
+local TextureAliases=require 'image_mesh_texture_aliases'
 local function L(key) return tLang.L('ime_'..key) end
 local M={}
 function M.release(E)
@@ -41,11 +42,11 @@ local function bounds(vertices)
     for _,v in ipairs(vertices) do lo=math.min(lo,v.x); hi=math.max(hi,v.x) end
     return {min=lo,max=hi,width=hi-lo}
 end
-function M.capture(E,asset,vertices)
+function M.capture(E,asset,vertices,textureNamespace)
     M.release(E)
     local source={previewPath=tUtil.getTemporaryFilePath('.msh'),bounds=bounds(vertices),showOriginal=true,showSimplified=true}
     E.comparison=source
-    assert(asset:save(source.previewPath,false,false,true),tLang.L('ime_export_failed'))
+    assert(TextureAliases.savePreview(asset,source.previewPath,textureNamespace),tLang.L('ime_export_failed'))
     source.preview=mesh:new('3d'); source.preview.visible=false
     assert(meshDebug:loadMeshPreview(source.preview,source.previewPath),tLang.L('ime_preview_failed'))
     source.preview.alwaysRender=true; source.preview.visible=false
