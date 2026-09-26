@@ -41,6 +41,12 @@ local function fileName(path)
     return path:gsub('\\','/'):match('([^/]+)$') or path
 end
 
+local function shortHash(value)
+    local hash=0
+    for index=1,#value do hash=(hash*33+value:byte(index))%4294967296 end
+    return string.format('%08x',hash)
+end
+
 local function directory(path)
     return path:gsub('\\','/'):match('^(.*)/[^/]*$') or '.'
 end
@@ -84,7 +90,8 @@ end
 -- Mesh V11 stores a texture reference in a 64-byte field. Image Mesh projects can use long
 -- Dropbox-generated filenames, so exporting a temporary mesh directly with the source basename
 -- truncates the extension and makes Mesh Debug ask the user to locate a nonexistent texture.
--- Give each distinct source texture a short alias inside the OS temporary folder instead.
+-- Give each distinct source texture a short alias inside the OS temporary folder instead. The
+-- folder hash keeps aliases unique because the engine's texture cache is keyed by basename.
 local function useTemporaryTextureAliases(entry,asset)
     local sep=package.config:sub(1,1)
     for subset=1,asset:getTotalSubset(1) do
@@ -100,7 +107,8 @@ local function useTemporaryTextureAliases(entry,asset)
                 assert(#extension<=24 and extension:match('^%.[%w]+$'),
                     'ime_texture_extension_missing: '..texture)
                 entry.nextTempTextureId=entry.nextTempTextureId+1
-                alias=string.format('t%03d%s',entry.nextTempTextureId,extension)
+                alias=string.format('i%s_t%03d%s',entry.tempTextureNamespace,
+                    entry.nextTempTextureId,extension)
                 local destination=entry.tempDirectory..sep..alias
                 assert(copyFile(resolved,destination),'ime_texture_copy_failed: '..texture)
                 entry.tempTextureAliases[resolved]=alias
@@ -179,6 +187,7 @@ local function createTask(entry)
         local folder=tUtil.getTemporaryFilePath('_mini_mbm_imesh')
         assert(mbm.createDirectories(folder),'ime_temporary_folder_failed')
         entry.tempDirectory=folder
+        entry.tempTextureNamespace=shortHash(normalize(folder))
         mbm.addPath(folder)
     end
     entry.worker={}
