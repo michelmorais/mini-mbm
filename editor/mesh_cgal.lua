@@ -108,7 +108,10 @@ local executableDescriptions={
     ['mbm-cgal-repair']='cgal_description_repair',
     ['mbm-cgal-audit']='cgal_description_audit',
 }
-function M.panel()
+function M.panel(gui,translate,notifications)
+    local tImGui=gui or _G.tImGui
+    local tLang=translate and {L=translate} or _G.tLang
+    local tUtil=notifications or _G.tUtil
     local directory=Folder.getDirectory()
     if directory==nil then
         local previous=M.getPath()

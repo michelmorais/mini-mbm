@@ -410,3 +410,13 @@ reloads a temporary result without changing the source. The 31,091-triangle
 sample, at 20,000 target / 10 iterations / 14.5 feature angle, imports as 33,251
 render vertices and 22,781 triangles. The target remains unmet (13.905% over);
 fixing normal reconstruction does not alter the CGAL triangle result.
+
+
+Mesh3DGen uses the same folder table via
+`mesh_cgal.panel(gui, translate, notifications)`. Arguments are optional for
+mini-mbm's own editors; external clients can supply their own ImGui/language and
+notification functions without changing global editor state. Its local Remesh
+uses edge length, 10 iterations and 14.5 feature angle, plus the separate repair
+worker by default. Immediate repair creates a separate `repaired` variant only
+when topology changes; no-op runs create no variant. Its remote provider Remesh
+controls are independent.
