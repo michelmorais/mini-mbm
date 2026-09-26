@@ -3580,6 +3580,17 @@ function selectMeshIndex(newIndex)
         tNew.cam3d.fz        = c.fz
     end
     iSelectedMeshIndex = newIndex
+    -- Reveal a keyboard-selected Image Mesh region so the tree does not clear its selection.
+    if tNew and tNew.imageMeshProjectOwner then
+        for _, project in ipairs(tImageMeshProjects or {}) do
+            project.treeExpanded = (project == tNew.imageMeshProjectOwner)
+        end
+    end
+    -- Normal review temporarily owns candidate meshes, but keyboard navigation should still
+    -- update the selection restored when that review is confirmed or cancelled.
+    if tMeshNormals.preview.pending then
+        tMeshNormals.preview.pending.selected = newIndex
+    end
 end
 
 -- Returns map[origAnimIdx] = filteredAnimIdx (integer) if the animation survives the frame
@@ -13054,10 +13065,10 @@ end
 
 function onKeyDown(key)
     if key == mbm.getKeyCode('ESC') and simplifyCancel(tLoadedMeshes[iSelectedMeshIndex]) then return end
-    if tMeshNormals.preview.pending and (mbm.getKeyName(key)=='DOWN' or mbm.getKeyName(key)=='UP') then return end
-    if mbm.getKeyName(key) == 'DOWN' then
+    local keyName = mbm.getKeyName(key)
+    if keyName == 'DOWN' then
         selectMeshIndex(iSelectedMeshIndex + 1)
-    elseif mbm.getKeyName(key) == 'UP' then
+    elseif keyName == 'UP' then
         selectMeshIndex(iSelectedMeshIndex - 1)
     elseif key == mbm.getKeyCode('W') then
         tCam3dMove.forward = 1
