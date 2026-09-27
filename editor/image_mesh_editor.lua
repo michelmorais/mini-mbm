@@ -758,7 +758,7 @@ local function propertiesPanel()
             end
         end
         if tImGui.CollapsingHeader(tLang.L('cgal_remesh_title')) then
-            E.values.remesh=tImGui.Checkbox(L('cgal_remesh_enable'),E.values.remesh==true)
+            E.values.remesh=tImGui.Checkbox(tLang.L('cgal_remesh_enable'),E.values.remesh==true)
             if E.values.remesh then
                 local modes=require('mesh_simplify_modes')
                 local changed
@@ -767,12 +767,12 @@ local function propertiesPanel()
                     modes.remeshSettings(E.values.remeshEdgeLengthFraction,E.values.remeshIterations,
                         E.values.remeshFeatureAngle,'image-mesh')
                 if changed and E.report then E.report.remesh=nil end
-                if require('mesh_cgal').getRemeshPath()=='' then tImGui.TextWrapped(L('cgal_remesh_missing')) end
+                if require('mesh_cgal').getRemeshPath()=='' then tImGui.TextWrapped(tLang.L('cgal_remesh_missing')) end
             end
             if E.report and E.report.remesh and not E.editDefaults then
                 local result=E.report.remesh
                 require('mesh_simplify_modes').repairReport(result)
-                tImGui.TextWrapped(string.format(L('cgal_remesh_report'),
+                tImGui.TextWrapped(string.format(tLang.L('cgal_remesh_report'),
                     result.source_triangles,result.result_triangles,
                     (result.maximum_relative_error or 0)*100))
             end
@@ -876,9 +876,11 @@ local function regionsPanel()
         tImGui.EndDisabled()
         if E.texture then Budget.panel(E) end
         if E.generationFailure then tImGui.TextWrapped(E.generationFailure) end
-        E.audit=E.audit or {}
-        require('mesh_audit_ui').draw(E.audit,E.previewPath,'image-mesh',tImGui,L,
-            E.meshTask~=nil or E.previewStale==true or E.editMode)
+        if E.texture then
+            E.audit=E.audit or {}
+            require('mesh_audit_ui').draw(E.audit,E.previewPath,'image-mesh',tImGui,tLang.L,
+                E.meshTask~=nil or E.previewStale==true or E.editMode,nil,nil,true)
+        end
         if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end
         if E.missing then
             tImGui.Text(L('missing_image'))

@@ -53,13 +53,14 @@ function M.start(state,source,options)
     if job then pending[state]=true end
     return job~=nil
 end
-function M.draw(state,source,id,I,L,disabled,treeOwner,openTree)
+function M.draw(state,source,id,I,L,disabled,treeOwner,openTree,collapsingHeader)
     if state.source~=source then
         if state.job then state.job:destroy();state.job=nil;pending[state]=nil end
         state.source=source;state.status=nil;state.json=nil;state.exportError=nil
     end
     local open
-    if openTree then open=openTree(treeOwner,'audit',L('audit_title'),0,'audit-'..id)
+    if collapsingHeader then open=I.CollapsingHeader(L('audit_title')..'##audit-'..id)
+    elseif openTree then open=openTree(treeOwner,'audit',L('audit_title'),0,'audit-'..id)
     else open=I.TreeNode(L('audit_title')..'##audit-'..id) end
     if not open then return end
     I.TextWrapped(L('audit_snapshot'))
@@ -108,7 +109,7 @@ function M.draw(state,source,id,I,L,disabled,treeOwner,openTree)
         end
         if state.exportError then I.TextWrapped(state.exportError) end
     end
-    I.TreePop()
+    if not collapsingHeader then I.TreePop() end
 end
 function M.shutdown()
     for state in pairs(pending) do state.job:destroy();state.job=nil;state.status={state='cancelled'} end
