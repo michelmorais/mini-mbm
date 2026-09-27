@@ -91,7 +91,7 @@ end
 function M.cgalBlock(mode,tolerance,angle,id,state,repairAction,repairContext)
     if state and M.repairOption(state,id,'cgal') then state.report=nil end
     if repairAction then M.repairButton(id,repairAction,repairContext) end
-    local enabled=tImGui.Checkbox('CGAL##cgal-'..id,M.enabled(mode,'cgal'))
+    local enabled=tImGui.Checkbox(tLang.L('cgal_mode')..'##cgal-'..id,M.enabled(mode,'cgal'))
     if tImGui.IsItemHovered() then M.tooltip(tLang.L('cgal_method_tooltip')) end
     mode=M.setEnabled(mode,'cgal',enabled)
     tImGui.BeginDisabled(not enabled)

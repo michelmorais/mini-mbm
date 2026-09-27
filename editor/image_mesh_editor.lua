@@ -759,6 +759,7 @@ local function propertiesPanel()
         end
         if tImGui.CollapsingHeader(tLang.L('cgal_remesh_title')) then
             E.values.remesh=tImGui.Checkbox(tLang.L('cgal_remesh_enable'),E.values.remesh==true)
+            if tImGui.IsItemHovered() then Help.tooltip(tLang.L('cgal_remesh_method_tooltip')) end
             if E.values.remesh then
                 local modes=require('mesh_simplify_modes')
                 local changed
