@@ -299,9 +299,14 @@ no effect: use background-color tolerance to adjust the selection.
 
 Detection uses the original pixels, not height filters or painting. Fully opaque
 images need background-color separation if the desired shape is not the whole
-connected crop. The search grid is limited to 262,144 cells and reports its sampling
-step; smaller crops preserve finer details. Limits also apply to boundary segments
-(65,536), corners before reduction (4,096), and final vertices (128). Ambiguous,
+connected crop. The integer sampling-step field defaults to 0 (automatic), retaining
+the 262,144-cell search grid. A positive value specifies pixels per sample and allows
+up to 4,194,304 cells; larger grids are rejected with an instruction to increase the
+step or reduce the crop. The actual step is reported; smaller steps preserve finer details. Limits also apply to boundary segments
+(65,536), corners before reduction (4,096), and final vertices (128 by default, configurable from 3 to 4,096 with an integer field).
+Changing the vertex limit revalidates the current preview without discarding points.
+These detection settings last for the editor session; saved module and hole contours
+retain their points regardless of the next session's detection limit. Ambiguous,
 crossing, or touching contours are rejected. Changing detection settings requires
 a new seed click; cancellation discards the unfinished search or preview.
 
@@ -317,7 +322,7 @@ handle changes width, the bottom changes height, and the diagonal handle restore
 a circle while keeping its center fixed. Disable shape preservation to edit
 individual vertices.
 
-Each module accepts up to 16 holes with 3–128 points each. Holes must lie strictly
+Each module accepts up to 16 holes with 3–4096 points each. Holes must lie strictly
 inside the outer contour and cannot touch, overlap, cross, or contain one another.
 Invalid edits are rejected when the gesture ends.
 

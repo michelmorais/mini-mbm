@@ -52,13 +52,16 @@ function M.reduce(E)
  E.polygon=M.simplify(E.stroke.points,E.strokeTolerance or 1.5)
  E.stroke.error=nil
  if E.stroke.overflow then E.stroke.error='overflow'
- elseif #E.polygon>128 then E.stroke.error='limit'
+ elseif #E.polygon>(E.stroke.maxVertices or 128) then E.stroke.error='limit'
  elseif #E.polygon<3 or not Geometry.simple(E.polygon) then E.stroke.error='invalid' end
  E.status='';E.cursor=nil;E.canvasDirty=true
 end
 function M.ready(E)
  if not E.stroke or E.drag or E.stroke.error then
-  E.status=L(E.stroke and E.stroke.error or 'draw_help');return false
+  if E.stroke and E.stroke.error=='limit' and E.stroke.maxVertices then
+   E.status=string.format(tLang.L('ime_auto_vertex_limit'),E.stroke.maxVertices)
+  else E.status=L(E.stroke and E.stroke.error or 'draw_help') end
+  return false
  end
  return true
 end

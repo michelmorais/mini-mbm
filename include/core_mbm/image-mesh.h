@@ -27,6 +27,8 @@ namespace mbm
 {
     class MESH_MBM_DEBUG;
 
+    constexpr uint32_t IMAGE_MESH_MAX_CONTOUR_POINTS = 4096;
+
     enum class IMAGE_MESH_SHAPE { RECTANGLE, ELLIPSE, POLYGON };
     struct IMAGE_MESH_POINT { float x = 0, y = 0; };
 
@@ -80,10 +82,10 @@ namespace mbm
         uint32_t x = 0, y = 0, cropWidth = 0, cropHeight = 0;
         IMAGE_MESH_SHAPE shape = IMAGE_MESH_SHAPE::RECTANGLE;
         uint32_t ellipseSegments = 48;
-        // Borrowed normalized crop coordinates, only read during this call (3..128 points).
+        // Borrowed normalized crop coordinates, only read during this call (3..4096 points).
         const IMAGE_MESH_POINT *contour = nullptr;
         uint32_t contourCount = 0;
-        // Borrowed simple disjoint contours, strictly inside the outer shape. Max 16 x 128 points.
+        // Borrowed simple disjoint contours, strictly inside the outer shape. Max 16 x 4096 points.
         const IMAGE_MESH_HOLE *holes = nullptr;
         uint32_t holeCount = 0;
         uint32_t columns = 32, rows = 32;
@@ -162,7 +164,8 @@ namespace mbm
     API_IMPL bool generateImageMesh(const char *imagePath, const IMAGE_MESH_OPTIONS &options,
                                     MESH_MBM_DEBUG &destination, IMAGE_MESH_REPORT &report,
                                     char *errorOut, int errorOutLen);
-    // CPU contour query. Capacity >=128 (>=256 for perpendicular endpoint pairs).
+    // CPU contour query. Capacity >=128 and >= contour size (twice both for perpendicular pairs).
+    // Capacity 2 * IMAGE_MESH_MAX_CONTOUR_POINTS accommodates every supported contour.
     // Crop dimensions are required. Perpendicular output contains two endpoints per edge.
     // Maximum inset is returned even when the requested inset is out of range.
     API_IMPL bool getImageMeshSideContour(const IMAGE_MESH_OPTIONS &options, IMAGE_MESH_POINT *points,

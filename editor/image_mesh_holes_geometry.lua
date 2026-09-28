@@ -20,7 +20,7 @@
 
 ]]--
 
-local M={}
+local M={maxContourPoints=4096}
 local epsilon=1e-10
 function M.bounds(ring)
  local left,top,right,bottom=math.huge,math.huge,-math.huge,-math.huge
@@ -100,7 +100,7 @@ function M.validate(outer,holes)
  if holes==nil then return true end
  assert(type(holes)=='table' and #holes<=16,'ime_holes_limit')
  for h,ring in ipairs(holes) do
-  assert(type(ring)=='table' and #ring>=3 and #ring<=128,'ime_holes_points')
+  assert(type(ring)=='table' and #ring>=3 and #ring<=M.maxContourPoints,'ime_holes_points')
   assert(ring.primitive==nil or ring.primitive=='ellipse','ime_holes_points')
   assert(ring.preserveShape==nil or type(ring.preserveShape)=='boolean','ime_holes_points')
   for _,p in ipairs(ring) do assert(type(p)=='table' and type(p.x)=='number' and type(p.y)=='number' and p.x>=0 and p.x<=1 and p.y>=0 and p.y<=1,'ime_holes_points') end

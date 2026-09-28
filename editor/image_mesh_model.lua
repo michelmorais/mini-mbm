@@ -179,7 +179,7 @@ function M.validate(p)
             end
         end
         if r.shape=='polygon' then
-            assert(type(r.contour)=='table' and #r.contour>=3 and #r.contour<=128,'ime_invalid_contour')
+            assert(type(r.contour)=='table' and #r.contour>=3 and #r.contour<=HoleGeometry.maxContourPoints,'ime_invalid_contour')
             for _,point in ipairs(r.contour) do assert(type(point)=='table' and number(point.x,0,1) and number(point.y,0,1),'ime_invalid_contour') end
         end
         CurvedModel.validate(r.curvedNodes)
@@ -248,7 +248,7 @@ function M.grid(p,g)
     return added
 end
 function M.fromPoints(p,points)
-    assert(#points>=3 and #points<=128,'ime_invalid_contour')
+    assert(#points>=3 and #points<=HoleGeometry.maxContourPoints,'ime_invalid_contour')
     local x,y,xx,yy=math.huge,math.huge,-math.huge,-math.huge
     for _,v in ipairs(points) do x=math.min(x,v.x); y=math.min(y,v.y); xx=math.max(xx,v.x); yy=math.max(yy,v.y) end
     x=math.floor(x); y=math.floor(y); xx=math.min(p.image.width-1,math.ceil(xx)); yy=math.min(p.image.height-1,math.ceil(yy))

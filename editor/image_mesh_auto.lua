@@ -24,13 +24,14 @@ local Model=require 'image_mesh_model'
 local Detect=require 'image_mesh_detect'
 local Freehand=require 'image_mesh_freehand'
 local Help=require 'image_mesh_help'
+local Geometry=require 'image_mesh_holes_geometry'
 local M={}
 local function L(key) return tLang.L('ime_auto_'..key) end
 function M.cancel(E)
  E.autoTask=nil;E.autoSource=nil;E.stroke=nil;E.polygon={};E.canvasDirty=true
 end
 function M.state(E)
- if not E.auto then E.auto={mode=1,alpha=127,tolerance=24,color={r=0,g=0,b=0,a=1},target=1,crop=true} end
+ if not E.auto then E.auto={mode=1,alpha=127,tolerance=24,color={r=0,g=0,b=0,a=1},target=1,crop=true,maxVertices=128,samplingStep=0} end
  return E.auto
 end
 function M.resume(E)
@@ -62,7 +63,7 @@ function M.input(E,event,mx,my,origin)
    E.auto.color={r=red/255,g=green/255,b=blue/255,a=1};E.tool='auto_contour';return
   end
   local points,step,count=Detect.trace(bytes,w,h,crop,x,y,options,function() coroutine.yield() end)
-  E.stroke={points=points};E.auto.step=step;E.auto.count=count
+  E.stroke={points=points,maxVertices=E.auto.maxVertices or 128};E.auto.step=step;E.auto.count=count
   Freehand.reduce(E)
  end)
  return true
@@ -91,6 +92,18 @@ function M.panel(E,finishModule,finishHole)
   local checked=tImGui.Checkbox(L('crop'),a.crop)
   if checked~=a.crop then a.crop=checked;reset() end
  end
+ c,v=tImGui.InputInt(L('max_vertices'),a.maxVertices or 128)
+ if c then
+  a.maxVertices=Model.clampNumber(v,3,Geometry.maxContourPoints,128,true)
+  if E.stroke then E.stroke.maxVertices=a.maxVertices;Freehand.reduce(E) end
+ end
+ if tImGui.IsItemHovered() then Help.tooltip(L('max_vertices_help')) end
+ c,v=tImGui.InputInt(L('sampling_step'),a.samplingStep or 0)
+ if c then
+  a.samplingStep=Model.clampNumber(v,0,math.max(E.project.image.width,E.project.image.height),0,true)
+  reset()
+ end
+ if tImGui.IsItemHovered() then Help.tooltip(L('sampling_step_help')) end
  if E.autoTask then
   tImGui.Text(L('working'))
   if tImGui.Button(tLang.L('ime_cancel')) then reset() end
@@ -98,8 +111,10 @@ function M.panel(E,finishModule,finishHole)
   c,v=tImGui.SliderFloat(tLang.L('ime_freehand_tolerance'),E.strokeTolerance or 1.5,.1,20,'%.2f')
   if c then E.strokeTolerance=math.max(.1,math.min(20,v));Freehand.reduce(E) end
   if E.stroke then
-   tImGui.Text(string.format(L('result'),#E.polygon,a.step or 1))
-   if E.stroke.error then tImGui.TextWrapped(tLang.L('ime_freehand_'..E.stroke.error)) end
+   tImGui.Text(string.format(L('result'),#E.polygon,a.maxVertices or 128,a.step or 1))
+   if E.stroke.error=='limit' then
+    tImGui.TextWrapped(string.format(L('vertex_limit'),a.maxVertices or 128))
+   elseif E.stroke.error then tImGui.TextWrapped(tLang.L('ime_freehand_'..E.stroke.error)) end
    if tImGui.Button(tLang.L('ime_freehand_finish')) and Freehand.ready(E) then
     if a.target==2 then finishHole() else finishModule() end
    end

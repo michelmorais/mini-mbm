@@ -92,7 +92,7 @@ namespace {
         for (uint32_t h=0;h<o.holeCount;++h)
         {
             const auto &input=o.holes[h];
-            if (!input.points || input.count<3 || input.count>128) return fail("Each hole needs 3..128 points");
+            if (!input.points || input.count<3 || input.count>IMAGE_MESH_MAX_CONTOUR_POINTS) return fail("Each hole needs 3..4096 points");
             std::vector<IMAGE_MESH_POINT> ring(input.points,input.points+input.count);
             double area=0;
             for (size_t i=0;i<ring.size();++i)
@@ -1308,7 +1308,7 @@ bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &
     else if (o.shape==IMAGE_MESH_SHAPE::RECTANGLE) t.points={{0,0},{1,0},{1,1},{0,1}};
     else if (o.shape==IMAGE_MESH_SHAPE::POLYGON)
     {
-        if (!o.contour || o.contourCount<3 || o.contourCount>128) return fail("Polygon needs 3..128 points");
+        if (!o.contour || o.contourCount<3 || o.contourCount>IMAGE_MESH_MAX_CONTOUR_POINTS) return fail("Polygon needs 3..4096 points");
         t.points.assign(o.contour,o.contour+o.contourCount);
     }
     else return fail("Unsupported shape");

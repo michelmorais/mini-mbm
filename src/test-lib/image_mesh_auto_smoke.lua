@@ -19,7 +19,7 @@ local IO=require 'image_mesh_io'
 local Detect=require 'image_mesh_detect'
 local api={};assert(loadfile('editor/image_mesh_editor.lua'))(api)
 local init,loop=onInitScene,onLoop
-local started,baseline
+local started,baseline,task
 local function run()
  init()
  local pixels={}
@@ -80,20 +80,29 @@ local function run()
  assert(api.freehand.ready(E));assert(api.holes.finish(E,api.action));assert(#E.project.regions[1].holes==1)
  api.undo(false);assert(not E.project.regions[1].holes);api.undo(true)
  api.saveProject('/tmp/ime_auto.imesh');assert(#IO.load('/tmp/ime_auto.imesh').regions[1].holes==1)
- assert(api.exportOne('/tmp/ime_auto.msh'))
- local asset=meshDebug:new();assert(asset:load('/tmp/ime_auto.msh'));assert(asset:check())
  -- Cancellation and changing the selected project must discard unfinished work.
  E.tool='auto_contour';click(80,80);assert(E.autoTask);Canvas.cancel(E);assert(not E.autoTask and not E.stroke)
  E.tool='auto_contour';click(80,80);assert(E.autoTask)
  E.project=Model.copy(E.project);api.auto.resume(E);assert(not E.autoTask)
  E.tool='auto_contour';click(80,80);complete();assert(E.stroke);Canvas.sync(E)
+ os.remove('/tmp/ime_auto.msh')
+ api.exportOne('/tmp/ime_auto.msh')
+ while E.meshTask do coroutine.yield() end
+ local asset=meshDebug:new();assert(asset:load('/tmp/ime_auto.msh'));assert(asset:check())
  started=mbm.getTimeRun()
  print('AUTO RGBA / ALPHA / COLOR / CAVITIES / PICK / MODULE / HOLE / CANCEL / HISTORY / SAVE / EXPORT OK')
 end
-function onInitScene() local ok,err=xpcall(run,debug.traceback);if not ok then print('AUTO FAIL '..tostring(err));mbm.quit() end end
+local function resumeTest()
+ local ok,err=coroutine.resume(task)
+ if not ok then print('AUTO FAIL '..debug.traceback(task,tostring(err)));task=nil;mbm.quit();return false end
+ if coroutine.status(task)=='dead' then task=nil end
+ return true
+end
+function onInitScene() task=coroutine.create(run);resumeTest() end
 function onLoop(delta)
- if not started then return end
+ if task and not resumeTest() then return end
  loop(delta)
+ if not started then return end
  if not baseline and mbm.getTimeRun()-started>1 then baseline=api.state.canvasBuilds end
  if mbm.getTimeRun()-started>4 then assert(baseline==api.state.canvasBuilds,'idle auto redraw');print('AUTO GUI / IDLE OK');mbm.quit() end
 end

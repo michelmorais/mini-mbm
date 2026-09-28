@@ -776,6 +776,8 @@ namespace mbm
             if (!image_mesh::buildTopology(o,topology,error)) return fail(errorOut,errorOutLen,error.c_str());
             std::vector<IMAGE_MESH_POINT> inner;
             if (!image_mesh::sideContour(o,topology.contour,inner,maximumInset,error)) return fail(errorOut,errorOutLen,error.c_str());
+            if (inner.size()>capacity)
+                return fail(errorOut,errorOutLen,"Side contour output capacity is too small");
             count=static_cast<uint32_t>(inner.size());
             std::copy(inner.begin(),inner.end(),points); return true;
         }

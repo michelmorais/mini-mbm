@@ -2162,8 +2162,8 @@ assert(asset:save("panel.msh", false, false, true))
 |---|---|---|
 | `shape` | `"rectangle"` | `"rectangle"`, `"ellipse"`, or `"polygon"` |
 | `ellipseSegments` | 48 | Ellipse perimeter segments, integer in [8, 128]; ignored for other shapes |
-| `holes` | nil | Array of up to 16 simple hole contours, each 3..128 normalized `{x,y}` points, either winding; strictly inside the outer shape, disjoint and non-nested |
-| `contour` | — | Polygon-only array of 3..128 `{x, y}` points in normalized crop coordinates [0, 1]; either winding accepted |
+| `holes` | nil | Array of up to 16 simple hole contours, each 3..4096 normalized `{x,y}` points, either winding; strictly inside the outer shape, disjoint and non-nested |
+| `contour` | — | Polygon-only array of 3..4096 `{x, y}` points in normalized crop coordinates [0, 1]; either winding accepted |
 | `x`, `y` | 0 | Zero-based crop origin in pixels, measured from image top-left |
 | `cropWidth`, `cropHeight` | 0 | Crop dimensions in pixels; 0 uses the remaining extent on that axis |
 | `width`, `height`, `depth` | 100, 100, 20 | World dimensions; each finite and within [0.001, 1000000] |
@@ -2348,7 +2348,7 @@ cut a target line, or cross target/local-region boundaries. Controls still obey
 hierarchy containment and visibility rules on the complete outer contour, independent
 of holes. The original control data remains unchanged.
 
-The existing limits apply: up to 16 simple contours of 3..128 points, strictly inside
+The existing limits apply: up to 16 simple contours of 3..4096 points, strictly inside
 the module, with no touching, overlap or nesting between holes. Polygonal circles,
 ellipses and concave holes are supported. Generation inserts cut constraints into
 the curved triangulation, removes interior faces and unused points, reconstructs
@@ -2524,7 +2524,9 @@ polygon options above, and returns the same contour used by generation.
 With `sideBandPerpendicular=true`, the query instead returns consecutive endpoint pairs
 (one independent inner segment per edge, up to 256 points). The editor draws them as
 separate segments, not as one closed contour. The C++ query requires capacity >=256
-for this mode (>=128 otherwise). Each endpoint is clipped along its normal to the
+for this mode (>=128 otherwise), and enough room for twice the contour vertex count
+(or the contour vertex count for ordinary mapping). Capacity 8192 handles every supported contour;
+insufficient capacity returns an error without copying output. Each endpoint is clipped along its normal to the
 crop; width is limited to half the smaller pixel span. Geometry generation uses the
 same normal translation and keeps front/back materials and geometry unchanged.
 

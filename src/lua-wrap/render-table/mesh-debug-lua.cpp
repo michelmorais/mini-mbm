@@ -24,6 +24,7 @@ extern "C"
     #include <lualib.h>
 }
 
+#include <new>
 #include <map>
 #include <exception>
 #include <cstdlib>
@@ -3675,6 +3676,19 @@ namespace mbm
         return 1;
     }
 
+    // Lua owns scratch storage, including when argument validation raises via longjmp.
+    // Keep it on the Lua stack until the native call or async snapshot has finished.
+    struct IMAGE_MESH_CONTOUR_STORAGE
+    {
+        IMAGE_MESH_POINT contour[IMAGE_MESH_MAX_CONTOUR_POINTS];
+        IMAGE_MESH_POINT holePoints[16 * IMAGE_MESH_MAX_CONTOUR_POINTS];
+    };
+
+    static IMAGE_MESH_CONTOUR_STORAGE *imageMeshContourStorage(lua_State *lua)
+    {
+        return new (lua_newuserdatauv(lua,sizeof(IMAGE_MESH_CONTOUR_STORAGE),0)) IMAGE_MESH_CONTOUR_STORAGE;
+    }
+
     static void readImageMeshOptions(lua_State *lua,IMAGE_MESH_OPTIONS &options,IMAGE_MESH_POINT *contour,IMAGE_MESH_DAB *dabs,IMAGE_MESH_HOLE *holes,IMAGE_MESH_POINT *holePoints,IMAGE_MESH_HEIGHT_AREA *areas,IMAGE_MESH_POINT *areaPoints,IMAGE_MESH_CURVED_NODE *nodes,IMAGE_MESH_POINT *nodePoints,int optionIndex=2)
     {
         luaL_checktype(lua,optionIndex,LUA_TTABLE);
@@ -3901,7 +3915,7 @@ namespace mbm
             {
                 lua_rawgeti(lua,-1,h+1);luaL_checktype(lua,-1,LUA_TTABLE);
                 const size_t n=lua_rawlen(lua,-1);
-                if (n<3 || n>128) luaL_error(lua,"Each hole needs 3..128 points");
+                if (n<3 || n>IMAGE_MESH_MAX_CONTOUR_POINTS) luaL_error(lua,"Each hole needs 3..4096 points");
                 holes[h].points=holePoints+offset;holes[h].count=static_cast<uint32_t>(n);
                 for (size_t i=0;i<n;++i)
                 {
@@ -3929,7 +3943,7 @@ namespace mbm
             lua_getfield(lua, optionIndex, "contour");
             luaL_checktype(lua, -1, LUA_TTABLE);
             const size_t count = lua_rawlen(lua, -1);
-            if (count < 3 || count > 128) luaL_error(lua, "contour needs 3..128 points");
+            if (count < 3 || count > IMAGE_MESH_MAX_CONTOUR_POINTS) luaL_error(lua, "contour needs 3..4096 points");
             options.contourCount = static_cast<uint32_t>(count);
             options.contour = contour;
             for (size_t i = 0; i < count; ++i)
@@ -3946,10 +3960,10 @@ namespace mbm
 
     int onGetImageMeshSideContourLua(lua_State *lua)
     {
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128],inner[256]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        IMAGE_MESH_OPTIONS options; auto *storage=imageMeshContourStorage(lua); IMAGE_MESH_POINT inner[2 * IMAGE_MESH_MAX_CONTOUR_POINTS]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
         IMAGE_MESH_CURVED_NODE nodes[32];IMAGE_MESH_POINT nodePoints[4096];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,nodes,nodePoints,1);
-        uint32_t count=256; float maximum=0; char error[512]="";
+        readImageMeshOptions(lua,options,storage->contour,dabs,holes,storage->holePoints,areas,areaPoints,nodes,nodePoints,1);
+        uint32_t count=2 * IMAGE_MESH_MAX_CONTOUR_POINTS; float maximum=0; char error[512]="";
         if (!getImageMeshSideContour(options,inner,count,maximum,error,sizeof(error)))
         {
             lua_pushnil(lua); lua_pushstring(lua,error); lua_pushnumber(lua,maximum); return 3;
@@ -3985,9 +3999,9 @@ namespace mbm
         const char *output=luaL_checkstring(lua,3);
         if (!lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
         const bool overlay=lua_toboolean(lua,4)!=0;
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        IMAGE_MESH_OPTIONS options; auto *storage=imageMeshContourStorage(lua); IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
         IMAGE_MESH_CURVED_NODE nodes[32];IMAGE_MESH_POINT nodePoints[4096];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,nodes,nodePoints);
+        readImageMeshOptions(lua,options,storage->contour,dabs,holes,storage->holePoints,areas,areaPoints,nodes,nodePoints);
         char error[512]="";
         if (!generateImageMeshMap(path,options,output,overlay,error,sizeof(error)))
         {
@@ -4147,10 +4161,10 @@ namespace mbm
         const char *output=mapJob?luaL_checkstring(lua,3):nullptr;
         if (mapJob && !lua_isnoneornil(lua,4)) luaL_checktype(lua,4,LUA_TBOOLEAN);
         const bool overlay=mapJob && lua_toboolean(lua,4)!=0;
-        IMAGE_MESH_OPTIONS options;IMAGE_MESH_POINT contour[128],holePoints[2048],areaPoints[4096];
+        IMAGE_MESH_OPTIONS options;auto *storage=imageMeshContourStorage(lua); IMAGE_MESH_POINT areaPoints[4096];
         IMAGE_MESH_DAB dabs[4096];IMAGE_MESH_HOLE holes[16];IMAGE_MESH_HEIGHT_AREA areas[32];
         IMAGE_MESH_CURVED_NODE nodes[32];IMAGE_MESH_POINT nodePoints[4096];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,nodes,nodePoints);
+        readImageMeshOptions(lua,options,storage->contour,dabs,holes,storage->holePoints,areas,areaPoints,nodes,nodePoints);
         if (luaL_newmetatable(lua,imageMeshJobType))
         {
             const luaL_Reg methods[]={{"getStatus",onGetImageMeshJobStatusLua},{"cancel",onCancelImageMeshJobLua},
@@ -4187,13 +4201,13 @@ namespace mbm
     int onGenerateImageMeshLua(lua_State *lua)
     {
         const char *path=luaL_checkstring(lua,1);
-        IMAGE_MESH_OPTIONS options; IMAGE_MESH_POINT contour[128]; IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_POINT holePoints[2048]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
+        IMAGE_MESH_OPTIONS options; auto *storage=imageMeshContourStorage(lua); IMAGE_MESH_DAB dabs[4096]; IMAGE_MESH_HOLE holes[16]; IMAGE_MESH_HEIGHT_AREA areas[32]; IMAGE_MESH_POINT areaPoints[4096];
         IMAGE_MESH_CURVED_NODE nodes[32];IMAGE_MESH_POINT nodePoints[4096];
-        readImageMeshOptions(lua,options,contour,dabs,holes,holePoints,areas,areaPoints,nodes,nodePoints);
-        lua_settop(lua, 2);
+        readImageMeshOptions(lua,options,storage->contour,dabs,holes,storage->holePoints,areas,areaPoints,nodes,nodePoints);
+        const int assetIndex=lua_gettop(lua)+1;
         lua_pushcfunction(lua, onNewMeshDebugLua);
         lua_call(lua, 0, 1);
-        MESH_DEBUG_LUA *asset = getMeshDebugFromRawTable(lua, 1, 3);
+        MESH_DEBUG_LUA *asset = getMeshDebugFromRawTable(lua, 1, assetIndex);
         IMAGE_MESH_REPORT report;
         char error[512] = "";
         if (!generateImageMesh(path, options, asset->mesh, report, error, sizeof(error)))

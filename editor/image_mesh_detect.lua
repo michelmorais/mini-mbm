@@ -21,10 +21,16 @@
 ]]--
 
 -- Connected foreground only; internal cavities are not silently turned into holes.
+local Geometry=require 'image_mesh_holes_geometry'
 local M={}
 function M.trace(bytes,width,height,crop,sx,sy,options,tick)
- local step=math.max(1,math.ceil(math.sqrt(crop.w*crop.h/262144)))
- while math.ceil(crop.w/step)*math.ceil(crop.h/step)>262144 do step=step+1 end
+ local step=options.samplingStep or 0
+ if step==0 then
+  step=math.max(1,math.ceil(math.sqrt(crop.w*crop.h/262144)))
+  while math.ceil(crop.w/step)*math.ceil(crop.h/step)>262144 do step=step+1 end
+ end
+ assert(step>=1 and step==math.floor(step),'ime_auto_sampling_invalid')
+ assert(math.ceil(crop.w/step)*math.ceil(crop.h/step)<=4194304,'ime_auto_sampling_large')
  local w,h=math.ceil(crop.w/step),math.ceil(crop.h/step)
  local function pixel(x,y)
   local px=math.min(crop.x+crop.w-1,crop.x+x*step+math.floor(step/2))
@@ -133,7 +139,7 @@ function M.trace(bytes,width,height,crop,sx,sy,options,tick)
   end
   if i%2048==0 then tick() end
  end
- assert(#points<=4096,'ime_auto_complex')
+ assert(#points<=Geometry.maxContourPoints,'ime_auto_complex')
  return points,step,#queue
 end
 return M
