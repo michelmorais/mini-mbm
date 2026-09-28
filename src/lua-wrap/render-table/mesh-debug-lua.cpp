@@ -3727,6 +3727,7 @@ namespace mbm
         integer("x", options.x); integer("y", options.y);
         integer("cropWidth", options.cropWidth); integer("cropHeight", options.cropHeight);
         integer("columns", options.columns); integer("rows", options.rows);
+        boolean("voxelized",options.voxelized);
         integer("maxVertices", options.maxVertices); integer("maxTriangles", options.maxTriangles);
         number("width", options.width); number("height", options.height);
         number("depth", options.depth); number("relief", options.relief);

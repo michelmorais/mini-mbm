@@ -35,6 +35,7 @@ local M={}
 function M.generate(E,project,region,callbacks)
     local options=Model.options(project,region)
     if options.heightSource=='curved' then options.simplify=false end
+    if options.voxelized then options.simplify=false;options.remesh=false end
     local asset,report=Generation.generate(E,project.image.path,options)
     if not asset then
         if E.generationCancelled then return nil,report end

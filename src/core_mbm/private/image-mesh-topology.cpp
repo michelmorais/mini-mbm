@@ -1111,8 +1111,147 @@ static bool cutCurvedHoles(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &
     return hierarchyBudget(o,t,error) && (o.curvedFaceted || refineCurved(o,t,error,field));
 }
 
+namespace
+{
+    bool buildVoxelTopology(const IMAGE_MESH_OPTIONS &o,TOPOLOGY &t,std::string &error,const HEIGHT_FIELD *field)
+    {
+        if (!field) { error="Voxelized relief needs a decoded height field"; return false; }
+
+        IMAGE_MESH_OPTIONS outlineOptions=o;
+        outlineOptions.voxelized=false;
+        outlineOptions.followImage=false;
+        outlineOptions.columns=outlineOptions.rows=1;
+        outlineOptions.maxVertices=65535;
+        outlineOptions.maxTriangles=131070;
+        TOPOLOGY outline;
+        if (!buildTopology(outlineOptions,outline,error,nullptr)) return false;
+
+        struct CELL
+        {
+            std::array<uint32_t,4> points{{UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX}};
+            float height=0;
+            uint8_t emptyReason=0; // 1: authored hole, 2: transparent image sample, 0: outside the shape.
+            bool occupied=false;
+        };
+        const size_t cellCount=static_cast<size_t>(o.columns)*o.rows;
+        std::vector<CELL> cells(cellCount);
+        t=TOPOLOGY{};
+        t.contour=outline.contour;
+        t.holes=outline.holes;
+        constexpr unsigned sideA[4]={0,1,2,3},sideB[4]={1,2,3,0};
+        constexpr int neighborX[4]={0,1,0,-1},neighborY[4]={-1,0,1,0};
+        constexpr unsigned lowA[4]={3,0,1,2},lowB[4]={2,3,0,1};
+
+        for (uint32_t row=0;row<o.rows;++row)
+        {
+            checkpoint(o,"topology",0.25f+0.15f*static_cast<float>(row)/o.rows);
+            for (uint32_t column=0;column<o.columns;++column)
+            {
+                CELL &cell=cells[static_cast<size_t>(row)*o.columns+column];
+                const float u=(column+0.5f)/o.columns,v=(row+0.5f)/o.rows;
+                if (!insideRing(t.contour,{u,v})) continue;
+                bool insideHole=false;
+                for (const auto &hole:t.holes)
+                    if (insideRing(hole,{u,v})) { insideHole=true; break; }
+                if (insideHole) { cell.emptyReason=1; continue; }
+
+                const uint32_t pixelX=std::min(field->width-1,static_cast<uint32_t>(std::lround(u*(field->width-1))));
+                const uint32_t pixelY=std::min(field->height-1,static_cast<uint32_t>(std::lround(v*(field->height-1))));
+                const auto *pixel=field->pixels.get()+(static_cast<size_t>(pixelY+o.y)*field->imageWidth+pixelX+o.x)*4;
+                if (pixel[3]==0) { cell.emptyReason=2; continue; }
+
+                cell.occupied=true;
+                cell.height=field->surface(u,v,o);
+                if (o.lockBorder)
+                {
+                    const float distance=borderDistance({u,v},outline);
+                    if (distance<1e-7f) cell.height=0;
+                    else if (o.borderWidth>0) cell.height*=std::min(1.0f,distance/o.borderWidth);
+                }
+                const float u0=static_cast<float>(column)/o.columns,u1=static_cast<float>(column+1)/o.columns;
+                const float v0=static_cast<float>(row)/o.rows,v1=static_cast<float>(row+1)/o.rows;
+                const IMAGE_MESH_POINT corners[4]={{u0,v0},{u1,v0},{u1,v1},{u0,v1}};
+                for (unsigned corner=0;corner<4;++corner)
+                {
+                    cell.points[corner]=static_cast<uint32_t>(t.points.size());
+                    t.points.push_back(corners[corner]);
+                    t.pointHeights.push_back(cell.height);
+                }
+                const auto &p=cell.points;
+                t.triangles.push_back({p[0],p[1],p[3]});
+                t.triangles.push_back({p[1],p[2],p[3]});
+            }
+        }
+        if (t.triangles.empty()) { error="Voxel grid contains no opaque cells inside the selected shape"; return false; }
+
+        for (uint32_t row=0;row<o.rows;++row)
+        {
+            checkpoint(o,"topology",0.40f+0.15f*static_cast<float>(row)/o.rows);
+            for (uint32_t column=0;column<o.columns;++column)
+            {
+                const CELL &cell=cells[static_cast<size_t>(row)*o.columns+column];
+                if (!cell.occupied) continue;
+                for (unsigned side=0;side<4;++side)
+                {
+                    const int nx=static_cast<int>(column)+neighborX[side];
+                    const int ny=static_cast<int>(row)+neighborY[side];
+                    const uint32_t a=cell.points[sideA[side]],b=cell.points[sideB[side]];
+                    if (nx<0 || ny<0 || nx>=static_cast<int>(o.columns) || ny>=static_cast<int>(o.rows))
+                    {
+                        t.voxelWalls.push_back({a,b,UINT32_MAX,UINT32_MAX,1,true,false,true,false});
+                        continue;
+                    }
+                    const CELL &neighbor=cells[static_cast<size_t>(ny)*o.columns+static_cast<uint32_t>(nx)];
+                    if (!neighbor.occupied)
+                    {
+                        const bool hole=neighbor.emptyReason!=0;
+                        t.voxelWalls.push_back({a,b,UINT32_MAX,UINT32_MAX,1,true,hole,!hole,false});
+                        continue;
+                    }
+                    if ((cell.height-neighbor.height)*o.relief<=1e-7f) continue;
+                    const uint32_t lowerA=neighbor.points[lowA[side]],lowerB=neighbor.points[lowB[side]];
+                    t.voxelWalls.push_back({a,b,lowerA,lowerB,1,false,false,false,false});
+                    if (o.backRelief)
+                        t.voxelWalls.push_back({a,b,lowerA,lowerB,1,false,false,false,true});
+                }
+            }
+        }
+
+        uint64_t sideSegments=t.voxelWalls.size();
+        if (o.sideMode==IMAGE_MESH_SIDE::REPEAT && !t.voxelWalls.empty())
+        {
+            double perimeter=0;
+            for (const auto &wall:t.voxelWalls)
+            {
+                const auto &a=t.points[wall.frontA],&b=t.points[wall.frontB];
+                perimeter+=std::hypot((b.x-a.x)*o.width,(b.y-a.y)*o.height);
+            }
+            sideSegments=0;
+            double walked=0;
+            for (auto &wall:t.voxelWalls)
+            {
+                const auto &a=t.points[wall.frontA],&b=t.points[wall.frontB];
+                const double length=std::hypot((b.x-a.x)*o.width,(b.y-a.y)*o.height);
+                const double u0=walked/perimeter*o.sideRepeatU,u1=(walked+length)/perimeter*o.sideRepeatU;
+                const auto first=static_cast<int64_t>(std::floor(u0+1e-6));
+                const auto last=static_cast<int64_t>(std::ceil(u1-1e-6));
+                wall.repeatSegments=static_cast<uint32_t>(std::max<int64_t>(1,last-first));
+                sideSegments+=wall.repeatSegments;
+                walked+=length;
+            }
+        }
+        const uint64_t sideRows=o.sideMode==IMAGE_MESH_SIDE::REPEAT?
+            std::max(1u,static_cast<uint32_t>(std::ceil(o.sideRepeatV))):1u;
+        const uint64_t backVertices=o.backOpen?0:t.points.size();
+        const uint64_t sideVertices=4ull*sideRows*sideSegments;
+        const uint64_t triangleCount=t.triangles.size()+(o.backOpen?0:t.triangles.size())+2ull*sideRows*sideSegments;
+        return budget(o,t.points.size()+backVertices+sideVertices,triangleCount,"for voxelized relief",error);
+    }
+}
+
 bool buildTopology(const IMAGE_MESH_OPTIONS &options, TOPOLOGY &t, std::string &error, const HEIGHT_FIELD *field)
 {
+    if (options.voxelized) return buildVoxelTopology(options,t,error,field);
     if (options.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && field)
     {
         if (options.curvedInterior)

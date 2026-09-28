@@ -94,9 +94,9 @@ namespace mbm
                 return fail(errorOut,errorOutLen,"Back UV crop is outside the source image");
             image_mesh::checkpoint(o,"topology",0.25f);
             image_mesh::TOPOLOGY topology;
-            if (!image_mesh::buildTopology(o,topology,topologyError,o.followImage?&field:nullptr))
+            if (!image_mesh::buildTopology(o,topology,topologyError,(o.followImage || o.voxelized)?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
-            image_mesh::curved_simplify::run(o,field,topology,report);
+            if (!o.voxelized) image_mesh::curved_simplify::run(o,field,topology,report);
             image_mesh::checkpoint(o,"surface",0.9f);
             std::vector<IMAGE_MESH_POINT> sideInner;
             const bool separateBack=o.backSolid || o.backExternal;
@@ -146,13 +146,13 @@ namespace mbm
                     std::unique_ptr<stbi_uc,decltype(&std::free)> decoded(stbi_load(sideTexture.c_str(),&w,&h,&channels,4),&std::free);
                     if (!decoded) return fail(errorOut,errorOutLen,"Cannot decode side texture");
                 }
-                image_mesh::sideSplitRepeats(o,topology);
+                if (!o.voxelized) image_mesh::sideSplitRepeats(o,topology);
                 sideRows=static_cast<uint32_t>(std::ceil(o.sideRepeatV));
             }
             const uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
             std::vector<size_t> backCorners;
             std::vector<std::array<uint32_t,3>> minimalTriangles;
-            bool minimalBack=!o.backOpen && !o.backRelief && o.holeCount==0 &&
+            bool minimalBack=!o.voxelized && !o.backOpen && !o.backRelief && o.holeCount==0 &&
                 o.sideMode!=IMAGE_MESH_SIDE::REPEAT;
             // Per-edge opaque fallback UVs are discontinuous and need the original strips.
             if (minimalBack && o.sideMode!=IMAGE_MESH_SIDE::COLOR && o.sideMode!=IMAGE_MESH_SIDE::BAND)
@@ -187,7 +187,7 @@ namespace mbm
                     if (!image_mesh::triangulatePolygon(strip,minimalSides[c])) { minimalBack=false; break; }
                 }
             }
-            const bool compactBack=o.followImage && !o.backRelief && o.holeCount==0 && !topology.backTriangles.empty();
+            const bool compactBack=!o.voxelized && o.followImage && !o.backRelief && o.holeCount==0 && !topology.backTriangles.empty();
             uint32_t backSize=gridSize;
             size_t backTriangles=topology.triangles.size();
             if (o.backOpen) { backSize=0; backTriangles=0; }
@@ -197,10 +197,18 @@ namespace mbm
                 backTriangles=topology.backTriangles.size();
             }
             if (minimalBack) { backSize=static_cast<uint32_t>(backCorners.size()); backTriangles=minimalTriangles.size(); }
-            const uint32_t sideVertices=minimalBack?static_cast<uint32_t>(topology.boundary.size()+3*backCorners.size()):
-                4*sideRows*static_cast<uint32_t>(topology.boundary.size());
-            const uint32_t sideTriangles=minimalBack?static_cast<uint32_t>(topology.boundary.size()+backCorners.size()):
-                2*sideRows*static_cast<uint32_t>(topology.boundary.size());
+            uint64_t voxelSideSegments=topology.voxelWalls.size();
+            if (o.sideMode==IMAGE_MESH_SIDE::REPEAT && o.voxelized)
+            {
+                voxelSideSegments=0;
+                for (const auto &wall:topology.voxelWalls) voxelSideSegments+=wall.repeatSegments;
+            }
+            const uint32_t sideVertices=o.voxelized?4*sideRows*static_cast<uint32_t>(voxelSideSegments):
+                (minimalBack?static_cast<uint32_t>(topology.boundary.size()+3*backCorners.size()):
+                    4*sideRows*static_cast<uint32_t>(topology.boundary.size()));
+            const uint32_t sideTriangles=o.voxelized?2*sideRows*static_cast<uint32_t>(voxelSideSegments):
+                (minimalBack?static_cast<uint32_t>(topology.boundary.size()+backCorners.size()):
+                    2*sideRows*static_cast<uint32_t>(topology.boundary.size()));
             uint32_t vertexCount=gridSize+backSize+sideVertices;
             const bool faceted=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedFaceted;
             const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+sideTriangles);
@@ -230,9 +238,10 @@ namespace mbm
                 const auto &point = topology.points[pointIndex];
                 const float u = point.x, v = point.y;
                 const float px = o.x + u * (cw - 1), py = o.y + v * (ch - 1);
-                const float level=field.surface(u,v,o);
+                const float level=o.voxelized && pointIndex<topology.pointHeights.size()?
+                    topology.pointHeights[pointIndex]:field.surface(u,v,o);
                 float height = level * o.relief;
-                if (o.lockBorder)
+                if (o.lockBorder && !o.voxelized)
                 {
                     const float distance = image_mesh::borderDistance(point, topology);
                     if (boundary[pointIndex]) height = 0;
@@ -341,46 +350,102 @@ namespace mbm
             uint32_t sideVertexStart=static_cast<uint32_t>(vertices.size());
             const uint32_t sideIndexStart=static_cast<uint32_t>(indices.size());
             double sidePerimeter=0,sideWalked=0;
-            if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
+            if (o.sideMode==IMAGE_MESH_SIDE::REPEAT && o.voxelized)
+                for (const auto &wall:topology.voxelWalls)
+                {
+                    const auto &a=vertices[wall.frontA].position,&b=vertices[wall.frontB].position;
+                    sidePerimeter+=std::hypot(b.x-a.x,b.y-a.y);
+                }
+            else if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
                 for (size_t i=0;i<topology.boundary.size();++i)
                 {
                     const auto &a=vertices[topology.boundary[i]].position,&b=vertices[topology.boundary[topology.nextBoundary(i)]].position;
                     sidePerimeter+=std::hypot(b.x-a.x,b.y-a.y);
                 }
             // Clockwise perimeter viewed from -Z. Duplicate side vertices for hard seams.
-            const auto side = [&](uint32_t a, uint32_t b, bool hole)
+            const auto side = [&](uint32_t a,uint32_t b,bool hole,bool band,uint32_t rearA,uint32_t rearB,
+                bool useBack,uint32_t repeatSegments,bool backSide)
             {
+                const uint32_t geometryA=backSide?backIndex[a]:a,geometryB=backSide?backIndex[b]:b;
                 if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
                 {
-                    const auto &pa=vertices[a].position,&pb=vertices[b].position;
+                    const auto &pa=vertices[geometryA].position,&pb=vertices[geometryB].position;
                     const double length=std::hypot(pb.x-pa.x,pb.y-pa.y);
                     const double u0=sideWalked/sidePerimeter*o.sideRepeatU,u1=(sideWalked+length)/sidePerimeter*o.sideRepeatU;
-                    const double tile=std::floor((u0+u1)*.5);
-                    const float ua=static_cast<float>(std::clamp(u0-tile,0.0,1.0)),ub=static_cast<float>(std::clamp(u1-tile,0.0,1.0));
-                    for (uint32_t row=0;row<sideRows;++row)
+                    const auto farVertex=[&](uint32_t point,uint32_t rear)
                     {
-                        const float va=static_cast<float>(row),vb=std::min(va+1,o.sideRepeatV);
-                        const uint32_t start=static_cast<uint32_t>(vertices.size());
-                        for (float v:{va,vb}) for (uint32_t point:{a,b})
+                        if (!useBack)
+                            return vertices[backSide?backIndex[rear]:rear];
+                        VERTEX result=vertices[backSide?backIndex[point]:point];
+                        if (o.backOpen) result.position.z=o.depth*.5f;
+                        else if (!backSide) result=vertices[backIndex[point]];
+                        return result;
+                    };
+                    const VERTEX farA=farVertex(a,rearA),farB=farVertex(b,rearB);
+                    const auto interpolate=[](const VERTEX &v0,const VERTEX &v1,float t)
+                    {
+                        VERTEX result;
+                        result.position=VEC3(v0.position.x+(v1.position.x-v0.position.x)*t,
+                            v0.position.y+(v1.position.y-v0.position.y)*t,
+                            v0.position.z+(v1.position.z-v0.position.z)*t);
+                        result.normal=VEC3(0,0,0);
+                        result.uv=VEC2(v0.uv.x+(v1.uv.x-v0.uv.x)*t,v0.uv.y+(v1.uv.y-v0.uv.y)*t);
+                        return result;
+                    };
+                    double segmentStart=u0;
+                    for (uint32_t segment=0;segment<repeatSegments;++segment)
+                    {
+                        const double tile=std::floor(segmentStart+1e-6);
+                        double segmentEnd=segment+1==repeatSegments?u1:std::min(u1,tile+1.0);
+                        if (segmentEnd<=segmentStart+1e-12) segmentEnd=u1;
+                        const float t0=static_cast<float>((segmentStart-u0)/(u1-u0));
+                        const float t1=static_cast<float>((segmentEnd-u0)/(u1-u0));
+                        const float ua=static_cast<float>(std::clamp(segmentStart-tile,0.0,1.0));
+                        const float ub=static_cast<float>(std::clamp(segmentEnd-tile,0.0,1.0));
+                        for (uint32_t row=0;row<sideRows;++row)
                         {
-                            VERTEX vertex=vertices[point];
-                            const float backZ=o.backRelief?-vertex.position.z:o.depth*.5f;
-                            vertex.position.z+=(backZ-vertex.position.z)*(v/o.sideRepeatV);
-                            vertex.uv=VEC2(point==a?ua:ub,v-va);
-                            if (repeatSourceCrop)
+                            const float va=static_cast<float>(row),vb=std::min(va+1,o.sideRepeatV);
+                            const float depth0=va/o.sideRepeatV,depth1=vb/o.sideRepeatV;
+                            const uint32_t start=static_cast<uint32_t>(vertices.size());
+                            for (unsigned depthIndex=0;depthIndex<2;++depthIndex) for (unsigned endpoint=0;endpoint<2;++endpoint)
                             {
-                                vertex.uv.x=(o.x+vertex.uv.x*(cw-1)+.5f)/imageWidth;
-                                vertex.uv.y=(o.y+vertex.uv.y*(ch-1)+.5f)/imageHeight;
+                                const float t=endpoint==0?t0:t1;
+                                const float depth=depthIndex==0?depth0:depth1;
+                                const VERTEX front=interpolate(vertices[geometryA],vertices[geometryB],t);
+                                const VERTEX rear=interpolate(farA,farB,t);
+                                VERTEX vertex=front;
+                                vertex.position=VEC3(front.position.x+(rear.position.x-front.position.x)*depth,
+                                    front.position.y+(rear.position.y-front.position.y)*depth,
+                                    front.position.z+(rear.position.z-front.position.z)*depth);
+                                vertex.uv=VEC2(endpoint==0?ua:ub,depthIndex==0?0.0f:vb-va);
+                                if (repeatSourceCrop)
+                                {
+                                    vertex.uv.x=(o.x+vertex.uv.x*(cw-1)+.5f)/imageWidth;
+                                    vertex.uv.y=(o.y+vertex.uv.y*(ch-1)+.5f)/imageHeight;
+                                }
+                                vertices.push_back(vertex);
                             }
-                            vertices.push_back(vertex);
+                            if (backSide)
+                            {
+                                triangle(start,start+1,start+2); triangle(start+1,start+3,start+2);
+                            }
+                            else
+                            {
+                                triangle(start,start+2,start+1); triangle(start+1,start+2,start+3);
+                            }
                         }
-                        triangle(start,start+2,start+1); triangle(start+1,start+2,start+3);
+                        segmentStart=segmentEnd;
                     }
                     sideWalked+=length; return;
                 }
                 const uint32_t start = static_cast<uint32_t>(vertices.size());
-                vertices.push_back(vertices[a]); vertices.push_back(vertices[b]);
-                if (o.backOpen)
+                vertices.push_back(vertices[geometryA]); vertices.push_back(vertices[geometryB]);
+                if (!useBack)
+                {
+                    vertices.push_back(vertices[backSide?backIndex[rearA]:rearA]);
+                    vertices.push_back(vertices[backSide?backIndex[rearB]:rearB]);
+                }
+                else if (o.backOpen)
                 {
                     VERTEX backA=vertices[a],backB=vertices[b];
                     backA.position.z=o.depth*0.5f; backB.position.z=o.depth*0.5f;
@@ -388,11 +453,12 @@ namespace mbm
                 }
                 else
                 {
-                    vertices.push_back(vertices[backIndex[a]]); vertices.push_back(vertices[backIndex[b]]);
+                    vertices.push_back(vertices[rearA==UINT32_MAX?backIndex[a]:rearA]);
+                    vertices.push_back(vertices[rearB==UINT32_MAX?backIndex[b]:rearB]);
                 }
                 // Back-only UV mirroring must not twist the stretched border strip.
                 vertices[start+2].uv=vertices[a].uv; vertices[start+3].uv=vertices[b].uv;
-                if (o.sideMode==IMAGE_MESH_SIDE::BAND && !hole)
+                if (o.sideMode==IMAGE_MESH_SIDE::BAND && band && !hole)
                 {
                     for (uint32_t k=0;k<2;++k)
                     {
@@ -406,7 +472,7 @@ namespace mbm
                 }
                 else if (o.sideMode==IMAGE_MESH_SIDE::COLOR)
                     for (uint32_t k=0;k<4;++k) vertices[start+k].uv=VEC2(.5f,.5f);
-                else if (sideNeedsOpaqueSample(topology.points[a], topology.points[b]))
+                else if (o.sideMode!=IMAGE_MESH_SIDE::COLOR && sideNeedsOpaqueSample(topology.points[a], topology.points[b]))
                 {
                     prepareVisibleTexels();
                     const uint32_t x = std::min(cw-1, static_cast<uint32_t>(std::lround((topology.points[a].x + topology.points[b].x) * 0.5f * (cw-1))));
@@ -416,9 +482,25 @@ namespace mbm
                     // Constant UV per fallback quad also avoids interpolating across another alpha gap.
                     for (uint32_t i = start; i < start + 4; ++i) vertices[i].uv = uv;
                 }
-                triangle(start, start + 2, start + 1); triangle(start + 1, start + 2, start + 3);
+                if (backSide)
+                {
+                    triangle(start,start+1,start+2); triangle(start+1,start+3,start+2);
+                }
+                else
+                {
+                    triangle(start,start+2,start+1); triangle(start+1,start+2,start+3);
+                }
             };
-            if (minimalBack)
+            if (o.voxelized)
+            {
+                for (const auto &wall:topology.voxelWalls)
+                {
+                    image_mesh::checkpoint(o,"sides",0.94f);
+                    side(wall.frontA,wall.frontB,wall.hole,wall.band,
+                        wall.rearA,wall.rearB,wall.usesBack,wall.repeatSegments,wall.backSide);
+                }
+            }
+            else if (minimalBack)
             {
                 for (size_t c=0;c<backCorners.size();++c)
                 {
@@ -454,12 +536,14 @@ namespace mbm
             }
             else
                 for (size_t i = 0; i < topology.boundary.size(); ++i)
-                    side(topology.boundary[i], topology.boundary[topology.nextBoundary(i)],!topology.loopEnds.empty() && i>=topology.loopEnds[0]);
+                    side(topology.boundary[i],topology.boundary[topology.nextBoundary(i)],
+                        !topology.loopEnds.empty() && i>=topology.loopEnds[0],
+                        topology.loopEnds.empty() || i<topology.loopEnds[0],UINT32_MAX,UINT32_MAX,true,1,false);
             if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedHierarchy && !o.curvedSymmetric)
                 for (auto &v:vertices) v.position.z-=o.depth*0.5f; // Stable flat back at Z=0.
             // Prefer plateau faces over steep ramps when computing shared front
             // normals. Keeping vertices welded preserves simplification behavior.
-            const bool preservePlateaus=!faceted && o.relief>0 && (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
+            const bool preservePlateaus=!o.voxelized && !faceted && o.relief>0 && (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
                 (o.followImage && o.twoLevels && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::MANUAL));
             std::vector<float> levels;
             std::vector<VEC3> plateauNormals;
@@ -687,7 +771,7 @@ namespace mbm
         try
         {
             IMAGE_MESH_OPTIONS o=options;
-            o.columns=1; o.rows=1; o.width=100; o.height=100; o.followImage=false; o.maxVertices=65535; o.maxTriangles=131070;
+            o.columns=1; o.rows=1; o.width=100; o.height=100; o.followImage=false; o.voxelized=false; o.maxVertices=65535; o.maxTriangles=131070;
             image_mesh::TOPOLOGY topology; std::string error;
             if (!image_mesh::buildTopology(o,topology,error)) return fail(errorOut,errorOutLen,error.c_str());
             std::vector<IMAGE_MESH_POINT> inner;
@@ -711,7 +795,7 @@ namespace mbm
             if (!field.load(imagePath,o,error)) return fail(errorOut,errorOutLen,error.c_str());
             IMAGE_MESH_OPTIONS outline=o;
             if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED) outline.heightSource=IMAGE_MESH_HEIGHT_SOURCE::MANUAL;
-            outline.followImage=false; outline.columns=outline.rows=1; outline.maxVertices=65535; outline.maxTriangles=131070;
+            outline.followImage=false; outline.voxelized=false; outline.columns=outline.rows=1; outline.maxVertices=65535; outline.maxTriangles=131070;
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(outline,topology,error)) return fail(errorOut,errorOutLen,error.c_str());
             std::vector<unsigned char> rgba(static_cast<size_t>(field.width)*field.height*4,0);
