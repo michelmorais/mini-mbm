@@ -53,6 +53,8 @@ cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 
 option(ENGINE_DISTRIBUTION "Enable the Windows mini-mbm-dev installer and portable package" OFF)
+set(MBM_CGAL_BIN_DIR "" CACHE PATH
+    "Directory containing the mbm-cgal worker executables to bundle with ENGINE_DISTRIBUTION")
 
 set(CMAKE_SUCCESS_SET_PLAT           0)
 set(OPTIMIZED                    "-O3")

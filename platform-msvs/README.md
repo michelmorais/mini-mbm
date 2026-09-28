@@ -305,7 +305,7 @@ needs CMake 3.25.1+, the MinGW 32-bit toolchain described below, and NSIS instal
 in `PATH`, `C:\Program Files (x86)\NSIS`, or `C:\Program Files\NSIS`.
 Recipients only need the resulting setup executable.
 
-Choose **one** of the three configure commands below, then run the common build
+Choose **one** of the four configure commands below, then run the common build
 command. The explicit `=0` flags reset cached backend/Steam selections when you
 reuse this build directory.
 
@@ -336,6 +336,16 @@ cmake -S . -B build\mingw_engine_installer -G "MinGW Makefiles" ^
     -DUSE_STEAM=1 ^
     -DSTEAMWORKS_SDK_PATH="C:/Program Files (x86)/steamworks_sdk_165/sdk" ^
     -DENGINE_DISTRIBUTION=ON
+
+rem OR option 4: DirectX 11 + Steam + cgal
+cmake -S . -B build\mingw_engine_installer -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_ALL=1 -DUSE_BULLET3D=1 ^
+    -DAUDIO=portaudio -DUSE_DIRECTX11=1 -DUSE_OPENGL_ES=0 -DUSE_DIRECTX9=0 ^
+    -DUSE_STEAM=1 ^
+    -DSTEAMWORKS_SDK_PATH="C:/Program Files (x86)/steamworks_sdk_165/sdk" ^
+    -DENGINE_DISTRIBUTION=ON ^
+    -DMBM_CGAL_BIN_DIR="C:/Users/miche/Documents/mbm-cgal/install-win-x86/bin"
 
 cmake --build build\mingw_engine_installer --target engine-installer --parallel %NUMBER_OF_PROCESSORS%
 ```
@@ -372,6 +382,15 @@ game's App ID configuration are not part of this package. A script that calls
 Configure one graphics backend at a time. Build variants sequentially, since their
 binary output directory is shared. Bundled third-party DLLs are intended for x86 builds;
 packaging rejects DLLs whose architecture does not match the compiler target.
+
+To bundle the optional `mbm-cgal` workers used by the mesh editors, add
+`-DMBM_CGAL_BIN_DIR=C:/path/to/mbm-cgal/install-win/bin`. The directory must contain
+`mbm-cgal-planar.exe`, `mbm-cgal-remesh.exe`, `mbm-cgal-repair.exe` and
+`mbm-cgal-audit.exe`; DLLs in that directory are included in the package. For the
+supported MinGW32 package, build `mbm-cgal` and its vcpkg dependencies with the
+`x86-windows` triplet. The `x64-windows` installation cannot be included in an x86
+package. The packaged `launch.bat` sets `MBM_CGAL_FOLDER` so the editors discover
+the bundled workers automatically.
 
 ### Portable alternatives
 

@@ -31,6 +31,33 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
     message(FATAL_ERROR "ENGINE_DISTRIBUTION requires -DCMAKE_BUILD_TYPE=Release.")
 endif()
 
+set(ENGINE_CGAL_EXTERNAL_EXECUTABLES "")
+set(ENGINE_CGAL_EXTERNAL_LIBRARIES "")
+if(MBM_CGAL_BIN_DIR)
+    file(TO_CMAKE_PATH "${MBM_CGAL_BIN_DIR}" MBM_CGAL_BIN_DIR)
+    if(NOT IS_DIRECTORY "${MBM_CGAL_BIN_DIR}")
+        message(FATAL_ERROR "MBM_CGAL_BIN_DIR is not a directory: ${MBM_CGAL_BIN_DIR}")
+    endif()
+    set(_cgal_workers
+        mbm-cgal-planar.exe
+        mbm-cgal-remesh.exe
+        mbm-cgal-repair.exe
+        mbm-cgal-audit.exe)
+    foreach(_worker IN LISTS _cgal_workers)
+        if(NOT EXISTS "${MBM_CGAL_BIN_DIR}/${_worker}")
+            message(FATAL_ERROR "Missing mbm-cgal worker: ${MBM_CGAL_BIN_DIR}/${_worker}")
+        endif()
+        list(APPEND ENGINE_CGAL_EXTERNAL_EXECUTABLES "${MBM_CGAL_BIN_DIR}/${_worker}")
+    endforeach()
+    file(GLOB _cgal_runtime_dlls LIST_DIRECTORIES false
+        "${MBM_CGAL_BIN_DIR}/*.dll")
+    list(APPEND ENGINE_CGAL_EXTERNAL_LIBRARIES ${_cgal_runtime_dlls})
+    set(ENGINE_CGAL_ENABLED ON)
+    message(STATUS "Bundling mbm-cgal workers from ${MBM_CGAL_BIN_DIR}")
+else()
+    set(ENGINE_CGAL_ENABLED OFF)
+endif()
+
 # Enumerate current targets, not the shared bin folder (which can contain stale DLLs).
 function(mbm_collect_package_libraries directory output)
     get_property(_targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
@@ -102,6 +129,7 @@ if(NOT USE_DIRECTX9 AND NOT USE_DIRECTX11)
     list(APPEND ENGINE_EXTERNAL_LIBRARIES
         "${CMAKE_SOURCE_DIR}/third-party/gles/bin/libEGL.dll" "${CMAKE_SOURCE_DIR}/third-party/gles/bin/libGLESv2.dll")
 endif()
+list(APPEND ENGINE_EXTERNAL_LIBRARIES ${ENGINE_CGAL_EXTERNAL_LIBRARIES})
 
 configure_file("${CMAKE_CURRENT_LIST_DIR}/stage-engine.cmake.in"
     "${CMAKE_BINARY_DIR}/stage-engine.cmake.gen" @ONLY)

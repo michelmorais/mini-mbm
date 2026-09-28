@@ -83,6 +83,8 @@ not execution permissions or binary compatibility. **Refresh** rescans after an
 installation change. There are no filesystem scans during idle drawing.
 The shared folder preference is `.mini-mbm-cgal-folder` inside `APPDATA` (Windows),
 otherwise `HOME`; `MBM_CGAL_FOLDER_CONFIG` overrides that file for tests.
+Packaged engine distributions may set `MBM_CGAL_FOLDER` to a bundled worker directory;
+that runtime directory takes precedence over the persisted preference.
 It takes priority over legacy individual paths. Without a saved folder, legacy
 paths remain usable and the panel initially suggests a folder from them.
 Select that folder to persist it. Restart another open editor to reload changes.

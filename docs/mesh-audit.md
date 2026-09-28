@@ -80,8 +80,11 @@ cancellation and JSON export. Export asks for a destination using the normal
 save dialog.
 
 The shared `.mini-mbm-cgal-folder` preference (`MBM_CGAL_FOLDER_CONFIG` override)
-takes priority. Without a selected folder, the legacy audit preference remains
-`MBM_CGAL_AUDIT_CONFIG`, or `.mini-mbm-cgal-audit-path` under APPDATA/HOME. Analysis is only launched on explicit request. Per-frame callbacks
+is used when no packaged worker directory is supplied. Packaged distributions may set
+`MBM_CGAL_FOLDER` to the bundled worker directory; this runtime directory takes
+precedence over the persisted preference. Without a selected folder, the legacy audit
+preference remains `MBM_CGAL_AUDIT_CONFIG`, or `.mini-mbm-cgal-audit-path` under
+APPDATA/HOME. Analysis is only launched on explicit request. Per-frame callbacks
 poll pending jobs and draw cached reports; no mesh scans, loads or serialization
 occur while idle.
 

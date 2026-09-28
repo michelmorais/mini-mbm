@@ -31,7 +31,7 @@ endif()
 file(REMOVE_RECURSE "${_stage}")
 file(MAKE_DIRECTORY "${_stage}")
 
-set(_executables "@ENGINE_PACKAGE_EXECUTABLES@")
+set(_executables "@ENGINE_PACKAGE_EXECUTABLES@;@ENGINE_CGAL_EXTERNAL_EXECUTABLES@")
 set(_libraries "@ENGINE_PACKAGE_LIBRARIES@;@ENGINE_EXTERNAL_LIBRARIES@")
 set(_stage_executables "")
 set(_stage_libraries "")
@@ -116,8 +116,13 @@ foreach(_notice lua-5.4.1/lua.h portaudio/include/portaudio.h
             DESTINATION "${_stage}/licenses/third-party/${_directory}")
     endif()
 endforeach()
+if("@ENGINE_CGAL_ENABLED@" STREQUAL "ON")
+    set(_cgal_environment "if exist \"%~dp0mbm-cgal-planar.exe\" set \"MBM_CGAL_FOLDER=%~dp0\"\r\n")
+else()
+    set(_cgal_environment "")
+endif()
 file(WRITE "${_stage}/launch.bat"
-    "@echo off\r\ncd /d \"%~dp0\"\r\n\"%~dp0mini-mbm-dev.exe\" %*\r\nset \"MBM_EXIT_CODE=%ERRORLEVEL%\"\r\necho.\r\npause\r\nexit /b %MBM_EXIT_CODE%\r\n")
+    "@echo off\r\ncd /d \"%~dp0\"\r\n${_cgal_environment}\"%~dp0mini-mbm-dev.exe\" %*\r\nset \"MBM_EXIT_CODE=%ERRORLEVEL%\"\r\necho.\r\npause\r\nexit /b %MBM_EXIT_CODE%\r\n")
 file(WRITE "${_stage}/GETTING-STARTED.txt"
 "Mini MBM @ENGINE_PACKAGE_VERSION@
 Open launch.bat (or the Mini MBM Dev shortcut) to select an editor.

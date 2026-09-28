@@ -15,6 +15,7 @@
 
 -- Shared folder discovery. Filesystem probes run only on load, selection or refresh.
 local M={names={'mbm-cgal-planar','mbm-cgal-remesh','mbm-cgal-repair','mbm-cgal-audit'}}
+local packagedDirectory=os.getenv('MBM_CGAL_FOLDER')
 local preference=os.getenv('MBM_CGAL_FOLDER_CONFIG') or
     ((os.getenv('APPDATA') or os.getenv('HOME') or '.')..'/.mini-mbm-cgal-folder')
 local loaded,directory=false,nil
@@ -39,8 +40,12 @@ end
 function M.getDirectory()
     if not loaded then
         loaded=true
-        local file=io.open(preference,'r')
-        if file then directory=file:read('*l');file:close() end
+        if packagedDirectory and packagedDirectory~='' then
+            directory=packagedDirectory
+        else
+            local file=io.open(preference,'r')
+            if file then directory=file:read('*l');file:close() end
+        end
         M.refresh()
     end
     return directory
