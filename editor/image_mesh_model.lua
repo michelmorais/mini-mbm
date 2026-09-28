@@ -25,7 +25,7 @@ local CurvedModel=require 'image_mesh_curved_model'
 local M={curved=CurvedModel}
 M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=24,rows=24,
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
-M.grooveDefaults={followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTransition=0.1,heightTolerance=0.03,smoothPasses=0}
+M.grooveDefaults={voxelized=false,followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTransition=0.1,heightTolerance=0.03,smoothPasses=0}
 M.simplifyDefaults={simplify=false,cgalRepairTopology=true,simplifyMode='qem',planarTolerance=.05,planarAngle=10,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
 M.remeshDefaults={remesh=false,remeshRepairTopology=true,remeshEdgeLengthFraction=.03,remeshIterations=10,remeshFeatureAngle=14.5}
 M.backDefaults={backExternal=false,backTexture='',backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
@@ -101,7 +101,7 @@ function M.validateOptions(options,complete)
         elseif k=='heightChannel' then assert(v=='luminance' or v=='red' or v=='green' or v=='blue' or v=='alpha','ime_invalid_options')
         elseif k=='sideMode' then assert(v=='edge' or v=='color' or v=='repeat' or v=='band','ime_invalid_options')
         elseif k=='sideTexture' or k=='backTexture' or k=='heightImage' then assert(type(v)=='string' and #v<4096 and not v:find('%z'),'ime_invalid_options')
-        elseif k=='heightFinishing' or k=='curvedPainting' or k=='curvedInterior' or k=='curvedFaceted' or k=='curvedSimplify' or k=='curvedSymmetric' or k=='heightImageToRegion' or k=='backExternal' or k=='backSolid' or k=='sideBandPerpendicular' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='remesh' or k=='remeshTargetEnabled' or k=='remeshRepairTopology' or k=='cgalRepairTopology' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' then assert(type(v)=='boolean','ime_invalid_options')
+        elseif k=='heightFinishing' or k=='curvedPainting' or k=='curvedInterior' or k=='curvedFaceted' or k=='curvedSimplify' or k=='curvedSymmetric' or k=='heightImageToRegion' or k=='backExternal' or k=='backSolid' or k=='sideBandPerpendicular' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='remesh' or k=='remeshTargetEnabled' or k=='remeshRepairTopology' or k=='cgalRepairTopology' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' or k=='voxelized' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
     end
     if options.heightBlack~=nil and options.heightWhite~=nil then assert(options.heightBlack<=options.heightWhite,'ime_height_levels_invalid') end

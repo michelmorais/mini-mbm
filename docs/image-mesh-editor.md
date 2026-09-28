@@ -359,6 +359,26 @@ the center of the base volume. The underlying `mbm.generateImageMesh` API faces
 -Z; the editor rotates positions and normals before preview/export, preserving
 UVs and winding.
 
+### Voxel 2.5D
+
+Select a module, then expand **Relief and grooves** in its properties under
+**Regions** and choose **Voxel 2.5D** from **Mesh mode** to make a blocky
+height-field mesh. **Height source** remains a separate choice, so image,
+manual, mixed, and curved sources can all use this mesh mode.
+Each of the `columns x rows` cells samples one height at its center and gets a
+flat top split into two triangles. Exposed cell edges become walls. A cell is
+omitted when its center falls outside the selected contour, inside a hole, or on
+a fully transparent source pixel, so the silhouette is quantized to the cell grid.
+Image, manual, mixed, and curved height sources still provide the sampled height.
+
+Set **Voxels across width** and **Voxels across height** under
+**Resolution and geometry limits** to choose the grid density. These are cell
+counts; each cell's physical width and height are derived from the module size
+divided by the corresponding count. Voxel 2.5D uses the grid directly; adaptive triangle refinement,
+simplification, and remeshing are inactive. The usual vertex and triangle budgets
+still apply. Back and side material settings continue to control the generated
+surfaces.
+
 ### Height sources and tonal controls
 
 Choose the relief mode in **Relief and grooves**:

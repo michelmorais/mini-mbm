@@ -53,6 +53,8 @@ local E={project=Model.new(),history=Model.history(),selected=0,selection={},too
     primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=0.3,elevation=0.3,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
+local meshModes={L('mesh_mode_standard'),L('mesh_mode_voxelized')}
+local voxelResolutionKeys={columns='voxel_columns',rows='voxel_rows'}
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
     if not result[1] then E.status=tLang.L(tostring(result[2]):match('(ime_[%w_]+)$') or tostring(result[2])); print('[image_mesh_editor] '..E.status) end
@@ -568,6 +570,10 @@ local function propertiesPanel()
         end
         if tImGui.CollapsingHeader(L('grooves_group')) then
             Areas.modePanel(E)
+            meshModes[1]=L('mesh_mode_standard');meshModes[2]=L('mesh_mode_voxelized')
+            local meshModeChanged,meshMode=tImGui.Combo(L('mesh_mode'),E.values.voxelized and 2 or 1,meshModes)
+            if meshModeChanged then E.values.voxelized=meshMode==2 end
+            Help.show('voxelized')
             if E.values.heightSource=='curved' then
                 Curved.panel(E,function() if draftChanged() then return applyProperties() end return true end,action)
                 if E.editMode and not E.editDefaults then HeightPreview.panel(E) end
@@ -625,7 +631,12 @@ local function propertiesPanel()
                 local map=imagePreview and E.heightView==2
                 local overlay=imagePreview and E.heightView==3
                 local geometry=not map and not overlay
-                if geometry then E.values.followImage=tImGui.Checkbox(L('followImage'),E.values.followImage); Help.show('adaptive') end
+                if geometry then
+                    tImGui.BeginDisabled(E.values.voxelized)
+                    E.values.followImage=tImGui.Checkbox(L('followImage'),E.values.followImage); Help.show('adaptive')
+                    tImGui.EndDisabled()
+                    if E.values.voxelized then tImGui.TextWrapped(L('voxelized_adaptive_help')) end
+                end
                 if not manual and not overlay then E.values.twoLevels=tImGui.Checkbox(L('twoLevels'),E.values.twoLevels); Help.show('twoLevels') end
                 if not manual then E.values.invert=tImGui.Checkbox(L('invert'),E.values.invert); Help.show('invert') end
                 for _,key in ipairs({'grooveThreshold','grooveTransition','heightTolerance'}) do
@@ -690,8 +701,10 @@ local function propertiesPanel()
         if tImGui.CollapsingHeader(L('resolution_group')) then
         tImGui.BeginDisabled(E.values.heightSource=='curved' and E.values.curvedFaceted)
         for _,key in ipairs({'columns','rows','ellipseSegments'}) do
-            local c,v=tImGui.InputInt(L(key),E.values[key],1,10); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
-            Help.show(key)
+            local optionKey=key
+            if E.values.voxelized and voxelResolutionKeys[key] then optionKey=voxelResolutionKeys[key] end
+            local c,v=tImGui.InputInt(L(optionKey),E.values[key],1,10); if c then E.values[key]=Model.clampOption(key,v,E.values[key]) end
+            Help.show(optionKey)
         end
         tImGui.EndDisabled()
         local c,v=tImGui.InputInt(L('maxVertices'),E.values.maxVertices)
@@ -701,7 +714,8 @@ local function propertiesPanel()
         tImGui.Text(string.format(L('triangle_budget_auto'),2*E.values.maxVertices))
         Help.show('maxTriangles')
         end
-        if E.values.heightSource=='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
+        if E.values.voxelized then tImGui.TextWrapped(L('voxelized_simplify_disabled')) end
+        if not E.values.voxelized and E.values.heightSource=='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             if E.values.curvedFaceted then tImGui.TextWrapped(tLang.L('ime_facets_simplify')) end
             if E.values.curvedInterior then tImGui.TextWrapped(tLang.L('ime_curved_interior_resolution')) end
             tImGui.BeginDisabled(E.values.curvedFaceted or E.values.curvedInterior)
@@ -723,7 +737,7 @@ local function propertiesPanel()
             tImGui.EndDisabled()
             Comparison.panel(E,setComparison,setWireframe,dpCall)
         end
-        if E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
+        if not E.values.voxelized and E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             do
                 local modes=require('mesh_simplify_modes')
                 local mode=E.values.simplify and E.values.simplifyMode or 'none'
@@ -757,7 +771,7 @@ local function propertiesPanel()
                 Comparison.panel(E,setComparison,setWireframe,dpCall)
             end
         end
-        if tImGui.CollapsingHeader(tLang.L('cgal_remesh_title')) then
+        if not E.values.voxelized and tImGui.CollapsingHeader(tLang.L('cgal_remesh_title')) then
             E.values.remesh=tImGui.Checkbox(tLang.L('cgal_remesh_enable'),E.values.remesh==true)
             if tImGui.IsItemHovered() then Help.tooltip(tLang.L('cgal_remesh_method_tooltip')) end
             if E.values.remesh then

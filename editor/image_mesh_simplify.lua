@@ -39,6 +39,7 @@ function M.run(E,fn,...)
     return M.resume(E)
 end
 function M.apply(E,asset,options,report)
+    if options.voxelized then return end
     if options.simplify and options.simplifyMode~='none' then
         local worker,err=require('mesh_simplify_pipeline').start(asset,options.simplifyMode,
             options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,

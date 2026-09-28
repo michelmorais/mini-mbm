@@ -87,6 +87,7 @@ namespace mbm
         const IMAGE_MESH_HOLE *holes = nullptr;
         uint32_t holeCount = 0;
         uint32_t columns = 32, rows = 32;
+        bool voxelized = false; // Sample one flat relief value per grid cell and build exposed block walls.
         uint32_t maxVertices = 65535, maxTriangles = 131070;
         float width = 100.0f, height = 100.0f, depth = 20.0f, relief = 8.0f;
         float borderWidth = 0.1f;

@@ -28,8 +28,16 @@ namespace mbm { namespace image_mesh {
     struct HEIGHT_FIELD;
     struct TOPOLOGY
     {
+        struct VOXEL_WALL
+        {
+            uint32_t frontA=0, frontB=0, rearA=0, rearB=0;
+            uint32_t repeatSegments=1;
+            bool usesBack=true, hole=false, band=true, backSide=false;
+        };
         std::vector<IMAGE_MESH_POINT> points;
         std::vector<std::array<uint32_t, 3>> triangles, backTriangles;
+        std::vector<float> pointHeights;
+        std::vector<VOXEL_WALL> voxelWalls;
         std::vector<uint32_t> boundary;
         std::vector<IMAGE_MESH_POINT> contour;
         std::vector<std::vector<IMAGE_MESH_POINT>> holes;

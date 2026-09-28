@@ -2168,9 +2168,10 @@ assert(asset:save("panel.msh", false, false, true))
 | `cropWidth`, `cropHeight` | 0 | Crop dimensions in pixels; 0 uses the remaining extent on that axis |
 | `width`, `height`, `depth` | 100, 100, 20 | World dimensions; each finite and within [0.001, 1000000] |
 | `relief` | 8 | Nonnegative outward relief amplitude, at most 1000000 |
-| `columns`, `rows` | 32, 32 | Integers in [1, 255]. Rectangular grid cells per axis; contour refinement density for ellipses/polygons, subject to total budget |
+| `columns`, `rows` | 32, 32 | Integers in [1, 255]. Grid-cell counts when `voxelized=true`; otherwise rectangular grid cells per axis or contour refinement density for ellipses/polygons, subject to total budget |
+| `voxelized` | false | Enables the editor's Voxel 2.5D effect: sample one height at each grid-cell center; emit a flat two-triangle top and exposed block walls. Cells whose center is outside the contour, inside a hole, or on a fully transparent source pixel are omitted. Uses `columns` and `rows` as cell counts; adaptive refinement and editor simplification/remeshing do not apply |
 | `invert` | false | Invert luminance before filtering, groove detection and height mapping |
-| `followImage` | false | Adaptive image-guided front triangulation and transition alignment; simplified back only when `backRelief=false`; legacy topology when false |
+| `followImage` | false | Adaptive image-guided front triangulation and transition alignment; simplified back only when `backRelief=false`; legacy topology when false. Ignored when `voxelized=true` |
 | `twoLevels` | false | Map intensity to low/high plateaus with a smoothstep transition |
 | `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
 | `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
