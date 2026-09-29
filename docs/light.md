@@ -721,11 +721,11 @@ persists these independently of normal textures and tangent preparation; changin
 them neither assigns a texture nor alters its pixels or regenerates tangents.
 Since 7.318, these properties affect static 3D normal mapping on OpenGL ES when
 a prepared tangent batch and a normal texture are available. DirectX 11 supports
-the same static path since 7.320. DirectX 9, Metal and
+the same static path since 7.320, and DirectX 9 with Shader Model 3.0 since 7.321. Metal and
 skinned normal mapping remain pending. See [Lua API](lua-api.md#normal-map-material-settings) and
 [MSH format](mesh-v11-format.md#optional-section_normal_map_materials-15-section-version-1).
 
-OpenGL ES (7.318) and DirectX 11 (7.320) static 3D paths:
+OpenGL ES (7.318), DirectX 11 (7.320) and DirectX 9 SM3 (7.321) static 3D paths:
 
 - Loaded optional tangent batches are uploaded once into private interleaved
   position/normal/UV/tangent buffers and local 16-bit index buffers. Authoring
@@ -741,7 +741,7 @@ OpenGL ES (7.318) and DirectX 11 (7.320) static 3D paths:
   retains its directional-only 3D model, now using `DirectionalColor` instead of
   the first point-light array entry. Source green convention and strength are
   uniforms; no texture or tangent regeneration is needed to change them.
-  DirectX 11 uses directional and selected point lights in both shader paths.
+  DirectX 9 and DirectX 11 use directional and selected point lights in both shader paths.
 - Strength zero, no normal texture, an unlit shader or a missing prepared batch
   uses source geometry. Explicitly empty per-subset texture stages prevent one
   subset's normal map from leaking into another. Existing custom shaders are not
@@ -759,6 +759,23 @@ OpenGL ES (7.318) and DirectX 11 (7.320) static 3D paths:
   slot 2, and supplies a zero tangent with stride zero for source draws. Reserved
   normal-map constants use pixel constant-buffer slot 3. Both shaders retain
   Shader Model 4.0; no profile upgrade is required.
+
+DirectX 9 selects its effective shader profiles from device capabilities during
+initialization; `ps_2_0`/`vs_2_0` are initial values, not a forced runtime limit.
+The new static tangent path requires `ps_3_0` and `vs_3_0`, and uses vertex stream 1
+for tangents, managed derived buffers, and a constant zero tangent for source draws.
+It does not change the globally selected profiles. On unsupported profiles it emits
+one diagnostic per context and leaves the preceding geometric-lighting shader path.
+This is not a claim that the existing four-light shader fits SM2: the profile test
+rejects it for temporary-register exhaustion even without the new normal-map helper.
+The measured SM3 generated shader uses approximately 232 PS instruction slots and
+38 VS slots with the default four-light budget in the tested MSVC Debug build.
+
+DX9 static source buffers permit read-only extraction for Mesh Debug, preserving
+source subsets, vertices, indices and the shared material/tangent metadata. This
+replaces the previous unimplemented extraction hook. Write-only dynamic buffers
+remain unsupported for extraction. Readback uses `D3DLOCK_READONLY` only on readable
+buffers, following the [Direct3D 9 locking contract](https://learn.microsoft.com/en-us/windows/win32/direct3d9/accessing-the-contents-of-a-vertex-buffer).
 
 Render-to-texture now selects the lighting target per pass/object (`3d`, `2dw`,
 or disabled for `2ds`) and uses the target camera's view matrix for lighting.

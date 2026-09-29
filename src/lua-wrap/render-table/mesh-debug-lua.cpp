@@ -1520,6 +1520,13 @@ namespace mbm
         return 1;
     }
 
+    int onHasNormalMapTangentsMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *author = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, author->mesh.hasNormalMapTangents());
+        return 1;
+    }
+
     int onGetNormalMapSettingsMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *author = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3669,6 +3676,7 @@ namespace mbm
                                           {"getTexture", onGetTextureNameMeshDebugLua},
                                           {"setTexture", onSetTextureNameMeshDebugLua},
                                           {"prepareNormalMap", onPrepareNormalMapMeshDebugLua},
+                                          {"hasNormalMapTangents", onHasNormalMapTangentsMeshDebugLua},
                                           {"getNormalMapSettings", onGetNormalMapSettingsMeshDebugLua},
                                           {"setNormalMapSettings", onSetNormalMapSettingsMeshDebugLua},
                                           {"getMaterialTexture", onGetMaterialTextureNameMeshDebugLua},

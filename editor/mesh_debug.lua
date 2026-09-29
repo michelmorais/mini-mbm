@@ -4610,6 +4610,7 @@ function showMeshInfoTable(tEntry, index)
     if info.type == 'particle' then addRow('Stages', info.stages) end
     if info.type == 'texture' and info.ext then addRow('Extension', info.ext) end
     addRow('Has normals', info.hasNormal ~= nil and (info.hasNormal and 'yes' or 'no') or nil)
+    addRow(tLang.L('mesh_has_tangents'), meshD:hasNormalMapTangents() and tLang.L('audit_yes') or tLang.L('audit_no'))
     addRow('Has texture', info.hasTexture ~= nil and (info.hasTexture and 'yes' or 'no') or nil)
     local nVert = getMeshTotalVertices(meshD)
     if nVert > 0 then
@@ -4655,6 +4656,10 @@ function showMeshInfoTable(tEntry, index)
                 tImGui.TableNextRow()
                 tImGui.TableNextColumn()
                 tImGui.Text(tRows[i][1])
+                if tRows[i][1] == tLang.L('mesh_has_tangents') then
+                    tImGui.SameLine()
+                    tImGui.HelpMarker(tLang.L('mesh_has_tangents_help'))
+                end
                 tImGui.TableNextColumn()
                 tImGui.TextWrapped(tRows[i][2])
             end
@@ -11861,7 +11866,7 @@ end
 
 function showImageMeshProjectTree(tToRemove,tProjectsToRemove)
     if #tImageMeshProjects==0 then return end
-    local title=string.format('%s (%d)##imageMeshProjects',
+    local title=string.format('%s (%d)',
         tLang.L('mesh_debug_image_mesh_projects'),#tImageMeshProjects)
     if not tImGui.TreeNodeEx(title,tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen'),
             'image-mesh-projects-root') then

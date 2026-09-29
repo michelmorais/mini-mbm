@@ -3228,6 +3228,11 @@ namespace mbm
         return state == MESH_SIMPLIFY_STATE::SUCCEEDED;
     }
 
+    bool MESH_MBM_DEBUG::hasNormalMapTangents() const noexcept
+    {
+        return !impl->normalMapFrames.empty();
+    }
+
     bool MESH_MBM_DEBUG::getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept
     {
         if (!(frame < impl->buffer.size() && subset < impl->buffer[frame]->subset.size())) return false;

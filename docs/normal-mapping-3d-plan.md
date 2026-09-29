@@ -1,9 +1,9 @@
 # Plano de normal mapping 3D
 
 Status: preparação CPU, persistência opcional e API C++/Lua implementadas.
-Caminhos estáticos OpenGL ES e DirectX 11 implementados; controles de
+Caminhos estáticos OpenGL ES, DirectX 11 e DirectX 9 SM3 implementados; controles de
 convenção/intensidade no Mesh Debug disponíveis em 7.319. DirectX 11 validado
-no Windows em 7.320. DirectX 9 depende de avaliação de custo/perfis; Metal pendente.
+no Windows em 7.320, DirectX 9 em 7.321. Metal pendente.
 
 Primeira entrega: normal mapping de malhas estáticas em GLES, DX9, DX11 e Metal,
 com propriedades editáveis e persistentes. Skinning LBS/DQS, deformações dinâmicas
@@ -159,7 +159,7 @@ MBM_NORMAL_MAP_TEST_VB=1 timeout -s KILL 20 bin/debug/linux_x86/mini-mbm \
 ```
 
 Exigir o marcador `NORMAL MAP VISUAL PASS`, além do término do processo.
-DirectX 11 concluído no incremento 7.320 abaixo; DirectX 9 e Metal permanecem pendentes.
+DirectX 11 concluído no incremento 7.320 e DirectX 9 SM3 em 7.321 abaixo; Metal permanece pendente.
 A exposição de convenção/intensidade no Mesh Debug precede esse incremento;
 a integração esquelética/dinâmica da etapa 4 fica fora da primeira entrega.
 Versão 7.312 identifica a entrega de persistência das tangentes.
@@ -463,10 +463,65 @@ sucesso das validações de debug-layer e resource-lifecycle. A variável
 `MBM_NORMAL_MAP_TEST_LIGHTING` ativa iluminação 3D antes de carregar a malha,
 exercitando o desenho com tangentes em vez do shader sem iluminação.
 
+### Progresso da etapa 3 — DirectX 9, versão 7.321
+
+- Implementado caminho estático com `vs_3_0`/`ps_3_0`, shaders gerados e
+  `lit textured.ps`, iluminação direcional/pontual e material por subset. Reutiliza
+  bases preparadas, sem gerar tangentes ou subir geometria continuamente.
+- Correção da avaliação anterior: `core-manager-directx9.cpp` já seleciona perfis
+  pelas capacidades da GPU. Os defaults textuais SM2 não eram o perfil efetivo
+  desta máquina, que seleciona SM3. Não houve aumento global de perfil.
+- Lotes privados em `D3DPOOL_MANAGED`, publicação após upload completo e liberação
+  com o buffer. Atributo de tangente no stream 1; desenho fonte usa tangente zero.
+  Inversa transposta, sinal de reflexão, fallback de base degenerada, convenção e
+  intensidade seguem os contratos GLES/DX11. Skinning continua sem tangentes.
+- Cache de shaders distingue a variante de normal mapping; reuso e recompilação
+  da mesma instância testados. Buffers temporários de compilação são liberados
+  também nas falhas. Perfis sem suporte recebem diagnóstico uma vez por contexto
+  e mantêm a geração anterior de shader, sem promessa de iluminação SM2 funcional.
+- Medição pelo teste `--directx9-normal-map-shader-test`: shader gerado SM3 com
+  orçamento padrão de quatro luzes usa aproximadamente **232 slots PS / 38 VS**.
+  Forçar SM2 no shader geométrico anterior já falha por excesso de registradores
+  temporários; o shader simples sem iluminação compila. Esse teste força o perfil
+  no compilador, não emula uma GPU SM2. Resultado: `DIRECTX9 NORMAL MAP SHADER PASS`.
+- Corrigidos o scaffolding do VS gerado para `lit textured.ps` e o desenho VB
+  `MODE_DRAW_TRIANGLES`, antes enviado incorretamente como triangle strip.
+- Implementada extração estática DX9 para Mesh Debug (antes era um stub): buffers
+  fonte managed permitem leitura, preservando subsets e índices, inclusive vértices
+  não usados e o nome difuso `default`. Buffers derivados continuam write-only e
+  não substituem autoria. Extração dinâmica write-only permanece sem suporte.
+- Windows/MSVC Debug x86, GPU com SM3: preparação CPU, persistência, fundação
+  esquelética, API runtime síncrona/assíncrona e extração passaram. Regressão GPU
+  de skinning passou nos quatro casos sintético/Lorekeeper, LBS/DQS.
+- Comparações IB/VB: `NORMAL MAP VISUAL PASS`, diferença média RGBA neutro `0.0711`,
+  detalhe `1.8103`, zero/remoção/convenções equivalentes `0`, ponto `2.2720`,
+  escala não uniforme/rotação `7.8486`. Subsets mistos, reflexão, HUD, 2dw,
+  intensidade extrema e VS legado também passaram.
+- `Downloads/module_001.msh` apenas lido e capturado: diferença de detalhe `5.5170`
+  versus intensidade zero e mapa neutro `0.1514`. Inspeção visual confirmou relevo.
+- Não foram validados GPU física SM2, perda real de dispositivo, runtime DX9 de
+  depuração, normal mapping esquelético ou regeneração dinâmica. No ambiente de
+  teste, criar dispositivo DX9 exigiu execução fora do sandbox.
+
+Reprodução após build DX9 de `libTest` e `mini_mbm`:
+
+```powershell
+New-Item -ItemType Directory -Force build/normal-dx9 | Out-Null
+& platform-msvs/Debug/libTest.exe --directx9-normal-map-shader-test
+$env:MBM_NORMAL_MAP_RENDER_DIR = "$PWD/build/normal-dx9"
+& platform-msvs/Debug/mini_mbm.exe --scene src/test-lib/normal-map-render-test.lua --disable_select_monitor --nosplash
+$env:MBM_NORMAL_MAP_TEST_VB = '1'
+& platform-msvs/Debug/mini_mbm.exe --scene src/test-lib/normal-map-render-test.lua --disable_select_monitor --nosplash
+Remove-Item Env:MBM_NORMAL_MAP_TEST_VB
+```
+
+Exigir os marcadores `DIRECTX9 NORMAL MAP SHADER PASS` e `NORMAL MAP VISUAL PASS`;
+o erro de compilação SM2 no teste de perfis é uma medição esperada, não um erro SM3.
+
 ### Etapa 3 — Paridade estática de DirectX 9, DirectX 11 e Metal
 
-DirectX 11 concluído primeiro. Avaliar separadamente DX9 antes de ampliar seu
-perfil padrão `vs_2_0`/`ps_2_0`; Metal ainda pendente. Reutilizar a interface
+DirectX 11 e DirectX 9 SM3 concluídos. Suporte à iluminação SM2 permanece fora
+do incremento DX9 validado; Metal ainda pendente. Reutilizar a interface
 privada `normal-map-upload.h` e os contratos de material. Esta etapa não inclui
 skinning nem atualização arbitrária de geometria.
 

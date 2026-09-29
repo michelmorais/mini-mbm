@@ -75,22 +75,22 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>../../include;../../third-party/gles;../../include/core_mbm;../../src/core_mbm;../../src/core_mbm/private;../../third-party;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
+    <IncludePath>$(MbmDirectX9SdkInclude)../../include;../../third-party/gles;../../include/core_mbm;../../src/core_mbm;../../src/core_mbm/private;../../third-party;$(IncludePath)</IncludePath>
+    <LibraryPath>$(MbmDirectX9SdkLibX86)$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>../../include;../../third-party/gles;../../include/core_mbm;../../src/core_mbm;../../src/core_mbm/private;../../third-party;$(IncludePath)</IncludePath>
+    <IncludePath>$(MbmDirectX9SdkInclude)../../include;../../third-party/gles;../../include/core_mbm;../../src/core_mbm;../../src/core_mbm/private;../../third-party;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>
     </LinkIncremental>
-    <IncludePath>../../include;../../third-party/gles;../../include/core_mbm;../../src/core_mbm;../../src/core_mbm/private;../../third-party;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
+    <IncludePath>$(MbmDirectX9SdkInclude)../../include;../../third-party/gles;../../include/core_mbm;../../src/core_mbm;../../src/core_mbm/private;../../third-party;$(IncludePath)</IncludePath>
+    <LibraryPath>$(MbmDirectX9SdkLibX86)$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>../../include;../../third-party/gles;../../include/core_mbm;../../src/core_mbm;../../src/core_mbm/private;../../third-party;$(IncludePath)</IncludePath>
+    <IncludePath>$(MbmDirectX9SdkInclude)../../include;../../third-party/gles;../../include/core_mbm;../../src/core_mbm;../../src/core_mbm/private;../../third-party;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

@@ -51,7 +51,7 @@ mutation follows the shared-asset material contract; extraction and editing
 preserve associations, and merging incompatible settings fails without mutation.
 
 `normal-map-upload.h` declares backend-neutral main-thread upload and settings
-hooks. Static OpenGL ES and DirectX 11 rendering keep derived GPU buffers and draw settings in
+hooks. Static OpenGL ES, DirectX 9 and DirectX 11 rendering keep derived GPU buffers and draw settings in
 private `BUFFER_SPECIFIC::normalMapSubsets`. Upload occurs at asset creation for
 prepared static frames, including those without an assigned normal texture;
 rendering uses the tangent batches only when a normal texture and the supported
@@ -60,7 +60,12 @@ storage; dynamic source updates discard it. `normal-map-gles.h` contains the GLE
 shader helper; `normal-map-hlsl.h` supplies the DirectX 11 fragment helper.
 DirectX 11 owns derived vertex/index buffers per subset, releases partial uploads
 through a temporary private owner, and preserves the source vertex layout for
-readback. DX9 and Metal implement the upload/settings hooks as no-ops.
+readback. DirectX 9 likewise owns managed derived vertex/index buffers per subset;
+`normal-map-hlsl9.h` supplies its SM3 fragment helper. Its private shader owns the
+tangent declaration and constant zero tangent buffer. Source managed buffers are
+readable for static authoring extraction; derived buffers stay write-only. Dynamic
+write-only source extraction is explicitly rejected. Metal still implements the
+upload/settings hooks as no-ops.
 No backend handles or owned containers are exposed through public headers.
 
 `normal-map-asset.*` also provides the private CPU `remapSkinWeights` bridge. It
@@ -69,6 +74,10 @@ retaining skeleton identity, frame and bone palette. Its transient result is
 published atomically without changing source weights or adding a serialized
 section. Render backends do not yet consume these remapped batches for skeletal
 normal mapping.
+
+`MESH_MBM_DEBUG::hasNormalMapTangents()` exposes only constant-time
+presence of retained preparation, without signature validation or regeneration.
+It does not expose containers or introduce public mutable storage.
 
 `MESH_MBM_DEBUG::prepareNormalMap` exposes an authoring operation without exposing
 the cached representation. `NORMAL_MAP_CORNER` is borrowed input and

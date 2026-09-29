@@ -307,6 +307,8 @@ namespace mbm
         API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
         API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
         API_IMPL int getFileVersion() const noexcept;
+        // Constant-time presence query; retained bases may need regeneration after geometry edits.
+        API_IMPL bool hasNormalMapTangents() const noexcept;
         // Optional 3D normal-map properties. greenSign is +1 (+Y) or -1 (-Y), strength finite >= 0.
         // Get returns defaults (+1, 1) for valid subsets without settings; false leaves outputs unchanged.
         API_IMPL bool getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept;

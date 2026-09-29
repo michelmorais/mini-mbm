@@ -16,42 +16,35 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_DIRECTX9)
-#ifndef DIRECTX9_BUFFER_SPECIFIC_H
-#define DIRECTX9_BUFFER_SPECIFIC_H
 
-#include "specific-directx9-context.h"
-#include <vector>
 
-namespace mbm
+#ifndef NORMAL_MAP_HLSL9_H
+#define NORMAL_MAP_HLSL9_H
+namespace mbm { namespace normal_map
 {
-    struct BUFFER_SPECIFIC
+    // Reserved DX9 engine shaders only; sampler s2 is the normal texture.
+    inline const char *fragmentHlsl9()
     {
-        struct NORMAL_MAP_BATCH
-        {
-            IDirect3DVertexBuffer9 *vertices = nullptr;
-            IDirect3DIndexBuffer9 *indices = nullptr;
-            UINT vertexCount = 0;
-            UINT indexCount = 0;
-        };
-        struct NORMAL_MAP_SUBSET
-        {
-            std::vector<NORMAL_MAP_BATCH> batches;
-            int greenSign = 1;
-            float strength = 1.0f;
-        };
-        std::vector<NORMAL_MAP_SUBSET> normalMapSubsets;
-        void releaseNormalMap();
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        FVF_PROVIDE_BY_ENGINE FVF;
-        uint32_t sizeStructVertexInBytes;
-        IDirect3DVertexBuffer9 *pVertexBuffer;
-        IDirect3DVertexBuffer9 *pSkinVertexBuffer;
-        IDirect3DIndexBuffer9 *pIndexBuffer;
-        void release();
-    };
-}
-
-#endif // DIRECTX9_BUFFER_SPECIFIC_H
-#endif // USE_DIRECTX9
+        return R"HLSL(
+            float4 NormalMapSettings;
+            float3 mbmSafeNormal(float3 v) {
+                float n = dot(v,v);
+                return n > 0.00000001 ? v * rsqrt(n) : float3(0,0,1);
+            }
+            float3 mbmMappedNormal(float3 normalView, float4 tangentView, float2 uv) {
+                float3 n = mbmSafeNormal(normalView);
+                if (NormalMapSettings.w == 0 || abs(tangentView.w) < 0.5) return n;
+                float3 t = tangentView.xyz - n * dot(n,tangentView.xyz);
+                if (dot(t,t) < 0.00000001) return n;
+                t = normalize(t);
+                float3 b = cross(n,t) * sign(tangentView.w);
+                float3 m = tex2D(TextureNormal,uv).xyz * 2 - 1;
+                m.xy *= NormalMapSettings.y;
+                m.y *= NormalMapSettings.x;
+                m.z *= NormalMapSettings.z;
+                return mbmSafeNormal(t*m.x + b*m.y + n*m.z);
+            }
+        )HLSL";
+    }
+}}
+#endif

@@ -85,7 +85,7 @@ function onInitScene()
             void main() { gl_Position=mvpMatrix*aPosition; vNormalView=mat3(mvMatrix)*aNormal;
                 vPositionView=(mvMatrix*aPosition).xyz; vTexCoord=aTextCoord; }
         ]]
-        if mbm.get('USE_DIRECTX11') then
+        if mbm.get('USE_DIRECTX11') or mbm.get('USE_DIRECTX9') then
             legacyCode = [[
                 cbuffer Matrices : register(b0) { row_major float4x4 mvpMatrix; row_major float4x4 mvMatrix; };
                 struct Input { float4 position:POSITION; float3 normal:NORMAL; float2 uv:TEXCOORD0; };
@@ -94,6 +94,10 @@ function onInitScene()
                     o.normal=mul(float4(input.normal,0),mvMatrix).xyz;
                     o.view=mul(input.position,mvMatrix).xyz; o.uv=input.uv; return o; }
             ]]
+            if mbm.get('USE_DIRECTX9') then
+                legacyCode = legacyCode:gsub('cbuffer Matrices : register%(b0%) { row_major float4x4 mvpMatrix; row_major float4x4 mvMatrix; };',
+                    'float4x4 mvpMatrix; float4x4 mvMatrix;'):gsub('SV_POSITION','POSITION')
+            end
         end
         assert(mbm.addShader({name='legacy-normal.vs',code=legacyCode}))
         mbm.setLightEnabled('3d',true)

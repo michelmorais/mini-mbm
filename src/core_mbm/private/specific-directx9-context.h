@@ -48,6 +48,7 @@ namespace mbm
 
         IDirect3D9 *pD3D;
         IDirect3DDevice9 *pd3dDevice;
+        bool normalMapUnsupportedReported = false;
         SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;

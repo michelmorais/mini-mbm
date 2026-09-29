@@ -22,6 +22,8 @@
 
 #include <shader.h>
 #include "private/normal-map-upload.h"
+#include "private/normal-map-preparation.h"
+#include "private/normal-map-hlsl9.h"
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
@@ -41,15 +43,60 @@
 
 namespace mbm
 {
-    // Static tangent rendering is pending for this backend. Preserve asset loading.
-    bool normal_map::uploadStatic(BUFFER_GL *, const VEC3 *, const VEC3 *,
-                                 const VEC2 *, const PREPARED &)
+    struct NORMAL_MAP_VERTEX_D3D9
     {
+        VEC3 position, normal;
+        VEC2 uv;
+        normal_map::TANGENT tangent;
+    };
+
+    bool normal_map::uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+                                 const VEC2 *uv, const PREPARED &prepared)
+    {
+        if (prepared.batches.empty()) return true;
+        auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
+        if (!backend || !positions || !normals || !uv) return false;
+        BUFFER_SPECIFIC pending;
+        pending.normalMapSubsets.resize(buffer->totalSubset);
+        auto *device = DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
+        for (const auto &source : prepared.batches)
+        {
+            if (source.subset >= buffer->totalSubset || source.sourceVertices.size() != source.tangents.size())
+                return false;
+            std::vector<NORMAL_MAP_VERTEX_D3D9> vertices(source.sourceVertices.size());
+            for (size_t i = 0; i < vertices.size(); ++i)
+            {
+                const auto index = source.sourceVertices[i];
+                if (index >= buffer->sizeOfArrayVertex) return false;
+                vertices[i] = {positions[index],normals[index],uv[index],source.tangents[i]};
+            }
+            auto &batch = pending.normalMapSubsets[source.subset].batches.emplace_back();
+            batch.vertexCount = static_cast<UINT>(vertices.size());
+            batch.indexCount = static_cast<UINT>(source.indices.size());
+            const UINT vertexBytes = batch.vertexCount*sizeof(NORMAL_MAP_VERTEX_D3D9);
+            const UINT indexBytes = batch.indexCount*sizeof(uint16_t);
+            if (FAILED(device->CreateVertexBuffer(vertexBytes,D3DUSAGE_WRITEONLY,0,D3DPOOL_MANAGED,&batch.vertices,nullptr)) ||
+                FAILED(device->CreateIndexBuffer(indexBytes,D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_MANAGED,&batch.indices,nullptr)))
+                return false;
+            void *data = nullptr;
+            if (FAILED(batch.vertices->Lock(0,0,&data,0))) return false;
+            memcpy(data,vertices.data(),vertexBytes);
+            if (FAILED(batch.vertices->Unlock())) return false;
+            if (FAILED(batch.indices->Lock(0,0,&data,0))) return false;
+            memcpy(data,source.indices.data(),indexBytes);
+            if (FAILED(batch.indices->Unlock())) return false;
+        }
+        backend->releaseNormalMap();
+        backend->normalMapSubsets.swap(pending.normalMapSubsets);
         return true;
     }
 
-    void normal_map::setRenderSettings(BUFFER_GL *, uint32_t, int, float)
+    void normal_map::setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
     {
+        auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
+        if (!backend || subset >= backend->normalMapSubsets.size()) return;
+        backend->normalMapSubsets[subset].greenSign = greenSign;
+        backend->normalMapSubsets[subset].strength = strength;
     }
 
     // Process-lifetime cache of compiled "pure default shader pair" D3D9 shaders (no custom .cfg
@@ -86,9 +133,11 @@ namespace mbm
     static uint64_t makeDefaultProgramCacheKeyD3D9(const FVF_PROVIDE_BY_ENGINE fvf,
                                                     const bool useReservedLightScaffolding,
                                                     const uint32_t skeletalPaletteSize,
-                                                    const SKELETAL_SHADER_METHOD skeletalMethod)
+                                                    const SKELETAL_SHADER_METHOD skeletalMethod,
+                                                    const bool normalMapping)
     {
         return (static_cast<uint64_t>(skeletalMethod) << 56u) |
+               (static_cast<uint64_t>(normalMapping) << 55u) |
                (static_cast<uint64_t>(skeletalPaletteSize) << 8u) |
                (static_cast<uint64_t>(fvf) << 1u) | (useReservedLightScaffolding ? 1u : 0u);
     }
@@ -418,8 +467,20 @@ namespace mbm
         this->release();
     }
 
+    void BUFFER_SPECIFIC::releaseNormalMap()
+    {
+        for (auto &subset : normalMapSubsets)
+            for (auto &batch : subset.batches)
+            {
+                if (batch.vertices) batch.vertices->Release();
+                if (batch.indices) batch.indices->Release();
+            }
+        normalMapSubsets.clear();
+    }
+
     void BUFFER_SPECIFIC::release()
     {
+        releaseNormalMap();
         if (pVertexBuffer)
             pVertexBuffer->Release();
         pVertexBuffer = nullptr;
@@ -657,7 +718,8 @@ namespace mbm
         const DWORD DFVF = d3d_converter.get3d3FVF();
         backendBuffer->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
         
-        const DWORD bufferUsage = isDynamic ? (D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY) : D3DUSAGE_WRITEONLY;
+        // Managed source geometry is readable for Mesh Debug extraction.
+        const DWORD bufferUsage = isDynamic ? (D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY) : 0;
         const D3DPOOL d3dPoll = isDynamic ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED;
         if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
             backendBuffer->sizeStructVertexInBytes  * sizeOfArrayVertex,
@@ -701,7 +763,7 @@ namespace mbm
 
         if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
             backendBuffer->sizeStructVertexInBytes * sizeOfArrayVertex,
-            D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
+            0, // Managed source geometry permits read-only extraction.
             DFVF,//FVF
             D3DPOOL_MANAGED,//local memory
             &backendBuffer->pVertexBuffer,//IDirect3DVertexBuffer9
@@ -728,7 +790,7 @@ namespace mbm
         const UINT sizeIndexBufferInBytes = sizeIndexBuffer * sizeof(uint16_t);
 
         if (FAILED(pd3dDevice->CreateIndexBuffer(sizeIndexBufferInBytes,
-            D3DUSAGE_WRITEONLY,
+            0,
             D3DFMT_INDEX16,
             D3DPOOL_MANAGED,
             &backendBuffer->pIndexBuffer, nullptr)))
@@ -855,6 +917,7 @@ namespace mbm
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if (!backendBuffer || !backendBuffer->pVertexBuffer || backendBuffer->sizeStructVertexInBytes == 0)
             return false;
+        backendBuffer->releaseNormalMap();
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
             const uint32_t vertexStart = vertexStartSubset[i];
@@ -1027,6 +1090,11 @@ namespace mbm
 
     void D3D_PS_VS::release() noexcept
     {
+        if (normalMapDeclaration) normalMapDeclaration->Release();
+        if (zeroTangentBuffer) zeroTangentBuffer->Release();
+        normalMapDeclaration = nullptr;
+        zeroTangentBuffer = nullptr;
+        normalMapSettings = nullptr;
         if (pd3dPixelShader)
         {
             pd3dPixelShader->Release();
@@ -1103,6 +1171,34 @@ namespace mbm
         this->vShader         = nullptr;
     }
 
+    static bool initializeNormalMappingD3D9(D3D_PS_VS *shader)
+    {
+        if (!shader->constantTablePS) return false;
+        D3D_PS_VS resources;
+        auto *device = DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
+        const D3DVERTEXELEMENT9 elements[] = {
+            {0,0,D3DDECLTYPE_FLOAT3,D3DDECLMETHOD_DEFAULT,D3DDECLUSAGE_POSITION,0},
+            {0,12,D3DDECLTYPE_FLOAT3,D3DDECLMETHOD_DEFAULT,D3DDECLUSAGE_NORMAL,0},
+            {0,24,D3DDECLTYPE_FLOAT2,D3DDECLMETHOD_DEFAULT,D3DDECLUSAGE_TEXCOORD,0},
+            {1,0,D3DDECLTYPE_FLOAT4,D3DDECLMETHOD_DEFAULT,D3DDECLUSAGE_TANGENT,0},
+            D3DDECL_END()
+        };
+        if (FAILED(device->CreateVertexDeclaration(elements,&resources.normalMapDeclaration)) ||
+            FAILED(device->CreateVertexBuffer(16,D3DUSAGE_WRITEONLY,0,D3DPOOL_MANAGED,&resources.zeroTangentBuffer,nullptr)))
+            return false;
+        void *data = nullptr;
+        if (FAILED(resources.zeroTangentBuffer->Lock(0,0,&data,0))) return false;
+        memset(data,0,16);
+        if (FAILED(resources.zeroTangentBuffer->Unlock())) return false;
+        shader->normalMapSettings = shader->constantTablePS->GetConstantByName(nullptr,"NormalMapSettings");
+        if (!shader->normalMapSettings) return false;
+        shader->normalMapDeclaration = resources.normalMapDeclaration;
+        shader->zeroTangentBuffer = resources.zeroTangentBuffer;
+        resources.normalMapDeclaration = nullptr;
+        resources.zeroTangentBuffer = nullptr;
+        return true;
+    }
+
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
                                const SKELETAL_SHADER_METHOD skeletalMethod)
@@ -1118,10 +1214,26 @@ namespace mbm
         }
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
-        const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
+        const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault() ||
+            (ptrPshader && ptrPshader->fileName == "lit textured.ps");
+        auto *context = DEVICE::getInstance()->getSpecificContextDevice();
+        D3DCAPS9 caps = {};
+        const bool supportsNormalMapping = SUCCEEDED(context->pd3dDevice->GetDeviceCaps(&caps)) &&
+            caps.VertexShaderVersion >= D3DVS_VERSION(3,0) && caps.PixelShaderVersion >= D3DPS_VERSION(3,0) &&
+            strcmp(getVSVersion(),"vs_3_0") == 0 && strcmp(getPSVersion(),"ps_3_0") == 0;
+        const bool wantsNormalMapping = !ptrVshader && skeletalPaletteSize == 0 && hasNormal && hasUV &&
+            useDefaultVSWhenNoShader() && (ptrPshader || useDefaultPSWhenNoShader()) &&
+            useReservedLightScaffolding && (!ptrPshader || ptrPshader->fileName == "lit textured.ps");
+        const bool usesNormalMapping = wantsNormalMapping && supportsNormalMapping;
+        if (wantsNormalMapping && !supportsNormalMapping && !context->normalMapUnsupportedReported)
+        {
+            INFO_LOG("DirectX9 static normal mapping requires vs_3_0/ps_3_0; retaining geometric-normal lighting");
+            context->normalMapUnsupportedReported = true;
+        }
 
         void *backendShaderSpecific = getBackendShaderSpecific();
         D3D_PS_VS *d3dPsVs = static_cast<D3D_PS_VS *>(backendShaderSpecific);
+        d3dPsVs->release();
         d3dPsVs->skeletalPaletteSize = skeletalPaletteSize;
         d3dPsVs->skeletalMethod = skeletalPaletteSize > 0 ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
 
@@ -1132,7 +1244,7 @@ namespace mbm
         if (this->usesPureDefaultShaderPair())
         {
             const uint64_t key = makeDefaultProgramCacheKeyD3D9(
-                fvf, useReservedLightScaffolding, skeletalPaletteSize, d3dPsVs->skeletalMethod);
+                fvf, useReservedLightScaffolding, skeletalPaletteSize, d3dPsVs->skeletalMethod, usesNormalMapping);
             auto &cache = getDefaultProgramCacheD3D9();
             const auto found = cache.find(key);
             if (found != cache.end())
@@ -1154,7 +1266,7 @@ namespace mbm
                 d3dPsVs->samplerHandle0   = entry.samplerHandle0;
                 d3dPsVs->samplerHandle1   = entry.samplerHandle1;
                 d3dPsVs->samplerHandle2   = entry.samplerHandle2;
-                return true;
+                return !usesNormalMapping || initializeNormalMappingD3D9(d3dPsVs);
             }
         }
 
@@ -1386,6 +1498,7 @@ namespace mbm
             "struct VS_INPUT { float4 position : POSITION;";
         if (hasNormal) defaultCodeVs += " float3 normal : NORMAL;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
+        if (usesNormalMapping) defaultCodeVs += " float4 tangent : TANGENT0;";
         if (skeletalPaletteSize > 0)
             defaultCodeVs += " float4 boneIndices : BLENDINDICES0; float4 boneWeights : BLENDWEIGHT0;";
         defaultCodeVs += " };"
@@ -1394,6 +1507,7 @@ namespace mbm
         if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 normalView : TEXCOORD1;";
         if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD2;";
         else if (hasUV && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD1;";
+        if (usesNormalMapping) defaultCodeVs += "float4 tangentView : TEXCOORD3;";
         defaultCodeVs += " };"
             "VS_OUTPUT main(VS_INPUT input)"
             "{ VS_OUTPUT output;";
@@ -1409,6 +1523,15 @@ namespace mbm
                 ? " output.normalView = mul(float4(skinnedNormal,0),mvMatrix).xyz;"
                 : " output.normalView = mul(float4(input.normal,0),mvMatrix).xyz;";
         if (hasUV && useReservedLightScaffolding) defaultCodeVs += " output.positionView = mul(skinnedPosition, mvMatrix).xyz;";
+        if (usesNormalMapping)
+            defaultCodeVs += R"HLSL(
+                float3x3 m = (float3x3)mvMatrix;
+                float3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
+                float det = dot(m[0],c0);
+                output.tangentView = float4(mul(input.tangent.xyz,m),input.tangent.w*sign(det));
+                output.normalView = abs(det) > 0.00000001
+                    ? mul(input.normal,float3x3(c0,c1,c2))/det : input.normal;
+            )HLSL";
         defaultCodeVs += " return output; }";
 
         constexpr const char* mainFunction = "main";
@@ -1417,8 +1540,30 @@ namespace mbm
         ID3DXBuffer* bufferPS       = nullptr;
         ID3DXBuffer* bufferVS       = nullptr;
         ID3DXBuffer* errorBuffer    = nullptr;
+        struct RELEASE_COMPILE_BUFFERS
+        {
+            ID3DXBuffer *&ps, *&vs, *&errors;
+            ~RELEASE_COMPILE_BUFFERS()
+            {
+                if (ps) ps->Release();
+                if (vs) vs->Release();
+                if (errors) errors->Release();
+            }
+        } releaseCompileBuffers{bufferPS,bufferVS,errorBuffer};
 
-        const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs.c_str();
+        std::string effectivePixelCode = ptrPshader ? this->pShader->getCode() : defaultCodePs;
+        if (usesNormalMapping)
+        {
+            const std::string from = "normalize(normalViewIn)";
+            const auto normalAt = effectivePixelCode.find(from);
+            const auto mainAt = effectivePixelCode.find("float4 main(");
+            if (normalAt == std::string::npos || mainAt == std::string::npos) return false;
+            effectivePixelCode.replace(normalAt,from.size(),"mbmMappedNormal(normalViewIn,tangentViewIn,texCoord)");
+            const auto close = effectivePixelCode.find(')',mainAt);
+            effectivePixelCode.insert(close,", float4 tangentViewIn : TEXCOORD3");
+            effectivePixelCode.insert(mainAt,normal_map::fragmentHlsl9());
+        }
+        const char* codePS = effectivePixelCode.c_str();
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs.c_str();
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);
@@ -1434,26 +1579,21 @@ namespace mbm
         {
             if (FAILED(D3DXCompileShader(codePS, sizeOfCodePS, 0, 0, mainFunction, versionPS, flag, &bufferPS, &errorBuffer, &d3dPsVs->constantTablePS)))
             {
-                if (errorBuffer)
-                {
-                    ERROR_AT(__LINE__, __FILE__, "error on load pixel shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
-                    errorBuffer->Release();
-                    pShader = NULL;
-                    return false;
-                }
+                ERROR_AT(__LINE__, __FILE__, "error on load pixel shader:\n [%s]",
+                         errorBuffer ? static_cast<const char*>(errorBuffer->GetBufferPointer()) : "no compiler diagnostic");
+                pShader = nullptr;
+                return false;
             }
         }
+        if (errorBuffer) { errorBuffer->Release(); errorBuffer = nullptr; }
         if (ptrVshader || (ptrVshader == nullptr && useDefaultVSWhenNoShader()))
         {
             if (FAILED(D3DXCompileShader(codeVS, sizeOfCodeVS, 0, 0, mainFunction, versionVS, flag, &bufferVS, &errorBuffer, &d3dPsVs->constantTableVS)))
             {
-                if (errorBuffer)
-                {
-                    ERROR_AT(__LINE__, __FILE__, "error on load vertex shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
-                    errorBuffer->Release();
-                    pShader = NULL;
-                    return false;
-                }
+                ERROR_AT(__LINE__, __FILE__, "error on load vertex shader:\n [%s]",
+                         errorBuffer ? static_cast<const char*>(errorBuffer->GetBufferPointer()) : "no compiler diagnostic");
+                pShader = nullptr;
+                return false;
             }
         }
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -1472,12 +1612,12 @@ namespace mbm
 
         if (bufferPS && FAILED(pd3dDevice->CreatePixelShader(static_cast<DWORD*>(bufferPS->GetBufferPointer()), &d3dPsVs->pd3dPixelShader)))
         {
-            ERROR_AT(__LINE__, __FILE__, "error on create pixel shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
+            ERROR_AT(__LINE__, __FILE__, "failed to create DirectX9 pixel shader (%s)",versionPS);
             return false;
         }
         if (bufferVS && FAILED(pd3dDevice->CreateVertexShader(static_cast<DWORD*>(bufferVS->GetBufferPointer()), &d3dPsVs->pd3dVertexShader)))
         {
-            ERROR_AT(__LINE__, __FILE__, "error on create vertex shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
+            ERROR_AT(__LINE__, __FILE__, "failed to create DirectX9 vertex shader (%s)",versionVS);
             return false;
         }
         if (d3dPsVs->constantTablePS)
@@ -1556,13 +1696,54 @@ namespace mbm
             if (entry.constantTablePS)  entry.constantTablePS->AddRef();
             if (entry.constantTableVS)  entry.constantTableVS->AddRef();
             const uint64_t key = makeDefaultProgramCacheKeyD3D9(
-                fvf, useReservedLightScaffolding, skeletalPaletteSize, d3dPsVs->skeletalMethod);
+                fvf, useReservedLightScaffolding, skeletalPaletteSize, d3dPsVs->skeletalMethod, usesNormalMapping);
             getDefaultProgramCacheD3D9()[key] = entry;
         }
 
-        return true;
+        return !usesNormalMapping || initializeNormalMappingD3D9(d3dPsVs);
     }
 
+
+    // -1 = device failure, 0 = source draw, 1 = derived batches already drawn.
+    static int drawNormalMappedSubsetD3D9(IDirect3DDevice9 *device, const D3D_PS_VS *shader,
+                                          const BUFFER_GL *buffer, uint32_t subset, bool &usingDerived)
+    {
+        if (!shader->normalMapDeclaration) return 0;
+        const auto *backend = buffer->getBackendBuffer();
+        const BUFFER_SPECIFIC::NORMAL_MAP_SUBSET *data = nullptr;
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        DEVICE::getInstance()->getLightTargetForCurrentRender(target);
+        if (target == LIGHT_TARGET_3D && buffer->getTextureByStage(2,subset) &&
+            subset < backend->normalMapSubsets.size())
+        {
+            const auto &candidate = backend->normalMapSubsets[subset];
+            if (!candidate.batches.empty() && candidate.strength > 0) data = &candidate;
+        }
+        const float strength = data ? data->strength : 0;
+        const float settings[4] = { data ? static_cast<float>(data->greenSign) : 1,
+            strength > 1 ? 1 : strength, strength > 1 ? 1/strength : 1, data ? 1.0f : 0.0f };
+        if (FAILED(shader->constantTablePS->SetFloatArray(device,shader->normalMapSettings,settings,4))) return -1;
+        if (!data)
+        {
+            if (usingDerived)
+            {
+                if (FAILED(device->SetStreamSource(0,backend->pVertexBuffer,0,backend->sizeStructVertexInBytes)) ||
+                    FAILED(device->SetStreamSource(1,shader->zeroTangentBuffer,0,0)) ||
+                    FAILED(device->SetIndices(backend->pIndexBuffer))) return -1;
+                usingDerived = false;
+            }
+            return 0;
+        }
+        for (const auto &batch : data->batches)
+        {
+            if (FAILED(device->SetStreamSource(0,batch.vertices,0,sizeof(NORMAL_MAP_VERTEX_D3D9))) ||
+                FAILED(device->SetStreamSource(1,batch.vertices,offsetof(NORMAL_MAP_VERTEX_D3D9,tangent),sizeof(NORMAL_MAP_VERTEX_D3D9))) ||
+                FAILED(device->SetIndices(batch.indices)) ||
+                FAILED(device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,batch.vertexCount,0,batch.indexCount/3))) return -1;
+        }
+        usingDerived = true;
+        return 1;
+    }
 
     bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
@@ -1588,6 +1769,9 @@ namespace mbm
 
         void *backendShaderSpecific = getBackendShaderSpecific();
         D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
+        bool usingNormalMapBuffers = false;
+        if (d3dPsVs->normalMapDeclaration &&
+            FAILED(pd3dDevice->SetStreamSource(1,d3dPsVs->zeroTangentBuffer,0,0))) return false;
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -1683,7 +1867,8 @@ namespace mbm
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
             const bool skeletal = d3dPsVs->skeletalPaletteSize > 0;
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(d3dPsVs->normalMapDeclaration ? d3dPsVs->normalMapDeclaration :
+                device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
@@ -1723,6 +1908,10 @@ namespace mbm
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_MASK);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
+
+                const int normalDraw = drawNormalMappedSubsetD3D9(pd3dDevice,d3dPsVs,pBufferId,i,usingNormalMapBuffers);
+                if (normalDraw < 0) return false;
+                if (normalDraw > 0) continue;
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
@@ -1799,7 +1988,8 @@ namespace mbm
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
             const bool skeletal = d3dPsVs->skeletalPaletteSize > 0;
-            pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal));
+            pd3dDevice->SetVertexDeclaration(d3dPsVs->normalMapDeclaration ? d3dPsVs->normalMapDeclaration :
+                device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal));
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
                 backendBuffer->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
                 0,		//Posicao Em Bytes Do inicio  Do Stream Atual
@@ -1827,6 +2017,10 @@ namespace mbm
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
+                const int normalDraw = drawNormalMappedSubsetD3D9(pd3dDevice,d3dPsVs,pBufferId,i,usingNormalMapBuffers);
+                if (normalDraw < 0) return false;
+                if (normalDraw > 0) continue;
+
                 switch (pBufferId->mode_draw)
                 {
                     case util::MODE_DRAW_POINTS:
@@ -1853,8 +2047,8 @@ namespace mbm
                     break;
                     case util::MODE_DRAW_TRIANGLES:
                     {
-                        const UINT countTriangle = pBufferId->vertexCountVB[i] - 2;
-                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, pBufferId->vertexStartVB[i], countTriangle)))
+                        const UINT countTriangle = pBufferId->vertexCountVB[i] / 3;
+                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, pBufferId->vertexStartVB[i], countTriangle)))
                             return false;
                     };
                     break;
