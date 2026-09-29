@@ -51,8 +51,9 @@ mutation follows the shared-asset material contract; extraction and editing
 preserve associations, and merging incompatible settings fails without mutation.
 
 `normal-map-upload.h` declares backend-neutral main-thread upload and settings
-hooks. Static OpenGL ES, DirectX 9, DirectX 11 and Metal rendering keep derived GPU buffers and draw settings in
-private `BUFFER_SPECIFIC::normalMapSubsets`. Upload occurs at asset creation for
+hooks. Static OpenGL ES, DirectX 9 SM3, DirectX 11 and Metal rendering keep
+derived GPU buffers and draw settings in private `BUFFER_SPECIFIC::normalMapSubsets`.
+Upload occurs at asset creation for
 prepared static frames, including those without an assigned normal texture;
 rendering uses the tangent batches only when a normal texture and the supported
 lighting shader are active and strength is nonzero. Buffer release frees this
@@ -64,8 +65,9 @@ readback. DirectX 9 likewise owns managed derived vertex/index buffers per subse
 `normal-map-hlsl9.h` supplies its SM3 fragment helper. Its private shader owns the
 tangent declaration and constant zero tangent buffer. Source managed buffers are
 readable for static authoring extraction; derived buffers stay write-only. Dynamic
-write-only source extraction is explicitly rejected. Metal owns shared-storage derived vertex, tangent and index buffers in the private
-backend structure, publishing them only after all allocations succeed. Source
+write-only source extraction is explicitly rejected. Metal owns shared-storage
+derived vertex, tangent and index buffers in the private backend structure,
+publishing them only after all allocations succeed. Source
 buffers remain independent for authoring readback. `normal-map-metal.h` supplies
 MSL basis reconstruction; tangent reads use vertex buffer 20 and settings use
 vertex/fragment buffer 21, outside lighting 4-18 and skeletal palette 19.
@@ -78,7 +80,8 @@ collects canonical influences in each tangent batch's source-vertex order,
 retaining skeleton identity, frame and bone palette. Its transient result is
 published atomically without changing source weights or adding a serialized
 section. Render backends do not yet consume these remapped batches for skeletal
-normal mapping.
+normal mapping. The follow-up contract is tracked in
+[Future Features](future-features.md#normal-mapping).
 
 `MESH_MBM_DEBUG::hasNormalMapTangents()` exposes only constant-time
 presence of retained preparation, without signature validation or regeneration.

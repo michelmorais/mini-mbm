@@ -503,12 +503,12 @@ outside the positive uint32 range raise a Lua error without mutation.
 
 These are shared asset properties, like material textures: changing them affects
 instances using that cached asset. They neither assign a normal texture nor modify
-texture pixels or tangents. Since 7.318, static OpenGL ES 3D lighting consumes
-these properties when a prepared tangent basis and normal texture are available.
-DirectX 11 consumes these properties for static 3D lighting since 7.320.
-DirectX 9 supports this static path with `vs_3_0`/`ps_3_0` since 7.321.
-Metal supports static 3D normal mapping since 7.323.
-Strength zero disables the detail. Skinned normal mapping remains pending; these properties do not change the existing 2dw equations.
+texture pixels or tangents. Static 3D lighting on OpenGL ES, DirectX 11,
+DirectX 9 (vs_3_0/ps_3_0) and Metal consumes these properties when a prepared
+tangent basis and normal texture are available. Strength zero disables the detail.
+Skinned meshes do not consume the prepared tangent basis. These properties do not
+change the existing 2dw equations. See [normal mapping](light.md#material-texture-slots)
+for rendering requirements and [future work](future-features.md#normal-mapping).
 
 ### 6.3 Size & Bounds
 
@@ -2906,14 +2906,14 @@ saving with this flag; solid `#RRGGBBAA` references remain unchanged.
 Mesh Debug saving also writes optional prepared tangent sections for subsets with
 a normal-map texture and usable normals/UVs. Valid loaded preparation is preserved;
 changed geometry is prepared again before saving. Assets without a normal map do
-not require tangents. The OpenGL ES, DirectX 11 and DirectX 9 3D shaders consume
-prepared tangent data for supported normal-mapped meshes.
+not require tangents. The OpenGL ES, DirectX 11, DirectX 9 SM3 and Metal 3D shaders consume
+prepared tangent data for static normal-mapped meshes with supported lighting shaders.
 See `docs/mesh-v11-format.md`, `SECTION_NORMAL_MAP_TANGENTS`.
 
 ### Mesh Debug tangent preparation
 
 `meshD:hasNormalMapTangents()` returns a boolean indicating whether the loaded
-authoring mesh retains prepared tangent data for at least one frame/subset (7.322).
+authoring mesh retains prepared tangent data for at least one frame/subset.
 This constant-time, read-only query does not prepare tangents or validate the
 geometry signature; retained data may be stale after geometry edits. Mesh Debug
 uses it in its Mesh Info table, including unsaved preparation.
@@ -2979,8 +2979,8 @@ in defaults/region overrides. The editor exposes it with the other properties,
 including project save/reload and Undo/Redo. The shared build pipeline prepares all
 subsets after simplification, for preview and export. Preparation runs on a build or
 explicit user action, never continuously while an editor is idle. Preparation alone
-does not assign a normal texture. Static OpenGL ES lit rendering consumes the
-prepared basis when a normal texture is assigned (7.318).
+does not assign a normal texture. Static lit rendering on OpenGL ES, DirectX 9 SM3,
+DirectX 11 and Metal consumes the prepared basis when a normal texture is assigned.
 
 ### Mesh Debug normal-map settings
 

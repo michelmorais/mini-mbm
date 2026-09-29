@@ -1,7 +1,6 @@
 # Real-Time Skeletal Animation and Editor
 
 Status: **Implemented and validated on OpenGL ES, DirectX 9, DirectX 11, and Metal**
-Last verified: **2026-08-21**
 
 ## 1. Scope
 
@@ -19,13 +18,15 @@ This system is distinct from:
 The Skeletal Animation Editor authors, inspects, repairs, and previews the same canonical data and
 runtime deformation paths used by a game.
 
-Normal-map preparation has a private CPU influence-remapping helper (7.317).
-For each prepared tangent batch, `normal_map::remapSkinWeights` duplicates the
-canonical source influences through `sourceVertices`, preserving palette IDs and
-the canonical frame association (currently frame 0). Source type-42 weights remain
-unchanged. CPU LBS/DQS and GPU attribute-preparation tests verify this association
-at mirrored seams; this does not yet enable skinned normal mapping or tangent
-transformation in the render shaders.
+Normal mapping is currently a static-mesh capability. Skeletal meshes continue to
+use their deformed geometric normals for built-in 3D lighting; prepared normal-map
+tangents are not uploaded or transformed by the skeletal render path.
+
+The private CPU helper `normal_map::remapSkinWeights` maps canonical influences
+through each prepared batch's `sourceVertices`, preserving palette IDs and the
+canonical frame association (frame 0). Source type-42 weights remain unchanged.
+This helper does not itself enable normal mapping in LBS/DQS. The proposed
+integration is tracked in [Future Features](future-features.md#normal-mapping).
 
 ## 2. Canonical Asset Data
 
@@ -43,7 +44,7 @@ inverse-bind matrices are derived internally. Multiple `parentIndex = -1` roots 
 independent hierarchies.
 
 The complete byte layout and validation rules are documented in
-[Mesh V11 format](mesh-v11-format.md#6h-canonical-skeletal-runtime-persistence-design-and-implementation-status).
+[Mesh V11 format](mesh-v11-format.md#6h-canonical-skeletal-runtime-persistence).
 
 ## 3. Pose Evaluation and Skinning
 
