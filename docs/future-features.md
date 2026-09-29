@@ -62,11 +62,14 @@ Static 3D normal mapping is implemented in OpenGL ES, DirectX 9 SM3, DirectX 11
 and Metal. The work below extends that capability; it is not a condition for the
 static delivery or a claim that these paths already work.
 
-### Investigate overhead when normal mapping is unused
+### Build-time removal of unused normal mapping
 
-This is a performance concern to investigate, not a measured regression or an
-approved implementation. The lightweight goal includes assets and applications
-that never use normal maps.
+The selected approach is a default-enabled `USE_NORMAL_MAPPING_3D` build option,
+combined with an audit of shader specialization using the existing
+`SUPPORTED_MAX_LIGHTS` build setting. Scope and acceptance criteria are in the
+[implementation plan](normal-mapping-build-plan.md). Implementation is pending;
+this is not a measured regression. The lightweight goal includes assets and
+applications that never use normal maps.
 
 Without a requested basis, preparation skips MikkTSpace and does not create
 derived geometry buffers. However, eligible static lighting shaders include
@@ -76,11 +79,12 @@ The disabled fragment path returns the geometric normal before sampling the map;
 this does not establish zero CPU/GPU overhead. Prepared assets without a texture
 also retain derived data and GPU allocations.
 
-Compare these options before choosing a design:
+The build option is selected for this delivery; the other options remain separate
+follow-up work:
 
 | Option | Potential benefit | Tradeoff / limit |
 |---|---|---|
-| Engine build define, e.g. `USE_NORMAL_MAPPING_3D` (proposed name only) | Compile out 3D normal-map rendering integration for applications that do not use it | Requires a separate engine build; enabling the feature still leaves unused-path costs in mixed scenes |
+| Engine build define `USE_NORMAL_MAPPING_3D` (selected; implementation pending) | Compile out 3D normal-map rendering integration for applications that do not use it | Requires a separate engine build; enabling the feature still leaves unused-path costs in mixed scenes |
 | Shader compile define / separate geometric and normal-mapped variants | Omit tangent inputs and calculations from shaders used by materials without the effect | Requires matching vertex layouts, variant/cache keys and switching when textures or basis availability change; does not by itself remove CPU checks or allocations |
 | Lazy derived GPU resources | Avoid upload/memory cost until a prepared asset actually uses a map | Introduces first-use work and resource lifetime/synchronization decisions |
 
@@ -91,8 +95,8 @@ backend/private interfaces rather than scattering backend conditionals through
 `mesh-manager.cpp`. The build option and per-material shader variants can coexist;
 they solve different scopes of unused work.
 
-If a build option is selected, define its default, CMake/Visual Studio/platform
-wiring and the disabled contract before implementation. Distinguish disabling
+Follow the linked plan for defaults, CMake/Visual Studio/platform
+wiring and the disabled contract. Distinguish disabling
 3D rendering from removing CPU authoring, MikkTSpace or MSH section parsing.
 Specify asset loading, validation, preservation on save, Lua/editor capability
 reporting and geometric-normal fallback for sections 14/15. Preserve existing
@@ -104,8 +108,8 @@ binary size, load/compile time, shader/cache counts, CPU/GPU memory, draw CPU ti
 and GPU frame time across GLES, DX9 SM3, DX11 and Metal. Inspect compiled shader
 resource/instruction usage instead of assuming the driver removes all disabled
 work. Include late assignment/removal with a retained basis and shared assets.
-Choose the solution from measured benefit versus code/cache/build complexity;
-no define or new shader variant is implemented by this investigation entry.
+Record measured benefit and code/build costs against the linked plan;
+no define or new shader variant is implemented by this planning entry.
 
 ### Skeletal deformation and dynamic geometry
 
