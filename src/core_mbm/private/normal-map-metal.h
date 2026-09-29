@@ -16,42 +16,34 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_METAL)
-#ifndef METAL_BUFFER_SPECIFIC_H
-#define METAL_BUFFER_SPECIFIC_H
 
-#include "specific-metal-context.h"
-#include <vector>
 
-namespace mbm
+#ifndef NORMAL_MAP_METAL_H
+#define NORMAL_MAP_METAL_H
+namespace mbm { namespace normal_map
 {
-    struct BUFFER_SPECIFIC
+    inline const char *functionsMetal()
     {
-        struct NORMAL_BATCH
-        {
-            id<MTLBuffer> vertices = nil;
-            id<MTLBuffer> tangents = nil;
-            id<MTLBuffer> indices = nil;
-            NSUInteger indexCount = 0;
-        };
-        struct NORMAL_SUBSET
-        {
-            std::vector<NORMAL_BATCH> batches;
-            int greenSign = 1;
-            float strength = 1.0f;
-        };
-        std::vector<NORMAL_SUBSET> normalMapSubsets;
-        id<MTLBuffer> vertexBuffer = nil;
-        id<MTLBuffer> indexBuffer  = nil;
-        id<MTLBuffer> skinVertexBuffer = nil;
-        NSUInteger    vertexCount  = 0;
-        NSUInteger    indexCount   = 0;
-
-        BUFFER_SPECIFIC() noexcept = default;
-        ~BUFFER_SPECIFIC();
-        void release();
-    };
+        return R"MSL(
+float3 mbmSafeNormal(float3 v) {
+    float n=dot(v,v);
+    return n>0.00000001f ? v*rsqrt(n) : float3(0,0,1);
 }
-
-#endif // METAL_BUFFER_SPECIFIC_H
-#endif // USE_METAL
+float3 mbmMappedNormal(float3 normalView, float4 tangentView, float2 uv,
+                      texture2d<float> normalTexture, sampler samp, float4 settings) {
+    float3 n=mbmSafeNormal(normalView);
+    if (settings.w==0 || abs(tangentView.w)<0.5f) return n;
+    float3 t=tangentView.xyz-n*dot(n,tangentView.xyz);
+    if (dot(t,t)<0.00000001f) return n;
+    t=normalize(t);
+    float3 b=cross(n,t)*sign(tangentView.w);
+    float3 m=normalTexture.sample(samp,uv).xyz*2-1;
+    m.xy*=settings.y;
+    m.y*=settings.x;
+    m.z*=settings.z;
+    return mbmSafeNormal(t*m.x+b*m.y+n*m.z);
+}
+)MSL";
+    }
+}}
+#endif

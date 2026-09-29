@@ -507,8 +507,8 @@ texture pixels or tangents. Since 7.318, static OpenGL ES 3D lighting consumes
 these properties when a prepared tangent basis and normal texture are available.
 DirectX 11 consumes these properties for static 3D lighting since 7.320.
 DirectX 9 supports this static path with `vs_3_0`/`ps_3_0` since 7.321.
-Strength zero disables the detail. Metal and skinned normal mapping
-remain pending; these properties do not change the existing 2dw equations.
+Metal supports static 3D normal mapping since 7.323.
+Strength zero disables the detail. Skinned normal mapping remains pending; these properties do not change the existing 2dw equations.
 
 ### 6.3 Size & Bounds
 

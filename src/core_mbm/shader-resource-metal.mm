@@ -34,6 +34,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant float4 &AmbientColor      [[buffer(6)]],
     constant float3 &LightDirectionView [[buffer(7)]],
     constant float4 *LightColor        [[buffer(8)]],
+    constant float4 &DirectionalColor  [[buffer(18)]],
     constant float4 &MaterialDiffuse   [[buffer(9)]],
     constant float4 &MaterialAmbient   [[buffer(10)]],
     constant float4 &MaterialSpecular  [[buffer(11)]],
@@ -43,7 +44,11 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant float3 *LightPositionView [[buffer(15)]],
     constant float  *LightRadius       [[buffer(16)]],
     constant int    &LightCount        [[buffer(5)]],
-    constant int    &HasNormalMap      [[buffer(17)]])
+    constant int    &HasNormalMap      [[buffer(17)]]
+#if MBM_STATIC_NORMAL_MAP
+    , constant float4 &NormalMapSettings [[buffer(21)]]
+#endif
+    )
 {
     float4 texColor = TextureDiffuse.sample(samp, in.uv);
     if (LightEnabled == 0 || LightMode == 0)
@@ -53,17 +58,21 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float3 specular    = float3(0.0f);
     if (LightMode == 1)
     {
-        float3 normalView  = normalize(in.nor);
+#if MBM_STATIC_NORMAL_MAP
+        float3 normalView = mbmMappedNormal(in.nor, in.tangentView, in.uv, TextureNormal, samp, NormalMapSettings);
+#else
+        float3 normalView = normalize(in.nor);
+#endif
         float3 viewDir     = normalize(-in.positionView);
         float3 lightTravel = normalize(LightDirectionView);
         float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
-        light += LightColor[0].rgb * diffuse;
+        light += DirectionalColor.rgb * diffuse;
         if (diffuse > 0.0f && MaterialPower > 0.0f)
         {
             float3 lightDir = normalize(-lightTravel);
             float3 halfDir  = normalize(lightDir + viewDir);
             float  spec     = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);
-            specular       += LightColor[0].rgb * MaterialSpecular.rgb * spec;
+            specular       += DirectionalColor.rgb * MaterialSpecular.rgb * spec;
         }
     }
     else

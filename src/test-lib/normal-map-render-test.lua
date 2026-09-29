@@ -99,6 +99,19 @@ function onInitScene()
                     'float4x4 mvpMatrix; float4x4 mvMatrix;'):gsub('SV_POSITION','POSITION')
             end
         end
+        if mbm.get('USE_METAL') then
+            legacyCode = [=[
+                #include <metal_stdlib>
+                using namespace metal;
+                struct Uniforms { float4x4 mvpMatrix; float4x4 mvMatrix; float4 color; };
+                struct VIn { float3 pos [[attribute(0)]]; float3 nor [[attribute(1)]]; float2 uv [[attribute(2)]]; };
+                struct VOut { float4 pos [[position]]; float3 nor; float2 uv; float3 positionView; };
+                vertex VOut vert_main(VIn in [[stage_in]], constant Uniforms& u [[buffer(1)]]) {
+                    VOut o; o.pos=u.mvpMatrix*float4(in.pos,1); o.nor=(u.mvMatrix*float4(in.nor,0)).xyz;
+                    o.positionView=(u.mvMatrix*float4(in.pos,1)).xyz; o.uv=in.uv; return o;
+                }
+            ]=]
+        end
         assert(mbm.addShader({name='legacy-normal.vs',code=legacyCode}))
         mbm.setLightEnabled('3d',true)
         mbm.setAmbientLight('3d',0.05,0.05,0.05)

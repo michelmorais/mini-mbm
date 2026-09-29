@@ -489,7 +489,7 @@ static int runTestLib(int argc, char **argv
         if (argc == 2 && std::strcmp(argv[1],"--directx9-normal-map-shader-test") == 0)
             return runDirectX9NormalMapShaderTests();
 #endif
-#if defined(USE_DIRECTX11) || defined(USE_DIRECTX9)
+#if defined(USE_DIRECTX11) || defined(USE_DIRECTX9) || defined(USE_METAL)
         if (std::getenv("MBM_NORMAL_MAP_TEST_LIGHTING"))
         {
             mbm::setLightEnabled(mbm::LIGHT_TARGET_3D, true);

@@ -70,7 +70,7 @@ namespace mbm
 
             const uint16_t* metalIdx =
                 static_cast<const uint16_t*>(backendBuffer->indexBuffer.contents);
-            if (!metalIdx)
+            if (!metalIdx || static_cast<size_t>(headerFrame->sizeIndexBuffer) * sizeof(uint16_t) > backendBuffer->indexBuffer.length)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__,
                     "Metal index buffer has no CPU contents [%s]",
                     meshMemory->getFilenameMesh());
@@ -79,29 +79,19 @@ namespace mbm
             memcpy(pBuffer->indexBuffer, metalIdx,
                    (size_t)headerFrame->sizeIndexBuffer * sizeof(uint16_t));
 
-            uint16_t accumulated = 0;
             const uint32_t totalSubsets = pBufferMesh->getTotalSubsets();
             for (uint32_t i = 0; i < totalSubsets; ++i)
             {
-                auto* pSubset = new util::SUBSET_DEBUG();
+                auto *pSubset = new util::SUBSET_DEBUG();
                 pBuffer->subset.push_back(pSubset);
                 pSubset->indexStart = pGl->indexStartIB[i];
                 pSubset->indexCount = pGl->indexCountIB[i];
-
-                uint16_t maxIdx = 0;
-                for (int j = 0; j < pSubset->indexCount; ++j)
-                    maxIdx = std::max(pBuffer->indexBuffer[pSubset->indexStart + j], maxIdx);
-
-                pSubset->vertexCount = (int)(maxIdx + 1);
-                pSubset->vertexStart = (int)accumulated;
-                accumulated += (uint16_t)pSubset->vertexCount;
-
                 const util::SUBSET *runtimeSubset = pBufferMesh->getSubset(i);
-                if (runtimeSubset && runtimeSubset->texture)
-                    pSubset->texture =
-                        runtimeSubset->texture->getFileNameTexture();
+                pSubset->vertexStart = runtimeSubset->vertexStart;
+                pSubset->vertexCount = runtimeSubset->vertexCount;
+                pSubset->texture = runtimeSubset->texture ? runtimeSubset->texture->getFileNameTexture() : "default";
             }
-            headerFrame->sizeVertexBuffer = (int)accumulated;
+            headerFrame->sizeVertexBuffer = static_cast<int>(pGl->sizeOfArrayVertex);
             pBuffer->position = new float[(size_t)headerFrame->sizeVertexBuffer * 3];
             pBuffer->normal   = hasNormals
                 ? new float[(size_t)headerFrame->sizeVertexBuffer * 3] : nullptr;
@@ -112,6 +102,16 @@ namespace mbm
         // ------------------------------------------------------------------
         else if (strcmp(headerFrame->typeBuffer, "VB") == 0)
         {
+            headerFrame->sizeVertexBuffer = static_cast<int>(pGl->sizeOfArrayVertex);
+            for (uint32_t i = 0; i < pBufferMesh->getTotalSubsets(); ++i)
+            {
+                const util::SUBSET *runtimeSubset = pBufferMesh->getSubset(i);
+                auto *subset = new util::SUBSET_DEBUG();
+                subset->vertexStart = runtimeSubset->vertexStart;
+                subset->vertexCount = runtimeSubset->vertexCount;
+                subset->texture = runtimeSubset->texture ? runtimeSubset->texture->getFileNameTexture() : "default";
+                pBuffer->subset.push_back(subset);
+            }
             pBuffer->position = new float[(size_t)headerFrame->sizeVertexBuffer * 3];
             pBuffer->normal   = hasNormals
                 ? new float[(size_t)headerFrame->sizeVertexBuffer * 3] : nullptr;
@@ -177,6 +177,8 @@ namespace mbm
                 default:                                     stride = 12; break;
             }
 
+            if (static_cast<size_t>(headerFrame->sizeVertexBuffer) * stride > backendBuffer->vertexBuffer.length)
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Metal source vertex buffer is truncated");
             const int n = headerFrame->sizeVertexBuffer;
             for (int vi = 0; vi < n; ++vi)
             {

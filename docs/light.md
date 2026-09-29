@@ -721,14 +721,14 @@ persists these independently of normal textures and tangent preparation; changin
 them neither assigns a texture nor alters its pixels or regenerates tangents.
 Since 7.318, these properties affect static 3D normal mapping on OpenGL ES when
 a prepared tangent batch and a normal texture are available. DirectX 11 supports
-the same static path since 7.320, and DirectX 9 with Shader Model 3.0 since 7.321. Metal and
-skinned normal mapping remain pending. See [Lua API](lua-api.md#normal-map-material-settings) and
+the same static path since 7.320, and DirectX 9 with Shader Model 3.0 since 7.321. Metal supports this static path since 7.323;
+skinned normal mapping remains pending. See [Lua API](lua-api.md#normal-map-material-settings) and
 [MSH format](mesh-v11-format.md#optional-section_normal_map_materials-15-section-version-1).
 
-OpenGL ES (7.318), DirectX 11 (7.320) and DirectX 9 SM3 (7.321) static 3D paths:
+OpenGL ES (7.318), DirectX 11 (7.320), DirectX 9 SM3 (7.321) and Metal (7.323) static 3D paths:
 
 - Loaded optional tangent batches are uploaded once into private interleaved
-  position/normal/UV/tangent buffers and local 16-bit index buffers. Authoring
+  position/normal/UV buffers, tangents (interleaved or separate) and local 16-bit index buffers. Authoring
   geometry and extraction remain unchanged. An asset with a normal map but no
   persisted basis uses the CPU preparation performed during loading.
 - Generated lit shaders and `lit textured.ps` with the generated vertex shader
@@ -737,8 +737,8 @@ OpenGL ES (7.318), DirectX 11 (7.320) and DirectX 9 SM3 (7.321) static 3D paths:
   and determinant sign handles reflected transforms. Singular transforms and
   unusable bases fall back to a finite geometric normal.
 - The mapped normal drives diffuse and specular lighting. Generated lighting
-  combines directional and selected point lights; the GLES reserved textured resource
-  retains its directional-only 3D model, now using `DirectionalColor` instead of
+  combines directional and selected point lights; the GLES and Metal reserved textured resources
+  retain their directional-only 3D model, now using `DirectionalColor` instead of
   the first point-light array entry. Source green convention and strength are
   uniforms; no texture or tangent regeneration is needed to change them.
   DirectX 9 and DirectX 11 use directional and selected point lights in both shader paths.
@@ -752,13 +752,22 @@ OpenGL ES (7.318), DirectX 11 (7.320) and DirectX 9 SM3 (7.321) static 3D paths:
   regeneration after arbitrary edits and late assignment to an asset loaded
   without any prepared basis remain future work. Skeletal assets do not upload
   these static derived buffers.
-- Four active vertex attributes suffice for the static path; skinning variants
+- Four active vertex attributes suffice for the GLES/DirectX static paths; skinning variants
   do not consume the tangent attribute yet. Existing program-cache keys already
   include FVF, lighting and skinning flags that determine these generated inputs.
   DirectX 11 keeps source vertex layouts unchanged, binds derived tangents at input
   slot 2, and supplies a zero tangent with stride zero for source draws. Reserved
   normal-map constants use pixel constant-buffer slot 3. Both shaders retain
   Shader Model 4.0; no profile upgrade is required.
+
+Metal keeps the source vertex layout and reads prepared tangents by vertex ID from
+vertex buffer slot 20. Normal-map settings occupy slot 21 in both vertex and fragment
+stages; lighting slots 4-18 and skeletal palette slot 19 remain separate. Disabled
+source draws bind a zero tangent and disabled settings without reading the tangent
+array. Private shared-storage buffers are published after the complete upload;
+source extraction preserves original IB/VB subset ranges and unused vertices.
+The default program-cache key already includes the FVF, lighting and skinning flags
+that determine whether this generated variant uses normal mapping.
 
 DirectX 9 selects its effective shader profiles from device capabilities during
 initialization; `ps_2_0`/`vs_2_0` are initial values, not a forced runtime limit.
