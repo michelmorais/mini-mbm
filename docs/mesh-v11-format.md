@@ -80,6 +80,8 @@ enum SECTION_TYPE : uint16_t
     SECTION_FRAME_STATIC       = 10,  // repeated: one per frame, in order
     SECTION_ARTICULATED_PARTS  = 12,  // optional rigid-part identities, pivots, and hierarchy metadata
     SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
+    SECTION_NORMAL_MAP_TANGENTS = 14, // optional prepared tangent batches, one section per frame
+    SECTION_NORMAL_MAP_MATERIALS = 15, // optional per-frame/subset convention and strength
     SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / cube-complex / triangle bounding volumes
     SECTION_DETAIL_FONT        = 21,
     SECTION_DETAIL_PARTICLE    = 22,
@@ -223,6 +225,113 @@ struct TEXTURE_REF_V11
 
 `mbm::TEXTURE_ROLE` is reused by value, not re-encoded. This is the one piece of this format that
 reaches into the runtime's `shader.h` — one enum, one definition, no parallel per-format copy.
+
+### Optional `SECTION_NORMAL_MAP_TANGENTS` (14), section version 1
+
+This optional section stores CPU-prepared normal-map geometry references without
+changing `SECTION_FRAME_STATIC` or the author's vertex/index arrays. At most one
+section may reference each zero-based frame index. Section order is independent
+of the referenced frame's position in the file. Absence is valid.
+
+The payload is written field-by-field, little endian:
+
+```text
+uint32 frameIndex
+uint32 preparationRevision = 1
+uint64 sourceSignature
+uint32 unusableTriangleCount
+uint32 batchCount                 // nonzero
+repeat batchCount:
+    uint32 subsetIndex            // zero-based; nondecreasing across batches
+    uint32 vertexCount            // 1..65536
+    uint32 indexCount             // nonzero, divisible by 3
+    repeat vertexCount:
+        uint32 sourceVertexIndex  // index into the original frame
+        float32 tangentX, tangentY, tangentZ, tangentSign
+    repeat indexCount:
+        uint16 batchLocalIndex
+```
+
+The fixed payload prefix is 24 bytes. Each batch has a 12-byte prefix, 20 bytes
+per vertex and two bytes per local index. A subset may span multiple batches to
+stay within the 16-bit index limit. Triangles retain source draw order; strips and
+fans are expanded with their winding preserved. Positions, normals, UVs and skin
+influences remain in their existing source records; the source-vertex mapping
+allows their later transfer to render buffers without changing authoring indices.
+
+Tangents must be finite and approximately unit length (squared-length tolerance
+0.002), orthogonal to their normalized source normal within 0.002, and have sign
+`+1` or `-1`. The sole disabled-basis representation is `(0,0,0,0)` and must cover
+all three corners of its triangle. `unusableTriangleCount` must equal the number
+of these triangles. Every prepared vertex must be referenced. Batch triangles
+must cover exactly the requested source subsets and reference the same source
+corners in the same order.
+
+`sourceSignature` is FNV-1a 64-bit (offset 14695981039346656037, multiplier
+1099511628211) over little-endian uint32 scalar words: preparation revision;
+position count and XYZ float bits; normal count and XYZ float bits; UV count and
+XY float bits; subset count; then each subset's topology (`0` triangles, `1` strip,
+`2` fan), requested flag (0/1), source-index count and source indices. Unrequested
+subsets have zero source-index count. The resolved UVs are used, including UVs
+shared from frame zero. The signature detects source changes; the section CRC and
+structural checks remain independently required. This is not an authenticity hash.
+
+Both runtime and authoring readers reject duplicates, unsupported revisions,
+non-finite source data, bad lengths/references, signature mismatches and trailing
+bytes. Payload lengths are checked before allocating batch arrays. Runtime parsing
+and validation also run on the asynchronous CPU worker; no graphics context is
+needed. Valid stored tangents are retained without calling MikkTSpace.
+
+`saveV11` prepares subsets with a nonempty normal-map slot. Previously prepared
+subsets may remain prepared after removing the map. Without a map or retained
+preparation, no tangent section is emitted. Missing normals/UVs and point/line
+topologies do not emit a surface basis. Saving reuses validated preparation and
+regenerates it when source data changes; runtime loading generates missing bases
+only for materials that need them. The section can use the usual NONE/DEFLATE
+envelope compression. Material properties are stored separately in section 15;
+3D shader consumption remains pending.
+
+Explicit authoring preparation (`MESH_MBM_DEBUG::prepareNormalMap`, C++/Lua) can
+retain a prepared subset without a normal texture. Its preserve/generate/import
+policies publish the same section-14 representation; there is no additional binary
+layout for the policy. Imported data is provided per expanded triangle corner,
+validated, split/remapped privately and serialized exactly like generated data.
+A successfully prepared no-map subset is retained by subsequent save/load. This
+does not make tangents mandatory for other subsets or assets.
+
+### Optional `SECTION_NORMAL_MAP_MATERIALS` (15), section version 1
+
+At most one section per asset. It is independent of tangent sections and texture
+slots. All values are little-endian, serialized field by field, without padding:
+
+| Field | Type | Meaning |
+|---|---|---|
+| entryCount | u32 | Positive count, bounded by the payload size |
+| frameIndex | u32 | Zero-based source frame index, repeated per entry |
+| subsetIndex | u32 | Zero-based source subset index |
+| sourceConvention | u32 | 0 = +Y; 1 = -Y; other values rejected |
+| strength | f32 | Finite and non-negative; 0 = no detail, 1 = original strength |
+
+Size is exactly `4 + 16 * entryCount` bytes. Duplicate sections/keys, unsupported
+versions, out-of-range references, invalid values, truncation and trailing bytes
+are rejected. References are checked after all frame sections have been read,
+so section ordering does not affect validity. NONE/DEFLATE compression and CRC
+validation use the ordinary section envelope. The MSH format remains version 11.
+
+Missing entries mean +Y and strength 1, without assigning any texture or requiring
+tangents. New assets using defaults emit no section; setting a subset back to both
+defaults removes its explicit entry. Explicit default records in input files are
+valid. Non-default settings can be saved even when no normal texture is assigned.
+Removing a texture does not discard settings. Frame/subset copying, removal and
+reordering preserve associations; merging subsets with different settings is rejected.
+
+The stored convention describes the source pixels. Loading, saving and changing
+settings never invert texture pixels, change the tangent signature, or invalidate
+prepared tangents. The planned 3D shader decodes the map, applies the Y sign once,
+scales tangential XY by strength and safely normalizes. That shader path is not
+implemented yet; these properties currently have no visual effect, including in 2dw.
+Storage and validated serialization live in `private/normal-map-asset.*`; both
+runtime loaders and the authoring loader use the same material payload parser.
 
 ## 6b. `SECTION_ANIMATION` payload
 

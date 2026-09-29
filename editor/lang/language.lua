@@ -8,6 +8,23 @@ local M = {}
 
 -- String tables
 M.en = {
+    nm_title = "Normal-map preparation",
+    nm_all_hint = "0 = all frames / all subsets. Subset numbers apply independently to each frame.",
+    nm_selection_report = "%d subsets prepared, %d preserved, %d failed. Undo restores the whole action.",
+    nm_failure = "Frame %d, subset %d: %s",
+    nm_frame = "Frame",
+    nm_subset = "Subset",
+    nm_policy = "Tangent policy",
+    nm_preserve = "Preserve / generate tangents",
+    nm_generate = "Recalculate tangents (MikkTSpace)",
+    nm_prepare = "Prepare selection",
+    nm_prepare_help = "Requires mesh normals and UVs. If normals are missing, generate them in the normals tool first. Preserve generates missing tangents; recalculate forces replacement. Prepares tangents without assigning a normal texture. Recalculate replaces the selected basis. Imported corner tangents are accepted through the Lua import API. 3D shader support is still pending.",
+    nm_report = "Last preparation: %d batches, %d vertices, %d triangles without a usable basis.",
+    nm_reused = "Existing valid basis preserved.",
+    nm_undo = "Undo last preparation / transform",
+    nm_precompute = "Prepare normal-map tangents in advance",
+    nm_precompute_help = "Prepares all generated subsets after geometry processing, even without a normal texture. Saved in the project and exported MSH. Disabled by default.",
+
     audit_title = "Mesh Audit (CGAL)",
     audit_snapshot = "Uses CGAL through the external mbm-cgal-audit executable to analyze geometry and topology without modifying the mesh. Read-only snapshot of stored frame 1. Run again after editing. Skin deformation, UVs and materials are not analyzed.",
     audit_run = "Analyze mesh",
@@ -3756,6 +3773,23 @@ M.en = {
 }
 
 M.pt_br = {
+    nm_title = "Preparação de normal map",
+    nm_all_hint = "0 = todos os frames / todos os subsets. O índice do subset vale em cada frame.",
+    nm_selection_report = "%d subsets preparados, %d preservados, %d falhas. Desfazer restaura toda a ação.",
+    nm_failure = "Frame %d, subset %d: %s",
+    nm_frame = "Frame",
+    nm_subset = "Subset",
+    nm_policy = "Política de tangentes",
+    nm_preserve = "Preservar / gerar tangentes",
+    nm_generate = "Recalcular tangentes (MikkTSpace)",
+    nm_prepare = "Preparar seleção",
+    nm_prepare_help = "Requer normais da malha e UVs. Se faltarem normais, gere-as primeiro na ferramenta de normais. Preservar gera tangentes ausentes; recalcular força a substituição. Prepara tangentes sem atribuir textura normal. Recalcular substitui a base selecionada. Tangentes por canto podem ser importadas pela API Lua. O suporte no shader 3D ainda está pendente.",
+    nm_report = "Última preparação: %d lotes, %d vértices, %d triângulos sem base utilizável.",
+    nm_reused = "Base válida existente preservada.",
+    nm_undo = "Desfazer última preparação / transformação",
+    nm_precompute = "Preparar tangentes de normal map antecipadamente",
+    nm_precompute_help = "Prepara todos os subsets gerados após processar a geometria, mesmo sem textura normal. Salvo no projeto e no MSH exportado. Desativado por padrão.",
+
     audit_title = "Analisar malha (CGAL)",
     audit_snapshot = "Usa CGAL por meio do executável externo mbm-cgal-audit para analisar geometria e topologia sem modificar a malha. Cópia somente leitura do frame 1 armazenado. Execute novamente após editar. Deformação do esqueleto, UVs e materiais não são analisados.",
     audit_run = "Analisar malha",

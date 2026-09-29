@@ -290,15 +290,16 @@ The current shipped lighting implementation covers:
 - default lit/unlit shader classification for engine-generated shaders
 - built-in lit pixel shaders
 - diffuse, emissive, and specular material contribution
-- DirectX 11 generated default shaders for `3d` and `2dw`, including material, normal-map,
-  directional/point-light, and skeletal-before-lighting integration
+- DirectX 11 generated default shaders for `3d` and `2dw`, including material,
+  `2dw` normal-map, directional/point-light, and skeletal-before-lighting integration
+- static tangent-space `3d` normal mapping on OpenGL ES (7.318)
 
 Current intentional exclusions or limitations:
 
 - `2ds` lighting is not implemented
 - shadow maps are not implemented
-- reserved material texture roles `TextureSpecular`, `TextureEmissive`, and `TextureMask` are known
-  but not runtime-bindable yet
+- material texture roles `TextureSpecular`, `TextureEmissive`, and `TextureMask` can be
+  bound, but the built-in lighting shaders do not yet sample them
 - custom shaders receive engine lighting only when they explicitly declare the reserved inputs
 - runtime material upload currently comes from the active mesh/subset material path; broader
   per-renderable material ownership is still limited by existing render-path wiring
@@ -441,6 +442,12 @@ So lowering the requested max from `4` to `2` reduces the selected/uploaded ligh
 but it does not currently generate a smaller shader variant.
 
 ## Reserved Shader Inputs
+
+The static OpenGL ES normal-map path additionally reserves `HasTangentBasis` and
+`NormalMapSettings`. The latter is an internal vec3 encoding `(greenSign, xyScale,
+zScale)`: the last two components are proportional to `(strength, 1)` and bounded
+by one to avoid mediump overflow. Authoring uses `setNormalMapSettings`, not direct writes
+to these shader uniforms. `aTangent`/`vTangentView` carry direction plus handedness.
 
 The engine uploads these reserved light values automatically through each backend's supported
 reserved-input path:
@@ -706,6 +713,52 @@ Current runtime binding behavior:
 - `TextureDiffuse` stays on slot/register/index `0`
 - `TextureAnimationEffect` stays on slot/register/index `1`
 - `TextureNormal` uses slot/register/index `2`
+
+Normal-map source convention (`+Y`/`-Y`) and non-negative strength are optional
+per-frame/subset material properties, exposed by `getNormalMapSettings` and
+`setNormalMapSettings` (C++ and Lua). Defaults are +Y and strength 1. Section 15
+persists these independently of normal textures and tangent preparation; changing
+them neither assigns a texture nor alters its pixels or regenerates tangents.
+Since 7.318, these properties affect static 3D normal mapping on OpenGL ES when
+a prepared tangent batch and a normal texture are available. Other backends and
+skinned normal mapping remain pending. See [Lua API](lua-api.md#normal-map-material-settings) and
+[MSH format](mesh-v11-format.md#optional-section_normal_map_materials-15-section-version-1).
+
+OpenGL ES static 3D path (7.318):
+
+- Loaded optional tangent batches are uploaded once into private interleaved
+  position/normal/UV/tangent buffers and local 16-bit index buffers. Authoring
+  geometry and extraction remain unchanged. An asset with a normal map but no
+  persisted basis uses the CPU preparation performed during loading.
+- Generated lit shaders and `lit textured.ps` with the generated vertex shader
+  reconstruct the view-space tangent basis. Normals use inverse transpose,
+  tangents use the linear model-view transform and Gram-Schmidt orthogonalization,
+  and determinant sign handles reflected transforms. Singular transforms and
+  unusable bases fall back to a finite geometric normal.
+- The mapped normal drives diffuse and specular lighting. Generated lighting
+  combines directional and selected point lights; the reserved textured resource
+  retains its directional-only 3D model, now using `DirectionalColor` instead of
+  the first point-light array entry. Source green convention and strength are
+  uniforms; no texture or tangent regeneration is needed to change them.
+- Strength zero, no normal texture, an unlit shader or a missing prepared batch
+  uses source geometry. Explicitly empty per-subset texture stages prevent one
+  subset's normal map from leaking into another. Existing custom shaders are not
+  rewritten; pairing a custom vertex shader with `lit textured.ps` retains its
+  legacy varying contract and geometric-normal lighting.
+- Resources are owned/released with the backend buffer and rebuilt by the normal
+  asset reload path. Dynamic vertex updates discard stale derived buffers;
+  regeneration after arbitrary edits and late assignment to an asset loaded
+  without any prepared basis remain future work. Skeletal assets do not upload
+  these static derived buffers.
+- Four active vertex attributes suffice for the static path; skinning variants
+  do not consume the tangent attribute yet. Existing program-cache keys already
+  include FVF, lighting and skinning flags that determine these generated inputs.
+
+Render-to-texture now selects the lighting target per pass/object (`3d`, `2dw`,
+or disabled for `2ds`) and uses the target camera's view matrix for lighting.
+It restores the previous lighting target and view matrices on exit, including
+failure. Previously the offscreen pass could leave reserved lighting disabled.
+The equations of the `2dw` normal-map path are unchanged.
 
 Current `2dw` normal-map behavior:
 

@@ -455,4 +455,12 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\third-party\mikktspace\mikktspace.c" />
+    <ClCompile Include="..\..\src\core_mbm\private\normal-map-asset.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\normal-map-preparation.cpp" />
+    <ClInclude Include="..\..\src\core_mbm\private\normal-map-asset.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\normal-map-preparation.h" />
+    <ClInclude Include="..\..\third-party\mikktspace\mikktspace.h" />
+  </ItemGroup>
 </Project>

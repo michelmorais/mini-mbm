@@ -1055,6 +1055,8 @@ namespace mbm
                                                     {"onEndFx", setCallBackEndEffectLua },
                                                     {"setTexture", onSetTextureAnimationLua},
                                                     {"setMaterialTexture", onSetMaterialTextureAnimationLua},
+                                                    {"getNormalMapSettings", onGetNormalMapSettingsAnimationLua},
+                                                    {"setNormalMapSettings", onSetNormalMapSettingsAnimationLua},
                                                     {"getMaterialTexture", onGetMaterialTextureAnimationLua},
                                                     {"setTypeAnim", onSetAnimationTypeLua},
                                                     {"setColor", onSetTextureAnimationLua},

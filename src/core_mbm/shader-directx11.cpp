@@ -22,6 +22,7 @@
 #include "specific-directx11-buffer.h"
 
 #include <shader.h>
+#include "private/normal-map-upload.h"
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
@@ -44,6 +45,17 @@
 
 namespace mbm
 {
+    // Static tangent rendering is pending for this backend. Preserve asset loading.
+    bool normal_map::uploadStatic(BUFFER_GL *, const VEC3 *, const VEC3 *,
+                                 const VEC2 *, const PREPARED &)
+    {
+        return true;
+    }
+
+    void normal_map::setRenderSettings(BUFFER_GL *, uint32_t, int, float)
+    {
+    }
+
     namespace
     {
         struct D3D11_VERTEX

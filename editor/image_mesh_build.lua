@@ -68,6 +68,7 @@ function M.generate(E,project,region,callbacks)
     report.vertexLimit=math.min(options.maxVertices,65535)
     report.triangleLimit=options.maxTriangles
     Simplify.apply(E,asset,options,report)
+    if options.normalMapPrecompute then report.normalMap=require('normal_map_authoring').precompute(asset) end
     return asset,report,options,vertices
 end
 

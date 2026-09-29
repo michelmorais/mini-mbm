@@ -228,6 +228,7 @@ else()
     set(_CORE_MBM_LIB_TYPE SHARED)
 endif()
 add_library(core_mbm ${_CORE_MBM_LIB_TYPE}
+    ${CMAKE_SOURCE_DIR}/third-party/mikktspace/mikktspace.c
     ${STB_SOURCES} 
     ${LODE_PNG_SOURCES} 
     ${MINI_Z_SOURCES} 

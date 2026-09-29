@@ -486,6 +486,28 @@ obj.alwaysOnTopPriority = 1 -- higher populated layers appear above lower ones (
 in ascending order, with depth cleared between populated layers. Objects at the same priority retain
 ordinary depth behavior against each other. The property does not affect render-to-texture captures.
 
+### Normal-map material settings
+
+Available on renderables using the common animation/material methods:
+
+```lua
+local convention, strength = obj:getNormalMapSettings([subset=1], [frame=current])
+local ok = obj:setNormalMapSettings("-Y", 2.0, [subset=1], [frame=current])
+```
+
+Indices are one-based. Convention is exactly `"+Y"` or `"-Y"`; strength must be
+finite, non-negative and representable as a float. Defaults are `"+Y", 1` for valid
+subsets without settings. A getter returns `nil` when the asset/subset is missing;
+a setter returns `false`. Invalid value types, conventions, strengths and indices
+outside the positive uint32 range raise a Lua error without mutation.
+
+These are shared asset properties, like material textures: changing them affects
+instances using that cached asset. They neither assign a normal texture nor modify
+texture pixels or tangents. Since 7.318, static OpenGL ES 3D lighting consumes
+these properties when a prepared tangent basis and normal texture are available.
+Strength zero disables the detail. Other backends and skinned normal mapping
+remain pending; these properties do not change the existing 2dw equations.
+
 ### 6.3 Size & Bounds
 
 | Method | Signature | Returns | Description |
@@ -554,9 +576,7 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
 | `obj:setTexture` | `(textureName: string)` | bool | Replace the object's texture at runtime. `textureName` can also be a solid-color shorthand `"#RRGGBB"`/`"#RRGGBBAA"` hex string (alpha-last, e.g. `"#FF0000FF"` for opaque red) instead of a file path — generates a small solid-color texture on the fly |
 | `obj:setColor` | `(r, g, b, a?)` | bool | Tint the object (0.0-1.0 per channel, not 0-255). Same underlying binding as `setTexture` (dispatches on argument type: a string sets a texture, numbers set a solid tint) — passing >1 values doesn't error, they just clamp/wrap like any float color channel |
-| `obj:setPixelShader` | `(shaderName: string, varValues?: table)` | bool | Apply a pixel shader |
-| `obj:setVertexShader` | `(shaderName: string, varValues?: table)` | bool | Apply a vertex shader |
-| `obj:getShader` | `()` | table | Get current shader config (`name`, `var` values) |
+| `obj:getShader` | `()` | table | Get the shader controller. Use `obj:getShader():load(pixelShaderName?, vertexShaderName?)` to apply shaders (returns bool); `:setPS(variableName, values...)` and `:setVS(variableName, values...)` change their uniform values. There are no object methods named `setPixelShader` or `setVertexShader`. |
 | `obj:setBlend` | `(srcBlend, dstBlend, op?)` | — | Set blend mode using `mbm.*` blend constants |
 | `obj:getBlend` | `()` | srcBlend, dstBlend, op | Get current blend mode |
 
@@ -1460,7 +1480,8 @@ Both the frame and subset indices are one-based. The call returns `true` when at
 valid subsets were merged, or `false` without mutation otherwise. The resulting subset occupies the
 first selected subset's position and keeps its primary/material-role textures. Selected geometry is
 appended in the existing subset order. Vertex data, indices, canonical weights, and articulated Part
-references are remapped automatically.
+references are remapped automatically. Subsets with different normal-map convention
+or strength cannot be merged; the call returns `false` without mutation.
 
 ### Triangle simplification
 
@@ -2879,6 +2900,95 @@ extra material texture references are written as basenames instead of resolving
 them to absolute paths. It does not copy images. Existing calls keep their prior
 behavior. The image-mesh portable exporter creates adjacent PNG files before
 saving with this flag; solid `#RRGGBBAA` references remain unchanged.
+
+Mesh Debug saving also writes optional prepared tangent sections for subsets with
+a normal-map texture and usable normals/UVs. Valid loaded preparation is preserved;
+changed geometry is prepared again before saving. Assets without a normal map do
+not require tangents. This persistence does not yet enable normal mapping in the
+3D shader. See `docs/mesh-v11-format.md`, `SECTION_NORMAL_MAP_TANGENTS`.
+
+### Mesh Debug tangent preparation
+
+```lua
+local report, err = meshD:prepareNormalMap(frame, subset, policy, corners)
+-- policy defaults to "preserve"; corners is only allowed for "import".
+local report = assert(meshD:prepareNormalMap(1, 1, "generate"))
+local report = assert(meshD:prepareNormalMap(1, 1, "import", {
+    {x=1, y=0, z=0, sign=1}, -- first triangle's first corner
+    {x=1, y=0, z=0, sign=1},
+    {x=1, y=0, z=0, sign=1},
+}))
+```
+
+Frame/subset indices are one-based. The operation prepares private CPU data without
+changing public vertex/index arrays, assigning textures, or uploading buffers:
+
+| Policy | Behavior |
+|---|---|
+| `preserve` | Reuse validated preparation; generate missing or stale bases with MikkTSpace |
+| `generate` | Explicitly recalculate the selected subset, even if its existing base is valid |
+| `import` | Replace only the selected subset with the supplied per-corner basis |
+
+Other valid prepared subsets retain their bases. Preparation validates the same
+source geometry and authoring normal/UV flags used by save, including frame-zero
+shared UVs. Explicit requests require a nonempty triangle surface, normals and UVs;
+unlike automatic save preparation, missing prerequisites return an error. The mesh
+must not be undergoing asynchronous simplification. Degenerate triangles retain the
+finite zero-basis fallback and are counted in the report.
+
+Imported tangents must be finite, unit length, orthogonal to each corner's source
+normal, and have sign `+1` or `-1`. Supply **one record per expanded triangle corner**,
+including duplicates at seams. Triangle lists follow draw index order; fans expand
+as `(0,i+1,i+2)` and odd strip triangles swap their first two corners to preserve
+winding (these formulas describe zero-based source positions). This is not an array
+indexed by unique source vertex. Preserve source triangulation and normals from the bake.
+
+Success returns `{batches, vertices, unusableTriangles, reused}` for the selected
+subset. Counts describe the prepared representation; `reused` means its valid cached
+basis was retained. On preparation/input-data failure, returns `nil, error` without
+replacing the cached preparation. Invalid argument types, policy names, nonpositive
+indices or passing corner data outside `import` raise a Lua error. Save persists the
+result in optional section 14, even when there is no normal map; no new MSH layout
+or preparation-policy section is introduced. The policy is an action, not stored state.
+
+The Mesh Debug preparation panel exposes preserve/recalculate and shares the existing
+transform Undo snapshot. Its frame/subset selectors use `0` for all (UI only; the
+engine API remains one-based). Each frame uses its own subset count. The report
+aggregates successful preparations and lists failures by frame/subset; successful
+subsets remain prepared when another fails, and one Undo restores the entire action.
+Missing mesh normals must be generated with the normals tool before tangent preparation;
+MikkTSpace generates tangents, not missing geometric normals. Import uses this API or the intermediate adapter
+`normal_map_authoring.importFrame(asset, frame, data, options)` with
+`options.normalMapPolicy`, `options.normalMapPrecompute`, and per-subset
+`cornerTangents`. Supplied source tangents require an explicit `import` or `generate`
+choice. Import plus `importPostProcess` is rejected to avoid applying a basis from
+before UV/geometry changes. The direct Blender exporter does not yet supply these
+corner records automatically.
+
+Image Mesh projects accept the optional boolean `normalMapPrecompute` (default false)
+in defaults/region overrides. The editor exposes it with the other properties,
+including project save/reload and Undo/Redo. The shared build pipeline prepares all
+subsets after simplification, for preview and export. Preparation runs on a build or
+explicit user action, never continuously while an editor is idle. Preparation alone
+does not assign a normal texture. Static OpenGL ES lit rendering consumes the
+prepared basis when a normal texture is assigned (7.318).
+
+### Mesh Debug normal-map settings
+
+```lua
+local convention, strength = meshD:getNormalMapSettings(frame, subset)
+local ok = meshD:setNormalMapSettings(frame, subset, "-Y", 2.0)
+```
+
+Frame/subset indices are required and one-based. Returns and validation follow the
+runtime methods above: `"+Y", 1` defaults, `nil`/`false` for missing subsets, errors
+for invalid values or indices outside the positive uint32 range. The authoring
+setter returns `true` on success. Properties persist in optional MSH section 15,
+including without a texture. Resetting to `"+Y", 1` removes the explicit entry.
+Copying/reordering/removing frames or subsets preserves their settings. Changing
+only settings leaves prepared tangents intact. Loading from a runtime mesh copies
+its current shared material settings; saving/reloading preserves the source convention
+without converting texture pixels. No editor UI controls are added by these methods.
 
 ### Image-mesh holes (7.246.0)
 

@@ -26,6 +26,59 @@ Public APIs may expose narrow getters/setters and engine-owned value records.
 For example, `RENDERIZABLE::alwaysOnTopPriority` has accessor methods with storage
 in `Impl`; font glyph queries use `FONT_GLYPH_QUAD`, not `stbtt_aligned_quad`.
 
+## Normal-map preparation
+
+`src/core_mbm/private/normal-map-preparation.*` owns the CPU-only tangent preparation
+contract. Input geometry, per-corner imported tangents, MikkTSpace callbacks, and
+prepared batches are private types. Each prepared vertex retains its source index
+so later render/skin integration can preserve authoring indices. Batches use local
+16-bit triangle indices and split without changing the source geometry.
+
+Preparation is explicitly requested per subset. It does not query device state,
+allocate GPU resources, or mutate a public mesh. No public mutable storage or new
+exported engine API was needed for the tangent preparer. `normal-map-asset.*` privately owns section payload
+serialization, source signatures and validation. Prepared frames reside in the
+runtime and authoring `Impl`s and in the CPU-only async load intermediate. Runtime
+loading and `saveV11` reuse valid persisted data or prepare missing bases only when
+needed. A friend bridge lets runtime-to-authoring extraction copy the private data
+without a mutable public accessor. Frame copies/removals retain or reindex cached
+records; subset restructuring invalidates them. Source changes are checked before
+save. Static OpenGL ES consumption is implemented in 7.318: private
+`BUFFER_SPECIFIC::normalMapSubsets` owns the derived GPU buffers and material
+settings used by draw calls. `normal-map-upload.h` provides backend-neutral
+main-thread hooks for upload from validated CPU batches and material settings. Each shader backend implements
+these hooks; DX9, DX11 and Metal currently accept them as no-ops until tangent
+rendering is implemented. `normal-map-gles.h` contains only the GLES shader helper;
+no backend handles or STL storage were added to public headers. Upload happens at asset creation, release follows buffer lifetime, and
+dynamic source updates discard derived buffers. Skeletal buffer consumption
+remains pending.
+
+`normal-map-asset.*` also provides the private CPU `remapSkinWeights` bridge.
+It gathers canonical influences in each tangent batch's source-vertex order,
+retaining the skeleton ID, frame and bone palette. It validates canonical input
+once and publishes all batches atomically, without mutating the source weights
+or adding public storage. The result is transient, not a new serialized weight
+section. Tests cover mirrored seams, 16-bit partitions, CPU LBS/DQS deformation
+and GPU attribute preparation; calling it from prepared render-buffer creation
+and deforming tangents remain pending.
+
+Optional normal-map material settings are also held in the runtime/authoring `Impl`s
+and the async intermediate, keyed by source frame/subset. The public scalar methods
+`getNormalMapSettings` and `setNormalMapSettings` validate indices and values without
+exposing storage or containers. Default values are +Y (`greenSign=1`) and strength 1.
+Changing them does not invalidate tangent preparation. Copy/removal/reordering remap
+material keys; merging incompatible settings fails without mutation. Runtime mutation
+follows the existing shared-asset material contract. Extraction copies these private
+settings together with tangent preparation. Section 15 serializes them separately.
+
+`MESH_MBM_DEBUG::prepareNormalMap` adds an explicit authoring operation without
+exposing the cached representation. `NORMAL_MAP_CORNER` is a borrowed input value
+and `NORMAL_MAP_REPORT` a copied result; neither grants access to `Impl` storage.
+Preparation publishes a validated candidate atomically, preserves other valid
+subset bases and refuses to run while the mesh's simplification worker is active.
+Lua forwards per-corner data to the same CPU operation. Editor controls invoke it
+only on explicit actions or after geometry generation/simplification.
+
 ## Isolated editor previews
 
 `MESH_MANAGER::loadUncached` returns an owned `std::unique_ptr<MESH_MBM>` without

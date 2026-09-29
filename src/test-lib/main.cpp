@@ -26,6 +26,7 @@
 
 #include "my-scene-test.h"
 #include "skeletal-foundation-tests.h"
+#include "normal-map-preparation-tests.h"
 #include "gles-skeletal-parity-tests.h"
 #include "directx9-skeletal-parity-tests.h"
 #include "directx11-skeletal-parity-tests.h"
@@ -163,7 +164,9 @@ namespace
 }
 #endif
 
-// Usage: testLib --skeletal-foundation-tests
+// Usage: testLib --normal-map-persistence-tests
+//        testLib --normal-map-preparation-tests
+//        testLib --skeletal-foundation-tests
 //        testLib --gles-dqs-shader-test
 //        testLib --gles-skeletal-parity-test
 //        testLib --directx9-skeletal-parity-test
@@ -211,6 +214,10 @@ static int runTestLib(int argc, char **argv
 {
     if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)
         return runSkeletalFoundationTests();
+    if (argc == 2 && std::strcmp(argv[1], "--normal-map-preparation-tests") == 0)
+        return runNormalMapPreparationTests();
+    if (argc == 2 && std::strcmp(argv[1], "--normal-map-persistence-tests") == 0)
+        return runNormalMapPersistenceTests();
     GAME game;
     game.myScene.testCoreManager = &game;
 #if defined(USE_DIRECTX11)

@@ -19,6 +19,14 @@ This system is distinct from:
 The Skeletal Animation Editor authors, inspects, repairs, and previews the same canonical data and
 runtime deformation paths used by a game.
 
+Normal-map preparation has a private CPU influence-remapping helper (7.317).
+For each prepared tangent batch, `normal_map::remapSkinWeights` duplicates the
+canonical source influences through `sourceVertices`, preserving palette IDs and
+the canonical frame association (currently frame 0). Source type-42 weights remain
+unchanged. CPU LBS/DQS and GPU attribute-preparation tests verify this association
+at mirrored seams; this does not yet enable skinned normal mapping or tangent
+transformation in the render shaders.
+
 ## 2. Canonical Asset Data
 
 Mesh V11 stores the runtime contract in three linked sections:

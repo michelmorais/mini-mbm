@@ -40,6 +40,8 @@ namespace mbm
             "LightRadius",
             "LightColor",
             "HasNormalMap",
+            "HasTangentBasis",
+            "NormalMapSettings",
             "MaterialDiffuse",
             "MaterialAmbient",
             "MaterialSpecular",

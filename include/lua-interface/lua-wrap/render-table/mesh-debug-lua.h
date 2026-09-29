@@ -54,6 +54,9 @@ namespace mbm
     int onAddIndexMeshDebugLua(lua_State *lua);
     int onGetTextureNameMeshDebugLua(lua_State *lua);
     int onSetTextureNameMeshDebugLua(lua_State *lua);
+    int onPrepareNormalMapMeshDebugLua(lua_State *lua);
+    int onGetNormalMapSettingsMeshDebugLua(lua_State *lua);
+    int onSetNormalMapSettingsMeshDebugLua(lua_State *lua);
     int onGetMaterialTextureNameMeshDebugLua(lua_State *lua);
     int onSetMaterialTextureNameMeshDebugLua(lua_State *lua);
     int onGetFxTextureMeshDebugLua(lua_State *lua);

@@ -14,6 +14,7 @@
 #if defined(USE_METAL)
 
 #include <shader.h>
+#include "private/normal-map-upload.h"
 #include <shader-var-cfg.h>
 #include <light.h>
 #include <texture-manager.h>
@@ -824,6 +825,17 @@ static void buildInterleavedVB(uint8_t* out, const NSUInteger stride,
 
 namespace mbm
 {
+    // Static tangent rendering is pending for this backend. Preserve asset loading.
+    bool normal_map::uploadStatic(BUFFER_GL *, const VEC3 *, const VEC3 *,
+                                 const VEC2 *, const PREPARED &)
+    {
+        return true;
+    }
+
+    void normal_map::setRenderSettings(BUFFER_GL *, uint32_t, int, float)
+    {
+    }
+
     // ---- BUFFER_GL constructor / destructor ----
 
     BUFFER_GL::BUFFER_GL() :

@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,12 +17,27 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef VERSION_MBM_H
-#define VERSION_MBM_H
+#ifndef NORMAL_MAP_UPLOAD_H
+#define NORMAL_MAP_UPLOAD_H
 
-// Format: "X.Y" or "X.Y.Z". Release history is maintained by the Git history and tags.
-#ifndef MBM_VERSION
-    #define MBM_VERSION "7.318"
-#endif
+#include <cstdint>
 
+namespace mbm
+{
+    class BUFFER_GL;
+    struct VEC2;
+    struct VEC3;
+
+    namespace normal_map
+    {
+        struct PREPARED;
+
+        // Main-thread backend hooks for validated static tangent batches.
+        // Backends without tangent rendering accept the upload as a no-op so
+        // prepared assets still load. Success does not imply rendering support.
+        bool uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+                          const VEC2 *uv, const PREPARED &prepared);
+        void setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength);
+    }
+}
 #endif

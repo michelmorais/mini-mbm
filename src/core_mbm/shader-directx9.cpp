@@ -21,6 +21,7 @@
 #if defined (USE_DIRECTX9)
 
 #include <shader.h>
+#include "private/normal-map-upload.h"
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
@@ -40,6 +41,17 @@
 
 namespace mbm
 {
+    // Static tangent rendering is pending for this backend. Preserve asset loading.
+    bool normal_map::uploadStatic(BUFFER_GL *, const VEC3 *, const VEC3 *,
+                                 const VEC2 *, const PREPARED &)
+    {
+        return true;
+    }
+
+    void normal_map::setRenderSettings(BUFFER_GL *, uint32_t, int, float)
+    {
+    }
+
     // Process-lifetime cache of compiled "pure default shader pair" D3D9 shaders (no custom .cfg
     // effect), keyed by the small set of flags that fully determine the generated HLSL source (see
     // SHADER::compileShader below -- unlike the OpenGL ES backend, DX9's default source only varies

@@ -38,6 +38,16 @@ namespace util
 
 namespace mbm
 {
+    enum class NORMAL_MAP_POLICY : uint8_t { PRESERVE, GENERATE, IMPORT };
+    // Borrowed authoring input, one tangent per expanded triangle corner (not source vertex).
+    struct NORMAL_MAP_CORNER { float x, y, z, sign; };
+    struct NORMAL_MAP_REPORT
+    {
+        uint32_t batches = 0;
+        uint32_t vertices = 0;
+        uint32_t unusableTriangles = 0;
+        bool reused = false;
+    };
     class MESH_MBM_DEBUG;
     namespace skeletal
     {
@@ -297,6 +307,14 @@ namespace mbm
         API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
         API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
         API_IMPL int getFileVersion() const noexcept;
+        // Optional 3D normal-map properties. greenSign is +1 (+Y) or -1 (-Y), strength finite >= 0.
+        // Get returns defaults (+1, 1) for valid subsets without settings; false leaves outputs unchanged.
+        API_IMPL bool getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept;
+        API_IMPL bool setNormalMapSettings(uint32_t frame, uint32_t subset, int greenSign, float strength);
+        // Explicit preparation without assigning a texture. Failure preserves the existing cache/report.
+        API_IMPL bool prepareNormalMap(uint32_t frame, uint32_t subset, NORMAL_MAP_POLICY policy,
+                                       NORMAL_MAP_REPORT &report, char *error, int errorLength,
+                                       const NORMAL_MAP_CORNER *corners = nullptr, uint32_t cornerCount = 0);
         API_IMPL util::MATERIAL &getMaterial() noexcept;
         API_IMPL const util::MATERIAL &getMaterial() const noexcept;
         API_IMPL int16_t getHasNormal() const noexcept;
@@ -700,6 +718,7 @@ namespace mbm
     class MESH_MBM
     {
         friend class MESH_MANAGER;
+        friend class MESH_MBM_DEBUG; // copy private prepared data during runtime-to-authoring extraction
         friend class ANIMATION_MANAGER;
         friend class MESH;
       public:
@@ -707,6 +726,10 @@ namespace mbm
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
         API_IMPL bool setTexture(const uint32_t indexFrame, const uint32_t indexSubset, const char *fileNameTexture,
                                const bool hasAlpha);
+        // Optional 3D normal-map properties. greenSign is +1 (+Y) or -1 (-Y), strength finite >= 0.
+        // Get returns defaults (+1, 1) for valid subsets without settings; false leaves outputs unchanged.
+        API_IMPL bool getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept;
+        API_IMPL bool setNormalMapSettings(uint32_t frame, uint32_t subset, int greenSign, float strength) const;
         API_IMPL TEXTURE *getMaterialTexture(const uint32_t indexFrame, const uint32_t indexSubset, const TEXTURE_ROLE role) const noexcept;
         API_IMPL bool setMaterialTexture(const uint32_t indexFrame, const uint32_t indexSubset, const TEXTURE_ROLE role,
                                const char *fileNameTexture, const bool hasAlpha) const;

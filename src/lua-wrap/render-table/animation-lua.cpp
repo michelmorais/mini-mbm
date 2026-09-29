@@ -35,6 +35,10 @@ extern "C"
     #include <lualib.h>
 }
 
+#include <cmath>
+#include <cfloat>
+#include <cstring>
+
 namespace mbm
 {
     ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable,RENDERIZABLE **renderizable)
@@ -360,6 +364,57 @@ namespace mbm
         const MESH_MBM *mesh        = renderizable->getMesh();
         const bool      ret         = mesh && mesh->setMaterialTexture(frame, subset, role, fileNameTexture, alpha);
         lua_pushboolean(lua, ret ? 1 : 0);
+        return 1;
+    }
+
+    int onGetNormalMapSettingsAnimationLua(lua_State *lua)
+    {
+        RENDERIZABLE *renderizable = nullptr;
+        ANIMATION_MANAGER *animations = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
+        const ANIMATION *animation = animations->getAnimation();
+        const int currentFrame = animation ? animation->getIndexCurrentFrame() : 0;
+        const lua_Integer subsetArg = luaL_optinteger(lua, 2, 1);
+        const lua_Integer frameArg = luaL_optinteger(lua, 3, currentFrame < 0 ? 1 : currentFrame + 1);
+        const MESH_MBM *mesh = renderizable->getMesh();
+        if (frameArg < 1 || static_cast<uint64_t>(frameArg) > UINT32_MAX || subsetArg < 1 || static_cast<uint64_t>(subsetArg) > UINT32_MAX)
+            return lua_error_debug(lua, "Normal-map frame/subset index out of range");
+        const auto frame = static_cast<uint32_t>(frameArg - 1);
+        const auto subset = static_cast<uint32_t>(subsetArg - 1);
+        int greenSign = 1;
+        float strength = 1;
+        if (!mesh || !mesh->getNormalMapSettings(frame, subset, greenSign, strength))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushstring(lua, greenSign == 1 ? "+Y" : "-Y");
+        lua_pushnumber(lua, strength);
+        return 2;
+    }
+
+    int onSetNormalMapSettingsAnimationLua(lua_State *lua)
+    {
+        RENDERIZABLE *renderizable = nullptr;
+        ANIMATION_MANAGER *animations = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
+        const ANIMATION *animation = animations->getAnimation();
+        const int currentFrame = animation ? animation->getIndexCurrentFrame() : 0;
+        const lua_Integer subsetArg = luaL_optinteger(lua, 4, 1);
+        const lua_Integer frameArg = luaL_optinteger(lua, 5, currentFrame < 0 ? 1 : currentFrame + 1);
+        const MESH_MBM *mesh = renderizable->getMesh();
+        if (frameArg < 1 || static_cast<uint64_t>(frameArg) > UINT32_MAX || subsetArg < 1 || static_cast<uint64_t>(subsetArg) > UINT32_MAX)
+            return lua_error_debug(lua, "Normal-map frame/subset index out of range");
+        const auto frame = static_cast<uint32_t>(frameArg - 1);
+        const auto subset = static_cast<uint32_t>(subsetArg - 1);
+        const char *convention = luaL_checkstring(lua, 2);
+        int greenSign = 1;
+        if (strcmp(convention, "-Y") == 0) greenSign = -1;
+        else if (strcmp(convention, "+Y") != 0)
+            return lua_error_debug(lua, "Expected normal-map convention [+Y|-Y]");
+        const lua_Number requestedStrength = luaL_checknumber(lua, 3);
+        if (!std::isfinite(requestedStrength) || requestedStrength < 0 || requestedStrength > FLT_MAX)
+            return lua_error_debug(lua, "Normal-map strength must be finite, non-negative and representable as float");
+        const bool ok = mesh && mesh->setNormalMapSettings(frame, subset, greenSign, static_cast<float>(requestedStrength));
+        lua_pushboolean(lua, ok);
         return 1;
     }
 

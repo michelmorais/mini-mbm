@@ -29,6 +29,7 @@ namespace mbm
         GLint positionHandle;
         GLint texCoordHandle;
         GLint normalHandle;
+        GLint tangentHandle;
         GLint boneIndicesHandle;
         GLint boneWeightsHandle;
         GLint mvpMatrixHandle; // Handle para matrix x projection

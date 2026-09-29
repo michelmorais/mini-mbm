@@ -17,12 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef VERSION_MBM_H
-#define VERSION_MBM_H
-
-// Format: "X.Y" or "X.Y.Z". Release history is maintained by the Git history and tags.
-#ifndef MBM_VERSION
-    #define MBM_VERSION "7.318"
-#endif
-
+#ifndef NORMAL_MAP_PREPARATION_TESTS_H
+#define NORMAL_MAP_PREPARATION_TESTS_H
+int runNormalMapPreparationTests();
+int runNormalMapPersistenceTests();
 #endif
