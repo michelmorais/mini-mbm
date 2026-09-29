@@ -21,11 +21,26 @@
 #define DIRECTX11_BUFFER_SPECIFIC_H
 
 #include <d3d11.h>
+#include <vector>
 
 namespace mbm
 {
     struct BUFFER_SPECIFIC
     {
+        struct NORMAL_MAP_BATCH
+        {
+            ID3D11Buffer *vertices = nullptr;
+            ID3D11Buffer *indices = nullptr;
+            UINT indexCount = 0;
+        };
+        struct NORMAL_MAP_SUBSET
+        {
+            std::vector<NORMAL_MAP_BATCH> batches;
+            int greenSign = 1;
+            float strength = 1.0f;
+        };
+        std::vector<NORMAL_MAP_SUBSET> normalMapSubsets;
+        void releaseNormalMap();
         ID3D11Buffer *vertexBuffer;
         ID3D11Buffer *skinVertexBuffer;
         ID3D11Buffer *indexBuffer;

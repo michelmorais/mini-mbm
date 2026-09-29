@@ -26,14 +26,80 @@
 
 #include "my-scene-test.h"
 #include "skeletal-foundation-tests.h"
+#include "normal-map-preparation-tests.h"
 #include "gles-skeletal-parity-tests.h"
 #include "directx9-skeletal-parity-tests.h"
 #include "directx11-skeletal-parity-tests.h"
 #include <cstdlib>
 #include <cstring>
+#if defined(USE_DIRECTX9)
+#include <specific-directx9-shader.h>
+#include <core_mbm/shader.h>
+#include <core_mbm/shader-resource.h>
+#include <core_mbm/light.h>
+#include <d3dcompiler.h>
+#include <cstdio>
+#include <vector>
+
+static bool reportDirectX9ShaderBudget(IUnknown *object, bool pixel)
+{
+    UINT bytes = 0;
+    HRESULT result = pixel ? static_cast<IDirect3DPixelShader9 *>(object)->GetFunction(nullptr,&bytes) :
+                            static_cast<IDirect3DVertexShader9 *>(object)->GetFunction(nullptr,&bytes);
+    if (FAILED(result) || !bytes) return false;
+    std::vector<DWORD> code((bytes+3)/4);
+    result = pixel ? static_cast<IDirect3DPixelShader9 *>(object)->GetFunction(code.data(),&bytes) :
+                     static_cast<IDirect3DVertexShader9 *>(object)->GetFunction(code.data(),&bytes);
+    ID3DBlob *assembly = nullptr;
+    if (FAILED(result) || FAILED(D3DDisassemble(code.data(),bytes,0,nullptr,&assembly))) return false;
+    const std::string text(static_cast<const char *>(assembly->GetBufferPointer()),assembly->GetBufferSize());
+    const auto at = text.find("approximately");
+    std::printf("DX9 %s budget: %s\n",pixel ? "PS" : "VS",
+                at == std::string::npos ? "instruction estimate unavailable" : text.substr(at).c_str());
+    assembly->Release();
+    return true;
+}
+
+static int runDirectX9NormalMapShaderTests()
+{
+    using namespace mbm;
+    const std::string savedPS = getPSVersion(), savedVS = getVSVersion();
+    bool passed = savedPS == "ps_3_0" && savedVS == "vs_3_0";
+    if (!passed) return -1;
+    SHADER shader;
+    shader.setUseReservedLightDefault(true);
+    passed = shader.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+    auto *backend = static_cast<D3D_PS_VS *>(shader.getBackendShaderSpecific());
+    passed = passed && backend->normalMapDeclaration && backend->normalMapSettings &&
+        reportDirectX9ShaderBudget(backend->pd3dPixelShader,true) &&
+        reportDirectX9ShaderBudget(backend->pd3dVertexShader,false);
+    // Recompile the same instance and another instance to cover cached COM ownership.
+    passed = passed && shader.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+    SHADER cached;
+    cached.setUseReservedLightDefault(true);
+    passed = passed && cached.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+    auto *cachedBackend = static_cast<D3D_PS_VS *>(cached.getBackendShaderSpecific());
+    passed = passed && cachedBackend->pd3dPixelShader == backend->pd3dPixelShader && cachedBackend->normalMapDeclaration;
+
+    // This measures the pre-existing geometric lighting at SM2, not SM2 hardware.
+    setPSVersion("ps_2_0"); setVSVersion("vs_2_0");
+    SHADER sm2;
+    sm2.setUseReservedLightDefault(true);
+    const bool sm2Lit = sm2.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+    std::printf("DX9 existing geometric lighting at SM2: %s\n",sm2Lit ? "compiled" : "exceeds profile (expected diagnostic above)");
+    passed = passed && !static_cast<D3D_PS_VS *>(sm2.getBackendShaderSpecific())->normalMapDeclaration;
+    SHADER unlit;
+    passed = passed && unlit.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_UV);
+    setPSVersion(savedPS.c_str()); setVSVersion(savedVS.c_str());
+    SHADER::clearDefaultProgramCache();
+    std::printf("DIRECTX9 NORMAL MAP SHADER %s\n",passed ? "PASS" : "FAIL");
+    return passed ? 0 : -1;
+}
+#endif
 #if defined(USE_DIRECTX11)
 #include <specific-directx11-context.h>
 #include <core_mbm/device.h>
+#include <core_mbm/light.h>
 #include <core_mbm/util-interface.h>
 #include <vector>
 #endif
@@ -163,7 +229,9 @@ namespace
 }
 #endif
 
-// Usage: testLib --skeletal-foundation-tests
+// Usage: testLib --normal-map-persistence-tests
+//        testLib --normal-map-preparation-tests
+//        testLib --skeletal-foundation-tests
 //        testLib --gles-dqs-shader-test
 //        testLib --gles-skeletal-parity-test
 //        testLib --directx9-skeletal-parity-test
@@ -211,6 +279,10 @@ static int runTestLib(int argc, char **argv
 {
     if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)
         return runSkeletalFoundationTests();
+    if (argc == 2 && std::strcmp(argv[1], "--normal-map-preparation-tests") == 0)
+        return runNormalMapPreparationTests();
+    if (argc == 2 && std::strcmp(argv[1], "--normal-map-persistence-tests") == 0)
+        return runNormalMapPersistenceTests();
     GAME game;
     game.myScene.testCoreManager = &game;
 #if defined(USE_DIRECTX11)
@@ -413,10 +485,22 @@ static int runTestLib(int argc, char **argv
     constexpr bool doSwapBuffers = true;
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
     {
+#if defined(USE_DIRECTX9)
+        if (argc == 2 && std::strcmp(argv[1],"--directx9-normal-map-shader-test") == 0)
+            return runDirectX9NormalMapShaderTests();
+#endif
+#if defined(USE_DIRECTX11) || defined(USE_DIRECTX9) || defined(USE_METAL)
+        if (std::getenv("MBM_NORMAL_MAP_TEST_LIGHTING"))
+        {
+            mbm::setLightEnabled(mbm::LIGHT_TARGET_3D, true);
+            mbm::setAmbientLight(mbm::LIGHT_TARGET_3D, mbm::COLOR(0.1f,0.1f,0.1f,1));
+            mbm::setDirectionalLight(mbm::LIGHT_TARGET_3D, mbm::VEC3(-0.8f,-0.3f,0.6f), mbm::COLOR(0.6f,0.6f,0.6f,1));
+        }
+#endif
         const int result = game.onLoop(singleLoop, doSwapBuffers);
 #if defined(USE_DIRECTX11)
-        const bool directX11AutomatedTest = argc == 2 &&
-            std::strncmp(argv[1], "--directx11-", sizeof("--directx11-") - 1u) == 0;
+        const bool directX11AutomatedTest = std::getenv("MBM_DIRECTX11_VALIDATE") != nullptr ||
+            (argc == 2 && std::strncmp(argv[1], "--directx11-", sizeof("--directx11-") - 1u) == 0);
         const bool debugLayerClean = !directX11AutomatedTest || validateDirectX11DebugMessages();
         if (!debugLayerClean)
             return -1;

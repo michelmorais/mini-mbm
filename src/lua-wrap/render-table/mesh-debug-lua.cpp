@@ -62,6 +62,10 @@ extern "C"
 	#include <core_mbm/util-interface.h>
 #endif
 
+#include <cmath>
+#include <cfloat>
+#include <cstring>
+
 namespace mbm
 {
 	class LINE_MESH;
@@ -1453,6 +1457,119 @@ namespace mbm
                             "indexFrame %d indexSubset %d",
                        static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
         }
+    }
+
+    int onPrepareNormalMapMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *author = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer frame = luaL_checkinteger(lua, 2);
+        const lua_Integer subset = luaL_checkinteger(lua, 3);
+        const char *name = luaL_optstring(lua, 4, "preserve");
+        if (frame < 1 || subset < 1 || static_cast<uint64_t>(frame) > UINT32_MAX || static_cast<uint64_t>(subset) > UINT32_MAX)
+            return lua_error_debug(lua, "Normal-map indices must be positive uint32 values");
+        NORMAL_MAP_POLICY policy = NORMAL_MAP_POLICY::PRESERVE;
+        if (strcmp(name, "generate") == 0) policy = NORMAL_MAP_POLICY::GENERATE;
+        else if (strcmp(name, "import") == 0) policy = NORMAL_MAP_POLICY::IMPORT;
+        else if (strcmp(name, "preserve") != 0)
+            return lua_error_debug(lua, "Expected preparation policy [preserve|generate|import]");
+        if (policy == NORMAL_MAP_POLICY::IMPORT) luaL_checktype(lua, 5, LUA_TTABLE);
+        else if (!lua_isnoneornil(lua, 5))
+            return lua_error_debug(lua, "Corner tangents are only accepted with import policy");
+        const size_t count = policy == NORMAL_MAP_POLICY::IMPORT ? lua_rawlen(lua, 5) : 0;
+        if (count > UINT32_MAX) return lua_error_debug(lua, "Too many corner tangents");
+        NORMAL_MAP_REPORT report;
+        char error[512] = {};
+        bool ok = true;
+        {
+            std::vector<NORMAL_MAP_CORNER> corners;
+            corners.reserve(count);
+            for (size_t i = 0; ok && i < count; ++i)
+            {
+                lua_rawgeti(lua, 5, static_cast<lua_Integer>(i+1));
+                if (!lua_istable(lua, -1)) { lua_pop(lua, 1); ok = false; break; }
+                float values[4] = {};
+                const char *fields[] = {"x", "y", "z", "sign"};
+                for (int component = 0; component < 4; ++component)
+                {
+                    lua_getfield(lua, -1, fields[component]);
+                    const double value = lua_tonumber(lua, -1);
+                    if (lua_type(lua, -1) != LUA_TNUMBER || !std::isfinite(value) || std::abs(value) > FLT_MAX)
+                        ok = false;
+                    else values[component] = static_cast<float>(value);
+                    lua_pop(lua, 1);
+                }
+                lua_pop(lua, 1);
+                corners.push_back({values[0], values[1], values[2], values[3]});
+            }
+            if (ok)
+                ok = author->mesh.prepareNormalMap(static_cast<uint32_t>(frame-1), static_cast<uint32_t>(subset-1),
+                    policy, report, error, sizeof(error), corners.empty() ? nullptr : corners.data(), static_cast<uint32_t>(count));
+            else snprintf(error, sizeof(error), "%s", "Each corner needs finite numeric x, y, z and sign fields");
+        }
+        if (!ok)
+        {
+            lua_pushnil(lua);
+            lua_pushstring(lua, error);
+            return 2;
+        }
+        lua_newtable(lua);
+        lua_pushinteger(lua, report.batches); lua_setfield(lua, -2, "batches");
+        lua_pushinteger(lua, report.vertices); lua_setfield(lua, -2, "vertices");
+        lua_pushinteger(lua, report.unusableTriangles); lua_setfield(lua, -2, "unusableTriangles");
+        lua_pushboolean(lua, report.reused); lua_setfield(lua, -2, "reused");
+        return 1;
+    }
+
+    int onHasNormalMapTangentsMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *author = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, author->mesh.hasNormalMapTangents());
+        return 1;
+    }
+
+    int onGetNormalMapSettingsMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *author = getMeshDebugFromRawTable(lua, 1, 1);
+        auto *mesh = &author->mesh;
+        const lua_Integer frameArg = luaL_checkinteger(lua, 2);
+        const lua_Integer subsetArg = luaL_checkinteger(lua, 3);
+        if (frameArg < 1 || static_cast<uint64_t>(frameArg) > UINT32_MAX || subsetArg < 1 || static_cast<uint64_t>(subsetArg) > UINT32_MAX)
+            return lua_error_debug(lua, "Normal-map frame/subset index out of range");
+        const auto frame = static_cast<uint32_t>(frameArg - 1);
+        const auto subset = static_cast<uint32_t>(subsetArg - 1);
+        int greenSign = 1;
+        float strength = 1;
+        if (!mesh || !mesh->getNormalMapSettings(frame, subset, greenSign, strength))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushstring(lua, greenSign == 1 ? "+Y" : "-Y");
+        lua_pushnumber(lua, strength);
+        return 2;
+    }
+
+    int onSetNormalMapSettingsMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *author = getMeshDebugFromRawTable(lua, 1, 1);
+        auto *mesh = &author->mesh;
+        const lua_Integer frameArg = luaL_checkinteger(lua, 2);
+        const lua_Integer subsetArg = luaL_checkinteger(lua, 3);
+        if (frameArg < 1 || static_cast<uint64_t>(frameArg) > UINT32_MAX || subsetArg < 1 || static_cast<uint64_t>(subsetArg) > UINT32_MAX)
+            return lua_error_debug(lua, "Normal-map frame/subset index out of range");
+        const auto frame = static_cast<uint32_t>(frameArg - 1);
+        const auto subset = static_cast<uint32_t>(subsetArg - 1);
+        const char *convention = luaL_checkstring(lua, 4);
+        int greenSign = 1;
+        if (strcmp(convention, "-Y") == 0) greenSign = -1;
+        else if (strcmp(convention, "+Y") != 0)
+            return lua_error_debug(lua, "Expected normal-map convention [+Y|-Y]");
+        const lua_Number requestedStrength = luaL_checknumber(lua, 5);
+        if (!std::isfinite(requestedStrength) || requestedStrength < 0 || requestedStrength > FLT_MAX)
+            return lua_error_debug(lua, "Normal-map strength must be finite, non-negative and representable as float");
+        const bool ok = mesh && mesh->setNormalMapSettings(frame, subset, greenSign, static_cast<float>(requestedStrength));
+        lua_pushboolean(lua, ok);
+        return 1;
     }
 
     int onGetMaterialTextureNameMeshDebugLua(lua_State *lua)
@@ -3558,6 +3675,10 @@ namespace mbm
                                           {"addIndex", onAddIndexMeshDebugLua},
                                           {"getTexture", onGetTextureNameMeshDebugLua},
                                           {"setTexture", onSetTextureNameMeshDebugLua},
+                                          {"prepareNormalMap", onPrepareNormalMapMeshDebugLua},
+                                          {"hasNormalMapTangents", onHasNormalMapTangentsMeshDebugLua},
+                                          {"getNormalMapSettings", onGetNormalMapSettingsMeshDebugLua},
+                                          {"setNormalMapSettings", onSetNormalMapSettingsMeshDebugLua},
                                           {"getMaterialTexture", onGetMaterialTextureNameMeshDebugLua},
                                           {"setMaterialTexture", onSetMaterialTextureNameMeshDebugLua},
                                           {"getFxTexture", onGetFxTextureMeshDebugLua},

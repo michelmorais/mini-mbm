@@ -21,11 +21,26 @@
 #define METAL_BUFFER_SPECIFIC_H
 
 #include "specific-metal-context.h"
+#include <vector>
 
 namespace mbm
 {
     struct BUFFER_SPECIFIC
     {
+        struct NORMAL_BATCH
+        {
+            id<MTLBuffer> vertices = nil;
+            id<MTLBuffer> tangents = nil;
+            id<MTLBuffer> indices = nil;
+            NSUInteger indexCount = 0;
+        };
+        struct NORMAL_SUBSET
+        {
+            std::vector<NORMAL_BATCH> batches;
+            int greenSign = 1;
+            float strength = 1.0f;
+        };
+        std::vector<NORMAL_SUBSET> normalMapSubsets;
         id<MTLBuffer> vertexBuffer = nil;
         id<MTLBuffer> indexBuffer  = nil;
         id<MTLBuffer> skinVertexBuffer = nil;

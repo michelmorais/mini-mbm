@@ -442,11 +442,11 @@ local function getPreviewStage2Texture(tEntry)
     end
     -- plain pcall (no dpCall/print): a mesh with no active shader animation has no FX,
     -- which is an expected, frequent case here, not a bug worth logging every frame.
-    local okSh, tShader = pcall(function() return tPreviewMesh:getShader() end)
+    local okSh, tShader = dpCall(function() return tPreviewMesh:getShader() end)
     if not okSh or not tShader then
         return nil
     end
-    local okTex, tex2 = pcall(function() return tShader:getTextureStage2() end)
+    local okTex, tex2 = dpCall(function() return tShader:getTextureStage2() end)
     if not okTex or type(tex2) ~= 'string' or tex2 == '' then
         return nil
     end
@@ -654,6 +654,7 @@ local function showMaterialEditor(tEntry, index)
     local flags = 0
 
     local function onEdit()
+        if tEntry.normalMapAuthoring then tEntry.normalMapAuthoring.settings = nil end
         tEntry.modified = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     end
@@ -1277,7 +1278,7 @@ end
 
 local function blenderDebugPrint(st, fmt, ...)
     if not st or not st.bPrintDebugSteps then return end
-    local ok, msg = pcall(string.format, fmt, ...)
+    local ok, msg = dpCall(string.format, fmt, ...)
     if ok then
         print('[blender_import] ' .. msg)
     end
@@ -1543,7 +1544,7 @@ local function pollBlenderAnimationScan(row)
             return
         end
 
-        local okRun, tData = pcall(chunk)
+        local okRun, tData = dpCall(chunk)
         if not okRun then
             anim.scanStatus = 'failed'
             anim.scanError = tostring(tData)
@@ -1817,7 +1818,7 @@ local function addIntermediateFrameToMesh(meshD, frame, frameNumber, options)
             return false, string.format('Failed to add indices for frame %d subset %d (indices=%d sample=%s).', frameNumber, si, #(subset.indices or {}), table.concat(sample, ','))
         end
     end
-    return true
+    return require('normal_map_authoring').importFrame(meshD,frameIdx,frame,options)
 end
 
 local function addAnimationsToMesh(meshD, anims, totalFrames)
@@ -1905,7 +1906,7 @@ local function buildMeshFromStreamManifest(manifestPath, outMshPath, options)
     if not chunk then
         return false, loadErr or 'Failed to load stream manifest.'
     end
-    local okRun, manifest = pcall(chunk)
+    local okRun, manifest = dpCall(chunk)
     if not okRun then
         return false, tostring(manifest)
     end
@@ -1931,7 +1932,7 @@ local function buildMeshFromStreamManifest(manifestPath, outMshPath, options)
         if not frameChunk then
             return false, frameLoadErr or string.format('Failed to load stream frame %d.', fi)
         end
-        local okFrameRun, frameData = pcall(frameChunk)
+        local okFrameRun, frameData = dpCall(frameChunk)
         if not okFrameRun then
             return false, tostring(frameData)
         end
@@ -2195,7 +2196,7 @@ local function blenderImportCoroutine()
                     if outSize > 0 and modeIntermediateOnly then
                         chunk, loadErr = loadfile(outManifest)
                         if chunk then
-                            okRun, tData = pcall(chunk)
+                            okRun, tData = dpCall(chunk)
                             if okRun then
                                 okVal, errVal = validateStreamManifest(tData)
                             end
@@ -3159,7 +3160,7 @@ end
 function onLoadObj()
     local fileName = mbm.openMultiFile(sLastMeshPath, "obj")
     if fileName then
-        local ok, tiny_obj_loader = pcall(require, "tiny_obj_loader")
+        local ok, tiny_obj_loader = dpCall(require, "tiny_obj_loader")
         if ok then
             local tFiles = {}
             if type(fileName) == 'string' then
@@ -4609,6 +4610,7 @@ function showMeshInfoTable(tEntry, index)
     if info.type == 'particle' then addRow('Stages', info.stages) end
     if info.type == 'texture' and info.ext then addRow('Extension', info.ext) end
     addRow('Has normals', info.hasNormal ~= nil and (info.hasNormal and 'yes' or 'no') or nil)
+    addRow(tLang.L('mesh_has_tangents'), meshD:hasNormalMapTangents() and tLang.L('audit_yes') or tLang.L('audit_no'))
     addRow('Has texture', info.hasTexture ~= nil and (info.hasTexture and 'yes' or 'no') or nil)
     local nVert = getMeshTotalVertices(meshD)
     if nVert > 0 then
@@ -4654,6 +4656,10 @@ function showMeshInfoTable(tEntry, index)
                 tImGui.TableNextRow()
                 tImGui.TableNextColumn()
                 tImGui.Text(tRows[i][1])
+                if tRows[i][1] == tLang.L('mesh_has_tangents') then
+                    tImGui.SameLine()
+                    tImGui.HelpMarker(tLang.L('mesh_has_tangents_help'))
+                end
                 tImGui.TableNextColumn()
                 tImGui.TextWrapped(tRows[i][2])
             end
@@ -8468,6 +8474,7 @@ function showMeshOptions(tEntry, index)
     end
 
     local function onEdit()
+        if tEntry.normalMapAuthoring then tEntry.normalMapAuthoring.settings = nil end
         tEntry.modified = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     end
@@ -9169,6 +9176,14 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
+    if openNode(tEntry, 'normalMapPreparation', tLang.L('nm_title'), 0, 'normalMap-' .. index) then
+        local restored = require('normal_map_authoring').panel(tEntry,index,onEdit,
+            function(action) return transformApplyUndoable(tEntry,meshD,action) end,
+            function() return transformRestoreUndo(tEntry,index) end)
+        tImGui.TreePop()
+        if restored then return end
+    end
+
     -- ── Texture node ──────────────────────────────────────────────────────────
     if openNode(tEntry, 'texture', tLang.L("texture_node"), 0, 'texture-' .. index) then
         tEntry.tTexUI = tEntry.tTexUI or { frame=0, subset=0, stage=0, role='primary', filename='' }
@@ -9726,7 +9741,7 @@ function showMeshOptions(tEntry, index)
         if index == iSelectedMeshIndex and tPreviewMesh then
             -- plain pcall (no dpCall/print): a mesh with no active shader animation has no FX,
             -- an expected state (shown via the "Preview required" message below), not a bug to log.
-            local okSh, tShader = pcall(function() return tPreviewMesh:getShader() end)
+            local okSh, tShader = dpCall(function() return tPreviewMesh:getShader() end)
             if okSh and tShader then
                 tUtil.pushResponsiveItemWidth(180)
                 local sAnim, iCurAnim = tPreviewMesh:getAnim()
@@ -11851,7 +11866,7 @@ end
 
 function showImageMeshProjectTree(tToRemove,tProjectsToRemove)
     if #tImageMeshProjects==0 then return end
-    local title=string.format('%s (%d)##imageMeshProjects',
+    local title=string.format('%s (%d)',
         tLang.L('mesh_debug_image_mesh_projects'),#tImageMeshProjects)
     if not tImGui.TreeNodeEx(title,tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen'),
             'image-mesh-projects-root') then
@@ -12877,7 +12892,7 @@ function onTouchDown(key, x, y)
             local tEntry = tLoadedMeshes[iSelectedMeshIndex]
             local sp = tEntry.tSplitCapture
             if sp and sp.active and sp.aabbMin then
-                local okRay, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, x, y)
+                local okRay, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
                 if okRay and splitCaptureRayHitsAABB(ox, oy, oz, dx, dy, dz,
                         sp.aabbMin.x, sp.aabbMin.y, sp.aabbMin.z,
                         sp.aabbMax.x, sp.aabbMax.y, sp.aabbMax.z) then

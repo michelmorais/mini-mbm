@@ -563,6 +563,8 @@ namespace util
         SECTION_FRAME_STATIC       = 10, // repeated: one per frame, in order
         SECTION_ARTICULATED_PARTS  = 12, // optional rigid-part identities, pivots, and hierarchy metadata
         SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
+        SECTION_NORMAL_MAP_TANGENTS = 14, // optional prepared tangent batches, one section per frame
+        SECTION_NORMAL_MAP_MATERIALS = 15, // optional per-frame/subset convention and strength
         SECTION_DETAIL_PHYSICS     = 20,
         SECTION_DETAIL_FONT        = 21,
         SECTION_DETAIL_PARTICLE    = 22,

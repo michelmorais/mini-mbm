@@ -26,6 +26,75 @@ Public APIs may expose narrow getters/setters and engine-owned value records.
 For example, `RENDERIZABLE::alwaysOnTopPriority` has accessor methods with storage
 in `Impl`; font glyph queries use `FONT_GLYPH_QUAD`, not `stbtt_aligned_quad`.
 
+## Normal mapping: preparation, asset data and rendering
+
+`src/core_mbm/private/normal-map-preparation.*` owns the CPU-only tangent preparation
+contract. Input geometry, per-corner imported tangents, MikkTSpace callbacks and
+prepared batches are private types. Each prepared vertex retains its source index;
+batches use local 16-bit triangle indices without changing the source geometry.
+Preparation does not query device state or allocate GPU resources.
+
+`normal-map-asset.*` owns section serialization, source signatures and validation.
+Prepared frames reside in the runtime and authoring `Impl`s and the CPU-only async
+load intermediate. Loading and saving reuse valid persisted bases or prepare
+missing ones when requested by a normal texture or explicit precomputation.
+Private friend bridges copy prepared data during runtime-to-authoring extraction.
+Frame copies/removals retain or reindex records; subset restructuring invalidates
+them. Source changes are checked before saving.
+
+Optional normal-map material settings reside in the same private asset state,
+keyed by source frame/subset. `getNormalMapSettings` and `setNormalMapSettings`
+expose validated scalar values, not containers. Defaults are +Y (`greenSign=1`)
+and strength 1. Section 15 stores overrides independently of tangent data and
+texture assignments. Changing settings does not invalidate tangents. Runtime
+mutation follows the shared-asset material contract; extraction and editing
+preserve associations, and merging incompatible settings fails without mutation.
+
+`normal-map-upload.h` declares backend-neutral main-thread upload and settings
+hooks. Static OpenGL ES, DirectX 9 SM3, DirectX 11 and Metal rendering keep
+derived GPU buffers and draw settings in private `BUFFER_SPECIFIC::normalMapSubsets`.
+Upload occurs at asset creation for
+prepared static frames, including those without an assigned normal texture;
+rendering uses the tangent batches only when a normal texture and the supported
+lighting shader are active and strength is nonzero. Buffer release frees this
+storage; dynamic source updates discard it. `normal-map-gles.h` contains the GLES
+shader helper; `normal-map-hlsl.h` supplies the DirectX 11 fragment helper.
+DirectX 11 owns derived vertex/index buffers per subset, releases partial uploads
+through a temporary private owner, and preserves the source vertex layout for
+readback. DirectX 9 likewise owns managed derived vertex/index buffers per subset;
+`normal-map-hlsl9.h` supplies its SM3 fragment helper. Its private shader owns the
+tangent declaration and constant zero tangent buffer. Source managed buffers are
+readable for static authoring extraction; derived buffers stay write-only. Dynamic
+write-only source extraction is explicitly rejected. Metal owns shared-storage
+derived vertex, tangent and index buffers in the private backend structure,
+publishing them only after all allocations succeed. Source
+buffers remain independent for authoring readback. `normal-map-metal.h` supplies
+MSL basis reconstruction; tangent reads use vertex buffer 20 and settings use
+vertex/fragment buffer 21, outside lighting 4-18 and skeletal palette 19.
+Source draws bind disabled settings and a zero tangent; no tangent reads occur.
+Dynamic source updates discard the derived batches.
+No backend handles or owned containers are exposed through public headers.
+
+`normal-map-asset.*` also provides the private CPU `remapSkinWeights` bridge. It
+collects canonical influences in each tangent batch's source-vertex order,
+retaining skeleton identity, frame and bone palette. Its transient result is
+published atomically without changing source weights or adding a serialized
+section. Render backends do not yet consume these remapped batches for skeletal
+normal mapping. The follow-up contract is tracked in
+[Future Features](future-features.md#normal-mapping).
+
+`MESH_MBM_DEBUG::hasNormalMapTangents()` exposes only constant-time
+presence of retained preparation, without signature validation or regeneration.
+It does not expose containers or introduce public mutable storage.
+
+`MESH_MBM_DEBUG::prepareNormalMap` exposes an authoring operation without exposing
+the cached representation. `NORMAL_MAP_CORNER` is borrowed input and
+`NORMAL_MAP_REPORT` a copied result. Preparation publishes a validated candidate
+atomically, preserves other valid subset bases and refuses to run while the
+simplification worker is active. Lua forwards per-corner data to the same CPU
+operation. Editor controls invoke preparation on explicit actions or after
+geometry generation/simplification.
+
 ## Isolated editor previews
 
 `MESH_MANAGER::loadUncached` returns an owned `std::unique_ptr<MESH_MBM>` without

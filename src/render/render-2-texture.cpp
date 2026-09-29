@@ -503,6 +503,25 @@ namespace mbm
     
     bool RENDER_2_TEXTURE::render2Texture()
     {
+        DEVICE *renderDevice = DEVICE::getInstance();
+        CAMERA &renderCamera = renderDevice->getCamera();
+        struct RESTORE_RENDER_CONTEXT
+        {
+            DEVICE *device;
+            CAMERA &camera;
+            MATRIX view, view2d;
+            LIGHT_TARGET target = LIGHT_TARGET_3D;
+            bool enabled;
+            RESTORE_RENDER_CONTEXT(DEVICE *d, CAMERA &c) : device(d), camera(c),
+                view(c.matrixView), view2d(c.matrixView2d), enabled(d->getLightTargetForCurrentRender(target)) {}
+            ~RESTORE_RENDER_CONTEXT()
+            {
+                camera.matrixView = view; camera.matrixView2d = view2d;
+                if (enabled) device->setLightTargetForRender(target);
+                else device->disableLightForRender();
+            }
+        } restore(renderDevice,renderCamera);
+
         auto &objects3d = this->impl->lsObjects3dRender;
         if (objects3d.size())
         {
@@ -513,6 +532,8 @@ namespace mbm
             const float heightFrame = cube->halfDim.y * 2.0f;
             CAMERA_TARGET &camera3dTarget = this->getCamera3d();
             camera3dTarget.enableMode3D(device, widthFrame, heightFrame);
+            renderCamera.matrixView = camera3dTarget.getViewMatrix();
+            device->setLightTargetForRender(LIGHT_TARGET_3D);
             const VEC3 &camera3dPosition = camera3dTarget.getPosition();
             for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
@@ -543,6 +564,7 @@ namespace mbm
             CAMERA_TARGET &camera2dTarget = this->getCamera2d();
             TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
             camera2dTarget.enableMode2D(device, static_cast<float>(renderTargetTexture->getWidth()), static_cast<float>(renderTargetTexture->getHeight()));
+            renderCamera.matrixView2d = camera2dTarget.getViewMatrix();
             for (unsigned int i = 0; i < objects2d.size(); ++i)
             {
                 RENDERIZABLE *ptr   = objects2d[i];
@@ -555,6 +577,8 @@ namespace mbm
                 RENDERIZABLE *ptr = objects2d[i];
                 if (ptr->isRenderEnabled())
                 {
+                    if (ptr->is2dScreenObject()) device->disableLightForRender();
+                    else device->setLightTargetForRender(LIGHT_TARGET_2DW);
                     const bool oldAlwaysRender = ptr->isAlwaysRenderizeEnabled();
                     ptr->setAlwaysRenderize(false); // to not animate twice
                     const bool ret             = ptr->render();

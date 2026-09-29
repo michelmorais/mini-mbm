@@ -31,6 +31,9 @@ namespace mbm
         IDirect3DVertexShader9 *pd3dVertexShader;
         ID3DXConstantTable *constantTablePS;
         ID3DXConstantTable *constantTableVS;
+        IDirect3DVertexDeclaration9 *normalMapDeclaration = nullptr;
+        IDirect3DVertexBuffer9 *zeroTangentBuffer = nullptr;
+        D3DXHANDLE normalMapSettings = nullptr;
 
         D3DXHANDLE mvpMatrixHandle;
         D3DXHANDLE mvMatrixHandle;

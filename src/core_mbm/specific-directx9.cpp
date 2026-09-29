@@ -54,6 +54,7 @@ namespace mbm
 
     void SPECIFIC_AUX_CONTEXT_DEVICE::release() noexcept
     {
+        normalMapUnsupportedReported = false;
         if (vertex_declaration_pos)
             vertex_declaration_pos->Release();
         if (vertex_declaration_pos_norm)

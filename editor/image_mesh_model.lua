@@ -31,8 +31,9 @@ M.remeshDefaults={remesh=false,remeshRepairTopology=true,remeshEdgeLengthFractio
 M.backDefaults={backExternal=false,backTexture='',backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
 M.sideDefaults={sideMode='edge',sideBandPerpendicular=false,sideBandInvert=false,sideInset=1,sideRepeatU=1,sideRepeatV=1,sideColor=0x808080,sideTexture=''}
 M.heightDefaults={heightFinishing=true,curvedPainting=false,curvedInterior=false,curvedFaceted=false,curvedFacetSectors=8,curvedFacetRings=1,curvedSimplify=false,curvedSimplifyRatio=.5,curvedSimplifyError=.01,curvedX=.5,curvedY=.5,curvedRadius=0,curvedEdge=1,curvedTarget=8,curvedSymmetric=true,heightSource='image',baseHeight=0.5,heightChannel='luminance',heightImage='',heightImageToRegion=false,heightBlack=0,heightWhite=1,heightCurve=1}
+M.normalMapDefaults={normalMapPrecompute=false}
 M.optionalDefaults={}
-for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.remeshDefaults,M.backDefaults,M.sideDefaults,M.heightDefaults}) do
+for _,defaults in ipairs({M.grooveDefaults,M.simplifyDefaults,M.remeshDefaults,M.backDefaults,M.sideDefaults,M.heightDefaults,M.normalMapDefaults}) do
     for k,v in pairs(defaults) do M.defaults[k]=v; M.optionalDefaults[k]=v end
 end
 -- Legacy triangle-target fields remain valid in old projects but are ignored by processing.
@@ -101,7 +102,7 @@ function M.validateOptions(options,complete)
         elseif k=='heightChannel' then assert(v=='luminance' or v=='red' or v=='green' or v=='blue' or v=='alpha','ime_invalid_options')
         elseif k=='sideMode' then assert(v=='edge' or v=='color' or v=='repeat' or v=='band','ime_invalid_options')
         elseif k=='sideTexture' or k=='backTexture' or k=='heightImage' then assert(type(v)=='string' and #v<4096 and not v:find('%z'),'ime_invalid_options')
-        elseif k=='heightFinishing' or k=='curvedPainting' or k=='curvedInterior' or k=='curvedFaceted' or k=='curvedSimplify' or k=='curvedSymmetric' or k=='heightImageToRegion' or k=='backExternal' or k=='backSolid' or k=='sideBandPerpendicular' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='remesh' or k=='remeshTargetEnabled' or k=='remeshRepairTopology' or k=='cgalRepairTopology' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' or k=='voxelized' then assert(type(v)=='boolean','ime_invalid_options')
+        elseif k=='normalMapPrecompute' or k=='heightFinishing' or k=='curvedPainting' or k=='curvedInterior' or k=='curvedFaceted' or k=='curvedSimplify' or k=='curvedSymmetric' or k=='heightImageToRegion' or k=='backExternal' or k=='backSolid' or k=='sideBandPerpendicular' or k=='sideBandInvert' or k=='backOpen' or k=='backRemap' or k=='backRelief' or k=='backMirror' or k=='simplify' or k=='simplifyDetails' or k=='remesh' or k=='remeshTargetEnabled' or k=='remeshRepairTopology' or k=='cgalRepairTopology' or k=='invert' or k=='lockBorder' or k=='preserveAspect' or k=='followImage' or k=='twoLevels' or k=='voxelized' then assert(type(v)=='boolean','ime_invalid_options')
         else local range=limits[k]; assert(range and number(v,table.unpack(range)),'ime_invalid_options') end
     end
     if options.heightBlack~=nil and options.heightWhite~=nil then assert(options.heightBlack<=options.heightWhite,'ime_height_levels_invalid') end

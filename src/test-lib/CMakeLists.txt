@@ -47,6 +47,9 @@ endif()
 # exporting these test internals from core_mbm would widen the DLL API solely
 # for the harness.
 list(APPEND SOURCES
+  "${CMAKE_SOURCE_DIR}/third-party/mikktspace/mikktspace.c"
+  "${CMAKE_SOURCE_DIR}/src/core_mbm/private/normal-map-preparation.cpp"
+  "${CMAKE_SOURCE_DIR}/src/core_mbm/private/normal-map-asset.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/mesh-v11-io.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/skeletal-animation-foundation.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/skeletal-gpu-lbs.cpp"

@@ -1,20 +1,18 @@
 # Mesh v11 Binary Format
 
 Reference for the v11 mesh binary layout used by `core_mbm`. The format is fully implemented and
-locked. §8 lists what is deliberately out of scope for v11.0; `## Future Work` below covers
-backlogged items that do not change the on-disk layout.
+locked. §8 summarizes format invariants and implementation limits. Extensions are
+tracked in [Future Features](future-features.md#mesh-format-and-loader-follow-up).
 
 Serialization style follows the existing `mesh-v8-io.cpp` convention: every multi-byte field is
 read/written field-by-field through explicit little-endian helpers, never struct-blitted. That
 choice is already proven 32/64-bit-safe in this codebase and carries forward unchanged.
 
-## 1. Why a new envelope, not just a new version number
+## 1. File identification
 
-The current `util::HEADER` (`header-mesh.h:379`) puts `magic` 36 bytes into the file, behind two
-16-byte string fields (`name`, `typeApp`). A v11 reader would have to trust those string fields are
-even meaningful before it can find the byte that tells it "this is not a file I understand." v11
-flips that: the file's own type/version self-identifies in the first handful of bytes, before
-anything else is trusted.
+V11 identifies the file with its magic and version at the start of the fixed
+header, before parsing variable data. Multi-byte fields use explicit little-endian
+serialization; disk records do not depend on host pointer size or struct padding.
 
 ## 2. Fixed file header
 
@@ -58,17 +56,14 @@ struct SECTION_HEADER_V11
                                   // mbm::crc32Buffer() in miniz-wrap.h — no new dependency. Named
                                   // crc32Value, not crc32: miniz.h #defines crc32 to mz_crc32 for
                                   // zlib-API compatibility, which mangles a field literally named
-                                  // crc32 in any translation unit that includes both headers (found
-                                  // while implementing milestone 1).
+                                  // crc32 in any translation unit that includes both headers.
 };
 // 16 bytes, followed immediately by `compressedLength` bytes of payload.
 ```
 
-`crc32Value` is a deliberate addition over the current format, which has no integrity check of its
-own beyond whatever zlib/miniz validates implicitly during whole-file decompression. Since v11 makes
-compression optional and per-blob, that implicit check goes away for uncompressed sections —
-`crc32Value` replaces it cheaply and also catches truncated/corrupted files earlier and with a
-clearer error than a downstream parse failure would.
+`crc32Value` validates the uncompressed payload independently of compression.
+Uncompressed sections receive the same integrity check as compressed sections;
+loaders reject a checksum mismatch before interpreting payload fields.
 
 ## 4. Section types
 
@@ -80,6 +75,8 @@ enum SECTION_TYPE : uint16_t
     SECTION_FRAME_STATIC       = 10,  // repeated: one per frame, in order
     SECTION_ARTICULATED_PARTS  = 12,  // optional rigid-part identities, pivots, and hierarchy metadata
     SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
+    SECTION_NORMAL_MAP_TANGENTS = 14, // optional prepared tangent batches, one section per frame
+    SECTION_NORMAL_MAP_MATERIALS = 15, // optional per-frame/subset convention and strength
     SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / cube-complex / triangle bounding volumes
     SECTION_DETAIL_FONT        = 21,
     SECTION_DETAIL_PARTICLE    = 22,
@@ -122,18 +119,13 @@ conditioned on `typeMesh`. Only `SECTION_DETAIL_FONT`/`_PARTICLE`/`_TILE` presen
 a tile map has `SECTION_DETAIL_TILE`, and no other mesh type has any of the three) — the same
 `DETAIL_MESH.type` dispatch this replaces (`read_detail_mesh_section`, `mesh-manager.cpp`) only ever
 carries physics bounding volumes now; FONT/PARTICLE/TILE detail data moved to their own top-level
-sections in milestones 12/13, it's never nested inside `SECTION_DETAIL_PHYSICS`.
+sections, it's never nested inside `SECTION_DETAIL_PHYSICS`.
 
-`SECTION_FRAME_SKINNED` (Sec. 6e) is the historical name for retired numeric type 11. Active
-loaders and writers no longer accept or emit it, and its enum member, payload structs, serializers,
-storage, and public Mesh Debug APIs have been removed. Runtime skeletal animation consumes the
-canonical sections 41–43 instead.
+Numeric section types 11 and 40 are unsupported and rejected. Runtime skeletal
+animation uses canonical sections 41–43; type 42 is the supported skeletal-weight
+representation.
 
-`SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6g) is the historical name for retired numeric type 40. Its
-name-palette weights were tied to frame 1 vertex topology, but are no longer accepted or persisted.
-Canonical type 42 is the only supported skeletal-weight representation.
-
-### Canonical skeletal-runtime section types — reader/writer rollout in progress
+### Canonical skeletal-runtime section types
 
 The following values are present in `SECTION_TYPE`; all three have explicit read/validate support
 in both real loaders, `MESH_MBM_DEBUG::saveV11` round-trips canonical data, and the FBX importer
@@ -146,9 +138,7 @@ SECTION_SKELETAL_ANIMATION = 43,
 ```
 
 The skeleton section currently writes version 3 (versions 1 and 2 remain explicitly readable);
-weights and animation remain version 1. They form the sole skeletal family of the delivered runtime
-feature. The meanings of retired numeric types 11 and 40 remain documented below solely as
-historical format archaeology; coexistence is not a compatibility requirement.
+weights and animation remain version 1. They form the skeletal family consumed by runtime animation.
 
 ## 5. Variable-length strings — replacing fixed char buffers
 
@@ -169,7 +159,7 @@ struct FRAME_HEADER_V11
 {
     uint32_t totalSubset;
     uint32_t vertexCount;
-    uint8_t  indexWidth;     // 16 or 32 — see §7
+    uint8_t  indexWidth;     // supported value: 16 — see §7
     uint8_t  hasNormal;      // bool
     uint8_t  hasUv;          // bool
     uint8_t  uvSource;       // 0 = OWN (this frame stores its own UVs)
@@ -180,7 +170,7 @@ struct FRAME_HEADER_V11
 // then: vertexCount * VEC3 position
 //       vertexCount * VEC3 normal      (only if hasNormal)
 //       vertexCount * VEC2 uv          (only if hasUv and uvSource == OWN)
-//       indexCount  * (uint16 or uint32, per indexWidth)
+//       indexCount  * uint16 (supported indexWidth == 16)
 //       totalSubset * SUBSET_DESC_V11
 ```
 
@@ -201,9 +191,7 @@ struct SUBSET_DESC_V11
                                        // always emits {1,0,0,0} (SUBSET_DEBUG carries no alpha-color
                                        // state), so every v11-saved subset currently reloads with its
                                        // primary texture's alpha channel forced on regardless of the
-                                       // source texture. Not a legacy-compat field to preserve as-is;
-                                       // a future milestone could wire a real per-subset value through
-                                       // if that forced-on behavior ever needs to be an author choice.
+                                       // source texture.
     uint16_t extraSlotCount;
     // followed by extraSlotCount * { uint8_t role; TEXTURE_REF_V11 texture; }
     // `role` is an mbm::TEXTURE_ROLE value (shader.h), restricted here to
@@ -224,10 +212,118 @@ struct TEXTURE_REF_V11
 `mbm::TEXTURE_ROLE` is reused by value, not re-encoded. This is the one piece of this format that
 reaches into the runtime's `shader.h` — one enum, one definition, no parallel per-format copy.
 
+### Optional `SECTION_NORMAL_MAP_TANGENTS` (14), section version 1
+
+This optional section stores CPU-prepared normal-map geometry references without
+changing `SECTION_FRAME_STATIC` or the author's vertex/index arrays. At most one
+section may reference each zero-based frame index. Section order is independent
+of the referenced frame's position in the file. Absence is valid.
+
+The payload is written field-by-field, little endian:
+
+```text
+uint32 frameIndex
+uint32 preparationRevision = 1
+uint64 sourceSignature
+uint32 unusableTriangleCount
+uint32 batchCount                 // nonzero
+repeat batchCount:
+    uint32 subsetIndex            // zero-based; nondecreasing across batches
+    uint32 vertexCount            // 1..65536
+    uint32 indexCount             // nonzero, divisible by 3
+    repeat vertexCount:
+        uint32 sourceVertexIndex  // index into the original frame
+        float32 tangentX, tangentY, tangentZ, tangentSign
+    repeat indexCount:
+        uint16 batchLocalIndex
+```
+
+The fixed payload prefix is 24 bytes. Each batch has a 12-byte prefix, 20 bytes
+per vertex and two bytes per local index. A subset may span multiple batches to
+stay within the 16-bit index limit. Triangles retain source draw order; strips and
+fans are expanded with their winding preserved. Positions, normals, UVs and skin
+influences remain in their existing source records; the source-vertex mapping
+allows their later transfer to render buffers without changing authoring indices.
+
+Tangents must be finite and approximately unit length (squared-length tolerance
+0.002), orthogonal to their normalized source normal within 0.002, and have sign
+`+1` or `-1`. The sole disabled-basis representation is `(0,0,0,0)` and must cover
+all three corners of its triangle. `unusableTriangleCount` must equal the number
+of these triangles. Every prepared vertex must be referenced. Batch triangles
+must cover exactly the requested source subsets and reference the same source
+corners in the same order.
+
+`sourceSignature` is FNV-1a 64-bit (offset 14695981039346656037, multiplier
+1099511628211) over little-endian uint32 scalar words: preparation revision;
+position count and XYZ float bits; normal count and XYZ float bits; UV count and
+XY float bits; subset count; then each subset's topology (`0` triangles, `1` strip,
+`2` fan), requested flag (0/1), source-index count and source indices. Unrequested
+subsets have zero source-index count. The resolved UVs are used, including UVs
+shared from frame zero. The signature detects source changes; the section CRC and
+structural checks remain independently required. This is not an authenticity hash.
+
+Both runtime and authoring readers reject duplicates, unsupported revisions,
+non-finite source data, bad lengths/references, signature mismatches and trailing
+bytes. Payload lengths are checked before allocating batch arrays. Runtime parsing
+and validation also run on the asynchronous CPU worker; no graphics context is
+needed. Valid stored tangents are retained without calling MikkTSpace.
+
+`saveV11` prepares subsets with a nonempty normal-map slot. Previously prepared
+subsets may remain prepared after removing the map. Without a map or retained
+preparation, no tangent section is emitted. Missing normals/UVs and point/line
+topologies do not emit a surface basis. Saving reuses validated preparation and
+regenerates it when source data changes; runtime loading generates missing bases
+only for materials that need them. The section can use the usual NONE/DEFLATE
+envelope compression. Material properties are stored separately in section 15.
+Static 3D lighting consumes the prepared basis on OpenGL ES, DirectX 9 SM3,
+DirectX 11 and Metal; see [Lighting](light.md#material-texture-slots).
+
+Explicit authoring preparation (`MESH_MBM_DEBUG::prepareNormalMap`, C++/Lua) can
+retain a prepared subset without a normal texture. Its preserve/generate/import
+policies publish the same section-14 representation; there is no additional binary
+layout for the policy. Imported data is provided per expanded triangle corner,
+validated, split/remapped privately and serialized exactly like generated data.
+A successfully prepared no-map subset is retained by subsequent save/load. This
+does not make tangents mandatory for other subsets or assets.
+
+### Optional `SECTION_NORMAL_MAP_MATERIALS` (15), section version 1
+
+At most one section per asset. It is independent of tangent sections and texture
+slots. All values are little-endian, serialized field by field, without padding:
+
+| Field | Type | Meaning |
+|---|---|---|
+| entryCount | u32 | Positive count, bounded by the payload size |
+| frameIndex | u32 | Zero-based source frame index, repeated per entry |
+| subsetIndex | u32 | Zero-based source subset index |
+| sourceConvention | u32 | 0 = +Y; 1 = -Y; other values rejected |
+| strength | f32 | Finite and non-negative; 0 = no detail, 1 = original strength |
+
+Size is exactly `4 + 16 * entryCount` bytes. Duplicate sections/keys, unsupported
+versions, out-of-range references, invalid values, truncation and trailing bytes
+are rejected. References are checked after all frame sections have been read,
+so section ordering does not affect validity. NONE/DEFLATE compression and CRC
+validation use the ordinary section envelope. The MSH format remains version 11.
+
+Missing entries mean +Y and strength 1, without assigning any texture or requiring
+tangents. New assets using defaults emit no section; setting a subset back to both
+defaults removes its explicit entry. Explicit default records in input files are
+valid. Non-default settings can be saved even when no normal texture is assigned.
+Removing a texture does not discard settings. Frame/subset copying, removal and
+reordering preserve associations; merging subsets with different settings is rejected.
+
+The stored convention describes the source pixels. Loading, saving and changing
+settings never invert texture pixels, change the tangent signature, or invalidate
+prepared tangents. Supported static 3D lighting decodes the map, applies the Y
+sign once, scales tangential XY by strength and safely normalizes (using
+proportional bounded coefficients for large strengths). Strength zero disables
+the detail. These settings do not affect the existing 2dw lighting equations.
+Storage and validated serialization live in `private/normal-map-asset.*`; both
+runtime loaders and the authoring loader use the same material payload parser.
+
 ## 6b. `SECTION_ANIMATION` payload
 
-One `SECTION_ANIMATION` section per animation, in file order (no explicit index — see Milestone 0
-Decision 3).
+One `SECTION_ANIMATION` section per animation, in file order (no explicit index — see §8 format invariants).
 
 ```cpp
 struct ANIMATION_HEADER_V11
@@ -371,61 +467,10 @@ struct TILE_PROPERTY_V11
 };
 ```
 
-## 6e. `SECTION_FRAME_SKINNED` payload
+## 6e. Unsupported section type 11
 
-Retired exploratory payload, formerly authored by Mesh Debug through `meshDebug:addBone(...)`.
-Active loaders reject it and active writers never emit it. The layout below remains historical
-documentation until its remaining structs and serializer symbols are deleted. Runtime skinning
-uses the canonical skeleton, weights, and clips in sections 41–43.
-
-Bundled like `SECTION_DETAIL_TILE` (§6d): one section, an internal count prefix, followed by a
-flat run of entries — not repeated-per-item like `SECTION_ANIMATION`, since there is exactly one
-skeleton per file, not N.
-
-`sectionVersion` (§3) distinguishes two on-disk layouts. **`1`** (legacy): only the first 6 fields
-below (`name`..`radius`) are present — a reader defaults `rotX=rotY=rotZ=0`, `scaleX=scaleY=scaleZ=1`,
-`length=0` (the struct's own constructor defaults). **`2`** (current writer, always emitted): all 13
-fields are present. The two layouts share a byte-identical 6-field prefix — reading is "read 6
-fields, then if `sectionVersion >= 2` read 7 more," nothing else branches.
-
-```cpp
-struct SKELETON_HEADER_V11
-{
-    uint16_t jointCount;  // count of SKELETON_BONE_V11 entries that follow, in parent-before-child order
-};
-
-// then, jointCount entries:
-struct SKELETON_BONE_V11
-{
-    // name, parentName: length-prefixed strings (§5). parentName == "" marks the root bone;
-    // otherwise it must equal the `name` of a SKELETON_BONE_V11 already emitted earlier in this
-    // same section (root-first order) — a reader rejects the file if a parentName doesn't resolve
-    // to an already-seen bone, rather than silently accepting a dangling/forward reference.
-    float x, y, z;   // bone position, same coordinate convention as the caller's mesh
-    float radius;    // authoring-time bone radius (envelope/gizmo marker size) — orthogonal to
-                      // rotation/scale/length below
-
-    // sectionVersion 2 only:
-    float rotX, rotY, rotZ;      // bone orientation, Euler degrees, same non-parent-relative
-                                  // world/armature-space convention as x,y,z above. Engine's own
-                                  // X-then-Y-then-Z composition order (MatrixRotationX/Y/Z,
-                                  // src/core_mbm/primitives.cpp), matching editor/mesh_debug.lua's
-                                  // rotateX/Y/Z and MESH_MBM_DEBUG::rotateFrame exactly.
-    float scaleX, scaleY, scaleZ; // bone-local scale, default 1,1,1. A whole-mesh coordinate-space
-                                  // scale bake changes x/y/z, radius, and length, not these fields.
-    float length;                 // bone extent along its own local +Y axis (Blender's own
-                                  // head→tail convention): tail = head + Rotate(rotX,rotY,rotZ)
-                                  // applied to Vector(0, length, 0). `0` means "no orientation
-                                  // data available" (a sectionVersion 1 file, or a synthesized/
-                                  // hand-authored bone with no Blender-import provenance) —
-                                  // consumers needing a tail direction should fall back to
-                                  // inferring it from position topology in that case, not trust
-                                  // rotX/Y/Z.
-};
-```
-
-Same "no explicit index field" convention as every other repeated/bundled section (§4, Milestone 0
-Decision 3, §8 below): bone identity is by `name`, not by array position.
+Numeric type 11 is not accepted by loaders or emitted by writers. Use canonical
+skeletal sections 41–43 for runtime skeletal assets.
 
 ## 6f. `SECTION_ARTICULATED_PARTS` and `SECTION_ARTICULATED_ANIMATION` payloads
 
@@ -474,86 +519,18 @@ priority/start-order resolution. Additive clips are then composed over that pose
 offset from zero, rotation is a quaternion delta from identity, and scale is a multiplier from one.
 Runtime playback weight and fade progress are instance state and are not stored in this section.
 
-## 6g. `SECTION_VERTEX_SKIN_WEIGHTS` payload
+## 6g. Unsupported section type 40
 
-One optional section per mesh — present only when a Blender-imported source object had real
-`vertex_groups` and `--include-bones` was set (`editor/blender_mesh_export.py`'s
-`export_frame_subsets` weight-capture pass), or when hand-set via
-`meshDebug:setVertexWeight(...)`. **Diagnostic/editor + FBX re-export round-trip only — never
-consulted by rendering** (same "no GPU/CPU skinning anywhere" scope as `SECTION_FRAME_SKINNED`,
-§6e). Real motivation: `editor/mesh_debug.lua`'s "Export to FBX" previously had no choice but to
-*invent* new weights from scratch via Blender's `ARMATURE_ENVELOPE` geometric approximation for
-every export, because the format had nowhere to keep a mesh's own originally-authored weights past
-import. This section is what closes that gap. Export still performs `ARMATURE_ENVELOPE` binding for
-the whole mesh first, so vertices without stored data retain a usable geometric fallback. It then
-applies the stored weights as a final per-vertex override: only vertices carrying real or
-editor-authored weights have their envelope-derived groups cleared and replaced. Thus a partially
-weighted mesh does not leave every other vertex undeformed, while persisted weights remain
-authoritative wherever they exist.
+Numeric type 40 is not accepted by loaders or emitted by writers. Canonical type
+42 stores skeletal vertex influences against frame-0 geometry and a bone palette.
 
-Bundled like `SECTION_FRAME_SKINNED` (§6e): one section, an internal count prefix, followed by a
-flat run of entries. **Tied to `SECTION_FRAME_STATIC` frame 1's own vertex topology specifically**
-(`vertexCount` below must equal frame 1's own `FRAME_HEADER_V11.vertexCount`) — skin weights are a
-bind-pose property, they don't vary per animation frame (only bone *transforms* would, and this
-engine doesn't apply those anywhere), so there is no reason to repeat this data per frame, and no
-defined meaning for any frame other than frame 1.
-
-Bones are referenced by a small per-section name **palette**, not by raw index into
-`SECTION_FRAME_SKINNED`'s own bone array. This is deliberate: that array can be resorted/renamed/
-have entries removed later (`MESH_MBM_DEBUG::updateBone`/`removeBone`/`addBone`), which would
-silently invalidate a raw index but leaves a name-based reference either still correct or a clean
-"unknown bone" lookup miss — never a silent wrong-bone reference.
-
-`sectionVersion` is always `1` today (no legacy layout to branch on yet).
-
-```cpp
-struct VERTEX_SKIN_WEIGHTS_HEADER_V11
-{
-    uint32_t paletteCount;  // unique bone names referenced by any vertex
-    uint32_t vertexCount;   // must equal SECTION_FRAME_STATIC frame 1's own vertexCount
-};
-
-// then, paletteCount length-prefixed strings (§5): the bone-name palette, in first-referenced order
-
-// then, vertexCount entries (frame 1's own vertex order):
-struct VERTEX_BONE_WEIGHT_V11
-{
-    uint8_t paletteIndex[4]; // index into the palette above; 0xFF = unused slot
-    float   weight[4];       // unused slot weight = 0.0f; used slots should sum to ~1.0
-                              // (not enforced on read — a caller that wrote unnormalized weights
-                              // gets them back exactly as given)
-};
-```
-
-Fixed at 4 influences per vertex — matches this codebase's own pre-existing convention
-(`blender_mesh_skeleton_export.py`'s `vertex_group_limit_total(4)` + `vertex_group_normalize_all`,
-already applied to its `ARMATURE_ENVELOPE` fallback weights before this section existed, and now
-also applied on the *import* side when capturing real weights, for the same reason).
-
-Size cost: 4×(1-byte index + 4-byte weight) = 20 bytes/vertex + a negligible one-time palette (tens
-of short strings). Not amplified by triangle sharing — `SECTION_FRAME_STATIC` is an indexed buffer
-(one entry per unique vertex, §6), so this is one weight entry per existing vertex entry, exactly
-like normal/UV data already is; the only "duplication" that occurs is the same one position/normal/
-UV already have at a genuine UV-seam or hard-normal edge, where one Blender vertex legitimately
-becomes several separate entries in this format.
-
-**Rollout note**: `parse_v11_intermediate` (the shared runtime/`MESH_MBM` load path) parses this
-section into a scratch field of the shared intermediate struct that `finishLoadFromIntermediate`
-never reads — the same "parsed but intentionally unused by `MESH_MBM`" pattern
-`SECTION_FRAME_SKINNED` already established — purely so a game/runtime load of a mesh carrying this
-section still succeeds. `MESH_MBM_DEBUG::loadV11` has its own separate read loop that actually
-stores the data for editing/re-export. An *older*, already-compiled engine binary with no branch
-for type `40` in either loader will still hard-fail on a file carrying this section (see the note
-in §4) — accepted as consistent with `SECTION_FRAME_SKINNED`'s own original rollout, not treated as
-a regression to fix retroactively.
-
-## 6h. Canonical skeletal-runtime persistence design and implementation status
+## 6h. Canonical skeletal-runtime persistence
 
 This section fixes the byte-level contract. Readers for types 41–43 are implemented, including
 shared `skeletonId`, frame-0 topology, palette, coverage, clip/track/key, and presence invariants.
 `MESH_MBM_DEBUG::saveV11` validates and emits an existing canonical 41–42–43 group in canonical
 order and includes it in `sectionCount`; it never promotes legacy editor data implicitly. The
-direct Blender/FBX path now creates types 41 and 42 directly from armature bind matrices and vertex
+direct Blender/FBX path creates types 41 and 42 directly from armature bind matrices and vertex
 groups, and type 43 from sampled parent-relative pose matrices. An armature import writes one REST
 bind-geometry frame; it does not duplicate sampled poses as static geometry.
 Every integer and float uses the existing V11 little-endian field serializers; records are written
@@ -595,7 +572,7 @@ repeat boneCount times, in parent-before-child compiled order:
 
 IDs, not names or array positions, define identity and hierarchy. Every nonzero `parentBoneId` must
 refer to an earlier record. All numeric fields must be finite; quaternion, scale, hierarchy,
-local→global reconstruction, and inverse-bind validation use the Milestone-0 numerical policy.
+local→global reconstruction, and inverse-bind validation use the documented numerical policy.
 Global bind and inverse-global-bind matrices are derived and are not persisted.
 
 Version 1 ends after `length`. It remains readable and receives the non-authoritative fallback
@@ -677,13 +654,11 @@ articulated, or skeletal clip. `SPRITE` starts frame and articulated selections.
 remains per instance. The editor stores the selected animation kind and name here without changing
 the existing animation payloads. An unset selection is represented by omitting the section.
 
-### Rollout and old-reader behavior
+### Reader compatibility
 
-The canonical skeletal sections 41–43 were rolled out with field serializers and payload validators,
-parse support in `parse_v11_intermediate` and `MESH_MBM_DEBUG::loadV11`, corruption tests, writer
-emission, `sectionCount` increments, and a save/reload section-order fixture. Existing binaries that
-predate an optional section type reject files containing it. This is an explicit feature-version
-boundary, not silent fallback; the same reader boundary applies to autoplay section 44.
+Loaders require explicit support for each section type and version; unsupported
+sections are rejected rather than silently ignored. This applies to canonical
+skeletal sections 41–43 and autoplay section 44.
 
 There is deliberately no legacy skeletal writer mode. Readers, writers, structs, enum members,
 storage, and public Mesh Debug APIs for retired numeric types 11 and 40 have been removed. A file
@@ -694,84 +669,35 @@ animation merely to target an older binary.
 
 ## 7. Index width (§6 `indexWidth`)
 
-Per-frame, not per-file: `16` is the default a writer should choose unless the frame's vertex count
-exceeds 65535 or the developer explicitly opted into 32-bit indices for that mesh. Most sprite/font/
-particle frames are a handful of quads and stay at 16-bit; dense 3D frames can opt into 32-bit only
-where actually needed, keeping the common case small.
+`indexWidth` is stored per frame. Mini MBM writes `16` and rejects other values
+in runtime and authoring loaders. The field does not enable 32-bit mesh indices.
 
-## 8. What stays out of this proposal on purpose
+This is an intentional scope limit aligned with the engine's lightweight goal:
+32-bit indices will not be implemented. Assets requiring larger indexed geometry
+must be divided into supported meshes or simplified. A 16-bit index addresses
+values 0 through 65535; this is a vertex-addressing range, not a triangle-count
+limit. Individual editing operations may enforce stricter vertex-count limits.
+Normal-map preparation retains its existing private 16-bit batch partitioning;
+that does not introduce 32-bit source-mesh support.
 
-- Vertex quantization (compact normal/UV encodings) — future optimization, not part of the v11.0
-  layout lock.
-- `SECTION_DETAIL_*` payload bytes are intentionally not redesigned here — they can keep today's
-  v8 field layout (`DETAIL_HEADER_FONT_DISK_V8`, `STAGE_PARTICLE_DISK_V8`, `BTILE_*_DISK_V8`, the
-  physics shape structs), just moved inside the new TLV envelope instead of the old inline
-  `DETAIL_MESH.type` dispatch. No reason to redesign payloads that aren't part of the problems this
-  break is solving.
+## 8. Format invariants and implementation limits
 
-## Milestone 0 Decisions (resolved 2026-06-25)
+- The magic is four bytes (`MBM1`), followed by `formatVersion`. No build/tooling
+  stamp is embedded in the fixed header.
+- Every section carries a CRC of its uncompressed payload, including uncompressed
+  and empty payloads. Compression does not change this validation requirement.
+- Repeated animation and static-frame sections use file order as their index.
+- Reserved fields are written as zero. Section types/versions describe extensions.
+- Detail payloads retain their specified disk layouts inside the TLV envelope.
+- The runtime/editor geometry path supports 16-bit indices only. Wider indices
+  are intentionally outside engine scope, not an unimplemented format feature.
 
-1. **Magic stays 4 bytes (`"MBM1"`), no build/tooling stamp.** Self-identification only needs to
-   answer "do I understand this file," not "who/what produced it." `formatVersion` (uint16)
-   immediately follows the magic, giving 6 bytes of self-description before anything size-dependent
-   is trusted — that's enough. Provenance/build metadata, if ever wanted, belongs in a section
-   payload (a future `SECTION_BUILD_INFO`) where it can evolve independently, not baked into the one
-   fixed field every reader must hardcode forever.
-2. **`crc32Value` is always written, for every section, regardless of compression.** It's one `mz_crc32`
-   pass on top of I/O the loader is already paying for, and it buys a single uniform validation path
-   in the reader instead of a "verify only if compressed" branch. It also catches truncation/
-   corruption in *uncompressed* sections — exactly the gap left open once whole-file compression's
-   implicit zlib check goes away.
-3. **No explicit index field on repeated sections.** `SECTION_ANIMATION` / `SECTION_FRAME_STATIC`
-   keep file-order-as-index, unchanged from today's format. No real use case for sparse/reordered
-   animations or frames exists today. `sectionVersion` is the designed escape hatch — an explicit
-   index can be added later as a new section version if that need ever materializes, without
-   spending bytes on every file now for a hypothetical.
-4. **`reserved0` / `reserved1` stay reserve-and-zero.** Same reasoning as #3: no concrete present use,
-   and `sectionVersion` / new section types are the mechanism for adding fields later. Baking a guess
-   (e.g. a compression-policy flag) into padding now risks locking in the wrong shape before there's a
-   real requirement driving it.
-
-These four close Milestone 0. Implementation (`mesh-v11-io.cpp`, milestone 1) can proceed against
-this layout as written.
-
-## Future Work
-
-Backlogged items that do not change the on-disk layout:
-
-- **32-bit index support** (`indexWidth == 32` in `FRAME_HEADER_V11` §6): the format field is
-  already defined and read/written correctly. The C++ implementation is all `uint16_t` throughout —
-  GPU upload/draw (`GL_UNSIGNED_SHORT`/`D3DFMT_INDEX16`) and the entire in-memory editing API
-  (`MESH_MBM_DEBUG::addVertex`/`addIndex`/`mergeBuffer`, ~30 sites in `mesh-manager.cpp`). All three
-  layers must change together; the editing layer is the bulk of the work.
-
-- **Shader-effect editor** (partially done): FX *texture* get/set is fully wired —
-  `MESH_MBM_DEBUG::getAnimationEffectTexture`/`setAnimationEffectTexture`, Lua bindings
-  `getFxTexture`/`setFxTexture` in `mesh-debug-lua.cpp`, and UI rows in both the Animations node
-  and the Texture node's stage-1 branch in `mesh_debug.lua` (milestone 19).
-  Still missing in the editor (no C++ methods on `MESH_MBM_DEBUG`, no Lua bindings, no UI):
-  - PS/VS shader name (`INFO_FX::dataPS/dataVS->fileNameShader`, e.g. `"transparent.ps"`)
-  - PS/VS animation type and time (`dataPS->typeAnimation`, `dataPS->timeAnimation`)
-  - Blend operation (`INFO_FX::blendOperation`)
-  - Shader vars (min/max per variable): var names are **not** stored in `INFO_SHADER_DATA` — only
-    the runtime compiled `BASE_SHADER` knows them — so editing vars requires a "set shader name →
-    compile → read uniform names → show named rows" workflow, making it the most complex piece.
-
-- **Milestone 22 dynamic-test gap**: `renderizable:loadAsync()` Lua bindings were never exercised
-  against a live engine — the implementing session's Xvfb/GL environment hung before any frame ran
-  (confirmed pre-existing, not caused by those changes). With a working `DISPLAY=:1` setup, run:
-  one genuinely-async case per renderizable type, a GC-safety test (drop all Lua refs +
-  `collectgarbage()` before load completes), and a failure-path case (missing/wrong-type file). See
-  `src/lua-wrap/render-table/*-lua.cpp` and `src/render/*.h`/`.cpp`.
-
-- **`TEXTURE_MANAGER::loadAsync`**: no async primitive for plain texture loading. `PARTICLE`/
-  `BACKGROUND`'s texture-only `loadAsync` sub-paths stay synchronous-but-callback-shaped by design.
-  A real implementation would mirror `MESH_MANAGER::loadAsync`'s worker-thread decode + main-thread
-  GPU-finish design.
+Format/editor extensions and additional loader validation are tracked in
+[Future Features](future-features.md#mesh-format-and-loader-follow-up).
 
 ### Optional relative texture export
 
-Since 7.242.0, `MESH_MBM_DEBUG::saveV11` accepts a final optional
+`MESH_MBM_DEBUG::saveV11` accepts a final optional
 `relativeTextures=false` argument. When enabled, primary/extra material texture
 references keep their basename instead of being expanded by the asset search
 paths. The binary layout is unchanged; the existing 63-byte writer limit still

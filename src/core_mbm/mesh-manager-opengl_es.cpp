@@ -18,7 +18,6 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #if defined(USE_OPENGL_ES)
-
 #include <mesh-manager.h>
 #include <texture-manager.h>
 #include <util-interface.h>
@@ -26,214 +25,180 @@
 #include <shader.h>
 #include <specific-opengl_es.h>
 #include "specific-opengl_es-buffer.h"
-#include <string>
 #include <GLES2/gl2ext.h>
-
-#include <map>
-
-
+#include <climits>
+#include <cstdio>
+#include <cstring>
+#include <limits>
 
 namespace mbm
 {
-    #if defined ANDROID //ANDROID //TODO fix issue not found EGL lib on ANDOID 
-        typedef void* (PFNGLMAPBUFFEROESPROC_TODO)       (GLenum target, GLenum access);
-        typedef GLboolean (PFNGLUNMAPBUFFEROESPROC_TODO) (GLenum target);
-    #endif
-
-        bool MESH_MBM_DEBUG::fillInSubsetDebug(const MESH_MBM* meshMemory,
-                                               const int currentFrame,
-                                               const std::map<int, float>& lsLetterChangedValuesByCurFrameX,
-                                               const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
-                                               util::HEADER_FRAME* headerFrame,
-                                               util::BUFFER_MESH_DEBUG* pBuffer)//need to be implemented by specific backend engine 
+namespace
+{
+    struct BUFFER_BINDINGS
+    {
+        GLint vertex = 0, index = 0;
+        BUFFER_BINDINGS() noexcept
         {
-            const BUFFER_MESH* pBufferMesh = meshMemory->getBuffer(currentFrame);
-            const BUFFER_GL* pGl           = pBufferMesh ? pBufferMesh->getRenderBuffer() : nullptr;
-            BUFFER_SPECIFIC *backendBuffer = pGl ? pGl->getBackendBuffer() : nullptr;
-            if (!backendBuffer)
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "backend buffer is null");
-            auto* extensionString          = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
-            if (strstr(extensionString, "GL_OES_mapbuffer") == nullptr)
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [GL_OES_mapbuffer] not supported!");
-    #if defined ANDROID //ANDROID //TODO fix issue not found EGL lib on ANDOID 
-            PRINT_IF_DEBUG("loadDebugFromMemory is not working on ANDOID");
-            PRINT_IF_DEBUG("TODO: fix issue not found EGL lib on ANDOID");
-            PFNGLMAPBUFFEROESPROC_TODO* glMapBufferOES = nullptr;
-            PFNGLUNMAPBUFFEROESPROC_TODO* glUnmapBufferOES = nullptr;
-    #else //ANDROID //TODO fix issue not found EGL lib on ANDOID 
-            auto glMapBufferOES   = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("glMapBufferOES");
-            auto glUnmapBufferOES = (PFNGLUNMAPBUFFEROESPROC)eglGetProcAddress("glUnmapBufferOES");
-    #endif
-            if (glMapBufferOES == nullptr)
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [glMapBufferOES] not supported!");
-            if (glUnmapBufferOES == nullptr)
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [glUnmapBufferOES] not supported!");
-            // 6.2 Vertex buffer e index buffer
-                // -----------------------------------------------------------------------------------------
-            if (headerFrame->sizeIndexBuffer && strcmp(headerFrame->typeBuffer, "IB") == 0)
-            {
-                pBuffer->indexBuffer = new uint16_t[headerFrame->sizeIndexBuffer];
-                uint16_t acumulated = 0;
-                const uint32_t totalSubsets = pBufferMesh->getTotalSubsets();
-                for (uint32_t i = 0; i < totalSubsets; ++i)
-                {
-                    auto pSubset = new util::SUBSET_DEBUG();
-                    pBuffer->subset.push_back(pSubset);
-                    uint16_t maxIndexSubset = 0;
-                    pSubset->indexStart = pGl->indexStartIB[i];
-                    pSubset->indexCount = pGl->indexCountIB[i];
-                    pBuffer->subset[i]->indexStart = pSubset->indexStart;
-                    pBuffer->subset[i]->indexCount = pSubset->indexCount;
-                    GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
-                    auto* indexBuffer = static_cast<uint16_t*>(glMapBufferOES(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
-                    if (indexBuffer == nullptr)
-                        return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get index at [glMapBufferOES] ");
-                    for (int j = 0; j < pSubset->indexCount; ++j)
-                    {
-                        const int index = pSubset->indexStart + j;
-                        pBuffer->indexBuffer[index] = indexBuffer[j];
-                        maxIndexSubset = std::max(pBuffer->indexBuffer[index], maxIndexSubset);
-                    }
-                    glUnmapBufferOES(GL_ELEMENT_ARRAY_BUFFER);
-                    uint16_t vertexCount = maxIndexSubset + 1;
-                    pSubset->vertexCount = vertexCount;
-                    pSubset->vertexStart = acumulated;
-                    acumulated += vertexCount;
+            glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vertex);
+            glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &index);
+        }
+        ~BUFFER_BINDINGS()
+        {
+            GLBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(vertex));
+            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLuint>(index));
+        }
+    };
 
-                    const util::SUBSET *runtimeSubset = pBufferMesh->getSubset(i);
-                    if (runtimeSubset && runtimeSubset->texture)
-                    {
-                        pSubset->texture = runtimeSubset->texture->getFileNameTexture();
-                    }
-                }
-                headerFrame->sizeVertexBuffer = (acumulated);
-                const uint32_t totalUv = (acumulated) * 2;
-                pBuffer->position = new float[headerFrame->sizeVertexBuffer * 3];
-                const bool hasNormals = (pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
-                pBuffer->normal = hasNormals ? new float[headerFrame->sizeVertexBuffer * 3] : nullptr;
-                pBuffer->uv = new float[totalUv];
-            }
-            // 6.3 Vertex Buffer somente
-            // ----------------------------------------------------------------------------------------------
-            else if (strcmp(headerFrame->typeBuffer, "VB") == 0)
+    bool hasExtension(const char *extensions, const char *name)
+    {
+        if (!extensions) return false;
+        const size_t length = std::strlen(name);
+        const char *match = extensions;
+        while ((match = std::strstr(match, name)))
+        {
+            if ((match == extensions || match[-1] == ' ') && (match[length] == 0 || match[length] == ' ')) return true;
+            match += length;
+        }
+        return false;
+    }
+
+    struct BUFFER_READER
+    {
+        PFNGLMAPBUFFERRANGEEXTPROC map = nullptr;
+        PFNGLUNMAPBUFFEROESPROC unmap = nullptr;
+        BUFFER_READER()
+        {
+            const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+            int major = 0;
+            if (version) std::sscanf(version, "OpenGL ES %d", &major);
+            if (major >= 3)
             {
-                const uint32_t totalVertex = (headerFrame->sizeVertexBuffer) * 3;
-                const uint32_t totalNormal = (headerFrame->sizeVertexBuffer) * 3;
-                const uint32_t totalUv = (headerFrame->sizeVertexBuffer) * 2;
-                pBuffer->position = new float[totalVertex];
-                const bool hasNormals = (pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
-                pBuffer->normal = hasNormals ? new float[totalNormal] : nullptr;
-                pBuffer->uv = new float[totalUv];
+                map = reinterpret_cast<PFNGLMAPBUFFERRANGEEXTPROC>(eglGetProcAddress("glMapBufferRange"));
+                unmap = reinterpret_cast<PFNGLUNMAPBUFFEROESPROC>(eglGetProcAddress("glUnmapBuffer"));
             }
             else
             {
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "unknown buffer type [%s]", headerFrame->typeBuffer);
-            }
-
-            bool is_dynamic_shape = false;
-            float* pPosition = nullptr;
-            float* pNormal = nullptr;
-            float* pTexture = nullptr;
-            const util::DYNAMIC_SHAPE* infoShape = meshMemory->getInfoShape(); //maybe is dynamic shape
-            if (infoShape && infoShape->dynamicVertex)
-            {
-                pPosition = infoShape->dynamicVertex;
-                pNormal = (infoShape->size_normal > 0) ? infoShape->dynamicNormal : nullptr;
-                pTexture = infoShape->dynamicUV;
-                is_dynamic_shape = pPosition != nullptr && pTexture != nullptr;
-                if (is_dynamic_shape == false)
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has nullptr (vertex or uv) [%s]", meshMemory->getFilenameMesh());
-                if (headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_vertex / 3))
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent vertex buffer [%s] sizeVertexBuffer: [%d] size_vertex [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_vertex);
-                if (infoShape->size_normal > 0 && headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_normal / 3))
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent normal buffer [%s] sizeVertexBuffer: [%d] size_normal [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_normal);
-                if (headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_uv / 2))
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent uv buffer [%s] sizeVertexBuffer: [%d] size_uv [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_uv);
-            }
-            
-            if (is_dynamic_shape == false)
-            {
-                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
-                pPosition = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
-            }
-            if (pPosition == nullptr)
-            {
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get position at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
-            }
-            memcpy(pBuffer->position, pPosition, sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
-            if (is_dynamic_shape == false)
-                glUnmapBufferOES(GL_ARRAY_BUFFER);
-
-            if (meshMemory->getInfoFont() != nullptr)
-            {
-                auto itFrameX = lsLetterChangedValuesByCurFrameX.find(currentFrame);
-                if (itFrameX == lsLetterChangedValuesByCurFrameX.end())
+                const char *extensions = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+                if (hasExtension(extensions, "GL_EXT_map_buffer_range") && hasExtension(extensions, "GL_OES_mapbuffer"))
                 {
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to find letterDiffX for currentFrame [%d] [%s]", currentFrame, meshMemory->getFilenameMesh());
-                }
-                auto itFrameY = lsLetterChangedValuesByCurFrameY.find(currentFrame);
-                if (itFrameY == lsLetterChangedValuesByCurFrameY.end())
-                {
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to find letterDiffY for currentFrame [%d] [%s]", currentFrame, meshMemory->getFilenameMesh());
-                }
-                const float letterDiffX = itFrameX->second;
-                const float letterDiffY = itFrameY->second;
-                const auto sL = static_cast<int>(sizeof(mbm::INFO_BOUND_FONT::letterDiffY) / sizeof(float));
-                if (currentFrame < sL)
-                {
-                    if (letterDiffX != 0.0f)
-                    {
-                        const uint32_t ss = 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer);
-                        for (uint32_t ii = 0; ii < ss; ii += 3)// [0 -> x, 1 -> y, 2 -> z] (first x coord == 0)
-                        {
-                            pBuffer->position[ii] += letterDiffX;
-                        }
-                    }
-                    if (letterDiffY != 0.0f)
-                    {
-                        const uint32_t ss = 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer);
-                        for (uint32_t ii = 1; ii < ss; ii += 3)// [0 -> x, 1 -> y, 2 -> z] (first y coord == 1)
-                        {
-                            pBuffer->position[ii] += letterDiffY;
-                        }
-                    }
+                    map = reinterpret_cast<PFNGLMAPBUFFERRANGEEXTPROC>(eglGetProcAddress("glMapBufferRangeEXT"));
+                    unmap = reinterpret_cast<PFNGLUNMAPBUFFEROESPROC>(eglGetProcAddress("glUnmapBufferOES"));
                 }
             }
-            const bool hasNormals = (pBuffer->normal != nullptr);
-            if (hasNormals)
-            {
-                if (is_dynamic_shape == false)
-                {
-                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[1]);
-                    pNormal = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
-                }
-                if (pNormal == nullptr)
-                {
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get normal at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
-                }
-                memcpy(pBuffer->normal, pNormal, sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
-                if (is_dynamic_shape == false)
-                {
-                    glUnmapBufferOES(GL_ARRAY_BUFFER);
-                }
-            }
-            if (is_dynamic_shape == false)
-            {
-                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[2]);
-                pTexture = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
-            }
-            if (pTexture == nullptr)
-            {
-                const util::DYNAMIC_SHAPE* infoShape = meshMemory->getInfoShape(); //maybe is dynamic shape
-                if (infoShape == nullptr || infoShape->dynamicUV == nullptr)
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get uv at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
-
-            }
-            memcpy(pBuffer->uv, pTexture, sizeof(float) * 2 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
-            if (is_dynamic_shape == false)
-                glUnmapBufferOES(GL_ARRAY_BUFFER);
+        }
+        bool read(GLenum target, GLuint buffer, void *destination, size_t bytes) const
+        {
+            if (bytes == 0) return true;
+            if (!map || !unmap)
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh readback requires ES3 or EXT_map_buffer_range + OES_mapbuffer");
+            if (!buffer || !destination || bytes > static_cast<size_t>(std::numeric_limits<GLsizeiptr>::max()))
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Invalid mesh readback buffer or size");
+            GLBindBuffer(target, buffer);
+            GLint available = 0;
+            glGetBufferParameteriv(target, GL_BUFFER_SIZE, &available);
+            if (available < 0 || bytes > static_cast<size_t>(available))
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh readback exceeds buffer %u (%zu > %d)", buffer, bytes, available);
+            const void *mapped = map(target, 0, static_cast<GLsizeiptr>(bytes), GL_MAP_READ_BIT_EXT);
+            if (!mapped)
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh readback failed: buffer %u, GL error 0x%x", buffer, glGetError());
+            std::memcpy(destination, mapped, bytes);
+            if (!unmap(target))
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh readback contents invalidated: buffer %u", buffer);
             return true;
         }
-} //namespace mbm
+    };
+}
 
-#endif //USE_OPENGL_ES
+bool MESH_MBM_DEBUG::fillInSubsetDebug(const MESH_MBM *meshMemory, const int currentFrame,
+                                     const std::map<int, float> &letterX,
+                                     const std::map<int, float> &letterY,
+                                     util::HEADER_FRAME *headerFrame, util::BUFFER_MESH_DEBUG *output)
+{
+    const BUFFER_MESH *frame = meshMemory->getBuffer(currentFrame);
+    const BUFFER_GL *geometry = frame ? frame->getRenderBuffer() : nullptr;
+    const BUFFER_SPECIFIC *backend = geometry ? geometry->getBackendBuffer() : nullptr;
+    if (!backend || geometry->sizeOfArrayVertex > INT_MAX)
+        return log_util::onFailed(nullptr, __FILE__, __LINE__, "Invalid mesh buffer for readback");
+    BUFFER_BINDINGS bindings;
+    BUFFER_READER reader;
+    const bool indexed = geometry->isIndexBuffer();
+    const bool normals = geometry->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || geometry->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    const bool uvs = geometry->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || geometry->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    const size_t count = geometry->sizeOfArrayVertex;
+    headerFrame->sizeVertexBuffer = static_cast<int>(count);
+    output->position = new float[count*3]();
+    output->normal = normals ? new float[count*3]() : nullptr;
+    output->uv = new float[count*2]();
+    if (indexed) output->indexBuffer = new uint16_t[headerFrame->sizeIndexBuffer]();
+
+    // Subset ranges are authoring metadata. Inferring vertex counts from maxima of
+    // global indices duplicates vertices across subsets and loses unused vertices.
+    for (uint32_t i = 0; i < frame->getTotalSubsets(); ++i)
+    {
+        const util::SUBSET *source = frame->getSubset(i);
+        if (!source || source->vertexStart < 0 || source->vertexCount < 0 ||
+            static_cast<size_t>(source->vertexStart) > count ||
+            static_cast<size_t>(source->vertexCount) > count - static_cast<size_t>(source->vertexStart))
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "Invalid source subset vertex range");
+        auto *subset = new util::SUBSET_DEBUG();
+        output->subset.push_back(subset);
+        subset->vertexStart = source->vertexStart;
+        subset->vertexCount = source->vertexCount;
+        subset->indexStart = indexed ? geometry->indexStartIB[i] : 0;
+        subset->indexCount = indexed ? geometry->indexCountIB[i] : 0;
+        subset->texture = source->texture ? source->texture->getFileNameTexture() : "default";
+        if (indexed)
+        {
+            if (subset->indexStart < 0 || subset->indexCount < 0 || subset->indexStart > headerFrame->sizeIndexBuffer ||
+                subset->indexCount > headerFrame->sizeIndexBuffer - subset->indexStart || !backend->vboIndexSubsetIB)
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Invalid source subset index range");
+            if (!reader.read(GL_ELEMENT_ARRAY_BUFFER, backend->vboIndexSubsetIB[i],
+                             output->indexBuffer + subset->indexStart, static_cast<size_t>(subset->indexCount)*sizeof(uint16_t))) return false;
+        }
+    }
+
+    const util::DYNAMIC_SHAPE *shape = meshMemory->getInfoShape();
+    if (shape && shape->dynamicVertex)
+    {
+        if (shape->size_vertex != count*3 || (normals && (!shape->dynamicNormal || shape->size_normal != count*3)) ||
+            (uvs && (!shape->dynamicUV || shape->size_uv != count*2)))
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "Inconsistent dynamic mesh readback arrays");
+        std::memcpy(output->position, shape->dynamicVertex, count*3*sizeof(float));
+        if (normals) std::memcpy(output->normal, shape->dynamicNormal, count*3*sizeof(float));
+        if (uvs) std::memcpy(output->uv, shape->dynamicUV, count*2*sizeof(float));
+    }
+    else if (indexed)
+    {
+        if (!reader.read(GL_ARRAY_BUFFER, backend->vboVertNorTexIB[0], output->position, count*3*sizeof(float)) ||
+            (normals && !reader.read(GL_ARRAY_BUFFER, backend->vboVertNorTexIB[1], output->normal, count*3*sizeof(float))) ||
+            (uvs && !reader.read(GL_ARRAY_BUFFER, backend->vboVertNorTexIB[2], output->uv, count*2*sizeof(float)))) return false;
+    }
+    else
+    {
+        if (!backend->vboVertexSubsetVB || (normals && !backend->vboNormalSubsetVB) || (uvs && !backend->vboTextureSubsetVB))
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "Missing non-indexed subset buffers");
+        for (uint32_t i = 0; i < frame->getTotalSubsets(); ++i)
+        {
+            const auto &subset = *output->subset[i];
+            const size_t start = static_cast<size_t>(subset.vertexStart), size = static_cast<size_t>(subset.vertexCount);
+            if (!reader.read(GL_ARRAY_BUFFER, backend->vboVertexSubsetVB[i], output->position + start*3, size*3*sizeof(float)) ||
+                (normals && !reader.read(GL_ARRAY_BUFFER, backend->vboNormalSubsetVB[i], output->normal + start*3, size*3*sizeof(float))) ||
+                (uvs && !reader.read(GL_ARRAY_BUFFER, backend->vboTextureSubsetVB[i], output->uv + start*2, size*2*sizeof(float)))) return false;
+        }
+    }
+    if (meshMemory->getInfoFont())
+    {
+        const auto x = letterX.find(currentFrame), y = letterY.find(currentFrame);
+        if (x == letterX.end() || y == letterY.end())
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "Missing font offset for frame %d", currentFrame);
+        for (size_t i = 0; i < count; ++i)
+        {
+            output->position[i*3] += x->second;
+            output->position[i*3+1] += y->second;
+        }
+    }
+    return true;
+}
+}
+#endif

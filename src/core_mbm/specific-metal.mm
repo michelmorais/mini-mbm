@@ -46,6 +46,7 @@ namespace mbm
     // -------------------------------------------------------------------------
     void BUFFER_SPECIFIC::release()
     {
+        normalMapSubsets.clear();
         vertexBuffer = nil;
         indexBuffer  = nil;
         skinVertexBuffer = nil;

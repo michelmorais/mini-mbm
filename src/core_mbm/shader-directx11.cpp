@@ -22,6 +22,9 @@
 #include "specific-directx11-buffer.h"
 
 #include <shader.h>
+#include "private/normal-map-upload.h"
+#include "private/normal-map-preparation.h"
+#include "private/normal-map-hlsl.h"
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
@@ -57,6 +60,12 @@ namespace mbm
         {
             MATRIX mvp;
             MATRIX mv;
+        };
+
+        struct D3D11_NORMAL_VERTEX
+        {
+            D3D11_VERTEX source;
+            normal_map::TANGENT tangent;
         };
 
         struct D3D11_LIGHT_CONSTANTS
@@ -145,6 +154,8 @@ namespace mbm
             ID3D11Buffer *skeletalPaletteBuffer = nullptr;
             ID3D11Buffer *colorBuffer = nullptr;
             ID3D11Buffer *lightBuffer = nullptr;
+            ID3D11Buffer *normalMapBuffer = nullptr;
+            ID3D11Buffer *zeroTangentBuffer = nullptr;
             ID3D11SamplerState *defaultSampler = nullptr;
             ID3D11SamplerState *nearestSampler = nullptr;
             bool usesLineColor = false;
@@ -164,6 +175,8 @@ namespace mbm
                 if (defaultSampler) defaultSampler->Release();
                 if (colorBuffer) colorBuffer->Release();
                 if (lightBuffer) lightBuffer->Release();
+                if (normalMapBuffer) normalMapBuffer->Release();
+                if (zeroTangentBuffer) zeroTangentBuffer->Release();
                 if (matrixBuffer) matrixBuffer->Release();
                 if (skeletalPaletteBuffer) skeletalPaletteBuffer->Release();
                 if (inputLayout) inputLayout->Release();
@@ -175,6 +188,8 @@ namespace mbm
                 defaultSampler = nullptr;
                 colorBuffer = nullptr;
                 lightBuffer = nullptr;
+                normalMapBuffer = nullptr;
+                zeroTangentBuffer = nullptr;
                 matrixBuffer = nullptr;
                 skeletalPaletteBuffer = nullptr;
                 inputLayout = nullptr;
@@ -523,8 +538,61 @@ namespace mbm
         this->release();
     }
 
+    void BUFFER_SPECIFIC::releaseNormalMap()
+    {
+        for (auto &subset : normalMapSubsets)
+            for (auto &batch : subset.batches)
+            {
+                if (batch.vertices) batch.vertices->Release();
+                if (batch.indices) batch.indices->Release();
+            }
+        normalMapSubsets.clear();
+    }
+
+    bool normal_map::uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+                                 const VEC2 *uv, const PREPARED &prepared)
+    {
+        if (prepared.batches.empty()) return true;
+        auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
+        if (!backend || !positions || !normals || !uv) return false;
+        // Temporary owner releases all partial GPU allocations on failure.
+        BUFFER_SPECIFIC pending;
+        pending.normalMapSubsets.resize(buffer->totalSubset);
+        auto *device = DEVICE::getInstance()->getSpecificContextDevice()->device;
+        for (const auto &source : prepared.batches)
+        {
+            if (source.subset >= buffer->totalSubset || source.sourceVertices.size() != source.tangents.size())
+                return false;
+            std::vector<D3D11_NORMAL_VERTEX> vertices(source.sourceVertices.size());
+            for (size_t i = 0; i < vertices.size(); ++i)
+            {
+                const auto index = source.sourceVertices[i];
+                if (index >= buffer->sizeOfArrayVertex) return false;
+                vertices[i] = {{positions[index], normals[index], uv[index]}, source.tangents[i]};
+            }
+            auto &batch = pending.normalMapSubsets[source.subset].batches.emplace_back();
+            batch.indexCount = static_cast<UINT>(source.indices.size());
+            if (!createBuffer(device, vertices.data(), static_cast<UINT>(vertices.size()*sizeof(D3D11_NORMAL_VERTEX)),
+                              D3D11_BIND_VERTEX_BUFFER, false, &batch.vertices) ||
+                !createBuffer(device, source.indices.data(), batch.indexCount*sizeof(uint16_t),
+                              D3D11_BIND_INDEX_BUFFER, false, &batch.indices)) return false;
+        }
+        backend->releaseNormalMap();
+        backend->normalMapSubsets.swap(pending.normalMapSubsets);
+        return true;
+    }
+
+    void normal_map::setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
+    {
+        auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
+        if (!backend || subset >= backend->normalMapSubsets.size()) return;
+        backend->normalMapSubsets[subset].greenSign = greenSign;
+        backend->normalMapSubsets[subset].strength = strength;
+    }
+
     void BUFFER_SPECIFIC::release()
     {
+        releaseNormalMap();
         if (indexBuffer) indexBuffer->Release();
         if (skinVertexBuffer) skinVertexBuffer->Release();
         if (vertexBuffer) vertexBuffer->Release();
@@ -728,6 +796,7 @@ namespace mbm
     {
         if (!vertex || !vertexStartSubset || !vertexCountSubset)
             return false;
+        if (auto *backend = getBackendBuffer()) backend->releaseNormalMap();
         if (this->initializedIndexBuffer)
         {
             BUFFER_SPECIFIC *backend = getBackendBuffer();
@@ -930,6 +999,8 @@ namespace mbm
         const bool usesCustomReservedLight = (ptrPshader && shaderSourceHasReservedLightD3D11(ptrPshader->getCode())) ||
                                              (ptrVshader && shaderSourceHasReservedLightD3D11(ptrVshader->getCode()));
         const bool usesLightingScaffolding = usesGeneratedReservedLight || usesCustomReservedLight;
+        const bool usesNormalMapping = !ptrVshader && !usesSkeletal && hasNormal && hasUv &&
+            usesLightingScaffolding && (!ptrPshader || ptrPshader->fileName == "lit textured.ps");
         if (usesSkeletal && ptrVshader)
         {
             ERROR_AT(__LINE__, __FILE__, "canonical DirectX11 skinning does not support a custom vertex shader");
@@ -943,10 +1014,14 @@ namespace mbm
             "struct VSInput { float4 position : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0;";
         if (usesSkeletal)
             defaultShaderSource += " float4 boneIndices : BLENDINDICES0; float4 boneWeights : BLENDWEIGHT0;";
+        if (usesNormalMapping)
+            defaultShaderSource += "float4 tangent:TANGENT0;";
         defaultShaderSource +=
             " };struct VSOutput {float4 position:SV_POSITION;float2 uv:TEXCOORD0;";
         if (usesLightingScaffolding)
             defaultShaderSource += "float3 normalView:TEXCOORD1;float3 positionView:TEXCOORD2;";
+        if (usesNormalMapping)
+            defaultShaderSource += "float4 tangentView:TEXCOORD3;";
         defaultShaderSource += "};"
             "VSOutput VSMain(VSInput input) { VSOutput output;";
         if (usesSkeletal)
@@ -962,10 +1037,20 @@ namespace mbm
                 "output.normalView=mul(float4(skinnedNormal,0),mv).xyz;" :
                 "output.normalView=mul(float4(input.normal,0),mv).xyz;";
             defaultShaderSource += "output.positionView=mul(skinnedPosition,mv).xyz;";
+            if (usesNormalMapping)
+                defaultShaderSource += R"HLSL(
+                    float3x3 m = (float3x3)mv;
+                    float3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
+                    float det = dot(m[0],c0);
+                    output.tangentView = float4(mul(input.tangent.xyz,m),input.tangent.w*sign(det));
+                    output.normalView = abs(det) > 0.00000001
+                        ? mul(input.normal,float3x3(c0,c1,c2))/det : input.normal;
+                )HLSL";
         }
         defaultShaderSource += "return output;}"
-            "Texture2D DiffuseTexture:register(t0);Texture2D NormalTexture:register(t2);"
+            "Texture2D DiffuseTexture:register(t0);Texture2D TextureNormal:register(t2);"
             "SamplerState DiffuseSampler:register(s0);";
+        if (usesNormalMapping) defaultShaderSource += normal_map::fragmentHlsl();
         if (usesGeneratedReservedLight)
         {
             defaultShaderSource +=
@@ -978,9 +1063,12 @@ namespace mbm
             defaultShaderSource += hasUv ? "DiffuseTexture.Sample(DiffuseSampler,input.uv);" : "float4(1,1,1,1);";
             defaultShaderSource +=
                 "if(LightModes.x==0||LightModes.z==0)return texColor;"
-                "float3 normalView=normalize(input.normalView);"
+                "float3 normalView=";
+            defaultShaderSource += usesNormalMapping ?
+                "mbmMappedNormal(input.normalView,input.tangentView,input.uv);" : "normalize(input.normalView);";
+            defaultShaderSource +=
                 "if(LightModes.z==2){normalView=float3(0,0,1);"
-                "if(LightModes.w!=0)normalView=normalize(NormalTexture.Sample(DiffuseSampler,input.uv).xyz*2-1);}"
+                "if(LightModes.w!=0)normalView=normalize(TextureNormal.Sample(DiffuseSampler,input.uv).xyz*2-1);}"
                 "float3 viewDir=normalize(-input.positionView);"
                 "float3 base=texColor.rgb*MaterialDiffuse.rgb;"
                 "float3 light=AmbientColor.rgb*MaterialAmbient.rgb;float3 specular=0;"
@@ -1023,8 +1111,21 @@ namespace mbm
             vertexEntryPoint = "main";
             pixelEntryPoint = "main";
         }
-        const std::string normalizedPixelShaderSource = strcmp(pixelEntryPoint, "main") == 0 ?
+        std::string normalizedPixelShaderSource = strcmp(pixelEntryPoint, "main") == 0 ?
             normalizePixelEntrySignatureD3D11(pixelShaderSource) : std::string(pixelShaderSource);
+        if (ptrPshader && ptrPshader->fileName == "lit textured.ps" && !usesNormalMapping)
+        {
+            // Keep custom VS and skeletal shaders on their existing varying contract.
+            const std::string helper = normal_map::fragmentHlsl();
+            auto at = normalizedPixelShaderSource.find(helper);
+            if (at != std::string::npos) normalizedPixelShaderSource.erase(at, helper.size());
+            const std::string parameter = ", float4 tangentViewIn : TEXCOORD3";
+            at = normalizedPixelShaderSource.find(parameter);
+            if (at != std::string::npos) normalizedPixelShaderSource.erase(at, parameter.size());
+            const std::string call = "mbmMappedNormal(normalViewIn,tangentViewIn,texCoord)";
+            at = normalizedPixelShaderSource.find(call);
+            if (at != std::string::npos) normalizedPixelShaderSource.replace(at,call.size(),"normalize(normalViewIn)");
+        }
         pixelShaderSource = normalizedPixelShaderSource.c_str();
         UINT compileFlags = 0;
 #if defined(_DEBUG)
@@ -1072,8 +1173,10 @@ namespace mbm
         if (SUCCEEDED(result))
             result = d3dDevice->CreatePixelShader(pixelByteCode->GetBufferPointer(), pixelByteCode->GetBufferSize(),
                                                   nullptr, &shaderData->pixelShader);
+        if (usesNormalMapping)
+            elements[3] = { "TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 2, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
         if (SUCCEEDED(result))
-            result = d3dDevice->CreateInputLayout(elements, usesSkeletal ? 5u : 3u,
+            result = d3dDevice->CreateInputLayout(elements, usesSkeletal ? 5u : (usesNormalMapping ? 4u : 3u),
                                                   vertexByteCode->GetBufferPointer(), vertexByteCode->GetBufferSize(),
                                                   &shaderData->inputLayout);
         if (SUCCEEDED(result) && usesCustomVertexShader)
@@ -1113,7 +1216,13 @@ namespace mbm
             SUCCEEDED(d3dDevice->CreateSamplerState(&samplerDescription, &shaderData->nearestSampler));
         const bool createdSampler = createdDefaultSampler && createdNearestSampler;
         const bool createdPixelResource = createdColorBuffer && createdSampler;
-        if (FAILED(result) || !createdMatrixBuffer || !createdLightBuffer || !createdPaletteBuffer || !createdPixelResource)
+        const float zeroTangent[4] = {};
+        const bool createdNormalMapBuffers = !usesNormalMapping ||
+            (createBuffer(d3dDevice, nullptr, sizeof(float)*4u, D3D11_BIND_CONSTANT_BUFFER,
+                          true, &shaderData->normalMapBuffer) &&
+             createBuffer(d3dDevice, zeroTangent, sizeof(zeroTangent), D3D11_BIND_VERTEX_BUFFER,
+                          false, &shaderData->zeroTangentBuffer));
+        if (FAILED(result) || !createdMatrixBuffer || !createdLightBuffer || !createdPaletteBuffer || !createdPixelResource || !createdNormalMapBuffers)
         {
             shaderData->release();
             ERROR_LOG("DirectX11 failed to create the basic shader pipeline (HRESULT=0x%08lx)", result);
@@ -1239,6 +1348,9 @@ namespace mbm
         const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
         if (lastSubset > pBufferId->totalSubset)
             return false;
+        bool usingNormalMapBuffers = false;
+        if (shaderData->zeroTangentBuffer)
+            context->immediateContext->IASetVertexBuffers(2,1,&shaderData->zeroTangentBuffer,&offset,&offset);
         for (uint32_t subset = firstSubset; subset < lastSubset; ++subset)
         {
             if (shaderData->usesReservedLight &&
@@ -1264,6 +1376,54 @@ namespace mbm
                         static_cast<ID3D11ShaderResourceView *>(texture->getBackendTexturePointer()) : nullptr;
                 }
                 context->immediateContext->PSSetShaderResources(0, 6, textureViews);
+            }
+            const BUFFER_SPECIFIC::NORMAL_MAP_SUBSET *normalSubset = nullptr;
+            if (shaderData->normalMapBuffer)
+            {
+                LIGHT_TARGET target = LIGHT_TARGET_3D;
+                DEVICE::getInstance()->getLightTargetForCurrentRender(target);
+                if (target == LIGHT_TARGET_3D && pBufferId->getTextureByStage(2,subset) &&
+                    subset < buffer->normalMapSubsets.size())
+                {
+                    const auto &candidate = buffer->normalMapSubsets[subset];
+                    if (!candidate.batches.empty() && candidate.strength > 0) normalSubset = &candidate;
+                }
+                float settings[4] = {};
+                if (normalSubset)
+                {
+                    settings[0] = static_cast<float>(normalSubset->greenSign);
+                    settings[1] = normalSubset->strength > 1 ? 1 : normalSubset->strength;
+                    settings[2] = normalSubset->strength > 1 ? 1/normalSubset->strength : 1;
+                    settings[3] = 1;
+                }
+                if (FAILED(context->immediateContext->Map(shaderData->normalMapBuffer,0,D3D11_MAP_WRITE_DISCARD,0,&mapped)))
+                    return false;
+                memcpy(mapped.pData,settings,sizeof(settings));
+                context->immediateContext->Unmap(shaderData->normalMapBuffer,0);
+                context->immediateContext->PSSetConstantBuffers(3,1,&shaderData->normalMapBuffer);
+            }
+            if (normalSubset)
+            {
+                const UINT stride = sizeof(D3D11_NORMAL_VERTEX);
+                const UINT tangentOffset = offsetof(D3D11_NORMAL_VERTEX,tangent);
+                context->immediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                for (const auto &batch : normalSubset->batches)
+                {
+                    context->immediateContext->IASetVertexBuffers(0,1,&batch.vertices,&stride,&offset);
+                    context->immediateContext->IASetVertexBuffers(2,1,&batch.vertices,&stride,&tangentOffset);
+                    context->immediateContext->IASetIndexBuffer(batch.indices,DXGI_FORMAT_R16_UINT,0);
+                    context->immediateContext->DrawIndexed(batch.indexCount,0,0);
+                }
+                usingNormalMapBuffers = true;
+                continue;
+            }
+            // Restore source bindings after a mapped subset, including its primitive topology.
+            if (usingNormalMapBuffers)
+            {
+                context->immediateContext->IASetVertexBuffers(0,1,&buffer->vertexBuffer,&buffer->vertexStride,&offset);
+                context->immediateContext->IASetPrimitiveTopology(getTopology(pBufferId->mode_draw));
+                context->immediateContext->IASetVertexBuffers(2,1,&shaderData->zeroTangentBuffer,&offset,&offset);
+                usingNormalMapBuffers = false;
             }
             if (pBufferId->isIndexBuffer())
             {

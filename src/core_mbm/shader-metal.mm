@@ -5,15 +5,14 @@
 | THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.                                    |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-// Metal shader stubs.
-// Provides the backend-specific shader, buffer, and shader-variable functions
-// that are defined in shader-opengl_es.cpp and guarded by USE_OPENGL_ES.
-// For Milestone 1 (empty scene) none of these are called at runtime, but the
-// linker requires their symbols.
+// Metal shader compilation, buffer ownership and draw submission.
 
 #if defined(USE_METAL)
 
 #include <shader.h>
+#include "private/normal-map-upload.h"
+#include "private/normal-map-preparation.h"
+#include "private/normal-map-metal.h"
 #include <shader-var-cfg.h>
 #include <light.h>
 #include <texture-manager.h>
@@ -413,6 +412,7 @@ static id<MTLDepthStencilState> getOrCreateNoDepthState(mbm::SPECIFIC_AUX_CONTEX
 @interface MBMPSOPair : NSObject
 @property (nonatomic, strong) id<MTLRenderPipelineState> standardPSO;
 @property (nonatomic, strong) id<MTLRenderPipelineState> additivePSO;
+@property (nonatomic, assign) bool normalMapping;
 @property (nonatomic, assign) uint32_t skeletalPaletteSize;
 @property (nonatomic, assign) mbm::SKELETAL_SHADER_METHOD skeletalMethod;
 @end
@@ -523,7 +523,7 @@ static NSString* patchVInStruct(NSString* vsStr, mbm::FVF_PROVIDE_BY_ENGINE fvf)
 // Builds the MSL source for the default shader matching the given FVF.
 static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding,
                                   const uint32_t skeletalPaletteSize,
-                                  const mbm::SKELETAL_SHADER_METHOD skeletalMethod)
+                                  const mbm::SKELETAL_SHADER_METHOD skeletalMethod, const bool normalMapping)
 {
     using F = mbm::FVF_PROVIDE_BY_ENGINE;
     const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
@@ -533,6 +533,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
         @"#include <metal_stdlib>\n"
          "using namespace metal;\n"
          "struct Uniforms { float4x4 mvpMatrix; float4x4 mvMatrix; float4 color; };\n"];
+
+    if (normalMapping) [src appendString:[NSString stringWithUTF8String:mbm::normal_map::functionsMetal()]];
 
     // vertex input struct
     [src appendString:@"struct VIn { float3 pos [[attribute(0)]];"];
@@ -552,6 +554,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
 
     // vertex output struct
     [src appendString:@"struct VOut { float4 pos [[position]];"];
+    if (normalMapping) [src appendString:@" float4 tangentView;"];
     if (hasNor && useReservedLightScaffolding) [src appendString:@" float3 nor;"];
     if (hasUV)  [src appendString:@" float2 uv;"];
     if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@" float3 positionView;"];
@@ -560,6 +563,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
     // vertex function
     [src appendString:
         @"vertex VOut vert_main(VIn in [[stage_in]], constant Uniforms& u [[buffer(1)]]"];
+    if (normalMapping) [src appendString:@", uint vertexId [[vertex_id]], device const float4* tangents [[buffer(20)]], constant float4& NormalMapSettings [[buffer(21)]]"];
     if (skeletalPaletteSize > 0)
         [src appendFormat:@", device const float4* bonePalette [[buffer(%u)]]",
                           METAL_SKINNING_PALETTE_BUFFER_INDEX];
@@ -580,6 +584,18 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
             [src appendString:@"  float3 skinnedNormal=in.nor;\n"];
         [src appendString:@"  out.nor = (u.mvMatrix * float4(skinnedNormal,0.0f)).xyz;\n"];
     }
+    if (normalMapping)
+        [src appendString:@"  out.tangentView = float4(0);\n"
+                          "  {\n"
+                          "    float3x3 m = float3x3(u.mvMatrix[0].xyz,u.mvMatrix[1].xyz,u.mvMatrix[2].xyz);\n"
+                          "    float3 a=cross(m[1],m[2]), b=cross(m[2],m[0]), c=cross(m[0],m[1]);\n"
+                          "    float det=dot(m[0],a);\n"
+                          "    if (abs(det)>0.00000001f) {\n"
+                          "      out.nor = (float3x3(a,b,c)*in.nor)/det;\n"
+                          "      float4 t=NormalMapSettings.w != 0 ? tangents[vertexId] : float4(0);\n"
+                          "      out.tangentView=float4(m*t.xyz,t.w*sign(det));\n"
+                          "    }\n"
+                          "  }\n"];
     if (hasUV)  [src appendString:@"  out.uv = in.uv;\n"];
     if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@"  out.positionView = (u.mvMatrix * skinnedPosition).xyz;\n"];
     [src appendString:@"  return out;\n}\n"];
@@ -619,6 +635,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                               " constant int& LightCount [[buffer(5)]]"];
             if (hasNor)
                 [src appendString:@", constant float4& DirectionalColor [[buffer(18)]]"];
+            if (normalMapping) [src appendString:@", constant float4& NormalMapSettings [[buffer(21)]]"];
             [src appendFormat:@") {\n  float4 texColor = %s.sample(samp, in.uv) * u.color;\n",
                               textureDiffuseName];
             [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
@@ -632,7 +649,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                 // lights, in one pass. LightMode == 2 (2D) falls through to the pre-existing,
                 // untouched point-only block below via the "else".
                 [src appendFormat:@"  if (LightMode == 1) {\n"
-                                  "    float3 normalView = normalize(in.nor);\n"
+                                  "    float3 normalView = %s;\n"
                                   "    float3 viewDir = normalize(-in.positionView);\n"
                                   "    float3 lightTravel = normalize(LightDirectionView);\n"
                                   "    float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
@@ -660,7 +677,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                                   "        }\n"
                                   "      }\n"
                                   "    }\n"
-                                  "  } else {\n", static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
+                                  "  } else {\n", normalMapping ? "mbmMappedNormal(in.nor,in.tangentView,in.uv,TextureNormal,samp,NormalMapSettings)" : "normalize(in.nor)", static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
             }
             else
             {
@@ -760,6 +777,50 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
     return src;
 }
 
+// Slots 20/21 are private and do not overlap lighting (4-18) or skinning (19).
+static void resetNormalMapMetal(id<MTLRenderCommandEncoder> enc)
+{
+    const float zero[4] = {};
+    [enc setVertexBytes:zero length:sizeof(zero) atIndex:20];
+    [enc setVertexBytes:zero length:sizeof(zero) atIndex:21];
+    [enc setFragmentBytes:zero length:sizeof(zero) atIndex:21];
+}
+
+static bool drawNormalMapMetal(id<MTLRenderCommandEncoder> enc, const mbm::BUFFER_GL *buffer,
+                               const uint32_t subset)
+{
+    auto *backend = buffer->getBackendBuffer();
+    mbm::LIGHT_STATE light;
+    mbm::LIGHT_TARGET target = mbm::LIGHT_TARGET_3D;
+    auto *device = mbm::DEVICE::getInstance();
+    const bool lit = device->getLightStateForCurrentRender(light) && light.enabled;
+    device->getLightTargetForCurrentRender(target);
+    if (!lit || target != mbm::LIGHT_TARGET_3D || !buffer->getTextureByStage(2, subset) ||
+        subset >= backend->normalMapSubsets.size())
+    {
+        resetNormalMapMetal(enc);
+        return false;
+    }
+    const auto &prepared = backend->normalMapSubsets[subset];
+    if (prepared.strength <= 0 || prepared.batches.empty())
+    {
+        resetNormalMapMetal(enc);
+        return false;
+    }
+    const float scale = std::max(1.0f, prepared.strength);
+    const float settings[4] = {static_cast<float>(prepared.greenSign), prepared.strength/scale, 1.0f/scale, 1.0f};
+    [enc setVertexBytes:settings length:sizeof(settings) atIndex:21];
+    [enc setFragmentBytes:settings length:sizeof(settings) atIndex:21];
+    for (const auto &batch : prepared.batches)
+    {
+        [enc setVertexBuffer:batch.vertices offset:0 atIndex:0];
+        [enc setVertexBuffer:batch.tangents offset:0 atIndex:20];
+        [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:batch.indexCount
+                         indexType:MTLIndexTypeUInt16 indexBuffer:batch.indices indexBufferOffset:0];
+    }
+    return true;
+}
+
 // MTLVertexDescriptor for the interleaved vertex layout used by loadBuffer().
 static MTLVertexDescriptor* buildVtxDesc(mbm::FVF_PROVIDE_BY_ENGINE fvf,
                                          const bool skeletal)
@@ -824,6 +885,47 @@ static void buildInterleavedVB(uint8_t* out, const NSUInteger stride,
 
 namespace mbm
 {
+    bool normal_map::uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+                                 const VEC2 *uv, const PREPARED &prepared)
+    {
+        auto *ctx = getMetalCtx();
+        auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
+        if (!ctx || !ctx->mtlDevice || !backend || !positions || !normals || !uv) return false;
+        std::vector<BUFFER_SPECIFIC::NORMAL_SUBSET> pending(buffer->totalSubset);
+        struct VERTEX { VEC3 position; VEC3 normal; VEC2 uv; };
+        static_assert(sizeof(VERTEX) == 32, "Metal source vertex layout");
+        for (const auto &source : prepared.batches)
+        {
+            if (source.subset >= pending.size() || source.sourceVertices.empty() || source.indices.empty() ||
+                source.sourceVertices.size() != source.tangents.size()) return false;
+            std::vector<VERTEX> vertices(source.sourceVertices.size());
+            for (size_t i = 0; i < vertices.size(); ++i)
+            {
+                const uint32_t index = source.sourceVertices[i];
+                if (index >= buffer->sizeOfArrayVertex) return false;
+                vertices[i] = {positions[index], normals[index], uv[index]};
+            }
+            for (const auto index : source.indices)
+                if (index >= vertices.size()) return false;
+            auto &batch = pending[source.subset].batches.emplace_back();
+            batch.vertices = [ctx->mtlDevice newBufferWithBytes:vertices.data() length:vertices.size()*sizeof(VERTEX) options:MTLResourceStorageModeShared];
+            batch.tangents = [ctx->mtlDevice newBufferWithBytes:source.tangents.data() length:source.tangents.size()*sizeof(TANGENT) options:MTLResourceStorageModeShared];
+            batch.indices = [ctx->mtlDevice newBufferWithBytes:source.indices.data() length:source.indices.size()*sizeof(uint16_t) options:MTLResourceStorageModeShared];
+            batch.indexCount = source.indices.size();
+            if (!batch.vertices || !batch.tangents || !batch.indices) return false;
+        }
+        backend->normalMapSubsets.swap(pending);
+        return true;
+    }
+
+    void normal_map::setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
+    {
+        auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
+        if (!backend || subset >= backend->normalMapSubsets.size()) return;
+        backend->normalMapSubsets[subset].greenSign = greenSign;
+        backend->normalMapSubsets[subset].strength = strength;
+    }
+
     // ---- BUFFER_GL constructor / destructor ----
 
     BUFFER_GL::BUFFER_GL() :
@@ -1018,6 +1120,7 @@ namespace mbm
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if (!backendBuffer || !backendBuffer->vertexBuffer) return false;
 
+        backendBuffer->normalMapSubsets.clear();
         const NSUInteger stride = strideForFVF(this->fvf);
         uint8_t* dst = reinterpret_cast<uint8_t*>(backendBuffer->vertexBuffer.contents);
         if (!dst) return false; // buffer not CPU-accessible
@@ -1223,6 +1326,12 @@ namespace mbm
             }
         }
 
+        const bool reservedLighting = this->shouldCompileReservedLightDefault() ||
+            (ptrPshader && ptrPshader->fileName == "lit textured.ps");
+        const bool normalMapping = !ptrVshader && skeletalPaletteSize == 0 &&
+            fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV &&
+            reservedLighting &&
+            (!ptrPshader || ptrPshader->fileName == "lit textured.ps");
         @autoreleasepool
         {
             // Choose MSL source: complete VS program, PS fragment + auto vertex, or default.
@@ -1261,8 +1370,8 @@ namespace mbm
                     // Fragment-only PS entry: keep the generated default vertex stage, including
                     // canonical skinning when requested, and replace only its fragment stage.
                     NSString *generated = defaultMSLSource(
-                        fvf, this->shouldCompileReservedLightDefault(), skeletalPaletteSize,
-                        skeletalMethod);
+                        fvf, reservedLighting, skeletalPaletteSize,
+                        skeletalMethod, normalMapping);
                     NSRange fragRange = [generated rangeOfString:@"\nfragment "
                                                          options:NSBackwardsSearch];
                     if (fragRange.location != NSNotFound)
@@ -1272,8 +1381,10 @@ namespace mbm
                 }
                 else
                     mslSrc = defaultMSLSource(fvf, this->shouldCompileReservedLightDefault(),
-                                              skeletalPaletteSize, skeletalMethod);
+                                              skeletalPaletteSize, skeletalMethod, normalMapping);
             }
+            if (normalMapping && ptrPshader)
+                mslSrc = [@"#define MBM_STATIC_NORMAL_MAP 1\n" stringByAppendingString:mslSrc];
             NSError* err = nil;
             id<MTLLibrary> lib = [ctx->mtlDevice newLibraryWithSource:mslSrc options:nil error:&err];
             if (!lib)
@@ -1295,6 +1406,7 @@ namespace mbm
             // Compile both blend-mode variants.  renderParticle() selects additivePSO;
             // render() / renderDynamic() select standardPSO.
             MBMPSOPair* pair = [MBMPSOPair new];
+            pair.normalMapping = normalMapping;
             pair.skeletalPaletteSize = skeletalPaletteSize;
             pair.skeletalMethod = skeletalPaletteSize > 0 ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
             pair.standardPSO = compileSinglePSO(ctx->mtlDevice, vertFn, fragFn,
@@ -1438,6 +1550,8 @@ namespace mbm
                     [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_MASK)
                                     atIndex:5];
                     uploadReservedLightBuffersMetal(enc, pBufferId, i);
+                    if (pair.normalMapping && drawNormalMapMetal(enc, pBufferId, i)) continue;
+                    [enc setVertexBuffer:backendBuffer->vertexBuffer offset:0 atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -1466,6 +1580,8 @@ namespace mbm
                     [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_MASK)
                                     atIndex:5];
                     uploadReservedLightBuffersMetal(enc, pBufferId, i);
+                    if (pair.normalMapping && drawNormalMapMetal(enc, pBufferId, i)) continue;
+                    [enc setVertexBuffer:backendBuffer->vertexBuffer offset:0 atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:backendBuffer->vertexBuffer offset:off atIndex:0];
@@ -1520,6 +1636,7 @@ namespace mbm
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
             MBMPSOPair* pairD = (__bridge MBMPSOPair*)backendShaderSpecific;
+            if (pairD.normalMapping) resetNormalMapMetal(enc);
 
             // Select PSO based on blend state set by RENDER_STATE::set().
             // BLEND_ONE (2) = additive (src_alpha*src + 1*dst); all others = standard alpha.

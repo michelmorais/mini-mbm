@@ -13,6 +13,7 @@
 #include <physics.h>
 #include <skeletal-animation-foundation.h>
 #include <skeletal-gpu-lbs.h>
+#include "private/normal-map-asset.h"
 #include <atomic>
 #include <string>
 #include <thread>
@@ -119,6 +120,8 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        normal_map::ASSET_FRAMES normalMapFrames;
+        normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
         skeletal::GPU_SKINNING_INPUT gpuSkinningInput;
         std::vector<VEC3> skeletalBindPositions;
         std::vector<VEC3> skeletalBindNormals;
@@ -156,6 +159,8 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        normal_map::ASSET_FRAMES normalMapFrames;
+        normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
         skeletal::SKELETAL_POSE authoringPose;
         std::vector<float> authoringPaletteRows;
         bool authoringPoseValid = false;

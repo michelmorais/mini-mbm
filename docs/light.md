@@ -108,7 +108,7 @@ struct MATERIAL
 ```
 
 Older code may still call this type `MATERIAL_GLES`. That name is misleading because the material
-is not OpenGL ES specific; it is engine/file-format data. The engine now uses the platform-neutral
+is not OpenGL ES specific; it is engine/file-format data. The engine uses the platform-neutral
 name `MATERIAL` and keeps `MATERIAL_GLES` as a compatibility alias while preserving the binary mesh
 layout.
 
@@ -186,22 +186,22 @@ PBR usually also needs:
 DirectX 9 and OpenGL ES can run shader code that approximates PBR, but they do not provide PBR as a
 native feature. DirectX 9 fixed-function lighting maps to the classic material model, not PBR.
 
-## Mini MBM Direction
+## Mini MBM material model
 
-For the first lighting pass:
+The lighting implementation uses the classic material model:
 
-- Use the existing classic material fields.
-- Keep old unlit behavior when lighting is disabled.
-- Add engine-reserved shader names for classic material values:
+- Uses the existing classic material fields.
+- Keeps unlit behavior when lighting is disabled.
+- Reserves shader names for classic material values:
   - `MaterialDiffuse`
   - `MaterialAmbient`
   - `MaterialSpecular`
   - `MaterialEmissive`
   - `MaterialPower`
-- Do not add PBR fields such as metallic, roughness, or ambient occlusion.
+- Does not expose PBR fields such as metallic, roughness, or ambient occlusion.
 
-PBR should be treated as a separate future rendering/material-system design, not as part of the
-first light feature.
+PBR is outside the current material model; possible extensions are tracked in
+[Future Features](future-features.md#normal-mapping).
 
 ## Runtime Light State
 
@@ -230,7 +230,7 @@ mbm.setDirectionalLight('3d',
 local light = mbm.getLightState('3d')
 ```
 
-Lua target strings are exact: only `'3d'` and `'2dw'` are accepted for now. Both targets now have
+Lua target strings are exact: only `'3d'` and `'2dw'` are accepted. Both targets have
 engine lighting support. New scene loading resets all light state.
 
 Default values:
@@ -290,15 +290,16 @@ The current shipped lighting implementation covers:
 - default lit/unlit shader classification for engine-generated shaders
 - built-in lit pixel shaders
 - diffuse, emissive, and specular material contribution
-- DirectX 11 generated default shaders for `3d` and `2dw`, including material, normal-map,
-  directional/point-light, and skeletal-before-lighting integration
+- DirectX 11 generated default shaders for `3d` and `2dw`, including material,
+  `2dw` normal-map, directional/point-light, and skeletal-before-lighting integration
+- static tangent-space `3d` normal mapping on OpenGL ES, DirectX 9 SM3, DirectX 11 and Metal
 
 Current intentional exclusions or limitations:
 
 - `2ds` lighting is not implemented
 - shadow maps are not implemented
-- reserved material texture roles `TextureSpecular`, `TextureEmissive`, and `TextureMask` are known
-  but not runtime-bindable yet
+- material texture roles `TextureSpecular`, `TextureEmissive`, and `TextureMask` can be
+  bound, but the built-in lighting shaders do not yet sample them
 - custom shaders receive engine lighting only when they explicitly declare the reserved inputs
 - runtime material upload currently comes from the active mesh/subset material path; broader
   per-renderable material ownership is still limited by existing render-path wiring
@@ -331,11 +332,11 @@ In practice, the multi-light pipeline should:
 This is an intentional limitation, not a temporary weakness. It keeps the shader contract explicit
 and avoids pretending that every backend can support an arbitrary number of simultaneous lights.
 
-For `2dw`, the intended selection model is per-object nearest lights, not one global scene-wide
+For `2dw`, the selection model is per-object nearest lights, not one global scene-wide
 first-`N` list. That means a scene may contain many visible lights overall while each object still
 shades against only a small validated subset.
 
-Planned first selection rule:
+The nearest-light selection rule:
 
 - consider only lights whose radius reaches the object
 - rank candidates by distance to the object center
@@ -345,24 +346,23 @@ This is the expected mechanism behind scenes that appear to have many simultaneo
 engine does not need to promise that every sprite uses every light; it needs to choose a bounded
 set of relevant lights per object.
 
-Current Milestone 9 groundwork exposes two target-specific configuration values:
+The runtime exposes two target-specific configuration values:
 
 - requested max light count
 - light selection mode
 
-It also stores a target-specific point-light list that future multi-light selection will read from.
+It also stores the target-specific point-light list used by per-object selection.
 
-The current implementation slice also exposes backend-cap validation:
+Backend-cap validation is exposed through:
 
-- `mbm.setRequestedMaxLights(target, n)` now rejects unsupported values immediately
+- `mbm.setRequestedMaxLights(target, n)` rejects unsupported values immediately
 - `mbm.getSupportedMaxLights(target)` reports the active backend compiled cap
 - `mbm.getValidatedMaxLights(target)` reports the currently accepted validated cap
-- `mbm.getLightState(target)` now also includes `supportedMaxLights` and `validatedMaxLights`
+- `mbm.getLightState(target)` includes `supportedMaxLights` and `validatedMaxLights`
 - `mbm.getSelectedPointLights(target, objectCenter, objectBoundingAABB)` returns the nearest
   validated point lights whose radius reaches that object
 
-For the first multi-light implementation, the compiled supported cap defaults to `4` lights, but it
-is now a build-time engine setting:
+The compiled supported cap defaults to `4` lights and is a build-time engine setting:
 
 - CMake/Xcode generator builds can pass `-DSUPPORTED_MAX_LIGHTS=1..4`
 - the standalone Visual Studio solution can set `MbmSupportedMaxLights=1..4`
@@ -441,6 +441,12 @@ So lowering the requested max from `4` to `2` reduces the selected/uploaded ligh
 but it does not currently generate a smaller shader variant.
 
 ## Reserved Shader Inputs
+
+The static OpenGL ES normal-map path additionally reserves `HasTangentBasis` and
+`NormalMapSettings`. The latter is an internal vec3 encoding `(greenSign, xyScale,
+zScale)`: the last two components are proportional to `(strength, 1)` and bounded
+by one to avoid mediump overflow. Authoring uses `setNormalMapSettings`, not direct writes
+to these shader uniforms. `aTangent`/`vTangentView` carry direction plus handedness.
 
 The engine uploads these reserved light values automatically through each backend's supported
 reserved-input path:
@@ -610,25 +616,16 @@ The current specular term is a view-space Blinn-Phong style highlight:
   view direction
 - when `MaterialPower <= 0`, the default lit shaders contribute no specular highlight
 
-### Reserved Lighting Now Combines Directional + Point On `3d` (MBM_VERSION 6.11.0)
+### Directional and point lighting in view space
 
-Before 6.11.0, a `3d` mesh's built-in lit shader only ever evaluated its directional light —
-`mbm.addPointLight('3d', ...)` correctly stored the light and `mbm.getSelectedPointLights('3d', ...)`
-correctly returned it, but the reserved shader path never asked for a point-light-capable variant for
-`3d`, so nearby point lights were entirely invisible on 3D meshes. Fixed by having the `3d` lit
-fragment shader run its existing directional term **and** loop over the selected point lights in the
-same pass (both accumulate into the same `light`/`specular` totals), instead of only ever picking one
-or the other. `DirectionalColor` (see "Reserved Shader Inputs" above) exists specifically so the
-directional and point contributions don't share — and clobber — the same `LightColor[0]` array slot.
-`2dw` shading is unaffected: it was already point-light-only and stays that way.
+Generated `3d` lit shaders accumulate directional and selected point lights in the
+same pass. `DirectionalColor` is separate from the point-light `LightColor` array.
+The built-in resource differences are described under Material Texture Slots.
+`2dw` uses point-light shading.
 
-This was fixed together with a related bug: the per-object matrix the vertex shader used to build
-`vNormalView`/`vPositionView` (uploaded as the `mvMatrix` uniform) was the model matrix only, never
-multiplied by the camera's view matrix, even though `LightDirectionView`/`LightPositionView` were
-already correctly rotated into true view space. That mismatch made directional lighting appear to
-change as the camera orbited a scene, and made 2D point-light attenuation subtly wrong whenever a 2D
-camera panned. See `docs/new-backend-instructions.md`'s `mvMatrix` entry for the backend-facing
-contract.
+`mvMatrix` transforms positions and normals into the same view space as
+`LightDirectionView` and `LightPositionView`. See the backend-facing contract in
+[New Backend Instructions](new-backend-instructions.md).
 
 `MaterialPower` is the shininess exponent, not a linear strength slider. The current shaders use a
 term equivalent to `pow(max(dot(normal, halfDir), 0), MaterialPower)`.
@@ -706,6 +703,96 @@ Current runtime binding behavior:
 - `TextureDiffuse` stays on slot/register/index `0`
 - `TextureAnimationEffect` stays on slot/register/index `1`
 - `TextureNormal` uses slot/register/index `2`
+
+Normal-map source convention (`+Y`/`-Y`) and non-negative strength are optional
+per-frame/subset material properties, exposed by `getNormalMapSettings` and
+`setNormalMapSettings` (C++ and Lua). Defaults are +Y and strength 1. Section 15
+persists these independently of normal textures and tangent preparation; changing
+them neither assigns a texture nor alters its pixels or regenerates tangents.
+These properties affect static 3D normal mapping on OpenGL ES, DirectX 11,
+DirectX 9 with Shader Model 3.0, and Metal when a prepared tangent batch and a
+normal texture are available. Skeletal meshes use geometric-normal lighting.
+See [Lua API](lua-api.md#normal-map-material-settings) and
+[MSH format](mesh-v11-format.md#optional-section_normal_map_materials-15-section-version-1).
+
+The static 3D paths share these contracts:
+
+- Loaded optional tangent batches are uploaded once into private interleaved
+  position/normal/UV buffers, tangents (interleaved or separate) and local 16-bit index buffers. Authoring
+  geometry and extraction remain unchanged. An asset with a normal map but no
+  persisted basis uses the CPU preparation performed during loading.
+- Generated lit shaders and `lit textured.ps` with the generated vertex shader
+  reconstruct the view-space tangent basis. Normals use inverse transpose,
+  tangents use the linear model-view transform and Gram-Schmidt orthogonalization,
+  and determinant sign handles reflected transforms. Singular transforms and
+  unusable bases fall back to a finite geometric normal.
+- The mapped normal drives diffuse and specular lighting. Generated lighting
+  combines directional and selected point lights; the GLES and Metal reserved textured resources
+  use `DirectionalColor` for their directional-only 3D model. Source green convention and strength are
+  uniforms; no texture or tangent regeneration is needed to change them.
+  DirectX 9 and DirectX 11 use directional and selected point lights in both shader paths.
+- Strength zero, no normal texture, an unlit shader or a missing prepared batch
+  uses source geometry. Explicitly empty per-subset texture stages prevent one
+  subset's normal map from leaking into another. Existing custom shaders are not
+  rewritten; pairing a custom vertex shader with `lit textured.ps` retains its
+  legacy varying contract and geometric-normal lighting.
+- Resources are owned/released with the backend buffer and rebuilt by the normal
+  asset reload path. Dynamic vertex updates discard stale derived buffers;
+  regeneration after arbitrary edits and late assignment to an asset loaded
+  without any prepared basis are not supported. Skeletal assets do not upload
+  these static derived buffers.
+- Four active vertex attributes suffice for the GLES/DirectX static paths; skinning variants
+  do not consume the tangent attribute yet. Existing program-cache keys already
+  include FVF, lighting and skinning flags that determine these generated inputs.
+  DirectX 11 keeps source vertex layouts unchanged, binds derived tangents at input
+  slot 2, and supplies a zero tangent with stride zero for source draws. Reserved
+  normal-map constants use pixel constant-buffer slot 3. Both shaders retain
+  Shader Model 4.0; no profile upgrade is required.
+
+Metal keeps the source vertex layout and reads prepared tangents by vertex ID from
+vertex buffer slot 20. Normal-map settings occupy slot 21 in both vertex and fragment
+stages; lighting slots 4-18 and skeletal palette slot 19 remain separate. Disabled
+source draws bind a zero tangent and disabled settings without reading the tangent
+array. Private shared-storage buffers are published after the complete upload;
+source extraction preserves original IB/VB subset ranges and unused vertices.
+The default program-cache key already includes the FVF, lighting and skinning flags
+that determine whether this generated variant uses normal mapping.
+
+DirectX 9 selects its effective shader profiles from device capabilities during
+initialization; `ps_2_0`/`vs_2_0` are initial values, not a forced runtime limit.
+The static tangent path requires `ps_3_0` and `vs_3_0`, and uses vertex stream 1
+for tangents, managed derived buffers, and a constant zero tangent for source draws.
+It does not change the globally selected profiles. On unsupported profiles it emits
+one diagnostic per context and uses the geometric-lighting shader path.
+The four-light geometric shader is not guaranteed to fit SM2 either. Falling back
+to it is not a guarantee of functional SM2 lighting.
+
+DX9 static source buffers permit read-only extraction for Mesh Debug, preserving
+source subsets, vertices, indices and the shared material/tangent metadata. Write-only dynamic buffers
+remain unsupported for extraction. Readback uses `D3DLOCK_READONLY` only on readable
+buffers, following the [Direct3D 9 locking contract](https://learn.microsoft.com/en-us/windows/win32/direct3d9/accessing-the-contents-of-a-vertex-buffer).
+
+Render-to-texture selects the lighting target per pass/object (`3d`, `2dw`,
+or disabled for `2ds`) and uses the target camera's view matrix for lighting.
+It restores the previous lighting target and view matrices on exit, including
+failure. The `2dw` normal-map path does not consume the stored 3D convention
+and strength settings.
+
+Normal maps and tangent sections are optional. Prepared static frames retain CPU
+and GPU tangent data even without an assigned texture; drawing then uses the
+geometric normal. Assigning a map later can use that retained basis. Preparation
+alone neither assigns a texture nor changes the silhouette.
+
+Normal-map rendering has desktop validation coverage on Linux/Mesa GLES,
+Windows DX9 SM3/DX11 and macOS Metal. This does not establish Android GLES2,
+iOS, other-GPU or real device-loss coverage. The reusable visual scenes are
+`src/test-lib/normal-map-render-test.lua` (indexed/non-indexed fixtures) and
+`src/test-lib/normal-map-asset-test.lua` (a supplied asset). Require their explicit
+PASS markers and backend validation diagnostics where available; successful
+compilation alone does not verify the rendered effect.
+
+Dynamic/skinned integration, additional authoring tools and remaining validation
+are tracked in [Future Features](future-features.md#normal-mapping).
 
 Current `2dw` normal-map behavior:
 

@@ -20,6 +20,7 @@
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
 #include "private/skeletal-parity-asset.h"
+#include "private/normal-map-upload.h"
 #include "private/mesh-simplifier.h"
 #include <skeletal-gpu-upload.h>
 #include <draw-compatibility.h>
@@ -106,6 +107,7 @@ namespace mbm
     {
         uint32_t                    vertexCount = 0;
         bool                        hasNormal   = false;
+        bool                        hasUv       = false;
         std::unique_ptr<VEC3[]>     position;
         std::unique_ptr<VEC3[]>     normal; // nullptr when !hasNormal
         std::unique_ptr<VEC2[]>     uv;
@@ -134,6 +136,8 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        normal_map::ASSET_FRAMES normalMapFrames;
+        normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -175,7 +179,9 @@ namespace mbm
               articulatedClips(std::move(other.articulatedClips)),
               canonicalSkeleton(std::move(other.canonicalSkeleton)),
               canonicalWeights(std::move(other.canonicalWeights)),
-              canonicalAnimations(std::move(other.canonicalAnimations))
+              canonicalAnimations(std::move(other.canonicalAnimations)),
+              normalMapFrames(std::move(other.normalMapFrames)),
+              normalMapMaterials(std::move(other.normalMapMaterials))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -201,6 +207,8 @@ namespace mbm
             canonicalSkeleton = std::move(other.canonicalSkeleton);
             canonicalWeights = std::move(other.canonicalWeights);
             canonicalAnimations = std::move(other.canonicalAnimations);
+            normalMapFrames = std::move(other.normalMapFrames);
+            normalMapMaterials = std::move(other.normalMapMaterials);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -719,6 +727,7 @@ namespace
 
         outFrame.vertexCount = frameHeader.vertexCount;
         outFrame.hasNormal   = frameHeader.hasNormal != 0;
+        outFrame.hasUv       = frameHeader.hasUv != 0;
         outFrame.position    = std::make_unique<mbm::VEC3[]>(frameHeader.vertexCount);
         if (outFrame.hasNormal)
             outFrame.normal = std::make_unique<mbm::VEC3[]>(frameHeader.vertexCount);
@@ -974,6 +983,54 @@ namespace
     // (both callers - MESH_MBM::loadV11 and Impl::workerLoop - resolve it via util::getFullPath
     // before calling this) - opened directly via fopenApp so this never touches getFullPath/addPath,
     // which keeps it safe to call from a worker thread.
+    void includePreparedSubsets(const mbm::normal_map::ASSET_FRAME *prepared,
+                                std::vector<mbm::normal_map::SUBSET_VIEW> &subsets)
+    {
+        if (!prepared) return;
+        for (const auto &batch : prepared->prepared.batches)
+            if (batch.subset < subsets.size()) subsets[batch.subset].requested = true;
+    }
+
+    bool makeNormalMapInput(const mbm::IntermediateFrameV11 &frame, uint32_t mode,
+                            const mbm::normal_map::ASSET_FRAME *prepared,
+                            mbm::normal_map::INPUT &input, std::string &error)
+    {
+        std::vector<mbm::normal_map::SUBSET_VIEW> subsets;
+        for (const auto &s : frame.subsets)
+        {
+            bool requested = false;
+            for (const auto &slot : s.extraSlots)
+                requested |= slot.legacyType == util::MATERIAL_TEXTURE_SLOT_NORMAL && !slot.path.empty();
+            subsets.push_back({frame.index ? s.indexStart : s.vertexStart,
+                               frame.index ? s.indexCount : s.vertexCount, requested});
+        }
+        includePreparedSubsets(prepared, subsets);
+        return mbm::normal_map::makeInput(frame.position.get(), frame.normal.get(),
+            frame.hasUv ? frame.uv.get() : nullptr, frame.vertexCount, frame.index.get(),
+            frame.indexCount, mode, subsets, input, error);
+    }
+
+    bool makeNormalMapInput(const util::BUFFER_MESH_DEBUG &frame, const mbm::VEC2 *uv,
+                            bool hasNormals, uint32_t mode,
+                            const mbm::normal_map::ASSET_FRAME *prepared,
+                            mbm::normal_map::INPUT &input, std::string &error)
+    {
+        std::vector<mbm::normal_map::SUBSET_VIEW> subsets;
+        for (const auto *s : frame.subset)
+        {
+            bool requested = false;
+            for (const auto &slot : s->materialTextureSlots)
+                requested |= slot.type == util::MATERIAL_TEXTURE_SLOT_NORMAL && !slot.texture.empty();
+            subsets.push_back({frame.indexBuffer ? s->indexStart : s->vertexStart,
+                               frame.indexBuffer ? s->indexCount : s->vertexCount, requested});
+        }
+        includePreparedSubsets(prepared, subsets);
+        return mbm::normal_map::makeInput(reinterpret_cast<const mbm::VEC3 *>(frame.position),
+            hasNormals ? reinterpret_cast<const mbm::VEC3 *>(frame.normal) : nullptr, uv,
+            static_cast<uint32_t>(frame.headerFrame.sizeVertexBuffer), frame.indexBuffer,
+            static_cast<uint32_t>(frame.headerFrame.sizeIndexBuffer), mode, subsets, input, error);
+    }
+
     bool parse_v11_intermediate(const char *fileNamePath, mbm::MESH_LOAD_INTERMEDIATE_V11 &out, std::string &errorOut)
     {
         FILE *fp = util::fopenApp(fileNamePath, "rb");
@@ -1197,10 +1254,57 @@ namespace
                 { errorOut = "failed to parse SECTION_SKELETAL_ANIMATION"; return false; }
                 sawCanonicalAnimations = true;
             }
+            else if (staged.header.type == util::SECTION_NORMAL_MAP_MATERIALS)
+            {
+                if (!out.normalMapMaterials.empty())
+                { errorOut = "duplicate normal-map material section"; return false; }
+                if (!mbm::normal_map::readMaterialPayload(tmp, staged.header.sectionVersion, out.normalMapMaterials, errorOut))
+                    return false;
+            }
+            else if (staged.header.type == util::SECTION_NORMAL_MAP_TANGENTS)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                uint32_t frameIndex = 0;
+                mbm::normal_map::ASSET_FRAME prepared;
+                if (!mbm::normal_map::readPayload(tmp, staged.header.sectionVersion, frameIndex, prepared, errorOut))
+                    return false;
+                if (!out.normalMapFrames.emplace(frameIndex, std::move(prepared)).second)
+                { errorOut = "duplicate normal-map frame section"; return false; }
+            }
             else
             {
                 errorOut = "loadV11 does not support this section type";
                 return false;
+            }
+        }
+        for (const auto &entry : out.normalMapMaterials)
+        {
+            if (entry.first.first >= out.frames.size() ||
+                entry.first.second >= out.frames[entry.first.first].subsets.size())
+            { errorOut = "normal-map material reference out of range"; return false; }
+        }
+        for (const auto &entry : out.normalMapFrames)
+        {
+            mbm::normal_map::INPUT input;
+            if (entry.first >= out.frames.size())
+            { errorOut = "normal-map frame index out of range"; return false; }
+            if (!makeNormalMapInput(out.frames[entry.first], out.info_mode.mode_draw, &entry.second, input, errorOut) ||
+                !mbm::normal_map::validate(input, entry.second, errorOut))
+                return false;
+        }
+        // A missing optional section is valid. Prepare only frames whose materials need it.
+        for (uint32_t frameIndex = 0; frameIndex < out.frames.size(); ++frameIndex)
+        {
+            if (out.normalMapFrames.find(frameIndex) != out.normalMapFrames.end()) continue;
+            mbm::normal_map::INPUT input;
+            mbm::normal_map::ASSET_FRAME candidate;
+            if (!makeNormalMapInput(out.frames[frameIndex], out.info_mode.mode_draw, nullptr, input, errorOut) ||
+                !mbm::normal_map::prepare(input, candidate.prepared, errorOut))
+                return false;
+            if (!candidate.prepared.batches.empty())
+            {
+                candidate.sourceSignature = mbm::normal_map::sourceSignature(input);
+                out.normalMapFrames.emplace(frameIndex, std::move(candidate));
             }
         }
         return true;
@@ -3124,12 +3228,161 @@ namespace mbm
         return state == MESH_SIMPLIFY_STATE::SUCCEEDED;
     }
 
+    bool MESH_MBM_DEBUG::hasNormalMapTangents() const noexcept
+    {
+        return !impl->normalMapFrames.empty();
+    }
+
+    bool MESH_MBM_DEBUG::getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept
+    {
+        if (!(frame < impl->buffer.size() && subset < impl->buffer[frame]->subset.size())) return false;
+        const auto settings = normal_map::getMaterialSettings(impl->normalMapMaterials, frame, subset);
+        greenSign = settings.greenSign;
+        strength = settings.strength;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setNormalMapSettings(uint32_t frame, uint32_t subset, int greenSign, float strength)
+    {
+        if (!(frame < impl->buffer.size() && subset < impl->buffer[frame]->subset.size())) return false;
+        return normal_map::setMaterialSettings(impl->normalMapMaterials, frame, subset, greenSign, strength);
+    }
+
+    bool MESH_MBM_DEBUG::prepareNormalMap(uint32_t frameIndex, uint32_t subsetIndex, NORMAL_MAP_POLICY policy,
+                                          NORMAL_MAP_REPORT &report, char *errorOut, int errorLength,
+                                          const NORMAL_MAP_CORNER *corners, uint32_t cornerCount)
+    {
+        const auto fail = [&](const char *message)
+        {
+            if (errorOut && errorLength > 0) snprintf(errorOut, static_cast<size_t>(errorLength), "%s", message);
+            return false;
+        };
+        if (errorOut && errorLength > 0) errorOut[0] = 0;
+        if (impl->simplifyState.load(std::memory_order_acquire) == MESH_SIMPLIFY_STATE::RUNNING)
+            return fail("normal-map preparation is unavailable while simplification is running");
+        if (frameIndex >= impl->buffer.size() || subsetIndex >= impl->buffer[frameIndex]->subset.size())
+            return fail("normal-map frame/subset out of range");
+        if (policy != NORMAL_MAP_POLICY::PRESERVE && policy != NORMAL_MAP_POLICY::GENERATE && policy != NORMAL_MAP_POLICY::IMPORT)
+            return fail("invalid normal-map preparation policy");
+        if ((policy == NORMAL_MAP_POLICY::IMPORT && (!corners || cornerCount == 0)) ||
+            (policy != NORMAL_MAP_POLICY::IMPORT && (corners || cornerCount != 0)))
+            return fail("only import accepts and requires corner tangents");
+        const auto &frame = *impl->buffer[frameIndex];
+        if (frame.headerFrame.stride != 3 || !frame.normal ||
+            (!frame.uv && (frameIndex == 0 || impl->headerMesh.hasNorText[1] != HAS_TEX_FIRST_FRAME)) ||
+            impl->headerMesh.hasNorText[0] == HAS_NOR_NO || impl->headerMesh.hasNorText[1] == HAS_TEX_NO)
+            return fail("explicit normal-map preparation requires 3D positions, normals and UVs");
+        const VEC2 *uv = reinterpret_cast<const VEC2 *>(frame.uv);
+        std::vector<VEC2> sharedUv;
+        if (impl->headerMesh.hasNorText[1] == HAS_TEX_FIRST_FRAME && frameIndex != 0)
+        {
+            const auto &first = *impl->buffer[0];
+            if (!first.uv || frame.headerFrame.sizeVertexBuffer < 0 || first.headerFrame.sizeVertexBuffer < 0)
+                return fail("invalid shared UV source");
+            sharedUv.resize(static_cast<size_t>(frame.headerFrame.sizeVertexBuffer));
+            std::copy_n(reinterpret_cast<const VEC2 *>(first.uv),
+                std::min(sharedUv.size(), static_cast<size_t>(first.headerFrame.sizeVertexBuffer)), sharedUv.begin());
+            uv = sharedUv.data();
+        }
+        const auto found = impl->normalMapFrames.find(frameIndex);
+        const auto *cached = found == impl->normalMapFrames.end() ? nullptr : &found->second;
+        normal_map::INPUT input;
+        std::string error;
+        if (!makeNormalMapInput(frame, uv, true, impl->info_mode.mode_draw, cached, input, error))
+            return fail(error.c_str());
+        const bool validCached = cached && normal_map::validate(input, *cached, error);
+        // A marker requests this subset even without a normal texture or existing preparation.
+        normal_map::ASSET_FRAME requested;
+        if (cached)
+            for (const auto &batch : cached->prepared.batches)
+            {
+                normal_map::BATCH existing; existing.subset = batch.subset;
+                requested.prepared.batches.push_back(std::move(existing));
+            }
+        normal_map::BATCH marker; marker.subset = subsetIndex;
+        requested.prepared.batches.push_back(std::move(marker));
+        if (!makeNormalMapInput(frame, uv, true, impl->info_mode.mode_draw, &requested, input, error))
+            return fail(error.c_str());
+        if (input.subsets.empty() || input.subsets[subsetIndex].indices.empty())
+            return fail("explicit normal-map preparation requires a nonempty triangle surface");
+        normal_map::ASSET_FRAME candidate;
+        candidate.sourceSignature = normal_map::sourceSignature(input);
+        std::vector<bool> wanted;
+        for (const auto &s : input.subsets) wanted.push_back(s.requested);
+        bool reused = false;
+        if (validCached)
+        {
+            for (const auto &batch : cached->prepared.batches)
+            {
+                if (batch.subset == subsetIndex && policy != NORMAL_MAP_POLICY::PRESERVE) continue;
+                candidate.prepared.batches.push_back(batch);
+                input.subsets[batch.subset].requested = false;
+                if (batch.subset == subsetIndex) reused = true;
+            }
+        }
+        // Generate only missing/stale bases; explicit import replaces just its target subset.
+        if (policy == NORMAL_MAP_POLICY::IMPORT) input.subsets[subsetIndex].requested = false;
+        normal_map::PREPARED generated;
+        if (!normal_map::prepare(input, generated, error)) return fail(error.c_str());
+        for (auto &batch : generated.batches) candidate.prepared.batches.push_back(std::move(batch));
+        if (policy == NORMAL_MAP_POLICY::IMPORT)
+        {
+            for (auto &s : input.subsets) s.requested = false;
+            auto &target = input.subsets[subsetIndex];
+            target.requested = true;
+            const size_t count = target.topology == normal_map::TOPOLOGY::TRIANGLES ? target.indices.size() :
+                (target.indices.size()-2)*3;
+            if (count != cornerCount) return fail("import requires one tangent per expanded triangle corner");
+            target.importedCorners.reserve(cornerCount);
+            for (uint32_t i = 0; i < cornerCount; ++i)
+                target.importedCorners.push_back({corners[i].x, corners[i].y, corners[i].z, corners[i].sign});
+            input.policy = normal_map::TANGENT_POLICY::IMPORT;
+            normal_map::PREPARED imported;
+            if (!normal_map::prepare(input, imported, error)) return fail(error.c_str());
+            for (auto &batch : imported.batches) candidate.prepared.batches.push_back(std::move(batch));
+        }
+        std::stable_sort(candidate.prepared.batches.begin(), candidate.prepared.batches.end(),
+            [](const normal_map::BATCH &a, const normal_map::BATCH &b) { return a.subset < b.subset; });
+        NORMAL_MAP_REPORT result;
+        result.reused = reused;
+        for (const auto &batch : candidate.prepared.batches)
+        {
+            if (batch.subset == subsetIndex)
+            {
+                ++result.batches;
+                result.vertices += static_cast<uint32_t>(batch.sourceVertices.size());
+            }
+            for (size_t i = 0; i < batch.indices.size(); i += 3)
+            {
+                if (batch.tangents[batch.indices[i]].sign != 0) continue;
+                ++candidate.prepared.unusableTriangles;
+                if (batch.subset == subsetIndex) ++result.unusableTriangles;
+            }
+        }
+        for (size_t i = 0; i < wanted.size(); ++i) input.subsets[i].requested = wanted[i];
+        if (!normal_map::validate(input, candidate, error)) return fail(error.c_str());
+        impl->normalMapFrames[frameIndex] = std::move(candidate);
+        report = result;
+        return true;
+    }
+
     void MESH_MBM_DEBUG::removeBuffer(uint32_t indexFrame)
     {
         if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
             return;
         delete this->impl->buffer[indexFrame];
         this->impl->buffer.erase(this->impl->buffer.begin() + static_cast<ptrdiff_t>(indexFrame));
+        normal_map::ASSET_FRAMES remaining;
+        for (auto &entry : impl->normalMapFrames)
+            if (entry.first != indexFrame)
+                remaining.emplace(entry.first > indexFrame ? entry.first-1 : entry.first, std::move(entry.second));
+        impl->normalMapFrames = std::move(remaining);
+        normal_map::MATERIAL_SETTINGS_MAP materials;
+        for (const auto &entry : impl->normalMapMaterials)
+            if (entry.first.first != indexFrame)
+                materials.emplace(normal_map::MATERIAL_KEY{
+                    entry.first.first > indexFrame ? entry.first.first-1 : entry.first.first, entry.first.second}, entry.second);
+        impl->normalMapMaterials = std::move(materials);
     }
 
     void MESH_MBM_DEBUG::removeSubset(uint32_t indexFrame, uint32_t indexSubset)
@@ -3221,6 +3474,19 @@ namespace mbm
         buf->subset.erase(buf->subset.begin() + static_cast<ptrdiff_t>(indexSubset));
         buf->headerFrame.totalSubset--;
         buf->headerFrame.sizeVertexBuffer -= vCount;
+        normal_map::MATERIAL_SETTINGS_MAP materials;
+        for (const auto &entry : impl->normalMapMaterials)
+        {
+            auto key = entry.first;
+            if (key.first == indexFrame)
+            {
+                if (key.second == indexSubset) continue;
+                if (key.second > indexSubset) --key.second;
+            }
+            materials.emplace(key, entry.second);
+        }
+        impl->normalMapMaterials = std::move(materials);
+        impl->normalMapFrames.erase(indexFrame);
     }
 
     bool MESH_MBM_DEBUG::moveSubsetUp(uint32_t indexFrame, uint32_t indexSubset)
@@ -3233,6 +3499,10 @@ namespace mbm
 
         const uint32_t previousSubsetIndex = indexSubset - 1;
         std::swap(buf->subset[previousSubsetIndex], buf->subset[indexSubset]);
+        const auto current = normal_map::getMaterialSettings(impl->normalMapMaterials, indexFrame, indexSubset);
+        const auto previous = normal_map::getMaterialSettings(impl->normalMapMaterials, indexFrame, previousSubsetIndex);
+        normal_map::setMaterialSettings(impl->normalMapMaterials, indexFrame, previousSubsetIndex, current.greenSign, current.strength);
+        normal_map::setMaterialSettings(impl->normalMapMaterials, indexFrame, indexSubset, previous.greenSign, previous.strength);
 
         // Articulated tracks and hierarchy target stable part IDs. Keep each Part attached to
         // the same geometry by remapping only the two subset occurrences whose order changed.
@@ -3245,6 +3515,7 @@ namespace mbm
             else if (part.subsetIndex == previousSubsetIndex)
                 part.subsetIndex = indexSubset;
         }
+        impl->normalMapFrames.erase(indexFrame);
         return true;
     }
 
@@ -3272,6 +3543,14 @@ namespace mbm
         }
         if (selectedCount < 2)
             return false;
+        // A merged subset has one material: do not silently discard differing normal-map settings.
+        const auto firstSettings = normal_map::getMaterialSettings(impl->normalMapMaterials, indexFrame, firstSelected);
+        for (const uint32_t subsetIndex : subsetIndices)
+        {
+            const auto settings = normal_map::getMaterialSettings(impl->normalMapMaterials, indexFrame, subsetIndex);
+            if (settings.greenSign != firstSettings.greenSign || settings.strength != firstSettings.strength)
+                return false;
+        }
 
         const int stride = buf->headerFrame.stride;
         int totalVertices = 0;
@@ -3419,11 +3698,20 @@ namespace mbm
         if (reorderWeights)
             this->impl->canonicalWeights.vertices = std::move(reorderedWeights);
 
+        normal_map::MATERIAL_SETTINGS_MAP materials;
+        for (const auto &entry : impl->normalMapMaterials)
+        {
+            auto key = entry.first;
+            if (key.first == indexFrame) key.second = oldToNew[key.second];
+            materials.emplace(key, entry.second);
+        }
+        impl->normalMapMaterials = std::move(materials);
         for (auto &part : this->impl->articulatedParts)
         {
             if (part.frameIndex == indexFrame && part.subsetIndex < oldToNew.size())
                 part.subsetIndex = oldToNew[part.subsetIndex];
         }
+        impl->normalMapFrames.erase(indexFrame);
         return true;
     }
 
@@ -3468,6 +3756,15 @@ namespace mbm
             newBuf->subset.push_back(newSub);
         }
         this->impl->buffer.push_back(newBuf);
+        const uint32_t newFrameIndex = static_cast<uint32_t>(impl->buffer.size()-1);
+        for (uint32_t subset = 0; subset < newBuf->subset.size(); ++subset)
+        {
+            const auto settings = normal_map::getMaterialSettings(src.impl->normalMapMaterials, srcFrameIdx, subset);
+            normal_map::setMaterialSettings(impl->normalMapMaterials, newFrameIndex, subset, settings.greenSign, settings.strength);
+        }
+        const auto prepared = src.impl->normalMapFrames.find(srcFrameIdx);
+        if (prepared != src.impl->normalMapFrames.end())
+            impl->normalMapFrames[static_cast<uint32_t>(impl->buffer.size()-1)] = prepared->second;
         return static_cast<uint32_t>(this->impl->buffer.size());
     }
 
@@ -3579,6 +3876,10 @@ namespace mbm
         if (copyCanonicalWeights)
             this->impl->canonicalWeights.vertices.insert(
                 this->impl->canonicalWeights.vertices.end(), sourceWeights.begin(), sourceWeights.end());
+        const auto settings = normal_map::getMaterialSettings(src.impl->normalMapMaterials, srcFrame, srcSubsetIdx);
+        normal_map::setMaterialSettings(impl->normalMapMaterials, targetFrame,
+            static_cast<uint32_t>(tgtBuf->subset.size()-1), settings.greenSign, settings.strength);
+        impl->normalMapFrames.erase(targetFrame);
         return static_cast<uint32_t>(tgtBuf->subset.size());
     }
 
@@ -3715,6 +4016,67 @@ namespace mbm
                 return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical animations [%s]", fileOut);
         }
 
+        for (const auto &entry : impl->normalMapMaterials)
+        {
+            if (entry.first.first >= impl->buffer.size() ||
+                entry.first.second >= impl->buffer[entry.first.first]->subset.size() ||
+                !normal_map::validMaterialSettings(entry.second.greenSign, entry.second.strength))
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "invalid normal-map material settings [%s]", fileOut);
+        }
+        normal_map::ASSET_FRAMES preparedFrames;
+        for (uint32_t frameIndex = 0; frameIndex < impl->buffer.size(); ++frameIndex)
+        {
+            auto &frame = *impl->buffer[frameIndex];
+            uint64_t vertexCount = 0, indexCount = 0;
+            for (const auto *subset : frame.subset)
+            {
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+                indexCount += static_cast<uint32_t>(subset->indexCount);
+            }
+            if (vertexCount > INT32_MAX || indexCount > INT32_MAX)
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "normal-map source count overflow [%s]", fileOut);
+            frame.headerFrame.sizeVertexBuffer = static_cast<int>(vertexCount);
+            frame.headerFrame.sizeIndexBuffer = frame.indexBuffer ? static_cast<int>(indexCount) : 0;
+            const auto found = impl->normalMapFrames.find(frameIndex);
+            const auto *cached = found != impl->normalMapFrames.end() ? &found->second : nullptr;
+            bool needsPreparation = cached != nullptr;
+            for (const auto *subset : frame.subset)
+                for (const auto &slot : subset->materialTextureSlots)
+                    needsPreparation |= slot.type == util::MATERIAL_TEXTURE_SLOT_NORMAL && !slot.texture.empty();
+            if (!needsPreparation || impl->headerMesh.hasNorText[0] == HAS_NOR_NO ||
+                impl->headerMesh.hasNorText[1] == HAS_TEX_NO)
+                continue;
+            const VEC2 *uv = nullptr;
+            std::vector<VEC2> sharedUv;
+            if (impl->headerMesh.hasNorText[1] == HAS_TEX_EACH_FRAME || frameIndex == 0)
+                uv = impl->headerMesh.hasNorText[1] != HAS_TEX_NO ? reinterpret_cast<const VEC2 *>(frame.uv) : nullptr;
+            else if (impl->headerMesh.hasNorText[1] == HAS_TEX_FIRST_FRAME)
+            {
+                sharedUv.resize(static_cast<size_t>(vertexCount));
+                const auto &first = *impl->buffer[0];
+                if (first.uv)
+                    std::copy_n(reinterpret_cast<const VEC2 *>(first.uv),
+                        std::min(sharedUv.size(), static_cast<size_t>(first.headerFrame.sizeVertexBuffer)), sharedUv.begin());
+                uv = sharedUv.data();
+            }
+            normal_map::INPUT input;
+            std::string error;
+            if (!makeNormalMapInput(frame, uv, impl->headerMesh.hasNorText[0] != HAS_NOR_NO,
+                                    impl->info_mode.mode_draw, cached, input, error))
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "normal-map preparation: %s [%s]", error.c_str(), fileOut);
+            normal_map::ASSET_FRAME candidate;
+            if (cached && normal_map::validate(input, *cached, error))
+                candidate = *cached;
+            else
+            {
+                candidate.sourceSignature = normal_map::sourceSignature(input);
+                if (!normal_map::prepare(input, candidate.prepared, error))
+                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "normal-map preparation: %s [%s]", error.c_str(), fileOut);
+            }
+            if (!candidate.prepared.batches.empty())
+                preparedFrames.emplace(frameIndex, std::move(candidate));
+        }
+
         std::vector<std::string> ls_paths = this->getKnowPathsToExtraHeader();
 
         int totalBounding = static_cast<int>(this->impl->infoPhysics.lsCube.size())
@@ -3736,7 +4098,9 @@ namespace mbm
         fileHeader.typeMesh         = static_cast<uint8_t>(impl->typeMe);
         fileHeader.backBufferWidth  = impl->backBufferWidth;
         fileHeader.backBufferHeight = impl->backBufferHeight;
-        fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
+        fileHeader.sectionCount     = static_cast<uint32_t>(preparedFrames.size())
+                                     + (impl->normalMapMaterials.empty() ? 0u : 1u)
+                                     + 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
                                      + (hasCanonicalSkeleton ? 1u : 0u)
                                      + (hasCanonicalWeights ? 1u : 0u)
                                      + (hasCanonicalAnimations ? 1u : 0u)
@@ -4431,6 +4795,28 @@ namespace mbm
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_FRAME_STATIC for frame %d [%s]", currentFrame, fileOut);
         }
 
+        for (const auto &entry : preparedFrames)
+        {
+            util::SECTION_HEADER_V11 header;
+            header.type = util::SECTION_NORMAL_MAP_TANGENTS;
+            header.sectionVersion = normal_map::SECTION_VERSION;
+            if (compress) header.compression = util::SECTION_COMPRESSION_DEFLATE;
+            if (!util::writeSectionV11Streamed(file, header, [&](FILE *payload)
+                { return normal_map::writePayload(payload, entry.first, entry.second); }))
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write normal-map section [%s]", fileOut);
+        }
+        if (!impl->normalMapMaterials.empty())
+        {
+            util::SECTION_HEADER_V11 header;
+            header.type = util::SECTION_NORMAL_MAP_MATERIALS;
+            header.sectionVersion = 1;
+            if (compress) header.compression = util::SECTION_COMPRESSION_DEFLATE;
+            if (!util::writeSectionV11Streamed(file, header, [&](FILE *payload)
+                { return normal_map::writeMaterialPayload(payload, impl->normalMapMaterials); }))
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write normal-map materials [%s]", fileOut);
+        }
+        impl->normalMapFrames = std::move(preparedFrames);
+
         if (file)
             fclose(file);
         file = nullptr;
@@ -4593,6 +4979,7 @@ namespace mbm
         int16_t hasNormalFlag  = HAS_NOR_NO;
         int16_t hasTextureFlag = HAS_TEX_NO;
         bool    sawFirstFrame  = false;
+        std::vector<bool> normalMapFrameHasUv;
         bool    sawCanonicalSkeleton = false;
         bool    sawCanonicalWeights = false;
         bool    sawCanonicalAnimations = false;
@@ -4761,6 +5148,7 @@ namespace mbm
                                     : (v11FrameHeader.uvSource == 0 ? HAS_TEX_EACH_FRAME : HAS_TEX_FIRST_FRAME);
                 }
                 this->impl->buffer.push_back(pBuffer);
+                normalMapFrameHasUv.push_back(v11FrameHeader.hasUv != 0);
             }
             else if (sectionHeader.type == util::SECTION_SKELETAL_SKELETON)
             {
@@ -4785,12 +5173,51 @@ namespace mbm
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_ANIMATION [%s]", fileNamePath);
                 sawCanonicalAnimations = true;
             }
+            else if (sectionHeader.type == util::SECTION_NORMAL_MAP_MATERIALS)
+            {
+                util::MEM_CURSOR_V11 cursor = stage_payload_as_cursor(payload);
+                std::string error;
+                if (!impl->normalMapMaterials.empty())
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "duplicate normal-map material section [%s]", fileNamePath);
+                if (!normal_map::readMaterialPayload(cursor, sectionHeader.sectionVersion, impl->normalMapMaterials, error))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "normal-map material section: %s [%s]", error.c_str(), fileNamePath);
+            }
+            else if (sectionHeader.type == util::SECTION_NORMAL_MAP_TANGENTS)
+            {
+                util::MEM_CURSOR_V11 cursor = stage_payload_as_cursor(payload);
+                uint32_t frameIndex = 0;
+                normal_map::ASSET_FRAME prepared;
+                std::string error;
+                if (!normal_map::readPayload(cursor, sectionHeader.sectionVersion, frameIndex, prepared, error))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "normal-map section: %s [%s]", error.c_str(), fileNamePath);
+                if (!impl->normalMapFrames.emplace(frameIndex, std::move(prepared)).second)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "duplicate normal-map frame section [%s]", fileNamePath);
+            }
             else
             {
                 return log_util::onFailed(fp, __FILE__, __LINE__,
                                           "loadV11 does not support section type %u [%s]",
                                           sectionHeader.type, fileNamePath);
             }
+        }
+
+        for (const auto &entry : impl->normalMapMaterials)
+        {
+            if (entry.first.first >= impl->buffer.size() ||
+                entry.first.second >= impl->buffer[entry.first.first]->subset.size())
+                return log_util::onFailed(fp, __FILE__, __LINE__, "normal-map material reference out of range [%s]", fileNamePath);
+        }
+        for (const auto &entry : impl->normalMapFrames)
+        {
+            normal_map::INPUT input;
+            std::string error;
+            if (entry.first >= impl->buffer.size())
+                return log_util::onFailed(fp, __FILE__, __LINE__, "normal-map frame index out of range [%s]", fileNamePath);
+            const auto &frame = *impl->buffer[entry.first];
+            if (!makeNormalMapInput(frame, normalMapFrameHasUv[entry.first] ? reinterpret_cast<const VEC2 *>(frame.uv) : nullptr,
+                                    frame.normal != nullptr, impl->info_mode.mode_draw, &entry.second, input, error) ||
+                !normal_map::validate(input, entry.second, error))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "normal-map section: %s [%s]", error.c_str(), fileNamePath);
         }
 
         impl->headerMesh.totalFrames    = static_cast<int>(this->impl->buffer.size());
@@ -9109,6 +9536,8 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
+        impl->normalMapFrames.clear();
+        impl->normalMapMaterials.clear();
     }
 
     void MESH_MBM_DEBUG::fillAtLeastOneBound()
@@ -9219,6 +9648,23 @@ namespace mbm
         return false;
     }
     
+    bool MESH_MBM::getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept
+    {
+        if (!(impl->buffer && frame < impl->totalFramesMesh && subset < impl->buffer[frame].totalSubset)) return false;
+        const auto settings = normal_map::getMaterialSettings(impl->normalMapMaterials, frame, subset);
+        greenSign = settings.greenSign;
+        strength = settings.strength;
+        return true;
+    }
+
+    bool MESH_MBM::setNormalMapSettings(uint32_t frame, uint32_t subset, int greenSign, float strength) const
+    {
+        if (!(impl->buffer && frame < impl->totalFramesMesh && subset < impl->buffer[frame].totalSubset)) return false;
+        if (!normal_map::setMaterialSettings(impl->normalMapMaterials, frame, subset, greenSign, strength)) return false;
+        normal_map::setRenderSettings(impl->buffer[frame].pBufferGL,subset,greenSign,strength);
+        return true;
+    }
+
     TEXTURE * MESH_MBM::getMaterialTexture(const uint32_t indexFrame, const uint32_t indexSubset, const TEXTURE_ROLE role) const noexcept
     {
         if (indexFrame < impl->totalFramesMesh && impl->buffer)
@@ -9414,6 +9860,8 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
+        impl->normalMapFrames.clear();
+        impl->normalMapMaterials.clear();
         impl->gpuSkinningInput = {};
         impl->skeletalBindPositions.clear();
         impl->skeletalBindNormals.clear();
@@ -11707,6 +12155,8 @@ namespace mbm
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
         impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
+        impl->normalMapFrames = std::move(in.normalMapFrames);
+        impl->normalMapMaterials = std::move(in.normalMapMaterials);
         if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0)
         {
             const skeletal::SKINNING_CAPABILITY capability =
@@ -11836,6 +12286,30 @@ namespace mbm
             }
             if (!loadOk)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
+
+            const auto prepared = impl->normalMapFrames.find(currentFrame);
+            if (impl->canonicalSkeleton.skeletonId == 0 && prepared != impl->normalMapFrames.end())
+            {
+                if (!normal_map::uploadStatic(impl->buffer[currentFrame].pBufferGL,
+                    frame.position.get(),frame.normal.get(),frame.uv.get(),prepared->second.prepared)) return false;
+                for (uint32_t subset=0; subset<totalSubset; ++subset)
+                {
+                    const auto settings = normal_map::getMaterialSettings(impl->normalMapMaterials,currentFrame,subset);
+                    normal_map::setRenderSettings(impl->buffer[currentFrame].pBufferGL,subset,settings.greenSign,settings.strength);
+                }
+            }
+            // Populate exact per-subset role assignments, including explicit absence.
+            for (uint32_t subsetIndex=0; subsetIndex<totalSubset; ++subsetIndex)
+            {
+                auto *renderBuffer = impl->buffer[currentFrame].pBufferGL;
+                for (uint32_t stage=2; stage<=5; ++stage) renderBuffer->setTextureByStage(nullptr,stage,subsetIndex);
+                const auto &subset = impl->buffer[currentFrame].subset[subsetIndex];
+                for (size_t slot=0; slot<subset.materialTextureSlotHeaders.size(); ++slot)
+                {
+                    const auto role = legacyMaterialSlotTypeToTextureRole(subset.materialTextureSlotHeaders[slot].type);
+                    renderBuffer->setTextureByStage(subset.materialTextures[slot],getTextureRoleBackendSlot(role),subsetIndex);
+                }
+            }
 
             if (currentFrame == 0 && impl->gpuSkinningInput.ready() &&
                 !skeletal::uploadSkinVertexStream(impl->buffer[currentFrame].pBufferGL,
@@ -12478,22 +12952,6 @@ namespace mbm
     {
         if (meshMemory == nullptr || meshMemory->isLoaded() == false)
             return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh empty or not loaded...");
-//        auto* extensionString = (char*)glGetString(GL_EXTENSIONS);
-//        if (strstr(extensionString, "GL_OES_mapbuffer") == nullptr)
-//            return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [GL_OES_mapbuffer] not supported!");
-//#if defined ANDROID //ANDROID //TODO fix issue not found EGL lib on ANDOID 
-//        PRINT_IF_DEBUG("loadDebugFromMemory is not working on ANDOID");
-//        PRINT_IF_DEBUG("TODO: fix issue not found EGL lib on ANDOID");
-//        PFNGLMAPBUFFEROESPROC_TODO* glMapBufferOES = nullptr;
-//        PFNGLUNMAPBUFFEROESPROC_TODO* glUnmapBufferOES = nullptr;
-//#else //ANDROID //TODO fix issue not found EGL lib on ANDOID 
-//        auto glMapBufferOES = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("glMapBufferOES");
-//        auto glUnmapBufferOES = (PFNGLUNMAPBUFFEROESPROC)eglGetProcAddress("glUnmapBufferOES");
-//#endif
-//        if (glMapBufferOES == nullptr)
-//            return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [glMapBufferOES] not supported!");
-//        if (glUnmapBufferOES == nullptr)
-//            return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [glUnmapBufferOES] not supported!");
         this->release();
         impl->fileName = meshMemory->getFilenameMesh();
         // step 1: Verificação do header
@@ -12741,8 +13199,20 @@ namespace mbm
             {
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to fill subset in specific backend engine for mesh %s", meshMemory->getFilenameMesh());
             }
-            // moved to MESH_MBM_DEBUG::fillInSubsetDebug
-            // 
+            // Authored material slots live on the subset independently of shader stages.
+            for (uint32_t subsetIndex = 0; subsetIndex < pBuffer->subset.size(); ++subsetIndex)
+            {
+                auto &slots = pBuffer->subset[subsetIndex]->materialTextureSlots;
+                slots.clear();
+                const util::SUBSET *source = pBufferMesh->getSubset(subsetIndex);
+                for (const auto &header : source->materialTextureSlotHeaders)
+                {
+                    util::MATERIAL_TEXTURE_SLOT_DEBUG slot;
+                    slot.type = header.type;
+                    slot.texture = header.nameTexture;
+                    slots.push_back(std::move(slot));
+                }
+            }
         }
         impl->positionOffset_deprecated = VEC3(impl->headerMesh.posX, impl->headerMesh.posY, impl->headerMesh.posZ);
         impl->angleDefault_deprecated = VEC3(impl->headerMesh.angleX, impl->headerMesh.angleY, impl->headerMesh.angleZ);
@@ -12750,6 +13220,8 @@ namespace mbm
         if (this->impl->coordTexFrame_0)
             delete[] this->impl->coordTexFrame_0;
         this->impl->coordTexFrame_0 = nullptr;
+        impl->normalMapFrames = meshMemory->impl->normalMapFrames;
+        impl->normalMapMaterials = meshMemory->impl->normalMapMaterials;
         return true;
     }
 }

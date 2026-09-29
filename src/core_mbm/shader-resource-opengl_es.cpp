@@ -23,13 +23,14 @@
 #include <core_mbm/light.h>
 #include <stdio.h>
 #include <string>
+#include "private/normal-map-gles.h"
 
 namespace mbm
 {
     static std::string buildLitTexturedPixelShaderOpenGLES()
     {
         const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
-        return
+        std::string code =
             "precision mediump float;\n"
             "uniform sampler2D TextureDiffuse;\n"
             "uniform sampler2D TextureNormal;\n"
@@ -37,6 +38,7 @@ namespace mbm
             "uniform int LightMode;\n"
             "uniform int HasNormalMap;\n"
             "uniform vec4 AmbientColor;\n"
+            "uniform vec4 DirectionalColor;\n"
             "uniform vec3 LightDirectionView;\n"
             "uniform vec3 LightPositionView[" + supportedMaxLights + "];\n"
             "uniform float LightRadius[" + supportedMaxLights + "];\n"
@@ -68,13 +70,13 @@ namespace mbm
             "      vec3 viewDir = normalize(-vPositionView);\n"
             "      vec3 lightTravel = normalize(LightDirectionView);\n"
             "      float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
-            "      light += LightColor[0].rgb * diffuse;\n"
+            "      light += DirectionalColor.rgb * diffuse;\n"
             "      if (diffuse > 0.0 && MaterialPower > 0.0)\n"
             "      {\n"
             "         vec3 lightDir = normalize(-lightTravel);\n"
             "         vec3 halfDir = normalize(lightDir + viewDir);\n"
             "         float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);\n"
-            "         specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;\n"
+            "         specular += DirectionalColor.rgb * MaterialSpecular.rgb * spec;\n"
             "      }\n"
             "   }\n"
             "   else\n"
@@ -107,6 +109,10 @@ namespace mbm
             "   vec3 litColor = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0, 1.0);\n"
             "   gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);\n"
             "}\n";
+        code.insert(code.find("void main"), normal_map::fragmentGles());
+        const auto at = code.find("normalize(vNormalView)");
+        code.replace(at, std::string("normalize(vNormalView)").size(), "mbmMappedNormal()");
+        return code;
     }
 
     static const std::string kLitTexturedPixelShaderOpenGLES = buildLitTexturedPixelShaderOpenGLES();

@@ -696,6 +696,8 @@ local function propertiesPanel()
             end
         end
         end
+        E.values.normalMapPrecompute=tImGui.Checkbox(tLang.L('nm_precompute'),E.values.normalMapPrecompute or false)
+        if tImGui.IsItemHovered() then Help.tooltip(tLang.L('nm_precompute_help')) end
         BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         Sides.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         if tImGui.CollapsingHeader(L('resolution_group')) then
