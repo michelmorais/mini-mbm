@@ -118,7 +118,7 @@ function M.panel(E,action,apply)
   Help.show('order')
   if c then E.areaIndex=v;E.canvasDirty=true end
   local a=areas[E.areaIndex]
-  c,v=tImGui.InputText(L('name'),a.name);if c then a.name=v:gsub('%c',''):sub(1,128) end
+  c,v=tImGui.InputText(L('name'),a.name);if c then a.name=v:gsub('[%z\1-\31\127]',''):sub(1,128) end
   a.enabled=tImGui.Checkbox(L('enabled'),a.enabled)
   Help.show('enabled')
   if not a.enabled then tImGui.TextWrapped(L('disabled')) end
