@@ -21,7 +21,7 @@
 
 -- Run with --disable_select_monitor; require the PASS sentinel, not just exit code zero.
 -- mkdir -p /tmp/mini-mbm-normal-render before running; inspect the PASS sentinel.
-local folder='/tmp/mini-mbm-normal-render/'
+local folder=(os.getenv('MBM_NORMAL_MAP_RENDER_DIR') or '/tmp/mini-mbm-normal-render')..'/'
 local nonIndexed=os.getenv('MBM_NORMAL_MAP_TEST_VB')=='1'
 local object,rt
 local step,ticks=1,0
@@ -78,13 +78,24 @@ local function apply()
 end
 function onInitScene()
     local ok,err=pcall(function()
-        assert(mbm.addShader({name='legacy-normal.vs',code=[[
+        local legacyCode = [[
             attribute vec4 aPosition; attribute vec3 aNormal; attribute vec2 aTextCoord;
             uniform mat4 mvpMatrix; uniform mat4 mvMatrix;
             varying vec3 vNormalView; varying vec3 vPositionView; varying vec2 vTexCoord;
             void main() { gl_Position=mvpMatrix*aPosition; vNormalView=mat3(mvMatrix)*aNormal;
                 vPositionView=(mvMatrix*aPosition).xyz; vTexCoord=aTextCoord; }
-        ]]}))
+        ]]
+        if mbm.get('USE_DIRECTX11') then
+            legacyCode = [[
+                cbuffer Matrices : register(b0) { row_major float4x4 mvpMatrix; row_major float4x4 mvMatrix; };
+                struct Input { float4 position:POSITION; float3 normal:NORMAL; float2 uv:TEXCOORD0; };
+                struct Output { float4 position:SV_POSITION; float3 normal:TEXCOORD1; float3 view:TEXCOORD2; float2 uv:TEXCOORD0; };
+                Output main(Input input) { Output o; o.position=mul(input.position,mvpMatrix);
+                    o.normal=mul(float4(input.normal,0),mvMatrix).xyz;
+                    o.view=mul(input.position,mvMatrix).xyz; o.uv=input.uv; return o; }
+            ]]
+        end
+        assert(mbm.addShader({name='legacy-normal.vs',code=legacyCode}))
         mbm.setLightEnabled('3d',true)
         mbm.setAmbientLight('3d',0.05,0.05,0.05)
         mbm.setDirectionalLight('3d',-0.8,-0.3,0.6,0.25,0.25,0.25)

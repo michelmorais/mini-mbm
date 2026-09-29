@@ -21,6 +21,7 @@
 
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/light.h>
+#include "private/normal-map-hlsl.h"
 #include <string>
 #include <stdio.h>
 
@@ -51,8 +52,9 @@ namespace mbm
             "Texture2D TextureDiffuse : register(t0);\n"
             "Texture2D TextureNormal : register(t2);\n"
             "SamplerState DiffuseSampler : register(s0);\n"
+            + std::string(normal_map::fragmentHlsl()) +
             "\n"
-            "float4 main(float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2) : SV_Target\n"
+            "float4 main(float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2, float4 tangentViewIn : TEXCOORD3) : SV_Target\n"
             "{\n"
             "    float4 texColor = TextureDiffuse.Sample(DiffuseSampler, texCoord);\n"
             "    if (LightEnabled == 0 || LightMode == 0)\n"
@@ -60,7 +62,7 @@ namespace mbm
             "    float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
             "    float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
             "    float3 specular = float3(0, 0, 0);\n"
-            "    float3 normalView = LightMode == 1 ? normalize(normalViewIn) : float3(0, 0, 1);\n"
+            "    float3 normalView = LightMode == 1 ? mbmMappedNormal(normalViewIn,tangentViewIn,texCoord) : float3(0, 0, 1);\n"
             "    if (LightMode == 2 && HasNormalMap != 0) normalView = normalize((TextureNormal.Sample(DiffuseSampler, texCoord).xyz * 2.0f) - 1.0f);\n"
             "    float3 viewDir = normalize(-positionViewIn);\n"
             "    if (LightMode == 1)\n"

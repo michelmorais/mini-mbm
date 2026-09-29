@@ -51,13 +51,16 @@ mutation follows the shared-asset material contract; extraction and editing
 preserve associations, and merging incompatible settings fails without mutation.
 
 `normal-map-upload.h` declares backend-neutral main-thread upload and settings
-hooks. Static OpenGL ES rendering keeps derived GPU buffers and draw settings in
+hooks. Static OpenGL ES and DirectX 11 rendering keep derived GPU buffers and draw settings in
 private `BUFFER_SPECIFIC::normalMapSubsets`. Upload occurs at asset creation for
 prepared static frames, including those without an assigned normal texture;
 rendering uses the tangent batches only when a normal texture and the supported
 lighting shader are active and strength is nonzero. Buffer release frees this
 storage; dynamic source updates discard it. `normal-map-gles.h` contains the GLES
-shader helper. DX9, DX11 and Metal implement the upload/settings hooks as no-ops.
+shader helper; `normal-map-hlsl.h` supplies the DirectX 11 fragment helper.
+DirectX 11 owns derived vertex/index buffers per subset, releases partial uploads
+through a temporary private owner, and preserves the source vertex layout for
+readback. DX9 and Metal implement the upload/settings hooks as no-ops.
 No backend handles or owned containers are exposed through public headers.
 
 `normal-map-asset.*` also provides the private CPU `remapSkinWeights` bridge. It

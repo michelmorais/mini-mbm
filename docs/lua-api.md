@@ -505,7 +505,8 @@ These are shared asset properties, like material textures: changing them affects
 instances using that cached asset. They neither assign a normal texture nor modify
 texture pixels or tangents. Since 7.318, static OpenGL ES 3D lighting consumes
 these properties when a prepared tangent basis and normal texture are available.
-Strength zero disables the detail. Other backends and skinned normal mapping
+DirectX 11 consumes these properties for static 3D lighting since 7.320.
+Strength zero disables the detail. DirectX 9, Metal and skinned normal mapping
 remain pending; these properties do not change the existing 2dw equations.
 
 ### 6.3 Size & Bounds

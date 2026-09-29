@@ -1,9 +1,9 @@
 # Plano de normal mapping 3D
 
 Status: preparação CPU, persistência opcional e API C++/Lua implementadas.
-Caminho estático OpenGL ES implementado; controles de convenção/intensidade no
-Mesh Debug disponíveis em 7.319. Próximo milestone: caminho estático DirectX 9
-e DirectX 11, seguido de Metal.
+Caminhos estáticos OpenGL ES e DirectX 11 implementados; controles de
+convenção/intensidade no Mesh Debug disponíveis em 7.319. DirectX 11 validado
+no Windows em 7.320. DirectX 9 depende de avaliação de custo/perfis; Metal pendente.
 
 Primeira entrega: normal mapping de malhas estáticas em GLES, DX9, DX11 e Metal,
 com propriedades editáveis e persistentes. Skinning LBS/DQS, deformações dinâmicas
@@ -159,7 +159,7 @@ MBM_NORMAL_MAP_TEST_VB=1 timeout -s KILL 20 bin/debug/linux_x86/mini-mbm \
 ```
 
 Exigir o marcador `NORMAL MAP VISUAL PASS`, além do término do processo.
-Próximo incremento: paridade estática de DirectX 9/11 da etapa 3, seguida de Metal.
+DirectX 11 concluído no incremento 7.320 abaixo; DirectX 9 e Metal permanecem pendentes.
 A exposição de convenção/intensidade no Mesh Debug precede esse incremento;
 a integração esquelética/dinâmica da etapa 4 fica fora da primeira entrega.
 Versão 7.312 identifica a entrega de persistência das tangentes.
@@ -412,9 +412,61 @@ aplicação explícita substitui ambos os valores. Usa snapshot Undo, invalida o
 preview e persiste pela seção opcional 15. Não atribui textura nem solicita nova
 preparação de tangentes. Leituras agregadas ficam em cache até seleção/edição mudar.
 
+### Progresso da etapa 3 — DirectX 11, versão 7.320
+
+- Upload único de lotes estáticos para buffers privados, com publicação somente
+  após sucesso de todas as alocações. Geometria fonte e seu layout permanecem
+  separados; liberação e atualização dinâmica descartam os recursos derivados.
+- Shaders gerados e `lit textured.ps` com VS gerado consomem tangente em espaço
+  de visão, inversa transposta para normal, sinal do determinante, convenção e
+  intensidade por subset. Ambos preservam iluminação direcional e pontual DX11.
+  Perfis continuam `vs_4_0`/`ps_4_0`; não houve aumento de Shader Model.
+- Tangentes usam input slot 2; constantes privadas de normal mapping usam PS b3.
+  Desenho fonte recebe tangente zero com stride zero. Subsets sem mapa, intensidade
+  zero, shaders legados e assets esqueléticos preservam seus caminhos anteriores.
+- Corrigida extração DX11 de VB: subsets e intervalos fonte eram omitidos. Extração
+  IB/VB também preserva o nome `default` quando não há textura difusa carregada.
+- Executado no Windows/MSVC Debug x86, DirectX 11 Feature Level 11_0:
+  preparação CPU, persistência, fundação esquelética, API runtime síncrona/assíncrona,
+  extração de autoria e suíte DX11 (16/16, incluindo 58 shaders embutidos).
+- Comparações visuais IB/VB: `NORMAL MAP VISUAL PASS`. Diferença média RGBA:
+  neutro `0.0350`, detalhe `1.9351`, intensidade zero/remoção/convenções equivalentes
+  `0`, luz pontual `2.4017`, transformação com escala não uniforme `8.0145`.
+  Subsets mistos, escala negativa, HUD, 2dw e VS legado também passaram.
+- `Downloads/module_001.msh` apenas lido: captura oblíqua confirmou relevo com o
+  mapa original. Diferença média `5.4924` versus intensidade zero; mapa neutro
+  `0.1483`. Câmera/luz diferem da captura Linux; não é uma medida de paridade entre GPUs.
+  Smoke de 3 segundos com esse asset passou na camada de depuração e na validação
+  de ciclo de vida dos recursos DirectX 11.
+- Sem validação de perda real de dispositivo, hardware de feature level inferior,
+  skinning com tangentes ou regeneração dinâmica. DX9 e Metal ainda sem implementação.
+
+Reprodução no PowerShell, após build DX11 de `mini_mbm` e `libTest`:
+
+```powershell
+New-Item -ItemType Directory -Force build/normal-dx11 | Out-Null
+$env:MBM_NORMAL_MAP_RENDER_DIR = "$PWD/build/normal-dx11"
+& platform-msvs/Debug/mini_mbm.exe --scene src/test-lib/normal-map-render-test.lua --disable_select_monitor --nosplash
+$env:MBM_NORMAL_MAP_TEST_VB = '1'
+& platform-msvs/Debug/mini_mbm.exe --scene src/test-lib/normal-map-render-test.lua --disable_select_monitor --nosplash
+Remove-Item Env:MBM_NORMAL_MAP_TEST_VB
+$env:MBM_DIRECTX11_VALIDATE = '1'
+$env:MBM_NORMAL_MAP_TEST_LIGHTING = '1'
+& platform-msvs/Debug/libTest.exe 3 "$env:USERPROFILE/Downloads/module_001.msh" 3d
+Remove-Item Env:MBM_DIRECTX11_VALIDATE
+Remove-Item Env:MBM_NORMAL_MAP_TEST_LIGHTING
+```
+
+Exigir `NORMAL MAP VISUAL PASS` nas duas execuções; o smoke C++ deve informar
+sucesso das validações de debug-layer e resource-lifecycle. A variável
+`MBM_DIRECTX11_VALIDATE` habilita essas validações também nos smokes temporizados.
+`MBM_NORMAL_MAP_TEST_LIGHTING` ativa iluminação 3D antes de carregar a malha,
+exercitando o desenho com tangentes em vez do shader sem iluminação.
+
 ### Etapa 3 — Paridade estática de DirectX 9, DirectX 11 e Metal
 
-Ordem: DirectX 9/11 no próximo milestone; Metal em seguida. Reutilizar a interface
+DirectX 11 concluído primeiro. Avaliar separadamente DX9 antes de ampliar seu
+perfil padrão `vs_2_0`/`ps_2_0`; Metal ainda pendente. Reutilizar a interface
 privada `normal-map-upload.h` e os contratos de material. Esta etapa não inclui
 skinning nem atualização arbitrária de geometria.
 

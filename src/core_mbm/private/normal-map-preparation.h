@@ -25,7 +25,8 @@
 #include <string>
 #include <vector>
 
-namespace mbm { namespace normal_map
+namespace mbm { 
+namespace normal_map
 {
     // Private CPU preparation data. No graphics context or public mesh mutation.
     struct TANGENT

@@ -35,6 +35,7 @@
 #if defined(USE_DIRECTX11)
 #include <specific-directx11-context.h>
 #include <core_mbm/device.h>
+#include <core_mbm/light.h>
 #include <core_mbm/util-interface.h>
 #include <vector>
 #endif
@@ -420,10 +421,18 @@ static int runTestLib(int argc, char **argv
     constexpr bool doSwapBuffers = true;
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
     {
+#if defined(USE_DIRECTX11)
+        if (std::getenv("MBM_NORMAL_MAP_TEST_LIGHTING"))
+        {
+            mbm::setLightEnabled(mbm::LIGHT_TARGET_3D, true);
+            mbm::setAmbientLight(mbm::LIGHT_TARGET_3D, mbm::COLOR(0.1f,0.1f,0.1f,1));
+            mbm::setDirectionalLight(mbm::LIGHT_TARGET_3D, mbm::VEC3(-0.8f,-0.3f,0.6f), mbm::COLOR(0.6f,0.6f,0.6f,1));
+        }
+#endif
         const int result = game.onLoop(singleLoop, doSwapBuffers);
 #if defined(USE_DIRECTX11)
-        const bool directX11AutomatedTest = argc == 2 &&
-            std::strncmp(argv[1], "--directx11-", sizeof("--directx11-") - 1u) == 0;
+        const bool directX11AutomatedTest = std::getenv("MBM_DIRECTX11_VALIDATE") != nullptr ||
+            (argc == 2 && std::strncmp(argv[1], "--directx11-", sizeof("--directx11-") - 1u) == 0);
         const bool debugLayerClean = !directX11AutomatedTest || validateDirectX11DebugMessages();
         if (!debugLayerClean)
             return -1;

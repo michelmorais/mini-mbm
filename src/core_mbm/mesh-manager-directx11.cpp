@@ -111,6 +111,8 @@ namespace mbm
                     subset->vertexCount = runtimeSubset->vertexCount;
                     if (runtimeSubset->texture)
                         subset->texture = runtimeSubset->texture->getFileNameTexture();
+                    else
+                        subset->texture = "default";
                 }
                 pBuffer->subset.push_back(subset);
             }
@@ -118,6 +120,24 @@ namespace mbm
         }
         else if (strcmp(headerFrame->typeBuffer, "VB") != 0)
             return log_util::onFailed(nullptr, __FILE__, __LINE__, "unknown DirectX11 buffer type [%s]", headerFrame->typeBuffer);
+        else
+        {
+            // Source VB subsets must survive extraction just like indexed subsets.
+            // Derived normal-map batches never replace this authoring geometry.
+            for (uint32_t subsetIndex = 0; subsetIndex < bufferMesh->getTotalSubsets(); ++subsetIndex)
+            {
+                const util::SUBSET *runtimeSubset = bufferMesh->getSubset(subsetIndex);
+                auto *subset = new util::SUBSET_DEBUG();
+                subset->vertexStart = runtimeSubset->vertexStart;
+                subset->vertexCount = runtimeSubset->vertexCount;
+                if (runtimeSubset->texture)
+                    subset->texture = runtimeSubset->texture->getFileNameTexture();
+                else
+                    subset->texture = "default";
+                pBuffer->subset.push_back(subset);
+            }
+            headerFrame->sizeVertexBuffer = static_cast<int>(buffer->sizeOfArrayVertex);
+        }
 
         const size_t vertexCount = static_cast<size_t>(headerFrame->sizeVertexBuffer);
         pBuffer->position = new float[vertexCount * 3u];

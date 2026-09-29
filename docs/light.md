@@ -720,11 +720,12 @@ per-frame/subset material properties, exposed by `getNormalMapSettings` and
 persists these independently of normal textures and tangent preparation; changing
 them neither assigns a texture nor alters its pixels or regenerates tangents.
 Since 7.318, these properties affect static 3D normal mapping on OpenGL ES when
-a prepared tangent batch and a normal texture are available. Other backends and
+a prepared tangent batch and a normal texture are available. DirectX 11 supports
+the same static path since 7.320. DirectX 9, Metal and
 skinned normal mapping remain pending. See [Lua API](lua-api.md#normal-map-material-settings) and
 [MSH format](mesh-v11-format.md#optional-section_normal_map_materials-15-section-version-1).
 
-OpenGL ES static 3D path (7.318):
+OpenGL ES (7.318) and DirectX 11 (7.320) static 3D paths:
 
 - Loaded optional tangent batches are uploaded once into private interleaved
   position/normal/UV/tangent buffers and local 16-bit index buffers. Authoring
@@ -736,10 +737,11 @@ OpenGL ES static 3D path (7.318):
   and determinant sign handles reflected transforms. Singular transforms and
   unusable bases fall back to a finite geometric normal.
 - The mapped normal drives diffuse and specular lighting. Generated lighting
-  combines directional and selected point lights; the reserved textured resource
+  combines directional and selected point lights; the GLES reserved textured resource
   retains its directional-only 3D model, now using `DirectionalColor` instead of
   the first point-light array entry. Source green convention and strength are
   uniforms; no texture or tangent regeneration is needed to change them.
+  DirectX 11 uses directional and selected point lights in both shader paths.
 - Strength zero, no normal texture, an unlit shader or a missing prepared batch
   uses source geometry. Explicitly empty per-subset texture stages prevent one
   subset's normal map from leaking into another. Existing custom shaders are not
@@ -753,6 +755,10 @@ OpenGL ES static 3D path (7.318):
 - Four active vertex attributes suffice for the static path; skinning variants
   do not consume the tangent attribute yet. Existing program-cache keys already
   include FVF, lighting and skinning flags that determine these generated inputs.
+  DirectX 11 keeps source vertex layouts unchanged, binds derived tangents at input
+  slot 2, and supplies a zero tangent with stride zero for source draws. Reserved
+  normal-map constants use pixel constant-buffer slot 3. Both shaders retain
+  Shader Model 4.0; no profile upgrade is required.
 
 Render-to-texture now selects the lighting target per pass/object (`3d`, `2dw`,
 or disabled for `2ds`) and uses the target camera's view matrix for lighting.

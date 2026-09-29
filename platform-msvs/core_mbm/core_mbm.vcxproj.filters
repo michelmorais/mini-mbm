@@ -130,6 +130,18 @@
     <Filter Include="Header Files\core_mbm\private">
       <UniqueIdentifier>{ecbe8702-fc60-44ec-96b5-c068c77dd41f}</UniqueIdentifier>
     </Filter>
+    <ClInclude Include="..\..\src\core_mbm\private\normal-map-hlsl.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\normal-map-asset.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\normal-map-preparation.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\mikktspace\mikktspace.h">
+      <Filter>Header Files\mikktspace</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\core_mbm\private\image-mesh-topology.cpp">
@@ -876,14 +888,10 @@
     <ClCompile Include="..\..\src\core_mbm\private\normal-map-preparation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClInclude Include="..\..\src\core_mbm\private\normal-map-asset.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\core_mbm\private\normal-map-preparation.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\third-party\mikktspace\mikktspace.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files\mikktspace">
+      <UniqueIdentifier>{81690766-b462-4f2e-ad76-48825f62962b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

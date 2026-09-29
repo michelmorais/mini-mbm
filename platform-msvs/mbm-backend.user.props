@@ -3,5 +3,6 @@
   <PropertyGroup>
     <!-- Per-developer override for MbmBackend -->
 	  <!--  <MbmBackend>OpenGLES</MbmBackend> -->
+	  <MbmBackend>DirectX11</MbmBackend>
   </PropertyGroup>
 </Project>
