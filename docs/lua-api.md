@@ -2988,7 +2988,15 @@ including without a texture. Resetting to `"+Y", 1` removes the explicit entry.
 Copying/reordering/removing frames or subsets preserves their settings. Changing
 only settings leaves prepared tangents intact. Loading from a runtime mesh copies
 its current shared material settings; saving/reloading preserves the source convention
-without converting texture pixels. No editor UI controls are added by these methods.
+without converting texture pixels.
+
+Mesh Debug exposes convention and strength in its Normal map panel. Its frame/subset
+selectors accept 0 for all (UI only; Lua indices remain one-based). Mixed selections
+show the first subset's values with a warning; Apply replaces both values throughout
+the selection. Invalid selections apply nothing. Changes use the existing snapshot
+Undo, refresh the preview, and persist on save. Changing these controls does not
+assign a texture or explicitly regenerate tangents. Selection scans are cached until
+selection or asset edits change; applying settings is an explicit action.
 
 ### Image-mesh holes (7.246.0)
 

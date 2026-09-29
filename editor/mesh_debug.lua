@@ -654,6 +654,7 @@ local function showMaterialEditor(tEntry, index)
     local flags = 0
 
     local function onEdit()
+        if tEntry.normalMapAuthoring then tEntry.normalMapAuthoring.settings = nil end
         tEntry.modified = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     end
@@ -8468,6 +8469,7 @@ function showMeshOptions(tEntry, index)
     end
 
     local function onEdit()
+        if tEntry.normalMapAuthoring then tEntry.normalMapAuthoring.settings = nil end
         tEntry.modified = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     end

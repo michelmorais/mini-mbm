@@ -8,7 +8,15 @@ local M = {}
 
 -- String tables
 M.en = {
-    nm_title = "Normal-map preparation",
+    nm_material_settings = "Material settings",
+    nm_convention = "Convention",
+    nm_strength = "Strength",
+    nm_settings_apply = "Apply settings to selection",
+    nm_settings_mixed = "Selection has different values. The first subset is shown; Apply replaces both values throughout the selection.",
+    nm_settings_help = "Convention interprets the green channel (+Y/-Y). Strength: 0 disables detail, 1 uses the original detail. Saved with the asset; does not assign a texture or regenerate tangents.",
+    nm_settings_invalid = "Strength must be finite, non-negative and fit in a float.",
+    nm_settings_empty = "Select existing frames/subsets. No settings will be applied if a selected subset is missing.",
+    nm_title = "Normal map",
     nm_all_hint = "0 = all frames / all subsets. Subset numbers apply independently to each frame.",
     nm_selection_report = "%d subsets prepared, %d preserved, %d failed. Undo restores the whole action.",
     nm_failure = "Frame %d, subset %d: %s",
@@ -18,10 +26,10 @@ M.en = {
     nm_preserve = "Preserve / generate tangents",
     nm_generate = "Recalculate tangents (MikkTSpace)",
     nm_prepare = "Prepare selection",
-    nm_prepare_help = "Requires mesh normals and UVs. If normals are missing, generate them in the normals tool first. Preserve generates missing tangents; recalculate forces replacement. Prepares tangents without assigning a normal texture. Recalculate replaces the selected basis. Imported corner tangents are accepted through the Lua import API. 3D shader support is still pending.",
+    nm_prepare_help = "Requires mesh normals and UVs. If normals are missing, generate them in the normals tool first. Preserve generates missing tangents; recalculate forces replacement. Prepares tangents without assigning a normal texture. Recalculate replaces the selected basis. Imported corner tangents are accepted through the Lua import API.",
     nm_report = "Last preparation: %d batches, %d vertices, %d triangles without a usable basis.",
     nm_reused = "Existing valid basis preserved.",
-    nm_undo = "Undo last preparation / transform",
+    nm_undo = "Undo last normal-map edit / transform",
     nm_precompute = "Prepare normal-map tangents in advance",
     nm_precompute_help = "Prepares all generated subsets after geometry processing, even without a normal texture. Saved in the project and exported MSH. Disabled by default.",
 
@@ -3773,7 +3781,15 @@ M.en = {
 }
 
 M.pt_br = {
-    nm_title = "Preparação de normal map",
+    nm_material_settings = "Propriedades do material",
+    nm_convention = "Convenção",
+    nm_strength = "Intensidade",
+    nm_settings_apply = "Aplicar propriedades à seleção",
+    nm_settings_mixed = "A seleção tem valores diferentes. Exibindo o primeiro subset; Aplicar substitui os dois valores em toda a seleção.",
+    nm_settings_help = "A convenção interpreta o canal verde (+Y/-Y). Intensidade: 0 desativa o detalhe, 1 usa o detalhe original. Salvo no asset; não atribui textura nem regenera tangentes.",
+    nm_settings_invalid = "A intensidade deve ser finita, não negativa e caber em um float.",
+    nm_settings_empty = "Selecione frames/subsets existentes. Nenhuma propriedade será aplicada se faltar um subset selecionado.",
+    nm_title = "Normal map",
     nm_all_hint = "0 = todos os frames / todos os subsets. O índice do subset vale em cada frame.",
     nm_selection_report = "%d subsets preparados, %d preservados, %d falhas. Desfazer restaura toda a ação.",
     nm_failure = "Frame %d, subset %d: %s",
@@ -3783,10 +3799,10 @@ M.pt_br = {
     nm_preserve = "Preservar / gerar tangentes",
     nm_generate = "Recalcular tangentes (MikkTSpace)",
     nm_prepare = "Preparar seleção",
-    nm_prepare_help = "Requer normais da malha e UVs. Se faltarem normais, gere-as primeiro na ferramenta de normais. Preservar gera tangentes ausentes; recalcular força a substituição. Prepara tangentes sem atribuir textura normal. Recalcular substitui a base selecionada. Tangentes por canto podem ser importadas pela API Lua. O suporte no shader 3D ainda está pendente.",
+    nm_prepare_help = "Requer normais da malha e UVs. Se faltarem normais, gere-as primeiro na ferramenta de normais. Preservar gera tangentes ausentes; recalcular força a substituição. Prepara tangentes sem atribuir textura normal. Recalcular substitui a base selecionada. Tangentes por canto podem ser importadas pela API Lua.",
     nm_report = "Última preparação: %d lotes, %d vértices, %d triângulos sem base utilizável.",
     nm_reused = "Base válida existente preservada.",
-    nm_undo = "Desfazer última preparação / transformação",
+    nm_undo = "Desfazer última edição de normal map / transformação",
     nm_precompute = "Preparar tangentes de normal map antecipadamente",
     nm_precompute_help = "Prepara todos os subsets gerados após processar a geometria, mesmo sem textura normal. Salvo no projeto e no MSH exportado. Desativado por padrão.",
 

@@ -1,11 +1,15 @@
 # Plano de normal mapping 3D
 
-Status: etapa 1 em andamento; preparador CPU e persistência opcional de tangentes
-implementados, assim como propriedades opcionais de material com API C++/Lua.
-Preparação explícita e integração de autoria implementadas. Prova CPU de identidade
-de autoria e remapeamento esquelético concluída. Caminho estático OpenGL ES
-implementado em 7.318; paridade dos demais backends e integração esquelética pendentes.
-Análise: 2026-09-29.
+Status: preparação CPU, persistência opcional e API C++/Lua implementadas.
+Caminho estático OpenGL ES implementado; controles de convenção/intensidade no
+Mesh Debug disponíveis em 7.319. Próximo milestone: caminho estático DirectX 9
+e DirectX 11, seguido de Metal.
+
+Primeira entrega: normal mapping de malhas estáticas em GLES, DX9, DX11 e Metal,
+com propriedades editáveis e persistentes. Skinning LBS/DQS, deformações dinâmicas
+e geração tardia de bases em runtime ficam para uma entrega posterior. As seções
+futuras deste plano registram contratos e cenários, não requisitos de conclusão
+da primeira entrega. A matriz de backends efetivamente executados deve ser declarada.
 
 ### Progresso da etapa 1
 
@@ -139,8 +143,8 @@ Análise: 2026-09-29.
 - Limites: assets esqueléticos usam o caminho anterior; atribuição tardia sem base
   previamente carregada e regeneração após alterações arbitrárias de geometria
   permanecem na etapa 4. Atualização dinâmica descarta buffers derivados obsoletos.
-  Importador externo de tangentes e controles de convenção/intensidade da UI seguem
-  pendentes. Materiais sem mapa não passam a exigir tangentes.
+  Importador externo de tangentes permanece pendente. Controles de convenção e
+  intensidade no Mesh Debug foram acrescentados em 7.319. Materiais sem mapa não passam a exigir tangentes.
 
 Para reproduzir as comparações visuais (diretório de saída fora do repositório):
 
@@ -155,8 +159,9 @@ MBM_NORMAL_MAP_TEST_VB=1 timeout -s KILL 20 bin/debug/linux_x86/mini-mbm \
 ```
 
 Exigir o marcador `NORMAL MAP VISUAL PASS`, além do término do processo.
-Próximo incremento: paridade de backends da etapa 3, mantendo a integração
-esquelética/dinâmica da etapa 4 e os controles de editor da etapa 5 separados.
+Próximo incremento: paridade estática de DirectX 9/11 da etapa 3, seguida de Metal.
+A exposição de convenção/intensidade no Mesh Debug precede esse incremento;
+a integração esquelética/dinâmica da etapa 4 fica fora da primeira entrega.
 Versão 7.312 identifica a entrega de persistência das tangentes.
 
 Para reproduzir a integração em Linux, gerar as fixtures e executar:
@@ -243,9 +248,10 @@ Uma malha 3D com normais, UVs e mapa no slot normal deve usar a normal resultant
 na iluminação difusa e especular, tanto direcional quanto pontual. O detalhe deve
 acompanhar a superfície quando o objeto, a câmera ou a luz se movem.
 
-Cobrir OpenGL ES, DirectX 9, DirectX 11 e Metal; malhas estáticas, buffers dinâmicos
-e animação esquelética CPU/GPU, LBS/DQS. Entregas intermediárias podem validar um
-caminho por vez, mas a conclusão precisa declarar a matriz efetivamente testada.
+Nesta primeira entrega, cobrir malhas estáticas em OpenGL ES, DirectX 9, DirectX 11
+e Metal, incluindo translação, rotação e escala do objeto. A conclusão deve declarar
+a matriz efetivamente testada. Buffers dinâmicos e animação esquelética CPU/GPU
+LBS/DQS pertencem à evolução posterior.
 
 Preservar o comportamento de `2dw`, `2ds`, materiais sem mapa e shaders unlit.
 Normal map e dados de tangentes são opcionais. Sem normal map, o asset usa as
@@ -398,7 +404,19 @@ de contexto e restauração devem recriar também os recursos derivados.
 Critério de saída: fixture A/B automatizada e reprodução local do `module_001.msh`
 com luz rasante, mostrando diferença atribuível ao mapa e neutralidade do mapa plano.
 
-### Etapa 3 — Paridade de DirectX 9, DirectX 11 e Metal
+### Controles de material antes da paridade — 7.319
+
+Mesh Debug expõe convenção +Y/-Y e intensidade não negativa no painel Normal map.
+A seleção de frame/subset aceita 0 para todos; valores mistos são indicados e a
+aplicação explícita substitui ambos os valores. Usa snapshot Undo, invalida o
+preview e persiste pela seção opcional 15. Não atribui textura nem solicita nova
+preparação de tangentes. Leituras agregadas ficam em cache até seleção/edição mudar.
+
+### Etapa 3 — Paridade estática de DirectX 9, DirectX 11 e Metal
+
+Ordem: DirectX 9/11 no próximo milestone; Metal em seguida. Reutilizar a interface
+privada `normal-map-upload.h` e os contratos de material. Esta etapa não inclui
+skinning nem atualização arbitrária de geometria.
 
 Portar layouts/declarations, bindings, constantes e shaders, mantendo a mesma
 convenção matemática. Em Metal, respeitar os slots já ocupados pelas constantes
@@ -409,7 +427,24 @@ Quando um dispositivo não suportar a variante, manter a renderização anterior
 emitir diagnóstico uma vez por contexto/variante, sem repetição por frame. Registrar
 a limitação; fallback não conta como validação do efeito nesse dispositivo.
 
-### Etapa 4 — Animação, edição e invalidação
+### Etapa 4 — Evolução futura: animação, edição e invalidação
+
+Fora da primeira entrega. Dinâmico não significa apenas skinning:
+
+| Situação | Contrato previsto |
+|---|---|
+| Objeto inteiro move, gira ou escala | Caminho estático; transformar a base sem gerar novas tangentes |
+| Skinning CPU/GPU LBS/DQS | Deformar normais e tangentes com a pose de referência e preservar orientação |
+| Vértices/normais alterados por código, física ou deformador | Atualizar a base afetada quando a geometria mudar |
+| UVs/topologia alteradas | Invalidar remapeamento e base; preparar novamente antes de consumir |
+| Morph targets/blend shapes, caso incorporados à engine | Atualizar normais/tangentes junto da deformação; não presumir suporte atual |
+| Frames de geometria | Manter base por frame, com cache e invalidação por fonte |
+| Normal map atribuído após carregar asset sem base | Preparar e enviar uma vez quando necessário |
+
+Manter dados fonte separados dos buffers derivados e especialização nos backends.
+As interfaces atuais não prometem consumo dinâmico: GLES descarta a base GPU em
+`updateDynamic`; assets esqueléticos continuam no caminho anterior. Não adicionar
+reconstrução por frame ao caminho estático como preparação para esse trabalho.
 
 Transformar a base junto com as normais/posições nos caminhos GPU LBS/DQS e CPU.
 Respeitar as restrições existentes para escalas/paletas; validar orientação após
@@ -434,8 +469,9 @@ o loop de renderização não deve fazer reconstrução ou busca completa da mal
 Atualizar o diagnóstico do Mesh Debug para distinguir mapa atribuído, mapa efetivo
 em 3D e fallback. Validar o preview no Image Mesh Editor e oferecer uma comparação
 temporária com/sem mapa, sem alterar o asset salvo apenas para visualizar.
-Expor convenção e intensidade como propriedades editáveis e persistentes do material,
-com restauração no reload e suporte ao fluxo de Undo do editor onde existente.
+Convenção/intensidade já estão expostas no Mesh Debug com persistência e Undo.
+A ampliação desses controles ao Image Mesh Editor e os demais diagnósticos são
+incrementos posteriores; não bloqueiam a paridade estática desta entrega.
 Mostrar a política de importar/recalcular tangentes e diagnósticos de preparação,
 para que incompatibilidades com o bake possam ser identificadas.
 
@@ -450,6 +486,13 @@ de propriedades; distinguir dados persistidos de dados gerados sob demanda.
 Incrementar `MBM_VERSION` na entrega funcional.
 
 ## 6. Validação e critérios de aceite
+
+A tabela registra a matriz completa de evolução. Para a primeira entrega, excluir
+os casos CPU/GPU LBS/DQS, deformação procedural em runtime e atribuição tardia sem
+base previamente carregada. Preparação offline de malha procedural e atribuição
+posterior com base carregada continuam cobertas no caminho estático. Edição aqui
+é autoria seguida de salvar/recarregar; não promete atualização dinâmica da base.
+
 
 | Caso | Resultado exigido |
 |---|---|

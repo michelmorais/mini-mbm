@@ -91,6 +91,44 @@ function M.importFrame(asset,frameIndex,frame,options)
     end
     return true
 end
+-- Selection scans run only after selection/edit changes or explicit actions.
+function M.readSettings(asset,frame,subset)
+    local result={targets={},convention='+Y',strength=1,mixed=false}
+    local total=asset:getTotalFrame()
+    if total==0 or frame>total then return result end
+    local first,last=frame==0 and 1 or frame,frame==0 and total or frame
+    for f=first,last do
+        local count=asset:getTotalSubset(f)
+        if subset>count then result.invalid=true;return result end
+        local start,stop=subset==0 and 1 or subset,subset==0 and count or subset
+        for part=start,stop do
+            local convention,strength=asset:getNormalMapSettings(f,part)
+            if not convention then result.invalid=true;return result end
+            if #result.targets==0 then
+                result.convention=convention;result.strength=strength
+            elseif convention~=result.convention or strength~=result.strength then
+                result.mixed=true
+            end
+            result.targets[#result.targets+1]={frame=f,subset=part}
+        end
+    end
+    return result
+end
+function M.applySettings(asset,frame,subset,convention,strength)
+    if (convention~='+Y' and convention~='-Y') or type(strength)~='number' or
+        strength~=strength or strength<0 or strength>3.4028234663852886e38 then return false end
+    local selection=M.readSettings(asset,frame,subset)
+    if selection.invalid or #selection.targets==0 then return false end
+    local changed=false
+    for _,target in ipairs(selection.targets) do
+        local oldConvention,oldStrength=asset:getNormalMapSettings(target.frame,target.subset)
+        if oldConvention~=convention or oldStrength~=strength then
+            assert(asset:setNormalMapSettings(target.frame,target.subset,convention,strength))
+            changed=true
+        end
+    end
+    return changed
+end
 function M.panel(entry,id,onEdit,applyUndo,restoreUndo)
     local asset=entry.meshDebug
     local state=entry.normalMapAuthoring
@@ -100,11 +138,39 @@ function M.panel(entry,id,onEdit,applyUndo,restoreUndo)
     end
     tImGui.SetNextItemWidth(110)
     local changed,value=tImGui.InputInt(tLang.L('nm_frame')..'##nmf'..id,state.frame)
-    if changed then state.frame=math.max(0,math.min(asset:getTotalFrame(),value));state.subset=0;state.report=nil end
+    if changed then state.frame=math.max(0,math.min(asset:getTotalFrame(),value));state.subset=0;state.report=nil;state.settings=nil end
     tImGui.SetNextItemWidth(110)
     changed,value=tImGui.InputInt(tLang.L('nm_subset')..'##nms'..id,state.subset)
-    if changed then state.subset=math.max(0,value);state.report=nil end
+    if changed then state.subset=math.max(0,value);state.report=nil;state.settings=nil end
     tImGui.TextDisabled(tLang.L('nm_all_hint'))
+    if not state.settings then state.settings=M.readSettings(asset,state.frame,state.subset) end
+    local settings=state.settings
+    tImGui.Separator()
+    tImGui.Text(tLang.L('nm_material_settings'))
+    if settings.mixed then tImGui.TextWrapped(tLang.L('nm_settings_mixed')) end
+    tImGui.SetNextItemWidth(110)
+    changed,value=tImGui.Combo(tLang.L('nm_convention')..'##nmc'..id,
+        settings.convention=='+Y' and 1 or 2,{'+Y','-Y'},-1)
+    if changed then settings.convention=value==1 and '+Y' or '-Y' end
+    tImGui.SetNextItemWidth(140)
+    changed,value=tImGui.InputFloat(tLang.L('nm_strength')..'##nmi'..id,settings.strength,0.1,1,'%.3f',0)
+    if changed then settings.strength=value end
+    tImGui.TextWrapped(tLang.L('nm_settings_help'))
+    local valid=settings.strength==settings.strength and settings.strength>=0 and
+        settings.strength<=3.4028234663852886e38
+    if not valid then tImGui.TextWrapped(tLang.L('nm_settings_invalid')) end
+    if settings.invalid or #settings.targets==0 then tImGui.TextWrapped(tLang.L('nm_settings_empty')) end
+    tImGui.BeginDisabled(not valid or settings.invalid==true or #settings.targets==0 or
+        (entry.tSimplifyState or {}).running==true)
+    local apply=tImGui.Button(tLang.L('nm_settings_apply')..'##nmapply'..id)
+    tImGui.EndDisabled()
+    if apply then
+        if applyUndo(function()
+            return M.applySettings(asset,state.frame,state.subset,settings.convention,settings.strength)
+        end) then onEdit() end
+        state.settings=nil
+    end
+    tImGui.Separator()
     tImGui.SetNextItemWidth(260)
     changed,value=tImGui.Combo(tLang.L('nm_policy')..'##nmp'..id,state.policy,
         {tLang.L('nm_preserve'),tLang.L('nm_generate')},-1)
