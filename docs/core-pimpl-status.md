@@ -26,58 +26,54 @@ Public APIs may expose narrow getters/setters and engine-owned value records.
 For example, `RENDERIZABLE::alwaysOnTopPriority` has accessor methods with storage
 in `Impl`; font glyph queries use `FONT_GLYPH_QUAD`, not `stbtt_aligned_quad`.
 
-## Normal-map preparation
+## Normal mapping: preparation, asset data and rendering
 
 `src/core_mbm/private/normal-map-preparation.*` owns the CPU-only tangent preparation
-contract. Input geometry, per-corner imported tangents, MikkTSpace callbacks, and
-prepared batches are private types. Each prepared vertex retains its source index
-so later render/skin integration can preserve authoring indices. Batches use local
-16-bit triangle indices and split without changing the source geometry.
+contract. Input geometry, per-corner imported tangents, MikkTSpace callbacks and
+prepared batches are private types. Each prepared vertex retains its source index;
+batches use local 16-bit triangle indices without changing the source geometry.
+Preparation does not query device state or allocate GPU resources.
 
-Preparation is explicitly requested per subset. It does not query device state,
-allocate GPU resources, or mutate a public mesh. No public mutable storage or new
-exported engine API was needed for the tangent preparer. `normal-map-asset.*` privately owns section payload
-serialization, source signatures and validation. Prepared frames reside in the
-runtime and authoring `Impl`s and in the CPU-only async load intermediate. Runtime
-loading and `saveV11` reuse valid persisted data or prepare missing bases only when
-needed. A friend bridge lets runtime-to-authoring extraction copy the private data
-without a mutable public accessor. Frame copies/removals retain or reindex cached
-records; subset restructuring invalidates them. Source changes are checked before
-save. Static OpenGL ES consumption is implemented in 7.318: private
-`BUFFER_SPECIFIC::normalMapSubsets` owns the derived GPU buffers and material
-settings used by draw calls. `normal-map-upload.h` provides backend-neutral
-main-thread hooks for upload from validated CPU batches and material settings. Each shader backend implements
-these hooks; DX9, DX11 and Metal currently accept them as no-ops until tangent
-rendering is implemented. `normal-map-gles.h` contains only the GLES shader helper;
-no backend handles or STL storage were added to public headers. Upload happens at asset creation, release follows buffer lifetime, and
-dynamic source updates discard derived buffers. Skeletal buffer consumption
-remains pending.
+`normal-map-asset.*` owns section serialization, source signatures and validation.
+Prepared frames reside in the runtime and authoring `Impl`s and the CPU-only async
+load intermediate. Loading and saving reuse valid persisted bases or prepare
+missing ones when requested by a normal texture or explicit precomputation.
+Private friend bridges copy prepared data during runtime-to-authoring extraction.
+Frame copies/removals retain or reindex records; subset restructuring invalidates
+them. Source changes are checked before saving.
 
-`normal-map-asset.*` also provides the private CPU `remapSkinWeights` bridge.
-It gathers canonical influences in each tangent batch's source-vertex order,
-retaining the skeleton ID, frame and bone palette. It validates canonical input
-once and publishes all batches atomically, without mutating the source weights
-or adding public storage. The result is transient, not a new serialized weight
-section. Tests cover mirrored seams, 16-bit partitions, CPU LBS/DQS deformation
-and GPU attribute preparation; calling it from prepared render-buffer creation
-and deforming tangents remain pending.
+Optional normal-map material settings reside in the same private asset state,
+keyed by source frame/subset. `getNormalMapSettings` and `setNormalMapSettings`
+expose validated scalar values, not containers. Defaults are +Y (`greenSign=1`)
+and strength 1. Section 15 stores overrides independently of tangent data and
+texture assignments. Changing settings does not invalidate tangents. Runtime
+mutation follows the shared-asset material contract; extraction and editing
+preserve associations, and merging incompatible settings fails without mutation.
 
-Optional normal-map material settings are also held in the runtime/authoring `Impl`s
-and the async intermediate, keyed by source frame/subset. The public scalar methods
-`getNormalMapSettings` and `setNormalMapSettings` validate indices and values without
-exposing storage or containers. Default values are +Y (`greenSign=1`) and strength 1.
-Changing them does not invalidate tangent preparation. Copy/removal/reordering remap
-material keys; merging incompatible settings fails without mutation. Runtime mutation
-follows the existing shared-asset material contract. Extraction copies these private
-settings together with tangent preparation. Section 15 serializes them separately.
+`normal-map-upload.h` declares backend-neutral main-thread upload and settings
+hooks. Static OpenGL ES rendering keeps derived GPU buffers and draw settings in
+private `BUFFER_SPECIFIC::normalMapSubsets`. Upload occurs at asset creation for
+prepared static frames, including those without an assigned normal texture;
+rendering uses the tangent batches only when a normal texture and the supported
+lighting shader are active and strength is nonzero. Buffer release frees this
+storage; dynamic source updates discard it. `normal-map-gles.h` contains the GLES
+shader helper. DX9, DX11 and Metal implement the upload/settings hooks as no-ops.
+No backend handles or owned containers are exposed through public headers.
 
-`MESH_MBM_DEBUG::prepareNormalMap` adds an explicit authoring operation without
-exposing the cached representation. `NORMAL_MAP_CORNER` is a borrowed input value
-and `NORMAL_MAP_REPORT` a copied result; neither grants access to `Impl` storage.
-Preparation publishes a validated candidate atomically, preserves other valid
-subset bases and refuses to run while the mesh's simplification worker is active.
-Lua forwards per-corner data to the same CPU operation. Editor controls invoke it
-only on explicit actions or after geometry generation/simplification.
+`normal-map-asset.*` also provides the private CPU `remapSkinWeights` bridge. It
+collects canonical influences in each tangent batch's source-vertex order,
+retaining skeleton identity, frame and bone palette. Its transient result is
+published atomically without changing source weights or adding a serialized
+section. Render backends do not yet consume these remapped batches for skeletal
+normal mapping.
+
+`MESH_MBM_DEBUG::prepareNormalMap` exposes an authoring operation without exposing
+the cached representation. `NORMAL_MAP_CORNER` is borrowed input and
+`NORMAL_MAP_REPORT` a copied result. Preparation publishes a validated candidate
+atomically, preserves other valid subset bases and refuses to run while the
+simplification worker is active. Lua forwards per-corner data to the same CPU
+operation. Editor controls invoke preparation on explicit actions or after
+geometry generation/simplification.
 
 ## Isolated editor previews
 
