@@ -141,7 +141,7 @@ function M.validatePresets(presets)
     for key,preset in pairs(presets) do
         assert(type(key)=='number' and key%1==0 and key>=1 and key<=#presets,'ime_preset_invalid')
         assert(type(preset)=='table' and type(preset.name)=='string' and #preset.name<=128 and
-            preset.name:match('%S') and not preset.name:find('%c') and not seen[preset.name],'ime_preset_invalid')
+            preset.name:match('%S') and not preset.name:find('[%z\1-\31\127]') and not seen[preset.name],'ime_preset_invalid')
         seen[preset.name]=true
         M.validateOptions(preset.settings,true)
     end
@@ -188,7 +188,8 @@ function M.validate(p)
             assert(type(r.heightAreas)=='table' and #r.heightAreas<=32,'ime_areas_limit')
             for _,area in ipairs(r.heightAreas) do
                 assert(type(area)=='table' and #area>=(area.shape=='line' and 2 or 3) and #area<=128,'ime_areas_invalid')
-                assert(type(area.name)=='string' and #area.name<=128 and not area.name:find('%c'),'ime_areas_invalid')
+                -- Explicit ASCII controls: %c can classify UTF-8 bytes as controls in Windows locales.
+                assert(type(area.name)=='string' and #area.name<=128 and not area.name:find('[%z\1-\31\127]'),'ime_areas_invalid_name')
                 assert(area.mode==nil or area.mode=='raise' or area.mode=='lower' or area.mode=='flatten','ime_areas_invalid')
                 assert(type(area.enabled)=='boolean' and number(area.height,0,1) and number(area.transition,0,1),'ime_areas_invalid')
                 assert(area.shape=='rectangle' or area.shape=='ellipse' or area.shape=='polygon' or area.shape=='line','ime_areas_invalid')

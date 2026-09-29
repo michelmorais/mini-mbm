@@ -351,6 +351,7 @@ M.en = {
     ime_areas_edit = "Edit areas in scene",
     ime_areas_help = "Areas apply in list order; later operations act on the previous result. Transition fades inward. Brush painting applies last. Drag to move, handles to resize; polygons also have editable vertices. Apply to update the mesh.",
     ime_areas_limit = "Maximum 32 height areas per module.",
+    ime_areas_invalid_name = "Invalid height area name: maximum 128 bytes, without ASCII control characters.",
     ime_areas_invalid = "Invalid height area: use a simple closed contour with 3-128 points or a line with 2-128 points and width in [0.001,1]. Points must stay inside the crop.",
 
     ime_paint_canvas_help = "Drag inside the selected module to paint. Release to update. Esc cancels; Ctrl+Z undoes a stroke. Outside the module: pan.",
@@ -4124,6 +4125,7 @@ M.pt_br = {
     ime_areas_edit = "Editar áreas na cena",
     ime_areas_help = "As áreas são aplicadas na ordem da lista; cada operação atua sobre o resultado anterior. A transição suaviza para dentro. A pintura é aplicada por último. Arraste para mover, use as alças para redimensionar; polígonos têm vértices editáveis. Aplique para atualizar a mesh.",
     ime_areas_limit = "Máximo de 32 áreas de altura por módulo.",
+    ime_areas_invalid_name = "Nome de área de altura inválido: máximo de 128 bytes, sem caracteres de controle ASCII.",
     ime_areas_invalid = "Área de altura inválida: use um contorno simples fechado com 3-128 pontos ou uma linha com 2-128 pontos e largura em [0.001,1]. Os pontos devem ficar dentro do recorte.",
 
     ime_paint_canvas_help = "Arraste dentro do módulo selecionado para pintar. Solte para atualizar. Esc cancela; Ctrl+Z desfaz um traço. Fora do módulo: mover câmera.",

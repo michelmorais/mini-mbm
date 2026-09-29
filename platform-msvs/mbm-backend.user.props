@@ -2,6 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <!-- Per-developer override for MbmBackend -->
-	  <!-- <MbmBackend>OpenGLES</MbmBackend> -->
+	  <!--  <MbmBackend>OpenGLES</MbmBackend> -->
   </PropertyGroup>
 </Project>

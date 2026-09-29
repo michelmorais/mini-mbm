@@ -30,7 +30,7 @@ function M.validate(nodes)
  for i,n in ipairs(nodes) do
   assert(type(n)=='table' and number(n.parent,0,i-1) and n.parent%1==0,'ime_curved_nodes_invalid')
   assert(n.role=='target' or n.role=='region','ime_curved_nodes_invalid')
-  assert(type(n.name)=='string' and #n.name<=128 and not n.name:find('%c'),'ime_curved_nodes_invalid')
+ assert(type(n.name)=='string' and #n.name<=128 and not n.name:find('[%z\1-\31\127]'),'ime_curved_nodes_invalid')
   assert(number(n.thickness,.001,1000000),'ime_curved_nodes_invalid')
   assert(n.profile==nil or n.profile=='linear' or n.profile=='smooth' or n.profile=='bezier','ime_curved_profile_invalid')
   assert(n.bezier1==nil or number(n.bezier1,0,1),'ime_curved_profile_invalid')

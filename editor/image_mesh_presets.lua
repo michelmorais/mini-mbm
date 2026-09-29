@@ -27,7 +27,7 @@ local function L(key) return tLang.L('ime_'..key) end
 local function cleanName(name)
     assert(type(name)=='string','ime_invalid_name')
     name=name:match('^%s*(.-)%s*$')
-    assert(#name>0 and #name<=128 and not name:find('%c'),'ime_invalid_name')
+    assert(#name>0 and #name<=128 and not name:find('[%z\1-\31\127]'),'ime_invalid_name')
     return name
 end
 function M.store(project,name,values,replace)
