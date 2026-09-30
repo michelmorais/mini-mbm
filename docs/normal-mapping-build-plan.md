@@ -1,13 +1,22 @@
 # Build-time normal mapping and lighting specialization
 
-Status: implemented in 7.324; Linux Release and Windows DX9 SM3/DX11 Debug x86
-baseline matrices verified, together with macOS Metal Debug arm64 (72/72 steps).
-Windows test expansion remains deferred by the 2026-09-30 scope decision. Metal
-API validation, native pipeline checks and targeted ON/OFF captures are recorded.
-A bounded Metal Release CPU/GPU/memory baseline is also recorded (480 timed
-samples); representative game profiling and GPU instruction analysis remain
-separate work. See the
-[current scope and completed macOS handoff](normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30).
+Status: the build-time switches shipped in 7.324; the enabled-build optimization
+and shared CPU preparation shipped in 7.327/7.328. **The scoped macOS Metal delivery
+is accepted and closed**, with all eight ON/OFF x light-cap entries verified in
+Debug and Release (72 integrated steps each), native API validation/pipeline checks,
+targeted captures and a 480-sample Release measurement baseline.
+
+See the [consolidated Metal acceptance decision](normal-mapping-enabled-optimization.md#macos-metal-delivery-acceptance)
+for the requirement/evidence checklist, scope and known limitations. This acceptance
+covers macOS arm64 on Apple M4, not iOS or all Metal GPUs. Per-subset upload/eviction,
+representative game profiling, instruction analysis and broader fault/device-loss
+testing are follow-up work, not blockers for this delivery. No FPS or combined-memory
+improvement is claimed. Linux Release and Windows DX9 SM3/DX11 Debug x86 baseline
+results remain recorded below; Windows test expansion remains deferred.
+
+The original implementation/acceptance checklist and dated evidence below are
+retained as history. A historical statement that native macOS validation was
+pending does not override the consolidated acceptance decision.
 
 The subsequent optimization for enabled builds is tracked separately in
 [Geometric variants and deferred upload](normal-mapping-enabled-optimization.md).
@@ -332,12 +341,14 @@ earlier full matrices cover only the original 15 creation-failure cases.
 
 ## Windows closure and macOS handoff (2026-09-30)
 
+Historical handoff, subsequently completed by the Metal milestones below.
+
 Windows functional acceptance is complete for the recorded DX9 SM3/DX11 Debug
 x86 scope. Keep the existing tests and evidence; do not extend the Windows fault
 matrix as a prerequisite for moving on. This does not claim Release performance,
 real device-loss recovery, or validation on other architectures/devices.
 
-The next active milestone is macOS Metal: start with Debug ON/OFF at light cap 2,
+The handoff selected macOS Metal: start with Debug ON/OFF at light cap 2,
 then complete the original ON/OFF x 1..4 baseline matrix using the existing
 runner and Metal API validation. Follow the bounded
 [macOS handoff](normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30).

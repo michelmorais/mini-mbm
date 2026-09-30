@@ -844,6 +844,20 @@ for the DX9 compilation fixes, required profile checks and the limits of each
 suite. The subsequent SM2 profile tests characterize the lighting limitation and
 unlit rendering; neither those tests nor the matrices establish device-loss coverage.
 
+The scoped macOS Metal delivery is also **accepted and closed** on Apple M4:
+all eight ON/OFF x cap 1..4 entries pass in Debug and Release, with native API
+validation, pipeline selection/cache checks and cap-2 captures. A separate Release
+study records CPU/GPU timings and memory observations; it does not establish FPS
+or combined-memory improvement. See the [Metal acceptance decision](normal-mapping-enabled-optimization.md#macos-metal-delivery-acceptance)
+for evidence, reproduction and platform limits.
+
+One known Metal limitation remains: enabled-build geometric shaders include an
+inverse-transpose normal transform, while OFF builds retain the direct transform.
+Do not assume ON/OFF pixel equivalence for arbitrary nonuniform scales. The native
+matrices verify each build's documented fallback behavior, not that broader claim.
+Per-subset upload/eviction is a future refinement of the delivered frame-wide
+upload/retention contract and is not required to close this release.
+
 Dynamic/skinned integration, additional authoring tools and remaining validation
 are tracked in [Future Features](future-features.md#normal-mapping).
 

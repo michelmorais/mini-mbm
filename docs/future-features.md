@@ -91,22 +91,27 @@ Remaining optimization work:
 - Preserve no-map/no-tangent assets, retained bases without a texture, active maps,
   zero strength, mixed subsets, late assignment/removal and shared-asset behavior.
 
-Linux/GLES validation and the current limits are recorded in the
-[enabled-build optimization delivery](normal-mapping-enabled-optimization.md).
-The next acceptance milestone is the [native backend regression matrix](normal-mapping-enabled-optimization.md#next-milestone-native-backend-regression-matrix):
-the [Linux/GLES optimization matrix](normal-mapping-enabled-optimization.md#completed-milestone-full-linuxgles-optimization-matrix)
-passed all eight configurations (72 runner steps). Tests and a portable runner
-are prepared; Windows/macOS compilation, execution,
-GPU captures and abrupt/native device-loss coverage remain pending. Linux/GLES
-[failure/retry coverage](normal-mapping-enabled-optimization.md#completed-milestone-linuxgles-failure-and-retry)
-is implemented in 7.327.1; native failure injection and later-batch failures remain pending.
-[Controlled Linux/GLES context recreation](normal-mapping-enabled-optimization.md#completed-milestone-controlled-linuxgles-context-recreation)
-also passes with pending/uploaded assets and pixel comparisons; this does not
-establish abrupt GPU reset or native Windows/macOS restore coverage.
-[Reproducible Linux/GLES measurements](normal-mapping-enabled-optimization.md#completed-milestone-reproducible-linuxgles-measurements)
-now cover synthetic load, first/warm draws, process RSS and GL buffer payloads.
-Native Windows/Apple verification, representative assets and isolated GPU timing/
-memory accounting remain pending, as listed in the plans.
+The [native regression matrices](normal-mapping-enabled-optimization.md#next-milestone-native-backend-regression-matrix)
+are complete for Linux/GLES, Windows DX9 SM3/DX11 Debug x86 and macOS Metal.
+**The scoped macOS Metal delivery is accepted and closed**; see the
+[acceptance decision and limitations](normal-mapping-enabled-optimization.md#macos-metal-delivery-acceptance).
+Metal has all eight ON/OFF x cap 1..4 entries in Debug and Release, API validation,
+native pipeline checks, targeted captures and a 480-sample synthetic Release study.
+These results are specific to macOS arm64 / Apple M4 and do not establish iOS or
+other-GPU coverage. The ON/OFF normal-transform difference under nonuniform scale
+remains documented; no FPS or combined-memory improvement is claimed.
+
+[Linux/GLES failure/retry](normal-mapping-enabled-optimization.md#completed-milestone-linuxgles-failure-and-retry)
+and [controlled context recreation](normal-mapping-enabled-optimization.md#completed-milestone-controlled-linuxgles-context-recreation)
+are recorded separately. Windows DX11 also has creation-failure/pixel coverage
+across all caps and Map failure/retry at cap 2. Actual device loss and broader
+native fault injection remain deferred, not prerequisites for the accepted Metal
+delivery. The [Linux measurements](normal-mapping-enabled-optimization.md#completed-milestone-reproducible-linuxgles-measurements)
+and [Metal measurements](normal-mapping-enabled-optimization.md#completed-macos-milestone-release-measurement-baseline-2026-09-30)
+provide synthetic baselines; representative assets, isolated CPU allocations and
+GPU instruction/register statistics remain follow-up investigations. Per-subset
+upload/eviction above is a potential next optimization, not an unfinished part of
+this delivery.
 
 ### Skeletal deformation and dynamic geometry
 

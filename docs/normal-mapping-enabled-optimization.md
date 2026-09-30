@@ -3,13 +3,55 @@
 Initial delivery: 7.327. Shared CPU preparation: 7.328. This extends the completed build-switch implementation; it does
 not change `USE_NORMAL_MAPPING_3D` or `SUPPORTED_MAX_LIGHTS`.
 
-## Current scope and next step (2026-09-30)
+<a id="current-scope-and-next-step-2026-09-30"></a>
 
-**Windows functional validation is closed for DX9 SM3/DX11 Debug x86. Further
-test expansion is deferred. The macOS Metal Debug arm64 baseline is also
-validated: 72/72 steps, API validation and targeted captures**, as recorded in
-[the Metal milestone](#completed-macos-milestone-metal-baseline-and-captures-2026-09-30). Completed milestones below remain the evidence
-history; their earlier next-step proposals do not override this scope decision.
+## Current delivery status (2026-09-30)
+
+**The macOS Metal delivery is accepted and closed for the scoped static 3D
+normal-mapping build switch and enabled-build optimization.** The accepted target
+is macOS arm64 on Apple M4, with the limitations below. No additional optimization
+or fault-injection suite is required to close this delivery. Engine version is
+7.328; this documentation consolidation adds no engine functionality.
+
+### macOS Metal delivery acceptance
+
+| Delivery requirement | Recorded result | Evidence |
+|---|---|---|
+| ON/OFF x light caps 1/2/3/4, isolated native builds | Debug 72/72 and Release 72/72 integrated steps | [Debug acceptance](#completed-macos-milestone-metal-baseline-and-captures-2026-09-30), [Release study](#completed-macos-milestone-release-measurement-baseline-2026-09-30) |
+| Functional and resource contracts | Preparation/persistence, Lua capability, async/GC, readback, visual IB/VB and deferred-resource suites passed | Same matrices |
+| Metal API validation | Activation confirmed; no recognized validation failures in regression suites; 288 separate benchmark validation samples passed | Same matrices and Release study |
+| Shader inputs and pipeline selection/cache | Native ON/OFF cap-2 captures and MSL inspection; encoder pipeline identity checks in all eight entries | Debug acceptance |
+| Release measurements | 480 timed samples, CPU/GPU intervals, RSS, Metal allocation/buffer payloads and binary sizes recorded separately from validation | Release study |
+| Reproduction and limitations | Commands, toolchains, revisions, artifact locations and limits documented | Both milestones |
+
+This closes the bounded macOS acceptance criterion. It does not claim every
+investigation in the broader, cross-platform build plan is complete. In particular:
+
+- The validated GPU is Apple M4. iOS, other Metal GPUs and macOS GLES are outside
+  this acceptance; macOS GLES is a separate task only if that backend is shipped.
+- ON geometric shaders include the existing inverse-transpose normal transform;
+  OFF retains the direct transform. Arbitrary ON/OFF pixel equivalence under
+  nonuniform scale is not established. This known difference is retained as a
+  delivery limitation, not described as fixed by the validation.
+- Native instruction/register analysis, representative game workloads, isolated
+  CPU allocation accounting and historical before/after performance comparisons
+  remain follow-up work. No FPS or combined-memory improvement is claimed.
+- Per-subset upload/eviction and reducing CPU staging are optional subsequent
+  optimizations. Current frame-wide upload and retained GPU batches are the
+  delivered behavior, not missing release requirements.
+- Actual device-loss recovery, broader fault injection and skeletal/dynamic
+  normal mapping remain outside the delivery boundary.
+
+Evidence provenance: the dated milestones preserve the original runs; this
+consolidation does not rerun or add to their totals. Release evidence remains at
+`build/normal-metal-release/study-summary.json`. The earlier local
+`build/normal-metal/` Debug/capture artifacts are not present in this checkout;
+their recorded results and reproduction commands remain below. Local artifacts
+are not committed and their paths do not imply availability in another checkout.
+
+Windows DX9 SM3/DX11 Debug x86 functional validation also remains closed; further
+Windows test expansion is deferred. Historical next-step proposals below do not
+reopen either platform's accepted scope.
 
 Windows evidence includes the full ON/OFF x 1..4 baseline matrices, SM2
 characterization, numerical skeletal parity, DX11 debug/lifecycle checks, the
@@ -19,6 +61,9 @@ functional closure. Release performance and actual device-loss recovery are not
 claimed.
 
 ### Bounded macOS handoff (completed below)
+
+Historical checklist fulfilled by the accepted delivery above; retained to make
+the original completion boundary explicit. It is not an active work queue.
 
 1. On a Mac with a graphical session and Metal support, read `engine-testing`
    and record macOS, CPU/GPU, architecture, Xcode/SDK and source revision. This
@@ -129,7 +174,9 @@ Bounded Metal Release measurements are recorded below; representative workloads
 and other native backend profiling remain pending.
 Linux measurements do not establish native-backend or mobile-device coverage.
 
-## Next milestone: native backend regression matrix
+<a id="next-milestone-native-backend-regression-matrix"></a>
+
+## Native backend regression matrix (completed baseline)
 
 Status: the complete DX9 SM3 and DX11 Debug x86 baseline matrices are validated
 with 7.328 plus the DX9 compilation fixes below. The macOS Metal Debug arm64
@@ -137,8 +184,9 @@ baseline also passes all eight entries, including native pipeline checks and cap
 exceeds the profile, while unlit rendering passes. DX11 single-batch COM creation
 failure/retry is also validated across all eight Debug entries (details below).
 Windows and the bounded macOS Metal functional baselines are now validated. See [current scope](#current-scope-and-next-step-2026-09-30) for the
-completion boundary. Device-loss testing is deferred robustness work, and
-performance measurements remain a separate workstream.
+completion boundary. Device-loss testing remains deferred robustness work. The
+bounded Metal Release measurements are complete; broader profiling remains
+follow-up work.
 
 - [x] Keep the GLES native resource inspection command and implement the same
   `--normal-map-lazy-resource-test` entry point for DX9, DX11 and Metal.
@@ -189,7 +237,7 @@ performance measurements remain a separate workstream.
   and caps 1..4, separating validation from CPU/GPU timing and memory observations.
   This does not establish FPS, total-memory improvement or representative game performance.
 
-### Prepared coverage
+### Validated baseline coverage
 
 | Check | GLES | DX9 / DX11 | Metal |
 |---|---|---|---|
@@ -202,10 +250,10 @@ performance measurements remain a separate workstream.
 | Visual IB/VB, mixed subsets, strength/sign/transforms, custom fallback | Lua suite | Lua suite | Lua suite |
 | Async loading/GC, persistence, readback | CPU/Lua suites | CPU/Lua suites | CPU/Lua suites |
 
-“Prepared” describes source coverage, not a native pass. The DirectX/Metal tests
-must first compile and execute on those systems; failures there are findings,
-not reasons to weaken assertions. Expected malformed-asset errors in persistence
-and runtime suites are allowed; their own PASS/FAIL sentinels decide the result.
+The table summarizes the native baseline suites recorded in the dated milestones,
+not untested source coverage. Platform/build scope and exclusions remain those of
+each milestone. Expected malformed-asset errors in persistence and runtime suites
+are allowed; their own PASS/FAIL sentinels decide the result.
 
 ### Run one matrix entry
 
