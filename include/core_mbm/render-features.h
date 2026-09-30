@@ -16,45 +16,23 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_DIRECTX9)
-#ifndef DIRECTX9_BUFFER_SPECIFIC_H
-#define DIRECTX9_BUFFER_SPECIFIC_H
 
-#include <core_mbm/render-features.h>
-#include "specific-directx9-context.h"
-#include <vector>
+#ifndef MBM_RENDER_FEATURES_H
+#define MBM_RENDER_FEATURES_H
+
+#include "core-exports.h"
+
+#ifndef USE_NORMAL_MAPPING_3D
+#define USE_NORMAL_MAPPING_3D 1
+#endif
+
+static_assert(USE_NORMAL_MAPPING_3D == 0 || USE_NORMAL_MAPPING_3D == 1,
+              "USE_NORMAL_MAPPING_3D must be 0 or 1");
 
 namespace mbm
 {
-    struct BUFFER_SPECIFIC
-    {
-#if USE_NORMAL_MAPPING_3D
-        struct NORMAL_MAP_BATCH
-        {
-            IDirect3DVertexBuffer9 *vertices = nullptr;
-            IDirect3DIndexBuffer9 *indices = nullptr;
-            UINT vertexCount = 0;
-            UINT indexCount = 0;
-        };
-        struct NORMAL_MAP_SUBSET
-        {
-            std::vector<NORMAL_MAP_BATCH> batches;
-            int greenSign = 1;
-            float strength = 1.0f;
-        };
-        std::vector<NORMAL_MAP_SUBSET> normalMapSubsets;
-        void releaseNormalMap();
-#endif
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        FVF_PROVIDE_BY_ENGINE FVF;
-        uint32_t sizeStructVertexInBytes;
-        IDirect3DVertexBuffer9 *pVertexBuffer;
-        IDirect3DVertexBuffer9 *pSkinVertexBuffer;
-        IDirect3DIndexBuffer9 *pIndexBuffer;
-        void release();
-    };
+    // Reports the engine build, not the current device/profile or material support.
+    API_IMPL bool isNormalMapping3DCompiled() noexcept;
 }
 
-#endif // DIRECTX9_BUFFER_SPECIFIC_H
-#endif // USE_DIRECTX9
+#endif

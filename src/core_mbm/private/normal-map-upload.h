@@ -21,6 +21,7 @@
 #define NORMAL_MAP_UPLOAD_H
 
 #include <cstdint>
+#include <core_mbm/render-features.h>
 
 namespace mbm
 {
@@ -32,12 +33,14 @@ namespace mbm
     {
         struct PREPARED;
 
+#if USE_NORMAL_MAPPING_3D
         // Main-thread backend hooks for validated static tangent batches.
         // Backends without tangent rendering accept the upload as a no-op so
         // prepared assets still load. Success does not imply rendering support.
         bool uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
                           const VEC2 *uv, const PREPARED &prepared);
         void setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength);
+#endif
     }
 }
 #endif

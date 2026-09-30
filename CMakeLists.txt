@@ -58,6 +58,8 @@ set(MBM_CGAL_BIN_DIR "" CACHE PATH
 
 set(CMAKE_SUCCESS_SET_PLAT           0)
 set(OPTIMIZED                    "-O3")
+option(USE_NORMAL_MAPPING_3D "Compile 3D normal-map rendering integration" ON)
+add_compile_definitions(USE_NORMAL_MAPPING_3D=$<BOOL:${USE_NORMAL_MAPPING_3D}>)
 set(SUPPORTED_MAX_LIGHTS "4" CACHE STRING "Compile-time supported max lights for engine lighting (1..4)")
 
 if(NOT SUPPORTED_MAX_LIGHTS MATCHES "^[1-4]$")
@@ -163,6 +165,7 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
         message("-DUSE_METAL=0              : Use Metal as backend  (Current is DISABLED)")
     endif()
 
+    message("-DUSE_NORMAL_MAPPING_3D=${USE_NORMAL_MAPPING_3D} : Compile 3D normal-map rendering integration")
     message("-DSUPPORTED_MAX_LIGHTS=${SUPPORTED_MAX_LIGHTS} : Compile-time supported max lights for engine lighting (Current value)")
 
     if(USE_LUA)

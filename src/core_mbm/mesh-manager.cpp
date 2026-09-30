@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#include <core_mbm/render-features.h>
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
 #include "private/skeletal-parity-asset.h"
@@ -1292,6 +1293,7 @@ namespace
                 !mbm::normal_map::validate(input, entry.second, errorOut))
                 return false;
         }
+#if USE_NORMAL_MAPPING_3D
         // A missing optional section is valid. Prepare only frames whose materials need it.
         for (uint32_t frameIndex = 0; frameIndex < out.frames.size(); ++frameIndex)
         {
@@ -1307,6 +1309,7 @@ namespace
                 out.normalMapFrames.emplace(frameIndex, std::move(candidate));
             }
         }
+#endif
         return true;
     }
 
@@ -9661,7 +9664,9 @@ namespace mbm
     {
         if (!(impl->buffer && frame < impl->totalFramesMesh && subset < impl->buffer[frame].totalSubset)) return false;
         if (!normal_map::setMaterialSettings(impl->normalMapMaterials, frame, subset, greenSign, strength)) return false;
+#if USE_NORMAL_MAPPING_3D
         normal_map::setRenderSettings(impl->buffer[frame].pBufferGL,subset,greenSign,strength);
+#endif
         return true;
     }
 
@@ -12287,6 +12292,7 @@ namespace mbm
             if (!loadOk)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
 
+#if USE_NORMAL_MAPPING_3D
             const auto prepared = impl->normalMapFrames.find(currentFrame);
             if (impl->canonicalSkeleton.skeletonId == 0 && prepared != impl->normalMapFrames.end())
             {
@@ -12298,6 +12304,7 @@ namespace mbm
                     normal_map::setRenderSettings(impl->buffer[currentFrame].pBufferGL,subset,settings.greenSign,settings.strength);
                 }
             }
+#endif
             // Populate exact per-subset role assignments, including explicit absence.
             for (uint32_t subsetIndex=0; subsetIndex<totalSubset; ++subsetIndex)
             {

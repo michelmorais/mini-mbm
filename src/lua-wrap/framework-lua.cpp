@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#include <core_mbm/render-features.h>
 #include <lua-wrap/framework-lua.h>
 #include <lua-wrap/camera-lua.h>
 #include <lua-wrap/vec2-lua.h>
@@ -826,6 +827,12 @@ namespace mbm
             return lua_error_debug(lua, message);
         }
         return 0;
+    }
+
+    int onIsNormalMapping3DCompiledLua(lua_State *lua)
+    {
+        lua_pushboolean(lua, isNormalMapping3DCompiled());
+        return 1;
     }
 
     int onGetSupportedMaxLightsLua(lua_State *lua)
@@ -3564,6 +3571,7 @@ namespace mbm
             {"setDirectionalLight", onSetDirectionalLightLua},
             {"setPointLight", onSetPointLightLua},
             {"setRequestedMaxLights", onSetRequestedMaxLightsLua},
+            {"isNormalMapping3DCompiled", onIsNormalMapping3DCompiledLua},
             {"getSupportedMaxLights", onGetSupportedMaxLightsLua},
             {"getValidatedMaxLights", onGetValidatedMaxLightsLua},
             {"getSelectedPointLights", onGetSelectedPointLightsLua},

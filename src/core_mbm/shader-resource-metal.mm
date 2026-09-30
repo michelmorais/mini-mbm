@@ -17,6 +17,7 @@
 
 #if defined(USE_METAL)
 
+#include <core_mbm/render-features.h>
 #include <light.h>
 #include <string>
 

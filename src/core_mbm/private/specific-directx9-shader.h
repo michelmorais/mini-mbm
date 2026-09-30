@@ -20,6 +20,7 @@
 #ifndef DIRECTX9_SHADER_SPECIFIC_H
 #define DIRECTX9_SHADER_SPECIFIC_H
 
+#include <core_mbm/render-features.h>
 #include "specific-directx9-context.h"
 #include "specific-directx9-d3dx.h"
 
@@ -31,10 +32,12 @@ namespace mbm
         IDirect3DVertexShader9 *pd3dVertexShader;
         ID3DXConstantTable *constantTablePS;
         ID3DXConstantTable *constantTableVS;
+#if USE_NORMAL_MAPPING_3D
         IDirect3DVertexDeclaration9 *normalMapDeclaration = nullptr;
         IDirect3DVertexBuffer9 *zeroTangentBuffer = nullptr;
         D3DXHANDLE normalMapSettings = nullptr;
 
+#endif
         D3DXHANDLE mvpMatrixHandle;
         D3DXHANDLE mvMatrixHandle;
         D3DXHANDLE bonePaletteHandle;

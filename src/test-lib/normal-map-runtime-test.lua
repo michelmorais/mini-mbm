@@ -35,6 +35,13 @@ function onInitScene()
             local m = mesh:new('3d')
             objects[#objects+1] = m
             assert(m:load(dir..name..'.msh'), name)
+            if name == 'unprepared' or name == 'prepared' then
+                local extracted=meshDebug:new()
+                assert(extracted:load(m),'runtime basis extraction')
+                local report=assert(extracted:prepareNormalMap(1,1,'preserve'))
+                check(report.reused == (name == 'prepared' or mbm.isNormalMapping3DCompiled()),
+                    'runtime preparation follows build; persisted basis retained: '..name)
+            end
             local convention, strength = m:getNormalMapSettings()
             if name == 'material-imported' then
                 check(convention == '-Y' and strength == 3, name..' properties')

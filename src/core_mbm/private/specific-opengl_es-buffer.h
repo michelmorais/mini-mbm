@@ -20,11 +20,13 @@
 #ifndef OPENGL_ES_BUFFER_SPECIFIC_H
 #define OPENGL_ES_BUFFER_SPECIFIC_H
 
+#include <core_mbm/render-features.h>
 #include <specific-opengl_es.h>
 #include <vector>
 
 namespace mbm
 {
+#if USE_NORMAL_MAPPING_3D
     struct NORMAL_MAP_GPU_BATCH
     {
         uint32_t buffers[2] = {}; // Interleaved attributes, local triangle indices.
@@ -36,6 +38,7 @@ namespace mbm
         int greenSign = 1;
         float strength = 1.0f;
     };
+#endif
     struct BUFFER_SPECIFIC
     {
         BUFFER_SPECIFIC() noexcept;
@@ -52,8 +55,10 @@ namespace mbm
         uint32_t *vboBoneIndicesVB;
         uint32_t *vboBoneWeightsVB;
         uint32_t skinSubsetCount;
+#if USE_NORMAL_MAPPING_3D
         std::vector<NORMAL_MAP_GPU_SUBSET> normalMapSubsets;
         void releaseNormalMap();
+#endif
         void release();
     };
 }

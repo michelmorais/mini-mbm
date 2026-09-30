@@ -488,6 +488,15 @@ ordinary depth behavior against each other. The property does not affect render-
 
 ### Normal-map material settings
 
+`mbm.isNormalMapping3DCompiled()` takes no arguments and returns a boolean for
+whether the linked engine was built with `USE_NORMAL_MAPPING_3D` (default enabled).
+It reports the build capability, not whether the current device/profile, object,
+shader or tangent basis can render the effect. There is no runtime setter.
+When false, default/reserved 3D lighting uses geometric normals, while 2dw normal
+mapping, explicit CPU authoring, asset validation and persistence remain available.
+Normal-map material settings and texture assignments can still be read/edited;
+they do not enable compiled-out 3D rendering.
+
 Available on renderables using the common animation/material methods:
 
 ```lua
@@ -505,7 +514,8 @@ These are shared asset properties, like material textures: changing them affects
 instances using that cached asset. They neither assign a normal texture nor modify
 texture pixels or tangents. Static 3D lighting on OpenGL ES, DirectX 11,
 DirectX 9 (vs_3_0/ps_3_0) and Metal consumes these properties when a prepared
-tangent basis and normal texture are available. Strength zero disables the detail.
+tangent basis and normal texture are available and `mbm.isNormalMapping3DCompiled()`
+is true. Strength zero disables the detail.
 Skinned meshes do not consume the prepared tangent basis. These properties do not
 change the existing 2dw equations. See [normal mapping](light.md#material-texture-slots)
 for rendering requirements and [future work](future-features.md#normal-mapping).

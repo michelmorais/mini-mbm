@@ -62,54 +62,30 @@ Static 3D normal mapping is implemented in OpenGL ES, DirectX 9 SM3, DirectX 11
 and Metal. The work below extends that capability; it is not a condition for the
 static delivery or a claim that these paths already work.
 
-### Build-time removal of unused normal mapping
+### Remaining overhead in builds with normal mapping enabled
 
-The selected approach is a default-enabled `USE_NORMAL_MAPPING_3D` build option,
-combined with an audit of shader specialization using the existing
-`SUPPORTED_MAX_LIGHTS` build setting. Scope and acceptance criteria are in the
-[implementation plan](normal-mapping-build-plan.md). Implementation is pending;
-this is not a measured regression. The lightweight goal includes assets and
-applications that never use normal maps.
+Build-time removal is implemented through the default-enabled
+`USE_NORMAL_MAPPING_3D` setting. The existing `SUPPORTED_MAX_LIGHTS=1..4` setting
+also specializes generated and reserved lighting shaders at build time. Contracts
+are in [Lighting](light.md#material-texture-slots); implementation and validation
+status are recorded in the [build plan](normal-mapping-build-plan.md).
 
-Without a requested basis, preparation skips MikkTSpace and does not create
-derived geometry buffers. However, eligible static lighting shaders include
-normal-mapping support even for assets without tangents. Draw-time checks,
-disabled settings, auxiliary buffers/bindings and shader inputs can remain.
-The disabled fragment path returns the geometric normal before sampling the map;
-this does not establish zero CPU/GPU overhead. Prepared assets without a texture
-also retain derived data and GPU allocations.
-
-The build option is selected for this delivery; the other options remain separate
-follow-up work:
+With 3D normal mapping enabled, eligible static lighting shaders still include
+mapping support for assets without tangents. Draw checks, auxiliary resources and
+shader inputs can remain, and prepared assets without a texture retain derived
+GPU allocations. Two follow-up options remain outside the build-switch delivery:
 
 | Option | Potential benefit | Tradeoff / limit |
 |---|---|---|
-| Engine build define `USE_NORMAL_MAPPING_3D` (selected; implementation pending) | Compile out 3D normal-map rendering integration for applications that do not use it | Requires a separate engine build; enabling the feature still leaves unused-path costs in mixed scenes |
-| Shader compile define / separate geometric and normal-mapped variants | Omit tangent inputs and calculations from shaders used by materials without the effect | Requires matching vertex layouts, variant/cache keys and switching when textures or basis availability change; does not by itself remove CPU checks or allocations |
-| Lazy derived GPU resources | Avoid upload/memory cost until a prepared asset actually uses a map | Introduces first-use work and resource lifetime/synchronization decisions |
+| Separate geometric and normal-mapped shader variants | Omit tangent inputs/calculations for materials without the effect | Requires matching layouts, cache keys and switching when textures or basis availability change |
+| Lazy derived GPU resources | Avoid uploads/memory until a prepared asset actually uses a map | Requires first-use work and resource lifetime/synchronization decisions |
 
-A C++ preprocessor define does not automatically remove code from generated
-GLSL/HLSL/MSL strings. A build option must control backend source generation,
-resource creation and draw integration consistently. Keep specialization in the
-backend/private interfaces rather than scattering backend conditionals through
-`mesh-manager.cpp`. The build option and per-material shader variants can coexist;
-they solve different scopes of unused work.
-
-Follow the linked plan for defaults, CMake/Visual Studio/platform
-wiring and the disabled contract. Distinguish disabling
-3D rendering from removing CPU authoring, MikkTSpace or MSH section parsing.
-Specify asset loading, validation, preservation on save, Lua/editor capability
-reporting and geometric-normal fallback for sections 14/15. Preserve existing
-2dw normal mapping unless a separate scope decision explicitly changes it.
-
-Measure otherwise identical Release builds/scenes: no map/no tangents, prepared
-basis without a texture, active map, strength zero and mixed subsets. Compare
-binary size, load/compile time, shader/cache counts, CPU/GPU memory, draw CPU time
-and GPU frame time across GLES, DX9 SM3, DX11 and Metal. Inspect compiled shader
-resource/instruction usage instead of assuming the driver removes all disabled
-work. Include late assignment/removal with a retained basis and shared assets.
-Record measured benefit and code/build costs against the linked plan;
-no define or new shader variant is implemented by this planning entry.
+Measure no-map/no-tangent assets, retained bases without a texture, active maps,
+zero strength and mixed subsets, including late assignment/removal and shared
+assets. Compare shader compilation, memory, CPU draw and GPU frame times on each
+backend; do not infer zero overhead from an early return in the fragment shader.
+Native Windows/Apple verification and detailed performance measurements remaining
+from the build-switch work are listed in its plan.
 
 ### Skeletal deformation and dynamic geometry
 

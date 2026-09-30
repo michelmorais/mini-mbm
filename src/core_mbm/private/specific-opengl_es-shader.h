@@ -20,6 +20,7 @@
 #ifndef OPENGL_ES_SHADER_SPECIFIC_H
 #define OPENGL_ES_SHADER_SPECIFIC_H
 
+#include <core_mbm/render-features.h>
 #include <specific-opengl_es.h>
 
 namespace mbm
@@ -29,7 +30,9 @@ namespace mbm
         GLint positionHandle;
         GLint texCoordHandle;
         GLint normalHandle;
+#if USE_NORMAL_MAPPING_3D
         GLint tangentHandle;
+#endif
         GLint boneIndicesHandle;
         GLint boneWeightsHandle;
         GLint mvpMatrixHandle; // Handle para matrix x projection

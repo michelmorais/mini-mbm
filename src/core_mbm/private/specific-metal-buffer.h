@@ -20,6 +20,7 @@
 #ifndef METAL_BUFFER_SPECIFIC_H
 #define METAL_BUFFER_SPECIFIC_H
 
+#include <core_mbm/render-features.h>
 #include "specific-metal-context.h"
 #include <vector>
 
@@ -27,6 +28,7 @@ namespace mbm
 {
     struct BUFFER_SPECIFIC
     {
+#if USE_NORMAL_MAPPING_3D
         struct NORMAL_BATCH
         {
             id<MTLBuffer> vertices = nil;
@@ -41,6 +43,7 @@ namespace mbm
             float strength = 1.0f;
         };
         std::vector<NORMAL_SUBSET> normalMapSubsets;
+#endif
         id<MTLBuffer> vertexBuffer = nil;
         id<MTLBuffer> indexBuffer  = nil;
         id<MTLBuffer> skinVertexBuffer = nil;

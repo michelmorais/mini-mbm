@@ -715,7 +715,26 @@ normal texture are available. Skeletal meshes use geometric-normal lighting.
 See [Lua API](lua-api.md#normal-map-material-settings) and
 [MSH format](mesh-v11-format.md#optional-section_normal_map_materials-15-section-version-1).
 
-The static 3D paths share these contracts:
+`USE_NORMAL_MAPPING_3D` controls the integration at build time (default `ON`).
+Use `-DUSE_NORMAL_MAPPING_3D=OFF` in CMake or `/p:MbmUseNormalMapping3D=0` in
+Visual Studio to remove automatic runtime tangent preparation, derived GPU
+resources and normal-map draw dispatch. Generated/reserved 3D shaders then use
+geometric normals without the tangent interface or mapping helper. Existing
+2dw mapping and custom-shader texture semantics remain available.
+
+`mbm::isNormalMapping3DCompiled()` (`core_mbm/render-features.h`) and Lua
+`mbm.isNormalMapping3DCompiled()` report the linked engine's build setting. This
+is not a device/profile/material support query: a build with the feature enabled
+still requires a supported backend/profile, static geometry and a usable basis.
+There is no runtime toggle for this build setting.
+
+Sections 14/15 are still parsed, validated, retained and saved with the feature
+disabled. Explicit CPU authoring/preparation and MikkTSpace remain available.
+Material texture acquisition/binding is retained because the shared asset can
+also be used by 2dw or custom shaders; disabling 3D mapping does not globally
+remove `TextureNormal`. No file-format change is involved.
+
+The following static 3D contracts apply with `USE_NORMAL_MAPPING_3D=1`:
 
 - Loaded optional tangent batches are uploaded once into private interleaved
   position/normal/UV buffers, tangents (interleaved or separate) and local 16-bit index buffers. Authoring

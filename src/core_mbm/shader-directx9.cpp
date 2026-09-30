@@ -20,6 +20,7 @@
 
 #if defined (USE_DIRECTX9)
 
+#include <core_mbm/render-features.h>
 #include <shader.h>
 #include "private/normal-map-upload.h"
 #include "private/normal-map-preparation.h"
@@ -43,6 +44,7 @@
 
 namespace mbm
 {
+#if USE_NORMAL_MAPPING_3D
     struct NORMAL_MAP_VERTEX_D3D9
     {
         VEC3 position, normal;
@@ -99,6 +101,7 @@ namespace mbm
         backend->normalMapSubsets[subset].strength = strength;
     }
 
+#endif
     // Process-lifetime cache of compiled "pure default shader pair" D3D9 shaders (no custom .cfg
     // effect), keyed by the small set of flags that fully determine the generated HLSL source (see
     // SHADER::compileShader below -- unlike the OpenGL ES backend, DX9's default source only varies
@@ -467,6 +470,7 @@ namespace mbm
         this->release();
     }
 
+#if USE_NORMAL_MAPPING_3D
     void BUFFER_SPECIFIC::releaseNormalMap()
     {
         for (auto &subset : normalMapSubsets)
@@ -478,9 +482,12 @@ namespace mbm
         normalMapSubsets.clear();
     }
 
+#endif
     void BUFFER_SPECIFIC::release()
     {
+#if USE_NORMAL_MAPPING_3D
         releaseNormalMap();
+#endif
         if (pVertexBuffer)
             pVertexBuffer->Release();
         pVertexBuffer = nullptr;
@@ -917,7 +924,9 @@ namespace mbm
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if (!backendBuffer || !backendBuffer->pVertexBuffer || backendBuffer->sizeStructVertexInBytes == 0)
             return false;
+#if USE_NORMAL_MAPPING_3D
         backendBuffer->releaseNormalMap();
+#endif
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
             const uint32_t vertexStart = vertexStartSubset[i];
@@ -1090,11 +1099,13 @@ namespace mbm
 
     void D3D_PS_VS::release() noexcept
     {
+#if USE_NORMAL_MAPPING_3D
         if (normalMapDeclaration) normalMapDeclaration->Release();
         if (zeroTangentBuffer) zeroTangentBuffer->Release();
         normalMapDeclaration = nullptr;
         zeroTangentBuffer = nullptr;
         normalMapSettings = nullptr;
+#endif
         if (pd3dPixelShader)
         {
             pd3dPixelShader->Release();
@@ -1171,6 +1182,7 @@ namespace mbm
         this->vShader         = nullptr;
     }
 
+#if USE_NORMAL_MAPPING_3D
     static bool initializeNormalMappingD3D9(D3D_PS_VS *shader)
     {
         if (!shader->constantTablePS) return false;
@@ -1199,6 +1211,7 @@ namespace mbm
         return true;
     }
 
+#endif
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
                                const SKELETAL_SHADER_METHOD skeletalMethod)
@@ -1217,6 +1230,7 @@ namespace mbm
         const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault() ||
             (ptrPshader && ptrPshader->fileName == "lit textured.ps");
         auto *context = DEVICE::getInstance()->getSpecificContextDevice();
+#if USE_NORMAL_MAPPING_3D
         D3DCAPS9 caps = {};
         const bool supportsNormalMapping = SUCCEEDED(context->pd3dDevice->GetDeviceCaps(&caps)) &&
             caps.VertexShaderVersion >= D3DVS_VERSION(3,0) && caps.PixelShaderVersion >= D3DPS_VERSION(3,0) &&
@@ -1231,6 +1245,9 @@ namespace mbm
             context->normalMapUnsupportedReported = true;
         }
 
+#else
+        constexpr bool usesNormalMapping = false;
+#endif
         void *backendShaderSpecific = getBackendShaderSpecific();
         D3D_PS_VS *d3dPsVs = static_cast<D3D_PS_VS *>(backendShaderSpecific);
         d3dPsVs->release();
@@ -1266,7 +1283,11 @@ namespace mbm
                 d3dPsVs->samplerHandle0   = entry.samplerHandle0;
                 d3dPsVs->samplerHandle1   = entry.samplerHandle1;
                 d3dPsVs->samplerHandle2   = entry.samplerHandle2;
+#if USE_NORMAL_MAPPING_3D
                 return !usesNormalMapping || initializeNormalMappingD3D9(d3dPsVs);
+#else
+                return true;
+#endif
             }
         }
 
@@ -1700,11 +1721,16 @@ namespace mbm
             getDefaultProgramCacheD3D9()[key] = entry;
         }
 
+#if USE_NORMAL_MAPPING_3D
         return !usesNormalMapping || initializeNormalMappingD3D9(d3dPsVs);
+#else
+        return true;
+#endif
     }
 
 
     // -1 = device failure, 0 = source draw, 1 = derived batches already drawn.
+#if USE_NORMAL_MAPPING_3D
     static int drawNormalMappedSubsetD3D9(IDirect3DDevice9 *device, const D3D_PS_VS *shader,
                                           const BUFFER_GL *buffer, uint32_t subset, bool &usingDerived)
     {
@@ -1745,6 +1771,7 @@ namespace mbm
         return 1;
     }
 
+#endif
     bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
                         const uint32_t skeletalPaletteFloatCount) const
@@ -1769,10 +1796,12 @@ namespace mbm
 
         void *backendShaderSpecific = getBackendShaderSpecific();
         D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
+#if USE_NORMAL_MAPPING_3D
         bool usingNormalMapBuffers = false;
         if (d3dPsVs->normalMapDeclaration &&
             FAILED(pd3dDevice->SetStreamSource(1,d3dPsVs->zeroTangentBuffer,0,0))) return false;
 
+#endif
         if (d3dPsVs->pd3dPixelShader)
         {
             if (FAILED(pd3dDevice->SetPixelShader(d3dPsVs->pd3dPixelShader)))
@@ -1867,7 +1896,10 @@ namespace mbm
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
             const bool skeletal = d3dPsVs->skeletalPaletteSize > 0;
-            if (FAILED(pd3dDevice->SetVertexDeclaration(d3dPsVs->normalMapDeclaration ? d3dPsVs->normalMapDeclaration :
+            if (FAILED(pd3dDevice->SetVertexDeclaration(
+#if USE_NORMAL_MAPPING_3D
+                d3dPsVs->normalMapDeclaration ? d3dPsVs->normalMapDeclaration :
+#endif
                 device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
@@ -1909,9 +1941,11 @@ namespace mbm
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
+#if USE_NORMAL_MAPPING_3D
                 const int normalDraw = drawNormalMappedSubsetD3D9(pd3dDevice,d3dPsVs,pBufferId,i,usingNormalMapBuffers);
                 if (normalDraw < 0) return false;
                 if (normalDraw > 0) continue;
+#endif
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
@@ -1988,7 +2022,10 @@ namespace mbm
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
             const bool skeletal = d3dPsVs->skeletalPaletteSize > 0;
-            pd3dDevice->SetVertexDeclaration(d3dPsVs->normalMapDeclaration ? d3dPsVs->normalMapDeclaration :
+            pd3dDevice->SetVertexDeclaration(
+#if USE_NORMAL_MAPPING_3D
+                d3dPsVs->normalMapDeclaration ? d3dPsVs->normalMapDeclaration :
+#endif
                 device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal));
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
                 backendBuffer->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
@@ -2017,9 +2054,11 @@ namespace mbm
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
+#if USE_NORMAL_MAPPING_3D
                 const int normalDraw = drawNormalMappedSubsetD3D9(pd3dDevice,d3dPsVs,pBufferId,i,usingNormalMapBuffers);
                 if (normalDraw < 0) return false;
                 if (normalDraw > 0) continue;
+#endif
 
                 switch (pBufferId->mode_draw)
                 {

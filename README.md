@@ -965,6 +965,8 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DCMAKE_BUILD_TYPE=` | `Release` | `Debug` or `Release` |
 | `-DUSE_ALL=1` | `OFF` | Enable the common full-feature set: Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled. Does not enable Steam or Bullet3D. |
 | `-DUSE_LUA=1` | `OFF` | Embed Lua 5.4.1 scripting engine |
+| `-DUSE_NORMAL_MAPPING_3D=OFF` | `ON` | Compile out 3D normal-map rendering and automatic runtime tangent preparation; preserve 2dw mapping, assets and explicit authoring. See [lighting](docs/light.md#material-texture-slots). |
+| `-DSUPPORTED_MAX_LIGHTS=2` | `4` | Compile default/reserved lighting shaders and staging arrays for at most this many selected point lights per draw (`1..4`); the 3D directional light is independent. |
 | `-DUSE_OPENGL_ES=1` | Auto | OpenGL ES 2.0 backend (auto-enabled on Linux/Android; selectable on Windows/macOS) |
 | `-DUSE_DIRECTX9=1` | Auto | DirectX 9 backend (auto-enabled on Windows) |
 | `-DUSE_DIRECTX11=1` | `OFF` | DirectX 11 backend (selectable on Windows) |

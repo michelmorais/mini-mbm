@@ -165,6 +165,20 @@ function onLoop()
         images[name]=assert(mbm.readImagePixels(path))
         step=step+1
         if step<=#cases then apply();return end
+        if not mbm.isNormalMapping3DCompiled() then
+            local base=images.baseline
+            for _,name in ipairs({'neutral','detail','zero','green-plus','green-minus','strong','extreme','removed'}) do
+                assert(difference(base,images[name])==0,'disabled 3D mapping changed '..name)
+            end
+            for _,prefix in ipairs({'scaled','mirror','point','reserved','legacy','hud'}) do
+                assert(difference(images[prefix..'-baseline'],images[prefix..'-detail'])==0,
+                    'disabled 3D mapping changed '..prefix)
+            end
+            assert(difference(images['mirror-baseline'],images['mirror-neutral'])==0)
+            assert(difference(images['2dw-baseline'],images['2dw-detail'])>1,
+                'disabled 3D mapping must preserve 2dw mapping')
+            print('NORMAL MAP VISUAL PASS (3D compiled out; 2dw preserved)');mbm.quit();return
+        end
         local base=images.baseline
         local neutral=difference(base,images.neutral)
         local detail=difference(base,images.detail)

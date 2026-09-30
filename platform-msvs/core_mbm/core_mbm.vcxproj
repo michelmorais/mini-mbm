@@ -203,6 +203,7 @@
     <ClInclude Include="..\..\src\core_mbm\private\image-mesh-progress.h" />
     <ClInclude Include="..\..\src\core_mbm\private\image-mesh-sides.h" />
     <ClInclude Include="..\..\src\core_mbm\private\image-mesh-topology.h" />
+    <ClInclude Include="..\..\include\core_mbm\render-features.h" />
     <ClInclude Include="..\..\src\core_mbm\private\normal-map-gles.h" />
     <ClInclude Include="..\..\src\core_mbm\private\normal-map-upload.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h" />

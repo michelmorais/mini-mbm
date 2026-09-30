@@ -1,6 +1,7 @@
 # Build-time normal mapping and lighting specialization
 
-Status: approved scope; implementation and verification pending.
+Status: implemented in 7.324; Linux Release matrix verified. Native Windows/Apple
+verification and detailed CPU/GPU performance profiling remain pending.
 
 The static 3D normal-mapping feature has already shipped. Its remaining work is
 tracked in [Future Features](future-features.md#normal-mapping). This plan covers
@@ -50,7 +51,7 @@ shader usage. Do not globally disable the normal texture slot.
 | Build light cap already exists | Root `CMakeLists.txt`, `include/core_mbm/light.h`, `platform-msvs/mbm-backend.props` | Reuse existing range, defaults and validation |
 | Generated shaders already consume the compiled cap | `src/core_mbm/shader-opengl_es.cpp`, `shader-directx9.cpp`, `shader-directx11.cpp`, `shader-metal.mm` | Audit all eligible paths and correct omissions; do not assume a new performance gain |
 | Normal-map CPU work mixes validation, automatic preparation and authoring | `src/core_mbm/mesh-manager.cpp`, `private/normal-map-asset.*`, `private/normal-map-preparation.*` | Separate render demand from preservation/explicit authoring |
-| Build switch was previously only proposed | `docs/future-features.md` | Selected by this plan; not yet implemented |
+| Build switch was previously only proposed | `docs/future-features.md` | Implemented by this delivery; enabled by default |
 
 ## Implementation sequence
 
@@ -113,3 +114,75 @@ builds, new skeletal/dynamic normal-mapping support, removal of CPU authoring,
 runtime light-count shader variants and raising the maximum above four are separate
 projects. Editor changes, if needed for capability reporting, must keep expensive
 work out of per-frame callbacks and use ASCII-safe displayed punctuation.
+
+## Delivery evidence (2026-09-30)
+
+Implemented the numeric build switch, default-enabled CMake/Visual Studio wiring,
+private resource/draw guards and the C++/Lua `isNormalMapping3DCompiled()` query.
+The query resolves the linked engine's setting rather than a caller's header flag.
+The light-cap audit found the production generated and embedded lighting shaders
+already use `DEFAULT_SUPPORTED_MAX_LIGHTS`; no replacement setting, runtime variant
+cache or light-equation change was necessary.
+
+Texture acquisition remains shared: the runtime mesh asset can later be rendered
+in 2dw or with custom shaders, so it is not exclusively a 3D normal-map consumer.
+Preserving those texture references and bindings is intentional. Only the dedicated
+3D tangent preparation/upload/draw integration is removed. Shader caches are local
+to an engine process with fixed build settings; there is no runtime flag change to
+invalidate them.
+
+| Verification | Result |
+|---|---|
+| Linux Release, GLES: `USE_NORMAL_MAPPING_3D=0/1` x `SUPPORTED_MAX_LIGHTS=1/2/3/4` | All eight builds and 48 suite invocations passed |
+| Per-build suites | C++ preparation and persistence; Lua build capability/embedded shader cap; indexed and non-indexed visual comparisons; sync/async runtime loading and malformed-input rejection |
+| Disabled runtime preparation | Extracting an unprepared loaded asset requires fresh explicit authoring preparation; a persisted basis is reused in either build |
+| Visual coverage | Normal maps/strength/convention, mixed subsets, removal, non-uniform/reflected transforms, point lights, reserved/custom-VS fallback, HUD and preserved 2dw mapping |
+| Authoring at cap 2, enabled and disabled | API, project, undo/export and idle-panel preparation checks passed |
+| GLES skeletal parity at cap 2, enabled and disabled | Synthetic and Lorekeeper fixtures, LBS and DQS: all four cases passed in each build |
+| Embedded shader generators | Compiled/executed the C++ source generators for GLES, DX9, DX11 and Metal across all eight settings (32 checks); checked loop/array caps and applicable normal-map source removal |
+| Build contracts | CMake defaults (`ON`, 4), invalid light caps (0, 5, nonnumeric), non-CMake default and invalid numeric normal-map macro, MSBuild XML parsing passed |
+| Disabled binary | No `uploadStatic`, `setRenderSettings`, `releaseNormalMap` or `drawNormalMappedSubset` symbols in the GLES library; present in the enabled library |
+
+The resource-generator checks are host C++ checks. For Metal they also preprocess
+`MBM_STATIC_NORMAL_MAP` in the emitted source. They do not compile HLSL/MSL on native
+drivers, exercise DirectX/Metal resource bindings, or validate MSBuild/Xcode/Android
+builds. Those native checks remain pending.
+
+Release measurements on this Linux host, with two point lights and otherwise
+identical build settings (`USE_LUA=1`, `AUDIO=none`):
+
+| Measurement | Enabled | Disabled |
+|---|---:|---:|
+| `libcore_mbm.so`, unstripped file bytes | 5,570,728 | 5,561,376 |
+| Private GLES `BUFFER_SPECIFIC`, `sizeof` bytes | 104 | 80 |
+| Private GLES `GLES_PS_VS`, `sizeof` bytes | 76 | 72 |
+
+These are binary/struct measurements, not GPU allocation or frame-time estimates.
+Detailed CPU/GPU memory, shader instruction counts, load/compile times and frame
+profiling remain pending. No FPS improvement is claimed.
+
+Reproduce a build with:
+
+```sh
+cmake -S . -B build/normal_mapping_check -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release \
+  -DUSE_LUA=1 -DAUDIO=none -DUSE_TEXTURE_MISSING_DIALOG=0 \
+  -DUSE_NORMAL_MAPPING_3D=OFF -DSUPPORTED_MAX_LIGHTS=2
+cmake --build build/normal_mapping_check --target testLib mini-mbm -j8
+```
+
+Use the engine-testing launch instructions and explicitly set `LD_LIBRARY_PATH`
+to the matching binary directory. The existing shell environment can otherwise
+select a different Debug engine library. Run `testLib --normal-map-preparation-tests`
+and `--normal-map-persistence-tests`; set `MBM_NORMAL_MAP_FIXTURE_DIR` to retain
+fixtures for `normal-map-runtime-test.lua` and `normal-map-authoring-test.lua`.
+`render-build-config-test.lua` expects `MBM_EXPECT_NORMAL_MAPPING_3D=0/1` and
+`MBM_EXPECT_MAX_LIGHTS=1..4`. The visual scene uses `MBM_NORMAL_MAP_RENDER_DIR`
+(an existing output directory) and `MBM_NORMAL_MAP_TEST_VB=1` for non-indexed draws.
+Check PASS sentinels as well as exit codes. Preserve each built executable and its
+libraries before building the next setting, because output directories are shared.
+
+Session artifacts were retained under `/tmp/mbm-normal-build-matrix` (build/test
+logs, libraries, fixtures and images) and `/tmp/mbm-normal-resource-matrix`
+(generated embedded shader sources). These are temporary local evidence, not
+repository fixtures. The final shared Release outputs use the defaults: enabled,
+four lights.

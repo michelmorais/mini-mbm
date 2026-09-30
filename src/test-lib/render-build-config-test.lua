@@ -1,6 +1,7 @@
+--[[
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -16,45 +17,35 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined(USE_DIRECTX9)
-#ifndef DIRECTX9_BUFFER_SPECIFIC_H
-#define DIRECTX9_BUFFER_SPECIFIC_H
+]]
 
-#include <core_mbm/render-features.h>
-#include "specific-directx9-context.h"
-#include <vector>
-
-namespace mbm
-{
-    struct BUFFER_SPECIFIC
-    {
-#if USE_NORMAL_MAPPING_3D
-        struct NORMAL_MAP_BATCH
-        {
-            IDirect3DVertexBuffer9 *vertices = nullptr;
-            IDirect3DIndexBuffer9 *indices = nullptr;
-            UINT vertexCount = 0;
-            UINT indexCount = 0;
-        };
-        struct NORMAL_MAP_SUBSET
-        {
-            std::vector<NORMAL_MAP_BATCH> batches;
-            int greenSign = 1;
-            float strength = 1.0f;
-        };
-        std::vector<NORMAL_MAP_SUBSET> normalMapSubsets;
-        void releaseNormalMap();
-#endif
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        FVF_PROVIDE_BY_ENGINE FVF;
-        uint32_t sizeStructVertexInBytes;
-        IDirect3DVertexBuffer9 *pVertexBuffer;
-        IDirect3DVertexBuffer9 *pSkinVertexBuffer;
-        IDirect3DIndexBuffer9 *pIndexBuffer;
-        void release();
-    };
-}
-
-#endif // DIRECTX9_BUFFER_SPECIFIC_H
-#endif // USE_DIRECTX9
+-- Set MBM_EXPECT_NORMAL_MAPPING_3D=0/1 and MBM_EXPECT_MAX_LIGHTS=1..4.
+-- Require the PASS sentinel; Lua exceptions do not determine the process exit code.
+function onInitScene()
+    local ok,err=pcall(function()
+        local expected=assert(tonumber(os.getenv('MBM_EXPECT_NORMAL_MAPPING_3D')))
+        local cap=assert(tonumber(os.getenv('MBM_EXPECT_MAX_LIGHTS')))
+        assert(mbm.isNormalMapping3DCompiled()==(expected==1),'engine build capability')
+        for _,target in ipairs({'3d','2dw'}) do
+            assert(mbm.getSupportedMaxLights(target)==cap,'compiled light cap')
+            mbm.setRequestedMaxLights(target,cap)
+            assert(mbm.getValidatedMaxLights(target)==cap,'validated light cap')
+            assert(not pcall(mbm.setRequestedMaxLights,target,cap+1),'excess light cap accepted')
+        end
+        local shaders=mbm.getShaderList(true,'lit textured.ps',false,false,true)
+        local code=assert(shaders[1] and shaders[1].code,'reserved lighting shader source')
+        assert(code:find('i < '..cap,1,true),'fixed shader loop does not match compiled cap')
+        if not mbm.get('USE_METAL') then
+            for _,name in ipairs({'LightColor','LightRadius','LightPositionView'}) do
+                assert(code:find(name..'['..cap..']',1,true),'fixed shader array '..name)
+            end
+        end
+        if mbm.get('USE_OPENGL_ES') or mbm.get('USE_DIRECTX11') then
+            assert((code:find('mbmMappedNormal',1,true)~=nil)==(expected==1),'fixed shader normal-map helper')
+            assert((code:find('NormalMapSettings',1,true)~=nil)==(expected==1),'fixed shader normal-map constants')
+        end
+        print('RENDER BUILD CONFIG PASS normal='..expected..' lights='..cap)
+    end)
+    if not ok then print('RENDER BUILD CONFIG FAIL '..tostring(err)) end
+    mbm.quit()
+end

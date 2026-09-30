@@ -20,6 +20,7 @@
 
 #if defined (USE_OPENGL_ES)
 
+#include <core_mbm/render-features.h>
 #include <shader.h>
 #include <device.h>
 #include <light.h>
@@ -56,7 +57,10 @@ namespace mbm
     struct DefaultProgramCacheEntry
     {
         GLuint programObject;
-        GLint  positionHandle, texCoordHandle, normalHandle, tangentHandle;
+        GLint  positionHandle, texCoordHandle, normalHandle;
+#if USE_NORMAL_MAPPING_3D
+        GLint tangentHandle;
+#endif
         GLint  boneIndicesHandle, boneWeightsHandle;
         GLint  mvpMatrixHandle, mvMatrixHandle;
         GLint  bonePaletteHandle;
@@ -599,6 +603,7 @@ namespace mbm
         this->release();
     }
 
+#if USE_NORMAL_MAPPING_3D
     void BUFFER_SPECIFIC::releaseNormalMap()
     {
         for (auto &subset : normalMapSubsets)
@@ -607,9 +612,12 @@ namespace mbm
         normalMapSubsets.clear();
     }
 
+#endif
     void BUFFER_SPECIFIC::release()
     {
+#if USE_NORMAL_MAPPING_3D
         releaseNormalMap();
+#endif
         if (vboVertNorTexIB[0])
         {
             GLDeleteBuffers(3, vboVertNorTexIB);
@@ -865,7 +873,9 @@ namespace mbm
             return false;
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if (!backendBuffer) return false;
+#if USE_NORMAL_MAPPING_3D
         backendBuffer->releaseNormalMap();
+#endif
         if (this->initializedIndexBuffer)
         {
             if (!backendBuffer->vboVertNorTexIB[0])
@@ -1076,7 +1086,9 @@ namespace mbm
         : positionHandle(-1),
           texCoordHandle(-1),
           normalHandle(-1),
+#if USE_NORMAL_MAPPING_3D
           tangentHandle(-1),
+#endif
           boneIndicesHandle(-1),
           boneWeightsHandle(-1),
           mvpMatrixHandle(-1),
@@ -1105,7 +1117,9 @@ namespace mbm
         positionHandle  = -1;
         texCoordHandle  = -1;
         normalHandle    = -1;
+#if USE_NORMAL_MAPPING_3D
         tangentHandle   = -1;
+#endif
         boneIndicesHandle = -1;
         boneWeightsHandle = -1;
         mvpMatrixHandle = -1;
@@ -1211,7 +1225,9 @@ namespace mbm
                 gles_shaderSpecific->positionHandle  = entry.positionHandle;
                 gles_shaderSpecific->texCoordHandle  = entry.texCoordHandle;
                 gles_shaderSpecific->normalHandle    = entry.normalHandle;
+#if USE_NORMAL_MAPPING_3D
                 gles_shaderSpecific->tangentHandle = entry.tangentHandle;
+#endif
                 gles_shaderSpecific->boneIndicesHandle = entry.boneIndicesHandle;
                 gles_shaderSpecific->boneWeightsHandle = entry.boneWeightsHandle;
                 gles_shaderSpecific->mvpMatrixHandle = entry.mvpMatrixHandle;
@@ -1466,6 +1482,7 @@ namespace mbm
             }
         }
 
+#if USE_NORMAL_MAPPING_3D
         if (hasNormal && hasUV && canUsePointLight2D)
         {
             const std::string from = "normalize(vNormalView)";
@@ -1474,6 +1491,7 @@ namespace mbm
             { defaultCodePs.replace(at, from.size(), "mbmMappedNormal()"); at += 17; }
             defaultCodePs.insert(defaultCodePs.find("void main"), normal_map::fragmentGles());
         }
+#endif
         std::string defaultCodeVs = "attribute vec4 aPosition;";
         if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
@@ -1487,8 +1505,10 @@ namespace mbm
         if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " varying vec3 vNormalView;";
         if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
         if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " varying vec3 vPositionView;";
+#if USE_NORMAL_MAPPING_3D
         if (hasNormal && hasUV && useReservedLightScaffolding)
             defaultCodeVs += " attribute vec4 aTangent; varying vec4 vTangentView;";
+#endif
         defaultCodeVs += " void main() {";
         if (skeletalLbsPaletteSize > 0)
         {
@@ -1502,6 +1522,7 @@ namespace mbm
             defaultCodeVs += skeletalLbsPaletteSize > 0
                 ? " vNormalView = (mvMatrix * vec4(skinnedNormal, 0.0)).xyz;"
                 : " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
+#if USE_NORMAL_MAPPING_3D
         if (hasNormal && hasUV && useReservedLightScaffolding)
         {
             if (skeletalLbsPaletteSize > 0)
@@ -1516,6 +1537,7 @@ namespace mbm
                         ? (mat3(c0,c1,c2) * aNormal) / det : aNormal;
                 )GLSL";
         }
+#endif
         if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * skinnedPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
@@ -1525,6 +1547,7 @@ namespace mbm
             return true;
         }
         std::string effectivePixelCode = this->pShader ? this->pShader->getCode() : defaultCodePs;
+#if USE_NORMAL_MAPPING_3D
         if (this->pShader && this->pShader->fileName == "lit textured.ps" && this->vShader)
         {
             // The legacy custom-VS contract does not include the new tangent varying.
@@ -1534,6 +1557,7 @@ namespace mbm
             const auto call = effectivePixelCode.find("mbmMappedNormal()");
             if (call != std::string::npos) effectivePixelCode.replace(call,std::string("mbmMappedNormal()").size(),"normalize(vNormalView)");
         }
+#endif
         if (this->pShader == nullptr && this->vShader == nullptr)
         {
             if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, defaultCodeVs.c_str(), defaultCodePs.c_str()))
@@ -1561,7 +1585,9 @@ namespace mbm
         const std::string vertexShaderCode(this->vShader ? this->vShader->getCode() : defaultCodeVs);
         const std::string pixelShaderCode(effectivePixelCode);
         const std::string bothShaderCode(pixelShaderCode + vertexShaderCode);
+#if USE_NORMAL_MAPPING_3D
         gles_shaderSpecific->tangentHandle = glGetAttribLocation(gles_shaderSpecific->programObject, "aTangent");
+#endif
         const SHADER_TEXTURE_NAMING textureNaming =
             detectShaderTextureNamingProfile(bothShaderCode.c_str());
 
@@ -1646,7 +1672,9 @@ namespace mbm
             entry.positionHandle  = gles_shaderSpecific->positionHandle;
             entry.texCoordHandle  = gles_shaderSpecific->texCoordHandle;
             entry.normalHandle    = gles_shaderSpecific->normalHandle;
+#if USE_NORMAL_MAPPING_3D
             entry.tangentHandle = gles_shaderSpecific->tangentHandle;
+#endif
             entry.boneIndicesHandle = gles_shaderSpecific->boneIndicesHandle;
             entry.boneWeightsHandle = gles_shaderSpecific->boneWeightsHandle;
             entry.mvpMatrixHandle = gles_shaderSpecific->mvpMatrixHandle;
@@ -1675,6 +1703,7 @@ namespace mbm
     }
 
 
+#if USE_NORMAL_MAPPING_3D
     bool normal_map::uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
                                       const VEC2 *uv, const PREPARED &prepared)
     {
@@ -1751,6 +1780,7 @@ namespace mbm
         return true;
     }
 
+#endif
     bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
                         const uint32_t skeletalPaletteFloatCount) const
@@ -1821,6 +1851,7 @@ namespace mbm
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
+#if USE_NORMAL_MAPPING_3D
                 if (drawNormalMappedSubset(gles_shaderSpecific,pBufferId,i))
                 {
                     // Prepared draws use distinct vertices. Restore source attributes for the next subset.
@@ -1833,6 +1864,7 @@ namespace mbm
                     }
                 }
                 else
+#endif
                 { GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr); }
             }
         }
@@ -1894,7 +1926,9 @@ namespace mbm
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
+#if USE_NORMAL_MAPPING_3D
                 if (!drawNormalMappedSubset(gles_shaderSpecific,pBufferId,i))
+#endif
                 { GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]); }
             }
         }

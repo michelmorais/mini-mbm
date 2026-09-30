@@ -19,6 +19,7 @@
 
 #if defined (USE_OPENGL_ES)
 
+#include <core_mbm/render-features.h>
 #include <core_mbm/core-exports.h>
 #include <core_mbm/light.h>
 #include <stdio.h>
@@ -109,9 +110,11 @@ namespace mbm
             "   vec3 litColor = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0, 1.0);\n"
             "   gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);\n"
             "}\n";
+#if USE_NORMAL_MAPPING_3D
         code.insert(code.find("void main"), normal_map::fragmentGles());
         const auto at = code.find("normalize(vNormalView)");
         code.replace(at, std::string("normalize(vNormalView)").size(), "mbmMappedNormal()");
+#endif
         return code;
     }
 

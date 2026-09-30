@@ -70,7 +70,10 @@ static int runDirectX9NormalMapShaderTests()
     shader.setUseReservedLightDefault(true);
     passed = shader.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
     auto *backend = static_cast<D3D_PS_VS *>(shader.getBackendShaderSpecific());
-    passed = passed && backend->normalMapDeclaration && backend->normalMapSettings &&
+#if USE_NORMAL_MAPPING_3D
+    passed = passed && backend->normalMapDeclaration && backend->normalMapSettings;
+#endif
+    passed = passed &&
         reportDirectX9ShaderBudget(backend->pd3dPixelShader,true) &&
         reportDirectX9ShaderBudget(backend->pd3dVertexShader,false);
     // Recompile the same instance and another instance to cover cached COM ownership.
@@ -79,7 +82,10 @@ static int runDirectX9NormalMapShaderTests()
     cached.setUseReservedLightDefault(true);
     passed = passed && cached.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
     auto *cachedBackend = static_cast<D3D_PS_VS *>(cached.getBackendShaderSpecific());
-    passed = passed && cachedBackend->pd3dPixelShader == backend->pd3dPixelShader && cachedBackend->normalMapDeclaration;
+    passed = passed && cachedBackend->pd3dPixelShader == backend->pd3dPixelShader;
+#if USE_NORMAL_MAPPING_3D
+    passed = passed && cachedBackend->normalMapDeclaration;
+#endif
 
     // This measures the pre-existing geometric lighting at SM2, not SM2 hardware.
     setPSVersion("ps_2_0"); setVSVersion("vs_2_0");
@@ -87,7 +93,9 @@ static int runDirectX9NormalMapShaderTests()
     sm2.setUseReservedLightDefault(true);
     const bool sm2Lit = sm2.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
     std::printf("DX9 existing geometric lighting at SM2: %s\n",sm2Lit ? "compiled" : "exceeds profile (expected diagnostic above)");
+#if USE_NORMAL_MAPPING_3D
     passed = passed && !static_cast<D3D_PS_VS *>(sm2.getBackendShaderSpecific())->normalMapDeclaration;
+#endif
     SHADER unlit;
     passed = passed && unlit.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_UV);
     setPSVersion(savedPS.c_str()); setVSVersion(savedVS.c_str());

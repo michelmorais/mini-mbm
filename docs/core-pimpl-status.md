@@ -38,6 +38,8 @@ Preparation does not query device state or allocate GPU resources.
 Prepared frames reside in the runtime and authoring `Impl`s and the CPU-only async
 load intermediate. Loading and saving reuse valid persisted bases or prepare
 missing ones when requested by a normal texture or explicit precomputation.
+Automatic runtime preparation requires `USE_NORMAL_MAPPING_3D=1`; explicit
+authoring/save preparation remains available in either build.
 Private friend bridges copy prepared data during runtime-to-authoring extraction.
 Frame copies/removals retain or reindex records; subset restructuring invalidates
 them. Source changes are checked before saving.
@@ -74,6 +76,14 @@ vertex/fragment buffer 21, outside lighting 4-18 and skeletal palette 19.
 Source draws bind disabled settings and a zero tangent; no tangent reads occur.
 Dynamic source updates discard the derived batches.
 No backend handles or owned containers are exposed through public headers.
+
+The rendering details above apply when `USE_NORMAL_MAPPING_3D=1` (default).
+With `0`, private backend tangent storage, upload hooks and normal-map draw paths
+are compiled out, and automatic preparation in the runtime loader is skipped.
+The asset `Impl` still preserves and validates sections 14/15, and explicit authoring
+preparation remains available. `core_mbm/render-features.h` exposes only the numeric
+build contract and the read-only `isNormalMapping3DCompiled()` engine query; it
+adds no mutable state or backend handles to public interfaces.
 
 `normal-map-asset.*` also provides the private CPU `remapSkinWeights` bridge. It
 collects canonical influences in each tangent batch's source-vertex order,

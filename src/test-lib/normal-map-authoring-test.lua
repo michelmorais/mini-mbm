@@ -94,6 +94,7 @@ local function runInit()
     local proxy={}
     function proxy:getTotalFrame() return asset:getTotalFrame() end
     function proxy:getTotalSubset(f) return asset:getTotalSubset(f) end
+    function proxy:getNormalMapSettings(...) return asset:getNormalMapSettings(...) end
     function proxy:prepareNormalMap(...) apiCalls=apiCalls+1;return asset:prepareNormalMap(...) end
     entry={meshDebug=proxy}
     print('NORMAL MAP AUTHORING API / PROJECT / UNDO / EXPORT PASS')
@@ -116,7 +117,7 @@ function onLoop(delta)
     -- Draw real controls; simulate the prepare action once without relying on mouse automation.
     tImGui.Button=function(label,...)
         local pressed=button(label,...)
-        return pressed or (frames==1 and label:find('##nma',1,true)~=nil)
+        return pressed or (frames==1 and label:match('##nma%d+$')~=nil)
     end
     local panelOk,panelError=pcall(Authoring.panel,entry,1,function() end,
         function(action) return action() end,function() return false end)

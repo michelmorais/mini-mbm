@@ -114,6 +114,15 @@ Accepted values are `1..4`. This maps to the engine preprocessor define
 the default light-capable shaders and staging arrays. You can override it from
 MSBuild with `/p:MbmSupportedMaxLights=2`.
 
+`MbmUseNormalMapping3D` defaults to `1` and accepts numeric `0` or `1`.
+Build with `/p:MbmUseNormalMapping3D=0 /p:MbmSupportedMaxLights=2` to remove
+3D normal-map rendering and compile lighting for at most two point lights per draw.
+The property maps to `USE_NORMAL_MAPPING_3D` across affected projects. A full rebuild
+is required when changing either setting. Asset validation/persistence, explicit
+CPU tangent authoring and 2dw normal mapping remain available. The linked engine
+reports the setting through `mbm.isNormalMapping3DCompiled()` in Lua or
+`mbm::isNormalMapping3DCompiled()` from `core_mbm/render-features.h` in C++.
+
 ---
 
 ## Build Configurations
