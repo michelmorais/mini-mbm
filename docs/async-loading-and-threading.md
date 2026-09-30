@@ -39,6 +39,13 @@ comments: worker threads only do **pure CPU work** — no GPU context, no global
 Lua. `pumpAsyncLoads()` (main thread only) does the GPU-affine finishing work (buffer/texture
 creation) and fires the Lua completion callback.
 
+The Lua mesh binding roots the callback, mesh table **and initiating Lua thread**
+in the registry until completion returns. Keeping only the function and `self`
+does not keep a completed coroutine alive. Without the thread reference, a later
+callback can run on a collected stack, and reentrant `addPath` during save can
+collect its live authoring objects. `normal-map-runtime-test.lua` covers a
+short-lived coroutine, forced GC, callback extraction/save and reference release.
+
 **This contract was violated by a function nobody expected to be thread-affine**: `util::openFile()`
 (`file-util.cpp`) — a "just open a file" utility — has a side effect of calling `util::addPath()`
 on every successfully opened file, to auto-register its directory as a known search path.

@@ -23,6 +23,11 @@
 #include <header-mesh.h>
 #include <texture-manager.h>
 #include <draw-compatibility.h>
+#include <device.h>
+#include <renderizable.h>
+#include <render-features.h>
+#include "private/normal-map-upload.h"
+#include "private/normal-map-preparation.h"
 #include <cctype>
 #include <cstring>
 #include <initializer_list>
@@ -131,9 +136,24 @@ namespace mbm
         return containsShaderIdentifier(shaderCode, getTextureRoleShaderName(role, naming));
     }
 
+#if USE_NORMAL_MAPPING_3D
+    struct NORMAL_MAP_PENDING
+    {
+        struct SETTINGS { bool basis = false; bool active = false; int greenSign = 1; float strength = 1; };
+        std::vector<VEC3> positions, normals;
+        std::vector<VEC2> uv;
+        normal_map::PREPARED prepared;
+        std::vector<SETTINGS> subsets;
+        bool uploaded = false;
+        uint32_t activeSubsets = 0;
+    };
+#endif
     struct BUFFER_GL::BackendData
     {
         BUFFER_SPECIFIC *buffer;
+#if USE_NORMAL_MAPPING_3D
+        std::unique_ptr<NORMAL_MAP_PENDING> normalMap;
+#endif
 
         BackendData() noexcept :
             buffer(nullptr)
@@ -145,6 +165,105 @@ namespace mbm
     {
         delete data;
     }
+
+#if USE_NORMAL_MAPPING_3D
+    struct normal_map::BUFFER_ACCESS
+    {
+        static std::unique_ptr<NORMAL_MAP_PENDING> &source(BUFFER_GL *buffer)
+        { return buffer->backendData->normalMap; }
+        static NORMAL_MAP_PENDING *source(const BUFFER_GL *buffer)
+        { return buffer && buffer->backendData ? buffer->backendData->normalMap.get() : nullptr; }
+    };
+
+    void normal_map::discardSource(BUFFER_GL *buffer)
+    {
+        if (BUFFER_ACCESS::source(static_cast<const BUFFER_GL *>(buffer)))
+            BUFFER_ACCESS::source(buffer).reset();
+    }
+
+    bool normal_map::stageStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+                                  const VEC2 *uv, const PREPARED &prepared)
+    {
+        if (prepared.batches.empty()) return true;
+        if (!buffer || !buffer->getBackendBuffer() || !positions || !normals || !uv) return false;
+        auto pending = std::make_unique<NORMAL_MAP_PENDING>();
+        pending->positions.assign(positions, positions + buffer->sizeOfArrayVertex);
+        pending->normals.assign(normals, normals + buffer->sizeOfArrayVertex);
+        pending->uv.assign(uv, uv + buffer->sizeOfArrayVertex);
+        pending->prepared = prepared;
+        pending->subsets.resize(buffer->totalSubset);
+        for (const auto &batch : prepared.batches)
+        {
+            if (batch.subset >= buffer->totalSubset) return false;
+            pending->subsets[batch.subset].basis = !batch.indices.empty();
+        }
+        BUFFER_ACCESS::source(buffer) = std::move(pending);
+        textureChanged(buffer, 0);
+        return true;
+    }
+
+    void normal_map::setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int sign, float strength)
+    {
+        auto *data = BUFFER_ACCESS::source(static_cast<const BUFFER_GL *>(buffer));
+        if (!data || subset >= data->subsets.size()) return;
+        data->subsets[subset].greenSign = sign;
+        data->subsets[subset].strength = strength;
+        if (data->uploaded) setBackendSettings(buffer, subset, sign, strength);
+        const bool active = data->subsets[subset].basis && strength != 0 && buffer->getTextureByStage(2, subset);
+        if (data->subsets[subset].active != active)
+        {
+            if (active) ++data->activeSubsets; else --data->activeSubsets;
+            data->subsets[subset].active = active;
+        }
+    }
+
+    bool normal_map::isActive(const BUFFER_GL *buffer, uint32_t subset)
+    {
+        const auto *data = BUFFER_ACCESS::source(buffer);
+        return data && subset < data->subsets.size() && data->subsets[subset].active;
+    }
+
+    uint32_t normal_map::activeSubsetCount(const BUFFER_GL *buffer)
+    {
+        const auto *data = BUFFER_ACCESS::source(buffer);
+        return data ? data->activeSubsets : 0;
+    }
+
+    void normal_map::textureChanged(BUFFER_GL *buffer, uint32_t subset)
+    {
+        auto *data = BUFFER_ACCESS::source(static_cast<const BUFFER_GL *>(buffer));
+        if (!data || subset >= data->subsets.size()) return;
+        // Slot zero can also be the legacy fallback for subsets without an explicit slot.
+        const uint32_t first = subset == 0 ? 0 : subset;
+        const uint32_t last = subset == 0 ? static_cast<uint32_t>(data->subsets.size()) : subset + 1;
+        for (uint32_t i = first; i < last; ++i)
+        {
+            auto &settings = data->subsets[i];
+            const bool active = settings.basis && settings.strength != 0 && buffer->getTextureByStage(2, i);
+            if (settings.active == active) continue;
+            if (active) ++data->activeSubsets; else --data->activeSubsets;
+            settings.active = active;
+        }
+    }
+
+    bool normal_map::ensureUploaded(const BUFFER_GL *buffer)
+    {
+        auto *data = BUFFER_ACCESS::source(buffer);
+        if (!data) return false;
+        if (data->uploaded) return true;
+        auto *mutableBuffer = const_cast<BUFFER_GL *>(buffer);
+        if (!uploadBackend(mutableBuffer, data->positions.data(), data->normals.data(),
+                           data->uv.data(), data->prepared)) return false;
+        for (uint32_t subset = 0; subset < data->subsets.size(); ++subset)
+            setBackendSettings(mutableBuffer, subset, data->subsets[subset].greenSign, data->subsets[subset].strength);
+        data->uploaded = true;
+        std::vector<VEC3>().swap(data->positions);
+        std::vector<VEC3>().swap(data->normals);
+        std::vector<VEC2>().swap(data->uv);
+        data->prepared = {};
+        return true;
+    }
+#endif
 
     bool BUFFER_GL::isLoadedBuffer() const
     {
@@ -268,6 +387,9 @@ namespace mbm
     void BUFFER_GL::setTextureByStage(TEXTURE* texture,const uint32_t index_stage, const uint32_t index_subset)
     {
         this->texturesByStage[index_stage][index_subset] = texture;
+#if USE_NORMAL_MAPPING_3D
+        if (index_stage == 2) normal_map::textureChanged(this, index_subset);
+#endif
     }
 
     BUFFER_SPECIFIC * BUFFER_GL::getBackendBuffer() const noexcept
@@ -288,6 +410,12 @@ namespace mbm
     {
         void *shaderSpecific;
         bool useReservedLightDefault;
+#if USE_NORMAL_MAPPING_3D
+        bool normalMappingVariant = false;
+        bool canSelectNormalMapping = false;
+        FVF_PROVIDE_BY_ENGINE fvf = FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+        std::unique_ptr<SHADER> mapped;
+#endif
 
         BackendData() noexcept :
             shaderSpecific(nullptr),
@@ -404,6 +532,88 @@ namespace mbm
             this->pShader->update(backendShaderSpecific);
         if (this->vShader)
             this->vShader->update(backendShaderSpecific);
+    }
+
+    bool SHADER::usesNormalMappingVariant() const noexcept
+    {
+#if USE_NORMAL_MAPPING_3D
+        return backendData && backendData->normalMappingVariant;
+#else
+        return false;
+#endif
+    }
+
+    void SHADER::resetNormalMappingVariant() noexcept
+    {
+#if USE_NORMAL_MAPPING_3D
+        if (backendData)
+        {
+            backendData->mapped.reset();
+            backendData->canSelectNormalMapping = false;
+        }
+#endif
+    }
+
+    bool SHADER::compileShader(BASE_SHADER *pixel, BASE_SHADER *vertex, FVF_PROVIDE_BY_ENGINE fvf,
+                               uint32_t paletteSize, SKELETAL_SHADER_METHOD method)
+    {
+        resetNormalMappingVariant();
+        const bool compiled = compileBackend(pixel, vertex, fvf, paletteSize, method);
+#if USE_NORMAL_MAPPING_3D
+        if (compiled && backendData)
+        {
+            backendData->fvf = fvf;
+            backendData->canSelectNormalMapping = !vertex && paletteSize == 0 &&
+                fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV &&
+                (shouldCompileReservedLightDefault() || (pixel && pixel->fileName == "lit textured.ps"));
+        }
+#endif
+        return compiled;
+    }
+
+    bool SHADER::render(const BUFFER_GL *buffer, const RENDERIZABLE *owner, int32_t subset,
+                        const float *palette, uint32_t paletteSize) const
+    {
+#if USE_NORMAL_MAPPING_3D
+        if (backendData && backendData->canSelectNormalMapping && (!owner || owner->is3DObject()) &&
+            normal_map::activeSubsetCount(buffer) != 0)
+        {
+            LIGHT_TARGET target = LIGHT_TARGET_3D;
+            DEVICE::getInstance()->getLightTargetForCurrentRender(target);
+            if (target != LIGHT_TARGET_3D)
+                return renderBackend(buffer, owner, subset, palette, paletteSize);
+            const uint32_t first = subset < 0 ? 0u : static_cast<uint32_t>(subset);
+            const uint32_t last = subset < 0 ? buffer->totalSubset : first + 1u;
+            if (last > buffer->totalSubset) return false;
+            const uint32_t mappedCount = subset < 0 ? normal_map::activeSubsetCount(buffer) :
+                static_cast<uint32_t>(normal_map::isActive(buffer, first));
+            if (mappedCount != 0)
+            {
+                if (!backendData->mapped)
+                {
+                    auto mapped = std::make_unique<SHADER>();
+                    mapped->setUseReservedLightDefault(backendData->useReservedLightDefault);
+                    mapped->backendData->normalMappingVariant = true;
+                    if (!mapped->compileBackend(pShader, vShader, backendData->fvf, 0, SKELETAL_SHADER_METHOD::NONE))
+                        return false;
+                    backendData->mapped = std::move(mapped);
+                }
+                const SHADER *mapped = backendData->mapped.get();
+                if (!mapped->hasNormalMappingInterface())
+                    return renderBackend(buffer, owner, subset, palette, paletteSize);
+                if (!normal_map::ensureUploaded(buffer)) return false;
+                if (mappedCount == last - first)
+                    return mapped->renderBackend(buffer, owner, subset, palette, paletteSize);
+                for (uint32_t i = first; i < last; ++i)
+                {
+                    const SHADER *selected = normal_map::isActive(buffer, i) ? mapped : this;
+                    if (!selected->renderBackend(buffer, owner, static_cast<int32_t>(i), palette, paletteSize)) return false;
+                }
+                return true;
+            }
+        }
+#endif
+        return renderBackend(buffer, owner, subset, palette, paletteSize);
     }
 
     bool SHADER::usesPureDefaultShaderPair() const noexcept

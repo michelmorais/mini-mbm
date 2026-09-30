@@ -70,22 +70,30 @@ also specializes generated and reserved lighting shaders at build time. Contract
 are in [Lighting](light.md#material-texture-slots); implementation and validation
 status are recorded in the [build plan](normal-mapping-build-plan.md).
 
-With 3D normal mapping enabled, eligible static lighting shaders still include
-mapping support for assets without tangents. Draw checks, auxiliary resources and
-shader inputs can remain, and prepared assets without a texture retain derived
-GPU allocations. Two follow-up options remain outside the build-switch delivery:
+With 3D normal mapping enabled, geometric/mapped shader variants and first-use
+GPU upload are implemented in 7.327. Default and reserved static lighting starts
+with a geometric shader; a map, usable retained basis and nonzero strength select
+a lazy mapped variant. CPU staging holds the source needed for first use and is
+released after uploading the prepared frame. No-map draws use cached activity;
+texture removal/zero strength returns to geometric shading. After first use, GPU
+batches stay cached until buffer release or geometry invalidation.
 
-| Option | Potential benefit | Tradeoff / limit |
-|---|---|---|
-| Separate geometric and normal-mapped shader variants | Omit tangent inputs/calculations for materials without the effect | Requires matching layouts, cache keys and switching when textures or basis availability change |
-| Lazy derived GPU resources | Avoid uploads/memory until a prepared asset actually uses a map | Requires first-use work and resource lifetime/synchronization decisions |
+Remaining optimization work:
 
-Measure no-map/no-tangent assets, retained bases without a texture, active maps,
-zero strength and mixed subsets, including late assignment/removal and shared
-assets. Compare shader compilation, memory, CPU draw and GPU frame times on each
-backend; do not infer zero overhead from an early return in the fragment shader.
+- Consider per-subset staging/upload and eviction; first use currently uploads
+  the prepared frame, including its inactive subsets.
+- Reduce CPU staging duplication for prepared assets that never use a map; measure
+  combined CPU/GPU memory rather than assuming deferred GPU upload reduces both.
+- Measure shader compilation, load/first-use latency, memory, CPU draw and GPU
+  frame times on representative assets and native backends. Mixed subsets can add
+  shader switches; first-use compilation/upload can add a one-time stall.
+- Preserve no-map/no-tangent assets, retained bases without a texture, active maps,
+  zero strength, mixed subsets, late assignment/removal and shared-asset behavior.
+
+Linux/GLES validation and the current limits are recorded in the
+[enabled-build optimization delivery](normal-mapping-enabled-optimization.md).
 Native Windows/Apple verification and detailed performance measurements remaining
-from the build-switch work are listed in its plan.
+from the build-switch work are listed in its original plan.
 
 ### Skeletal deformation and dynamic geometry
 

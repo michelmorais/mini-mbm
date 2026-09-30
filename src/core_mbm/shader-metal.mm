@@ -615,6 +615,12 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                           "    }\n"
                           "  }\n"];
 #endif
+#if USE_NORMAL_MAPPING_3D
+    if (!normalMapping && hasNor && hasUV && useReservedLightScaffolding && skeletalPaletteSize == 0)
+        [src appendString:@" {float3x3 m=float3x3(u.mvMatrix[0].xyz,u.mvMatrix[1].xyz,u.mvMatrix[2].xyz);"
+                          "float3 a=cross(m[1],m[2]), b=cross(m[2],m[0]), c=cross(m[0],m[1]);"
+                          "float det=dot(m[0],a);if(abs(det)>0.00000001f)out.nor=(float3x3(a,b,c)*in.nor)/det;}\n"];
+#endif
     if (hasUV)  [src appendString:@"  out.uv = in.uv;\n"];
     if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@"  out.positionView = (u.mvMatrix * skinnedPosition).xyz;\n"];
     [src appendString:@"  return out;\n}\n"];
@@ -909,7 +915,7 @@ static void buildInterleavedVB(uint8_t* out, const NSUInteger stride,
 namespace mbm
 {
 #if USE_NORMAL_MAPPING_3D
-    bool normal_map::uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+    bool normal_map::uploadBackend(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
                                  const VEC2 *uv, const PREPARED &prepared)
     {
         auto *ctx = getMetalCtx();
@@ -942,7 +948,7 @@ namespace mbm
         return true;
     }
 
-    void normal_map::setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
+    void normal_map::setBackendSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
     {
         auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
         if (!backend || subset >= backend->normalMapSubsets.size()) return;
@@ -984,6 +990,9 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
+#if USE_NORMAL_MAPPING_3D
+        normal_map::discardSource(this);
+#endif
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if (backendBuffer) backendBuffer->release();
         totalSubset = 0;
@@ -1146,6 +1155,7 @@ namespace mbm
         if (!backendBuffer || !backendBuffer->vertexBuffer) return false;
 
 #if USE_NORMAL_MAPPING_3D
+        normal_map::discardSource(this);
         backendBuffer->normalMapSubsets.clear();
 #endif
         const NSUInteger stride = strideForFVF(this->fvf);
@@ -1248,9 +1258,9 @@ namespace mbm
     static uint64_t makeDefaultProgramCacheKeyMetal(const FVF_PROVIDE_BY_ENGINE fvf,
                                                      const bool useReservedLightScaffolding,
                                                      const uint32_t skeletalPaletteSize,
-                                                     const SKELETAL_SHADER_METHOD skeletalMethod)
+                                                     const SKELETAL_SHADER_METHOD skeletalMethod, const bool normalMapping)
     {
-        return static_cast<uint64_t>(fvf) |
+        return (static_cast<uint64_t>(normalMapping) << 63u) | static_cast<uint64_t>(fvf) |
             (static_cast<uint64_t>(useReservedLightScaffolding ? 1u : 0u) << 8u) |
             (static_cast<uint64_t>(skeletalMethod) << 16u) |
             (static_cast<uint64_t>(skeletalPaletteSize) << 24u);
@@ -1283,6 +1293,7 @@ namespace mbm
 
     void SHADER::onRestore()
     {
+        resetNormalMappingVariant();
         releaseShader();
     }
 
@@ -1299,6 +1310,7 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
+        resetNormalMappingVariant();
         void *backendShaderSpecific = getBackendShaderSpecific();
         if (backendShaderSpecific)
         {
@@ -1315,7 +1327,7 @@ namespace mbm
         return backendShaderSpecific != nullptr;
     }
 
-    bool SHADER::compileShader(BASE_SHADER* ptrPshader, BASE_SHADER* ptrVshader,
+    bool SHADER::compileBackend(BASE_SHADER* ptrPshader, BASE_SHADER* ptrVshader,
                                FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
                                const SKELETAL_SHADER_METHOD skeletalMethod)
     {
@@ -1342,7 +1354,7 @@ namespace mbm
         {
             const uint64_t key = makeDefaultProgramCacheKeyMetal(
                 fvf, this->shouldCompileReservedLightDefault(), skeletalPaletteSize,
-                skeletalPaletteSize > 0 ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE);
+                skeletalPaletteSize > 0 ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE, usesNormalMappingVariant());
             auto &cache = getDefaultProgramCacheMetal();
             const auto found = cache.find(key);
             if (found != cache.end())
@@ -1355,7 +1367,7 @@ namespace mbm
 
         const bool reservedLighting = this->shouldCompileReservedLightDefault() ||
             (ptrPshader && ptrPshader->fileName == "lit textured.ps");
-        const bool normalMapping = USE_NORMAL_MAPPING_3D && !ptrVshader && skeletalPaletteSize == 0 &&
+        const bool normalMapping = USE_NORMAL_MAPPING_3D && usesNormalMappingVariant() && !ptrVshader && skeletalPaletteSize == 0 &&
             fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV &&
             reservedLighting &&
             (!ptrPshader || ptrPshader->fileName == "lit textured.ps");
@@ -1457,14 +1469,24 @@ namespace mbm
                 // function).
                 const uint64_t key = makeDefaultProgramCacheKeyMetal(
                     fvf, this->shouldCompileReservedLightDefault(), skeletalPaletteSize,
-                    pair.skeletalMethod);
+                    pair.skeletalMethod, usesNormalMappingVariant());
                 getDefaultProgramCacheMetal()[key] = (__bridge_retained void*)pair;
             }
         }
         return true;
     }
 
-    bool SHADER::render(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner,
+    bool SHADER::hasNormalMappingInterface() const noexcept
+    {
+#if USE_NORMAL_MAPPING_3D
+        MBMPSOPair *pair = (__bridge MBMPSOPair *)getBackendShaderSpecific();
+        return pair && pair.normalMapping;
+#else
+        return false;
+#endif
+    }
+
+    bool SHADER::renderBackend(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
                         const uint32_t skeletalPaletteFloatCount) const
     {

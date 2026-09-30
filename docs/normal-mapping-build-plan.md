@@ -3,6 +3,9 @@
 Status: implemented in 7.324; Linux Release matrix verified. Native Windows/Apple
 verification and detailed CPU/GPU performance profiling remain pending.
 
+The subsequent optimization for enabled builds is tracked separately in
+[Geometric variants and deferred upload](normal-mapping-enabled-optimization.md).
+
 The static 3D normal-mapping feature has already shipped. Its remaining work is
 tracked in [Future Features](future-features.md#normal-mapping). This plan covers
 the selected build-time optimization, not a new delivery of static normal mapping.

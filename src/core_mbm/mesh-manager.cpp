@@ -12319,7 +12319,7 @@ namespace mbm
             const auto prepared = impl->normalMapFrames.find(currentFrame);
             if (impl->canonicalSkeleton.skeletonId == 0 && prepared != impl->normalMapFrames.end())
             {
-                if (!normal_map::uploadStatic(impl->buffer[currentFrame].pBufferGL,
+                if (!normal_map::stageStatic(impl->buffer[currentFrame].pBufferGL,
                     frame.position.get(),frame.normal.get(),frame.uv.get(),prepared->second.prepared)) return false;
                 for (uint32_t subset=0; subset<totalSubset; ++subset)
                 {

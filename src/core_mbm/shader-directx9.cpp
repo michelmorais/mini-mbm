@@ -52,7 +52,7 @@ namespace mbm
         normal_map::TANGENT tangent;
     };
 
-    bool normal_map::uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+    bool normal_map::uploadBackend(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
                                  const VEC2 *uv, const PREPARED &prepared)
     {
         if (prepared.batches.empty()) return true;
@@ -93,7 +93,7 @@ namespace mbm
         return true;
     }
 
-    void normal_map::setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
+    void normal_map::setBackendSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
     {
         auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
         if (!backend || subset >= backend->normalMapSubsets.size()) return;
@@ -533,6 +533,9 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
+#if USE_NORMAL_MAPPING_3D
+        normal_map::discardSource(this);
+#endif
         if (this->vertexStartVB)
             delete[] this->vertexStartVB;
         if (this->vertexCountVB)
@@ -925,6 +928,7 @@ namespace mbm
         if (!backendBuffer || !backendBuffer->pVertexBuffer || backendBuffer->sizeStructVertexInBytes == 0)
             return false;
 #if USE_NORMAL_MAPPING_3D
+        normal_map::discardSource(this);
         backendBuffer->releaseNormalMap();
 #endif
         for (uint32_t i = 0; i < this->totalSubset; ++i)
@@ -1154,6 +1158,7 @@ namespace mbm
 
     void SHADER::onRestore()
     {
+        resetNormalMappingVariant();
         void *backendShaderSpecific = getBackendShaderSpecific();
         static_cast<D3D_PS_VS*>(backendShaderSpecific)->release();
         this->pShader = nullptr;
@@ -1176,6 +1181,7 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
+        resetNormalMappingVariant();
         void *backendShaderSpecific = getBackendShaderSpecific();
         static_cast<D3D_PS_VS*>(backendShaderSpecific)->release();
         this->pShader         = nullptr;
@@ -1212,7 +1218,7 @@ namespace mbm
     }
 
 #endif
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
+    bool SHADER::compileBackend(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
                                const SKELETAL_SHADER_METHOD skeletalMethod)
     {
@@ -1235,7 +1241,7 @@ namespace mbm
         const bool supportsNormalMapping = SUCCEEDED(context->pd3dDevice->GetDeviceCaps(&caps)) &&
             caps.VertexShaderVersion >= D3DVS_VERSION(3,0) && caps.PixelShaderVersion >= D3DPS_VERSION(3,0) &&
             strcmp(getVSVersion(),"vs_3_0") == 0 && strcmp(getPSVersion(),"ps_3_0") == 0;
-        const bool wantsNormalMapping = !ptrVshader && skeletalPaletteSize == 0 && hasNormal && hasUV &&
+        const bool wantsNormalMapping = usesNormalMappingVariant() && !ptrVshader && skeletalPaletteSize == 0 && hasNormal && hasUV &&
             useDefaultVSWhenNoShader() && (ptrPshader || useDefaultPSWhenNoShader()) &&
             useReservedLightScaffolding && (!ptrPshader || ptrPshader->fileName == "lit textured.ps");
         const bool usesNormalMapping = wantsNormalMapping && supportsNormalMapping;
@@ -1553,6 +1559,16 @@ namespace mbm
                 output.normalView = abs(det) > 0.00000001
                     ? mul(input.normal,float3x3(c0,c1,c2))/det : input.normal;
             )HLSL";
+#if USE_NORMAL_MAPPING_3D
+        if (!usesNormalMapping && supportsNormalMapping && !ptrVshader && skeletalPaletteSize == 0 &&
+            hasNormal && hasUV && useReservedLightScaffolding)
+            defaultCodeVs += R"HLSL(
+                float3x3 m = (float3x3)mvMatrix;
+                float3 c0=cross(m[1],m[2]), c1=cross(m[2],m[0]), c2=cross(m[0],m[1]);
+                float det=dot(m[0],c0);
+                output.normalView=abs(det)>0.00000001 ? mul(input.normal,float3x3(c0,c1,c2))/det : input.normal;
+            )HLSL";
+#endif
         defaultCodeVs += " return output; }";
 
         constexpr const char* mainFunction = "main";
@@ -1772,7 +1788,17 @@ namespace mbm
     }
 
 #endif
-    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
+    bool SHADER::hasNormalMappingInterface() const noexcept
+    {
+#if USE_NORMAL_MAPPING_3D
+        const auto *shader = static_cast<const D3D_PS_VS *>(getBackendShaderSpecific());
+        return shader && shader->normalMapDeclaration != nullptr;
+#else
+        return false;
+#endif
+    }
+
+    bool SHADER::renderBackend(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
                         const uint32_t skeletalPaletteFloatCount) const
     {

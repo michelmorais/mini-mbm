@@ -736,8 +736,10 @@ remove `TextureNormal`. No file-format change is involved.
 
 The following static 3D contracts apply with `USE_NORMAL_MAPPING_3D=1`:
 
-- Loaded optional tangent batches are uploaded once into private interleaved
-  position/normal/UV buffers, tangents (interleaved or separate) and local 16-bit index buffers. Authoring
+- Optional tangent batches are staged on the CPU at load. The first supported 3D
+  draw with a normal texture, retained basis and nonzero strength uploads the
+  frame's derived position/normal/UV, tangent and local 16-bit index buffers.
+  Successful upload frees staging; subsequent draws reuse the GPU allocation. Authoring
   geometry and extraction remain unchanged. An asset with a normal map but no
   persisted basis uses the CPU preparation performed during loading.
 - Generated lit shaders and `lit textured.ps` with the generated vertex shader
@@ -761,8 +763,10 @@ The following static 3D contracts apply with `USE_NORMAL_MAPPING_3D=1`:
   without any prepared basis are not supported. Skeletal assets do not upload
   these static derived buffers.
 - Four active vertex attributes suffice for the GLES/DirectX static paths; skinning variants
-  do not consume the tangent attribute yet. Existing program-cache keys already
-  include FVF, lighting and skinning flags that determine these generated inputs.
+  do not consume the tangent attribute yet. Geometric shaders omit tangent inputs
+  and 3D mapping helpers/settings. A mapped variant is compiled lazily and selected
+  per subset; cache keys distinguish it from the geometric variant as well as FVF,
+  lighting and skinning. No-map draws use a cached activity count, not a subset scan.
   DirectX 11 keeps source vertex layouts unchanged, binds derived tangents at input
   slot 2, and supplies a zero tangent with stride zero for source draws. Reserved
   normal-map constants use pixel constant-buffer slot 3. Both shaders retain
@@ -774,8 +778,9 @@ stages; lighting slots 4-18 and skeletal palette slot 19 remain separate. Disabl
 source draws bind a zero tangent and disabled settings without reading the tangent
 array. Private shared-storage buffers are published after the complete upload;
 source extraction preserves original IB/VB subset ranges and unused vertices.
-The default program-cache key already includes the FVF, lighting and skinning flags
-that determine whether this generated variant uses normal mapping.
+The default program-cache key includes the explicit normal-mapping variant as well
+as FVF, lighting and skinning flags. Geometric variants need neither tangent
+bindings nor fallback tangent resources.
 
 DirectX 9 selects its effective shader profiles from device capabilities during
 initialization; `ps_2_0`/`vs_2_0` are initial values, not a forced runtime limit.
@@ -797,10 +802,18 @@ It restores the previous lighting target and view matrices on exit, including
 failure. The `2dw` normal-map path does not consume the stored 3D convention
 and strength settings.
 
-Normal maps and tangent sections are optional. Prepared static frames retain CPU
-and GPU tangent data even without an assigned texture; drawing then uses the
-geometric normal. Assigning a map later can use that retained basis. Preparation
-alone neither assigns a texture nor changes the silhouette.
+Normal maps and tangent sections are optional. Prepared static frames without an
+active map initially retain CPU staging but no derived GPU buffers. This trades
+additional CPU staging memory for deferred GPU allocation/upload; it is not a
+promise of lower combined CPU/GPU memory. Frames with no prepared basis have no
+staging. Assigning a map to a prepared frame later activates its lazy variant and
+upload. Removing the map or setting strength to zero selects the geometric shader;
+after first use, GPU batches remain cached until buffer release/invalidation.
+The first use uploads all prepared subsets of that frame; finer per-subset GPU
+eviction is not implemented. Mixed subsets select their matching shader, which
+may add program switches. Pure defaults still preserve their 2dw normal-map
+branch; geometric here means omission of the 3D tangent path, not removal of 2dw
+sampling. Preparation alone neither assigns a texture nor changes the silhouette.
 
 Normal-map rendering has desktop validation coverage on Linux/Mesa GLES,
 Windows DX9 SM3/DX11 and macOS Metal. This does not establish Android GLES2,

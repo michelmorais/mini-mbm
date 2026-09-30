@@ -767,6 +767,9 @@ m:load("file.mbm")   -- load mesh; returns bool
 parsing happen on a worker thread, and the callback always fires later — from the engine's normal
 per-frame update, never inline from the `loadAsync` call itself, not even when the file turns out
 to already be cached. Do not assume the mesh is ready on the line right after calling it.
+The binding retains the callback, mesh table and initiating Lua thread until completion.
+A coroutine may finish and lose its script references while the load is pending;
+its stack remains alive through the callback, including extraction/save and GC.
 
 ```lua
 m:loadAsync("file.mbm", function(self_mesh, success)

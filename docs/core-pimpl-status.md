@@ -55,10 +55,19 @@ preserve associations, and merging incompatible settings fails without mutation.
 `normal-map-upload.h` declares backend-neutral main-thread upload and settings
 hooks. Static OpenGL ES, DirectX 9 SM3, DirectX 11 and Metal rendering keep
 derived GPU buffers and draw settings in private `BUFFER_SPECIFIC::normalMapSubsets`.
-Upload occurs at asset creation for
-prepared static frames, including those without an assigned normal texture;
-rendering uses the tangent batches only when a normal texture and the supported
-lighting shader are active and strength is nonzero. Buffer release frees this
+`BUFFER_GL::BackendData` privately owns CPU staging for prepared static frames.
+The first supported 3D draw with a texture, retained basis and nonzero strength
+uploads the frame's derived batches; success frees staging geometry and its copied
+preparation. Frames never used with normal mapping retain staging instead of GPU
+allocations. Small private per-subset settings and an active count avoid scanning
+geometry or subsets for the no-map draw path. Texture/settings changes update
+activity, including the legacy subset-zero texture fallback.
+`SHADER::BackendData` owns a lazy mapped variant; the initial shader is geometric.
+GLES/Metal cache keys include variant identity (DX9 already did); custom shader
+source, skinning and 2dw keep their contracts. The private compile/render methods
+hide variant selection without adding public flags, containers or handles.
+After first use, GPU batches are retained until buffer release or invalidation so
+texture removal/reassignment does not thrash allocations. Buffer release frees this
 storage; dynamic source updates discard it. `normal-map-gles.h` contains the GLES
 shader helper; `normal-map-hlsl.h` supplies the DirectX 11 fragment helper.
 DirectX 11 owns derived vertex/index buffers per subset, releases partial uploads
