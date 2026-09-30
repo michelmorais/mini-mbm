@@ -1,7 +1,9 @@
 # Build-time normal mapping and lighting specialization
 
-Status: implemented in 7.324; Linux Release matrix verified. Native Windows/Apple
-verification and detailed CPU/GPU performance profiling remain pending.
+Status: implemented in 7.324; Linux Release and Windows DX9 SM3/DX11 Debug x86
+baseline matrices verified. Apple acceptance and detailed CPU/GPU performance profiling
+remain pending. See the completed Windows milestone in the
+[optimization plan](normal-mapping-enabled-optimization.md).
 
 The subsequent optimization for enabled builds is tracked separately in
 [Geometric variants and deferred upload](normal-mapping-enabled-optimization.md).
@@ -224,3 +226,25 @@ The [shared CPU preparation milestone](normal-mapping-enabled-optimization.md#co
 removes the runtime staging copy of tangent batches in 7.328, retaining immutable
 ownership for late upload/retry and independent authoring extraction. Geometry
 staging, per-subset upload/eviction and native acceptance remain separate work.
+
+The [first Windows milestone](normal-mapping-enabled-optimization.md#first-windows-milestone-dx11-debug-onoff-at-cap-2-2026-09-30)
+now validates 7.328 on DX11 Debug x86, normal mapping ON/OFF at light cap 2:
+18/18 integrated runner steps passed, including native debug-layer and
+post-teardown resource-lifecycle checks. A PowerShell entry-point builds/tests
+isolated configurations. Remaining light caps, DX9, Apple and native performance
+acceptance remain pending; this is not the complete Windows matrix.
+
+The subsequent [full DX11 Debug milestone](normal-mapping-enabled-optimization.md#completed-windows-milestone-full-dx11-debug-matrix-2026-09-30)
+completes all eight ON/OFF x 1..4-light configurations: 72/72 baseline steps,
+including resource-test debug-layer and post-teardown lifecycle validation.
+It combines 54 new passes at caps 1/3/4 with the verified 18 cap-2 passes above;
+engine/test sources are unchanged between those revisions. DX9 is the next
+Windows matrix milestone. Native failure/device-loss and performance acceptance
+remain pending independently of this completed Debug regression matrix.
+
+The [full DX9 SM3 Debug milestone](normal-mapping-enabled-optimization.md#completed-windows-milestone-full-dx9-sm3-debug-matrix-2026-09-30)
+now also passes all eight ON/OFF x 1..4-light configurations: 72/72 steps.
+Native MSVC compilation exposed and fixed a preprocessor directive inside a
+`FAILED` macro argument and an unguarded reset of compiled-out normal-map state.
+All entries explicitly verify SM3 capabilities/profiles. DX9 SM2 fallback is the
+next Windows milestone; device-loss and performance acceptance remain separate.

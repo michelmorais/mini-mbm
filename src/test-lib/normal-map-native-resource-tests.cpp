@@ -29,6 +29,7 @@
 #include <cstring>
 #include <string>
 #if defined(USE_DIRECTX9)
+#include <core_mbm/shader-resource.h>
 #include "specific-directx9-buffer.h"
 #elif defined(USE_DIRECTX11)
 #include "specific-directx11-buffer.h"
@@ -213,6 +214,19 @@ int runNormalMapNativeResourceTests()
     int failures = 0;
     const auto check = [&failures](bool ok, const char *message)
     { if (!ok) { ++failures; std::printf("NORMAL MAP LAZY FAIL: %s\n", message); } return ok; };
+    auto *device = DEVICE::getInstance();
+#if defined(USE_DIRECTX9)
+    // This resource suite targets SM3; SM2 fallback needs separate expectations.
+    D3DCAPS9 caps = {};
+    auto *context = device->getSpecificContextDevice();
+    if (!check(SUCCEEDED(context->pd3dDevice->GetDeviceCaps(&caps)) &&
+               caps.VertexShaderVersion >= D3DVS_VERSION(3,0) &&
+               caps.PixelShaderVersion >= D3DPS_VERSION(3,0) &&
+               std::strcmp(getVSVersion(), "vs_3_0") == 0 &&
+               std::strcmp(getPSVersion(), "ps_3_0") == 0, "DX9 SM3 capability and selected profiles"))
+        return -1;
+    std::printf("NORMAL MAP DX9 PROFILES PASS vs_3_0 ps_3_0\n");
+#endif
     const char *dir = std::getenv("MBM_NORMAL_MAP_FIXTURE_DIR");
     if (!check(dir != nullptr, "fixture directory configured")) return -1;
     auto *manager = MESH_MANAGER::getInstance();
@@ -225,7 +239,6 @@ int runNormalMapNativeResourceTests()
     MatrixIdentity(&SHADER::modelView);
     MatrixIdentity(&SHADER::mvMatrixLightSpace);
     MatrixIdentity(&SHADER::mvpMatrix);
-    auto *device = DEVICE::getInstance();
     device->setLightTargetForRender(LIGHT_TARGET_3D);
     setLightEnabled(LIGHT_TARGET_3D, true);
     SUBMISSION submission;

@@ -1922,11 +1922,13 @@ namespace mbm
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
             const bool skeletal = d3dPsVs->skeletalPaletteSize > 0;
-            if (FAILED(pd3dDevice->SetVertexDeclaration(
+            IDirect3DVertexDeclaration9 *declaration = nullptr;
 #if USE_NORMAL_MAPPING_3D
-                d3dPsVs->normalMapDeclaration ? d3dPsVs->normalMapDeclaration :
+            declaration = d3dPsVs->normalMapDeclaration;
 #endif
-                device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal))))
+            if (!declaration)
+                declaration = device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal);
+            if (FAILED(pd3dDevice->SetVertexDeclaration(declaration)))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;

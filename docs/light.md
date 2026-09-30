@@ -831,6 +831,12 @@ iOS, other-GPU or real device-loss coverage. The reusable visual scenes are
 PASS markers and backend validation diagnostics where available; successful
 compilation alone does not verify the rendered effect.
 
+The build-switch/deferred-resource regression matrices now cover all eight
+normal-mapping ON/OFF x 1..4-light combinations on Windows DX9 SM3 and DX11
+Debug x86. See the [native validation evidence](normal-mapping-enabled-optimization.md)
+for the DX9 compilation fixes, required profile checks and the limits of each
+suite. These matrices do not establish DX9 SM2 fallback or device-loss coverage.
+
 Dynamic/skinned integration, additional authoring tools and remaining validation
 are tracked in [Future Features](future-features.md#normal-mapping).
 

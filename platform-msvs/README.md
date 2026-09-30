@@ -123,6 +123,27 @@ CPU tangent authoring and 2dw normal mapping remain available. The linked engine
 reports the setting through `mbm.isNormalMapping3DCompiled()` in Lua or
 `mbm::isNormalMapping3DCompiled()` from `core_mbm/render-features.h` in C++.
 
+Build and test one isolated normal-mapping matrix entry from the repository root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 2 -Output build/normal-windows/dx11-on-2
+```
+
+The output directory must be new. The script builds `libTest` and `mini_mbm`
+with matching libraries and per-project intermediate directories, disables the
+missing-texture picker, then runs the Python regression suite. It defaults to
+Debug x86 and requires DX11 debug-layer and post-teardown lifecycle markers.
+Use `-Backend dx9`, `-Normal 0`, and `-Lights 1..4` for the other entries;
+DX9 requires its existing SDK setup; the native resource suite explicitly checks
+SM3 device capabilities and selected `vs_3_0`/`ps_3_0` profiles. SM2 fallback is a
+separate test scenario. `-Configuration Release` is supported but
+does not establish DX11 debug-layer acceptance. Python 3 (`py -3`) is required;
+pass `-Python` for a different interpreter or `-MSBuild` for an explicit tool path.
+The execution-policy override applies only to this PowerShell process.
+Build arguments/logs and `results/report.json`, test logs and PNGs remain under
+the chosen output directory. Native coverage and remaining work are tracked in
+[the optimization plan](../docs/normal-mapping-enabled-optimization.md).
+
 ---
 
 ## Build Configurations

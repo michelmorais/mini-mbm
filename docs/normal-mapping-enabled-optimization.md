@@ -71,15 +71,17 @@ so this is not a claim of a completely clean sanitizer run. The sanitizer run
 disabled leak detection and the duplicate tinyfiledialogs global registration
 check; neither suppression disables address-access checks.
 
-DirectX 9/11 and Metal follow the same private selection/staging contract but
-require native compilation, driver validation and performance measurements.
+DirectX 9/11 and Metal follow the same private selection/staging contract.
+The DX9 SM3 and DX11 Debug baseline matrices are now validated below; Metal
+acceptance and native performance measurements remain pending.
 Linux measurements do not establish native-backend or mobile-device coverage.
 
 ## Next milestone: native backend regression matrix
 
-Status: test infrastructure prepared; native Windows/macOS compilation and execution
-are **pending**. This milestone validates 7.327 and must not be inferred complete
-from the earlier build-switch matrix.
+Status: the complete DX9 SM3 and DX11 Debug x86 baseline matrices are validated
+with 7.328 plus the DX9 compilation fixes below. macOS acceptance remains
+**pending**. This does not establish SM2 fallback, native failure/device-loss or
+performance acceptance.
 
 - [x] Keep the GLES native resource inspection command and implement the same
   `--normal-map-lazy-resource-test` entry point for DX9, DX11 and Metal.
@@ -91,11 +93,15 @@ from the earlier build-switch matrix.
   backend against both testLib and the Lua engine before render tests.
 - [x] Complete the Linux/GLES baseline matrix for the enabled-build optimization:
   all eight configurations and 72 runner steps pass (see results below).
-- [ ] Compile and run all eight `USE_NORMAL_MAPPING_3D=0/1` x
-  `SUPPORTED_MAX_LIGHTS=1/2/3/4` entries on Windows DX9 SM3, Windows DX11 and
-  macOS Metal. Run macOS GLES separately if that backend is shipped.
-- [ ] Run DX11 Debug with the Windows Graphics Tools debug layer, including
-  post-teardown live-object checks; run Metal with API validation enabled.
+- [x] Compile and run all eight `USE_NORMAL_MAPPING_3D=0/1` x
+  `SUPPORTED_MAX_LIGHTS=1/2/3/4` entries on Windows DX11 Debug x86: 72/72 steps.
+- [x] Compile and run the same eight entries on Windows DX9 SM3 Debug x86:
+  72/72 steps, with explicit SM3 capability/profile checks.
+- [ ] Compile and run the same eight entries on macOS Metal. Run macOS GLES
+  separately if that backend is shipped.
+- [x] Run the DX11 native resource test with the Windows Graphics Tools debug
+  layer, including post-teardown live-object checks, in all eight entries.
+- [ ] Run Metal with API validation enabled.
 - [ ] Inspect native shader inputs/instructions and Metal pipeline identity using
   GPU captures. The Metal resource test does not introspect bound pipeline state.
 - [x] Exercise controlled full EGL context destruction/recreation through the
@@ -556,3 +562,179 @@ Local reports: `/tmp/mbm-shared-staging-on/report.json`,
 `/tmp/mbm-shared-staging-benchmark/report.json` (ephemeral). Reproduce using the
 existing suite and benchmark commands, after building matching 7.328 snapshots.
 Debug outputs were untouched; shared Release outputs were restored to ON, cap 2.
+
+
+## First Windows milestone: DX11 Debug ON/OFF at cap 2 (2026-09-30)
+
+Validated engine 7.328 at source commit
+`05db41c1e730119556af11ff2c0e021e3bc48340` using Visual Studio 2026
+(MSVC v145), Debug x86, DirectX11 feature level 11_0, PortAudio and Python 3.14.5.
+Both `MbmUseNormalMapping3D=1` and `0`, with `MbmSupportedMaxLights=2`, compiled
+and passed all nine integrated runner steps: **18/18 passed**. The missing-texture
+picker was disabled through the command-line `MbmCoreFeatureDefines` override.
+No production engine changes were required.
+
+Both entries passed build identity, CPU preparation, persistence, Lua capability,
+native resources, async runtime/GC, readback and indexed/non-indexed visual tests.
+The native resource tests emitted both DX11 debug-layer and post-teardown
+resource-lifecycle success markers. These markers apply to that C++ test; the
+Lua visual suite still has no separate info-queue validation hook.
+
+The enabled three-vertex fixture had zero derived buffer payload before effective
+use and 150 bytes after use, and passed resource reuse, shader selection/restore,
+late assignment and dynamic invalidation assertions. The disabled entry passed
+the geometric fallback and no-derived-upload contract. Both preserved 2dw mapping.
+Enabled indexed/non-indexed images had a mean detail difference of 1.9323 from
+the baseline, and zero difference after strength zero or map removal. These are
+regression metrics, not performance measurements.
+
+`platform-msvs/run-normal-map-tests.ps1` now builds and verifies one entry in a
+new output directory. It isolates executable/library outputs and per-project
+intermediates using an imported test-only MSBuild property file, preserving the
+usual development outputs and local backend preferences. Debug DX11 automatically
+requires native validation markers. The four Python runner unit checks also passed.
+
+From the repository root, reproduce with new output paths:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 2 -Output build/normal-windows/dx11-on-2-new
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 0 -Lights 2 -Output build/normal-windows/dx11-off-2-new
+```
+
+Local evidence is retained in `build/normal-windows/dx11-on-2/results/report.json`
+and `build/normal-windows/dx11-off-2/results/report.json`, with adjacent suite
+logs and PNGs; their parent directories retain build logs and isolated binaries.
+These ignored build artifacts are local evidence, not committed fixtures.
+
+This first milestone covered the Windows DX11 baseline and its Debug validation
+check at cap 2 only. Caps 1/3/4 are completed in the subsequent milestone below.
+The DX9 matrix/SM2 fallback, Windows skeletal parity,
+native failure injection/device loss, shader instruction/capture analysis and
+Release performance measurements remain pending, as does macOS acceptance.
+The full native-matrix checklist above is intentionally still open.
+
+
+## Completed Windows milestone: full DX11 Debug matrix (2026-09-30)
+
+Engine 7.328 now passes all eight DX11 Debug x86 configurations, with normal
+mapping ON/OFF and light caps 1..4: **72/72 integrated runner steps passed**.
+The six new entries at caps 1/3/4 contributed 54 passes at commit
+`1a2acbff8fb8fc62df295460664c3ca771410638`. The cap-2 results are the 18 passes
+from the first Windows milestone above, not newly executed tests. The commits
+differ only in documentation and the PowerShell runner; engine/test sources are
+unchanged. All eight entries' executable/DLL hashes were verified against their
+retained manifests before combining the evidence. No production changes were
+required, and normal development outputs were untouched.
+
+| `MbmUseNormalMapping3D` | `MbmSupportedMaxLights` | Steps | DX11 resource debug/lifecycle checks |
+|---|---|---|---|
+| 0 | 1 | 9/9 PASS | PASS |
+| 0 | 2 | 9/9 PASS (previous milestone) | PASS |
+| 0 | 3 | 9/9 PASS | PASS |
+| 0 | 4 | 9/9 PASS | PASS |
+| 1 | 1 | 9/9 PASS | PASS |
+| 1 | 2 | 9/9 PASS (previous milestone) | PASS |
+| 1 | 3 | 9/9 PASS | PASS |
+| 1 | 4 | 9/9 PASS | PASS |
+
+Each entry verifies C++/Lua build identity, CPU preparation, persistence, native
+lazy resources, async runtime/GC, readback and indexed/non-indexed visual behavior.
+Lua build checks validate both 3d/2dw light caps, reject requests above the cap,
+and inspect reserved shader loop/array lengths and normal-map source removal.
+The native resource test passes with both required debug-layer and post-teardown
+lifecycle markers in every entry. This remains resource-test validation, not
+info-queue coverage for the Lua visual scenes or shader instruction analysis.
+
+Toolchain/configuration matches the first milestone: Visual Studio 2026/MSVC
+v145, Debug x86, DX11 feature level 11_0, PortAudio, Python 3.14.5 and no
+missing-texture picker. Reproduce a fresh complete matrix from the repository root:
+
+```powershell
+foreach ($normal in 0, 1) {
+    foreach ($lights in 1, 2, 3, 4) {
+        powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal $normal -Lights $lights -Output "build/normal-windows/recheck-dx11-$normal-$lights"
+        if ($LASTEXITCODE -ne 0) { throw "DX11 entry failed: normal=$normal lights=$lights" }
+    }
+}
+```
+
+Output directories must be new. Local reports are
+`build/normal-windows/dx11-{on,off}-{1,2,3,4}/results/report.json`, with suite logs,
+PNG comparisons, build logs and binary hash manifests alongside. The consolidated
+local `build/normal-windows/dx11-matrix-summary.json` records all eight entries,
+source revisions and validation/hash checks. These are ignored local artifacts.
+
+The subsequent milestone below completes the DX9 SM3 matrix. DX9 SM2 fallback, native skeletal
+parity, failure injection/device loss, GPU capture/instruction analysis, Release
+measurements and macOS acceptance remain separate outstanding work. This Debug
+matrix establishes regression coverage, not an FPS or memory-performance gain.
+
+
+## Completed Windows milestone: full DX9 SM3 Debug matrix (2026-09-30)
+
+All eight DX9 SM3 Debug x86 entries now pass: **72/72 integrated runner steps**,
+normal mapping ON/OFF at light caps 1..4. Validation used base commit
+`404092d313eb822620c705901e9b834e5f711e15` (engine 7.328) plus the two production
+compilation fixes and the test-only SM3 assertion delivered with this milestone.
+Visual Studio 2026/MSVC v145, the existing DirectX June 2010 SDK, PortAudio,
+Python 3.14.5 and the disabled missing-texture picker match the isolated Windows
+runner setup. No public API, ownership boundary or asset format changed.
+
+Native compilation exposed two previously unverified DX9 defects:
+
+| Defect | Fix | Verification |
+|---|---|---|
+| A `#if` inside the argument of the `FAILED` macro in the indexed vertex-declaration path failed MSVC preprocessing | Select the declaration in a local pointer before the macro call; retain lazy fallback lookup | All eight native builds and indexed visual/resource tests pass |
+| `SPECIFIC_AUX_CONTEXT_DEVICE::release()` reset `normalMapUnsupportedReported` even when its field was compiled out | Guard the reset with the same `USE_NORMAL_MAPPING_3D` condition as the field | All four OFF builds and suites pass |
+
+The native resource suite now explicitly requires device support for SM3 and
+selected `vs_3_0`/`ps_3_0` profiles, emitting
+`NORMAL MAP DX9 PROFILES PASS vs_3_0 ps_3_0`. This check runs in both ON and OFF
+entries. It does not exercise forced SM2 fallback or inspect shader instructions.
+
+| `MbmUseNormalMapping3D` | `MbmSupportedMaxLights` | Steps | SM3 profiles |
+|---|---|---|---|
+| 0 | 1 | 9/9 PASS | PASS |
+| 0 | 2 | 9/9 PASS | PASS |
+| 0 | 3 | 9/9 PASS | PASS |
+| 0 | 4 | 9/9 PASS | PASS |
+| 1 | 1 | 9/9 PASS | PASS |
+| 1 | 2 | 9/9 PASS | PASS |
+| 1 | 3 | 9/9 PASS | PASS |
+| 1 | 4 | 9/9 PASS | PASS |
+
+Every entry passed C++/Lua build identity, preparation, persistence, native
+resources, async runtime/GC, readback and indexed/non-indexed visual tests.
+The enabled resource fixture reports zero derived payload before use and 150
+bytes after first use; shader/cache identity, reuse, late assignment, shader
+restore and dynamic invalidation checks pass. Disabled builds retain geometric
+3D shading and 2dw mapping. At cap 2, enabled indexed images have mean detail
+difference 1.8088 and zero difference after strength zero or map removal.
+These are regression checks, not performance measurements. Unlike the DX11
+resource suite, this DX9 run does not claim debug-layer/live-object validation.
+
+Reproduce from the repository root with new output directories:
+
+```powershell
+foreach ($normal in 0, 1) {
+    foreach ($lights in 1, 2, 3, 4) {
+        powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx9 -Normal $normal -Lights $lights -Output "build/normal-windows/recheck-dx9-$normal-$lights"
+        if ($LASTEXITCODE -ne 0) { throw "DX9 entry failed: normal=$normal lights=$lights" }
+    }
+}
+```
+
+Local evidence: `build/normal-windows/dx9-matrix-summary.json` lists all eight
+reports and verified binary hashes. Entry directories are
+`dx9-{on,off}-{1,2,3,4}` beneath that directory; final ON cap-1/2 reports use
+`results-verified/report.json`, and the other six use `results/report.json`.
+Logs, PNGs and binaries remain adjacent. The initial cap-2 build failures are
+preserved as `build-before-fix.log` in their respective entries. The retained
+`dx9-validation.patch` and `dx9-source-hashes.json` identify the tested changes.
+All artifacts are ignored local evidence; normal development outputs were untouched.
+
+The next Windows milestone is explicit DX9 SM2 fallback verification. Native
+skeletal parity, failure injection/device loss, shader capture/instruction
+analysis and Release performance measurements remain pending, as does macOS
+acceptance. The earlier DX11 matrix is retained as its recorded evidence; this
+DX9-only production fix does not claim a new DX11 matrix run.
