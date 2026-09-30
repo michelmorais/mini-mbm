@@ -20,6 +20,7 @@
 
 ]]--
 
+local testApi=...
 tImGui=require 'ImGui'
 tUtil=require 'editor_utils'
 local Height=require 'height_map_source'
@@ -210,4 +211,6 @@ function onEndScene()
     for _,axis in ipairs(E.axes or {}) do axis:destroy() end
     E.image=nil;E.result=nil
 end
-return E
+-- Global-callback scenes must not return a table: the launcher interprets it as
+-- a class-style scene and would skip the global onInitScene callback.
+if type(testApi)=='table' then testApi.state=E end

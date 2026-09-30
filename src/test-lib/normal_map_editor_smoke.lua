@@ -22,7 +22,9 @@
 
 -- Run from the repository root with --disable_select_monitor --nosplash.
 package.path='editor/?.lua;'..package.path
-local E=dofile('editor/normal_map_editor.lua')
+local api={}
+assert(assert(loadfile('editor/normal_map_editor.lua'))(api)==nil,'Editor returned a class-style scene')
+local E=api.state
 local init,loop,shutdown=onInitScene,onLoop,onEndScene
 local root='/tmp/mini-mbm-normal-smoke'
 local source=root..'/source.png'

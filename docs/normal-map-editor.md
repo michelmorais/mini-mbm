@@ -138,14 +138,21 @@ tratar imagens grandes como um fluxo interativo.
 
 ```sh
 ./bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/normal_map_generator_test.lua
+timeout -s KILL 15 ./bin/debug/linux_x86/mini-mbm \
+  --scene src/test-lib/normal_map_launcher_smoke.lua \
+  --disable_select_monitor --nosplash -w 1180 -h 800
 timeout -s KILL 35 ./bin/debug/linux_x86/mini-mbm \
   --scene src/test-lib/normal_map_editor_smoke.lua \
   --disable_select_monitor --nosplash -w 1180 -h 800
 ```
 
 O teste gráfico exige display e build com `USE_TEXTURE_MISSING_DIALOG=0`.
+O teste de launcher usa `__onLoadScene` da engine e verifica a inicialização antes
+de desenhar os painéis. A cena usa callbacks globais e não retorna uma tabela:
+retornar uma tabela faria o launcher selecionar o contrato de cena por métodos.
 Fixtures e PNG exportado ficam em `/tmp/mini-mbm-normal-smoke` para inspeção.
-Verifique o marcador `NORMAL MAP EDITOR SMOKE PASS` e a ausência de erros no log;
+Verifique os marcadores `NORMAL MAP LAUNCHER SMOKE PASS` e
+`NORMAL MAP EDITOR SMOKE PASS` nos respectivos testes e a ausência de erros no log;
 o código de saída da engine sozinho não comprova ausência de erros Lua.
 
 Validado em Linux/GLES: compilação, altura constante, rampas X/Y, inversão,
