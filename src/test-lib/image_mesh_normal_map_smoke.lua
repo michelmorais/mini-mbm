@@ -35,6 +35,19 @@ local calls=0
 mbm.startImageMesh=function(...) calls=calls+1;return native(...) end
 local function wait() repeat coroutine.yield() until not E.meshTask and not E.normalDirty end
 local function pixels(path) return assert(mbm.readImagePixels(path)) end
+local function surface(asset)
+    local vertices,indices=require('image_mesh_asset').geometry(asset)
+    local triangles={}
+    for i=1,#indices,3 do
+        local corners={}
+        for j=i,i+2 do
+            local v=vertices[indices[j]]
+            corners[#corners+1]=string.format('%.6f/%.6f/%.6f/%.6f/%.6f',v.x,v.y,v.z,v.u,v.v)
+        end
+        table.sort(corners);triangles[#triangles+1]=table.concat(corners,';')
+    end
+    table.sort(triangles);return table.concat(triangles,'\n')
+end
 local function test()
     assert(mbm.createDirectories(root));mbm.addPath(root)
     local rows={}
@@ -58,7 +71,9 @@ local function test()
     assert(asset:getMaterialTexture(1,1,'normal'))
     assert(not asset:getMaterialTexture(1,2,'normal') and not asset:getMaterialTexture(1,3,'normal'))
     local vertices=asset:getVertex(1,1,1,asset:getTotalVertex(1,1))
-    for _,v in ipairs(vertices) do assert(math.abs(v.z-vertices[1].z)<1e-5,'Normal mode displaced geometry') end
+    local minZ,maxZ=math.huge,-math.huge
+    for _,v in ipairs(vertices) do minZ=math.min(minZ,v.z);maxZ=math.max(maxZ,v.z) end
+    assert(maxZ-minZ>.01,'Normal map flattened authored relief')
     local mapPath
     for _,record in pairs(E.normalResources) do mapPath=record.path end
     local before,w,h=mbm.readImagePixels(mapPath);assert(w==48 and h==32,'UV atlas size')
@@ -85,7 +100,7 @@ local function test()
     assert(calls==geometryCalls and E.preview==object,'Undo rebuilt geometry')
     assert(pixels(mapPath)==before,'Undo did not restore normal map')
     assert(api.action(function(p) p.defaults.normalMapConvention='-Y';p.defaults.heightSource='manual';p.defaults.baseHeight=.5 end));wait()
-    assert(calls==geometryCalls,'Height-source edit rebuilt geometry')
+    assert(calls>geometryCalls,'Height-source edit did not rebuild geometry')
     assert(E.preview:getNormalMapSettings(1)=='-Y')
     local neutral=pixels(mapPath)
     local offset=((10-1)*48+16-1)*4+1
@@ -113,7 +128,7 @@ local function test()
     local batchAsset=meshDebug:new();assert(batchAsset:load(batchPath))
     assert(IO.exists(batchDir..'/'..batchAsset:getMaterialTexture(1,1,'normal')),'Batch normal texture missing')
     -- Native splitting must preserve existing geometry/UVs and handle an open back.
-    local o=Model.geometryOptions(Model.options(E.project,E.project.regions[1]));o.backOpen=true
+    local o=Model.geometryOptions(Model.options(E.project,E.project.regions[1]));o.backOpen=true;o.separateFront=true
     local open,err=mbm.generateImageMesh(source,o);assert(open,err)
     assert(open:getTotalSubset(1)==2,'Open back created an empty subset')
     -- Mixed source, painted areas and a hole use the shared height raster.
@@ -123,6 +138,22 @@ local function test()
     local owner={}
     local generated,report=Build.generate(owner,E.project,region);assert(generated,report)
     assert(generated:getMaterialTexture(1,1,'normal'))
+    Normal.shutdown(owner)
+    -- Material splitting must not influence adaptive geometry or QEM constraints.
+    local preserved=Model.copy(E.project)
+    preserved.defaults.heightSource='mixed';preserved.defaults.followImage=true
+    preserved.defaults.simplify=true;preserved.defaults.simplifyRatio=.15
+    preserved.defaults.columns=12;preserved.defaults.rows=12
+    preserved.defaults.sideMode='band'
+    local preservedRegion=preserved.regions[1]
+    preservedRegion.heightAreas=Model.copy(region.heightAreas)
+    preservedRegion.overrides.reliefMode='geometry'
+    local without=assert(Build.generate({},preserved,preservedRegion))
+    local owner={}
+    preservedRegion.overrides.reliefMode='normal'
+    local with=assert(Build.generate(owner,preserved,preservedRegion))
+    assert(surface(without)==surface(with),'Normal material changed geometry or UVs after QEM')
+    assert(with:getMaterialTexture(1,1,'normal'))
     Normal.shutdown(owner)
     -- Assembly previews also update their material without replacing geometry.
     api.setAssembly(true);wait()

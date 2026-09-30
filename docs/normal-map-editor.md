@@ -1,8 +1,9 @@
 # Gerador de Normal Map
 
 Primeira entrega do [plano](normal-map-editor-plan.md), introduzida em 7.329.
-Editor independente com módulos Lua compartilhados. A integração ao Image Mesh
-e o modo combinado de geometria e normal map ainda não estão implementados.
+Editor independente com módulos Lua compartilhados. O Image Mesh reutiliza esses
+módulos e, desde 7.332, preserva o relevo geométrico ao acrescentar normal map.
+A distribuição automática entre relevo geométrico e detalhe residual ainda é futura.
 
 ## Uso
 

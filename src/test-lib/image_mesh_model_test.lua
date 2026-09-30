@@ -164,7 +164,7 @@ M.validateOptions({normalMapBlur=1.5},false)
 normalOptions.reliefMode='normal';normalOptions.heightSource='curved';normalOptions.voxelized=true
 normalOptions.heightEdits={};normalOptions.curvedNodes={}
 local geometry=M.geometryOptions(normalOptions)
-assert(geometry.relief==0 and geometry.heightSource=='manual' and not geometry.voxelized)
-assert(geometry.separateFront and not geometry.heightEdits and not geometry.curvedNodes)
+assert(geometry.relief==normalOptions.relief and geometry.heightSource=='curved' and geometry.voxelized)
+assert(not geometry.separateFront and geometry.heightEdits and geometry.curvedNodes)
 assert(normalOptions.heightSource=='curved' and normalOptions.voxelized,'Authored parameters changed')
 print('IMAGE MESH NORMAL SETTINGS / LEGACY PROJECT OK')

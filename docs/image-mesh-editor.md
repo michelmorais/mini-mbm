@@ -38,10 +38,12 @@ appear only while enabled. Choose the height source in **Relief and grooves**,
 adjust the settings, then **Apply** and turn off **Edit mode** to see the 3D result.
 The saved setting automatically generates and assigns the front normal texture and
 prepares its tangents whenever the mesh is built, including export. There is no
-separate tangent-preparation checkbox. Disabling normal mapping restores geometry
-relief and keeps the normal settings for reuse. Existing projects default to
-geometry relief. The exclusive normal mode keeps a flat extrusion with the region's
-contour, holes and depth; height does not displace vertices or change collision.
+separate tangent-preparation checkbox. Disabling normal mapping removes the added lighting effect and keeps its settings
+for reuse. Existing projects default to geometry without normal mapping. Enabling
+normal mapping preserves authored relief, areas, adaptive geometry, curved/voxel
+settings and simplification. Geometry finishes processing before material splitting
+and tangent preparation, preserving triangle positions and UVs. Material/tangent
+seams can duplicate vertices without changing the surface.
 Front, back and walls have separate material subsets. Only the front gets the normal
 texture; back and side materials keep their existing behavior.
 
@@ -58,8 +60,7 @@ geometry scans, generation or uploads for this comparison.
 Image, external height image, manual, mixed and curved sources use the same native
 processed height raster as the height preview, including levels, areas and brushes.
 The shared Lua normal generator applies blur, strength and `+Y/-Y` convention.
-Source transparency and the region mask exclude invalid samples. Voxel/follow-image
-geometry and curved volume are not applied in this mode. The generated normal map
+Source transparency and the region mask exclude invalid samples. The generated normal map
 is a full-source-sized atlas with neutral normals outside the region, preserving
 front UVs. Texture strength is baked once; material strength stays at 1 and the
 material convention matches the generated channels.
@@ -68,9 +69,10 @@ The project persists `reliefMode` (`geometry` or `normal`), `normalMapStrength`
 (0..16, default 1), `normalMapBlur` (0..32, default 0; rounded to pixels during generation),
 `normalMapConvention` (`+Y` default or `-Y`) and `normalMapEdge` (`clamp` default
 or `repeat`) in defaults/region overrides. Generated PNGs are temporary and are
-recreated from project inputs. Changing height/normal settings, including Undo,
-updates the texture without rebuilding geometry in single and assembly previews.
-Changing contour, dimensions, holes, materials or geometry settings can rebuild it.
+recreated from project inputs. Changing only normal strength, blur, convention or
+edge settings, including Undo, updates the texture without rebuilding geometry.
+Changing height inputs now rebuilds geometry as well as the normal map. Toggling
+normal mapping rebuilds material groups while preserving the generated surface.
 No generation or texture upload runs while idle. Processing supports cancellation;
 PNG encoding/upload remains synchronous, with the large-image limitations documented
 in [the generator manual](normal-map-editor.md).
@@ -79,12 +81,15 @@ Individual and batch exports package generated textures beside the `.msh`, inclu
 ordinary exports, as `<mesh>_normal_01.png`. Portable export also packages diffuse
 textures; cropping uses matching bounds/padding for diffuse and normals and regenerates
 tangents after UV remapping. Projects opened by Mesh Debug use the same build module.
-The combined geometry-plus-normal mode remains a later milestone.
+The normal texture adds detail from the processed height on top of geometric
+normals. Automatic removal of relief already represented by the mesh (residual
+normal baking) is not implemented; strength controls the added lighting effect.
 
-Validation on Linux/GLES: `src/test-lib/image_mesh_normal_map_smoke.lua` checks flat
-geometry, separate materials, atlas dimensions, texture-only updates and Undo,
+Validation on Linux/GLES: `src/test-lib/image_mesh_normal_map_smoke.lua` checks preserved
+relief, separate materials, atlas dimensions, texture-only updates and Undo,
 manual/mixed/curved height, holes, persistence, both exports, portable tangents,
-assembly updates, cancellation, mode switching and idle behavior. Run with the
+assembly updates, cancellation, mode switching, identical triangle/UV surfaces
+after adaptive QEM simplification with/without normal mapping, and idle behavior. Run with the
 engine test flags described in [the generator manual](normal-map-editor.md).
 Other rendering backends have not been exercised for this integration.
 

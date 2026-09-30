@@ -2258,7 +2258,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `backTexture` | nil | Image path for backExternal; nil/empty uses original crop. Nonempty paths must decode and contain at most 16 million pixels |
 | `backSolid` | false | Flat opaque back with a separate solid-color material |
 | `backColor` | 0x808080 | RGB integer 0..0xFFFFFF, encoded as `#RRGGBBFF` when backSolid is true |
-| `separateFront` | false | Separate front, back and walls into material subsets while preserving positions and UVs. With `backOpen`, only front and walls are emitted. Used by Image Mesh normal-map relief to isolate the front material |
+| `separateFront` | false | Separate front, back and walls into material subsets while preserving positions and UVs. With `backOpen`, only front and walls are emitted. Low-level option; the editor splits normal-map materials after geometry processing to preserve simplification results |
 | `backOpen` | false | Omit back vertices/triangles, retaining front and side walls ending at `+depth/2` |
 | `backRemap` | false | Flat back sampling an independent rectangle in the same source image |
 | `backX`, `backY` | 0 | Remap rectangle's zero-based top-left source pixel |
@@ -3019,8 +3019,8 @@ longer exposed as a separate editor checkbox. When this legacy setting is enable
 the shared build pipeline prepares all
 subsets after simplification, for preview and export. Preparation runs on a build or
 explicit user action, never continuously while an editor is idle. Preparation alone
-does not assign a normal texture. Image Mesh also supports exclusive `reliefMode="normal"`,
-which generates a front normal texture and prepares its tangents automatically,
+does not assign a normal texture. Image Mesh also supports additive `reliefMode="normal"`,
+which preserves geometric relief, generates a front normal texture and prepares its tangents automatically,
 regardless of `normalMapPrecompute`. Project fields and export behavior are described
 in [Image Mesh Editor](image-mesh-editor.md#normal-map-relief). These are editor
 project settings, not native `generateImageMesh` options. Static lit rendering on OpenGL ES, DirectX 9 SM3,

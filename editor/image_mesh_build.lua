@@ -71,7 +71,11 @@ function M.generate(E,project,region,callbacks)
     report.triangleLimit=options.maxTriangles
     Simplify.apply(E,asset,options,report)
     if options.normalMapPrecompute and authored.reliefMode~='normal' then report.normalMap=require('normal_map_authoring').precompute(asset) end
-    Normal.apply(E,asset,project,region,authored)
+    asset=Normal.apply(E,asset,project,region,authored)
+    if authored.reliefMode=='normal' then
+        report.vertices=0
+        for subset=1,asset:getTotalSubset(1) do report.vertices=report.vertices+asset:getTotalVertex(1,subset) end
+    end
     return asset,report,options,vertices
 end
 

@@ -36,8 +36,9 @@ function M.sameGeometry(a,b)
     if not a or not same(a.image,b.image) or #a.regions~=#b.regions then return false end
     for i,r in ipairs(a.regions) do
         local nextRegion=b.regions[i]
-        if r.id~=nextRegion.id or not same(Model.geometryOptions(Model.options(a,r)),
-            Model.geometryOptions(Model.options(b,nextRegion))) then return false end
+        local oldOptions,newOptions=Model.options(a,r),Model.options(b,nextRegion)
+        if r.id~=nextRegion.id or oldOptions.reliefMode~=newOptions.reliefMode
+            or not same(Model.geometryOptions(oldOptions),Model.geometryOptions(newOptions)) then return false end
     end
     return true
 end
@@ -218,11 +219,13 @@ function M.texture(E,...)
     return result
 end
 function M.apply(E,asset,project,region,o)
-    if o.reliefMode~='normal' then return end
+    if o.reliefMode~='normal' then return asset end
+    asset=require('image_mesh_normal_material').split(asset)
     local path=M.texture(E,project,region,o)
     assert(asset:setMaterialTexture(1,1,'normal',path))
     assert(asset:setNormalMapSettings(1,1,o.normalMapConvention,1))
     assert(asset:prepareNormalMap(1,1,'generate'))
+    return asset
 end
 function M.refresh(E)
     E.normalDirty=nil

@@ -1,12 +1,14 @@
 # Plano: editor gerador de normal maps
 
 Status: entregas 1 e 2 implementadas (editor independente, módulos Lua e
-integração exclusiva por normal map ao Image Mesh). Modo combinado pendente.
+integração ao Image Mesh). No uso real, o checkbox foi revisado para preservar a
+geometria e acrescentar normal map. Separação automática de frequências/relevo
+residual permanece pendente.
 
 Este documento registra o escopo e a sequência de implementação. Consulte
 [o manual do gerador](normal-map-editor.md) para os contratos implementados,
 limitações e validação do gerador. A integração implementada está descrita em
-[Image Mesh Editor](image-mesh-editor.md#normal-map-relief); o modo combinado
+[Image Mesh Editor](image-mesh-editor.md#normal-map-relief); o processamento residual
 continua planejado.
 
 ## Objetivo
@@ -28,9 +30,9 @@ inspecionar e ajustar a altura antes de gerar as normais.
 
 1. Gerador independente, com módulos compartilhados e um fluxo completo de
    abertura, ajuste, preview, persistência e exportação.
-2. Integração ao Image Mesh, inicialmente com aplicação exclusiva por normal map.
-3. Modo combinado de geometria e normal map, após definir e validar a distribuição
-   do relevo entre os dois mecanismos.
+2. Integração ao Image Mesh, preservando a geometria ao habilitar normal map.
+3. Distribuição automática do relevo entre geometria e normal map residual,
+   evitando reforçar detalhes já representados pela malha.
 
 ## Etapa 1: verificar a infraestrutura
 
@@ -131,10 +133,10 @@ Reutilizar o painel e o gerador, respeitando recortes, UVs, regiões e configura
 persistidas. Alterar apenas o normal map não deverá reconstruir a geometria.
 Definir como os arquivos gerados acompanham o projeto e os assets exportados.
 
-O modo combinado deverá reservar geometria para volumes maiores e normal map
-para detalhes finos. Sua implementação depende de uma regra explícita que evite
-aplicar duas vezes o mesmo relevo; será posterior à validação do modo exclusivo de
-normal map.
+A integração atual preserva a geometria e acrescenta normal map ao material da
+frente. Uma evolução deverá reservar geometria para volumes maiores e normal map
+para detalhes residuais, evitando reforçar na iluminação o relevo já representado
+pela malha. Essa separação automática permanece planejada.
 
 ## Etapa 6: validação e conclusão
 

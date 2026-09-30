@@ -94,17 +94,9 @@ function M.options(project,region)
     end
     return o
 end
--- Native geometry input is independent of all height processing in normal-only mode.
+-- Normal mapping adds a material; all authored geometry settings remain active.
 function M.geometryOptions(options)
     local o=M.copy(options)
-    if o.reliefMode=='normal' then
-        for k,v in pairs(M.heightDefaults) do o[k]=v end
-        for k,v in pairs(M.grooveDefaults) do o[k]=v end
-        o.heightSource='manual';o.baseHeight=0;o.relief=0;o.invert=false
-        o.lockBorder=false;o.borderWidth=0;o.backRelief=false
-        o.heightEdits=nil;o.heightAreas=nil;o.curvedNodes=nil
-        o.separateFront=true;o.normalMapPrecompute=true
-    end
     o.reliefMode=nil;o.normalMapStrength=nil;o.normalMapBlur=nil;o.normalMapConvention=nil;o.normalMapEdge=nil
     return o
 end
