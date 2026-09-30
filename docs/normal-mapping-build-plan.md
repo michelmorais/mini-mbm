@@ -1,11 +1,11 @@
 # Build-time normal mapping and lighting specialization
 
 Status: implemented in 7.324; Linux Release and Windows DX9 SM3/DX11 Debug x86
-baseline matrices verified. Windows functional validation is closed and further
-test expansion is deferred by the 2026-09-30 scope decision. The next active
-step is native macOS Metal acceptance. Detailed CPU/GPU performance profiling
-remains pending separately. See the
-[current scope and macOS handoff](normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30).
+baseline matrices verified, together with macOS Metal Debug arm64 (72/72 steps).
+Windows test expansion remains deferred by the 2026-09-30 scope decision. Metal
+API validation, native pipeline checks and targeted ON/OFF captures are recorded.
+Detailed CPU/GPU performance profiling remains pending separately. See the
+[current scope and completed macOS handoff](normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30).
 
 The subsequent optimization for enabled builds is tracked separately in
 [Geometric variants and deferred upload](normal-mapping-enabled-optimization.md).
@@ -341,3 +341,19 @@ runner and Metal API validation. Follow the bounded
 [macOS handoff](normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30).
 Native performance measurements remain planned separately; broader fault
 injection and device-loss testing are deferred and do not block this baseline.
+
+## macOS Metal functional baseline (2026-09-30)
+
+The bounded native Metal handoff above is complete on Apple M4 / macOS 26.6.2:
+Debug arm64 ON/OFF x caps 1/2/3/4 passes **72/72 integrated steps**, with actual
+Metal API validation activation in every graphical suite. Native encoder checks
+verify geometric/mapped selection, reuse, shared cache, restore and invalidation.
+Cap-2 ON/OFF GPU captures confirm the generated MSL interface and light-loop cap.
+
+A CMake fix enables Objective-C++ for Metal and retains C++17/build flags; test
+instrumentation adds optional capture and native pipeline observation. No engine
+rendering behavior changed and version remains 7.328. Captures also expose an
+existing difference: ON geometric MSL includes inverse-transpose normals while
+OFF retains the direct transform. The matrix does not prove cross-build pixel
+parity for arbitrary nonuniform scales. GPU disassembly and performance profiling
+remain pending separately. See the [Metal results and reproduction steps](normal-mapping-enabled-optimization.md#completed-macos-milestone-metal-baseline-and-captures-2026-09-30).

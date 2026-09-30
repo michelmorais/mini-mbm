@@ -161,6 +161,8 @@ def main():
             if args.backend == 'dx11' and args.require_native_validation:
                 markers = ('DirectX 11 debug-layer validation passed',
                            'DirectX 11 resource-lifecycle validation passed')
+            elif args.backend == 'metal' and args.require_native_validation:
+                markers = ('Metal API Validation Enabled', 'NORMAL MAP METAL PIPELINES PASS')
             run('resources', [test_lib, '--normal-map-lazy-resource-test'],
                 'NORMAL MAP LAZY RESOURCES PASS', required=markers)
             if args.skeletal_parity:

@@ -41,9 +41,58 @@
 #include "specific-metal-buffer.h"
 #endif
 
+#if defined(USE_METAL)
+// Observe the real encoder binding without exposing engine-private PSO storage.
+@interface MBMNormalMapEncoderObserver : NSObject
+@property(nonatomic, strong) id<MTLRenderCommandEncoder> encoder;
+@property(nonatomic, strong) id<MTLRenderPipelineState> pipeline;
+@end
+@implementation MBMNormalMapEncoderObserver
+- (id)forwardingTargetForSelector:(SEL)selector
+{
+    return self.encoder;
+}
+- (void)setRenderPipelineState:(id<MTLRenderPipelineState>)pipeline
+{
+    [self.encoder setRenderPipelineState:pipeline];
+    self.pipeline = pipeline;
+}
+@end
+#endif
+
 namespace
 {
     using namespace mbm;
+#if defined(USE_METAL)
+    // Optional native trace for the acceptance matrix; never enabled by the engine.
+    struct METAL_CAPTURE
+    {
+        bool active = false;
+        bool begin(id<MTLDevice> device)
+        {
+            const char *path = std::getenv("MBM_NORMAL_MAP_METAL_CAPTURE");
+            if (!path || !path[0]) return true;
+            auto *manager = [MTLCaptureManager sharedCaptureManager];
+            auto *descriptor = [MTLCaptureDescriptor new];
+            descriptor.captureObject = device;
+            descriptor.destination = MTLCaptureDestinationGPUTraceDocument;
+            descriptor.outputURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
+            NSError *error = nil;
+            active = [manager startCaptureWithDescriptor:descriptor error:&error];
+            if (!active)
+                std::printf("NORMAL MAP LAZY FAIL: Metal capture: %s\n", error.localizedDescription.UTF8String);
+            return active;
+        }
+        ~METAL_CAPTURE()
+        {
+            if (active)
+            {
+                [[MTLCaptureManager sharedCaptureManager] stopCapture];
+                std::printf("NORMAL MAP METAL CAPTURE SAVED\n");
+            }
+        }
+    };
+#endif
     // Own the native submission scope; this command runs after initGraphics,
     // before the engine loop. Never issue Metal draws without an encoder.
     struct SUBMISSION
@@ -53,6 +102,7 @@ namespace
 #if defined(USE_METAL)
         id<MTLCommandBuffer> commands = nil;
         id<MTLTexture> color = nil, depth = nil;
+        MBMNormalMapEncoderObserver *observer = nil;
 #endif
         bool begin()
         {
@@ -76,8 +126,14 @@ namespace
             pass.depthAttachment.clearDepth = 1.0;
             pass.depthAttachment.storeAction = MTLStoreActionDontCare;
             commands = [context->commandQueue commandBuffer];
-            context->currentEncoder = [commands renderCommandEncoderWithDescriptor:pass];
-            active = context->currentEncoder != nil;
+            observer = [MBMNormalMapEncoderObserver new];
+            observer.encoder = [commands renderCommandEncoderWithDescriptor:pass];
+            active = observer.encoder != nil;
+            if (active)
+            {
+                id forwardingEncoder = observer;
+                context->currentEncoder = forwardingEncoder;
+            }
 #else
             active = context && context->immediateContext;
 #endif
@@ -159,10 +215,13 @@ namespace
         return true;
     }
 
-#if !defined(USE_METAL)
     uintptr_t currentProgram()
     {
         auto *context = DEVICE::getInstance()->getSpecificContextDevice();
+#if defined(USE_METAL)
+        id observer = context->currentEncoder;
+        return reinterpret_cast<uintptr_t>((__bridge void *)[observer pipeline]);
+#else
 #if defined(USE_DIRECTX9)
         IDirect3DVertexShader9 *shader = nullptr;
         context->pd3dDevice->GetVertexShader(&shader);
@@ -173,8 +232,8 @@ namespace
         const auto identity = reinterpret_cast<uintptr_t>(shader);
         if (shader) shader->Release(); // Get* owns a reference; identity is borrowed.
         return identity;
-    }
 #endif
+    }
 #if USE_NORMAL_MAPPING_3D
     uintptr_t vertexIdentity(const BUFFER_GL *buffer)
     {
@@ -218,6 +277,10 @@ int runNormalMapNativeResourceTests()
     const auto check = [&failures](bool ok, const char *message)
     { if (!ok) { ++failures; std::printf("NORMAL MAP LAZY FAIL: %s\n", message); } return ok; };
     auto *device = DEVICE::getInstance();
+#if defined(USE_METAL)
+    METAL_CAPTURE capture;
+    if (!capture.begin(device->getSpecificContextDevice()->mtlDevice)) return -1;
+#endif
 #if defined(USE_DIRECTX9)
     // This resource suite targets SM3; SM2 fallback needs separate expectations.
     D3DCAPS9 caps = {};
@@ -256,26 +319,20 @@ int runNormalMapNativeResourceTests()
     };
     check(noUpload(), "load does not upload derived buffers");
     check(shader.render(buffer), "draw without map");
-#if !defined(USE_METAL)
     const auto geometric = currentProgram();
     check(geometric != 0, "geometric vertex shader bound");
-#endif
     check(noUpload(), "no-map draw does not upload");
     check(mesh->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,"#FF8080FF",false), "late map assignment");
     check(mesh->setNormalMapSettings(0,0,1,0), "zero strength");
     check(shader.render(buffer) && noUpload(), "zero strength does not upload");
-#if !defined(USE_METAL)
     check(currentProgram() == geometric, "zero strength keeps geometric shader");
-#endif
     check(mesh->setNormalMapSettings(0,0,1,1), "enable strength");
     device->setLightTargetForRender(LIGHT_TARGET_2DW);
     check(shader.render(buffer) && noUpload(), "2dw does not upload 3d basis");
     device->setLightTargetForRender(LIGHT_TARGET_3D);
     check(shader.render(buffer), "first effective mapped draw");
-#if !defined(USE_METAL)
     const auto mapped = currentProgram();
     check(mapped != 0 && ((mapped != geometric) == (USE_NORMAL_MAPPING_3D != 0)), "variant follows build capability");
-#endif
 #if USE_NORMAL_MAPPING_3D
     const auto vertices = vertexIdentity(buffer);
     const auto bytes = payloadBytes(buffer);
@@ -284,16 +341,12 @@ int runNormalMapNativeResourceTests()
 #endif
     check(mesh->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,nullptr,false), "remove map");
     check(shader.render(buffer), "draw after removal");
-#if !defined(USE_METAL)
     check(currentProgram() == geometric, "removal selects geometric shader");
-#endif
     check(mesh->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,"#FF8080FF",false), "reassign map");
     for (int i=0; i<20; ++i)
     {
         check(shader.render(buffer), "repeat mapped draw");
-#if !defined(USE_METAL)
         check(currentProgram() == mapped, "reuse mapped shader");
-#endif
 #if USE_NORMAL_MAPPING_3D
         check(vertexIdentity(buffer) == vertices && payloadBytes(buffer) == bytes, "reuse native buffers");
 #endif
@@ -301,7 +354,7 @@ int runNormalMapNativeResourceTests()
     SHADER cached;
     cached.setUseReservedLightDefault(true);
     check(cached.compileShader(nullptr,nullptr,buffer->fvf) && cached.render(buffer), "second shader instance");
-#if defined(USE_DIRECTX9)
+#if defined(USE_DIRECTX9) || defined(USE_METAL)
     // DX11 has no shared default-program cache; do not demand COM identity there.
     check(currentProgram() == mapped, "mapped shader cache identity");
 #endif
@@ -311,12 +364,10 @@ int runNormalMapNativeResourceTests()
     if (!check(unprepared != nullptr, "load without basis")) return -1;
     check(unprepared->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,"#FF8080FF",false), "map without basis");
     check(shader.render(unprepared->getBuffer(0)->pBufferGL), "unprepared geometric fallback");
-#if !defined(USE_METAL)
     const auto restoredGeometric = currentProgram();
     check(restoredGeometric != 0, "restored geometric shader bound");
     check(shader.render(buffer) && ((currentProgram() != restoredGeometric) == (USE_NORMAL_MAPPING_3D != 0)),
           "unprepared and prepared assets select different variants only when enabled");
-#endif
     const VEC3 positions[3] = {{0,0,0},{1,0,0},{0,1,0}};
     const VEC3 normals[3] = {{0,0,1},{0,0,1},{0,0,1}};
     const VEC2 uv[3] = {{0,0},{1,0},{0,1}};
@@ -325,12 +376,10 @@ int runNormalMapNativeResourceTests()
     check(buffer->updateDynamic(positions,normals,uv,starts,counts), "dynamic edit");
     check(noUpload(), "dynamic edit discards derived buffers");
     check(shader.render(buffer) && noUpload(), "dynamic edit cannot upload stale basis");
-#if !defined(USE_METAL)
     check(currentProgram() == restoredGeometric, "dynamic edit selects geometric fallback");
-#endif
     check(submission.finish(), "complete native submission");
 #if defined(USE_METAL)
-    std::printf("NORMAL MAP LAZY COVERAGE Metal: buffers/submission; pipeline identity requires GPU capture\n");
+    if (failures == 0) std::printf("NORMAL MAP METAL PIPELINES PASS: geometric/mapped selection, reuse, shared cache, restore, invalidation\n");
 #endif
     std::printf("NORMAL MAP LAZY RESOURCES %s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
     return failures ? -1 : 0;

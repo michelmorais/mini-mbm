@@ -6,8 +6,9 @@ not change `USE_NORMAL_MAPPING_3D` or `SUPPORTED_MAX_LIGHTS`.
 ## Current scope and next step (2026-09-30)
 
 **Windows functional validation is closed for DX9 SM3/DX11 Debug x86. Further
-test expansion is deferred. Native macOS Metal evaluation is the next active
-milestone**, by user decision. Completed milestones below remain the evidence
+test expansion is deferred. The macOS Metal Debug arm64 baseline is also
+validated: 72/72 steps, API validation and targeted captures**, as recorded in
+[the Metal milestone](#completed-macos-milestone-metal-baseline-and-captures-2026-09-30). Completed milestones below remain the evidence
 history; their earlier next-step proposals do not override this scope decision.
 
 Windows evidence includes the full ON/OFF x 1..4 baseline matrices, SM2
@@ -17,11 +18,11 @@ characterization, numerical skeletal parity, DX11 debug/lifecycle checks, the
 functional closure. Release performance and actual device-loss recovery are not
 claimed.
 
-### Bounded macOS handoff
+### Bounded macOS handoff (completed below)
 
 1. On a Mac with a graphical session and Metal support, read `engine-testing`
    and record macOS, CPU/GPU, architecture, Xcode/SDK and source revision. This
-   Windows session has not executed native Metal tests.
+   Windows handoff did not execute native Metal tests; the native results follow below.
 2. Build Debug `testLib` and `mini-mbm` with `PLAT=MacOs`, `USE_METAL=1`,
    `USE_LUA=1`, `USE_TEXTURE_MISSING_DIALOG=0`, normal mapping ON/OFF and light
    cap 2. Use separate build trees and snapshot each entry's binaries/libraries
@@ -121,19 +122,18 @@ disabled leak detection and the duplicate tinyfiledialogs global registration
 check; neither suppression disables address-access checks.
 
 DirectX 9/11 and Metal follow the same private selection/staging contract.
-The DX9 SM3 and DX11 Debug baseline matrices are now validated below; Metal
-acceptance and native performance measurements remain pending.
+The DX9 SM3, DX11 and macOS Metal Debug baseline matrices are validated below.
+Native performance measurements remain pending.
 Linux measurements do not establish native-backend or mobile-device coverage.
 
 ## Next milestone: native backend regression matrix
 
 Status: the complete DX9 SM3 and DX11 Debug x86 baseline matrices are validated
-with 7.328 plus the DX9 compilation fixes below. macOS acceptance remains
-**pending**. SM2 profile characterization is complete below: default lighting
+with 7.328 plus the DX9 compilation fixes below. The macOS Metal Debug arm64
+baseline also passes all eight entries, including native pipeline checks and captures. SM2 profile characterization is complete below: default lighting
 exceeds the profile, while unlit rendering passes. DX11 single-batch COM creation
 failure/retry is also validated across all eight Debug entries (details below).
-Windows functional validation is now closed; macOS Metal is the active remaining
-baseline. See [current scope](#current-scope-and-next-step-2026-09-30) for the
+Windows and the bounded macOS Metal functional baselines are now validated. See [current scope](#current-scope-and-next-step-2026-09-30) for the
 completion boundary. Device-loss testing is deferred robustness work, and
 performance measurements remain a separate workstream.
 
@@ -157,13 +157,15 @@ performance measurements remain a separate workstream.
 - [x] Run native numerical skeletal parity on DX9/DX11 with normal mapping ON/OFF
   and all light caps: 64/64 synthetic/Lorekeeper LBS/DQS cases pass. This does not
   test normal-map assignment to production animated meshes.
-- [ ] Compile and run the same eight entries on macOS Metal. Run macOS GLES
-  separately if that backend is shipped.
+- [x] Compile and run the same eight entries on macOS Metal Debug arm64: 72/72 steps.
+  macOS GLES remains separate, conditional on shipping that backend.
 - [x] Run the DX11 native resource test with the Windows Graphics Tools debug
   layer, including post-teardown live-object checks, in all eight entries.
-- [ ] Run Metal with API validation enabled.
-- [ ] Inspect native shader inputs/instructions and Metal pipeline identity using
-  GPU captures. The Metal resource test does not introspect bound pipeline state.
+- [x] Run Metal with API validation enabled; require the activation marker.
+- [x] Capture native Metal ON/OFF at cap 2, inspect captured MSL inputs and verify
+  actual encoder pipeline selection/reuse/cache identity in all eight entries.
+- [ ] Inspect native machine instructions/resource statistics during the separate
+  performance workstream; captured MSL is not GPU disassembly.
 - [x] Exercise controlled full EGL context destruction/recreation through the
   Linux/GLES production restore state machine, with pending and uploaded assets,
   shared instances, shader variants and pixel comparisons (details below).
@@ -189,9 +191,9 @@ performance measurements remain a separate workstream.
 |---|---|---|---|
 | No derived allocation at load, no map, strength zero, 2dw | Native inspection | Native inspection | Native inspection |
 | First effective use creates GPU buffers | Buffer queries | COM buffer descriptors | MTLBuffer lengths |
-| Reassignment/repeated draws reuse resources | Buffer/program identity | Buffer/vertex-shader identity | Buffer identity |
-| Geometric/mapped shader selection | Program and tangent input | Bound vertex shader | Visual comparisons; pipeline capture pending |
-| Shared program cache | Geometric/mapped cache identity | DX9 identity; DX11 has no shared default-program cache | Capture pending |
+| Reassignment/repeated draws reuse resources | Buffer/program identity | Buffer/vertex-shader identity | Buffer/pipeline identity |
+| Geometric/mapped shader selection | Program and tangent input | Bound vertex shader | Encoder pipeline observation, captured MSL, visual comparisons |
+| Shared program cache | Geometric/mapped cache identity | DX9 identity; DX11 has no shared default-program cache | Encoder pipeline identity |
 | Shader restore, no-basis fallback, dynamic invalidation | Automated | Automated | Submission/resource checks |
 | Visual IB/VB, mixed subsets, strength/sign/transforms, custom fallback | Lua suite | Lua suite | Lua suite |
 | Async loading/GC, persistence, readback | CPU/Lua suites | CPU/Lua suites | CPU/Lua suites |
@@ -235,9 +237,9 @@ python3 src/test-lib/run-normal-map-tests.py \
 ```
 
 The runner enables `MTL_DEBUG_LAYER=1` for Metal and waits for native resource-test
-GPU completion. It rejects recognized validation errors, but a clean log is not
-proof that the layer activated: retain Xcode/Metal validation evidence as part of
-the milestone. DX11 validation markers currently apply to the C++ resource test;
+GPU completion. With `--require-native-validation`, the Metal resource step
+also requires `Metal API Validation Enabled` and `NORMAL MAP METAL PIPELINES PASS`.
+A clean log alone is not proof that the layer activated. DX11 validation markers currently apply to the C++ resource test;
 the Lua visual suite does not expose its own info-queue validation hook.
 
 Pass repeated `--library-dir PATH` options if DLL/shared libraries live elsewhere.
@@ -1356,3 +1358,100 @@ suite to caps 1/3/4, ON/OFF** is deferred by the
 evaluation is next. Earlier full matrices establish 15-case creation-failure
 coverage only. Broader fault injection and actual device loss remain in the
 robustness backlog; Release profiling remains separate planned work.
+
+## Completed macOS milestone: Metal baseline and captures (2026-09-30)
+
+All eight **Metal Debug arm64 ON/OFF x light cap 1/2/3/4** entries pass the
+existing nine-step baseline: **72/72 integrated steps**. Every graphical step
+(build configuration, resources, runtime, readback and both visual suites) logs
+`Metal API Validation Enabled`, with no recognized validation failure. The five
+Python runner unit tests pass. This is native execution on an Apple M4, not a
+host-only shader-generator check.
+
+| Light cap | ON steps | OFF steps | Native pipeline checks | GPU capture |
+|---|---:|---:|---|---|
+| 1 | 9/9 | 9/9 | Passed both | Not requested |
+| 2 | 9/9 | 9/9 | Passed both | ON and OFF |
+| 3 | 9/9 | 9/9 | Passed both | Not requested |
+| 4 | 9/9 | 9/9 | Passed both | Not requested |
+
+Host: MacBook Air / Apple M4 (10 CPU cores, 10 GPU cores, 16 GB), macOS 26.6.2
+(25G83), Xcode 26.6 (17F113), macOS SDK 26.5, CMake 4.2.0 and Python 3.9.6.
+Base revision is `acaf93acc522d1e65ac97638ef95bc7574fe7f1e` plus the CMake/test/runner
+changes in this milestone. Engine version remains 7.328; no production rendering
+code, public API or ownership boundary changed.
+
+The first clean configuration exposed a build defect: the native resource test
+requested `LANGUAGE OBJCXX` without enabling that language. The root CMake file
+now enables Objective-C++ for Apple Metal, requests C++17 and preserves the
+optimization/debug flags previously used to compile `.mm` files through the CXX
+rule. A sandboxed graphical attempt returned a null Metal device; native runs
+were repeated with GPU/desktop access. Initial failed evidence is retained and
+is excluded from the matrix totals.
+
+The Metal resource test now forwards encoder calls through a test-only observer
+that records the actual `setRenderPipelineState` argument. The existing shader
+identity assertions therefore also cover Metal: geometric rendering without a
+map or at zero strength, distinct mapped selection only in ON builds, map
+removal/reassignment, twenty repeated draws, sharing across shader instances,
+restore, an asset without prepared basis and dynamic invalidation. Calls still
+reach the native validation encoder; no engine PSO state was made public.
+ON reports **0 -> 150 bytes** of derived GPU payload on first effective use,
+with unchanged buffer identities on warm draws. This excludes driver/allocator
+overhead and is not a total-memory or performance measurement.
+
+Optional `MBM_NORMAL_MAP_METAL_CAPTURE=/absolute/path/new.gputrace`, together
+with `MTL_CAPTURE_ENABLED=1`, records this production submission through
+`MTLCaptureManager`. Capture errors fail the test; RAII stops the capture after
+GPU completion, including early-return cleanup. The cap-2 captures each contain
+one submitted frame. Their captured MSL sources show:
+
+- ON has geometric and mapped variants. Only mapped MSL has tangent buffer 20,
+  normal-settings buffer 21 and `mbmMappedNormal`.
+- OFF has only the geometric variant. Both builds retain the existing 2dw
+  texture-normal path; absence of the 3D interface does not remove that feature.
+- Both lighting loops have the literal cap 2 in every captured source.
+- **The ON/OFF geometric sources are not identical.** ON includes the existing
+  inverse-transpose normal transform; OFF retains the earlier direct transform.
+  This is the sole textual difference between these captured geometric sources.
+  The baseline checks each build's fallback behavior, not arbitrary ON/OFF pixel
+  equality under nonuniform scaling. That cross-build transform difference is
+  recorded, not changed or treated as a proven equivalence by this milestone.
+
+The capture inspection extracts complete MSL source streams from this Xcode
+trace and hashes the trace files and sources. It does not disassemble GPU machine
+instructions or measure register pressure. Pipeline identity evidence comes from
+the native encoder observer, not an inference from shader source names.
+
+Reproduce each entry using a separate build tree, varying `ON`/`OFF` and cap:
+
+```sh
+cmake -S . -B build/normal-metal/recheck-on-2 -DPLAT=MacOs -DUSE_METAL=1 \
+  -DUSE_LUA=1 -DUSE_TEXTURE_MISSING_DIALOG=0 -DCMAKE_BUILD_TYPE=Debug \
+  -DUSE_NORMAL_MAPPING_3D=ON -DSUPPORTED_MAX_LIGHTS=2
+cmake --build build/normal-metal/recheck-on-2 --target testLib mini-mbm -j 8
+MTL_CAPTURE_ENABLED=1 MBM_NORMAL_MAP_METAL_CAPTURE="$PWD/build/normal-metal/recheck-on-2/native.gputrace" \
+  python3 src/test-lib/run-normal-map-tests.py \
+  --test-lib "$PWD/bin/debug/arm64/testLib" --engine "$PWD/bin/debug/arm64/mini-mbm" \
+  --backend metal --normal 1 --lights 2 --require-native-validation \
+  --output "$PWD/build/normal-metal/recheck-on-2/results"
+```
+
+Snapshot `testLib`, `mini-mbm` and their dylibs before building the next entry:
+CMake build trees share output locations. Both capture and result paths must be
+new. GPU access and a graphical session are required.
+
+Local evidence: `build/normal-metal/{on,off}-{1,2,3,4}/` contains `binaries/`,
+`binary-hashes.json`, `build.json`, configure/build logs and `results-final/`
+(reports, suite logs, fixtures and IB/VB PNGs). The index is
+`build/normal-metal/matrix-summary.json`; `host.json` and `source-hashes.json`
+record provenance. Cap-2 entries also contain `acceptance.gputrace` and extracted
+`captured-shaders/`; `capture-inspection.json` records their hashes and findings.
+The local `run-matrix.py` and `inspect-captures.py` retain the orchestration and
+capture extraction used for this evidence. Artifacts are local, not committed.
+
+This closes the bounded Metal functional baseline on this M4. macOS GLES,
+iOS, native skeletal parity, actual device loss/fault injection and cross-device
+pixel equality are not covered. The known ON/OFF transform difference above
+limits cross-build parity claims. Release CPU/GPU profiling and native instruction
+statistics remain separate planned work; no FPS improvement is claimed.

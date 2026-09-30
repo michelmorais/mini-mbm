@@ -538,6 +538,12 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_CXX_EXTENSIONS OFF)
+    if(APPLE AND USE_METAL)
+        enable_language(OBJCXX)
+        set(CMAKE_OBJCXX_STANDARD 17)
+        set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+        set(CMAKE_OBJCXX_EXTENSIONS OFF)
+    endif()
     
     #set(CMAKE_VERBOSE_MAKEFILE on)
 
@@ -1119,6 +1125,12 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
         endif()
 
+    endif()
+
+    if(APPLE AND USE_METAL)
+        # .mm files previously used the CXX rule; preserve their build flags now
+        # that the native Metal tests also require explicit Objective-C++ support.
+        set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -fPIC ${OPTIMIZED} -Wall ${_G_DEBUG}")
     endif()
 
     if (CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
