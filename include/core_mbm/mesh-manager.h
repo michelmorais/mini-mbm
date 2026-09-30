@@ -309,6 +309,9 @@ namespace mbm
         API_IMPL int getFileVersion() const noexcept;
         // Constant-time presence query; retained bases may need regeneration after geometry edits.
         API_IMPL bool hasNormalMapTangents() const noexcept;
+        // Remove all normal-map tangent batches, texture references and material settings.
+        // Keeps source geometry and other texture roles. False if unchanged or busy.
+        API_IMPL bool removeNormalMap() noexcept;
         // Optional 3D normal-map properties. greenSign is +1 (+Y) or -1 (-Y), strength finite >= 0.
         // Get returns defaults (+1, 1) for valid subsets without settings; false leaves outputs unchanged.
         API_IMPL bool getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept;

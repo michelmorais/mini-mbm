@@ -260,6 +260,62 @@ int runNormalMapPersistenceTests()
     MESH_MBM_DEBUG unprepared;
     expect(unprepared.loadV11((dir/"unprepared.msh").string().c_str()), "missing section is valid");
     expect(save(unprepared, dir/"regenerated.msh", false), "save generates missing basis");
+
+    MESH_MBM_DEBUG removable;
+    addTriangle(removable, true);
+    addTriangle(removable, true);
+    util::MATERIAL_TEXTURE_SLOT_DEBUG otherSlot;
+    otherSlot.type = util::MATERIAL_TEXTURE_SLOT_SPECULAR;
+    otherSlot.texture = "#FFFFFFFF";
+    removable.getSubset(0, 0)->materialTextureSlots.push_back(otherSlot);
+    expect(removable.setNormalMapSettings(0, 0, -1, 2.5f), "set removal fixture material");
+    expect(save(removable, dir/"remove-before.msh", false), "save prepared removal fixture");
+    expect(removable.hasNormalMapTangents(), "removal fixture has tangents");
+    expect(removable.removeNormalMap(), "remove complete normal mapping");
+    expect(!removable.hasNormalMapTangents(), "all tangent frames removed");
+    expect(!removable.removeNormalMap(), "repeated removal is unchanged");
+    for (const bool compressed : {false, true})
+    {
+        const auto removedPath = dir/(compressed ? "removed-compressed.msh" : "removed.msh");
+        expect(save(removable, removedPath, compressed), "save removed normal mapping");
+        FILE_DATA removalAfter;
+        expect(readFile(removedPath, removalAfter), "read removed normal mapping");
+        for (const auto &part : removalAfter.sections)
+            expect(part.header.type != util::SECTION_NORMAL_MAP_TANGENTS &&
+                   part.header.type != util::SECTION_NORMAL_MAP_MATERIALS, "no normal-map sections remain");
+        MESH_MBM_DEBUG reopened, originalRemoval;
+        expect(reopened.loadV11(removedPath.string().c_str()) && !reopened.hasNormalMapTangents(),
+               "reopen retains no tangents");
+        expect(originalRemoval.loadV11((dir/"remove-before.msh").string().c_str()), "load undo snapshot");
+        for (uint32_t frame = 0; frame < 2; ++frame)
+        {
+            int sign = 0; float strength = 0;
+            expect(reopened.getNormalMapSettings(frame, 0, sign, strength) && sign == 1 && strength == 1,
+                   "normal-map settings return to defaults");
+            const auto *subset = reopened.getSubset(frame, 0);
+            expect(subset->texture == "#FFFFFFFF", "diffuse texture retained");
+            expect(subset->materialTextureSlots.size() == (frame == 0 ? 1u : 0u), "only normal texture references removed");
+            for (const auto &slot : subset->materialTextureSlots)
+                expect(slot.type == util::MATERIAL_TEXTURE_SLOT_SPECULAR && slot.texture == "#FFFFFFFF",
+                       "other texture roles retained");
+            const auto *before = originalRemoval.getFrameBuffer(frame);
+            const auto *after = reopened.getFrameBuffer(frame);
+            expect(std::memcmp(before->position, after->position, 9*sizeof(float)) == 0 &&
+                   std::memcmp(before->normal, after->normal, 9*sizeof(float)) == 0 &&
+                   std::memcmp(before->uv, after->uv, 6*sizeof(float)) == 0,
+                   "source positions, normals and UVs retained");
+        }
+        expect(save(reopened, dir/"removed-resaved.msh", compressed), "resave stripped mesh");
+        expect(readFile(dir/"removed-resaved.msh", removalAfter) &&
+               tangentSection(removalAfter) == removalAfter.sections.size(), "resave does not regenerate tangents");
+        expect(originalRemoval.hasNormalMapTangents(), "undo snapshot retains tangents");
+        int sign = 0; float strength = 0;
+        expect(originalRemoval.getNormalMapSettings(0, 0, sign, strength) && sign == -1 && strength == 2.5f,
+               "undo snapshot retains normal-map properties");
+        NORMAL_MAP_REPORT restoredReport; char restorationError[512] = {};
+        expect(reopened.prepareNormalMap(0, 0, NORMAL_MAP_POLICY::PRESERVE, restoredReport,
+                                         restorationError, sizeof(restorationError)), "explicit preparation after removal");
+    }
     FILE_DATA reordered = original;
     std::rotate(reordered.sections.begin(), reordered.sections.begin()+static_cast<std::ptrdiff_t>(section), reordered.sections.end());
     expect(writeFile(dir/"reordered.msh", reordered), "write tangent section before source frame");

@@ -2928,6 +2928,15 @@ This constant-time, read-only query does not prepare tangents or validate the
 geometry signature; retained data may be stale after geometry edits. Mesh Debug
 uses it in its Mesh Info table, including unsaved preparation.
 
+`meshD:removeNormalMap()` removes prepared tangents, normal texture slots and
+normal-map convention/strength overrides from **all frames and subsets**. It
+preserves geometry and other texture roles; image files on disk are not deleted.
+Returns `true` when something changed, or `false` when already empty or while
+the simplification worker is running. Available even with `USE_NORMAL_MAPPING_3D=0`.
+Saving/reopening the stripped asset does not regenerate tangents because neither
+normal texture references nor retained preparation remain. Mesh Debug's Normal
+map panel exposes this operation with its existing snapshot-based Undo action.
+
 ```lua
 local report, err = meshD:prepareNormalMap(frame, subset, policy, corners)
 -- policy defaults to "preserve"; corners is only allowed for "import".

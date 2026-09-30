@@ -3236,6 +3236,29 @@ namespace mbm
         return !impl->normalMapFrames.empty();
     }
 
+    bool MESH_MBM_DEBUG::removeNormalMap() noexcept
+    {
+        if (impl->simplifyState.load(std::memory_order_acquire) == MESH_SIMPLIFY_STATE::RUNNING)
+            return false;
+        bool changed = !impl->normalMapFrames.empty() || !impl->normalMapMaterials.empty();
+        impl->normalMapFrames.clear();
+        impl->normalMapMaterials.clear();
+        for (auto *frame : impl->buffer)
+        {
+            for (auto *subset : frame->subset)
+            {
+                auto &slots = subset->materialTextureSlots;
+                const auto first = std::remove_if(slots.begin(), slots.end(), [](const util::MATERIAL_TEXTURE_SLOT_DEBUG &slot)
+                {
+                    return slot.type == util::MATERIAL_TEXTURE_SLOT_NORMAL;
+                });
+                changed |= first != slots.end();
+                slots.erase(first, slots.end());
+            }
+        }
+        return changed;
+    }
+
     bool MESH_MBM_DEBUG::getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept
     {
         if (!(frame < impl->buffer.size() && subset < impl->buffer[frame]->subset.size())) return false;

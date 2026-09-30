@@ -97,6 +97,10 @@ normal mapping. The follow-up contract is tracked in
 presence of retained preparation, without signature validation or regeneration.
 It does not expose containers or introduce public mutable storage.
 
+`MESH_MBM_DEBUG::removeNormalMap()` clears the private tangent/material caches and
+normal texture slots across the asset, refusing mutation during simplification.
+It introduces no storage or container exposure in the public API.
+
 `MESH_MBM_DEBUG::prepareNormalMap` exposes an authoring operation without exposing
 the cached representation. `NORMAL_MAP_CORNER` is borrowed input and
 `NORMAL_MAP_REPORT` a copied result. Preparation publishes a validated candidate
