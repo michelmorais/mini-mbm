@@ -22,6 +22,11 @@ ou execute a partir da raiz do repositório:
 5. Exporte PNG na resolução original. Salve um projeto `.normalmap` para guardar
    fonte e parâmetros e reproduzir a geração depois.
 
+Os diálogos sugerem a pasta e o nome base da textura: `pedra.png` resulta em
+`pedra_normal.png` para a imagem e `pedra.normalmap` para o projeto. A exportação
+continua em PNG mesmo quando a fonte usa outra extensão. Projetos já abertos ou
+salvos mantêm seu caminho como sugestão. Os nomes podem ser editados no diálogo.
+
 O preview tem no máximo 384 pixels no maior eixo e usa amostragem pelo centro do
 pixel mais próximo. Detalhes abaixo dessa resolução podem diferir da exportação.
 O projeto referencia a imagem original; não a incorpora. Mover ou modificar a

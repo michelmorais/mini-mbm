@@ -117,14 +117,16 @@ local function openProject()
     if path then local source,options=Project.load(path);E.open(source,options);E.projectPath=path end
 end
 local function saveProject()
-    local path=mbm.saveFile(E.projectPath or 'project.normalmap','normalmap')
+    local _,suggested=Project.suggestedPaths(E.source)
+    local path=mbm.saveFile(E.projectPath or suggested,'normalmap')
     if path then
         if path:sub(-10):lower()~='.normalmap' then path=path..'.normalmap' end
         Project.save(path,E.source,E.options);E.projectPath=path;E.status=L('saved')
     end
 end
 local function exportImage()
-    local path=mbm.saveFile('normal.png','png')
+    local suggested=Project.suggestedPaths(E.source)
+    local path=mbm.saveFile(suggested,'png')
     if path then
         if path:sub(-4):lower()~='.png' then path=path..'.png' end
         assert(path~=E.source,L('source_overwrite'))

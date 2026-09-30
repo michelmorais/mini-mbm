@@ -24,6 +24,12 @@ local Height=require 'height_map_source'
 local M={}
 local function directory(path) return path:gsub('\\','/'):match('^(.*)/[^/]*$') or '.' end
 local function absolute(path) return path:match('^[/\\]') or path:match('^%a:') end
+function M.suggestedPaths(source)
+    local folder,name=source:match('^(.*[/\\])([^/\\]+)$')
+    folder,name=folder or '',name or source
+    local stem=name:match('^(.+)%.[^.]+$') or name
+    return folder..stem..'_normal.png',folder..stem..'.normalmap'
+end
 function M.save(path,source,options)
     local o=Height.settings(options)
     assert(type(source)=='string' and absolute(source),'Source must be an absolute path')
