@@ -47,6 +47,13 @@ seams can duplicate vertices without changing the surface.
 Front, back and walls have separate material subsets. Only the front gets the normal
 texture; back and side materials keep their existing behavior.
 
+The geometry simplification comparison uses the same generated normal texture and
+settings on both the original and simplified meshes. Each has its own prepared
+tangents. This also applies when the original comes from the statistics cache or
+curved-source preview. Changing normal settings updates both preview materials
+without rebuilding geometry. Material preparation on the original preview happens
+after geometry processing so it cannot affect simplification constraints.
+
 **Compare with/without normal map** is shown only inside **Normal map and tangents**
 while normal mapping is enabled. After applying changes, use the individual 3D view
 with wireframe and geometry comparison off. It displays the same mesh twice under

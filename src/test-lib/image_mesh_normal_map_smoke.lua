@@ -155,6 +155,37 @@ local function test()
     assert(surface(without)==surface(with),'Normal material changed geometry or UVs after QEM')
     assert(with:getMaterialTexture(1,1,'normal'))
     Normal.shutdown(owner)
+    -- Simplification compares geometry under the same normal-map material.
+    assert(api.action(function(p)
+        p.defaults.simplify=true;p.defaults.simplifyRatio=.8
+        p.defaults.columns=12;p.defaults.rows=12
+        p.defaults.heightSource='image';p.defaults.normalMapConvention='+Y'
+    end));wait()
+    assert(E.comparison,'Missing simplification original')
+    api.setComparison(true)
+    local reference=meshDebug:new();assert(reference:load(E.comparison.previewPath))
+    local result=meshDebug:new();assert(result:load(E.previewPath))
+    assert(reference:getMaterialTexture(1,1,'normal')==result:getMaterialTexture(1,1,'normal'))
+    assert(reference:getMaterialTexture(1,1,'normal'),'Original has no normal texture')
+    assert(reference:prepareNormalMap(1,1,'preserve').reused,'Original has no prepared tangents')
+    local originalObject=E.comparison.preview
+    local resultObject=E.preview
+    local comparisonCalls=calls
+    assert(api.action(function(p) p.defaults.normalMapConvention='-Y';p.defaults.normalMapStrength=3 end));wait()
+    assert(E.comparison.preview==originalObject and E.preview==resultObject and calls==comparisonCalls)
+    assert(originalObject:getNormalMapSettings(1)=='-Y' and resultObject:getNormalMapSettings(1)=='-Y')
+    api.setComparison(false)
+    -- Cached statistics must decorate the stored original when entering 3D.
+    api.setEditMode(true)
+    assert(api.action(function(p) p.defaults.columns=14 end))
+    api.updateStatistics();wait()
+    assert(E.generatedMesh and E.generatedMesh.originalPath)
+    comparisonCalls=calls
+    api.setEditMode(false);wait()
+    assert(calls==comparisonCalls,'Statistics geometry was not reused')
+    reference=meshDebug:new();assert(reference:load(E.comparison.previewPath))
+    assert(reference:getMaterialTexture(1,1,'normal'))
+    assert(E.comparison.preview:getNormalMapSettings(1)=='-Y')
     -- Assembly previews also update their material without replacing geometry.
     api.setAssembly(true);wait()
     local assemblyObject=E.assembly.items[1].preview

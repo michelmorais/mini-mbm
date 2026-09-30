@@ -246,6 +246,14 @@ local function rebuildImpl()
                 Comparison.capture(staged,original,Asset.vertices(original),E.path or E.project.image.path)
             end
         else asset,report=generate(r,nil,staged) end
+        local authored=Model.options(E.project,r)
+        if staged.comparison and authored.reliefMode=='normal' then
+            -- Decorate the independent original only after geometry processing,
+            -- so its normal-map material cannot change simplification constraints.
+            local original=meshDebug:new();assert(original:load(staged.comparison.previewPath),L('preview_failed'))
+            original=Normal.apply(E,original,E.project,r,authored)
+            Comparison.capture(staged,original,Asset.vertices(original),E.path or E.project.image.path)
+        end
         assert(TextureAliases.savePreview(asset,path,E.path or E.project.image.path),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.alwaysRender=true

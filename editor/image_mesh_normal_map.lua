@@ -231,6 +231,7 @@ function M.refresh(E)
     E.normalDirty=nil
     local objects={}
     if E.preview then objects[#objects+1]={id=E.viewRegion,preview=E.preview} end
+    if E.comparison then objects[#objects+1]={id=E.viewRegion,preview=E.comparison.preview} end
     for _,item in ipairs(E.assembly and E.assembly.items or {}) do objects[#objects+1]=item end
     local regions={}
     for _,item in ipairs(objects) do regions[item.id]=true end
