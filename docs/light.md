@@ -815,6 +815,14 @@ may add program switches. Pure defaults still preserve their 2dw normal-map
 branch; geometric here means omission of the 3D tangent path, not removal of 2dw
 sampling. Preparation alone neither assigns a texture nor changes the silhouette.
 
+A failed lazy shader compilation or derived-buffer upload returns a failed draw;
+it does not silently enable geometric fallback for that draw. CPU staging remains
+available for a later retry, and temporary GPU buffers are not published. The
+geometric variant remains usable if mapping is disabled on the material. GLES
+failure/retry regression coverage and its limits are documented in the
+[enabled-build plan](normal-mapping-enabled-optimization.md#completed-milestone-linuxgles-failure-and-retry).
+
+
 Normal-map rendering has desktop validation coverage on Linux/Mesa GLES,
 Windows DX9 SM3/DX11 and macOS Metal. This does not establish Android GLES2,
 iOS, other-GPU or real device-loss coverage. The reusable visual scenes are

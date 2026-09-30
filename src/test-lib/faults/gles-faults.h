@@ -17,12 +17,18 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef VERSION_MBM_H
-#define VERSION_MBM_H
-
-// Format: "X.Y" or "X.Y.Z". Release history is maintained by the Git history and tags.
-#ifndef MBM_VERSION
-    #define MBM_VERSION "7.327.1"
-#endif
-
+#ifndef MBM_TEST_GLES_FAULTS_H
+#define MBM_TEST_GLES_FAULTS_H
+namespace mbm_test
+{
+    enum FAULT { NONE, VERTEX_COMPILE, FRAGMENT_COMPILE, PROGRAM_CREATE, PROGRAM_LINK, VERTEX_UPLOAD, INDEX_UPLOAD };
+    struct STATS
+    {
+        unsigned shadersCreated, shadersDeleted, programsCreated, programsDeleted;
+        unsigned buffersCreated, buffersDeleted, compiles, uploads, injected;
+        unsigned shaderIds[2], bufferIds[2], programId;
+    };
+    using ARM = void (*)(int);
+    using READ = void (*)(STATS *);
+}
 #endif

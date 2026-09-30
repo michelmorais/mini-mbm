@@ -60,9 +60,18 @@ def main():
     parser.add_argument('--output', required=True, type=Path, help='New artifact directory for this matrix entry')
     parser.add_argument('--library-dir', action='append', default=[], type=Path)
     parser.add_argument('--timeout', type=float, default=90)
+    parser.add_argument('--gles-fault-library', type=Path,
+                        help='Opt-in Linux GLES LD_PRELOAD library for failure/retry tests')
     parser.add_argument('--require-native-validation', action='store_true',
                         help='Require DX11 Debug info queue/lifecycle, or enable Metal API validation')
     args = parser.parse_args()
+    if args.gles_fault_library:
+        if sys.platform != 'linux' or args.backend != 'gles':
+            parser.error('--gles-fault-library requires Linux/GLES')
+        if not args.gles_fault_library.is_file():
+            parser.error('fault library not found: ' + str(args.gles_fault_library))
+        if any(c.isspace() or c == ':' for c in str(args.gles_fault_library.resolve())):
+            parser.error('LD_PRELOAD library path cannot contain whitespace or colons')
     if args.timeout <= 0:
         parser.error('--timeout must be positive')
     if args.require_native_validation and args.backend not in ('dx11', 'metal'):
@@ -135,6 +144,11 @@ def main():
                            'DirectX 11 resource-lifecycle validation passed')
             run('resources', [test_lib, '--normal-map-lazy-resource-test'],
                 'NORMAL MAP LAZY RESOURCES PASS', required=markers)
+            if args.gles_fault_library:
+                run('recovery', [test_lib, '--normal-map-failure-test'], 'NORMAL MAP RECOVERY PASS',
+                    {'LD_PRELOAD': str(args.gles_fault_library.resolve())})
+            if sys.platform == 'linux' and args.backend == 'gles':
+                run('context', [test_lib, '--normal-map-context-test'], 'NORMAL MAP CONTEXT PASS')
             scene('runtime', 'normal-map-runtime-test.lua', 'NORMAL MAP RUNTIME PASS')
             scene('readback', 'normal-map-readback-test.lua', 'NORMAL MAP READBACK PASS')
             for mode in ('ib', 'vb'):
@@ -144,6 +158,7 @@ def main():
                       dict(MBM_NORMAL_MAP_TEST_VB='1' if mode == 'vb' else '0',
                            MBM_NORMAL_MAP_RENDER_DIR=str(images)))
     report = dict(backend=args.backend, normal=args.normal, lights=args.lights,
+                  fault_library=str(args.gles_fault_library.resolve()) if args.gles_fault_library else None,
                   native_validation_requested=args.require_native_validation, results=results)
     (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     return 1 if any(item['failure'] for item in results) else 0

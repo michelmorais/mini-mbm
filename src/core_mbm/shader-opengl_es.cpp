@@ -1738,15 +1738,17 @@ namespace mbm
                 vertices.insert(vertices.end(), {p.x,p.y,p.z,n.x,n.y,n.z,uv[index].x,uv[index].y,t.x,t.y,t.z,t.sign});
             }
             auto &batch = pending.normalMapSubsets[source.subset].batches.emplace_back();
-            GLGenBuffers(2,batch.buffers);
-            GLBindBuffer(GL_ARRAY_BUFFER,batch.buffers[0]);
+            // Keep errors until the transaction check below. Debug GL* wrappers
+            // drain glGetError and could otherwise publish a failed upload.
+            glGenBuffers(2,batch.buffers);
+            glBindBuffer(GL_ARRAY_BUFFER,batch.buffers[0]);
             glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float),vertices.data(),GL_STATIC_DRAW);
-            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER,batch.buffers[1]);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,batch.buffers[1]);
             glBufferData(GL_ELEMENT_ARRAY_BUFFER,source.indices.size()*sizeof(uint16_t),source.indices.data(),GL_STATIC_DRAW);
             batch.indexCount = static_cast<uint32_t>(source.indices.size());
             if (!batch.buffers[0] || !batch.buffers[1] || glGetError() != GL_NO_ERROR) return false;
         }
-        GLBindBuffer(GL_ARRAY_BUFFER,0); GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
+        glBindBuffer(GL_ARRAY_BUFFER,0); glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
         backend->releaseNormalMap();
         backend->normalMapSubsets.swap(pending.normalMapSubsets);
         return true;
@@ -2355,6 +2357,8 @@ namespace mbm
         if (gles_shaderSpecific->programObject == 0)
         {
             PRINT_IF_DEBUG("Failed to create programObject");
+            GLDeleteShader(vertexShader);
+            GLDeleteShader(fragmentShader);
             return 0;
         }
         GLAttachShader(gles_shaderSpecific->programObject, vertexShader);

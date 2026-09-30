@@ -33,6 +33,10 @@
 #include "directx11-skeletal-parity-tests.h"
 #include <core_mbm/light.h>
 #include <cstdio>
+#if defined(USE_OPENGL_ES) && defined(__linux__)
+int runGlesNormalMapFailureTests();
+int runGlesNormalMapContextTests(mbm::CORE_MANAGER &, const mbm::SCENE &);
+#endif
 #include <cstdlib>
 #include <cstring>
 #if defined(USE_OPENGL_ES)
@@ -621,6 +625,12 @@ static int runTestLib(int argc, char **argv
     constexpr bool doSwapBuffers = true;
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
     {
+#if defined(USE_OPENGL_ES) && defined(__linux__)
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-context-test") == 0)
+            return runGlesNormalMapContextTests(game,game.myScene);
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-failure-test") == 0)
+            return runGlesNormalMapFailureTests();
+#endif
         if (argc == 2 && std::strcmp(argv[1],"--normal-map-lazy-resource-test") == 0)
         {
 #if defined(USE_OPENGL_ES)

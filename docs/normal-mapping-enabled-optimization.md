@@ -97,11 +97,15 @@ from the earlier build-switch matrix.
   post-teardown live-object checks; run Metal with API validation enabled.
 - [ ] Inspect native shader inputs/instructions and Metal pipeline identity using
   GPU captures. The Metal resource test does not introspect bound pipeline state.
-- [ ] Add and execute full device/context loss and recreation tests, including
-  pending staging and already-uploaded assets. Shader `onRestore()` alone is not
-  proof of device-loss recovery.
-- [ ] Add deterministic failed-upload/failed-compile retry coverage. Current
-  suites do not inject driver allocation/compilation failures.
+- [x] Exercise controlled full EGL context destruction/recreation through the
+  Linux/GLES production restore state machine, with pending and uploaded assets,
+  shared instances, shader variants and pixel comparisons (details below).
+- [ ] Validate abrupt driver resets/`EGL_CONTEXT_LOST`, in-flight async loads and
+  native Windows/macOS loss handling. Controlled recreation does not prove those.
+- [x] Add deterministic Linux/GLES failed-compile/link/program-creation and
+  failed-upload retry coverage, including Debug and Release (details below).
+- [ ] Extend failure injection to native DirectX/Metal, additional batches and
+  actual device-loss scenarios; Linux fault injection does not establish these.
 - [ ] Record native measurements and evidence before claiming performance or
   native parity. No FPS or total-memory improvement is assumed.
 
@@ -170,9 +174,11 @@ and libraries, since engine build directories share output locations. A timeout
 is a failed test, not a skipped case. Review all failed logs before continuing.
 
 The baseline runner executes build identity, preparation, persistence, Lua build
-configuration, resources, async runtime/GC, readback and visual IB/VB. Editor
-(ImGui), skeletal parity and full device-loss tests are separate follow-ups, not
-implicitly covered by a baseline PASS.
+configuration, resources, async runtime/GC, readback and visual IB/VB. On
+Linux/GLES it also runs controlled context recreation automatically (ten baseline
+steps, eleven with optional fault injection). Editor (ImGui), skeletal parity,
+abrupt device loss and native Windows/macOS lifecycle tests remain separate;
+they are not implicitly covered by a baseline PASS.
 
 ### Infrastructure verification on Linux
 
@@ -245,6 +251,143 @@ with the snapshot's `--test-lib` and `--engine`, and a new `--output` directory.
 The complete single-entry invocation is documented above. A passing result from
 one light cap must not substitute for another entry.
 
-The next Linux milestone is deterministic failed-compile/failed-upload retry
-coverage; full context loss/recreation and reproducible performance measurements
-remain separate pending work. Windows/macOS native acceptance remains pending.
+The failure/retry and controlled Linux context-recreation milestones are
+completed below. Abrupt device loss, reproducible performance measurements and
+Windows/macOS native acceptance remain pending.
+
+
+## Completed milestone: Linux/GLES failure and retry
+
+Delivery: 7.327.1. `testLib --normal-map-failure-test` uses an explicitly loaded,
+test-only ELF interposer to fail vertex compilation, fragment compilation,
+program creation, linking, vertex upload and index upload. Index-upload failure
+is repeated before a successful retry. The test checks:
+
+- Failed draws return false and retain the original geometric shader.
+- Failed shader attempts release temporary shaders/programs without uploading.
+- A failed upload publishes no batches and deletes both temporary buffers;
+  `glIsShader`, `glIsProgram` and `glIsBuffer` confirm actual object deletion.
+- Strength zero still permits geometric rendering after failures.
+- A retry reuses retained CPU staging and the successfully compiled mapped
+  shader; twenty warm draws afterward perform no new compilation/allocation/upload.
+- With the feature compiled out, mapped draws reach none of the injection points.
+
+The initial regressions found two production bugs, now fixed:
+
+| Failure | Before | Fix |
+|---|---|---|
+| `glCreateProgram()` returns zero | Both compiled shaders leaked | Delete both shader objects before returning failure |
+| Vertex upload fails in Debug | A diagnostic `GLBindBuffer` wrapper consumed the GL error before the transaction check, allowing publication | Use raw GL calls inside the upload transaction so the error reaches its rollback decision |
+
+No production fault switches, exported engine APIs or PIMPL state were added.
+The injector is built only with `MBM_BUILD_GLES_FAULT_TESTS=ON` on Linux/GLES;
+it is not linked to core_mbm or testLib and has an effect only with `LD_PRELOAD`.
+Controls and counters are private to the test library and used on the GL thread.
+
+Reproduce (cap 2 shown):
+
+```sh
+cmake -S . -B build/normal_faults -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release \
+  -DUSE_LUA=1 -DAUDIO=none -DUSE_TEXTURE_MISSING_DIALOG=0 \
+  -DUSE_NORMAL_MAPPING_3D=1 -DSUPPORTED_MAX_LIGHTS=2 \
+  -DMBM_BUILD_GLES_FAULT_TESTS=ON
+cmake --build build/normal_faults --target testLib mini-mbm -j8
+python3 src/test-lib/run-normal-map-tests.py \
+  --test-lib bin/release/linux_x86/testLib --engine bin/release/linux_x86/mini-mbm \
+  --backend gles --normal 1 --lights 2 --output /tmp/normal-recovery-on \
+  --gles-fault-library bin/release/linux_x86/mbm-normal-map-faults.so
+```
+
+The optional runner flag adds the `recovery` step and loads the interposer
+only into that step. Build identity, ordinary resources and Lua/visual tests run
+without injection. Missing injector symbols are a failure, not a skip. For the
+standalone command, generate fixtures with the persistence suite and set
+`MBM_NORMAL_MAP_FIXTURE_DIR` and `LD_PRELOAD` explicitly. Use matching libraries,
+an active display and an external timeout as for other native tests.
+
+Scope: Release ON/OFF baseline plus recovery and the Debug ON recovery test,
+all at cap 2. The earlier eight-entry/72-step baseline matrix remains historical
+evidence for 7.327; this patch does not claim a new full matrix. Expected shader
+compiler/linker diagnostics appear in Debug logs and are not unexpected errors;
+require the test's final PASS and zero exit code.
+
+The upload fixture has one batch. Upload errors are real `GL_INVALID_VALUE`
+errors induced by a negative buffer size; program-creation failure simulates a
+zero return. These test the failure contracts without exhausting GPU memory.
+They do not simulate physical OOM, context loss, errors in later batches, or
+DirectX/Metal failure semantics. Those remain separate requirements. Controlled
+context recreation for pending and uploaded assets is covered by the subsequent
+Linux milestone below.
+
+
+Validation evidence: all ten runner steps passed in Release ON and OFF (20
+steps total), and the dedicated Debug ON recovery test passed. Running the test
+without the interposer correctly returned failure. Reports are retained locally
+at `/tmp/mbm-fault-release-on-final` and `/tmp/mbm-fault-release-off-final`;
+`/tmp/mbm-fault-debug-before.log` and `/tmp/mbm-fault-debug-after.log` capture the
+Debug regression before and after the upload fix. `/tmp/mbm-fault-before.log`
+records the initial program-creation leak. These paths are ephemeral evidence.
+The original shared Debug testLib/core library were restored; shared Release
+outputs contain the corrected enabled build at cap 2.
+
+
+## Completed milestone: controlled Linux/GLES context recreation
+
+`testLib --normal-map-context-test` runs two complete context replacement cycles
+through `CORE_MANAGER::onStopCoreManager()` and `onLostDevice()`. This is the same
+state machine used by `forceRestore()`, driven with a bounded step count and an
+external process timeout. It destroys the old EGL context and creates a new one;
+it does not merely clear shader instances or recreate the window surface.
+
+The fixture uses persisted materials/tangent bases and a static animation so
+real `MESH` instances participate in production object restoration. It contains:
+
+- A detail-mapped asset rendered before the first context replacement.
+- A separate mapped asset whose first upload is delayed until after both cycles.
+- A second instance sharing the first asset and a geometric asset without a map.
+- An unmanaged GL buffer sentinel absent from the replacement context before
+  asset restoration. This confirms a fresh, unshared GL namespace rather than
+  merely reloading managed assets; it is not a driver memory-leak measurement.
+
+Assertions cover shared asset identity, preserved object position, empty derived
+GPU batches immediately after restore, correct lazy upload, valid mapped versus
+geometric shader programs, successful draws through the production object's
+shader, and a clean final GL/EGL error state. Controlled 64x64 probe draws read
+pixels from the current framebuffer: images must contain visible geometry,
+mapping must change the image only in enabled builds, and images after each
+restore must exactly match their respective pre-loss baselines. Camera/light
+space is fixed for these comparisons. The pending asset's late first draw must
+also match the mapped baseline.
+
+The test is part of the runner by default on Linux/GLES; no fault interposer is
+needed for this step. The existing single-entry runner commands apply unchanged.
+For a standalone execution after generating persistence fixtures:
+
+```sh
+MBM_NORMAL_MAP_FIXTURE_DIR=/tmp/normal-fixtures \
+LD_LIBRARY_PATH="$PWD/bin/release/linux_x86" \
+  timeout -s KILL 40 bin/release/linux_x86/testLib --normal-map-context-test
+```
+
+Use an active graphical display, matching binaries/libraries, and
+`USE_TEXTURE_MISSING_DIALOG=0`. The command must exit zero and emit
+`NORMAL MAP CONTEXT PASS`; pixel mismatches, invisible geometry, stale resources,
+restore failure or timeout are failures, not skipped cases.
+
+Validation at cap 2: all eleven integrated runner steps passed in Release ON and
+OFF (22 total, including optional fault injection); the dedicated context test
+also passed in Debug ON. No production code changes were needed. The earlier
+1..4-light matrix remains evidence for its recorded revision, not a claim that
+this new test ran at all caps. Reports are retained locally at
+`/tmp/mbm-context-release-on-verified` and `/tmp/mbm-context-release-off-verified`;
+`/tmp/mbm-context-debug-detail.log` contains the Debug result. These paths are
+ephemeral. Original Debug binaries were restored; Release outputs retain the
+updated enabled test harness at cap 2.
+
+Limits: this is controlled desktop EGL recreation, not an actual GPU reset,
+Android pause/resume, or `EGL_CONTEXT_LOST` fault injection. It uses persisted
+asset state, not unsaved material/geometry edits or in-flight asynchronous loads.
+Scene/plugin-specific restore callbacks and DirectX/Metal lifecycle behavior
+require their own coverage. The next Linux milestone is reproducible first-use,
+warm-draw and CPU/GPU memory measurements; native and abrupt-loss acceptance
+remain pending.

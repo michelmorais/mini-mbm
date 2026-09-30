@@ -204,3 +204,15 @@ The enabled-build optimization now also has a completed [Linux/GLES matrix](norm
 eight configurations, 72 passing runner steps. This follow-up validates deferred
 resources and geometric/mapped variants; native Windows/macOS acceptance remains
 pending.
+
+
+The [Linux/GLES failure-and-retry milestone](normal-mapping-enabled-optimization.md#completed-milestone-linuxgles-failure-and-retry)
+is delivered in 7.327.1 with test-only fault injection and two GLES cleanup/error
+handling fixes. Controlled Linux/GLES context recreation is now also validated
+(see below); abrupt loss and native failure injection remain pending.
+
+
+The [controlled context-recreation milestone](normal-mapping-enabled-optimization.md#completed-milestone-controlled-linuxgles-context-recreation)
+now covers pending/uploaded assets, shared instances, shader selection and pixels
+through two production restore cycles. It passed Release ON/OFF and Debug ON at
+cap 2. Abrupt GPU loss and Windows/macOS lifecycle acceptance remain pending.
