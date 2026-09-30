@@ -98,6 +98,7 @@ namespace mbm
         // Copy the final front relief outward on the back. UV mirroring is independent.
         bool backRelief = false, backMirror = false;
         bool backOpen = false, backRemap = false, backSolid = false, backExternal = false;
+        bool separateFront = false; // Separate front/back/wall materials without changing UVs.
         const char *backTexture = nullptr; // borrowed, read only during generation
         uint32_t backColor = 0x808080;
         // Independent same-image UV rectangle; zero sizes use the front crop dimensions.

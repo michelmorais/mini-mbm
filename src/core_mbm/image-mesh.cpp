@@ -99,7 +99,7 @@ namespace mbm
             if (!o.voxelized) image_mesh::curved_simplify::run(o,field,topology,report);
             image_mesh::checkpoint(o,"surface",0.9f);
             std::vector<IMAGE_MESH_POINT> sideInner;
-            const bool separateBack=o.backSolid || o.backExternal;
+            const bool separateBack=o.backSolid || o.backExternal || (o.separateFront && !o.backOpen);
             std::string backTexture=field.path;
             int backImageWidth=0,backImageHeight=0;
             const bool externalBackImage=o.backExternal && o.backTexture && *o.backTexture;
@@ -116,7 +116,7 @@ namespace mbm
                 if (!decoded) return fail(errorOut,errorOutLen,"Cannot decode back texture");
             }
             std::string sideTexture=field.path;
-            const bool separateSides=separateBack || o.sideMode==IMAGE_MESH_SIDE::COLOR || o.sideMode==IMAGE_MESH_SIDE::REPEAT;
+            const bool separateSides=separateBack || o.separateFront || o.sideMode==IMAGE_MESH_SIDE::COLOR || o.sideMode==IMAGE_MESH_SIDE::REPEAT;
             const bool repeatSourceCrop=o.sideMode==IMAGE_MESH_SIDE::REPEAT && (!o.sideTexture || !*o.sideTexture);
             uint32_t sideRows=1;
             if (o.sideMode==IMAGE_MESH_SIDE::BAND)

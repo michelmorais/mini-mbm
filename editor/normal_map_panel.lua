@@ -21,7 +21,7 @@
 ]]--
 
 local M={}
-function M.draw(ui,L,o)
+function M.draw(ui,L,o,processedHeight)
     local dirty=false
     local function combo(key,values,labels)
         local index=1;for i,v in ipairs(values) do if o[key]==v then index=i end end
@@ -29,8 +29,10 @@ function M.draw(ui,L,o)
         local changed,value=ui.Combo(L(key),index,labels or values)
         if changed then o[key]=values[value];dirty=true end
     end
-    combo('channel',{'luminance','r','g','b','a'},{L('luminance'),'R','G','B',L('alpha')})
-    for _,spec in ipairs{{'black',0,.99},{'white',.01,1},{'curve',.1,8},{'blur',0,32},{'strength',0,16}} do
+    if not processedHeight then combo('channel',{'luminance','r','g','b','a'},{L('luminance'),'R','G','B',L('alpha')}) end
+    local controls=processedHeight and {{'blur',0,32},{'strength',0,16}} or
+        {{'black',0,.99},{'white',.01,1},{'curve',.1,8},{'blur',0,32},{'strength',0,16}}
+    for _,spec in ipairs(controls) do
         local key=spec[1]
         ui.SetNextItemWidth(145)
         local changed,value=ui.SliderFloat(L(key),o[key],spec[2],spec[3],'%.3f')
@@ -41,11 +43,13 @@ function M.draw(ui,L,o)
         end
     end
     -- This engine's Checkbox returns only the checked state.
-    local value=ui.Checkbox(L('invert'),o.invert)
-    if value~=o.invert then o.invert=value;dirty=true end
+    if not processedHeight then
+        local value=ui.Checkbox(L('invert'),o.invert)
+        if value~=o.invert then o.invert=value;dirty=true end
+    end
     combo('convention',{'+Y','-Y'})
     combo('edge',{'clamp','repeat'},{L('clamp'),L('repeat')})
-    ui.TextWrapped(L('height_help'))
+    if not processedHeight then ui.TextWrapped(L('height_help')) end
     return dirty
 end
 return M

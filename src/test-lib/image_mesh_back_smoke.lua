@@ -18,7 +18,7 @@ local IO=require 'image_mesh_io'
 local Presets=require 'image_mesh_presets'
 local api={};assert(loadfile('editor/image_mesh_editor.lua'))(api)
 local init,loop=onInitScene,onLoop
-local started
+local started,task,deadline
 local function data(asset,report)
     assert(asset:check())
     local vertices=asset:getVertex(1,1,1,report.vertices)
@@ -112,7 +112,8 @@ local function run()
     assert(E.project.presets[1].settings.backRelief and E.project.presets[1].settings.backMirror)
     api.select(1,false)
     assert(E.values.backRelief and E.values.backMirror)
-    assert(api.exportOne('/tmp/ime_back_export.msh'))
+    api.exportOne('/tmp/ime_back_export.msh')
+    repeat coroutine.yield() until not E.meshTask
     local original,report=mbm.generateImageMesh(path,Model.options(E.project,E.project.regions[1]))
     assert(original,report)
     local exported=meshDebug:new();assert(exported:load('/tmp/ime_back_export.msh'))
@@ -137,11 +138,12 @@ local function run()
     started=mbm.getTimeRun()
 end
 function onInitScene()
-    local ok,err=pcall(run)
+    task=coroutine.create(run);deadline=mbm.getTimeRun()+20
+    local ok,err=coroutine.resume(task)
     if not ok then print('BACK FAIL '..tostring(err));mbm.quit() end
 end
 function onLoop(delta)
-    if not started then return end
+    if mbm.getTimeRun()>deadline then print('BACK FAIL timeout');mbm.quit();return end
     local header=tImGui.CollapsingHeader
     tImGui.CollapsingHeader=function(label,...)
         if label==tLang.L('ime_back_group') then tImGui.SetNextItemOpen(true,0) end
@@ -149,5 +151,9 @@ function onLoop(delta)
     end
     loop(delta)
     tImGui.CollapsingHeader=header
-    if mbm.getTimeRun()-started>3 then print('BACK EDITOR UI OK');mbm.quit() end
+    if coroutine.status(task)~='dead' then
+        local ok,err=coroutine.resume(task)
+        if not ok then print('BACK FAIL '..tostring(err));mbm.quit();return end
+    end
+    if started and mbm.getTimeRun()-started>3 then print('BACK EDITOR UI OK');mbm.quit() end
 end

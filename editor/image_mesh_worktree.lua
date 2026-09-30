@@ -141,7 +141,8 @@ local function createTask(entry)
         entry.tempDirectory=folder
         mbm.addPath(folder)
     end
-    entry.worker={}
+    entry.normalResources=entry.normalResources or {}
+    entry.worker={normalResources=entry.normalResources}
     entry.currentIndex=0
     entry.currentRegion=''
     entry.cancelRequested=nil
@@ -301,6 +302,8 @@ end
 
 function M.dispose(entry)
     if not entry then return end
+    require('image_mesh_normal_map').shutdown(entry.worker or {normalResources=entry.normalResources})
+    entry.normalResources=nil
     if entry.status=='generating' or entry.status=='cancelling' then
         Generation.cancel(entry.worker)
     end
@@ -314,7 +317,7 @@ function M.dispose(entry)
 end
 
 function M.fitDistance(project,region)
-    local options=Model.options(project,region)
+    local options=Model.geometryOptions(Model.options(project,region))
     local extent=math.max(options.width,options.height,options.depth+options.relief)
     if options.heightSource=='curved' then
         extent=math.max(extent,select(2,Model.curved.range(options)))

@@ -31,6 +31,63 @@ launcher integration is also present for Windows and macOS.
 **Apply** commits property edits. Saving a project also validates and commits
 pending properties. Invalid properties prevent overwriting the project.
 
+## Normal-map relief
+
+Open **Normal map and tangents** and check **Enable normal map**. Its settings
+appear only while enabled. Choose the height source in **Relief and grooves**,
+adjust the settings, then **Apply** and turn off **Edit mode** to see the 3D result.
+The saved setting automatically generates and assigns the front normal texture and
+prepares its tangents whenever the mesh is built, including export. There is no
+separate tangent-preparation checkbox. Disabling normal mapping restores geometry
+relief and keeps the normal settings for reuse. Existing projects default to
+geometry relief. The exclusive normal mode keeps a flat extrusion with the region's
+contour, holes and depth; height does not displace vertices or change collision.
+Front, back and walls have separate material subsets. Only the front gets the normal
+texture; back and side materials keep their existing behavior.
+
+**Compare with/without normal map** is shown only inside **Normal map and tangents**
+while normal mapping is enabled. After applying changes, use the individual 3D view
+with wireframe and geometry comparison off. It displays the same mesh twice under
+the same lighting, with normal strength zero on the comparison copy. The labels
+identify each side according to the camera direction. Closing the comparison
+restores the previous camera distance and mesh position. Editing, switching views
+or replacing the mesh releases the temporary copy. This option is preview-only;
+it changes neither project settings nor export. Idle frames perform no cloning,
+geometry scans, generation or uploads for this comparison.
+
+Image, external height image, manual, mixed and curved sources use the same native
+processed height raster as the height preview, including levels, areas and brushes.
+The shared Lua normal generator applies blur, strength and `+Y/-Y` convention.
+Source transparency and the region mask exclude invalid samples. Voxel/follow-image
+geometry and curved volume are not applied in this mode. The generated normal map
+is a full-source-sized atlas with neutral normals outside the region, preserving
+front UVs. Texture strength is baked once; material strength stays at 1 and the
+material convention matches the generated channels.
+
+The project persists `reliefMode` (`geometry` or `normal`), `normalMapStrength`
+(0..16, default 1), `normalMapBlur` (0..32, default 0; rounded to pixels during generation),
+`normalMapConvention` (`+Y` default or `-Y`) and `normalMapEdge` (`clamp` default
+or `repeat`) in defaults/region overrides. Generated PNGs are temporary and are
+recreated from project inputs. Changing height/normal settings, including Undo,
+updates the texture without rebuilding geometry in single and assembly previews.
+Changing contour, dimensions, holes, materials or geometry settings can rebuild it.
+No generation or texture upload runs while idle. Processing supports cancellation;
+PNG encoding/upload remains synchronous, with the large-image limitations documented
+in [the generator manual](normal-map-editor.md).
+
+Individual and batch exports package generated textures beside the `.msh`, including
+ordinary exports, as `<mesh>_normal_01.png`. Portable export also packages diffuse
+textures; cropping uses matching bounds/padding for diffuse and normals and regenerates
+tangents after UV remapping. Projects opened by Mesh Debug use the same build module.
+The combined geometry-plus-normal mode remains a later milestone.
+
+Validation on Linux/GLES: `src/test-lib/image_mesh_normal_map_smoke.lua` checks flat
+geometry, separate materials, atlas dimensions, texture-only updates and Undo,
+manual/mixed/curved height, holes, persistence, both exports, portable tangents,
+assembly updates, cancellation, mode switching and idle behavior. Run with the
+engine test flags described in [the generator manual](normal-map-editor.md).
+Other rendering backends have not been exercised for this integration.
+
 ## Workspace and navigation
 
 The left **Regions** panel contains tools, the module list, and the selected

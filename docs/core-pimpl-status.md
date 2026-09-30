@@ -6,6 +6,10 @@ private, while some gameplay values, authoring records, and serialized structure
 remain intentionally visible. The engine does not require every value type to use
 PIMPL.
 
+`IMAGE_MESH_OPTIONS::separateFront` is an authoring value flag for splitting the
+front/back/wall material groups. It introduces no runtime state, backend handles or
+container access. Generated normal-texture resources stay owned by the Lua editor.
+
 ## Backend and runtime ownership
 
 Concrete backend layouts belong in `src/core_mbm/private/` or backend translation

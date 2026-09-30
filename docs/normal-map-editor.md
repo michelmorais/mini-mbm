@@ -48,7 +48,7 @@ variáveis globais de uma cena; o painel recebe explicitamente UI, tradutor e op
 | `height_map_source` | `image(rgba,w,h)` valida RGBA8; `settings(options)` valida e copia as opções; `build(image,options,limit,tick)` produz altura em linhas de floats compactados |
 | `normal_map_generator` | `generate(image,options,limit,tick)` retorna resultado; `start(image,options,limit)` cria job cooperativo; `job(fn)` permite tarefas cooperativas auxiliares |
 | `normal_map_preview` | `light(result,azimuth,elevation,enabled,tick)` ilumina as normais existentes; `new(temporaryPath)` cria um conjunto privado de slots GPU para a UI |
-| `normal_map_panel` | `draw(ui,translate,options)` altera opções e retorna se houve mudança; chamar dentro de uma janela ImGui aberta |
+| `normal_map_panel` | `draw(ui,translate,options,processedHeight?)` altera opções e retorna se houve mudança; `processedHeight=true` omite canal/níveis/inversão já aplicados pela fonte; chamar dentro de uma janela ImGui aberta |
 | `normal_map_project` | `save(path,source,options)` e `load(path)` persistem fonte/opções; load retorna fonte resolvida e opções validadas |
 | `normal_map_editor` | Cena independente, com callbacks da engine; não é um módulo de lógica para importar em outros editores |
 
@@ -168,3 +168,22 @@ O teste também prepara uma malha 3D, aplica o PNG exportado e compara capturas 
 normal mapping ativado e com intensidade zero para verificar seu consumo real.
 A captura visual foi inspecionada; cliques e arrastes reais não foram automatizados.
 Windows/DX9/DX11, macOS/Metal e plataformas móveis não foram executados nesta entrega.
+
+## Integração ao Image Mesh (entrega 2)
+
+O Image Mesh reutiliza `normal_map_generator` e `normal_map_panel` através de
+`image_mesh_normal_map.lua`. A altura vem do raster nativo do próprio Image Mesh,
+sem repetir níveis/canais no painel compartilhado. O resultado é aplicado somente
+à face frontal da malha 3D, com iluminação do runtime. Consulte o
+[fluxo, persistência e exportação](image-mesh-editor.md#normal-map-relief).
+
+Teste da integração:
+
+```sh
+timeout -s KILL 55 ./bin/debug/linux_x86/mini-mbm \
+  --scene src/test-lib/image_mesh_normal_map_smoke.lua \
+  --disable_select_monitor --nosplash -w 1180 -h 800
+```
+
+Marcador esperado: `IMAGE MESH NORMAL PASS`. A mensagem
+`ime_generation_cancelled` faz parte do caso de cancelamento intencional.

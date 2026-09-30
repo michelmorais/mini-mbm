@@ -3878,6 +3878,7 @@ namespace mbm
         boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
         boolean("backRelief", options.backRelief); boolean("backMirror", options.backMirror);
         boolean("backOpen", options.backOpen); boolean("backRemap", options.backRemap);
+        boolean("separateFront", options.separateFront);
         integer("backX",options.backX); integer("backY",options.backY);
         integer("backCropWidth",options.backCropWidth); integer("backCropHeight",options.backCropHeight);
         integer("ellipseSegments", options.ellipseSegments);

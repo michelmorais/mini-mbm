@@ -7661,6 +7661,25 @@ M.pt_br.nmg_source_overwrite = 'Escolha um caminho diferente da imagem de origem
 M.en.nmg_regenerate = 'Generate preview'
 M.pt_br.nmg_regenerate = 'Gerar preview'
 
+M.en.ime_normal_compare = 'Compare with/without normal map'
+M.pt_br.ime_normal_compare = 'Comparar com/sem normal map'
+M.en.ime_normal_compare_help = 'Available in the individual 3D view, with changes applied, wireframe off and geometry comparison off. Preview only; does not affect export.'
+M.pt_br.ime_normal_compare_help = 'Disponivel na vista 3D individual, com alteracoes aplicadas, wireframe desligado e comparacao de geometria desligada. Apenas visualizacao; nao afeta a exportacao.'
+M.en.ime_normal_compare_order = 'Left: without normal map. Right: with normal map. Same geometry and lighting.'
+M.pt_br.ime_normal_compare_order = 'Esquerda: sem normal map. Direita: com normal map. Mesma geometria e iluminacao.'
+M.en.ime_normal_compare_reverse = 'Left: with normal map. Right: without normal map. Same geometry and lighting.'
+M.pt_br.ime_normal_compare_reverse = 'Esquerda: com normal map. Direita: sem normal map. Mesma geometria e iluminacao.'
+M.en.ime_normal_group = 'Normal map and tangents'
+M.pt_br.ime_normal_group = 'Normal map e tangentes'
+M.en.ime_normal_enabled = 'Enable normal map'
+M.pt_br.ime_normal_enabled = 'Habilitar normal map'
+M.en.ime_normal_workflow = 'When enabled, the normal texture is generated and assigned to the front material automatically, including tangent preparation. Choose the height source in Relief and grooves, adjust the settings here and click Apply. Export includes the normal PNG beside the mesh.'
+M.pt_br.ime_normal_workflow = 'Ao habilitar, a textura normal e gerada e aplicada automaticamente ao material da frente, incluindo a preparacao das tangentes. Escolha a fonte de altura em Relevo e sulcos, ajuste os controles aqui e clique em Aplicar. A exportacao inclui o PNG normal junto da malha.'
+M.en.ime_normal_help = 'Height affects front lighting only. Geometry remains a flat extrusion with the selected depth and contour. Back and walls retain their own materials. Strength controls the normal detail; geometric relief, voxel and adaptive height settings do not displace vertices in this mode.'
+M.pt_br.ime_normal_help = 'A altura afeta apenas a iluminacao da frente. A geometria fica extrudada e plana, com a profundidade e contorno escolhidos. Costas e paredes mantem seus materiais. Intensidade controla o detalhe normal; relevo geometrico, voxel e altura adaptativa nao deslocam vertices neste modo.'
+M.en.ime_generation_normal = 'Generating normal map'
+M.pt_br.ime_generation_normal = 'Gerando normal map'
+
 M.current = initLanguage()
 
 function M.setLanguage(lang)

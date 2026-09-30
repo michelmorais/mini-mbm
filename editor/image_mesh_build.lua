@@ -26,6 +26,7 @@ local Generation=require 'image_mesh_generation'
 local Asset=require 'image_mesh_asset'
 local Budget=require 'image_mesh_budget'
 local Simplify=require 'image_mesh_simplify'
+local Normal=require 'image_mesh_normal_map'
 
 local M={}
 
@@ -33,7 +34,8 @@ local M={}
 -- remesh. `callbacks.needsCurvedSource` requests the unsimplified curved source used by the editor's
 -- comparison and geometry cache.
 function M.generate(E,project,region,callbacks)
-    local options=Model.options(project,region)
+    local authored=Model.options(project,region)
+    local options=Model.geometryOptions(authored)
     if options.heightSource=='curved' then options.simplify=false end
     if options.voxelized then options.simplify=false;options.remesh=false end
     local asset,report=Generation.generate(E,project.image.path,options)
@@ -68,7 +70,8 @@ function M.generate(E,project,region,callbacks)
     report.vertexLimit=math.min(options.maxVertices,65535)
     report.triangleLimit=options.maxTriangles
     Simplify.apply(E,asset,options,report)
-    if options.normalMapPrecompute then report.normalMap=require('normal_map_authoring').precompute(asset) end
+    if options.normalMapPrecompute and authored.reliefMode~='normal' then report.normalMap=require('normal_map_authoring').precompute(asset) end
+    Normal.apply(E,asset,project,region,authored)
     return asset,report,options,vertices
 end
 

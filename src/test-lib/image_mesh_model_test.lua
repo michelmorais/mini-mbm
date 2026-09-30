@@ -83,7 +83,7 @@ print('IMAGE MESH SIMPLIFICATION SETTINGS / LEGACY PROJECT OK')
 
 local remeshDefaults=M.settings({})
 assert(remeshDefaults.remesh==false and remeshDefaults.remeshEdgeLengthFraction==.03)
-assert(remeshDefaults.remeshIterations==3 and remeshDefaults.remeshFeatureAngle==45)
+assert(remeshDefaults.remeshIterations==10 and remeshDefaults.remeshFeatureAngle==14.5)
 for _,bad in ipairs({{remesh=1},{remeshEdgeLengthFraction=0},{remeshEdgeLengthFraction=.251},
     {remeshIterations=0},{remeshIterations=1.5},{remeshFeatureAngle=-1},{remeshFeatureAngle=181}}) do
     assert(not pcall(M.validateOptions,bad,false))
@@ -148,3 +148,23 @@ for _,initial in ipairs{'qem','cgal','none','remesh'} do
 end
 tImGui,tLang=oldImGui,oldLang
 print('REMESH CHECKBOX TOGGLE / IDLE OK')
+
+-- Normal relief is optional for legacy projects and accepts only reproducible settings.
+local normalLegacy=M.copy(p)
+for key in pairs(M.normalMapDefaults) do normalLegacy.defaults[key]=nil end
+M.validate(normalLegacy)
+local normalOptions=M.options(normalLegacy,normalLegacy.regions[1])
+assert(normalOptions.reliefMode=='geometry' and normalOptions.normalMapConvention=='+Y')
+for _,bad in ipairs({{reliefMode='both'},{normalMapConvention='Z'},
+    {normalMapStrength=-1},{normalMapStrength=17},
+    {normalMapBlur=33},{normalMapEdge='mirror'}}) do
+    assert(not pcall(M.validateOptions,bad,false))
+end
+M.validateOptions({normalMapBlur=1.5},false)
+normalOptions.reliefMode='normal';normalOptions.heightSource='curved';normalOptions.voxelized=true
+normalOptions.heightEdits={};normalOptions.curvedNodes={}
+local geometry=M.geometryOptions(normalOptions)
+assert(geometry.relief==0 and geometry.heightSource=='manual' and not geometry.voxelized)
+assert(geometry.separateFront and not geometry.heightEdits and not geometry.curvedNodes)
+assert(normalOptions.heightSource=='curved' and normalOptions.voxelized,'Authored parameters changed')
+print('IMAGE MESH NORMAL SETTINGS / LEGACY PROJECT OK')
