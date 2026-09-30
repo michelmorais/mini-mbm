@@ -1,9 +1,12 @@
 # Plano: editor gerador de normal maps
 
-Status: planejamento aprovado como direção de trabalho; implementação pendente.
+Status: primeira entrega implementada (editor independente e módulos Lua).
+Integração ao Image Mesh e modo combinado permanecem pendentes.
 
-Este documento registra o escopo e a sequência de implementação. Os nomes de
-módulos e os contratos propostos abaixo ainda não representam APIs disponíveis.
+Este documento registra o escopo e a sequência de implementação. Consulte
+[o manual do gerador](normal-map-editor.md) para os contratos implementados,
+limitações e validação da primeira entrega. Os itens de integração abaixo ainda
+representam trabalho planejado.
 
 ## Objetivo
 

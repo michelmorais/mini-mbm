@@ -26,6 +26,14 @@ Public APIs may expose narrow getters/setters and engine-owned value records.
 For example, `RENDERIZABLE::alwaysOnTopPriority` has accessor methods with storage
 in `Impl`; font glyph queries use `FONT_GLYPH_QUAD`, not `stbtt_aligned_quad`.
 
+PNG encoding and filesystem writes for `mbm.writeImagePixels` belong to
+`TEXTURE_MANAGER::saveDataAsPNG` in `core_mbm`. Its byte-buffer overload takes a
+borrowed pointer and length for the duration of the synchronous call; the Lua
+binding neither copies the input raster nor references lodepng. The existing
+vector overload delegates to the same implementation. Both validate the input
+buffer and report encoding and file-write failures. Codec types and encoded
+storage remain private to the implementation.
+
 ## Normal mapping: preparation, asset data and rendering
 
 `src/core_mbm/private/normal-map-preparation.*` owns the CPU-only tangent preparation

@@ -1,0 +1,158 @@
+# Gerador de Normal Map
+
+Primeira entrega do [plano](normal-map-editor-plan.md), introduzida em 7.329.
+Editor independente com módulos Lua compartilhados. A integração ao Image Mesh
+e o modo combinado de geometria e normal map ainda não estão implementados.
+
+## Uso
+
+Selecione **Normal Map Generator / Gerador de Normal Map** no launcher desktop,
+ou execute a partir da raiz do repositório:
+
+```sh
+./bin/debug/linux_x86/mini-mbm --scene editor/normal_map_editor.lua \
+  --disable_select_monitor --nosplash -w 1180 -h 800
+```
+
+1. Abra uma imagem. O editor interpreta luminância ou um canal como altura.
+2. Ajuste níveis, curva, inversão, suavização e intensidade.
+3. Selecione a convenção `+Y/-Y` e o tratamento de bordas.
+4. Compare original, altura, normais e superfície iluminada. Azimute e elevação
+   movimentam a luz; a opção de normal map permite comparar com uma superfície plana.
+5. Exporte PNG na resolução original. Salve um projeto `.normalmap` para guardar
+   fonte e parâmetros e reproduzir a geração depois.
+
+O preview tem no máximo 384 pixels no maior eixo e usa amostragem pelo centro do
+pixel mais próximo. Detalhes abaixo dessa resolução podem diferir da exportação.
+O projeto referencia a imagem original; não a incorpora. Mover ou modificar a
+fonte pode impedir a reabertura ou alterar o resultado. Quando a fonte está sob a
+pasta do projeto, o arquivo armazena um caminho relativo.
+
+A iluminação do preview é uma referência CPU sobre uma superfície plana, com
+luz direcional difusa e ambiente. Não é uma simulação completa do material 3D da
+engine. Nenhuma geometria, silhueta ou colisão é alterada. Cores escuras da fonte
+podem produzir cavidades indesejadas; inspecione a altura antes de exportar.
+
+## Módulos reutilizáveis
+
+Todos ficam em `editor/`. Fonte, geração e persistência independem de ImGui e das
+variáveis globais de uma cena; o painel recebe explicitamente UI, tradutor e opções.
+
+| Módulo | Contrato |
+|---|---|
+| `height_map_source` | `image(rgba,w,h)` valida RGBA8; `settings(options)` valida e copia as opções; `build(image,options,limit,tick)` produz altura em linhas de floats compactados |
+| `normal_map_generator` | `generate(image,options,limit,tick)` retorna resultado; `start(image,options,limit)` cria job cooperativo; `job(fn)` permite tarefas cooperativas auxiliares |
+| `normal_map_preview` | `light(result,azimuth,elevation,enabled,tick)` ilumina as normais existentes; `new(temporaryPath)` cria um conjunto privado de slots GPU para a UI |
+| `normal_map_panel` | `draw(ui,translate,options)` altera opções e retorna se houve mudança; chamar dentro de uma janela ImGui aberta |
+| `normal_map_project` | `save(path,source,options)` e `load(path)` persistem fonte/opções; load retorna fonte resolvida e opções validadas |
+| `normal_map_editor` | Cena independente, com callbacks da engine; não é um módulo de lógica para importar em outros editores |
+
+Exemplo de geração sem interface:
+
+```lua
+local Height = require 'height_map_source'
+local Generator = require 'normal_map_generator'
+local bytes, w, h = mbm.readImagePixels('/absolute/source.png')
+assert(bytes, w)
+local image = Height.image(bytes, w, h)
+local job = Generator.start(image, {strength=2, blur=3, convention='+Y'})
+
+-- No loop da ferramenta: executar apenas enquanto estiver processando.
+job:step(0.006)
+if job.state == 'completed' then
+    local result = job.result
+    assert(mbm.writeImagePixels('/absolute/normal.png',
+        result.bytes, result.width, result.height))
+    -- Consumir uma vez e remover o job do estado da ferramenta.
+elseif job.state == 'failed' then
+    error(job.error)
+end
+```
+
+O resultado contém `bytes` (normal RGBA8), `heightBytes` (altura em cinza RGBA8),
+`diffuse` (fonte na resolução de saída), `width`, `height` e `options` (snapshot).
+Os jobs expõem `state`, `progress`, `result`, `error`, `step(seconds)` e `cancel()`.
+Estados: `running`, `completed`, `failed`, `cancelled`. Não são threads: cedem
+execução entre linhas, verificando o orçamento de CPU nesses pontos. Cancelar
+descarta o coroutine e seu resultado. Trate a imagem de entrada como imutável.
+
+## Convenções e filtros
+
+- Imagens usam bytes RGBA de 0 a 255, linhas de cima para baixo, limite de
+  16.777.216 pixels e 16.384 pixels por eixo no gerador. Alfa ausente na leitura vira 255.
+- Luminância usa pesos 0,2126 / 0,7152 / 0,0722 nos canais codificados; não aplica
+  conversão sRGB para luz linear.
+- A altura é normalizada entre preto e branco, limitada a `[0,1]`, elevada à
+  curva e opcionalmente invertida. Branco deve ser maior que preto.
+- Suavização usa filtro box separável, ponderado por alfa. O raio é expresso em
+  pixels da fonte, escalado e arredondado na resolução do preview.
+- Normais usam diferenças centrais. Intensidade 1 representa amplitude de altura
+  de `max(1,min(width,height)-1)/32` pixels na resolução de saída. Assim, a escala
+  aproximada do relevo acompanha o tamanho da imagem; não é uma unidade de mundo.
+- A normal aponta para `+Z`; `+Y` aponta para cima na imagem. `-Y` inverte apenas
+  o canal verde. Ao atribuir ao material, use a mesma convenção para interpretá-lo.
+- Pixels totalmente transparentes produzem normal neutra; ao derivar um pixel
+  visível, vizinhos transparentes usam sua altura central. O alfa original é
+  preservado. Semitransparência pondera a suavização, sem reduzir a altura em si.
+- `clamp` replica a borda; `repeat` consulta o lado oposto. Repetição não transforma
+  automaticamente uma fonte descontínua em textura sem costura.
+- PNG exportado contém os vetores codificados, sem iluminação ou correção de cor.
+  A normal neutra quantizada é aproximadamente `(128,128,255)`.
+
+Opções aceitas: `channel` (`luminance/r/g/b/a`), `black` e `white` (`0..1`),
+`curve` (`0.1..8`), `invert` (booleano), `blur` (`0..32`), `strength` (`0..16`),
+`convention` (`+Y/-Y`) e `edge` (`clamp/repeat`).
+
+## Persistência, recursos e custo
+
+O projeto usa formato textual versionado, com caminho codificado em hexadecimal
+e pares chave/valor. `save` exige caminho absoluto da fonte (como o seletor de
+arquivos fornece), evitando reinterpretar caminhos relativos ao mover o projeto. Não executa Lua ao abrir; rejeita versões, chaves, valores
+inválidos e arquivos acima de 16 KiB. Não persiste caches, jobs ou handles GPU.
+
+O editor aguarda 150 ms após mudanças para iniciar a geração e cancela trabalhos
+anteriores. Mudar a luz reutiliza a normal já gerada. Quatro slots temporários
+(original, altura, normal e iluminado) são recarregados no lugar, evitando crescer
+o cache a cada ajuste. Ao trocar a fonte/encerrar, libera suas imagens GPU e remove
+os arquivos. Os pequenos objetos de cache permanecem sob propriedade da engine.
+
+Use `preview:clear()` no encerramento. As operações `textureInfo:reload/release`
+afetam a textura compartilhada; use apenas caminhos temporários privados nesse
+fluxo. O editor mantém esses arquivos enquanto desenha seus respectivos previews.
+
+A geração Lua é cooperativa e utiliza linhas compactadas para limitar o custo de
+tabelas numéricas. Leitura de arquivo, concatenação final, codificação PNG e upload
+são síncronos; imagens grandes ainda podem causar pausas nessas etapas. Exportação
+em resolução original prioriza a conclusão do arquivo, sem prometer latência fixa.
+Uma futura implementação nativa/GPU pode substituir o processamento preservando
+o contrato dos módulos.
+
+Uma medição local com o interpretador Lua Debug, imagem constante de 1024x1024 e
+raio de suavização 8 consumiu aproximadamente 10,5 s de CPU, em 1.494 etapas
+(maior etapa: 10 ms), com cerca de 33 MiB no heap Lua ao final. O tempo de parede
+na UI será maior por causa do orçamento por frame; essa medição não inclui PNG,
+upload nem memória nativa. Aceleração do processamento é uma prioridade antes de
+tratar imagens grandes como um fluxo interativo.
+
+## Validação
+
+```sh
+./bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/normal_map_generator_test.lua
+timeout -s KILL 35 ./bin/debug/linux_x86/mini-mbm \
+  --scene src/test-lib/normal_map_editor_smoke.lua \
+  --disable_select_monitor --nosplash -w 1180 -h 800
+```
+
+O teste gráfico exige display e build com `USE_TEXTURE_MISSING_DIALOG=0`.
+Fixtures e PNG exportado ficam em `/tmp/mini-mbm-normal-smoke` para inspeção.
+Verifique o marcador `NORMAL MAP EDITOR SMOKE PASS` e a ausência de erros no log;
+o código de saída da engine sozinho não comprova ausência de erros Lua.
+
+Validado em Linux/GLES: compilação, altura constante, rampas X/Y, inversão,
+transparência com/sem suavização, repetição, imagem 1x1, jobs independentes,
+cancelamento, projeto, PNG sem perda, falha de escrita, recarga/liberação GPU,
+preview renderizado e ausência de geração/upload durante oito segundos ociosos.
+O teste também prepara uma malha 3D, aplica o PNG exportado e compara capturas com
+normal mapping ativado e com intensidade zero para verificar seu consumo real.
+A captura visual foi inspecionada; cliques e arrastes reais não foram automatizados.
+Windows/DX9/DX11, macOS/Metal e plataformas móveis não foram executados nesta entrega.

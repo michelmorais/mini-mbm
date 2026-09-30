@@ -222,7 +222,23 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 | `mbm.existTexture` | `(name: string)` | bool | Whether a named texture is already loaded |
 | `mbm.loadTexture` | `(file: string, alpha?: bool)` | textureInfo | Load a texture file and return info table |
 | `mbm.readImagePixels` | `(path: string, format?: "rgba" or "alpha")` | bytes, width, height or nil, error | Decode an image supported by the engine's stb loader on the CPU. Default `"rgba"` returns exactly `width*height*4` bytes (R, G, B, A); `"alpha"` returns `width*height` alpha bytes. Both use row-major order from the top-left; absent alpha becomes 255. Rejects images over 16,777,216 pixels before decoding and dimensions that change while loading. Uses the supplied filesystem path without asset-search dialogs. Invalid format arguments raise a Lua argument error. Call on demand, never per frame. |
+| `mbm.writeImagePixels` | `(path: string, rgba: string, width: integer, height: integer)` | true or nil, error | Encode top-left row-major RGBA8 bytes as PNG at the exact path, without creating a GPU texture, changing channels, or applying color correction. Dimensions must be positive, at most 16,777,216 pixels, and byte count must equal `width*height*4`. Invalid dimensions/length and encoding/filesystem errors return `nil, error`; argument type errors raise a Lua error. Does not append an extension or create directories. Synchronous; call only on explicit export or changed preview data. |
 | `mbm.createDirectories` | `(path: string)` | true or nil, error | Create a directory and missing parent directories. Succeeds if the directory already exists. Uses a filesystem path, without invoking a shell. |
+
+Texture-info handles returned by `mbm.loadTexture` also provide explicit editor cache operations:
+
+- `info:reload(path)` returns a boolean. Reloads pixels from the supplied filesystem path
+  into the existing shared texture object; its original cache key remains unchanged.
+  This releases the previous GPU image first, so a failed reload does not preserve it.
+- `info:release()` returns no values. Releases GPU storage while retaining the cache
+  object and handle for later reload. It does not remove the file.
+- `info:isLoaded()` is false after release; `info:isValid()`
+  can remain true because the cache object still exists.
+
+These operations affect every consumer of the same cached texture. Use private,
+uniquely named temporary files for editor previews, reload before submitting ImGui
+images for the frame, and stop drawing released handles. Lua garbage collection
+of a texture-info handle alone does not release the manager-owned GPU texture.
 
 ### 3.9 Global Variables (cross-scene storage)
 

@@ -57,6 +57,28 @@ namespace mbm
         return 1;
     }
 
+    // Explicit shared-cache operations, intended for editor-owned temporary paths.
+    static int onReloadTextureInfo(lua_State *lua)
+    {
+        TEXTURE_INFO_DATA *data = getTextureInfoDataFromRawTable(lua, 1, 1);
+        const char *path = luaL_checkstring(lua, 2);
+        TEXTURE *texture = data ? data->getTexture() : nullptr;
+        const bool loaded = texture && texture->load(path, data->hasAlpha);
+        if (texture && !loaded)
+            texture->release();
+        lua_pushboolean(lua, loaded);
+        return 1;
+    }
+
+    static int onReleaseTextureInfo(lua_State *lua)
+    {
+        TEXTURE_INFO_DATA *data = getTextureInfoDataFromRawTable(lua, 1, 1);
+        TEXTURE *texture = data ? data->getTexture() : nullptr;
+        if (texture)
+            texture->release();
+        return 0;
+    }
+
     int onGetHeightTextureInfo(lua_State *lua)
     {
         TEXTURE_INFO_DATA *data = getTextureInfoDataFromRawTable(lua, 1, 1);
@@ -122,7 +144,7 @@ namespace mbm
         TEXTURE_INFO_DATA *data = getTextureInfoDataFromRawTable(lua, 1, 1);
         TEXTURE *texture = data ? data->getTexture() : nullptr;
         if (texture)
-            lua_pushboolean(lua, texture->isLoaded());
+            lua_pushboolean(lua, texture->isLoaded() && texture->getWidth() > 0 && texture->getHeight() > 0);
         else
             lua_pushboolean(lua, 0);
         return 1;
@@ -194,6 +216,8 @@ namespace mbm
 
         luaL_Reg regTextureInfoMethods[] = {
             {"getWidth", onGetWidthTextureInfo},
+            {"reload", onReloadTextureInfo},
+            {"release", onReleaseTextureInfo},
             {"getHeight", onGetHeightTextureInfo},
             {"getSize", onGetSizeTextureInfo},
             {"hasAlpha", onHasAlphaTextureInfo},
