@@ -4,7 +4,9 @@ Status: implemented in 7.324; Linux Release and Windows DX9 SM3/DX11 Debug x86
 baseline matrices verified, together with macOS Metal Debug arm64 (72/72 steps).
 Windows test expansion remains deferred by the 2026-09-30 scope decision. Metal
 API validation, native pipeline checks and targeted ON/OFF captures are recorded.
-Detailed CPU/GPU performance profiling remains pending separately. See the
+A bounded Metal Release CPU/GPU/memory baseline is also recorded (480 timed
+samples); representative game profiling and GPU instruction analysis remain
+separate work. See the
 [current scope and completed macOS handoff](normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30).
 
 The subsequent optimization for enabled builds is tracked separately in
@@ -357,3 +359,25 @@ existing difference: ON geometric MSL includes inverse-transpose normals while
 OFF retains the direct transform. The matrix does not prove cross-build pixel
 parity for arbitrary nonuniform scales. GPU disassembly and performance profiling
 remain pending separately. See the [Metal results and reproduction steps](normal-mapping-enabled-optimization.md#completed-macos-milestone-metal-baseline-and-captures-2026-09-30).
+
+
+## macOS Metal Release measurement baseline (2026-09-30)
+
+The existing benchmark now runs natively on Metal using the same two synthetic
+grids and six material cases as GLES. All eight Release arm64 ON/OFF x cap 1..4
+entries pass **72 regression steps**, **288 separate benchmark validation samples**
+and **480 timed samples**. GPU command-buffer timestamps are distinct from CPU
+submission/synchronized wall times; API validation and capture are disabled for
+measurements. All caps use one active point light, holding the workload fixed.
+
+Derived buffer payload stays at zero without effective mapping; active mapping
+allocates 4.6875 MiB for 98,304 vertices, including the mixed-subset case, and
+removal retains that allocation. The cap-2 OFF core dylib is 19,728 bytes smaller.
+GPU timing dispersion is large, so these results establish resource behavior and
+measurement coverage, not an FPS or small percentage performance improvement.
+Xcode is now 27.0 / SDK 27.0; regressions were rerun with that toolchain.
+
+No production rendering change or version bump was needed. See [method, numeric
+results, limitations and reproduction](normal-mapping-enabled-optimization.md#completed-macos-milestone-release-measurement-baseline-2026-09-30).
+Representative game assets, isolated CPU allocations, historical before/after
+comparison and GPU instruction/register statistics remain follow-up work.

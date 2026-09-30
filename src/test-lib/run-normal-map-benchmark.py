@@ -17,7 +17,7 @@
 # |                                                                                                                        |
 # |-----------------------------------------------------------------------------------------------------------------------*/
 
-"""Compare prebuilt Linux/GLES ON/OFF snapshots; synthetic timings are not FPS."""
+"""Compare prebuilt Linux/GLES or macOS/Metal ON/OFF snapshots; synthetic timings are not FPS."""
 import argparse
 import hashlib
 import importlib.util
@@ -52,17 +52,45 @@ def summarize(samples):
                 if not rows:
                     continue
                 numeric = {key: distribution([row[key] for row in rows]) for key in rows[0]
-                           if key not in ('normal', 'lights', 'grid', 'repeat', 'vertices', 'case', 'warm_submit_us', 'warm_sync_us', 'log')}
-                for kind in ('submit', 'sync'):
+                           if key not in ('normal', 'lights', 'grid', 'repeat', 'vertices', 'case', 'point_lights', 'warm_submit_us', 'warm_sync_us', 'warm_gpu_us', 'log')}
+                for kind in (('submit', 'sync', 'gpu') if 'warm_gpu_us' in rows[0] else ('submit', 'sync')):
                     numeric['warm_'+kind+'_us'] = distribution([statistics.median(row['warm_'+kind+'_us']) for row in rows])
                 groups[f'{normal}/{grid}/{case}'] = dict(samples=len(rows), vertices=rows[0]['vertices'], metrics=numeric)
     return groups
+
+
+def validate_sample(sample, normal, lights, case, grid, blocks, backend, point_lights):
+    if (sample['normal'], sample['lights'], sample['case'], sample['vertices']) != (normal, lights, case, grid*grid*6):
+        raise ValueError('measurement identity mismatch')
+    kinds = ('submit', 'sync', 'gpu') if backend == 'metal' else ('submit', 'sync')
+    if backend == 'metal' and sample['point_lights'] != point_lights:
+        raise ValueError('point-light workload mismatch')
+    for kind in kinds:
+        values = sample['warm_'+kind+'_us']
+        if len(values) != blocks or any(not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0 for v in values):
+            raise ValueError('invalid/incomplete warm '+kind+' blocks')
+    positive = ['rss_before', 'rss_loaded', 'rss_first', 'rss_warm', 'source_gpu_bytes']
+    if backend == 'metal':
+        positive += ['first_gpu_us', 'metal_allocated_before', 'metal_allocated_loaded', 'metal_allocated_first', 'metal_allocated_warm']
+    for key in positive:
+        if not math.isfinite(sample[key]) or sample[key] <= 0:
+            raise ValueError('missing/invalid measurement: '+key)
+    for key in ('load_sync_us', 'material_sync_us', 'geometric_compile_sync_us', 'first_submit_us', 'first_sync_us',
+                'removal_us', 'derived_before', 'derived_first', 'derived_warm'):
+        if not math.isfinite(sample[key]) or sample[key] < 0:
+            raise ValueError('missing/invalid measurement: '+key)
+    effective = normal == 1 and case in ('mapped', 'mixed', 'removed')
+    if sample['derived_before'] != 0 or (sample['derived_first'] > 0) != effective or sample['derived_warm'] != sample['derived_first']:
+        raise ValueError('derived allocation contract mismatch')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--enabled', required=True, type=Path, help='Enabled testLib snapshot; matching libraries beside it')
     parser.add_argument('--disabled', required=True, type=Path, help='Disabled testLib snapshot; matching libraries beside it')
+    parser.add_argument('--backend', choices=('gles', 'metal'), default='gles')
+    parser.add_argument('--point-lights', type=int, default=0, help='Metal only: fixed active point-light workload')
+    parser.add_argument('--validate-metal', action='store_true', help='Separate correctness run with Metal validation; not performance evidence')
     parser.add_argument('--lights', type=int, choices=(1, 2, 3, 4), default=2)
     parser.add_argument('--grids', type=int, nargs='+', default=[32, 128])
     parser.add_argument('--repeats', type=int, default=5)
@@ -73,26 +101,32 @@ def main():
     parser.add_argument('--timeout', type=float, default=90)
     parser.add_argument('--allow-mesa-disk-cache', action='store_true')
     args = parser.parse_args()
-    if sys.platform != 'linux':
-        parser.error('benchmark requires Linux/GLES')
+    if (args.backend == 'gles' and sys.platform != 'linux') or (args.backend == 'metal' and sys.platform != 'darwin'):
+        parser.error('benchmark requires Linux/GLES or macOS/Metal')
+    if not 0 <= args.point_lights <= args.lights or (args.backend != 'metal' and (args.point_lights or args.validate_metal)):
+        parser.error('point lights / Metal validation require Metal and point lights <= build cap')
     if (args.repeats < 3 or args.repeats > 100 or not 1 <= args.draws <= 4096 or
             not 2 <= args.blocks <= 100 or not math.isfinite(args.timeout) or args.timeout <= 0):
         parser.error('invalid repetition, draw, block or timeout bounds')
     if any(g < 2 or g > 256 or g % 2 for g in args.grids) or len(set(args.grids)) != len(args.grids):
         parser.error('grids must be distinct even sizes between 2 and 256')
     binaries = {1: args.enabled.resolve(), 0: args.disabled.resolve()}
+    library = 'libcore_mbm.dylib' if args.backend == 'metal' else 'libcore_mbm.so'
     for binary in binaries.values():
-        if not binary.is_file() or not (binary.parent/'libcore_mbm.so').is_file():
-            parser.error('each snapshot needs testLib and matching libcore_mbm.so')
+        if not binary.is_file() or not (binary.parent/library).is_file():
+            parser.error('each snapshot needs testLib and matching '+library)
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     records = []
-    report = dict(platform=platform.platform(), lights=args.lights, grids=args.grids,
+    report = dict(platform=platform.platform(), backend=args.backend, point_lights=args.point_lights,
+                  metal_validation=args.validate_metal, lights=args.lights, grids=args.grids,
                   repeats=args.repeats, draws_per_block=args.draws, blocks=args.blocks, seed=args.seed,
-                  mesa_disk_cache_disabled=not args.allow_mesa_disk_cache,
-                  timing='CPU wall microseconds; sync includes glFinish, not a GPU timer',
+                  mesa_disk_cache_disabled=not args.allow_mesa_disk_cache if args.backend == 'gles' else None,
+                  metal_cache_policy='OS/driver shader cache uncontrolled; fresh engine process' if args.backend == 'metal' else None,
+                  timing=('CPU wall microseconds; sync includes waitUntilCompleted; GPU command-buffer span includes pass overhead'
+                          if args.backend == 'metal' else 'CPU wall microseconds; sync includes glFinish, not a GPU timer'),
                   memory='Process RSS includes driver/allocator; GPU bytes are buffer payload only',
-                  binaries={}, fixtures={}, samples=records, complete=False)
+                  binaries={}, binary_sizes={}, fixtures={}, samples=records, complete=False)
     def save():
         report['summary'] = summarize(records)
         (out/'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
@@ -101,8 +135,15 @@ def main():
         env = os.environ.copy()
         # No fault injection/profiling preload in timed processes.
         env.pop('LD_PRELOAD', None)
+        env.pop('DYLD_INSERT_LIBRARIES', None)
+        env.pop('MBM_NORMAL_MAP_METAL_CAPTURE', None)
         env['LD_LIBRARY_PATH'] = str(binaries[normal].parent)
         env['MESA_SHADER_CACHE_DISABLE'] = 'false' if args.allow_mesa_disk_cache else 'true'
+        if args.backend == 'metal':
+            env['DYLD_LIBRARY_PATH'] = str(binaries[normal].parent)
+            env['MTL_DEBUG_LAYER'] = '1' if args.validate_metal else '0'
+            env['MTL_SHADER_VALIDATION'] = '0'
+            env['MTL_CAPTURE_ENABLED'] = '0'
         env.update(extra)
         timed_out = False
         try:
@@ -121,9 +162,10 @@ def main():
     try:
         for normal, binary in binaries.items():
             run(normal, '--normal-map-build-info', 'build-'+str(normal), {},
-                f'NORMAL MAP BUILD backend=gles normal={normal} lights={args.lights}')
+                f'NORMAL MAP BUILD backend={args.backend} normal={normal} lights={args.lights}')
             report['binaries'][str(normal)] = {name: hashlib.sha256((binary.parent/name).read_bytes()).hexdigest()
-                                               for name in (binary.name, 'libcore_mbm.so')}
+                                               for name in (binary.name, library)}
+            report['binary_sizes'][str(normal)] = {name: (binary.parent/name).stat().st_size for name in (binary.name, library)}
         for grid in args.grids:
             folder = out/f'fixtures-{grid}'
             run(1, '--normal-map-benchmark-fixtures', 'fixtures-'+str(grid),
@@ -135,18 +177,20 @@ def main():
             label = f'{normal}-{grid}-{case}-{repeat}'
             text = run(normal, '--normal-map-benchmark', label,
                        dict(MBM_NORMAL_BENCH_DIR=str(out/f'fixtures-{grid}'), MBM_NORMAL_BENCH_CASE=case,
-                            MBM_NORMAL_BENCH_DRAWS=str(args.draws), MBM_NORMAL_BENCH_BLOCKS=str(args.blocks)),
+                            MBM_NORMAL_BENCH_DRAWS=str(args.draws), MBM_NORMAL_BENCH_BLOCKS=str(args.blocks),
+                            MBM_NORMAL_BENCH_POINT_LIGHTS=str(args.point_lights)),
                        'NORMAL MAP BENCH PASS')
             lines = [line.split(' ',1)[1] for line in text.splitlines() if line.startswith('NORMAL_MAP_BENCH_JSON ')]
             if len(lines) != 1:
                 raise RuntimeError(label+': missing/duplicate measurement record')
             sample = json.loads(lines[0])
-            if (sample['normal'],sample['lights'],sample['case'],sample['vertices']) != (normal,args.lights,case,grid*grid*6):
-                raise RuntimeError(label+': measurement identity mismatch')
-            if any(len(sample['warm_'+kind+'_us']) != args.blocks for kind in ('submit','sync')):
-                raise RuntimeError(label+': incomplete warm blocks')
-            if any(sample[k] <= 0 for k in ('rss_before','rss_loaded','rss_first','rss_warm','source_gpu_bytes')):
-                raise RuntimeError(label+': missing memory measurement')
+            validate_sample(sample, normal, args.lights, case, grid, args.blocks, args.backend, args.point_lights)
+            if args.backend == 'metal':
+                if 'NORMAL MAP BENCH CONFIG release=1' not in text:
+                    raise RuntimeError(label+': expected Release build')
+                active = 'Metal API Validation Enabled' in text
+                if active != args.validate_metal:
+                    raise RuntimeError(label+': Metal validation state differs from requested run')
             sample.update(grid=grid, repeat=repeat, log=label+'.log',
                           rss_load_delta=sample['rss_loaded']-sample['rss_before'],
                           rss_first_delta=sample['rss_first']-sample['rss_loaded'])

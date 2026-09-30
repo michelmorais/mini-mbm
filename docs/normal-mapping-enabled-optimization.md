@@ -39,8 +39,10 @@ claimed.
    are explicit. Do not add new fault-injection suites to reach this boundary.
 
 macOS GLES is a separate conditional follow-up only if that backend is shipped.
-Release performance measurements remain planned work after native functional
-evaluation; no FPS or combined-memory improvement is assumed.
+The bounded Metal Release measurement baseline is now recorded [below](#completed-macos-milestone-release-measurement-baseline-2026-09-30):
+480 timed samples, separate validation, CPU/GPU timings and memory observations.
+Representative game workloads and native instruction/register analysis remain
+follow-up work; no FPS or combined-memory improvement is assumed.
 
 ### Deferred robustness backlog (not baseline acceptance blockers)
 
@@ -123,7 +125,8 @@ check; neither suppression disables address-access checks.
 
 DirectX 9/11 and Metal follow the same private selection/staging contract.
 The DX9 SM3, DX11 and macOS Metal Debug baseline matrices are validated below.
-Native performance measurements remain pending.
+Bounded Metal Release measurements are recorded below; representative workloads
+and other native backend profiling remain pending.
 Linux measurements do not establish native-backend or mobile-device coverage.
 
 ## Next milestone: native backend regression matrix
@@ -182,8 +185,9 @@ performance measurements remain a separate workstream.
   entries pass, including contrast checks and native validation (matrix below).
 - [x] Validate DX11 constant-buffer `Map` failure/retry in Debug ON/OFF at cap 2,
   including second-subset failures, retained buffers and pixel comparison.
-- [ ] Record native measurements and evidence before claiming performance or
-  native parity. No FPS or total-memory improvement is assumed.
+- [x] Record a bounded native Metal Release measurement baseline across ON/OFF
+  and caps 1..4, separating validation from CPU/GPU timing and memory observations.
+  This does not establish FPS, total-memory improvement or representative game performance.
 
 ### Prepared coverage
 
@@ -1455,3 +1459,162 @@ iOS, native skeletal parity, actual device loss/fault injection and cross-device
 pixel equality are not covered. The known ON/OFF transform difference above
 limits cross-build parity claims. Release CPU/GPU profiling and native instruction
 statistics remain separate planned work; no FPS improvement is claimed.
+
+## Completed macOS milestone: Release measurement baseline (2026-09-30)
+
+The benchmark now supports native macOS Metal through the existing `testLib`
+entry points and Python runner. Fixture generation was extracted unchanged from
+the GLES benchmark into `normal-map-benchmark-fixtures.cpp`; Linux/GLES keeps its
+existing draw/timing implementation. No production rendering behavior or public
+API changed; engine version remains 7.328.
+
+### Method and measurement boundaries
+
+The study uses eight isolated Release arm64 ON/OFF x cap 1/2/3/4 builds. Each cap
+compares both switches across six cases (`plain`, `retained`, `zero`, `mapped`,
+`mixed`, `removed`) and grids 32/128 (6,144/98,304 vertices). Five independent
+processes per combination give 120 timed samples per cap. Each process performs
+one first-use draw, 16 warmup draws and eight blocks of 32 draws into a 128x128
+offscreen target. No presentation, vsync or pixel readback is inside timed blocks.
+Visibility is checked before and after warm draws; the regression suite supplies
+stronger image comparisons. Geometry is opaque, identity-transformed, with depth
+and culling disabled. These are repeated draws of one synthetic asset, not frames
+of a game.
+
+All caps use the **same one selected point light plus a directional light**.
+A spatial owner supplies the plane's bounds to production per-object light
+selection, and the benchmark asserts the selected count before measuring. A
+null owner would silently select zero lights; that cannot satisfy this benchmark.
+Changing the compiled cap therefore does not change the active-light workload.
+This is not a saturated 1/2/3/4-light cost comparison. Each cap's ON/OFF job order
+is shuffled with seed 2026. Caps run sequentially (2, 1, 3, 4), so cross-cap
+comparisons are also subject to time/thermal/scheduling drift.
+
+The runner separates `--validate-metal` correctness runs from measurements.
+Timed processes set `MTL_DEBUG_LAYER=0`, `MTL_SHADER_VALIDATION=0` and
+`MTL_CAPTURE_ENABLED=0`, remove preload/injection settings and require the Release
+marker. Validation runs require `Metal API Validation Enabled`; timed runs reject
+that activation marker. Every sample must contain complete, finite, positive GPU
+timestamps and all warm blocks, matching build/workload identity, visible output
+and the expected deferred-allocation contract. Malformed measurements are rejected
+before summarization. OS/driver Metal shader caching is uncontrolled; each engine
+process is fresh, but these are not cold-driver compilation or cold-disk results.
+
+Metrics retain the existing JSON names where applicable:
+
+- `load_sync_us` and `material_sync_us`: synchronous host calls for asset load and
+  material setup. Metal creates shared source buffers and writes texture data
+  synchronously here; these timings do not include a separate GPU command buffer.
+- `geometric_compile_sync_us`: the explicit geometric shader compile/cache call,
+  including creation of its blend variants when uncached. This does not count
+  compiler invocations or distinguish driver cache hits.
+- `first_submit_us`, `first_sync_us`: CPU wall time for pass creation, draw,
+  encoder end and commit, before/after `waitUntilCompleted`. First use can include
+  lazy mapped shader compilation and derived upload. `removal_us` is host time
+  spent removing map assignments before warming the `removed` case.
+- `first_gpu_us`, `warm_gpu_us`: completed command buffer `GPUEndTime - GPUStartTime`,
+  divided by draw count. The span includes clear/store/pass overhead and GPU
+  scheduling within that command buffer, not just isolated vertex/fragment work.
+- `warm_submit_us`, `warm_sync_us`: the same CPU wall intervals over a warm block,
+  divided by 32. They exclude scene traversal, gameplay and presentation, and
+  must not be converted into application FPS.
+- `rss_*`: task resident bytes from `mach_task_basic_info`; `metal_allocated_*`:
+  `MTLDevice.currentAllocatedSize`; `source_gpu_bytes` / `derived_*`: unique
+  `MTLBuffer.length` payload totals. RSS and Metal allocations overlap on unified
+  memory and must not be added. Neither isolates CPU preparation allocations;
+  buffer lengths exclude allocator padding, textures, pipelines and driver state.
+
+Summaries use the median of each process's warm blocks, then median, nearest-rank
+p95 and min/max across five processes. With five samples, p95 is the maximum.
+There are no timing acceptance thresholds on this shared desktop. ON `mapped`
+and OFF `mapped` perform different shading work; this compares current build
+switches, not a historical before/after implementation of the optimization.
+
+### Recorded Metal result
+
+All **480 timed samples passed**, alongside **288 separate benchmark validation
+samples**, **72/72 integrated Release regression steps** and ten Python unit
+tests (five benchmark, five regression runner). The timed samples run without
+API validation/capture; the other results establish correctness with API
+validation active. Binary/source hashes and fixture equality across caps were
+checked during consolidation.
+
+Host: Apple M4, macOS 26.6.2 (25G83), **Xcode 27.0 (27A266a), SDK 27.0**, CMake
+4.2.0, Python 3.9.6. This toolchain differs from the earlier Debug acceptance;
+that is why Release regressions were rerun. All eight builds use `-O3`,
+`USE_LUA=1`, Metal, AVFoundation audio and the missing-texture dialog disabled.
+Source baseline: `31d7f08e` plus this benchmark/test/runner change. Version 7.328.
+
+For the larger grid at cap 2, medians across five processes (us/draw):
+
+| Case | OFF CPU submit | ON CPU submit | OFF GPU span | ON GPU span | ON derived MiB after first use |
+|---|---:|---:|---:|---:|---:|
+| plain | 2.33 | 2.21 | 59.94 | 82.02 | 0 |
+| retained | 2.56 | 2.42 | 95.80 | 91.39 | 0 |
+| zero | 2.52 | 2.35 | 63.30 | 84.10 | 0 |
+| mapped | 2.37 | 2.57 | 84.63 | 101.74 | 4.6875 |
+| mixed | 2.37 | 2.87 | 152.12 | 108.14 | 4.6875 |
+| removed | 2.50 | 2.67 | 66.70 | 106.97 | 4.6875 |
+
+GPU dispersion is material: cap-2 `retained` process block-medians range from
+64.70 to 220.19 us OFF and 64.79 to 128.82 us ON. Even OFF cases with equivalent
+geometric work vary substantially. Do not read the table as a stable speedup or
+slowdown percentage. CPU submissions are much closer, with overlapping ranges;
+this shared-desktop study does not resolve small timing improvements. The full
+four-cap distributions are preserved in the report, without claiming a monotonic
+performance benefit from lowering the compiled light cap.
+
+The allocation results are deterministic across every cap and sample:
+
+- Original buffer payload is 196,608 bytes (grid 32) or 3,145,728 bytes (grid 128).
+- Derived payload starts at zero in every case. All OFF cases, and ON `plain`,
+  `retained`, `zero`, remain at zero through the last warm block.
+- ON `mapped`, `mixed`, `removed` allocate 307,200 or 4,915,200 derived bytes on
+  first use and retain them through warm draws. Mapping only one subset still
+  uploads both; removing maps does not evict them. These observations identify
+  per-subset upload/eviction as a possible future optimization, not a change made
+  by this study.
+
+At cap 2, `libcore_mbm.dylib` is 3,141,504 bytes ON versus 3,121,776 bytes OFF:
+19,728 fewer file bytes in OFF. This is library file size, not loaded/resident
+memory. For `retained` at the larger grid, median load RSS growth is 16.45 MiB ON
+versus 16.56 MiB OFF; `currentAllocatedSize` progresses from about 0.61 to 3.73
+MiB after loading, then 4.19 MiB after drawing in both builds. These overlapping
+observations do not prove a total-memory reduction or isolate CPU staging.
+Earlier Linux memory/timing numbers must not be transferred to this Metal device.
+
+Reproduce using matching Release snapshots (build flags as in the Metal baseline,
+with `CMAKE_BUILD_TYPE=Release`). Run correctness separately, then measurements:
+
+```sh
+python3 src/test-lib/run-normal-map-benchmark.py \
+  --backend metal --enabled /absolute/on-2/testLib --disabled /absolute/off-2/testLib \
+  --lights 2 --point-lights 1 --grids 32 128 --draws 32 --blocks 8 \
+  --validate-metal --repeats 3 --output /tmp/metal-benchmark-validation-2
+python3 src/test-lib/run-normal-map-benchmark.py \
+  --backend metal --enabled /absolute/on-2/testLib --disabled /absolute/off-2/testLib \
+  --lights 2 --point-lights 1 --grids 32 128 --draws 32 --blocks 8 \
+  --repeats 5 --output /tmp/metal-benchmark-measurements-2
+```
+
+Each snapshot needs `testLib` and its matching `libcore_mbm.dylib`. Use new output
+directories and repeat with matching cap-1/3/4 binaries. The backend defaults to
+`gles` for existing Linux commands; nonzero `--point-lights` and `--validate-metal`
+are Metal-only. Five focused benchmark-reader unit checks are available through
+`python3 src/test-lib/test-normal-map-benchmark.py`.
+
+Local evidence is under `build/normal-metal-release/`: per-entry binaries,
+SHA-256 manifests, build metadata/logs and `regression-final/`; per-cap
+`validation-N/` and `measurements-N/` contain raw logs, fixture hashes, per-process
+samples and distribution summaries. `study-summary.json` joins all evidence;
+`timings.csv` exposes the distributions for further analysis. `host.json`,
+`source-hashes.json`, `run-study.py` and `summarize-study.py` retain provenance and
+orchestration. These artifacts are local, not committed. Shared Release outputs
+were restored to ON / cap 4; Debug outputs were not rebuilt.
+
+This completes the bounded synthetic Metal measurement baseline. GPU machine
+instruction/register counts, isolated CPU allocation attribution, representative
+game assets, skeletal/dynamic workloads and historical before/after profiling
+remain outside this result. The earlier ON/OFF nonuniform-normal-transform
+limitation also remains; this benchmark uses identity transforms. No FPS or
+combined-memory improvement is claimed.

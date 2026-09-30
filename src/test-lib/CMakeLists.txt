@@ -40,6 +40,8 @@ if(USE_METAL)
   list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-skeletal-parity-tests.mm")
   if(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/macos-window-tests.mm")
+    list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-normal-map-benchmark.mm")
+    set_source_files_properties(metal-normal-map-benchmark.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
   endif()
 endif()
 
