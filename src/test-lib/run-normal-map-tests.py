@@ -185,12 +185,17 @@ def main():
                          'nearest-sampler', 'matrix-buffer', 'light-buffer', 'normal-settings',
                          'zero-tangent', 'derived-vertices', 'derived-indices',
                          'partition-second-vertices', 'partition-second-indices',
-                         'subset-second-vertices', 'subset-second-indices')
+                         'subset-second-vertices', 'subset-second-indices',
+                         'map-matrix', 'map-light', 'map-normal', 'map-second-light', 'map-second-normal')
+                map_cases = cases[-5:]
                 run('recovery', [test_lib, '--normal-map-failure-test'],
-                    'NORMAL MAP RECOVERY PASS cases=15 normal={}'.format(args.normal),
+                    'NORMAL MAP RECOVERY PASS cases=20 normal={}'.format(args.normal),
                     required=markers + tuple('NORMAL MAP RECOVERY CASE {} PASS normal={}'.format(
                         case, args.normal) for case in cases) + tuple(
-                        'NORMAL MAP RECOVERY PIXELS {} PASS normal={}'.format(case, args.normal) for case in cases))
+                        'NORMAL MAP RECOVERY PIXELS {} PASS normal={}'.format(case, args.normal) for case in cases) + tuple(
+                        'NORMAL MAP RECOVERY MAP {} PASS normal={} injected={}'.format(
+                            case, args.normal, 0 if args.normal == 0 and case in ('map-normal', 'map-second-normal') else 2)
+                        for case in map_cases))
             if sys.platform == 'linux' and args.backend == 'gles':
                 run('context', [test_lib, '--normal-map-context-test'], 'NORMAL MAP CONTEXT PASS')
             scene('runtime', 'normal-map-runtime-test.lua', 'NORMAL MAP RUNTIME PASS')

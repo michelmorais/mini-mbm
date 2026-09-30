@@ -310,6 +310,18 @@ now passes all eight Debug x86 ON/OFF x 1..4-light entries: **120/120 pixel case
 and 88/88 integrated steps**, combining 90 new cases/66 steps with the verified
 prior cap-2 results. Native debug/lifecycle validation passed and all 120 RGB
 reference/recovered image pairs have matching hashes, alongside in-process RGBA
-equality. No engine or test changes were needed. The next Windows milestone is
-DX11 constant-buffer `Map` failure and retry; compiler failures, real device loss,
-DX9/Metal injection and Release profiling remain pending.
+equality. No engine or test changes were needed. DX11 constant-buffer `Map`
+failure and retry follows below; compiler failures, real device loss, DX9/Metal
+injection and Release profiling remain pending.
+
+The [DX11 Map recovery milestone](normal-mapping-enabled-optimization.md#completed-windows-milestone-dx11-map-failure-and-retry-2026-09-30)
+passes fresh Debug x86 ON/OFF builds at light cap 2: **40/40 recovery/pixel cases
+and 22/22 integrated steps**. Five new scenarios cover matrix, lighting and
+normal-settings constant-buffer failures, including second-subset lighting and
+normal settings. Repeated failures retain uploaded buffers; fallback/retry and
+warm draws reuse them, with exact reference pixels and balanced Map/Unmap calls.
+Second-subset failures preserve the first subset's pixels. OFF exercises the
+matrix/light faults and verifies absence of normal-settings maps. Native
+debug/lifecycle validation passed. No engine changes were needed. The next
+Windows milestone extends the 20-case suite to light caps 1/3/4; earlier full
+matrices cover only the original 15 creation-failure cases.

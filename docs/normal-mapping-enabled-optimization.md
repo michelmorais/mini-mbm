@@ -128,8 +128,11 @@ Device-loss and performance acceptance remain pending.
 - [x] Compare pixels after DX11 recovery in all 15 cases, Debug ON/OFF at cap 2.
 - [x] Extend recovery pixel comparisons to caps 1/3/4: all eight Debug ON/OFF
   entries pass, including contrast checks and native validation (matrix below).
-- [ ] Extend failure injection to DX11 constant-buffer `Map`, compiler failures,
-  DX9/Metal and actual device-loss scenarios.
+- [x] Validate DX11 constant-buffer `Map` failure/retry in Debug ON/OFF at cap 2,
+  including second-subset failures, retained buffers and pixel comparison.
+- [ ] Extend the 20-case DX11 suite (including `Map`) to light caps 1/3/4.
+- [ ] Extend failure injection to compiler failures, DX9/Metal and actual
+  device-loss scenarios.
 - [ ] Record native measurements and evidence before claiming performance or
   native parity. No FPS or total-memory improvement is assumed.
 
@@ -1238,6 +1241,69 @@ matching PPM hash, distinguishing new runs from prior cap-2 evidence.
 
 This completes pixel acceptance for the existing static COM creation-failure
 suite on this Windows device, not cross-GPU bit equality or device-loss handling.
-The next Windows milestone is **DX11 constant-buffer `Map` failure and retry**.
+DX11 constant-buffer `Map` failure and retry follows below.
 Compiler failures, failures after more than two batches, DX9/Metal injection and
 Release profiling remain separate work.
+
+## Completed Windows milestone: DX11 Map failure and retry (2026-09-30)
+
+Fresh **DX11 Debug x86 ON/OFF builds at light cap 2** pass the expanded **20-case
+recovery suite: 40/40 recovery/pixel cases and 22/22 integrated steps**. Native
+debug-layer and post-teardown resource-lifecycle validation passed. The five
+runner unit tests also pass. No production changes were needed; engine version
+remains 7.328.
+
+A scoped, test-only `ID3D11DeviceContext` forwarding proxy injects
+`E_OUTOFMEMORY` before the selected native constant-buffer `Map` call. The
+reserved static pipeline distinguishes matrix (128 bytes), normal settings
+(16 bytes) and the larger lighting buffer. Staging readback maps are forwarded.
+The wrapper restores the engine context pointer before leaving the case and
+checks that every successful map has exactly one unmap, with none outstanding.
+
+| New case | ON | OFF |
+|---|---|---|
+| Matrix buffer | Two injected failures; empty failed draws | Same |
+| First-subset lighting | Two injected failures; empty failed draws | Same |
+| First-subset normal settings | Two injected failures; empty failed draws | No normal-settings map; complete geometric image |
+| Second-subset lighting | Two injected failures; only first subset visible | Same |
+| Second-subset normal settings | Two injected failures; only first subset visible | No normal-settings map; complete geometric image |
+
+Unlike creation-failure rollback, these failures occur after a complete derived
+upload. Tests verify that uploaded buffers remain published with unchanged native
+identities, repeated failures create no resources, and strength-zero fallback,
+retry and 20 warm draws reuse the retained allocation. The second-subset fixture
+has disjoint image halves, so failed-draw readback checks the first subset's exact
+pixels and an empty second half. This captures partial rendering rather than
+claiming transactional draw rollback.
+
+Fallback matches an independent geometric reference; retry and the final warm
+draw match the independent mapped reference in all 4,096 RGBA pixels. ON has
+496 visible/changed pixels for each single-subset case and 520 for each
+two-subset case; OFF has the same visibility and zero mapped/geometric contrast.
+All **40 reference/recovered RGB PPM pairs** also have matching SHA256 hashes.
+The original 15 creation-failure cases were rerun in both builds.
+
+`--dx11-failure` / `-Dx11Failure` now require 20 resource markers, 20 pixel
+markers, five `Map` markers with the expected injection counts, and the 20-case
+aggregate. Rebuild `libTest`; an older binary cannot satisfy the updated runner.
+
+Reproduce both configurations with fresh output directories, varying `-Normal`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 2 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-map-on-2
+```
+
+Evidence: `build/normal-windows/map-dx11-{on,off}-2/` contains build metadata/logs,
+verified `binary-hashes.json`, `results/report.json`, `results/recovery.log`,
+PPM pairs under `results/fixtures/`, and the remaining integrated logs/PNGs.
+`build/normal-windows/dx11-map-summary.json` links both reports/manifests and
+records source hashes, pixel hashes and per-case injection counts. Builds use
+base revision `dfa5260f7b13be147aab954dd70e0e7350b2286b` plus this test/runner
+change, VS 2026/MSVC v145, Windows SDK 10.0.28000.0 and Python 3.14.5.
+
+This proves deterministic constant-buffer failure/retry on this Windows device;
+it does not simulate real memory exhaustion, device removal, compiler failure,
+skeletal buffer failures or cross-GPU image equality. The next Windows milestone
+extends the **20-case suite to caps 1/3/4, ON/OFF**. Earlier full matrices establish
+15-case creation-failure coverage only. DX9/Metal injection, actual device loss
+and Release profiling remain separate work.

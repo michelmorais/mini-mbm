@@ -148,15 +148,20 @@ position/normal comparisons. With prebuilt binaries, the Python runner accepts
 `--skeletal-parity`. All four case markers are required; DX11 Debug also requires
 debug-layer and post-teardown lifecycle markers for this step. This is numerical
 deformation coverage, not skeletal normal-map material/render integration.
-Add `-Dx11Failure` (DX11 only) to run 15 mapped COM resource failure cases
-and verify cleanup/retry; prebuilt Python runs accept
+Add `-Dx11Failure` (DX11 only) to run 20 recovery cases: 15 mapped COM creation
+failures and five constant-buffer `Map` scenarios; prebuilt Python runs accept
 `--dx11-failure`. ON tests recovery and warm reuse; OFF requires no mapped
 creation calls. Debug runs also require debug-layer and lifecycle markers.
 This covers static single-batch resources plus rollback in a second batch of
 one subset and across two subsets. It does not cover compiler failures or device
 loss. Each case also compares 64x64 offscreen RGBA pixels after recovery with an
-independent fault-free reference. The runner requires all 15 resource and pixel
-case markers; use a matching rebuilt `libTest`. Reference/recovered RGB PPM images
+independent fault-free reference. `Map` coverage includes matrices, lighting and
+normal settings, plus lighting/normal settings in the second subset. Each fault
+is repeated before fallback/retry; buffers remain allocated and successful maps
+must be unmapped exactly once. A second-subset failure preserves the first
+subset's pixels. OFF still exercises matrix/light failures and requires no
+normal-settings mapping. The runner requires all 20 resource/pixel markers and
+five `Map` markers; use a matching rebuilt `libTest`. Reference/recovered RGB PPM images
 are saved under `results/fixtures/pixels-*-{reference,recovered}.ppm`.
 Build arguments/logs and `results/report.json`, test logs and PNGs remain under
 the chosen output directory. Native coverage and remaining work are tracked in

@@ -28,6 +28,7 @@
 #include "specific-directx11-buffer.h"
 #include "specific-directx11-context.h"
 #include "faults/directx11-device-proxy.h"
+#include "faults/directx11-context-proxy.h"
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -41,6 +42,15 @@
 
 namespace
 {
+    using MAP_KIND = DIRECTX11_CONTEXT_PROXY::MAP_KIND;
+    class SCOPED_MAP_CONTEXT final : public DIRECTX11_CONTEXT_PROXY
+    {
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE *context;
+    public:
+        explicit SCOPED_MAP_CONTEXT(mbm::SPECIFIC_AUX_CONTEXT_DEVICE *value) noexcept
+            : DIRECTX11_CONTEXT_PROXY(value->immediateContext), context(value) { context->immediateContext = this; }
+        ~SCOPED_MAP_CONTEXT() { context->immediateContext = real; }
+    };
     // Tokens hold no device/resource references. Their lifetime follows the
     // actual COM child even when mesh-manager ownership outlives this suite.
     struct COUNTERS
@@ -299,6 +309,7 @@ int runDirectX11NormalMapFailureTests()
         bool upload;
         const char *fixture = "author-import.msh";
         unsigned batches = 1, subsets = 1;
+        MAP_KIND mapKind = MAP_KIND::NONE;
     };
     const CASE cases[] = {
         {"CreateVertexShader",1,"vertex-shader",false},
@@ -315,7 +326,12 @@ int runDirectX11NormalMapFailureTests()
         {"CreateBuffer",7,"partition-second-vertices",true,"recovery-partition.msh",2,1},
         {"CreateBuffer",8,"partition-second-indices",true,"recovery-partition.msh",2,1},
         {"CreateBuffer",7,"subset-second-vertices",true,"recovery-subsets.msh",2,2},
-        {"CreateBuffer",8,"subset-second-indices",true,"recovery-subsets.msh",2,2}
+        {"CreateBuffer",8,"subset-second-indices",true,"recovery-subsets.msh",2,2},
+        {"Map",1,"map-matrix",false,"author-import.msh",1,1,MAP_KIND::MATRIX},
+        {"Map",1,"map-light",false,"author-import.msh",1,1,MAP_KIND::LIGHT},
+        {"Map",1,"map-normal",false,"author-import.msh",1,1,MAP_KIND::NORMAL},
+        {"Map",2,"map-second-light",false,"recovery-subsets.msh",2,2,MAP_KIND::LIGHT},
+        {"Map",2,"map-second-normal",false,"recovery-subsets.msh",2,2,MAP_KIND::NORMAL}
     };
     for (const auto &entry : cases)
     {
@@ -381,84 +397,162 @@ int runDirectX11NormalMapFailureTests()
         }
         TRACKED_DEVICE proxy(context);
         const auto &counts = *proxy.counters;
-        proxy.arm(entry.method,entry.nth);
-        target.begin();
-        const bool firstDraw = shader.render(buffer);
-        context->immediateContext->Flush();
-#if USE_NORMAL_MAPPING_3D
-        check(!firstDraw && proxy.hits == 1,"injected creation failure reached draw");
-        check(target.read(pixels) && std::all_of(pixels.begin(),pixels.end(),[](uint32_t p) { return p == 0; }),
-              "failed draw publishes no pixels");
-        check(buffer->getBackendBuffer()->normalMapSubsets.empty(),"failed upload never published");
-        check(counts.liveDerived == 0,"partial derived buffers released");
-        if (entry.upload)
-            check(counts.createdDerived == static_cast<int>(entry.nth-5),"failure follows expected partial upload");
-        if (!entry.upload) check(counts.liveBuffers == 0,"failed shader buffers released");
-        for (unsigned subset = 0; subset < entry.subsets; ++subset)
-            check(mesh->setNormalMapSettings(0,subset,1,0),"disable normal strength after failure");
-        proxy.arm();
-        check(target.draw(shader,buffer,pixels) && pixels == geometricPixels && proxy.calls == 0,
-              "geometric pixels survive failure");
-        ID3D11VertexShader *fallback = nullptr;
-        context->immediateContext->VSGetShader(&fallback,nullptr,nullptr);
-        check(fallback == geometric,"same geometric shader after failure");
-        if (fallback) fallback->Release();
-        for (unsigned subset = 0; subset < entry.subsets; ++subset)
-            check(mesh->setNormalMapSettings(0,subset,1,1),"restore normal strength");
-        if (entry.upload)
+        if (entry.mapKind != MAP_KIND::NONE)
         {
-            // The mapped shader is cached, so only the upload is retried.
-            const unsigned retryFault = entry.batches == 1 ? 2 : entry.nth-4;
-            const int createdBefore = counts.createdDerived;
-            proxy.arm("CreateBuffer",retryFault);
-            target.begin();
-            check(!shader.render(buffer) && proxy.hits == 1 && proxy.shaderCalls == 0,
-                  "second upload failure preserves compiled variant");
-            check(target.read(pixels) && std::all_of(pixels.begin(),pixels.end(),[](uint32_t p) { return p == 0; }),
-                  "second failed upload publishes no pixels");
-            context->immediateContext->Flush();
-            check(counts.liveDerived == 0 && buffer->getBackendBuffer()->normalMapSubsets.empty(),
-                  "second partial upload discarded");
-            check(counts.createdDerived-createdBefore == static_cast<int>(retryFault-1),
-                  "retry rebuilt preceding batches before failing again");
-        }
-        proxy.arm();
-        check(target.draw(shader,buffer,pixels) && pixels == mappedPixels,"retry matches fault-free mapped pixels");
-        const auto &published = buffer->getBackendBuffer()->normalMapSubsets;
-        check(published.size() == entry.subsets && counts.liveDerived == static_cast<int>(entry.batches*2),
-              "retry publishes all vertex/index batches");
-        unsigned batches = 0, indices = 0;
-        for (const auto &subset : published)
-        {
-            check(subset.batches.size() == entry.batches/entry.subsets,"batch distribution across subsets");
-            for (const auto &batch : subset.batches)
+            SCOPED_MAP_CONTEXT mapProxy(context);
+            const bool shouldFail = entry.mapKind != MAP_KIND::NORMAL || USE_NORMAL_MAPPING_3D != 0;
+            int retainedBuffers = 0, retainedDerived = 0;
+            std::vector<ID3D11Buffer *> retainedIdentities;
+            for (unsigned attempt = 0; attempt < 2; ++attempt)
             {
-                ++batches;
-                indices += batch.indexCount;
-                if (!check(batch.vertices && batch.indices,"complete native batch")) continue;
-                D3D11_BUFFER_DESC vertexDesc = {}, indexDesc = {};
-                batch.vertices->GetDesc(&vertexDesc);
-                batch.indices->GetDesc(&indexDesc);
-                // These non-indexed fixtures have one derived vertex per corner:
-                // position(3), normal(3), UV(2), tangent(4); indices are uint16_t.
-                check(vertexDesc.ByteWidth == batch.indexCount*12*sizeof(float) &&
-                      indexDesc.ByteWidth == batch.indexCount*sizeof(uint16_t),
-                      "native buffer sizes cover all fixture corners");
-            }
-        }
-        check(batches == entry.batches && indices == buffer->sizeOfArrayVertex,"complete geometry after retry");
-        if (entry.upload) check(proxy.shaderCalls == 0 && proxy.calls == entry.batches*2,
-                                "retry rebuilds buffers without recompiling mapped shader");
-        proxy.arm();
-        for (int i = 0; i < 20; ++i) check(shader.render(buffer),"warm mapped draw");
-        check(proxy.calls == 0,"warm draws reuse recovered resources");
-        check(target.draw(shader,buffer,pixels) && pixels == mappedPixels && proxy.calls == 0,
-              "warm pixels match reference without allocation");
+                proxy.arm();
+                mapProxy.arm(entry.mapKind,entry.nth);
+                target.begin();
+                const bool drawn = shader.render(buffer);
+                check(drawn == !shouldFail && mapProxy.hits == (shouldFail ? 1u : 0u),
+                      "Map failure reaches the requested constant buffer");
+                check(mapProxy.seen == (shouldFail ? entry.nth : 0u),"Map target occurrence count");
+                check(target.read(pixels),"read pixels after Map attempt");
+                if (shouldFail)
+                {
+                    std::vector<uint32_t> expected(64*64,0);
+                    if (entry.nth == 2)
+                        for (unsigned i = 0; i < expected.size(); ++i)
+                            if (i%64 < 32) expected[i] = mappedPixels[i];
+                    check(pixels == expected,"failed Map preserves only preceding subset pixels");
+                }
+                else check(pixels == mappedPixels,"OFF normal-settings Map is absent");
+                check(mapProxy.balanced && mapProxy.mappedResources.empty(),"successful maps are unmapped exactly once");
+                if (attempt == 0)
+                {
+                    retainedBuffers = counts.liveBuffers;
+                    retainedDerived = counts.liveDerived;
+#if USE_NORMAL_MAPPING_3D
+                    const auto &subsets = buffer->getBackendBuffer()->normalMapSubsets;
+                    unsigned batches = 0;
+                    for (const auto &subset : subsets)
+                        for (const auto &batch : subset.batches)
+                        {
+                            ++batches;
+                            retainedIdentities.push_back(batch.vertices);
+                            retainedIdentities.push_back(batch.indices);
+                        }
+                    check(subsets.size() == entry.subsets && batches == entry.batches &&
+                          retainedDerived == static_cast<int>(entry.batches*2),"Map failure retains the complete upload");
 #else
-        check(firstDraw && proxy.hits == 0 && proxy.calls == 0,"OFF performs no mapped resource creation");
-        check(counts.liveBuffers == 0 && counts.liveDerived == 0,"OFF has no derived resources");
-        check(target.read(pixels) && pixels == mappedPixels,"OFF pixels match reference with fault armed");
+                    check(retainedBuffers == 0 && retainedDerived == 0 && proxy.calls == 0,
+                          "OFF Map does not create mapped resources");
 #endif
+                }
+                else check(proxy.calls == 0 && counts.liveBuffers == retainedBuffers &&
+                           counts.liveDerived == retainedDerived,"repeated Map failure retains resources");
+            }
+            // Disarm only the context fault: the device proxy keeps counting
+            // allocations throughout fallback, retry and subsequent draws.
+            mapProxy.arm();
+            proxy.arm();
+            for (unsigned subset = 0; subset < entry.subsets; ++subset)
+                check(mesh->setNormalMapSettings(0,subset,1,0),"Map fallback strength");
+            check(target.draw(shader,buffer,pixels) && pixels == geometricPixels,"Map failure geometric fallback pixels");
+            for (unsigned subset = 0; subset < entry.subsets; ++subset)
+                check(mesh->setNormalMapSettings(0,subset,1,1),"Map retry strength");
+            check(target.draw(shader,buffer,pixels) && pixels == mappedPixels,"Map retry matches fault-free pixels");
+            for (int i = 0; i < 20; ++i) check(shader.render(buffer),"Map warm draw");
+            check(target.draw(shader,buffer,pixels) && pixels == mappedPixels,"Map warm pixels");
+            check(proxy.calls == 0 && counts.liveBuffers == retainedBuffers && counts.liveDerived == retainedDerived,
+                  "Map retry and fallback reuse resources");
+#if USE_NORMAL_MAPPING_3D
+            std::vector<ID3D11Buffer *> recoveredIdentities;
+            for (const auto &subset : buffer->getBackendBuffer()->normalMapSubsets)
+                for (const auto &batch : subset.batches)
+                { recoveredIdentities.push_back(batch.vertices); recoveredIdentities.push_back(batch.indices); }
+            check(recoveredIdentities == retainedIdentities,"Map retry keeps native buffer identities");
+#endif
+            check(mapProxy.balanced && mapProxy.mappedResources.empty(),"Map retry leaves no outstanding mapping");
+            std::printf("NORMAL MAP RECOVERY MAP %s %s normal=%d injected=%d\n",entry.name,
+                        failures == before ? "PASS" : "FAIL",USE_NORMAL_MAPPING_3D,shouldFail ? 2 : 0);
+        }
+        else
+        {
+            proxy.arm(entry.method,entry.nth);
+            target.begin();
+            const bool firstDraw = shader.render(buffer);
+            context->immediateContext->Flush();
+#if USE_NORMAL_MAPPING_3D
+            check(!firstDraw && proxy.hits == 1,"injected creation failure reached draw");
+            check(target.read(pixels) && std::all_of(pixels.begin(),pixels.end(),[](uint32_t p) { return p == 0; }),
+                  "failed draw publishes no pixels");
+            check(buffer->getBackendBuffer()->normalMapSubsets.empty(),"failed upload never published");
+            check(counts.liveDerived == 0,"partial derived buffers released");
+            if (entry.upload)
+                check(counts.createdDerived == static_cast<int>(entry.nth-5),"failure follows expected partial upload");
+            if (!entry.upload) check(counts.liveBuffers == 0,"failed shader buffers released");
+            for (unsigned subset = 0; subset < entry.subsets; ++subset)
+                check(mesh->setNormalMapSettings(0,subset,1,0),"disable normal strength after failure");
+            proxy.arm();
+            check(target.draw(shader,buffer,pixels) && pixels == geometricPixels && proxy.calls == 0,
+                  "geometric pixels survive failure");
+            ID3D11VertexShader *fallback = nullptr;
+            context->immediateContext->VSGetShader(&fallback,nullptr,nullptr);
+            check(fallback == geometric,"same geometric shader after failure");
+            if (fallback) fallback->Release();
+            for (unsigned subset = 0; subset < entry.subsets; ++subset)
+                check(mesh->setNormalMapSettings(0,subset,1,1),"restore normal strength");
+            if (entry.upload)
+            {
+                // The mapped shader is cached, so only the upload is retried.
+                const unsigned retryFault = entry.batches == 1 ? 2 : entry.nth-4;
+                const int createdBefore = counts.createdDerived;
+                proxy.arm("CreateBuffer",retryFault);
+                target.begin();
+                check(!shader.render(buffer) && proxy.hits == 1 && proxy.shaderCalls == 0,
+                      "second upload failure preserves compiled variant");
+                check(target.read(pixels) && std::all_of(pixels.begin(),pixels.end(),[](uint32_t p) { return p == 0; }),
+                      "second failed upload publishes no pixels");
+                context->immediateContext->Flush();
+                check(counts.liveDerived == 0 && buffer->getBackendBuffer()->normalMapSubsets.empty(),
+                      "second partial upload discarded");
+                check(counts.createdDerived-createdBefore == static_cast<int>(retryFault-1),
+                      "retry rebuilt preceding batches before failing again");
+            }
+            proxy.arm();
+            check(target.draw(shader,buffer,pixels) && pixels == mappedPixels,"retry matches fault-free mapped pixels");
+            const auto &published = buffer->getBackendBuffer()->normalMapSubsets;
+            check(published.size() == entry.subsets && counts.liveDerived == static_cast<int>(entry.batches*2),
+                  "retry publishes all vertex/index batches");
+            unsigned batches = 0, indices = 0;
+            for (const auto &subset : published)
+            {
+                check(subset.batches.size() == entry.batches/entry.subsets,"batch distribution across subsets");
+                for (const auto &batch : subset.batches)
+                {
+                    ++batches;
+                    indices += batch.indexCount;
+                    if (!check(batch.vertices && batch.indices,"complete native batch")) continue;
+                    D3D11_BUFFER_DESC vertexDesc = {}, indexDesc = {};
+                    batch.vertices->GetDesc(&vertexDesc);
+                    batch.indices->GetDesc(&indexDesc);
+                    // These non-indexed fixtures have one derived vertex per corner:
+                    // position(3), normal(3), UV(2), tangent(4); indices are uint16_t.
+                    check(vertexDesc.ByteWidth == batch.indexCount*12*sizeof(float) &&
+                          indexDesc.ByteWidth == batch.indexCount*sizeof(uint16_t),
+                          "native buffer sizes cover all fixture corners");
+                }
+            }
+            check(batches == entry.batches && indices == buffer->sizeOfArrayVertex,"complete geometry after retry");
+            if (entry.upload) check(proxy.shaderCalls == 0 && proxy.calls == entry.batches*2,
+                                    "retry rebuilds buffers without recompiling mapped shader");
+            proxy.arm();
+            for (int i = 0; i < 20; ++i) check(shader.render(buffer),"warm mapped draw");
+            check(proxy.calls == 0,"warm draws reuse recovered resources");
+            check(target.draw(shader,buffer,pixels) && pixels == mappedPixels && proxy.calls == 0,
+                  "warm pixels match reference without allocation");
+#else
+            check(firstDraw && proxy.hits == 0 && proxy.calls == 0,"OFF performs no mapped resource creation");
+            check(counts.liveBuffers == 0 && counts.liveDerived == 0,"OFF has no derived resources");
+            check(target.read(pixels) && pixels == mappedPixels,"OFF pixels match reference with fault armed");
+#endif
+        }
         check(savePixels(std::filesystem::path(dir)/(std::string("pixels-")+entry.name+"-reference.ppm"),mappedPixels) &&
               savePixels(std::filesystem::path(dir)/(std::string("pixels-")+entry.name+"-recovered.ppm"),pixels),
               "write pixel comparison artifacts");
@@ -469,7 +563,7 @@ int runDirectX11NormalMapFailureTests()
         std::printf("NORMAL MAP RECOVERY CASE %s %s normal=%d\n",entry.name,
                     failures == before ? "PASS" : "FAIL",USE_NORMAL_MAPPING_3D);
     }
-    std::printf("NORMAL MAP RECOVERY %s cases=15 normal=%d\n",failures ? "FAIL" : "PASS",USE_NORMAL_MAPPING_3D);
+    std::printf("NORMAL MAP RECOVERY %s cases=20 normal=%d\n",failures ? "FAIL" : "PASS",USE_NORMAL_MAPPING_3D);
     return failures ? -1 : 0;
 }
 #endif
