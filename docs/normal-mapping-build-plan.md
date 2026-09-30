@@ -161,8 +161,10 @@ identical build settings (`USE_LUA=1`, `AUDIO=none`):
 | Private GLES `GLES_PS_VS`, `sizeof` bytes | 76 | 72 |
 
 These are binary/struct measurements, not GPU allocation or frame-time estimates.
-Detailed CPU/GPU memory, shader instruction counts, load/compile times and frame
-profiling remain pending. No FPS improvement is claimed.
+A later [Linux/GLES benchmark](normal-mapping-enabled-optimization.md#completed-milestone-reproducible-linuxgles-measurements)
+adds synthetic load/compile/draw wall times, process RSS and GL buffer payload
+sizes. Isolated CPU/GPU memory accounting, shader instruction counts and native/
+representative frame profiling remain pending. No FPS improvement is claimed.
 
 Reproduce a build with:
 

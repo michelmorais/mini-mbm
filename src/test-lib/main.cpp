@@ -35,6 +35,8 @@
 #include <cstdio>
 #if defined(USE_OPENGL_ES) && defined(__linux__)
 int runGlesNormalMapFailureTests();
+int createGlesNormalMapBenchmarkFixtures();
+int runGlesNormalMapBenchmark();
 int runGlesNormalMapContextTests(mbm::CORE_MANAGER &, const mbm::SCENE &);
 #endif
 #include <cstdlib>
@@ -400,6 +402,10 @@ static int runTestLib(int argc, char **argv
 #endif
 )
 {
+#if defined(USE_OPENGL_ES) && defined(__linux__)
+    if (argc == 2 && std::strcmp(argv[1],"--normal-map-benchmark-fixtures") == 0)
+        return createGlesNormalMapBenchmarkFixtures();
+#endif
     if (argc == 2 && std::strcmp(argv[1], "--normal-map-build-info") == 0)
     {
 #if defined(USE_OPENGL_ES)
@@ -626,6 +632,8 @@ static int runTestLib(int argc, char **argv
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
     {
 #if defined(USE_OPENGL_ES) && defined(__linux__)
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-benchmark") == 0)
+            return runGlesNormalMapBenchmark();
         if (argc == 2 && std::strcmp(argv[1],"--normal-map-context-test") == 0)
             return runGlesNormalMapContextTests(game,game.myScene);
         if (argc == 2 && std::strcmp(argv[1],"--normal-map-failure-test") == 0)

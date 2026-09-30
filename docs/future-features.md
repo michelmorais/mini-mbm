@@ -102,8 +102,10 @@ is implemented in 7.327.1; native failure injection and later-batch failures rem
 [Controlled Linux/GLES context recreation](normal-mapping-enabled-optimization.md#completed-milestone-controlled-linuxgles-context-recreation)
 also passes with pending/uploaded assets and pixel comparisons; this does not
 establish abrupt GPU reset or native Windows/macOS restore coverage.
-Native Windows/Apple verification and detailed performance measurements remaining
-from the build-switch work are listed in its original plan.
+[Reproducible Linux/GLES measurements](normal-mapping-enabled-optimization.md#completed-milestone-reproducible-linuxgles-measurements)
+now cover synthetic load, first/warm draws, process RSS and GL buffer payloads.
+Native Windows/Apple verification, representative assets and isolated GPU timing/
+memory accounting remain pending, as listed in the plans.
 
 ### Skeletal deformation and dynamic geometry
 

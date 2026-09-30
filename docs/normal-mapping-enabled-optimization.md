@@ -252,8 +252,9 @@ The complete single-entry invocation is documented above. A passing result from
 one light cap must not substitute for another entry.
 
 The failure/retry and controlled Linux context-recreation milestones are
-completed below. Abrupt device loss, reproducible performance measurements and
-Windows/macOS native acceptance remain pending.
+completed below, followed by a reproducible synthetic Linux benchmark. Abrupt
+device loss, representative-asset profiling and Windows/macOS native acceptance
+remain pending.
 
 
 ## Completed milestone: Linux/GLES failure and retry
@@ -388,6 +389,118 @@ Limits: this is controlled desktop EGL recreation, not an actual GPU reset,
 Android pause/resume, or `EGL_CONTEXT_LOST` fault injection. It uses persisted
 asset state, not unsaved material/geometry edits or in-flight asynchronous loads.
 Scene/plugin-specific restore callbacks and DirectX/Metal lifecycle behavior
-require their own coverage. The next Linux milestone is reproducible first-use,
-warm-draw and CPU/GPU memory measurements; native and abrupt-loss acceptance
-remain pending.
+require their own coverage. Reproducible Linux measurements follow below; native
+and abrupt-loss acceptance remain pending.
+
+
+## Completed milestone: reproducible Linux/GLES measurements
+
+`gles-normal-map-benchmark.cpp` extends testLib with fixture generation and a
+bounded benchmark. `run-normal-map-benchmark.py` compares prebuilt enabled and
+disabled snapshots, using identical fixture files and a fresh process for each
+sample. It randomizes sample order with a recorded seed, retains raw logs and
+SHA-256 hashes of fixtures/binaries, and writes samples and summaries to
+`report.json`, including partial results when a run fails.
+
+The six cases are `plain` (no tangent basis), `retained` (persisted tangents,
+no map), `zero` (map with zero strength), `mapped` (both subsets mapped), `mixed`
+(one mapped subset), and `removed` (both mapped on first draw, maps removed before
+warm draws). All use a static, non-indexed grid with two subsets and directional
+lighting, drawn into a 128x128 viewport. They exercise production load/material/
+shader paths, with resource-contract checks and a visible-pixel sanity check.
+The existing regression suites provide the stronger image/behavior comparisons.
+
+Metrics, in microseconds unless named bytes/RSS:
+
+- `load_sync_us`: asset load plus `glFinish`. Fixtures persist tangents but no
+  normal textures; map assignment/texture creation is timed separately as
+  `material_sync_us`. Fixture generation is outside measured processes.
+- `geometric_compile_sync_us`: explicit geometric shader compilation, separate
+  from first draw. `first_submit_us` and `first_sync_us` capture the first draw
+  before/after `glFinish`, including any lazy mapped shader compilation/upload.
+- `warm_submit_us` and `warm_sync_us`: per-draw wall times from blocks of draws
+  after 16 warmup draws. Submission may include driver backpressure; synchronized
+  time includes CPU work and waiting. Neither is an isolated GPU timer or FPS.
+- `rss_before/loaded/first/warm`: process resident bytes from `/proc/self/statm`.
+  RSS includes driver and allocator state; deltas cannot isolate engine staging,
+  and retained allocator pages do not establish a resource leak.
+- `source_gpu_bytes` and `derived_before/first/warm`: sums of unique live GL buffer
+  payload sizes queried with `GL_BUFFER_SIZE`, outside timed draws. These exclude
+  textures, programs and driver overhead, and are not physical GPU memory usage.
+
+Use Release builds with the same options except `USE_NORMAL_MAPPING_3D`, at the
+same `SUPPORTED_MAX_LIGHTS`. Reconfigure CMake after adding the new source. Copy
+`testLib` and its matching `libcore_mbm.so` into separate ON/OFF directories before
+building the next configuration: the project's build trees share output paths.
+Ensure each library was actually relinked for its configuration; a newer output
+from another build tree can otherwise appear up to date. Run on an active display:
+
+```sh
+python3 src/test-lib/run-normal-map-benchmark.py \
+  --enabled /tmp/normal-on/testLib --disabled /tmp/normal-off/testLib \
+  --lights 2 --grids 32 128 --repeats 5 --draws 32 --blocks 8 \
+  --output /tmp/normal-benchmark
+```
+
+The output directory must be new. The runner enforces build identity, process
+exit, PASS markers, sample identity and complete warm blocks; timeout, diagnostic
+or resource-contract failures fail the run. It removes `LD_PRELOAD` and disables
+Mesa's shader disk cache by default (`--allow-mesa-disk-cache` opts back in).
+OS file caches are not flushed: this is not cold-disk I/O. Summaries report
+median, nearest-rank p95 and range across independent processes; warm metrics
+first take each process's block median. With five repetitions, p95 is simply the
+maximum sample. There are no timing thresholds on a shared desktop.
+
+This compares ON/OFF in the current implementation, not before/after revisions
+of the optimization. Native backends, real game assets, skeletal/dynamic meshes,
+GPU timestamp/frame profiling and isolated CPU allocation accounting remain
+pending. No FPS or combined-memory reduction is claimed.
+
+### Recorded Linux result
+
+All **120 samples passed**: ON/OFF x grids 32/128 (6,144/98,304 vertices) x six
+cases x five processes, eight blocks of 32 warm draws. Release, light cap 2,
+`USE_LUA=1`, `AUDIO=none`, missing-texture dialog disabled; Mesa 22.3.6, Intel UHD
+Graphics 630, OpenGL ES 3.2. Existing runner unit checks also passed. This is
+measurement coverage at cap 2, not a repeat of the earlier four-cap matrix.
+No production changes were needed; Debug outputs were untouched and Release
+outputs restored to the enabled build after snapshotting OFF.
+
+For the larger grid, medians across the five processes:
+
+| Build | Case | Load ms | First synchronized draw ms | Warm submission us/draw | Warm synchronized us/draw | Derived buffer MiB |
+|---|---|---:|---:|---:|---:|---:|
+| OFF | plain | 30.52 | 1.68 | 37.05 | 1105.52 | 0.00 |
+| OFF | retained | 52.22 | 14.04 | 37.86 | 1228.93 | 0.00 |
+| OFF | zero | 48.15 | 2.17 | 36.48 | 1261.05 | 0.00 |
+| OFF | mapped | 48.34 | 1.10 | 36.35 | 1144.22 | 0.00 |
+| OFF | mixed | 59.39 | 12.40 | 40.43 | 1211.26 | 0.00 |
+| OFF | removed | 50.32 | 7.69 | 38.09 | 1279.93 | 0.00 |
+| ON | plain | 29.49 | 6.75 | 37.60 | 1284.11 | 0.00 |
+| ON | retained | 46.00 | 13.66 | 36.50 | 1205.18 | 0.00 |
+| ON | zero | 55.66 | 8.91 | 36.31 | 1152.48 | 0.00 |
+| ON | mapped | 53.62 | 57.15 | 40.13 | 1589.05 | 4.69 |
+| ON | mixed | 50.95 | 62.72 | 52.01 | 1504.64 | 4.69 |
+| ON | removed | 40.78 | 51.18 | 37.73 | 1230.21 | 4.69 |
+
+The source buffer payload is 3 MiB in every larger-grid case. Derived buffers
+start at zero for every sample. ON `mapped`, `mixed` and `removed` allocate
+4,915,200 bytes at first use and retain them through warm draws. `mixed` therefore
+confirms frame-wide upload rather than per-subset upload, and `removed` confirms
+retention rather than eviction. ON `plain`, `retained` and `zero`, and every OFF
+case, keep zero derived bytes. The smaller grid follows the same contract
+(196,608 source bytes and 307,200 derived bytes when active).
+
+For `retained` on the larger grid, median load RSS growth is about 10.64 MiB ON
+versus 5.70 MiB OFF; `plain` is about 3.4 MiB in both. This observation is consistent
+with retained preparation/staging costs, but process RSS does not isolate those
+allocations. Warm submission medians for geometric cases are close here; noisy
+first-use times and shared-desktop scheduling do not justify an FPS claim or a
+small percentage improvement. Use the report's ranges and fresh measurements on
+target hardware before making performance decisions.
+
+Raw logs, sample records, hashes and distribution summaries are retained locally
+in `/tmp/mbm-normal-benchmark-release/report.json` and adjacent files; these are
+ephemeral artifacts. Re-run the command above to obtain a new baseline. The next
+Linux optimization candidate is reducing unused CPU staging or using per-subset
+upload/eviction, with these measurements and regression tests as a baseline.
