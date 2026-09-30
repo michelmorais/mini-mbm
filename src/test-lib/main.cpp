@@ -27,11 +27,163 @@
 #include "my-scene-test.h"
 #include "skeletal-foundation-tests.h"
 #include "normal-map-preparation-tests.h"
+#include "normal-map-native-resource-tests.h"
 #include "gles-skeletal-parity-tests.h"
 #include "directx9-skeletal-parity-tests.h"
 #include "directx11-skeletal-parity-tests.h"
+#include <core_mbm/light.h>
+#include <cstdio>
+#if defined(USE_OPENGL_ES) && defined(__linux__)
+int runGlesNormalMapFailureTests();
+int runGlesNormalMapBenchmark();
+int runGlesNormalMapContextTests(mbm::CORE_MANAGER &, const mbm::SCENE &);
+#endif
+#if (defined(USE_OPENGL_ES) && defined(__linux__)) || defined(USE_METAL)
+int createNormalMapBenchmarkFixtures();
+#endif
+#if defined(USE_METAL)
+int runMetalNormalMapBenchmark(const mbm::SCENE &);
+#endif
 #include <cstdlib>
 #include <cstring>
+#if defined(USE_OPENGL_ES)
+#include <specific-opengl_es.h>
+#include <specific-opengl_es-buffer.h>
+#include <specific-opengl_es-shader.h>
+#include <normal-map-upload.h>
+#include <normal-map-preparation.h>
+#include <core_mbm/mesh-manager.h>
+#include <core_mbm/light.h>
+#include <cstdio>
+
+static int runNormalMapLazyResourceTests()
+{
+    using namespace mbm;
+    const char *dir = std::getenv("MBM_NORMAL_MAP_FIXTURE_DIR");
+    if (!dir) return -1;
+    int failures = 0;
+    const auto check = [&failures](bool ok, const char *message)
+    { if (!ok) { ++failures; std::printf("NORMAL MAP LAZY FAIL: %s\n", message); } return ok; };
+    auto *manager = MESH_MANAGER::getInstance();
+    const auto *mesh = manager->load((std::string(dir)+"/author-import.msh").c_str());
+    if (!check(mesh != nullptr, "load retained basis without map")) return -1;
+    auto *buffer = mesh->getBuffer(0)->pBufferGL;
+    SHADER shader;
+    shader.setUseReservedLightDefault(true);
+    if (!check(shader.compileShader(nullptr, nullptr, buffer->fvf), "compile geometric shader")) return -1;
+    auto *geometry = static_cast<GLES_PS_VS *>(shader.getBackendShaderSpecific());
+    check(glGetAttribLocation(geometry->programObject,"aTangent") == -1, "geometric program has no tangent input");
+    check(glGetUniformLocation(geometry->programObject,"NormalMapSettings") == -1, "geometric program has no normal-map settings");
+    MatrixIdentity(&SHADER::modelView);
+    MatrixIdentity(&SHADER::mvMatrixLightSpace);
+    MatrixIdentity(&SHADER::mvpMatrix);
+    DEVICE::getInstance()->setLightTargetForRender(LIGHT_TARGET_3D);
+    setLightEnabled(LIGHT_TARGET_3D, true);
+    const auto currentProgram = []() { GLint id=0; glGetIntegerv(GL_CURRENT_PROGRAM,&id); return static_cast<GLuint>(id); };
+#if USE_NORMAL_MAPPING_3D
+    check(buffer->getBackendBuffer()->normalMapSubsets.empty(), "retained basis has no GPU allocation at load");
+#endif
+    check(shader.render(buffer), "draw without map");
+    check(currentProgram() == geometry->programObject, "no map selects geometric program");
+    check(mesh->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,"#FF8080FF",false), "late map assignment");
+    check(mesh->setNormalMapSettings(0,0,1,0), "zero strength");
+    check(shader.render(buffer), "zero-strength draw");
+    check(currentProgram() == geometry->programObject, "zero strength selects geometric program");
+#if USE_NORMAL_MAPPING_3D
+    check(buffer->getBackendBuffer()->normalMapSubsets.empty(), "zero strength does not upload");
+#endif
+    check(mesh->setNormalMapSettings(0,0,1,1), "enable strength");
+    DEVICE::getInstance()->setLightTargetForRender(LIGHT_TARGET_2DW);
+    check(shader.render(buffer), "2dw draw");
+#if USE_NORMAL_MAPPING_3D
+    check(buffer->getBackendBuffer()->normalMapSubsets.empty(), "2dw does not upload a 3d basis");
+#endif
+    DEVICE::getInstance()->setLightTargetForRender(LIGHT_TARGET_3D);
+    check(shader.render(buffer), "first effective mapped draw");
+    const GLuint mapped = currentProgram();
+#if USE_NORMAL_MAPPING_3D
+    check(mapped != geometry->programObject && glGetAttribLocation(mapped,"aTangent") >= 0, "mapped variant has its own tangent input");
+    auto &subsets = buffer->getBackendBuffer()->normalMapSubsets;
+    if (!check(!subsets.empty() && !subsets[0].batches.empty(), "first use uploads GPU batches")) return -1;
+    const GLuint vertices = subsets[0].batches[0].buffers[0];
+    check(glIsBuffer(vertices), "derived buffer is live");
+    GLint geometricAttributes=0, mappedAttributes=0, vertexBytes=0, indexBytes=0;
+    glGetProgramiv(geometry->programObject,GL_ACTIVE_ATTRIBUTES,&geometricAttributes);
+    glGetProgramiv(mapped,GL_ACTIVE_ATTRIBUTES,&mappedAttributes);
+    glBindBuffer(GL_ARRAY_BUFFER,vertices);
+    glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&vertexBytes);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,subsets[0].batches[0].buffers[1]);
+    glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER,GL_BUFFER_SIZE,&indexBytes);
+    std::printf("NORMAL MAP LAZY METRICS attributes geometric=%d mapped=%d, derived GPU bytes before=0 after=%d\n",
+                geometricAttributes,mappedAttributes,vertexBytes+indexBytes);
+#else
+    check(mapped == geometry->programObject, "disabled build retains geometric program");
+#endif
+    check(mesh->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,nullptr,false), "remove map");
+    check(shader.render(buffer) && currentProgram() == geometry->programObject, "removal returns to geometric program");
+    check(mesh->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,"#FF8080FF",false), "reassign map");
+    for (int i=0; i<20; ++i)
+        check(shader.render(buffer) && currentProgram() == mapped, "repeated mapped draws reuse program");
+#if USE_NORMAL_MAPPING_3D
+    check(subsets[0].batches.size() == 1 && subsets[0].batches[0].buffers[0] == vertices,
+          "reassignment and idle draws reuse GPU allocation");
+#endif
+    SHADER cached;
+    cached.setUseReservedLightDefault(true);
+    check(cached.compileShader(nullptr,nullptr,buffer->fvf), "compile another geometric shader");
+    check(static_cast<GLES_PS_VS *>(cached.getBackendShaderSpecific())->programObject == geometry->programObject,
+          "cache keeps geometric and mapped programs distinct");
+    check(cached.render(buffer) && currentProgram() == mapped, "mapped variant uses process cache");
+    shader.onRestore();
+    check(shader.compileShader(nullptr,nullptr,buffer->fvf) && shader.render(buffer), "restore rebuilds variant ownership");
+    const auto *unprepared = manager->load((std::string(dir)+"/no-map.msh").c_str());
+    if (!check(unprepared != nullptr, "load asset without any prepared basis")) return -1;
+    check(unprepared->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,"#FF8080FF",false), "assign map without basis");
+    check(shader.render(unprepared->getBuffer(0)->pBufferGL) && currentProgram() == geometry->programObject,
+          "map without basis retains geometric fallback");
+    const VEC3 positions[3] = {{0,0,0},{1,0,0},{0,1,0}};
+    const VEC3 normals[3] = {{0,0,1},{0,0,1},{0,0,1}};
+    const VEC2 uv[3] = {{0,0},{1,0},{0,1}};
+    const int starts[1] = {0}, counts[1] = {3};
+    check(buffer->updateDynamic(positions,normals,uv,starts,counts), "update source geometry");
+#if USE_NORMAL_MAPPING_3D
+    check(buffer->getBackendBuffer()->normalMapSubsets.empty() && !glIsBuffer(vertices), "dynamic edit releases derived resources");
+#endif
+    check(shader.render(buffer) && currentProgram() == geometry->programObject,
+          "dynamic edit cannot re-upload stale staged geometry");
+#if USE_NORMAL_MAPPING_3D
+    // Prove ownership sharing, survival after the caller drops its reference,
+    // and release on both successful upload and pending-source invalidation.
+    const auto preparation = []()
+    {
+        auto owner = std::make_shared<normal_map::PREPARED>();
+        auto &batch = owner->batches.emplace_back();
+        batch.sourceVertices = {0,1,2};
+        batch.indices = {0,1,2};
+        batch.tangents.resize(3);
+        for (auto &tangent : batch.tangents) { tangent.x = 1; tangent.sign = 1; }
+        return owner;
+    };
+    auto owner = preparation();
+    std::weak_ptr<const normal_map::PREPARED> lifetime = owner;
+    check(normal_map::stageStatic(buffer,positions,normals,uv,owner), "stage shared preparation");
+    check(owner.use_count() == 2, "staging retains original preparation without copying");
+    owner.reset();
+    check(!lifetime.expired(), "pending preparation survives caller release");
+    check(normal_map::ensureUploaded(buffer), "upload after caller releases preparation");
+    check(lifetime.expired(), "successful upload releases staging reference");
+    check(buffer->updateDynamic(positions,normals,uv,starts,counts), "reset uploaded source");
+    owner = preparation(); lifetime = owner;
+    check(normal_map::stageStatic(buffer,positions,normals,uv,owner), "stage before invalidation");
+    owner.reset();
+    check(buffer->updateDynamic(positions,normals,uv,starts,counts), "invalidate pending source");
+    check(lifetime.expired(), "invalidation releases shared preparation");
+#endif
+    check(glGetError() == GL_NO_ERROR, "no GL errors");
+    std::printf("NORMAL MAP LAZY RESOURCES %s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
+    return failures ? -1 : 0;
+}
+#endif
 #if defined(USE_DIRECTX9)
 #include <specific-directx9-shader.h>
 #include <core_mbm/shader.h>
@@ -70,7 +222,10 @@ static int runDirectX9NormalMapShaderTests()
     shader.setUseReservedLightDefault(true);
     passed = shader.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
     auto *backend = static_cast<D3D_PS_VS *>(shader.getBackendShaderSpecific());
-    passed = passed && backend->normalMapDeclaration && backend->normalMapSettings &&
+#if USE_NORMAL_MAPPING_3D
+    passed = passed && !backend->normalMapDeclaration && !backend->normalMapSettings;
+#endif
+    passed = passed &&
         reportDirectX9ShaderBudget(backend->pd3dPixelShader,true) &&
         reportDirectX9ShaderBudget(backend->pd3dVertexShader,false);
     // Recompile the same instance and another instance to cover cached COM ownership.
@@ -79,15 +234,21 @@ static int runDirectX9NormalMapShaderTests()
     cached.setUseReservedLightDefault(true);
     passed = passed && cached.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
     auto *cachedBackend = static_cast<D3D_PS_VS *>(cached.getBackendShaderSpecific());
-    passed = passed && cachedBackend->pd3dPixelShader == backend->pd3dPixelShader && cachedBackend->normalMapDeclaration;
+    passed = passed && cachedBackend->pd3dPixelShader == backend->pd3dPixelShader;
+#if USE_NORMAL_MAPPING_3D
+    passed = passed && !cachedBackend->normalMapDeclaration;
+#endif
 
     // This measures the pre-existing geometric lighting at SM2, not SM2 hardware.
+    SHADER::clearDefaultProgramCache();
     setPSVersion("ps_2_0"); setVSVersion("vs_2_0");
     SHADER sm2;
     sm2.setUseReservedLightDefault(true);
     const bool sm2Lit = sm2.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
     std::printf("DX9 existing geometric lighting at SM2: %s\n",sm2Lit ? "compiled" : "exceeds profile (expected diagnostic above)");
+#if USE_NORMAL_MAPPING_3D
     passed = passed && !static_cast<D3D_PS_VS *>(sm2.getBackendShaderSpecific())->normalMapDeclaration;
+#endif
     SHADER unlit;
     passed = passed && unlit.compileShader(nullptr,nullptr,FVF_PROVIDE_BY_ENGINE::FVF_POS_UV);
     setPSVersion(savedPS.c_str()); setVSVersion(savedVS.c_str());
@@ -277,6 +438,27 @@ static int runTestLib(int argc, char **argv
 #endif
 )
 {
+#if (defined(USE_OPENGL_ES) && defined(__linux__)) || defined(USE_METAL)
+    if (argc == 2 && std::strcmp(argv[1],"--normal-map-benchmark-fixtures") == 0)
+        return createNormalMapBenchmarkFixtures();
+#endif
+    if (argc == 2 && std::strcmp(argv[1], "--normal-map-build-info") == 0)
+    {
+#if defined(USE_OPENGL_ES)
+        const char *backend = "gles";
+#elif defined(USE_DIRECTX9)
+        const char *backend = "dx9";
+#elif defined(USE_DIRECTX11)
+        const char *backend = "dx11";
+#elif defined(USE_METAL)
+        const char *backend = "metal";
+#else
+        const char *backend = "unsupported";
+#endif
+        std::printf("NORMAL MAP BUILD backend=%s normal=%d lights=%u\n", backend,
+                    USE_NORMAL_MAPPING_3D, mbm::getSupportedMaxLights(mbm::LIGHT_TARGET_3D));
+        return 0;
+    }
     if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)
         return runSkeletalFoundationTests();
     if (argc == 2 && std::strcmp(argv[1], "--normal-map-preparation-tests") == 0)
@@ -485,7 +667,48 @@ static int runTestLib(int argc, char **argv
     constexpr bool doSwapBuffers = true;
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
     {
+#if defined(USE_METAL)
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-benchmark") == 0)
+            return runMetalNormalMapBenchmark(game.myScene);
+#endif
+#if defined(USE_OPENGL_ES) && defined(__linux__)
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-benchmark") == 0)
+            return runGlesNormalMapBenchmark();
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-context-test") == 0)
+            return runGlesNormalMapContextTests(game,game.myScene);
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-failure-test") == 0)
+            return runGlesNormalMapFailureTests();
+#endif
+#if defined(USE_DIRECTX11)
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-failure-test") == 0)
+        {
+            const int result = runDirectX11NormalMapFailureTests();
+            const bool clean = validateDirectX11DebugMessages();
+            validateLifecycle = captureDirectX11LifecycleDebug(lifecycleDebug);
+            return result == 0 && clean && validateLifecycle ? 0 : -1;
+        }
+#endif
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-lazy-resource-test") == 0)
+        {
+#if defined(USE_OPENGL_ES)
+            return runNormalMapLazyResourceTests();
+#elif defined(USE_DIRECTX9) || defined(USE_DIRECTX11) || defined(USE_METAL)
+            const int result = runNormalMapNativeResourceTests();
+#if defined(USE_DIRECTX11)
+            const bool clean = validateDirectX11DebugMessages();
+            validateLifecycle = captureDirectX11LifecycleDebug(lifecycleDebug);
+            return result == 0 && clean && validateLifecycle ? 0 : -1;
+#else
+            return result;
+#endif
+#else
+            std::printf("NORMAL MAP LAZY RESOURCES FAIL: unsupported backend\n");
+            return -1;
+#endif
+        }
 #if defined(USE_DIRECTX9)
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-sm2-test") == 0)
+            return runNormalMapSm2Tests();
         if (argc == 2 && std::strcmp(argv[1],"--directx9-normal-map-shader-test") == 0)
             return runDirectX9NormalMapShaderTests();
 #endif

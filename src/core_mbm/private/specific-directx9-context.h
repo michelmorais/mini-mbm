@@ -22,6 +22,7 @@
 #define DIRECTX9_SPECIFIC_CONTEXT_H
 #if defined(USE_DIRECTX9)
 
+#include <core_mbm/render-features.h>
 #include <specific-directx9.h>
 
 // #pragma comment is MSVC-only; MinGW links via CMake targets (d3d9, d3dcompiler).
@@ -48,7 +49,9 @@ namespace mbm
 
         IDirect3D9 *pD3D;
         IDirect3DDevice9 *pd3dDevice;
+#if USE_NORMAL_MAPPING_3D
         bool normalMapUnsupportedReported = false;
+#endif
         SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;

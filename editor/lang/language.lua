@@ -8,6 +8,10 @@ local M = {}
 
 -- String tables
 M.en = {
+    nm_remove = "Remove normal mapping from this mesh",
+    nm_remove_help = "Removes tangents, normal-map texture references and normal-map properties from every frame/subset of this mesh. Keeps geometry and other textures. Save to export the lighter asset. Undo restores the removed data.",
+    nm_3d_build_disabled = "3D normal mapping is disabled in this engine build.",
+    nm_3d_build_disabled_help = "The 3D preview uses mesh normals. You can still edit and save normal-map settings and tangents. To preview the effect, use a build with 3D normal mapping enabled.",
     nm_material_settings = "Material settings",
     nm_convention = "Convention",
     nm_strength = "Strength",
@@ -3784,6 +3788,10 @@ M.en = {
 }
 
 M.pt_br = {
+    nm_remove = "Remover normal mapping desta malha",
+    nm_remove_help = "Remove tangentes, referências às texturas de normal map e propriedades de normal map de todos os frames/subsets desta malha. Mantém a geometria e as demais texturas. Salve para exportar o asset mais leve. Desfazer restaura os dados removidos.",
+    nm_3d_build_disabled = "Normal mapping 3D está desativado nesta compilação da engine.",
+    nm_3d_build_disabled_help = "A prévia 3D usa as normais da malha. Você ainda pode editar e salvar propriedades de normal map e tangentes. Para visualizar o efeito, use uma compilação com normal mapping 3D ativado.",
     nm_material_settings = "Propriedades do material",
     nm_convention = "Convenção",
     nm_strength = "Intensidade",

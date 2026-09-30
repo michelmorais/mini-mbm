@@ -37,6 +37,7 @@ namespace util
 
 namespace mbm
 {
+    namespace normal_map { struct BUFFER_ACCESS; }
     enum class SKELETAL_SHADER_METHOD : uint8_t
     {
         NONE,
@@ -168,6 +169,7 @@ namespace mbm
         uint32_t totalSubset;   // Total of subset of this buffer
 
       private:
+        friend struct normal_map::BUFFER_ACCESS;
         struct BackendData;
         struct BackendDataDeleter
         {
@@ -255,6 +257,13 @@ namespace mbm
                                     const RENDERIZABLE *renderizableOwner = nullptr) const;
         API_IMPL void update();
       private:
+        bool compileBackend(BASE_SHADER *, BASE_SHADER *, FVF_PROVIDE_BY_ENGINE,
+                            uint32_t, SKELETAL_SHADER_METHOD);
+        bool renderBackend(const BUFFER_GL *, const RENDERIZABLE *, int32_t,
+                           const float *, uint32_t) const;
+        bool usesNormalMappingVariant() const noexcept;
+        bool hasNormalMappingInterface() const noexcept;
+        void resetNormalMappingVariant() noexcept;
         bool usesPureDefaultShaderPair() const noexcept;
         bool shouldCompileReservedLightDefault() const noexcept;
         struct BackendData;

@@ -488,6 +488,15 @@ ordinary depth behavior against each other. The property does not affect render-
 
 ### Normal-map material settings
 
+`mbm.isNormalMapping3DCompiled()` takes no arguments and returns a boolean for
+whether the linked engine was built with `USE_NORMAL_MAPPING_3D` (default enabled).
+It reports the build capability, not whether the current device/profile, object,
+shader or tangent basis can render the effect. There is no runtime setter.
+When false, default/reserved 3D lighting uses geometric normals, while 2dw normal
+mapping, explicit CPU authoring, asset validation and persistence remain available.
+Normal-map material settings and texture assignments can still be read/edited;
+they do not enable compiled-out 3D rendering.
+
 Available on renderables using the common animation/material methods:
 
 ```lua
@@ -505,7 +514,8 @@ These are shared asset properties, like material textures: changing them affects
 instances using that cached asset. They neither assign a normal texture nor modify
 texture pixels or tangents. Static 3D lighting on OpenGL ES, DirectX 11,
 DirectX 9 (vs_3_0/ps_3_0) and Metal consumes these properties when a prepared
-tangent basis and normal texture are available. Strength zero disables the detail.
+tangent basis and normal texture are available and `mbm.isNormalMapping3DCompiled()`
+is true. Strength zero disables the detail.
 Skinned meshes do not consume the prepared tangent basis. These properties do not
 change the existing 2dw equations. See [normal mapping](light.md#material-texture-slots)
 for rendering requirements and [future work](future-features.md#normal-mapping).
@@ -757,6 +767,9 @@ m:load("file.mbm")   -- load mesh; returns bool
 parsing happen on a worker thread, and the callback always fires later — from the engine's normal
 per-frame update, never inline from the `loadAsync` call itself, not even when the file turns out
 to already be cached. Do not assume the mesh is ready on the line right after calling it.
+The binding retains the callback, mesh table and initiating Lua thread until completion.
+A coroutine may finish and lose its script references while the load is pending;
+its stack remains alive through the callback, including extraction/save and GC.
 
 ```lua
 m:loadAsync("file.mbm", function(self_mesh, success)
@@ -2917,6 +2930,15 @@ authoring mesh retains prepared tangent data for at least one frame/subset.
 This constant-time, read-only query does not prepare tangents or validate the
 geometry signature; retained data may be stale after geometry edits. Mesh Debug
 uses it in its Mesh Info table, including unsaved preparation.
+
+`meshD:removeNormalMap()` removes prepared tangents, normal texture slots and
+normal-map convention/strength overrides from **all frames and subsets**. It
+preserves geometry and other texture roles; image files on disk are not deleted.
+Returns `true` when something changed, or `false` when already empty or while
+the simplification worker is running. Available even with `USE_NORMAL_MAPPING_3D=0`.
+Saving/reopening the stripped asset does not regenerate tangents because neither
+normal texture references nor retained preparation remain. Mesh Debug's Normal
+map panel exposes this operation with its existing snapshot-based Undo action.
 
 ```lua
 local report, err = meshD:prepareNormalMap(frame, subset, policy, corners)

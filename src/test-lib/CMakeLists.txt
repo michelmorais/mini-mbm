@@ -36,9 +36,12 @@ include_directories(${INCLUDE}
 file(GLOB SOURCES "*.cpp")
 
 if(USE_METAL)
+  set_source_files_properties(normal-map-native-resource-tests.cpp PROPERTIES LANGUAGE OBJCXX COMPILE_FLAGS "-fobjc-arc")
   list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-skeletal-parity-tests.mm")
   if(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/macos-window-tests.mm")
+    list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-normal-map-benchmark.mm")
+    set_source_files_properties(metal-normal-map-benchmark.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
   endif()
 endif()
 
@@ -84,3 +87,15 @@ else()
 endif()
 
 target_link_libraries(testLib core_mbm)
+
+# Explicit opt-in: fault injection is never linked into the engine or testLib.
+option(MBM_BUILD_GLES_FAULT_TESTS "Build Linux GLES test-only LD_PRELOAD injector" OFF)
+if(MBM_BUILD_GLES_FAULT_TESTS)
+  if(NOT USE_OPENGL_ES OR NOT ENGINE_TARGET_PLATFORM STREQUAL "Linux")
+    message(FATAL_ERROR "GLES fault injection requires Linux/OpenGL ES")
+  endif()
+  add_library(mbm-normal-map-faults SHARED faults/gles-faults.cpp)
+  set_target_properties(mbm-normal-map-faults PROPERTIES PREFIX "")
+  target_link_libraries(mbm-normal-map-faults PRIVATE dl)
+  add_dependencies(testLib mbm-normal-map-faults)
+endif()

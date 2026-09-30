@@ -114,6 +114,61 @@ Accepted values are `1..4`. This maps to the engine preprocessor define
 the default light-capable shaders and staging arrays. You can override it from
 MSBuild with `/p:MbmSupportedMaxLights=2`.
 
+`MbmUseNormalMapping3D` defaults to `1` and accepts numeric `0` or `1`.
+Build with `/p:MbmUseNormalMapping3D=0 /p:MbmSupportedMaxLights=2` to remove
+3D normal-map rendering and compile lighting for at most two point lights per draw.
+The property maps to `USE_NORMAL_MAPPING_3D` across affected projects. A full rebuild
+is required when changing either setting. Asset validation/persistence, explicit
+CPU tangent authoring and 2dw normal mapping remain available. The linked engine
+reports the setting through `mbm.isNormalMapping3DCompiled()` in Lua or
+`mbm::isNormalMapping3DCompiled()` from `core_mbm/render-features.h` in C++.
+
+Build and test one isolated normal-mapping matrix entry from the repository root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 2 -Output build/normal-windows/dx11-on-2
+```
+
+The output directory must be new. The script builds `libTest` and `mini_mbm`
+with matching libraries and per-project intermediate directories, disables the
+missing-texture picker, then runs the Python regression suite. It defaults to
+Debug x86 and requires DX11 debug-layer and post-teardown lifecycle markers.
+Use `-Backend dx9`, `-Normal 0`, and `-Lights 1..4` for the other entries;
+DX9 requires its existing SDK setup; the native resource suite explicitly checks
+SM3 device capabilities and selected `vs_3_0`/`ps_3_0` profiles. The DX9 runner
+also executes `--normal-map-sm2-test` in a separate process: forced SM2 profiles,
+actual bytecode and unlit pixel/resource checks, plus the expected default-lighting
+capacity failure. This is not functional SM2 lighting or a real SM2 device test.
+`-Configuration Release` is supported but
+does not establish DX11 debug-layer acceptance. Python 3 (`py -3`) is required;
+pass `-Python` for a different interpreter or `-MSBuild` for an explicit tool path.
+The execution-policy override applies only to this PowerShell process.
+Add `-SkeletalParity` to include native synthetic/Lorekeeper LBS/DQS CPU/GPU
+position/normal comparisons. With prebuilt binaries, the Python runner accepts
+`--skeletal-parity`. All four case markers are required; DX11 Debug also requires
+debug-layer and post-teardown lifecycle markers for this step. This is numerical
+deformation coverage, not skeletal normal-map material/render integration.
+Add `-Dx11Failure` (DX11 only) to run 20 recovery cases: 15 mapped COM creation
+failures and five constant-buffer `Map` scenarios; prebuilt Python runs accept
+`--dx11-failure`. ON tests recovery and warm reuse; OFF requires no mapped
+creation calls. Debug runs also require debug-layer and lifecycle markers.
+This covers static single-batch resources plus rollback in a second batch of
+one subset and across two subsets. It does not cover compiler failures or device
+loss. Each case also compares 64x64 offscreen RGBA pixels after recovery with an
+independent fault-free reference. `Map` coverage includes matrices, lighting and
+normal settings, plus lighting/normal settings in the second subset. Each fault
+is repeated before fallback/retry; buffers remain allocated and successful maps
+must be unmapped exactly once. A second-subset failure preserves the first
+subset's pixels. OFF still exercises matrix/light failures and requires no
+normal-settings mapping. The runner requires all 20 resource/pixel markers and
+five `Map` markers; use a matching rebuilt `libTest`. Reference/recovered RGB PPM images
+are saved under `results/fixtures/pixels-*-{reference,recovered}.ppm`.
+Build arguments/logs and `results/report.json`, test logs and PNGs remain under
+the chosen output directory. [Normal mapping](../docs/normal-mapping.md#validation-scope)
+describes the validated Windows DX9 SM3/DX11 Debug x86 configurations and the
+Linux/macOS coverage. Windows Release performance, actual device loss and broader
+fault injection are outside that validation scope.
+
 ---
 
 ## Build Configurations

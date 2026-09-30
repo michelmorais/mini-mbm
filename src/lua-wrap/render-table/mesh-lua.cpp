@@ -864,6 +864,7 @@ namespace mbm
             lua_State *lua;
             int        refCallback;
             int        refSelf;
+            int        refThread;
         };
     }
 
@@ -879,6 +880,10 @@ namespace mbm
         ctx->refCallback = luaL_ref(lua, LUA_REGISTRYINDEX);
         lua_pushvalue(lua, 1);
         ctx->refSelf     = luaL_ref(lua, LUA_REGISTRYINDEX);
+        // onInitScene can run in a short-lived coroutine. The callback also needs
+        // its Lua stack alive, including across reentrant addPath/GC during save.
+        lua_pushthread(lua);
+        ctx->refThread = luaL_ref(lua, LUA_REGISTRYINDEX);
         mesh->loadAsync(fileName, [ctx](bool success)
         {
             lua_State *lua = ctx->lua;
@@ -896,6 +901,7 @@ namespace mbm
             }
             luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refCallback);
             luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refThread);
             delete ctx;
         });
         return 0;

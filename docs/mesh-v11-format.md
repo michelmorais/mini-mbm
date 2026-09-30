@@ -275,6 +275,10 @@ topologies do not emit a surface basis. Saving reuses validated preparation and
 regenerates it when source data changes; runtime loading generates missing bases
 only for materials that need them. The section can use the usual NONE/DEFLATE
 envelope compression. Material properties are stored separately in section 15.
+The authoring operation `removeNormalMap()` clears both caches and every normal
+texture slot. Subsequent saves omit sections 14 and 15, preserve other texture
+roles and source geometry, and do not regenerate the removed basis. This does
+not delete external texture files or require a new binary layout.
 Static 3D lighting consumes the prepared basis on OpenGL ES, DirectX 9 SM3,
 DirectX 11 and Metal; see [Lighting](light.md#material-texture-slots).
 

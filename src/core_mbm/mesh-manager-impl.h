@@ -15,6 +15,7 @@
 #include <skeletal-gpu-lbs.h>
 #include "private/normal-map-asset.h"
 #include <atomic>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -120,7 +121,8 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
-        normal_map::ASSET_FRAMES normalMapFrames;
+        // Immutable runtime preparation; pending uploads share its lifetime.
+        std::shared_ptr<const normal_map::ASSET_FRAMES> normalMapFrames;
         normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
         skeletal::GPU_SKINNING_INPUT gpuSkinningInput;
         std::vector<VEC3> skeletalBindPositions;

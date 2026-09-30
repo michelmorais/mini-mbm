@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#include <core_mbm/render-features.h>
 #include <device.h>
 #include <scene.h>
 #include <audio-interface.h>
@@ -513,6 +514,11 @@ namespace mbm
             return DEFAULT_REQUESTED_MAX_LIGHTS;
         DEVICE *device = DEVICE::getInstance();
         return DEVICE_LIGHT_ACCESS::getLightMultiSettings(device, target).requestedMaxLights;
+    }
+
+    bool isNormalMapping3DCompiled() noexcept
+    {
+        return USE_NORMAL_MAPPING_3D != 0;
     }
 
     uint32_t getSupportedMaxLights(const LIGHT_TARGET target) noexcept

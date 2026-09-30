@@ -20,6 +20,7 @@
 #ifndef DIRECTX11_BUFFER_SPECIFIC_H
 #define DIRECTX11_BUFFER_SPECIFIC_H
 
+#include <core_mbm/render-features.h>
 #include <d3d11.h>
 #include <vector>
 
@@ -27,6 +28,7 @@ namespace mbm
 {
     struct BUFFER_SPECIFIC
     {
+#if USE_NORMAL_MAPPING_3D
         struct NORMAL_MAP_BATCH
         {
             ID3D11Buffer *vertices = nullptr;
@@ -41,6 +43,7 @@ namespace mbm
         };
         std::vector<NORMAL_MAP_SUBSET> normalMapSubsets;
         void releaseNormalMap();
+#endif
         ID3D11Buffer *vertexBuffer;
         ID3D11Buffer *skinVertexBuffer;
         ID3D11Buffer *indexBuffer;

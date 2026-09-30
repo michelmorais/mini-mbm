@@ -19,6 +19,7 @@
     <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)'=='Debug'">OpenGLES</MbmBackend>
     <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)'=='Release'">DirectX11</MbmBackend>
     <MbmBackend Condition="'$(MbmBackend)'==''">OpenGLES</MbmBackend>
+    <MbmUseNormalMapping3D Condition="'$(MbmUseNormalMapping3D)'==''">1</MbmUseNormalMapping3D>
     <MbmSupportedMaxLights Condition="'$(MbmSupportedMaxLights)'==''">4</MbmSupportedMaxLights>
     <MbmDirectX9SdkRoot Condition="'$(MbmDirectX9SdkRoot)'==''">C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)</MbmDirectX9SdkRoot>
     <MbmDirectX9SdkInclude Condition="'$(MbmBackend)'=='DirectX9'">$(MbmDirectX9SdkRoot)\Include;</MbmDirectX9SdkInclude>
@@ -30,7 +31,7 @@
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX9'">USE_DIRECTX9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX11'">USE_DIRECTX11;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='OpenGLES'">USE_OPENGL_ES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions>SUPPORTED_MAX_LIGHTS=$(MbmSupportedMaxLights);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_NORMAL_MAPPING_3D=$(MbmUseNormalMapping3D);SUPPORTED_MAX_LIGHTS=$(MbmSupportedMaxLights);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies Condition="'$(MbmBackend)'=='DirectX11'">d3d11.lib;dxgi.lib;d3dcompiler.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>

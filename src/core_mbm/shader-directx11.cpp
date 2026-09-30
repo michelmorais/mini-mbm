@@ -19,6 +19,7 @@
 
 #if defined(USE_DIRECTX11)
 
+#include <core_mbm/render-features.h>
 #include "specific-directx11-buffer.h"
 
 #include <shader.h>
@@ -62,12 +63,14 @@ namespace mbm
             MATRIX mv;
         };
 
+#if USE_NORMAL_MAPPING_3D
         struct D3D11_NORMAL_VERTEX
         {
             D3D11_VERTEX source;
             normal_map::TANGENT tangent;
         };
 
+#endif
         struct D3D11_LIGHT_CONSTANTS
         {
             int modes[4] = {};
@@ -154,8 +157,10 @@ namespace mbm
             ID3D11Buffer *skeletalPaletteBuffer = nullptr;
             ID3D11Buffer *colorBuffer = nullptr;
             ID3D11Buffer *lightBuffer = nullptr;
+#if USE_NORMAL_MAPPING_3D
             ID3D11Buffer *normalMapBuffer = nullptr;
             ID3D11Buffer *zeroTangentBuffer = nullptr;
+#endif
             ID3D11SamplerState *defaultSampler = nullptr;
             ID3D11SamplerState *nearestSampler = nullptr;
             bool usesLineColor = false;
@@ -175,8 +180,10 @@ namespace mbm
                 if (defaultSampler) defaultSampler->Release();
                 if (colorBuffer) colorBuffer->Release();
                 if (lightBuffer) lightBuffer->Release();
+#if USE_NORMAL_MAPPING_3D
                 if (normalMapBuffer) normalMapBuffer->Release();
                 if (zeroTangentBuffer) zeroTangentBuffer->Release();
+#endif
                 if (matrixBuffer) matrixBuffer->Release();
                 if (skeletalPaletteBuffer) skeletalPaletteBuffer->Release();
                 if (inputLayout) inputLayout->Release();
@@ -188,8 +195,10 @@ namespace mbm
                 defaultSampler = nullptr;
                 colorBuffer = nullptr;
                 lightBuffer = nullptr;
+#if USE_NORMAL_MAPPING_3D
                 normalMapBuffer = nullptr;
                 zeroTangentBuffer = nullptr;
+#endif
                 matrixBuffer = nullptr;
                 skeletalPaletteBuffer = nullptr;
                 inputLayout = nullptr;
@@ -538,6 +547,7 @@ namespace mbm
         this->release();
     }
 
+#if USE_NORMAL_MAPPING_3D
     void BUFFER_SPECIFIC::releaseNormalMap()
     {
         for (auto &subset : normalMapSubsets)
@@ -549,7 +559,7 @@ namespace mbm
         normalMapSubsets.clear();
     }
 
-    bool normal_map::uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+    bool normal_map::uploadBackend(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
                                  const VEC2 *uv, const PREPARED &prepared)
     {
         if (prepared.batches.empty()) return true;
@@ -582,7 +592,7 @@ namespace mbm
         return true;
     }
 
-    void normal_map::setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
+    void normal_map::setBackendSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
     {
         auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
         if (!backend || subset >= backend->normalMapSubsets.size()) return;
@@ -590,9 +600,12 @@ namespace mbm
         backend->normalMapSubsets[subset].strength = strength;
     }
 
+#endif
     void BUFFER_SPECIFIC::release()
     {
+#if USE_NORMAL_MAPPING_3D
         releaseNormalMap();
+#endif
         if (indexBuffer) indexBuffer->Release();
         if (skinVertexBuffer) skinVertexBuffer->Release();
         if (vertexBuffer) vertexBuffer->Release();
@@ -635,6 +648,9 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
+#if USE_NORMAL_MAPPING_3D
+        normal_map::discardSource(this);
+#endif
         if (this->vertexStartVB)
             delete[] this->vertexStartVB;
         if (this->vertexCountVB)
@@ -796,7 +812,10 @@ namespace mbm
     {
         if (!vertex || !vertexStartSubset || !vertexCountSubset)
             return false;
+#if USE_NORMAL_MAPPING_3D
+        normal_map::discardSource(this);
         if (auto *backend = getBackendBuffer()) backend->releaseNormalMap();
+#endif
         if (this->initializedIndexBuffer)
         {
             BUFFER_SPECIFIC *backend = getBackendBuffer();
@@ -949,7 +968,7 @@ namespace mbm
 
     void SHADER::onRestore()
     {
-    }
+        resetNormalMappingVariant();    }
 
     void SHADER::clearDefaultProgramCache() noexcept
     {
@@ -963,12 +982,13 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
+        resetNormalMappingVariant();
         D3D11_SHADER_DATA *shaderData = static_cast<D3D11_SHADER_DATA *>(getBackendShaderSpecific());
         if (shaderData)
             shaderData->release();
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
+    bool SHADER::compileBackend(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
                                const SKELETAL_SHADER_METHOD skeletalMethod)
     {
@@ -999,7 +1019,7 @@ namespace mbm
         const bool usesCustomReservedLight = (ptrPshader && shaderSourceHasReservedLightD3D11(ptrPshader->getCode())) ||
                                              (ptrVshader && shaderSourceHasReservedLightD3D11(ptrVshader->getCode()));
         const bool usesLightingScaffolding = usesGeneratedReservedLight || usesCustomReservedLight;
-        const bool usesNormalMapping = !ptrVshader && !usesSkeletal && hasNormal && hasUv &&
+        const bool usesNormalMapping = USE_NORMAL_MAPPING_3D && usesNormalMappingVariant() && !ptrVshader && !usesSkeletal && hasNormal && hasUv &&
             usesLightingScaffolding && (!ptrPshader || ptrPshader->fileName == "lit textured.ps");
         if (usesSkeletal && ptrVshader)
         {
@@ -1047,6 +1067,16 @@ namespace mbm
                         ? mul(input.normal,float3x3(c0,c1,c2))/det : input.normal;
                 )HLSL";
         }
+#if USE_NORMAL_MAPPING_3D
+        if (!usesNormalMapping && !ptrVshader && !usesSkeletal && hasNormal && hasUv && usesLightingScaffolding &&
+            (!ptrPshader || ptrPshader->fileName == "lit textured.ps"))
+            defaultShaderSource += R"HLSL(
+                float3x3 m = (float3x3)mv;
+                float3 c0=cross(m[1],m[2]), c1=cross(m[2],m[0]), c2=cross(m[0],m[1]);
+                float det=dot(m[0],c0);
+                output.normalView=abs(det)>0.00000001 ? mul(input.normal,float3x3(c0,c1,c2))/det : input.normal;
+            )HLSL";
+#endif
         defaultShaderSource += "return output;}"
             "Texture2D DiffuseTexture:register(t0);Texture2D TextureNormal:register(t2);"
             "SamplerState DiffuseSampler:register(s0);";
@@ -1113,6 +1143,7 @@ namespace mbm
         }
         std::string normalizedPixelShaderSource = strcmp(pixelEntryPoint, "main") == 0 ?
             normalizePixelEntrySignatureD3D11(pixelShaderSource) : std::string(pixelShaderSource);
+#if USE_NORMAL_MAPPING_3D
         if (ptrPshader && ptrPshader->fileName == "lit textured.ps" && !usesNormalMapping)
         {
             // Keep custom VS and skeletal shaders on their existing varying contract.
@@ -1126,6 +1157,7 @@ namespace mbm
             at = normalizedPixelShaderSource.find(call);
             if (at != std::string::npos) normalizedPixelShaderSource.replace(at,call.size(),"normalize(normalViewIn)");
         }
+#endif
         pixelShaderSource = normalizedPixelShaderSource.c_str();
         UINT compileFlags = 0;
 #if defined(_DEBUG)
@@ -1216,12 +1248,16 @@ namespace mbm
             SUCCEEDED(d3dDevice->CreateSamplerState(&samplerDescription, &shaderData->nearestSampler));
         const bool createdSampler = createdDefaultSampler && createdNearestSampler;
         const bool createdPixelResource = createdColorBuffer && createdSampler;
+#if USE_NORMAL_MAPPING_3D
         const float zeroTangent[4] = {};
         const bool createdNormalMapBuffers = !usesNormalMapping ||
             (createBuffer(d3dDevice, nullptr, sizeof(float)*4u, D3D11_BIND_CONSTANT_BUFFER,
                           true, &shaderData->normalMapBuffer) &&
              createBuffer(d3dDevice, zeroTangent, sizeof(zeroTangent), D3D11_BIND_VERTEX_BUFFER,
                           false, &shaderData->zeroTangentBuffer));
+#else
+        constexpr bool createdNormalMapBuffers = true;
+#endif
         if (FAILED(result) || !createdMatrixBuffer || !createdLightBuffer || !createdPaletteBuffer || !createdPixelResource || !createdNormalMapBuffers)
         {
             shaderData->release();
@@ -1239,7 +1275,17 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
+    bool SHADER::hasNormalMappingInterface() const noexcept
+    {
+#if USE_NORMAL_MAPPING_3D
+        const auto *shader = static_cast<const D3D11_SHADER_DATA *>(getBackendShaderSpecific());
+        return shader && shader->normalMapBuffer != nullptr;
+#else
+        return false;
+#endif
+    }
+
+    bool SHADER::renderBackend(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
                         const uint32_t skeletalPaletteFloatCount) const
     {
@@ -1348,9 +1394,11 @@ namespace mbm
         const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
         if (lastSubset > pBufferId->totalSubset)
             return false;
+#if USE_NORMAL_MAPPING_3D
         bool usingNormalMapBuffers = false;
         if (shaderData->zeroTangentBuffer)
             context->immediateContext->IASetVertexBuffers(2,1,&shaderData->zeroTangentBuffer,&offset,&offset);
+#endif
         for (uint32_t subset = firstSubset; subset < lastSubset; ++subset)
         {
             if (shaderData->usesReservedLight &&
@@ -1377,6 +1425,7 @@ namespace mbm
                 }
                 context->immediateContext->PSSetShaderResources(0, 6, textureViews);
             }
+#if USE_NORMAL_MAPPING_3D
             const BUFFER_SPECIFIC::NORMAL_MAP_SUBSET *normalSubset = nullptr;
             if (shaderData->normalMapBuffer)
             {
@@ -1425,6 +1474,7 @@ namespace mbm
                 context->immediateContext->IASetVertexBuffers(2,1,&shaderData->zeroTangentBuffer,&offset,&offset);
                 usingNormalMapBuffers = false;
             }
+#endif
             if (pBufferId->isIndexBuffer())
             {
                 context->immediateContext->IASetIndexBuffer(buffer->indexBuffer, DXGI_FORMAT_R16_UINT, 0);

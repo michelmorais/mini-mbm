@@ -23,6 +23,7 @@ local objects = {}
 local remaining = 0
 local failed = false
 local started = 0
+local initiatingThreads = setmetatable({}, {__mode='v'})
 local dir = assert(os.getenv('MBM_NORMAL_MAP_FIXTURE_DIR'), 'set MBM_NORMAL_MAP_FIXTURE_DIR')..'/'
 local function check(condition, label)
     if not condition then failed = true; print('NORMAL MAP RUNTIME FAIL: '..label) end
@@ -35,6 +36,13 @@ function onInitScene()
             local m = mesh:new('3d')
             objects[#objects+1] = m
             assert(m:load(dir..name..'.msh'), name)
+            if name == 'unprepared' or name == 'prepared' then
+                local extracted=meshDebug:new()
+                assert(extracted:load(m),'runtime basis extraction')
+                local report=assert(extracted:prepareNormalMap(1,1,'preserve'))
+                check(report.reused == (name == 'prepared' or mbm.isNormalMapping3DCompiled()),
+                    'runtime preparation follows build; persisted basis retained: '..name)
+            end
             local convention, strength = m:getNormalMapSettings()
             if name == 'material-imported' then
                 check(convention == '-Y' and strength == 3, name..' properties')
@@ -104,12 +112,36 @@ function onInitScene()
                 remaining = remaining-1
             end)
         end
+        -- A completed coroutine must remain rooted until its native callback returns.
+        -- Saving reenters the main Lua state through addPath, where GC can run.
+        local thread = coroutine.create(function()
+            local transient = mesh:new('3d')
+            remaining = remaining+1
+            transient:loadAsync(dir..'prepared.msh', function(self, success)
+                local valid, why = pcall(function()
+                    check(success, 'coroutine async load')
+                    check(initiatingThreads[1] ~= nil, 'callback retains initiating coroutine')
+                    local author = meshDebug:new()
+                    assert(author:load(self))
+                    assert(author:save(dir..'coroutine-runtime.msh',false,false,true))
+                end)
+                if not valid then check(false, tostring(why)) end
+                remaining = remaining-1
+            end)
+        end)
+        initiatingThreads[1] = thread
+        assert(coroutine.resume(thread))
+        thread = nil
+        collectgarbage('collect')
+        check(initiatingThreads[1] ~= nil, 'pending load roots completed coroutine')
     end)
     if not ok then failed = true; print('NORMAL MAP RUNTIME FAIL: '..tostring(err)) end
 end
 function onLoop(delta)
     if mbm.getTimeRun()-started > 6 or (remaining == 0 and mbm.getTimeRun()-started > 1) then
         check(remaining == 0, 'async timeout')
+        collectgarbage('collect')
+        check(initiatingThreads[1] == nil, 'completed callback releases coroutine reference')
         print(failed and 'NORMAL MAP RUNTIME FAIL' or 'NORMAL MAP RUNTIME PASS')
         mbm.quit()
     end

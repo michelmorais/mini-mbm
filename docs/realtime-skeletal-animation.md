@@ -248,6 +248,14 @@ Metal capture backends execute all four shared cases and read encoded GPU positi
 comparison. DirectX 9 and Metal use the same generated LBS/DQS deformation source as their
 production default shaders.
 
+Windows numerical deformation coverage includes DX9/DX11 Debug x86 with
+`USE_NORMAL_MAPPING_3D=0/1` and light caps 1..4. Synthetic/Lorekeeper LBS/DQS
+positions and normals match the shared RGBA8 tolerances; this is not bit-exact
+CPU/GPU equality, full-animation coverage or skeletal normal-map material
+integration. DX11 checks include debug-layer and post-teardown lifecycle markers.
+See [normal-mapping validation](normal-mapping.md#validation-scope) and the
+[runner options](normal-mapping.md#run-regression-tests).
+
 ## 11. Current Capability Boundaries
 
 - GPU LBS uses the compact rigid/positive-uniform-scale normal profile; non-uniform GPU normal

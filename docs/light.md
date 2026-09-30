@@ -715,10 +715,31 @@ normal texture are available. Skeletal meshes use geometric-normal lighting.
 See [Lua API](lua-api.md#normal-map-material-settings) and
 [MSH format](mesh-v11-format.md#optional-section_normal_map_materials-15-section-version-1).
 
-The static 3D paths share these contracts:
+`USE_NORMAL_MAPPING_3D` controls the integration at build time (default `ON`).
+Use `-DUSE_NORMAL_MAPPING_3D=OFF` in CMake or `/p:MbmUseNormalMapping3D=0` in
+Visual Studio to remove automatic runtime tangent preparation, derived GPU
+resources and normal-map draw dispatch. Generated/reserved 3D shaders then use
+geometric normals without the tangent interface or mapping helper. Existing
+2dw mapping and custom-shader texture semantics remain available.
 
-- Loaded optional tangent batches are uploaded once into private interleaved
-  position/normal/UV buffers, tangents (interleaved or separate) and local 16-bit index buffers. Authoring
+`mbm::isNormalMapping3DCompiled()` (`core_mbm/render-features.h`) and Lua
+`mbm.isNormalMapping3DCompiled()` report the linked engine's build setting. This
+is not a device/profile/material support query: a build with the feature enabled
+still requires a supported backend/profile, static geometry and a usable basis.
+There is no runtime toggle for this build setting.
+
+Sections 14/15 are still parsed, validated, retained and saved with the feature
+disabled. Explicit CPU authoring/preparation and MikkTSpace remain available.
+Material texture acquisition/binding is retained because the shared asset can
+also be used by 2dw or custom shaders; disabling 3D mapping does not globally
+remove `TextureNormal`. No file-format change is involved.
+
+The following static 3D contracts apply with `USE_NORMAL_MAPPING_3D=1`:
+
+- Optional tangent batches are staged on the CPU at load. The first supported 3D
+  draw with a normal texture, retained basis and nonzero strength uploads the
+  frame's derived position/normal/UV, tangent and local 16-bit index buffers.
+  Successful upload frees staging; subsequent draws reuse the GPU allocation. Authoring
   geometry and extraction remain unchanged. An asset with a normal map but no
   persisted basis uses the CPU preparation performed during loading.
 - Generated lit shaders and `lit textured.ps` with the generated vertex shader
@@ -742,8 +763,10 @@ The static 3D paths share these contracts:
   without any prepared basis are not supported. Skeletal assets do not upload
   these static derived buffers.
 - Four active vertex attributes suffice for the GLES/DirectX static paths; skinning variants
-  do not consume the tangent attribute yet. Existing program-cache keys already
-  include FVF, lighting and skinning flags that determine these generated inputs.
+  do not consume the tangent attribute yet. Geometric shaders omit tangent inputs
+  and 3D mapping helpers/settings. A mapped variant is compiled lazily and selected
+  per subset; cache keys distinguish it from the geometric variant as well as FVF,
+  lighting and skinning. No-map draws use a cached activity count, not a subset scan.
   DirectX 11 keeps source vertex layouts unchanged, binds derived tangents at input
   slot 2, and supplies a zero tangent with stride zero for source draws. Reserved
   normal-map constants use pixel constant-buffer slot 3. Both shaders retain
@@ -755,8 +778,9 @@ stages; lighting slots 4-18 and skeletal palette slot 19 remain separate. Disabl
 source draws bind a zero tangent and disabled settings without reading the tangent
 array. Private shared-storage buffers are published after the complete upload;
 source extraction preserves original IB/VB subset ranges and unused vertices.
-The default program-cache key already includes the FVF, lighting and skinning flags
-that determine whether this generated variant uses normal mapping.
+The default program-cache key includes the explicit normal-mapping variant as well
+as FVF, lighting and skinning flags. Geometric variants need neither tangent
+bindings nor fallback tangent resources.
 
 DirectX 9 selects its effective shader profiles from device capabilities during
 initialization; `ps_2_0`/`vs_2_0` are initial values, not a forced runtime limit.
@@ -764,8 +788,14 @@ The static tangent path requires `ps_3_0` and `vs_3_0`, and uses vertex stream 1
 for tangents, managed derived buffers, and a constant zero tangent for source draws.
 It does not change the globally selected profiles. On unsupported profiles it emits
 one diagnostic per context and uses the geometric-lighting shader path.
-The four-light geometric shader is not guaranteed to fit SM2 either. Falling back
-to it is not a guarantee of functional SM2 lighting.
+The default geometric lighting shader exceeds strict SM2 limits at all compiled
+light caps 1..4: instruction slots at caps 1/2 and
+temporary registers at caps 3/4. Its compilation fails; selecting the geometric
+path is not functional SM2 lighting or an automatic switch to an unlit shader.
+The separate unlit default shader renders with actual SM2 bytecode, ignores 3D
+normal maps and creates no derived mapping resources. See the
+[backend limits](normal-mapping.md#backend-limits)
+for test coverage and the distinction from real SM2 hardware.
 
 DX9 static source buffers permit read-only extraction for Mesh Debug, preserving
 source subsets, vertices, indices and the shared material/tangent metadata. Write-only dynamic buffers
@@ -778,10 +808,26 @@ It restores the previous lighting target and view matrices on exit, including
 failure. The `2dw` normal-map path does not consume the stored 3D convention
 and strength settings.
 
-Normal maps and tangent sections are optional. Prepared static frames retain CPU
-and GPU tangent data even without an assigned texture; drawing then uses the
-geometric normal. Assigning a map later can use that retained basis. Preparation
-alone neither assigns a texture nor changes the silhouette.
+Normal maps and tangent sections are optional. Prepared static frames without an
+active map initially retain CPU staging but no derived GPU buffers. This trades
+additional CPU staging memory for deferred GPU allocation/upload; it is not a
+promise of lower combined CPU/GPU memory. Frames with no prepared basis have no
+staging. Assigning a map to a prepared frame later activates its lazy variant and
+upload. Removing the map or setting strength to zero selects the geometric shader;
+after first use, GPU batches remain cached until buffer release/invalidation.
+The first use uploads all prepared subsets of that frame; finer per-subset GPU
+eviction is not implemented. Mixed subsets select their matching shader, which
+may add program switches. Pure defaults still preserve their 2dw normal-map
+branch; geometric here means omission of the 3D tangent path, not removal of 2dw
+sampling. Preparation alone neither assigns a texture nor changes the silhouette.
+
+A failed lazy shader compilation or derived-buffer upload returns a failed draw;
+it does not silently enable geometric fallback for that draw. CPU staging remains
+available for a later retry, and temporary GPU buffers are not published. The
+geometric variant remains usable if mapping is disabled on the material. GLES
+failure/retry regression coverage and its limits are documented in the
+[normal-mapping validation scope](normal-mapping.md#validation-scope).
+
 
 Normal-map rendering has desktop validation coverage on Linux/Mesa GLES,
 Windows DX9 SM3/DX11 and macOS Metal. This does not establish Android GLES2,
@@ -791,8 +837,20 @@ iOS, other-GPU or real device-loss coverage. The reusable visual scenes are
 PASS markers and backend validation diagnostics where available; successful
 compilation alone does not verify the rendered effect.
 
-Dynamic/skinned integration, additional authoring tools and remaining validation
-are tracked in [Future Features](future-features.md#normal-mapping).
+Build-switch/deferred-resource validation covers ON/OFF x light caps 1..4 on
+Windows DX9 SM3/DX11 Debug x86 and macOS Metal Debug/Release arm64 on Apple M4.
+Metal checks include API validation, pipeline selection/cache identity and cap-2
+captures. See [Normal mapping](normal-mapping.md#validation-scope) for scope,
+reproduction commands and measurement boundaries.
+
+Metal enabled-build geometric shaders use an inverse-transpose normal transform,
+while disabled builds use a direct transform. Arbitrary ON/OFF pixel equivalence
+under nonuniform scale is not established. Frame-wide upload and retained GPU
+batches are the supported resource policy; per-subset upload/eviction is optional
+and requires evidence of benefit in representative assets.
+
+Dynamic/skinned integration and optional investigations are tracked in
+[Future Features](future-features.md#normal-mapping).
 
 Current `2dw` normal-map behavior:
 

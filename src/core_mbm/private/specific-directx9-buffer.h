@@ -20,6 +20,7 @@
 #ifndef DIRECTX9_BUFFER_SPECIFIC_H
 #define DIRECTX9_BUFFER_SPECIFIC_H
 
+#include <core_mbm/render-features.h>
 #include "specific-directx9-context.h"
 #include <vector>
 
@@ -27,6 +28,7 @@ namespace mbm
 {
     struct BUFFER_SPECIFIC
     {
+#if USE_NORMAL_MAPPING_3D
         struct NORMAL_MAP_BATCH
         {
             IDirect3DVertexBuffer9 *vertices = nullptr;
@@ -42,6 +44,7 @@ namespace mbm
         };
         std::vector<NORMAL_MAP_SUBSET> normalMapSubsets;
         void releaseNormalMap();
+#endif
         BUFFER_SPECIFIC() noexcept;
         ~BUFFER_SPECIFIC();
         FVF_PROVIDE_BY_ENGINE FVF;

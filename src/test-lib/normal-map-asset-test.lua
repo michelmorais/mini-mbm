@@ -82,7 +82,11 @@ function onLoop()
         local detail=difference(pixels[1],pixels[2])
         local neutral=difference(pixels[1],pixels[3])
         print(string.format('NORMAL MAP ASSET METRICS detail=%.4f neutral=%.4f',detail,neutral))
-        assert(detail>0.1 and neutral<1,'detail visible and neutral equivalent')
+        if mbm.isNormalMapping3DCompiled() then
+            assert(detail>0.1 and neutral<1,'detail visible and neutral equivalent')
+        else
+            assert(detail==0 and neutral==0,'disabled 3D mapping retains geometric normals')
+        end
         print('NORMAL MAP ASSET PASS');mbm.quit()
     end)
     if not ok then print('NORMAL MAP ASSET FAIL '..tostring(err));mbm.quit() end

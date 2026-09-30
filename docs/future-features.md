@@ -62,50 +62,22 @@ Static 3D normal mapping is implemented in OpenGL ES, DirectX 9 SM3, DirectX 11
 and Metal. The work below extends that capability; it is not a condition for the
 static delivery or a claim that these paths already work.
 
-### Investigate overhead when normal mapping is unused
+### Optional optimization and robustness investigations
 
-This is a performance concern to investigate, not a measured regression or an
-approved implementation. The lightweight goal includes assets and applications
-that never use normal maps.
+Build switches, deferred frame upload, shared immutable preparation and desktop
+validation are described in [Normal mapping](normal-mapping.md). These are current
+engine capabilities, not pending delivery tasks.
 
-Without a requested basis, preparation skips MikkTSpace and does not create
-derived geometry buffers. However, eligible static lighting shaders include
-normal-mapping support even for assets without tangents. Draw-time checks,
-disabled settings, auxiliary buffers/bindings and shader inputs can remain.
-The disabled fragment path returns the geometric normal before sampling the map;
-this does not establish zero CPU/GPU overhead. Prepared assets without a texture
-also retain derived data and GPU allocations.
-
-Compare these options before choosing a design:
-
-| Option | Potential benefit | Tradeoff / limit |
-|---|---|---|
-| Engine build define, e.g. `USE_NORMAL_MAPPING_3D` (proposed name only) | Compile out 3D normal-map rendering integration for applications that do not use it | Requires a separate engine build; enabling the feature still leaves unused-path costs in mixed scenes |
-| Shader compile define / separate geometric and normal-mapped variants | Omit tangent inputs and calculations from shaders used by materials without the effect | Requires matching vertex layouts, variant/cache keys and switching when textures or basis availability change; does not by itself remove CPU checks or allocations |
-| Lazy derived GPU resources | Avoid upload/memory cost until a prepared asset actually uses a map | Introduces first-use work and resource lifetime/synchronization decisions |
-
-A C++ preprocessor define does not automatically remove code from generated
-GLSL/HLSL/MSL strings. A build option must control backend source generation,
-resource creation and draw integration consistently. Keep specialization in the
-backend/private interfaces rather than scattering backend conditionals through
-`mesh-manager.cpp`. The build option and per-material shader variants can coexist;
-they solve different scopes of unused work.
-
-If a build option is selected, define its default, CMake/Visual Studio/platform
-wiring and the disabled contract before implementation. Distinguish disabling
-3D rendering from removing CPU authoring, MikkTSpace or MSH section parsing.
-Specify asset loading, validation, preservation on save, Lua/editor capability
-reporting and geometric-normal fallback for sections 14/15. Preserve existing
-2dw normal mapping unless a separate scope decision explicitly changes it.
-
-Measure otherwise identical Release builds/scenes: no map/no tangents, prepared
-basis without a texture, active map, strength zero and mixed subsets. Compare
-binary size, load/compile time, shader/cache counts, CPU/GPU memory, draw CPU time
-and GPU frame time across GLES, DX9 SM3, DX11 and Metal. Inspect compiled shader
-resource/instruction usage instead of assuming the driver removes all disabled
-work. Include late assignment/removal with a retained basis and shared assets.
-Choose the solution from measured benefit versus code/cache/build complexity;
-no define or new shader variant is implemented by this investigation entry.
+- Reduce source-geometry staging only if representative assets demonstrate a
+  material CPU memory cost; evaluate combined CPU/GPU retention.
+- Consider per-subset upload/eviction only with evidence of large prepared subsets
+  remaining unused. When all prepared subsets use normal maps, frame-wide upload
+  remains the supported resource policy.
+- Profile representative game assets and native instruction/register usage;
+  synthetic timings do not establish FPS or isolated CPU allocation costs.
+- Extend DX11 `Map` fault cases beyond cap 2, broaden native fault injection, or
+  test actual GPU loss/in-flight async recovery when required by a concrete use
+  case or defect. Existing coverage and its limits are in the delivery reference.
 
 ### Skeletal deformation and dynamic geometry
 

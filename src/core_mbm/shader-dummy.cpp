@@ -25,6 +25,7 @@
 #include "specific-dummy-buffer.h"
 
 #include <shader.h>
+#include "private/normal-map-upload.h"
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
@@ -245,6 +246,7 @@ namespace mbm
 
     void SHADER::onRestore()
     {
+        resetNormalMappingVariant();
         REMINDER_TODO
     }
 
@@ -254,10 +256,11 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
+        resetNormalMappingVariant();
         REMINDER_TODO
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
+    bool SHADER::compileBackend(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t /*skeletalPaletteSize*/,
                                const SKELETAL_SHADER_METHOD /*skeletalMethod*/)
     {
@@ -270,7 +273,22 @@ namespace mbm
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
+#if USE_NORMAL_MAPPING_3D
+    bool normal_map::uploadBackend(BUFFER_GL *, const VEC3 *, const VEC3 *, const VEC2 *, const PREPARED &)
+    { return true; }
+    void normal_map::setBackendSettings(BUFFER_GL *, uint32_t, int, float) {}
+#endif
+
+    bool SHADER::hasNormalMappingInterface() const noexcept
+    {
+#if USE_NORMAL_MAPPING_3D
+        return false;
+#else
+        return false;
+#endif
+    }
+
+    bool SHADER::renderBackend(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float * /*skeletalPaletteRows*/,
                         const uint32_t /*skeletalPaletteFloatCount*/) const
     {

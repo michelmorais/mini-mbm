@@ -19,6 +19,7 @@
 
 #if defined(USE_DIRECTX9)
 
+#include <core_mbm/render-features.h>
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/light.h>
 #include <string>

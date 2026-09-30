@@ -22,6 +22,8 @@
 
 -- CPU preparation is invoked only by an explicit action or a geometry build.
 local M={}
+-- The engine build capability is immutable; query once when the panel first opens.
+local normalMapping3DCompiled
 function M.prepare(asset,frame,subset,policy,corners)
     local report,err=asset:prepareNormalMap(frame,subset,policy or 'preserve',corners)
     assert(report,err)
@@ -130,6 +132,14 @@ function M.applySettings(asset,frame,subset,convention,strength)
     return changed
 end
 function M.panel(entry,id,onEdit,applyUndo,restoreUndo)
+    if normalMapping3DCompiled == nil then
+        normalMapping3DCompiled = mbm.isNormalMapping3DCompiled()
+    end
+    if not normalMapping3DCompiled then
+        tImGui.TextWrapped(tLang.L('nm_3d_build_disabled'))
+        tImGui.TextWrapped(tLang.L('nm_3d_build_disabled_help'))
+        tImGui.Separator()
+    end
     local asset=entry.meshDebug
     local state=entry.normalMapAuthoring
     if not state or state.asset~=asset then
@@ -184,6 +194,17 @@ function M.panel(entry,id,onEdit,applyUndo,restoreUndo)
             state.report=M.prepareSelection(asset,state.frame,state.subset,state.policy==1 and 'preserve' or 'generate')
             return state.report.prepared>0
         end) then onEdit() end
+    end
+    tImGui.Separator()
+    tImGui.TextWrapped(tLang.L('nm_remove_help'))
+    tImGui.BeginDisabled((entry.tSimplifyState or {}).running==true)
+    local remove=tImGui.Button(tLang.L('nm_remove')..'##nmremove'..id)
+    tImGui.EndDisabled()
+    if remove then
+        if applyUndo(function() return asset:removeNormalMap() end) then
+            state.report=nil
+            onEdit()
+        end
     end
     if state.report then
         local r=state.report

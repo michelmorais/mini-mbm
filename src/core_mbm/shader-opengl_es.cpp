@@ -20,6 +20,7 @@
 
 #if defined (USE_OPENGL_ES)
 
+#include <core_mbm/render-features.h>
 #include <shader.h>
 #include <device.h>
 #include <light.h>
@@ -56,7 +57,10 @@ namespace mbm
     struct DefaultProgramCacheEntry
     {
         GLuint programObject;
-        GLint  positionHandle, texCoordHandle, normalHandle, tangentHandle;
+        GLint  positionHandle, texCoordHandle, normalHandle;
+#if USE_NORMAL_MAPPING_3D
+        GLint tangentHandle;
+#endif
         GLint  boneIndicesHandle, boneWeightsHandle;
         GLint  mvpMatrixHandle, mvMatrixHandle;
         GLint  bonePaletteHandle;
@@ -69,9 +73,9 @@ namespace mbm
                                                 const bool useReservedLightScaffolding,
                                                 const bool canUsePointLight2D,
                                                 const uint32_t skeletalLbsPaletteSize,
-                                                const SKELETAL_SHADER_METHOD skeletalMethod)
+                                                const SKELETAL_SHADER_METHOD skeletalMethod, const bool normalMapping)
     {
-        return (static_cast<uint64_t>(skeletalMethod) << 56u) |
+        return (static_cast<uint64_t>(normalMapping) << 63u) | (static_cast<uint64_t>(skeletalMethod) << 56u) |
                (static_cast<uint64_t>(skeletalLbsPaletteSize) << 8u) |
                (static_cast<uint64_t>(fvf) << 2u) |
                (useReservedLightScaffolding ? 2u : 0u) |
@@ -599,6 +603,7 @@ namespace mbm
         this->release();
     }
 
+#if USE_NORMAL_MAPPING_3D
     void BUFFER_SPECIFIC::releaseNormalMap()
     {
         for (auto &subset : normalMapSubsets)
@@ -607,9 +612,12 @@ namespace mbm
         normalMapSubsets.clear();
     }
 
+#endif
     void BUFFER_SPECIFIC::release()
     {
+#if USE_NORMAL_MAPPING_3D
         releaseNormalMap();
+#endif
         if (vboVertNorTexIB[0])
         {
             GLDeleteBuffers(3, vboVertNorTexIB);
@@ -659,6 +667,9 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
+#if USE_NORMAL_MAPPING_3D
+        normal_map::discardSource(this);
+#endif
         if (this->vertexStartVB)
             delete[] this->vertexStartVB;
         if (this->vertexCountVB)
@@ -865,7 +876,10 @@ namespace mbm
             return false;
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if (!backendBuffer) return false;
+#if USE_NORMAL_MAPPING_3D
+        normal_map::discardSource(this);
         backendBuffer->releaseNormalMap();
+#endif
         if (this->initializedIndexBuffer)
         {
             if (!backendBuffer->vboVertNorTexIB[0])
@@ -1076,7 +1090,9 @@ namespace mbm
         : positionHandle(-1),
           texCoordHandle(-1),
           normalHandle(-1),
+#if USE_NORMAL_MAPPING_3D
           tangentHandle(-1),
+#endif
           boneIndicesHandle(-1),
           boneWeightsHandle(-1),
           mvpMatrixHandle(-1),
@@ -1105,7 +1121,9 @@ namespace mbm
         positionHandle  = -1;
         texCoordHandle  = -1;
         normalHandle    = -1;
+#if USE_NORMAL_MAPPING_3D
         tangentHandle   = -1;
+#endif
         boneIndicesHandle = -1;
         boneWeightsHandle = -1;
         mvpMatrixHandle = -1;
@@ -1147,6 +1165,7 @@ namespace mbm
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
     {
+        resetNormalMappingVariant();
         void *backendShaderSpecific = getBackendShaderSpecific();
         static_cast<GLES_PS_VS*>(backendShaderSpecific)->release();//TODO: check this: maybe only attribute 0 is enough
         this->pShader            = nullptr;
@@ -1155,6 +1174,7 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
+        resetNormalMappingVariant();
         void *backendShaderSpecific = getBackendShaderSpecific();
         static_cast<GLES_PS_VS*>(backendShaderSpecific)->release();
         this->pShader            = nullptr;
@@ -1167,7 +1187,7 @@ namespace mbm
         return static_cast<const GLES_PS_VS*>(backendShaderSpecific)->programObject != 0;
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
+    bool SHADER::compileBackend(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalLbsPaletteSize,
                                const SKELETAL_SHADER_METHOD skeletalMethod)
     {
@@ -1201,7 +1221,7 @@ namespace mbm
         {
             const uint64_t key = makeDefaultProgramCacheKey(
                 fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize,
-                gles_shaderSpecific->skeletalMethod);
+                gles_shaderSpecific->skeletalMethod, usesNormalMappingVariant());
             auto &cache = getDefaultProgramCache();
             const auto found = cache.find(key);
             if (found != cache.end())
@@ -1211,7 +1231,9 @@ namespace mbm
                 gles_shaderSpecific->positionHandle  = entry.positionHandle;
                 gles_shaderSpecific->texCoordHandle  = entry.texCoordHandle;
                 gles_shaderSpecific->normalHandle    = entry.normalHandle;
+#if USE_NORMAL_MAPPING_3D
                 gles_shaderSpecific->tangentHandle = entry.tangentHandle;
+#endif
                 gles_shaderSpecific->boneIndicesHandle = entry.boneIndicesHandle;
                 gles_shaderSpecific->boneWeightsHandle = entry.boneWeightsHandle;
                 gles_shaderSpecific->mvpMatrixHandle = entry.mvpMatrixHandle;
@@ -1466,7 +1488,8 @@ namespace mbm
             }
         }
 
-        if (hasNormal && hasUV && canUsePointLight2D)
+#if USE_NORMAL_MAPPING_3D
+        if (usesNormalMappingVariant() && hasNormal && hasUV && canUsePointLight2D)
         {
             const std::string from = "normalize(vNormalView)";
             size_t at = 0;
@@ -1474,6 +1497,7 @@ namespace mbm
             { defaultCodePs.replace(at, from.size(), "mbmMappedNormal()"); at += 17; }
             defaultCodePs.insert(defaultCodePs.find("void main"), normal_map::fragmentGles());
         }
+#endif
         std::string defaultCodeVs = "attribute vec4 aPosition;";
         if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
@@ -1487,8 +1511,10 @@ namespace mbm
         if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " varying vec3 vNormalView;";
         if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
         if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " varying vec3 vPositionView;";
-        if (hasNormal && hasUV && useReservedLightScaffolding)
+#if USE_NORMAL_MAPPING_3D
+        if (usesNormalMappingVariant() && hasNormal && hasUV && useReservedLightScaffolding)
             defaultCodeVs += " attribute vec4 aTangent; varying vec4 vTangentView;";
+#endif
         defaultCodeVs += " void main() {";
         if (skeletalLbsPaletteSize > 0)
         {
@@ -1502,7 +1528,8 @@ namespace mbm
             defaultCodeVs += skeletalLbsPaletteSize > 0
                 ? " vNormalView = (mvMatrix * vec4(skinnedNormal, 0.0)).xyz;"
                 : " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
-        if (hasNormal && hasUV && useReservedLightScaffolding)
+#if USE_NORMAL_MAPPING_3D
+        if (usesNormalMappingVariant() && hasNormal && hasUV && useReservedLightScaffolding)
         {
             if (skeletalLbsPaletteSize > 0)
                 defaultCodeVs += "vTangentView = vec4(0.0);";
@@ -1516,6 +1543,16 @@ namespace mbm
                         ? (mat3(c0,c1,c2) * aNormal) / det : aNormal;
                 )GLSL";
         }
+#endif
+#if USE_NORMAL_MAPPING_3D
+        if (!usesNormalMappingVariant() && hasNormal && hasUV && useReservedLightScaffolding && skeletalLbsPaletteSize == 0)
+            defaultCodeVs += R"GLSL(
+                mat3 m = mat3(mvMatrix);
+                vec3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
+                float det = dot(m[0],c0);
+                vNormalView = abs(det) > 0.00000001 ? (mat3(c0,c1,c2) * aNormal) / det : aNormal;
+            )GLSL";
+#endif
         if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * skinnedPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
@@ -1525,7 +1562,8 @@ namespace mbm
             return true;
         }
         std::string effectivePixelCode = this->pShader ? this->pShader->getCode() : defaultCodePs;
-        if (this->pShader && this->pShader->fileName == "lit textured.ps" && this->vShader)
+#if USE_NORMAL_MAPPING_3D
+        if (this->pShader && this->pShader->fileName == "lit textured.ps" && (this->vShader || !usesNormalMappingVariant()))
         {
             // The legacy custom-VS contract does not include the new tangent varying.
             const std::string helper = normal_map::fragmentGles();
@@ -1534,6 +1572,7 @@ namespace mbm
             const auto call = effectivePixelCode.find("mbmMappedNormal()");
             if (call != std::string::npos) effectivePixelCode.replace(call,std::string("mbmMappedNormal()").size(),"normalize(vNormalView)");
         }
+#endif
         if (this->pShader == nullptr && this->vShader == nullptr)
         {
             if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, defaultCodeVs.c_str(), defaultCodePs.c_str()))
@@ -1561,7 +1600,9 @@ namespace mbm
         const std::string vertexShaderCode(this->vShader ? this->vShader->getCode() : defaultCodeVs);
         const std::string pixelShaderCode(effectivePixelCode);
         const std::string bothShaderCode(pixelShaderCode + vertexShaderCode);
+#if USE_NORMAL_MAPPING_3D
         gles_shaderSpecific->tangentHandle = glGetAttribLocation(gles_shaderSpecific->programObject, "aTangent");
+#endif
         const SHADER_TEXTURE_NAMING textureNaming =
             detectShaderTextureNamingProfile(bothShaderCode.c_str());
 
@@ -1646,7 +1687,9 @@ namespace mbm
             entry.positionHandle  = gles_shaderSpecific->positionHandle;
             entry.texCoordHandle  = gles_shaderSpecific->texCoordHandle;
             entry.normalHandle    = gles_shaderSpecific->normalHandle;
+#if USE_NORMAL_MAPPING_3D
             entry.tangentHandle = gles_shaderSpecific->tangentHandle;
+#endif
             entry.boneIndicesHandle = gles_shaderSpecific->boneIndicesHandle;
             entry.boneWeightsHandle = gles_shaderSpecific->boneWeightsHandle;
             entry.mvpMatrixHandle = gles_shaderSpecific->mvpMatrixHandle;
@@ -1662,7 +1705,7 @@ namespace mbm
             entry.samplerHandle5  = gles_shaderSpecific->samplerHandle5;
             const uint64_t key = makeDefaultProgramCacheKey(
                 fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize,
-                gles_shaderSpecific->skeletalMethod);
+                gles_shaderSpecific->skeletalMethod, usesNormalMappingVariant());
             getDefaultProgramCache()[key] = entry;
             // Ownership of programObject now belongs to the cache for the rest of the process
             // lifetime -- this instance (the one that happened to trigger the compile) must not
@@ -1675,13 +1718,15 @@ namespace mbm
     }
 
 
-    bool normal_map::uploadStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+#if USE_NORMAL_MAPPING_3D
+    bool normal_map::uploadBackend(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
                                       const VEC2 *uv, const PREPARED &prepared)
     {
         if (prepared.batches.empty()) return true;
         auto *backend = buffer->getBackendBuffer();
         if (!backend || !positions || !normals || !uv) return false;
-        backend->normalMapSubsets.resize(buffer->totalSubset);
+        BUFFER_SPECIFIC pending;
+        pending.normalMapSubsets.resize(buffer->totalSubset);
         for (const auto &source : prepared.batches)
         {
             std::vector<float> vertices;
@@ -1692,20 +1737,24 @@ namespace mbm
                 const auto &p = positions[index]; const auto &n = normals[index]; const auto &t = source.tangents[i];
                 vertices.insert(vertices.end(), {p.x,p.y,p.z,n.x,n.y,n.z,uv[index].x,uv[index].y,t.x,t.y,t.z,t.sign});
             }
-            auto &batch = backend->normalMapSubsets[source.subset].batches.emplace_back();
-            GLGenBuffers(2,batch.buffers);
-            GLBindBuffer(GL_ARRAY_BUFFER,batch.buffers[0]);
+            auto &batch = pending.normalMapSubsets[source.subset].batches.emplace_back();
+            // Keep errors until the transaction check below. Debug GL* wrappers
+            // drain glGetError and could otherwise publish a failed upload.
+            glGenBuffers(2,batch.buffers);
+            glBindBuffer(GL_ARRAY_BUFFER,batch.buffers[0]);
             glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float),vertices.data(),GL_STATIC_DRAW);
-            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER,batch.buffers[1]);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,batch.buffers[1]);
             glBufferData(GL_ELEMENT_ARRAY_BUFFER,source.indices.size()*sizeof(uint16_t),source.indices.data(),GL_STATIC_DRAW);
             batch.indexCount = static_cast<uint32_t>(source.indices.size());
             if (!batch.buffers[0] || !batch.buffers[1] || glGetError() != GL_NO_ERROR) return false;
         }
-        GLBindBuffer(GL_ARRAY_BUFFER,0); GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
+        glBindBuffer(GL_ARRAY_BUFFER,0); glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
+        backend->releaseNormalMap();
+        backend->normalMapSubsets.swap(pending.normalMapSubsets);
         return true;
     }
 
-    void normal_map::setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
+    void normal_map::setBackendSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength)
     {
         auto *backend = buffer ? buffer->getBackendBuffer() : nullptr;
         if (!backend || subset >= backend->normalMapSubsets.size()) return;
@@ -1715,6 +1764,7 @@ namespace mbm
 
     static bool drawNormalMappedSubset(const GLES_PS_VS *shader, const BUFFER_GL *buffer, uint32_t subset)
     {
+        if (shader->tangentHandle == -1) return false;
         const GLint active = GLGetUniformLocationOptional(shader->programObject,"HasTangentBasis");
         if (active != -1) { GLUniform1i(active,0); }
         const auto *backend = buffer->getBackendBuffer();
@@ -1751,7 +1801,18 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
+#endif
+    bool SHADER::hasNormalMappingInterface() const noexcept
+    {
+#if USE_NORMAL_MAPPING_3D
+        const auto *shader = static_cast<const GLES_PS_VS *>(getBackendShaderSpecific());
+        return shader && shader->tangentHandle != -1;
+#else
+        return false;
+#endif
+    }
+
+    bool SHADER::renderBackend(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
                         const uint32_t skeletalPaletteFloatCount) const
     {
@@ -1821,6 +1882,7 @@ namespace mbm
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
+#if USE_NORMAL_MAPPING_3D
                 if (drawNormalMappedSubset(gles_shaderSpecific,pBufferId,i))
                 {
                     // Prepared draws use distinct vertices. Restore source attributes for the next subset.
@@ -1833,6 +1895,7 @@ namespace mbm
                     }
                 }
                 else
+#endif
                 { GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr); }
             }
         }
@@ -1894,7 +1957,9 @@ namespace mbm
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
+#if USE_NORMAL_MAPPING_3D
                 if (!drawNormalMappedSubset(gles_shaderSpecific,pBufferId,i))
+#endif
                 { GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]); }
             }
         }
@@ -2292,6 +2357,8 @@ namespace mbm
         if (gles_shaderSpecific->programObject == 0)
         {
             PRINT_IF_DEBUG("Failed to create programObject");
+            GLDeleteShader(vertexShader);
+            GLDeleteShader(fragmentShader);
             return 0;
         }
         GLAttachShader(gles_shaderSpecific->programObject, vertexShader);

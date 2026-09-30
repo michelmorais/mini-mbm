@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#include <core_mbm/render-features.h>
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
 #include "private/skeletal-parity-asset.h"
@@ -1292,6 +1293,7 @@ namespace
                 !mbm::normal_map::validate(input, entry.second, errorOut))
                 return false;
         }
+#if USE_NORMAL_MAPPING_3D
         // A missing optional section is valid. Prepare only frames whose materials need it.
         for (uint32_t frameIndex = 0; frameIndex < out.frames.size(); ++frameIndex)
         {
@@ -1307,6 +1309,7 @@ namespace
                 out.normalMapFrames.emplace(frameIndex, std::move(candidate));
             }
         }
+#endif
         return true;
     }
 
@@ -3231,6 +3234,29 @@ namespace mbm
     bool MESH_MBM_DEBUG::hasNormalMapTangents() const noexcept
     {
         return !impl->normalMapFrames.empty();
+    }
+
+    bool MESH_MBM_DEBUG::removeNormalMap() noexcept
+    {
+        if (impl->simplifyState.load(std::memory_order_acquire) == MESH_SIMPLIFY_STATE::RUNNING)
+            return false;
+        bool changed = !impl->normalMapFrames.empty() || !impl->normalMapMaterials.empty();
+        impl->normalMapFrames.clear();
+        impl->normalMapMaterials.clear();
+        for (auto *frame : impl->buffer)
+        {
+            for (auto *subset : frame->subset)
+            {
+                auto &slots = subset->materialTextureSlots;
+                const auto first = std::remove_if(slots.begin(), slots.end(), [](const util::MATERIAL_TEXTURE_SLOT_DEBUG &slot)
+                {
+                    return slot.type == util::MATERIAL_TEXTURE_SLOT_NORMAL;
+                });
+                changed |= first != slots.end();
+                slots.erase(first, slots.end());
+            }
+        }
+        return changed;
     }
 
     bool MESH_MBM_DEBUG::getNormalMapSettings(uint32_t frame, uint32_t subset, int &greenSign, float &strength) const noexcept
@@ -9661,7 +9687,9 @@ namespace mbm
     {
         if (!(impl->buffer && frame < impl->totalFramesMesh && subset < impl->buffer[frame].totalSubset)) return false;
         if (!normal_map::setMaterialSettings(impl->normalMapMaterials, frame, subset, greenSign, strength)) return false;
+#if USE_NORMAL_MAPPING_3D
         normal_map::setRenderSettings(impl->buffer[frame].pBufferGL,subset,greenSign,strength);
+#endif
         return true;
     }
 
@@ -9860,7 +9888,7 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
-        impl->normalMapFrames.clear();
+        impl->normalMapFrames.reset();
         impl->normalMapMaterials.clear();
         impl->gpuSkinningInput = {};
         impl->skeletalBindPositions.clear();
@@ -12155,7 +12183,7 @@ namespace mbm
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
         impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
-        impl->normalMapFrames = std::move(in.normalMapFrames);
+        impl->normalMapFrames = std::make_shared<const normal_map::ASSET_FRAMES>(std::move(in.normalMapFrames));
         impl->normalMapMaterials = std::move(in.normalMapMaterials);
         if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0)
         {
@@ -12287,17 +12315,20 @@ namespace mbm
             if (!loadOk)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
 
-            const auto prepared = impl->normalMapFrames.find(currentFrame);
-            if (impl->canonicalSkeleton.skeletonId == 0 && prepared != impl->normalMapFrames.end())
+#if USE_NORMAL_MAPPING_3D
+            const auto prepared = impl->normalMapFrames->find(currentFrame);
+            if (impl->canonicalSkeleton.skeletonId == 0 && prepared != impl->normalMapFrames->end())
             {
-                if (!normal_map::uploadStatic(impl->buffer[currentFrame].pBufferGL,
-                    frame.position.get(),frame.normal.get(),frame.uv.get(),prepared->second.prepared)) return false;
+                if (!normal_map::stageStatic(impl->buffer[currentFrame].pBufferGL,
+                    frame.position.get(),frame.normal.get(),frame.uv.get(),
+                    std::shared_ptr<const normal_map::PREPARED>(impl->normalMapFrames, &prepared->second.prepared))) return false;
                 for (uint32_t subset=0; subset<totalSubset; ++subset)
                 {
                     const auto settings = normal_map::getMaterialSettings(impl->normalMapMaterials,currentFrame,subset);
                     normal_map::setRenderSettings(impl->buffer[currentFrame].pBufferGL,subset,settings.greenSign,settings.strength);
                 }
             }
+#endif
             // Populate exact per-subset role assignments, including explicit absence.
             for (uint32_t subsetIndex=0; subsetIndex<totalSubset; ++subsetIndex)
             {
@@ -13220,7 +13251,8 @@ namespace mbm
         if (this->impl->coordTexFrame_0)
             delete[] this->impl->coordTexFrame_0;
         this->impl->coordTexFrame_0 = nullptr;
-        impl->normalMapFrames = meshMemory->impl->normalMapFrames;
+        impl->normalMapFrames = meshMemory->impl->normalMapFrames ?
+            *meshMemory->impl->normalMapFrames : normal_map::ASSET_FRAMES{};
         impl->normalMapMaterials = meshMemory->impl->normalMapMaterials;
         return true;
     }
