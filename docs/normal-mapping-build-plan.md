@@ -262,4 +262,13 @@ now covers all 16 DX9/DX11 ON/OFF x 1..4-light entries: 64/64 sampled LBS/DQS
 position/normal comparisons and 168/168 integrated runner steps passed, including
 DX11 debug/lifecycle validation. No engine changes were needed. This verifies
 numerical deformation, not skeletal normal-map material integration. Native
-failure-and-retry coverage is the next Windows milestone.
+failure-and-retry coverage follows in the milestone below.
+
+The [DX11 resource failure-and-retry milestone](normal-mapping-enabled-optimization.md#completed-windows-milestone-dx11-resource-failure-and-retry-2026-09-30)
+now passes Debug x86 ON/OFF at light cap 2: 11 named cases per build and 22/22
+integrated runner steps, with debug-layer and post-teardown lifecycle validation.
+Test-only COM creation failures verify partial-buffer cleanup, preserved geometric
+rendering, repeated upload failure, successful retry and warm resource reuse.
+No engine changes were needed. The next Windows milestone extends recovery
+coverage to caps 1/3/4; compiler/Map failures, multi-batch rollback, actual device
+loss, DX9/Metal injection and Release performance remain separate work.

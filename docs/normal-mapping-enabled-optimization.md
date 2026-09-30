@@ -875,5 +875,78 @@ Scope: sampled numerical deformation in capture shaders, not full animation,
 automatic CPU/GPU execution policy, lighting/material parity of production mesh
 draws or tangent-space normal mapping on skinned geometry. The latter remains
 outside the static normal-mapping feature. The next Windows milestone is native
-failure-and-retry coverage, beginning with DX11; device loss, Release profiling
-and macOS acceptance remain separate outstanding work.
+failure-and-retry coverage, beginning with DX11 (completed at cap 2 below);
+device loss, Release profiling and macOS acceptance remain separate outstanding work.
+
+## Completed Windows milestone: DX11 resource failure and retry (2026-09-30)
+
+DX11 **Debug x86 ON/OFF at light cap 2** now validates native resource-creation
+failure and recovery. The final integrated runs passed **22/22 steps**, including
+the existing numerical skeletal parity, runtime/readback and visual IB/VB suites.
+The recovery suite passed all 11 cases in each build. ON injects `E_OUTOFMEMORY`
+at the following creation calls; OFF verifies that none of these mapped creation
+calls is made and no injected failure is reached:
+
+| Resource | Injected call in the first mapped draw |
+|---|---|
+| Vertex shader | `CreateVertexShader`, first call |
+| Pixel shader | `CreatePixelShader`, first call |
+| Input layout | `CreateInputLayout`, first call |
+| Default / nearest sampler | `CreateSamplerState`, calls 1 / 2 |
+| Matrix / light constant buffer | `CreateBuffer`, calls 1 / 2 |
+| Normal settings / zero tangent | `CreateBuffer`, calls 3 / 4 |
+| Derived vertex / index buffer | `CreateBuffer`, calls 5 / 6 |
+
+`src/test-lib/normal-map-directx11-failure-tests.cpp` uses a synchronous,
+test-only forwarding `ID3D11Device` proxy. It temporarily replaces the internal
+device pointer during each case and restores it before shader/engine teardown.
+No fault controls or public API were added to the engine. Every case uses a
+separate prepared mesh fixture and compiles its geometric shader before injection.
+
+For ON, a failed draw must return false, leave derived batches unpublished and
+release any partial derived buffers. Shader-creation failures must also release
+their temporary constant/zero-tangent buffers. Test-only COM private-data tokens
+track buffer lifetime with independent counters per case; they hold no device or
+resource references. Shader and sampler objects may be interned by the runtime,
+so whole-pipeline leak checking uses the existing post-teardown DX11 validator.
+The initial probe exposed a test-counter error caused by delayed release of a
+previous case's bound buffers; per-case counters fixed that accounting without
+changing engine code.
+
+Setting strength to zero after failure must still select the original geometric
+shader without creating resources. The upload cases then fail a second time at
+the derived index buffer: partial storage must be discarded again, while the
+compiled mapped variant survives. Removing injection must allow upload using
+retained preparation, creating only the two missing derived buffers. Twenty
+subsequent mapped draws per ON case must create no new pipeline/buffer resources.
+Debug-layer and post-teardown lifecycle success markers were required for
+resources, skeletal parity and recovery in both final runs. Five runner unit
+tests also passed.
+
+Reproduce from the repository root, using a fresh output directory per run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 2 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-recovery-on-2
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 0 -Lights 2 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-recovery-off-2
+```
+
+For matching prebuilt executables, the Python runner accepts `--dx11-failure`;
+retain `--require-native-validation` for Debug. It requires all 11 named case
+markers, the aggregate PASS for the requested ON/OFF value, zero exit status and
+no recognized failure/driver diagnostic. Other backends reject this option.
+
+Local final evidence is in
+`build/normal-windows/recovery-dx11-{on,off}-2/results-verified/report.json` and
+`recovery.log`, with build metadata/logs beside them. Updated executable/DLL hashes
+are in `binary-hashes-recovery.json`; the original `results/` reports and manifests
+remain the initial pre-correction evidence. The combined summary is
+`build/normal-windows/dx11-recovery-summary.json`. Toolchain is VS 2026/MSVC v145,
+Windows SDK 10.0.28000.0, Python 3.14.5, engine 7.328; no production change or version
+bump was needed.
+
+Scope is COM creation failure for the static, single-batch mapped path. This does
+not simulate an actual memory shortage, HLSL compiler failure, `Map` failure,
+multi-batch rollback or real device loss, nor compare pixels during recovery.
+Light caps 1/3/4, DX9/Metal fault injection and Release profiling remain separate
+work. The next Windows milestone is extending this DX11 recovery coverage to
+the remaining light caps.

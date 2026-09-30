@@ -670,6 +670,15 @@ static int runTestLib(int argc, char **argv
         if (argc == 2 && std::strcmp(argv[1],"--normal-map-failure-test") == 0)
             return runGlesNormalMapFailureTests();
 #endif
+#if defined(USE_DIRECTX11)
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-failure-test") == 0)
+        {
+            const int result = runDirectX11NormalMapFailureTests();
+            const bool clean = validateDirectX11DebugMessages();
+            validateLifecycle = captureDirectX11LifecycleDebug(lifecycleDebug);
+            return result == 0 && clean && validateLifecycle ? 0 : -1;
+        }
+#endif
         if (argc == 2 && std::strcmp(argv[1],"--normal-map-lazy-resource-test") == 0)
         {
 #if defined(USE_OPENGL_ES)

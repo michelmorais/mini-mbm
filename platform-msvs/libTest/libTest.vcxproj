@@ -195,6 +195,8 @@
     </ClCompile>
     <ClCompile Include="..\..\src\test-lib\main.cpp" />
     <ClCompile Include="..\..\src\test-lib\normal-map-native-resource-tests.cpp" />
+    <ClCompile Include="..\..\src\test-lib\normal-map-directx11-failure-tests.cpp" />
+    <ClInclude Include="..\..\src\test-lib\faults\directx11-device-proxy.h" />
     <ClInclude Include="..\..\src\test-lib\normal-map-native-resource-tests.h" />
     <ClCompile Include="..\..\src\test-lib\my-scene-test.cpp" />
     <ClCompile Include="..\..\src\test-lib\skeletal-foundation-tests.cpp" />

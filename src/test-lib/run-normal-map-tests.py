@@ -75,7 +75,11 @@ def main():
                         help='Require DX11 Debug info queue/lifecycle, or enable Metal API validation')
     parser.add_argument('--skeletal-parity', action='store_true',
                         help='Also verify native DX9/DX11 synthetic/Lorekeeper LBS/DQS parity')
+    parser.add_argument('--dx11-failure', action='store_true',
+                        help='Also inject DX11 mapped COM creation failures and verify retry')
     args = parser.parse_args()
+    if args.dx11_failure and args.backend != 'dx11':
+        parser.error('--dx11-failure requires dx11')
     if args.skeletal_parity and args.backend not in ('dx9', 'dx11'):
         parser.error('--skeletal-parity currently supports dx9 and dx11')
     if args.gles_fault_library:
@@ -176,6 +180,14 @@ def main():
             if args.gles_fault_library:
                 run('recovery', [test_lib, '--normal-map-failure-test'], 'NORMAL MAP RECOVERY PASS',
                     {'LD_PRELOAD': str(args.gles_fault_library.resolve())})
+            if args.dx11_failure:
+                cases = ('vertex-shader', 'pixel-shader', 'input-layout', 'linear-sampler',
+                         'nearest-sampler', 'matrix-buffer', 'light-buffer', 'normal-settings',
+                         'zero-tangent', 'derived-vertices', 'derived-indices')
+                run('recovery', [test_lib, '--normal-map-failure-test'],
+                    'NORMAL MAP RECOVERY PASS cases=11 normal={}'.format(args.normal),
+                    required=markers + tuple('NORMAL MAP RECOVERY CASE {} PASS normal={}'.format(
+                        case, args.normal) for case in cases))
             if sys.platform == 'linux' and args.backend == 'gles':
                 run('context', [test_lib, '--normal-map-context-test'], 'NORMAL MAP CONTEXT PASS')
             scene('runtime', 'normal-map-runtime-test.lua', 'NORMAL MAP RUNTIME PASS')
@@ -190,6 +202,7 @@ def main():
                   fault_library=str(args.gles_fault_library.resolve()) if args.gles_fault_library else None,
                   native_validation_requested=args.require_native_validation, results=results)
     report['skeletal_parity_requested'] = args.skeletal_parity
+    report['dx11_failure_requested'] = args.dx11_failure
     (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     return 1 if any(item['failure'] for item in results) else 0
 

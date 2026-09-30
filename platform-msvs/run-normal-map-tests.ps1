@@ -26,10 +26,12 @@ param(
     [Parameter(Mandatory = $true)][string]$Output,
     [string]$Python = 'py',
     [string]$MSBuild,
-    [switch]$SkeletalParity
+    [switch]$SkeletalParity,
+    [switch]$Dx11Failure
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Dx11Failure -and $Backend -ne 'dx11') { throw '-Dx11Failure requires -Backend dx11' }
 $repo = Split-Path $PSScriptRoot -Parent
 $destination = [System.IO.Path]::GetFullPath($Output)
 if (Test-Path -LiteralPath $destination) {
@@ -89,6 +91,7 @@ if ($Backend -eq 'dx11' -and $Configuration -eq 'Debug') {
     $runnerArgs += '--require-native-validation'
 }
 if ($SkeletalParity) { $runnerArgs += '--skeletal-parity' }
+if ($Dx11Failure) { $runnerArgs += '--dx11-failure' }
 & $Python @pythonArgs @runnerArgs
 if ($LASTEXITCODE -ne 0) { throw "Tests failed. See $destination/results/report.json" }
 Write-Host "Normal-mapping entry passed. Report: $destination/results/report.json"
