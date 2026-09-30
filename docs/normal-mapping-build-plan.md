@@ -198,3 +198,9 @@ commands and remaining lifecycle/failure-injection gaps are tracked in the
 [enabled-build optimization plan](normal-mapping-enabled-optimization.md#next-milestone-native-backend-regression-matrix).
 This is a separate acceptance milestone for 7.327; the completed build-switch
 matrix above does not validate the deferred-resource implementation.
+
+
+The enabled-build optimization now also has a completed [Linux/GLES matrix](normal-mapping-enabled-optimization.md#completed-milestone-full-linuxgles-optimization-matrix):
+eight configurations, 72 passing runner steps. This follow-up validates deferred
+resources and geometric/mapped variants; native Windows/macOS acceptance remains
+pending.

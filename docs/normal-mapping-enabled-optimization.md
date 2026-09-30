@@ -45,9 +45,9 @@ non-indexed geometry, strength/convention, removal, mixed subsets, reflected and
 nonuniform transforms, reserved/custom-VS shaders, point lights, HUD and 2dw.
 The preparation/persistence suites and runtime readback cover CPU/file contracts.
 With `USE_NORMAL_MAPPING_3D=0`, preparation, persistence, resource inspection,
-runtime/GC and visual fallback/2dw tests also pass. This delivery reran cap 2;
-the earlier 1..4-light matrix remains evidence for the separate build-switch
-delivery, not a new full matrix of these changes.
+runtime/GC and visual fallback/2dw tests also pass. The initial delivery reran
+cap 2. The follow-up below completes all eight Linux/GLES configurations for
+this optimization; the older build-switch matrix remains separate evidence.
 The runtime suite also exposed a pre-existing Lua coroutine lifetime issue: a
 pending mesh load rooted its callback and mesh table but not the initiating
 thread. The binding now retains that thread until completion. A forced-GC
@@ -88,6 +88,8 @@ from the earlier build-switch matrix.
   JSON results, timeouts, nonzero-exit checks, required PASS sentinels and rejection
   of FAIL/runtime/recognized driver diagnostics. Verify the requested build and
   backend against both testLib and the Lua engine before render tests.
+- [x] Complete the Linux/GLES baseline matrix for the enabled-build optimization:
+  all eight configurations and 72 runner steps pass (see results below).
 - [ ] Compile and run all eight `USE_NORMAL_MAPPING_3D=0/1` x
   `SUPPORTED_MAX_LIGHTS=1/2/3/4` entries on Windows DX9 SM3, Windows DX11 and
   macOS Metal. Run macOS GLES separately if that backend is shipped.
@@ -191,3 +193,58 @@ path is exercised.
 Local reports for this preparation run are in `/tmp/mbm-normal-native-on-2` and
 `/tmp/mbm-normal-native-off-2`; these are ephemeral artifacts, not repository
 fixtures. Repeat the commands above on each target OS and retain their reports.
+
+
+## Completed milestone: full Linux/GLES optimization matrix
+
+Validated the source at commit `a5cb0125f0517d389d8e98acc1806878b14f5302`
+(engine 7.327), independently of the earlier build-switch matrix. All eight
+Release configurations compiled and all **72 runner steps passed**:
+
+| `USE_NORMAL_MAPPING_3D` | `SUPPORTED_MAX_LIGHTS` | Runner steps | Result |
+|---|---|---|---|
+| 0 | 1 | 9/9 | PASS |
+| 0 | 2 | 9/9 | PASS |
+| 0 | 3 | 9/9 | PASS |
+| 0 | 4 | 9/9 | PASS |
+| 1 | 1 | 9/9 | PASS |
+| 1 | 2 | 9/9 | PASS |
+| 1 | 3 | 9/9 | PASS |
+| 1 | 4 | 9/9 | PASS |
+
+Each entry ran build identity, preparation, persistence, Lua build configuration,
+native lazy-resource inspection, runtime/async/GC, readback and both indexed and
+non-indexed visual comparisons. No engine or test changes were necessary.
+This is baseline coverage, not an additional skeletal/editor/lifecycle matrix.
+
+Environment: Linux 6.1.0-53-amd64, GCC 12.2.0, CMake 3.25.1, OpenGL ES 3.2
+Mesa 22.3.6 on Intel UHD Graphics 630 (CFL GT2). Flags common to every entry:
+`PLAT=Linux`, `CMAKE_BUILD_TYPE=Release`, `USE_LUA=1`, `AUDIO=none`,
+`USE_TEXTURE_MISSING_DIALOG=0`. Each combination was reconfigured and built
+sequentially with eight build jobs, then tested using its own copied executables
+and libraries. Build warnings about existing `strncpy` calls were present;
+this is not a warning-free-build claim.
+
+For every enabled light cap, the three-vertex resource fixture reported three
+active geometric attributes versus four mapped attributes, and derived GPU
+payload growing from zero to 150 bytes only on effective first use. Disabled
+builds passed geometric fallback and preserved 2dw visual assertions. These are
+resource/behavior checks, not frame-time or aggregate-memory benchmarks.
+
+Artifacts are retained locally under `/tmp/mbm-enabled-normal-matrix`:
+`matrix.json` aggregates all results; each `<normal>-<lights>/` contains
+configure/build logs, `CMakeCache.txt`, copied `bin/`, `sha256.json`, and
+`tests/report.json`, suite logs, fixtures and visual PNGs. Artifacts in `/tmp`
+are temporary. The pre-run shared Release binaries/libraries were restored
+byte-for-byte; the normal Debug build configuration was not changed.
+
+To reproduce, configure and build each pair using the flags above, snapshot the
+binaries/libraries before building the next pair, and invoke
+`src/test-lib/run-normal-map-tests.py --backend gles --normal <0|1> --lights <1..4>`
+with the snapshot's `--test-lib` and `--engine`, and a new `--output` directory.
+The complete single-entry invocation is documented above. A passing result from
+one light cap must not substitute for another entry.
+
+The next Linux milestone is deterministic failed-compile/failed-upload retry
+coverage; full context loss/recreation and reproducible performance measurements
+remain separate pending work. Windows/macOS native acceptance remains pending.

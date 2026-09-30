@@ -93,7 +93,9 @@ Remaining optimization work:
 Linux/GLES validation and the current limits are recorded in the
 [enabled-build optimization delivery](normal-mapping-enabled-optimization.md).
 The next acceptance milestone is the [native backend regression matrix](normal-mapping-enabled-optimization.md#next-milestone-native-backend-regression-matrix):
-tests and a portable runner are prepared; Windows/macOS compilation, execution,
+the [Linux/GLES optimization matrix](normal-mapping-enabled-optimization.md#completed-milestone-full-linuxgles-optimization-matrix)
+passed all eight configurations (72 runner steps). Tests and a portable runner
+are prepared; Windows/macOS compilation, execution,
 GPU captures and full device-loss/failure-retry coverage remain pending.
 Native Windows/Apple verification and detailed performance measurements remaining
 from the build-switch work are listed in its original plan.
