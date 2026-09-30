@@ -135,11 +135,19 @@ missing-texture picker, then runs the Python regression suite. It defaults to
 Debug x86 and requires DX11 debug-layer and post-teardown lifecycle markers.
 Use `-Backend dx9`, `-Normal 0`, and `-Lights 1..4` for the other entries;
 DX9 requires its existing SDK setup; the native resource suite explicitly checks
-SM3 device capabilities and selected `vs_3_0`/`ps_3_0` profiles. SM2 fallback is a
-separate test scenario. `-Configuration Release` is supported but
+SM3 device capabilities and selected `vs_3_0`/`ps_3_0` profiles. The DX9 runner
+also executes `--normal-map-sm2-test` in a separate process: forced SM2 profiles,
+actual bytecode and unlit pixel/resource checks, plus the expected default-lighting
+capacity failure. This is not functional SM2 lighting or a real SM2 device test.
+`-Configuration Release` is supported but
 does not establish DX11 debug-layer acceptance. Python 3 (`py -3`) is required;
 pass `-Python` for a different interpreter or `-MSBuild` for an explicit tool path.
 The execution-policy override applies only to this PowerShell process.
+Add `-SkeletalParity` to include native synthetic/Lorekeeper LBS/DQS CPU/GPU
+position/normal comparisons. With prebuilt binaries, the Python runner accepts
+`--skeletal-parity`. All four case markers are required; DX11 Debug also requires
+debug-layer and post-teardown lifecycle markers for this step. This is numerical
+deformation coverage, not skeletal normal-map material/render integration.
 Build arguments/logs and `results/report.json`, test logs and PNGs remain under
 the chosen output directory. Native coverage and remaining work are tracked in
 [the optimization plan](../docs/normal-mapping-enabled-optimization.md).

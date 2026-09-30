@@ -30,7 +30,10 @@
 #include <string>
 #if defined(USE_DIRECTX9)
 #include <core_mbm/shader-resource.h>
+#include <core_mbm/draw-compatibility.h>
+#include <vector>
 #include "specific-directx9-buffer.h"
+#include "specific-directx9-shader.h"
 #elif defined(USE_DIRECTX11)
 #include "specific-directx11-buffer.h"
 #include "specific-directx11-context.h"
@@ -332,4 +335,146 @@ int runNormalMapNativeResourceTests()
     std::printf("NORMAL MAP LAZY RESOURCES %s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
     return failures ? -1 : 0;
 }
+
+#if defined(USE_DIRECTX9)
+namespace
+{
+    struct SM2_PROFILES
+    {
+        std::string ps = getPSVersion(), vs = getVSVersion();
+        SM2_PROFILES()
+        {
+            SHADER::clearDefaultProgramCache();
+            setPSVersion("ps_2_0");
+            setVSVersion("vs_2_0");
+        }
+        ~SM2_PROFILES()
+        {
+            SHADER::clearDefaultProgramCache();
+            setPSVersion(ps.c_str());
+            setVSVersion(vs.c_str());
+        }
+    };
+
+    template<class T> bool hasSm2Bytecode(T *shader, const DWORD version)
+    {
+        UINT size = 0;
+        if (!shader || FAILED(shader->GetFunction(nullptr, &size)) || size < sizeof(DWORD)) return false;
+        std::vector<DWORD> code((size + sizeof(DWORD) - 1) / sizeof(DWORD));
+        return SUCCEEDED(shader->GetFunction(code.data(), &size)) && code[0] == version;
+    }
+
+    struct SM2_TARGET
+    {
+        IDirect3DDevice9 *device;
+        IDirect3DSurface9 *oldColor = nullptr, *oldDepth = nullptr, *color = nullptr, *readback = nullptr;
+        D3DVIEWPORT9 oldViewport = {};
+        explicit SM2_TARGET(IDirect3DDevice9 *value) : device(value) {}
+        bool begin()
+        {
+            if (FAILED(device->GetRenderTarget(0, &oldColor)) || FAILED(device->GetViewport(&oldViewport))) return false;
+            device->GetDepthStencilSurface(&oldDepth);
+            return SUCCEEDED(device->CreateRenderTarget(64,64,D3DFMT_A8R8G8B8,D3DMULTISAMPLE_NONE,0,FALSE,&color,nullptr)) &&
+                SUCCEEDED(device->CreateOffscreenPlainSurface(64,64,D3DFMT_A8R8G8B8,D3DPOOL_SYSTEMMEM,&readback,nullptr)) &&
+                SUCCEEDED(device->SetDepthStencilSurface(nullptr)) && SUCCEEDED(device->SetRenderTarget(0,color));
+        }
+        bool draw(SHADER &shader, BUFFER_GL *buffer, std::vector<DWORD> &pixels)
+        {
+            D3DVIEWPORT9 viewport = {0,0,64,64,0,1};
+            if (FAILED(device->SetViewport(&viewport)) ||
+                FAILED(device->SetRenderState(D3DRS_ZENABLE,FALSE)) ||
+                FAILED(device->Clear(0,nullptr,D3DCLEAR_TARGET,0xff000000,1,0)) ||
+                FAILED(device->BeginScene())) return false;
+            const bool rendered = shader.render(buffer);
+            const HRESULT ended = device->EndScene();
+            if (!rendered || FAILED(ended) || FAILED(device->GetRenderTargetData(color,readback))) return false;
+            D3DLOCKED_RECT lock = {};
+            if (FAILED(readback->LockRect(&lock,nullptr,D3DLOCK_READONLY))) return false;
+            pixels.resize(64 * 64);
+            for (size_t y = 0; y < 64; ++y)
+                std::memcpy(pixels.data()+y*64, static_cast<const char *>(lock.pBits)+y*lock.Pitch,64*sizeof(DWORD));
+            readback->UnlockRect();
+            return true;
+        }
+        ~SM2_TARGET()
+        {
+            if (oldColor) { device->SetRenderTarget(0,oldColor); oldColor->Release(); }
+            device->SetDepthStencilSurface(oldDepth);
+            if (oldDepth) oldDepth->Release();
+            device->SetViewport(&oldViewport);
+            if (readback) readback->Release();
+            if (color) color->Release();
+        }
+    };
+}
+
+int runNormalMapSm2Tests()
+{
+    using namespace mbm;
+    int failures = 0;
+    const auto check = [&failures](bool ok, const char *message)
+    { if (!ok) { ++failures; std::printf("NORMAL MAP SM2 FAIL: %s\n",message); } return ok; };
+    SM2_PROFILES profiles;
+    const char *dir = std::getenv("MBM_NORMAL_MAP_FIXTURE_DIR");
+    if (!check(dir != nullptr,"fixture directory configured")) return -1;
+    const auto *mesh = MESH_MANAGER::getInstance()->load((std::string(dir)+"/author-import.msh").c_str());
+    if (!check(mesh != nullptr,"load retained basis")) return -1;
+    auto *buffer = mesh->getBuffer(0)->pBufferGL;
+    buffer->mode_cull_face = util::CULL_MODE::CULL_FRONT_AND_BACK;
+    auto *device = DEVICE::getInstance();
+    auto *native = device->getSpecificContextDevice()->pd3dDevice;
+    const auto noMapping = [&check,buffer](SHADER &shader)
+    {
+#if USE_NORMAL_MAPPING_3D
+        const auto *backend = static_cast<const D3D_PS_VS *>(shader.getBackendShaderSpecific());
+        return check(buffer->getBackendBuffer()->normalMapSubsets.empty() &&
+                     !backend->normalMapDeclaration && !backend->zeroTangentBuffer && !backend->normalMapSettings,
+                     "no derived buffers or mapping shader interface");
+#else
+        (void)shader;
+        return true;
+#endif
+    };
+    SHADER lit;
+    lit.setUseReservedLightDefault(true);
+    // Record the actual profile limit; never substitute cached SM3 bytecode.
+    const bool litCompiled = lit.compileShader(nullptr,nullptr,buffer->fvf);
+    if (!check(!litCompiled,"default geometric lighting exceeds strict SM2 budget")) return -1;
+    noMapping(lit);
+    std::printf("NORMAL MAP SM2 LIGHTING LIMIT: default lighting unavailable\n");
+    SHADER unlit;
+    if (!check(unlit.compileShader(nullptr,nullptr,buffer->fvf),"compile unlit SM2")) return -1;
+    const auto *backend = static_cast<const D3D_PS_VS *>(unlit.getBackendShaderSpecific());
+    if (check(hasSm2Bytecode(backend->pd3dPixelShader,D3DPS_VERSION(2,0)) &&
+              hasSm2Bytecode(backend->pd3dVertexShader,D3DVS_VERSION(2,0)),"actual SM2 bytecode"))
+        std::printf("NORMAL MAP SM2 BYTECODE PASS vs_2_0 ps_2_0\n");
+    noMapping(unlit);
+    MatrixIdentity(&SHADER::modelView);
+    MatrixIdentity(&SHADER::mvMatrixLightSpace);
+    MatrixIdentity(&SHADER::mvpMatrix);
+    device->setLightTargetForRender(LIGHT_TARGET_3D);
+    SM2_TARGET target(native);
+    if (!check(target.begin(),"offscreen target")) return -1;
+    std::vector<DWORD> baseline, mapped;
+    check(target.draw(unlit,buffer,baseline),"baseline draw/readback");
+    size_t visible = 0;
+    for (const DWORD pixel : baseline) if ((pixel & 0x00ffffffu) != 0) ++visible;
+    check(visible > 0,"visible baseline geometry");
+    check(mesh->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,"#FF8080FF",false),"assign normal map");
+    check(mesh->setNormalMapSettings(0,0,1,1),"nonzero normal strength");
+    for (int i = 0; i < 3; ++i)
+    {
+        check(target.draw(unlit,buffer,mapped),"mapped unlit draw/readback");
+        check(mapped == baseline,"normal map cannot alter unlit pixels");
+        noMapping(unlit);
+    }
+    check(mesh->setNormalMapSettings(0,0,1,0),"zero strength");
+    check(target.draw(unlit,buffer,mapped) && mapped == baseline,"zero strength pixels");
+    check(mesh->setMaterialTexture(0,0,TEXTURE_ROLE_NORMAL,nullptr,false),"remove map");
+    check(target.draw(unlit,buffer,mapped) && mapped == baseline,"removed map pixels");
+    noMapping(unlit);
+    std::printf("NORMAL MAP SM2 %s (lighting unavailable; unlit bytecode/pixels/resources verified)\n",failures ? "FAIL" : "PASS");
+    return failures ? -1 : 0;
+}
+#endif
 #endif

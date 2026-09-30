@@ -235,6 +235,7 @@ static int runDirectX9NormalMapShaderTests()
 #endif
 
     // This measures the pre-existing geometric lighting at SM2, not SM2 hardware.
+    SHADER::clearDefaultProgramCache();
     setPSVersion("ps_2_0"); setVSVersion("vs_2_0");
     SHADER sm2;
     sm2.setUseReservedLightDefault(true);
@@ -688,6 +689,8 @@ static int runTestLib(int argc, char **argv
 #endif
         }
 #if defined(USE_DIRECTX9)
+        if (argc == 2 && std::strcmp(argv[1],"--normal-map-sm2-test") == 0)
+            return runNormalMapSm2Tests();
         if (argc == 2 && std::strcmp(argv[1],"--directx9-normal-map-shader-test") == 0)
             return runDirectX9NormalMapShaderTests();
 #endif

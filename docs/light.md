@@ -788,8 +788,14 @@ The static tangent path requires `ps_3_0` and `vs_3_0`, and uses vertex stream 1
 for tangents, managed derived buffers, and a constant zero tangent for source draws.
 It does not change the globally selected profiles. On unsupported profiles it emits
 one diagnostic per context and uses the geometric-lighting shader path.
-The four-light geometric shader is not guaranteed to fit SM2 either. Falling back
-to it is not a guarantee of functional SM2 lighting.
+The default geometric lighting shader exceeds strict SM2 limits at all compiled
+light caps 1..4 in the Windows validation: instruction slots at caps 1/2 and
+temporary registers at caps 3/4. Its compilation fails; selecting the geometric
+path is not functional SM2 lighting or an automatic switch to an unlit shader.
+The separate unlit default shader renders with actual SM2 bytecode, ignores 3D
+normal maps and creates no derived mapping resources. See the
+[SM2 profile verification](normal-mapping-enabled-optimization.md#completed-windows-milestone-sm2-profile-characterization-2026-09-30)
+for test coverage and the distinction from real SM2 hardware.
 
 DX9 static source buffers permit read-only extraction for Mesh Debug, preserving
 source subsets, vertices, indices and the shared material/tangent metadata. Write-only dynamic buffers
@@ -835,7 +841,8 @@ The build-switch/deferred-resource regression matrices now cover all eight
 normal-mapping ON/OFF x 1..4-light combinations on Windows DX9 SM3 and DX11
 Debug x86. See the [native validation evidence](normal-mapping-enabled-optimization.md)
 for the DX9 compilation fixes, required profile checks and the limits of each
-suite. These matrices do not establish DX9 SM2 fallback or device-loss coverage.
+suite. The subsequent SM2 profile tests characterize the lighting limitation and
+unlit rendering; neither those tests nor the matrices establish device-loss coverage.
 
 Dynamic/skinned integration, additional authoring tools and remaining validation
 are tracked in [Future Features](future-features.md#normal-mapping).

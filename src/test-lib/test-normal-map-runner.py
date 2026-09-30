@@ -47,6 +47,13 @@ class VerdictTests(unittest.TestCase):
     def test_expected_asset_errors_are_not_driver_failures(self):
         self.assertIsNone(runner.verdict(0, 'failed to load malformed fixture\nSUITE PASS', 'SUITE PASS'))
 
+    def test_sm2_requires_specific_capacity_failure(self):
+        self.assertIsNone(runner.sm2_capacity_verdict('error X5608: slots\nerror X5609: total slots'))
+        self.assertIsNone(runner.sm2_capacity_verdict('error X4505: registers'))
+        self.assertIsNotNone(runner.sm2_capacity_verdict('NORMAL MAP SM2 PASS'))
+        self.assertIsNotNone(runner.sm2_capacity_verdict('error X3000: syntax'))
+        self.assertIsNotNone(runner.sm2_capacity_verdict('error X5608: slots\nerror X3000: syntax'))
+
 
 if __name__ == '__main__':
     unittest.main()

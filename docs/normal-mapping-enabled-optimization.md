@@ -80,8 +80,9 @@ Linux measurements do not establish native-backend or mobile-device coverage.
 
 Status: the complete DX9 SM3 and DX11 Debug x86 baseline matrices are validated
 with 7.328 plus the DX9 compilation fixes below. macOS acceptance remains
-**pending**. This does not establish SM2 fallback, native failure/device-loss or
-performance acceptance.
+**pending**. SM2 profile characterization is complete below: default lighting
+exceeds the profile, while unlit rendering passes. This does not establish native
+failure/device-loss or performance acceptance.
 
 - [x] Keep the GLES native resource inspection command and implement the same
   `--normal-map-lazy-resource-test` entry point for DX9, DX11 and Metal.
@@ -97,6 +98,12 @@ performance acceptance.
   `SUPPORTED_MAX_LIGHTS=1/2/3/4` entries on Windows DX11 Debug x86: 72/72 steps.
 - [x] Compile and run the same eight entries on Windows DX9 SM3 Debug x86:
   72/72 steps, with explicit SM3 capability/profile checks.
+- [x] Characterize strict DX9 SM2 at all eight entries: verify the default-lighting
+  capacity failure and actual SM2 unlit bytecode/pixels without mapping resources.
+  This does not establish lit rendering or real SM2 hardware support.
+- [x] Run native numerical skeletal parity on DX9/DX11 with normal mapping ON/OFF
+  and all light caps: 64/64 synthetic/Lorekeeper LBS/DQS cases pass. This does not
+  test normal-map assignment to production animated meshes.
 - [ ] Compile and run the same eight entries on macOS Metal. Run macOS GLES
   separately if that backend is shipped.
 - [x] Run the DX11 native resource test with the Windows Graphics Tools debug
@@ -182,8 +189,13 @@ is a failed test, not a skipped case. Review all failed logs before continuing.
 
 The baseline runner executes build identity, preparation, persistence, Lua build
 configuration, resources, async runtime/GC, readback and visual IB/VB. On
-Linux/GLES it also runs controlled context recreation automatically (ten baseline
-steps, eleven with optional fault injection). Editor (ImGui), skeletal parity,
+DX9 it additionally runs the SM2 profile characterization (ten steps total).
+The SM2 step requires the known compiler capacity diagnostic as well as its
+unlit bytecode/pixel/resource success markers; unexpected compiler errors fail it.
+On Linux/GLES it also runs controlled context recreation automatically (ten baseline
+steps, eleven with optional fault injection). Optional `--skeletal-parity` adds
+the four-case native DX9/DX11 suite as one runner step; `-SkeletalParity` forwards
+it from the Windows build script. Editor (ImGui),
 abrupt device loss and native Windows/macOS lifecycle tests remain separate;
 they are not implicitly covered by a baseline PASS.
 
@@ -733,8 +745,135 @@ preserved as `build-before-fix.log` in their respective entries. The retained
 `dx9-validation.patch` and `dx9-source-hashes.json` identify the tested changes.
 All artifacts are ignored local evidence; normal development outputs were untouched.
 
-The next Windows milestone is explicit DX9 SM2 fallback verification. Native
+The subsequent milestone below characterizes DX9 SM2. Native
 skeletal parity, failure injection/device loss, shader capture/instruction
 analysis and Release performance measurements remain pending, as does macOS
 acceptance. The earlier DX11 matrix is retained as its recorded evidence; this
 DX9-only production fix does not claim a new DX11 matrix run.
+
+
+## Completed Windows milestone: SM2 profile characterization (2026-09-30)
+
+The fallback has now been measured rather than inferred: **default geometric
+lighting does not compile under strict `ps_2_0` at any light cap 1..4**. The
+profile guard removes the tangent path, but the remaining lighting shader itself
+exceeds SM2 capacity. There is no automatic replacement with an unlit shader.
+Functional SM2 lighting would require a separately designed reduced lighting
+model; this milestone does not introduce one or change production behavior.
+
+| Light cap | ON and OFF compiler result for default lighting | Separate unlit shader |
+|---|---|---|
+| 1 | X5608/X5609: 106 arithmetic slots versus 64 allowed | SM2 bytecode/pixels/resources PASS |
+| 2 | X5608/X5609: 163 arithmetic slots versus 64 allowed | SM2 bytecode/pixels/resources PASS |
+| 3 | X4505: temporary register limit exceeded | SM2 bytecode/pixels/resources PASS |
+| 4 | X4505: temporary register limit exceeded | SM2 bytecode/pixels/resources PASS |
+
+The old `--directx9-normal-map-shader-test` selected SM2 after compiling SM3
+without clearing the default-program cache, whose key does not include profiles.
+It could reuse SM3 bytecode. That test now clears the cache before the switch.
+The new `--normal-map-sm2-test` also clears it, sets the profiles through the
+existing API and restores them on exit. It checks bytecode version tokens from
+both actual shader objects, not merely the selected profile strings.
+
+The test loads a persisted prepared triangle, verifies no mapping interface or
+derived buffers, and renders the separate unlit shader into a 64x64 DX9 target.
+Readback must contain visible geometry. Assigning a normal map at nonzero strength,
+repeated draws, strength zero and removal must preserve the baseline pixels and
+leave derived buffers, tangent declaration, fallback tangent buffer and mapping
+constants absent. The lit shader's expected compile failure is checked separately;
+no lit pixel parity is claimed when that shader cannot compile.
+
+All eight ON/OFF x 1..4-light Debug x86 configurations passed the expanded runner:
+**80/80 steps**, comprising 72 repeated SM3 baseline steps and eight SM2 checks.
+Five Python runner unit tests passed, including rejection of missing capacity
+diagnostics and unexpected compiler errors even alongside a known capacity error.
+SM2 PASS means the capacity limitation and unlit contract were verified, not that
+lighting succeeded. No production engine changes were needed.
+
+Validation used base commit `e4f94d4bf64c3b643c27e77a913c397571c18722`, engine
+7.328, with the test/runner changes in this milestone, Visual Studio 2026/MSVC
+v145 and the existing DX9 SDK. This forces SM2 compilation on an SM3-capable
+device; hardware caps are not falsified. It does not validate an old SM2 GPU,
+2dw lighting under SM2, arbitrary custom SM2 shaders, device loss, or profile
+changes with live cached shaders in production.
+
+The existing PowerShell matrix commands above now execute the extra DX9 step
+automatically. For just the new test, first generate persistence fixtures, then:
+
+```powershell
+$env:MBM_NORMAL_MAP_FIXTURE_DIR = 'C:/path/to/results/fixtures'
+# The integrated Python runner supplies a process timeout and validates diagnostics.
+& 'C:/path/to/libTest.exe' --normal-map-sm2-test
+```
+
+Local final reports are
+`build/normal-windows/dx9-{on,off}-{1,2,3,4}/results-sm2-final/report.json`.
+The consolidated `build/normal-windows/dx9-sm2-summary.json` records all eight
+results and their capacity diagnostics. Per-entry `binary-hashes-sm2.json`
+identifies the refreshed test binaries; earlier manifests describe the historical
+SM3 run. Old reports are retained. Normal development outputs were untouched.
+
+The subsequent milestone below completes native numerical skeletal parity with
+the normal-mapping switch ON/OFF. Native failure/device-loss, Release profiling
+and macOS acceptance remain outstanding.
+
+
+## Completed Windows milestone: native skeletal parity (2026-09-30)
+
+All **16 DX9/DX11 Debug x86 configurations** (normal mapping ON/OFF x light caps
+1..4 per backend) pass the native GPU/CPU parity suite: **64/64 cases**. Each
+entry captures GPU positions and normals for synthetic LBS/DQS (two vertices
+per case) and Lorekeeper LBS/DQS (eight selected vertices at 37% of the first
+clip). The capture shaders use the shared production deformation generators;
+the CPU reference and RGBA8 encoding/comparison are provided by the shared suite.
+
+The reported values below were identical at the log's seven-decimal precision
+across all 16 entries. Position errors are in fixture units; tolerances include
+RGBA8 quantization and are not assertions of bit-exact CPU/GPU equality.
+
+| Fixture | Method | Max position error | Position tolerance | Max normal error | Normal tolerance |
+|---|---|---:|---:|---:|---:|
+| synthetic | LBS | 0.0021373 | 0.0072246 | 0.0039216 | 0.0098431 |
+| synthetic | DQS | 0.0022525 | 0.0075061 | 0.0039216 | 0.0098431 |
+| Lorekeeper | LBS | 0.1977425 | 0.3710776 | 0.0035972 | 0.0098431 |
+| Lorekeeper | DQS | 0.1922569 | 0.3715830 | 0.0039960 | 0.0098431 |
+
+The integrated runner also repeated the prior regressions: **168/168 steps**
+passed (88 DX9, including eight SM2 characterization steps; 80 DX11). DX11
+debug-layer and post-teardown lifecycle success markers were required for both
+the resource and skeletal-parity steps in every DX11 entry. Five Python runner
+unit tests passed. DX9 does not claim equivalent debug-layer/live-object coverage.
+
+`--skeletal-parity` adds this optional suite to the Python runner. It requires
+all four fixture/method markers, the aggregate four-case PASS, a zero exit code
+and no recognized failure/driver diagnostic. `-SkeletalParity` forwards the
+option from `platform-msvs/run-normal-map-tests.ps1`. Existing prebuilt snapshots
+from the Windows matrices were used after verifying every executable/DLL hash;
+no engine or C++ test changes were necessary. Repository revision was
+`0660aa5a350e4b554b41464cb4836c6b40250d67` plus the runner/documentation changes
+for this milestone. Toolchain/runtime remain the recorded 7.328 Debug x86 setup.
+
+For a fresh build and run from the repository root (repeat for each backend,
+normal-mapping value and light cap, always with a new output directory):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 2 -SkeletalParity -Output build/normal-windows/recheck-skeletal-dx11-on-2
+```
+
+For matching prebuilt executables, add `--skeletal-parity` to the existing Python
+invocation; retain `--require-native-validation` for DX11 Debug. Each child has
+the runner's timeout and its own log. Missing Lorekeeper/case output is a failure,
+not a skip.
+
+Local evidence is consolidated in `build/normal-windows/skeletal-matrix-summary.json`,
+with all 16 reports at `{dx9,dx11}-{on,off}-{1,2,3,4}/results-skeletal/report.json`
+under that directory. `skeletal-parity.log` retains all measured errors, selected
+vertices, clip/time and DX11 validation markers. The summary links the previously
+verified binary manifests. Earlier reports and development outputs were untouched.
+
+Scope: sampled numerical deformation in capture shaders, not full animation,
+automatic CPU/GPU execution policy, lighting/material parity of production mesh
+draws or tangent-space normal mapping on skinned geometry. The latter remains
+outside the static normal-mapping feature. The next Windows milestone is native
+failure-and-retry coverage, beginning with DX11; device loss, Release profiling
+and macOS acceptance remain separate outstanding work.

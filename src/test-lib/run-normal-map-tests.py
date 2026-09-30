@@ -50,6 +50,15 @@ def verdict(returncode, output, sentinel, timed_out=False):
     return None
 
 
+def sm2_capacity_verdict(output):
+    codes = set(re.findall(r'error (X\d+):', output))
+    if not codes.intersection({'X5608', 'X4505'}):
+        return 'missing SM2 instruction/register capacity diagnostic'
+    if codes.difference({'X5608', 'X5609', 'X4505'}):
+        return 'unexpected shader compiler error: ' + ', '.join(sorted(codes))
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--test-lib', required=True, type=Path)
@@ -64,7 +73,11 @@ def main():
                         help='Opt-in Linux GLES LD_PRELOAD library for failure/retry tests')
     parser.add_argument('--require-native-validation', action='store_true',
                         help='Require DX11 Debug info queue/lifecycle, or enable Metal API validation')
+    parser.add_argument('--skeletal-parity', action='store_true',
+                        help='Also verify native DX9/DX11 synthetic/Lorekeeper LBS/DQS parity')
     args = parser.parse_args()
+    if args.skeletal_parity and args.backend not in ('dx9', 'dx11'):
+        parser.error('--skeletal-parity currently supports dx9 and dx11')
     if args.gles_fault_library:
         if sys.platform != 'linux' or args.backend != 'gles':
             parser.error('--gles-fault-library requires Linux/GLES')
@@ -98,7 +111,7 @@ def main():
         env['MBM_DIRECTX11_VALIDATE'] = '1'
     results = []
 
-    def run(name, command, sentinel, extra=None, required=()):
+    def run(name, command, sentinel, extra=None, required=(), validator=None):
         child_env = env.copy()
         child_env.update(extra or {})
         start = time.monotonic()
@@ -120,6 +133,8 @@ def main():
         for marker in required:
             if marker not in text:
                 reason = reason or 'missing validation evidence: ' + marker
+        if validator:
+            reason = reason or validator(text)
         results.append(dict(name=name, command=command, exit_code=code,
                             seconds=round(time.monotonic()-start, 3), failure=reason))
         print('{}: {}{}'.format(name, 'FAIL' if reason else 'PASS', ': '+reason if reason else ''), flush=True)
@@ -144,6 +159,20 @@ def main():
                            'DirectX 11 resource-lifecycle validation passed')
             run('resources', [test_lib, '--normal-map-lazy-resource-test'],
                 'NORMAL MAP LAZY RESOURCES PASS', required=markers)
+            if args.skeletal_parity:
+                backend_name = 'DirectX 9' if args.backend == 'dx9' else 'DirectX 11'
+                cases = tuple('skeletal GPU parity: backend={} fixture={} method={}'.format(
+                    backend_name, fixture, method)
+                    for fixture in ('synthetic', 'Lorekeeper') for method in ('lbs', 'dqs'))
+                run('skeletal-parity', [test_lib, '--directx{}-skeletal-parity-test'.format(
+                    '9' if args.backend == 'dx9' else '11')],
+                    'skeletal GPU parity suite: backend={} cases=4 PASS'.format(backend_name),
+                    required=cases + markers)
+            if args.backend == 'dx9':
+                run('sm2', [test_lib, '--normal-map-sm2-test'], 'NORMAL MAP SM2 PASS',
+                    required=('NORMAL MAP SM2 LIGHTING LIMIT: default lighting unavailable',
+                              'NORMAL MAP SM2 BYTECODE PASS vs_2_0 ps_2_0'),
+                    validator=sm2_capacity_verdict)
             if args.gles_fault_library:
                 run('recovery', [test_lib, '--normal-map-failure-test'], 'NORMAL MAP RECOVERY PASS',
                     {'LD_PRELOAD': str(args.gles_fault_library.resolve())})
@@ -160,6 +189,7 @@ def main():
     report = dict(backend=args.backend, normal=args.normal, lights=args.lights,
                   fault_library=str(args.gles_fault_library.resolve()) if args.gles_fault_library else None,
                   native_validation_requested=args.require_native_validation, results=results)
+    report['skeletal_parity_requested'] = args.skeletal_parity
     (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     return 1 if any(item['failure'] for item in results) else 0
 

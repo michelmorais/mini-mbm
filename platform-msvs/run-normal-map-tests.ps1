@@ -25,7 +25,8 @@ param(
     [ValidateSet('Debug', 'Release')][string]$Configuration = 'Debug',
     [Parameter(Mandatory = $true)][string]$Output,
     [string]$Python = 'py',
-    [string]$MSBuild
+    [string]$MSBuild,
+    [switch]$SkeletalParity
 )
 
 $ErrorActionPreference = 'Stop'
@@ -87,6 +88,7 @@ $runnerArgs = @(
 if ($Backend -eq 'dx11' -and $Configuration -eq 'Debug') {
     $runnerArgs += '--require-native-validation'
 }
+if ($SkeletalParity) { $runnerArgs += '--skeletal-parity' }
 & $Python @pythonArgs @runnerArgs
 if ($LASTEXITCODE -ne 0) { throw "Tests failed. See $destination/results/report.json" }
 Write-Host "Normal-mapping entry passed. Report: $destination/results/report.json"

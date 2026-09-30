@@ -248,3 +248,18 @@ Native MSVC compilation exposed and fixed a preprocessor directive inside a
 `FAILED` macro argument and an unguarded reset of compiled-out normal-map state.
 All entries explicitly verify SM3 capabilities/profiles. DX9 SM2 fallback is the
 next Windows milestone; device-loss and performance acceptance remain separate.
+
+The [SM2 profile characterization](normal-mapping-enabled-optimization.md#completed-windows-milestone-sm2-profile-characterization-2026-09-30)
+is now complete: the default geometric lighting shader exceeds strict SM2 capacity
+at every light cap 1..4. Actual SM2 unlit bytecode, visible pixels and absence of
+derived mapping resources pass in ON/OFF builds. The expanded DX9 runner passed
+80/80 steps, including the repeated SM3 baseline. This documents a limitation,
+not functional SM2 lighting or real SM2 hardware acceptance. Native skeletal
+parity is the next Windows verification milestone.
+
+The [native skeletal-parity milestone](normal-mapping-enabled-optimization.md#completed-windows-milestone-native-skeletal-parity-2026-09-30)
+now covers all 16 DX9/DX11 ON/OFF x 1..4-light entries: 64/64 sampled LBS/DQS
+position/normal comparisons and 168/168 integrated runner steps passed, including
+DX11 debug/lifecycle validation. No engine changes were needed. This verifies
+numerical deformation, not skeletal normal-map material integration. Native
+failure-and-retry coverage is the next Windows milestone.

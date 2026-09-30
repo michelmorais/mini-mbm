@@ -20,4 +20,7 @@
 #ifndef NORMAL_MAP_NATIVE_RESOURCE_TESTS_H
 #define NORMAL_MAP_NATIVE_RESOURCE_TESTS_H
 int runNormalMapNativeResourceTests();
+#if defined(USE_DIRECTX9)
+int runNormalMapSm2Tests();
+#endif
 #endif
