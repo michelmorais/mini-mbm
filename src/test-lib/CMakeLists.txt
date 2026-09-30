@@ -36,6 +36,7 @@ include_directories(${INCLUDE}
 file(GLOB SOURCES "*.cpp")
 
 if(USE_METAL)
+  set_source_files_properties(normal-map-native-resource-tests.cpp PROPERTIES LANGUAGE OBJCXX COMPILE_FLAGS "-fobjc-arc")
   list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-skeletal-parity-tests.mm")
   if(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/macos-window-tests.mm")

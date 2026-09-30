@@ -27,9 +27,12 @@
 #include "my-scene-test.h"
 #include "skeletal-foundation-tests.h"
 #include "normal-map-preparation-tests.h"
+#include "normal-map-native-resource-tests.h"
 #include "gles-skeletal-parity-tests.h"
 #include "directx9-skeletal-parity-tests.h"
 #include "directx11-skeletal-parity-tests.h"
+#include <core_mbm/light.h>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #if defined(USE_OPENGL_ES)
@@ -393,6 +396,23 @@ static int runTestLib(int argc, char **argv
 #endif
 )
 {
+    if (argc == 2 && std::strcmp(argv[1], "--normal-map-build-info") == 0)
+    {
+#if defined(USE_OPENGL_ES)
+        const char *backend = "gles";
+#elif defined(USE_DIRECTX9)
+        const char *backend = "dx9";
+#elif defined(USE_DIRECTX11)
+        const char *backend = "dx11";
+#elif defined(USE_METAL)
+        const char *backend = "metal";
+#else
+        const char *backend = "unsupported";
+#endif
+        std::printf("NORMAL MAP BUILD backend=%s normal=%d lights=%u\n", backend,
+                    USE_NORMAL_MAPPING_3D, mbm::getSupportedMaxLights(mbm::LIGHT_TARGET_3D));
+        return 0;
+    }
     if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)
         return runSkeletalFoundationTests();
     if (argc == 2 && std::strcmp(argv[1], "--normal-map-preparation-tests") == 0)
@@ -601,10 +621,24 @@ static int runTestLib(int argc, char **argv
     constexpr bool doSwapBuffers = true;
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
     {
-#if defined(USE_OPENGL_ES)
         if (argc == 2 && std::strcmp(argv[1],"--normal-map-lazy-resource-test") == 0)
+        {
+#if defined(USE_OPENGL_ES)
             return runNormalMapLazyResourceTests();
+#elif defined(USE_DIRECTX9) || defined(USE_DIRECTX11) || defined(USE_METAL)
+            const int result = runNormalMapNativeResourceTests();
+#if defined(USE_DIRECTX11)
+            const bool clean = validateDirectX11DebugMessages();
+            validateLifecycle = captureDirectX11LifecycleDebug(lifecycleDebug);
+            return result == 0 && clean && validateLifecycle ? 0 : -1;
+#else
+            return result;
 #endif
+#else
+            std::printf("NORMAL MAP LAZY RESOURCES FAIL: unsupported backend\n");
+            return -1;
+#endif
+        }
 #if defined(USE_DIRECTX9)
         if (argc == 2 && std::strcmp(argv[1],"--directx9-normal-map-shader-test") == 0)
             return runDirectX9NormalMapShaderTests();

@@ -189,3 +189,12 @@ logs, libraries, fixtures and images) and `/tmp/mbm-normal-resource-matrix`
 (generated embedded shader sources). These are temporary local evidence, not
 repository fixtures. The final shared Release outputs use the defaults: enabled,
 four lights.
+
+
+## Follow-up: native validation of enabled-build optimization
+
+The required Windows DX9/DX11 and macOS Metal matrix, prepared tests, runner
+commands and remaining lifecycle/failure-injection gaps are tracked in the
+[enabled-build optimization plan](normal-mapping-enabled-optimization.md#next-milestone-native-backend-regression-matrix).
+This is a separate acceptance milestone for 7.327; the completed build-switch
+matrix above does not validate the deferred-resource implementation.
