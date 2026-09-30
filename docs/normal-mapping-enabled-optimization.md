@@ -125,8 +125,9 @@ Device-loss and performance acceptance remain pending.
   two subsets, Debug ON/OFF at cap 2 (15-case suite, details below).
 - [x] Extend the 15-case DX11 suite to light caps 1/3/4: all eight Debug ON/OFF
   entries pass, including native validation (full matrix below).
-- [ ] Compare pixels after DX11 recovery. Extend failure injection to DX9/Metal,
-  compiler/Map failures and actual device-loss scenarios.
+- [x] Compare pixels after DX11 recovery in all 15 cases, Debug ON/OFF at cap 2.
+- [ ] Extend recovery pixel comparisons to caps 1/3/4. Extend failure injection
+  to DX9/Metal, compiler/Map failures and actual device-loss scenarios.
 - [ ] Record native measurements and evidence before claiming performance or
   native parity. No FPS or total-memory improvement is assumed.
 
@@ -1112,7 +1113,74 @@ New evidence is under `build/normal-windows/multibatch-dx11-{on,off}-{1,3,4}/`:
 reports/manifests and distinguishes the six new runs from the prior cap-2 runs.
 Earlier artifacts remain unchanged.
 
-The scope remains the resource contracts described above, not pixel equality
-during recovery or actual device loss. The next Windows milestone is **pixel
-comparison after DX11 recovery**. Compiler/Map failures, failures after more
-than two batches, DX9/Metal injection and Release profiling remain separate work.
+This matrix covers resource contracts, not pixel equality during recovery or
+actual device loss. The following milestone adds pixel comparison at cap 2.
+Compiler/Map failures, failures after more than two batches, DX9/Metal injection
+and Release profiling remain separate work.
+
+## Completed Windows milestone: DX11 recovery pixel comparison (2026-09-30)
+
+All **15 recovery cases** now include native offscreen pixel comparisons,
+validated in **Debug x86 ON/OFF at light cap 2**. The final runs passed **30/30
+pixel cases and 22/22 integrated steps**, including the prior resource contracts,
+skeletal parity, runtime/readback and visual IB/VB suites. Debug-layer and
+post-teardown lifecycle validation passed for resources, skeletal parity and
+recovery in both builds. Five Python runner unit tests passed. No production
+changes were needed; engine version remains 7.328.
+
+The test creates a 64x64 `R8G8B8A8_UNORM` target and CPU-readable staging texture
+before installing the fault proxy. A separate asset copy and shader produce
+geometric and mapped references without injection. Directional and ambient light
+are explicitly configured. The capture aligns the camera's light-space view
+with the identity geometry matrices and restores it, along with the previous
+render target, viewport, depth, blend and rasterizer state, on exit.
+
+The first ON run correctly failed the contrast assertion: camera view state
+had not been updated by the normal frame loop, so both references showed only
+ambient lighting. Aligning the test's coordinate spaces fixed the capture; the
+contrast requirement was retained. The initial reports remain separate evidence.
+
+The partition fixture now exposes one triangle from each of its two batches in
+separate image halves; the remaining repeated triangles stay subpixel. The
+two-subset fixture is generated with two separated triangles, replacing the
+overlapping `author-subsets.msh` fixture for this suite. Reference visibility is
+required globally and in both halves for the multi-batch cases. ON must also
+show a mapped/geometric difference in each populated half; OFF must show none.
+
+| Cases | Visible reference pixels | ON mapped/geometric changed pixels | OFF changed pixels |
+|---|---:|---:|---:|
+| Original 11 single-batch cases | 496 per case | 496 | 0 |
+| Four two-batch/two-subset cases | 520 per case | 520 | 0 |
+
+For ON, the initial failed draw and the repeated failed upload must leave the
+cleared target untouched. Strength-zero fallback must match the geometric
+reference. Successful retry and the draw after twenty warm draws must match the
+mapped reference, while retaining the existing resource-reuse assertions. For
+OFF, the draw with injection armed must match the geometric reference without
+reaching a mapped creation call. Comparisons cover all **4,096 RGBA pixels**
+exactly, with no tolerance, between draws on the same device. This does not claim
+bit-identical results across different GPUs/backends.
+
+The runner now requires all 15 `NORMAL MAP RECOVERY PIXELS ... PASS` markers in
+addition to the resource-case markers and aggregate PASS. Older resource-only
+binaries cannot satisfy the updated runner. Reproduce using fresh directories:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 2 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-pixels-on-2
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 0 -Lights 2 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-pixels-off-2
+```
+
+Final local reports are
+`build/normal-windows/pixels-dx11-{on,off}-2/results-verified/report.json`.
+`recovery.log` records visibility/contrast counts and native validation markers;
+`fixtures/pixels-*-{reference,recovered}.ppm` provides 15 RGB image pairs per
+build. The in-process comparison includes alpha; the PPM artifacts contain RGB.
+Final executable/DLL hashes are in `binary-hashes-pixels.json` and the evidence
+index is `build/normal-windows/dx11-recovery-pixels-summary.json`. Initial reports
+and binary manifests are preserved. Toolchain remains VS 2026/MSVC v145, Windows
+SDK 10.0.28000.0 and Python 3.14.5.
+
+The next Windows milestone is extending these pixel comparisons to caps
+**1, 3 and 4**, ON/OFF. The earlier full matrices establish resource coverage
+only. Compiler/Map failures, actual device loss, DX9/Metal injection and Release
+profiling remain separate work.

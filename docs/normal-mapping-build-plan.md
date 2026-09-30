@@ -293,6 +293,15 @@ The [full DX11 multi-batch matrix](normal-mapping-enabled-optimization.md#comple
 now validates the 15-case suite in all eight Debug x86 ON/OFF x 1..4-light entries:
 **120/120 cases and 88/88 integrated steps**, combining 66 new steps with the 22
 verified prior cap-2 steps. All entries require debug-layer and post-teardown
-lifecycle markers. No engine or test changes were needed. The next Windows
-milestone is pixel comparison after DX11 recovery; compiler/Map failures, actual
-device loss, DX9/Metal injection and Release profiling remain pending.
+lifecycle markers. No engine or test changes were needed. Pixel comparison after
+DX11 recovery follows below; compiler/Map failures, actual device loss, DX9/Metal
+injection and Release profiling remain pending.
+
+The [DX11 recovery pixel milestone](normal-mapping-enabled-optimization.md#completed-windows-milestone-dx11-recovery-pixel-comparison-2026-09-30)
+passes Debug x86 ON/OFF at cap 2: **30/30 pixel cases and 22/22 integrated steps**.
+Each of the 15 cases compares offscreen RGBA output with an independent fault-free
+reference; ON also verifies empty failed draws, geometric fallback, mapped
+contrast and warm reuse. Both halves are visible in the two-batch/subset fixtures.
+Native debug/lifecycle checks passed. No engine changes were needed. The next
+Windows milestone extends pixel comparisons to caps 1/3/4; prior full matrices
+remain resource-only evidence.

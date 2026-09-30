@@ -154,7 +154,10 @@ and verify cleanup/retry; prebuilt Python runs accept
 creation calls. Debug runs also require debug-layer and lifecycle markers.
 This covers static single-batch resources plus rollback in a second batch of
 one subset and across two subsets. It does not cover compiler failures or device
-loss. The runner requires all 15 named cases; use a matching rebuilt `libTest`.
+loss. Each case also compares 64x64 offscreen RGBA pixels after recovery with an
+independent fault-free reference. The runner requires all 15 resource and pixel
+case markers; use a matching rebuilt `libTest`. Reference/recovered RGB PPM images
+are saved under `results/fixtures/pixels-*-{reference,recovered}.ppm`.
 Build arguments/logs and `results/report.json`, test logs and PNGs remain under
 the chosen output directory. Native coverage and remaining work are tracked in
 [the optimization plan](../docs/normal-mapping-enabled-optimization.md).

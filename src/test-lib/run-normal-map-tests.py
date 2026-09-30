@@ -189,7 +189,8 @@ def main():
                 run('recovery', [test_lib, '--normal-map-failure-test'],
                     'NORMAL MAP RECOVERY PASS cases=15 normal={}'.format(args.normal),
                     required=markers + tuple('NORMAL MAP RECOVERY CASE {} PASS normal={}'.format(
-                        case, args.normal) for case in cases))
+                        case, args.normal) for case in cases) + tuple(
+                        'NORMAL MAP RECOVERY PIXELS {} PASS normal={}'.format(case, args.normal) for case in cases))
             if sys.platform == 'linux' and args.backend == 'gles':
                 run('context', [test_lib, '--normal-map-context-test'], 'NORMAL MAP CONTEXT PASS')
             scene('runtime', 'normal-map-runtime-test.lua', 'NORMAL MAP RUNTIME PASS')
