@@ -302,6 +302,14 @@ passes Debug x86 ON/OFF at cap 2: **30/30 pixel cases and 22/22 integrated steps
 Each of the 15 cases compares offscreen RGBA output with an independent fault-free
 reference; ON also verifies empty failed draws, geometric fallback, mapped
 contrast and warm reuse. Both halves are visible in the two-batch/subset fixtures.
-Native debug/lifecycle checks passed. No engine changes were needed. The next
-Windows milestone extends pixel comparisons to caps 1/3/4; prior full matrices
-remain resource-only evidence.
+Native debug/lifecycle checks passed. No engine changes were needed. The expanded
+pixel matrix follows below; prior full matrices remain resource-only evidence.
+
+The [full DX11 recovery pixel matrix](normal-mapping-enabled-optimization.md#completed-windows-milestone-full-dx11-recovery-pixel-matrix-2026-09-30)
+now passes all eight Debug x86 ON/OFF x 1..4-light entries: **120/120 pixel cases
+and 88/88 integrated steps**, combining 90 new cases/66 steps with the verified
+prior cap-2 results. Native debug/lifecycle validation passed and all 120 RGB
+reference/recovered image pairs have matching hashes, alongside in-process RGBA
+equality. No engine or test changes were needed. The next Windows milestone is
+DX11 constant-buffer `Map` failure and retry; compiler failures, real device loss,
+DX9/Metal injection and Release profiling remain pending.

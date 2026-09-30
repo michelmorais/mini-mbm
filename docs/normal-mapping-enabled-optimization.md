@@ -126,8 +126,10 @@ Device-loss and performance acceptance remain pending.
 - [x] Extend the 15-case DX11 suite to light caps 1/3/4: all eight Debug ON/OFF
   entries pass, including native validation (full matrix below).
 - [x] Compare pixels after DX11 recovery in all 15 cases, Debug ON/OFF at cap 2.
-- [ ] Extend recovery pixel comparisons to caps 1/3/4. Extend failure injection
-  to DX9/Metal, compiler/Map failures and actual device-loss scenarios.
+- [x] Extend recovery pixel comparisons to caps 1/3/4: all eight Debug ON/OFF
+  entries pass, including contrast checks and native validation (matrix below).
+- [ ] Extend failure injection to DX11 constant-buffer `Map`, compiler failures,
+  DX9/Metal and actual device-loss scenarios.
 - [ ] Record native measurements and evidence before claiming performance or
   native parity. No FPS or total-memory improvement is assumed.
 
@@ -1180,7 +1182,62 @@ index is `build/normal-windows/dx11-recovery-pixels-summary.json`. Initial repor
 and binary manifests are preserved. Toolchain remains VS 2026/MSVC v145, Windows
 SDK 10.0.28000.0 and Python 3.14.5.
 
-The next Windows milestone is extending these pixel comparisons to caps
-**1, 3 and 4**, ON/OFF. The earlier full matrices establish resource coverage
-only. Compiler/Map failures, actual device loss, DX9/Metal injection and Release
-profiling remain separate work.
+The following milestone extends these pixel comparisons to caps **1, 3 and 4**,
+ON/OFF. The earlier full matrices establish resource coverage only. Compiler/Map
+failures, actual device loss, DX9/Metal injection and Release profiling remain
+separate work.
+
+## Completed Windows milestone: full DX11 recovery pixel matrix (2026-09-30)
+
+Recovery pixel comparison now passes every **DX11 Debug x86 ON/OFF x light cap
+1/2/3/4** entry. Six fresh isolated builds at caps 1, 3 and 4 passed **90/90 pixel
+cases and 66/66 integrated steps**. With the verified prior cap-2 runs, the full
+matrix passes **120/120 pixel cases and 88/88 integrated steps**:
+
+| Light cap | ON pixel cases | OFF pixel cases | Integrated steps | Evidence |
+|---|---:|---:|---:|---|
+| 1 | 15/15 | 15/15 | 22/22 | New builds and runs |
+| 2 | 15/15 | 15/15 | 22/22 | Prior final runs; reports, sources and binaries verified |
+| 3 | 15/15 | 15/15 | 22/22 | New builds and runs |
+| 4 | 15/15 | 15/15 | 22/22 | New builds and runs |
+
+Every entry requires all 15 resource and pixel case markers, the aggregate PASS,
+zero exit status and no recognized failure/driver diagnostic. The in-process
+comparison covers all 4,096 RGBA pixels. All **120 reference/recovered RGB PPM
+pairs** also have matching SHA256 hashes. Across every cap, ON retains 496
+visible/changed pixels in each single-batch case and 520 in each two-batch/subset
+case; OFF retains the same visibility with zero mapped/geometric changes.
+These contrast counts compare geometric and mapped references, not recovery
+errors: recovered images match their references exactly.
+
+The integrated runs include preparation/persistence, Lua build configuration,
+native lazy resources, numerical skeletal parity, runtime/readback and visual
+IB/VB regression. Debug-layer and post-teardown lifecycle success markers were
+verified for resources, skeletal parity and recovery in all eight entries.
+No engine or test-code changes were required; engine version remains 7.328.
+
+New runs use revision `6346451bd553b4118339b685a8468e4ea025de8e`, VS 2026/MSVC
+v145, Windows SDK 10.0.28000.0 and Python 3.14.5. The cap-2 test/proxy/runner
+source hashes and executable/DLL hashes match the previous milestone exactly.
+Its 30 pixel cases and 22 steps were not rerun. All eight binary manifests were
+checked during consolidation; older artifacts remain unchanged.
+
+Reproduce each new entry by varying `-Normal` (0/1) and `-Lights` (1/3/4), always
+using a fresh output directory:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 4 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-pixels-on-4
+```
+
+New evidence is at `build/normal-windows/pixels-dx11-{on,off}-{1,3,4}/`:
+`results/report.json`, `results/recovery.log`, PPM pairs under `results/fixtures/`,
+remaining logs/PNGs, `build.json`, `build.log` and `binary-hashes.json`. The combined
+index is `build/normal-windows/dx11-recovery-pixels-matrix-summary.json`; it links
+all eight reports/manifests and records each case's visibility, contrast and
+matching PPM hash, distinguishing new runs from prior cap-2 evidence.
+
+This completes pixel acceptance for the existing static COM creation-failure
+suite on this Windows device, not cross-GPU bit equality or device-loss handling.
+The next Windows milestone is **DX11 constant-buffer `Map` failure and retry**.
+Compiler failures, failures after more than two batches, DX9/Metal injection and
+Release profiling remain separate work.
