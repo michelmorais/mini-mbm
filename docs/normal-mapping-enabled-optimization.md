@@ -1,6 +1,6 @@
 # Normal mapping in enabled builds: geometric variants and deferred upload
 
-Delivery: 7.327. This extends the completed build-switch implementation; it does
+Initial delivery: 7.327. Shared CPU preparation: 7.328. This extends the completed build-switch implementation; it does
 not change `USE_NORMAL_MAPPING_3D` or `SUPPORTED_MAX_LIGHTS`.
 
 ## Behavior
@@ -16,7 +16,7 @@ not change `USE_NORMAL_MAPPING_3D` or `SUPPORTED_MAX_LIGHTS`.
   no geometry scan, shader compilation or upload on an idle no-map draw.
 - Prepared static frames retain private CPU staging until first effective use.
   Upload publishes the frame's derived buffers and frees staging geometry and
-  its copied preparation. The asset's original preparation remains available for
+  its shared preparation reference. The asset's original preparation remains available for
   extraction and serialization.
 - After first use, GPU batches stay cached through texture removal/reassignment
   or strength changes. Removal/zero strength switches shading to geometric;
@@ -29,13 +29,14 @@ not change `USE_NORMAL_MAPPING_3D` or `SUPPORTED_MAX_LIGHTS`.
 ## Tradeoffs
 
 Deferred upload can increase CPU memory for a prepared frame that never uses a
-map: staging holds positions/normals/UVs and a copy of preparation. Assets without
+map: staging holds positions/normals/UVs. Since 7.328 it shares the asset's
+immutable preparation instead of copying tangent batches. Assets without
 prepared bases allocate no staging. This is a GPU allocation/upload optimization,
 not a guarantee of reduced combined CPU/GPU memory or higher FPS.
 
 The first effective mapped draw can incur compilation and upload latency. It
 uploads all prepared subsets of that frame, and mixed draws may switch programs
-more often. Per-subset upload/eviction and eliminating staging duplication remain
+more often. Per-subset upload/eviction and reducing remaining staging geometry remain
 separate refinements, to be driven by measurements on representative assets.
 
 ## Validation
@@ -259,7 +260,7 @@ remain pending.
 
 ## Completed milestone: Linux/GLES failure and retry
 
-Delivery: 7.327.1. `testLib --normal-map-failure-test` uses an explicitly loaded,
+Initial delivery: 7.327. Shared CPU preparation: 7.328.1. `testLib --normal-map-failure-test` uses an explicitly loaded,
 test-only ELF interposer to fail vertex compilation, fragment compilation,
 program creation, linking, vertex upload and index upload. Index-upload failure
 is repeated before a successful retry. The test checks:
@@ -456,7 +457,7 @@ of the optimization. Native backends, real game assets, skeletal/dynamic meshes,
 GPU timestamp/frame profiling and isolated CPU allocation accounting remain
 pending. No FPS or combined-memory reduction is claimed.
 
-### Recorded Linux result
+### Recorded Linux result (7.327.1 baseline)
 
 All **120 samples passed**: ON/OFF x grids 32/128 (6,144/98,304 vertices) x six
 cases x five processes, eight blocks of 32 warm draws. Release, light cap 2,
@@ -504,3 +505,54 @@ in `/tmp/mbm-normal-benchmark-release/report.json` and adjacent files; these are
 ephemeral artifacts. Re-run the command above to obtain a new baseline. The next
 Linux optimization candidate is reducing unused CPU staging or using per-subset
 upload/eviction, with these measurements and regression tests as a baseline.
+
+
+## Completed milestone: shared immutable CPU preparation (7.328)
+
+Runtime `MESH_MBM::Impl` now owns immutable prepared asset frames through a private
+shared owner. `stageStatic` retains an alias to the frame's `PREPARED` instead of
+copying its tangent batches, source-vertex mappings and indices. Source geometry
+is still staged for late upload. This changes neither serialized sections nor
+public API/header ownership boundaries.
+
+The alias keeps its owner alive until upload succeeds or the buffer is invalidated
+or released. Failed uploads preserve the reference and geometry for retry.
+Successful upload drops the staging reference; the asset retains preparation for
+readback. Extraction into `MESH_MBM_DEBUG` makes an independent mutable copy, so
+authoring edits cannot mutate runtime preparation. Context recreation rebuilds
+staging from the reloaded asset. There is no new ownership operation per draw;
+sharing happens during load and ends during upload/invalidation.
+
+The GLES resource test now explicitly checks reference sharing, survival after the
+caller releases its reference, release after successful upload, and release when
+pending geometry is invalidated. Existing tests cover late map assignment,
+retry, extraction/editing, shared instances, dynamic invalidation and context
+recreation. The shared implementation serves all backends; DirectX/Metal still
+require native compilation and execution, and this does not extend the earlier
+four-light-cap evidence to the new revision.
+
+For the synthetic 98,304-vertex fixture, avoiding the duplicate arrays removes
+2,162,688 bytes (2.0625 MiB) of preparation payload from pending staging: 4 bytes
+of source mapping + 16 bytes of tangent + 2 bytes of index per vertex in this
+particular fixture, excluding container/allocator overhead. The 3 MiB source
+geometry staging remains until upload. Other meshes can have different prepared
+vertex/index counts; this is not a universal bytes-per-source-vertex formula.
+Per-subset upload/eviction and further geometry staging reduction remain future
+work. Derived GPU allocation and shading behavior are unchanged.
+
+
+Validation: Release Linux/GLES at cap 2 passed all eleven integrated runner steps
+in ON and OFF (22 total, including injected upload failure/retry and controlled
+context recreation), the four runner unit checks, and all 120 benchmark samples.
+For the larger `retained` fixture, median load RSS growth was 8.61 MiB ON versus
+5.69 MiB OFF; the earlier 7.327.1 baseline recorded 10.64 MiB ON. This is a
+comparison of separate desktop runs, not a controlled timing or exact allocation
+measurement. The deterministic saving is the removed preparation payload above.
+No-map derived buffer payload remains zero; active/mixed/removed larger fixtures
+still retain 4,915,200 derived GPU bytes, as before.
+
+Local reports: `/tmp/mbm-shared-staging-on/report.json`,
+`/tmp/mbm-shared-staging-off/report.json` and
+`/tmp/mbm-shared-staging-benchmark/report.json` (ephemeral). Reproduce using the
+existing suite and benchmark commands, after building matching 7.328 snapshots.
+Debug outputs were untouched; shared Release outputs were restored to ON, cap 2.

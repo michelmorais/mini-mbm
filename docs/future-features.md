@@ -82,7 +82,8 @@ Remaining optimization work:
 
 - Consider per-subset staging/upload and eviction; first use currently uploads
   the prepared frame, including its inactive subsets.
-- Reduce CPU staging duplication for prepared assets that never use a map; measure
+- Shared immutable preparation removes copied tangent batches in 7.328. Further
+  reduce staging geometry for prepared assets that never use a map; measure
   combined CPU/GPU memory rather than assuming deferred GPU upload reduces both.
 - Measure shader compilation, load/first-use latency, memory, CPU draw and GPU
   frame times on representative assets and native backends. Mixed subsets can add

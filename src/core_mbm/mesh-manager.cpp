@@ -9888,7 +9888,7 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
-        impl->normalMapFrames.clear();
+        impl->normalMapFrames.reset();
         impl->normalMapMaterials.clear();
         impl->gpuSkinningInput = {};
         impl->skeletalBindPositions.clear();
@@ -12183,7 +12183,7 @@ namespace mbm
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
         impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
-        impl->normalMapFrames = std::move(in.normalMapFrames);
+        impl->normalMapFrames = std::make_shared<const normal_map::ASSET_FRAMES>(std::move(in.normalMapFrames));
         impl->normalMapMaterials = std::move(in.normalMapMaterials);
         if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0)
         {
@@ -12316,11 +12316,12 @@ namespace mbm
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
 
 #if USE_NORMAL_MAPPING_3D
-            const auto prepared = impl->normalMapFrames.find(currentFrame);
-            if (impl->canonicalSkeleton.skeletonId == 0 && prepared != impl->normalMapFrames.end())
+            const auto prepared = impl->normalMapFrames->find(currentFrame);
+            if (impl->canonicalSkeleton.skeletonId == 0 && prepared != impl->normalMapFrames->end())
             {
                 if (!normal_map::stageStatic(impl->buffer[currentFrame].pBufferGL,
-                    frame.position.get(),frame.normal.get(),frame.uv.get(),prepared->second.prepared)) return false;
+                    frame.position.get(),frame.normal.get(),frame.uv.get(),
+                    std::shared_ptr<const normal_map::PREPARED>(impl->normalMapFrames, &prepared->second.prepared))) return false;
                 for (uint32_t subset=0; subset<totalSubset; ++subset)
                 {
                     const auto settings = normal_map::getMaterialSettings(impl->normalMapMaterials,currentFrame,subset);
@@ -13250,7 +13251,8 @@ namespace mbm
         if (this->impl->coordTexFrame_0)
             delete[] this->impl->coordTexFrame_0;
         this->impl->coordTexFrame_0 = nullptr;
-        impl->normalMapFrames = meshMemory->impl->normalMapFrames;
+        impl->normalMapFrames = meshMemory->impl->normalMapFrames ?
+            *meshMemory->impl->normalMapFrames : normal_map::ASSET_FRAMES{};
         impl->normalMapMaterials = meshMemory->impl->normalMapMaterials;
         return true;
     }

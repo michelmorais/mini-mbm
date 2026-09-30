@@ -45,6 +45,8 @@ int runGlesNormalMapContextTests(mbm::CORE_MANAGER &, const mbm::SCENE &);
 #include <specific-opengl_es.h>
 #include <specific-opengl_es-buffer.h>
 #include <specific-opengl_es-shader.h>
+#include <normal-map-upload.h>
+#include <normal-map-preparation.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/light.h>
 #include <cstdio>
@@ -144,6 +146,34 @@ static int runNormalMapLazyResourceTests()
 #endif
     check(shader.render(buffer) && currentProgram() == geometry->programObject,
           "dynamic edit cannot re-upload stale staged geometry");
+#if USE_NORMAL_MAPPING_3D
+    // Prove ownership sharing, survival after the caller drops its reference,
+    // and release on both successful upload and pending-source invalidation.
+    const auto preparation = []()
+    {
+        auto owner = std::make_shared<normal_map::PREPARED>();
+        auto &batch = owner->batches.emplace_back();
+        batch.sourceVertices = {0,1,2};
+        batch.indices = {0,1,2};
+        batch.tangents.resize(3);
+        for (auto &tangent : batch.tangents) { tangent.x = 1; tangent.sign = 1; }
+        return owner;
+    };
+    auto owner = preparation();
+    std::weak_ptr<const normal_map::PREPARED> lifetime = owner;
+    check(normal_map::stageStatic(buffer,positions,normals,uv,owner), "stage shared preparation");
+    check(owner.use_count() == 2, "staging retains original preparation without copying");
+    owner.reset();
+    check(!lifetime.expired(), "pending preparation survives caller release");
+    check(normal_map::ensureUploaded(buffer), "upload after caller releases preparation");
+    check(lifetime.expired(), "successful upload releases staging reference");
+    check(buffer->updateDynamic(positions,normals,uv,starts,counts), "reset uploaded source");
+    owner = preparation(); lifetime = owner;
+    check(normal_map::stageStatic(buffer,positions,normals,uv,owner), "stage before invalidation");
+    owner.reset();
+    check(buffer->updateDynamic(positions,normals,uv,starts,counts), "invalidate pending source");
+    check(lifetime.expired(), "invalidation releases shared preparation");
+#endif
     check(glGetError() == GL_NO_ERROR, "no GL errors");
     std::printf("NORMAL MAP LAZY RESOURCES %s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
     return failures ? -1 : 0;

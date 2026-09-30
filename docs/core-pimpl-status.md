@@ -57,9 +57,13 @@ hooks. Static OpenGL ES, DirectX 9 SM3, DirectX 11 and Metal rendering keep
 derived GPU buffers and draw settings in private `BUFFER_SPECIFIC::normalMapSubsets`.
 `BUFFER_GL::BackendData` privately owns CPU staging for prepared static frames.
 The first supported 3D draw with a texture, retained basis and nonzero strength
-uploads the frame's derived batches; success frees staging geometry and its copied
-preparation. Frames never used with normal mapping retain staging instead of GPU
-allocations. Small private per-subset settings and an active count avoid scanning
+uploads the frame's derived batches; success frees staging geometry and its shared
+preparation reference. Since 7.328, `MESH_MBM::Impl` owns an immutable shared
+`ASSET_FRAMES`; staging aliases its frame preparation without duplicating batches.
+The shared owner keeps pending data alive independently of the caller. Upload
+failure retains the reference for retry; invalidation/release drops it. Runtime
+extraction copies the map into mutable authoring state, preserving edit isolation. Frames never used with normal mapping retain staging
+instead of GPU allocations. Small private per-subset settings and an active count avoid scanning
 geometry or subsets for the no-map draw path. Texture/settings changes update
 activity, including the legacy subset-zero texture fallback.
 `SHADER::BackendData` owns a lazy mapped variant; the initial shader is geometric.

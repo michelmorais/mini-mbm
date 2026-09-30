@@ -21,6 +21,7 @@
 #define NORMAL_MAP_UPLOAD_H
 
 #include <cstdint>
+#include <memory>
 #include <core_mbm/render-features.h>
 
 namespace mbm
@@ -42,11 +43,12 @@ namespace mbm
         bool ensureUploaded(const BUFFER_GL *buffer);
         bool uploadBackend(BUFFER_GL *, const VEC3 *, const VEC3 *, const VEC2 *, const PREPARED &);
         void setBackendSettings(BUFFER_GL *, uint32_t, int, float);
-        // Stage validated static tangent batches on the main thread; upload at first use.
+        // Retain shared immutable preparation; copy source geometry until first upload.
+        // The owning asset may release its reference without invalidating pending data.
         // Backends without tangent rendering accept the upload as a no-op so
         // prepared assets still load. Success does not imply rendering support.
         bool stageStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
-                          const VEC2 *uv, const PREPARED &prepared);
+                          const VEC2 *uv, std::shared_ptr<const PREPARED> prepared);
         void setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength);
 #endif
     }

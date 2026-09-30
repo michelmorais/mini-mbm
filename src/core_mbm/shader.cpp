@@ -142,7 +142,7 @@ namespace mbm
         struct SETTINGS { bool basis = false; bool active = false; int greenSign = 1; float strength = 1; };
         std::vector<VEC3> positions, normals;
         std::vector<VEC2> uv;
-        normal_map::PREPARED prepared;
+        std::shared_ptr<const normal_map::PREPARED> prepared;
         std::vector<SETTINGS> subsets;
         bool uploaded = false;
         uint32_t activeSubsets = 0;
@@ -182,17 +182,18 @@ namespace mbm
     }
 
     bool normal_map::stageStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
-                                  const VEC2 *uv, const PREPARED &prepared)
+                                  const VEC2 *uv, std::shared_ptr<const PREPARED> prepared)
     {
-        if (prepared.batches.empty()) return true;
+        if (!prepared) return false;
+        if (prepared->batches.empty()) return true;
         if (!buffer || !buffer->getBackendBuffer() || !positions || !normals || !uv) return false;
         auto pending = std::make_unique<NORMAL_MAP_PENDING>();
         pending->positions.assign(positions, positions + buffer->sizeOfArrayVertex);
         pending->normals.assign(normals, normals + buffer->sizeOfArrayVertex);
         pending->uv.assign(uv, uv + buffer->sizeOfArrayVertex);
-        pending->prepared = prepared;
+        pending->prepared = std::move(prepared);
         pending->subsets.resize(buffer->totalSubset);
-        for (const auto &batch : prepared.batches)
+        for (const auto &batch : pending->prepared->batches)
         {
             if (batch.subset >= buffer->totalSubset) return false;
             pending->subsets[batch.subset].basis = !batch.indices.empty();
@@ -253,7 +254,7 @@ namespace mbm
         if (data->uploaded) return true;
         auto *mutableBuffer = const_cast<BUFFER_GL *>(buffer);
         if (!uploadBackend(mutableBuffer, data->positions.data(), data->normals.data(),
-                           data->uv.data(), data->prepared)) return false;
+                           data->uv.data(), *data->prepared)) return false;
         for (uint32_t subset = 0; subset < data->subsets.size(); ++subset)
             setBackendSettings(mutableBuffer, subset, data->subsets[subset].greenSign, data->subsets[subset].strength);
         data->uploaded = true;

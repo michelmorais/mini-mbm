@@ -218,3 +218,9 @@ The [controlled context-recreation milestone](normal-mapping-enabled-optimizatio
 now covers pending/uploaded assets, shared instances, shader selection and pixels
 through two production restore cycles. It passed Release ON/OFF and Debug ON at
 cap 2. Abrupt GPU loss and Windows/macOS lifecycle acceptance remain pending.
+
+
+The [shared CPU preparation milestone](normal-mapping-enabled-optimization.md#completed-milestone-shared-immutable-cpu-preparation-7328)
+removes the runtime staging copy of tangent batches in 7.328, retaining immutable
+ownership for late upload/retry and independent authoring extraction. Geometry
+staging, per-subset upload/eviction and native acceptance remain separate work.
