@@ -81,8 +81,9 @@ Linux measurements do not establish native-backend or mobile-device coverage.
 Status: the complete DX9 SM3 and DX11 Debug x86 baseline matrices are validated
 with 7.328 plus the DX9 compilation fixes below. macOS acceptance remains
 **pending**. SM2 profile characterization is complete below: default lighting
-exceeds the profile, while unlit rendering passes. This does not establish native
-failure/device-loss or performance acceptance.
+exceeds the profile, while unlit rendering passes. DX11 single-batch COM creation
+failure/retry is also validated across all eight Debug entries (details below).
+Device-loss and performance acceptance remain pending.
 
 - [x] Keep the GLES native resource inspection command and implement the same
   `--normal-map-lazy-resource-test` entry point for DX9, DX11 and Metal.
@@ -118,8 +119,12 @@ failure/device-loss or performance acceptance.
   native Windows/macOS loss handling. Controlled recreation does not prove those.
 - [x] Add deterministic Linux/GLES failed-compile/link/program-creation and
   failed-upload retry coverage, including Debug and Release (details below).
-- [ ] Extend failure injection to native DirectX/Metal, additional batches and
-  actual device-loss scenarios; Linux fault injection does not establish these.
+- [x] Validate DX11 single-batch COM creation failure/retry in all eight Debug
+  ON/OFF x 1..4-light entries, with debug-layer and post-teardown lifecycle checks.
+- [x] Validate DX11 rollback/retry in a second batch of one subset and across
+  two subsets, Debug ON/OFF at cap 2 (15-case suite, details below).
+- [ ] Extend the 15-case DX11 suite to light caps 1/3/4. Extend failure injection
+  to DX9/Metal, compiler/Map failures and actual device-loss scenarios.
 - [ ] Record native measurements and evidence before claiming performance or
   native parity. No FPS or total-memory improvement is assumed.
 
@@ -947,6 +952,117 @@ bump was needed.
 Scope is COM creation failure for the static, single-batch mapped path. This does
 not simulate an actual memory shortage, HLSL compiler failure, `Map` failure,
 multi-batch rollback or real device loss, nor compare pixels during recovery.
-Light caps 1/3/4, DX9/Metal fault injection and Release profiling remain separate
-work. The next Windows milestone is extending this DX11 recovery coverage to
-the remaining light caps.
+The remaining light caps are covered by the following milestone. DX9/Metal fault
+injection and Release profiling remain separate work.
+
+## Completed Windows milestone: full DX11 recovery matrix (2026-09-30)
+
+DX11 resource failure/retry now covers every **Debug x86 ON/OFF x light cap
+1/2/3/4** entry. Six fresh isolated builds at caps 1, 3 and 4 passed **66/66
+integrated runner steps**. Combined with the verified cap-2 evidence above, the
+matrix passes **88/88 steps** across eight configurations:
+
+| Light cap | ON steps | OFF steps | Evidence |
+|---|---:|---:|---|
+| 1 | 11/11 | 11/11 | New builds and runs |
+| 2 | 11/11 | 11/11 | Prior final runs; reports and binary hashes rechecked |
+| 3 | 11/11 | 11/11 | New builds and runs |
+| 4 | 11/11 | 11/11 | New builds and runs |
+
+Each entry requires all 11 recovery case markers: **44 ON cases** exercise
+injected COM creation failures, cleanup and retry; **44 OFF cases** verify that
+mapped resource creation is absent. The integrated suites also cover numerical
+skeletal parity, CPU preparation/persistence, Lua configuration/runtime/readback,
+native lazy resources and visual IB/VB regression. Debug-layer and post-teardown
+lifecycle success markers were verified for resources, skeletal parity and
+recovery in all eight entries. No engine or test-code changes were necessary;
+the engine version remains 7.328.
+
+New runs use revision `b442db3bc4a1577e66eecb53a95eeb9e1feb46ba`, VS 2026/MSVC
+v145, Windows SDK 10.0.28000.0 and Python 3.14.5. The cap-2 harness/runner source
+hashes still match after accounting for CRLF-to-LF normalization of the proxy
+header; its executable/DLL hashes match exactly. The cap-2 steps were not rerun.
+
+Reproduce each new entry with the existing PowerShell command, setting `-Normal`
+to 0 or 1 and `-Lights` to 1, 3 or 4; always use a fresh output directory:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 4 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-recovery-on-4
+```
+
+New reports/logs/PNGs are at
+`build/normal-windows/recovery-dx11-{on,off}-{1,3,4}/results/`, beside `build.json`,
+`build.log` and `binary-hashes.json`. The combined evidence index is
+`build/normal-windows/dx11-recovery-matrix-summary.json`; it links all eight
+reports and manifests and distinguishes the six new runs from the two prior
+cap-2 runs. All recorded executable/DLL hashes were checked during consolidation.
+
+This matrix covers static single-batch COM resource creation. The following
+milestone adds DX11 multi-batch rollback/retry at cap 2. Compiler/Map failures,
+actual device loss, DX9/Metal injection and Release performance acceptance remain
+outstanding.
+
+## Completed Windows milestone: DX11 multi-batch rollback and retry (2026-09-30)
+
+The DX11 recovery suite now has **15 cases**, validated in fresh **Debug x86
+ON/OFF builds at light cap 2**. Both runs passed all 15 cases and **22/22
+integrated runner steps**, including the existing numerical skeletal parity,
+runtime/readback and visual IB/VB suites. Debug-layer and post-teardown lifecycle
+success markers were required for resources, skeletal parity and recovery.
+The five Python runner unit tests also passed. No production changes were needed;
+engine version remains 7.328.
+
+Four new cases extend the 11-case suite:
+
+| Fixture | Failure target | First draw `CreateBuffer` ordinal | Retry ordinal |
+|---|---|---:|---:|
+| One subset, two derived batches | Second batch vertex buffer | 7 | 3 |
+| One subset, two derived batches | Second batch index buffer | 8 | 4 |
+| Two subsets, one derived batch each | Second subset vertex buffer | 7 | 3 |
+| Two subsets, one derived batch each | Second subset index buffer | 8 | 4 |
+
+The partition fixture is built through `MESH_MBM_DEBUG` authoring/import/save:
+65,538 non-indexed source vertices exceed the 16-bit derived-batch limit and
+produce two batches in a single subset. Its 21,846 repeated triangles are kept
+subpixel to avoid excessive overdraw; this is resource coverage, not a pixel
+comparison. The second fixture reuses `author-subsets.msh`, whose two subsets
+already carry independently prepared bases. Both are loaded through the normal
+mesh manager before drawing.
+
+ON cases count successful derived-buffer creations before each failure: two
+buffers must have been created before a second-batch vertex failure, or three
+before an index failure. After each failed draw, all derived-buffer lifetime
+tokens must be released and no subset/batch may be published. Strength zero must
+still draw with the original geometric shader without resource creation. A
+second injected upload failure verifies rollback again with the mapped shader
+already cached. Removing injection must create all four derived buffers, publish
+the expected batch/subset distribution and preserve the total corner count.
+Native buffer descriptors verify expected vertex/index storage sizes. Twenty
+subsequent draws per ON case must create no new tracked resources. OFF cases
+require successful geometric rendering with no mapped creation calls or injected
+failure reached, including both larger fixtures.
+
+`--dx11-failure` / `-Dx11Failure` now require all 15 named case markers and the
+15-case aggregate PASS. An older 11-case binary cannot satisfy the updated runner.
+The prior eight-entry matrix remains evidence for the original 11 cases only;
+caps 1/3/4 have not yet run the expanded suite.
+
+Reproduce with a new output directory for each ON/OFF value:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 2 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-multibatch-on-2
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 0 -Lights 2 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-multibatch-off-2
+```
+
+Local evidence is under `build/normal-windows/multibatch-dx11-{on,off}-2/`:
+`results/report.json`, `results/recovery.log`, remaining suite logs/PNGs, build
+metadata/logs and `binary-hashes.json`. The evidence index is
+`build/normal-windows/dx11-multibatch-summary.json`. Toolchain remains VS 2026/MSVC
+v145, Windows SDK 10.0.28000.0 and Python 3.14.5. Earlier artifacts are unchanged.
+
+Scope is static upload rollback across two batches/subsets, including repeated
+failure, retry and warm reuse. Buffer contents/pixels during recovery, failures
+after more than two batches, compiler/Map failures and actual device loss are
+not covered here. The next Windows milestone is extending this 15-case suite
+to caps **1, 3 and 4**, ON/OFF. DX9/Metal injection and Release profiling remain
+separate work.

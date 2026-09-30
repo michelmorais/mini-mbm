@@ -269,6 +269,22 @@ now passes Debug x86 ON/OFF at light cap 2: 11 named cases per build and 22/22
 integrated runner steps, with debug-layer and post-teardown lifecycle validation.
 Test-only COM creation failures verify partial-buffer cleanup, preserved geometric
 rendering, repeated upload failure, successful retry and warm resource reuse.
-No engine changes were needed. The next Windows milestone extends recovery
-coverage to caps 1/3/4; compiler/Map failures, multi-batch rollback, actual device
-loss, DX9/Metal injection and Release performance remain separate work.
+No engine changes were needed. Recovery coverage at caps 1/3/4 follows below;
+compiler/Map failures, multi-batch rollback, actual device loss, DX9/Metal injection
+and Release performance remain separate work.
+
+The [full DX11 recovery matrix](normal-mapping-enabled-optimization.md#completed-windows-milestone-full-dx11-recovery-matrix-2026-09-30)
+now completes Debug x86 ON/OFF x all light caps 1..4: **88/88 integrated steps**,
+combining 66 new passes at caps 1/3/4 with the 22 verified prior cap-2 passes.
+All eight entries pass the 11 recovery cases and require DX11 debug-layer and
+post-teardown lifecycle markers. No engine or test-code changes were needed.
+DX11 multi-batch upload rollback and retry follows below; compiler/Map failures,
+real device loss, DX9/Metal injection and Release profiling remain pending.
+
+The [DX11 multi-batch rollback milestone](normal-mapping-enabled-optimization.md#completed-windows-milestone-dx11-multi-batch-rollback-and-retry-2026-09-30)
+passes Debug x86 ON/OFF at cap 2: **15 cases per build and 22/22 integrated steps**,
+with DX11 debug-layer and post-teardown lifecycle validation. Four new cases fail
+vertex/index creation in the second batch of one subset or across two subsets,
+then verify complete cleanup, repeated rollback, retry and resource reuse. No
+production changes were needed. The next Windows milestone extends the 15-case
+suite to caps 1/3/4; the earlier full matrix covers only the original 11 cases.

@@ -148,11 +148,13 @@ position/normal comparisons. With prebuilt binaries, the Python runner accepts
 `--skeletal-parity`. All four case markers are required; DX11 Debug also requires
 debug-layer and post-teardown lifecycle markers for this step. This is numerical
 deformation coverage, not skeletal normal-map material/render integration.
-Add `-Dx11Failure` (DX11 only) to inject failures at 11 mapped COM resource
-creation points and verify cleanup/retry; prebuilt Python runs accept
+Add `-Dx11Failure` (DX11 only) to run 15 mapped COM resource failure cases
+and verify cleanup/retry; prebuilt Python runs accept
 `--dx11-failure`. ON tests recovery and warm reuse; OFF requires no mapped
 creation calls. Debug runs also require debug-layer and lifecycle markers.
-This covers static single-batch resources, not compiler failures or device loss.
+This covers static single-batch resources plus rollback in a second batch of
+one subset and across two subsets. It does not cover compiler failures or device
+loss. The runner requires all 15 named cases; use a matching rebuilt `libTest`.
 Build arguments/logs and `results/report.json`, test logs and PNGs remain under
 the chosen output directory. Native coverage and remaining work are tracked in
 [the optimization plan](../docs/normal-mapping-enabled-optimization.md).

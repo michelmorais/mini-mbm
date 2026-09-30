@@ -183,9 +183,11 @@ def main():
             if args.dx11_failure:
                 cases = ('vertex-shader', 'pixel-shader', 'input-layout', 'linear-sampler',
                          'nearest-sampler', 'matrix-buffer', 'light-buffer', 'normal-settings',
-                         'zero-tangent', 'derived-vertices', 'derived-indices')
+                         'zero-tangent', 'derived-vertices', 'derived-indices',
+                         'partition-second-vertices', 'partition-second-indices',
+                         'subset-second-vertices', 'subset-second-indices')
                 run('recovery', [test_lib, '--normal-map-failure-test'],
-                    'NORMAL MAP RECOVERY PASS cases=11 normal={}'.format(args.normal),
+                    'NORMAL MAP RECOVERY PASS cases=15 normal={}'.format(args.normal),
                     required=markers + tuple('NORMAL MAP RECOVERY CASE {} PASS normal={}'.format(
                         case, args.normal) for case in cases))
             if sys.platform == 'linux' and args.backend == 'gles':
