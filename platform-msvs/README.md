@@ -164,13 +164,10 @@ normal-settings mapping. The runner requires all 20 resource/pixel markers and
 five `Map` markers; use a matching rebuilt `libTest`. Reference/recovered RGB PPM images
 are saved under `results/fixtures/pixels-*-{reference,recovered}.ppm`.
 Build arguments/logs and `results/report.json`, test logs and PNGs remain under
-the chosen output directory. Native coverage and remaining work are tracked in
-[the optimization plan](../docs/normal-mapping-enabled-optimization.md).
-Windows functional validation is closed for the documented Debug x86 scope.
-Further fault-matrix expansion is deferred; the next active milestone is native
-macOS Metal evaluation. See the
-[scope decision](../docs/normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30)
-for the acceptance boundary and separate performance/robustness backlog.
+the chosen output directory. [Normal mapping](../docs/normal-mapping.md#validation-scope)
+describes the validated Windows DX9 SM3/DX11 Debug x86 configurations and the
+Linux/macOS coverage. Windows Release performance, actual device loss and broader
+fault injection are outside that validation scope.
 
 ---
 

@@ -62,56 +62,22 @@ Static 3D normal mapping is implemented in OpenGL ES, DirectX 9 SM3, DirectX 11
 and Metal. The work below extends that capability; it is not a condition for the
 static delivery or a claim that these paths already work.
 
-### Remaining overhead in builds with normal mapping enabled
+### Optional optimization and robustness investigations
 
-Build-time removal is implemented through the default-enabled
-`USE_NORMAL_MAPPING_3D` setting. The existing `SUPPORTED_MAX_LIGHTS=1..4` setting
-also specializes generated and reserved lighting shaders at build time. Contracts
-are in [Lighting](light.md#material-texture-slots); implementation and validation
-status are recorded in the [build plan](normal-mapping-build-plan.md).
+Build switches, deferred frame upload, shared immutable preparation and desktop
+validation are described in [Normal mapping](normal-mapping.md). These are current
+engine capabilities, not pending delivery tasks.
 
-With 3D normal mapping enabled, geometric/mapped shader variants and first-use
-GPU upload are implemented in 7.327. Default and reserved static lighting starts
-with a geometric shader; a map, usable retained basis and nonzero strength select
-a lazy mapped variant. CPU staging holds the source needed for first use and is
-released after uploading the prepared frame. No-map draws use cached activity;
-texture removal/zero strength returns to geometric shading. After first use, GPU
-batches stay cached until buffer release or geometry invalidation.
-
-Remaining optimization work:
-
-- Consider per-subset staging/upload and eviction; first use currently uploads
-  the prepared frame, including its inactive subsets.
-- Shared immutable preparation removes copied tangent batches in 7.328. Further
-  reduce staging geometry for prepared assets that never use a map; measure
-  combined CPU/GPU memory rather than assuming deferred GPU upload reduces both.
-- Measure shader compilation, load/first-use latency, memory, CPU draw and GPU
-  frame times on representative assets and native backends. Mixed subsets can add
-  shader switches; first-use compilation/upload can add a one-time stall.
-- Preserve no-map/no-tangent assets, retained bases without a texture, active maps,
-  zero strength, mixed subsets, late assignment/removal and shared-asset behavior.
-
-The [native regression matrices](normal-mapping-enabled-optimization.md#next-milestone-native-backend-regression-matrix)
-are complete for Linux/GLES, Windows DX9 SM3/DX11 Debug x86 and macOS Metal.
-**The scoped macOS Metal delivery is accepted and closed**; see the
-[acceptance decision and limitations](normal-mapping-enabled-optimization.md#macos-metal-delivery-acceptance).
-Metal has all eight ON/OFF x cap 1..4 entries in Debug and Release, API validation,
-native pipeline checks, targeted captures and a 480-sample synthetic Release study.
-These results are specific to macOS arm64 / Apple M4 and do not establish iOS or
-other-GPU coverage. The ON/OFF normal-transform difference under nonuniform scale
-remains documented; no FPS or combined-memory improvement is claimed.
-
-[Linux/GLES failure/retry](normal-mapping-enabled-optimization.md#completed-milestone-linuxgles-failure-and-retry)
-and [controlled context recreation](normal-mapping-enabled-optimization.md#completed-milestone-controlled-linuxgles-context-recreation)
-are recorded separately. Windows DX11 also has creation-failure/pixel coverage
-across all caps and Map failure/retry at cap 2. Actual device loss and broader
-native fault injection remain deferred, not prerequisites for the accepted Metal
-delivery. The [Linux measurements](normal-mapping-enabled-optimization.md#completed-milestone-reproducible-linuxgles-measurements)
-and [Metal measurements](normal-mapping-enabled-optimization.md#completed-macos-milestone-release-measurement-baseline-2026-09-30)
-provide synthetic baselines; representative assets, isolated CPU allocations and
-GPU instruction/register statistics remain follow-up investigations. Per-subset
-upload/eviction above is a potential next optimization, not an unfinished part of
-this delivery.
+- Reduce source-geometry staging only if representative assets demonstrate a
+  material CPU memory cost; evaluate combined CPU/GPU retention.
+- Consider per-subset upload/eviction only with evidence of large prepared subsets
+  remaining unused. When all prepared subsets use normal maps, frame-wide upload
+  remains the supported resource policy.
+- Profile representative game assets and native instruction/register usage;
+  synthetic timings do not establish FPS or isolated CPU allocation costs.
+- Extend DX11 `Map` fault cases beyond cap 2, broaden native fault injection, or
+  test actual GPU loss/in-flight async recovery when required by a concrete use
+  case or defect. Existing coverage and its limits are in the delivery reference.
 
 ### Skeletal deformation and dynamic geometry
 

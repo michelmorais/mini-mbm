@@ -789,12 +789,12 @@ for tangents, managed derived buffers, and a constant zero tangent for source dr
 It does not change the globally selected profiles. On unsupported profiles it emits
 one diagnostic per context and uses the geometric-lighting shader path.
 The default geometric lighting shader exceeds strict SM2 limits at all compiled
-light caps 1..4 in the Windows validation: instruction slots at caps 1/2 and
+light caps 1..4: instruction slots at caps 1/2 and
 temporary registers at caps 3/4. Its compilation fails; selecting the geometric
 path is not functional SM2 lighting or an automatic switch to an unlit shader.
 The separate unlit default shader renders with actual SM2 bytecode, ignores 3D
 normal maps and creates no derived mapping resources. See the
-[SM2 profile verification](normal-mapping-enabled-optimization.md#completed-windows-milestone-sm2-profile-characterization-2026-09-30)
+[backend limits](normal-mapping.md#backend-limits)
 for test coverage and the distinction from real SM2 hardware.
 
 DX9 static source buffers permit read-only extraction for Mesh Debug, preserving
@@ -826,7 +826,7 @@ it does not silently enable geometric fallback for that draw. CPU staging remain
 available for a later retry, and temporary GPU buffers are not published. The
 geometric variant remains usable if mapping is disabled on the material. GLES
 failure/retry regression coverage and its limits are documented in the
-[enabled-build plan](normal-mapping-enabled-optimization.md#completed-milestone-linuxgles-failure-and-retry).
+[normal-mapping validation scope](normal-mapping.md#validation-scope).
 
 
 Normal-map rendering has desktop validation coverage on Linux/Mesa GLES,
@@ -837,29 +837,20 @@ iOS, other-GPU or real device-loss coverage. The reusable visual scenes are
 PASS markers and backend validation diagnostics where available; successful
 compilation alone does not verify the rendered effect.
 
-The build-switch/deferred-resource regression matrices now cover all eight
-normal-mapping ON/OFF x 1..4-light combinations on Windows DX9 SM3 and DX11
-Debug x86. See the [native validation evidence](normal-mapping-enabled-optimization.md)
-for the DX9 compilation fixes, required profile checks and the limits of each
-suite. The subsequent SM2 profile tests characterize the lighting limitation and
-unlit rendering; neither those tests nor the matrices establish device-loss coverage.
+Build-switch/deferred-resource validation covers ON/OFF x light caps 1..4 on
+Windows DX9 SM3/DX11 Debug x86 and macOS Metal Debug/Release arm64 on Apple M4.
+Metal checks include API validation, pipeline selection/cache identity and cap-2
+captures. See [Normal mapping](normal-mapping.md#validation-scope) for scope,
+reproduction commands and measurement boundaries.
 
-The scoped macOS Metal delivery is also **accepted and closed** on Apple M4:
-all eight ON/OFF x cap 1..4 entries pass in Debug and Release, with native API
-validation, pipeline selection/cache checks and cap-2 captures. A separate Release
-study records CPU/GPU timings and memory observations; it does not establish FPS
-or combined-memory improvement. See the [Metal acceptance decision](normal-mapping-enabled-optimization.md#macos-metal-delivery-acceptance)
-for evidence, reproduction and platform limits.
+Metal enabled-build geometric shaders use an inverse-transpose normal transform,
+while disabled builds use a direct transform. Arbitrary ON/OFF pixel equivalence
+under nonuniform scale is not established. Frame-wide upload and retained GPU
+batches are the supported resource policy; per-subset upload/eviction is optional
+and requires evidence of benefit in representative assets.
 
-One known Metal limitation remains: enabled-build geometric shaders include an
-inverse-transpose normal transform, while OFF builds retain the direct transform.
-Do not assume ON/OFF pixel equivalence for arbitrary nonuniform scales. The native
-matrices verify each build's documented fallback behavior, not that broader claim.
-Per-subset upload/eviction is a future refinement of the delivered frame-wide
-upload/retention contract and is not required to close this release.
-
-Dynamic/skinned integration, additional authoring tools and remaining validation
-are tracked in [Future Features](future-features.md#normal-mapping).
+Dynamic/skinned integration and optional investigations are tracked in
+[Future Features](future-features.md#normal-mapping).
 
 Current `2dw` normal-map behavior:
 
