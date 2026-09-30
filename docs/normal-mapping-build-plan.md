@@ -286,5 +286,13 @@ passes Debug x86 ON/OFF at cap 2: **15 cases per build and 22/22 integrated step
 with DX11 debug-layer and post-teardown lifecycle validation. Four new cases fail
 vertex/index creation in the second batch of one subset or across two subsets,
 then verify complete cleanup, repeated rollback, retry and resource reuse. No
-production changes were needed. The next Windows milestone extends the 15-case
-suite to caps 1/3/4; the earlier full matrix covers only the original 11 cases.
+production changes were needed. The expanded matrix follows below; the earlier
+full recovery matrix covers only the original 11 cases.
+
+The [full DX11 multi-batch matrix](normal-mapping-enabled-optimization.md#completed-windows-milestone-full-dx11-multi-batch-matrix-2026-09-30)
+now validates the 15-case suite in all eight Debug x86 ON/OFF x 1..4-light entries:
+**120/120 cases and 88/88 integrated steps**, combining 66 new steps with the 22
+verified prior cap-2 steps. All entries require debug-layer and post-teardown
+lifecycle markers. No engine or test changes were needed. The next Windows
+milestone is pixel comparison after DX11 recovery; compiler/Map failures, actual
+device loss, DX9/Metal injection and Release profiling remain pending.

@@ -123,8 +123,10 @@ Device-loss and performance acceptance remain pending.
   ON/OFF x 1..4-light entries, with debug-layer and post-teardown lifecycle checks.
 - [x] Validate DX11 rollback/retry in a second batch of one subset and across
   two subsets, Debug ON/OFF at cap 2 (15-case suite, details below).
-- [ ] Extend the 15-case DX11 suite to light caps 1/3/4. Extend failure injection
-  to DX9/Metal, compiler/Map failures and actual device-loss scenarios.
+- [x] Extend the 15-case DX11 suite to light caps 1/3/4: all eight Debug ON/OFF
+  entries pass, including native validation (full matrix below).
+- [ ] Compare pixels after DX11 recovery. Extend failure injection to DX9/Metal,
+  compiler/Map failures and actual device-loss scenarios.
 - [ ] Record native measurements and evidence before claiming performance or
   native parity. No FPS or total-memory improvement is assumed.
 
@@ -1045,7 +1047,7 @@ failure reached, including both larger fixtures.
 `--dx11-failure` / `-Dx11Failure` now require all 15 named case markers and the
 15-case aggregate PASS. An older 11-case binary cannot satisfy the updated runner.
 The prior eight-entry matrix remains evidence for the original 11 cases only;
-caps 1/3/4 have not yet run the expanded suite.
+the expanded 15-case matrix is recorded in the following milestone.
 
 Reproduce with a new output directory for each ON/OFF value:
 
@@ -1063,6 +1065,54 @@ v145, Windows SDK 10.0.28000.0 and Python 3.14.5. Earlier artifacts are unchange
 Scope is static upload rollback across two batches/subsets, including repeated
 failure, retry and warm reuse. Buffer contents/pixels during recovery, failures
 after more than two batches, compiler/Map failures and actual device loss are
-not covered here. The next Windows milestone is extending this 15-case suite
-to caps **1, 3 and 4**, ON/OFF. DX9/Metal injection and Release profiling remain
-separate work.
+not covered here. The following milestone extends this 15-case suite to caps
+**1, 3 and 4**, ON/OFF. DX9/Metal injection and Release profiling remain separate
+work.
+
+## Completed Windows milestone: full DX11 multi-batch matrix (2026-09-30)
+
+The expanded **15-case** suite now passes all **eight DX11 Debug x86 ON/OFF x
+light cap 1/2/3/4** entries. Six fresh isolated builds at caps 1, 3 and 4 passed
+**66/66 integrated steps**. Together with the verified prior cap-2 runs, this
+gives **88/88 steps** and **120/120 recovery-suite cases**:
+
+| Light cap | ON cases | OFF cases | Integrated steps | Evidence |
+|---|---:|---:|---:|---|
+| 1 | 15/15 | 15/15 | 22/22 | New builds and runs |
+| 2 | 15/15 | 15/15 | 22/22 | Prior runs; reports, sources and binaries verified |
+| 3 | 15/15 | 15/15 | 22/22 | New builds and runs |
+| 4 | 15/15 | 15/15 | 22/22 | New builds and runs |
+
+The **60 ON cases** exercise injection, rollback, retry and warm reuse; the
+**60 OFF cases** verify successful geometric draws without mapped resource
+creation or injected failures being reached. This includes second-batch vertex
+and index failures within one subset and across two subsets at every light cap.
+Each entry also runs CPU preparation/persistence, Lua build configuration,
+native lazy resources, numerical skeletal parity, runtime/readback and visual
+IB/VB regression. Debug-layer and post-teardown lifecycle success markers were
+checked for resources, skeletal parity and recovery in all eight entries.
+
+No engine or test-code changes were required. New runs use revision
+`3f96b72fe123ec68a55aaeeb8acb3f1cd36ebbf0`, engine 7.328, VS 2026/MSVC v145,
+Windows SDK 10.0.28000.0 and Python 3.14.5. The cap-2 test/proxy/runner source
+hashes and executable/DLL hashes still match exactly; its 22 steps were not rerun.
+All eight binary manifests were verified during consolidation.
+
+Reproduce each entry with the existing command, varying `-Normal` (0/1) and
+`-Lights` (1/3/4), always choosing a fresh output directory:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map-tests.ps1 -Backend dx11 -Normal 1 -Lights 4 -Dx11Failure -SkeletalParity -Output build/normal-windows/recheck-multibatch-on-4
+```
+
+New evidence is under `build/normal-windows/multibatch-dx11-{on,off}-{1,3,4}/`:
+`results/report.json`, per-suite logs/PNGs, `build.json`, `build.log` and
+`binary-hashes.json`. The combined index is
+`build/normal-windows/dx11-multibatch-matrix-summary.json`; it links all eight
+reports/manifests and distinguishes the six new runs from the prior cap-2 runs.
+Earlier artifacts remain unchanged.
+
+The scope remains the resource contracts described above, not pixel equality
+during recovery or actual device loss. The next Windows milestone is **pixel
+comparison after DX11 recovery**. Compiler/Map failures, failures after more
+than two batches, DX9/Metal injection and Release profiling remain separate work.
