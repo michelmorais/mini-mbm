@@ -3,6 +3,55 @@
 Initial delivery: 7.327. Shared CPU preparation: 7.328. This extends the completed build-switch implementation; it does
 not change `USE_NORMAL_MAPPING_3D` or `SUPPORTED_MAX_LIGHTS`.
 
+## Current scope and next step (2026-09-30)
+
+**Windows functional validation is closed for DX9 SM3/DX11 Debug x86. Further
+test expansion is deferred. Native macOS Metal evaluation is the next active
+milestone**, by user decision. Completed milestones below remain the evidence
+history; their earlier next-step proposals do not override this scope decision.
+
+Windows evidence includes the full ON/OFF x 1..4 baseline matrices, SM2
+characterization, numerical skeletal parity, DX11 debug/lifecycle checks, the
+15-case creation-failure/pixel matrix at all caps, and the 20-case suite including
+`Map` at cap 2. Keep those tests; no new Windows fault matrix is required for
+functional closure. Release performance and actual device-loss recovery are not
+claimed.
+
+### Bounded macOS handoff
+
+1. On a Mac with a graphical session and Metal support, read `engine-testing`
+   and record macOS, CPU/GPU, architecture, Xcode/SDK and source revision. This
+   Windows session has not executed native Metal tests.
+2. Build Debug `testLib` and `mini-mbm` with `PLAT=MacOs`, `USE_METAL=1`,
+   `USE_LUA=1`, `USE_TEXTURE_MISSING_DIALOG=0`, normal mapping ON/OFF and light
+   cap 2. Use separate build trees and snapshot each entry's binaries/libraries
+   before building the next, since CMake output paths are shared.
+3. Run the existing [matrix entry procedure](#run-one-matrix-entry) with
+   `--backend metal --require-native-validation`; preserve reports, logs and
+   visual images, plus evidence that Metal API validation is active. The runner
+   supports neither `--dx11-failure` nor `--skeletal-parity` for Metal.
+4. Resolve failures in the existing baseline, then complete ON/OFF at caps 1, 3
+   and 4. Perform the already-planned targeted Metal capture to inspect shader
+   inputs and geometric/mapped pipeline selection/cache identity.
+5. Close this milestone when all eight baseline entries pass, API validation
+   evidence and the targeted capture are recorded, and any platform limitations
+   are explicit. Do not add new fault-injection suites to reach this boundary.
+
+macOS GLES is a separate conditional follow-up only if that backend is shipped.
+Release performance measurements remain planned work after native functional
+evaluation; no FPS or combined-memory improvement is assumed.
+
+### Deferred robustness backlog (not baseline acceptance blockers)
+
+- Extend the 20-case DX11 suite, including `Map`, to caps 1/3/4.
+- Broaden compiler/upload/Map fault injection on DX9/Metal or beyond the existing
+  DX11 cases; test failures after more than two batches and skeletal buffers.
+- Exercise actual device loss/driver resets and in-flight async loads on native
+  backends. Existing controlled EGL recreation does not establish these results.
+
+Resume these only through an explicit scope decision or a concrete defect that
+requires a focused regression. They are not automatic next milestones.
+
 ## Behavior
 
 - Default/reserved static lighting compiles a geometric variant first. It has no
@@ -83,7 +132,10 @@ with 7.328 plus the DX9 compilation fixes below. macOS acceptance remains
 **pending**. SM2 profile characterization is complete below: default lighting
 exceeds the profile, while unlit rendering passes. DX11 single-batch COM creation
 failure/retry is also validated across all eight Debug entries (details below).
-Device-loss and performance acceptance remain pending.
+Windows functional validation is now closed; macOS Metal is the active remaining
+baseline. See [current scope](#current-scope-and-next-step-2026-09-30) for the
+completion boundary. Device-loss testing is deferred robustness work, and
+performance measurements remain a separate workstream.
 
 - [x] Keep the GLES native resource inspection command and implement the same
   `--normal-map-lazy-resource-test` entry point for DX9, DX11 and Metal.
@@ -115,8 +167,6 @@ Device-loss and performance acceptance remain pending.
 - [x] Exercise controlled full EGL context destruction/recreation through the
   Linux/GLES production restore state machine, with pending and uploaded assets,
   shared instances, shader variants and pixel comparisons (details below).
-- [ ] Validate abrupt driver resets/`EGL_CONTEXT_LOST`, in-flight async loads and
-  native Windows/macOS loss handling. Controlled recreation does not prove those.
 - [x] Add deterministic Linux/GLES failed-compile/link/program-creation and
   failed-upload retry coverage, including Debug and Release (details below).
 - [x] Validate DX11 single-batch COM creation failure/retry in all eight Debug
@@ -130,9 +180,6 @@ Device-loss and performance acceptance remain pending.
   entries pass, including contrast checks and native validation (matrix below).
 - [x] Validate DX11 constant-buffer `Map` failure/retry in Debug ON/OFF at cap 2,
   including second-subset failures, retained buffers and pixel comparison.
-- [ ] Extend the 20-case DX11 suite (including `Map`) to light caps 1/3/4.
-- [ ] Extend failure injection to compiler failures, DX9/Metal and actual
-  device-loss scenarios.
 - [ ] Record native measurements and evidence before claiming performance or
   native parity. No FPS or total-memory improvement is assumed.
 
@@ -1303,7 +1350,9 @@ change, VS 2026/MSVC v145, Windows SDK 10.0.28000.0 and Python 3.14.5.
 
 This proves deterministic constant-buffer failure/retry on this Windows device;
 it does not simulate real memory exhaustion, device removal, compiler failure,
-skeletal buffer failures or cross-GPU image equality. The next Windows milestone
-extends the **20-case suite to caps 1/3/4, ON/OFF**. Earlier full matrices establish
-15-case creation-failure coverage only. DX9/Metal injection, actual device loss
-and Release profiling remain separate work.
+skeletal buffer failures or cross-GPU image equality. Extending the **20-case
+suite to caps 1/3/4, ON/OFF** is deferred by the
+[scope decision](#current-scope-and-next-step-2026-09-30); native macOS Metal
+evaluation is next. Earlier full matrices establish 15-case creation-failure
+coverage only. Broader fault injection and actual device loss remain in the
+robustness backlog; Release profiling remains separate planned work.

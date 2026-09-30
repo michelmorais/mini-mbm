@@ -166,6 +166,11 @@ are saved under `results/fixtures/pixels-*-{reference,recovered}.ppm`.
 Build arguments/logs and `results/report.json`, test logs and PNGs remain under
 the chosen output directory. Native coverage and remaining work are tracked in
 [the optimization plan](../docs/normal-mapping-enabled-optimization.md).
+Windows functional validation is closed for the documented Debug x86 scope.
+Further fault-matrix expansion is deferred; the next active milestone is native
+macOS Metal evaluation. See the
+[scope decision](../docs/normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30)
+for the acceptance boundary and separate performance/robustness backlog.
 
 ---
 

@@ -1,9 +1,11 @@
 # Build-time normal mapping and lighting specialization
 
 Status: implemented in 7.324; Linux Release and Windows DX9 SM3/DX11 Debug x86
-baseline matrices verified. Apple acceptance and detailed CPU/GPU performance profiling
-remain pending. See the completed Windows milestone in the
-[optimization plan](normal-mapping-enabled-optimization.md).
+baseline matrices verified. Windows functional validation is closed and further
+test expansion is deferred by the 2026-09-30 scope decision. The next active
+step is native macOS Metal acceptance. Detailed CPU/GPU performance profiling
+remains pending separately. See the
+[current scope and macOS handoff](normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30).
 
 The subsequent optimization for enabled builds is tracked separately in
 [Geometric variants and deferred upload](normal-mapping-enabled-optimization.md).
@@ -322,6 +324,20 @@ normal settings. Repeated failures retain uploaded buffers; fallback/retry and
 warm draws reuse them, with exact reference pixels and balanced Map/Unmap calls.
 Second-subset failures preserve the first subset's pixels. OFF exercises the
 matrix/light faults and verifies absence of normal-settings maps. Native
-debug/lifecycle validation passed. No engine changes were needed. The next
-Windows milestone extends the 20-case suite to light caps 1/3/4; earlier full
-matrices cover only the original 15 creation-failure cases.
+debug/lifecycle validation passed. No engine changes were needed. Extending the
+20-case suite to light caps 1/3/4 is deferred to optional robustness backlog;
+earlier full matrices cover only the original 15 creation-failure cases.
+
+## Windows closure and macOS handoff (2026-09-30)
+
+Windows functional acceptance is complete for the recorded DX9 SM3/DX11 Debug
+x86 scope. Keep the existing tests and evidence; do not extend the Windows fault
+matrix as a prerequisite for moving on. This does not claim Release performance,
+real device-loss recovery, or validation on other architectures/devices.
+
+The next active milestone is macOS Metal: start with Debug ON/OFF at light cap 2,
+then complete the original ON/OFF x 1..4 baseline matrix using the existing
+runner and Metal API validation. Follow the bounded
+[macOS handoff](normal-mapping-enabled-optimization.md#current-scope-and-next-step-2026-09-30).
+Native performance measurements remain planned separately; broader fault
+injection and device-loss testing are deferred and do not block this baseline.
