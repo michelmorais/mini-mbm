@@ -131,8 +131,9 @@ relief-specific normals and [Mesh Simplification](mesh-simplification.md) for
 operations that change geometry.
 
 Normal-map texture generation is a separate panel from these vertex-normal
-operations. See [normal-map generation in MeshDebug](normal-map-editor.md#geração-no-meshdebug-7344)
+operations. See [normal-map generation in MeshDebug](normal-map-editor.md#geração-no-meshdebug)
 for `.msh` frame/subset selection, `.imesh` project settings, Undo and resource
-ownership. Its integration smoke passed on macOS/Metal Debug/arm64 with Metal API
-Validation on 2026-10-01; the pure vertex-normal policy tests passed as well.
-This does not extend macOS coverage to every vertex-normal editing operation.
+ownership. The integration smoke covers macOS/Metal Debug/arm64 with Metal API
+Validation; pure tests cover vertex-normal policies. Manual macOS verification
+also covers the editor's normal-map workflow. This scope does not imply coverage
+of every vertex-normal editing operation.

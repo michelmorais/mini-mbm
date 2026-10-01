@@ -1,9 +1,8 @@
 # Gerador de Normal Map
 
-Primeira entrega do [plano](normal-map-editor-plan.md), introduzida em 7.329.
-Editor independente com módulos Lua compartilhados. O Image Mesh reutiliza esses
-módulos e, desde 7.332, preserva o relevo geométrico ao acrescentar normal map.
-Desde 7.336, o Image Mesh oferece **Detalhe residual (frente)**: uma aproximação
+Editor independente com módulos Lua compartilhados com Image Mesh e MeshDebug.
+O Image Mesh preserva o relevo geométrico ao acrescentar normal map e oferece
+**Detalhe residual (frente)**: uma aproximação
 pela diferença entre a altura processada e a superfície da malha final. O módulo
 Lua reutilizável `normal_map_residual.generate(image, vertices, indices, domain,
 settings, tick)` rasteriza triângulos com índices Lua (base 1), preserva diferenças
@@ -15,26 +14,26 @@ pode ceder execução para cancelamento cooperativo. UVs são os da imagem compl
 as dimensões de `image` são as do recorte processado. O módulo não depende da engine.
 `height_map_source.blur` também aceita mapas de floats assinados;
 `normal_map_generator.fromMap` permite escalas físicas diferentes por eixo.
-Em 7.338, `normal_map_baker.generate(image, vertices, indices, corners, domain,
+`normal_map_baker.generate(image, vertices, indices, corners, domain,
 settings, tick)` acrescenta compensação na base tangente interpolada. Usa o mesmo
 `domain`, com a orientação frontal do Image Mesh (X e Y decrescem com U e V),
 vértices com `nx/ny/nz` e uma tangente `{x,y,z,sign}` por canto de triângulo.
 As tangentes podem ser obtidas de `meshDebug:getNormalMapCorners(frame, subset)`.
 O resultado contém `bytes`, `width`, `height` e `options`. O módulo é Lua puro,
 com execução cooperativa por `tick`; não depende de ImGui ou da engine.
-Desde 7.342, **Meta automatica de triangulos** fica em um painel próprio do Image
-Mesh e funciona sem normal map. A redução QEM atende à meta; a busca de raios para
+**Meta automatica de triangulos** fica em um painel próprio do Image
+Mesh e funciona sem normal map. A redução QEM busca atingir a meta; a busca de raios para
 separação de detalhe só participa quando normal map residual e compensação estão
 ativos. O ajuste manual de separação continua em **Normal map e tangentes**.
 
-Desde 7.339, o Image Mesh oferece **Separacao de detalhe (px)**: raio opcional de
+O Image Mesh oferece **Separacao de detalhe (px)**: raio opcional de
 filtro na geometria, preservando a altura original no normal map residual.
 A filtragem pesada roda no núcleo, reutilizável pela opção `geometryBlurRadius`
 de `generateImageMesh`/`startImageMesh`; o projeto usa `normalMapGeometryBlur`.
 O controle está disponível para fontes contínuas de imagem, manual e mista.
-Desde 7.340, **Separacao automatica** busca um raio por meta de triangulos,
+Com residual e compensação ativos, a meta automática busca um raio de separação,
 contando frente, verso e laterais após simplificação. Testa 0/1/2/4/8/16/32 px
-e informa quando não consegue atingir a meta. Desde 7.341, ativa a simplificação
+e informa quando não consegue atingir a meta. A meta automática ativa a simplificação
 QEM implicitamente e calcula a redução pela meta, preservando as restrições
 de detalhes/contornos. Raio, método e proporção manuais ficam preservados; consulte as limitações no [Image Mesh](image-mesh-editor.md#normal-map-relief).
 
@@ -163,15 +162,6 @@ A geração Lua é cooperativa e utiliza linhas compactadas para limitar o custo
 tabelas numéricas. Leitura de arquivo, concatenação final, codificação PNG e upload
 são síncronos; imagens grandes ainda podem causar pausas nessas etapas. Exportação
 em resolução original prioriza a conclusão do arquivo, sem prometer latência fixa.
-Uma futura implementação nativa/GPU pode substituir o processamento preservando
-o contrato dos módulos.
-
-Uma medição local com o interpretador Lua Debug, imagem constante de 1024x1024 e
-raio de suavização 8 consumiu aproximadamente 10,5 s de CPU, em 1.494 etapas
-(maior etapa: 10 ms), com cerca de 33 MiB no heap Lua ao final. O tempo de parede
-na UI será maior por causa do orçamento por frame; essa medição não inclui PNG,
-upload nem memória nativa. Aceleração do processamento é uma prioridade antes de
-tratar imagens grandes como um fluxo interativo.
 
 ## Validação
 
@@ -195,34 +185,25 @@ Verifique os marcadores `NORMAL MAP LAUNCHER SMOKE PASS` e
 `NORMAL MAP EDITOR SMOKE PASS` nos respectivos testes e a ausência de erros no log;
 o código de saída da engine sozinho não comprova ausência de erros Lua.
 
-Validado em Linux/GLES: compilação, altura constante, rampas X/Y, inversão,
+A cobertura automatizada inclui altura constante, rampas X/Y, inversão,
 transparência com/sem suavização, repetição, imagem 1x1, jobs independentes,
 cancelamento, projeto, PNG sem perda, falha de escrita, recarga/liberação GPU,
 preview renderizado e ausência de geração/upload durante oito segundos ociosos.
-O teste também prepara uma malha 3D, aplica o PNG exportado e compara capturas com
+O teste prepara uma malha 3D, aplica o PNG exportado e compara capturas com
 normal mapping ativado e com intensidade zero para verificar seu consumo real.
-A captura visual foi inspecionada; cliques e arrastes reais não foram automatizados.
-Essa validação inicial não incluiu Windows, macOS/Metal ou plataformas móveis.
+
+A validação desktop cobre Linux/GLES, Windows/OpenGL ES/DX9/DX11 e macOS/Metal.
+O fluxo manual dos editores no macOS também está verificado. Os smokes exercitam
+operações programaticamente e desenham os painéis; cliques, arrastes, atalhos e
+diálogos nativos são verificações manuais, não testes automatizados.
+Plataformas móveis não fazem parte dessa cobertura do editor.
 
 ### Windows (MSVC Debug/Win32)
 
-Validação de 2026-10-01, Visual Studio 2026, normal mapping habilitado:
-
-| Verificação | OpenGL ES | DirectX 11 | DirectX 9 |
-|---|---|---|---|
-| Build do engine, ImGui e libTest | Passou | Passou | Passou |
-| Inicialização pelo launcher | Passou | Passou | Passou |
-| Gerador: PNG, preview, material 3D e oito segundos ociosos | Passou | Passou | Passou |
-| Integração Image Mesh: residual, comparações, exportação e cancelamento | Passou | Passou | Passou |
-| Integração MeshDebug: seleção, geração, desfazer e limpeza | Passou | Passou | Passou |
-
-Os testes Lua puros do gerador, residual e baker passaram no interpretador 5.4.1
-compilado das fontes incluídas no projeto. Preparação e persistência nativas,
-argumentos UTF-8 do launcher e recursos GPU passaram; no DirectX 11, a camada de
-debug também aprovou os recursos e seu ciclo de vida. A janela do gerador foi
-inspecionada visualmente em DirectX 11. Cliques, arrastes e diálogos nativos não
-foram automatizados. Os testes gráficos DirectX 9 precisaram do desktop real:
-nesse ambiente, o sandbox não conseguiu criar o dispositivo gráfico.
+A cobertura inclui build, launcher, gerador, Image Mesh e MeshDebug nos três
+backends. Testes nativos verificam preparação/persistência, argumentos UTF-8 e
+recursos GPU; DirectX 11 também usa a camada de debug para validar seu ciclo de vida.
+Execute os testes gráficos em uma sessão de desktop com acesso ao dispositivo.
 
 O build OpenGL ES precisa vincular `libEGL.dll.lib` e `libGLESv2.dll.lib` no
 projeto `core_mbm`; copiar as DLLs para a saída não substitui essa dependência.
@@ -262,33 +243,27 @@ de verificar a preservação dos parâmetros manuais.
 
 ### macOS (Metal Debug/arm64)
 
-Validação de 2026-10-01 em macOS 26.6.2, Apple M4, Retina 2x, AppleClang 21
-e CMake 4.2.0, engine 7.344. Normal mapping habilitado, limite compilado de quatro
-luzes e `MTL_DEBUG_LAYER=1` em todos os testes gráficos:
+A configuração verificada usa Apple M4, arm64, Retina 2x, Debug, normal mapping
+habilitado, limite compilado de quatro luzes e `MTL_DEBUG_LAYER=1`.
 
-| Verificação | Resultado |
+| Verificação | Cobertura |
 |---|---|
-| Build do engine, ImGui e testLib | Passou |
-| Lua puro: gerador, residual, baker, modelo Image Mesh e políticas de normais | Passou |
-| Inicialização do gerador pelo launcher da engine | Passou |
-| Gerador: PNG, reload/release GPU, material 3D e oito segundos ociosos | Passou |
-| Image Mesh: residual/base tangente, laterais, comparações, meta automática, exportação, desfazer e cancelamento | Passou |
-| MeshDebug: frames/subsets, `.msh`/`.imesh`, aplicação, falha de leitura, desfazer, limpeza e painel ocioso | Passou |
-| Suíte runtime: preparação, persistência, recursos/pipelines Metal, leitura de pixels e renderização com/sem índices | Passou |
+| Build | Engine, ImGui e testLib |
+| Lua puro | Gerador, residual, baker, modelo Image Mesh e políticas de normais |
+| Launcher | Carregamento da cena do gerador por `__onLoadScene` |
+| Gerador | PNG, reload/release GPU, material 3D e oito segundos ociosos |
+| Image Mesh | Residual/base tangente, laterais, comparações, meta automática, exportação, desfazer e cancelamento |
+| MeshDebug | Frames/subsets, `.msh`/`.imesh`, aplicação, falha de leitura, desfazer, limpeza e painel ocioso |
+| Runtime | Preparação, persistência, recursos/pipelines Metal, leitura de pixels e renderização com/sem índices |
+| Interface | Fluxos manuais dos três editores verificados |
 
-Os quatro smokes de editor terminaram com seus marcadores de sucesso, código 0
-e sem diagnósticos de falha da validação Metal. O caso de cancelamento do Image Mesh
-imprime `ime_generation_cancelled`; o caso de fonte inexistente do MeshDebug
-imprime `Invalid image or more than 16 million pixels`. São falhas provocadas pelo
-teste, que também verifica a preservação da malha anterior.
-
-O PNG gerado e as capturas `material-mapped.png`/`material-flat.png` foram
-inspecionados: o material consome o mapa e muda a iluminação em relação à
-intensidade zero. Isso não valida toda a interface visual. Os smokes chamam as
-operações reais dos editores programaticamente e desenham seus painéis; não
-automatizam cliques, arrastes, atalhos nem diálogos nativos. A seleção no diálogo
-inicial do aplicativo também não foi exercitada: o smoke de launcher verifica o
-carregamento da cena por `__onLoadScene`.
+Os smokes exigem marcadores de sucesso, código 0 e ausência de diagnósticos de
+falha da validação Metal. O caso de cancelamento do Image Mesh imprime
+`ime_generation_cancelled`; o caso de fonte inexistente do MeshDebug imprime
+`Invalid image or more than 16 million pixels`. São falhas provocadas pelo teste,
+que também verifica a preservação da malha anterior.
+As capturas `material-mapped.png`/`material-flat.png` verificam a diferença de
+iluminação entre o mapa aplicado e intensidade zero.
 
 Para reproduzir a partir da raiz:
 
@@ -298,10 +273,8 @@ cmake -S . -B build/macos_debug -DPLAT=MacOs -DUSE_ALL=1 \
 cmake --build build/macos_debug -j 8
 ```
 
-Metal é o backend padrão. A configuração agora habilita Objective-C++ **depois**
-de resolver esse padrão. Antes da correção, um build novo sem `-DUSE_METAL=1`
-falhava ao configurar `normal-map-native-resource-tests.cpp`, cuja linguagem é
-`OBJCXX`. Os avisos de compilação observados são de bibliotecas de terceiros.
+Metal é o backend padrão. O CMake habilita Objective-C++ após resolver o backend,
+incluindo a compilação de `normal-map-native-resource-tests.cpp` como `OBJCXX`.
 
 O CMake atual gera o executável Lua isolado somente no Linux. No macOS, compile
 o interpretador das fontes incluídas e vincule a biblioteca recém-construída:
@@ -359,18 +332,17 @@ python3 src/test-lib/run-normal-map-tests.py \
   --output /tmp/normal-map-macos-runtime
 ```
 
-O runner grava `report.json`, logs e capturas. Nesta sessão, os relatórios ficaram
-em `/tmp/normal-map-macos-runtime-20261001` e
-`/tmp/normal-map-macos-editors-20261001`. Esses diretórios são temporários.
+O runner grava `report.json`, logs e capturas no diretório escolhido.
 
-Para a passada manual, abra `editor/normal_map_editor.lua`,
-`editor/image_mesh_editor.lua` e `editor/mesh_debug.lua` com o mesmo executável:
-verifique seleção/salvamento com caminhos acentuados, controles de normal map,
-arrastes e posicionamento dos painéis em Retina, desfazer e reabertura dos arquivos
-exportados. macOS/OpenGL ES, Intel, Release e plataformas móveis não foram
-validados nesta sessão.
+Para verificar a interface, abra `editor/normal_map_editor.lua`,
+`editor/image_mesh_editor.lua` e `editor/mesh_debug.lua` com o mesmo executável.
+O roteiro manual inclui seleção/salvamento com caminhos acentuados, controles de
+normal map, arrastes e posicionamento dos painéis em Retina, desfazer e reabertura
+dos arquivos exportados. A cobertura dos editores não inclui macOS/OpenGL ES,
+Intel ou Release; a matriz do runtime é documentada em
+[Normal mapping](normal-mapping.md#validation-scope).
 
-## Integração ao Image Mesh (entrega 2)
+## Integração ao Image Mesh
 
 O Image Mesh reutiliza `normal_map_generator` e `normal_map_panel` através de
 `image_mesh_normal_map.lua`. A altura vem do raster nativo do próprio Image Mesh,
@@ -390,7 +362,7 @@ timeout -s KILL 135 ./bin/debug/linux_x86/mini-mbm \
 Marcador esperado: `IMAGE MESH NORMAL PASS`. A mensagem
 `ime_generation_cancelled` faz parte do caso de cancelamento intencional.
 
-## Geração no MeshDebug (7.344)
+## Geração no MeshDebug
 
 O treenode **Gerar normal map** complementa o painel existente de material e
 preparação de tangentes. Os controles são rascunhos: **Gerar e aplicar** inicia
@@ -432,4 +404,5 @@ O teste `src/test-lib/mesh_debug_normal_generator_smoke.lua` exercita o MeshDebu
 real: seleção individual/todos, material com intensidade 1, tangentes, cancelamento,
 falha de leitura, desfazer, projeto `.imesh` separado da origem, recarga de malha,
 limpeza dos temporários e painéis ociosos. Validado em Linux/GLES e em
-Windows/OpenGL ES/DX9/DX11 e macOS/Metal; cliques e arrastes reais não foram automatizados.
+Windows/OpenGL ES/DX9/DX11 e macOS/Metal. A interação no macOS também tem
+verificação manual; cliques e arrastes não são automatizados pelo smoke.

@@ -109,13 +109,11 @@ position on its own).
 **`mbm.getPickRay(sx, sy)` returns a proper 3D pick ray for the given screen pixel: `ox,oy,oz`**
 (the ray origin — always the camera's own current world position, for any pixel) **and
 `dx,dy,dz`** (a normalized/unit direction). Wraps the engine's internal `DEVICE::rayCast`
-(`device-common.cpp`), previously used only internally to back `mbm.to3d`. Use this instead of
-guessing a `depth` for `mbm.to3d` when you actually need real ray-vs-object math (e.g. testing
-against a known bounding box) — `obj:collide(x, y)` (§6.4) now does exactly this internally.
-`DEVICE::rayCast` applies the `camera.scaleScreen2d` correction internally (since MBM_VERSION
-6.32.0), so `mbm.getPickRay`, `mbm.to3d`, and `obj:collide`'s 3D ray/AABB path all agree on the
-same screen point even when a game opts into design-resolution scaling via `-ew`/`-eh` — they
-previously diverged whenever `scaleScreen2d != 1.0` (see `docs/future_investigation.md`).
+(`device-common.cpp`). Use this for ray-vs-object tests instead of guessing a
+`depth` for `mbm.to3d`. `obj:collide(x, y)` (§6.4) uses the same ray internally.
+`DEVICE::rayCast` applies the `camera.scaleScreen2d` correction, so `mbm.getPickRay`,
+`mbm.to3d`, and `obj:collide`'s 3D ray/AABB path agree on the same screen point
+when a game uses design-resolution scaling via `-ew`/`-eh`.
 
 ---
 
@@ -125,10 +123,8 @@ All engine-level functions live in the global `mbm` table.
 
 **Every color value anywhere in this API — `mbm.setColor`, `obj:setColor`, `line:setColor`,
 the lighting functions (§3.16), `mbm.colorDialog`, and ImGui's `ColorEdit`/`ColorPicker`
-widgets (§12) — is 0.0-1.0 per channel, never 0-255.** Several of these were previously
-mis-documented as 0-255 (an easy assumption to carry over from other engines/APIs); values
-outside `[0,1]` don't error, they silently clamp or saturate, so the mistake shows up as
-"my light/tint/background is stuck white or black" rather than a crash.
+widgets (§12) — is 0.0-1.0 per channel, never 0-255.** Values outside `[0,1]`
+clamp or saturate rather than raising an error.
 
 ### 3.1 Scene & Control
 
@@ -317,7 +313,7 @@ mbm.addShader({
 |---|---|---|---|
 | `mbm.getSplash` | `()` | renderizable\|nil | Get the splash-screen renderizable (if active) |
 | `mbm.executeInThread` | `(command: string)` | — | Execute a command through the legacy desktop background launcher (not Android/iOS) |
-| `mbm.executeProcessAsync` | `(options: table)` | process job\|nil, error? | Start an executable directly on Windows, Linux, or macOS. `options.executable` is required, `options.arguments` is an optional string array, and `options.hidden` defaults to `true` on Windows. The job exposes `isRunning()`, `getExitCode()`, `wait()`, `cancel()`, and `destroy()`. `job:wait()` blocks the calling thread until the child exits, using an operating-system wait instead of active polling; it returns the exit code (also for an already finished job), or nil after destruction. On POSIX, interrupted blocking waits resume. This does not pump frames or keep the UI responsive; use asynchronous status polling for interactive work. Available since 7.202.0. |
+| `mbm.executeProcessAsync` | `(options: table)` | process job\|nil, error? | Start an executable directly on Windows, Linux, or macOS. `options.executable` is required, `options.arguments` is an optional string array, and `options.hidden` defaults to `true` on Windows. The job exposes `isRunning()`, `getExitCode()`, `wait()`, `cancel()`, and `destroy()`. `job:wait()` blocks the calling thread until the child exits, using an operating-system wait instead of active polling; it returns the exit code (also for an already finished job), or nil after destruction. On POSIX, interrupted blocking waits resume. This does not pump frames or keep the UI responsive; use asynchronous status polling for interactive work. |
 | `mbm.getExecutablePath` | `()` | string\|nil | Return the absolute path of the running executable on Windows, Linux, or macOS. This is independent of the current working directory and is unavailable on Android/iOS. |
 | `mbm.generateImageResourceHeaderFromPng` | `(pngFile, headerFile)` | bool | Convert PNG to a C++ `static-resource` header |
 | `mbm.setMinMaxWindowSize` | `(minX, minY, maxX, maxY)` | — | Set window size constraints |
@@ -405,7 +401,7 @@ Obtained via `local cam = mbm.getCamera("2d")` or `mbm.getCamera("3d")`.
 | `cam:scaleToScreen` | `(width, height, axis?)` | — | 2D camera only. Fit the logical design size to the current screen; `axis` accepts `"x"`, `"y"`, or `"xy"` |
 | `cam:getNormal` | `(direction: "R"|"L"|"U"|"D"|"B"|"F")` | vec3 | 3D camera only. Return the current camera-relative direction vector |
 | `cam:setAngleOfView` | `(degrees)` | — | 3D camera only. Field-of-view angle |
-| `cam:setFar` | `(distance)` | — | 3D camera only. Far clip plane distance — objects beyond this are culled. **Default is only 1000**, easy to exceed in a normal 3D scene (was entirely undocumented before) |
+| `cam:setFar` | `(distance)` | — | 3D camera only. Far clip plane distance — objects beyond this are culled. **Default is only 1000**, easy to exceed in a normal 3D scene |
 | `cam:setNear` | `(distance)` | — | 3D camera only. Near clip plane distance |
 
 `setFar`/`setNear`/`setAngleOfView` exist only on the 3D camera (`mbm.getCamera("3d")`) — the 2D
@@ -534,7 +530,7 @@ tangent basis and normal texture are available and `mbm.isNormalMapping3DCompile
 is true. Strength zero disables the detail.
 Skinned meshes do not consume the prepared tangent basis. These properties do not
 change the existing 2dw equations. See [normal mapping](light.md#material-texture-slots)
-for rendering requirements and [future work](future-features.md#normal-mapping).
+for rendering requirements and limitations.
 
 ### 6.3 Size & Bounds
 
@@ -542,7 +538,7 @@ for rendering requirements and [future work](future-features.md#normal-mapping).
 |---|---|---|---|
 | `obj:getSize` | `(considerScale?: bool)` | w, h [, d] | Object dimensions. 3D returns depth too. |
 | `obj:getAABB` | `(update?: bool)` | w, h [, d] | Axis-aligned bounding box **size only** — does NOT imply the box is centered at `getPosition()`. Pass `true` to force recalc. |
-| `obj:getAABBCenter` | `(update?: bool)` | x, y [, z] | The AABB's **true** geometric center in world space (since MBM_VERSION 6.9.0). Equals `getPosition()` when the object's geometry is centered on its own pivot (the common case); differs for anything anchored elsewhere (a mesh pivoted at its base/floor, a character pivoted at its feet, `font` text whose origin is alignment-driven, not centered). Pass `true` to force recalc. |
+| `obj:getAABBCenter` | `(update?: bool)` | x, y [, z] | The AABB's **true** geometric center in world space. Equals `getPosition()` when the object's geometry is centered on its own pivot (the common case); differs for anything anchored elsewhere (a mesh pivoted at its base/floor, a character pivoted at its feet, `font` text whose origin is alignment-driven, not centered). Pass `true` to force recalc. |
 | `obj:isOnScreen` | `()` | bool | Whether the object is visible within the camera frustum |
 | `obj:isLoaded` | `()` | bool | Whether the asset is fully loaded |
 
@@ -553,32 +549,16 @@ for rendering requirements and [future work](future-features.md#normal-mapping).
 | `obj:collide` | `(other, useAABB?: bool)` or `(x, y, useAABB?: bool)` | bool | AABB collision vs another object, or vs screen point. `useAABB` defaults to `true` (use `getAABB`); pass `false` to compare raw `getWidthHeight` dimensions instead. |
 | `obj:isOver` | `(x, y)` | bool | Is screen point (x, y) inside the object's bounding rect |
 
-**The `(x, y, useAABB)` 3-argument form was silently broken until MBM_VERSION 6.8.0** —
-`onCheckCollisionBoundingBoxRenderizable` (`common-methods-lua.cpp`) only entered that code path
-when Lua's argument count was exactly 3 (`self, x, y`), so passing a 4th `useAABB` argument
-(`self, x, y, useAABB` — 4 args) missed that branch entirely and fell through to a generic
-`luaL_error`, even though the code inside was clearly written to read a 4th argument. Fixed by
-accepting both 3 and 4 argument counts here; if you need this form, upgrade past 6.8.0.
+**`obj:collide(x, y)` on a 3D object performs a ray/AABB test**
+(`common-methods-lua.cpp`, `onCheckCollisionBoundingBoxRenderizable`). It casts a
+screen-space pick ray (`DEVICE::rayCast`) and intersects the object's world AABB
+using `DEVICE::rayIntersectsAABB` (slab method). The optional `useAABB` argument
+is accepted in both the screen-point and object forms. See §2 for
+`mbm.getPickRay` when testing against a box that is not a renderizable's AABB.
 
-**`obj:collide(x, y)` on a 3D object does a real ray/AABB test** (`common-methods-lua.cpp`,
-`onCheckCollisionBoundingBoxRenderizable`, since MBM_VERSION 6.8.0): it casts a proper
-screen-space pick ray (`DEVICE::rayCast`) and intersects it against the object's world AABB
-(`DEVICE::rayIntersectsAABB`, slab method). Before 6.8.0 this instead unprojected the screen
-point using the object's own **raw world Z coordinate** as the `depth` passed to the same
-primitive `mbm.to3d` uses (see §2) — which degenerated to the camera's own position, for *every*
-screen pixel, for any object sitting near world Z=0 (e.g. anything left at its default placement
-position), so the test could never register a hit no matter where you clicked. That's fixed now;
-no workaround needed. See §2 for `mbm.getPickRay` if you need the same ray/AABB math directly
-from Lua (e.g. against a box that isn't a renderizable's own AABB).
-
-**`obj:collide` (every form — object-vs-object, screen point, 2D and 3D) now tests against each
-object's true AABB center (`obj:getAABBCenter()`, §6.3), not just `getPosition()`** (since
-MBM_VERSION 6.9.0). This replaces an older internal-only mechanism (`doOffsetIfText`) that
-handled this correction for `font` objects alone, by temporarily mutating the object's live
-position, running the check, then restoring it. The new mechanism is general (any renderizable
-type can have a non-zero center offset, not just text) and doesn't touch `getPosition()` at all.
-No Lua-visible behavior change for anything already centered on its own pivot — this only
-changes results for objects where `getAABBCenter() != getPosition()`.
+All forms of `obj:collide` use the object's true AABB center
+(`obj:getAABBCenter()`, §6.3), including geometry offset from its pivot.
+Collision queries do not change the object's position.
 
 ### 6.5 Physics
 
@@ -678,7 +658,7 @@ silently switching to LBS.
 | `obj:pauseSkeletalAnimationLayer` | `()` | bool | Freeze only the active layer's clip time and fade while the base may continue |
 | `obj:resumeSkeletalAnimationLayer` | `()` | bool | Resume independently paused layer time and fade |
 | `obj:isSkeletalAnimationLayerPaused` | `()` | bool | Whether an active layer is independently paused |
-| `obj:stopSkeletalAnimationAbsoluteLayer` | `()` | bool | Remove the transient Absolute or Additive layer while preserving the base clip; the historical method name is shared by both modes |
+| `obj:stopSkeletalAnimationAbsoluteLayer` | `()` | bool | Remove the transient Absolute or Additive layer while preserving the base clip; the method handles both modes |
 | `obj:seekSkeletalAnimationAbsoluteLayer` | `(time)` | bool | Seek the active Absolute or Additive layer independently, clamped to its clip duration |
 | `obj:setSkeletalAnimationAbsoluteLayerWeight` | `(weight)` | bool | Change the active Absolute or Additive layer's strict weight `0..1` |
 | `obj:fadeSkeletalAnimationAbsoluteLayer` | `(targetWeight, duration)` | bool | Linearly animate the active Absolute or Additive layer from its current weight to a strict target `0..1`; duration must be non-negative, pause freezes progress, and reaching zero removes the layer |
@@ -838,24 +818,17 @@ it for `nil`; a shader compilation failure must not expose a partially initializ
 **`fnt:add`'s 2nd argument is a coordinate-type string, not `x`** (`onAddTextFontLua`,
 `font-lua.cpp`): the C++ binding reads argument position 3 (the 2nd argument after `text`) via
 `getTypeWordRenderizableLua` and only reads positions 4/5/6 as `x`/`y`/`z` if that 3rd Lua argument
-was present — `fnt:add("score", -300, 250)` (2 numbers, no coord-type string, matching a pattern
-copy-pasted from `game-template/main.lua`'s own comments) does **not** error, but silently drops
+is present — `fnt:add("score", -300, 250)` (2 numbers, no coord-type string) does **not** error, but silently drops
 both numbers: `getTypeWordRenderizableLua` coerces `-300` to the string `"-300.0"` via Lua's
 number-to-string rule, that doesn't match `"2ds"`, so it silently defaults to `is2dw = true` and
 the label lands at `2dw` `(0,0)`, not at your intended position. Always pass the coordinate type:
 `fnt:add("score", "2ds", -300, 250)`.
 
-**A `font` object's child text objects (`fnt:add()`'s return value) do not keep their own parent
-`font` alive, and become dangling the instant nothing in Lua references the parent anymore** —
-confirmed with gdb (SIGSEGV in `TEXT_DRAW::setText` → `renderText` →
-`ANIMATION_MANAGER::getIndexAnimation` on a freed `this`) after `fnt:add()`'s font was only a
-`local` scoped inside `onInitScene()`; Lua's GC eventually collected it mid-session (not
-immediately — this is why the crash looks delayed/nondeterministic), and `font`'s `__gc`
-(`onDestroyFontLua`, `font-lua.cpp`) `delete`s the `FONT_DRAW` **and every `TEXT_DRAW` it created**
-unconditionally. Keep the `font` object itself referenced (e.g. a top-level `local`, not one
-scoped to `onInitScene()`) for as long as any text object it created is still in use — the
-game-template's own `score_font`/`score_text` pattern already does this correctly; the trap is
-specifically re-declaring the font as a function-local "just for setup."
+**Child text objects returned by `fnt:add()` do not keep their parent `font` alive.**
+The font's `__gc` callback (`onDestroyFontLua`, `font-lua.cpp`) deletes the
+`FONT_DRAW` and every `TEXT_DRAW` it owns. Retained child references then become
+invalid. Keep the font referenced for as long as its text objects are in use,
+for example in a top-level local rather than a local scoped to `onInitScene()`.
 
 ### 7.5 gif
 
@@ -1001,7 +974,7 @@ region defaults to the complete render target, and the method returns a boolean 
 
 `rt:getCamera(type)` (`type` is `"2d"` or `"3d"`) returns a camera object independent of the main
 scene camera (`mbm.getCamera`), with its own `setPos`/`getPos`/`setFocus`/`getFocus`/`setScale`/
-`getScale`/`setAngle`/`getAngle`/`setUp`/`getUp`/`move`, plus (MBM_VERSION 6.24.0)
+`getScale`/`setAngle`/`getAngle`/`setUp`/`getUp`/`move`, plus
 `setNear`/`getNear`/`setFar`/`getFar`:
 
 ```lua
@@ -1185,17 +1158,16 @@ local tImGui = require "ImGui"
 
 ### Common Pitfalls
 
-These bindings return/expect a different shape or range than most ImGui-familiar code (or this
-doc's older revisions) assumes. Each was found by tracing the actual C++ binding after a
-real bug, not from reading the header alone — verify against `plugins/imGui/imgui-lua.cpp` if
-in doubt rather than assuming a Dear ImGui C++ signature carries over as-is.
+Lua bindings have their own return shapes, ranges and index conventions.
+Check `plugins/imGui/imgui-lua.cpp` rather than assuming that a Dear ImGui C++
+signature carries over unchanged.
 
 - **`Checkbox`** returns only the resulting value, not `(changed, value)`: `local v = tImGui.Checkbox(label, value)`. Detect a toggle yourself with `if v ~= value then ... end`.
-- **`ColorEdit3` / `ColorEdit4` / `ColorPicker3` / `ColorPicker4`** take AND return a single `{r,g,b,*a}` **table** (0.0-1.0 per channel), never separate r,g,b[,a] numbers in either direction. Passing scalars throws `"Expected table [tRgb]"` — this crashed an editor mid-session because a table field (`color.r`) was passed instead of the table itself.
+- **`ColorEdit3` / `ColorEdit4` / `ColorPicker3` / `ColorPicker4`** take AND return a single `{r,g,b,*a}` **table** (0.0-1.0 per channel), never separate r,g,b[,a] numbers in either direction. Passing scalars throws `"Expected table [tRgb]"`. Pass the color table itself, not a field such as `color.r`.
 - **`Combo`**'s `currentIdx` argument and returned index are **1-based** (Lua array convention) — the binding does the `-1`/`+1` conversion against ImGui's native 0-based index internally. Passing a 0-based index (e.g. `i-1` from a manual lookup loop) renders the combo with nothing selected.
 - **`ListBox` has an asymmetric index contract in the current binding:** pass `currentIdx` as a **1-based** Lua index, but read the returned index as **0-based**. `Combo` is 1-based in both directions. For `ListBox`, use the additionally returned selected item string when possible, or add 1 before indexing a Lua array with the returned index.
 - **`GetWindowSize` / `GetWindowPos` / `GetItemRectMin` / `GetItemRectMax` / `GetItemRectSize`** each return a single `{x,y}` table, not two numbers. Use `GetWindowWidth()`/`GetWindowHeight()` if you just need plain numbers.
-- **Don't use `IsAnyWindowHovered()`/`IsAnyItemHovered()` to decide whether a click/scroll/drag should reach your game scene instead of the UI.** Use **`GetWantCaptureMouse()`** (and `GetWantCaptureKeyboard()` for keyboard) instead. Three reasons, all hit in practice on the same editor, repeatedly, across several tabs before being root-caused:
+- **Don't use `IsAnyWindowHovered()`/`IsAnyItemHovered()` to decide whether a click/scroll/drag should reach your game scene instead of the UI.** Use **`GetWantCaptureMouse()`** (and `GetWantCaptureKeyboard()` for keyboard) instead. The input contract has three relevant details:
   1. `IsWindowHovered(ImGuiHoveredFlags_AnyWindow)` (what `IsAnyWindowHovered()` wraps) is designed to be queried about a *specific* window from inside that window's `Begin()`/`End()` block; using it as a global "is the UI in front of the mouse anywhere" check is a repurposing of a per-window API, not its intended use. Dear ImGui's own header comment on `IsWindowHovered` says as much: *"If you are trying to check whether your mouse should be dispatched to Dear ImGui or to your app, you should use the `io.WantCaptureMouse` boolean for that!"*
   2. `WantCaptureMouse`/`WantCaptureKeyboard` additionally account for cases `IsAnyWindowHovered()` misses: an active drag started over a window but now outside its rect, or an open combo/popup list rendered outside its parent window's bounds.
   3. Engine-specific: mini-mbm's own input callbacks (`onTouchDown`, `onTouchMove`, `onTouchZoom`) fire from the platform event-dispatch loop **before** `onLoop()` runs for that frame — see `CORE_MANAGER::onLoop()` in `core-manager-common.cpp`: `plugin->onPrepare()` (which calls `ImGui::NewFrame()`) runs, then queued input events are dispatched to the scene, and only *afterward* does `this->logic()` call `onLoop()`, which is where every `Begin()`/window actually gets drawn this frame. `WantCaptureMouse` is computed by `NewFrame()` itself and is documented as valid to read immediately after it — exactly where these callbacks run. `IsAnyWindowHovered()` has no such guarantee at that point in the frame.
@@ -1693,9 +1665,7 @@ zero/false and avoids their vertex scans, intended for high-frequency geometric 
 it does not omit transforms, matrices, hierarchy, tails, or diagnostics.
 
 The call never edits the skeleton and the report is a detached Lua snapshot. Mesh Debug and the
-Skeletal Animation Editor use it for canonical bind inspection. The exploratory bone and
-name-palette weight methods are no longer registered in Lua; only the canonical skeletal surface
-is available.
+Skeletal Animation Editor use it for canonical bind inspection. Lua exposes only the canonical skeletal surface for bones and weights.
 
 ```lua
 meshD:renameSkeletalBone(oneBasedBoneIndex, newName)
@@ -2029,7 +1999,7 @@ validates once before one atomic commit.
 `duplicateSkeletalKeys` uses the same pre-operation pair contract and copies complete key payloads
 into their source tracks at shifted times. Existing keys remain untouched. Duplicate references,
 out-of-range destinations, and collisions reject the entire candidate before commit.
-`pasteSkeletalKeys` accepts detached complete key payloads, so the source clip no longer needs to
+`pasteSkeletalKeys` accepts detached complete key payloads, so the source clip does not need to
 exist or remain unchanged. Each hexadecimal bone ID resolves against the destination skeleton. A
 matching destination track must have the same T/R/S mask; an absent track is created with the copied
 mask and pasted keys. Source times are offset so `sourceMinimumTime` lands at `insertionTime`.
@@ -2228,7 +2198,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
 | `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
 | `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
-| `geometryBlurRadius` | 0 | Integer 0..32 crop pixels; geometry-only alpha/mask-weighted box filter after finishing and before topology/border attenuation. Nonzero values require continuous image/manual/mixed height; mesh generation rejects curved, voxelized or two-level modes. Height-map export validates the range but keeps the full source unfiltered. Added in 7.339 |
+| `geometryBlurRadius` | 0 | Integer 0..32 crop pixels; geometry-only alpha/mask-weighted box filter after finishing and before topology/border attenuation. Nonzero values require continuous image/manual/mixed height; mesh generation rejects curved, voxelized or two-level modes. Height-map export validates the range but keeps the full source unfiltered. |
 | `heightImage` | nil | Optional height-only image path. Nil/empty uses the source image. Ignored in manual mode. Maximum 16,777,216 pixels. |
 | `heightImageToRegion` | false | False aligns the map with the whole source image; true fits the whole map to the current crop. Bilinear sampling for different resolutions. |
 | `heightBlack`, `heightWhite` | 0, 1 | Finite input endpoints: `0 <= black <= white <= 1`. Clamp/rescale selected height channel to [0,1]. Equal endpoints create a step (input >= point gives 1). |
@@ -2239,13 +2209,13 @@ assert(asset:save("panel.msh", false, false, true))
 | `curvedRadius` | 0 | Circle radius in final mesh-plane units [0,1000000]; 0 selects a point |
 | `curvedEdge`, `curvedTarget` | 1, 8 | Total thickness at the contour and target, each finite [0.001,1000000] |
 | `curvedSymmetric` | true | Split curved thickness equally around Z=0; false keeps a flat back at `min(curvedEdge,curvedTarget)/2` for the legacy profile, or Z=0 with `curvedNodes` |
-| `heightFinishing` | true | Apply areas then brush dabs (7.277.0); false restores the base without deleting edits |
-| `curvedPainting` | false | Enable finishing over the curved field, bounded by its thickness range; applies areas and then dabs since 7.277.0; inactive during faceting |
-| `curvedInterior` | false | Discrete harmonic interior transition (7.274.0); requires `curvedNodes` with zero or one root point, segment or polyline target; incompatible with faceting |
-| `curvedFaceted` | false | Automatic planar faceting of the curved point/circle profile or nested convex target chain (7.273.0); convex outer contour required |
+| `heightFinishing` | true | Apply areas then brush dabs; false restores the base without deleting edits |
+| `curvedPainting` | false | Enable finishing over the curved field, bounded by its thickness range; applies areas and then dabs; inactive during faceting |
+| `curvedInterior` | false | Discrete harmonic interior transition; requires `curvedNodes` with zero or one root point, segment or polyline target; incompatible with faceting |
+| `curvedFaceted` | false | Automatic planar faceting of the curved point/circle profile or nested convex target chain; convex outer contour required |
 | `curvedFacetSectors` | 8 | Integer [8,128], minimum angular sectors; outer polygon corners may add sectors. For ellipses, also replaces `ellipseSegments` while active |
 | `curvedFacetRings` | 1 | Integer [1,16], uniform transition bands between contour and center/table |
-| `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion (7.270.0); ignored outside curved mode and while `curvedFaceted=true` or `curvedInterior=true` |
+| `curvedSimplify` | false | Opt-in constrained curved surface simplification, before extrusion; ignored outside curved mode and while `curvedFaceted=true` or `curvedInterior=true` |
 | `curvedSimplifyRatio` | 0.5 | Requested fraction of front triangles to retain, finite [0.01,1]; a goal, not a guarantee |
 | `curvedSimplifyError` | 0.01 | Maximum additional normalized height error, finite [0.0001,0.25], compared with the dense generated surface |
 | `curvedNodes` | nil | Optional hierarchy of targets and independent local regions; absent preserves the legacy profile, an empty table makes the root flat |
@@ -2279,7 +2249,7 @@ assert(asset:save("panel.msh", false, false, true))
 Without `curvedNodes` and with both `curvedFaceted=false` and `curvedInterior=false`, `heightSource="curved"` preserves the legacy profile: it is linear from the real outer contour to a
 movable point or circular plateau. The source image still supplies color/UVs. The
 center must lie strictly inside the contour's visibility kernel; the target circle
-must be strictly inside the contour. Holes are supported since 7.271.0 as through-cuts
+must be strictly inside the contour. Holes are supported as through-cuts
 (see below). Rectangle, polygon, and
 polygonal ellipse outlines are supported. Center/radius validation is shared by
 synchronous and asynchronous mesh/map generation.
@@ -2309,7 +2279,7 @@ A circle is approximated by chords. The editor disables the general post-generat
 simplifier for curved meshes; calling that simplifier directly does not preserve
 radial/plateau constraints by contract.
 
-**Constrained curved simplification (7.270.0).** `curvedSimplify=true` removes interior
+**Constrained curved simplification.** `curvedSimplify=true` removes interior
 vertices and retriangulates their cavities before front/back/side construction.
 It keeps all remaining contour/hole vertices, authored target/local-region outlines (including inserted
 points on their segments), legacy center/circle-ring vertices and sampled local
@@ -2332,7 +2302,7 @@ These fields are absent when the pass is inactive; existing `vertices`/`triangle
 still describe the entire final mesh. Async jobs copy all three input options,
 report stage `curved_simplify`, and support cancellation during the pass.
 
-**Interior transition (7.274.0).** `curvedInterior=true` computes a discrete harmonic
+**Interior transition.** `curvedInterior=true` computes a discrete harmonic
 surface on a constrained triangulation of the piece. `curvedNodes` must be present:
 an empty table produces a flat piece at `curvedEdge`; otherwise supply exactly one
 root target (`parent=0`, `role="target"`), a point, two-point segment, or open
@@ -2359,7 +2329,7 @@ backs, materials, vertex/triangle budgets, export and asynchronous cancellation
 remain supported. Flat back is at Z=0. A failed solve produces an error, not a partial
 mesh. Geometry and field preparation happen only on requested generation/map tasks.
 
-**Automatic faceting (7.273.0).** `curvedFaceted=true` uses a coarse, piecewise-planar
+**Automatic faceting.** `curvedFaceted=true` uses a coarse, piecewise-planar
 surface instead of the radial analytic profile. It supports legacy point/circle
 controls and `curvedNodes` chains, on convex outer contours. Chains accept convex
 closed targets and an optional terminal point; local regions and lines are rejected.
@@ -2380,7 +2350,7 @@ its faceted silhouette can differ from the saved `ellipseSegments` approximation
 `curvedFacetRings` divides the transition into uniform radial bands with linear
 endpoint thickness interpolation. Bands can remain coplanar; this is not a prescribed
 gemological brilliant cut. Nonplanar strips are split into triangles. Columns, rows,
-and adaptive height tolerance no longer determine tessellation (their general
+and adaptive height tolerance do not determine tessellation (their general
 argument ranges still apply). The protected simplifier is inactive while faceting
 is enabled; its saved settings need not be cleared.
 
@@ -2392,9 +2362,9 @@ vertex budget therefore includes `3 * report.triangles`, subject to the engine's
 65,535-vertex ceiling. The report's displacement conventions remain unchanged.
 Exports keep the authored normals. Async jobs copy the three scalar options and
 report the `facets` stage during field preparation; cancellation remains cooperative.
-Projects omitting the fields retain the previous curved path and smoothing.
+Projects omitting the fields use curved geometry and smooth normals without faceting.
 
-**Holes in curved relief (7.271.0).** The existing `holes` option also works with
+**Holes in curved relief.** The existing `holes` option also works with
 legacy point/circle profiles and `curvedNodes`. Holes cut both surfaces and create
 inner walls at the local thickness; they do not change the analytic height field
 or introduce a new thickness target. A hole may contain a virtual control point,
@@ -2418,7 +2388,7 @@ jobs already snapshot `holes`; mesh generation includes a `curved_holes` progres
 stage and cooperative cancellation. With no holes, the original topology path is
 retained. No additional option or persistence format is required.
 
-**Curved hierarchy (7.267.0).** Optional `curvedNodes` replaces the legacy center/radius
+**Curved hierarchy.** Optional `curvedNodes` replaces the legacy center/radius
 profile. It is an array of at most 32 nodes; every node is an array of 1..128
 normalized crop points `{x=..., y=...}`, with these fields:
 
@@ -2428,10 +2398,10 @@ normalized crop points `{x=..., y=...}`, with these fields:
 | `parent` | Required integer: 0 is the outer contour; otherwise the index of an earlier node. Maximum depth is 8. |
 | `role` | Required `"target"` or `"region"`. Each closed owner has at most one target and may have multiple local regions. |
 | `thickness` | Total target thickness, finite [0.001,1000000], default 8. Validated but ignored for inherited local regions. |
-| `profile` | Since 7.268.0: `"linear"` (default), `"smooth"`, or `"bezier"`, controlling the transition from the owner to this target. Validated but ignored on local-region nodes. |
-| `bezierPoints` | Since 7.269.0: number of internal control points, integer 2 (default), 3 or 4. The two endpoints are additional and fixed. |
-| `bezier1`, `bezier2` | Since 7.268.0: first two vertical controls, defaults 0 and 1. Each must be finite and within [0,1]; since 7.268.1 they may cross. |
-| `bezier3`, `bezier4` | Since 7.269.0: additional vertical controls, each defaulting to 1. All supplied controls are validated in [0,1], even when unused or the profile is not Bézier. |
+| `profile` | `"linear"` (default), `"smooth"`, or `"bezier"`, controlling the transition from the owner to this target. Validated but ignored on local-region nodes. |
+| `bezierPoints` | Number of internal control points, integer 2 (default), 3 or 4. The two endpoints are additional and fixed. |
+| `bezier1`, `bezier2` | First two vertical controls, defaults 0 and 1. Each must be finite and within [0,1]; they may cross. |
+| `bezier3`, `bezier4` | Additional vertical controls, each defaulting to 1. All supplied controls are validated in [0,1], even when unused or the profile is not Bézier. |
 
 Outside interior transition, one point or two points define a terminal point/segment
 target. Three or more points define a simple closed contour. Closed targets must be convex; local regions may
@@ -2482,7 +2452,7 @@ and all targets; `depth` is that minimum and `relief` their difference divided b
 normalize total thickness by the maximum. Asynchronous jobs deep-copy node geometry and profile parameters.
 Editor-only `shape` and `name` metadata is persisted in `.imesh` but ignored by the API.
 
-**Image-mesh back controls (7.236.0).**
+**Image-mesh back controls.**
 
 `backRelief` and `backMirror` are strict optional booleans accepted by the image
 mesh options reader. Their defaults preserve existing geometry and UVs.
@@ -2493,8 +2463,7 @@ refinement; enabling this option may reject an otherwise valid flat-back budget.
 The report's `minHeight`/`maxHeight` still describe one face's relief amplitude,
 not the combined thickness.
 
-`backOpen`, `backRelief`, `backRemap`, `backSolid` and `backExternal` are mutually exclusive
-(`backSolid` was added in 7.240.0, `backExternal` in 7.241.0).
+`backOpen`, `backRelief`, `backRemap`, `backSolid` and `backExternal` are mutually exclusive.
 An open back is intentionally non-watertight. It removes back-only geometry
 from both budgets; the side-wall geometry and UVs remain unchanged. A remapped
 back retains flat-back topology and positions; UVs map normalized front-shape
@@ -2504,7 +2473,7 @@ that rectangle. No second image or material is created.
 These options affect mesh generation only; diagnostic height/overlay PNGs remain
 front-field diagnostics. The source texture is still referenced, not copied.
 
-Image-mesh height channels (7.254.0): `heightChannel` applies equally to
+Image-mesh height channels: `heightChannel` applies equally to
 `generateImageMesh`, `startImageMesh` and `generateImageMeshMap`. Luminance retains
 the existing formula `(0.2126*R + 0.7152*G + 0.0722*B)/255`; individual channels
 use their byte value divided by 255, without gamma conversion. Missing alpha is
@@ -2513,17 +2482,17 @@ color source of the groove overlay. Manual mode uses `baseHeight`; mixed mode
 uses the selected channel outside manual areas. Filters, inversion, groove
 mapping, manual areas and brush edits retain their existing ordering.
 
-**Height levels (7.256.0).** The selected/resampled input channel is converted
+**Height levels.** The selected/resampled input channel is converted
 with `t=clamp((input-heightBlack)/(heightWhite-heightBlack),0,1)` then
 `pow(t,heightCurve)`. Equal black/white use `input >= heightWhite ? 1 : 0`
 instead of division. Values outside the allowed ranges fail validation, even
-in Manual mode. The default endpoints and exponent retain previous behavior.
+in Manual mode. The default endpoints and exponent preserve the input channel values.
 These options apply to source and separate height images, diagnostic maps and
 synchronous/asynchronous mesh generation; colors and UVs are unaffected.
 Inversion, smoothing, groove mapping, manual areas, brush edits and border
 constraints retain their existing downstream ordering.
 
-**Separate height image (7.255.0).** `heightImage` is shared by the synchronous,
+**Separate height image.** `heightImage` is shared by the synchronous,
 asynchronous and diagnostic-map APIs. The color texture, UVs, groove-overlay
 colors and export materials continue to use the original image. The worker copies
 the path before starting. Missing/invalid maps fail generation in Image/Mixed
@@ -2538,9 +2507,9 @@ a larger map does not independently increase mesh resolution. No gamma conversio
 or automatic aspect-ratio preservation is performed. Filters and edits retain
 their existing order. The temporary decoded height map is freed after sampling.
 
-**Side texture controls (7.238.0).**
+**Side texture controls.**
 
-`edge` retains the previous stretched-edge UVs and opaque-texel fallback.
+`edge` uses stretched-edge UVs and an opaque-texel fallback.
 `band` maps each wall from the outer source contour at the front to an inner
 contour at the rear. It uses the same image and preserves its alpha, without the
 edge mode's fallback. Rectangles inset their edges; ellipses retain their axes
@@ -2588,7 +2557,7 @@ For the default contour mapping, its maximum is a conservative limit preserving 
 arbitrarily complex polygons can inset by one pixel. Contour preview queries
 should run only when their inputs change.
 
-Asynchronous generation is available since 7.252.0:
+Asynchronous generation:
 
 ```lua
 local job, err = mbm.startImageMesh(imagePath, options)
@@ -2631,12 +2600,12 @@ Stages are `decode`, `heights`, `areas`, `painting`, `topology`, `alignment`,
 `refinement`, `surface`, `normals`, `finalize`, and `completed`; unused stages may
 be skipped. Polling performs no regeneration or geometry scans. Simplification
 and mesh export remain separate operations. For asynchronous PNG previews, use
-`startImageMeshMap` (7.258.0), described below.
+`startImageMeshMap`, described below.
 
-Height areas (`heightAreas`, since 7.250.0) use normalized crop coordinates,
+Height areas (`heightAreas`) use normalized crop coordinates,
 with 3–128 points per simple contour, or 2–128 points for an open height line
-(`shape="line"`, since 7.257.0). Each area is an array of `{x,y}` points
-with fields `mode` (default `"flatten"`, since 7.277.0), `height` (default 0.75), `transition` (default 0.02), and `enabled`
+(`shape="line"`). Each area is an array of `{x,y}` points
+with fields `mode` (default `"flatten"`), `height` (default 0.75), `transition` (default 0.02), and `enabled`
 (default true). Height and transition are finite [0,1]. For example:
 
 ```lua
@@ -2690,8 +2659,8 @@ options.heightAreas = {
 }
 ```
 
-Since 7.277.0, `"image"` also applies enabled areas; switching from mixed to image
-no longer disables them. Use `heightFinishing=false` to disable the entire finishing
+`"image"` applies enabled areas; switching from mixed to image
+keeps them active. Use `heightFinishing=false` to disable the entire finishing
 stage, or disable individual areas. `"manual"`
 ignores image brightness, inversion, smoothing and two-level detection; its mesh
 refinement also ignores the image threshold/transition settings. `"mixed"` applies
@@ -2703,7 +2672,7 @@ metadata `name` is ignored by the native API. `shape="line"` selects an open
 centerline; `"polygon"` (default), `"rectangle"` and `"ellipse"` use the supplied
 points as a closed polygon rather than generating a primitive.
 
-**Painting over curves (7.276.0).** With `heightSource="curved"` and
+**Painting over curves.** With `heightSource="curved"` and
 `curvedPainting=true` and `heightFinishing=true`, areas then brushes compose after the radial/hierarchical
 or interior field. Normalized height 0 maps to the minimum authored thickness and
 1 to the maximum; this interpretation also applies to inverted profiles. Targets,
@@ -2783,8 +2752,8 @@ plateau when all three mapped corner levels are at least 0.9999 (top) or at most
 faces uses their average unit normal; other vertices retain the ordinary average.
 This preserves plateau shading without duplicating vertices or introducing seams
 that constrain simplification. Positions, UVs, indices and geometry counts do not
-change; transition shading also changes through the shared normals. Other modes
-and side/flat-back normals retain their previous behavior. A copied relief back
+change; transition shading also changes through the shared normals. Plateau
+weighting applies only to the shared front normals in this mode. A copied relief back
 uses the reflected front normals, including plateau preservation.
 
 The source image must be decodable by the bundled stb loader and contain at most
@@ -2854,7 +2823,7 @@ refinement density, so it can diagnose settings that exceed mesh budgets. It
 writes the supplied output path; use a separate temporary file, not the source
 image. Call only when inputs change or explicitly requested.
 
-Since 7.258.0, `mbm.startImageMeshMap(imagePath, options, outputPngPath, overlay?)`
+`mbm.startImageMeshMap(imagePath, options, outputPngPath, overlay?)`
 returns a job with the same `getStatus()` / `cancel()` lifecycle as
 `startImageMesh`. One map worker and one geometry worker may run concurrently;
 a second active map worker returns `nil, message`. Paths and option arrays are
@@ -2915,7 +2884,7 @@ borrow `const IMAGE_MESH_POINT *contour` plus `contourCount` only for the durati
 of the call; no pointer is retained. On failure,
 discard the destination; generation does not promise transactional mutation.
 
-### Portable image-mesh export (7.242.0)
+### Portable image-mesh export
 
 `mbm.exportImageMeshTexture(source, outputPNG, minU, minV, maxU, maxV, padding=4)`
 decodes an image on the CPU, exports the rectangle needed by the UV bounds and
@@ -2997,8 +2966,8 @@ subset. Counts describe the prepared representation; `reused` means its valid ca
 basis was retained. On preparation/input-data failure, returns `nil, error` without
 replacing the cached preparation. Invalid argument types, policy names, nonpositive
 indices or passing corner data outside `import` raise a Lua error. Save persists the
-result in optional section 14, even when there is no normal map; no new MSH layout
-or preparation-policy section is introduced. The policy is an action, not stored state.
+result in optional section 14, even when there is no normal map. The policy is an
+action and is not serialized.
 
 The Mesh Debug preparation panel exposes preserve/recalculate and shares the existing
 transform Undo snapshot. Its frame/subset selectors use `0` for all (UI only; the
@@ -3011,12 +2980,12 @@ MikkTSpace generates tangents, not missing geometric normals. Import uses this A
 `options.normalMapPolicy`, `options.normalMapPrecompute`, and per-subset
 `cornerTangents`. Supplied source tangents require an explicit `import` or `generate`
 choice. Import plus `importPostProcess` is rejected to avoid applying a basis from
-before UV/geometry changes. The direct Blender exporter does not yet supply these
+before UV/geometry changes. The direct Blender exporter does not supply these
 corner records automatically.
 
 Image Mesh projects accept the optional boolean `normalMapPrecompute` (default false)
-in defaults/region overrides for compatibility with existing projects; it is no
-longer exposed as a separate editor checkbox. When this legacy setting is enabled,
+in defaults/region overrides for compatibility with existing projects; it is not
+exposed as a separate editor checkbox. When this legacy setting is enabled,
 the shared build pipeline prepares all
 subsets after simplification, for preview and export. Preparation runs on a build or
 explicit user action, never continuously while an editor is idle. Preparation alone
@@ -3035,13 +3004,13 @@ Image Mesh project field `normalMapGeometryBlur` (integer 0..32, default 0) maps
 native `geometryBlurRadius` only when normal mapping, residual detail and basis
 compensation are active on a supported continuous surface. Unlike appearance-only
 normal parameters, changing the effective radius rebuilds geometry. Disabling a
-prerequisite removes height filtering while keeping the saved radius. Since 7.342,
-an independently enabled triangle target still simplifies the geometry. The
+prerequisite removes height filtering while keeping the saved radius.
+An independently enabled triangle target still simplifies the geometry. The
 normal-map generator and 2D height preview use original processed height. The
 native filter does not require normal mapping and can also be used directly by
 other `generateImageMesh` / `startImageMesh` consumers.
 
-Image Mesh 7.340 also persists `normalMapAutomatic` (boolean, default false) and
+Image Mesh persists `normalMapAutomatic` (boolean, default false) and
 `normalMapTargetTriangles` (integer 2..100000, default 1000). These are Lua editor
 settings, not native options. With the same prerequisites, automatic mode overrides
 the effective manual radius without overwriting it. It probes 0/1/2/4/8/16/32 px,
@@ -3051,15 +3020,15 @@ The target is not guaranteed. Appearance-only edits reuse geometry; exports run 
 same selection pipeline. See [Image Mesh Editor](image-mesh-editor.md#normal-map-relief)
 for cancellation, bounded-search limitations and result reporting.
 
-Since 7.341, automatic mode implicitly enables QEM even when manual simplification
+Automatic mode implicitly enables QEM even when manual simplification
 is disabled. The reduction ratio is computed from the target and current triangle
 count; manual method/ratio are retained. Selected CGAL planar cleanup and enabled
 remeshing run before the target QEM pass. Topology-limited attempts use a bounded
 fallback (at most seven QEM attempts per radius); cancellation and other errors
-still abort. This is editor orchestration, with no new native Lua API.
+still abort. This behavior is implemented by the editor using the native generation and simplification APIs.
 
-Since 7.342 the **Automatic triangle target** section is independent of normal
-mapping. The existing saved field names are retained. For continuous image/manual/
+The **Automatic triangle target** section is independent of normal
+mapping. For continuous image/manual/
 mixed surfaces, `normalMapAutomatic=true` activates target QEM even with
 `reliefMode='geometry'`, residual disabled or compensation disabled. Only the
 0/1/2/4/8/16/32 radius search requires all normal-map prerequisites; otherwise the
@@ -3072,7 +3041,7 @@ compensation. Curved/voxel/two-level modes remain unsupported by this target con
 local corners, err = meshD:getNormalMapCorners(frame, subset)
 ```
 
-Added in 7.338. One-based frame/subset indices. Returns a fresh table of
+One-based frame/subset indices. Returns a fresh table of
 `{x, y, z, sign}` tangents, one entry per expanded triangle corner in draw order,
 including unusable triangles (`sign == 0`). Triangle fans/strips use the same
 expansion as `prepareNormalMap(..., "import", corners)`. Corner indices are not
@@ -3118,7 +3087,7 @@ Undo, refresh the preview, and persist on save. Changing these controls does not
 assign a texture or explicitly regenerate tangents. Selection scans are cached until
 selection or asset edits change; applying settings is an explicit action.
 
-### Image-mesh holes (7.246.0)
+### Image-mesh holes
 
 `generateImageMesh` accepts `options.holes = { { {x=.2,y=.2}, {x=.4,y=.2},
 {x=.4,y=.5}, {x=.2,y=.5} }, ... }`. Coordinates are relative to the front crop.

@@ -115,9 +115,7 @@ adds no mutable state or backend handles to public interfaces.
 collects canonical influences in each tangent batch's source-vertex order,
 retaining skeleton identity, frame and bone palette. Its transient result is
 published atomically without changing source weights or adding a serialized
-section. Render backends do not yet consume these remapped batches for skeletal
-normal mapping. The follow-up contract is tracked in
-[Future Features](future-features.md#normal-mapping).
+section. Render backends do not consume these remapped batches for skeletal normal mapping.
 
 `MESH_MBM_DEBUG::hasNormalMapTangents()` exposes only constant-time
 presence of retained preparation, without signature validation or regeneration.
@@ -135,14 +133,14 @@ simplification worker is active. Lua forwards per-corner data to the same CPU
 operation. Editor controls invoke preparation on explicit actions or after
 geometry generation/simplification.
 
-`MESH_MBM_DEBUG::copyNormalMapCorners` (7.338) ensures a current PRESERVE basis and
+`MESH_MBM_DEBUG::copyNormalMapCorners` ensures a current PRESERVE basis and
 copies expanded triangle-corner tangents into caller-owned `NORMAL_MAP_CORNER`
 storage. A null output and zero capacity query the count. Insufficient capacity
 fails without partial output; preparation may still refresh the cache. No STL
 container, backend handle, mutable view or new public storage is exposed.
 The Lua `getNormalMapCorners` adapter returns owned table copies.
 
-`IMAGE_MESH_OPTIONS::geometryBlurRadius` (7.339) is a value-only request parameter.
+`IMAGE_MESH_OPTIONS::geometryBlurRadius` is a value-only request parameter.
 The filtered raster and scratch buffers live in private `HEIGHT_FIELD` and
 `image-mesh-frequency.h`, confined to the mesh-generation worker/call. No texture
 handles, containers or mutable engine storage are exposed through public headers.
