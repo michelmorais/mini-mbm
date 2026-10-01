@@ -185,7 +185,7 @@ local function test()
         p.defaults.heightSource='image';p.defaults.normalMapConvention='+Y'
     end));wait()
     assert(E.comparison,'Missing simplification original')
-    api.setComparison(true)
+    api.setComparison(true);wait()
     local reference=meshDebug:new();assert(reference:load(E.comparison.previewPath))
     local result=meshDebug:new();assert(result:load(E.previewPath))
     assert(reference:getMaterialTexture(1,1,'normal')==result:getMaterialTexture(1,1,'normal'))
@@ -199,7 +199,7 @@ local function test()
     assert(originalObject:getNormalMapSettings(1)=='-Y' and resultObject:getNormalMapSettings(1)=='-Y')
     assert(originalObject:getNormalMapSettings(3)=='-Y' and resultObject:getNormalMapSettings(3)=='-Y')
     api.setComparison(false)
-    -- Cached statistics must decorate the stored original when entering 3D.
+    -- Cached statistics keep the original undecorated until comparison is requested.
     api.setEditMode(true)
     assert(api.action(function(p) p.defaults.columns=14 end))
     api.updateStatistics();wait()
@@ -207,6 +207,8 @@ local function test()
     comparisonCalls=calls
     api.setEditMode(false);wait()
     assert(calls==comparisonCalls,'Statistics geometry was not reused')
+    assert(not E.comparison.preview.imageMeshNormalGeometry)
+    api.setComparison(true);wait()
     reference=meshDebug:new();assert(reference:load(E.comparison.previewPath))
     assert(reference:getMaterialTexture(1,1,'normal'))
     assert(E.comparison.preview:getNormalMapSettings(1)=='-Y' and E.comparison.preview:getNormalMapSettings(3)=='-Y')
@@ -284,6 +286,7 @@ local function test()
         Normal.compare(E,false,api.camera)
         assert(api.action(function(p) p.defaults.simplify=true;p.defaults.simplifyRatio=.95 end));wait()
         assert(E.comparison,'Repeated texture lost simplification comparison')
+        api.setComparison(true);wait()
         local ref=E.comparison.preview
         local refSide=ref.imageMeshNormalSubsets[#ref.imageMeshNormalSubsets]
         assert(ref:getNormalMapSettings(refSide)=='-Y')
@@ -306,6 +309,7 @@ local function test()
         p.defaults.width=24;p.defaults.relief=12;p.defaults.simplifyRatio=.7
         p.defaults.simplifyDetails=false
     end));wait()
+    api.setComparison(true);wait()
     -- Residual maps depend on the particular mesh, including the original comparison.
     local beforeResidual=meshDebug:new();assert(beforeResidual:load(E.previewPath))
     local previous,counter=E.preview,calls
@@ -349,6 +353,7 @@ local function test()
     assert(api.action(function(p) p.defaults.normalMapConvention='-Y' end));wait()
     assert(calls==counter and savedPixels~=pixels(finalRecord.path),'Residual settings did not rebake')
     api.undo();wait();assert(pixels(finalRecord.path)==savedPixels,'Residual undo did not restore pixels')
+    api.setComparison(false)
     local beforeComparison=E.revision
     local comparisonDistance=E.orbit.distance
     local centerX,centerY,centerZ=E.preview.x,E.preview.y,E.preview.z
@@ -481,6 +486,27 @@ local function test()
     assert(not E.report.detailSeparation and E.project.defaults.normalMapGeometryBlur==3)
     local manualAgain=meshDebug:new();assert(manualAgain:load(E.previewPath))
     assert(surface(manualAgain)==separatedSurface,'Manual radius was lost')
+    -- Fresh residual preview needs only final/front and band, not the hidden original.
+    api.setComparison(false)
+    local maps=E.normalBuilds
+    assert(api.action(function(p)
+        p.defaults.sideMode='band';p.defaults.relief=p.defaults.relief+.1
+        p.defaults.simplify=true;p.defaults.simplifyMode='qem';p.defaults.simplifyRatio=.7
+        p.defaults.normalMapResidual=true;p.defaults.normalMapBasis=true
+    end));wait()
+    assert(E.normalBuilds==maps+2,'Initial preview baked the hidden original')
+    assert(not E.comparison.preview.imageMeshNormalGeometry)
+    maps=E.normalBuilds
+    api.setComparison(true);wait()
+    assert(E.compareSideBySide and E.normalBuilds==maps+1,'First comparison must bake original exactly once')
+    api.setComparison(false);api.setComparison(true);wait()
+    assert(E.normalBuilds==maps+1,'Comparison toggle did not reuse normal cache')
+    api.setComparison(false);maps=E.normalBuilds
+    assert(api.action(function(p) p.defaults.normalMapStrength=.75 end));wait()
+    assert(E.normalBuilds==maps+2,'Hidden comparison rebaked after a normal-only edit')
+    api.setComparison(true);wait()
+    assert(E.normalBuilds==maps+3,'Deferred original did not refresh on activation')
+    api.setComparison(false)
     local idleCalls,idleBuilds,idleMaps=calls,E.builds,E.normalBuilds
     local time=mbm.getTimeRun()
     while mbm.getTimeRun()-time<2 do coroutine.yield() end

@@ -246,14 +246,6 @@ local function rebuildImpl()
                 Comparison.capture(staged,original,Asset.vertices(original),E.path or E.project.image.path)
             end
         else asset,report=generate(r,nil,staged) end
-        local authored=Model.options(E.project,r)
-        if staged.comparison and authored.reliefMode=='normal' then
-            -- Decorate the independent original only after geometry processing,
-            -- so its normal-map material cannot change simplification constraints.
-            local original=meshDebug:new();assert(original:load(staged.comparison.previewPath),L('preview_failed'))
-            original=Normal.apply(E,original,E.project,r,authored,'original')
-            Comparison.capture(staged,original,Asset.vertices(original),E.path or E.project.image.path)
-        end
         assert(TextureAliases.savePreview(asset,path,E.path or E.project.image.path),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
@@ -498,7 +490,12 @@ local function setEditMode(enabled)
 end
 local function setComparison(sideBySide)
     Normal.clearComparison(E)
-    if Comparison.select(E,sideBySide) then camera() end
+    if sideBySide then
+        if E.meshTask or E.dirty or not E.comparison then return end
+        Simplify.run(E,function()
+            if dpCall(Normal.prepareComparison,E) and Comparison.select(E,true) then camera() end
+        end)
+    elseif Comparison.select(E,false) then camera() end
 end
 local function setWireframe(enabled)
     if enabled then Normal.clearComparison(E) end

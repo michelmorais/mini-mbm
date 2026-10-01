@@ -322,11 +322,40 @@ function M.apply(E,asset,project,region,o,role)
     end
     return asset
 end
+-- Prepare the original only when its geometry comparison is requested.
+function M.prepareComparison(E)
+    local source=E.comparison
+    if not source then return end
+    local region=assert(Model.region(E.project,E.viewRegion))
+    local o=Model.options(E.project,region)
+    if o.reliefMode~='normal' or same(source.normalOptions,o) then return end
+    local preview=source.preview
+    if not preview.imageMeshNormalGeometry then
+        local asset=meshDebug:new();assert(asset:load(source.previewPath),tLang.L('ime_preview_failed'))
+        asset=M.apply(E,asset,E.project,region,o,'original')
+        local path=tUtil.getTemporaryFilePath('.msh')
+        local ok,err=dpCall(function()
+            assert(require('image_mesh_texture_aliases').savePreview(asset,path,E.path or E.project.image.path),tLang.L('ime_export_failed'))
+            assert(meshDebug:loadMeshPreview(preview,path),tLang.L('ime_preview_failed'))
+        end)
+        if not ok then os.remove(path);error(err,0) end
+        os.remove(source.previewPath);source.previewPath=path
+        preview.imageMeshNormalGeometry=asset.imageMeshNormalGeometry
+        preview.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
+    else
+        local path,sidePath=paths(E,E.project,region,o,preview.imageMeshNormalGeometry)
+        for _,subset in ipairs(preview.imageMeshNormalSubsets) do
+            assert(preview:setMaterialTexture('normal',subset==1 and path or sidePath,true,subset))
+            assert(preview:setNormalMapSettings(o.normalMapConvention,1,subset))
+        end
+    end
+    source.normalOptions=Model.copy(o)
+end
 function M.refresh(E)
     E.normalDirty=nil
     local objects={}
     if E.preview then objects[#objects+1]={id=E.viewRegion,preview=E.preview} end
-    if E.comparison then objects[#objects+1]={id=E.viewRegion,preview=E.comparison.preview} end
+    if E.comparison and E.compareSideBySide then M.prepareComparison(E) end
     for _,item in ipairs(E.assembly and E.assembly.items or {}) do objects[#objects+1]=item end
     local regions={}
     for _,item in ipairs(objects) do regions[item.id]=true end

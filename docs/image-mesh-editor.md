@@ -61,9 +61,18 @@ The geometry simplification comparison enables normal mapping with the same
 settings on both original and simplified meshes, including mapped sides. Additive
 mode shares textures; residual mode bakes the front against each mesh separately.
 Each has its own prepared tangents. This also applies when the original comes from the statistics cache or
-curved-source preview. Changing normal settings updates both preview materials
+curved-source preview. While comparison is visible, changing normal settings updates both preview materials
 without rebuilding geometry. Material preparation on the original preview happens
 after geometry processing so it cannot affect simplification constraints.
+Since 7.343 the original's material preparation is lazy: entering 3D retains its
+undecorated geometry, including statistics-cache originals. The first request for
+side-by-side geometry comparison runs the cancellable normal-map job before
+showing the original. Reopening the comparison reuses its geometry snapshot and
+normal textures. Appearance-only edits while it is hidden update only the active
+preview; the original is refreshed on the next comparison request. Visible
+comparisons still update both meshes. A residual front with band sides therefore
+needs two initial normal bakes, then one additional original bake on first use.
+Subsequent toggles without edits do not bake or regenerate geometry.
 
 **Compare with/without normal map** is shown at the end of **Normal map and tangents**
 while normal mapping is enabled. After applying changes, use the individual 3D view
