@@ -70,7 +70,9 @@ function M.compare(E,enabled,camera)
     E.normalComparison=c -- Allows cleanup even if loading fails.
     c.preview=mesh:new('3d');c.preview.visible=false
     assert(meshDebug:loadMeshPreview(c.preview,E.previewPath))
-    assert(c.preview:setNormalMapSettings('+Y',0,1))
+    for _,subset in ipairs(require('image_mesh_normal_material').subsets(asset)) do
+        assert(c.preview:setNormalMapSettings('+Y',0,subset))
+    end
     local offset=math.max(.001,(hi-lo)*.575)
     target:setPos(c.x+offset,c.y,c.z)
     c.preview:setPos(c.x-offset,c.y,c.z)
@@ -220,11 +222,14 @@ function M.texture(E,...)
 end
 function M.apply(E,asset,project,region,o)
     if o.reliefMode~='normal' then return asset end
-    asset=require('image_mesh_normal_material').split(asset)
+    local subsets
+    asset,subsets=require('image_mesh_normal_material').split(asset,o)
     local path=M.texture(E,project,region,o)
-    assert(asset:setMaterialTexture(1,1,'normal',path))
-    assert(asset:setNormalMapSettings(1,1,o.normalMapConvention,1))
-    assert(asset:prepareNormalMap(1,1,'generate'))
+    for _,subset in ipairs(subsets) do
+        assert(asset:setMaterialTexture(1,subset,'normal',path))
+        assert(asset:setNormalMapSettings(1,subset,o.normalMapConvention,1))
+        assert(asset:prepareNormalMap(1,subset,'generate'))
+    end
     return asset
 end
 function M.refresh(E)
@@ -244,12 +249,16 @@ function M.refresh(E)
             if o.reliefMode=='normal' then
                 local path=M.texture(E,E.project,r,o)
                 for _,item in ipairs(objects) do if item.id==id then
-                    assert(item.preview:setMaterialTexture('normal',path,true,1))
-                    assert(item.preview:setNormalMapSettings(o.normalMapConvention,1,1))
+                    for _,subset in ipairs(item.preview.imageMeshNormalSubsets) do
+                        assert(item.preview:setMaterialTexture('normal',path,true,subset))
+                        assert(item.preview:setNormalMapSettings(o.normalMapConvention,1,subset))
+                    end
                 end end
                 if cached and cached.id==id and cached.asset then
-                    assert(cached.asset:setMaterialTexture(1,1,'normal',path))
-                    assert(cached.asset:setNormalMapSettings(1,1,o.normalMapConvention,1))
+                    for _,subset in ipairs(require('image_mesh_normal_material').subsets(cached.asset)) do
+                        assert(cached.asset:setMaterialTexture(1,subset,'normal',path))
+                        assert(cached.asset:setNormalMapSettings(1,subset,o.normalMapConvention,1))
+                    end
                 end
             end
         end

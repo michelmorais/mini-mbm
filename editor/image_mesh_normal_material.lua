@@ -23,9 +23,11 @@
 -- Split materials only after simplification/remeshing. Copy triangle corners
 -- unchanged: introducing material boundaries earlier changes QEM constraints.
 local M={}
-function M.split(source)
+function M.split(source,options)
     local vertices=source:getVertex(1,1,1,source:getTotalVertex(1,1))
     local indices=source:getIndex(1,1)
+    local total=source:getTotalSubset(1)
+    local frontOnly=total==3 and options and (options.backSolid or options.backExternal)
     local groups={{vertices={},indices={},map={}},{vertices={},indices={},map={}},{vertices={},indices={},map={}}}
     for i=1,#indices,3 do
         local a,b,c=vertices[indices[i]],vertices[indices[i+1]],vertices[indices[i+2]]
@@ -35,7 +37,7 @@ function M.split(source)
         local cross=abx*acy-aby*acx
         local tolerance=1e-10*(math.abs(abx*acy)+math.abs(aby*acx))
         local group=groups[3]
-        if cross>tolerance then group=groups[1]
+        if frontOnly or cross>tolerance then group=groups[1]
         elseif cross < -tolerance then group=groups[2] end
         for j=i,i+2 do
             local old=indices[j]
@@ -49,16 +51,33 @@ function M.split(source)
     asset:setType('mesh');asset:setModeDraw(source:getModeDraw())
     asset:setModeFrontFace(source:getModeFrontFace());asset:setModeCullFace(source:getModeCullFace())
     asset:setMaterial(source:getMaterial());asset:addFrame(3)
-    for _,group in ipairs(groups) do
+    local normalSubsets={}
+    for index,group in ipairs(groups) do
         if #group.indices>0 then
             asset:addSubSet(1)
             local subset=asset:getTotalSubset(1)
             assert(asset:addVertex(1,subset,group.vertices));assert(asset:addIndex(1,subset,group.indices))
             assert(asset:setTexture(1,subset,source:getTexture(1,1)))
+            if index==1 or (index==3 and options and options.sideMode=='band') then
+                normalSubsets[#normalSubsets+1]=subset
+            end
         end
     end
-    for subset=2,source:getTotalSubset(1) do asset:copySubsetFrom(1,source,1,subset) end
+    for subset=2,total do
+        asset:copySubsetFrom(1,source,1,subset)
+        -- A separate back material leaves the native walls in the last subset.
+        if options and options.sideMode=='band' and subset==total then
+            normalSubsets[#normalSubsets+1]=asset:getTotalSubset(1)
+        end
+    end
     asset:addAnim('Static',1,1,1,0)
-    return asset
+    return asset,normalSubsets
+end
+function M.subsets(asset)
+    local subsets={}
+    for subset=1,asset:getTotalSubset(1) do
+        if asset:getMaterialTexture(1,subset,'normal') then subsets[#subsets+1]=subset end
+    end
+    return subsets
 end
 return M

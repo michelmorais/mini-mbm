@@ -174,8 +174,9 @@ Windows/DX9/DX11, macOS/Metal e plataformas móveis não foram executados nesta 
 
 O Image Mesh reutiliza `normal_map_generator` e `normal_map_panel` através de
 `image_mesh_normal_map.lua`. A altura vem do raster nativo do próprio Image Mesh,
-sem repetir níveis/canais no painel compartilhado. O resultado é aplicado somente
-à face frontal da malha 3D, com iluminação do runtime. Consulte o
+sem repetir níveis/canais no painel compartilhado. O resultado é aplicado
+à frente e às laterais por faixa da malha 3D, com tangentes próprias de cada
+superfície e iluminação do runtime. Consulte o
 [fluxo, persistência e exportação](image-mesh-editor.md#normal-map-relief).
 
 Teste da integração:

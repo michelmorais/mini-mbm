@@ -3020,7 +3020,7 @@ the shared build pipeline prepares all
 subsets after simplification, for preview and export. Preparation runs on a build or
 explicit user action, never continuously while an editor is idle. Preparation alone
 does not assign a normal texture. Image Mesh also supports additive `reliefMode="normal"`,
-which preserves geometric relief, generates a front normal texture and prepares its tangents automatically,
+which preserves geometric relief, generates a normal texture for the front and inner-band sides and prepares their tangents automatically,
 regardless of `normalMapPrecompute`. Project fields and export behavior are described
 in [Image Mesh Editor](image-mesh-editor.md#normal-map-relief). These are editor
 project settings, not native `generateImageMesh` options. Static lit rendering on OpenGL ES, DirectX 9 SM3,

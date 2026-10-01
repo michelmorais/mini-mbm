@@ -61,6 +61,7 @@ local function test()
     assert(api.action(function(p)
         p.defaults.reliefMode='normal';p.defaults.columns=3;p.defaults.rows=3
         p.defaults.normalMapStrength=4;p.defaults.lockBorder=false
+        p.defaults.sideMode='band';p.defaults.sideInset=4
         Model.add(p,'rectangle',8,4,24,24)
     end))
     api.select(1);api.setEditMode(false);api.rebuild();wait()
@@ -69,7 +70,9 @@ local function test()
     local asset=meshDebug:new();assert(asset:load(E.previewPath))
     assert(asset:getTotalSubset(1)==3,'Front/back/walls must be separate')
     assert(asset:getMaterialTexture(1,1,'normal'))
-    assert(not asset:getMaterialTexture(1,2,'normal') and not asset:getMaterialTexture(1,3,'normal'))
+    assert(not asset:getMaterialTexture(1,2,'normal'),'Back unexpectedly received normal map')
+    assert(asset:getMaterialTexture(1,3,'normal')==asset:getMaterialTexture(1,1,'normal'),'Band side missing normal map')
+    assert(asset:prepareNormalMap(1,3,'preserve').reused,'Band side missing tangents')
     local vertices=asset:getVertex(1,1,1,asset:getTotalVertex(1,1))
     local minZ,maxZ=math.huge,-math.huge
     for _,v in ipairs(vertices) do minZ=math.min(minZ,v.z);maxZ=math.max(maxZ,v.z) end
@@ -84,6 +87,7 @@ local function test()
     Normal.compare(E,true,api.camera)
     assert(E.normalComparison and E.normalComparison.preview.visible)
     local _,strength=E.normalComparison.preview:getNormalMapSettings(1);assert(strength==0)
+    _,strength=E.normalComparison.preview:getNormalMapSettings(3);assert(strength==0,'Side normal remains enabled in comparison')
     _,strength=E.preview:getNormalMapSettings(1);assert(strength==1,'Comparison changed target material')
     assert(E.revision==revision and calls==geometryCalls and E.builds==builds,'Comparison mutated project or geometry')
     for i=1,4 do coroutine.yield() end
@@ -101,7 +105,7 @@ local function test()
     assert(pixels(mapPath)==before,'Undo did not restore normal map')
     assert(api.action(function(p) p.defaults.normalMapConvention='-Y';p.defaults.heightSource='manual';p.defaults.baseHeight=.5 end));wait()
     assert(calls>geometryCalls,'Height-source edit did not rebuild geometry')
-    assert(E.preview:getNormalMapSettings(1)=='-Y')
+    assert(E.preview:getNormalMapSettings(1)=='-Y' and E.preview:getNormalMapSettings(3)=='-Y')
     local neutral=pixels(mapPath)
     local offset=((10-1)*48+16-1)*4+1
     assert(neutral:sub(offset,offset+2)==string.char(128,128,255),'Manual constant normal')
@@ -112,7 +116,8 @@ local function test()
     assert(IO.exists(root..'/plain_normal_01.png'),'Plain export did not package normal PNG')
     local exported=meshDebug:new();assert(exported:load(root..'/plain.msh'))
     assert(exported:getMaterialTexture(1,1,'normal')=='plain_normal_01.png')
-    assert(exported:getNormalMapSettings(1,1)=='-Y')
+    assert(exported:getNormalMapSettings(1,1)=='-Y' and exported:getNormalMapSettings(1,3)=='-Y')
+    assert(IO.exists(root..'/'..exported:getMaterialTexture(1,3,'normal')))
     E.portableCrop=true
     api.exportOne(root..'/portable.msh',true);wait()
     assert(IO.exists(root..'/portable_normal_01.png'))
@@ -121,6 +126,10 @@ local function test()
     local diffuse,dw,dh=mbm.readImagePixels(root..'/portable_texture_01.png')
     assert(normal and diffuse and nw==dw and nh==dh,'Portable UV domains differ')
     assert(packed:prepareNormalMap(1,1,'preserve').reused,'Portable export lost prepared tangents')
+    assert(packed:prepareNormalMap(1,3,'preserve').reused,'Portable side lost prepared tangents')
+    local _,sw,sh=mbm.readImagePixels(root..'/'..packed:getMaterialTexture(1,3,'normal'))
+    local _,dw,dh=mbm.readImagePixels(root..'/'..packed:getTexture(1,3))
+    assert(sw==dw and sh==dh,'Portable side UV domains differ')
     local batchDir=root..'/batch';assert(mbm.createDirectories(batchDir))
     api.beginBatch(batchDir,true)
     repeat coroutine.yield() until not E.batch and not E.meshTask
@@ -155,6 +164,20 @@ local function test()
     assert(surface(without)==surface(with),'Normal material changed geometry or UVs after QEM')
     assert(with:getMaterialTexture(1,1,'normal'))
     Normal.shutdown(owner)
+    -- A separate back material and an open back must keep the side subset correct.
+    for _,back in ipairs({'solid','open'}) do
+        preservedRegion.overrides.backSolid=back=='solid'
+        preservedRegion.overrides.backOpen=back=='open'
+        local owner={}
+        local mesh=assert(Build.generate(owner,preserved,preservedRegion))
+        local side=mesh:getTotalSubset(1)
+        assert(mesh:getMaterialTexture(1,side,'normal'),'Separate side normal missing')
+        assert(mesh:prepareNormalMap(1,side,'preserve').reused)
+        if back=='solid' then
+            assert(mesh:getTexture(1,2):sub(1,1)=='#' and not mesh:getMaterialTexture(1,2,'normal'))
+        end
+        Normal.shutdown(owner)
+    end
     -- Simplification compares geometry under the same normal-map material.
     assert(api.action(function(p)
         p.defaults.simplify=true;p.defaults.simplifyRatio=.8
@@ -174,6 +197,7 @@ local function test()
     assert(api.action(function(p) p.defaults.normalMapConvention='-Y';p.defaults.normalMapStrength=3 end));wait()
     assert(E.comparison.preview==originalObject and E.preview==resultObject and calls==comparisonCalls)
     assert(originalObject:getNormalMapSettings(1)=='-Y' and resultObject:getNormalMapSettings(1)=='-Y')
+    assert(originalObject:getNormalMapSettings(3)=='-Y' and resultObject:getNormalMapSettings(3)=='-Y')
     api.setComparison(false)
     -- Cached statistics must decorate the stored original when entering 3D.
     api.setEditMode(true)
@@ -185,7 +209,7 @@ local function test()
     assert(calls==comparisonCalls,'Statistics geometry was not reused')
     reference=meshDebug:new();assert(reference:load(E.comparison.previewPath))
     assert(reference:getMaterialTexture(1,1,'normal'))
-    assert(E.comparison.preview:getNormalMapSettings(1)=='-Y')
+    assert(E.comparison.preview:getNormalMapSettings(1)=='-Y' and E.comparison.preview:getNormalMapSettings(3)=='-Y')
     -- Assembly previews also update their material without replacing geometry.
     api.setAssembly(true);wait()
     local assemblyObject=E.assembly.items[1].preview

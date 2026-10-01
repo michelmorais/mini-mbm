@@ -256,6 +256,7 @@ local function rebuildImpl()
         end
         assert(TextureAliases.savePreview(asset,path,E.path or E.project.image.path),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
+        object.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
         object.alwaysRender=true
         releasePreview();E.comparison=staged.comparison;staged.comparison=nil
         installed=true

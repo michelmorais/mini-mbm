@@ -162,6 +162,7 @@ function M.build(E,generate,dpCall,camera)
             assert(TextureAliases.savePreview(asset,item.previewPath,E.path or E.project.image.path),tLang.L('ime_export_failed'))
             item.preview=mesh:new('3d');item.preview.visible=false
             assert(meshDebug:loadMeshPreview(item.preview,item.previewPath),tLang.L('ime_preview_failed'))
+            item.preview.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
             item.preview.alwaysRender=true;item.preview.visible=false
             if E.wireframe then Wire.ensure(item,asset) end
         end

@@ -2,7 +2,8 @@
 
 Status: entregas 1 e 2 implementadas (editor independente, módulos Lua e
 integração ao Image Mesh). No uso real, o checkbox foi revisado para preservar a
-geometria e acrescentar normal map. Separação automática de frequências/relevo
+geometria e acrescentar normal map. Desde 7.334, laterais por faixa também recebem
+o normal map, com preview, comparações e exportação. Separação automática de frequências/relevo
 residual permanece pendente.
 
 Este documento registra o escopo e a sequência de implementação. Consulte

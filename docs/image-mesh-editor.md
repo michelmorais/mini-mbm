@@ -36,7 +36,7 @@ pending properties. Invalid properties prevent overwriting the project.
 Open **Normal map and tangents** and check **Enable normal map**. Its settings
 appear only while enabled. Choose the height source in **Relief and grooves**,
 adjust the settings, then **Apply** and turn off **Edit mode** to see the 3D result.
-The saved setting automatically generates and assigns the front normal texture and
+The saved setting automatically generates and assigns the normal texture to the front and inner-band sides and
 prepares its tangents whenever the mesh is built, including export. There is no
 separate tangent-preparation checkbox. Disabling normal mapping removes the added lighting effect and keeps its settings
 for reuse. Existing projects default to geometry without normal mapping. Enabling
@@ -44,11 +44,15 @@ normal mapping preserves authored relief, areas, adaptive geometry, curved/voxel
 settings and simplification. Geometry finishes processing before material splitting
 and tangent preparation, preserving triangle positions and UVs. Material/tangent
 seams can duplicate vertices without changing the surface.
-Front, back and walls have separate material subsets. Only the front gets the normal
-texture; back and side materials keep their existing behavior.
+Front, back and walls have separate material subsets. Front and **Inner contour band**
+sides (`sideMode="band"`) receive the normal texture. Each subset prepares tangents
+from its own UVs, including perpendicular mapping and inverted band UVs. The side
+uses the same source-sized normal atlas as the front. Solid-color backs and open
+backs retain their behavior. Stretched-edge, solid-color and repeated-texture sides
+do not receive generated normal maps in this milestone.
 
 The geometry simplification comparison uses the same generated normal texture and
-settings on both the original and simplified meshes. Each has its own prepared
+settings on both the original and simplified meshes, including inner-band sides. Each has its own prepared
 tangents. This also applies when the original comes from the statistics cache or
 curved-source preview. Changing normal settings updates both preview materials
 without rebuilding geometry. Material preparation on the original preview happens
@@ -57,7 +61,7 @@ after geometry processing so it cannot affect simplification constraints.
 **Compare with/without normal map** is shown only inside **Normal map and tangents**
 while normal mapping is enabled. After applying changes, use the individual 3D view
 with wireframe and geometry comparison off. It displays the same mesh twice under
-the same lighting, with normal strength zero on the comparison copy. The labels
+the same lighting, with normal strength zero on every normal-mapped subset of the comparison copy. The labels
 identify each side according to the camera direction. Closing the comparison
 restores the previous camera distance and mesh position. Editing, switching views
 or replacing the mesh releases the temporary copy. This option is preview-only;
@@ -77,7 +81,7 @@ The project persists `reliefMode` (`geometry` or `normal`), `normalMapStrength`
 `normalMapConvention` (`+Y` default or `-Y`) and `normalMapEdge` (`clamp` default
 or `repeat`) in defaults/region overrides. Generated PNGs are temporary and are
 recreated from project inputs. Changing only normal strength, blur, convention or
-edge settings, including Undo, updates the texture without rebuilding geometry.
+edge settings, including Undo, updates the texture without rebuilding geometry, on both front and sides.
 Changing height inputs now rebuilds geometry as well as the normal map. Toggling
 normal mapping rebuilds material groups while preserving the generated surface.
 No generation or texture upload runs while idle. Processing supports cancellation;
@@ -94,9 +98,10 @@ normal baking) is not implemented; strength controls the added lighting effect.
 
 Validation on Linux/GLES: `src/test-lib/image_mesh_normal_map_smoke.lua` checks preserved
 relief, separate materials, atlas dimensions, texture-only updates and Undo,
-manual/mixed/curved height, holes, persistence, both exports, portable tangents,
+manual/mixed/curved height, holes, persistence, both exports, portable front/side tangents and matched crop dimensions,
 assembly updates, cancellation, mode switching, identical triangle/UV surfaces
-after adaptive QEM simplification with/without normal mapping, and idle behavior. Run with the
+after adaptive QEM simplification with/without normal mapping, band sides with
+solid/open backs, and idle behavior. Run with the
 engine test flags described in [the generator manual](normal-map-editor.md).
 Other rendering backends have not been exercised for this integration.
 
@@ -669,6 +674,11 @@ An external back texture defaults to the original crop if no file is selected.
 | Solid color | Opaque RGB material |
 | Repeated texture | Repeats the original crop or an external image, with perimeter/depth repetition controls |
 | Inner contour band | Maps the strip between the outer contour and an editable inner contour onto the walls |
+
+With **Enable normal map**, the inner band also receives the generated normal map
+and automatic tangent preparation. This covers individual/assembly previews,
+simplification comparisons and ordinary/portable exports. Portable cropping applies
+the same UV bounds and padding to diffuse and normal maps, then rebuilds tangents.
 
 The inner band has a minimum width of one pixel; the maximum is computed to avoid
 collapsed or crossing contours. Rectangles shrink by side, circles stay concentric,
