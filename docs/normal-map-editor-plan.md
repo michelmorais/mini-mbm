@@ -12,6 +12,11 @@ incluindo normais suavizadas. Em 7.339, a separação por escala ajustável entr
 geometria suavizada e residual de detalhe completo para fontes contínuas de imagem,
 manual e mista. O raio padrão 0 preserva projetos existentes. Em 7.340, uma busca
 automática limitada escolhe o raio por meta de triângulos após simplificação.
+Em 7.341, essa meta passa a ativar QEM implicitamente e calcular sua redução,
+com tentativas limitadas quando as restrições impedem atingir o orçamento.
+Em 7.342, a meta passa para um painel próprio de geometria, independente de normal
+map. Sem residual e compensação, usa apenas QEM com raio 0; com ambos, também pode
+buscar raios de separação. Os campos salvos são mantidos por compatibilidade.
 A extensão aos modos curvo/descontínuo permanece fora desta entrega.
 
 Este documento registra o escopo e a sequência de implementação. Consulte

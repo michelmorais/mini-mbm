@@ -97,12 +97,23 @@ end
 function M.canSeparateDetail(options)
     return options.heightSource~='curved' and not options.voxelized and not options.twoLevels
 end
--- Normal mapping preserves geometry unless frequency separation is explicitly requested.
+function M.automaticTargetActive(options)
+    return options.normalMapAutomatic and M.canSeparateDetail(options)
+end
+function M.canBakeSeparatedDetail(options)
+    return options.reliefMode=='normal' and options.normalMapResidual and options.normalMapBasis and M.canSeparateDetail(options)
+end
+-- Triangle targeting is geometry-owned; only height separation requires a normal bake.
 function M.geometryOptions(options)
     local o=M.copy(options)
-    if o.reliefMode=='normal' and o.normalMapResidual and o.normalMapBasis and M.canSeparateDetail(o) then
-        if o.normalMapAutomatic then o.geometryTargetTriangles=o.normalMapTargetTriangles
-        elseif (o.normalMapGeometryBlur or 0)>0 then o.geometryBlurRadius=o.normalMapGeometryBlur end
+    if M.automaticTargetActive(o) then
+        o.geometryTargetTriangles=o.normalMapTargetTriangles
+        o.geometrySeparateDetail=M.canBakeSeparatedDetail(o)==true
+        o.simplify=true
+        o.simplifyMode=(o.simplifyMode=='cgal' or o.simplifyMode=='cgal_qem') and 'cgal_qem' or 'qem'
+        o.simplifyRatio=nil -- Derived from the target, never the saved manual ratio.
+    elseif M.canBakeSeparatedDetail(o) and (o.normalMapGeometryBlur or 0)>0 then
+        o.geometryBlurRadius=o.normalMapGeometryBlur
     end
     o.normalMapAutomatic=nil;o.normalMapTargetTriangles=nil;o.normalMapGeometryBlur=nil
     o.normalMapBasis=nil;o.normalMapResidual=nil;o.reliefMode=nil;o.normalMapStrength=nil;o.normalMapBlur=nil;o.normalMapConvention=nil;o.normalMapEdge=nil

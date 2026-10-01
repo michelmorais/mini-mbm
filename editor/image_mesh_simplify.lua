@@ -38,8 +38,52 @@ function M.run(E,fn,...)
     E.meshTask=coroutine.create(function() return fn(table.unpack(args,1,args.n)) end)
     return M.resume(E)
 end
+local function applyTarget(E,asset,options,report)
+    local sourceTriangles,sourceVertices=report.triangles,report.vertices
+    -- Keep optional planar cleanup/remeshing, but let the final QEM pass own the budget.
+    local preliminary=require('image_mesh_model').copy(options)
+    preliminary.geometryTargetTriangles=nil
+    preliminary.simplify=options.simplifyMode=='cgal_qem'
+    preliminary.simplifyMode='cgal'
+    M.apply(E,asset,preliminary,report)
+    local count,err=require('image_mesh_frequency').reduce(options.geometryTargetTriangles,report.triangles,function(ratio)
+        local ok,message=asset:startSimplify(ratio,nil,1,options.simplifyDetails,options.simplifyBoundary)
+        if not ok then return nil,message end
+        E.simplifyAsset=asset;E.simplifyProgress=0;E.simplifyCancelRequested=nil
+        coroutine.yield()
+        while true do
+            local status=asset:getSimplifyStatus()
+            if status.state~='running' then
+                local cancelled=E.simplifyCancelRequested or status.state=='cancelled'
+                E.simplifyAsset=nil;E.simplifyProgress=nil;E.simplifyCancelRequested=nil
+                if cancelled then
+                    E.generationCancelled=true;E.batch=nil;E.statisticsRequested=nil
+                    error('ime_generation_cancelled',0)
+                end
+                if status.state=='failed' then
+                    local message=tostring(status.error)
+                    if message:find('topology constraints prevent reaching the requested triangle count',1,true)
+                        or message:find('locked source boundaries require at least ',1,true) then
+                        return nil,'constrained'
+                    end
+                    return nil,message
+                end
+                report.simplification=status.report
+                report.vertices=status.report.resultVertexCount
+                return status.report.resultTriangleCount
+            end
+            E.simplifyProgress=status.progress or 0
+            coroutine.yield()
+        end
+    end)
+    if not count then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
+    report.sourceTriangles=sourceTriangles;report.sourceVertices=sourceVertices
+    report.triangles=count
+    report.targetReductionAttempts=err
+end
 function M.apply(E,asset,options,report)
     if options.voxelized then return end
+    if options.geometryTargetTriangles then return applyTarget(E,asset,options,report) end
     if options.simplify and options.simplifyMode~='none' then
         local worker,err=require('mesh_simplify_pipeline').start(asset,options.simplifyMode,
             options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,

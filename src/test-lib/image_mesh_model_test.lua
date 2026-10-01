@@ -200,7 +200,8 @@ for _,v in ipairs{1,100001,2.5,'3'} do assert(not pcall(M.validateOptions,{norma
 assert(not pcall(M.validateOptions,{normalMapAutomatic=1},false))
 split.heightSource='image';split.normalMapAutomatic=true;split.normalMapTargetTriangles=100
 assert(M.geometryOptions(split).geometryTargetTriangles==100 and M.geometryOptions(split).geometryBlurRadius==nil)
-split.normalMapBasis=false;assert(M.geometryOptions(split).geometryTargetTriangles==nil)
+split.normalMapBasis=false;assert(M.geometryOptions(split).geometryTargetTriangles==100)
+assert(M.geometryOptions(split).geometrySeparateDetail==false)
 local Search=require 'image_mesh_frequency'
 local visited={}
 local result=assert(Search.search(50,function(r) visited[#visited+1]=r;return ({[0]=90,[1]=70,[2]=80,[4]=40})[r] end))
@@ -211,3 +212,39 @@ result=assert(Search.search(2,function() return 20 end));assert(result.radius==0
 local failed,err=Search.search(2,function() return nil,'cancelled' end)
 assert(not failed and err=='cancelled')
 print('IMAGE MESH AUTOMATIC SEPARATION SETTINGS / SEARCH OK')
+
+local automatic={reliefMode='normal',normalMapResidual=true,normalMapBasis=true,normalMapAutomatic=true,
+    normalMapTargetTriangles=500,simplify=false,simplifyMode='none',simplifyRatio=.7}
+local effective=M.geometryOptions(automatic)
+assert(effective.simplify and effective.simplifyMode=='qem' and effective.simplifyRatio==nil)
+assert(not automatic.simplify and automatic.simplifyRatio==.7)
+automatic.normalMapAutomatic=false
+assert(not M.geometryOptions(automatic).simplify and M.geometryOptions(automatic).simplifyRatio==.7)
+local current=1000
+local count,attempts=Search.reduce(500,current,function(ratio)
+    local requested=math.floor(current*ratio)
+    assert(requested==500);current=requested;return current
+end)
+assert(count==500 and attempts==1)
+current=1000
+count,attempts=Search.reduce(500,current,function(ratio)
+    local requested=math.floor(current*ratio)
+    if requested<700 then return nil,'constrained' end
+    current=requested;return current
+end)
+assert(count>=700 and count<738 and attempts<=7)
+local failed,err=Search.reduce(500,1000,function() return nil,'failure' end)
+assert(not failed and err=='failure')
+print('AUTOMATIC TARGET REDUCTION OK')
+
+automatic.normalMapAutomatic=true;automatic.reliefMode='geometry'
+effective=M.geometryOptions(automatic)
+assert(effective.geometryTargetTriangles==500 and not effective.geometrySeparateDetail and effective.simplify)
+automatic.reliefMode='normal';automatic.normalMapResidual=false
+assert(not M.geometryOptions(automatic).geometrySeparateDetail)
+automatic.heightSource='curved'
+assert(M.geometryOptions(automatic).geometryTargetTriangles==nil)
+local probes=0
+local result=Search.search(2,function(radius) probes=probes+1;assert(radius==0);return 100 end,{0})
+assert(probes==1 and result.attempts==1 and not result.reached)
+print('GEOMETRY TARGET WITHOUT NORMAL MAP OK')

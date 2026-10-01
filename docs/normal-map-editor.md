@@ -22,6 +22,11 @@ vértices com `nx/ny/nz` e uma tangente `{x,y,z,sign}` por canto de triângulo.
 As tangentes podem ser obtidas de `meshDebug:getNormalMapCorners(frame, subset)`.
 O resultado contém `bytes`, `width`, `height` e `options`. O módulo é Lua puro,
 com execução cooperativa por `tick`; não depende de ImGui ou da engine.
+Desde 7.342, **Meta automatica de triangulos** fica em um painel próprio do Image
+Mesh e funciona sem normal map. A redução QEM atende à meta; a busca de raios para
+separação de detalhe só participa quando normal map residual e compensação estão
+ativos. O ajuste manual de separação continua em **Normal map e tangentes**.
+
 Desde 7.339, o Image Mesh oferece **Separacao de detalhe (px)**: raio opcional de
 filtro na geometria, preservando a altura original no normal map residual.
 A filtragem pesada roda no núcleo, reutilizável pela opção `geometryBlurRadius`
@@ -29,7 +34,9 @@ de `generateImageMesh`/`startImageMesh`; o projeto usa `normalMapGeometryBlur`.
 O controle está disponível para fontes contínuas de imagem, manual e mista.
 Desde 7.340, **Separacao automatica** busca um raio por meta de triangulos,
 contando frente, verso e laterais após simplificação. Testa 0/1/2/4/8/16/32 px
-e informa quando não consegue atingir a meta. O raio manual fica preservado; consulte as limitações no [Image Mesh](image-mesh-editor.md#normal-map-relief).
+e informa quando não consegue atingir a meta. Desde 7.341, ativa a simplificação
+QEM implicitamente e calcula a redução pela meta, preservando as restrições
+de detalhes/contornos. Raio, método e proporção manuais ficam preservados; consulte as limitações no [Image Mesh](image-mesh-editor.md#normal-map-relief).
 
 ## Uso
 

@@ -161,23 +161,51 @@ by source alpha and the region/holes mask. It runs after height levels, areas an
 brushes, before border locking/attenuation, adaptive refinement and simplification.
 It keeps float heights internally instead of passing geometry through an 8-bit PNG.
 It is active only for continuous image, manual or mixed height, with normal mapping,
-residual detail and mesh-normal compensation enabled. Curved, voxelized and two-level
-modes keep the saved radius inactive. Disabling any prerequisite restores the full
-geometric height; re-enabling it reuses the saved radius. PNG height previews and
+residual detail and mesh-normal compensation enabled (the independent triangle
+target does not require these). Curved, voxelized and two-level
+modes keep the saved radius inactive. Disabling a normal-map prerequisite removes
+the height filter, while an enabled automatic triangle target continues simplifying
+the mesh. Re-enabling the prerequisite restores the selected separation mode. PNG height previews and
 normal-map inputs keep full detail.
 
 A fixed grid keeps its resolution. Adaptive refinement or simplification can use
 fewer triangles because the geometric surface is smoother, but no triangle-count
 reduction is guaranteed.
 
-Version 7.340 adds **Automatic separation** under the same prerequisites. The saved
-manual radius remains available when automatic mode is switched off. The shared Lua
-module `image_mesh_frequency.search(target, evaluate)` tests radii 0, 1, 2, 4, 8, 16,
-and 32 in that order. Each candidate runs the native generation worker and the
-configured simplification/remeshing, counting all subsets (front, back and sides).
-The first tested radius meeting the target wins. If none meets it, the lowest count
-wins, with ties favoring the smaller radius. No monotonic relationship is assumed;
-this is a bounded search, not a globally optimal radius or an error guarantee.
+Version 7.342 moves the budget control into its own **Automatic triangle target**
+section, independent of **Normal map and tangents**. The target works without normal
+mapping, or with additive normals. Only the optional radius search requires residual
+normal mapping plus mesh-normal compensation. Otherwise radius 0 is used and the
+budget is handled by QEM alone, without height smoothing. Current support remains
+continuous image/manual/mixed relief; curved, voxel and two-level modes are excluded.
+The saved `normalMapAutomatic` and `normalMapTargetTriangles` field names are retained
+for project compatibility. Turning off normals/residual/compensation no longer turns
+off the triangle target. Disable **Enable automatic target** to restore manual
+simplification. Manual height separation stays in the normal-map section.
+
+Version 7.340 introduced **Automatic separation** under the normal-map prerequisites.
+Version 7.341 makes the triangle target control QEM reduction implicitly, including
+fixed grids with manual simplification disabled. Manual method and ratio remain
+saved and are restored when the automatic triangle target is disabled. In automatic mode,
+the simplification panel explains target ownership while leaving detail/boundary
+protection editable. Changing the saved manual ratio does not affect the search.
+
+The shared Lua module `image_mesh_frequency.search(target, evaluate)` tests radii
+0, 1, 2, 4, 8, 16, and 32 when residual compensation is active, or only 0 otherwise.
+Each candidate runs native generation, optional selected
+CGAL planar cleanup and enabled remeshing, then QEM against the target. The QEM
+ratio is derived from the current count, not from the manual slider. All subsets
+(front, back and sides) count toward the target. If already below budget, QEM is
+skipped. Detail preservation and boundary constraints remain in effect.
+
+Native QEM fails atomically when topology or locked boundaries prevent a target.
+`image_mesh_frequency.reduce` then tries less aggressive intermediate counts,
+with at most seven QEM requests per radius, retaining successful reductions.
+Other failures abort normally; cancellation never becomes a search candidate.
+This bounded fallback can miss the closest feasible count. It does not relax
+geometry protections. The first tested radius meeting the target wins; otherwise,
+the lowest count wins, with ties favoring the smaller radius. No monotonic
+relationship between radius and triangle count is assumed.
 
 The winner is regenerated through the normal comparison/cache callbacks and baked
 once. Candidate probes never bake normal textures or replace the displayed mesh.
@@ -186,9 +214,9 @@ reached. The report's `detailSeparation` holds `radius`, `triangles`, `target`,
 `reached` and `attempts`. The selected radius is derived, not written over the manual
 project setting. Saving, reopening and exporting use the same shared build pipeline.
 
-Generation and simplification remain cancellable. A failed or cancelled candidate
-aborts the search, keeping existing error handling; it is not treated as a valid
-low-count result. At most seven probes plus one final generation run per build.
+Generation and simplification remain cancellable. Unexpected failures and cancellation
+abort the search. At most seven radius probes plus one final generation run per build
+are used, each with up to seven QEM attempts.
 Native candidate buffers are collected between probes. No search runs while idle or
 when only normal-map strength, blur, convention or edge changes; geometry changes
 invalidate the existing cache. This feature is supported only for continuous image,
@@ -218,8 +246,14 @@ Automatic selection is covered by `image_mesh_model_test.lua` (validation, legac
 settings, nonmonotonic counts and tie handling), `image_mesh_normal_map_smoke.lua`
 (target met/unmet, export, comparison, cancellation, manual restoration and idle),
 and `image_mesh_automatic_smoke.lua` (native adaptive geometry and post-simplification
-counts). The adaptive fixture chooses 2 px and reduces 84 to 40 triangles for a target
-of 50. These tests passed on Linux/GLES; interactive click/drag was not automated.
+counts). The fixtures also cover implicit QEM on a fixed 24 x 24 grid with manual
+simplification disabled, bounded fallback when the target is constrained, and standalone triangle targeting
+without normal mapping or with additive normals. The new panel also runs in the
+engine fixture; actual click/drag input is not automated.
+These tests passed on Linux/GLES: the fixed-grid fixture reduced 1344 to 500
+triangles with manual simplification disabled. A read-only build of the reported
+`teste.imesh` also reached its target of 500 triangles at radius 0. Interactive
+click/drag is not automated.
 Other rendering backends have not been exercised for this integration.
 
 ## Workspace and navigation

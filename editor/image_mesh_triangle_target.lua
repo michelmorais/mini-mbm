@@ -5,8 +5,8 @@
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
-| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to     |
-| permit persons to whom the Software is furnished to do so, subject to the following conditions:                         |
+| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |
+| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |
 |                                                                                                                        |
 | The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |
 | the Software.                                                                                                          |
@@ -18,40 +18,30 @@
 |                                                                                                                        |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Bounded detail-separation search, independent of the engine and editor UI.
 ]]--
 
--- Bounded search: counts after simplification need not be monotonic in radius.
+local Model=require 'image_mesh_model'
 local M={}
-function M.search(target,evaluate,radii)
-    local best
-    for attempt,radius in ipairs(radii or {0,1,2,4,8,16,32}) do
-        local triangles,err=evaluate(radius)
-        if not triangles then return nil,err end
-        if not best or triangles<best.triangles then
-            best={radius=radius,triangles=triangles,target=target,reached=triangles<=target}
-        end
-        best.attempts=attempt
-        if triangles<=target then return best end
-    end
-    return best
-end
--- Failed native QEM attempts leave the input intact. Successful attempts become
--- the input for a tighter request. Bound the work when topology limits reduction.
-function M.reduce(target,source,evaluate)
-    local count,lower,attempts=source,target,0
-    local requested=target
-    while count>target and requested<count and attempts<7 do
-        attempts=attempts+1
-        local result,err=evaluate((requested+.5)/count)
+function M.panel(E)
+    local available=Model.canSeparateDetail(E.values)
+    tImGui.BeginDisabled(not available)
+    E.values.normalMapAutomatic=tImGui.Checkbox(tLang.L('ime_target_enable'),E.values.normalMapAutomatic)
+    if E.values.normalMapAutomatic then
+        local changed,target=tImGui.InputInt(tLang.L('ime_normal_target'),E.values.normalMapTargetTriangles)
+        if changed then E.values.normalMapTargetTriangles=math.max(2,math.min(100000,target)) end
+        local separated=Model.canBakeSeparatedDetail(E.values)
+        tImGui.TextWrapped(tLang.L(separated and 'ime_normal_automatic_help' or 'ime_target_geometry_help'))
+        local result=E.report and E.report.detailSeparation
         if result then
-            count=result
-            if count<=target then break end
-        elseif err=='constrained' then
-            lower=requested+1
-        else return nil,err end
-        requested=math.floor((lower+count)/2)
+            if separated then
+                tImGui.TextWrapped(string.format(tLang.L('ime_normal_automatic_result'),result.radius,result.triangles,result.target))
+            else
+                tImGui.TextWrapped(string.format(tLang.L('ime_target_result'),result.triangles,result.target))
+            end
+            tImGui.TextWrapped(tLang.L(result.reached and 'ime_normal_target_met' or 'ime_normal_target_unmet'))
+        end
     end
-    return count,attempts
+    tImGui.EndDisabled()
+    if not available then tImGui.TextWrapped(tLang.L('ime_target_unavailable')) end
 end
 return M

@@ -75,7 +75,9 @@ function M.generate(E,project,region,callbacks)
     local authored=Model.options(project,region)
     local options=Model.geometryOptions(authored)
     local target=options.geometryTargetTriangles
-    options.geometryTargetTriangles=nil
+    local radii
+    if not options.geometrySeparateDetail then radii={0} end
+    options.geometrySeparateDetail=nil
     local separation
     if target then
         local err
@@ -89,7 +91,7 @@ function M.generate(E,project,region,callbacks)
             -- Release each probe before starting another worker; never done while idle.
             collectgarbage('collect')
             return count
-        end)
+        end,radii)
         if not separation then return nil,err end
         options.geometryBlurRadius=separation.radius
     end

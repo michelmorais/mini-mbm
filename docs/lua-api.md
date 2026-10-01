@@ -3035,7 +3035,8 @@ Image Mesh project field `normalMapGeometryBlur` (integer 0..32, default 0) maps
 native `geometryBlurRadius` only when normal mapping, residual detail and basis
 compensation are active on a supported continuous surface. Unlike appearance-only
 normal parameters, changing the effective radius rebuilds geometry. Disabling a
-prerequisite restores full geometric detail while keeping the saved radius. The
+prerequisite removes height filtering while keeping the saved radius. Since 7.342,
+an independently enabled triangle target still simplifies the geometry. The
 normal-map generator and 2D height preview use original processed height. The
 native filter does not require normal mapping and can also be used directly by
 other `generateImageMesh` / `startImageMesh` consumers.
@@ -3049,6 +3050,21 @@ radius meeting the target, or the fewest triangles (smaller radius on ties).
 The target is not guaranteed. Appearance-only edits reuse geometry; exports run the
 same selection pipeline. See [Image Mesh Editor](image-mesh-editor.md#normal-map-relief)
 for cancellation, bounded-search limitations and result reporting.
+
+Since 7.341, automatic mode implicitly enables QEM even when manual simplification
+is disabled. The reduction ratio is computed from the target and current triangle
+count; manual method/ratio are retained. Selected CGAL planar cleanup and enabled
+remeshing run before the target QEM pass. Topology-limited attempts use a bounded
+fallback (at most seven QEM attempts per radius); cancellation and other errors
+still abort. This is editor orchestration, with no new native Lua API.
+
+Since 7.342 the **Automatic triangle target** section is independent of normal
+mapping. The existing saved field names are retained. For continuous image/manual/
+mixed surfaces, `normalMapAutomatic=true` activates target QEM even with
+`reliefMode='geometry'`, residual disabled or compensation disabled. Only the
+0/1/2/4/8/16/32 radius search requires all normal-map prerequisites; otherwise the
+search uses radius 0 only. Manual height separation still requires residual
+compensation. Curved/voxel/two-level modes remain unsupported by this target control.
 
 ### Mesh Debug tangent snapshots
 

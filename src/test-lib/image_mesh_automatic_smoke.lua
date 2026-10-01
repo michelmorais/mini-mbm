@@ -49,7 +49,7 @@ local function test()
     local asset,report=Build.generate(E,project,region)
     assert(asset,report)
     local choice=assert(report.detailSeparation)
-    assert(choice.radius>0 and choice.reached and choice.triangles<=50,'Automatic search did not reduce adaptive geometry')
+    assert(choice.reached and choice.triangles<=50,'Automatic search did not reduce adaptive geometry')
     local options=Model.geometryOptions(Model.options(project,region))
     options.geometryTargetTriangles=nil;options.geometryBlurRadius=0
     local raw,rawReport=mbm.generateImageMesh(source,options);assert(raw,rawReport)
@@ -58,22 +58,44 @@ local function test()
     print('AUTOMATIC TRIANGLES',rawReport.triangles,choice.triangles,'RADIUS',choice.radius)
     -- The budget is measured after the optional simplification stage.
     defaults.simplify=true;defaults.simplifyMode='qem';defaults.simplifyRatio=.9;defaults.simplifyDetails=false
-    defaults.normalMapTargetTriangles=100
+    defaults.normalMapTargetTriangles=40
     asset,report=Build.generate(E,project,region);assert(asset,report)
-    assert(report.simplification and report.detailSeparation.triangles==report.triangles)
-    assert(report.detailSeparation.reached and report.triangles<report.sourceTriangles)
+    assert(report.detailSeparation.triangles==report.triangles)
+    assert(report.detailSeparation.reached and report.triangles<=40)
+    -- Fixed grid: automatic mode must activate QEM even when manual reduction is off.
+    defaults.followImage=false;defaults.columns=24;defaults.rows=24
+    defaults.simplify=false;defaults.simplifyMode='none';defaults.simplifyRatio=.95
+    defaults.normalMapTargetTriangles=500
+    asset,report=Build.generate(E,project,region);assert(asset,report)
+    assert(report.simplification and report.detailSeparation.reached and report.triangles<=500)
+    assert(not defaults.simplify and defaults.simplifyMode=='none' and defaults.simplifyRatio==.95)
+    print('FIXED GRID TARGET',report.sourceTriangles,report.triangles)
+    defaults.reliefMode='geometry'
+    asset,report=Build.generate(E,project,region);assert(asset,report)
+    assert(report.detailSeparation.reached and report.triangles<=500)
+    assert(report.detailSeparation.radius==0 and report.detailSeparation.attempts==1)
+    assert(not asset:getMaterialTexture(1,1,'normal'),'Geometry target unexpectedly generated normal material')
+    defaults.reliefMode='normal';defaults.normalMapResidual=false
+    asset,report=Build.generate(E,project,region);assert(asset,report)
+    assert(report.detailSeparation.radius==0 and report.detailSeparation.attempts==1)
+    assert(asset:getMaterialTexture(1,1,'normal'),'Additive normal material was lost')
+    print('GEOMETRY TARGET WITHOUT RESIDUAL PASS')
     print('IMAGE MESH AUTOMATIC PASS')
 end
 function onInitScene()
     tImGui=require 'ImGui'
     tUtil=require 'editor_utils'
+    E.values={heightSource='image',normalMapAutomatic=true,normalMapTargetTriangles=500,reliefMode='geometry'}
     started=mbm.getTimeRun()
     task=coroutine.create(test)
 end
 function onLoop()
+    local open=tImGui.Begin('Triangle target smoke',false,0)
+    if open then require('image_mesh_triangle_target').panel(E) end
+    tImGui.End()
     local ok,err=coroutine.resume(task)
     if not ok then print('IMAGE MESH AUTOMATIC FAIL '..tostring(err));mbm.quit()
     elseif coroutine.status(task)=='dead' then mbm.quit()
-    elseif mbm.getTimeRun()-started>30 then print('IMAGE MESH AUTOMATIC FAIL timeout');mbm.quit() end
+    elseif mbm.getTimeRun()-started>90 then print('IMAGE MESH AUTOMATIC FAIL timeout');mbm.quit() end
 end
 function onEndScene() Normal.shutdown(E) end
