@@ -260,6 +260,116 @@ O caso de meta impossível do Image Mesh usa uma grade pequena para manter as se
 tentativas de raio viáveis no MSVC sem otimização; restaura a grade original antes
 de verificar a preservação dos parâmetros manuais.
 
+### macOS (Metal Debug/arm64)
+
+Validação de 2026-10-01 em macOS 26.6.2, Apple M4, Retina 2x, AppleClang 21
+e CMake 4.2.0, engine 7.344. Normal mapping habilitado, limite compilado de quatro
+luzes e `MTL_DEBUG_LAYER=1` em todos os testes gráficos:
+
+| Verificação | Resultado |
+|---|---|
+| Build do engine, ImGui e testLib | Passou |
+| Lua puro: gerador, residual, baker, modelo Image Mesh e políticas de normais | Passou |
+| Inicialização do gerador pelo launcher da engine | Passou |
+| Gerador: PNG, reload/release GPU, material 3D e oito segundos ociosos | Passou |
+| Image Mesh: residual/base tangente, laterais, comparações, meta automática, exportação, desfazer e cancelamento | Passou |
+| MeshDebug: frames/subsets, `.msh`/`.imesh`, aplicação, falha de leitura, desfazer, limpeza e painel ocioso | Passou |
+| Suíte runtime: preparação, persistência, recursos/pipelines Metal, leitura de pixels e renderização com/sem índices | Passou |
+
+Os quatro smokes de editor terminaram com seus marcadores de sucesso, código 0
+e sem diagnósticos de falha da validação Metal. O caso de cancelamento do Image Mesh
+imprime `ime_generation_cancelled`; o caso de fonte inexistente do MeshDebug
+imprime `Invalid image or more than 16 million pixels`. São falhas provocadas pelo
+teste, que também verifica a preservação da malha anterior.
+
+O PNG gerado e as capturas `material-mapped.png`/`material-flat.png` foram
+inspecionados: o material consome o mapa e muda a iluminação em relação à
+intensidade zero. Isso não valida toda a interface visual. Os smokes chamam as
+operações reais dos editores programaticamente e desenham seus painéis; não
+automatizam cliques, arrastes, atalhos nem diálogos nativos. A seleção no diálogo
+inicial do aplicativo também não foi exercitada: o smoke de launcher verifica o
+carregamento da cena por `__onLoadScene`.
+
+Para reproduzir a partir da raiz:
+
+```sh
+cmake -S . -B build/macos_debug -DPLAT=MacOs -DUSE_ALL=1 \
+  -DUSE_TEXTURE_MISSING_DIALOG=0 -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/macos_debug -j 8
+```
+
+Metal é o backend padrão. A configuração agora habilita Objective-C++ **depois**
+de resolver esse padrão. Antes da correção, um build novo sem `-DUSE_METAL=1`
+falhava ao configurar `normal-map-native-resource-tests.cpp`, cuja linguagem é
+`OBJCXX`. Os avisos de compilação observados são de bibliotecas de terceiros.
+
+O CMake atual gera o executável Lua isolado somente no Linux. No macOS, compile
+o interpretador das fontes incluídas e vincule a biblioteca recém-construída:
+
+```sh
+cc -g -I third-party/lua-5.4.1 third-party/lua-5.4.1/lua.c \
+  -L bin/debug/arm64 -llua-5.4.1 -Wl,-rpath,"$PWD/bin/debug/arm64" \
+  -o /tmp/normal-map-lua-5.4.1
+for test in normal_map_generator_test normal_map_residual_test normal_map_baker_test \
+  image_mesh_model_test mesh_debug_normals_test; do
+  /tmp/normal-map-lua-5.4.1 "src/test-lib/$test.lua" || break
+done
+```
+
+Execute os smokes no desktop macOS. Este exemplo usa Python 3 para aplicar o
+timeout externo sem depender do comando GNU `timeout`; guarda um log por teste
+e exige o marcador, código de saída e ausência de diagnósticos fatais:
+
+```sh
+python3 - <<'PY'
+import importlib.util, os, subprocess, tempfile
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('runner', 'src/test-lib/run-normal-map-tests.py')
+runner = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(runner)
+output = Path(tempfile.mkdtemp(prefix='normal-map-macos-editors-'))
+print('Logs:', output, flush=True)
+env = dict(os.environ, MTL_DEBUG_LAYER='1')
+cases = [
+    ('normal_map_launcher_smoke', 'NORMAL MAP LAUNCHER SMOKE PASS', 20),
+    ('normal_map_editor_smoke', 'NORMAL MAP EDITOR SMOKE PASS', 45),
+    ('image_mesh_normal_map_smoke', 'IMAGE MESH NORMAL PASS', 135),
+    ('mesh_debug_normal_generator_smoke', 'MESH DEBUG NORMAL GENERATOR PASS', 80),
+]
+for name, marker, seconds in cases:
+    command = ['bin/debug/arm64/mini-mbm', '--scene', 'src/test-lib/' + name + '.lua',
+               '--disable_select_monitor', '--nosplash', '-w', '1180', '-h', '800']
+    with (output / (name + '.log')).open('wb') as log:
+        result = subprocess.run(command, env=env, stdout=log,
+                                stderr=subprocess.STDOUT, timeout=seconds)
+    text = (output / (name + '.log')).read_text(errors='replace')
+    failure = runner.verdict(result.returncode, text, marker)
+    assert failure is None, (name, failure)
+    assert 'Metal API Validation Enabled' in text, name
+    print(name, 'PASS', flush=True)
+PY
+```
+
+Para a suíte nativa/runtime, escolha um diretório de saída que ainda não exista:
+
+```sh
+python3 src/test-lib/run-normal-map-tests.py \
+  --test-lib bin/debug/arm64/testLib --engine bin/debug/arm64/mini-mbm \
+  --backend metal --normal 1 --lights 4 --require-native-validation \
+  --output /tmp/normal-map-macos-runtime
+```
+
+O runner grava `report.json`, logs e capturas. Nesta sessão, os relatórios ficaram
+em `/tmp/normal-map-macos-runtime-20261001` e
+`/tmp/normal-map-macos-editors-20261001`. Esses diretórios são temporários.
+
+Para a passada manual, abra `editor/normal_map_editor.lua`,
+`editor/image_mesh_editor.lua` e `editor/mesh_debug.lua` com o mesmo executável:
+verifique seleção/salvamento com caminhos acentuados, controles de normal map,
+arrastes e posicionamento dos painéis em Retina, desfazer e reabertura dos arquivos
+exportados. macOS/OpenGL ES, Intel, Release e plataformas móveis não foram
+validados nesta sessão.
+
 ## Integração ao Image Mesh (entrega 2)
 
 O Image Mesh reutiliza `normal_map_generator` e `normal_map_panel` através de
@@ -272,7 +382,7 @@ superfície e iluminação do runtime. Consulte o
 Teste da integração:
 
 ```sh
-timeout -s KILL 55 ./bin/debug/linux_x86/mini-mbm \
+timeout -s KILL 135 ./bin/debug/linux_x86/mini-mbm \
   --scene src/test-lib/image_mesh_normal_map_smoke.lua \
   --disable_select_monitor --nosplash -w 1180 -h 800
 ```
@@ -322,4 +432,4 @@ O teste `src/test-lib/mesh_debug_normal_generator_smoke.lua` exercita o MeshDebu
 real: seleção individual/todos, material com intensidade 1, tangentes, cancelamento,
 falha de leitura, desfazer, projeto `.imesh` separado da origem, recarga de malha,
 limpeza dos temporários e painéis ociosos. Validado em Linux/GLES e em
-Windows/OpenGL ES/DX9/DX11; cliques e arrastes reais não foram automatizados.
+Windows/OpenGL ES/DX9/DX11 e macOS/Metal; cliques e arrastes reais não foram automatizados.

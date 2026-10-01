@@ -24,7 +24,9 @@ Em 7.344, o MeshDebug também oferece geração: parâmetros do projeto para `.i
 e fonte de altura explícita com seleção de frames/subsets para `.msh`. O painel
 de material/tangentes continua separado. Aplicação, cancelamento, desfazer e
 salvamento explícito do projeto fazem parte dessa integração.
-A extensão aos modos curvo/descontínuo permanece fora desta entrega.
+A separação de detalhe por filtro de geometria nos modos curvo/descontínuo
+permanece fora desta entrega. Normal map aditivo e residual já atendem fontes
+curvas; o residual converte a espessura normalizada em deslocamento frontal.
 
 Em 2026-10-01, a validação Windows Debug/Win32 cobriu OpenGL ES, DirectX 9 e
 DirectX 11: build, launcher, gerador independente, Image Mesh e MeshDebug.
@@ -32,6 +34,14 @@ Foram corrigidos o link EGL/GLES, a visibilidade de helpers privados usados pelo
 teste nativo e a estabilidade dos argumentos UTF-8 no launcher. Os testes usam
 diretórios temporários portáveis. Consulte os resultados e limites de interação
 na [validação Windows](normal-map-editor.md#windows-msvc-debugwin32).
+
+Em 2026-10-01, a validação macOS/Metal Debug/arm64 passou no Apple M4:
+build, testes Lua puros, launcher, gerador, Image Mesh e MeshDebug, além da suíte
+nativa de normal mapping com Metal API Validation. Foi corrigida a habilitação
+de Objective-C++ após a seleção do backend padrão no CMake. Capturas do material
+foram inspecionadas; interação por mouse/teclado e diálogos nativos ainda requerem
+validação manual. Consulte os comandos e a cobertura na
+[validação macOS](normal-map-editor.md#macos-metal-debugarm64).
 
 Este documento registra o escopo e a sequência de implementação. Consulte
 [o manual do gerador](normal-map-editor.md) para os contratos implementados,

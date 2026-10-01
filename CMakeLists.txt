@@ -538,12 +538,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_CXX_EXTENSIONS OFF)
-    if(APPLE AND USE_METAL)
-        enable_language(OBJCXX)
-        set(CMAKE_OBJCXX_STANDARD 17)
-        set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
-        set(CMAKE_OBJCXX_EXTENSIONS OFF)
-    endif()
     
     #set(CMAKE_VERBOSE_MAKEFILE on)
 
@@ -740,6 +734,15 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             message(STATUS "CMAKE_SYSTEM_NAME:${CMAKE_SYSTEM_NAME}" )
             message(SEND_ERROR "You must select at least one graphics backend: USE_OPENGL_ES, USE_DIRECTX9, USE_DIRECTX11, USE_METAL or USE_DUMMY_BACK_END_ENGINE")
         endif()
+    endif()
+
+    # Resolve the default backend before enabling its language. A fresh Apple
+    # build may select Metal without an explicit -DUSE_METAL argument.
+    if(APPLE AND USE_METAL)
+        enable_language(OBJCXX)
+        set(CMAKE_OBJCXX_STANDARD 17)
+        set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+        set(CMAKE_OBJCXX_EXTENSIONS OFF)
     endif()
 
     #default definitions: opengl, deprecated version, VR, lua options default compatibility

@@ -18,8 +18,10 @@ Choose **Image Mesh Editor** in the launcher, or run from the repository root:
 bin/debug/linux_x86/mini-mbm --scene editor/image_mesh_editor.lua --disable_select_monitor --nosplash -w 1440 -h 900
 ```
 
-The editor requires Lua and ImGui. The documented test coverage uses Linux/OpenGL ES;
-launcher integration is also present for Windows and macOS.
+The editor requires Lua and ImGui. General editor coverage below uses Linux/OpenGL ES.
+The normal-map integration also passed on Windows/OpenGL ES/DX9/DX11 and
+macOS/Metal; see the [generator validation](normal-map-editor.md#validação)
+for the tested scope and interaction limits.
 
 1. Open an image from the File menu.
 2. Create regions for the modules, manually or with the region grid.
@@ -231,7 +233,8 @@ when only normal-map strength, blur, convention or edge changes; geometry change
 invalidate the existing cache. This feature is supported only for continuous image,
 manual and mixed height, just like manual separation.
 
-Validation on Linux/GLES: `src/test-lib/image_mesh_normal_map_smoke.lua` checks preserved
+Validation on Linux/GLES, Windows/OpenGL ES/DX9/DX11 and macOS/Metal:
+`src/test-lib/image_mesh_normal_map_smoke.lua` checks preserved
 relief, separate materials, atlas dimensions, texture-only updates and Undo,
 manual/mixed/curved height, holes, persistence, both exports, portable front/side tangents and matched crop dimensions,
 assembly updates, cancellation, mode switching, identical triangle/UV surfaces
