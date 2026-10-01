@@ -3303,6 +3303,35 @@ namespace mbm
         return 1;
     }
 
+    static int onWriteImagePixelsLua(lua_State *lua)
+    {
+        const char *path = luaL_checkstring(lua, 1);
+        size_t length = 0;
+        const char *bytes = luaL_checklstring(lua, 2, &length);
+        const lua_Integer width = luaL_checkinteger(lua, 3);
+        const lua_Integer height = luaL_checkinteger(lua, 4);
+        if (width <= 0 || height <= 0 || width > 16777216 || height > 16777216 ||
+            static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > 16777216 ||
+            length != static_cast<uint64_t>(width) * static_cast<uint64_t>(height) * 4)
+        {
+            lua_pushnil(lua);
+            lua_pushliteral(lua, "Expected RGBA bytes matching dimensions, at most 16 million pixels");
+            return 2;
+        }
+        char message[1024] = {};
+        const bool saved = TEXTURE_MANAGER::getInstance()->saveDataAsPNG(path,
+            reinterpret_cast<const uint8_t *>(bytes), length, 4,
+            static_cast<uint32_t>(width), static_cast<uint32_t>(height), message, sizeof(message));
+        if (!saved)
+        {
+            lua_pushnil(lua);
+            lua_pushstring(lua, message);
+            return 2;
+        }
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
     static int onReadImagePixelsLua(lua_State *lua)
     {
         const char *path = luaL_checkstring(lua, 1);
@@ -3598,6 +3627,7 @@ namespace mbm
             {"doSubscribe", doSubscribePlugin},
             {"loadTexture", onLoadDetailedTexture},
             {"readImagePixels", onReadImagePixelsLua},
+            {"writeImagePixels", onWriteImagePixelsLua},
             {"createDirectories", onCreateDirectoriesLua},
             {"listFiles", onlistFiles},
             {"enableTextureFilter", enableTextureFilterLua},

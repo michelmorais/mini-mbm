@@ -120,6 +120,9 @@ namespace mbm
         API_IMPL void setPath(const char *PathSource);
         API_IMPL bool saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
                                   const uint32_t width, const uint32_t height, char *strMessageError, size_t strMessageErrorLen);
+        API_IMPL bool saveDataAsPNG(const char *fileName, const uint8_t *image, size_t imageSize,
+                                  const uint32_t channel, const uint32_t width, const uint32_t height,
+                                  char *strMessageError, size_t strMessageErrorLen);
 
         // Generate .h header file from PNG in IMAGE_RESOURCE format (e.g. mini-mbm-logo.h).
         // Uses alpha channel from PNG; no color keying.

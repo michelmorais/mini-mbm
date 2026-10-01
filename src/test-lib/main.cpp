@@ -32,6 +32,9 @@
 #include "directx9-skeletal-parity-tests.h"
 #include "directx11-skeletal-parity-tests.h"
 #include <core_mbm/light.h>
+#if defined(_WIN32)
+#include <core_mbm/parse-launcher-args.hpp>
+#endif
 #include <cstdio>
 #if defined(USE_OPENGL_ES) && defined(__linux__)
 int runGlesNormalMapFailureTests();
@@ -391,6 +394,7 @@ namespace
 #endif
 
 // Usage: testLib --normal-map-persistence-tests
+//        testLib --launcher-args-test (Windows UTF-8 argument lifetime regression)
 //        testLib --normal-map-preparation-tests
 //        testLib --skeletal-foundation-tests
 //        testLib --gles-dqs-shader-test
@@ -465,6 +469,24 @@ static int runTestLib(int argc, char **argv
         return runNormalMapPreparationTests();
     if (argc == 2 && std::strcmp(argv[1], "--normal-map-persistence-tests") == 0)
         return runNormalMapPersistenceTests();
+#if defined(_WIN32)
+    if (argc == 2 && std::strcmp(argv[1], "--launcher-args-test") == 0)
+    {
+        // Short strings used to move when the conversion vector grew, leaving
+        // dangling pointers for flags preceding longer Unicode paths.
+        wchar_t words[][80] = {L"mini_mbm.exe", L"--scene", L"C:/test folder/a\u00e7\u00e3o.lua",
+            L"--disable_select_monitor", L"--nosplash", L"-w", L"1180", L"-h", L"800"};
+        wchar_t *arguments[9];
+        for (int i = 0; i < 9; ++i) arguments[i] = words[i];
+        PARSE_launcher_ARGS parser(9, arguments);
+        unsigned int width = 0, height = 0;
+        const bool passed = parser.noSplash && parser.disable_select_monitor &&
+            parser.getWidthHeight(width, height) && width == 1180 && height == 800 &&
+            std::strcmp(parser.getFileNameInitialLua(), "C:/test folder/a\xc3\xa7\xc3\xa3o.lua") == 0;
+        std::printf("LAUNCHER ARGS TEST %s\n", passed ? "PASS" : "FAIL");
+        return passed ? 0 : 1;
+    }
+#endif
     GAME game;
     game.myScene.testCoreManager = &game;
 #if defined(USE_DIRECTX11)

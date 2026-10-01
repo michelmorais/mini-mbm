@@ -24,6 +24,7 @@
 #include <core_mbm/util-interface.h>
 #include <stb/stb-interface.h>
 #include "private/image-mesh-height.h"
+#include "private/image-mesh-frequency.h"
 #include "private/image-mesh-sides.h"
 #include "private/image-mesh-curved-simplify.h"
 #include <lodepng/lodepng.h>
@@ -87,6 +88,7 @@ namespace mbm
             image_mesh::HEIGHT_FIELD field;
             std::string topologyError;
             if (!field.load(imagePath,o,topologyError)) return fail(errorOut,errorOutLen,topologyError.c_str());
+            if (!image_mesh::filterGeometryHeights(field,o,topologyError)) return fail(errorOut,errorOutLen,topologyError.c_str());
             const uint32_t backWidth=o.backCropWidth?o.backCropWidth:field.width;
             const uint32_t backHeight=o.backCropHeight?o.backCropHeight:field.height;
             if (o.backRemap && (o.backX>=field.imageWidth || o.backY>=field.imageHeight ||
@@ -99,7 +101,7 @@ namespace mbm
             if (!o.voxelized) image_mesh::curved_simplify::run(o,field,topology,report);
             image_mesh::checkpoint(o,"surface",0.9f);
             std::vector<IMAGE_MESH_POINT> sideInner;
-            const bool separateBack=o.backSolid || o.backExternal;
+            const bool separateBack=o.backSolid || o.backExternal || (o.separateFront && !o.backOpen);
             std::string backTexture=field.path;
             int backImageWidth=0,backImageHeight=0;
             const bool externalBackImage=o.backExternal && o.backTexture && *o.backTexture;
@@ -116,7 +118,7 @@ namespace mbm
                 if (!decoded) return fail(errorOut,errorOutLen,"Cannot decode back texture");
             }
             std::string sideTexture=field.path;
-            const bool separateSides=separateBack || o.sideMode==IMAGE_MESH_SIDE::COLOR || o.sideMode==IMAGE_MESH_SIDE::REPEAT;
+            const bool separateSides=separateBack || o.separateFront || o.sideMode==IMAGE_MESH_SIDE::COLOR || o.sideMode==IMAGE_MESH_SIDE::REPEAT;
             const bool repeatSourceCrop=o.sideMode==IMAGE_MESH_SIDE::REPEAT && (!o.sideTexture || !*o.sideTexture);
             uint32_t sideRows=1;
             if (o.sideMode==IMAGE_MESH_SIDE::BAND)

@@ -21,43 +21,48 @@
 ]]--
 
 local M={}
-function M.cancel(E)
- if E.normalProcessing then E.generationCancelling=true end
- if E.normalJob then E.normalJob:cancel() end
- if E.imageJob then E.imageJob:cancel();E.generationCancelling=true end
- if E.simplifyAsset then E.simplifyCancelRequested=true;E.simplifyAsset:cancelSimplify() end
+-- CPU reference preview: independent from backend shader conventions. Relighting
+-- consumes the existing normal raster; it never rebuilds height or normal maps.
+function M.light(result,azimuth,elevation,enabled,tick)
+    tick=tick or function() end
+    local a,e=math.rad(azimuth),math.rad(elevation)
+    local lx,ly,lz=math.cos(a)*math.cos(e),math.sin(a)*math.cos(e),math.sin(e)
+    local rows={}
+    for y=1,result.height do
+        local row={}
+        for x=1,result.width do
+            local p=((y-1)*result.width+x-1)*4+1
+            local r,g,b,alpha=result.bytes:byte(p,p+3)
+            local nx,ny,nz=r/127.5-1,g/127.5-1,b/127.5-1
+            if result.options.convention=='-Y' then ny=-ny end
+            if not enabled then nx,ny,nz=0,0,1 end
+            local length=math.sqrt(nx*nx+ny*ny+nz*nz)
+            local light=.18+.82*math.max(0,(nx*lx+ny*ly+nz*lz)/math.max(1e-6,length))
+            local dr,dg,db=result.diffuse:byte(p,p+2)
+            row[x]=string.char(math.floor(dr*light+.5),math.floor(dg*light+.5),math.floor(db*light+.5),alpha)
+        end
+        rows[y]=table.concat(row);tick(y/result.height)
+    end
+    return table.concat(rows)
 end
-function M.generate(E,path,options)
- E.generationCancelled=nil;E.generationCancelling=nil
- local job,err=mbm.startImageMesh(path,options)
- if not job then return nil,err end
- E.imageJob=job
- -- Let the GUI render its progress/cancel controls before collecting even a fast result.
- coroutine.yield()
- while true do
-  local status=job:getStatus();E.generationProgress=status.progress;E.generationStage=status.stage
-  if status.state~='running' then
-   E.imageJob=nil;E.generationProgress=nil;E.generationStage=nil;E.generationCancelling=nil
-   if status.state=='cancelled' then
-    E.generationCancelled=true;E.batch=nil;E.statisticsRequested=nil
-    return nil,'ime_generation_cancelled'
-   end
-   if status.state=='completed' then return job:takeResult() end
-   return nil,status.error or 'Image mesh generation failed'
-  end
-  coroutine.yield()
- end
-end
-function M.panel(E)
- if not E.imageJob and not E.simplifyAsset and not E.normalProcessing then return end
- local open=tImGui.Begin(tLang.L('ime_generation_title'),false,E.flags.auto)
- if open then
-  tImGui.Text(E.simplifyAsset and tLang.L('simplify_geometry') or tLang.L('ime_generation_'..(E.generationStage or 'decode')))
-  tImGui.ProgressBar(E.simplifyProgress or E.generationProgress or 0,{x=300,y=0})
-  tImGui.TextWrapped(tLang.L('ime_generation_help'))
-  if E.generationCancelling or E.simplifyCancelRequested then tImGui.Text(tLang.L('ime_generation_cancelling'))
-  elseif tImGui.Button(tLang.L('ime_cancel')) then M.cancel(E) end
- end
- tImGui.End()
+-- Four stable cache slots per editor; reload replaces their GPU storage.
+function M.new(temporaryPath)
+    local p={slots={}}
+    function p:set(name,bytes,w,h)
+        local slot=self.slots[name]
+        if not slot then slot={path=temporaryPath('.png')};self.slots[name]=slot end
+        assert(mbm.writeImagePixels(slot.path,bytes,w,h))
+        if slot.info then assert(slot.info:reload(slot.path))
+        else slot.info=assert(mbm.loadTexture(slot.path)) end
+        return slot.info
+    end
+    function p:clear()
+        for _,slot in pairs(self.slots) do
+            if slot.info then slot.info:release() end
+            os.remove(slot.path)
+        end
+        -- Retain slot names/handles, so opening another source does not grow the cache.
+    end
+    return p
 end
 return M

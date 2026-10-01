@@ -811,16 +811,36 @@ namespace mbm
     bool TEXTURE_MANAGER::saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
                               const uint32_t width, const uint32_t height, char *strMessageError, size_t strMessageErrorLen)
     {
-        unsigned                   error = 0;
+        return saveDataAsPNG(fileName, image.data(), image.size(), channel, width, height,
+                             strMessageError, strMessageErrorLen);
+    }
+
+    bool TEXTURE_MANAGER::saveDataAsPNG(const char *fileName, const uint8_t *image, size_t imageSize,
+                              const uint32_t channel, const uint32_t width, const uint32_t height,
+                              char *strMessageError, size_t strMessageErrorLen)
+    {
+        if (!fileName || !image || width == 0 || height == 0 || (channel != 3 && channel != 4) ||
+            static_cast<uint64_t>(width) * height > imageSize / channel)
+        {
+            if (strMessageError)
+                snprintf(strMessageError, strMessageErrorLen, "Invalid PNG dimensions, channels or pixel buffer");
+            return false;
+        }
         std::vector<uint8_t> png;
-        error = lodepng::encode(png, image, width, height, channel == 3 ? LCT_RGB : LCT_RGBA);
+        unsigned error = lodepng::encode(png, image, width, height, channel == 3 ? LCT_RGB : LCT_RGBA);
         if (error)
         {
             if (strMessageError)
                 snprintf(strMessageError, strMessageErrorLen, "PNG encoding error  [%s]", lodepng_error_text(error));
             return false;
         }
-        lodepng::save_file(png, fileName);
+        error = lodepng::save_file(png, fileName);
+        if (error)
+        {
+            if (strMessageError)
+                snprintf(strMessageError, strMessageErrorLen, "PNG writing error [%s]", lodepng_error_text(error));
+            return false;
+        }
         return true;
     }
 

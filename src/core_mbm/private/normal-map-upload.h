@@ -40,14 +40,15 @@ namespace mbm
         uint32_t activeSubsetCount(const BUFFER_GL *buffer);
         void textureChanged(BUFFER_GL *buffer, uint32_t subset);
         bool isActive(const BUFFER_GL *buffer, uint32_t subset);
-        bool ensureUploaded(const BUFFER_GL *buffer);
+        // DLL visibility for the native resource tests; this remains a private header.
+        API_IMPL bool ensureUploaded(const BUFFER_GL *buffer);
         bool uploadBackend(BUFFER_GL *, const VEC3 *, const VEC3 *, const VEC2 *, const PREPARED &);
         void setBackendSettings(BUFFER_GL *, uint32_t, int, float);
         // Retain shared immutable preparation; copy source geometry until first upload.
         // The owning asset may release its reference without invalidating pending data.
         // Backends without tangent rendering accept the upload as a no-op so
         // prepared assets still load. Success does not imply rendering support.
-        bool stageStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
+        API_IMPL bool stageStatic(BUFFER_GL *buffer, const VEC3 *positions, const VEC3 *normals,
                           const VEC2 *uv, std::shared_ptr<const PREPARED> prepared);
         void setRenderSettings(BUFFER_GL *buffer, uint32_t subset, int greenSign, float strength);
 #endif

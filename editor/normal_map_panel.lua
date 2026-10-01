@@ -21,43 +21,35 @@
 ]]--
 
 local M={}
-function M.cancel(E)
- if E.normalProcessing then E.generationCancelling=true end
- if E.normalJob then E.normalJob:cancel() end
- if E.imageJob then E.imageJob:cancel();E.generationCancelling=true end
- if E.simplifyAsset then E.simplifyCancelRequested=true;E.simplifyAsset:cancelSimplify() end
-end
-function M.generate(E,path,options)
- E.generationCancelled=nil;E.generationCancelling=nil
- local job,err=mbm.startImageMesh(path,options)
- if not job then return nil,err end
- E.imageJob=job
- -- Let the GUI render its progress/cancel controls before collecting even a fast result.
- coroutine.yield()
- while true do
-  local status=job:getStatus();E.generationProgress=status.progress;E.generationStage=status.stage
-  if status.state~='running' then
-   E.imageJob=nil;E.generationProgress=nil;E.generationStage=nil;E.generationCancelling=nil
-   if status.state=='cancelled' then
-    E.generationCancelled=true;E.batch=nil;E.statisticsRequested=nil
-    return nil,'ime_generation_cancelled'
-   end
-   if status.state=='completed' then return job:takeResult() end
-   return nil,status.error or 'Image mesh generation failed'
-  end
-  coroutine.yield()
- end
-end
-function M.panel(E)
- if not E.imageJob and not E.simplifyAsset and not E.normalProcessing then return end
- local open=tImGui.Begin(tLang.L('ime_generation_title'),false,E.flags.auto)
- if open then
-  tImGui.Text(E.simplifyAsset and tLang.L('simplify_geometry') or tLang.L('ime_generation_'..(E.generationStage or 'decode')))
-  tImGui.ProgressBar(E.simplifyProgress or E.generationProgress or 0,{x=300,y=0})
-  tImGui.TextWrapped(tLang.L('ime_generation_help'))
-  if E.generationCancelling or E.simplifyCancelRequested then tImGui.Text(tLang.L('ime_generation_cancelling'))
-  elseif tImGui.Button(tLang.L('ime_cancel')) then M.cancel(E) end
- end
- tImGui.End()
+function M.draw(ui,L,o,processedHeight)
+    local dirty=false
+    local function combo(key,values,labels)
+        local index=1;for i,v in ipairs(values) do if o[key]==v then index=i end end
+        ui.SetNextItemWidth(145)
+        local changed,value=ui.Combo(L(key),index,labels or values)
+        if changed then o[key]=values[value];dirty=true end
+    end
+    if not processedHeight then combo('channel',{'luminance','r','g','b','a'},{L('luminance'),'R','G','B',L('alpha')}) end
+    local controls=processedHeight and {{'blur',0,32},{'strength',0,16}} or
+        {{'black',0,.99},{'white',.01,1},{'curve',.1,8},{'blur',0,32},{'strength',0,16}}
+    for _,spec in ipairs(controls) do
+        local key=spec[1]
+        ui.SetNextItemWidth(145)
+        local changed,value=ui.SliderFloat(L(key),o[key],spec[2],spec[3],'%.3f')
+        if changed then
+            if key=='black' then value=math.min(value,o.white-.001) end
+            if key=='white' then value=math.max(value,o.black+.001) end
+            o[key]=value;dirty=true
+        end
+    end
+    -- This engine's Checkbox returns only the checked state.
+    if not processedHeight then
+        local value=ui.Checkbox(L('invert'),o.invert)
+        if value~=o.invert then o.invert=value;dirty=true end
+    end
+    combo('convention',{'+Y','-Y'})
+    combo('edge',{'clamp','repeat'},{L('clamp'),L('repeat')})
+    if not processedHeight then ui.TextWrapped(L('height_help')) end
+    return dirty
 end
 return M

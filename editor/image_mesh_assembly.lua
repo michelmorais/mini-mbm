@@ -153,7 +153,7 @@ function M.build(E,generate,dpCall,camera)
             local x0,x1,y0,y1=math.huge,-math.huge,math.huge,-math.huge
             for _,v in ipairs(vertices) do x0=math.min(x0,v.x);x1=math.max(x1,v.x);y0=math.min(y0,v.y);y1=math.max(y1,v.y) end
             item.width=x1-x0;item.height=y1-y0;item.centerX=(x0+x1)/2;item.centerY=(y0+y1)/2
-            local o=Model.options(E.project,region)
+            local o=Model.geometryOptions(Model.options(E.project,region))
             if o.heightSource=='curved' then
                 local lo,hi=Model.curved.range(o)
                 item.depth=lo;item.relief=hi-lo
@@ -162,6 +162,8 @@ function M.build(E,generate,dpCall,camera)
             assert(TextureAliases.savePreview(asset,item.previewPath,E.path or E.project.image.path),tLang.L('ime_export_failed'))
             item.preview=mesh:new('3d');item.preview.visible=false
             assert(meshDebug:loadMeshPreview(item.preview,item.previewPath),tLang.L('ime_preview_failed'))
+            item.preview.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
+            item.preview.imageMeshNormalGeometry=asset.imageMeshNormalGeometry
             item.preview.alwaysRender=true;item.preview.visible=false
             if E.wireframe then Wire.ensure(item,asset) end
         end

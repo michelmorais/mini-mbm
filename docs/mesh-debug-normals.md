@@ -129,3 +129,11 @@ helpers live in the editor's normal-processing modules.
 See [Image Mesh Editor](image-mesh-editor.md#geometry-normals-and-budgets) for
 relief-specific normals and [Mesh Simplification](mesh-simplification.md) for
 operations that change geometry.
+
+Normal-map texture generation is a separate panel from these vertex-normal
+operations. See [normal-map generation in MeshDebug](normal-map-editor.md#geração-no-meshdebug)
+for `.msh` frame/subset selection, `.imesh` project settings, Undo and resource
+ownership. The integration smoke covers macOS/Metal Debug/arm64 with Metal API
+Validation; pure tests cover vertex-normal policies. Manual macOS verification
+also covers the editor's normal-map workflow. This scope does not imply coverage
+of every vertex-normal editing operation.

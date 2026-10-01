@@ -6,6 +6,10 @@ private, while some gameplay values, authoring records, and serialized structure
 remain intentionally visible. The engine does not require every value type to use
 PIMPL.
 
+`IMAGE_MESH_OPTIONS::separateFront` is an authoring value flag for splitting the
+front/back/wall material groups. It introduces no runtime state, backend handles or
+container access. Generated normal-texture resources stay owned by the Lua editor.
+
 ## Backend and runtime ownership
 
 Concrete backend layouts belong in `src/core_mbm/private/` or backend translation
@@ -25,6 +29,14 @@ operations rather than exposing SDK layouts.
 Public APIs may expose narrow getters/setters and engine-owned value records.
 For example, `RENDERIZABLE::alwaysOnTopPriority` has accessor methods with storage
 in `Impl`; font glyph queries use `FONT_GLYPH_QUAD`, not `stbtt_aligned_quad`.
+
+PNG encoding and filesystem writes for `mbm.writeImagePixels` belong to
+`TEXTURE_MANAGER::saveDataAsPNG` in `core_mbm`. Its byte-buffer overload takes a
+borrowed pointer and length for the duration of the synchronous call; the Lua
+binding neither copies the input raster nor references lodepng. The existing
+vector overload delegates to the same implementation. Both validate the input
+buffer and report encoding and file-write failures. Codec types and encoded
+storage remain private to the implementation.
 
 ## Normal mapping: preparation, asset data and rendering
 
@@ -103,9 +115,7 @@ adds no mutable state or backend handles to public interfaces.
 collects canonical influences in each tangent batch's source-vertex order,
 retaining skeleton identity, frame and bone palette. Its transient result is
 published atomically without changing source weights or adding a serialized
-section. Render backends do not yet consume these remapped batches for skeletal
-normal mapping. The follow-up contract is tracked in
-[Future Features](future-features.md#normal-mapping).
+section. Render backends do not consume these remapped batches for skeletal normal mapping.
 
 `MESH_MBM_DEBUG::hasNormalMapTangents()` exposes only constant-time
 presence of retained preparation, without signature validation or regeneration.
@@ -122,6 +132,19 @@ atomically, preserves other valid subset bases and refuses to run while the
 simplification worker is active. Lua forwards per-corner data to the same CPU
 operation. Editor controls invoke preparation on explicit actions or after
 geometry generation/simplification.
+
+`MESH_MBM_DEBUG::copyNormalMapCorners` ensures a current PRESERVE basis and
+copies expanded triangle-corner tangents into caller-owned `NORMAL_MAP_CORNER`
+storage. A null output and zero capacity query the count. Insufficient capacity
+fails without partial output; preparation may still refresh the cache. No STL
+container, backend handle, mutable view or new public storage is exposed.
+The Lua `getNormalMapCorners` adapter returns owned table copies.
+
+`IMAGE_MESH_OPTIONS::geometryBlurRadius` is a value-only request parameter.
+The filtered raster and scratch buffers live in private `HEIGHT_FIELD` and
+`image-mesh-frequency.h`, confined to the mesh-generation worker/call. No texture
+handles, containers or mutable engine storage are exposed through public headers.
+Height-map export uses its own unfiltered field, preserving the normal-bake target.
 
 ## Isolated editor previews
 
@@ -166,6 +189,12 @@ execution policy do not expose backend buffers. Public reports contain scalar
 policy/status/count values. Draw calls use transient palette inputs; backend
 attribute/uniform handles, shader cache identity, and per-subset buffers remain
 in backend-specific storage. Private parity-test bridges do not add public APIs.
+
+Normal-map staging and lazy upload remain in the private
+`src/core_mbm/private/normal-map-upload.h` bridge. `stageStatic` and
+`ensureUploaded` have DLL visibility so the Windows native resource test can
+exercise the engine's actual ownership and upload path. They are not declared
+in installed public headers; buffer state and backend handles remain private.
 
 ## Image-based mesh authoring
 

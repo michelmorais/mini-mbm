@@ -25,6 +25,8 @@ extern "C"
 }
 
 #include <new>
+#include <algorithm>
+#include <climits>
 #include <map>
 #include <exception>
 #include <cstdlib>
@@ -1517,6 +1519,38 @@ namespace mbm
         lua_pushinteger(lua, report.vertices); lua_setfield(lua, -2, "vertices");
         lua_pushinteger(lua, report.unusableTriangles); lua_setfield(lua, -2, "unusableTriangles");
         lua_pushboolean(lua, report.reused); lua_setfield(lua, -2, "reused");
+        return 1;
+    }
+
+    int onGetNormalMapCornersMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *author = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer frame = luaL_checkinteger(lua, 2), subset = luaL_checkinteger(lua, 3);
+        if (frame < 1 || subset < 1 || static_cast<uint64_t>(frame) > UINT32_MAX || static_cast<uint64_t>(subset) > UINT32_MAX)
+            return lua_error_debug(lua, "Normal-map indices must be positive uint32 values");
+        uint32_t count = 0;
+        char error[512] = {};
+        const auto frameIndex = static_cast<uint32_t>(frame-1), subsetIndex = static_cast<uint32_t>(subset-1);
+        if (!author->mesh.copyNormalMapCorners(frameIndex, subsetIndex, nullptr, 0, count, error, sizeof(error)))
+        {
+            lua_pushnil(lua); lua_pushstring(lua, error); return 2;
+        }
+        std::vector<NORMAL_MAP_CORNER> corners(count);
+        if (!author->mesh.copyNormalMapCorners(frameIndex, subsetIndex, corners.data(), count, count, error, sizeof(error)))
+        {
+            lua_pushnil(lua); lua_pushstring(lua, error); return 2;
+        }
+        lua_createtable(lua, static_cast<int>(std::min<uint32_t>(count, INT_MAX)), 0);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const auto &t = corners[i];
+            lua_createtable(lua, 0, 4);
+            lua_pushnumber(lua, t.x); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, t.y); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, t.z); lua_setfield(lua, -2, "z");
+            lua_pushnumber(lua, t.sign); lua_setfield(lua, -2, "sign");
+            lua_rawseti(lua, -2, static_cast<lua_Integer>(i)+1);
+        }
         return 1;
     }
 
@@ -3684,6 +3718,7 @@ namespace mbm
                                           {"setTexture", onSetTextureNameMeshDebugLua},
                                           {"prepareNormalMap", onPrepareNormalMapMeshDebugLua},
                                           {"hasNormalMapTangents", onHasNormalMapTangentsMeshDebugLua},
+                                          {"getNormalMapCorners", onGetNormalMapCornersMeshDebugLua},
                                           {"removeNormalMap", onRemoveNormalMapMeshDebugLua},
                                           {"getNormalMapSettings", onGetNormalMapSettingsMeshDebugLua},
                                           {"setNormalMapSettings", onSetNormalMapSettingsMeshDebugLua},
@@ -3878,11 +3913,13 @@ namespace mbm
         boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
         boolean("backRelief", options.backRelief); boolean("backMirror", options.backMirror);
         boolean("backOpen", options.backOpen); boolean("backRemap", options.backRemap);
+        boolean("separateFront", options.separateFront);
         integer("backX",options.backX); integer("backY",options.backY);
         integer("backCropWidth",options.backCropWidth); integer("backCropHeight",options.backCropHeight);
         integer("ellipseSegments", options.ellipseSegments);
         boolean("followImage",options.followImage); boolean("twoLevels",options.twoLevels);
         integer("smoothPasses",options.smoothPasses);
+        integer("geometryBlurRadius",options.geometryBlurRadius);
         number("grooveThreshold",options.grooveThreshold); number("grooveTransition",options.grooveTransition);
         number("heightTolerance",options.heightTolerance);
         lua_getfield(lua,optionIndex,"heightImage");

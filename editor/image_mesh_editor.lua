@@ -49,6 +49,7 @@ local Comparison=require 'image_mesh_comparison'
 local Assembly=require 'image_mesh_assembly'
 local ImageMeshBuild=require 'image_mesh_build'
 local TextureAliases=require 'image_mesh_texture_aliases'
+local Normal=require 'image_mesh_normal_map'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
     primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=0.3,elevation=0.3,distance=300},status='',point=1}
@@ -61,6 +62,7 @@ local function dpCall(fn,...)
     return table.unpack(result,1,result.n)
 end
 local function releasePreview()
+    Normal.clearComparison(E)
     E.previewStale=nil
     Assembly.release(E)
     Comparison.release(E)
@@ -98,17 +100,24 @@ local function syncDraft()
     E.curvedNode=math.max(0,math.min(E.curvedNode or 0,r and #(r.curvedNodes or {}) or 0))
     E.point=1
 end
-local function changed()
+local function changed(before)
+    Normal.clearComparison(E)
+    local normalOnly=Normal.sameGeometry(before,E.project)
     E.statisticsRequested=nil
-    GeometryCache.clear(E)
-    E.statistics={}
+    if not normalOnly then GeometryCache.clear(E);E.statistics={} end
     HeightPreview.invalidate(E)
     E.generationFailure=nil
-    E.revision=E.revision+1; E.modified=true; E.dirty=true; E.outlines=nil; E.report=nil
+    E.revision=E.revision+1; E.modified=true; E.outlines=nil
+    if normalOnly then
+        E.normalDirty=true
+        if E.generatedMesh then E.generatedMesh.revision=E.revision end
+        if E.assembly then E.assembly.revision=E.revision end
+    else E.dirty=true;E.report=nil end
     Comparison.sync(E); Assembly.sync(E)
     syncDraft()
 end
 local function selectRegion(id,extend)
+    Normal.clearComparison(E)
     E.statisticsRequested=nil
     Paint.cancel(E)
     if E.drag then return end
@@ -128,7 +137,7 @@ local function action(fn)
     local before=E.project; local selected,selection=E.selected,Model.copy(E.selection); local candidate=Model.copy(before)
     local ok=dpCall(function() fn(candidate); Model.ensureBackCrops(candidate); Model.validate(candidate) end)
     if not ok then E.selected=selected; E.selection=selection; return false end
-    Model.commit(E.history,before); E.project=candidate; changed(); return true
+    Model.commit(E.history,before); E.project=candidate; changed(before); return true
 end
 local function setRegionLocked(locked)
     if not E.draft or E.editDefaults then return false end
@@ -141,7 +150,7 @@ local function setRegionLocked(locked)
 end
 local function commitDrag(before)
     local ok=dpCall(Model.validate,E.project)
-    if ok then Model.commit(E.history,before); changed() else E.project=before; E.outlines=nil; syncDraft() end
+    if ok then Model.commit(E.history,before); changed(before) else E.project=before; E.outlines=nil; syncDraft() end
 end
 local function history(redo)
     if E.paintDrag then Paint.cancel(E); return end
@@ -149,9 +158,10 @@ local function history(redo)
     if E.drag then E.project=E.drag.before or E.project; E.drag=nil end
     local project=Model.undo(E.history,E.project,redo)
     if not project then return end
+    local before=E.project
     E.project=project
     if not Model.region(project,E.selected) then E.selected=project.regions[1] and project.regions[1].id or 0 end
-    E.selection={[E.selected]=true}; E.polygon={}; E.stroke=nil; changed()
+    E.selection={[E.selected]=true}; E.polygon={}; E.stroke=nil; changed(before)
 end
 local function camera()
     local c=E.orbit
@@ -238,12 +248,15 @@ local function rebuildImpl()
         else asset,report=generate(r,nil,staged) end
         assert(TextureAliases.savePreview(asset,path,E.path or E.project.image.path),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
+        object.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
+        object.imageMeshNormalGeometry=asset.imageMeshNormalGeometry
         object.alwaysRender=true
         releasePreview();E.comparison=staged.comparison;staged.comparison=nil
         installed=true
+        E.previewNormalMode=Model.options(E.project,r).reliefMode=='normal'
         E.preview=object; E.previewPath=path; E.report=report; E.statistics[r.id]={report=report}; E.builds=E.builds+1
         Comparison.layout(E,asset)
-        local o=Model.options(E.project,r)
+        local o=Model.geometryOptions(Model.options(E.project,r))
         E.fitDistance=math.max(o.width,o.height,o.heightSource=='curved' and select(2,Model.curved.range(o)) or o.depth+o.relief)*2.7
         E.singleFitDistance=E.fitDistance
         -- Rebuilding the same module must not disturb the user's comparison view.
@@ -280,7 +293,7 @@ end
 local function install(project,path,texture)
     HeightPreview.destroy(E)
     Paint.destroy(E); if E.paint then E.paint.enabled=false end
-    releasePreview(); E.assembly=nil; Canvas.destroy(E); E.sideContour=nil; E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
+    releasePreview(); Normal.shutdown(E); E.assembly=nil; Canvas.destroy(E); E.sideContour=nil; E.project=project; E.path=path; E.texture=texture; E.history=Model.history()
     if E.tool=='back_uv' or E.tool=='side_band' then E.tool='select' end
     E.selected=project.regions[1] and project.regions[1].id or 0; E.selection={[E.selected]=true}
     E.polygon={}; E.stroke=nil; E.autoTask=nil; E.autoSource=nil; E.drag=nil; E.missing=nil; E.zoom=1; E.viewRegion=nil
@@ -346,7 +359,9 @@ end
 local function exportOneImpl(path,portable,crop)
     local r=assert(Model.region(E.project,E.selected),L('select_region'))
     local asset=generate(r)
-    if portable then Portable.save(asset,path,dpCall,crop) else assert(asset:save(path,false,false,true),L('export_failed')) end
+    if portable or asset:getMaterialTexture(1,1,'normal') then
+        Portable.save(asset,path,dpCall,portable and crop or false,nil,not portable)
+    else assert(asset:save(path,false,false,true),L('export_failed')) end
     E.status=L('exported')..' '..path; return true
 end
 local function exportOne(path,portable)
@@ -368,7 +383,9 @@ local function batchStepImpl()
         local asset=generate(region,batch.project)
         local path=batch.directory..'/'..IO.exportName(region)
         if not batch.portable then assert(not IO.exists(path),L('file_exists')..' '..path) end
-        if batch.portable then Portable.save(asset,path,dpCall,batch.portableCrop,batch.portableTextures) else assert(asset:save(path,false,false,true),L('export_failed')) end
+        if batch.portable or asset:getMaterialTexture(1,1,'normal') then
+            Portable.save(asset,path,dpCall,batch.portable and batch.portableCrop or false,batch.portableTextures,not batch.portable)
+        else assert(asset:save(path,false,false,true),L('export_failed')) end
     end)
     if ok then batch.completed=batch.completed+1 else batch.failures[#batch.failures+1]=region.name..': '..tostring(err) end
     batch.index=batch.index+1
@@ -472,9 +489,16 @@ local function setEditMode(enabled)
     Canvas.sync(E)
 end
 local function setComparison(sideBySide)
-    if Comparison.select(E,sideBySide) then camera() end
+    Normal.clearComparison(E)
+    if sideBySide then
+        if E.meshTask or E.dirty or not E.comparison then return end
+        Simplify.run(E,function()
+            if dpCall(Normal.prepareComparison,E) and Comparison.select(E,true) then camera() end
+        end)
+    elseif Comparison.select(E,false) then camera() end
 end
 local function setWireframe(enabled)
+    if enabled then Normal.clearComparison(E) end
     if E.wireframe==enabled then return end
     if enabled and E.preview and not E.dirty then
         local ok=dpCall(Comparison.ensureWire,E)
@@ -568,6 +592,8 @@ local function propertiesPanel()
             end
             end
         end
+        if tImGui.CollapsingHeader(L('target_group')) then require('image_mesh_triangle_target').panel(E) end
+        if tImGui.CollapsingHeader(L('normal_group')) then Normal.panel(E,camera,dpCall) end
         if tImGui.CollapsingHeader(L('grooves_group')) then
             Areas.modePanel(E)
             meshModes[1]=L('mesh_mode_standard');meshModes[2]=L('mesh_mode_voxelized')
@@ -696,8 +722,6 @@ local function propertiesPanel()
             end
         end
         end
-        E.values.normalMapPrecompute=tImGui.Checkbox(tLang.L('nm_precompute'),E.values.normalMapPrecompute or false)
-        if tImGui.IsItemHovered() then Help.tooltip(tLang.L('nm_precompute_help')) end
         BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         Sides.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         if tImGui.CollapsingHeader(L('resolution_group')) then
@@ -742,26 +766,31 @@ local function propertiesPanel()
         if not E.values.voxelized and E.values.heightSource~='curved' and tImGui.CollapsingHeader(tLang.L('simplify_geometry')) then
             do
                 local modes=require('mesh_simplify_modes')
-                local mode=E.values.simplify and E.values.simplifyMode or 'none'
-                mode,E.values.planarTolerance,E.values.planarAngle=modes.cgalBlock(
-                    mode,E.values.planarTolerance,E.values.planarAngle,'image-general',E.values)
-                E.values.simplifyMode=modes.qemCheckbox(mode,'image-general')
-                E.values.simplify=E.values.simplifyMode~='none'
-                tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
-                local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.001,0.95,'%.3f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
-                if c then E.values.simplifyRatio=Model.clampOption('simplifyRatio',v,E.values.simplifyRatio) end
-                if E.report and not E.editDefaults then
-                    local source=E.report.sourceTriangles or E.report.triangles
-                    tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'),source,math.max(1,math.floor(source*E.values.simplifyRatio))))
-                    if tImGui.IsItemHovered() then Help.tooltip(L('simplify_estimate_hint')) end
-                else tImGui.TextWrapped(L('simplify_estimate_pending')) end
-                tImGui.EndDisabled()
-                tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
+                local automatic=Model.automaticTargetActive(E.values)
+                if automatic then
+                    tImGui.TextWrapped(tLang.L('ime_normal_automatic_simplify'))
+                else
+                    local mode=E.values.simplify and E.values.simplifyMode or 'none'
+                    mode,E.values.planarTolerance,E.values.planarAngle=modes.cgalBlock(
+                        mode,E.values.planarTolerance,E.values.planarAngle,'image-general',E.values)
+                    E.values.simplifyMode=modes.qemCheckbox(mode,'image-general')
+                    E.values.simplify=E.values.simplifyMode~='none'
+                    tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
+                    local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.001,0.95,'%.3f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
+                    if c then E.values.simplifyRatio=Model.clampOption('simplifyRatio',v,E.values.simplifyRatio) end
+                    if E.report and not E.editDefaults then
+                        local source=E.report.sourceTriangles or E.report.triangles
+                        tImGui.Text(string.format(tLang.L('simplify_estimate_fmt'),source,math.max(1,math.floor(source*E.values.simplifyRatio))))
+                        if tImGui.IsItemHovered() then Help.tooltip(L('simplify_estimate_hint')) end
+                    else tImGui.TextWrapped(L('simplify_estimate_pending')) end
+                    tImGui.EndDisabled()
+                end
+                tImGui.BeginDisabled(not automatic and not modes.enabled(E.values.simplifyMode,'qem'))
                 E.values.simplifyDetails=tImGui.Checkbox(tLang.L('simplify_preserve_details'),E.values.simplifyDetails)
                 if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_preserve_details_tooltip')) end
                 tImGui.EndDisabled()
-                tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
-                c,v=tImGui.SliderFloat(tLang.L('simplify_boundary_threshold'),E.values.simplifyBoundary,0,0.25,'%.3f')
+                tImGui.BeginDisabled(not automatic and not modes.enabled(E.values.simplifyMode,'qem'))
+                local c,v=tImGui.SliderFloat(tLang.L('simplify_boundary_threshold'),E.values.simplifyBoundary,0,0.25,'%.3f')
                 if c then E.values.simplifyBoundary=Model.clampOption('simplifyBoundary',v,E.values.simplifyBoundary) end
                 if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_boundary_threshold_tooltip')) end
                 tImGui.TextWrapped(L('simplify_help'))
@@ -941,7 +970,7 @@ end
 function onLoop(delta)
     require("mesh_audit_ui").update()
     if E.autoTask then dpCall(Auto.resume,E) end
-    if (E.imageJob or E.simplifyAsset) and E.key==mbm.getKeyCode('ESC') then Generation.cancel(E);E.key=nil end
+    if (E.imageJob or E.simplifyAsset or E.normalProcessing) and E.key==mbm.getKeyCode('ESC') then Generation.cancel(E);E.key=nil end
     if E.meshTask then dpCall(Simplify.resume,E) end
     tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil); menu(); tImGui.EndDisabled()
     tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil)
@@ -954,10 +983,13 @@ function onLoop(delta)
         elseif E.control and E.key==mbm.getKeyCode('S') and not E.paintDrag then dpCall(function() local path=E.path or mbm.saveFile(suggestedProjectName(),'imesh'); if path then saveProject(path) end end)
         elseif E.key==mbm.getKeyCode('ESC') then Paint.cancel(E); Canvas.cancel(E); syncDraft() end
     end
-    E.key=nil; rebuild(); updateStatistics(E.statisticsRequested); batchStep()
+    E.key=nil
+    if E.normalDirty and not E.meshTask then dpCall(Simplify.run,E,Normal.refresh,E) end
+    rebuild(); updateStatistics(E.statisticsRequested); batchStep()
     Canvas.sync(E)
-    HeightPreview.sync(E,dpCall)
+    if not E.meshTask then HeightPreview.sync(E,dpCall) end
     Paint.sync(E)
+    Normal.syncComparison(E)
     tUtil.showOverlayMessage()
 end
 function onKeyDown(key)
@@ -1025,7 +1057,7 @@ end
 function onResizeWindow()
     E.screenW,E.screenH=mbm.getRealSizeScreen(); E.canvasDirty=true; camera()
 end
-function onEndScene() require("mesh_audit_ui").shutdown(); Generation.cancel(E); require('mesh_cgal').shutdown(); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.shutdown(E); releasePreview(); Canvas.destroy(E) end
+function onEndScene() require("mesh_audit_ui").shutdown(); Generation.cancel(E); require('mesh_cgal').shutdown(); GeometryCache.clear(E); Paint.destroy(E); HeightPreview.shutdown(E); releasePreview(); Normal.shutdown(E); Canvas.destroy(E) end
 if type(testApi)=='table' then
     testApi.generation=Generation
     testApi.auto=Auto; testApi.freehand=Freehand; testApi.paint=Paint; testApi.paintInput=function(kind,x,y) return Paint.input(E,action,kind,x,y) end

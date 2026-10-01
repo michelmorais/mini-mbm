@@ -86,6 +86,9 @@ PARSE_launcher_ARGS::PARSE_launcher_ARGS(int argc, wchar_t** argv)
     // Convert wchar_t** to char** (UTF-8)
     std::vector<std::string> utf8Args;
     std::vector<const char*> argvUtf8;
+    // Keep short-string storage stable while argvUtf8 borrows its pointers.
+    utf8Args.reserve(argc);
+    argvUtf8.reserve(argc);
     for (int i = 0; i < argc; ++i)
     {
         int size_needed = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, NULL, 0, NULL, NULL);
@@ -118,6 +121,9 @@ PARSE_launcher_ARGS::PARSE_launcher_ARGS()
     // Convert wchar_t** to char** (UTF-8)
     std::vector<std::string> utf8Args;
     std::vector<const char*> argvUtf8;
+    // Keep short-string storage stable while argvUtf8 borrows its pointers.
+    utf8Args.reserve(argc);
+    argvUtf8.reserve(argc);
     for (int i = 0; i < argc; ++i)
     {
         int size_needed = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, NULL, 0, NULL, NULL);
@@ -127,6 +133,7 @@ PARSE_launcher_ARGS::PARSE_launcher_ARGS()
         argvUtf8.push_back(utf8Args.back().c_str());
     }
     parserArgs(argvUtf8.data(), argc);
+    LocalFree(argv);
 #endif
 }
 

@@ -39,7 +39,7 @@ namespace util
 namespace mbm
 {
     enum class NORMAL_MAP_POLICY : uint8_t { PRESERVE, GENERATE, IMPORT };
-    // Borrowed authoring input, one tangent per expanded triangle corner (not source vertex).
+    // Authoring value: one tangent per expanded triangle corner (not source vertex).
     struct NORMAL_MAP_CORNER { float x, y, z, sign; };
     struct NORMAL_MAP_REPORT
     {
@@ -320,6 +320,10 @@ namespace mbm
         API_IMPL bool prepareNormalMap(uint32_t frame, uint32_t subset, NORMAL_MAP_POLICY policy,
                                        NORMAL_MAP_REPORT &report, char *error, int errorLength,
                                        const NORMAL_MAP_CORNER *corners = nullptr, uint32_t cornerCount = 0);
+        // Ensures a current PRESERVE basis, then copies expanded triangle-corner tangents.
+        // Null output with capacity 0 queries count. Caller owns storage; no private views escape.
+        API_IMPL bool copyNormalMapCorners(uint32_t frame, uint32_t subset, NORMAL_MAP_CORNER *output,
+                                            uint32_t capacity, uint32_t &count, char *error, int errorLength);
         API_IMPL util::MATERIAL &getMaterial() noexcept;
         API_IMPL const util::MATERIAL &getMaterial() const noexcept;
         API_IMPL int16_t getHasNormal() const noexcept;

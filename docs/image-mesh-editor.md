@@ -18,8 +18,10 @@ Choose **Image Mesh Editor** in the launcher, or run from the repository root:
 bin/debug/linux_x86/mini-mbm --scene editor/image_mesh_editor.lua --disable_select_monitor --nosplash -w 1440 -h 900
 ```
 
-The editor requires Lua and ImGui. The documented test coverage uses Linux/OpenGL ES;
-launcher integration is also present for Windows and macOS.
+The editor requires Lua and ImGui. General editor coverage below uses Linux/OpenGL ES.
+The normal-map integration coverage includes Windows/OpenGL ES/DX9/DX11 and
+macOS/Metal; see the [generator validation](normal-map-editor.md#validação)
+for the tested scope and interaction limits.
 
 1. Open an image from the File menu.
 2. Create regions for the modules, manually or with the region grid.
@@ -30,6 +32,236 @@ launcher integration is also present for Windows and macOS.
 
 **Apply** commits property edits. Saving a project also validates and commits
 pending properties. Invalid properties prevent overwriting the project.
+
+## Normal-map relief
+
+Open **Normal map and tangents** and check **Enable normal map**. Its settings
+appear only while enabled. Choose the height source in **Relief and grooves**,
+adjust the settings, then **Apply** and turn off **Edit mode** to see the 3D result.
+The saved setting automatically generates and assigns the normal texture to the front, inner-band and repeated-texture sides and
+prepares its tangents whenever the mesh is built, including export. There is no
+separate tangent-preparation checkbox. Disabling normal mapping removes the added lighting effect and keeps its settings
+for reuse. Existing projects default to geometry without normal mapping. Enabling
+normal mapping preserves authored relief, areas, adaptive geometry, curved/voxel
+settings and simplification unless the optional detail separation below is active. Geometry finishes processing before material splitting
+and tangent preparation, preserving triangle positions and UVs. Material/tangent
+seams can duplicate vertices without changing the surface.
+Front, back and walls have separate material subsets. Front and **Inner contour band**
+sides (`sideMode="band"`) receive the normal texture. Each subset prepares tangents
+from its own UVs, including perpendicular mapping and inverted band UVs. The side
+uses the same source-sized normal atlas as the front in additive mode; residual mode keeps a separate additive atlas for these sides. Solid-color backs and open
+backs retain their behavior. **Repeated texture** sides (`sideMode="repeat"`) generate a separate normal map
+from the luminance of their diffuse image: the source crop when no side image is
+selected, or the entire independent side image. These maps share normal strength,
+blur and convention with the front, but always wrap derivative/blur samples across
+opposite edges. Front height-channel/levels, areas and painting do not affect this
+independent side source. Repetition counts change UV mapping, not the generated
+image dimensions. Stretched-edge and solid-color sides do not receive generated
+normal maps.
+
+The geometry simplification comparison enables normal mapping with the same
+settings on both original and simplified meshes, including mapped sides. Additive
+mode shares textures; residual mode bakes the front against each mesh separately.
+Each has its own prepared tangents. This also applies when the original comes from the statistics cache or
+curved-source preview. While comparison is visible, changing normal settings updates both preview materials
+without rebuilding geometry. Material preparation on the original preview happens
+after geometry processing so it cannot affect simplification constraints.
+The original's material preparation is lazy: entering 3D retains its
+undecorated geometry, including statistics-cache originals. The first request for
+side-by-side geometry comparison runs the cancellable normal-map job before
+showing the original. Reopening the comparison reuses its geometry snapshot and
+normal textures. Appearance-only edits while it is hidden update only the active
+preview; the original is refreshed on the next comparison request. Visible
+comparisons still update both meshes. A residual front with band sides therefore
+needs two initial normal bakes, then one additional original bake on first use.
+Subsequent toggles without edits do not bake or regenerate geometry.
+
+**Compare with/without normal map** is shown at the end of **Normal map and tangents**
+while normal mapping is enabled. After applying changes, use the individual 3D view
+with wireframe and geometry comparison off. It displays the same mesh twice under
+the same lighting, with normal strength zero on every normal-mapped subset of the comparison copy. The labels
+identify each side according to the camera direction. Closing the comparison
+restores the previous camera distance and mesh position. Editing, switching views
+or replacing the mesh releases the temporary copy. This option is preview-only;
+it changes neither project settings nor export. With **Residual detail (front)**
+enabled, the comparison displays three meshes: without normal mapping, additive
+normal mapping, and residual normal mapping. All three share geometry and lighting.
+The center mesh uses an independently assigned additive texture; sides keep their
+existing additive settings. The additive texture is generated cooperatively on
+request and reused while inputs are unchanged. Both comparison copies are released
+on close. Idle frames perform no cloning,
+geometry scans, generation or uploads for this comparison.
+
+Image, external height image, manual, mixed and curved sources use the same native
+processed height raster as the height preview, including levels, areas and brushes.
+The shared Lua normal generator applies blur, strength and `+Y/-Y` convention.
+Source transparency and the region mask exclude invalid samples. The generated normal map
+is a full-source-sized atlas with neutral normals outside the region, preserving
+front UVs. Texture strength is baked once; material strength stays at 1 and the
+material convention matches the generated channels.
+
+The project persists `reliefMode` (`geometry` or `normal`), `normalMapResidual`
+and `normalMapBasis` (booleans, default false), `normalMapGeometryBlur`
+(integer crop-pixel radius 0..32, default 0), `normalMapAutomatic` (boolean, default false),
+`normalMapTargetTriangles` (integer 2..100000, default 1000), `normalMapStrength`
+(0..16, default 1), `normalMapBlur` (0..32, default 0; rounded to pixels during generation),
+`normalMapConvention` (`+Y` default or `-Y`) and `normalMapEdge` (`clamp` default
+or `repeat`) in defaults/region overrides. Generated PNGs are temporary and are
+recreated from project inputs. Changing normal strength, blur, convention or edge
+settings, including Undo, updates textures without rebuilding geometry, on both
+front and sides. Residual/basis toggles also avoid geometry rebuilds when detail
+separation is inactive; a nonzero manual radius or active automatic mode makes
+these toggles restore or filter geometric relief.
+Changing height inputs rebuilds geometry as well as the normal map. Toggling
+normal mapping rebuilds material groups; with separation inactive it preserves the generated surface.
+No generation or texture upload runs while idle. Processing supports cancellation;
+PNG encoding/upload remains synchronous, with the large-image limitations documented
+in [the generator manual](normal-map-editor.md).
+
+Individual and batch exports package generated textures beside the `.msh`, including
+ordinary exports, as `<mesh>_normal_01.png`. Portable export also packages diffuse
+textures; cropping uses matching bounds/padding for diffuse and normals and regenerates
+tangents after UV remapping. Projects opened by Mesh Debug use the same build module.
+The default mode adds processed height detail on top of geometric normals.
+**Residual detail (front)** is disabled by default.
+It rasterizes the final front triangles in source UV coordinates, subtracts their
+interpolated Z from the processed physical height, and generates normals from the
+signed difference. Blur acts on this difference. Strength 1 uses physical relief
+scale and region dimensions; strength 0 produces a neutral front normal map.
+Curved sources convert their normalized thickness back to front displacement
+(including symmetric half-thickness). A matching plane or ramp is approximately
+neutral, within the native height raster's 8-bit quantization.
+
+Each original/simplified comparison mesh has its own residual map. Appearance-only
+updates reuse captured geometry; they do not run generation or simplification.
+Band and repeated sides retain additive detail, so changing the front mode never
+applies front compensation to a differently oriented side. Residual normals are
+included in ordinary, portable and batch exports using the existing pipeline.
+
+The default residual method is a height-difference approximation.
+**Compensate mesh normals**, inside **Residual detail (front)**, is disabled by default.
+This method interpolates the actual MikkTSpace corner tangents and vertex normals
+of the final front triangles, orthogonalizes the basis as the renderer does, and
+projects the physical target height-field normal into that basis. `+Y/-Y` is encoded
+for the matching material convention. Unusable bases produce neutral texels.
+Strength 1 reproduces the target direction at sampled texel centers; strength 0
+keeps the mesh normal. Intermediate values blend directions before projection;
+values above 1 extrapolate the correction. Smoothing filters the target height
+before its derivatives, rather than the residual difference in the original mode.
+
+With detail separation inactive, both modes preserve geometry density, silhouette and
+collision. The basis mode
+accounts for smooth vertex normals and tangent handedness, but finite texel
+resolution, bilinear texture filtering, triangle/UV seams, 8-bit source/output
+quantization and discontinuous voxel steps can still leave shading differences.
+The bake assumes the Image Mesh front height-field orientation and is not a generic
+ray-projected high-poly-to-low-poly baker. Snapshots allocate memory proportional
+to front triangle count, and rasterization runs cooperatively only when requested.
+
+**Detail separation (px)** is inside **Compensate mesh normals**.
+Radius 0 preserves existing geometry; a positive radius sends a low-pass version
+of the final processed height to mesh generation, while the residual normal map
+still targets the original processed height. This separates larger volumes from
+finer lighting detail. Start with a small radius (e.g. 2) and normal strength 1.
+Unlike normal-map blur, this control changes geometry and can change silhouette
+and collision. It also affects copied back relief and wall heights, when present.
+The original contour, holes, texture source and UV domain remain unchanged.
+
+The native filter is a crop-pixel, separable box filter with clamped edges, weighted
+by source alpha and the region/holes mask. It runs after height levels, areas and
+brushes, before border locking/attenuation, adaptive refinement and simplification.
+It keeps float heights internally instead of passing geometry through an 8-bit PNG.
+It is active only for continuous image, manual or mixed height, with normal mapping,
+residual detail and mesh-normal compensation enabled (the independent triangle
+target does not require these). Curved, voxelized and two-level
+modes keep the saved radius inactive. Disabling a normal-map prerequisite removes
+the height filter, while an enabled automatic triangle target continues simplifying
+the mesh. Re-enabling the prerequisite restores the selected separation mode. PNG height previews and
+normal-map inputs keep full detail.
+
+A fixed grid keeps its resolution. Adaptive refinement or simplification can use
+fewer triangles because the geometric surface is smoother, but no triangle-count
+reduction is guaranteed.
+
+The budget control has its own **Automatic triangle target**
+section, independent of **Normal map and tangents**. The target works without normal
+mapping, or with additive normals. Only the optional radius search requires residual
+normal mapping plus mesh-normal compensation. Otherwise radius 0 is used and the
+budget is handled by QEM alone, without height smoothing. Current support remains
+continuous image/manual/mixed relief; curved, voxel and two-level modes are excluded.
+The project stores `normalMapAutomatic` and `normalMapTargetTriangles`.
+Turning off normals/residual/compensation leaves the triangle target enabled. Disable **Enable automatic target** to restore manual
+simplification. Manual height separation stays in the normal-map section.
+
+The triangle target controls QEM reduction implicitly, including
+fixed grids with manual simplification disabled. Manual method and ratio remain
+saved and are restored when the automatic triangle target is disabled. In automatic mode,
+the simplification panel explains target ownership while leaving detail/boundary
+protection editable. Changing the saved manual ratio does not affect the search.
+
+The shared Lua module `image_mesh_frequency.search(target, evaluate)` tests radii
+0, 1, 2, 4, 8, 16, and 32 when residual compensation is active, or only 0 otherwise.
+Each candidate runs native generation, optional selected
+CGAL planar cleanup and enabled remeshing, then QEM against the target. The QEM
+ratio is derived from the current count, not from the manual slider. All subsets
+(front, back and sides) count toward the target. If already below budget, QEM is
+skipped. Detail preservation and boundary constraints remain in effect.
+
+Native QEM fails atomically when topology or locked boundaries prevent a target.
+`image_mesh_frequency.reduce` then tries less aggressive intermediate counts,
+with at most seven QEM requests per radius, retaining successful reductions.
+Other failures abort normally; cancellation never becomes a search candidate.
+This bounded fallback can miss the closest feasible count. It does not relax
+geometry protections. The first tested radius meeting the target wins; otherwise,
+the lowest count wins, with ties favoring the smaller radius. No monotonic
+relationship between radius and triangle count is assumed.
+
+The winner is regenerated through the normal comparison/cache callbacks and baked
+once. Candidate probes never bake normal textures or replace the displayed mesh.
+The panel reports the selected radius, final triangles, target and whether it was
+reached. The report's `detailSeparation` holds `radius`, `triangles`, `target`,
+`reached` and `attempts`. The selected radius is derived, not written over the manual
+project setting. Saving, reopening and exporting use the same shared build pipeline.
+
+Generation and simplification remain cancellable. Unexpected failures and cancellation
+abort the search. At most seven radius probes plus one final generation run per build
+are used, each with up to seven QEM attempts.
+Native candidate buffers are collected between probes. No search runs while idle or
+when only normal-map strength, blur, convention or edge changes; geometry changes
+invalidate the existing cache. This feature is supported only for continuous image,
+manual and mixed height, just like manual separation.
+
+Validation on Linux/GLES, Windows/OpenGL ES/DX9/DX11 and macOS/Metal:
+`src/test-lib/image_mesh_normal_map_smoke.lua` checks preserved
+relief, separate materials, atlas dimensions, texture-only updates and Undo,
+manual/mixed/curved height, holes, persistence, both exports, portable front/side tangents and matched crop dimensions,
+assembly updates, cancellation, mode switching, identical triangle/UV surfaces
+after adaptive QEM simplification with/without normal mapping, band sides with
+solid/open backs, repeated source crops and independent side images (including
+reference pixel checks, wrap sampling, both comparisons and exports), residual toggling,
+independent comparison maps, geometry preservation, Undo, persistence, assembly updates
+and exports, and idle behavior. `normal_map_residual_test.lua` checks matching ramps,
+signed heights, physical scales, Y conventions, masks and cancellation.
+`normal_map_baker_test.lua` checks shader-basis reconstruction, interpolated
+normals, handedness, green convention, neutral ramps and cancellation. The engine
+smoke also checks the basis toggle without geometry rebuild, owned/stale tangent
+snapshots, persistence, three-way comparison and exports. Frequency separation is
+covered by geometry changes/Undo, texture-only strength updates, persistence and
+plain/portable export. `image_mesh_frequency_smoke.lua` compares native geometry
+against a box-filter reference, checks source-map preservation, alpha/hole masks,
+border locking, manual/painted height and invalid modes. Its synthetic adaptive
+fixture reduces 84 triangles to 30; this is fixture evidence, not a general ratio. Run with the
+engine test flags described in [the generator manual](normal-map-editor.md).
+Automatic selection is covered by `image_mesh_model_test.lua` (validation, legacy
+settings, nonmonotonic counts and tie handling), `image_mesh_normal_map_smoke.lua`
+(target met/unmet, export, comparison, cancellation, manual restoration and idle),
+and `image_mesh_automatic_smoke.lua` (native adaptive geometry and post-simplification
+counts). The fixtures also cover implicit QEM on a fixed 24 x 24 grid with manual
+simplification disabled, bounded fallback when the target is constrained, and standalone triangle targeting
+without normal mapping or with additive normals. The target panel also runs in the
+engine fixture; actual click/drag input is not automated.
+Automated coverage and manual macOS verification are summarized in the
+[generator manual](normal-map-editor.md#validação).
 
 ## Workspace and navigation
 
@@ -83,7 +315,7 @@ Shared height finishing is described under [Height painting](#height-painting).
   teeth and recesses. The center must see the entire contour from inside, and the
   circle must remain strictly inside without touching it. Invalid configurations
   report an error; generation does not silently select another algorithm.
-- Holes cut the curved surface without changing its thickness profile (7.271.0).
+- Holes cut the curved surface without changing its thickness profile.
   The back uses the source texture and the same openings; horizontal
   back UV mirroring and side texture modes remain available. Other saved back modes,
   image height adjustments and the general simplifier are
@@ -99,9 +331,9 @@ is represented by chords. Vertex/triangle budgets can stop refinement with a dia
 Equal endpoint values produce a uniform solid. Thickness values must be at least 0.001.
 The legacy point/circle controls remain linear. Extended target shapes and profiles
 are available after explicit conversion to the hierarchy below. Optional constrained
-simplification is available since 7.270.0 (see below).
+simplification is available (see below).
 
-### Interior transition for concave shapes (7.274.0)
+### Interior transition for concave shapes
 
 In **Manual curved**, enable **Transition through the interior**, then open
 **Edit targets and local regions**. In this mode, a new hierarchy starts empty.
@@ -130,7 +362,7 @@ back to radial mode also preserves the polyline, which must then be removed or
 replaced with a supported radial target. Save/reopen, undo/redo, height maps, symmetric
 or flat back, materials and mesh export are supported.
 
-### Automatic faceting for diamonds (7.273.0)
+### Automatic faceting for diamonds
 
 Select **Manual curved** on a module using the point/circle profile, then enable
 **Automatic faceting**. Start with an ellipse, **Minimum sectors = 8** and
@@ -141,8 +373,8 @@ The mode generates planar triangular faces with independent normals. It supports
 convex outlines; polygon corners are preserved and may require extra sectors.
 Ellipses use the sector count for their polygonal silhouette, replacing the saved
 ellipse segmentation while the mode is active. Increasing ring count divides the
-linear transition; bands can remain coplanar. This first milestone is a basic
-sector/ring cut, not a gemological brilliant-cut preset.
+linear transition; bands can remain coplanar. The mode uses a sector/ring cut
+and does not provide a gemological brilliant-cut preset.
 
 The center can move, thicknesses can be swapped, and both symmetric and flat backs
 are supported. Holes cut the existing planes and build inner walls. Height maps
@@ -166,10 +398,10 @@ and the profile panel explains this while faceting is enabled. Settings particip
 in Apply, undo/redo, `.imesh`, asynchronous generation and export. The mode is off by
 default for existing projects. Export preserves the hard facet normals.
 
-### Targets and local regions (7.267.0)
+### Targets and local regions
 
 Use **Edit targets and local regions** to explicitly convert the current point/circle
-profile. Old projects retain their previous geometry until this action. Conversion
+profile. Projects using the point/circle controls retain that geometry until conversion. Conversion
 is undoable; circles become 32-point polygonal ellipses and use the hierarchy's
 nearest-target interpolation, so the result need not match the legacy radial surface.
 
@@ -211,14 +443,14 @@ contain one another. Nesting must be explicit. Generation reports invalid placem
 the editor lets you adjust them. Limits: 32 nodes, 128 points per node, depth 8.
 A flat back is fixed at Z=0 for the hierarchy. In radial mode, polyline targets and blending overlapping regions are unsupported.
 
-### Transition profiles per target (7.268.0)
+### Transition profiles per target
 
 Select a target under **Edit targets and local regions**. **Transition from owner to
 this target** chooses Linear, Smooth or Bézier for that specific incoming transition.
 Omitted profiles remain Linear, preserving existing projects. Local regions use the
 profile of their target; selecting the region itself does not expose a profile.
 
-Smooth uses a smoothstep profile. Since 7.269.0, Bézier offers radio buttons for
+Smooth uses a smoothstep profile. Bézier offers radio buttons for
 **2, 3 or 4 internal control points**, in addition to the fixed border/target endpoints.
 Each yellow handle is draggable vertically and has a slider. Horizontal positions
 are evenly spaced. The controls are independent in [0,1] and may cross vertically;
@@ -333,7 +565,7 @@ they stretch the hole-edge texture instead of using the outer band's inset.
 Holes can increase back-face triangulation and geometry usage. They are saved,
 duplicated, scaled with the module, and included in undo/redo and export.
 
-### Holes in Manual curved mode (7.271.0)
+### Holes in Manual curved mode
 
 Use the same **Holes** panel while editing a module with Manual curved relief.
 Add a circle for a saw's central opening, or a rectangle/polygon for another cutout.
@@ -472,7 +704,7 @@ Brush corrections follow area composition, and fixed outer-border treatment come
 
 ### Height painting
 
-Since 7.277.0 this panel groups **Brush** and **Areas** as final height editing.
+This panel groups **Brush** and **Areas** as final height editing.
 Unchecking **Apply height finishing** bypasses all areas and brush strokes without erasing
 anything. **Clear areas and brush strokes** restores the base and is undoable.
 The order is base relief, enabled areas in list order, then brush strokes.
@@ -502,11 +734,11 @@ per generation. Adaptive geometry refines changed areas locally; otherwise the
 chosen grid resolution controls detail. Geometry budgets still apply, and optional
 simplification can approximate painted details afterward.
 
-In **Manual curved** mode (7.276.0), open **Height painting** while editing the
+In **Manual curved** mode, open **Height painting** while editing the
 module and enable **Apply finishing over curve**, then choose **Brush** or **Areas**.
 For freehand brush strokes, enable **Paint selected module**.
-This is explicitly opt-in, so old strokes previously inactive in curved mode do
-not change existing projects. The panel shows the thickness interval: normalized
+Finishing over curves is disabled by default; stored strokes affect the curve
+only when it is enabled. The panel shows the thickness interval: normalized
 height 0 is its minimum and 1 its maximum. Painting is a final edit and may alter
 targets and borders; holes remain cut out. **Clear areas and brush strokes**
 restores the curve; clearing only brush strokes retains the areas. Unchecking
@@ -527,7 +759,7 @@ higher resolution. The output always consists of triangles, not a QUAD mesh.
 With adaptive geometry and Two heights, plateau faces receive priority when
 computing normals shared with steep transitions. This preserves flat top/bottom
 shading without duplicating vertices. Automatic faceting instead duplicates vertices
-and gives each triangle its geometric normal. Since 7.274.1, radial curved hierarchies
+and gives each triangle its geometric normal. Radial curved hierarchies
 regularize their constrained triangulation during refinement and use corner-angle
 weighted normals. This removes artificial wrinkles caused by long thin triangles;
 control edges, holes and plateau preference remain protected. Other vertices use adjacent-face averaging;
@@ -601,6 +833,11 @@ An external back texture defaults to the original crop if no file is selected.
 | Repeated texture | Repeats the original crop or an external image, with perimeter/depth repetition controls |
 | Inner contour band | Maps the strip between the outer contour and an editable inner contour onto the walls |
 
+With **Enable normal map**, inner-band and repeated-texture sides receive a normal map
+and automatic tangent preparation. This covers individual/assembly previews,
+simplification comparisons and ordinary/portable exports. Portable cropping applies
+the same UV bounds and padding to diffuse and normal maps, then rebuilds tangents.
+
 The inner band has a minimum width of one pixel; the maximum is computed to avoid
 collapsed or crossing contours. Rectangles shrink by side, circles stay concentric,
 and polygons use offset edges. Some narrow contours cannot support a valid band.
@@ -622,7 +859,7 @@ wireframe, simplification, and export. Image transparency is preserved; stretche
 outer-edge segments crossing transparent pixels can sample a more opaque pixel
 inside the crop. Solid side colors are opaque.
 
-## Constrained curved simplification (7.270.0)
+## Constrained curved simplification
 
 In Manual curved mode, open **Simplification** and enable **Simplify curved relief**.
 Set **Faces to keep** (0.5 requests half the front triangles) and **Additional error**
@@ -642,7 +879,7 @@ simplification setting. Apply, undo/redo, `.imesh`, asynchronous generation and
 export use the same options. Each generation starts from the dense surface, so
 repeated Apply does not accumulate losses. The pass runs only during generation,
 supports cancellation and adds no recurring work while the editor is idle.
-Since 7.275.0, the 3D preview also offers **Comparison / Side by side** in this
+The 3D preview also offers **Comparison / Side by side** in this
 section, with the same visibility and wireframe controls as generic simplification.
 The original uses identical options with only `curvedSimplify=false`; the result
 uses the selected reduction. Comparison counts refer to the complete meshes, while
@@ -718,7 +955,7 @@ does not perform semantic retopology, create quad flow or bake textures.
 In 3D, enable **Show assembled modules** in the assembly controls. This replaces
 individual simplification comparison with a configurable set of preview objects
 and their current materials. Initially there is one object per project module.
-Since 7.278.0, select **Preview object** and choose its **Source module** independently.
+Select **Preview object** and choose its **Source module** independently.
 **Add copy** adds another object using that source; **Remove object** removes only
 the preview instance. A project with a single module can therefore test two or more
 copies side by side without duplicating the editable module.

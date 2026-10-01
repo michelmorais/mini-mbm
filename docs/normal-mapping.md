@@ -131,8 +131,7 @@ prepared geometry and a relevant resource cost.
 
 Related contracts: [material texture slots](light.md#material-texture-slots),
 [Lua material settings](lua-api.md#normal-map-material-settings),
-[mesh tangent section](mesh-v11-format.md#optional-section_normal_map_tangents-14-section-version-1)
-and [future work](future-features.md#normal-mapping).
+[mesh tangent section](mesh-v11-format.md#optional-section_normal_map_tangents-14-section-version-1).
 
 ## Validation scope
 
@@ -248,3 +247,13 @@ Runner-only checks require no graphical execution:
 python3 src/test-lib/test-normal-map-runner.py
 python3 src/test-lib/test-normal-map-benchmark.py
 ```
+
+## MeshDebug generation panel
+
+**Generate normal map** is separate from material/tangent preparation.
+Image Mesh entries reuse the project's source, residual compensation and generation
+settings. Ordinary mesh entries require an explicit height image and frame/subset
+selection; generation is additive and leaves geometry unchanged. Generated pixel
+strength is independent of runtime material strength (set to 1 on application).
+See [the generator manual](normal-map-editor.md#geração-no-meshdebug) for staging,
+Undo, project persistence and temporary texture ownership.

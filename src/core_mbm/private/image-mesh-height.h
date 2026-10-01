@@ -38,7 +38,7 @@ struct HEIGHT_FIELD
     uint32_t imageWidth=0,imageHeight=0,width=0,height=0;
     std::string path;
     std::unique_ptr<stbi_uc,decltype(&std::free)> pixels{nullptr,&std::free};
-    std::vector<float> levels, painted;
+    std::vector<float> levels, painted, geometryLevels;
     // Coarse summed-area index: locate actual raster corrections, not brush coordinates.
     std::vector<uint32_t> paintIndex;
     std::vector<uint8_t> paintMask;
@@ -82,6 +82,7 @@ struct HEIGHT_FIELD
         if (!o.heightFinishing) { o.heightEditCount=0;o.heightAreaCount=0; }
         const auto fail=[&](const char *m) { error=m; return false; };
         if (!source || !*source) return fail("Image path required");
+        if (o.geometryBlurRadius>32) return fail("geometryBlurRadius must be in [0,32]");
         if (o.heightSource<IMAGE_MESH_HEIGHT_SOURCE::IMAGE || o.heightSource>IMAGE_MESH_HEIGHT_SOURCE::CURVED ||
             !std::isfinite(o.baseHeight) || o.baseHeight<0 || o.baseHeight>1)
             return fail("Invalid heightSource or baseHeight [0,1]");
@@ -343,6 +344,7 @@ struct HEIGHT_FIELD
     float sample(float u,float v) const { return interpolate(u,v,levels); }
     float surface(float u,float v,const IMAGE_MESH_OPTIONS &o) const
     {
+        if (!geometryLevels.empty()) return interpolate(u,v,geometryLevels);
         const float automatic=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED ?
             curved.level(u,v,o):mapped(sample(u,v),o);
         if (!hasPainting()) return automatic;
@@ -359,6 +361,7 @@ struct HEIGHT_FIELD
     }
     float transition(float u,float v,const IMAGE_MESH_OPTIONS &o) const
     {
+        if (!geometryLevels.empty()) return interpolate(u,v,geometryLevels);
         if (o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL) return surface(u,v,o);
         const float raw=sample(u,v);
         if (!hasPainting()) return raw;

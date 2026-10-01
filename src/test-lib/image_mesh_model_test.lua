@@ -83,7 +83,7 @@ print('IMAGE MESH SIMPLIFICATION SETTINGS / LEGACY PROJECT OK')
 
 local remeshDefaults=M.settings({})
 assert(remeshDefaults.remesh==false and remeshDefaults.remeshEdgeLengthFraction==.03)
-assert(remeshDefaults.remeshIterations==3 and remeshDefaults.remeshFeatureAngle==45)
+assert(remeshDefaults.remeshIterations==10 and remeshDefaults.remeshFeatureAngle==14.5)
 for _,bad in ipairs({{remesh=1},{remeshEdgeLengthFraction=0},{remeshEdgeLengthFraction=.251},
     {remeshIterations=0},{remeshIterations=1.5},{remeshFeatureAngle=-1},{remeshFeatureAngle=181}}) do
     assert(not pcall(M.validateOptions,bad,false))
@@ -148,3 +148,103 @@ for _,initial in ipairs{'qem','cgal','none','remesh'} do
 end
 tImGui,tLang=oldImGui,oldLang
 print('REMESH CHECKBOX TOGGLE / IDLE OK')
+
+-- Normal relief is optional for legacy projects and accepts only reproducible settings.
+local normalLegacy=M.copy(p)
+for key in pairs(M.normalMapDefaults) do normalLegacy.defaults[key]=nil end
+M.validate(normalLegacy)
+local normalOptions=M.options(normalLegacy,normalLegacy.regions[1])
+assert(normalOptions.reliefMode=='geometry' and normalOptions.normalMapConvention=='+Y')
+for _,bad in ipairs({{reliefMode='both'},{normalMapConvention='Z'},
+    {normalMapStrength=-1},{normalMapStrength=17},
+    {normalMapBlur=33},{normalMapEdge='mirror'}}) do
+    assert(not pcall(M.validateOptions,bad,false))
+end
+M.validateOptions({normalMapBlur=1.5},false)
+normalOptions.reliefMode='normal';normalOptions.heightSource='curved';normalOptions.voxelized=true
+normalOptions.heightEdits={};normalOptions.curvedNodes={}
+local geometry=M.geometryOptions(normalOptions)
+assert(geometry.relief==normalOptions.relief and geometry.heightSource=='curved' and geometry.voxelized)
+assert(not geometry.separateFront and geometry.heightEdits and geometry.curvedNodes)
+assert(normalOptions.heightSource=='curved' and normalOptions.voxelized,'Authored parameters changed')
+print('IMAGE MESH NORMAL SETTINGS / LEGACY PROJECT OK')
+
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapResidual==false)
+M.validateOptions({normalMapResidual=true},false)
+assert(not pcall(M.validateOptions,{normalMapResidual=1},false))
+assert(M.geometryOptions({normalMapResidual=true}).normalMapResidual==nil)
+print('IMAGE MESH RESIDUAL SETTINGS OK')
+
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapBasis==false)
+M.validateOptions({normalMapBasis=true},false)
+assert(not pcall(M.validateOptions,{normalMapBasis=1},false))
+assert(M.geometryOptions({normalMapBasis=true}).normalMapBasis==nil)
+
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapGeometryBlur==0)
+for _,value in ipairs{-1,33,1.5,'2'} do assert(not pcall(M.validateOptions,{normalMapGeometryBlur=value},false)) end
+local split={reliefMode='normal',normalMapResidual=true,normalMapBasis=true,normalMapGeometryBlur=3,heightSource='image'}
+assert(M.geometryOptions(split).geometryBlurRadius==3)
+assert(split.geometryBlurRadius==nil and split.normalMapGeometryBlur==3)
+for _,key in ipairs{'normalMapResidual','normalMapBasis'} do
+    local disabled=M.copy(split);disabled[key]=false;assert(M.geometryOptions(disabled).geometryBlurRadius==nil)
+end
+for _,mode in ipairs{'voxelized','twoLevels'} do
+    local disabled=M.copy(split);disabled[mode]=true;assert(M.geometryOptions(disabled).geometryBlurRadius==nil)
+end
+split.heightSource='curved';assert(M.geometryOptions(split).geometryBlurRadius==nil)
+print('IMAGE MESH FREQUENCY SETTINGS OK')
+
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapAutomatic==false)
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapTargetTriangles==1000)
+for _,v in ipairs{1,100001,2.5,'3'} do assert(not pcall(M.validateOptions,{normalMapTargetTriangles=v},false)) end
+assert(not pcall(M.validateOptions,{normalMapAutomatic=1},false))
+split.heightSource='image';split.normalMapAutomatic=true;split.normalMapTargetTriangles=100
+assert(M.geometryOptions(split).geometryTargetTriangles==100 and M.geometryOptions(split).geometryBlurRadius==nil)
+split.normalMapBasis=false;assert(M.geometryOptions(split).geometryTargetTriangles==100)
+assert(M.geometryOptions(split).geometrySeparateDetail==false)
+local Search=require 'image_mesh_frequency'
+local visited={}
+local result=assert(Search.search(50,function(r) visited[#visited+1]=r;return ({[0]=90,[1]=70,[2]=80,[4]=40})[r] end))
+assert(result.radius==4 and result.reached and #visited==4)
+result=assert(Search.search(2,function(r) return r==2 and 10 or 20 end))
+assert(result.radius==2 and not result.reached and result.attempts==7)
+result=assert(Search.search(2,function() return 20 end));assert(result.radius==0)
+local failed,err=Search.search(2,function() return nil,'cancelled' end)
+assert(not failed and err=='cancelled')
+print('IMAGE MESH AUTOMATIC SEPARATION SETTINGS / SEARCH OK')
+
+local automatic={reliefMode='normal',normalMapResidual=true,normalMapBasis=true,normalMapAutomatic=true,
+    normalMapTargetTriangles=500,simplify=false,simplifyMode='none',simplifyRatio=.7}
+local effective=M.geometryOptions(automatic)
+assert(effective.simplify and effective.simplifyMode=='qem' and effective.simplifyRatio==nil)
+assert(not automatic.simplify and automatic.simplifyRatio==.7)
+automatic.normalMapAutomatic=false
+assert(not M.geometryOptions(automatic).simplify and M.geometryOptions(automatic).simplifyRatio==.7)
+local current=1000
+local count,attempts=Search.reduce(500,current,function(ratio)
+    local requested=math.floor(current*ratio)
+    assert(requested==500);current=requested;return current
+end)
+assert(count==500 and attempts==1)
+current=1000
+count,attempts=Search.reduce(500,current,function(ratio)
+    local requested=math.floor(current*ratio)
+    if requested<700 then return nil,'constrained' end
+    current=requested;return current
+end)
+assert(count>=700 and count<738 and attempts<=7)
+local failed,err=Search.reduce(500,1000,function() return nil,'failure' end)
+assert(not failed and err=='failure')
+print('AUTOMATIC TARGET REDUCTION OK')
+
+automatic.normalMapAutomatic=true;automatic.reliefMode='geometry'
+effective=M.geometryOptions(automatic)
+assert(effective.geometryTargetTriangles==500 and not effective.geometrySeparateDetail and effective.simplify)
+automatic.reliefMode='normal';automatic.normalMapResidual=false
+assert(not M.geometryOptions(automatic).geometrySeparateDetail)
+automatic.heightSource='curved'
+assert(M.geometryOptions(automatic).geometryTargetTriangles==nil)
+local probes=0
+local result=Search.search(2,function(radius) probes=probes+1;assert(radius==0);return 100 end,{0})
+assert(probes==1 and result.attempts==1 and not result.reached)
+print('GEOMETRY TARGET WITHOUT NORMAL MAP OK')
