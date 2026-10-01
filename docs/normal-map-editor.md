@@ -222,3 +222,47 @@ timeout -s KILL 55 ./bin/debug/linux_x86/mini-mbm \
 
 Marcador esperado: `IMAGE MESH NORMAL PASS`. A mensagem
 `ime_generation_cancelled` faz parte do caso de cancelamento intencional.
+
+## Geração no MeshDebug (7.344)
+
+O treenode **Gerar normal map** complementa o painel existente de material e
+preparação de tangentes. Os controles são rascunhos: **Gerar e aplicar** inicia
+um trabalho cooperativo, mantém a malha atual enquanto processa uma cópia e só
+publica o resultado ao terminar. Cancelamento e falhas não aplicam a cópia.
+O editor suspende suas outras operações durante esse trabalho; leitura de pixels,
+salvamento PNG e preparação nativa de tangentes continuam com etapas síncronas.
+
+Para entradas provenientes de **`.imesh`**, usa o projeto em memória e a região
+selecionada, com a fonte/altura já configurada. Reutiliza os controles de habilitação,
+suavização, intensidade, convenção, bordas, residual, compensação e separação manual,
+além do painel de meta automática de triângulos. A região é reconstruída pelo mesmo
+pipeline do Image Mesh, portanto edições feitas somente na malha são substituídas.
+Os parâmetros aplicados atualizam os overrides da região em memória. O botão
+**Salvar projeto Image Mesh aplicado como...** persiste o projeto explicitamente;
+carregar ou aplicar não sobrescreve o `.imesh` de origem. Rascunhos não aplicados
+não são incluídos nesse salvamento. Outras regiões permanecem inalteradas.
+
+Para **`.msh`** e outras entradas de malha sem projeto Image Mesh, selecione uma
+imagem de altura alinhada aos UVs e os frames/subsets (0 significa todos). Estão
+disponíveis canal, níveis, curva, inversão, suavização, intensidade, convenção e
+tratamento das bordas. O resultado é aditivo: não pressupõe uma altura original
+nem permite residual/compensação de Image Mesh em uma malha arbitrária. Posições,
+índices e UVs são preservados; os materiais selecionados recebem a textura normal
+e suas tangentes são preparadas. A intensidade é gravada nos pixels, e a intensidade
+do material resultante fica em 1. Os ajustes de material existentes continuam
+independentes. **Exportar PNG gerado...** grava uma cópia do último mapa aplicado.
+Esses rascunhos de fonte/parâmetros não são incorporados ao formato `.msh`.
+
+O desfazer existente restaura a malha anterior e, para `.imesh`, os overrides da
+região correspondentes àquela operação. Mapas gerados são privados à entrada e
+mantidos enquanto ela existe, inclusive para suportar desfazer e materiais de
+frames/subsets não substituídos. Para persistir a malha, salve/exporte também suas
+texturas (por exemplo, **Save All to Folder**); o arquivo de malha referencia PNGs.
+Remover a entrada, limpar a lista ou encerrar a cena libera os recursos privados.
+Nenhuma geração, leitura de fonte ou gravação é disparada apenas por desenhar o painel.
+
+O teste `src/test-lib/mesh_debug_normal_generator_smoke.lua` exercita o MeshDebug
+real: seleção individual/todos, material com intensidade 1, tangentes, cancelamento,
+falha de leitura, desfazer, projeto `.imesh` separado da origem, recarga de malha,
+limpeza dos temporários e painéis ociosos. Validação em Linux/GLES; cliques e arrastes
+reais e os demais backends não foram automatizados.

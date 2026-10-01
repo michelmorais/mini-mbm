@@ -3445,6 +3445,7 @@ function removeMeshFromTable(index)
         tMeshEntryIndex[tLoadedMeshes[meshIndex]]=meshIndex
     end
     if removed then
+        require("mesh_debug_normal_generator").dispose(removed)
         require("mesh_debug_info_wireframe").release(removed)
         if removed.tXformPreviewMesh then removed.tXformPreviewMesh:destroy() end
         tXformGizmo.destroy(removed)
@@ -6412,7 +6413,9 @@ function transformCreateUndo(tEntry, meshD)
         os.remove(path)
         return nil
     end
-    return {path=path, modified=tEntry.modified == true, info=splitCaptureCopyTable(tEntry.info)}
+    local region=tEntry.imageMeshProjectOwner and require('image_mesh_model').region(tEntry.imageMeshProjectOwner.project,tEntry.imageMeshRegionId)
+    return {path=path, modified=tEntry.modified == true, info=splitCaptureCopyTable(tEntry.info),
+        imageMeshOverrides=region and splitCaptureCopyTable(region.overrides)}
 end
 
 function transformApplyUndoable(tEntry, meshD, action)
@@ -6448,6 +6451,16 @@ function transformRestoreUndo(tEntry, index)
     tEntry.meshDebug = restored
     tEntry.modified = undo.modified
     tEntry.info = undo.info
+    if tEntry.normalGenerator then tEntry.normalGenerator.applied=nil end
+    if undo.imageMeshOverrides and tEntry.imageMeshProjectOwner then
+        local model=require('image_mesh_model')
+        local region=model.region(tEntry.imageMeshProjectOwner.project,tEntry.imageMeshRegionId)
+        region.overrides=model.copy(undo.imageMeshOverrides)
+        if tEntry.normalGenerator then
+            tEntry.normalGenerator.values=model.options(tEntry.imageMeshProjectOwner.project,region)
+            tEntry.normalGenerator.applied=nil
+        end
+    end
     tEntry.tTransformBoundsCache = nil
     tEntry.bNormalsVizDirty = true
     tEntry.bPhysicsVizDirty = true
@@ -8462,6 +8475,26 @@ function showNormalsEditor(tEntry, meshD, index)
     end
 end
 
+function applyGeneratedNormalMap(entry,index,asset,info,project)
+    local ok=transformApplyUndoable(entry,entry.meshDebug,function()
+        entry.meshDebug=asset;entry.info=info
+        if project then
+            local model=require('image_mesh_model')
+            local target=model.region(entry.imageMeshProjectOwner.project,entry.imageMeshRegionId)
+            target.overrides=model.copy(model.region(project,entry.imageMeshRegionId).overrides)
+        end
+        return true
+    end)
+    if not ok then return false end
+    if entry.tXformPreviewMesh then entry.tXformPreviewMesh:destroy();entry.tXformPreviewMesh=nil end
+    tXformGizmo.destroy(entry)
+    destroyTransformSubsetHoverMarker(entry);destroyNormalVisualization(entry);destroyPhysicsVisualization(entry)
+    entry.tTransformBoundsCache=nil;entry.bNormalsVizDirty=true;entry.bPhysicsVizDirty=true
+    entry.xfLastPreviewFP=nil;entry.normalMapAuthoring=nil;entry.modified=true
+    if index==iSelectedMeshIndex then iLastPreviewedIndex=0 end
+    return true
+end
+
 function showMeshOptions(tEntry, index)
     local meshD = tEntry.meshDebug
     local info = tEntry.info or {}
@@ -9174,6 +9207,14 @@ function showMeshOptions(tEntry, index)
         end
 
         tImGui.TreePop()
+    end
+
+    if openNode(tEntry, 'normalMapGeneration', tLang.L('mdng_title'), 0, 'normalGenerator-'..index) then
+        local restored=require('mesh_debug_normal_generator').panel(tEntry,index,
+            function(asset,generatedInfo,project) return applyGeneratedNormalMap(tEntry,index,asset,generatedInfo,project) end,
+            function() return transformRestoreUndo(tEntry,index) end)
+        tImGui.TreePop()
+        if restored then return end
     end
 
     if openNode(tEntry, 'normalMapPreparation', tLang.L('nm_title'), 0, 'normalMap-' .. index) then
@@ -11723,6 +11764,7 @@ function main_menu_mesh_debug()
             tImGui.Separator()
             if tImGui.MenuItem(tLang.L("clear_all")) then
                 for _,entry in ipairs(tLoadedMeshes) do
+                    require("mesh_debug_normal_generator").dispose(entry)
                     require("mesh_debug_info_wireframe").release(entry)
                     simplifyCancel(entry);simplifyDiscardBackup(entry)
                     if entry.imageMeshProjectOwner then meshDebug:fakeRelease(entry.fileName) end
@@ -12756,6 +12798,12 @@ function showListMeshesWindow()
 end
 
 function onLoop(delta)
+    local generator=require('mesh_debug_normal_generator')
+    if generator.busy() then
+        generator.advance();generator.progress()
+        updatePreviewMesh();tUtil.showOverlayMessage()
+        return
+    end
     require("mesh_audit_ui").update()
     if tMeshNormals.preview.pending then
         require("mesh_debug_info_wireframe").hide(tLoadedMeshes[iSelectedMeshIndex])
@@ -12814,6 +12862,7 @@ function onLoop(delta)
 end
 
 function onTouchDown(key, x, y)
+    if require('mesh_debug_normal_generator').busy() then return end
     if tMeshNormals.preview.pending then
         if not tImGui.IsAnyWindowHovered() then
             isClickedMouseleft, isClickedMouseRight = key==0, key==1
@@ -12919,6 +12968,7 @@ function onTouchDown(key, x, y)
 end
 
 function onTouchMove(key, x, y)
+    if require('mesh_debug_normal_generator').busy() then return end
     if tImGui.IsAnyWindowHovered() then return end
     if not tMeshNormals.preview.pending and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
@@ -13019,6 +13069,7 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if require('mesh_debug_normal_generator').busy() then return end
     if tMeshNormals.preview.pending then
         isClickedMouseleft,isClickedMouseRight=false,false
         camera2d.mx,camera2d.my=x,y
@@ -13063,6 +13114,7 @@ function onTouchUp(key, x, y)
 end
 
 function onTouchZoom(zoom)
+    if require('mesh_debug_normal_generator').busy() then return end
     if tImGui.IsAnyWindowHovered() then return end
     if bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local c = tLoadedMeshes[iSelectedMeshIndex].cam3d
@@ -13079,6 +13131,7 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if require('mesh_debug_normal_generator').busy() then return end
     if key == mbm.getKeyCode('ESC') and simplifyCancel(tLoadedMeshes[iSelectedMeshIndex]) then return end
     local keyName = mbm.getKeyName(key)
     if keyName == 'DOWN' then
@@ -13113,6 +13166,7 @@ end
 function onEndScene()
     require("mesh_audit_ui").shutdown()
     for _,entry in ipairs(tLoadedMeshes or {}) do
+        require("mesh_debug_normal_generator").dispose(entry)
         if entry.imageMeshProjectOwner then meshDebug:fakeRelease(entry.fileName) end
     end
     for _,project in ipairs(tImageMeshProjects or {}) do tImageMeshWorktree.dispose(project) end

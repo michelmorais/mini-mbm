@@ -20,6 +20,10 @@ buscar raios de separação. Os campos salvos são mantidos por compatibilidade.
 Em 7.343, a comparação de simplificação prepara o normal map da malha original
 somente ao ser ativada e reutiliza o resultado. Ajustes com a comparação desligada
 adiam a atualização da original, evitando uma geração desnecessária no preview.
+Em 7.344, o MeshDebug também oferece geração: parâmetros do projeto para `.imesh`
+e fonte de altura explícita com seleção de frames/subsets para `.msh`. O painel
+de material/tangentes continua separado. Aplicação, cancelamento, desfazer e
+salvamento explícito do projeto fazem parte dessa integração.
 A extensão aos modos curvo/descontínuo permanece fora desta entrega.
 
 Este documento registra o escopo e a sequência de implementação. Consulte

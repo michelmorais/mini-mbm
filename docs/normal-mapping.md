@@ -248,3 +248,13 @@ Runner-only checks require no graphical execution:
 python3 src/test-lib/test-normal-map-runner.py
 python3 src/test-lib/test-normal-map-benchmark.py
 ```
+
+## MeshDebug generation panel
+
+Since 7.344 **Generate normal map** is separate from material/tangent preparation.
+Image Mesh entries reuse the project's source, residual compensation and generation
+settings. Ordinary mesh entries require an explicit height image and frame/subset
+selection; generation is additive and leaves geometry unchanged. Generated pixel
+strength is independent of runtime material strength (set to 1 on application).
+See [the generator manual](normal-map-editor.md#geração-no-meshdebug-7344) for staging,
+Undo, project persistence and temporary texture ownership.

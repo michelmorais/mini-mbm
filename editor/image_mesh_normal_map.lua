@@ -106,10 +106,10 @@ function M.syncComparison(E)
     local c=E.normalComparison
     if c and (c.target~=E.preview or not M.canCompare(E)) then M.clearComparison(E) end
 end
-function M.panel(E,camera,safe)
+function M.settings(E)
     local enabled=tImGui.Checkbox(tLang.L('ime_normal_enabled'),E.values.reliefMode=='normal')
     E.values.reliefMode=enabled and 'normal' or 'geometry'
-    if not enabled then M.clearComparison(E);return end
+    if not enabled then return false end
     tImGui.TextWrapped(tLang.L('ime_normal_workflow'))
     tImGui.TextWrapped(tLang.L('ime_normal_help'))
     E.values.normalMapResidual=tImGui.Checkbox(tLang.L('ime_normal_residual'),E.values.normalMapResidual)
@@ -134,6 +134,10 @@ function M.panel(E,camera,safe)
     Panel.draw(tImGui,function(k) return tLang.L('nmg_'..k) end,o,true)
     E.values.normalMapStrength=o.strength;E.values.normalMapBlur=o.blur
     E.values.normalMapConvention=o.convention;E.values.normalMapEdge=o.edge
+    return true
+end
+function M.panel(E,camera,safe)
+    if not M.settings(E) then M.clearComparison(E);return end
     if E.normalCompiled==nil then E.normalCompiled=mbm.isNormalMapping3DCompiled() end
     if not E.normalCompiled then tImGui.TextWrapped(tLang.L('nm_3d_build_disabled')) end
     tImGui.Separator()
