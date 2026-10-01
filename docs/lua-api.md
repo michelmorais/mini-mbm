@@ -2228,6 +2228,7 @@ assert(asset:save("panel.msh", false, false, true))
 | `grooveThreshold` | 0.5 | Processed intensities below this value are grooves; finite [0,1] |
 | `grooveTransition` | 0.1 | Intensity interval centered on the threshold for the two-height ramp; finite [0.001,1] |
 | `smoothPasses` | 0 | Integer [0,4]; edge-preserving 3x3 filtering passes within the crop |
+| `geometryBlurRadius` | 0 | Integer 0..32 crop pixels; geometry-only alpha/mask-weighted box filter after finishing and before topology/border attenuation. Nonzero values require continuous image/manual/mixed height; mesh generation rejects curved, voxelized or two-level modes. Height-map export validates the range but keeps the full source unfiltered. Added in 7.339 |
 | `heightImage` | nil | Optional height-only image path. Nil/empty uses the source image. Ignored in manual mode. Maximum 16,777,216 pixels. |
 | `heightImageToRegion` | false | False aligns the map with the whole source image; true fits the whole map to the current crop. Bilinear sampling for different resolutions. |
 | `heightBlack`, `heightWhite` | 0, 1 | Finite input endpoints: `0 <= black <= white <= 1`. Clamp/rescale selected height channel to [0,1]. Equal endpoints create a step (input >= point gives 1). |
@@ -3020,11 +3021,51 @@ the shared build pipeline prepares all
 subsets after simplification, for preview and export. Preparation runs on a build or
 explicit user action, never continuously while an editor is idle. Preparation alone
 does not assign a normal texture. Image Mesh also supports additive `reliefMode="normal"`,
-which preserves geometric relief, generates a normal texture for the front and inner-band sides and prepares their tangents automatically,
-regardless of `normalMapPrecompute`. Project fields and export behavior are described
+which preserves geometric relief, generates normal textures for the front, inner-band and repeated-texture sides and prepares their tangents automatically,
+regardless of `normalMapPrecompute`. Optional `normalMapResidual` (boolean, default
+false) switches the front to a signed height-difference bake against the final mesh;
+sides remain additive. Each simplification comparison mesh gets its own residual
+texture. This editor setting does not change geometry or add a native API.
+Project fields and export behavior are described
 in [Image Mesh Editor](image-mesh-editor.md#normal-map-relief). These are editor
 project settings, not native `generateImageMesh` options. Static lit rendering on OpenGL ES, DirectX 9 SM3,
 DirectX 11 and Metal consumes the prepared basis when a normal texture is assigned.
+
+Image Mesh project field `normalMapGeometryBlur` (integer 0..32, default 0) maps to
+native `geometryBlurRadius` only when normal mapping, residual detail and basis
+compensation are active on a supported continuous surface. Unlike appearance-only
+normal parameters, changing the effective radius rebuilds geometry. Disabling a
+prerequisite restores full geometric detail while keeping the saved radius. The
+normal-map generator and 2D height preview use original processed height. The
+native filter does not require normal mapping and can also be used directly by
+other `generateImageMesh` / `startImageMesh` consumers.
+
+### Mesh Debug tangent snapshots
+
+```lua
+local corners, err = meshD:getNormalMapCorners(frame, subset)
+```
+
+Added in 7.338. One-based frame/subset indices. Returns a fresh table of
+`{x, y, z, sign}` tangents, one entry per expanded triangle corner in draw order,
+including unusable triangles (`sign == 0`). Triangle fans/strips use the same
+expansion as `prepareNormalMap(..., "import", corners)`. Corner indices are not
+source vertex indices; this preserves different tangents across UV seams.
+
+The operation first ensures a current basis using **preserve** policy: valid
+imported/generated tangents are retained, missing or stale tangents are generated.
+It does not assign a texture or change positions, normals or UVs. It can update
+preparation caches, performs CPU work, and must not be called every frame.
+Tables are copies, so editing the returned values cannot mutate the asset.
+Returns `nil, error` for preparation failures (including unavailable frame/subset,
+missing normals/UVs or an active simplification worker). Non-positive/out-of-uint32
+indices and non-integer arguments raise a Lua argument error.
+
+The Image Mesh baker snapshots these corners with the final geometry and uses them
+for `normalMapBasis` (optional project boolean, default false). This option takes
+effect only with `normalMapResidual` and `reliefMode="normal"`; it projects the target
+height-field normal into the final interpolated render basis. It is an editor
+setting, not a native `generateImageMesh` option.
 
 ### Mesh Debug normal-map settings
 

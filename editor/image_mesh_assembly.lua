@@ -163,6 +163,7 @@ function M.build(E,generate,dpCall,camera)
             item.preview=mesh:new('3d');item.preview.visible=false
             assert(meshDebug:loadMeshPreview(item.preview,item.previewPath),tLang.L('ime_preview_failed'))
             item.preview.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
+            item.preview.imageMeshNormalGeometry=asset.imageMeshNormalGeometry
             item.preview.alwaysRender=true;item.preview.visible=false
             if E.wireframe then Wire.ensure(item,asset) end
         end

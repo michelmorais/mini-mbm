@@ -24,6 +24,7 @@
 #include <core_mbm/util-interface.h>
 #include <stb/stb-interface.h>
 #include "private/image-mesh-height.h"
+#include "private/image-mesh-frequency.h"
 #include "private/image-mesh-sides.h"
 #include "private/image-mesh-curved-simplify.h"
 #include <lodepng/lodepng.h>
@@ -87,6 +88,7 @@ namespace mbm
             image_mesh::HEIGHT_FIELD field;
             std::string topologyError;
             if (!field.load(imagePath,o,topologyError)) return fail(errorOut,errorOutLen,topologyError.c_str());
+            if (!image_mesh::filterGeometryHeights(field,o,topologyError)) return fail(errorOut,errorOutLen,topologyError.c_str());
             const uint32_t backWidth=o.backCropWidth?o.backCropWidth:field.width;
             const uint32_t backHeight=o.backCropHeight?o.backCropHeight:field.height;
             if (o.backRemap && (o.backX>=field.imageWidth || o.backY>=field.imageHeight ||

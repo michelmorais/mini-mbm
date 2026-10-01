@@ -66,7 +66,7 @@ function M.split(source,options)
     for subset=2,total do
         asset:copySubsetFrom(1,source,1,subset)
         -- A separate back material leaves the native walls in the last subset.
-        if options and options.sideMode=='band' and subset==total then
+        if options and (options.sideMode=='band' or options.sideMode=='repeat') and subset==total then
             normalSubsets[#normalSubsets+1]=asset:getTotalSubset(1)
         end
     end

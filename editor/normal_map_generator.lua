@@ -27,10 +27,15 @@ function M.generate(image,options,limit,tick)
     local o=Height.settings(options)
     tick=tick or function() end
     local map=Height.build(image,o,limit,tick)
+    -- Strength 1 means a height range of 1/32 of the shorter image side.
+    local amplitude=math.max(1,math.min(map.width,map.height)-1)*o.strength/32
+    return M.fromMap(map,o,amplitude,amplitude,tick)
+end
+-- Signed float maps and independent physical scales are useful to mesh bakers.
+function M.fromMap(map,o,amplitudeX,amplitudeY,tick)
+    tick=tick or function() end
     local rows,heights={},{}
     local w,h=map.width,map.height
-    -- Strength 1 means a height range of 1/32 of the shorter image side.
-    local amplitude=math.max(1,math.min(w,h)-1)*o.strength/32
     local left,right={},{}
     for x=1,w do left[x]=Height.coordinate(x-1,w,o.edge);right[x]=Height.coordinate(x+1,w,o.edge) end
     local function unpackRow(y)
@@ -59,9 +64,9 @@ function M.generate(image,options,limit,tick)
                 local rv=centerAlpha:byte(r)==0 and center or current[r]
                 local uv=upAlpha:byte(x)==0 and center or above[x]
                 local dv=downAlpha:byte(x)==0 and center or below[x]
-                nx=-(rv-lv)*amplitude*.5
+                nx=-(rv-lv)*amplitudeX*.5
                 -- Input rows go down; tangent-space +Y points up.
-                ny=(dv-uv)*amplitude*.5*sign
+                ny=(dv-uv)*amplitudeY*.5*sign
             end
             local length=math.sqrt(nx*nx+ny*ny+1)
             row[x]=string.char(byte(127.5+127.5*nx/length),byte(127.5+127.5*ny/length),byte(127.5+127.5/length),alpha)

@@ -168,3 +168,28 @@ assert(geometry.relief==normalOptions.relief and geometry.heightSource=='curved'
 assert(not geometry.separateFront and geometry.heightEdits and geometry.curvedNodes)
 assert(normalOptions.heightSource=='curved' and normalOptions.voxelized,'Authored parameters changed')
 print('IMAGE MESH NORMAL SETTINGS / LEGACY PROJECT OK')
+
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapResidual==false)
+M.validateOptions({normalMapResidual=true},false)
+assert(not pcall(M.validateOptions,{normalMapResidual=1},false))
+assert(M.geometryOptions({normalMapResidual=true}).normalMapResidual==nil)
+print('IMAGE MESH RESIDUAL SETTINGS OK')
+
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapBasis==false)
+M.validateOptions({normalMapBasis=true},false)
+assert(not pcall(M.validateOptions,{normalMapBasis=1},false))
+assert(M.geometryOptions({normalMapBasis=true}).normalMapBasis==nil)
+
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapGeometryBlur==0)
+for _,value in ipairs{-1,33,1.5,'2'} do assert(not pcall(M.validateOptions,{normalMapGeometryBlur=value},false)) end
+local split={reliefMode='normal',normalMapResidual=true,normalMapBasis=true,normalMapGeometryBlur=3,heightSource='image'}
+assert(M.geometryOptions(split).geometryBlurRadius==3)
+assert(split.geometryBlurRadius==nil and split.normalMapGeometryBlur==3)
+for _,key in ipairs{'normalMapResidual','normalMapBasis'} do
+    local disabled=M.copy(split);disabled[key]=false;assert(M.geometryOptions(disabled).geometryBlurRadius==nil)
+end
+for _,mode in ipairs{'voxelized','twoLevels'} do
+    local disabled=M.copy(split);disabled[mode]=true;assert(M.geometryOptions(disabled).geometryBlurRadius==nil)
+end
+split.heightSource='curved';assert(M.geometryOptions(split).geometryBlurRadius==nil)
+print('IMAGE MESH FREQUENCY SETTINGS OK')

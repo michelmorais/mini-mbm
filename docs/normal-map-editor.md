@@ -3,7 +3,31 @@
 Primeira entrega do [plano](normal-map-editor-plan.md), introduzida em 7.329.
 Editor independente com módulos Lua compartilhados. O Image Mesh reutiliza esses
 módulos e, desde 7.332, preserva o relevo geométrico ao acrescentar normal map.
-A distribuição automática entre relevo geométrico e detalhe residual ainda é futura.
+Desde 7.336, o Image Mesh oferece **Detalhe residual (frente)**: uma aproximação
+pela diferença entre a altura processada e a superfície da malha final. O módulo
+Lua reutilizável `normal_map_residual.generate(image, vertices, indices, domain,
+settings, tick)` rasteriza triângulos com índices Lua (base 1), preserva diferenças
+assinadas em floats e devolve o mesmo resultado RGBA do gerador compartilhado.
+`domain` informa `imageWidth`, `imageHeight`, origem do recorte `x/y`, dimensões
+físicas `width/height` e multiplicador `scale` da altura normalizada; os vértices
+contêm `u/v/z`. `settings` usa os ajustes de `height_map_source`, e `tick(progress)`
+pode ceder execução para cancelamento cooperativo. UVs são os da imagem completa;
+as dimensões de `image` são as do recorte processado. O módulo não depende da engine.
+`height_map_source.blur` também aceita mapas de floats assinados;
+`normal_map_generator.fromMap` permite escalas físicas diferentes por eixo.
+Em 7.338, `normal_map_baker.generate(image, vertices, indices, corners, domain,
+settings, tick)` acrescenta compensação na base tangente interpolada. Usa o mesmo
+`domain`, com a orientação frontal do Image Mesh (X e Y decrescem com U e V),
+vértices com `nx/ny/nz` e uma tangente `{x,y,z,sign}` por canto de triângulo.
+As tangentes podem ser obtidas de `meshDebug:getNormalMapCorners(frame, subset)`.
+O resultado contém `bytes`, `width`, `height` e `options`. O módulo é Lua puro,
+com execução cooperativa por `tick`; não depende de ImGui ou da engine.
+Desde 7.339, o Image Mesh oferece **Separacao de detalhe (px)**: raio opcional de
+filtro na geometria, preservando a altura original no normal map residual.
+A filtragem pesada roda no núcleo, reutilizável pela opção `geometryBlurRadius`
+de `generateImageMesh`/`startImageMesh`; o projeto usa `normalMapGeometryBlur`.
+O controle está disponível para fontes contínuas de imagem, manual e mista.
+A escolha automática do raio por orçamento de geometria continua futura; consulte as limitações no [Image Mesh](image-mesh-editor.md#normal-map-relief).
 
 ## Uso
 
@@ -175,7 +199,7 @@ Windows/DX9/DX11, macOS/Metal e plataformas móveis não foram executados nesta 
 O Image Mesh reutiliza `normal_map_generator` e `normal_map_panel` através de
 `image_mesh_normal_map.lua`. A altura vem do raster nativo do próprio Image Mesh,
 sem repetir níveis/canais no painel compartilhado. O resultado é aplicado
-à frente e às laterais por faixa da malha 3D, com tangentes próprias de cada
+à frente e às laterais por faixa ou textura repetida da malha 3D, com tangentes próprias de cada
 superfície e iluminação do runtime. Consulte o
 [fluxo, persistência e exportação](image-mesh-editor.md#normal-map-relief).
 

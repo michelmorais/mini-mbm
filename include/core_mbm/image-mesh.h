@@ -112,6 +112,9 @@ namespace mbm
         bool followImage = false, twoLevels = false;
         float grooveThreshold = 0.5f, grooveTransition = 0.1f, heightTolerance = 0.03f;
         uint32_t smoothPasses = 0;
+        // Geometry-only low-pass radius in crop pixels [0,32], after height finishing.
+        // Continuous image/manual/mixed surfaces only; map export keeps the full source.
+        uint32_t geometryBlurRadius = 0;
         // Borrowed ordered dabs (max 4096). XY normalized to crop; radius relative to its shorter side.
         const IMAGE_MESH_DAB *heightEdits = nullptr;
         uint32_t heightEditCount = 0;

@@ -3,14 +3,21 @@
 Status: entregas 1 e 2 implementadas (editor independente, módulos Lua e
 integração ao Image Mesh). No uso real, o checkbox foi revisado para preservar a
 geometria e acrescentar normal map. Desde 7.334, laterais por faixa também recebem
-o normal map, com preview, comparações e exportação. Separação automática de frequências/relevo
-residual permanece pendente.
+o normal map, com preview, comparações e exportação. Em 7.335, o suporte inclui
+laterais repetidas, usando o recorte original ou uma imagem independente.
+Em 7.336, a entrega 3 começa com **Detalhe residual (frente)**, opcional e calculado
+pela diferença de alturas em relação à malha final. Em 7.337 foi adicionada a
+comparação com três malhas; em 7.338, a opção de compensação na base tangente real,
+incluindo normais suavizadas. Em 7.339, a separação por escala ajustável entrega
+geometria suavizada e residual de detalhe completo para fontes contínuas de imagem,
+manual e mista. O raio padrão 0 preserva projetos existentes. A escolha automática
+do raio por orçamento de triângulos e a extensão aos modos curvo/descontínuo
+permanecem fora desta entrega.
 
 Este documento registra o escopo e a sequência de implementação. Consulte
 [o manual do gerador](normal-map-editor.md) para os contratos implementados,
 limitações e validação do gerador. A integração implementada está descrita em
-[Image Mesh Editor](image-mesh-editor.md#normal-map-relief); o processamento residual
-continua planejado.
+[Image Mesh Editor](image-mesh-editor.md#normal-map-relief); a primeira aproximação residual está implementada.
 
 ## Objetivo
 
@@ -134,10 +141,16 @@ Reutilizar o painel e o gerador, respeitando recortes, UVs, regiões e configura
 persistidas. Alterar apenas o normal map não deverá reconstruir a geometria.
 Definir como os arquivos gerados acompanham o projeto e os assets exportados.
 
-A integração atual preserva a geometria e acrescenta normal map ao material da
-frente. Uma evolução deverá reservar geometria para volumes maiores e normal map
-para detalhes residuais, evitando reforçar na iluminação o relevo já representado
-pela malha. Essa separação automática permanece planejada.
+Por padrão, a integração preserva a geometria e oferece detalhe aditivo ou residual na frente.
+O residual desconta a altura rasterizada da malha final, com mapas próprios para
+original e simplificada, sem reconstruir a geometria ao alterar ajustes de normal.
+Laterais continuam aditivas. O processamento é cooperativo e reutilizável em Lua.
+A primeira entrega usa diferença de alturas; a opção de 7.338 projeta a normal da
+altura desejada na base interpolada da malha final. Em 7.339, um raio opcional
+reserva à geometria a altura suavizada e mantém a altura original como alvo do
+normal map. Geometria adaptativa e simplificação podem aproveitar a superfície mais
+suave para usar menos triângulos. As limitações de fontes, resolução, filtragem e
+costuras estão documentadas no manual; não há escolha automática de raio/orçamento.
 
 ## Etapa 6: validação e conclusão
 

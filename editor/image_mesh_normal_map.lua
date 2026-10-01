@@ -47,6 +47,7 @@ function M.clearComparison(E)
     local c=E.normalComparison
     if not c then return end
     if c.preview then meshDebug:loadMeshPreview(c.preview,nil);c.preview:destroy() end
+    if c.additive then meshDebug:loadMeshPreview(c.additive,nil);c.additive:destroy() end
     if E.preview==c.target then E.preview:setPos(c.x,c.y,c.z) end
     E.orbit.distance=c.distance
     E.normalComparison=nil
@@ -57,9 +58,11 @@ function M.canCompare(E)
         and not E.dirty and not E.previewStale and not E.meshTask and not E.normalDirty
         and not E.wireframe and not E.compareSideBySide and not (E.assembly and E.assembly.enabled)
 end
-function M.compare(E,enabled,camera)
+function M.compare(E,enabled,camera,prepared)
     if not enabled then M.clearComparison(E);return end
-    if E.normalComparison or not M.canCompare(E) then return end
+    if E.normalComparison or (not prepared and not M.canCompare(E)) then return end
+    local additivePath,sidePath,options
+    if E.values.normalMapResidual then additivePath,sidePath,options=M.comparisonTextures(E) end
     local asset=meshDebug:new();assert(asset:load(E.previewPath))
     local lo,hi=math.huge,-math.huge
     for _,v in ipairs(require('image_mesh_asset').vertices(asset)) do
@@ -73,12 +76,31 @@ function M.compare(E,enabled,camera)
     for _,subset in ipairs(require('image_mesh_normal_material').subsets(asset)) do
         assert(c.preview:setNormalMapSettings('+Y',0,subset))
     end
-    local offset=math.max(.001,(hi-lo)*.575)
+    if additivePath then
+        c.additive=mesh:new('3d');c.additive.visible=false
+        assert(meshDebug:loadMeshPreview(c.additive,E.previewPath))
+        for _,subset in ipairs(require('image_mesh_normal_material').subsets(asset)) do
+            assert(c.additive:setMaterialTexture('normal',subset==1 and additivePath or sidePath,true,subset))
+            assert(c.additive:setNormalMapSettings(options.normalMapConvention,1,subset))
+        end
+        c.additive:setPos(c.x,c.y,c.z)
+        c.additive.alwaysRender=true;c.additive.visible=true
+    end
+    local offset=math.max(.001,(hi-lo)*(c.additive and 1.15 or .575))
     target:setPos(c.x+offset,c.y,c.z)
     c.preview:setPos(c.x-offset,c.y,c.z)
     c.preview.alwaysRender=true;c.preview.visible=true
-    E.orbit.distance=math.max(c.distance,(hi-lo)*2.15*2.7)
+    E.orbit.distance=math.max(c.distance,(hi-lo)*(c.additive and 3.3 or 2.15)*2.7)
     if camera then camera() end
+end
+-- Texture generation can yield; the UI schedules it through the existing job runner.
+function M.requestComparison(E,enabled,camera,safe)
+    if not enabled then M.clearComparison(E);return end
+    if E.normalComparison or not M.canCompare(E) then return end
+    require('image_mesh_simplify').run(E,function()
+        local ok=safe(M.compare,E,true,camera,true)
+        if not ok then M.clearComparison(E) end
+    end)
 end
 function M.syncComparison(E)
     local c=E.normalComparison
@@ -90,17 +112,19 @@ function M.panel(E,camera,safe)
     if not enabled then M.clearComparison(E);return end
     tImGui.TextWrapped(tLang.L('ime_normal_workflow'))
     tImGui.TextWrapped(tLang.L('ime_normal_help'))
-    tImGui.BeginDisabled(not M.canCompare(E))
-    local compare=tImGui.Checkbox(tLang.L('ime_normal_compare'),E.normalComparison~=nil)
-    if compare~=(E.normalComparison~=nil) then
-        local ok=safe(M.compare,E,compare,camera)
-        if not ok then M.clearComparison(E) end
+    E.values.normalMapResidual=tImGui.Checkbox(tLang.L('ime_normal_residual'),E.values.normalMapResidual)
+    if E.values.normalMapResidual then
+        E.values.normalMapBasis=tImGui.Checkbox(tLang.L('ime_normal_basis'),E.values.normalMapBasis)
+        tImGui.TextWrapped(tLang.L(E.values.normalMapBasis and 'ime_normal_basis_help' or 'ime_normal_residual_help'))
+        if E.values.normalMapBasis then
+            local available=Model.canSeparateDetail(E.values)
+            tImGui.BeginDisabled(not available)
+            local changed,radius=tImGui.SliderInt(tLang.L('ime_normal_separation'),E.values.normalMapGeometryBlur,0,32)
+            if changed then E.values.normalMapGeometryBlur=radius end
+            tImGui.EndDisabled()
+            tImGui.TextWrapped(tLang.L(available and 'ime_normal_separation_help' or 'ime_normal_separation_unavailable'))
+        end
     end
-    tImGui.EndDisabled()
-    if E.normalComparison then
-        tImGui.TextWrapped(tLang.L(math.cos(E.orbit.azimuth)<0 and 'ime_normal_compare_order' or 'ime_normal_compare_reverse'))
-    else tImGui.TextWrapped(tLang.L('ime_normal_compare_help')) end
-
     local o={strength=E.values.normalMapStrength,blur=E.values.normalMapBlur,
         convention=E.values.normalMapConvention,edge=E.values.normalMapEdge}
     Panel.draw(tImGui,function(k) return tLang.L('nmg_'..k) end,o,true)
@@ -108,6 +132,18 @@ function M.panel(E,camera,safe)
     E.values.normalMapConvention=o.convention;E.values.normalMapEdge=o.edge
     if E.normalCompiled==nil then E.normalCompiled=mbm.isNormalMapping3DCompiled() end
     if not E.normalCompiled then tImGui.TextWrapped(tLang.L('nm_3d_build_disabled')) end
+    tImGui.Separator()
+    tImGui.BeginDisabled(not M.canCompare(E))
+    local compare=tImGui.Checkbox(tLang.L('ime_normal_compare'),E.normalComparison~=nil)
+    if compare~=(E.normalComparison~=nil) then
+        local ok=safe(M.requestComparison,E,compare,camera,safe)
+        if not ok then M.clearComparison(E) end
+    end
+    tImGui.EndDisabled()
+    if E.normalComparison then
+        local prefix=E.normalComparison.additive and 'ime_normal_compare_three_' or 'ime_normal_compare_'
+        tImGui.TextWrapped(tLang.L(prefix..(math.cos(E.orbit.azimuth)<0 and 'order' or 'reverse')))
+    else tImGui.TextWrapped(tLang.L('ime_normal_compare_help')) end
 end
 local function cancelled(E)
     if not E.generationCancelling then return end
@@ -174,17 +210,48 @@ local function atlas(result,project,o,E)
     end
     return table.concat(rows)
 end
-local function buildTexture(E,project,region,o)
+-- Repeated sides derive detail from their own diffuse image, not front height edits.
+local function repeatedImage(E,project,o)
+    local external=o.sideTexture and o.sideTexture~=''
+    local bytes,w,h=mbm.readImagePixels(external and o.sideTexture or project.image.path)
+    assert(bytes,w)
+    if external then return Height.image(bytes,w,h),true end
+    local rows={}
+    for y=1,o.cropHeight do
+        local start=((o.y+y-1)*w+o.x)*4+1
+        rows[y]=bytes:sub(start,start+o.cropWidth*4-1)
+        if y%32==0 then coroutine.yield();cancelled(E) end
+    end
+    return Height.image(table.concat(rows),o.cropWidth,o.cropHeight),false
+end
+local function buildTexture(E,project,region,o,side,geometry)
     o=o or Model.options(project,region)
     E.normalResources=E.normalResources or {}
-    local key=project.image.path..'\0'..region.id
+    local residual=o.normalMapResidual and not side
+    if residual then assert(geometry,'Missing geometry for residual normal map') end
+    local key=project.image.path..'\0'..region.id..(side and ':'..side or (residual and ':residual:'..geometry.role or ':front'))
     local record=E.normalResources[key]
-    if record and same(record.options,o) then return record.path end
+    if record and same(record.options,o) and (not residual or record.geometry==geometry) then return record.path end
     E.generationCancelled=nil;E.generationCancelling=nil
     E.normalProcessing=true
-    local image=processedHeight(E,project,o)
-    local job=Generator.start(image,{strength=o.normalMapStrength,blur=o.normalMapBlur,
-        convention=o.normalMapConvention,edge=o.normalMapEdge})
+    local image,external
+    if side=='repeat' then image,external=repeatedImage(E,project,o)
+    else image=processedHeight(E,project,o) end
+    local settings={strength=o.normalMapStrength,blur=o.normalMapBlur,
+        convention=o.normalMapConvention,edge=side=='repeat' and 'repeat' or o.normalMapEdge}
+    local job
+    if residual then
+        local scale=o.relief
+        if o.heightSource=='curved' then scale=select(2,Model.curved.range(o))/(o.curvedSymmetric and 2 or 1) end
+        local domain={imageWidth=project.image.width,imageHeight=project.image.height,
+            x=o.x,y=o.y,width=o.width,height=o.height,scale=scale}
+        job=Generator.job(function(tick)
+            if o.normalMapBasis then
+                return require('normal_map_baker').generate(image,geometry.vertices,geometry.indices,geometry.corners,domain,settings,tick)
+            end
+            return require('normal_map_residual').generate(image,geometry.vertices,geometry.indices,domain,settings,tick)
+        end)
+    else job=Generator.start(image,settings) end
     E.normalJob=job;E.generationStage='normal'
     repeat
         cancelled(E);job:step(.006);E.generationProgress=job.progress
@@ -192,14 +259,16 @@ local function buildTexture(E,project,region,o)
     until job.state~='running'
     E.normalJob=nil
     cancelled(E);assert(job.state=='completed',job.error)
-    local bytes=atlas(job.result,project,o,E)
+    local bytes=external and job.result.bytes or atlas(job.result,project,o,E)
+    local width=external and job.result.width or project.image.width
+    local height=external and job.result.height or project.image.height
     record=record or {path=tUtil.getTemporaryFilePath('.png')}
     E.normalResources[key]=record
-    assert(mbm.writeImagePixels(record.path,bytes,project.image.width,project.image.height))
+    assert(mbm.writeImagePixels(record.path,bytes,width,height))
     mbm.addPath(record.path:match('^(.*)[/\\]') or '.')
     if record.info then assert(record.info:reload(record.path))
     else record.info=assert(mbm.loadTexture(record.path)) end
-    record.options=Model.copy(o)
+    record.options=Model.copy(o);record.geometry=residual and geometry or nil
     E.normalProcessing=nil;E.generationProgress=nil;E.generationStage=nil
     E.normalBuilds=(E.normalBuilds or 0)+1
     return record.path
@@ -220,15 +289,32 @@ function M.texture(E,...)
     if not ok then M.cancelWork(E);error(result,0) end
     return result
 end
-function M.apply(E,asset,project,region,o)
+local function paths(E,project,region,o,geometry)
+    local path=M.texture(E,project,region,o,nil,geometry)
+    local sidePath=path
+    if o.sideMode=='repeat' then sidePath=M.texture(E,project,region,o,'repeat')
+    elseif o.sideMode=='band' and o.normalMapResidual then sidePath=M.texture(E,project,region,o,'band') end
+    return path,sidePath
+end
+function M.comparisonTextures(E)
+    local region=assert(Model.region(E.project,E.viewRegion))
+    local o=Model.options(E.project,region)
+    o.normalMapResidual=false
+    local path,sidePath=paths(E,E.project,region,o)
+    return path,sidePath,o
+end
+function M.apply(E,asset,project,region,o,role)
     if o.reliefMode~='normal' then return asset end
     local subsets
     asset,subsets=require('image_mesh_normal_material').split(asset,o)
-    local path=M.texture(E,project,region,o)
+    -- Retain a snapshot for appearance-only rebakes, including additive -> residual.
+    asset.imageMeshNormalGeometry={vertices=asset:getVertex(1,1,1,asset:getTotalVertex(1,1)),
+        indices=asset:getIndex(1,1),corners=assert(asset:getNormalMapCorners(1,1)),role=role or 'final'}
+    local path,sidePath=paths(E,project,region,o,asset.imageMeshNormalGeometry)
     for _,subset in ipairs(subsets) do
-        assert(asset:setMaterialTexture(1,subset,'normal',path))
+        assert(asset:setMaterialTexture(1,subset,'normal',subset==1 and path or sidePath))
         assert(asset:setNormalMapSettings(1,subset,o.normalMapConvention,1))
-        assert(asset:prepareNormalMap(1,subset,'generate'))
+        assert(asset:prepareNormalMap(1,subset,subset==1 and 'preserve' or 'generate'))
     end
     return asset
 end
@@ -247,16 +333,17 @@ function M.refresh(E)
         if r then
             local o=Model.options(E.project,r)
             if o.reliefMode=='normal' then
-                local path=M.texture(E,E.project,r,o)
                 for _,item in ipairs(objects) do if item.id==id then
+                    local path,sidePath=paths(E,E.project,r,o,item.preview.imageMeshNormalGeometry)
                     for _,subset in ipairs(item.preview.imageMeshNormalSubsets) do
-                        assert(item.preview:setMaterialTexture('normal',path,true,subset))
+                        assert(item.preview:setMaterialTexture('normal',subset==1 and path or sidePath,true,subset))
                         assert(item.preview:setNormalMapSettings(o.normalMapConvention,1,subset))
                     end
                 end end
                 if cached and cached.id==id and cached.asset then
+                    local path,sidePath=paths(E,E.project,r,o,cached.asset.imageMeshNormalGeometry)
                     for _,subset in ipairs(require('image_mesh_normal_material').subsets(cached.asset)) do
-                        assert(cached.asset:setMaterialTexture(1,subset,'normal',path))
+                        assert(cached.asset:setMaterialTexture(1,subset,'normal',subset==1 and path or sidePath))
                         assert(cached.asset:setNormalMapSettings(1,subset,o.normalMapConvention,1))
                     end
                 end

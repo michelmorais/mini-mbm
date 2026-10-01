@@ -251,12 +251,13 @@ local function rebuildImpl()
             -- Decorate the independent original only after geometry processing,
             -- so its normal-map material cannot change simplification constraints.
             local original=meshDebug:new();assert(original:load(staged.comparison.previewPath),L('preview_failed'))
-            original=Normal.apply(E,original,E.project,r,authored)
+            original=Normal.apply(E,original,E.project,r,authored,'original')
             Comparison.capture(staged,original,Asset.vertices(original),E.path or E.project.image.path)
         end
         assert(TextureAliases.savePreview(asset,path,E.path or E.project.image.path),L('export_failed'))
         object=mesh:new('3d'); assert(meshDebug:loadMeshPreview(object,path),L('preview_failed'))
         object.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
+        object.imageMeshNormalGeometry=asset.imageMeshNormalGeometry
         object.alwaysRender=true
         releasePreview();E.comparison=staged.comparison;staged.comparison=nil
         installed=true

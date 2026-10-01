@@ -50,6 +50,7 @@ function M.capture(E,asset,vertices,textureNamespace)
     source.preview=mesh:new('3d'); source.preview.visible=false
     assert(meshDebug:loadMeshPreview(source.preview,source.previewPath),tLang.L('ime_preview_failed'))
     source.preview.imageMeshNormalSubsets=require('image_mesh_normal_material').subsets(asset)
+    source.preview.imageMeshNormalGeometry=asset.imageMeshNormalGeometry
     source.preview.alwaysRender=true; source.preview.visible=false
 end
 function M.layout(E,asset)

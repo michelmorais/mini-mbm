@@ -72,7 +72,13 @@ function M.build(image,o,limit,tick)
         map.rows[y]=table.concat(row);map.alpha[y]=table.concat(alpha);map.diffuse[y]=table.concat(diffuse)
         tick(.25*y/h)
     end
-    local radius=math.floor(o.blur*scale+.5)
+    M.blur(map,math.floor(o.blur*scale+.5),o.edge,tick)
+    return map
+end
+-- Also accepts signed physical heights, used by residual normal-map baking.
+function M.blur(map,radius,edge,tick)
+    local w,h=map.width,map.height
+    tick=tick or function() end
     -- Alpha-weighted separable box filter; invisible RGB never bleeds into the height.
     if radius>0 then
         local sums,weights={},{}
@@ -80,9 +86,9 @@ function M.build(image,o,limit,tick)
             local sr,wr={},{}
             local sum,weight=0,0
             local function sample(x)
-                x=M.coordinate(x,w,o.edge)
+                x=M.coordinate(x,w,edge)
                 local a=map.alpha[y]:byte(x)/255
-                return M.value(map,x,y,o.edge)*a,a
+                return M.value(map,x,y,edge)*a,a
             end
             for x=1-radius,1+radius do local v,a=sample(x);sum=sum+v;weight=weight+a end
             for x=1,w do
@@ -94,7 +100,7 @@ function M.build(image,o,limit,tick)
         end
         local totals,counts={},{}
         local function accumulate(y,sign)
-            y=M.coordinate(y,h,o.edge)
+            y=M.coordinate(y,h,edge)
             for x=1,w do
                 totals[x]=(totals[x] or 0)+sign*string.unpack('<f',sums[y],(x-1)*4+1)
                 counts[x]=(counts[x] or 0)+sign*string.unpack('<f',weights[y],(x-1)*4+1)
@@ -104,7 +110,7 @@ function M.build(image,o,limit,tick)
         for y=1,h do
             local row={}
             for x=1,w do
-                local v=counts[x]>1e-6 and totals[x]/counts[x] or M.value(map,x,y,o.edge)
+                local v=counts[x]>1e-6 and totals[x]/counts[x] or M.value(map,x,y,edge)
                 row[x]=string.pack('<f',v)
             end
             map.rows[y]=table.concat(row)

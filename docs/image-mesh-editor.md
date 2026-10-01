@@ -36,36 +36,49 @@ pending properties. Invalid properties prevent overwriting the project.
 Open **Normal map and tangents** and check **Enable normal map**. Its settings
 appear only while enabled. Choose the height source in **Relief and grooves**,
 adjust the settings, then **Apply** and turn off **Edit mode** to see the 3D result.
-The saved setting automatically generates and assigns the normal texture to the front and inner-band sides and
+The saved setting automatically generates and assigns the normal texture to the front, inner-band and repeated-texture sides and
 prepares its tangents whenever the mesh is built, including export. There is no
 separate tangent-preparation checkbox. Disabling normal mapping removes the added lighting effect and keeps its settings
 for reuse. Existing projects default to geometry without normal mapping. Enabling
 normal mapping preserves authored relief, areas, adaptive geometry, curved/voxel
-settings and simplification. Geometry finishes processing before material splitting
+settings and simplification unless the optional detail separation below is active. Geometry finishes processing before material splitting
 and tangent preparation, preserving triangle positions and UVs. Material/tangent
 seams can duplicate vertices without changing the surface.
 Front, back and walls have separate material subsets. Front and **Inner contour band**
 sides (`sideMode="band"`) receive the normal texture. Each subset prepares tangents
 from its own UVs, including perpendicular mapping and inverted band UVs. The side
-uses the same source-sized normal atlas as the front. Solid-color backs and open
-backs retain their behavior. Stretched-edge, solid-color and repeated-texture sides
-do not receive generated normal maps in this milestone.
+uses the same source-sized normal atlas as the front in additive mode; residual mode keeps a separate additive atlas for these sides. Solid-color backs and open
+backs retain their behavior. **Repeated texture** sides (`sideMode="repeat"`) generate a separate normal map
+from the luminance of their diffuse image: the source crop when no side image is
+selected, or the entire independent side image. These maps share normal strength,
+blur and convention with the front, but always wrap derivative/blur samples across
+opposite edges. Front height-channel/levels, areas and painting do not affect this
+independent side source. Repetition counts change UV mapping, not the generated
+image dimensions. Stretched-edge and solid-color sides do not receive generated
+normal maps.
 
-The geometry simplification comparison uses the same generated normal texture and
-settings on both the original and simplified meshes, including inner-band sides. Each has its own prepared
-tangents. This also applies when the original comes from the statistics cache or
+The geometry simplification comparison enables normal mapping with the same
+settings on both original and simplified meshes, including mapped sides. Additive
+mode shares textures; residual mode bakes the front against each mesh separately.
+Each has its own prepared tangents. This also applies when the original comes from the statistics cache or
 curved-source preview. Changing normal settings updates both preview materials
 without rebuilding geometry. Material preparation on the original preview happens
 after geometry processing so it cannot affect simplification constraints.
 
-**Compare with/without normal map** is shown only inside **Normal map and tangents**
+**Compare with/without normal map** is shown at the end of **Normal map and tangents**
 while normal mapping is enabled. After applying changes, use the individual 3D view
 with wireframe and geometry comparison off. It displays the same mesh twice under
 the same lighting, with normal strength zero on every normal-mapped subset of the comparison copy. The labels
 identify each side according to the camera direction. Closing the comparison
 restores the previous camera distance and mesh position. Editing, switching views
 or replacing the mesh releases the temporary copy. This option is preview-only;
-it changes neither project settings nor export. Idle frames perform no cloning,
+it changes neither project settings nor export. With **Residual detail (front)**
+enabled, version 7.337 displays three meshes: without normal mapping, additive
+normal mapping, and residual normal mapping. All three share geometry and lighting.
+The center mesh uses an independently assigned additive texture; sides keep their
+existing additive settings. The additive texture is generated cooperatively on
+request and reused while inputs are unchanged. Both comparison copies are released
+on close. Idle frames perform no cloning,
 geometry scans, generation or uploads for this comparison.
 
 Image, external height image, manual, mixed and curved sources use the same native
@@ -76,14 +89,19 @@ is a full-source-sized atlas with neutral normals outside the region, preserving
 front UVs. Texture strength is baked once; material strength stays at 1 and the
 material convention matches the generated channels.
 
-The project persists `reliefMode` (`geometry` or `normal`), `normalMapStrength`
+The project persists `reliefMode` (`geometry` or `normal`), `normalMapResidual`
+and `normalMapBasis` (booleans, default false), `normalMapGeometryBlur`
+(integer crop-pixel radius 0..32, default 0), `normalMapStrength`
 (0..16, default 1), `normalMapBlur` (0..32, default 0; rounded to pixels during generation),
 `normalMapConvention` (`+Y` default or `-Y`) and `normalMapEdge` (`clamp` default
 or `repeat`) in defaults/region overrides. Generated PNGs are temporary and are
-recreated from project inputs. Changing only normal strength, blur, convention or
-edge settings, including Undo, updates the texture without rebuilding geometry, on both front and sides.
+recreated from project inputs. Changing normal strength, blur, convention or edge
+settings, including Undo, updates textures without rebuilding geometry, on both
+front and sides. Residual/basis toggles also avoid geometry rebuilds when detail
+separation is zero; a nonzero separation radius makes these toggles restore or
+filter geometric relief.
 Changing height inputs now rebuilds geometry as well as the normal map. Toggling
-normal mapping rebuilds material groups while preserving the generated surface.
+normal mapping rebuilds material groups; with separation zero it preserves the generated surface.
 No generation or texture upload runs while idle. Processing supports cancellation;
 PNG encoding/upload remains synchronous, with the large-image limitations documented
 in [the generator manual](normal-map-editor.md).
@@ -92,16 +110,87 @@ Individual and batch exports package generated textures beside the `.msh`, inclu
 ordinary exports, as `<mesh>_normal_01.png`. Portable export also packages diffuse
 textures; cropping uses matching bounds/padding for diffuse and normals and regenerates
 tangents after UV remapping. Projects opened by Mesh Debug use the same build module.
-The normal texture adds detail from the processed height on top of geometric
-normals. Automatic removal of relief already represented by the mesh (residual
-normal baking) is not implemented; strength controls the added lighting effect.
+The default mode adds processed height detail on top of geometric normals.
+Version 7.336 adds **Residual detail (front)**, disabled by default for compatibility.
+It rasterizes the final front triangles in source UV coordinates, subtracts their
+interpolated Z from the processed physical height, and generates normals from the
+signed difference. Blur acts on this difference. Strength 1 uses physical relief
+scale and region dimensions; strength 0 produces a neutral front normal map.
+Curved sources convert their normalized thickness back to front displacement
+(including symmetric half-thickness). A matching plane or ramp is approximately
+neutral, within the native height raster's 8-bit quantization.
+
+Each original/simplified comparison mesh has its own residual map. Appearance-only
+updates reuse captured geometry; they do not run generation or simplification.
+Band and repeated sides retain additive detail, so changing the front mode never
+applies front compensation to a differently oriented side. Residual normals are
+included in ordinary, portable and batch exports using the existing pipeline.
+
+The default residual method is a height-difference approximation. Version 7.338 adds
+**Compensate mesh normals** inside **Residual detail (front)**, disabled by default.
+This method interpolates the actual MikkTSpace corner tangents and vertex normals
+of the final front triangles, orthogonalizes the basis as the renderer does, and
+projects the physical target height-field normal into that basis. `+Y/-Y` is encoded
+for the matching material convention. Unusable bases produce neutral texels.
+Strength 1 reproduces the target direction at sampled texel centers; strength 0
+keeps the mesh normal. Intermediate values blend directions before projection;
+values above 1 extrapolate the correction. Smoothing filters the target height
+before its derivatives, rather than the residual difference in the original mode.
+
+With detail separation zero, both modes preserve geometry density, silhouette and
+collision. The basis mode
+accounts for smooth vertex normals and tangent handedness, but finite texel
+resolution, bilinear texture filtering, triangle/UV seams, 8-bit source/output
+quantization and discontinuous voxel steps can still leave shading differences.
+The bake assumes the Image Mesh front height-field orientation and is not a generic
+ray-projected high-poly-to-low-poly baker. Snapshots allocate memory proportional
+to front triangle count, and rasterization runs cooperatively only when requested.
+
+Version 7.339 adds **Detail separation (px)** inside **Compensate mesh normals**.
+Radius 0 preserves existing geometry; a positive radius sends a low-pass version
+of the final processed height to mesh generation, while the residual normal map
+still targets the original processed height. This separates larger volumes from
+finer lighting detail. Start with a small radius (e.g. 2) and normal strength 1.
+Unlike normal-map blur, this control changes geometry and can change silhouette
+and collision. It also affects copied back relief and wall heights, when present.
+The original contour, holes, texture source and UV domain remain unchanged.
+
+The native filter is a crop-pixel, separable box filter with clamped edges, weighted
+by source alpha and the region/holes mask. It runs after height levels, areas and
+brushes, before border locking/attenuation, adaptive refinement and simplification.
+It keeps float heights internally instead of passing geometry through an 8-bit PNG.
+It is active only for continuous image, manual or mixed height, with normal mapping,
+residual detail and mesh-normal compensation enabled. Curved, voxelized and two-level
+modes keep the saved radius inactive. Disabling any prerequisite restores the full
+geometric height; re-enabling it reuses the saved radius. PNG height previews and
+normal-map inputs keep full detail.
+
+A fixed grid keeps its resolution. Adaptive refinement or simplification can use
+fewer triangles because the geometric surface is smoother, but no triangle-count
+reduction is guaranteed. The radius is user-selected; automatic cutoff selection
+from a triangle budget and curved/discontinuous-surface separation remain outside
+this delivery. The worker checks cancellation during filtering and does no work
+while the editor is idle. Temporary filter storage scales with crop pixel count.
 
 Validation on Linux/GLES: `src/test-lib/image_mesh_normal_map_smoke.lua` checks preserved
 relief, separate materials, atlas dimensions, texture-only updates and Undo,
 manual/mixed/curved height, holes, persistence, both exports, portable front/side tangents and matched crop dimensions,
 assembly updates, cancellation, mode switching, identical triangle/UV surfaces
 after adaptive QEM simplification with/without normal mapping, band sides with
-solid/open backs, and idle behavior. Run with the
+solid/open backs, repeated source crops and independent side images (including
+reference pixel checks, wrap sampling, both comparisons and exports), residual toggling,
+independent comparison maps, geometry preservation, Undo, persistence, assembly updates
+and exports, and idle behavior. `normal_map_residual_test.lua` checks matching ramps,
+signed heights, physical scales, Y conventions, masks and cancellation.
+`normal_map_baker_test.lua` checks shader-basis reconstruction, interpolated
+normals, handedness, green convention, neutral ramps and cancellation. The engine
+smoke also checks the basis toggle without geometry rebuild, owned/stale tangent
+snapshots, persistence, three-way comparison and exports. Frequency separation is
+covered by geometry changes/Undo, texture-only strength updates, persistence and
+plain/portable export. `image_mesh_frequency_smoke.lua` compares native geometry
+against a box-filter reference, checks source-map preservation, alpha/hole masks,
+border locking, manual/painted height and invalid modes. Its synthetic adaptive
+fixture reduces 84 triangles to 30; this is fixture evidence, not a general ratio. Run with the
 engine test flags described in [the generator manual](normal-map-editor.md).
 Other rendering backends have not been exercised for this integration.
 
@@ -675,7 +764,7 @@ An external back texture defaults to the original crop if no file is selected.
 | Repeated texture | Repeats the original crop or an external image, with perimeter/depth repetition controls |
 | Inner contour band | Maps the strip between the outer contour and an editable inner contour onto the walls |
 
-With **Enable normal map**, the inner band also receives the generated normal map
+With **Enable normal map**, inner-band and repeated-texture sides receive a normal map
 and automatic tangent preparation. This covers individual/assembly previews,
 simplification comparisons and ordinary/portable exports. Portable cropping applies
 the same UV bounds and padding to diffuse and normal maps, then rebuilds tangents.

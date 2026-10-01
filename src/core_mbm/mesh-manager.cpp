@@ -3392,6 +3392,33 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::copyNormalMapCorners(uint32_t frame, uint32_t subset, NORMAL_MAP_CORNER *output,
+                                               uint32_t capacity, uint32_t &count, char *error, int errorLength)
+    {
+        NORMAL_MAP_REPORT report;
+        if (!prepareNormalMap(frame, subset, NORMAL_MAP_POLICY::PRESERVE, report, error, errorLength)) return false;
+        const auto &batches = impl->normalMapFrames.at(frame).prepared.batches;
+        uint64_t needed = 0;
+        for (const auto &batch : batches) if (batch.subset == subset) needed += batch.indices.size();
+        if (needed > UINT32_MAX || (output && capacity < needed) || (!output && capacity != 0))
+        {
+            if (error && errorLength > 0) snprintf(error, static_cast<size_t>(errorLength), "%s", "Invalid normal-map corner output capacity");
+            return false;
+        }
+        if (output)
+        {
+            uint32_t index = 0;
+            for (const auto &batch : batches) if (batch.subset == subset)
+                for (const auto local : batch.indices)
+                {
+                    const auto &t = batch.tangents[local];
+                    output[index++] = {t.x, t.y, t.z, t.sign};
+                }
+        }
+        count = static_cast<uint32_t>(needed);
+        return true;
+    }
+
     void MESH_MBM_DEBUG::removeBuffer(uint32_t indexFrame)
     {
         if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
