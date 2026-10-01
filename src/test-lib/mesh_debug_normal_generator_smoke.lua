@@ -32,7 +32,7 @@ local function commit(entry,index)
     return function(asset,info,project) return applyGeneratedNormalMap(entry,index,asset,info,project) end
 end
 local function test()
-    local root='/tmp/mesh-debug-normal-generation'
+    local root=(os.getenv('TEMP') or os.getenv('TMPDIR') or '/tmp'):gsub('\\','/')..'/mesh-debug-normal-generation'
     assert(mbm.createDirectories(root));mbm.addPath(root)
     local bytes={}
     for y=0,15 do for x=0,15 do local v=x*16;bytes[#bytes+1]=string.char(v,v,v,255) end end

@@ -28,7 +28,7 @@ local Normal=require 'image_mesh_normal_map'
 local api={};assert(loadfile('editor/image_mesh_editor.lua'))(api)
 local init,loop,finish=onInitScene,onLoop,onEndScene
 local E=api.state
-local root='/tmp/imesh-normal-smoke'
+local root=(os.getenv('TEMP') or os.getenv('TMPDIR') or '/tmp'):gsub('\\','/')..'/imesh-normal-smoke'
 local task,started
 local native=mbm.startImageMesh
 local calls=0
@@ -457,7 +457,13 @@ local function test()
     counter=calls;local automaticObject=E.preview
     assert(api.action(function(p) p.defaults.normalMapStrength=.9 end));wait()
     assert(calls==counter and E.preview==automaticObject,'Texture edit repeated automatic search')
-    assert(api.action(function(p) p.defaults.normalMapTargetTriangles=2 end));wait()
+    -- An unreachable target probes seven radii with repeated native QEM attempts.
+    -- Keep this fixture small enough for unoptimized Windows builds; the earlier
+    -- cases already exercise detailed geometry and residual compensation.
+    local manualColumns,manualRows=E.project.defaults.columns,E.project.defaults.rows
+    assert(api.action(function(p)
+        p.defaults.columns=4;p.defaults.rows=4;p.defaults.normalMapTargetTriangles=2
+    end));wait()
     chosen=assert(E.report.detailSeparation)
     assert(not chosen.reached and chosen.attempts==7 and chosen.triangles==E.report.triangles)
     api.saveProject(root..'/automatic.imesh')
@@ -482,7 +488,10 @@ local function test()
         ok,asset,message=coroutine.resume(cancelTask);assert(ok,asset)
     until coroutine.status(cancelTask)=='dead'
     assert(not asset and owner.generationCancelled and message=='ime_generation_cancelled')
-    assert(api.action(function(p) p.defaults.normalMapAutomatic=false end));wait()
+    assert(api.action(function(p)
+        p.defaults.normalMapAutomatic=false
+        p.defaults.columns=manualColumns;p.defaults.rows=manualRows
+    end));wait()
     assert(not E.report.detailSeparation and E.project.defaults.normalMapGeometryBlur==3)
     local manualAgain=meshDebug:new();assert(manualAgain:load(E.previewPath))
     assert(surface(manualAgain)==separatedSurface,'Manual radius was lost')

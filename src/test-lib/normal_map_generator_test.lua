@@ -80,10 +80,12 @@ assert(cancel.state=='cancelled' and not cancel.result and not cancel.thread)
 local failure=Generator.job(function() error('expected failure') end);failure:step();assert(failure.state=='failed')
 local lp,ln=Preview.light(positive,70,40,true),Preview.light(negative,70,40,true)
 for i=1,#lp do assert(math.abs(lp:byte(i)-ln:byte(i))<=1,'Convention in preview') end
-local project='/tmp/normal-generator-test.normalmap'
-Project.save(project,'/tmp/a b "file".png',{blur=3,channel='a',invert=true})
+local temporary=(os.getenv('TEMP') or os.getenv('TMPDIR') or '/tmp'):gsub('\\','/')
+local project=temporary..'/normal-generator-test.normalmap'
+local source=temporary..'/a b "file".png'
+Project.save(project,source,{blur=3,channel='a',invert=true})
 local path,options=Project.load(project)
-assert(path=='/tmp/a b "file".png' and options.blur==3 and options.channel=='a' and options.invert)
+assert(path==source and options.blur==3 and options.channel=='a' and options.invert)
 local f=assert(io.open(project,'wb'));f:write('normal-map-project 1\nsource=61\nstrength=nan\n');f:close()
 assert(not pcall(Project.load,project),'Malformed project accepted')
 os.remove(project)

@@ -26,7 +26,7 @@ local api={}
 assert(assert(loadfile('editor/normal_map_editor.lua'))(api)==nil,'Editor returned a class-style scene')
 local E=api.state
 local init,loop,shutdown=onInitScene,onLoop,onEndScene
-local root='/tmp/mini-mbm-normal-smoke'
+local root=(os.getenv('TEMP') or os.getenv('TMPDIR') or '/tmp'):gsub('\\','/')..'/mini-mbm-normal-smoke'
 local source=root..'/source.png'
 local exported=root..'/normal.png'
 local started,stable,builds,uploads,exportRequested

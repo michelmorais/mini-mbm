@@ -189,7 +189,8 @@ O teste gráfico exige display e build com `USE_TEXTURE_MISSING_DIALOG=0`.
 O teste de launcher usa `__onLoadScene` da engine e verifica a inicialização antes
 de desenhar os painéis. A cena usa callbacks globais e não retorna uma tabela:
 retornar uma tabela faria o launcher selecionar o contrato de cena por métodos.
-Fixtures e PNG exportado ficam em `/tmp/mini-mbm-normal-smoke` para inspeção.
+Fixtures e PNG exportado ficam em `mini-mbm-normal-smoke` sob `TEMP`, `TMPDIR`
+ou `/tmp` (nessa ordem) para inspeção.
 Verifique os marcadores `NORMAL MAP LAUNCHER SMOKE PASS` e
 `NORMAL MAP EDITOR SMOKE PASS` nos respectivos testes e a ausência de erros no log;
 o código de saída da engine sozinho não comprova ausência de erros Lua.
@@ -201,7 +202,63 @@ preview renderizado e ausência de geração/upload durante oito segundos ocioso
 O teste também prepara uma malha 3D, aplica o PNG exportado e compara capturas com
 normal mapping ativado e com intensidade zero para verificar seu consumo real.
 A captura visual foi inspecionada; cliques e arrastes reais não foram automatizados.
-Windows/DX9/DX11, macOS/Metal e plataformas móveis não foram executados nesta entrega.
+Essa validação inicial não incluiu Windows, macOS/Metal ou plataformas móveis.
+
+### Windows (MSVC Debug/Win32)
+
+Validação de 2026-10-01, Visual Studio 2026, normal mapping habilitado:
+
+| Verificação | OpenGL ES | DirectX 11 | DirectX 9 |
+|---|---|---|---|
+| Build do engine, ImGui e libTest | Passou | Passou | Passou |
+| Inicialização pelo launcher | Passou | Passou | Passou |
+| Gerador: PNG, preview, material 3D e oito segundos ociosos | Passou | Passou | Passou |
+| Integração Image Mesh: residual, comparações, exportação e cancelamento | Passou | Passou | Passou |
+| Integração MeshDebug: seleção, geração, desfazer e limpeza | Passou | Passou | Passou |
+
+Os testes Lua puros do gerador, residual e baker passaram no interpretador 5.4.1
+compilado das fontes incluídas no projeto. Preparação e persistência nativas,
+argumentos UTF-8 do launcher e recursos GPU passaram; no DirectX 11, a camada de
+debug também aprovou os recursos e seu ciclo de vida. A janela do gerador foi
+inspecionada visualmente em DirectX 11. Cliques, arrastes e diálogos nativos não
+foram automatizados. Os testes gráficos DirectX 9 precisaram do desktop real:
+nesse ambiente, o sandbox não conseguiu criar o dispositivo gráfico.
+
+O build OpenGL ES precisa vincular `libEGL.dll.lib` e `libGLESv2.dll.lib` no
+projeto `core_mbm`; copiar as DLLs para a saída não substitui essa dependência.
+Os testes nativos também usam duas funções do bridge privado de normal mapping
+exportadas pela DLL. A conversão dos argumentos do launcher preserva o armazenamento
+das strings UTF-8 até terminar o parsing, incluindo flags curtas e caminhos acentuados.
+
+Para compilar com o Visual Studio mais recente instalado, em PowerShell na raiz:
+
+```powershell
+$vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+$vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+& "$vs/MSBuild/Current/Bin/MSBuild.exe" platform-msvs/mini-mbm.sln `
+  /p:Configuration=Debug /p:Platform=x86 /p:MbmBackend=OpenGLES `
+  /p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO /m:4
+```
+
+O override de `MbmCoreFeatureDefines` desativa o diálogo de textura ausente apenas
+nesse build de testes. Use `DirectX11` ou `DirectX9` em `MbmBackend` para os outros
+backends; ao alternar, reconstrua os projetos dependentes ou use saídas e objetos
+isolados. Não misture DLLs de backends diferentes.
+
+```powershell
+& ./platform-msvs/Debug/libTest.exe --launcher-args-test
+& ./platform-msvs/Debug/mini_mbm.exe --scene src/test-lib/normal_map_editor_smoke.lua `
+  --disable_select_monitor --nosplash -w 1180 -h 800
+```
+
+O smoke encerra sozinho e deve imprimir `NORMAL MAP EDITOR SMOKE PASS`. Execute
+também `normal_map_launcher_smoke.lua`, `image_mesh_normal_map_smoke.lua` e
+`mesh_debug_normal_generator_smoke.lua`, verificando seus marcadores de sucesso.
+Para automação, acrescente um timeout externo de 45 s para o gerador, 135 s para
+Image Mesh e 80 s para MeshDebug, encerrando somente o processo lançado pelo teste.
+O caso de meta impossível do Image Mesh usa uma grade pequena para manter as sete
+tentativas de raio viáveis no MSVC sem otimização; restaura a grade original antes
+de verificar a preservação dos parâmetros manuais.
 
 ## Integração ao Image Mesh (entrega 2)
 
@@ -264,5 +321,5 @@ Nenhuma geração, leitura de fonte ou gravação é disparada apenas por desenh
 O teste `src/test-lib/mesh_debug_normal_generator_smoke.lua` exercita o MeshDebug
 real: seleção individual/todos, material com intensidade 1, tangentes, cancelamento,
 falha de leitura, desfazer, projeto `.imesh` separado da origem, recarga de malha,
-limpeza dos temporários e painéis ociosos. Validação em Linux/GLES; cliques e arrastes
-reais e os demais backends não foram automatizados.
+limpeza dos temporários e painéis ociosos. Validado em Linux/GLES e em
+Windows/OpenGL ES/DX9/DX11; cliques e arrastes reais não foram automatizados.

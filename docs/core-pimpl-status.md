@@ -192,6 +192,12 @@ policy/status/count values. Draw calls use transient palette inputs; backend
 attribute/uniform handles, shader cache identity, and per-subset buffers remain
 in backend-specific storage. Private parity-test bridges do not add public APIs.
 
+Normal-map staging and lazy upload remain in the private
+`src/core_mbm/private/normal-map-upload.h` bridge. `stageStatic` and
+`ensureUploaded` have DLL visibility so the Windows native resource test can
+exercise the engine's actual ownership and upload path. They are not declared
+in installed public headers; buffer state and backend handles remain private.
+
 ## Image-based mesh authoring
 
 [`image-mesh.h`](../include/core_mbm/image-mesh.h) exposes CPU authoring operations

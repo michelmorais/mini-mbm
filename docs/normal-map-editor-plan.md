@@ -26,6 +26,13 @@ de material/tangentes continua separado. Aplicação, cancelamento, desfazer e
 salvamento explícito do projeto fazem parte dessa integração.
 A extensão aos modos curvo/descontínuo permanece fora desta entrega.
 
+Em 2026-10-01, a validação Windows Debug/Win32 cobriu OpenGL ES, DirectX 9 e
+DirectX 11: build, launcher, gerador independente, Image Mesh e MeshDebug.
+Foram corrigidos o link EGL/GLES, a visibilidade de helpers privados usados pelo
+teste nativo e a estabilidade dos argumentos UTF-8 no launcher. Os testes usam
+diretórios temporários portáveis. Consulte os resultados e limites de interação
+na [validação Windows](normal-map-editor.md#windows-msvc-debugwin32).
+
 Este documento registra o escopo e a sequência de implementação. Consulte
 [o manual do gerador](normal-map-editor.md) para os contratos implementados,
 limitações e validação do gerador. A integração implementada está descrita em

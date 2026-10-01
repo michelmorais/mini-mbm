@@ -414,6 +414,11 @@
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />
   </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(MbmBackend)'=='OpenGLES'">
+    <Link>
+      <AdditionalDependencies>libEGL.dll.lib;libGLESv2.dll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
