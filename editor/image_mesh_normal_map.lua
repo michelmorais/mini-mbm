@@ -119,8 +119,20 @@ function M.panel(E,camera,safe)
         if E.values.normalMapBasis then
             local available=Model.canSeparateDetail(E.values)
             tImGui.BeginDisabled(not available)
-            local changed,radius=tImGui.SliderInt(tLang.L('ime_normal_separation'),E.values.normalMapGeometryBlur,0,32)
-            if changed then E.values.normalMapGeometryBlur=radius end
+            E.values.normalMapAutomatic=tImGui.Checkbox(tLang.L('ime_normal_automatic'),E.values.normalMapAutomatic)
+            if E.values.normalMapAutomatic then
+                local changed,target=tImGui.InputInt(tLang.L('ime_normal_target'),E.values.normalMapTargetTriangles)
+                if changed then E.values.normalMapTargetTriangles=math.max(2,math.min(100000,target)) end
+                tImGui.TextWrapped(tLang.L('ime_normal_automatic_help'))
+                local result=E.report and E.report.detailSeparation
+                if result then
+                    tImGui.TextWrapped(string.format(tLang.L('ime_normal_automatic_result'),result.radius,result.triangles,result.target))
+                    tImGui.TextWrapped(tLang.L(result.reached and 'ime_normal_target_met' or 'ime_normal_target_unmet'))
+                end
+            else
+                local changed,radius=tImGui.SliderInt(tLang.L('ime_normal_separation'),E.values.normalMapGeometryBlur,0,32)
+                if changed then E.values.normalMapGeometryBlur=radius end
+            end
             tImGui.EndDisabled()
             tImGui.TextWrapped(tLang.L(available and 'ime_normal_separation_help' or 'ime_normal_separation_unavailable'))
         end

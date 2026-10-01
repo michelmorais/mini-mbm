@@ -27,7 +27,9 @@ filtro na geometria, preservando a altura original no normal map residual.
 A filtragem pesada roda no núcleo, reutilizável pela opção `geometryBlurRadius`
 de `generateImageMesh`/`startImageMesh`; o projeto usa `normalMapGeometryBlur`.
 O controle está disponível para fontes contínuas de imagem, manual e mista.
-A escolha automática do raio por orçamento de geometria continua futura; consulte as limitações no [Image Mesh](image-mesh-editor.md#normal-map-relief).
+Desde 7.340, **Separacao automatica** busca um raio por meta de triangulos,
+contando frente, verso e laterais após simplificação. Testa 0/1/2/4/8/16/32 px
+e informa quando não consegue atingir a meta. O raio manual fica preservado; consulte as limitações no [Image Mesh](image-mesh-editor.md#normal-map-relief).
 
 ## Uso
 

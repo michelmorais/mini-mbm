@@ -91,17 +91,18 @@ material convention matches the generated channels.
 
 The project persists `reliefMode` (`geometry` or `normal`), `normalMapResidual`
 and `normalMapBasis` (booleans, default false), `normalMapGeometryBlur`
-(integer crop-pixel radius 0..32, default 0), `normalMapStrength`
+(integer crop-pixel radius 0..32, default 0), `normalMapAutomatic` (boolean, default false),
+`normalMapTargetTriangles` (integer 2..100000, default 1000), `normalMapStrength`
 (0..16, default 1), `normalMapBlur` (0..32, default 0; rounded to pixels during generation),
 `normalMapConvention` (`+Y` default or `-Y`) and `normalMapEdge` (`clamp` default
 or `repeat`) in defaults/region overrides. Generated PNGs are temporary and are
 recreated from project inputs. Changing normal strength, blur, convention or edge
 settings, including Undo, updates textures without rebuilding geometry, on both
 front and sides. Residual/basis toggles also avoid geometry rebuilds when detail
-separation is zero; a nonzero separation radius makes these toggles restore or
-filter geometric relief.
+separation is inactive; a nonzero manual radius or active automatic mode makes
+these toggles restore or filter geometric relief.
 Changing height inputs now rebuilds geometry as well as the normal map. Toggling
-normal mapping rebuilds material groups; with separation zero it preserves the generated surface.
+normal mapping rebuilds material groups; with separation inactive it preserves the generated surface.
 No generation or texture upload runs while idle. Processing supports cancellation;
 PNG encoding/upload remains synchronous, with the large-image limitations documented
 in [the generator manual](normal-map-editor.md).
@@ -137,7 +138,7 @@ keeps the mesh normal. Intermediate values blend directions before projection;
 values above 1 extrapolate the correction. Smoothing filters the target height
 before its derivatives, rather than the residual difference in the original mode.
 
-With detail separation zero, both modes preserve geometry density, silhouette and
+With detail separation inactive, both modes preserve geometry density, silhouette and
 collision. The basis mode
 accounts for smooth vertex normals and tangent handedness, but finite texel
 resolution, bilinear texture filtering, triangle/UV seams, 8-bit source/output
@@ -167,10 +168,31 @@ normal-map inputs keep full detail.
 
 A fixed grid keeps its resolution. Adaptive refinement or simplification can use
 fewer triangles because the geometric surface is smoother, but no triangle-count
-reduction is guaranteed. The radius is user-selected; automatic cutoff selection
-from a triangle budget and curved/discontinuous-surface separation remain outside
-this delivery. The worker checks cancellation during filtering and does no work
-while the editor is idle. Temporary filter storage scales with crop pixel count.
+reduction is guaranteed.
+
+Version 7.340 adds **Automatic separation** under the same prerequisites. The saved
+manual radius remains available when automatic mode is switched off. The shared Lua
+module `image_mesh_frequency.search(target, evaluate)` tests radii 0, 1, 2, 4, 8, 16,
+and 32 in that order. Each candidate runs the native generation worker and the
+configured simplification/remeshing, counting all subsets (front, back and sides).
+The first tested radius meeting the target wins. If none meets it, the lowest count
+wins, with ties favoring the smaller radius. No monotonic relationship is assumed;
+this is a bounded search, not a globally optimal radius or an error guarantee.
+
+The winner is regenerated through the normal comparison/cache callbacks and baked
+once. Candidate probes never bake normal textures or replace the displayed mesh.
+The panel reports the selected radius, final triangles, target and whether it was
+reached. The report's `detailSeparation` holds `radius`, `triangles`, `target`,
+`reached` and `attempts`. The selected radius is derived, not written over the manual
+project setting. Saving, reopening and exporting use the same shared build pipeline.
+
+Generation and simplification remain cancellable. A failed or cancelled candidate
+aborts the search, keeping existing error handling; it is not treated as a valid
+low-count result. At most seven probes plus one final generation run per build.
+Native candidate buffers are collected between probes. No search runs while idle or
+when only normal-map strength, blur, convention or edge changes; geometry changes
+invalidate the existing cache. This feature is supported only for continuous image,
+manual and mixed height, just like manual separation.
 
 Validation on Linux/GLES: `src/test-lib/image_mesh_normal_map_smoke.lua` checks preserved
 relief, separate materials, atlas dimensions, texture-only updates and Undo,
@@ -192,6 +214,12 @@ against a box-filter reference, checks source-map preservation, alpha/hole masks
 border locking, manual/painted height and invalid modes. Its synthetic adaptive
 fixture reduces 84 triangles to 30; this is fixture evidence, not a general ratio. Run with the
 engine test flags described in [the generator manual](normal-map-editor.md).
+Automatic selection is covered by `image_mesh_model_test.lua` (validation, legacy
+settings, nonmonotonic counts and tie handling), `image_mesh_normal_map_smoke.lua`
+(target met/unmet, export, comparison, cancellation, manual restoration and idle),
+and `image_mesh_automatic_smoke.lua` (native adaptive geometry and post-simplification
+counts). The adaptive fixture chooses 2 px and reduces 84 to 40 triangles for a target
+of 50. These tests passed on Linux/GLES; interactive click/drag was not automated.
 Other rendering backends have not been exercised for this integration.
 
 ## Workspace and navigation

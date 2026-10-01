@@ -33,9 +33,7 @@ local M={}
 -- `callbacks.beforeSimplify` receives the generated source geometry before optional simplify or
 -- remesh. `callbacks.needsCurvedSource` requests the unsimplified curved source used by the editor's
 -- comparison and geometry cache.
-function M.generate(E,project,region,callbacks)
-    local authored=Model.options(project,region)
-    local options=Model.geometryOptions(authored)
+local function geometry(E,project,region,options,callbacks)
     if options.heightSource=='curved' then options.simplify=false end
     if options.voxelized then options.simplify=false;options.remesh=false end
     local asset,report=Generation.generate(E,project.image.path,options)
@@ -70,6 +68,38 @@ function M.generate(E,project,region,callbacks)
     report.vertexLimit=math.min(options.maxVertices,65535)
     report.triangleLimit=options.maxTriangles
     Simplify.apply(E,asset,options,report)
+    return asset,report,options,vertices
+end
+
+function M.generate(E,project,region,callbacks)
+    local authored=Model.options(project,region)
+    local options=Model.geometryOptions(authored)
+    local target=options.geometryTargetTriangles
+    options.geometryTargetTriangles=nil
+    local separation
+    if target then
+        local err
+        separation,err=require('image_mesh_frequency').search(target,function(radius)
+            options.geometryBlurRadius=radius
+            local asset,report=geometry(E,project,region,options)
+            if not asset then return nil,report end
+            local count=report.triangles
+            asset=nil
+            -- Native mesh buffers are larger than Lua's userdata accounting knows.
+            -- Release each probe before starting another worker; never done while idle.
+            collectgarbage('collect')
+            return count
+        end)
+        if not separation then return nil,err end
+        options.geometryBlurRadius=separation.radius
+    end
+    local asset,report,_,vertices=geometry(E,project,region,options,callbacks)
+    if not asset then return nil,report end
+    if separation then
+        separation.triangles=report.triangles
+        separation.reached=report.triangles<=target
+        report.detailSeparation=separation
+    end
     if options.normalMapPrecompute and authored.reliefMode~='normal' then report.normalMap=require('normal_map_authoring').precompute(asset) end
     asset=Normal.apply(E,asset,project,region,authored)
     if authored.reliefMode=='normal' then

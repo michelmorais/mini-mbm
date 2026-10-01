@@ -193,3 +193,21 @@ for _,mode in ipairs{'voxelized','twoLevels'} do
 end
 split.heightSource='curved';assert(M.geometryOptions(split).geometryBlurRadius==nil)
 print('IMAGE MESH FREQUENCY SETTINGS OK')
+
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapAutomatic==false)
+assert(M.options(normalLegacy,normalLegacy.regions[1]).normalMapTargetTriangles==1000)
+for _,v in ipairs{1,100001,2.5,'3'} do assert(not pcall(M.validateOptions,{normalMapTargetTriangles=v},false)) end
+assert(not pcall(M.validateOptions,{normalMapAutomatic=1},false))
+split.heightSource='image';split.normalMapAutomatic=true;split.normalMapTargetTriangles=100
+assert(M.geometryOptions(split).geometryTargetTriangles==100 and M.geometryOptions(split).geometryBlurRadius==nil)
+split.normalMapBasis=false;assert(M.geometryOptions(split).geometryTargetTriangles==nil)
+local Search=require 'image_mesh_frequency'
+local visited={}
+local result=assert(Search.search(50,function(r) visited[#visited+1]=r;return ({[0]=90,[1]=70,[2]=80,[4]=40})[r] end))
+assert(result.radius==4 and result.reached and #visited==4)
+result=assert(Search.search(2,function(r) return r==2 and 10 or 20 end))
+assert(result.radius==2 and not result.reached and result.attempts==7)
+result=assert(Search.search(2,function() return 20 end));assert(result.radius==0)
+local failed,err=Search.search(2,function() return nil,'cancelled' end)
+assert(not failed and err=='cancelled')
+print('IMAGE MESH AUTOMATIC SEPARATION SETTINGS / SEARCH OK')

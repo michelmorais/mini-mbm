@@ -10,9 +10,9 @@ pela diferença de alturas em relação à malha final. Em 7.337 foi adicionada 
 comparação com três malhas; em 7.338, a opção de compensação na base tangente real,
 incluindo normais suavizadas. Em 7.339, a separação por escala ajustável entrega
 geometria suavizada e residual de detalhe completo para fontes contínuas de imagem,
-manual e mista. O raio padrão 0 preserva projetos existentes. A escolha automática
-do raio por orçamento de triângulos e a extensão aos modos curvo/descontínuo
-permanecem fora desta entrega.
+manual e mista. O raio padrão 0 preserva projetos existentes. Em 7.340, uma busca
+automática limitada escolhe o raio por meta de triângulos após simplificação.
+A extensão aos modos curvo/descontínuo permanece fora desta entrega.
 
 Este documento registra o escopo e a sequência de implementação. Consulte
 [o manual do gerador](normal-map-editor.md) para os contratos implementados,
@@ -150,7 +150,10 @@ altura desejada na base interpolada da malha final. Em 7.339, um raio opcional
 reserva à geometria a altura suavizada e mantém a altura original como alvo do
 normal map. Geometria adaptativa e simplificação podem aproveitar a superfície mais
 suave para usar menos triângulos. As limitações de fontes, resolução, filtragem e
-costuras estão documentadas no manual; não há escolha automática de raio/orçamento.
+costuras estão documentadas no manual. Desde 7.340, a opção automática testa raios
+0/1/2/4/8/16/32 e informa se a meta foi alcançada. Não garante o orçamento nem
+a escolha ótima entre todos os raios possíveis. O próximo passo é a validação
+final da etapa 6, incluindo os backends ainda não testados.
 
 ## Etapa 6: validação e conclusão
 

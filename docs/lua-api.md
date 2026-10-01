@@ -3040,6 +3040,16 @@ normal-map generator and 2D height preview use original processed height. The
 native filter does not require normal mapping and can also be used directly by
 other `generateImageMesh` / `startImageMesh` consumers.
 
+Image Mesh 7.340 also persists `normalMapAutomatic` (boolean, default false) and
+`normalMapTargetTriangles` (integer 2..100000, default 1000). These are Lua editor
+settings, not native options. With the same prerequisites, automatic mode overrides
+the effective manual radius without overwriting it. It probes 0/1/2/4/8/16/32 px,
+counts all triangles after simplification/remeshing, and selects the first tested
+radius meeting the target, or the fewest triangles (smaller radius on ties).
+The target is not guaranteed. Appearance-only edits reuse geometry; exports run the
+same selection pipeline. See [Image Mesh Editor](image-mesh-editor.md#normal-map-relief)
+for cancellation, bounded-search limitations and result reporting.
+
 ### Mesh Debug tangent snapshots
 
 ```lua

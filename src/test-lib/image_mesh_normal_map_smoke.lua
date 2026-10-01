@@ -443,6 +443,44 @@ local function test()
     restored=meshDebug:new();assert(restored:load(E.previewPath))
     assert(surface(restored)==fullSurface,'Disabling compensation did not restore full geometry')
     assert(api.action(function(p) p.defaults.normalMapBasis=true end));wait()
+    -- Automatic selection measures final geometry and leaves normal-only edits cheap.
+    assert(api.action(function(p)
+        p.defaults.normalMapAutomatic=true;p.defaults.normalMapTargetTriangles=100000
+    end));wait()
+    local chosen=assert(E.report.detailSeparation)
+    assert(chosen.radius==0 and chosen.reached and chosen.attempts==1)
+    counter=calls;local automaticObject=E.preview
+    assert(api.action(function(p) p.defaults.normalMapStrength=.9 end));wait()
+    assert(calls==counter and E.preview==automaticObject,'Texture edit repeated automatic search')
+    assert(api.action(function(p) p.defaults.normalMapTargetTriangles=2 end));wait()
+    chosen=assert(E.report.detailSeparation)
+    assert(not chosen.reached and chosen.attempts==7 and chosen.triangles==E.report.triangles)
+    api.saveProject(root..'/automatic.imesh')
+    local automaticProject=IO.load(root..'/automatic.imesh')
+    assert(automaticProject.defaults.normalMapAutomatic and automaticProject.defaults.normalMapTargetTriangles==2)
+    local automaticAsset=meshDebug:new();assert(automaticAsset:load(E.previewPath))
+    api.exportOne(root..'/automatic.msh',false);wait()
+    local automaticExport=meshDebug:new();assert(automaticExport:load(root..'/automatic.msh'))
+    assert(surface(automaticAsset)==surface(automaticExport),'Automatic export changed geometry')
+    assert(automaticExport:getMaterialTexture(1,1,'normal'))
+    Normal.requestComparison(E,true,api.camera,pcall);wait()
+    assert(E.normalComparison and E.normalComparison.additive)
+    Normal.compare(E,false,api.camera)
+    -- Cancelling a probe must prevent publishing a partial search result.
+    local owner={}
+    local cancelTask=coroutine.create(function() return Build.generate(owner,automaticProject,automaticProject.regions[1]) end)
+    assert(coroutine.resume(cancelTask));assert(owner.imageJob)
+    api.generation.cancel(owner)
+    local ok,asset,message
+    repeat
+        coroutine.yield()
+        ok,asset,message=coroutine.resume(cancelTask);assert(ok,asset)
+    until coroutine.status(cancelTask)=='dead'
+    assert(not asset and owner.generationCancelled and message=='ime_generation_cancelled')
+    assert(api.action(function(p) p.defaults.normalMapAutomatic=false end));wait()
+    assert(not E.report.detailSeparation and E.project.defaults.normalMapGeometryBlur==3)
+    local manualAgain=meshDebug:new();assert(manualAgain:load(E.previewPath))
+    assert(surface(manualAgain)==separatedSurface,'Manual radius was lost')
     local idleCalls,idleBuilds,idleMaps=calls,E.builds,E.normalBuilds
     local time=mbm.getTimeRun()
     while mbm.getTimeRun()-time<2 do coroutine.yield() end
@@ -457,7 +495,7 @@ function onLoop(delta)
     if coroutine.status(task)=='dead' then mbm.quit();return end
     local ok,err=coroutine.resume(task)
     if not ok then print('IMAGE MESH NORMAL FAIL '..tostring(err));mbm.quit() end
-    if mbm.getTimeRun()-started>90 then print('IMAGE MESH NORMAL FAIL timeout');mbm.quit() end
+    if mbm.getTimeRun()-started>120 then print('IMAGE MESH NORMAL FAIL timeout');mbm.quit() end
 end
 function onEndScene()
     mbm.startImageMesh=native

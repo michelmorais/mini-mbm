@@ -7755,4 +7755,17 @@ function M.renderLanguageSubmenu()
     end
 end
 
+M.en.ime_normal_automatic = 'Automatic separation'
+M.pt_br.ime_normal_automatic = 'Separacao automatica'
+M.en.ime_normal_target = 'Triangle target'
+M.pt_br.ime_normal_target = 'Meta de triangulos'
+M.en.ime_normal_automatic_help = 'Tests radii 0, 1, 2, 4, 8, 16 and 32 px, counting all triangles after simplification. Uses the first radius meeting the target, or the fewest triangles found. The target is not guaranteed. Fixed grids may keep the same count.'
+M.pt_br.ime_normal_automatic_help = 'Testa raios 0, 1, 2, 4, 8, 16 e 32 px, contando todos os triangulos apos simplificacao. Usa o primeiro raio que atinge a meta, ou a menor contagem encontrada. A meta nao e garantida. Grades fixas podem manter a mesma contagem.'
+M.en.ime_normal_automatic_result = 'Radius: %d px | Triangles: %d | Target: %d'
+M.pt_br.ime_normal_automatic_result = 'Raio: %d px | Triangulos: %d | Meta: %d'
+M.en.ime_normal_target_met = 'Target reached.'
+M.pt_br.ime_normal_target_met = 'Meta atingida.'
+M.en.ime_normal_target_unmet = 'Target not reached with the tested radii.'
+M.pt_br.ime_normal_target_unmet = 'Meta nao atingida com os raios testados.'
+
 return M
