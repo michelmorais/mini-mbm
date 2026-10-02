@@ -35,7 +35,15 @@ function M.split(source,options)
         -- are height fields; vertical walls have zero projected XY area.
         local abx,aby,acx,acy=b.x-a.x,b.y-a.y,c.x-a.x,c.y-a.y
         local cross=abx*acy-aby*acx
-        local tolerance=1e-10*(math.abs(abx*acy)+math.abs(aby*acx))
+        -- Positions have float32 precision even though Lua computes in doubles.
+        -- Refined/slightly slanted contour edges are not exactly collinear after
+        -- native rounding and QEM. Bound that positional error, not just the
+        -- double-precision cancellation in the determinant, or wall fans leak
+        -- into the front residual bake (and into the back material).
+        local scaleX=math.max(math.abs(a.x),math.abs(b.x),math.abs(c.x))
+        local scaleY=math.max(math.abs(a.y),math.abs(b.y),math.abs(c.y))
+        local tolerance=4*2^-23*(scaleX*(math.abs(aby)+math.abs(acy))
+            +scaleY*(math.abs(abx)+math.abs(acx)))
         local group=groups[3]
         if frontOnly or cross>tolerance then group=groups[1]
         elseif cross < -tolerance then group=groups[2] end
