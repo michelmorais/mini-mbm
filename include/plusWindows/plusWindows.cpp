@@ -3144,7 +3144,21 @@ namespace mbm
         const int widthScreen  = GetSystemMetrics(SM_CXSCREEN);
         const int heightScreen = GetSystemMetrics(SM_CYSCREEN);
         const bool explicitPosition = (positionX != 0 || positionY != 0) && (positionX != 0xffffff && positionY != 0xffffff);
-        if (explicitPosition)
+        // Fit the complete decorated window inside the selected monitor's work
+        // area. rcWork excludes the taskbar, including top/side taskbars.
+        RECT available = {0, 0, widthScreen, heightScreen};
+        if (!withoutBorder)
+        {
+            const POINT target = {positionX == 0xffffff ? 0 : positionX,
+                                  positionY == 0xffffff ? 0 : positionY};
+            MONITORINFO monitor = {};
+            monitor.cbSize = sizeof(monitor);
+            if (GetMonitorInfo(MonitorFromPoint(target, MONITOR_DEFAULTTONEAREST), &monitor))
+                available = monitor.rcWork;
+            const UINT dpi = getDpiAtPoint(target.x, target.y);
+            adjustWindowRectForDpi(&WindowRect, dwStyle, 0, dwExStyle, dpi);
+        }
+        else if (explicitPosition)
         {
             UINT dpi = getDpiAtPoint((long)positionX, (long)positionY);
             adjustWindowRectForDpi(&WindowRect, dwStyle, 0, dwExStyle, dpi);
@@ -3155,20 +3169,36 @@ namespace mbm
         this->adjustRectTop  = WindowRect.top < 0 ? WindowRect.top * -1 : WindowRect.top;
         int wWin             = WindowRect.right - WindowRect.left;
         int hWin             = WindowRect.bottom - WindowRect.top;
+        if (!withoutBorder || !explicitPosition)
+        {
+            if (wWin > available.right - available.left)
+                wWin = available.right - available.left;
+            if (hWin > available.bottom - available.top)
+                hWin = available.bottom - available.top;
+        }
+        long windowX = positionX;
+        long windowY = positionY;
         if (!explicitPosition)
         {
-            if (wWin > widthScreen)
-                wWin = widthScreen;
-            if (hWin > heightScreen)
-                hWin = heightScreen;
+            if (positionX == 0xffffff || positionX <= 0)
+                windowX = available.left + (available.right - available.left - wWin) / 2;
+            if (positionY == 0xffffff || positionY <= 0)
+                windowY = available.top + (available.bottom - available.top - hWin) / 2;
+        }
+        if (!withoutBorder)
+        {
+            if (windowX > available.right - wWin) windowX = available.right - wWin;
+            if (windowX < available.left) windowX = available.left;
+            if (windowY > available.bottom - hWin) windowY = available.bottom - hWin;
+            if (windowY < available.top) windowY = available.top;
         }
 #if UNICODE
         WCHAR *tmp_nameAplication = mbm::toWchar(nameApplication, nullptr);
-        this->hwnd = CreateWindowExW(dwExStyle, className, tmp_nameAplication, dwStyle, 0, 0, wWin, hWin, nullptr, nullptr,
+        this->hwnd = CreateWindowExW(dwExStyle, className, tmp_nameAplication, dwStyle, windowX, windowY, wWin, hWin, nullptr, nullptr,
                                      GetModuleHandleW(nullptr), nullptr);
         delete[] tmp_nameAplication;
 #else
-        this->hwnd      = CreateWindowExA(dwExStyle, className, nameApplication, dwStyle, positionX, positionY, wWin, hWin, nullptr, nullptr,
+        this->hwnd      = CreateWindowExA(dwExStyle, className, nameApplication, dwStyle, windowX, windowY, wWin, hWin, nullptr, nullptr,
                                      GetModuleHandleA(nullptr), nullptr);
 #endif
 
@@ -3177,19 +3207,7 @@ namespace mbm
             this->messageBox("Erro ao Criar A windowsClassLocal");
             return false;
         }
-        // adjust the size
-
-        
-        if(positionX == 0xffffff || positionY == 0xffffff || (positionX == 0 && positionY == 0))
-        {
-            const int posX = (int)((float)(widthScreen - wWin) * 0.5f);
-            const int posY = (int)((float)(heightScreen - hWin) * 0.5f);
-            MoveWindow(this->hwnd, (positionX == 0xffffff || positionX <= 0) ? posX : positionX,(positionY == 0xffffff || positionY <= 0) ? posY : positionY, wWin, hWin, false);
-        }
-        else
-        {
-            MoveWindow(this->hwnd, positionX ,positionY, wWin, hWin, false);
-        }
+        MoveWindow(this->hwnd, windowX, windowY, wWin, hWin, false);
         if (maximized)
             ShowWindow(this->hwnd, SIZE_MINIMIZED | SIZE_MAXIMIZED);
         else
