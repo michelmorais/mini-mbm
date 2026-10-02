@@ -1237,7 +1237,10 @@ local c, v = tImGui.DragInt("label", value, speed?, min?, max?)
 -- Input
 local c, s = tImGui.InputText("label", str, flags?)
 local c, s = tImGui.InputTextMultiline("label", str, {x=w, y=h}?, flags?)
--- The binding grows its internal buffer automatically; there is no maxLen argument.
+-- There is no maxLen argument. Each call allocates a buffer from the input string's
+-- byte length plus 256 bytes (InputText) or 1024 bytes (InputTextMultiline), including
+-- room for the terminating NUL. This is fixed capacity during that call, not unlimited
+-- resizing; pass the returned string into the next frame to size the next buffer.
 -- Word wrapping is available for editable multiline text:
 local c, s = tImGui.InputTextMultiline("label", str, {x=w, y=h},
     tImGui.Flags("ImGuiInputTextFlags_WordWrap"))
