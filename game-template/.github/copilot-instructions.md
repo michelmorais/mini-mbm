@@ -2,12 +2,12 @@
 
 ## Current engine reference
 
-`copy-game-template.sh` includes a snapshot of the engine's canonical documentation in
+`copy-game-template.sh` includes selected current game-development documentation in
 `docs/`. Consult `docs/lua-api.md` before implementing engine calls; it takes precedence
 over the quick reference below when they differ. It covers current APIs, including
 lighting, normal maps, asynchronous loading, articulated animation, and skeletal playback.
 For details, see `docs/light.md`, `docs/normal-mapping.md`,
-`docs/async-loading-and-threading.md`, `docs/articulated-animation.md`, and
+`docs/articulated-animation.md`, and
 `docs/realtime-skeletal-animation.md`. These files describe the engine checkout used
 when creating the project; use a matching engine build. When opening `game-template/`
 directly, the canonical docs are in `../docs/` instead.

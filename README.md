@@ -1003,7 +1003,7 @@ The current CMake files can generate platform-specific game delivery outputs fro
 | **Android** | `-DGAME_ASSETS_DIR=/path/to/assets` plus Android flags | Generated Gradle project with assets wired into the APK |
 | **iOS/macOS** | `-DGAME_NAME=...`, `-DGAME_ASSETS_DIR=...`, optional bundle/icon flags | App bundle project with assets copied into the bundle |
 
-Create a standalone Lua game in a new or empty folder:
+Create or refresh a standalone Lua game template:
 
 ```sh
 ./copy-game-template.sh /path/to/my-game
@@ -1017,10 +1017,17 @@ then a hard link if symbolic-link creation is unavailable. A hard link shares fi
 contents, but replacing either file can break synchronization.
 
 The script copies `main.lua`, Codex/Copilot instructions, a `CLAUDE.md` symlink to
-`AGENTS.md`, and a snapshot of the current engine `docs/`, including the canonical
-`docs/lua-api.md`. It creates asset folders and an empty `scenes/` directory; manual
-engine test scenes are excluded. Existing nonempty destinations are rejected to preserve
-your work. The Lua-enabled engine executable and plugins are provided externally.
+`AGENTS.md`, and the current game-development documents listed in
+`game-template/docs-list.txt`: the canonical Lua API, lighting/materials, animation,
+and asset editor guides. Future plans, investigations, and engine-internal audits are
+excluded. Both scripts share this list. Asset folders and `scenes/` are created as
+needed; manual engine test scenes are excluded.
+
+For a nonempty destination, the script asks for confirmation before overwriting
+`main.lua`, agent instructions, `CLAUDE.md`, and the selected documents. Declining
+leaves the destination unchanged. Unrelated files are preserved, including documents
+copied by older versions of the script; these are not automatically removed.
+The Lua-enabled engine executable and plugins are provided externally.
 
 ---
 
