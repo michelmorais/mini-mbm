@@ -45,6 +45,18 @@ duplicated mesh frames. The exception is `--large-mesh-mode vb_only`: that path 
 per triangle and intentionally does not emit canonical type-42 skin weights, so skeletal preference
 uses the same baked/static fallback even when the scan finds a usable armature.
 
+Direct MSH import also offers **Meshes with invalid skin weights**. Before writing canonical
+geometry, the exporter checks visible evaluated triangle vertices against the selected armature.
+The default **Stop and explain** identifies incompatible objects and affected vertex counts.
+**Skip incompatible objects** excludes each entire affected mesh from this conversion, including
+partially weighted meshes; it refuses to skip every mesh. **Keep all objects using baked frames**
+falls back to the existing geometry-frame path without canonical skeletal sections. Enable animation
+and select its clips/range to preserve motion; otherwise this fallback imports a static frame.
+Bake preserves the geometry but loses real-time bone editing and can increase memory usage.
+Recovery details appear in the import result and Blender log. The preliminary scan/size estimate
+still describes the preferred skeletal path; recovery is resolved during conversion. These options
+do not alter the source FBX and do not apply to intermediate-only export or VB-only mode.
+
 With that preference enabled, a direct Import first starts and waits for the same headless scan used
 by Configure. The default source selection then enables every explicit skeletal source discovered by
 the scan (Armature Actions and Armature/canonical NLA strips). The synthetic Blender scene range is

@@ -81,6 +81,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--large-mesh-mode", choices=("fail", "vb_only"), default="fail")
     parser.add_argument("--decimate-ratio", type=float, default=None)
     parser.add_argument("--include-bones", action="store_true")
+    parser.add_argument("--unweighted-mesh-mode", choices=("fail", "skip", "bake"), default="fail")
     parser.add_argument("--uniform-scale", type=float, default=1.0)
     parser.add_argument("--normalize-textures", action="store_true")
     parser.add_argument("--exclude-texture-role", action="append", default=[],
@@ -824,6 +825,54 @@ def detect_canonical_skeletal_capability(scene: Any,
         "boneCount": len(bone_names),
         "skinnedMeshCount": skinned_mesh_count,
     }
+
+
+def resolve_unweighted_meshes(scene: Any, mode: str) -> bool:
+    """Validate evaluated triangle vertices once, before canonical export. Never edit the FBX."""
+    armature = get_canonical_armature_object(scene)
+    bone_names = get_armature_bone_names(armature)
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    issues = []
+    for obj in sorted(scene.objects, key=lambda item: item.name):
+        if obj.type != "MESH" or not obj.visible_get():
+            continue
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+        try:
+            if mesh is None:
+                continue
+            mesh.calc_loop_triangles()
+            used = {index for triangle in mesh.loop_triangles for index in triangle.vertices}
+            if not used:
+                continue
+            controlled = mesh_uses_armature_modifier(obj, armature)
+            invalid = 0
+            for index in used:
+                groups = sorted(mesh.vertices[index].groups, key=lambda group: group.weight, reverse=True)[:4]
+                valid = controlled and all(
+                    obj.vertex_groups[group.group].name in bone_names
+                    for group in groups if group.weight > 0.0)
+                if not valid or sum(group.weight for group in groups if group.weight > 0.0) <= 1.0e-8:
+                    invalid += 1
+            if invalid:
+                issues.append((obj, invalid, len(used)))
+        finally:
+            evaluated.to_mesh_clear()
+    if not issues:
+        return True
+    details = "; ".join(f"{obj.name}: {count}/{total} vertices without usable skin weights"
+                        for obj, count, total in issues)
+    if mode == "fail":
+        raise RuntimeError("Unweighted meshes: " + details +
+                           ". Choose unweighted mesh mode 'skip' to exclude whole objects or 'bake' to keep all geometry.")
+    if mode == "skip":
+        visible_meshes = [obj for obj in scene.objects if obj.type == "MESH" and obj.visible_get()]
+        if len(issues) == len(visible_meshes):
+            raise RuntimeError("Cannot skip all mesh objects. Use 'bake' or repair skin weights. " + details)
+        for obj, _, _ in issues:
+            obj.hide_set(True)
+    print(f"[blender_export] skinning recovery: {mode}: {details}", flush=True)
+    return mode != "bake"
 
 
 def get_canonical_skeletal_export_fallback_reason(large_mesh_mode: str) -> str | None:
@@ -2034,7 +2083,8 @@ def build_canonical_weights_payload_v11(subsets: list[dict[str, Any]],
                 influences.append((palette_index[bone_id], weight))
             total = sum(weight for _, weight in influences)
             if total <= 1.0e-8:
-                raise RuntimeError("canonical skinning requires at least one effective influence per vertex")
+                raise RuntimeError(f"Unweighted meshes: subset '{subset.get('name', '')}' has a vertex without usable skin weights. "
+                                   "Choose unweighted mesh mode 'skip' or 'bake', or repair the source weights.")
             entries.append(([index for index, _ in influences], [weight / total for _, weight in influences]))
 
     if not entries:
@@ -2422,7 +2472,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 f"canonical skeletal export unavailable: {skeletal_fallback_reason}; using baked/static path",
             )
         elif can_export_canonical_skeletal(skeletal_capability, args.large_mesh_mode):
-            canonical_skeleton = extract_canonical_skeleton(scene, import_rotation_deg)
+            if resolve_unweighted_meshes(scene, getattr(args, "unweighted_mesh_mode", "fail")):
+                canonical_skeleton = extract_canonical_skeleton(scene, import_rotation_deg)
         elif skeletal_capability:
             debug_print(
                 args.debug_steps,

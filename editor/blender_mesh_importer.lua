@@ -110,6 +110,9 @@ end
 function Job:update()
     if self.status ~= 'running' then return self.status end
     local content = readText(self.log)
+    if content ~= self.lastLog then
+        self.recoveryMessage = content:match('%[blender_export%] skinning recovery: ([^\r\n]+)')
+    end
     local logError = errorFromLog(content)
     if logError then
         self:_finish('failed', logError)
@@ -185,6 +188,7 @@ function M.start(config)
     local importOptions = {
         directMshOutput = true,
         includeBones = options.includeBones ~= false,
+        unweightedMeshMode = options.unweightedMeshMode,
         uniformScale = options.uniformScale,
         normalizeTextures = options.normalizeTextures == true,
         includeTextureDiffuse = options.includeTextureDiffuse,

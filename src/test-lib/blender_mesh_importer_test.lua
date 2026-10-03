@@ -40,6 +40,7 @@ local wrapper = {
         assert(exporterPath:match('/editor/blender_mesh_export%.py$'))
         assert(options.directMshOutput == true)
         assert(options.largeMeshMode == 'vb_only')
+        assert(options.unweightedMeshMode == 'bake')
         assert(options.decimateRatio == 0.25)
         assert(options.uniformScale == 100)
         assert(options.normalizeTextures == true)
@@ -59,7 +60,7 @@ local wrapper = {
 local completed = false
 local job = assert(importer.start({
     wrapper = wrapper, input = input, output = output, log = log, cancelFile = cancel,
-    options = {largeMeshMode = 'vb_only', decimateRatio = 0.25, uniformScale = 100, normalizeTextures = true,
+    options = {unweightedMeshMode = 'bake', largeMeshMode = 'vb_only', decimateRatio = 0.25, uniformScale = 100, normalizeTextures = true,
         includeTextureDiffuse = true, includeTextureNormal = true, includeTextureSpecular = true,
         includeTextureEmissive = true, includeTextureMask = false},
     onComplete = function(path) completed = path == output end,
@@ -77,10 +78,11 @@ file = assert(io.open(output, 'wb'))
 file:write('msh')
 file:close()
 file = assert(io.open(log, 'wb'))
-file:write('[blender_export] writing output\n')
+file:write('[blender_export] skinning recovery: bake: Icosphere: 42/42 vertices without usable skin weights\n[blender_export] writing output\n')
 file:close()
 assert(job:update() == 'completed')
 assert(job.progress == 1 and completed)
+assert(job.recoveryMessage:find('bake: Icosphere: 42/42', 1, true))
 
 os.remove(input)
 os.remove(output)

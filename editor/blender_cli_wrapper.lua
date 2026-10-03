@@ -325,6 +325,10 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, tostring(ratio))
     end
 
+    if options.unweightedMeshMode then
+        table.insert(args, '--unweighted-mesh-mode')
+        table.insert(args, shellQuote(options.unweightedMeshMode))
+    end
     if options.includeBones then
         table.insert(args, '--include-bones')
     end

@@ -68,6 +68,38 @@ class BlenderMeshExportTests(unittest.TestCase):
         values.update(overrides)
         return Namespace(**values)
 
+    def test_unweighted_mesh_recovery(self) -> None:
+        armature = SimpleNamespace(type="ARMATURE", data=SimpleNamespace(bones=[SimpleNamespace(name="Root")]))
+        def mesh_object(name, weights):
+            mesh = SimpleNamespace(
+                vertices=[SimpleNamespace(groups=[SimpleNamespace(group=0, weight=w)] if w else []) for w in weights],
+                loop_triangles=[SimpleNamespace(vertices=tuple(range(len(weights))))],
+                calc_loop_triangles=lambda: None)
+            evaluated = SimpleNamespace(to_mesh=lambda **kwargs: mesh, to_mesh_clear=mock.Mock())
+            obj = SimpleNamespace(name=name, type="MESH", visible_get=lambda: True,
+                                  vertex_groups=[SimpleNamespace(name="Root")],
+                                  modifiers=[SimpleNamespace(type="ARMATURE", object=armature)],
+                                  evaluated_get=lambda graph: evaluated, hide_set=mock.Mock())
+            return obj, evaluated
+        good, good_eval = mesh_object("Character", [1, 1, 1])
+        partial, partial_eval = mesh_object("Accessory", [1, 0, 1])
+        scene = SimpleNamespace(objects=[good, partial])
+        bpy = SimpleNamespace(context=SimpleNamespace(evaluated_depsgraph_get=lambda: None))
+        with mock.patch.object(EXPORTER, "bpy", bpy, create=True), \
+                mock.patch.object(EXPORTER, "get_canonical_armature_object", return_value=armature):
+            with self.assertRaisesRegex(RuntimeError, "Accessory: 1/3"):
+                EXPORTER.resolve_unweighted_meshes(scene, "fail")
+            self.assertFalse(EXPORTER.resolve_unweighted_meshes(scene, "bake"))
+            partial.hide_set.assert_not_called()
+            self.assertTrue(EXPORTER.resolve_unweighted_meshes(scene, "skip"))
+            partial.hide_set.assert_called_once_with(True)
+            good.hide_set.assert_not_called()
+            self.assertEqual(partial_eval.to_mesh_clear.call_count, 3)
+            self.assertEqual(good_eval.to_mesh_clear.call_count, 3)
+            with self.assertRaisesRegex(RuntimeError, "Cannot skip all"):
+                EXPORTER.resolve_unweighted_meshes(SimpleNamespace(objects=[partial]), "skip")
+            self.assertTrue(EXPORTER.resolve_unweighted_meshes(SimpleNamespace(objects=[good]), "fail"))
+
     def test_large_subset_chunks_preserve_semantic_texture_roles(self) -> None:
         vertex_count = EXPORTER.MAX_MBM_SUBSET_VERTICES + 3
         vertices = [{"x": float(index)} for index in range(vertex_count)]

@@ -274,6 +274,7 @@ function onInitScene()
         nImportAngleY = 0,
         nImportAngleZ = 0,
         iLargeMeshMode = 1,
+        iUnweightedMeshMode = 1,
         bReducePolygons = false,
         nReducePolygonRatio = 0.5,
         bImportPreferSkeletal = true,
@@ -1431,6 +1432,9 @@ local function enrichBlenderErrorMessage(msg)
         return msg
     end
     local lower = msg:lower()
+    if lower:find('unweighted meshes:', 1, true) then
+        return msg .. '\n' .. tLang.L('blender_import_unweighted_help')
+    end
     if lower:find('ascii fbx files are not supported', 1, true) then
         return msg .. ' | Hint: re-export this FBX as Binary FBX (not ASCII) or convert with a DCC tool before importing.'
     end
@@ -2044,7 +2048,9 @@ local function buildBlenderImportSuccessSummary(row, outMsh, importOptions)
         summary = summary .. '\n' .. string.format(
             tLang.L('blender_import_summary_decimate_fmt'), importOptions.decimateRatio * 100.0)
     end
-    if modeInfo and modeInfo.mode == 'skeletal' then
+    if importOptions and importOptions.recoveryMessage then
+        summary = summary .. '\n' .. tLang.L('blender_import_unweighted_result') .. ': ' .. importOptions.recoveryMessage
+    elseif modeInfo and modeInfo.mode == 'skeletal' then
         summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_skeletal_fmt'), importOptions.skeletalKeySamples or 1)
     elseif modeInfo and modeInfo.fallbackExpected then
         summary = summary .. '\n' .. string.format(tLang.L('blender_import_summary_baked_fallback_fmt'), tBlender.getImportModeReasonText(modeInfo))
@@ -2132,6 +2138,7 @@ local function blenderImportCoroutine()
         if st.bReducePolygons then
             importOptions.decimateRatio = math.max(0.01, math.min(1.0, tonumber(st.nReducePolygonRatio) or 0.5))
         end
+        importOptions.unweightedMeshMode = ({'fail', 'skip', 'bake'})[st.iUnweightedMeshMode or 1]
         importOptions.includeBones = tBlender.getPreferSkeletal()
         importOptions.normalizeTextures = st.bNormalizeTextures
         importOptions.includeTextureDiffuse = st.bIncludeTextureDiffuse
@@ -2172,7 +2179,10 @@ local function blenderImportCoroutine()
             local expectedFrames = rowEstimate.targetFrames or 1
             local finished = false
             while not finished do
-                if importerJob then importerJob:update() end
+                if importerJob then
+                    importerJob:update()
+                    importOptions.recoveryMessage = importerJob.recoveryMessage
+                end
                 if st.bAbortRequested then
                     if importerJob then importerJob:cancel() else writeTextFile(cancelFile, 'cancel\n') end
                     failed = failed + 1
@@ -2927,6 +2937,14 @@ function showBlenderImportDialog()
     st.bImportIncludeBones = st.bImportPreferSkeletal
     tImGui.SameLine()
     tImGui.HelpMarker(tLang.L('blender_import_prefer_skeletal_help'))
+    tImGui.BeginDisabled(not st.bImportPreferSkeletal or st.bIntermediateOnly or (st.iLargeMeshMode or 1) == 2)
+    local skinChanged, skinMode = tImGui.Combo(tLang.L('blender_import_unweighted_mode'),
+        st.iUnweightedMeshMode or 1, {tLang.L('blender_import_unweighted_fail'),
+        tLang.L('blender_import_unweighted_skip'), tLang.L('blender_import_unweighted_bake')}, -1)
+    if skinChanged then st.iUnweightedMeshMode = skinMode end
+    tImGui.SameLine()
+    tImGui.HelpMarker(tLang.L('blender_import_unweighted_help'))
+    tImGui.EndDisabled()
     tImGui.Separator()
     st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
     tImGui.BeginDisabled(not st.bImportPostProcess)
