@@ -1011,6 +1011,11 @@ cd /path/to/my-game
 /path/to/mini-mbm --scene main.lua
 ```
 
+On Windows, use `copy-game-template.bat "C:\path\to\my-game"` from Command Prompt.
+It creates the same structure. For `CLAUDE.md`, it tries a relative symbolic link,
+then a hard link if symbolic-link creation is unavailable. A hard link shares file
+contents, but replacing either file can break synchronization.
+
 The script copies `main.lua`, Codex/Copilot instructions, a `CLAUDE.md` symlink to
 `AGENTS.md`, and a snapshot of the current engine `docs/`, including the canonical
 `docs/lua-api.md`. It creates asset folders and an empty `scenes/` directory; manual
