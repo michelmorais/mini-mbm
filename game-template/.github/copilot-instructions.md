@@ -1,5 +1,20 @@
 # mini-mbm Lua Game — Copilot Instructions
 
+## Current engine reference
+
+`copy-game-template.sh` includes a snapshot of the engine's canonical documentation in
+`docs/`. Consult `docs/lua-api.md` before implementing engine calls; it takes precedence
+over the quick reference below when they differ. It covers current APIs, including
+lighting, normal maps, asynchronous loading, articulated animation, and skeletal playback.
+For details, see `docs/light.md`, `docs/normal-mapping.md`,
+`docs/async-loading-and-threading.md`, `docs/articulated-animation.md`, and
+`docs/realtime-skeletal-animation.md`. These files describe the engine checkout used
+when creating the project; use a matching engine build. When opening `game-template/`
+directly, the canonical docs are in `../docs/` instead.
+
+`CLAUDE.md` links to `AGENTS.md`. Keep this file and the Copilot instructions synchronized
+when changing game-specific guidance. Engine binaries and plugins remain external.
+
 ## What is mini-mbm
 
 mini-mbm is a lightweight, cross-platform 2D/3D game engine written in C++17. Games are written in **Lua 5.4** using the `mbm` namespace. This project is a game built on top of mini-mbm.
@@ -20,6 +35,8 @@ Run the game with:
 ├── .github/
 │   └── copilot-instructions.md   ← Copilot context
 ├── AGENTS.md                     ← Codex context
+├── CLAUDE.md                     ← symlink to AGENTS.md
+├── docs/                         ← engine documentation snapshot
 ├── main.lua                      ← entry point (or pass any .lua to the exe)
 ├── assets/                       ← sprites, fonts, textures, sounds, etc.
 │   ├── sprites/

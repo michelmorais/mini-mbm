@@ -15,18 +15,13 @@
 -- Add the folder containing this script (and your assets) to the search path.
 -- ---------------------------------------------------------------------------
 local script_dir = ...  -- engine passes the script directory as vararg
-if script_dir then
-    mbm.addPath(script_dir)
+local project_dir = script_dir or "."
+mbm.addPath(project_dir)
+mbm.addPath(project_dir .. "/assets")
+mbm.addPath(project_dir .. "/scenes")
+for _, folder in ipairs({"fonts", "sprites", "meshes", "tilesets", "textures", "sounds"}) do
+    mbm.addPath(project_dir .. "/assets/" .. folder)
 end
-
-mbm.addPath("assets")  -- add "assets" subfolder to search path for loading assets
-mbm.addPath("scenes")  -- add "scenes" subfolder to search path for loading scenes
-mbm.addPath("scenes/fonts") -- add "scenes/fonts" subfolder to search path for loading fonts
-mbm.addPath("scenes/sprites") -- add "scenes/sprites" subfolder to search path for loading sprites
-mbm.addPath("scenes/meshes") -- add "scenes/meshes" subfolder to search path for loading meshes
-mbm.addPath("scenes/tilesets") -- add "scenes/tilesets" subfolder to search path for loading tilesets
-mbm.addPath("scenes/textures") -- add "scenes/textures" subfolder to search path for loading textures
-mbm.addPath("scenes/sounds") -- add "scenes/sounds" subfolder to search path for loading sounds
 
 -- ---------------------------------------------------------------------------
 -- State — declare all your game objects here so they are accessible from
@@ -88,7 +83,7 @@ end
 -- onLoop(delta)
 -- Called EVERY FRAME.
 -- delta = seconds since last frame (use it to make movement frame-rate
--- independent, e.g.  obj:move(speed * delta, 0)).
+-- independent, e.g. obj.x = obj.x + speed * delta).
 -- ---------------------------------------------------------------------------
 
 -- Track which keys are currently held

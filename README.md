@@ -1003,7 +1003,19 @@ The current CMake files can generate platform-specific game delivery outputs fro
 | **Android** | `-DGAME_ASSETS_DIR=/path/to/assets` plus Android flags | Generated Gradle project with assets wired into the APK |
 | **iOS/macOS** | `-DGAME_NAME=...`, `-DGAME_ASSETS_DIR=...`, optional bundle/icon flags | App bundle project with assets copied into the bundle |
 
-For new standalone Lua games, start from `game-template/` (`main.lua`, `AGENTS.md`, and `.github/copilot-instructions.md`) so the game repo has the Lua API context without copying the engine source.
+Create a standalone Lua game in a new or empty folder:
+
+```sh
+./copy-game-template.sh /path/to/my-game
+cd /path/to/my-game
+/path/to/mini-mbm --scene main.lua
+```
+
+The script copies `main.lua`, Codex/Copilot instructions, a `CLAUDE.md` symlink to
+`AGENTS.md`, and a snapshot of the current engine `docs/`, including the canonical
+`docs/lua-api.md`. It creates asset folders and an empty `scenes/` directory; manual
+engine test scenes are excluded. Existing nonempty destinations are rejected to preserve
+your work. The Lua-enabled engine executable and plugins are provided externally.
 
 ---
 
