@@ -5993,25 +5993,40 @@ namespace mbm
     {
         if (indexFrame < this->impl->buffer.size() && indexSubset < this->impl->buffer[indexFrame]->subset.size())
         {
+            if (totalVertex == 0)
+                return true;
+            // Geometry insertion cannot invent influences for new vertices. Callers which
+            // rebuild geometry (capture) must snapshot/remove weights and restore them later.
+            if (impl->canonicalWeights.skeletonId != 0 && impl->canonicalWeights.frameIndex == indexFrame)
+                return false;
             util::BUFFER_MESH_DEBUG *bufferCurrent    = this->impl->buffer[indexFrame];
             util::SUBSET_DEBUG *     pSubset          = nullptr;
-            unsigned  int            vertexCountTotal = 0;
-            unsigned  int            vertexEndSubset  = 0;
-
-            for (std::vector<util::SUBSET_DEBUG *>::size_type i = 0; i < bufferCurrent->subset.size(); ++i)
+            // Descriptor order may differ from physical buffer order after moveSubsetUp.
+            // Extend the target's actual range; a newly added empty subset starts at the
+            // physical end. Never relabel existing vertex ranges using list-order sums.
+            pSubset = bufferCurrent->subset[indexSubset];
+            const auto vertexCountTotal = static_cast<uint32_t>(bufferCurrent->headerFrame.sizeVertexBuffer);
+            const uint64_t vertexEnd = pSubset->vertexCount == 0 ? vertexCountTotal :
+                static_cast<uint64_t>(pSubset->vertexStart) + pSubset->vertexCount;
+            if (vertexEnd > vertexCountTotal ||
+                static_cast<uint64_t>(vertexCountTotal) + totalVertex > static_cast<uint64_t>(INT_MAX))
+                return false;
+            const auto vertexEndSubset = static_cast<uint32_t>(vertexEnd);
+            // Existing indices survive when adding to an empty/unindexed subset. Validate
+            // the shifted global references before allocating or changing any storage.
+            if (!pSubset->indexCount && bufferCurrent->indexBuffer)
             {
-                pSubset = bufferCurrent->subset[i];
-                vertexCountTotal += static_cast<uint32_t>(pSubset->vertexCount);
-                if (i <= indexSubset)
+                for (uint32_t i = 0; i < bufferCurrent->headerFrame.sizeIndexBuffer; ++i)
                 {
-                    vertexEndSubset += static_cast<uint32_t>(pSubset->vertexCount);
+                    const uint32_t index = bufferCurrent->indexBuffer[i];
+                    if (index >= vertexEndSubset && static_cast<uint64_t>(index) + totalVertex > UINT16_MAX)
+                        return false;
                 }
             }
-            pSubset = bufferCurrent->subset[indexSubset];
             if (pSubset->indexCount)
             {
                 PRINT_IF_DEBUG( "Warning! you are adding vertex to a subset [%d] that has index at "
-                                                 "frame [%d]\n the index will be deleted.");
+                                                 "frame [%d]\n the index will be deleted.", indexSubset, indexFrame);
                 if (bufferCurrent->indexBuffer)
                 {
                     delete[] bufferCurrent->indexBuffer;
@@ -6031,8 +6046,8 @@ namespace mbm
             auto *oldUv       = reinterpret_cast<VEC2 *>(bufferCurrent->uv);
 
             auto newPosition = new VEC3[vertexCountTotal + totalVertex];
-            auto newNormal   = new VEC3[vertexCountTotal + totalVertex];
-            auto newUv       = new VEC2[vertexCountTotal + totalVertex];
+            auto newNormal   = new VEC3[vertexCountTotal + totalVertex]();
+            auto newUv       = new VEC2[vertexCountTotal + totalVertex]();
 
             if (vertexEndSubset)
             {
@@ -6054,7 +6069,8 @@ namespace mbm
                     memcpy(static_cast<void*>(&newNormal[vertexEndSubset + totalVertex]), &oldNormal[vertexEndSubset],sizeof(VEC3) * static_cast<size_t>(lenLastVertex));
                 else
                     memset(static_cast<void*>(&newNormal[vertexEndSubset + totalVertex]), 0, sizeof(VEC3) * static_cast<size_t>(lenLastVertex));
-                memcpy(static_cast<void*>(&newUv[vertexEndSubset + totalVertex]), &oldUv[vertexEndSubset], sizeof(VEC2) * static_cast<size_t>(lenLastVertex));
+                if (oldUv)
+                    memcpy(static_cast<void*>(&newUv[vertexEndSubset + totalVertex]), &oldUv[vertexEndSubset], sizeof(VEC2) * static_cast<size_t>(lenLastVertex));
             }
 
             bufferCurrent->position = reinterpret_cast<float *>(newPosition);
@@ -6069,16 +6085,24 @@ namespace mbm
                 delete[] oldUv;
 
             impl->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE; // addVertex always allocates normals
+            if (pSubset->vertexCount == 0)
+                pSubset->vertexStart = static_cast<int>(vertexEndSubset);
             pSubset->vertexCount += totalVertex;
-            // update
-            uint32_t lastCountVertex = 0;
-            for (auto & i : bufferCurrent->subset)
+            for (auto *subset : bufferCurrent->subset)
             {
-                pSubset              = i;
-                pSubset->vertexStart = static_cast<int>(lastCountVertex);
-                lastCountVertex += static_cast<uint32_t>(pSubset->vertexCount);
+                if (subset != pSubset && static_cast<uint32_t>(subset->vertexStart) >= vertexEndSubset)
+                    subset->vertexStart += totalVertex;
             }
-            bufferCurrent->headerFrame.sizeVertexBuffer = lastCountVertex;
+            if (bufferCurrent->indexBuffer)
+            {
+                for (uint32_t i = 0; i < bufferCurrent->headerFrame.sizeIndexBuffer; ++i)
+                {
+                    if (bufferCurrent->indexBuffer[i] >= vertexEndSubset)
+                        bufferCurrent->indexBuffer[i] = static_cast<uint16_t>(bufferCurrent->indexBuffer[i] + totalVertex);
+                }
+            }
+            bufferCurrent->headerFrame.sizeVertexBuffer = vertexCountTotal + totalVertex;
+            impl->normalMapFrames.erase(indexFrame);
             return true;
         }
         return false;

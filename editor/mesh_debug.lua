@@ -6557,7 +6557,7 @@ end
 function splitCaptureSnapshotWeights(meshD)
     local okHas, hasWeights = dpCall(function() return meshD:hasSkeletalVertexWeights() end)
     if not okHas or not hasWeights then return nil end
-    local subsets, globalIndex = {}, 0
+    local subsets = {}
     local okS, totalSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
     if not okS or not totalSubsets then return nil, tLang.L('capture_weights_failed') end
     for subset = 1, totalSubsets do
@@ -6565,9 +6565,8 @@ function splitCaptureSnapshotWeights(meshD)
         local okV, totalVertices = dpCall(function() return meshD:getTotalVertex(1, subset) end)
         if not okV or not totalVertices then return nil, tLang.L('capture_weights_failed') end
         for vertex = 1, totalVertices do
-            globalIndex = globalIndex + 1
             local okW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function()
-                return meshD:getSkeletalVertexWeight(globalIndex)
+                return meshD:getSkeletalVertexWeight(vertex, subset)
             end)
             if not okW or not n1 then return nil, tLang.L('capture_weights_failed') end
             subsets[subset][vertex] = {
@@ -6581,16 +6580,17 @@ end
 
 function splitCaptureRestoreWeights(meshD, subsets)
     if not subsets then return true end
-    local okRemove = dpCall(function() return meshD:removeSkeletalVertexWeights() end)
-    if not okRemove then return false end
+    if meshD:hasSkeletalVertexWeights() then
+        local okRemove = dpCall(function() return meshD:removeSkeletalVertexWeights() end)
+        if not okRemove then return false end
+    end
     local okInit = dpCall(function() return meshD:initializeSkeletalVertexWeights(1) end)
     if not okInit then return false end
-    local edits, globalIndex = {}, 0
-    for _, subset in ipairs(subsets) do
-        for _, weight in ipairs(subset) do
-            globalIndex = globalIndex + 1
+    local edits = {}
+    for subsetIndex, subset in ipairs(subsets) do
+        for vertexIndex, weight in ipairs(subset) do
             edits[#edits + 1] = {
-                [1]=globalIndex,
+                subset=subsetIndex, [1]=vertexIndex,
                 [2]=weight[1], [3]=weight[2], [4]=weight[3], [5]=weight[4],
                 [6]=weight[5], [7]=weight[6], [8]=weight[7], [9]=weight[8],
             }
@@ -6945,6 +6945,7 @@ function splitCaptureApply(tEntry, meshD, resolved, sourceMesh)
             return nil, tLang.L('capture_mesh_changed')
         end
     end
+    if weightSubsets then meshD:removeSkeletalVertexWeights() end
     for _, group in ipairs(resolved.groups) do
         local chosen, chosenSet = group.triangles, {}
         for _, tri in ipairs(chosen) do chosenSet[table.concat(tri, ':')] = true end

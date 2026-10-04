@@ -1251,7 +1251,10 @@ namespace mbm
             }
             else if (type4 == LUA_TNUMBER)
             {
-                const auto totalVertex = (unsigned int)luaL_checkinteger(lua, 4);
+                const lua_Integer requested = luaL_checkinteger(lua, 4);
+                if (requested < 0 || requested > INT32_MAX)
+                    return luaL_error(lua, "vertex count must be between 0 and INT32_MAX");
+                const auto totalVertex = static_cast<uint32_t>(requested);
                 if (meshDebug->mesh.addVertex(indexFrame, indexSubset, totalVertex))
                 {
                     lua_pushboolean(lua, 1);
@@ -2955,8 +2958,18 @@ namespace mbm
     int onGetSkeletalVertexWeightDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
-        const int index=static_cast<int>(luaL_checkinteger(lua,2))-1;
-        if (index<0) { lua_pushnil(lua); return 1; }
+        lua_Integer index=luaL_checkinteger(lua,2);
+        if (index <= 0) { lua_pushnil(lua); return 1; }
+        --index;
+        if (lua_gettop(lua) >= 3)
+        {
+            const lua_Integer subsetIndex=luaL_checkinteger(lua,3);
+            const auto *subset = subsetIndex > 0 && subsetIndex <= UINT32_MAX
+                ? meshDebug->mesh.getSubset(0, static_cast<uint32_t>(subsetIndex-1)) : nullptr;
+            if (!subset || index < 0 || index >= subset->vertexCount) { lua_pushnil(lua); return 1; }
+            index += subset->vertexStart;
+        }
+        if (index<0 || index>=UINT32_MAX) { lua_pushnil(lua); return 1; }
         const char *names[4]={nullptr,nullptr,nullptr,nullptr};
         float weights[4]={0,0,0,0};
         if (!meshDebug->mesh.getSkeletalVertexWeight(static_cast<uint32_t>(index),
@@ -2986,8 +2999,20 @@ namespace mbm
             SKELETAL_VERTEX_WEIGHT_EDIT &edit = edits[editIndex];
             lua_rawgeti(lua, -1, 1);
             const lua_Integer vertexIndex = luaL_checkinteger(lua, -1);
-            if (vertexIndex <= 0) return luaL_error(lua, "canonical vertex index must be one-based");
+            if (vertexIndex <= 0 || vertexIndex > UINT32_MAX)
+                return luaL_error(lua, "canonical vertex index must be one-based and fit uint32");
             edit.vertexIndex = static_cast<uint32_t>(vertexIndex - 1);
+            lua_pop(lua, 1);
+            lua_getfield(lua, -1, "subset");
+            if (!lua_isnil(lua, -1))
+            {
+                const lua_Integer subsetIndex=luaL_checkinteger(lua,-1);
+                const auto *subset = subsetIndex > 0 && subsetIndex <= UINT32_MAX
+                    ? meshDebug->mesh.getSubset(0, static_cast<uint32_t>(subsetIndex-1)) : nullptr;
+                if (!subset || edit.vertexIndex >= static_cast<uint32_t>(subset->vertexCount))
+                    return luaL_error(lua, "canonical subset-local vertex index is out of range");
+                edit.vertexIndex += static_cast<uint32_t>(subset->vertexStart);
+            }
             lua_pop(lua, 1);
             for (int slot = 0; slot < 4; ++slot)
             {

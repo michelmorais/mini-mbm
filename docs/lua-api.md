@@ -1488,6 +1488,16 @@ on success and raises a Lua error for invalid input. Other subsets retain their 
 including after `moveSubsetUp` or loading a file whose subset order differs from physical buffer
 order. The operation does not change vertex positions, normals, UVs, or vertex order.
 
+`meshD:addVertex(frame, subset, vertices)` appends vertices to the target subset's physical
+range. Adding an empty subset and populating it preserves the existing subsets' geometry and
+index lists, even after reordering subsets. Extending an unindexed subset shifts any later
+physical vertex ranges and their surviving index references together. The existing legacy behavior
+when extending a subset that already has indices is to clear the frame's index buffer; callers
+must rebuild its index lists afterward. A numeric count of zero is a successful no-op; negative
+counts and counts above `INT32_MAX` are rejected by the Lua binding. When the target frame has
+canonical skeletal weights, positive additions are rejected before mutation: snapshot and remove
+those weights, rebuild the geometry, then initialize and restore the weights explicitly.
+
 To merge two or more subsets from one frame, use:
 
 ```lua
@@ -1909,6 +1919,13 @@ the exploratory sections 11/40.
 `setSkeletalVertexWeight(vertexIndex, name1, weight1, ..., name4, weight4)` remains registered as a
 deprecated compatibility wrapper. New code should use `setSkeletalVertexWeightsBatch`, including
 for one vertex, so validation and mutation always use the same atomic transaction boundary.
+
+For subset-based edits in frame 1, `getSkeletalVertexWeight(vertexIndex, subset)` interprets
+`vertexIndex` as local to the specified one-based subset. Likewise, a batch row can include
+`subset = subsetIndex` alongside its positional fields; its first field is then subset-local.
+Both forms resolve the actual physical vertex offset, including after subset reordering.
+Omitting the subset preserves the existing frame-global indexing. Mesh Debug capture uses these
+forms to snapshot and restore weights without assuming subset-list order matches buffer order.
 
 `setSkeletalVertexWeightsBatch` applies one or more unique one-based vertex edits through a single
 detached type-42 candidate. Every row follows the scalar setter's influence contract. The complete

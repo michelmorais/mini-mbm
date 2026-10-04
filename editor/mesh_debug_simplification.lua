@@ -82,7 +82,7 @@ local function snapshot(path,frame,built)
     for s=1,source:getTotalSubset(frame) do
         asset:addSubSet(1)
         local vertices=source:getVertex(frame,s,1,source:getTotalVertex(frame,s))
-        local indices=source:getIndex(frame,s)
+        local indices=source:getIndex(frame,s) or {}
         if #indices==0 then for i=1,#vertices do indices[i]=i end end
         assert(asset:addVertex(1,s,vertices));assert(asset:addIndex(1,s,indices))
         local texture=source:getTexture(frame,s);if texture and texture~='' then asset:setTexture(1,s,texture) end
