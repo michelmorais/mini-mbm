@@ -39,6 +39,7 @@
 #include "mesh-io-primitives.h"
 
 #include <cfloat>
+#include <climits>
 #include <cmath>
 #include <cstring>
 #include <string>
@@ -5907,83 +5908,72 @@ namespace mbm
                     return false;
                 }
             }
-            const std::vector<util::SUBSET_DEBUG *>::size_type  sizeSubset       = bufferCurrent->subset.size();
-            uint32_t        indexCountTotal  = 0;
-            uint32_t        indexCountAfter  = 0;
-            uint32_t        indexCountBefore = 0;
-            uint16_t *oldIndex         = bufferCurrent->indexBuffer;
-            auto        oldSizeIndex     = static_cast<uint32_t>(pSubset->indexCount);
-            for (uint32_t i = 0; i < sizeSubset; ++i)
+            // Subset order is independent of physical index-buffer order (moveSubsetUp
+            // swaps descriptors only). Repack from each descriptor's actual range, never
+            // from prefix sums into the old buffer. This also detaches overlapping ranges.
+            uint64_t newSizeIndex = sizeArrayNewIndexPart;
+            for (uint32_t i = 0; i < bufferCurrent->subset.size(); ++i)
             {
-                util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[i];
-                indexCountTotal += static_cast<uint32_t>(pTmpSubset->indexCount);
-                if (i < indexSubset)
+                if (i == indexSubset)
+                    continue;
+                const util::SUBSET_DEBUG *source = bufferCurrent->subset[i];
+                if (source->indexStart < 0 || source->indexCount < 0 ||
+                    (source->indexCount > 0 && (!bufferCurrent->indexBuffer ||
+                     static_cast<uint64_t>(source->indexStart) + source->indexCount >
+                         bufferCurrent->headerFrame.sizeIndexBuffer)))
                 {
-                    indexCountBefore += static_cast<uint32_t>(pTmpSubset->indexCount);
+                    if (strErrorOut)
+                        snprintf(strErrorOut, strErrorOutLen, "invalid index range for subset [%u]", i);
+                    return false;
                 }
-                if (i > indexSubset)
+                newSizeIndex += static_cast<uint32_t>(source->indexCount);
+            }
+            if (newSizeIndex > static_cast<uint64_t>(INT_MAX))
+            {
+                if (strErrorOut)
+                    snprintf(strErrorOut, strErrorOutLen, "index buffer exceeds supported size");
+                return false;
+            }
+            for (uint32_t i = 0; i < sizeArrayNewIndexPart; ++i)
+            {
+                if (pSubset->vertexStart < 0 ||
+                    static_cast<uint64_t>(pSubset->vertexStart) + newIndexPart[i] > UINT16_MAX)
                 {
-                    indexCountAfter += static_cast<uint32_t>(pTmpSubset->indexCount);
+                    if (strErrorOut)
+                        snprintf(strErrorOut, strErrorOutLen, "vertex index exceeds uint16 range");
+                    return false;
                 }
             }
-
-            const uint32_t newSizeIndex = indexCountTotal - oldSizeIndex + sizeArrayNewIndexPart;
-
-            if (oldIndex)
+            auto newIndex = std::unique_ptr<uint16_t[]>(new uint16_t[static_cast<size_t>(newSizeIndex)]);
+            uint32_t offset = 0;
+            for (uint32_t i = 0; i < bufferCurrent->subset.size(); ++i)
             {
-                auto newIndex   = new unsigned short[newSizeIndex];
-                bufferCurrent->indexBuffer = newIndex;
-                if (indexCountBefore)
+                const util::SUBSET_DEBUG *source = bufferCurrent->subset[i];
+                if (i == indexSubset)
                 {
-                    memcpy(newIndex, oldIndex, sizeof(unsigned short) * static_cast<size_t>(indexCountBefore));
+                    for (uint32_t j = 0; j < sizeArrayNewIndexPart; ++j)
+                        newIndex[offset + j] = static_cast<uint16_t>(newIndexPart[j] + pSubset->vertexStart);
+                    offset += sizeArrayNewIndexPart;
                 }
-                memcpy(&newIndex[indexCountBefore], newIndexPart, sizeof(unsigned short) * static_cast<size_t>(sizeArrayNewIndexPart));
-                if (indexCountAfter)
+                else if (source->indexCount > 0)
                 {
-                    uint32_t s = indexCountBefore + sizeArrayNewIndexPart;
-                    memcpy(&newIndex[s], &oldIndex[indexCountBefore + oldSizeIndex], sizeof(unsigned short) * static_cast<size_t>(indexCountAfter));
-                }
-                int diff = static_cast<int>(oldSizeIndex) - static_cast<int>(sizeArrayNewIndexPart);
-                for (uint32_t i = (indexSubset + 1); i < sizeSubset; ++i)
-                {
-                    util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[std::vector<util::SUBSET_DEBUG *>::size_type(i)];
-                    pTmpSubset->indexStart += diff;
-                }
-
-                for (uint32_t i = indexCountBefore; i < (indexCountBefore + sizeArrayNewIndexPart); ++i)
-                {
-                    newIndex[i] +=  static_cast<unsigned short>(pSubset->vertexStart);
-                }
-                pSubset->indexCount = static_cast<int>(sizeArrayNewIndexPart);
-                delete[] oldIndex;
-            }
-            else
-            {
-                pSubset->indexStart        = static_cast<int>(indexCountBefore);
-                pSubset->indexCount        = static_cast<int>(sizeArrayNewIndexPart);
-                bufferCurrent->indexBuffer = new uint16_t[newSizeIndex];
-                memcpy(bufferCurrent->indexBuffer, newIndexPart, sizeof(uint16_t) * static_cast<size_t>(sizeArrayNewIndexPart));
-                int diff = static_cast<int>(oldSizeIndex) - static_cast<int>(sizeArrayNewIndexPart);
-                for (uint32_t i = (indexSubset + 1); i < sizeSubset; ++i)
-                {
-                    util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[i];
-                    pTmpSubset->indexStart += diff;
-                }
-                for (int i = pSubset->indexStart; i < (pSubset->indexStart + static_cast<int>(sizeArrayNewIndexPart)); ++i)
-                {
-                    bufferCurrent->indexBuffer[i] += static_cast<unsigned short>(pSubset->vertexStart);
+                    memcpy(newIndex.get() + offset, bufferCurrent->indexBuffer + source->indexStart,
+                           sizeof(uint16_t) * static_cast<size_t>(source->indexCount));
+                    offset += static_cast<uint32_t>(source->indexCount);
                 }
             }
-            // update
-            uint32_t lastCountIndex = 0;
-
-            for (auto & i : bufferCurrent->subset)
+            // Commit only after every source range has been copied successfully.
+            delete[] bufferCurrent->indexBuffer;
+            bufferCurrent->indexBuffer = newIndex.release();
+            pSubset->indexCount = static_cast<int>(sizeArrayNewIndexPart);
+            offset = 0;
+            for (auto *subset : bufferCurrent->subset)
             {
-                pSubset             = i;
-                pSubset->indexStart = static_cast<int>(lastCountIndex);
-                lastCountIndex += static_cast<uint32_t>(pSubset->indexCount);
+                subset->indexStart = static_cast<int>(offset);
+                offset += static_cast<uint32_t>(subset->indexCount);
             }
-            bufferCurrent->headerFrame.sizeIndexBuffer = lastCountIndex;
+            bufferCurrent->headerFrame.sizeIndexBuffer = offset;
+            impl->normalMapFrames.erase(indexFrame);
             return true;
         }
         else

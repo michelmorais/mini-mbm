@@ -174,6 +174,11 @@ struct FRAME_HEADER_V11
 //       totalSubset * SUBSET_DESC_V11
 ```
 
+Subset descriptors carry explicit `vertexStart` and `indexStart` offsets. Their list order need
+not match the physical order of those ranges in the buffers; reordering subsets may exchange
+only descriptors. Readers and editing operations must use each descriptor's offsets rather
+than infer offsets from cumulative counts in subset-list order.
+
 Keeping the "share UV with frame 0" option (today's `HAS_TEX_FIRST_FRAME`) as an explicit per-frame
 flag rather than dropping it: sprite/font/particle atlases very commonly share one UV layout across
 every frame, so this is a real, still-useful space saving, not legacy cruft — it just becomes

@@ -5183,11 +5183,12 @@ local function computeMeshAABB(meshD, targetFrame, targetSubset)
     return { minX = minX, minY = minY, minZ = minZ, maxX = maxX, maxY = maxY, maxZ = maxZ }
 end
 
-function computeExactAxisScale(currentSize, targetSize, axis)
+function computeExactAxisScale(currentSize, targetSize, axis, keepRatio)
     currentSize = tonumber(currentSize) or 0
     targetSize = tonumber(targetSize) or 0
     if currentSize <= 1e-7 or targetSize <= 0 then return nil end
     local factor = targetSize / currentSize
+    if keepRatio then return factor, factor, factor end
     if axis == 'X' then return factor, 1, 1 end
     if axis == 'Y' then return 1, factor, 1 end
     if axis == 'Z' then return 1, 1, factor end
@@ -8886,19 +8887,25 @@ function showMeshOptions(tEntry, index)
             tImGui.TextWrapped(string.format(tLang.L('current_bounds_fmt'),
                 exactBounds.width, exactBounds.height, exactBounds.depth))
 
+            tMeshTransform.drawRatio(tImGui, tLang, xf, 'xfRatio-' .. index, exactBounds)
             local function exactSizeRow(axis, field, labelKey, currentSize)
                 tImGui.TableNextRow()
                 tImGui.TableNextColumn()
                 tImGui.Text(tLang.L(labelKey))
                 tImGui.TableNextColumn()
                 tImGui.SetNextItemWidth(-1)
+                local ratioAxis = tMeshTransform.ratioAxis(xf)
+                tImGui.BeginDisabled(ratioAxis ~= '' and ratioAxis ~= axis)
                 local changed, value = tImGui.InputFloat('##xfExact' .. axis .. '-' .. index,
                     xf[field], 1, 10, '%.3f', 0)
-                if changed then xf[field] = value end
+                if changed then
+                    xf[field] = value
+                    tMeshTransform.syncRatio(xf, exactBounds)
+                end
                 tImGui.TableNextColumn()
                 tImGui.BeginDisabled(xf[field] <= 0 or currentSize <= 1e-7)
                 if tImGui.Button(tLang.L('apply_btn') .. '##xfExactApply' .. axis .. '-' .. index) then
-                    local sxExact, syExact, szExact = computeExactAxisScale(currentSize, xf[field], axis)
+                    local sxExact, syExact, szExact = computeExactAxisScale(currentSize, xf[field], axis, ratioAxis ~= '')
                     local ok = transformApplyUndoable(tEntry, meshD, function()
                         return scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset,
                             sxExact, syExact, szExact)
@@ -8917,6 +8924,7 @@ function showMeshOptions(tEntry, index)
                     tImGui.Text(string.format(tLang.L('scale_axis_to'), axis))
                     tImGui.EndTooltip()
                 end
+                tImGui.EndDisabled()
             end
 
             local exactFlags = tImGui.Flags('ImGuiTableFlags_SizingStretchProp')
@@ -8953,6 +8961,20 @@ function showMeshOptions(tEntry, index)
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
                 tUtil.showMessage(string.format(tLang.L("translate_applied_fmt"), target))
                 xf.dx = 0; xf.dy = 0; xf.dz = 0
+            end
+        end
+
+        if tMeshTransform.drawInvert(tImGui, tLang, xf, 'xfInvert-' .. index) then
+            local ok = transformApplyUndoable(tEntry, meshD,
+                function() return applyMeshTransform(meshD, 'invert', xf) end)
+            if ok then
+                cancelXformPreview()
+                onEdit()
+                tEntry.tTransformBoundsCache = nil
+                tEntry.bPhysicsVizDirty = true
+                destroyNormalVisualization(tEntry)
+                tEntry.bNormalsVizDirty = true
+                tUtil.showMessage(tLang.L('transform_apply_invert'))
             end
         end
 
@@ -10784,6 +10806,8 @@ local function applyAllTransform(sType, sMode)
         operationLabel = tLang.L('apply_scale')
     elseif sMode == 'translate' then
         operationLabel = tLang.L('apply_translate')
+    elseif sMode == 'invert' then
+        operationLabel = tLang.L('transform_apply_invert')
     end
     return runApplyAllOperation(sType, operationLabel, function(tEntry, index)
         local meshD = tEntry.meshDebug
@@ -10794,6 +10818,10 @@ local function applyAllTransform(sType, sMode)
             tEntry.modified = true
             tEntry.tTransformBoundsCache = nil
             tEntry.bPhysicsVizDirty = true
+            if sMode == 'invert' then
+                destroyNormalVisualization(tEntry)
+                tEntry.bNormalsVizDirty = true
+            end
             return 'success'
         end
         return 'failed', tLang.L(tostring(err))
@@ -10802,6 +10830,8 @@ end
 
 function applyAllScaleToExactSize(sType, axis)
     local xf = tApplyAllWin.transform
+    local ratioAxis = tMeshTransform.ratioAxis(xf)
+    if ratioAxis ~= '' then axis = ratioAxis end
     local field = axis == 'X' and 'targetWidth' or (axis == 'Y' and 'targetHeight' or 'targetDepth')
     local targetSize = tonumber(xf[field]) or 0
     if targetSize <= 0 then
@@ -10816,7 +10846,7 @@ function applyAllScaleToExactSize(sType, axis)
         local currentSize = axis == 'X' and (aabb.maxX - aabb.minX)
             or (axis == 'Y' and (aabb.maxY - aabb.minY) or (aabb.maxZ - aabb.minZ))
         if currentSize <= 1e-7 then return 'skipped', tLang.L('exact_size_zero_axis') end
-        local sx, sy, sz = computeExactAxisScale(currentSize, targetSize, axis)
+        local sx, sy, sz = computeExactAxisScale(currentSize, targetSize, axis, ratioAxis ~= '')
         local ok = scaleGeometryOrSkeletalAsset(meshD, xf.frame, xf.subset, sx, sy, sz)
         if not ok then return 'failed', tLang.L('an_error_occurred') end
         tEntry.modified = true
@@ -11437,20 +11467,31 @@ function showApplyAllWindow()
                 if tImGui.Button(tLang.L('apply_scale') .. '##applyAllScale') then
                     applyAllTransform(win.selectedType, 'scale')
                 end
+                tMeshTransform.drawRatio(tImGui, tLang, xf, 'bulkRatio')
                 tImGui.TextWrapped(tLang.L('bulk_exact_size_help'))
+                if tMeshTransform.ratioAxis(xf) ~= '' then
+                    tImGui.TextWrapped(tLang.L('transform_bulk_ratio_help'))
+                end
                 local function bulkExactSizeRow(axis, field, labelKey)
                     tImGui.TableNextRow()
                     tImGui.TableNextColumn()
                     tImGui.Text(tLang.L(labelKey))
                     tImGui.TableNextColumn()
                     tImGui.SetNextItemWidth(-1)
-                    local changed, value = tImGui.InputFloat('##applyAllExact' .. axis,
-                        xf[field], 1, 10, '%.3f', 0)
-                    if changed then xf[field] = value end
+                    local dependent = tMeshTransform.ratioAxis(xf) ~= '' and tMeshTransform.ratioAxis(xf) ~= axis
+                    if dependent then
+                        tImGui.TextDisabled(tLang.L('transform_per_mesh'))
+                    else
+                        local changed, value = tImGui.InputFloat('##applyAllExact' .. axis,
+                            xf[field], 1, 10, '%.3f', 0)
+                        if changed then xf[field] = value end
+                    end
                     tImGui.TableNextColumn()
+                    tImGui.BeginDisabled(dependent or xf[field] <= 0)
                     if tImGui.Button(tLang.L('apply_btn') .. '##applyAllExactBtn' .. axis) then
                         applyAllScaleToExactSize(win.selectedType, axis)
                     end
+                    tImGui.EndDisabled()
                     if tImGui.IsItemHovered(0) then
                         tImGui.BeginTooltip()
                         tImGui.Text(string.format(tLang.L('scale_axis_to'), axis))
@@ -11477,6 +11518,9 @@ function showApplyAllWindow()
                 if cdz then xf.dz = dz end
                 if tImGui.Button(tLang.L('apply_translate') .. '##applyAllTranslate') then
                     applyAllTransform(win.selectedType, 'translate')
+                end
+                if tMeshTransform.drawInvert(tImGui, tLang, xf, 'bulkInvert') then
+                    applyAllTransform(win.selectedType, 'invert')
                 end
                 tImGui.TreePop()
             end

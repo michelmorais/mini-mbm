@@ -1476,6 +1476,18 @@ with its predecessor, or `false` for the first subset or an invalid index. Artic
 occurrences are remapped automatically, so their stable IDs, tracks, pivots, and parent-child
 relationships remain attached to the same geometry.
 
+To replace the triangle indices of one subset, use:
+
+```lua
+local indices = meshD:getIndex(frame, subset) -- subset-local, one-based indices; nil without an index buffer
+local updated = meshD:addIndex(frame, subset, indices)
+```
+
+`addIndex` replaces the selected subset's index list with a nonempty table; it returns `true`
+on success and raises a Lua error for invalid input. Other subsets retain their index sequences,
+including after `moveSubsetUp` or loading a file whose subset order differs from physical buffer
+order. The operation does not change vertex positions, normals, UVs, or vertex order.
+
 To merge two or more subsets from one frame, use:
 
 ```lua
