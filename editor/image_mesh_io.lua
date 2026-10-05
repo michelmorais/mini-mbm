@@ -117,8 +117,9 @@ function M.load(path)
     M.texturePaths(project,function(texture) return M.resolve(texture,path) end)
     return project
 end
-function M.exportName(region)
+function M.exportName(region,includeId)
     local name=region.name:gsub('[^%w_-]','_'):sub(1,80)
+    if includeId==false then return name..'.msh' end
     return string.format('%03d_%s.msh',region.id,name)
 end
 return M

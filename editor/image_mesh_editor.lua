@@ -365,9 +365,11 @@ local function exportOneImpl(path,portable,crop)
     E.status=L('exported')..' '..path; return true
 end
 local function exportOne(path,portable)
+    if draftChanged() and not applyProperties() then return false end
     return Simplify.run(E,exportOneImpl,path,portable,E.portableCrop or false)
 end
 local function beginBatch(directory,portable)
+    if draftChanged() and not applyProperties() then return false end
     assert(#E.project.regions>0,L('select_region'))
     E.batch={portableTextures={},portableCrop=E.portableCrop or false,portable=portable,directory=directory,index=1,completed=0,failures={},project=Model.copy(E.project)}
 end
@@ -422,8 +424,9 @@ local function menu()
             if tImGui.MenuItem(L('save'),'Ctrl+S') then dpCall(function() local path=E.path or mbm.saveFile(suggestedProjectName(),'imesh'); if path then saveProject(path) end end) end
             if tImGui.MenuItem(L('save_as')) then dpCall(function() local path=mbm.saveFile(suggestedProjectName(),'imesh'); if path then saveProject(path) end end) end
             if tImGui.MenuItem(L('export_selected')) then dpCall(function()
+                if draftChanged() and not applyProperties() then return end
                 local region=assert(Model.region(E.project,E.selected),L('select_region'))
-                local path=mbm.saveFile(string.format('module_%03d.msh',region.id),'msh')
+                local path=mbm.saveFile(IO.exportName(region,false),'msh')
                 if path then exportOne(path) end
             end) end
             if tImGui.MenuItem(L('export_all')) then dpCall(function() local path=mbm.openFolder(L('export_folder')); if path then beginBatch(path) end end) end
@@ -431,8 +434,9 @@ local function menu()
             E.portableCrop=tImGui.Checkbox(L('export_portable_crop'),E.portableCrop or false)
             if tImGui.IsItemHovered() then Help.tooltip(L('export_portable_crop_help')) end
             if tImGui.MenuItem(L('export_portable_selected')) then dpCall(function()
+                if draftChanged() and not applyProperties() then return end
                 local region=assert(Model.region(E.project,E.selected),L('select_region'))
-                local path=mbm.saveFile(string.format('module_%03d.msh',region.id),'msh')
+                local path=mbm.saveFile(IO.exportName(region,false),'msh')
                 if path then exportOne(path,true) end
             end) end
             if tImGui.MenuItem(L('export_portable_all')) then dpCall(function()
