@@ -3329,7 +3329,9 @@ function addMeshToTable(fileName,imageMeshProjectOwner,imageMeshRegion)
         bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
-        tSimplifyState       = {ratio = 0.9, scope = 'frame', selectedSubsets = {},
+        tSimplifyState       = imageMeshProjectOwner and imageMeshRegion and
+                              tImageMeshWorktree.simplifyState(imageMeshProjectOwner.project,imageMeshRegion) or
+                              {ratio = 0.9, scope = 'frame', selectedSubsets = {},
                                 virtualFrame = false, report = nil, mode = 'qem',
                                 remeshEdgeLengthFraction = 0.03, remeshIterations = 10,
                                 remeshFeatureAngle = 14.5},

@@ -111,6 +111,22 @@ function M.samePath(a,b)
     return normalize(a)==normalize(b)
 end
 
+function M.simplifyState(project,region)
+    local options=Model.options(project,region)
+    return {
+        scope='frame',selectedSubsets={},virtualFrame=false,
+        mode=options.simplify and options.simplifyMode or 'none',
+        simplifyOrder=options.simplifyOrder,
+        ratio=options.simplifyRatio,preserveDetails=options.simplifyDetails,
+        boundaryCollapseThreshold=options.simplifyBoundary,
+        planarAngle=options.planarAngle,planarTolerance=options.planarTolerance,
+        cgalRepairTopology=options.cgalRepairTopology,
+        remeshRepairTopology=options.remeshRepairTopology,
+        remeshEdgeLengthFraction=options.remeshEdgeLengthFraction,
+        remeshIterations=options.remeshIterations,remeshFeatureAngle=options.remeshFeatureAngle,
+    }
+end
+
 function M.validateSource(entry)
     local image=entry.project.image
     assert(IO.exists(image.path),'ime_missing_image')
