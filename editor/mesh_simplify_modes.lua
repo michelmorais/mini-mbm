@@ -105,9 +105,21 @@ function M.qemCheckbox(mode,id)
     tImGui.Separator()
     local enabled=tImGui.Checkbox('QEM##qem-'..id,M.enabled(mode,'qem'))
     if tImGui.IsItemHovered() then M.tooltip(tLang.L('qem_method_tooltip')) end
-    mode=M.setEnabled(mode,'qem',enabled)
-    if mode=='cgal_qem' then tImGui.TextWrapped(tLang.L('cgal_qem_help')) end
-    return mode
+    return M.setEnabled(mode,'qem',enabled)
+end
+local orderLabels={'QEM -> Coplanar','Coplanar -> QEM'}
+function M.orderCombo(mode,id,state)
+    if mode~='cgal_qem' then return end
+    tImGui.Separator()
+    local order=state.simplifyOrder or 'cgal_qem'
+    tImGui.SetNextItemWidth(240)
+    local changed,index=tImGui.Combo(tLang.L('simplify_order')..'##order-'..id,
+        order=='qem_cgal' and 1 or 2,orderLabels)
+    if changed then
+        order=index==1 and 'qem_cgal' or 'cgal_qem'
+        state.simplifyOrder=order;state.report=nil
+    end
+    tImGui.TextWrapped(tLang.L(order=='qem_cgal' and 'qem_cgal_help' or 'cgal_qem_help'))
 end
 function M.tooltip(text)
     if not tImGui.BeginTooltip() then return end
@@ -148,7 +160,7 @@ function M.report(report)
         M.repairReport(report.cgal)
         tImGui.TextWrapped(string.format(tLang.L('cgal_report'),report.cgal.regions,report.cgal.sampled_error_fraction*100))
     end
-    if report.backend=='cgal_qem' and report.qemRan then tImGui.TextWrapped(tLang.L('cgal_qem_report')) end
+    if report.backend=='cgal_qem' and report.qemRan then tImGui.TextWrapped(tLang.L(report.simplifyOrder=='qem_cgal' and 'qem_cgal_report' or 'cgal_qem_report')) end
     if report.unchanged and report.backend~='repair' then tImGui.TextWrapped(tLang.L('simplify_unchanged')) end
 end
 return M

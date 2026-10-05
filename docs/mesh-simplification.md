@@ -198,9 +198,12 @@ Standalone geometry/UV/protocol tests run in the mbm-cgal repository.
 
 ## Combined CGAL + QEM
 
-Both editors offer **CGAL + QEM** (`cgal_qem`). The external CGAL pass runs
-first. If its result exceeds the target triangle count, native QEM processes
-that result. The ratio refers to the original selected geometry, not the
+Both editors offer **CGAL + QEM** (`cgal_qem`) and an **Order** combobox
+when both methods are enabled: **QEM -> Coplanar** or **Coplanar -> QEM**.
+Image Mesh defaults to QEM first, including projects without `simplifyOrder`;
+Mesh Debug retains Coplanar first until changed. With QEM first, native QEM
+reduces the source and external CGAL processes its result. With Coplanar first,
+QEM processes the CGAL result if it exceeds the target triangle count. The ratio refers to the original selected geometry, not the
 intermediate CGAL mesh; QEM is skipped when CGAL already meets the target.
 Native topology and boundary constraints can prevent reaching the target.
 Angle and distance control CGAL; ratio, preserve-details and boundary controls
@@ -208,9 +211,9 @@ apply to QEM. Selected subsets retain independent targets.
 
 Both stages use a disposable working mesh, with one final application and one
 undo operation. Cancellation or failure discards the working result. CGAL UV
-preservation applies to its intermediate output: QEM may further change UVs
-and geometry. CGAL sampled error describes the first stage; native QEM quality
-metrics describe changes from that intermediate mesh, not total pipeline error.
+preservation applies to its own output. When QEM follows CGAL, it may further
+change UVs and geometry. Each stage reports its own error relative to its input,
+not total pipeline error.
 No extra processing runs while the editor is idle.
 
 The GUI groups the CGAL checkbox and its angle/distance parameters first, then
@@ -220,7 +223,7 @@ select the combined pipeline; neither checked disables simplification (and
 disables Apply in Mesh Debug). Image Mesh projects retain the existing mode
 representation, with `none` for neither method, and `simplify=false` when off.
 
-The combined pipeline retains CGAL's shared position/UV indices during QEM.
+With Coplanar first, the combined pipeline retains CGAL's shared position/UV indices during QEM.
 Face normals are reconstructed only after both geometric passes finish (also
 when QEM is skipped). Splitting vertices for face normals before QEM would
 create artificial open boundaries and could reject otherwise feasible targets.

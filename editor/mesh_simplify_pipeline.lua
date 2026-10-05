@@ -30,6 +30,45 @@ local function triangles(asset,subset,frame)
     end
     return count
 end
+local function qemFirst(asset,ratio,subset,frame,details,boundary,angle,distance,maxVertices,normals,settings)
+    local ok,err=asset:startSimplify(ratio,subset,frame,details,boundary)
+    if not ok then return nil,err end
+    local worker=asset
+    local job={stage='qem'}
+    local qemReport,terminal,cancelled
+    function job:cancelSimplify()
+        cancelled=true
+        return worker:cancelSimplify()
+    end
+    function job:getSimplifyStatus()
+        if terminal then return terminal end
+        local status=worker:getSimplifyStatus()
+        if status.state=='running' then
+            return {state='running',progress=(self.stage=='cgal' and .5 or 0)+(status.progress or 0)*.5}
+        end
+        if cancelled then status={state='cancelled'} end
+        if status.state~='completed' then terminal=status;return terminal end
+        if self.stage=='qem' then
+            qemReport=status.report
+            local nextWorker,message=require('mesh_cgal').start(asset,subset,frame,angle,distance,
+                maxVertices,normals,false,nil,settings and settings.repairTopology)
+            if not nextWorker then terminal={state='failed',error=message};return terminal end
+            worker=nextWorker;self.stage='cgal'
+            return {state='running',progress=.5}
+        end
+        local report=status.report
+        for key,value in pairs(qemReport) do if report[key]==nil then report[key]=value end end
+        report.backend='cgal_qem';report.simplifyOrder='qem_cgal';report.qemRan=true
+        report.sourceVertexCount=qemReport.sourceVertexCount
+        report.sourceTriangleCount=qemReport.sourceTriangleCount
+        report.maximumGeometricError=qemReport.maximumGeometricError
+        report.maximumRelativeError=qemReport.maximumRelativeError
+        report.unchanged=qemReport.unchanged and report.unchanged
+        terminal=status
+        return terminal
+    end
+    return job
+end
 function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,maxVertices,normals,remeshSettings)
     if mode=='none' then return nil,'No simplification method selected' end
     if mode=='remesh' then
@@ -43,6 +82,9 @@ function M.start(asset,mode,ratio,subset,frame,details,boundary,angle,distance,m
         local ok,err=asset:startSimplify(ratio,subset,frame,details,boundary)
         if not ok then return nil,err end
         return asset
+    end
+    if mode=='cgal_qem' and remeshSettings and remeshSettings.simplifyOrder=='qem_cgal' then
+        return qemFirst(asset,ratio,subset,frame,details,boundary,angle,distance,maxVertices,normals,remeshSettings)
     end
     local source=triangles(asset,subset,1)
     local target

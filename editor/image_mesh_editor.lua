@@ -799,6 +799,7 @@ local function propertiesPanel()
                 if tImGui.IsItemHovered() then Help.tooltip(tLang.L('simplify_boundary_threshold_tooltip')) end
                 tImGui.TextWrapped(L('simplify_help'))
                 tImGui.EndDisabled()
+                if not automatic then modes.orderCombo(E.values.simplifyMode,'image-general',E.values) end
             end
             if E.report and E.report.simplification then
                 require('mesh_simplify_modes').report(E.report.simplification)

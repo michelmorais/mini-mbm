@@ -897,7 +897,11 @@ comparison. Export generates only the selected result, without the reference.
 The general simplification panel has a **CGAL** checkbox with its angle/distance
 parameters, a separator, and a **QEM** checkbox with its ratio/detail/boundary
 parameters. Parameters remain visible but disabled when their method is unchecked.
-Check both for CGAL followed by QEM; uncheck both to disable simplification.
+Check both to show **Order**, with **QEM -> Coplanar** (default) and
+**Coplanar -> QEM**; uncheck both to disable simplification. The order is saved
+in projects and presets as `simplifyOrder` (`qem_cgal` or `cgal_qem`). Projects
+without that field use QEM first. The automatic triangle-target workflow keeps
+its final QEM budget pass and does not use this manual order.
 Settings are saved per project/default/region and apply to preview, statistics,
 comparison, assembly and export. QEM runs in the engine; coplanar reduction runs
 in the independently configured [mbm-cgal](https://github.com/michelmorais/mbm-cgal)
@@ -1079,11 +1083,11 @@ the previous preview. The dedicated curved-relief simplifier is unchanged.
 See [MBM CGAL](https://github.com/michelmorais/mbm-cgal)
 for build instructions, supported geometry, timeouts and report details.
 
-In **CGAL + QEM**, CGAL runs first and QEM reduces its result only if needed
-to meet the ratio of the original triangle count. Both stages form one
-preview/undo operation. QEM may change geometry and UVs beyond CGAL tolerances;
-the CGAL error report describes the intermediate result, not the final QEM
-output. See [combined simplification](mesh-simplification.md#combined-cgal--qem).
+In **CGAL + QEM**, the selected order controls both passes. With QEM first,
+QEM reduces the original mesh and CGAL processes its result. With Coplanar first,
+QEM runs only if needed to meet the ratio of the original triangle count.
+Both stages form one preview/undo operation. Error metrics describe each
+stage separately, not the total pipeline error. See [combined simplification](mesh-simplification.md#combined-cgal--qem).
 
 ## Read-only Mesh Audit
 

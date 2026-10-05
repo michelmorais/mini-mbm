@@ -36,7 +36,7 @@ local function test()
  api.exportOne('/tmp/cgal-integrated.msh');await()
  local d=meshDebug:new();assert(d:load('/tmp/cgal-integrated.msh'));assert(d:check())
  for _,ratio in ipairs{.6,.4,.046} do
-  E.values.simplifyMode='cgal_qem';E.values.simplifyRatio=ratio;E.values.simplifyBoundary=0
+  E.values.simplifyMode='cgal_qem';E.values.simplifyOrder='cgal_qem';E.values.simplifyRatio=ratio;E.values.simplifyBoundary=0
   assert(api.applyProperties());api.rebuild();await()
   local report=assert(E.report and E.report.simplification,E.status)
   assert(report.backend=='cgal_qem' and report.sourceTriangleCount==12570,E.status)

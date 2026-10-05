@@ -6152,7 +6152,7 @@ function simplifyAwait(meshD, ratio, targetSubset, targetFrame, preserveDetails,
         numericRatio,targetSubset,targetFrame,preserveDetails,boundaryCollapseThreshold,
         progressState.planarAngle,progressState.planarTolerance,nil,progressState.cgalHasNormals,
         {
-         edgeLengthFraction=progressState.remeshEdgeLengthFraction,
+         simplifyOrder=progressState.simplifyOrder,edgeLengthFraction=progressState.remeshEdgeLengthFraction,
          iterations=progressState.remeshIterations,featureAngle=progressState.remeshFeatureAngle,
          repairTopology=(progressState.mode=='remesh' and progressState.remeshRepairTopology~=false) or
              (progressState.mode~='remesh' and progressState.cgalRepairTopology~=false)})
@@ -7654,6 +7654,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
     end
 
     tImGui.EndDisabled()
+    modes.orderCombo(simplifyState.mode,'mesh-debug-'..index,simplifyState)
     end
     local hasSelection = simplifyState.scope == 'frame' or selectedCount > 0
     local canSimplify = nFrames >= 1 and sourceTriangles > 1 and

@@ -88,7 +88,7 @@ function M.apply(E,asset,options,report)
         local worker,err=require('mesh_simplify_pipeline').start(asset,options.simplifyMode,
             options.simplifyRatio,nil,1,options.simplifyDetails,options.simplifyBoundary,
             options.planarAngle,options.planarTolerance,options.maxVertices,true,
-            {edgeLengthFraction=options.remeshEdgeLengthFraction,
+            {simplifyOrder=options.simplifyOrder or 'qem_cgal',edgeLengthFraction=options.remeshEdgeLengthFraction,
              iterations=options.remeshIterations,featureAngle=options.remeshFeatureAngle,repairTopology=options.cgalRepairTopology~=false})
         if not worker then error(string.format(tLang.L('simplify_failed_fmt'),tostring(err)),0) end
         E.simplifyAsset=worker;E.simplifyCancelRequested=nil;E.simplifyProgress=0

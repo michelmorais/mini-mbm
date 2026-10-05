@@ -26,7 +26,7 @@ local M={curved=CurvedModel}
 M.defaults={preserveAspect=true,width=100,height=100,depth=20,relief=8,columns=24,rows=24,
     borderWidth=0.1,lockBorder=true,invert=false,maxVertices=65535,maxTriangles=131070,ellipseSegments=48}
 M.grooveDefaults={voxelized=false,followImage=false,twoLevels=false,grooveThreshold=0.5,grooveTransition=0.1,heightTolerance=0.03,smoothPasses=0}
-M.simplifyDefaults={simplify=false,cgalRepairTopology=true,simplifyMode='qem',planarTolerance=.05,planarAngle=10,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
+M.simplifyDefaults={simplify=false,cgalRepairTopology=true,simplifyMode='qem',simplifyOrder='qem_cgal',planarTolerance=.05,planarAngle=10,simplifyRatio=0.9,simplifyDetails=true,simplifyBoundary=0}
 M.remeshDefaults={remesh=false,remeshRepairTopology=true,remeshEdgeLengthFraction=.03,remeshIterations=10,remeshFeatureAngle=14.5}
 M.backDefaults={backExternal=false,backTexture='',backSolid=false,backColor=0x808080,backRelief=false,backMirror=false,backOpen=false,backRemap=false}
 M.sideDefaults={sideMode='edge',sideBandPerpendicular=false,sideBandInvert=false,sideInset=1,sideRepeatU=1,sideRepeatV=1,sideColor=0x808080,sideTexture=''}
@@ -125,6 +125,7 @@ function M.validateOptions(options,complete)
         if k=='reliefMode' then assert(v=='geometry' or v=='normal','ime_invalid_options')
         elseif k=='normalMapConvention' then assert(v=='+Y' or v=='-Y','ime_invalid_options')
         elseif k=='normalMapEdge' then assert(v=='clamp' or v=='repeat','ime_invalid_options')
+        elseif k=='simplifyOrder' then assert(v=='qem_cgal' or v=='cgal_qem','ime_invalid_options')
         elseif k=='simplifyMode' then assert(v=='qem' or v=='cgal' or v=='cgal_qem' or v=='none','ime_invalid_options')
         elseif k=='heightSource' then assert(v=='image' or v=='manual' or v=='mixed' or v=='curved','ime_invalid_options')
         elseif k=='heightChannel' then assert(v=='luminance' or v=='red' or v=='green' or v=='blue' or v=='alpha','ime_invalid_options')
