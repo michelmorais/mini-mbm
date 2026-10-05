@@ -977,7 +977,7 @@ end
 function onLoop(delta)
     require("mesh_audit_ui").update()
     if E.autoTask then dpCall(Auto.resume,E) end
-    if (E.imageJob or E.simplifyAsset or E.normalProcessing) and E.key==mbm.getKeyCode('ESC') then Generation.cancel(E);E.key=nil end
+    if (E.imageJob or E.simplifyAsset or E.normalProcessing or E.targetSearch) and E.key==mbm.getKeyCode('ESC') then Generation.cancel(E);E.key=nil end
     if E.meshTask then dpCall(Simplify.resume,E) end
     tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil); menu(); tImGui.EndDisabled()
     tImGui.BeginDisabled(E.meshTask~=nil or E.paintDrag~=nil)

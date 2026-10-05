@@ -201,35 +201,43 @@ protection editable. Changing the saved manual ratio does not affect the search.
 
 The shared Lua module `image_mesh_frequency.search(target, evaluate)` tests radii
 0, 1, 2, 4, 8, 16, and 32 when residual compensation is active, or only 0 otherwise.
-Each candidate runs native generation and QEM against the target. When Coplanar
-is selected, the saved order also applies here: QEM then CGAL, or CGAL then QEM.
-Enabled remeshing runs before QEM. CGAL/remesh normal splitting is deferred until
-QEM finishes, so shading edges do not become artificial locked boundaries. The QEM
-ratio is derived from the current count, not from the manual slider. All subsets
-(front, back and sides) count toward the target. If already below budget, QEM is
-skipped. Detail preservation and boundary constraints remain in effect.
+For each radius, `image_mesh_target.search` tests at most twelve independent
+copies of the generated source. It adjusts the QEM request using the triangle count
+**after the complete pipeline**, including the selected QEM/Coplanar order and
+optional remeshing. Every trial starts from the same source buffers; a successful
+trial is never the input to the next one. The saved manual ratio does not seed or
+limit the search. All subsets count toward the final budget.
 
-Native QEM fails atomically when topology or locked boundaries prevent a target.
-`image_mesh_frequency.reduce` then tries less aggressive intermediate counts,
-with at most seven QEM requests per radius (sixteen for combined QEM/Coplanar),
-retaining successful reductions. The larger combined budget prevents large inputs
-from exhausting the search while still far above a feasible count.
-Other failures abort normally; cancellation never becomes a search candidate.
-This bounded fallback can miss the closest feasible count. It does not relax
-geometry protections. The first tested radius meeting the target wins; otherwise,
-the lowest count wins, with ties favoring the smaller radius. No monotonic
-relationship between radius and triangle count is assumed.
+Candidates must also pass a sampled front-surface check against that radius's
+source. A 128 x 128 XY grid samples front-facing (+Z) triangles, excluding the back.
+The checks require no missing reference samples, RMS height error at most 10% of
+the source relief range, retention of at least 75% of its depth, and summed
+neighbor-height-difference error at most 75% of the source variation. Flat inputs
+use a small numerical floor. These are sampling heuristics, not a Hausdorff bound:
+features smaller than a grid cell and back/side quality are not fully assessed.
+Normal-map detail separation still intentionally permits smoothing between radii.
+
+The bounded search expands or brackets the QEM request, retains acceptable
+candidates, and can finish when an acceptable result uses 90-100% of the budget.
+Among tested results within budget it prefers the lower sampled surface score;
+otherwise it keeps an acceptable result above budget. If none passes, it retains
+the source. Thus an unmet target is preferable to accepting a flattened block.
+The bounded search does not guarantee the best possible mesh or exact count.
+Topology constraints reject that candidate; other errors and cancellation abort.
+The first radius reaching the target wins; otherwise the radius with the lowest
+acceptable count wins, with ties favoring the smaller radius.
 
 The winner is regenerated through the normal comparison/cache callbacks and baked
 once. Candidate probes never bake normal textures or replace the displayed mesh.
 The panel reports the selected radius, final triangles, target and whether it was
-reached. The report's `detailSeparation` holds `radius`, `triangles`, `target`,
+reached. `targetQuality` records the selected surface metrics or `retainedSource`;
+`targetReductionAttempts` counts pipeline trials. The report's `detailSeparation` holds `radius`, `triangles`, `target`,
 `reached` and `attempts`. The selected radius is derived, not written over the manual
 project setting. Saving, reopening and exporting use the same shared build pipeline.
 
 Generation and simplification remain cancellable. Unexpected failures and cancellation
 abort the search. At most seven radius probes plus one final generation run per build
-are used, each with up to seven QEM attempts, or sixteen with Coplanar.
+are used, each with up to twelve independent pipeline trials.
 Native candidate buffers are collected between probes. No search runs while idle or
 when only normal-map strength, blur, convention or edge changes; geometry changes
 invalidate the existing cache. This feature is supported only for continuous image,

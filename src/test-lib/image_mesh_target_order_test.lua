@@ -21,70 +21,102 @@
 ]]--
 
 package.path='editor/?.lua;'..package.path
-local Simplify=require 'image_mesh_simplify'
-local Reduce=require 'image_mesh_frequency'
-local originalCgal=package.loaded.mesh_cgal
-local originalLang=tLang
-tLang={L=function(key) return key..': %s' end}
-local function check(order,remesh,cancel)
-    local asset={count=1000,vertices=600}
-    local calls={}
-    local deferred=false
-    function asset:startSimplify(ratio)
-        assert(not self.split,'QEM received artificial normal boundaries')
-        calls[#calls+1]='qem';self.target=math.floor(self.count*ratio);return true
+local Target=require 'image_mesh_target'
+local Quality=require 'image_mesh_target_quality'
+local visited={}
+local best=Target.search(150,1000,function(requested)
+    visited[#visited+1]=requested
+    if requested==150 then return nil end
+    if requested==300 then return {triangles=12,quality={accepted=false,score=1}} end
+    if requested==600 then return {triangles=200,quality={accepted=true,score=.1}} end
+    assert(requested==450)
+    return {triangles=142,quality={accepted=true,score=.15}}
+end)
+assert(best.triangles==142 and #visited==4)
+assert(not Target.search(150,1000,function() return {triangles=12,quality={accepted=false,score=1}} end))
+-- A front groove, plus a back face: back depth must not mask lost front detail.
+local function surface(flat)
+    local vertices={}
+    for y=0,1 do for x=0,4 do
+        vertices[#vertices+1]={x=x,y=y,z=flat and 1 or (x==2 and 0 or 1)}
+    end end
+    local indices={}
+    for x=1,4 do
+        for _,i in ipairs{x,x+1,x+6,x,x+6,x+5} do indices[#indices+1]=i end
     end
-    function asset:getSimplifyStatus()
-        if cancel then return {state='cancelled'} end
-        self.count=self.target;self.vertices=self.count
-        return {state='completed',report={sourceTriangleCount=1000,sourceVertexCount=600,
-            resultTriangleCount=self.count,resultVertexCount=self.vertices,unchanged=false}}
-    end
-    local function worker(kind,delayNormals,count)
-        calls[#calls+1]=kind;deferred=delayNormals
-        asset.split=not delayNormals;asset.count=count;asset.vertices=count
-        local report={resultTriangleCount=count,resultVertexCount=count,unchanged=false,
-            sourceTriangleCount=1000,sourceVertexCount=600}
-        report[kind]={}
-        return {getSimplifyStatus=function() return {state='completed',report=report} end,
-            finalizeNormals=function()
-                if delayNormals then calls[#calls+1]='normals';asset.split=true end
-                return true,asset.vertices
-            end}
-    end
-    package.loaded.mesh_cgal={
-        start=function(_,_,_,_,_,_,_,delayNormals) return worker('cgal',delayNormals,math.floor(asset.count*.8)) end,
-        startRemesh=function(_,_,_,_,_,_,_,_,_,_,delayNormals) return worker('remesh',delayNormals,1200) end}
-    local E={};local report={triangles=1000,vertices=600}
-    local options={geometryTargetTriangles=150,simplify=true,simplifyMode='cgal_qem',
-        simplifyOrder=order,remesh=remesh,simplifyDetails=true,simplifyBoundary=0}
-    local co=coroutine.create(function() Simplify.apply(E,asset,options,report) end)
-    local ok,err
-    repeat ok,err=coroutine.resume(co) until not ok or coroutine.status(co)=='dead'
-    if cancel then
-        assert(not ok and err=='ime_generation_cancelled' and E.generationCancelled)
-        assert(not E.simplifyAsset)
-        return
-    end
-    assert(ok,err)
-    local expected
-    if order=='qem_cgal' then expected=remesh and 'remesh,qem,cgal' or 'qem,cgal'
-    else expected=remesh and 'cgal,remesh,qem,normals' or 'cgal,qem,normals' end
-    assert(table.concat(calls,',')==expected,table.concat(calls,','))
-    assert(report.triangles<=150 and report.triangles==asset.count)
-    assert(report.simplification.resultTriangleCount==report.triangles)
-    assert(report.simplification.sourceTriangleCount==1000 and report.sourceTriangles==1000)
-    assert(report.simplification.simplifyOrder==order and report.simplification.cgal)
+    local k=#vertices
+    for _,v in ipairs{{x=0,y=0,z=-20},{x=4,y=0,z=-20},{x=4,y=1,z=-20},{x=0,y=1,z=-20}} do vertices[#vertices+1]=v end
+    for _,i in ipairs{1,3,2,1,4,3} do indices[#indices+1]=k+i end
+    return {getTotalSubset=function() return 1 end,getTotalVertex=function() return #vertices end,
+        getVertex=function() return vertices end,getIndex=function() return indices end}
 end
-for _,order in ipairs{'qem_cgal','cgal_qem'} do
-    check(order,false);check(order,true);check(order,false,true)
+local ref=Quality.sample(surface(false))
+local identical=Quality.compare(ref,Quality.sample(surface(false),ref.grid))
+assert(identical.accepted and identical.score==0 and identical.range<1)
+local flat=Quality.compare(ref,Quality.sample(surface(true),ref.grid))
+assert(not flat.accepted and flat.depth==0 and flat.slope>.9)
+local missing=Quality.compare(ref,{values={},grid=ref.grid})
+assert(not missing.accepted and missing.missing>0)
+-- Exercise source cloning and commit through the actual target runner.
+local savedMesh,savedSample,savedCompare=meshDebug,Quality.sample,Quality.compare
+local function asset(count)
+    local a={count=count}
+    function a:setType() end
+    function a:getModeDraw() return 'TRIANGLES' end
+    function a:getModeFrontFace() return 'CCW' end
+    function a:getModeCullFace() return 'NONE' end
+    function a:getMaterial() return {} end
+    function a:setModeDraw() end
+    function a:setModeFrontFace() end
+    function a:setModeCullFace() end
+    function a:setMaterial() end
+    function a:addAnim() end
+    function a:removeFrame() self.count=0 end
+    function a:copyFrameFrom(other) self.count=other.count;return 1 end
+    return a
 end
-local current=78758
-local count,attempts=Reduce.reduce(150,current,function(ratio)
-    local requested=math.floor(current*ratio)
-    if requested<392 then return nil,'constrained' end
-    current=requested;return current
-end,16)
-assert(count>=392 and count<410 and attempts<=16,'large constrained source stopped too early')
-package.loaded.mesh_cgal=originalCgal;tLang=originalLang
-print('IMAGE MESH TARGET ORDER OK: both orders, normal topology, remesh, cancellation, bounded fallback')
+meshDebug={new=function() return asset(0) end}
+Quality.sample=function(a) return {count=a.count,grid={}} end
+Quality.compare=function(_,candidate) return {accepted=candidate.count~=12,score=.1} end
+local source=asset(1000)
+local report={triangles=1000,vertices=600}
+local E={}
+local calls=0
+local co=coroutine.create(function()
+    Target.apply(E,source,{geometryTargetTriangles=150},report,function(_,candidate,options,result)
+        calls=calls+1
+        assert(candidate.count==1000 and source.count==1000,'cumulative reduction or source mutation')
+        local requested=math.floor(1000*options.simplifyRatio)
+        if requested==150 then error('topology constraints prevent reaching the requested triangle count',0) end
+        candidate.count=requested==300 and 12 or (requested==600 and 200 or 142)
+        result.triangles=candidate.count
+    end)
+end)
+repeat local ok,err=coroutine.resume(co);assert(ok,err) until coroutine.status(co)=='dead'
+assert(source.count==142 and report.triangles==142 and calls==4 and not E.targetSearch)
+source=asset(1000);report={triangles=1000,vertices=600};E={}
+co=coroutine.create(function()
+    Target.apply(E,source,{geometryTargetTriangles=150},report,function(_,candidate,_,result)
+        candidate.count=142;result.triangles=142
+    end)
+end)
+assert(coroutine.resume(co));require('image_mesh_generation').cancel(E)
+local ok,err=coroutine.resume(co)
+assert(not ok and err=='ime_generation_cancelled' and source.count==1000 and not E.targetSearch)
+source=asset(1000);report={triangles=1000,vertices=600};E={}
+co=coroutine.create(function()
+    Target.apply(E,source,{geometryTargetTriangles=150},report,function(_,candidate,_,result)
+        candidate.count=12;result.triangles=12
+    end)
+end)
+repeat local passed,message=coroutine.resume(co);assert(passed,message) until coroutine.status(co)=='dead'
+assert(source.count==1000 and report.targetQuality.retainedSource,'unsafe fallback replaced the source')
+source=asset(1000);report={triangles=1000,vertices=600};E={}
+co=coroutine.create(function()
+    Target.apply(E,source,{geometryTargetTriangles=1500,simplify=true,simplifyMode='qem'},report,
+        function(_,_,options) assert(not options.simplify,'100% request must skip QEM') end)
+end)
+repeat local passed,message=coroutine.resume(co);assert(passed,message) until coroutine.status(co)=='dead'
+assert(source.count==1000 and report.triangles==1000)
+meshDebug,Quality.sample,Quality.compare=savedMesh,savedSample,savedCompare
+print('IMAGE MESH TARGET QUALITY OK: complete pipeline, fresh source, groove rejection, cancellation, commit')
