@@ -398,14 +398,14 @@ function M.start(asset,subset,frame,angle,distance,maxVertices,hasNormals,deferN
     active[job]=true
     return job
 end
-function M.startRemesh(asset,subset,frame,edgeLengthFraction,iterations,featureAngle,maxVertices,hasNormals,targetTriangles,repairTopology)
+function M.startRemesh(asset,subset,frame,edgeLengthFraction,iterations,featureAngle,maxVertices,hasNormals,targetTriangles,repairTopology,deferNormals)
     if repairTopology~=nil and type(repairTopology)~='boolean' then return nil,'Invalid topology repair option' end
     if targetTriangles~=nil and (type(targetTriangles)~='number' or targetTriangles%1~=0 or targetTriangles<2 or targetTriangles>100000) then return nil,'Invalid triangle target (2..100000)' end
     local fraction,passes,angle=tonumber(edgeLengthFraction),tonumber(iterations),tonumber(featureAngle)
     if not fraction or fraction~=fraction or fraction<=0 or fraction>.25 then return nil,'Invalid target edge-length fraction' end
     if not passes or passes%1~=0 or passes<1 or passes>50 then return nil,'Invalid remesh iteration count' end
     if not angle or angle~=angle or angle<0 or angle>180 then return nil,'Invalid feature angle' end
-    return M.start(asset,subset,frame,nil,nil,maxVertices,hasNormals,false,
+    return M.start(asset,subset,frame,nil,nil,maxVertices,hasNormals,deferNormals,
         {edgeLengthFraction=fraction,iterations=passes,featureAngle=angle,targetTriangles=targetTriangles,repairTopology=repairTopology==true})
 end
 function M.startRepair(asset,subset,frame,maxVertices,hasNormals)

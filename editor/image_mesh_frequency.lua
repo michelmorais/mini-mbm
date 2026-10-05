@@ -38,10 +38,10 @@ function M.search(target,evaluate,radii)
 end
 -- Failed native QEM attempts leave the input intact. Successful attempts become
 -- the input for a tighter request. Bound the work when topology limits reduction.
-function M.reduce(target,source,evaluate)
+function M.reduce(target,source,evaluate,maxAttempts)
     local count,lower,attempts=source,target,0
     local requested=target
-    while count>target and requested<count and attempts<7 do
+    while count>target and requested<count and attempts<(maxAttempts or 7) do
         attempts=attempts+1
         local result,err=evaluate((requested+.5)/count)
         if result then

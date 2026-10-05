@@ -7804,8 +7804,8 @@ M.pt_br.ime_normal_target_met = 'Meta atingida.'
 M.en.ime_normal_target_unmet = 'Target not reached with the tested settings.'
 M.pt_br.ime_normal_target_unmet = 'Meta nao atingida com os ajustes testados.'
 
-M.en.ime_normal_automatic_simplify = 'Automatic triangle target controls QEM simplification and reduction through the triangle target. Manual method and ratio are retained for when automatic mode is disabled. Detail and boundary protection below still apply.'
-M.pt_br.ime_normal_automatic_simplify = 'Meta automatica de triangulos controla a simplificacao QEM e a reducao pela meta de triangulos. Metodo e proporcao manuais ficam salvos para quando o modo automatico for desabilitado. A protecao de detalhes e contornos abaixo continua ativa.'
+M.en.ime_normal_automatic_simplify = 'Automatic triangle target controls QEM reduction. Selected Coplanar processing follows the order below. The manual ratio is retained for when automatic mode is disabled. Detail and boundary protection still apply.'
+M.pt_br.ime_normal_automatic_simplify = 'Meta automatica de triangulos controla a reducao QEM. Coplanar, quando selecionado, segue a ordem abaixo. A proporcao manual fica salva para quando o modo automatico for desabilitado. A protecao de detalhes e contornos continua ativa.'
 
 M.en.ime_target_group = 'Automatic triangle target'
 M.pt_br.ime_target_group = 'Meta automatica de triangulos'

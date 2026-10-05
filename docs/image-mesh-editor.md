@@ -187,7 +187,7 @@ The budget control has its own **Automatic triangle target**
 section, independent of **Normal map and tangents**. The target works without normal
 mapping, or with additive normals. Only the optional radius search requires residual
 normal mapping plus mesh-normal compensation. Otherwise radius 0 is used and the
-budget is handled by QEM alone, without height smoothing. Current support remains
+budget is handled by QEM and any selected Coplanar pass, without height smoothing. Current support remains
 continuous image/manual/mixed relief; curved, voxel and two-level modes are excluded.
 The project stores `normalMapAutomatic` and `normalMapTargetTriangles`.
 Turning off normals/residual/compensation leaves the triangle target enabled. Disable **Enable automatic target** to restore manual
@@ -201,15 +201,19 @@ protection editable. Changing the saved manual ratio does not affect the search.
 
 The shared Lua module `image_mesh_frequency.search(target, evaluate)` tests radii
 0, 1, 2, 4, 8, 16, and 32 when residual compensation is active, or only 0 otherwise.
-Each candidate runs native generation, optional selected
-CGAL planar cleanup and enabled remeshing, then QEM against the target. The QEM
+Each candidate runs native generation and QEM against the target. When Coplanar
+is selected, the saved order also applies here: QEM then CGAL, or CGAL then QEM.
+Enabled remeshing runs before QEM. CGAL/remesh normal splitting is deferred until
+QEM finishes, so shading edges do not become artificial locked boundaries. The QEM
 ratio is derived from the current count, not from the manual slider. All subsets
 (front, back and sides) count toward the target. If already below budget, QEM is
 skipped. Detail preservation and boundary constraints remain in effect.
 
 Native QEM fails atomically when topology or locked boundaries prevent a target.
 `image_mesh_frequency.reduce` then tries less aggressive intermediate counts,
-with at most seven QEM requests per radius, retaining successful reductions.
+with at most seven QEM requests per radius (sixteen for combined QEM/Coplanar),
+retaining successful reductions. The larger combined budget prevents large inputs
+from exhausting the search while still far above a feasible count.
 Other failures abort normally; cancellation never becomes a search candidate.
 This bounded fallback can miss the closest feasible count. It does not relax
 geometry protections. The first tested radius meeting the target wins; otherwise,
@@ -225,7 +229,7 @@ project setting. Saving, reopening and exporting use the same shared build pipel
 
 Generation and simplification remain cancellable. Unexpected failures and cancellation
 abort the search. At most seven radius probes plus one final generation run per build
-are used, each with up to seven QEM attempts.
+are used, each with up to seven QEM attempts, or sixteen with Coplanar.
 Native candidate buffers are collected between probes. No search runs while idle or
 when only normal-map strength, blur, convention or edge changes; geometry changes
 invalidate the existing cache. This feature is supported only for continuous image,
@@ -900,8 +904,8 @@ parameters. Parameters remain visible but disabled when their method is unchecke
 Check both to show **Order**, with **QEM -> Coplanar** (default) and
 **Coplanar -> QEM**; uncheck both to disable simplification. The order is saved
 in projects and presets as `simplifyOrder` (`qem_cgal` or `cgal_qem`). Projects
-without that field use QEM first. The automatic triangle-target workflow keeps
-its final QEM budget pass and does not use this manual order.
+without that field use QEM first. The automatic triangle-target workflow respects
+the same order and shows this selector when Coplanar is selected.
 Settings are saved per project/default/region and apply to preview, statistics,
 comparison, assembly and export. QEM runs in the engine; coplanar reduction runs
 in the independently configured [mbm-cgal](https://github.com/michelmorais/mbm-cgal)
