@@ -7426,7 +7426,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
         math.floor(tonumber(simplifyState.remeshIterations) or 10)))
     simplifyState.remeshFeatureAngle = math.max(0, math.min(180,
         tonumber(simplifyState.remeshFeatureAngle) or 14.5))
-    simplifyState.ratio = math.max(0.001, math.min(0.95,
+    simplifyState.ratio = math.max(0.000001, math.min(0.999999,
         tonumber(simplifyState.ratio) or 0.9))
     if not isRemesh then tImGui.Text(tLang.L('simplify_geometry')) end
     tImGui.BeginDisabled(simplifyState.running == true)
@@ -7569,7 +7569,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
     tImGui.PushItemWidth(180)
     local ratioChanged, ratio = tImGui.DragFloat(
         tLang.L('simplify_ratio') .. '##simplifyRatio-' .. index,
-        simplifyState.ratio, 0.001, 0.001, 0.95, '%.3f',
+        simplifyState.ratio, 0.001, 0.000001, 0.999999, '%.6f',
         tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
     if ratioChanged and ratio then
         simplifyState.ratio = ratio
@@ -7598,7 +7598,7 @@ function showSimplifyGeometry(tEntry, meshD, index, nFrames, allSubsets, node)
         math.ceil(sourceVertices * (simplifyState.ratio or 0.9)))
     local availableVertices = math.max(0, 65535 - preservedVertices)
     local maximumSafeRatio = sourceVertices > 0 and
-        math.min(0.95, availableVertices / sourceVertices) or 0.95
+        math.min(0.999999, availableVertices / sourceVertices) or 0.999999
     local exceedsIndexLimit = simplifyState.mode=='qem' and estimatedVertices > 65535
     if exceedsIndexLimit then
         tImGui.TextWrapped(string.format(tLang.L('simplify_uint16_limit_fmt'),

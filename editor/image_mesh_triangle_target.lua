@@ -22,7 +22,7 @@
 
 local Model=require 'image_mesh_model'
 local M={}
-function M.panel(E)
+function M.panel(E,confirm)
     local available=Model.canSeparateDetail(E.values)
     tImGui.BeginDisabled(not available)
     E.values.normalMapAutomatic=tImGui.Checkbox(tLang.L('ime_target_enable'),E.values.normalMapAutomatic)
@@ -39,6 +39,13 @@ function M.panel(E)
                 tImGui.TextWrapped(string.format(tLang.L('ime_target_result'),result.triangles,result.target))
             end
             tImGui.TextWrapped(tLang.L(result.reached and 'ime_normal_target_met' or 'ime_normal_target_unmet'))
+            local canConfirm=confirm~=nil and E.report.targetParameters~=nil and not E.meshTask and
+                not E.editDefaults and E.draft~=nil and not E.draft.locked and not E.previewStale and
+                not (E.assembly and E.assembly.enabled)
+            tImGui.BeginDisabled(not canConfirm)
+            if tImGui.Button(tLang.L('ime_target_confirm')) and canConfirm then confirm() end
+            tImGui.EndDisabled()
+            if tImGui.IsItemHovered() then require('image_mesh_help').tooltip(tLang.L('ime_target_confirm_help')) end
         end
     end
     tImGui.EndDisabled()

@@ -24,6 +24,19 @@
 local Model=require 'image_mesh_model'
 local Quality=require 'image_mesh_target_quality'
 local M={}
+local function parameters(options)
+    local result={normalMapAutomatic=false,normalMapGeometryBlur=options.geometryBlurRadius or 0}
+    for _,defaults in ipairs({Model.simplifyDefaults,Model.remeshDefaults}) do
+        for key,value in pairs(defaults) do
+            if options[key]~=nil then result[key]=options[key] else result[key]=value end
+        end
+    end
+    -- A skipped QEM pass may use ratio 1 internally; keep a valid dormant manual ratio.
+    if not result.simplify or result.simplifyMode=='cgal' or result.simplifyMode=='none' then
+        result.simplifyRatio=Model.defaults.simplifyRatio
+    end
+    return result
+end
 function M.search(target,sourceCount,evaluate)
     local best,lower,upper,requested=nil,0,nil,math.min(target,sourceCount)
     local visited={}
@@ -98,7 +111,7 @@ function M.apply(E,asset,options,report,process)
             error(err,0)
         end
         local quality=Quality.compare(reference,Quality.sample(candidate,reference.grid))
-        local evaluation={asset=candidate,report=result,triangles=result.triangles,quality=quality}
+        local evaluation={asset=candidate,report=result,triangles=result.triangles,quality=quality,parameters=parameters(manual)}
         coroutine.yield()
         if E.targetSearch.cancelled then
             E.generationCancelled=true;E.batch=nil;E.statisticsRequested=nil
@@ -115,8 +128,13 @@ function M.apply(E,asset,options,report,process)
         assert(asset:copyFrameFrom(best.asset,1)>0,'Could not install target-search result')
         for k,v in pairs(best.report) do report[k]=v end
         report.targetQuality=best.quality
+        report.targetParameters=best.parameters
     else
         report.targetQuality={accepted=true,score=0,retainedSource=true}
+        report.targetParameters=parameters(options)
+        report.targetParameters.simplify=false;report.targetParameters.simplifyMode='none'
+        report.targetParameters.simplifyRatio=Model.defaults.simplifyRatio
+        report.targetParameters.remesh=false
     end
     report.sourceTriangles=sourceTriangles;report.sourceVertices=sourceVertices
     report.targetReductionAttempts=attempts

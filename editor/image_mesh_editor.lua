@@ -416,6 +416,22 @@ applyProperties=function()
         r.name=draft.name; r.x=draft.x; r.y=draft.y; r.w=draft.w; r.h=draft.h; r.shape=draft.shape; r.contour=Model.copy(draft.contour); r.backCrop=Model.copy(draft.backCrop); r.holes=Model.copy(draft.holes); r.heightAreas=Model.copy(draft.heightAreas); r.curvedNodes=Model.copy(draft.curvedNodes)
     end)
 end
+local function confirmAutomaticTarget()
+    local result=E.report and E.report.targetParameters
+    if E.meshTask or E.editDefaults or not E.draft or E.draft.locked or E.previewStale or
+        (E.assembly and E.assembly.enabled) or not result or not E.values.normalMapAutomatic then return false end
+    if draftChanged() then
+        tUtil.showMessageWarn(L('target_confirm_stale'),5)
+        return false
+    end
+    local selected=E.selected
+    local applied=action(function(p)
+        local region=assert(Model.region(p,selected),L('select_region'))
+        for key,value in pairs(result) do region.overrides[key]=value end
+    end)
+    if applied then tUtil.showMessage(L('target_confirmed'),5) end
+    return applied
+end
 local function menu()
     if tImGui.BeginMainMenuBar() then
         if tImGui.BeginMenu(tLang.L('menu_file')) then
@@ -596,7 +612,7 @@ local function propertiesPanel()
             end
             end
         end
-        if tImGui.CollapsingHeader(L('target_group')) then require('image_mesh_triangle_target').panel(E) end
+        if tImGui.CollapsingHeader(L('target_group')) then require('image_mesh_triangle_target').panel(E,confirmAutomaticTarget) end
         if tImGui.CollapsingHeader(L('normal_group')) then Normal.panel(E,camera,dpCall) end
         if tImGui.CollapsingHeader(L('grooves_group')) then
             Areas.modePanel(E)
@@ -780,7 +796,7 @@ local function propertiesPanel()
                     E.values.simplifyMode=modes.qemCheckbox(mode,'image-general')
                     E.values.simplify=E.values.simplifyMode~='none'
                     tImGui.BeginDisabled(not modes.enabled(E.values.simplifyMode,'qem'))
-                    local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.001,0.95,'%.3f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
+                    local c,v=tImGui.DragFloat(tLang.L('simplify_ratio'),E.values.simplifyRatio,0.001,0.000001,0.999999,'%.6f',tImGui.Flags('ImGuiSliderFlags_AlwaysClamp'))
                     if c then E.values.simplifyRatio=Model.clampOption('simplifyRatio',v,E.values.simplifyRatio) end
                     if E.report and not E.editDefaults then
                         local source=E.report.sourceTriangles or E.report.triangles
@@ -1076,6 +1092,7 @@ if type(testApi)=='table' then
     testApi.setRegionLocked=setRegionLocked
     testApi.state=E; testApi.openImage=openImage; testApi.openProject=openProject; testApi.saveProject=saveProject
     testApi.action=action; testApi.select=selectRegion; testApi.rebuild=rebuild; testApi.undo=history
+    testApi.confirmAutomaticTarget=confirmAutomaticTarget
     testApi.exportOne=exportOne; testApi.beginBatch=beginBatch; testApi.batchStep=batchStep; testApi.relink=relink
     testApi.updateHeightPreview=function() HeightPreview.sync(E,dpCall) end; testApi.updateStatistics=function() return updateStatistics(true) end; testApi.compactCount=compactCount; testApi.setWireframe=setWireframe; testApi.addPrimitive=addPrimitive; testApi.camera=camera; testApi.fit=Canvas.fit; testApi.setEditMode=setEditMode; testApi.applyProperties=applyProperties; testApi.finishPolygon=finishPolygon
 end

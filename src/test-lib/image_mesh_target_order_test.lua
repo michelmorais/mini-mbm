@@ -83,7 +83,7 @@ local report={triangles=1000,vertices=600}
 local E={}
 local calls=0
 local co=coroutine.create(function()
-    Target.apply(E,source,{geometryTargetTriangles=150},report,function(_,candidate,options,result)
+    Target.apply(E,source,{geometryTargetTriangles=150,simplify=true,simplifyMode='cgal_qem',simplifyOrder='qem_cgal',geometryBlurRadius=4},report,function(_,candidate,options,result)
         calls=calls+1
         assert(candidate.count==1000 and source.count==1000,'cumulative reduction or source mutation')
         local requested=math.floor(1000*options.simplifyRatio)
@@ -94,6 +94,9 @@ local co=coroutine.create(function()
 end)
 repeat local ok,err=coroutine.resume(co);assert(ok,err) until coroutine.status(co)=='dead'
 assert(source.count==142 and report.triangles==142 and calls==4 and not E.targetSearch)
+assert(report.targetParameters.simplifyRatio==450.5/1000 and report.targetParameters.simplifyMode=='cgal_qem')
+assert(not report.targetParameters.normalMapAutomatic and report.targetParameters.normalMapGeometryBlur==4)
+require('image_mesh_model').validateOptions(report.targetParameters,false)
 source=asset(1000);report={triangles=1000,vertices=600};E={}
 co=coroutine.create(function()
     Target.apply(E,source,{geometryTargetTriangles=150},report,function(_,candidate,_,result)
@@ -111,6 +114,7 @@ co=coroutine.create(function()
 end)
 repeat local passed,message=coroutine.resume(co);assert(passed,message) until coroutine.status(co)=='dead'
 assert(source.count==1000 and report.targetQuality.retainedSource,'unsafe fallback replaced the source')
+assert(not report.targetParameters.simplify and not report.targetParameters.remesh)
 source=asset(1000);report={triangles=1000,vertices=600};E={}
 co=coroutine.create(function()
     Target.apply(E,source,{geometryTargetTriangles=1500,simplify=true,simplifyMode='qem'},report,

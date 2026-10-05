@@ -17,7 +17,8 @@ local report, err = meshD:simplify(ratio, subset, frame, preserveDetails,
 Arguments after `ratio` are optional. `subset` is one-based; nil selects the
 complete frame. `frame` defaults to 1; zero requests a shared collapse sequence
 across compatible geometry frames. Ratios must be finite and strictly between
-zero and one; editor controls restrict them to 0.1% through 95%.
+zero and one; editor controls allow 0.0001% through 99.9999%, preserving exact ratios
+accepted from Image Mesh automatic targeting.
 See [Lua API](lua-api.md#triangle-simplification) for the complete contract.
 
 Input may be indexed or nonindexed. The indexed result must fit the engine's

@@ -235,6 +235,17 @@ reached. `targetQuality` records the selected surface metrics or `retainedSource
 `reached` and `attempts`. The selected radius is derived, not written over the manual
 project setting. Saving, reopening and exporting use the same shared build pipeline.
 
+After a completed result, **Confirm Automatic Target / Confirmar Meta Automática**
+copies the winning settings into the selected module and disables automatic targeting.
+It preserves the exact QEM ratio, method/order, detail and boundary settings, CGAL
+and remesh settings, and the chosen smoothing radius. A retained-source result instead
+disables simplification and remeshing. It does not apply one module's result to other
+selected modules or to project defaults. Pending unapplied edits must be regenerated
+before confirmation; busy, stale, locked and assembly results cannot be confirmed.
+The change supports Undo/Redo. **Save the project** to persist it: reopening and
+exporting then perform only the recorded manual pipeline, without the target search.
+`targetParameters` in the generation report holds the transferable settings.
+
 Generation and simplification remain cancellable. Unexpected failures and cancellation
 abort the search. At most seven radius probes plus one final generation run per build
 are used, each with up to twelve independent pipeline trials.
@@ -931,7 +942,7 @@ For image/manual/mixed relief, enable **CGAL**, **QEM**, or both. Both editors
 use the chosen backend over the whole generated frame, including its materials.
 QEM controls:
 
-- Triangle ratio: 0.001–0.95, default 0.9; the fraction to retain.
+- Triangle ratio: 0.000001–0.999999, default 0.9; the fraction to retain.
 - Preserve details: enabled by default; penalizes collapses near geometric detail.
 - Boundary-collapse threshold: 0–0.25; zero locks open boundaries, while larger
   values allow eligible boundary collapses relative to the mesh diagonal.
