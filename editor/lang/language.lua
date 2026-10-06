@@ -3288,6 +3288,7 @@ M.en = {
     object_options = "Object Options",
     add_object = "Add Object",
     show_scene_objects = "Show objects in scene",
+    scene3d_click_line_points = "Add points by clicking (line Y plane)",
     -- Common editor messages (reused across editors)
     command_executed = "Command executed.. ",
     failed_to_add_mesh = "Failed to add mesh!",
@@ -7081,6 +7082,7 @@ M.pt_br = {
     object_options = "Opções do objeto",
     add_object = "Adicionar objeto",
     show_scene_objects = "Mostrar objetos na cena",
+    scene3d_click_line_points = "Adicionar pontos clicando (plano Y da linha)",
     -- Common editor messages (reused across editors)
     command_executed = "Comando executado.. ",
     failed_to_add_mesh = "Falha ao adicionar mesh!",

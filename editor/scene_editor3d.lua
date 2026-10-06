@@ -30,6 +30,14 @@
 
 ]]--
 
+local function dpCall(fn, ...)
+    local result = table.pack(pcall(fn, ...))
+    if not result[1] then print('[scene_editor3d] ' .. tostring(result[2])) end
+    return table.unpack(result, 1, result.n)
+end
+
+local markerMath = require 'scene_object_tools'
+
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 -- tLang becomes globally available as a side effect of requiring editor_utils above.
@@ -96,6 +104,7 @@ tPlacedMeshes = {}
 -- ---- Map-tab "Object Option" markers (editor-only path/spawn-point data) ----
 tSceneObjects            = {}
 tSceneObjectShapes       = {}
+tMarkerEdit = {dirty = true, axes = {}}
 tComboObjectType3d       = {'point', 'rectangle', 'circle', 'triangle', 'line'}
 bShowSceneObjectMarkers  = true -- manual show/hide toggle, ANDed with the "Main Scene tab only" rule
 
@@ -320,6 +329,13 @@ function updateDirectionalLightGizmo()
     local ndx, ndy, ndz = dir.x / len, dir.y / len, dir.z / len
 
     local ax, ay, az = getLightGizmoAnchor()
+    tLightGizmo.lnShaft.visible = true
+    tLightGizmo.lnWing1.visible = true
+    tLightGizmo.lnWing2.visible = true
+    local key = tLightGizmo.geometryKey
+    if key and key.ax == ax and key.ay == ay and key.az == az and
+        key.dx == dir.x and key.dy == dir.y and key.dz == dir.z then return end
+    tLightGizmo.geometryKey = {ax=ax,ay=ay,az=az,dx=dir.x,dy=dir.y,dz=dir.z}
     local shaftLen = 150
     local tx, ty, tz = ax - ndx * shaftLen, ay - ndy * shaftLen, az - ndz * shaftLen
 
@@ -496,13 +512,12 @@ end
 
 -- WASD/arrow-key ground-plane movement for the active tab's orbit camera, consumed once per frame
 -- from onLoop (before applyCam3d(cam3d), so this frame's applyCam3d already reflects the move).
--- Reuses the exact forward/right XZ-plane derivation already used by right-drag-pan (onTouchMove,
--- `fwx,fwy,fwz` normalized then `rgx,rgz = -fwz, fwx`) so keyboard and mouse panning feel
--- consistent. Speed scales with cam3d.distance like every other camera interaction in this file
+-- Keyboard movement stays on the ground plane; mouse pan follows the view plane. Speed scales with cam3d.distance like every other camera interaction in this file
 -- (pan drag, zoom) -- a fixed absolute speed would feel wrong at very different zoom levels.
 -- Gated on GetWantCaptureKeyboard() here (at the point of consumption), not at key-down time,
 -- since ImGui focus can change between the key press and the next frame.
 function updateCam3dKeyboardMovement(delta)
+    if tMarkerEdit.drag then return end
     if tCam3dMove.forward == 0 and tCam3dMove.right == 0 then return end
     if tImGui.GetWantCaptureKeyboard() then return end
     -- Was re-deriving "right" by hand as cross(forward, worldUp) (-fwz, fwx) -- that guess had the
@@ -732,15 +747,16 @@ function ensureGridLinePoolSize(n)
 end
 
 function rebuildGridVisual()
-    -- Free mode still shows the grid (it just skips snapping when placing) -- the grid also
-    -- borders Free-mode placement now, so hiding it there would leave that border invisible.
-    -- Only the active tab's own "Show Grid" toggle and having an active layer hide it.
-    if not tShowGridByTab[sActiveTab] or iSelectedLayer == 0 then
-        ensureGridLinePoolSize(0)
-        return
+    tMarkerEdit.dirty = true
+    local layers = {}
+    if tShowGridByTab[sActiveTab] then
+        if sActiveTab == 'map' then
+            layers = tLayers
+        elseif tLayers[iSelectedLayer] then
+            layers = {tLayers[iSelectedLayer]}
+        end
     end
-    local layer = tLayers[iSelectedLayer]
-    if not layer then
+    if #layers == 0 then
         ensureGridLinePoolSize(0)
         return
     end
@@ -772,28 +788,30 @@ function rebuildGridVisual()
     local xLow, xHigh = cxMin * w, (cxMin + nCellsX) * w
     local zLow, zHigh = czMin * d, (czMin + nCellsZ) * d
 
-    ensureGridLinePoolSize((nCellsX + 1) + (nCellsZ + 1))
+    ensureGridLinePoolSize(((nCellsX + 1) + (nCellsZ + 1)) * #layers)
 
     local idx = 1
-    for i = 0, nCellsX do
-        local x = (cxMin + i) * w
-        local x1, z1 = rotXZ(x, zLow)
-        local x2, z2 = rotXZ(x, zHigh)
-        local ln = tGridLines[idx]
-        ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
-        ln:set({x1, 0, z1, x2, 0, z2}, 1)
-        ln:setColor(0.35, 0.35, 0.35, 0.63)
-        idx = idx + 1
-    end
-    for i = 0, nCellsZ do
-        local z = (czMin + i) * d
-        local x1, z1 = rotXZ(xLow, z)
-        local x2, z2 = rotXZ(xHigh, z)
-        local ln = tGridLines[idx]
-        ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
-        ln:set({x1, 0, z1, x2, 0, z2}, 1)
-        ln:setColor(0.35, 0.35, 0.35, 0.63)
-        idx = idx + 1
+    for _, layer in ipairs(layers) do
+        for i = 0, nCellsX do
+            local x = (cxMin + i) * w
+            local x1, z1 = rotXZ(x, zLow)
+            local x2, z2 = rotXZ(x, zHigh)
+            local ln = tGridLines[idx]
+            ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
+            ln:set({x1, 0, z1, x2, 0, z2}, 1)
+            ln:setColor(0.35, 0.35, 0.35, 0.63)
+            idx = idx + 1
+        end
+        for i = 0, nCellsZ do
+            local z = (czMin + i) * d
+            local x1, z1 = rotXZ(xLow, z)
+            local x2, z2 = rotXZ(xHigh, z)
+            local ln = tGridLines[idx]
+            ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
+            ln:set({x1, 0, z1, x2, 0, z2}, 1)
+            ln:setColor(0.35, 0.35, 0.35, 0.63)
+            idx = idx + 1
+        end
     end
 end
 
@@ -925,7 +943,7 @@ function computeMeshTrueVertexExtentFrame1(fileName)
     local minY, maxY = math.huge, -math.huge
     local minZ, maxZ = math.huge, -math.huge
     local total = 0
-    local okScan = pcall(function()
+    local okScan = dpCall(function()
         local nSubsets = meshD:getTotalSubset(1)
         for s = 1, nSubsets do
             local nV = meshD:getTotalVertex(1, s)
@@ -1233,12 +1251,7 @@ end
 -- as "on top"; a heavier alpha just looked like a solid tinted duplicate of the mesh underneath.
 -- Selected takes priority over hover when both apply.
 function updateSelectionHighlights()
-    if sActiveTab ~= 'layer' then
-        for _, tPlaced in ipairs(tPlacedMeshes) do
-            if tPlaced.tHighlightShape then tPlaced.tHighlightShape.visible = false end
-        end
-        return
-    end
+    if sActiveTab ~= 'layer' then return end
     local blinkAlpha = 0.15 + 0.05 * math.sin(mbm.getTimeRun() * 4)
     for i, tPlaced in ipairs(tPlacedMeshes) do
         local isHovered = (i == tHoveredPlaced)
@@ -1628,10 +1641,10 @@ end
 function applyPlacedMeshAnimations(tPlaced)
     if not tPlaced.tObj then return end
     if tPlaced.animationName and tPlaced.animationName ~= '' then
-        pcall(function() tPlaced.tObj:setAnim(tPlaced.animationName) end)
+        dpCall(function() tPlaced.tObj:setAnim(tPlaced.animationName) end)
     end
     for _, name in ipairs(tPlaced.articulatedAnimationNames or {}) do
-        pcall(function() tPlaced.tObj:playArticulatedAnimation(name) end)
+        dpCall(function() tPlaced.tObj:playArticulatedAnimation(name) end)
     end
 end
 
@@ -1649,6 +1662,9 @@ end
 function updateAllPlacedMeshVisibility()
     for _, tPlaced in ipairs(tPlacedMeshes) do
         applyPlacedMeshVisibility(tPlaced)
+        if sActiveTab ~= 'layer' and tPlaced.tHighlightShape then
+            tPlaced.tHighlightShape.visible = false
+        end
     end
 end
 
@@ -1838,10 +1854,166 @@ end
 -- Map-tab "Object Option" markers
 ------------------------------------------------------------------------------------------------------------------
 
+-- Editor-only selection/capture state never enters saved scene objects.
+function clearSceneObjectVisuals()
+    for _, entry in ipairs(tSceneObjectShapes) do entry.handle:destroy() end
+    for _, axis in pairs(tMarkerEdit.axes) do axis:destroy() end
+    tSceneObjectShapes = {}
+    tMarkerEdit = {dirty = true, axes = {}}
+end
+
+function sceneObjectsEditable()
+    return sActiveTab == 'map' and bShowSceneObjectMarkers and not tLoadProgress.bLoading
+end
+
+function pickSceneObject(x, y)
+    local ox,oy,oz,dx,dy,dz = mbm.getPickRay(x,y)
+    local best, bestDistance = nil, math.huge
+    local radius = markerMath.pointRadius(tMapOptions)
+    for i, object in ipairs(tSceneObjects) do
+        local distance
+        if object.type == 'line' then
+            local points = object.points or {}
+            for j = 1, #points - 1 do
+                local hit = markerMath.raySegmentDistance(ox,oy,oz,dx,dy,dz,points[j],points[j+1],radius)
+                if hit and (not distance or hit < distance) then distance = hit end
+            end
+            if #points < 2 then
+                local a = points[1] or object
+                distance = markerMath.raySegmentDistance(ox,oy,oz,dx,dy,dz,a,
+                    {x=a.x+1,y=a.y,z=a.z},radius)
+            end
+        elseif object.type == 'point' or object.type == 'circle' then
+            local r = object.type == 'point' and radius or (object.ray or 50)
+            distance = markerMath.raySphereDistance(ox,oy,oz,dx,dy,dz,object.x,object.y,object.z,r)
+        elseif object.type == 'triangle' and object.points and #object.points >= 3 then
+            distance = markerMath.rayTriangleDistance(ox,oy,oz,dx,dy,dz,
+                object.points[1],object.points[2],object.points[3])
+        elseif object.type == 'rectangle' and math.abs(dz) > 1e-6 then
+            local t = (object.z-oz)/dz
+            if t >= 0 and math.abs(ox+dx*t-object.x) <= (object.width or 100)*0.5 and
+                math.abs(oy+dy*t-object.y) <= (object.height or 100)*0.5 then distance = t end
+        end
+        if distance and distance < bestDistance then best,bestDistance = object,distance end
+    end
+    return best
+end
+
+function updateSceneObjectInteraction()
+    local selected = sceneObjectsEditable() and tMarkerEdit.selected
+    local length = markerMath.pointRadius(tMapOptions) * 9
+    for name, axis in pairs(markerMath.axes) do
+        local handle = tMarkerEdit.axes[name]
+        if selected then
+            if not handle then
+                handle = line:new('3d')
+                handle:add({0,0,0,axis.x,axis.y,axis.z})
+                handle:setColor(table.unpack(axis.color))
+                handle.alwaysOnTop = true
+                tMarkerEdit.axes[name] = handle
+            end
+            -- Transform-only changes; no per-frame line buffer upload.
+            if handle.x ~= selected.x or handle.y ~= selected.y or handle.z ~= selected.z then
+                handle:setPos(selected.x,selected.y,selected.z)
+            end
+            if tMarkerEdit.axisLength ~= length then handle:setScale(length,length,length) end
+        end
+        if handle then handle.visible = selected ~= nil and selected ~= false end
+    end
+    tMarkerEdit.axisLength = selected and length or nil
+    -- Re-pick only when the view, pointer, or geometry changes, including numeric UI edits.
+    local editable, captured = sceneObjectsEditable(), tImGui.GetWantCaptureMouse()
+    local key = tMarkerEdit.hoverKey
+    if key and key.x == mouseLastX and key.y == mouseLastY and key.azimuth == cam3d.azimuth and
+        key.elevation == cam3d.elevation and key.distance == cam3d.distance and
+        key.fx == cam3d.fx and key.fy == cam3d.fy and key.fz == cam3d.fz and
+        key.editable == editable and key.captured == captured then return end
+    tMarkerEdit.hoverKey = {x=mouseLastX,y=mouseLastY,azimuth=cam3d.azimuth,
+        elevation=cam3d.elevation,distance=cam3d.distance,fx=cam3d.fx,fy=cam3d.fy,fz=cam3d.fz,
+        editable=editable,captured=captured}
+    local hovered
+    if editable and not captured then
+        hovered = pickSceneObject(mouseLastX,mouseLastY)
+    end
+    for i, object in ipairs(tSceneObjects) do
+        local entry = tSceneObjectShapes[i]
+        if entry then
+            if object == hovered then entry.handle:setColor(1,0.8,0.1,0.9)
+            elseif object == selected then entry.handle:setColor(0.2,1,0.5,0.85)
+            else entry.handle:setColor(tSceneMarkerColor.r,tSceneMarkerColor.g,tSceneMarkerColor.b,tSceneMarkerColor.a) end
+        end
+    end
+end
+
+function beginSceneObjectDrag(x,y)
+    if not sceneObjectsEditable() or tMarkerEdit.capture then return false end
+    local selected = tMarkerEdit.selected
+    local axisName, parameter
+    if selected then
+        local ox,oy,oz,dx,dy,dz = mbm.getPickRay(x,y)
+        local length = markerMath.pointRadius(tMapOptions) * 9
+        local best = math.huge
+        for name,axis in pairs(markerMath.axes) do
+            local start = {x=selected.x+axis.x*length*0.35,
+                y=selected.y+axis.y*length*0.35,z=selected.z+axis.z*length*0.35}
+            local finish = {x=selected.x+axis.x*length,
+                y=selected.y+axis.y*length,z=selected.z+axis.z*length}
+            local hit = markerMath.raySegmentDistance(ox,oy,oz,dx,dy,dz,start,finish,length*0.07)
+            local value = markerMath.axisParameter(x,y,selected,axis)
+            if hit and value and hit < best then axisName,parameter,best = name,value,hit end
+        end
+    end
+    if not axisName then selected = pickSceneObject(x,y) end
+    tMarkerEdit.selected = selected
+    tMarkerEdit.hoverKey = nil
+    if not selected then return false end
+    local origin = {x=selected.x,y=selected.y,z=selected.z}
+    local normal = camera3d:getNormal('F')
+    local px,py,pz = markerMath.planeHit(x,y,origin,normal)
+    tMarkerEdit.drag = {object=selected, origin=origin, axis=axisName and markerMath.axes[axisName],
+        parameter=parameter, normal={x=normal.x,y=normal.y,z=normal.z}, px=px,py=py,pz=pz}
+    return true
+end
+
+function moveSceneObjectDrag(x,y)
+    local drag = tMarkerEdit.drag
+    local origin = drag.origin
+    local nx,ny,nz
+    if drag.axis then
+        local value = markerMath.axisParameter(x,y,origin,drag.axis)
+        if not value then return end
+        local delta = value-drag.parameter
+        nx,ny,nz = origin.x+drag.axis.x*delta,origin.y+drag.axis.y*delta,origin.z+drag.axis.z*delta
+    else
+        local px,py,pz = markerMath.planeHit(x,y,origin,drag.normal)
+        if not px or not drag.px then return end
+        nx,ny,nz = origin.x+px-drag.px,origin.y+py-drag.py,origin.z+pz-drag.pz
+    end
+    if markerMath.translate(drag.object,nx,ny,nz) then
+        drag.moved = true
+        tMarkerEdit.dirty = true
+    end
+end
+
+function appendSceneLinePoint(x,y)
+    local object = tMarkerEdit.capture
+    if not sceneObjectsEditable() or not object or object.type ~= 'line' then return false end
+    local px,py,pz = markerMath.planeHit(x,y,object,markerMath.axes.y)
+    if px then
+        object.points = object.points or {}
+        if #object.points == 0 then object.x,object.y,object.z = px,py,pz end
+        table.insert(object.points,{x=px,y=py,z=pz})
+        tMarkerEdit.dirty = true
+        pushUndoSnapshot()
+    end
+    return true
+end
+
 function addSceneObjectMarker()
     local tObj = { type = 'point', name = 'no_name', x = 0, y = 0, z = 0 }
     table.insert(tSceneObjects, tObj)
-    table.insert(tSceneObjectShapes, nil)
+    tMarkerEdit.selected = tObj
+    tMarkerEdit.dirty = true
     updateSceneObjectShapes()
 end
 
@@ -1850,30 +2022,10 @@ end
 -- the line-type object marker there uses the same {1.0, 0.0, 1.0, 0.7}).
 tSceneMarkerColor = {r = 1, g = 0, b = 1, a = 0.7}
 
--- 8 corners / 12 triangles of a unit box (half-extent 0.5), same CUBE_COMPLEX corner convention as
--- physic_editor.lua's own box-gizmo builder (include/core_mbm/shapes.h: front face a,b,c,d @
--- +halfDepth, back face e,f,g,h @ -halfDepth). Built at unit size and scaled per-instance via
--- :setScale() rather than baking each marker's absolute size into its own vertex data.
-local function unitCubeVerts()
-    local h = 0.5
-    local a, b, c, d = {x = -h, y = -h, z =  h}, {x = -h, y =  h, z =  h}, {x =  h, y =  h, z =  h}, {x =  h, y = -h, z =  h}
-    local e, f, g, hh = {x = -h, y = -h, z = -h}, {x = -h, y =  h, z = -h}, {x =  h, y =  h, z = -h}, {x =  h, y = -h, z = -h}
-    local faces = {
-        {a, b, c}, {a, c, d}, {hh, g, f}, {hh, f, e}, {e, f, b}, {e, b, a}, {d, c, g}, {d, g, hh}, {b, f, g}, {b, g, c}, {e, a, d}, {e, d, hh},
-    }
-    local verts = {}
-    for _, tri in ipairs(faces) do
-        for _, p in ipairs(tri) do
-            table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z)
-        end
-    end
-    return verts
-end
-
 -- Unit-radius UV-sphere, low tessellation (this is an editor marker, not a shipped asset).
 -- Scaled per-instance via :setScale(r,r,r) from tObj.ray. No named 'sphere' primitive exists in
 -- SHAPE_MESH's Lua binding (src/lua-wrap/render-table/shape-lua.cpp:134-203 only defines
--- circle/rectangle/triangle, all flat) -- hence a raw-vertex build, same idiom as unitCubeVerts.
+-- circle/rectangle/triangle, all flat) -- hence a raw-vertex build.
 local function unitSphereVerts(latSegments, lonSegments)
     latSegments = latSegments or 8
     lonSegments = lonSegments or 12
@@ -1947,6 +2099,9 @@ local function lineFlatPoints(tObj)
         table.insert(flat, tObj.x); table.insert(flat, tObj.y); table.insert(flat, tObj.z)
         table.insert(flat, tObj.x + 1); table.insert(flat, tObj.y); table.insert(flat, tObj.z)
     end
+    if #pts == 1 then
+        flat[4], flat[5], flat[6] = pts[1].x + 0.01, pts[1].y, pts[1].z
+    end
     return flat
 end
 
@@ -1958,6 +2113,9 @@ end
 -- on the new array). `triangle` has no such in-place update in SHAPE_MESH's Lua binding, so it
 -- destroys/recreates whenever a signature of its 3 points changes.
 function updateSceneObjectShapes()
+    if not tMarkerEdit.dirty then return end
+    tMarkerEdit.dirty = false
+    tMarkerEdit.hoverKey = nil
     for i, tObj in ipairs(tSceneObjects) do
         local entry = tSceneObjectShapes[i]
         if not entry or entry.sType ~= tObj.type then
@@ -1965,7 +2123,7 @@ function updateSceneObjectShapes()
             local handle
             if tObj.type == 'point' then
                 handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
-                handle:create(unitCubeVerts(), nil, 'editor_marker_cube_unit')
+                handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
             elseif tObj.type == 'circle' then
                 handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
                 handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
@@ -1973,7 +2131,7 @@ function updateSceneObjectShapes()
                 handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
                 handle:create(unitQuadVerts(), nil, 'editor_marker_quad_unit')
             elseif tObj.type == 'triangle' then
-                -- Real geometry (from tObj.points) is filled in by the per-frame check below,
+                -- Real geometry (from tObj.points) is filled in by the change check below,
                 -- which always runs immediately after this (entry.sig starts nil, never equal to
                 -- a real signature) -- this placeholder just needs to be a valid triangle. Unique
                 -- nickname per marker index for the same reason explained below on the real
@@ -1994,12 +2152,13 @@ function updateSceneObjectShapes()
                 handle:add(lineFlatPoints(tObj))
             end
             handle:setColor(tSceneMarkerColor.r, tSceneMarkerColor.g, tSceneMarkerColor.b, tSceneMarkerColor.a)
-            entry = { handle = handle, sType = tObj.type, sig = nil, rebuildCount = 0 }
+            entry = { handle = handle, sType = tObj.type, sig = nil }
             tSceneObjectShapes[i] = entry
         end
         if tObj.type == 'point' then
             entry.handle:setPos(tObj.x, tObj.y, tObj.z)
-            entry.handle:setScale(40, 40, 40)
+            local radius = markerMath.pointRadius(tMapOptions)
+            entry.handle:setScale(radius, radius, radius)
         elseif tObj.type == 'circle' then
             entry.handle:setPos(tObj.x, tObj.y, tObj.z)
             local r = tObj.ray or 50
@@ -2014,24 +2173,18 @@ function updateSceneObjectShapes()
             local sig = string.format('%.2f,%.2f,%.2f|%.2f,%.2f,%.2f|%.2f,%.2f,%.2f',
                 p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, p3.x, p3.y, p3.z)
             if entry.sig ~= sig then
-                -- A genuinely unique nickname per rebuild (marker index + a running counter) is
-                -- required here, not a fixed literal string -- see the comment on the placeholder
-                -- creation above: MESH_MANAGER::load caches by nickname across ALL shape objects,
-                -- so reusing one fixed name meant every edit after the very first triangle ever
-                -- created just got that first triangle's stale geometry back, silently ignoring
-                -- the new points (this was the actual bug: dragging any point/the whole triangle
-                -- visibly did nothing, and every triangle marker rendered identically).
-                entry.rebuildCount = (entry.rebuildCount or 0) + 1
+                -- Mesh geometry is cached by nickname: keep IDs unique across undo and load.
                 entry.handle:destroy()
                 entry.handle = shape:new('3d', 0, 0, 0)
                 entry.handle:create(triangleVertsFromPoints(p1, p2, p3), nil,
-                    'editor_marker_triangle_' .. i .. '_' .. entry.rebuildCount)
+                    'editor_marker_triangle_' .. markerMath.nextGeometryId())
                 entry.handle:setColor(tSceneMarkerColor.r, tSceneMarkerColor.g, tSceneMarkerColor.b, tSceneMarkerColor.a)
                 entry.sig = sig
             end
         else -- 'line'
             entry.handle:set(lineFlatPoints(tObj), 1)
         end
+        entry.handle.alwaysOnTop = true
         entry.handle.visible = (sActiveTab == 'map') and bShowSceneObjectMarkers
     end
 end
@@ -2066,32 +2219,26 @@ function drawObjectMarkerFields(tObj, markerIndex)
     local c3, z = tImGui.DragFloat(tLang.L('axis_z') .. '##marker_z' .. markerIndex, tObj.z, 1, minZ, maxZ, '%.2f')
     tImGui.PopItemWidth()
     if c1 or c2 or c3 then
-        -- For a triangle, x/y/z is a "move the whole shape" convenience control, not its own
-        -- corner -- translate all 3 stored corners by the same delta so dragging it relocates the
-        -- triangle without reshaping it.
-        if tObj.type == 'triangle' and tObj.points then
-            local dx, dy, dz = x - tObj.x, y - tObj.y, z - tObj.z
-            for _, p in ipairs(tObj.points) do
-                p.x, p.y, p.z = p.x + dx, p.y + dy, p.z + dz
-            end
-        end
-        tObj.x, tObj.y, tObj.z = x, y, z
+        tMarkerEdit.dirty = true
+        -- Absolute path/corner points move together with their object's origin.
+        markerMath.translate(tObj, x, y, z)
     end
 
     if tObj.type == 'rectangle' then
         local cw, w = tImGui.DragFloat(tLang.L('width') .. '##marker_w' .. markerIndex, tObj.width or 100, 1, 1, rangeSpan, '%.2f')
         local ch, h = tImGui.DragFloat(tLang.L('height') .. '##marker_h' .. markerIndex, tObj.height or 100, 1, 1, rangeSpan, '%.2f')
-        if cw then tObj.width = w end
-        if ch then tObj.height = h end
+        if cw then tMarkerEdit.dirty = true; tObj.width = w end
+        if ch then tMarkerEdit.dirty = true; tObj.height = h end
     elseif tObj.type == 'circle' then
         local cr, r = tImGui.DragFloat(tLang.L('ray') .. '##marker_ray' .. markerIndex, tObj.ray or 50, 1, 1, rangeSpan, '%.2f')
-        if cr then tObj.ray = r end
+        if cr then tMarkerEdit.dirty = true; tObj.ray = r end
     elseif tObj.type == 'triangle' then
         -- 3 independently draggable corners, initialized around the marker's own position the
         -- first time this marker becomes a triangle (or if points was never a valid 3-tuple, e.g.
         -- an older save/a fresh marker) -- not degenerate all-zero, so the shape is visible and
         -- editable immediately.
         if not tObj.points or #tObj.points ~= 3 then
+            tMarkerEdit.dirty = true
             tObj.points = {
                 {x = tObj.x - 50, y = tObj.y, z = tObj.z - 50},
                 {x = tObj.x + 50, y = tObj.y, z = tObj.z - 50},
@@ -2103,9 +2250,17 @@ function drawObjectMarkerFields(tObj, markerIndex)
             local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##tri_x' .. markerIndex .. '_' .. i, p.x, 1, minX, maxX, '%.2f')
             local pc2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##tri_y' .. markerIndex .. '_' .. i, p.y, 1, minY, maxY, '%.2f')
             local pc3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##tri_z' .. markerIndex .. '_' .. i, p.z, 1, minZ, maxZ, '%.2f')
-            if pc1 or pc2 or pc3 then p.x, p.y, p.z = px, py, pz end
+            if pc1 or pc2 or pc3 then tMarkerEdit.dirty = true; p.x, p.y, p.z = px, py, pz end
         end
     elseif tObj.type == 'line' then
+        local capture = tImGui.Checkbox(tLang.L('scene3d_click_line_points') .. '##capture' .. markerIndex,
+            tMarkerEdit.capture == tObj)
+        if capture then
+            tMarkerEdit.capture = tObj
+            tMarkerEdit.selected = tObj
+        elseif tMarkerEdit.capture == tObj then
+            tMarkerEdit.capture = nil
+        end
         tObj.points = tObj.points or {}
         if tImGui.Button(tLang.L('add_point') .. '##marker_addpt' .. markerIndex) then
             local n = #tObj.points
@@ -2131,12 +2286,13 @@ function drawObjectMarkerFields(tObj, markerIndex)
                 newPoint = {x = tObj.x, y = tObj.y, z = tObj.z}
             end
             table.insert(tObj.points, newPoint)
+            tMarkerEdit.dirty = true
         end
         for i, p in ipairs(tObj.points) do
             local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##pt_x' .. markerIndex .. '_' .. i, p.x, 1, minX, maxX, '%.2f')
             local pc2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##pt_y' .. markerIndex .. '_' .. i, p.y, 1, minY, maxY, '%.2f')
             local pc3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##pt_z' .. markerIndex .. '_' .. i, p.z, 1, minZ, maxZ, '%.2f')
-            if pc1 or pc2 or pc3 then p.x, p.y, p.z = px, py, pz end
+            if pc1 or pc2 or pc3 then tMarkerEdit.dirty = true; p.x, p.y, p.z = px, py, pz end
         end
     end
 end
@@ -2261,7 +2417,11 @@ function drawMapTab(item_width)
     tImGui.Separator()
     tImGui.Text(tLang.L('object_options'))
     local showObj = tImGui.Checkbox(tLang.L('show_scene_objects'), bShowSceneObjectMarkers)
-    if showObj ~= bShowSceneObjectMarkers then bShowSceneObjectMarkers = showObj end
+    if showObj ~= bShowSceneObjectMarkers then
+        bShowSceneObjectMarkers = showObj
+        tMarkerEdit.dirty = true
+        tMarkerEdit.drag, tMarkerEdit.capture = nil, nil
+    end
     if tImGui.Button(tLang.L('add_object'), tUtil.getResponsiveItemSize(item_width - 40)) then
         addSceneObjectMarker()
         pushUndoSnapshot()
@@ -2272,10 +2432,15 @@ function drawMapTab(item_width)
             local ret2, cur2 = tImGui.Combo('##marker_type' .. i, tComboObjectTypeIndexOf(tObj.type), tComboObjectType3d)
             if ret2 then
                 tObj.type = tComboObjectType3d[cur2]
+                tMarkerEdit.dirty = true
+                tMarkerEdit.capture = nil
             end
             drawObjectMarkerFields(tObj, i)
             if tImGui.Button(tLang.L('delete') .. '##marker_del' .. i) then
                 if tSceneObjectShapes[i] and tSceneObjectShapes[i].handle then tSceneObjectShapes[i].handle:destroy() end
+                if tMarkerEdit.selected == tObj then tMarkerEdit.selected = nil end
+                if tMarkerEdit.capture == tObj then tMarkerEdit.capture = nil end
+                tMarkerEdit.dirty = true
                 table.remove(tSceneObjects, i)
                 table.remove(tSceneObjectShapes, i)
                 pushUndoSnapshot()
@@ -2285,7 +2450,6 @@ function drawMapTab(item_width)
             tImGui.TreePop()
         end
     end
-    updateSceneObjectShapes()
 end
 
 function tComboMapTypeIndexOf(sType)
@@ -2452,6 +2616,7 @@ function addLayer()
         bHalfOffsetX = false, bHalfOffsetZ = false,
     })
     iSelectedLayer = #tLayers
+    rebuildGridVisual()
 end
 
 function drawLayerTab(item_width)
@@ -2525,6 +2690,7 @@ function drawLayerTab(item_width)
                 end
                 table.remove(tLayers, i)
                 if iSelectedLayer > #tLayers then iSelectedLayer = #tLayers end
+                rebuildGridVisual()
                 tImGui.TreePop()
                 break
             end
@@ -2579,17 +2745,17 @@ function drawPlacedMeshAnimationControls(i, tPlaced)
     if not tObj then return end
     local controlX = tImGui.GetCursorPosX()
 
-    local okTotal, total = pcall(function() return tObj:getTotalAnim() end)
+    local okTotal, total = dpCall(function() return tObj:getTotalAnim() end)
     if okTotal and total and total > 0 then
         local names, selected = {}, 1
         for animIndex = 1, total do
-            local okName, name = pcall(function() return tObj:getAnim(animIndex) end)
+            local okName, name = dpCall(function() return tObj:getAnim(animIndex) end)
             name = okName and name or tostring(animIndex)
             names[#names + 1] = name
             if name == tPlaced.animationName then selected = animIndex end
         end
         if tPlaced.animationName == '' then
-            local okCurrent, _, currentIndex = pcall(function() return tObj:getAnim() end)
+            local okCurrent, _, currentIndex = dpCall(function() return tObj:getAnim() end)
             if okCurrent and currentIndex then selected = currentIndex end
         end
         tImGui.SetCursorPosX(controlX)
@@ -2602,13 +2768,13 @@ function drawPlacedMeshAnimationControls(i, tPlaced)
         end
     end
 
-    local okArtTotal, artTotal = pcall(function() return tObj:getTotalArticulatedAnimations() end)
+    local okArtTotal, artTotal = dpCall(function() return tObj:getTotalArticulatedAnimations() end)
     if okArtTotal and artTotal and artTotal > 0 then
         local active = {}
         for _, name in ipairs(tPlaced.articulatedAnimationNames or {}) do active[name] = true end
         local names = {}
         for animIndex = 1, artTotal do
-            local okName, name = pcall(function() return tObj:getArticulatedAnimationName(animIndex) end)
+            local okName, name = dpCall(function() return tObj:getArticulatedAnimationName(animIndex) end)
             if okName and name then names[#names + 1] = name end
         end
         tImGui.SetCursorPosX(controlX)
@@ -2894,6 +3060,9 @@ end
 ------------------------------------------------------------------------------------------------------------------
 
 function setActiveTab(sTab)
+    if sActiveTab == sTab then return end
+    if tMarkerEdit.drag and tMarkerEdit.drag.moved then pushUndoSnapshot() end
+    tMarkerEdit.drag, tMarkerEdit.capture = nil, nil
     sActiveTab = sTab
     cam3d = tCamByTab[sTab]
     -- The Mesh View preview object is a real renderizable placed at the world origin -- without
@@ -3556,6 +3725,7 @@ end
 -- comment for why this is deliberately leaner than applyLoadedScene3d rather than reusing it.
 function restoreScene3dSnapshot(snapshot)
     for i = #tPlacedMeshes, 1, -1 do removePlacedMesh(i) end
+    clearSceneObjectVisuals()
     tSceneObjects       = deepCopyPlainTable(snapshot.tSceneObjects)
     tSceneObjectShapes  = {}
     tMapOptions         = deepCopyPlainTable(snapshot.tMapOptions)
@@ -3751,6 +3921,7 @@ function applyLoadedScene3d(tLoaded)
     -- looked like lights were off until some unrelated light edit incidentally called it. Apply it
     -- explicitly now that the real data is in place.
     applyLightConfigToEngine()
+    clearSceneObjectVisuals()
     tSceneObjects = tLoaded.tSceneObjects or {}
     tSceneObjectShapes = {}
     for i = #tPlacedMeshes, 1, -1 do removePlacedMesh(i) end
@@ -3877,7 +4048,7 @@ function onOpenScene3d()
         tUtil.showMessageWarn(tLang.L('scene_3d_load_failed'))
         return
     end
-    local ok, tLoaded = pcall(chunk)
+    local ok, tLoaded = dpCall(chunk)
     if not ok or not tLoaded then
         tUtil.showMessageWarn(tLang.L('scene_3d_load_failed'))
         return
@@ -4116,13 +4287,8 @@ function onLoop(delta)
     updateCam3dKeyboardMovement(delta)
     applyCam3d(cam3d)
 
-    -- Unconditional, every frame, regardless of which tab is active -- drawMapTab also calls this
-    -- once at the end of its own marker-list UI, but that only runs while the Map tab itself is
-    -- being drawn, so its `.visible = (sActiveTab == 'map') and bShowSceneObjectMarkers` toggle
-    -- never got a chance to turn markers back OFF once the user switched to a different tab (they
-    -- stayed visible everywhere, not just the Main Scene/Map tab they're meant to be a reference
-    -- for). Calling it here as well keeps visibility correct no matter which tab is current.
     updateSceneObjectShapes()
+    updateSceneObjectInteraction()
 
     -- Shown in all three tabs (Map, Mesh View, Map edition) -- `cam3d` already aliases whichever
     -- tab's own camera is current (setActiveTab), so this always drives the right one.
@@ -4263,6 +4429,7 @@ function onTouchDown(key, x, y)
     if key == 0 then
         fMouseDownX, fMouseDownY = x, y
         bCameraDraggedThisPress  = false
+        if beginSceneObjectDrag(x, y) then return end
         -- Shift+drag starts a selection rectangle instead of orbiting -- Shift is the explicit
         -- signal that this press means "select", so the camera must not move underneath it.
         if keyShiftPressed and sActiveTab == 'layer' then
@@ -4275,6 +4442,11 @@ function onTouchDown(key, x, y)
 end
 
 function onTouchMove(key, x, y)
+    if tMarkerEdit.drag then
+        moveSceneObjectDrag(x, y)
+        mouseLastX, mouseLastY = x, y
+        return
+    end
     if tImGui.GetWantCaptureMouse() then
         mouseLastX, mouseLastY = x, y
         return
@@ -4285,6 +4457,10 @@ function onTouchMove(key, x, y)
         return
     end
     if isClickedMouseleft then
+        if tMarkerEdit.capture and sceneObjectsEditable() then
+            mouseLastX, mouseLastY = x, y
+            return
+        end
         if not bCameraDraggedThisPress then
             local ddx, ddy = x - fMouseDownX, y - fMouseDownY
             if (ddx * ddx + ddy * ddy) > (iDragThresholdPx * iDragThresholdPx) then
@@ -4295,29 +4471,36 @@ function onTouchMove(key, x, y)
         cam3d.elevation = cam3d.elevation + (y - mouseLastY) * 0.005
         cam3d.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, cam3d.elevation))
     elseif isClickedMouseRight then
-        local camPos = camera3d:getPos()
-        local fwx, fwy, fwz = cam3d.fx - camPos.x, cam3d.fy - camPos.y, cam3d.fz - camPos.z
-        local len = math.sqrt(fwx * fwx + fwy * fwy + fwz * fwz)
-        if len > 1e-6 then
-            fwx, fwy, fwz = fwx / len, fwy / len, fwz / len
-            local rgx, rgz = -fwz, fwx -- cross(worldUp(0,1,0), forward) simplified to XZ plane
-            local dx, dy = (x - mouseLastX), (y - mouseLastY)
-            local scale = cam3d.distance * 0.001
-            cam3d.fx = cam3d.fx - rgx * dx * scale
-            cam3d.fz = cam3d.fz - rgz * dx * scale
-            cam3d.fy = cam3d.fy + dy * scale
+        -- Unproject both cursor positions onto the view plane through the orbit focus.
+        -- This follows screen right/up even when the camera is rotated or pitched.
+        local origin = {x=cam3d.fx,y=cam3d.fy,z=cam3d.fz}
+        local normal = camera3d:getNormal('F')
+        local ax,ay,az = markerMath.planeHit(mouseLastX,mouseLastY,origin,normal)
+        local bx,by,bz = markerMath.planeHit(x,y,origin,normal)
+        if ax and bx then
+            cam3d.fx = cam3d.fx + ax-bx
+            cam3d.fy = cam3d.fy + ay-by
+            cam3d.fz = cam3d.fz + az-bz
         end
     end
     mouseLastX, mouseLastY = x, y
 end
 
 function onTouchUp(key, x, y)
+    if key == 0 and tMarkerEdit.drag then
+        if tMarkerEdit.drag.moved then pushUndoSnapshot() end
+        tMarkerEdit.drag = nil
+        isClickedMouseleft = false
+        return
+    end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
         if bRectSelecting then
             finalizeRectSelection(tRectSelection.xStart, tRectSelection.yStart, x, y)
             lnRectSelection.visible = false
         elseif isClickedMouseleft and not bCameraDraggedThisPress then
-            if sMeshSelectedForPlacement then
+            if appendSceneLinePoint(x, y) then
+                -- Capture owns this click; do not select/place meshes underneath it.
+            elseif sMeshSelectedForPlacement then
                 tryPlaceMeshAt(x, y)
             else
                 handleSelectClickAt()
@@ -4337,6 +4520,7 @@ end
 -- (the viewing angle) unchanged while making the camera itself dolly along that ray -- see the
 -- derivation in the memory/commit for this change if the math needs revisiting.
 function onTouchZoom(zoom)
+    if tMarkerEdit.drag then return end
     if tImGui.GetWantCaptureMouse() then return end
     local oldDistance = cam3d.distance
     local newDistance = math.max(10, oldDistance * (1.0 - zoom * 0.15))
@@ -4360,6 +4544,13 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if key == mbm.getKeyCode('esc') and sceneObjectsEditable() then
+        tMarkerEdit.capture = nil
+        if tMarkerEdit.drag and tMarkerEdit.drag.moved then pushUndoSnapshot() end
+        tMarkerEdit.drag, tMarkerEdit.selected = nil, nil
+        isClickedMouseleft = false
+        tMarkerEdit.hoverKey = nil
+    end
     if key == mbm.getKeyCode('shift') then
         keyShiftPressed = true
     elseif key == mbm.getKeyCode('control') or key == mbm.getKeyCode('windows') then
