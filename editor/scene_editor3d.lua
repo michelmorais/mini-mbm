@@ -386,15 +386,14 @@ end
 -- A mesh's shader variant is selected based on whether lighting is enabled at the moment
 -- it is created/loaded -- a mesh created while lighting is off never gains the lit-shader
 -- variant even if lighting is toggled on globally afterward. So every mesh-creation call
--- site must force lighting on for the duration of creation, then restore the correct state.
-function createMeshWithLightingSupport(createFn)
+-- site selects the asset preference for creation, then restores the scene switch.
+function createMeshWithLightingSupport(createFn, fileName)
     local wasEnabled = mbm.getLightState('3d').enabled
-    if not wasEnabled then
-        mbm.setLightEnabled('3d', true)
-    end
-    local tObj = createFn()
-    applyTabLighting()
-    return tObj
+    local offset = fileName and tMeshOffsets[fileName]
+    mbm.setLightEnabled('3d', not offset or offset.receiveLight ~= false)
+    local ok, tObj = dpCall(createFn)
+    mbm.setLightEnabled('3d', wasEnabled)
+    if ok then return tObj end
 end
 
 -- Point lights are usually meant to sit somewhere around the scene being built, so drag range
@@ -844,7 +843,7 @@ function placeMeshSync(fileName, sType, coordType)
         else
             return tUtil.onAddMeshToEditor(fileName, false, coordType)
         end
-    end)
+    end, fileName)
     if tObj then markMeshLoaded(fileName) end
     return tObj
 end
@@ -859,15 +858,14 @@ end
 function placeMeshAsync(fileName, sType, coordType, onDone)
     if sType == 'mesh' and not tMeshAlreadyLoaded[fileName] then
         local m = mesh:new(coordType)
-        local wasEnabled = mbm.getLightState('3d').enabled
-        if not wasEnabled then
-            mbm.setLightEnabled('3d', true)
-        end
         m:loadAsync(fileName, function(self_mesh, success)
+            -- Async completion can occur under another tab/asset's lighting state. Reuse the
+            -- cached mesh to initialize this instance's shaders under its own saved preference.
+            local loaded = success and placeMeshSync(fileName, sType, coordType) or nil
+            self_mesh:destroy()
             applyTabLighting()
-            if success then markMeshLoaded(fileName) end
             tLoadProgress.iLoaded = tLoadProgress.iLoaded + 1
-            onDone(success and self_mesh or nil)
+            onDone(loaded)
         end)
     else
         local tObj = placeMeshSync(fileName, sType, coordType)
@@ -1603,6 +1601,7 @@ function getMeshOffset(fileName)
     return {
         x = (offset and offset.x) or 0, y = (offset and offset.y) or 0, z = (offset and offset.z) or 0,
         rx = (offset and offset.rx) or 0, ry = (offset and offset.ry) or 0, rz = (offset and offset.rz) or 0,
+        receiveLight = not offset or offset.receiveLight ~= false,
         sx = (offset and offset.sx) or 1, sy = (offset and offset.sy) or 1, sz = (offset and offset.sz) or 1,
     }
 end
@@ -2498,7 +2497,7 @@ function updatePreviewMesh3d(entry)
     if not entry then return end
     tPreviewMesh3d = createMeshWithLightingSupport(function()
         return tUtil.onAddMeshToEditor(entry.fileName, false, '3d')
-    end)
+    end, entry.fileName)
     if tPreviewMesh3d then
         markMeshLoaded(entry.fileName)
         -- Reflect this asset's per-asset offset (Mesh property tab) in the preview too -- it used
@@ -2543,6 +2542,28 @@ function drawMeshSetTab(item_width)
             tImGui.Text(tLang.L('mesh_offset_fmt'):format(tUtil.getShortName(entry.fileName)))
             local offset = getMeshOffset(entry.fileName)
 
+            if entry.type == 'mesh' then
+                local receivesLight = tImGui.Checkbox(tLang.L('scene3d_receive_light'), offset.receiveLight)
+                if receivesLight ~= offset.receiveLight then
+                    offset.receiveLight = receivesLight
+                    tMeshOffsets[entry.fileName] = offset
+                    updatePreviewMesh3d(entry)
+                    for _, placed in ipairs(tPlacedMeshes) do
+                        if placed.fileName == entry.fileName and placed.tObj then
+                            local replacement = placeMeshSync(placed.fileName, placed.type, '3d')
+                            if replacement then
+                                placed.tObj:destroy()
+                                placed.tObj = replacement
+                            end
+                            syncPlacedMeshTransform(placed)
+                            applyPlacedMeshAnimations(placed)
+                            applyPlacedMeshVisibility(placed)
+                        end
+                    end
+                    pushUndoSnapshot()
+                end
+            end
+
             tImGui.Text(tLang.L('offset_position'))
             local o1, ox = tImGui.InputFloat(tLang.L('axis_x') .. '##offset_x', offset.x, 1, 10, '%.2f')
             local o2, oy = tImGui.InputFloat(tLang.L('axis_y') .. '##offset_y', offset.y, 1, 10, '%.2f')
@@ -2564,6 +2585,7 @@ function drawMeshSetTab(item_width)
 
             if o1 or o2 or o3 or o4 or o5 or o6 or o7 or o8 or o9 then
                 tMeshOffsets[entry.fileName] = {
+                    receiveLight = offset.receiveLight,
                     x = ox, y = oy, z = oz,
                     rx = math.rad(orxDeg), ry = math.rad(oryDeg), rz = math.rad(orzDeg),
                     sx = math.max(osx, 0.001), sy = math.max(osy, 0.001), sz = math.max(osz, 0.001),
@@ -3506,7 +3528,9 @@ tScene3d._loadMeshAsyncQueued = function(self, fileName, onLoaded)
         queue.bLoading = true
         local m = mesh:new('3d')
         m:loadAsync(fileName, function(self_mesh, success)
-            req(success and self_mesh or nil)
+            local loaded = success and self:_createMeshWithLighting(fileName) or nil
+            self_mesh:destroy()
+            req(loaded)
             processNext()
         end)
     end
@@ -3518,8 +3542,7 @@ end
 ]]
     else
         sMeshLoadBranch = [[
-        local m = mesh:new('3d')
-        finish(m:load(tInfo.fileName) and m or nil)]]
+        finish(self:_createMeshWithLighting(tInfo.fileName))]]
         sAsyncQueueHelper = ''
     end
 
@@ -3538,6 +3561,19 @@ tScene3d.updateCamera = function(self)
     local cam = mbm.getCamera('3d')
     cam:setPos(self.fCamPos.x, self.fCamPos.y, self.fCamPos.z)
     cam:setFocus(self.fCamFocus.x, self.fCamFocus.y, self.fCamFocus.z)
+end
+
+-- Lighting is selected per asset when its instance shaders are initialized. Restore the
+-- scene switch immediately; one unlit mesh must never turn off lighting for its neighbours.
+tScene3d._createMeshWithLighting = function(self, fileName)
+    local enabled = mbm.getLightState('3d').enabled
+    local offset = self.tMeshOffsets[fileName] or {}
+    mbm.setLightEnabled('3d', offset.receiveLight ~= false)
+    local object = mesh:new('3d')
+    local loaded = object:load(fileName)
+    mbm.setLightEnabled('3d', enabled)
+    if loaded then return object end
+    object:destroy()
 end
 
 @@ASYNC_QUEUE_HELPER@@
@@ -3727,6 +3763,7 @@ function captureScene3dSnapshot()
         tPlacedMeshInfo = tPlacedInfo,
         tMapOptions     = deepCopyPlainTable(tMapOptions),
         tSceneObjects   = deepCopyPlainTable(tSceneObjects),
+        tMeshOffsets    = deepCopyPlainTable(tMeshOffsets),
     }
 end
 
@@ -3735,6 +3772,8 @@ end
 function restoreScene3dSnapshot(snapshot)
     for i = #tPlacedMeshes, 1, -1 do removePlacedMesh(i) end
     clearSceneObjectVisuals()
+    tMeshOffsets = deepCopyPlainTable(snapshot.tMeshOffsets or {})
+    destroyPreviewMesh3d()
     tSceneObjects       = deepCopyPlainTable(snapshot.tSceneObjects)
     tSceneObjectShapes  = {}
     tMapOptions         = deepCopyPlainTable(snapshot.tMapOptions)
@@ -3751,6 +3790,8 @@ function restoreScene3dSnapshot(snapshot)
         syncPlacedMeshTransform(tPlaced)
         applyPlacedMeshAnimations(tPlaced)
     end
+    local previewEntry = getFilteredMeshSetEntries()[iPreviewedMeshSetIndex]
+    if previewEntry then updatePreviewMesh3d(previewEntry) end
 end
 
 -- Called once from onInitScene (fresh/blank editor state) and once at the end of

@@ -3290,6 +3290,7 @@ M.en = {
     show_scene_objects = "Show objects in scene",
     scene3d_objects_always_on_top = "Objects always on top",
     scene3d_object_depth = "Depth",
+    scene3d_receive_light = "Receive lighting",
     scene3d_click_line_points = "Add points by clicking (line Y plane)",
     -- Common editor messages (reused across editors)
     command_executed = "Command executed.. ",
@@ -7086,6 +7087,7 @@ M.pt_br = {
     show_scene_objects = "Mostrar objetos na cena",
     scene3d_objects_always_on_top = "Objetos sempre visiveis (alwaysOnTop)",
     scene3d_object_depth = "Profundidade",
+    scene3d_receive_light = "Receber luz",
     scene3d_click_line_points = "Adicionar pontos clicando (plano Y da linha)",
     -- Common editor messages (reused across editors)
     command_executed = "Comando executado.. ",
