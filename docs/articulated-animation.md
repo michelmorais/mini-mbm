@@ -82,6 +82,13 @@ the axle and its pivot orientation aligned with the desired rotation axis.
 Moving the pivot does not move or edit the underlying vertices. It changes the transform applied
 during articulated rendering.
 
+When Mesh Debug scales all frames and subsets in its Transform worktree, it also scales every
+Part's pivot position and every clip key's position by the geometry's XYZ factors. This includes
+exact-size resizing with Keep Ratio and batch scaling. Pivot orientations, key rotations, key scale
+factors, timing, easing and hierarchy remain unchanged. Uniform resizing therefore preserves the
+animated proportions, including parented Parts and additive clips. Non-uniform resizing cannot in
+general preserve rotated poses exactly. Partial frame/subset edits remain geometry-only.
+
 ### Hierarchy
 
 A Part may reference a parent Part in the same frame. The child applies its local transform first

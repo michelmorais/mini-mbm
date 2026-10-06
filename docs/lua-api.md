@@ -1644,6 +1644,11 @@ meshD:scaleFrame(frame, sx, sy, sz [, subset])
 mutates the canonical bind skeleton; changing bind transforms requires an explicit canonical
 skeleton-authoring operation rather than an implicit side effect of vertex scaling.
 
+The Mesh Debug editor additionally updates articulated pivot positions and clip-key positions when
+scaling all frames and subsets through its shared Transform operation. This is editor policy, not
+a side effect of `scaleFrame`; partial edits remain geometry-only. Uniform Keep Ratio resizing
+preserves articulated animation proportions without changing rotations, key scale factors or timing.
+
 For a coordinate-unit change of a complete skeletal asset, use:
 
 ```lua

@@ -24,7 +24,9 @@ package.path = 'editor/?.lua;' .. package.path
 local Transform = require 'mesh_debug_transform'
 local function fixture(skeletal)
     local calls = {}
-    local mesh = { getModeDraw = function() return 'TRIANGLES' end, getSkeletonBindReport = function(_, dependencies)
+    local mesh = { getTotalArticulatedParts = function() return 0 end,
+        getTotalArticulatedAnimations = function() return 0 end,
+        getModeDraw = function() return 'TRIANGLES' end, getSkeletonBindReport = function(_, dependencies)
         assert(dependencies == false)
         if skeletal then return {canonical=true, boneCount=2} end
         return nil

@@ -26,6 +26,28 @@ local function wholeMesh(xf)
     return (xf.frame or 0) == 0 and (xf.subset or 0) == 0
 end
 
+-- A whole-asset resize changes the units of pivots and animated translations too.
+-- Rotations and key scale factors are dimensionless. Keep the geometry-only API's
+-- partial-edit behavior; this runs once per explicit transform, never while idle.
+local function scaleArticulatedData(meshD, sx, sy, sz)
+    for part = 1, meshD:getTotalArticulatedParts() do
+        local _, _, _, name, px, py, pz, qx, qy, qz, qw, parent = meshD:getArticulatedPart(part)
+        meshD:updateArticulatedPart(part, name, px*sx, py*sy, pz*sz, qx, qy, qz, qw, parent)
+    end
+    for clip = 1, meshD:getTotalArticulatedAnimations() do
+        for track = 1, meshD:getTotalArticulatedTracks(clip) do
+            local _, _, count = meshD:getArticulatedTrack(clip, track)
+            for key = 1, count do
+                local time, px, py, pz, qx, qy, qz, qw, kx, ky, kz =
+                    meshD:getArticulatedKey(clip, track, key)
+                -- Updating at the same time preserves easing, Bezier and authored Euler data.
+                meshD:updateArticulatedKey(clip, track, key, time,
+                    px*sx, py*sy, pz*sz, qx, qy, qz, qw, kx, ky, kz)
+            end
+        end
+    end
+end
+
 local ratioAxes = {'', 'X', 'Y', 'Z'}
 local ratioFields = {'', 'targetWidth', 'targetHeight', 'targetDepth'}
 local ratioSizes = {'', 'width', 'height', 'depth'}
@@ -46,6 +68,7 @@ function M.syncRatio(xf, bounds)
 end
 
 function M.drawRatio(imgui, lang, xf, id, bounds)
+    imgui.SetNextItemWidth(140)
     local changed, mode = imgui.Combo(lang.L('transform_keep_ratio') .. '##' .. id,
         xf.keepRatio or 1, {lang.L('none'), lang.L('width'), lang.L('height'), lang.L('depth')}, -1)
     if changed then xf.keepRatio = mode end
@@ -162,6 +185,7 @@ function M.apply(meshD, operation, xf)
     if scale then
         if skeletal then meshD:scaleSkeletalAsset(xf.sx)
         else meshD:scaleFrame(frame, xf.sx, xf.sy, xf.sz, subset) end
+        if whole then scaleArticulatedData(meshD, xf.sx, xf.sy, xf.sz) end
     end
     if translate then meshD:translateFrame(frame, xf.dx, xf.dy, xf.dz, subset) end
     if centralize then meshD[operation](meshD, frame, subset) end
