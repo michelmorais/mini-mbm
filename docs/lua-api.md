@@ -900,6 +900,14 @@ sh:createDynamicIndexed(vertices, indices, uvs)  -- updatable each frame
 sh:onRender(callback)  -- callback(sh) called every frame for dynamic update
 ```
 
+Named primitives are double-sided in all coordinate modes, including `"3d"`: each front
+triangle has a matching triangle with reversed winding, so the shape remains visible from
+either side with back-face culling enabled. This includes rectangle aliases and the explicit
+six-number triangle form, in both static and dynamic modes. `numTriangles` controls front-side
+tessellation; the total index count doubles, while vertex/UV counts and physics stay unchanged.
+Dynamic edits therefore move both sides together. Raw vertex/index creation keeps the supplied
+geometry and culling behavior.
+
 Indexed shapes use 16-bit vertex indices and therefore support at most 65,535 distinct vertices,
 but the triangle index list itself may contain more than 65,535 entries. The Lua binding validates
 that complete list with a 32-bit loop counter; large triangle collections do not wrap the validator.
