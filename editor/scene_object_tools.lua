@@ -110,6 +110,29 @@ function M.rayTriangleDistance(ox,oy,oz,dx,dy,dz,a,b,c)
     if distance >= 0 then return distance end
 end
 
+-- Slab intersection, including parallel rays and a camera inside the box.
+local function boxSlab(origin, direction, center, size, near, far)
+    local low, high = center-size*0.5, center+size*0.5
+    if math.abs(direction) < 1e-9 then
+        if origin < low or origin > high then return nil end
+        return near, far
+    end
+    local a, b = (low-origin)/direction, (high-origin)/direction
+    if a > b then a,b = b,a end
+    near,far = math.max(near,a),math.min(far,b)
+    if near > far then return nil end
+    return near,far
+end
+
+function M.rayBoxDistance(ox,oy,oz,dx,dy,dz,object)
+    local near,far = boxSlab(ox,dx,object.x,object.width or 100,0,math.huge)
+    if not near then return nil end
+    near,far = boxSlab(oy,dy,object.y,object.height or 100,near,far)
+    if not near then return nil end
+    near,far = boxSlab(oz,dz,object.z,object.depth or 100,near,far)
+    return near
+end
+
 function M.translate(object, x, y, z)
     local dx,dy,dz = x-object.x,y-object.y,z-object.z
     if dx == 0 and dy == 0 and dz == 0 then return false end

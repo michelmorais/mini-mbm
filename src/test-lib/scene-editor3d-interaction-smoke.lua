@@ -124,6 +124,32 @@ local function runTests()
     bShowSceneObjectMarkers=false
     assert(not beginSceneObjectDrag(x,y),'hidden objects cannot be dragged')
     bShowSceneObjectMarkers=true
+    local cube={type='cube',name='volume',x=-100,y=140,z=0,width=90,height=120,depth=60}
+    table.insert(tSceneObjects,cube)
+    tMarkerEdit.dirty=true
+    updateSceneObjectShapes()
+    local cubeHandle=tSceneObjectShapes[#tSceneObjects].handle
+    local scale=cubeHandle:getScale()
+    near(scale.x,90); near(scale.y,120); near(scale.z,60)
+    x,y=screenPoint(cube)
+    assert(pickSceneObject(x,y)==cube,'cube pick')
+    onTouchDown(0,x,y); onTouchMove(0,x+15,y+5); onTouchUp(0,x+15,y+5)
+    assert(cube.x~=-100 or cube.y~=140,'cube drag')
+    local snap=captureScene3dSnapshot().tSceneObjects[#tSceneObjects]
+    assert(snap.type=='cube' and snap.width==90 and snap.height==120 and snap.depth==60)
+    local box={x=0,y=0,z=0,width=2,height=4,depth=6}
+    near(mathTools.rayBoxDistance(0,0,-10,0,0,1,box),7)
+    assert(not mathTools.rayBoxDistance(2,0,-10,0,0,1,box),'parallel ray outside cube')
+    assert(not mathTools.rayBoxDistance(0,0,-10,0,0,-1,box),'cube behind ray')
+    near(mathTools.rayBoxDistance(0,0,0,1,0,0,box),0)
+    for _,enabled in ipairs({false,true}) do
+        bSceneObjectsAlwaysOnTop=enabled
+        tMarkerEdit.dirty=true
+        updateSceneObjectShapes(); updateSceneObjectInteraction()
+        for _,entry in ipairs(tSceneObjectShapes) do assert(entry.handle.alwaysOnTop==enabled) end
+        for _,axis in pairs(tMarkerEdit.axes) do assert(axis.alwaysOnTop==enabled) end
+    end
+    assert(tSceneMarkerColor.a==0.25)
     local lineHandle=tSceneObjectShapes[2].handle
     local oldSet=lineHandle.set
     local gridHandle=tGridLines[1]

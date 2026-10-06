@@ -105,7 +105,8 @@ tPlacedMeshes = {}
 tSceneObjects            = {}
 tSceneObjectShapes       = {}
 tMarkerEdit = {dirty = true, axes = {}}
-tComboObjectType3d       = {'point', 'rectangle', 'circle', 'triangle', 'line'}
+tComboObjectType3d       = {'point', 'rectangle', 'circle', 'triangle', 'line', 'cube'}
+bSceneObjectsAlwaysOnTop = true -- editor-wide display preference
 bShowSceneObjectMarkers  = true -- manual show/hide toggle, ANDed with the "Main Scene tab only" rule
 
 -- ---- Mesh Set (asset browser + thumbnail cache) ----
@@ -1889,6 +1890,8 @@ function pickSceneObject(x, y)
         elseif object.type == 'triangle' and object.points and #object.points >= 3 then
             distance = markerMath.rayTriangleDistance(ox,oy,oz,dx,dy,dz,
                 object.points[1],object.points[2],object.points[3])
+        elseif object.type == 'cube' then
+            distance = markerMath.rayBoxDistance(ox,oy,oz,dx,dy,dz,object)
         elseif object.type == 'rectangle' and math.abs(dz) > 1e-6 then
             local t = (object.z-oz)/dz
             if t >= 0 and math.abs(ox+dx*t-object.x) <= (object.width or 100)*0.5 and
@@ -1909,7 +1912,7 @@ function updateSceneObjectInteraction()
                 handle = line:new('3d')
                 handle:add({0,0,0,axis.x,axis.y,axis.z})
                 handle:setColor(table.unpack(axis.color))
-                handle.alwaysOnTop = true
+                handle.alwaysOnTop = bSceneObjectsAlwaysOnTop
                 tMarkerEdit.axes[name] = handle
             end
             -- Transform-only changes; no per-frame line buffer upload.
@@ -1938,8 +1941,8 @@ function updateSceneObjectInteraction()
     for i, object in ipairs(tSceneObjects) do
         local entry = tSceneObjectShapes[i]
         if entry then
-            if object == hovered then entry.handle:setColor(1,0.8,0.1,0.9)
-            elseif object == selected then entry.handle:setColor(0.2,1,0.5,0.85)
+            if object == hovered then entry.handle:setColor(1,0.8,0.1,0.4)
+            elseif object == selected then entry.handle:setColor(0.2,1,0.5,0.35)
             else entry.handle:setColor(tSceneMarkerColor.r,tSceneMarkerColor.g,tSceneMarkerColor.b,tSceneMarkerColor.a) end
         end
     end
@@ -2017,10 +2020,8 @@ function addSceneObjectMarker()
     updateSceneObjectShapes()
 end
 
--- All marker shapes share this color -- semi-transparent magenta, matching the Tile Map Editor's
--- own "this is an editor marker, not real geometry" convention (editor/tilemap_editor.lua:2018,
--- the line-type object marker there uses the same {1.0, 0.0, 1.0, 0.7}).
-tSceneMarkerColor = {r = 1, g = 0, b = 1, a = 0.7}
+-- Translucent magenta keeps marker volumes readable without covering scene details.
+tSceneMarkerColor = {r = 1, g = 0, b = 1, a = 0.25}
 
 -- Unit-radius UV-sphere, low tessellation (this is an editor marker, not a shipped asset).
 -- Scaled per-instance via :setScale(r,r,r) from tObj.ray. No named 'sphere' primitive exists in
@@ -2127,6 +2128,15 @@ function updateSceneObjectShapes()
             elseif tObj.type == 'circle' then
                 handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
                 handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
+            elseif tObj.type == 'cube' then
+                local verts = {}
+                for _, triangle in ipairs(highlightBoxTriangleFaces(highlightBoxCorners())) do
+                    for _, vertex in ipairs(triangle) do
+                        verts[#verts+1], verts[#verts+2], verts[#verts+3] = vertex.x, vertex.y, vertex.z
+                    end
+                end
+                handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
+                handle:create(verts, nil, 'editor_marker_cube_unit')
             elseif tObj.type == 'rectangle' then
                 handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
                 handle:create(unitQuadVerts(), nil, 'editor_marker_quad_unit')
@@ -2163,6 +2173,9 @@ function updateSceneObjectShapes()
             entry.handle:setPos(tObj.x, tObj.y, tObj.z)
             local r = tObj.ray or 50
             entry.handle:setScale(r, r, r)
+        elseif tObj.type == 'cube' then
+            entry.handle:setPos(tObj.x, tObj.y, tObj.z)
+            entry.handle:setScale(tObj.width or 100, tObj.height or 100, tObj.depth or 100)
         elseif tObj.type == 'rectangle' then
             entry.handle:setPos(tObj.x, tObj.y, tObj.z)
             entry.handle:setScale(tObj.width or 100, tObj.height or 100, 1)
@@ -2184,9 +2197,10 @@ function updateSceneObjectShapes()
         else -- 'line'
             entry.handle:set(lineFlatPoints(tObj), 1)
         end
-        entry.handle.alwaysOnTop = true
+        entry.handle.alwaysOnTop = bSceneObjectsAlwaysOnTop
         entry.handle.visible = (sActiveTab == 'map') and bShowSceneObjectMarkers
     end
+    for _, axis in pairs(tMarkerEdit.axes) do axis.alwaysOnTop = bSceneObjectsAlwaysOnTop end
 end
 
 -- markerIndex must be part of every widget ID here -- ImGui identifies widgets by ID string, and
@@ -2206,17 +2220,12 @@ function drawObjectMarkerFields(tObj, markerIndex)
     local cName, sName = tImGui.InputText('##marker_name' .. markerIndex, tObj.name or 'no_name')
     if cName then tObj.name = sName end
 
-    -- Same DragFloat + scene-range convention already used for point lights (getPointLightDragRange)
-    -- -- a typed InputFloat has no sense of the scene's actual scale, so nudging a marker into place
-    -- meant guessing numbers; dragging within the grid's real extent is the same "grab and move it"
-    -- interaction the point-light panel already has.
-    local minX, maxX, minY, maxY, minZ, maxZ = getPointLightDragRange()
-    local rangeSpan = math.max(maxX - minX, maxZ - minZ)
-
+    -- Physics anchors can extend beyond every layer/grid. Equal DragFloat bounds disable
+    -- coordinate clamping; dimensions keep only their positive minimum after editing.
     tImGui.PushItemWidth(120)
-    local c1, x = tImGui.DragFloat(tLang.L('axis_x') .. '##marker_x' .. markerIndex, tObj.x, 1, minX, maxX, '%.2f')
-    local c2, y = tImGui.DragFloat(tLang.L('axis_y') .. '##marker_y' .. markerIndex, tObj.y, 1, minY, maxY, '%.2f')
-    local c3, z = tImGui.DragFloat(tLang.L('axis_z') .. '##marker_z' .. markerIndex, tObj.z, 1, minZ, maxZ, '%.2f')
+    local c1, x = tImGui.DragFloat(tLang.L('axis_x') .. '##marker_x' .. markerIndex, tObj.x, 1, 0, 0, '%.2f')
+    local c2, y = tImGui.DragFloat(tLang.L('axis_y') .. '##marker_y' .. markerIndex, tObj.y, 1, 0, 0, '%.2f')
+    local c3, z = tImGui.DragFloat(tLang.L('axis_z') .. '##marker_z' .. markerIndex, tObj.z, 1, 0, 0, '%.2f')
     tImGui.PopItemWidth()
     if c1 or c2 or c3 then
         tMarkerEdit.dirty = true
@@ -2224,14 +2233,19 @@ function drawObjectMarkerFields(tObj, markerIndex)
         markerMath.translate(tObj, x, y, z)
     end
 
-    if tObj.type == 'rectangle' then
-        local cw, w = tImGui.DragFloat(tLang.L('width') .. '##marker_w' .. markerIndex, tObj.width or 100, 1, 1, rangeSpan, '%.2f')
-        local ch, h = tImGui.DragFloat(tLang.L('height') .. '##marker_h' .. markerIndex, tObj.height or 100, 1, 1, rangeSpan, '%.2f')
-        if cw then tMarkerEdit.dirty = true; tObj.width = w end
-        if ch then tMarkerEdit.dirty = true; tObj.height = h end
+    if tObj.type == 'rectangle' or tObj.type == 'cube' then
+        local cw, w = tImGui.DragFloat(tLang.L('width') .. '##marker_w' .. markerIndex, tObj.width or 100, 1, 0, 0, '%.2f')
+        local ch, h = tImGui.DragFloat(tLang.L('height') .. '##marker_h' .. markerIndex, tObj.height or 100, 1, 0, 0, '%.2f')
+        if cw then tMarkerEdit.dirty = true; tObj.width = math.max(1, w) end
+        if ch then tMarkerEdit.dirty = true; tObj.height = math.max(1, h) end
+        if tObj.type == 'cube' then
+            local cd, depth = tImGui.DragFloat(tLang.L('scene3d_object_depth') .. '##marker_depth' .. markerIndex,
+                tObj.depth or 100, 1, 0, 0, '%.2f')
+            if cd then tMarkerEdit.dirty = true; tObj.depth = math.max(1, depth) end
+        end
     elseif tObj.type == 'circle' then
-        local cr, r = tImGui.DragFloat(tLang.L('ray') .. '##marker_ray' .. markerIndex, tObj.ray or 50, 1, 1, rangeSpan, '%.2f')
-        if cr then tMarkerEdit.dirty = true; tObj.ray = r end
+        local cr, r = tImGui.DragFloat(tLang.L('ray') .. '##marker_ray' .. markerIndex, tObj.ray or 50, 1, 0, 0, '%.2f')
+        if cr then tMarkerEdit.dirty = true; tObj.ray = math.max(1, r) end
     elseif tObj.type == 'triangle' then
         -- 3 independently draggable corners, initialized around the marker's own position the
         -- first time this marker becomes a triangle (or if points was never a valid 3-tuple, e.g.
@@ -2247,9 +2261,9 @@ function drawObjectMarkerFields(tObj, markerIndex)
         end
         for i, p in ipairs(tObj.points) do
             tImGui.Text(tLang.L('object') .. ' ' .. i)
-            local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##tri_x' .. markerIndex .. '_' .. i, p.x, 1, minX, maxX, '%.2f')
-            local pc2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##tri_y' .. markerIndex .. '_' .. i, p.y, 1, minY, maxY, '%.2f')
-            local pc3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##tri_z' .. markerIndex .. '_' .. i, p.z, 1, minZ, maxZ, '%.2f')
+            local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##tri_x' .. markerIndex .. '_' .. i, p.x, 1, 0, 0, '%.2f')
+            local pc2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##tri_y' .. markerIndex .. '_' .. i, p.y, 1, 0, 0, '%.2f')
+            local pc3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##tri_z' .. markerIndex .. '_' .. i, p.z, 1, 0, 0, '%.2f')
             if pc1 or pc2 or pc3 then tMarkerEdit.dirty = true; p.x, p.y, p.z = px, py, pz end
         end
     elseif tObj.type == 'line' then
@@ -2289,9 +2303,9 @@ function drawObjectMarkerFields(tObj, markerIndex)
             tMarkerEdit.dirty = true
         end
         for i, p in ipairs(tObj.points) do
-            local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##pt_x' .. markerIndex .. '_' .. i, p.x, 1, minX, maxX, '%.2f')
-            local pc2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##pt_y' .. markerIndex .. '_' .. i, p.y, 1, minY, maxY, '%.2f')
-            local pc3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##pt_z' .. markerIndex .. '_' .. i, p.z, 1, minZ, maxZ, '%.2f')
+            local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##pt_x' .. markerIndex .. '_' .. i, p.x, 1, 0, 0, '%.2f')
+            local pc2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##pt_y' .. markerIndex .. '_' .. i, p.y, 1, 0, 0, '%.2f')
+            local pc3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##pt_z' .. markerIndex .. '_' .. i, p.z, 1, 0, 0, '%.2f')
             if pc1 or pc2 or pc3 then tMarkerEdit.dirty = true; p.x, p.y, p.z = px, py, pz end
         end
     end
@@ -2421,6 +2435,11 @@ function drawMapTab(item_width)
         bShowSceneObjectMarkers = showObj
         tMarkerEdit.dirty = true
         tMarkerEdit.drag, tMarkerEdit.capture = nil, nil
+    end
+    local alwaysOnTop = tImGui.Checkbox(tLang.L('scene3d_objects_always_on_top'), bSceneObjectsAlwaysOnTop)
+    if alwaysOnTop ~= bSceneObjectsAlwaysOnTop then
+        bSceneObjectsAlwaysOnTop = alwaysOnTop
+        tMarkerEdit.dirty = true
     end
     if tImGui.Button(tLang.L('add_object'), tUtil.getResponsiveItemSize(item_width - 40)) then
         addSceneObjectMarker()
