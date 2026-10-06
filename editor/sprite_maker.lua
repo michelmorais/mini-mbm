@@ -1140,11 +1140,23 @@ function onRenderShape(self,vertex,uv,index_read_only)
         end
         self.uv_bkp = uv_bkp
     end
-    self.index_read_only = index_read_only
+    if self.bNamedPrimitive then
+        -- Named shapes append reversed back faces for rendering. Sprite authoring,
+        -- UV outlines, copies and exports keep the original front topology only.
+        -- Capture once: indices are immutable, while vertex/UV edits stay dynamic.
+        if self.index_read_only == nil then
+            self.index_read_only = {}
+            for i=1, #index_read_only / 2 do
+                self.index_read_only[i] = index_read_only[i]
+            end
+        end
+    else
+        self.index_read_only = index_read_only
+    end
     if self.index_buffer_edit == nil then
         self.index_buffer_edit = {}
-        for i=1, #index_read_only do
-            self.index_buffer_edit[i] = index_read_only[i]
+        for i=1, #self.index_read_only do
+            self.index_buffer_edit[i] = self.index_read_only[i]
         end
     end
     return self.vertex, self.uv
@@ -4705,6 +4717,7 @@ function newRectShape(tTexture,width,height,iNumElements,tMin,tMax)
     local dynamic_buffer    = true
     local nickName          = getUniqueNickName()
     tShape:create('rectangle',width,height,iNumElements,dynamic_buffer,nickName)
+    tShape.bNamedPrimitive = true
     tShape:setTexture(tTexture.file_name)
     tShape.visible          = true
     tShape.bFirstRender     = true
@@ -4728,6 +4741,7 @@ function newShape(type,tTexture,width,height,iNumElements)
     tShape.visible          = true
     local nickName          = getUniqueNickName()
     tShape:create(type,width,height,iNumElements,dynamic_buffer,nickName)
+    tShape.bNamedPrimitive = true
     tShape:setTexture(tTexture.file_name)
     tShape.bInvertUFirst   = tFrameAddOptions.bInvertUFrameOptions
     tShape.bInvertVFirst   = tFrameAddOptions.bInvertVFrameOptions
