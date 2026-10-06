@@ -133,6 +133,29 @@ function M.rayBoxDistance(ox,oy,oz,dx,dy,dz,object)
     return near
 end
 
+-- Store effective authoring defaults, so the renderer, Save and Export agree even
+-- when a property panel was never opened or its displayed default was never edited.
+function M.ensureObjectGeometry(object)
+    object.x,object.y,object.z = object.x or 0,object.y or 0,object.z or 0
+    if object.type == 'rectangle' or object.type == 'cube' then
+        object.width = object.width or 100
+        object.height = object.height or 100
+        if object.type == 'cube' then object.depth = object.depth or 100 end
+    elseif object.type == 'circle' then
+        object.ray = object.ray or 50
+    elseif object.type == 'triangle' then
+        if not object.points or #object.points ~= 3 then
+            object.points = {
+                {x=object.x-50,y=object.y,z=object.z-50},
+                {x=object.x+50,y=object.y,z=object.z-50},
+                {x=object.x,y=object.y,z=object.z+50},
+            }
+        end
+    elseif object.type == 'line' then
+        object.points = object.points or {}
+    end
+end
+
 function M.translate(object, x, y, z)
     local dx,dy,dz = x-object.x,y-object.y,z-object.z
     if dx == 0 and dy == 0 and dz == 0 then return false end

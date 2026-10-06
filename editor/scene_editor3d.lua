@@ -2118,6 +2118,7 @@ function updateSceneObjectShapes()
     tMarkerEdit.dirty = false
     tMarkerEdit.hoverKey = nil
     for i, tObj in ipairs(tSceneObjects) do
+        markerMath.ensureObjectGeometry(tObj)
         local entry = tSceneObjectShapes[i]
         if not entry or entry.sType ~= tObj.type then
             if entry and entry.handle then entry.handle:destroy() end
@@ -2209,6 +2210,7 @@ end
 -- field: typing a name into one marker's field could be silently clobbered the moment a second
 -- marker's row (using the exact same '##marker_name' ID) rendered afterward.
 function drawObjectMarkerFields(tObj, markerIndex)
+    markerMath.ensureObjectGeometry(tObj)
     -- tImGui.InputText(label, text, flags?) has no "max length" parameter at all -- its C++
     -- binding always auto-sizes the edit buffer from the current text's own length + 256 bytes of
     -- headroom. The "64" here was passed expecting some other framework's (label, text, maxLength)
@@ -2247,18 +2249,6 @@ function drawObjectMarkerFields(tObj, markerIndex)
         local cr, r = tImGui.DragFloat(tLang.L('ray') .. '##marker_ray' .. markerIndex, tObj.ray or 50, 1, 0, 0, '%.2f')
         if cr then tMarkerEdit.dirty = true; tObj.ray = math.max(1, r) end
     elseif tObj.type == 'triangle' then
-        -- 3 independently draggable corners, initialized around the marker's own position the
-        -- first time this marker becomes a triangle (or if points was never a valid 3-tuple, e.g.
-        -- an older save/a fresh marker) -- not degenerate all-zero, so the shape is visible and
-        -- editable immediately.
-        if not tObj.points or #tObj.points ~= 3 then
-            tMarkerEdit.dirty = true
-            tObj.points = {
-                {x = tObj.x - 50, y = tObj.y, z = tObj.z - 50},
-                {x = tObj.x + 50, y = tObj.y, z = tObj.z - 50},
-                {x = tObj.x,      y = tObj.y, z = tObj.z + 50},
-            }
-        end
         for i, p in ipairs(tObj.points) do
             tImGui.Text(tLang.L('object') .. ' ' .. i)
             local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##tri_x' .. markerIndex .. '_' .. i, p.x, 1, 0, 0, '%.2f')
@@ -3870,6 +3860,7 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
     writeSavedTable('tScene3d.fCamFocus', tOptionsEditor.fSceneCamFocus)
     writeSavedTable('tScene3d.tLightConfig', tLightConfig)
     writeSavedTable('tScene3d.tMeshOffsets', tMeshOffsets)
+    for _, object in ipairs(tSceneObjects) do markerMath.ensureObjectGeometry(object) end
     writeSavedTable('tScene3d.tSceneObjects', tSceneObjects)
 
     -- Full editor-authoring state (map/grid settings, layers, per-mesh cell/attachment info) is

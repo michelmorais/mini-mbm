@@ -64,7 +64,41 @@ function onInitScene()
     updateSceneObjectShapes()
     resetUndoHistory()
 end
+local function testObjectSerialization()
+    local previous = tSceneObjects
+    -- No renderer/property-panel visit: Save/Export must materialize every default themselves.
+    local fixtures = {
+        {type='rectangle',name='edited',x=1,y=2,z=3,width=675,height=47},
+        {type='rectangle',name='untouched',x=4,y=5,z=6},
+        {type='cube',name='volume',width=75},
+        {type='circle',name='radius'},
+        {type='triangle',name='corners',x=10,y=20,z=30},
+        {type='line',name='path',points={{x=1,y=2,z=3},{x=4,y=5,z=6}}},
+        {type='point',name='anchor',x=-5000,y=6000,z=7000},
+    }
+    for _,mode in ipairs({{false,false},{true,false},{true,true}}) do
+        tSceneObjects = tUtil.deepCopyTable(fixtures)
+        local path=os.tmpname()
+        local ok,reason=writeScene3d(path,mode[2],mode[1])
+        assert(ok,reason)
+        local scene=assert(loadfile(path))()
+        os.remove(path)
+        local objects=scene:getAllSceneObjects()
+        assert(#objects==7)
+        assert(objects[1].width==675 and objects[1].height==47,'edited dimensions preserved')
+        assert(objects[2].width==100 and objects[2].height==100,'rectangle defaults serialized')
+        assert(objects[3].width==75 and objects[3].height==100 and objects[3].depth==100,'cube defaults')
+        assert(objects[4].ray==50,'circle default radius')
+        assert(#objects[5].points==3 and objects[5].points[1].x==-40,'triangle geometry')
+        assert(#objects[6].points==2 and objects[6].points[2].z==6,'line geometry preserved')
+        assert(objects[7].x==-5000 and objects[7].y==6000 and objects[7].z==7000,'point coordinates')
+    end
+    tSceneObjects = previous
+    print('SCENE3D OBJECT SERIALIZATION OK')
+end
+
 local function runTests()
+    testObjectSerialization()
     tImGui.GetWantCaptureMouse=function() return false end
     local object=tSceneObjects[1]
     local x,y=screenPoint(object)
