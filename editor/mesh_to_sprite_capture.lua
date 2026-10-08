@@ -167,6 +167,7 @@ local function copyFile(source,dest)
     assert(ok and closed,err or ce)
 end
 function M.export(e,path)
+    P.validate(e.project)
     assert(e.captured and not e.stale,'Capture is out of date')
     assert(path:lower():match('%.spt$'),'Output must end in .spt')
     local tmp=os.tmpname(); os.remove(tmp)
@@ -180,6 +181,7 @@ function M.export(e,path)
     mbm.addPath(P.dirname(path))
     local config=P.copy(e.captured)
     config.name=e.project.name; config.frameTime=e.project.frameTime; config.cycle=e.project.cycle
+    for _,key in ipairs({'frameWidth','frameHeight','followImage','keepAspect','pivotX','pivotY'}) do config[key]=e.project[key] end
     local stage=base..'.spt'; files[#files+1]=stage
     Export.write(config,{table.unpack(files,1,#files-1)},stage)
     -- Validate the exact staged file before publishing the manifest.
@@ -192,11 +194,16 @@ function M.export(e,path)
     e.spritePreview=spritePreview; e.stagedSprite=nil; e.exportFiles=nil
     e.exported=path; e.exportConfig=config
     local rt=render2texture:new('2ds'); e.spriteTarget=rt
-    local ok,_,info=rt:create(config.width,config.height,true)
+    local fw,fh=P.frameSize(config)
+    local size=P.fitSize(fw,fh,config.width,config.height)
+    local pw,ph=math.max(1,math.floor(size.x+0.5)),math.max(1,math.floor(size.y+0.5))
+    local ok,_,info=rt:create(pw,ph,true)
+    e.spriteWidth=pw; e.spriteHeight=ph
+    spritePreview:setScale(pw/fw,ph/fh)
     assert(ok,'Cannot create sprite preview')
     rt:enableFrame(false); rt.alwaysRender=true; rt:setColor(0,0,0,0); rt:add(spritePreview)
     local cam=rt:getCamera('2d')
-    cam:setPos(config.width*(0.5-config.pivotX),config.height*(config.pivotY-0.5),0)
+    cam:setPos(pw*(0.5-config.pivotX),ph*(config.pivotY-0.5),0)
     spritePreview.visible=true; e.spriteTexture=info; e.spriteTime=0; e.spriteDirty=true; e.spritePlaying=false
 end
 function M.exportFailed(e)

@@ -40,8 +40,9 @@ function M.suggestAnimationName(name)
     return name:sub(1,last)
 end
 function M.defaults()
-    return {version=1, source='', signature='', static=1, staticName='', staticMode=0, staticInterval=1, baseFrame=1, skinning='auto', kind='none', clip='',
+    return {version=2, source='', signature='', static=1, staticName='', staticMode=0, staticInterval=1, baseFrame=1, skinning='auto', kind='none', clip='',
         start=0, stop=1, count=16, cycle=true, frameTime=1/16, width=256, height=256,
+        frameWidth=256, frameHeight=256, followImage=true, keepAspect=true, showPivot=false,
         pivotX=0.5, pivotY=0.5, output='', name='animation',
         position={x=0,y=0,z=0}, rotation={x=0,y=0,z=0}, scale={x=1,y=1,z=1},
         camera={azimuth=0.3,elevation=0.2,roll=0,distance=500,fx=0,fy=0,fz=0,near=0.1,far=100000},
@@ -61,7 +62,7 @@ local function check(v, ref, path)
 end
 function M.validate(p)
     check(p,M.defaults(),'project')
-    assert(p.version==1,'Unsupported project version')
+    assert(p.version==2,'Unsupported project version')
     assert(p.kind=='none' or p.kind=='skeletal' or p.kind=='articulated','Invalid animation kind')
     assert(p.staticMode>=0 and p.staticMode<=6 and p.staticMode%1==0 and p.staticInterval>0,'Invalid static playback')
     assert(p.baseFrame>=1 and p.baseFrame%1==0,'Invalid base frame')
@@ -77,10 +78,32 @@ function M.validate(p)
     for _,c in ipairs({p.background,p.light.ambient,p.light.color,p.light.point}) do
         for _,k in ipairs({'r','g','b','a'}) do assert(c[k]>=0 and c[k]<=1,'Invalid color') end
     end
+    assert(p.frameWidth>0 and p.frameWidth<=1000000 and p.frameHeight>0 and p.frameHeight<=1000000,'Invalid frame size')
     assert(p.light.radius>0,'Invalid light radius')
     assert(p.pivotX>=0 and p.pivotX<=1 and p.pivotY>=0 and p.pivotY<=1,'Invalid pivot')
     assert(#p.name>0 and #p.name<32,'Animation name must contain 1..31 bytes')
     return p
+end
+function M.frameSize(p)
+    if p.followImage then return p.width,p.height end
+    return p.frameWidth,p.frameHeight
+end
+function M.setFrameDimension(p,field,value)
+    local limit=1000000
+    if p.keepAspect then
+        local ratio=p.width/p.height
+        limit=math.min(limit,field=='frameWidth' and limit*ratio or limit/ratio)
+    end
+    p[field]=math.max(0.01,math.min(value,limit))
+    value=p[field]
+    if p.keepAspect then
+        if field=='frameWidth' then p.frameHeight=value*p.height/p.width
+        else p.frameWidth=value*p.width/p.height end
+    end
+end
+function M.fitSize(width,height,availableWidth,availableHeight)
+    local scale=math.min(math.max(1,availableWidth)/width,math.max(1,availableHeight)/height)
+    return {x=width*scale,y=height*scale}
 end
 function M.sample(p,i)
     assert(i>=1 and i<=p.count)
@@ -162,7 +185,13 @@ function M.load(path)
     local co=coroutine.create(fn)
     debug.sethook(co,function() error('Project instruction limit') end,'',100000)
     local ok,p=coroutine.resume(co); debug.sethook(co)
-    assert(ok,p); M.validate(p)
+    assert(ok,p)
+    if type(p)=='table' and p.version==1 then
+        p.version=2
+        p.frameWidth=p.width; p.frameHeight=p.height
+        p.followImage=true; p.keepAspect=true; p.showPivot=false
+    end
+    M.validate(p)
     local base=M.dirname(path)
     if p.source~='' then p.source=M.absolute(p.source,base) end
     if p.output~='' then p.output=M.absolute(p.output,base) end

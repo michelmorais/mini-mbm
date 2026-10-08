@@ -38,6 +38,15 @@ end
 local p=P.defaults(); p.count=4; p.start=2; p.stop=6
 near(P.sample(p,1),2); near(P.sample(p,4),5)
 p.cycle=false; near(P.sample(p,4),6); p.count=1; near(P.sample(p,1),2)
+local sizing=P.defaults()
+sizing.width=320;sizing.height=160
+local fw,fh=P.frameSize(sizing);assert(fw==320 and fh==160)
+sizing.followImage=false
+P.setFrameDimension(sizing,'frameWidth',80);assert(sizing.frameHeight==40)
+P.setFrameDimension(sizing,'frameHeight',90);assert(sizing.frameWidth==180)
+sizing.keepAspect=false
+P.setFrameDimension(sizing,'frameWidth',100);assert(sizing.frameHeight==90)
+local fit=P.fitSize(200,100,300,400);assert(fit.x==300 and fit.y==150)
 local expected={{2,2,2,2,2,2,2},{2,3,4,4,4,4,4},{2,3,4,2,3,4,2},
     {4,3,2,2,2,2,2},{4,3,2,4,3,2,4},{2,3,4,3,2,2,2},{2,3,4,3,2,3,4}}
 for mode=0,6 do for step=0,6 do
@@ -45,13 +54,22 @@ for mode=0,6 do for step=0,6 do
 end end
 local tmp=os.tmpname(); P.save(p,tmp)
 local q=P.load(tmp); assert(q.count==1 and q.start==2 and q.camera.distance==p.camera.distance)
+local legacyFile=assert(io.open(tmp,'r'));local legacy=legacyFile:read('*a');legacyFile:close()
+legacy=legacy:gsub('%["version"%]=2,','["version"]=1,')
+for _,key in ipairs({'frameWidth','frameHeight','followImage','keepAspect','showPivot'}) do
+    legacy=legacy:gsub('%["'..key..'"%]=[^,]+,','')
+end
+local lf=assert(io.open(tmp,'w'));lf:write(legacy);lf:close()
+local migrated=P.load(tmp)
+assert(migrated.version==2 and migrated.followImage and migrated.keepAspect and not migrated.showPivot)
+assert(migrated.frameWidth==migrated.width and migrated.frameHeight==migrated.height)
 os.remove(tmp)
 local function rejects(change)
     local bad=P.copy(p); change(bad); assert(not pcall(P.validate,bad))
 end
 rejects(function(v) v.count=0 end); rejects(function(v) v.camera.distance=0/0 end)
 rejects(function(v) v.width=4096;v.height=4096;v.count=4096 end)
-rejects(function(v) v.version=2 end); rejects(function(v) v.unknown=true end)
+rejects(function(v) v.version=3 end); rejects(function(v) v.unknown=true end)
 local f=assert(io.open(tmp,'w'));f:write('while true do end');f:close()
 assert(not pcall(P.load,tmp));os.remove(tmp)
 local Pixels=require 'mesh_to_sprite_pixels'

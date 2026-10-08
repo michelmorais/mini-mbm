@@ -183,6 +183,9 @@ local function number(key,obj,field,integer,min,max,render)
         if min then value=math.max(min,value) end
         if max then value=math.min(max,value) end
         obj[field]=value; change(render)
+        if obj==E.project and (field=='width' or field=='height') and obj.keepAspect and not obj.followImage then
+            P.setFrameDimension(obj,'frameWidth',obj.frameWidth)
+        end
         if obj==E.project and (field=='count' or field=='start' or field=='stop') and obj.stop>obj.start then
             obj.frameTime=(obj.stop-obj.start)/obj.count
         end
@@ -205,6 +208,37 @@ local function color(key,obj,field)
     tImGui.Text(L(key)); tImGui.SetNextItemWidth(250)
     local changed,value=tImGui.ColorEdit4('##'..key,obj[field])
     if changed then obj[field]=value; change() end
+end
+function UI.frameSettings()
+    local p=E.project
+    local follow=tImGui.Checkbox(L('follow_image'),p.followImage)
+    if follow~=p.followImage then
+        p.frameWidth,p.frameHeight=P.frameSize(p)
+        p.followImage=follow; change(false)
+    end
+    local keep=tImGui.Checkbox(L('keep_aspect'),p.keepAspect)
+    if keep~=p.keepAspect then
+        p.keepAspect=keep
+        if keep then P.setFrameDimension(p,'frameWidth',p.frameWidth) end
+        change(false)
+    end
+    local fw,fh=P.frameSize(p)
+    if p.followImage then
+        tImGui.Text(string.format('%s: %.1f x %.1f',L('frame_size'),fw,fh))
+    else
+        for _,entry in ipairs({{'frame_width','frameWidth'},{'frame_height','frameHeight'}}) do
+            local old=p[entry[2]]
+            number(entry[1],p,entry[2],false,0.01,100000,false)
+            if old~=p[entry[2]] then P.setFrameDimension(p,entry[2],p[entry[2]]) end
+        end
+    end
+    fw,fh=P.frameSize(p)
+    if math.abs(fw/fh-p.width/p.height)>0.0001 then
+        tImGui.TextWrapped(L('aspect_warning'))
+    end
+    number('pivot_x',p,'pivotX',false,0,1,false); number('pivot_y',p,'pivotY',false,0,1,false)
+    local show=tImGui.Checkbox(L('show_pivot'),p.showPivot)
+    if show~=p.showPivot then p.showPivot=show; E.dirty=true end
 end
 function UI.options()
     local p=E.project
@@ -262,7 +296,7 @@ function UI.options()
                 end
                 if tImGui.CollapsingHeader(L('capture_settings')) then
                     number('width',p,'width',true,8,4096); number('height',p,'height',true,8,4096)
-                    number('pivot_x',p,'pivotX',false,0,1); number('pivot_y',p,'pivotY',false,0,1)
+                    UI.frameSettings()
                     color('background',p,'background')
                 end
                 tImGui.Text(string.format('%.1f MiB RGBA',4.0*p.width*p.height*p.count/1024^2))
@@ -281,9 +315,9 @@ function UI.options()
     tImGui.End()
 end
 function UI.camera()
-    local p=E.project; local c=p.camera; local w=mbm.getRealSizeScreen()
-    tImGui.SetNextWindowPos({x=math.max(315,w-290),y=25},E.flags.once)
-    tImGui.SetNextWindowSize({x=280,y=465},E.flags.once)
+    local p=E.project; local c=p.camera; local w,h=mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x=math.max(315,w-290),y=25},E.flags.always)
+    tImGui.SetNextWindowSize({x=280,y=math.max(240,(h-40)*0.55)},E.flags.always)
     local opened=tImGui.Begin(title('camera'),false,0)
     if opened and not E.job then
         if tUtil.drawOrbitGizmo(c,{size=110}) then change() end
@@ -314,9 +348,9 @@ function UI.camera()
     tImGui.End()
 end
 function UI.light()
-    local l=E.project.light; local w=mbm.getRealSizeScreen()
-    tImGui.SetNextWindowPos({x=math.max(315,w-290),y=505},E.flags.once)
-    tImGui.SetNextWindowSize({x=280,y=365},E.flags.once)
+    local l=E.project.light; local w,h=mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x=math.max(315,w-290),y=35+math.max(240,(h-40)*0.55)},E.flags.always)
+    tImGui.SetNextWindowSize({x=280,y=math.max(180,(h-40)*0.45)},E.flags.always)
     local opened=tImGui.Begin(title('light'),false,0)
     if opened and not E.job then
         checkbox('enabled',l,'enabled')
@@ -335,23 +369,33 @@ function UI.light()
     end
     tImGui.End()
 end
-local function imagePreview(info,size,renderTarget)
+local function imagePreview(info,size,renderTarget,pivot)
+    local origin=tImGui.GetCursorScreenPos()
     if E.checker then
         local cursor=tImGui.GetCursorScreenPos()
-        tImGui.Image(E.checker,size,{x=0,y=0},{x=size.x/128,y=size.y/128})
+        local side=math.max(size.x,size.y)
+        tImGui.Image(E.checker,size,{x=0,y=0},{x=size.x/side,y=size.y/side})
         tImGui.SetCursorScreenPos(cursor)
     end
     if renderTarget then tImGui.Image(info,size,E.renderUv0,E.renderUv1)
     else tImGui.Image(info,size) end
+    if E.project.showPivot and pivot then
+        local point={x=origin.x+size.x*pivot.pivotX,y=origin.y+size.y*pivot.pivotY}
+        tImGui.AddCircleFilled(point,6,{r=0,g=0,b=0,a=1},16)
+        tImGui.AddCircleFilled(point,4,{r=1,g=0.8,b=0,a=1},16)
+    end
 end
 function UI.preview()
-    tImGui.SetNextWindowPos({x=325,y=25},E.flags.once)
-    tImGui.SetNextWindowSize({x=540,y=600},E.flags.once)
+    local w,h=mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x=315,y=25},E.flags.always)
+    tImGui.SetNextWindowSize({x=math.max(240,w-615),y=math.max(300,h-30)},E.flags.always)
     local opened=tImGui.Begin(title('preview'),false,0)
     if opened then
         if E.texture then
-            local p=E.project; local size={x=math.min(480,p.width),y=math.min(480,p.width)*p.height/p.width}
-            imagePreview(E.texture,size,true)
+            local p=E.project; local available=tImGui.GetContentRegionAvail()
+            local reserved=E.captured and math.max(220,available.y*0.4) or 0
+            local size=P.fitSize(p.width,p.height,available.x,available.y-100-reserved)
+            imagePreview(E.texture,size,true,p)
             if E.animation and not E.job then
                 if tImGui.Button(E.playing and L('pause') or L('play')) then E.playing=not E.playing end
                 local changed,time=tImGui.SliderFloat(L('time'),E.time,p.start,math.max(p.start+0.001,p.stop),'%.3f s')
@@ -362,7 +406,9 @@ function UI.preview()
             end
         end
         if E.captured then
-            local changed,index=tImGui.SliderInt(L('frame'),E.selected or 1,1,#E.images)
+            tImGui.Text(L('frame'))
+            tImGui.SetNextItemWidth(-1)
+            local changed,index=tImGui.SliderInt('##capturedFrame',E.selected or 1,1,#E.images)
             if changed then E.selected=index end
             index=E.selected or 1
             if E.thumbnailIndex~=index then
@@ -372,10 +418,17 @@ function UI.preview()
                 else E.thumbnail=assert(mbm.loadTexture(E.images[index])) end
                 E.thumbnailIndex=index
             end
-            if E.thumbnail then imagePreview(E.thumbnail,{x=160,y=160*E.captured.height/E.captured.width}) end
+            local available=tImGui.GetContentRegionAvail()
+            local fw,fh=P.frameSize(E.project)
+            local size=P.fitSize(fw,fh,E.exported and (available.x-12)/2 or available.x,available.y-60)
+            local row=tImGui.GetCursorScreenPos()
+            if E.thumbnail then imagePreview(E.thumbnail,size,false,E.project) end
             if E.exported then
-                tImGui.Text(L('exported')..': '..E.exported)
-                if E.spriteTexture then imagePreview(E.spriteTexture,{x=160,y=160*E.captured.height/E.captured.width},true) end
+                tImGui.SetCursorScreenPos({x=row.x+(available.x+12)/2,y=row.y})
+                if E.spriteTexture then
+                    imagePreview(E.spriteTexture,P.fitSize(E.spriteWidth,E.spriteHeight,(available.x-12)/2,available.y-60),true,E.exportConfig)
+                end
+                tImGui.Text(L('exported'))
                 if tImGui.Button(E.spritePlaying and L('pause_sprite') or L('play_sprite')) then E.spritePlaying=not E.spritePlaying end
             end
         end
@@ -389,7 +442,7 @@ function onInitScene()
     local topOrigin=mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') or mbm.get('USE_METAL')
     E.renderUv0={x=0,y=topOrigin and 0 or 1}
     E.renderUv1={x=1,y=topOrigin and 1 or 0}
-    E.flags={once=tImGui.Flags('ImGuiCond_Once'),auto=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')}
+    E.flags={always=tImGui.Flags('ImGuiCond_Always'),once=tImGui.Flags('ImGuiCond_Once'),auto=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')}
     E.titles={options='m2sOptions',camera='m2sCamera',light='m2sLight',preview='m2sPreview',unsaved='m2sUnsaved'}
     E.checkerPath=tUtil.createAlphaPattern(128,128,16,{r=170,g=170,b=170},{r=100,g=100,b=100})
     if E.checkerPath then E.checker=mbm.loadTexture(E.checkerPath) end

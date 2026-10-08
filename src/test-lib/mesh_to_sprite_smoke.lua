@@ -135,7 +135,20 @@ local function advance()
         assert(visible,'Exported sprite renders blank')
         local original=assert(mbm.readImagePixels(e.images[1],'alpha'))
         assert(bytes==original,'Exported sprite changed alpha or orientation')
-        e.open(project);assert(e.project.clip=='bite' and e.project.stop==1.5)
+        e.project.followImage=false;e.project.keepAspect=false
+        e.project.frameWidth=64;e.project.frameHeight=192
+        e.project.pivotX=0.25;e.project.pivotY=0.75;e.project.showPivot=true
+        e.export(output);e.save(project);stage=34
+    elseif stage==34 then
+        local d=meshDebug:new();assert(d:load(output))
+        local v=d:getVertex(1,1,1,4)
+        assert(v[1].x==-16 and v[1].y==-48 and v[3].x==48 and v[3].y==144,'Wrong frame size or pivot')
+        assert(e.spriteTarget:save(temp..'_sized.png'))
+        local alpha=assert(mbm.readImagePixels(temp..'_sized.png','alpha'))
+        assert(alpha:find('[^%z]'),'Custom frame preview is blank')
+        e.open(project)
+        assert(e.project.frameWidth==64 and e.project.frameHeight==192 and e.project.showPivot)
+        assert(e.project.clip=='bite' and e.project.stop==1.5)
         assert(e.project.name=='custom_bite','Reopen overwrote custom animation name')
         assert(#e.images==0 and not e.captured,'Project restored image cache')
         e.capture();stage=3

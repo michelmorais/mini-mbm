@@ -24,8 +24,9 @@ local P=require 'mesh_to_sprite_project'
 local M={}
 function M.write(p,images,path)
     local d=meshDebug:new(); d:setStride(2); d:enableNormal(false)
-    local l=-p.width*p.pivotX; local r=l+p.width
-    local bottom=-p.height*(1-p.pivotY); local top=bottom+p.height
+    local width,height=P.frameSize(p)
+    local l=-width*p.pivotX; local r=l+width
+    local bottom=-height*(1-p.pivotY); local top=bottom+height
     for i,file in ipairs(images) do
         local f=d:addFrame(2); local s=d:addSubSet(f)
         assert(d:addVertex(f,s,{{x=l,y=bottom,u=0,v=1},{x=r,y=bottom,u=1,v=1},{x=r,y=top,u=1,v=0},{x=l,y=top,u=0,v=0}}))
