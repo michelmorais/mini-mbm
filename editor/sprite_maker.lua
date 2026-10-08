@@ -401,6 +401,11 @@ function getSelectedTexturesFromImageSelector(tTexturesIn)
 end
 
 function onNewSprite()
+    -- Cached targets must attach the new shapes even when frame sizes are unchanged.
+    for _, target in pairs(tAnimationOptions.tDynamicAnims) do
+        target:clear()
+        target.bFrameObjectsPrepared = false
+    end
     for i=1, #tFrameList do
         local tFrame = tFrameList[i]
         tFrame.tShape:destroy()
@@ -460,7 +465,12 @@ function onSaveUserData(name,value,tOut,saved)
             tUtil.save(normal,         value.normal,            tOut, onSaveUserData, saved)
         end
         
-        table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),%s)',name,vertex,index_read_only,uv,'getUniqueNickName()'))
+        if value.drawMode then
+            tUtil.save(name .. '.drawMode', value.drawMode, tOut, onSaveUserData, saved)
+        end
+        local mode = value.drawMode or {}
+        table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),getUniqueNickName(),%q,%q,%q)',
+            name,vertex,index_read_only,uv,mode.modeDraw or 'TRIANGLES',mode.modeCullFace or 'BACK',mode.modeFrontFace or 'CW'))
         local s,e                  = name:match('^().*%]%[()')
         local tFrameListAtIndex    = name:sub(s,e)
         local sCommand             = string.format('return %stTexture"]["file_name"]', tFrameListAtIndex ) -- return tFrameList[1]["tTexture"]["file_name"]
@@ -1316,7 +1326,7 @@ local function reverseTriangleWinding(tIndex)
     end
 end
 
-local function createShapeFromEditorData(tTexture, tVertex, tNormal, tUv, tUvBkp, tIndexRender, tIndexEdit, width, height)
+local function createShapeFromEditorData(tTexture, tVertex, tNormal, tUv, tUvBkp, tIndexRender, tIndexEdit, width, height, drawMode)
     local tShape = shape:new('2dw')
     local nickName = getUniqueNickName()
     local tVertexCopy = copyVertexList(tVertex)
@@ -1333,7 +1343,9 @@ local function createShapeFromEditorData(tTexture, tVertex, tNormal, tUv, tUvBkp
     if #tIndexEditCopy == 0 then
         tIndexEditCopy = copyNumberList(tIndexRenderCopy)
     end
-    tShape:createDynamicIndexed(rawVertexFromEditor(tVertexCopy), tIndexRenderCopy, rawUvFromEditor(tUvCopy, #tVertexCopy), nickName)
+    tShape.drawMode = drawMode and tUtil.deepCopyTable(drawMode) or nil
+    tShape:createDynamicIndexed(rawVertexFromEditor(tVertexCopy), tIndexRenderCopy, rawUvFromEditor(tUvCopy, #tVertexCopy), nickName,
+        drawMode and drawMode.modeDraw, drawMode and drawMode.modeCullFace, drawMode and drawMode.modeFrontFace)
     tShape:setTexture(tTexture.file_name)
     tShape.vertex            = tVertexCopy
     tShape.normal            = copyNormalList(tNormal)
@@ -1374,7 +1386,8 @@ local function rebuildFramePartShape(tPart)
                                              tIndexReadOnly,
                                              tIndexEdit,
                                              tPart.width,
-                                             tPart.height)
+                                             tPart.height,
+                                             tOldShape.drawMode)
     tPart.tShape = tShape
     setShapeToRender(tShape,tPart)
     return tShape
@@ -1400,7 +1413,8 @@ local function cloneFramePart(tPart)
                                               tShape.index_read_only,
                                               tShape.index_buffer_edit,
                                               tClone.width,
-                                              tClone.height)
+                                              tClone.height,
+                                              tShape.drawMode)
     return tClone
 end
 
@@ -5051,7 +5065,10 @@ local function makeBinarySpriteShape(tMesh, indexFrame, indexSubset, tTexture)
 
     local tShape = shape:new('2dw')
     local nickName = getUniqueNickName()
-    tShape:createDynamicIndexed(tVertexRaw, tIndex, tUvRaw, nickName)
+    -- Preserve the file's rasterization settings; dynamic shapes otherwise default to CW.
+    tShape.drawMode = {modeDraw=tMesh:getModeDraw(), modeCullFace=tMesh:getModeCullFace(), modeFrontFace=tMesh:getModeFrontFace()}
+    tShape:createDynamicIndexed(tVertexRaw, tIndex, tUvRaw, nickName,
+        tShape.drawMode.modeDraw, tShape.drawMode.modeCullFace, tShape.drawMode.modeFrontFace)
     tShape:setTexture(tTexture.file_name)
     tShape.vertex            = tVertex
     tShape.uv                = tUv

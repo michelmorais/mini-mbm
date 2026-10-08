@@ -896,8 +896,8 @@ sh:create("triangle", {x1,y1, x2,y2, x3,y3}, dynamic?, nickName?)          -- ex
 sh:create(verticesFlat, uvsFlatOrNil, nickName?, modeDraw?, modeCullFace?, modeFrontFace?)
 
 -- Indexed variants (separate vertex/index/uv buffers):
-sh:createIndexed(vertices, indices, uvs, normals?)
-sh:createDynamicIndexed(vertices, indices, uvs)  -- updatable each frame
+sh:createIndexed(vertices, indices, uvs, nickName?, modeDraw?, modeCullFace?, modeFrontFace?)
+sh:createDynamicIndexed(vertices, indices, uvs, nickName?, modeDraw?, modeCullFace?, modeFrontFace?)  -- updatable each frame
 sh:onRender(callback)  -- callback(sh) called every frame for dynamic update
 ```
 

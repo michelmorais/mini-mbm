@@ -12,12 +12,12 @@ Requer build com Lua e ImGui (`-DUSE_ALL=1`). O [plano de implementação](mesh-
 ## Uso
 
 1. Em **Carregar / substituir mesh**, escolher um `.msh` ou `.mbm`.
-2. Selecionar a animação estática, seu modo e intervalo entre frames. No modo pausado, escolher o frame base. Em **Combinar com**, selecionar Nenhuma, Articulada ou Esquelética e o clip correspondente. Para ChompBot, escolher **bite**, a segunda animação articulada.
+2. Selecionar a animação estática, seu modo e intervalo entre frames. No modo pausado, escolher o frame base. Em **Combinar com**, selecionar Nenhuma, Articulada ou Esquelética e o clip correspondente. Para ChompBot, escolher **bite**, a segunda animação articulada. Ao selecionar a animação, o nome de saída recebe o nome do clip combinado, ou o da animação estática quando não há combinação; depois pode ser editado. Reabrir o projeto preserva o nome personalizado.
 3. Ajustar o intervalo de captura e a quantidade de quadros. **Ciclo** exclui a extremidade final; desmarcado inclui as duas extremidades quando há mais de um quadro. A duração de exibição de cada quadro no sprite é editável separadamente.
 4. Ajustar posição, rotação em graus e escala da mesh. Os dois painéis à direita controlam separadamente a órbita da câmera e a luz. A câmera oferece posição, foco, distância, rolagem e planos de corte; a luz oferece direção, ambiente, cor direcional e posição/raio/cor de uma luz pontual.
 5. Em **Opções de imagem**, ajustar largura, altura, pivô e fundo RGBA. Alpha zero produz fundo transparente. O xadrez pertence apenas à interface.
 6. Usar a linha do tempo para conferir a pose e **Capturar quadros** para gerar a sequência. A captura pode ser cancelada. Mudanças que afetam a imagem invalidam a captura anterior.
-7. Conferir os quadros pelo seletor e usar **Exportar sprite**. O `.spt` validado é acompanhado de PNGs com nomes exclusivos, no mesmo diretório. Manter esse conjunto junto ao mover o sprite para o jogo. A segunda prévia permite reproduzir o sprite efetivamente recarregado.
+7. Conferir os quadros pelo seletor e usar **Exportar sprite**. O diálogo sugere o nome da mesh com extensão `.spt`; após exportar, reutiliza o destino escolhido até substituir a mesh. O `.spt` validado é acompanhado de PNGs com nomes exclusivos, no mesmo diretório. Manter esse conjunto junto ao mover o sprite para o jogo. A segunda prévia permite reproduzir o sprite efetivamente recarregado.
 
 **Projeto** é um menu superior com Novo, Abrir, Salvar e Salvar como, incluindo Ctrl+N, Ctrl+O e Ctrl+S. Há confirmação para descartar alterações nesses comandos. O menu Idioma alterna português/inglês.
 
@@ -45,7 +45,7 @@ A captura congela a pose antes do render e lê os pixels na próxima chamada da 
 
 A versão inicial trabalha com uma mesh e uma direção por projeto, até 4096 quadros e resolução de 8 a 4096 pixels por eixo, limitados adicionalmente a 1 GiB estimado de RGBA não comprimido. A criação do alvo ainda depende da capacidade real da GPU. Exporta um quad de canvas uniforme por quadro, sem atlas ou recorte individual. Enquadramento automático pela união das poses, sombras, pós-processamento, edição de materiais e múltiplas direções permanecem como evoluções.
 
-Validação realizada em Linux/OpenGL ES: ChompBot/bite, Lorekeeper, fixtures estáticas de três frames e alpha 128, mudança efetiva de iluminação, `.spt` recarregado/renderizado, persistência sem cache, cancelamento e editor ocioso. O alpha do primeiro quadro do sprite recarregado é comparado ao PNG de origem. As fontes animadas também exercitam o frame estático base combinado com o respectivo player.
+Validação realizada em Linux/OpenGL ES: ChompBot/bite, Lorekeeper, fixtures estáticas de três frames e alpha 128, mudança efetiva de iluminação, `.spt` recarregado/renderizado, persistência sem cache, cancelamento, navegação de quadros nos dois sentidos e editor ocioso. A importação no Sprite Maker também é verificada com um sprite CCW, incluindo salvar/reabrir o projeto. O alpha do primeiro quadro do sprite recarregado é comparado ao PNG de origem. As fontes animadas também exercitam o frame estático base combinado com o respectivo player.
 
 O asset **Tango Way** não foi localizado no repositório; a fixture verifica o caminho de animação estática, mas não substitui a validação desse asset. Combinações com troca entre múltiplos frames de uma mesh articulada/esquelética ainda dependem de um asset compatível para validação visual específica. DirectX 9/11 e Metal não foram executados neste ambiente. Gizmos foram renderizados e inspecionados; interação manual de arrastar/clicar ainda requer conferência no editor.
 
@@ -56,6 +56,9 @@ bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/mesh_to_sprite_project_test.lua
 
 timeout -s KILL 40 bin/debug/linux_x86/mini-mbm \
   --scene src/test-lib/mesh_to_sprite_smoke.lua \
+  --disable_select_monitor --nosplash -w 1280 -h 1000
+timeout -s KILL 25 bin/debug/linux_x86/mini-mbm \
+  --scene src/test-lib/sprite_maker_import_smoke.lua \
   --disable_select_monitor --nosplash -w 1280 -h 1000
 ```
 

@@ -58,6 +58,7 @@ local function selectAnimation(resetStatic)
             end
         end
     end
+    p.name=p.kind=='none' and p.staticName or p.clip
     p.start=0; p.stop=duration; p.frameTime=duration/p.count
     E.time=0; change()
 end
@@ -72,6 +73,7 @@ function E.loadSource(path,restore)
     else E.message=L('loaded') end
     p.signature=signature
     if not restore then
+        p.output=''
         p.static=1; p.staticName=a.static[1].name; p.kind='none'; p.clip=''
         if #a.skeletal>0 then p.kind='skeletal'; p.clip=a.skeletal[1].name
         elseif #a.articulated>0 then p.kind='articulated'; p.clip=a.articulated[1].name end
@@ -121,7 +123,7 @@ local function sourceDialog()
     if path and path~='' then action(E.loadSource,path,false) end
 end
 local function outputDialog()
-    local path=mbm.saveFile(E.project.output~='' and E.project.output or 'animation.spt','*.spt')
+    local path=mbm.saveFile(E.project.output~='' and E.project.output or P.basename(E.project.source):gsub('%.[^%.]+$','')..'.spt','*.spt')
     if path and path~='' then action(E.export,path) end
 end
 function UI.menu()
@@ -365,7 +367,10 @@ function UI.preview()
             index=E.selected or 1
             if E.thumbnailIndex~=index then
                 if E.thumbnail then E.thumbnail:release() end
-                E.thumbnail=mbm.loadTexture(E.images[index]); E.thumbnailIndex=index
+                E.thumbnail=mbm.loadTexture(E.images[index])
+                -- Released entries remain in the shared texture cache; restore on revisit.
+                if not E.thumbnail:isValid() then assert(E.thumbnail:reload(E.images[index])) end
+                E.thumbnailIndex=index
             end
             if E.thumbnail then imagePreview(E.thumbnail,{x=160,y=160*E.captured.height/E.captured.width}) end
             if E.exported then
