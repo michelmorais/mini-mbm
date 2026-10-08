@@ -576,6 +576,7 @@ Collision queries do not change the object's position.
 | `obj:getTotalAnim` | `()` | int | Number of animations defined |
 | `obj:getTotalFrame` | `()` | int | Total frames in current animation |
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
+| `obj:setIndexFrame` | `(frame: int)` | — | Select an absolute 1-based frame inside the current static animation interval and pause that frame animation. Raises an error outside the interval. Does not pause or seek articulated/skeletal players, nor shader FX. |
 | `obj:restartAnim` | `()` | — | Restart animation from frame 1 |
 | `obj:isEndedAnim` | `()` | bool | Whether a non-looping animation has finished |
 | `obj:onEndAnim` | `(callback)` | — | Call `callback(obj, animationName)` once when a non-looping frame, articulated, skeletal base, or skeletal layer clip ends through normal playback. Looping clips, pause, and an isolated seek do not emit completion. |

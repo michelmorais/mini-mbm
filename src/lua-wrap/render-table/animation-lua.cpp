@@ -110,6 +110,19 @@ namespace mbm
         return 1;
     }
 
+    int onSetIndexFrameAnimationsManagerLua(lua_State *lua)
+    {
+        ANIMATION_MANAGER *animations = getAnimationManagerFromRawTable(lua, 1, 1, nullptr);
+        ANIMATION *anim = animations->getAnimation();
+        const lua_Integer frame = luaL_checkinteger(lua, 2);
+        if (!anim || frame < static_cast<lua_Integer>(anim->getIndexInitialFrame()) + 1 ||
+            frame > static_cast<lua_Integer>(anim->getIndexFinalFrame()) + 1)
+            return lua_error_debug(lua, "Frame outside the selected animation interval");
+        anim->setType(TYPE_ANIMATION_PAUSED);
+        anim->setIndexCurrentFrame(static_cast<int>(frame - 1));
+        return 0;
+    }
+
     int onRestartAnimationsManagerLua(lua_State *lua)
     {
         ANIMATION_MANAGER *animations = getAnimationManagerFromRawTable(lua, 1, 1, nullptr);

@@ -1,6 +1,6 @@
 # Plano: editor de animação 3D para sprite 2D
 
-Status: proposta de implementação, sem editor implementado nesta etapa.
+Status: primeira implementação entregue em `7.355`. Uso, validação e limites efetivos estão em [mesh-to-sprite-editor.md](mesh-to-sprite-editor.md). Este documento preserva o desenho proposto; itens de evolução devem ser distinguidos do escopo entregue descrito no guia.
 
 ## Objetivo e escopo
 

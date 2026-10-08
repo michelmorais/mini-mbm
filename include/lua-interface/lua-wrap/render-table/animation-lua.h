@@ -31,6 +31,7 @@ namespace mbm
     int onGetAnimationsManagerLua(lua_State *lua);
     int onSetAnimationsManagerLua(lua_State *lua);
     int onGetIndexFrameAnimationsManagerLua(lua_State *lua);
+    int onSetIndexFrameAnimationsManagerLua(lua_State *lua);
     int onRestartAnimationsManagerLua(lua_State *lua);
     int onIsEndedAnimationsManagerLua(lua_State *lua);
     void onEndAnimationCallBackAnimationsLua(const char *fileNameAnimation, RENDERIZABLE *renderer);
