@@ -25,6 +25,20 @@ function M.copy(v)
     if type(v) ~= 'table' then return v end
     local out = {}; for k,x in pairs(v) do out[k]=M.copy(x) end; return out
 end
+-- Static sprite animation names reserve one byte of their 32-byte field for NUL.
+function M.suggestAnimationName(name)
+    if name=='' then return 'animation' end
+    local last=math.min(#name,31)
+    if #name>last then
+        -- Exclude a character that crosses the byte limit, preserving UTF-8.
+        while last>0 do
+            local byte=name:byte(last+1)
+            if byte<128 or byte>=192 then break end
+            last=last-1
+        end
+    end
+    return name:sub(1,last)
+end
 function M.defaults()
     return {version=1, source='', signature='', static=1, staticName='', staticMode=0, staticInterval=1, baseFrame=1, skinning='auto', kind='none', clip='',
         start=0, stop=1, count=16, cycle=true, frameTime=1/16, width=256, height=256,

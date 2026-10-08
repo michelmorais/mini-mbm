@@ -58,7 +58,7 @@ local function selectAnimation(resetStatic)
             end
         end
     end
-    p.name=p.kind=='none' and p.staticName or p.clip
+    p.name=P.suggestAnimationName(p.kind=='none' and p.staticName or p.clip)
     p.start=0; p.stop=duration; p.frameTime=duration/p.count
     E.time=0; change()
 end
@@ -266,12 +266,12 @@ function UI.options()
                     color('background',p,'background')
                 end
                 tImGui.Text(string.format('%.1f MiB RGBA',4.0*p.width*p.height*p.count/1024^2))
+                tImGui.Text(L('name'));tImGui.SetNextItemWidth(250)
+                local changed,name=tImGui.InputText('##m2sName',p.name,32)
+                if changed then p.name=name; change(false) end
                 if tImGui.Button(L('capture')) then action(E.capture) end
                 if E.captured then
                     tImGui.Text(E.stale and L('stale') or L('ready'))
-                    tImGui.Text(L('name'));tImGui.SetNextItemWidth(250)
-                    local changed,name=tImGui.InputText('##m2sName',p.name,32)
-                    if changed then p.name=name; change(false) end
                     if not E.stale and tImGui.Button(L('export')) then outputDialog() end
                 end
             end
@@ -366,10 +366,10 @@ function UI.preview()
             if changed then E.selected=index end
             index=E.selected or 1
             if E.thumbnailIndex~=index then
-                if E.thumbnail then E.thumbnail:release() end
-                E.thumbnail=mbm.loadTexture(E.images[index])
-                -- Released entries remain in the shared texture cache; restore on revisit.
-                if not E.thumbnail:isValid() then assert(E.thumbnail:reload(E.images[index])) end
+                -- Reuse one preview texture. Reload keeps its alpha metadata and avoids
+                -- fetching released GPU images from the shared per-filename cache.
+                if E.thumbnail then assert(E.thumbnail:reload(E.images[index]))
+                else E.thumbnail=assert(mbm.loadTexture(E.images[index])) end
                 E.thumbnailIndex=index
             end
             if E.thumbnail then imagePreview(E.thumbnail,{x=160,y=160*E.captured.height/E.captured.width}) end

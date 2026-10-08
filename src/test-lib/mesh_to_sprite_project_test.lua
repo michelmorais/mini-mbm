@@ -23,6 +23,18 @@
 package.path='editor/?.lua;'..package.path
 local P=require 'mesh_to_sprite_project'
 local function near(a,b) assert(math.abs(a-b)<0.00001,tostring(a)..' != '..tostring(b)) end
+for _,case in ipairs({
+    {'bite','bite'}, {'','animation'}, {string.rep('a',31),string.rep('a',31)},
+    {string.rep('a',50),string.rep('a',31)},
+    {string.rep('a',30)..'ção',string.rep('a',30)},
+    {string.rep('a',29)..'ção',string.rep('a',29)..'ç'},
+    {string.rep('歩',12),string.rep('歩',10)},
+    {string.rep('😀',9),string.rep('😀',7)},
+}) do
+    local name=P.suggestAnimationName(case[1])
+    assert(name==case[2] and utf8.len(name))
+    local config=P.defaults();config.name=name;P.validate(config)
+end
 local p=P.defaults(); p.count=4; p.start=2; p.stop=6
 near(P.sample(p,1),2); near(P.sample(p,4),5)
 p.cycle=false; near(P.sample(p,4),6); p.count=1; near(P.sample(p,1),2)

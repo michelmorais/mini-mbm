@@ -46,6 +46,8 @@ mbm.saveFile=function(path,...)
     return saveFile(path,...)
 end
 local visitedFrames={}
+local navigation={1,2,3,4,3,2,1,2,3,4,3,2,1}
+local navigationStep=1
 local chooseBite=false
 local combo=tImGui.Combo
 tImGui.Combo=function(label,...)
@@ -60,7 +62,9 @@ tImGui.Image=function(info,size,uv0,uv1,...)
         seenImages[info==e.texture and 'capture' or 'sprite']=true
     elseif info==e.thumbnail then
         assert(not uv0 and not uv1,'PNG thumbnail must retain standard UVs')
-        assert(info:isValid(),'Captured frame texture was released: '..tostring(e.selected))
+        assert(info:isLoaded(),'Captured frame texture has no GPU image: '..tostring(e.selected))
+        assert(info:getWidth()==e.captured.width and info:getHeight()==e.captured.height)
+        assert(info:hasAlpha(),'Captured preview lost transparency')
         visitedFrames[e.selected or 1]=true
         seenImages.png=true
     end
@@ -114,12 +118,13 @@ local function advance()
         assert(e.project.clip=='bite' and e.project.name=='bite','Clip name did not initialize output name')
         e.capture();stage=1
     elseif stage==1 and e.captured then
-        checkImages();e.selected=2;stage=30
-    elseif stage==30 then e.selected=4;stage=31
-    elseif stage==31 then e.selected=2;stage=32
-    elseif stage==32 then e.selected=1;stage=33
+        checkImages();e.selected=navigation[1];stage=30
+    elseif stage==30 then
+        navigationStep=navigationStep+1
+        if navigation[navigationStep] then e.selected=navigation[navigationStep]
+        else stage=33 end
     elseif stage==33 then
-        assert(visitedFrames[1] and visitedFrames[2] and visitedFrames[4])
+        assert(visitedFrames[1] and visitedFrames[2] and visitedFrames[3] and visitedFrames[4])
         assert(suggestedOutput=='ChompBot.spt','Wrong export filename suggestion')
         e.project.name='custom_bite';e.export(output);e.save(project);stage=2
     elseif stage==2 then
