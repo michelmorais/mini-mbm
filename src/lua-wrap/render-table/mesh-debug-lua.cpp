@@ -2964,12 +2964,12 @@ namespace mbm
         if (lua_gettop(lua) >= 3)
         {
             const lua_Integer subsetIndex=luaL_checkinteger(lua,3);
-            const auto *subset = subsetIndex > 0 && subsetIndex <= UINT32_MAX
+            const auto *subset = subsetIndex > 0 && static_cast<uint64_t>(subsetIndex) <= UINT32_MAX
                 ? meshDebug->mesh.getSubset(0, static_cast<uint32_t>(subsetIndex-1)) : nullptr;
             if (!subset || index < 0 || index >= subset->vertexCount) { lua_pushnil(lua); return 1; }
             index += subset->vertexStart;
         }
-        if (index<0 || index>=UINT32_MAX) { lua_pushnil(lua); return 1; }
+        if (index<0 || static_cast<uint64_t>(index)>=UINT32_MAX) { lua_pushnil(lua); return 1; }
         const char *names[4]={nullptr,nullptr,nullptr,nullptr};
         float weights[4]={0,0,0,0};
         if (!meshDebug->mesh.getSkeletalVertexWeight(static_cast<uint32_t>(index),
@@ -2999,7 +2999,7 @@ namespace mbm
             SKELETAL_VERTEX_WEIGHT_EDIT &edit = edits[editIndex];
             lua_rawgeti(lua, -1, 1);
             const lua_Integer vertexIndex = luaL_checkinteger(lua, -1);
-            if (vertexIndex <= 0 || vertexIndex > UINT32_MAX)
+            if (vertexIndex <= 0 || static_cast<uint64_t>(vertexIndex) > UINT32_MAX)
                 return luaL_error(lua, "canonical vertex index must be one-based and fit uint32");
             edit.vertexIndex = static_cast<uint32_t>(vertexIndex - 1);
             lua_pop(lua, 1);
@@ -3007,7 +3007,7 @@ namespace mbm
             if (!lua_isnil(lua, -1))
             {
                 const lua_Integer subsetIndex=luaL_checkinteger(lua,-1);
-                const auto *subset = subsetIndex > 0 && subsetIndex <= UINT32_MAX
+                const auto *subset = subsetIndex > 0 && static_cast<uint64_t>(subsetIndex) <= UINT32_MAX
                     ? meshDebug->mesh.getSubset(0, static_cast<uint32_t>(subsetIndex-1)) : nullptr;
                 if (!subset || edit.vertexIndex >= static_cast<uint32_t>(subset->vertexCount))
                     return luaL_error(lua, "canonical subset-local vertex index is out of range");
