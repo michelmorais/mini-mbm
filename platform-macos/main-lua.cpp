@@ -77,7 +77,7 @@ int main(const int argc,const char **argv)
             {"Font Maker"                  , STR_PT_BR_FONT_MAKER,                "font_maker.lua"},
             {"Mesh Editor"                 , STR_PT_BR_MESH_EDITOR,               "mesh_debug.lua"},
             {"Skeletal Animation Editor"   , STR_PT_BR_SKELETAL_ANIMATION_EDITOR, "skeletal_animation_editor.lua"},
-            {"Mesh to Sprite"              , "Mesh para Sprite",                  "mesh_to_sprite_editor.lua"},
+            {"Mesh to Sprite"              , STR_PT_BR_MESH_TO_SPRITE_EDITOR,     "mesh_to_sprite_editor.lua"},
             {"Particle Editor"             , STR_PT_BR_PARTICLE_EDITOR,           "particle_editor.lua"},
             {"Physics Editor"              , STR_PT_BR_PHYSICS_EDITOR,            "physic_editor.lua"},
             {"Scene 2D Editor"             , STR_PT_BR_SCENE_2D_EDITOR,           "scene_editor2d.lua"},

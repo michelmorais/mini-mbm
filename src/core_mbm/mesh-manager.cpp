@@ -5919,7 +5919,7 @@ namespace mbm
                 const util::SUBSET_DEBUG *source = bufferCurrent->subset[i];
                 if (source->indexStart < 0 || source->indexCount < 0 ||
                     (source->indexCount > 0 && (!bufferCurrent->indexBuffer ||
-                     static_cast<uint64_t>(source->indexStart) + source->indexCount >
+                     static_cast<int64_t>(source->indexStart) + source->indexCount >
                          bufferCurrent->headerFrame.sizeIndexBuffer)))
                 {
                     if (strErrorOut)
@@ -6016,7 +6016,7 @@ namespace mbm
             // the shifted global references before allocating or changing any storage.
             if (!pSubset->indexCount && bufferCurrent->indexBuffer)
             {
-                for (uint32_t i = 0; i < bufferCurrent->headerFrame.sizeIndexBuffer; ++i)
+                for (int32_t i = 0; i < bufferCurrent->headerFrame.sizeIndexBuffer; ++i)
                 {
                     const uint32_t index = bufferCurrent->indexBuffer[i];
                     if (index >= vertexEndSubset && static_cast<uint64_t>(index) + totalVertex > UINT16_MAX)
@@ -6095,7 +6095,7 @@ namespace mbm
             }
             if (bufferCurrent->indexBuffer)
             {
-                for (uint32_t i = 0; i < bufferCurrent->headerFrame.sizeIndexBuffer; ++i)
+                for (int32_t i = 0; i < bufferCurrent->headerFrame.sizeIndexBuffer; ++i)
                 {
                     if (bufferCurrent->indexBuffer[i] >= vertexEndSubset)
                         bufferCurrent->indexBuffer[i] = static_cast<uint16_t>(bufferCurrent->indexBuffer[i] + totalVertex);
