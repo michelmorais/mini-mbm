@@ -33,6 +33,21 @@ local output=temp..'.spt'; local project=temp..'.mesh2sprite'; local fixture=tem
 local originalPose=A.pose
 A.pose=function(...) reads=reads+1; return originalPose(...) end
 local e=MeshToSpriteEditor
+local image=tImGui.Image
+local seenImages={}
+tImGui.Image=function(info,size,uv0,uv1,...)
+    if info==e.texture or info==e.spriteTexture then
+        local topOrigin=mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') or mbm.get('USE_METAL')
+        assert(uv0 and uv1 and uv0.y==(topOrigin and 0 or 1) and uv1.y==(topOrigin and 1 or 0),
+            'Render-target preview has inverted orientation')
+        seenImages[info==e.texture and 'capture' or 'sprite']=true
+    elseif info==e.thumbnail then
+        assert(not uv0 and not uv1,'PNG thumbnail must retain standard UVs')
+        seenImages.png=true
+    end
+    if uv0 then return image(info,size,uv0,uv1,...) end
+    return image(info,size)
+end
 local function checkImages()
     assert(#e.images==e.project.count)
     local previous,distinct=nil,false
@@ -112,7 +127,10 @@ local function advance()
     elseif stage>=20 then
         assert(reads==idle,'Idle editor keeps seeking')
         stage=stage+1
-        if stage==26 then print('M2S SMOKE OK: articulated / skeletal / static / PNG / SPT / project / light / cancel / idle');mbm.quit() end
+        if stage==26 then
+            assert(seenImages.capture and seenImages.sprite and seenImages.png,'Missing preview coverage')
+            assert(e.versions:find(mbm.get('version'),1,true) and e.versions:find(tImGui.GetVersion(),1,true),'Missing About versions')
+            print('M2S SMOKE OK: articulated / skeletal / static / PNG / SPT / project / light / cancel / idle');mbm.quit() end
     end
 end
 function onLoop(delta)

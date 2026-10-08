@@ -143,7 +143,14 @@ function UI.menu()
             if tImGui.MenuItem('Portugues') then tLang.setLanguage('pt_br') end
             tImGui.EndMenu()
         end
-        tImGui.Text((E.path or L('untitled'))..(E.dirty and ' *' or ''))
+        if tImGui.BeginMenu(tLang.L('menu_about')) then
+            if tImGui.MenuItem(tLang.L('mbm_engine')) then tLang.openDocumentation() end
+            if tImGui.BeginMenu(tLang.L('menu_version')) then
+                tImGui.TextDisabled(E.versions)
+                tImGui.EndMenu()
+            end
+            tImGui.EndMenu()
+        end
         tImGui.EndMainMenuBar()
     end
     if E.openConfirm then tImGui.OpenPopup(title('unsaved')); E.openConfirm=false end
@@ -202,6 +209,7 @@ function UI.options()
     tUtil.setInitialWindowPositionLeft(title('options'),0,25,310)
     local opened=tImGui.Begin(title('options'),false,0)
     if opened then
+        tImGui.TextWrapped(L('project')..': '..(E.path or L('untitled'))..(E.dirty and ' *' or ''))
         if E.job then
             tImGui.Text(L('capturing'))
             tImGui.ProgressBar((E.job.index-1)/p.count,{x=260,y=20})
@@ -325,13 +333,14 @@ function UI.light()
     end
     tImGui.End()
 end
-local function imagePreview(info,size)
+local function imagePreview(info,size,renderTarget)
     if E.checker then
         local cursor=tImGui.GetCursorScreenPos()
         tImGui.Image(E.checker,size,{x=0,y=0},{x=size.x/128,y=size.y/128})
         tImGui.SetCursorScreenPos(cursor)
     end
-    tImGui.Image(info,size)
+    if renderTarget then tImGui.Image(info,size,E.renderUv0,E.renderUv1)
+    else tImGui.Image(info,size) end
 end
 function UI.preview()
     tImGui.SetNextWindowPos({x=325,y=25},E.flags.once)
@@ -340,7 +349,7 @@ function UI.preview()
     if opened then
         if E.texture then
             local p=E.project; local size={x=math.min(480,p.width),y=math.min(480,p.width)*p.height/p.width}
-            imagePreview(E.texture,size)
+            imagePreview(E.texture,size,true)
             if E.animation and not E.job then
                 if tImGui.Button(E.playing and L('pause') or L('play')) then E.playing=not E.playing end
                 local changed,time=tImGui.SliderFloat(L('time'),E.time,p.start,math.max(p.start+0.001,p.stop),'%.3f s')
@@ -361,7 +370,7 @@ function UI.preview()
             if E.thumbnail then imagePreview(E.thumbnail,{x=160,y=160*E.captured.height/E.captured.width}) end
             if E.exported then
                 tImGui.Text(L('exported')..': '..E.exported)
-                if E.spriteTexture then imagePreview(E.spriteTexture,{x=160,y=160*E.captured.height/E.captured.width}) end
+                if E.spriteTexture then imagePreview(E.spriteTexture,{x=160,y=160*E.captured.height/E.captured.width},true) end
                 if tImGui.Button(E.spritePlaying and L('pause_sprite') or L('play_sprite')) then E.spritePlaying=not E.spritePlaying end
             end
         end
@@ -370,6 +379,11 @@ function UI.preview()
 end
 function onInitScene()
     E.originalLight=mbm.getLightState('3d')
+    E.versions=string.format('%s\nIMGUI: %s',mbm.get('version'),tImGui.GetVersion())
+    -- Same render-target orientation as Sprite Maker; file textures keep standard UVs.
+    local topOrigin=mbm.get('USE_DIRECTX9') or mbm.get('USE_DIRECTX11') or mbm.get('USE_METAL')
+    E.renderUv0={x=0,y=topOrigin and 0 or 1}
+    E.renderUv1={x=1,y=topOrigin and 1 or 0}
     E.flags={once=tImGui.Flags('ImGuiCond_Once'),auto=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')}
     E.titles={options='m2sOptions',camera='m2sCamera',light='m2sLight',preview='m2sPreview',unsaved='m2sUnsaved'}
     E.checkerPath=tUtil.createAlphaPattern(128,128,16,{r=170,g=170,b=170},{r=100,g=100,b=100})
