@@ -27,9 +27,37 @@
 #include <uber-image.h>
 #include <image-resource.h>
 #include <util-interface.h>
+#include <cstdio>
+#include <cstring>
 
 namespace mbm
 {
+    namespace
+    {
+        bool supportsDepth24()
+        {
+            const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+            int major = 0;
+            if (version)
+                std::sscanf(version, "OpenGL ES %d", &major);
+            if (major >= 3)
+                return true;
+            const char *extensions = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+            if (!extensions)
+                return false;
+            constexpr char extension[] = "GL_OES_depth24";
+            const char *match = extensions;
+            while ((match = std::strstr(match, extension)) != nullptr)
+            {
+                const char next = match[sizeof(extension) - 1];
+                if ((match == extensions || match[-1] == ' ') && (next == ' ' || next == 0))
+                    return true;
+                match += sizeof(extension) - 1;
+            }
+            return false;
+        }
+    }
+
     void TEXTURE::release()
     {
         const uint32_t textureId = getBackendTextureId();
@@ -206,14 +234,23 @@ namespace mbm
         }
         // depth buffer
         GLBindRenderbuffer(GL_RENDERBUFFER, idRenderBuffer);
-        GLRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
+        // Match the main surface's depth precision for close 3D surfaces.
+        // GLES 2 devices without OES_depth24 retain the supported 16-bit format.
+        constexpr GLenum depth24 = 0x81A6; // GL_DEPTH_COMPONENT24 / GL_DEPTH_COMPONENT24_OES
+        const GLenum depthFormat = supportsDepth24() ? depth24 : GL_DEPTH_COMPONENT16;
+        GLRenderbufferStorage(GL_RENDERBUFFER, depthFormat, width, height);
         // frame buffer
         GLBindFramebuffer(GL_FRAMEBUFFER, idFrameBuffer);
         // attachments
         GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, idTexture2d, 0);
         GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, idRenderBuffer);
         //
-        const GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
+        GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE && depthFormat != GL_DEPTH_COMPONENT16)
+        {
+            GLRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
+            status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
+        }
         if (status != GL_FRAMEBUFFER_COMPLETE)
         {
             delete texture;

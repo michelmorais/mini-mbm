@@ -1049,6 +1049,7 @@ namespace mbm
                                                     {"getAnim", onGetAnimationsManagerLua},
                                                     {"setAnim", onSetAnimationsManagerLua},
                                                     {"getIndexFrame", onGetIndexFrameAnimationsManagerLua},
+                                                    {"setIndexFrame", onSetIndexFrameAnimationsManagerLua},
                                                     {"restartAnim", onRestartAnimationsManagerLua},
                                                     {"isEndedAnim", onIsEndedAnimationsManagerLua},
                                                     {"onEndAnim", setCallBackEndAnimationsManagerLua},

@@ -31,6 +31,7 @@
 #define STR_PT_BR_SCENE_2D_EDITOR           "Editor de Cena 2D"
 #define STR_PT_BR_SCENE_3D_EDITOR           "Editor de Cena 3D"
 #define STR_PT_BR_SHADER_EDITOR             "Editor de Shader"
+#define STR_PT_BR_MESH_TO_SPRITE_EDITOR     "Mesh para Sprite"
 #define STR_PT_BR_SPRITE_MAKER              "Editor de Sprite"
 #define STR_PT_BR_ARTICULATED_SPRITE_EDITOR "Editor de Sprite Articulado"
 #define STR_PT_BR_IMAGE_MESH_EDITOR         "Editor de Mesh por Imagem"
