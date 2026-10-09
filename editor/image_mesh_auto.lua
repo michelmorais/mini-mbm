@@ -28,7 +28,7 @@ local Geometry=require 'image_mesh_holes_geometry'
 local M={}
 local function L(key) return tLang.L('ime_auto_'..key) end
 function M.cancel(E)
- E.autoTask=nil;E.autoSource=nil;E.stroke=nil;E.polygon={};E.canvasDirty=true
+ E.autoTask=nil;E.autoSource=nil;E.autoSeed=nil;E.stroke=nil;E.polygon={};E.canvasDirty=true
 end
 function M.state(E)
  if not E.auto then E.auto={mode=1,alpha=127,tolerance=24,color={r=0,g=0,b=0,a=1},target=1,crop=true,maxVertices=128,samplingStep=0} end
@@ -38,7 +38,10 @@ function M.resume(E)
  if not E.autoTask then return end
  if E.autoSource~=E.project or E.autoSelected~=E.selected then M.cancel(E);return end
  local ok,err=coroutine.resume(E.autoTask)
- if not ok or coroutine.status(E.autoTask)=='dead' then E.autoTask=nil;E.autoSource=nil end
+ if not ok and tostring(err):match('ime_auto_background_seed$') and E.autoSeed then
+  err=string.format('%s (X=%d, Y=%d)',L('background_seed'),E.autoSeed.x,E.autoSeed.y)
+ end
+ if not ok or coroutine.status(E.autoTask)=='dead' then E.autoTask=nil;E.autoSource=nil;E.autoSeed=nil end
  if not ok then error(err,0) end
 end
 function M.input(E,event,mx,my,origin)
@@ -55,6 +58,7 @@ function M.input(E,event,mx,my,origin)
  end
  local picking=E.tool=='auto_background'
  E.autoSource=E.project;E.autoSelected=E.selected;E.status=''
+ E.autoSeed={x=x,y=y} -- Image pixels, zero-based, before crop/sampling conversion.
  E.autoTask=coroutine.create(function()
   local bytes,w,h=mbm.readImagePixels(image.path)
   assert(bytes,w);assert(w==image.width and h==image.height,'ime_auto_changed_image')
