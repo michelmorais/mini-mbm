@@ -21,12 +21,12 @@
 ]]--
 
 
-package.path='editor/?.lua;'..package.path
+package.path='src/test-lib/?.lua;editor/?.lua;'..package.path
 dofile(os.getenv('SPRITE_MAKER_SCRIPT') or 'editor/sprite_maker.lua')
 local init,loop=onInitScene,onLoop
 local P=require 'mesh_to_sprite_project'
 local X=require 'mesh_to_sprite_export'
-local temp=os.tmpname();os.remove(temp)
+local temp=require('test_temp_path').new();os.remove(temp)
 local png=temp..'.png'
 local binary=temp..'.spt'
 local project=temp..'.sprite'
@@ -63,7 +63,7 @@ function onInitScene()
         init();started=mbm.getTimeRun()
         local p=P.defaults();p.width=32;p.height=32;p.name='bite'
         assert(mbm.writeImagePixels(png,string.rep(string.char(240,80,30,255),32*32),32,32))
-        mbm.addPath('/tmp')
+        mbm.addPath(P.dirname(png))
         X.write(p,{png,png},binary)
         open(binary,onImportBinarySprite)
     end)

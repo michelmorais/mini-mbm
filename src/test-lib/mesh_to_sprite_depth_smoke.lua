@@ -21,12 +21,12 @@
 ]]--
 
 
-package.path='editor/?.lua;'..package.path
+package.path='src/test-lib/?.lua;editor/?.lua;'..package.path
 dofile('editor/mesh_to_sprite_editor.lua')
 local init,loop,finish=onInitScene,onLoop,onEndScene
 local e=MeshToSpriteEditor
 local step,started=0,0
-local prefix=os.tmpname();os.remove(prefix)
+local prefix=require('test_temp_path').new();os.remove(prefix)
 local nearImage=prefix..'_near.png'
 local referenceImage=prefix..'_reference.png'
 function onInitScene()

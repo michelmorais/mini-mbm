@@ -20,7 +20,7 @@
 
 ]]--
 
-package.path='editor/?.lua;'..package.path
+package.path='src/test-lib/?.lua;editor/?.lua;'..package.path
 local P=require 'mesh_to_sprite_project'
 local function near(a,b) assert(math.abs(a-b)<0.00001,tostring(a)..' != '..tostring(b)) end
 for _,case in ipairs({
@@ -69,7 +69,7 @@ local expected={{2,2,2,2,2,2,2},{2,3,4,4,4,4,4},{2,3,4,2,3,4,2},
 for mode=0,6 do for step=0,6 do
     assert(P.staticFrame({first=2,last=4,interval=0.25,mode=mode},step*0.25)==expected[mode+1][step+1])
 end end
-local tmp=os.tmpname(); P.save(p,tmp)
+local tmp=require('test_temp_path').new(); P.save(p,tmp)
 local q=P.load(tmp); assert(q.count==1 and q.start==2 and q.camera.distance==p.camera.distance)
 local legacyFile=assert(io.open(tmp,'r'));local legacy=legacyFile:read('*a');legacyFile:close()
 legacy=legacy:gsub('%["version"%]=3,','["version"]=2,')

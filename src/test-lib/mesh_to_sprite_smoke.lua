@@ -20,7 +20,7 @@
 
 ]]--
 
-package.path='editor/?.lua;'..package.path
+package.path='src/test-lib/?.lua;editor/?.lua;'..package.path
 dofile('editor/mesh_to_sprite_editor.lua')
 local init,loop,finish=onInitScene,onLoop,onEndScene
 local P=require 'mesh_to_sprite_project'
@@ -28,7 +28,7 @@ local C=require 'mesh_to_sprite_capture'
 local A=require 'mesh_to_sprite_animation'
 local started,stage,idle,reads=0,0,0,0
 local unlit
-local temp=os.tmpname(); os.remove(temp)
+local temp=require('test_temp_path').new(); os.remove(temp)
 local output=temp..'.spt'; local project=temp..'.mesh2sprite'; local fixture=temp..'.msh'
 local originalPose=A.pose
 local e=MeshToSpriteEditor
@@ -92,7 +92,7 @@ local function checkImages()
         for i=1,#bytes do if bytes:byte(i)>0 then visible=true else clear=true end end
         if not (visible and clear) then
             print('BAD IMAGE',stage,file,w,h,e.project.camera.distance,e.project.camera.fx,e.project.camera.fy,e.project.camera.fz)
-            local rgba=assert(mbm.readImagePixels(file));assert(mbm.writeImagePixels('/tmp/m2s-bad.png',rgba,w,h))
+            local rgba=assert(mbm.readImagePixels(file));assert(mbm.writeImagePixels(temp..'_bad.png',rgba,w,h))
         end
         assert(visible and clear,'Missing visible pixels or transparency at stage '..stage)
         if previous and bytes~=previous then distinct=true end; previous=bytes
@@ -209,6 +209,6 @@ function onLoop(delta)
 end
 function onEndScene()
     finish();os.remove(project);os.remove(fixture);os.remove(fixture..'_alpha.msh')
-    -- Keep exported SPT/PNGs and a sprite render in /tmp for visual inspection.
+    -- Keep exported SPT/PNGs and sprite renders in the chosen temporary directory.
     print('M2S ARTIFACT '..output)
 end
