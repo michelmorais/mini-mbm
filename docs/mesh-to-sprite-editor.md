@@ -13,7 +13,7 @@ Requer build com Lua e ImGui (`-DUSE_ALL=1`). O [plano de implementação](mesh-
 
 1. Em **Carregar / substituir mesh**, escolher um `.msh` ou `.mbm`.
 2. Selecionar a animação estática, seu modo e intervalo entre frames. No modo pausado, escolher o frame base. Em **Combinar com**, selecionar Nenhuma, Articulada ou Esquelética e o clip correspondente. Para ChompBot, escolher **bite**, a segunda animação articulada. Ao selecionar a animação, o nome de saída recebe o nome do clip combinado, ou o da animação estática quando não há combinação; a sugestão é limitada a 31 bytes sem cortar caracteres UTF-8 e pode ser editada antes da captura. Reabrir o projeto preserva o nome personalizado.
-3. Ajustar o intervalo de captura e a quantidade de quadros. **Ciclo** exclui a extremidade final; desmarcado inclui as duas extremidades quando há mais de um quadro. A duração de exibição de cada quadro no sprite é editável separadamente.
+3. Ajustar o intervalo de captura e a quantidade de quadros. **Ciclo** é inicializado a partir do modo de repetição da animação selecionada (por exemplo, desabilitado para ChompBot/bite), mas pode ser alterado manualmente e é preservado ao reabrir o projeto. Controla a repetição da prévia e do sprite exportado. Quando habilitado, exclui a extremidade final; desmarcado inclui as duas extremidades quando há mais de um quadro. A duração de exibição de cada quadro no sprite é editável separadamente.
 4. Ajustar posição, rotação em graus e escala da mesh. Os dois painéis à direita controlam separadamente a órbita da câmera e a luz. A câmera oferece posição, foco, distância, rolagem e planos de corte; a luz oferece direção, ambiente, cor direcional e posição/raio/cor de uma luz pontual.
 5. Em **Opções de imagem**, ajustar a largura e altura do PNG em pixels, o tamanho do frame em unidades da engine, o pivô e o fundo RGBA. **Frame acompanha a imagem** começa habilitado; desmarcar permite editar largura/altura do frame independentemente da resolução. **Manter proporção da imagem** também começa habilitado e ajusta a outra dimensão do frame. Desabilitá-lo permite esticamento, sinalizado por um aviso quando as proporções diferem. Alpha zero produz fundo transparente.
 6. **Mostrar pivô** desenha um ponto amarelo nas prévias, sem gravá-lo nas imagens. O padrão `(0.5, 0.5)` é o centro; X cresce da esquerda para a direita e Y de cima para baixo, entre 0 e 1. O xadrez e o ponto pertencem apenas à interface.
@@ -39,6 +39,8 @@ Os PNGs intermediários são temporários e removidos ao recapturar, trocar proj
 A animação estática escolhe o frame da mesh. O editor congela esse frame usando `setIndexFrame` e posiciona o player articulado/esquelético no tempo correspondente. Não há um novo mixer: a combinação segue o renderizador existente, inclusive as restrições dos assets e dos backends. Os modos estáticos são Pausada, Crescente, Crescente com loop, Decrescente, Decrescente com loop, Recursiva e Recursiva com loop.
 
 O intervalo selecionado usa segundos desde o início da reprodução. Na articulada, a velocidade do clip é aplicada ao tempo; na esquelética, a velocidade é a padrão. O modo recursivo percorre a sequência nos dois sentidos sem repetir as extremidades. A captura de uma ação única preserva a pose final do clip, em vez de substituí-la pela primeira pose por causa do loop. Camadas adicionais e aplicação automática de root motion ficam desabilitadas. O deslocamento presente na pose é preservado.
+
+No OpenGL ES, o render target prefere profundidade de 24 bits (GLES 3 ou extensão `GL_OES_depth24`) para preservar a oclusão de superfícies próximas, como a haste e a engrenagem do ChompBot. Dispositivos sem suporte ou com framebuffer incompatível mantêm o fallback de 16 bits. Neles, um plano próximo muito pequeno pode causar disputa de profundidade; aproximar os planos de corte da faixa ocupada pela mesh melhora a precisão, sem mudar culling.
 
 O render target usa perspectiva e a mesma câmera para toda a sequência. Pivô e canvas não mudam por quadro. **Enquadrar limites da fonte** usa os limites fornecidos pelo asset, com folga; esses limites podem ser de física e não abranger todas as poses animadas. Confira o intervalo completo na prévia e ajuste foco/distância quando necessário.
 
@@ -66,5 +68,7 @@ timeout -s KILL 25 bin/debug/linux_x86/mini-mbm \
   --scene src/test-lib/sprite_maker_import_smoke.lua \
   --disable_select_monitor --nosplash -w 1280 -h 1000
 ```
+
+O teste `src/test-lib/mesh_to_sprite_depth_smoke.lua` usa ChompBot em 512 x 512 e compara a mesma pose com planos próximos 0.1 e 10, verificando oclusão e parada da prévia sem ciclo. Requer render target com profundidade de 24 bits; o fallback de 16 bits não atende esse teste de precisão.
 
 Para execução automatizada, configurar `-DUSE_TEXTURE_MISSING_DIALOG=0`. O teste gráfico imprime `M2S SMOKE OK` ou `M2S SMOKE FAIL`; conferir o marcador e os logs, além do exit code. Os artefatos finais do teste ficam no diretório temporário para inspeção.

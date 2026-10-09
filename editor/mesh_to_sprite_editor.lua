@@ -50,10 +50,12 @@ local function selectAnimation(resetStatic)
         p.staticMode=a.static[p.static].mode; p.staticInterval=a.static[p.static].interval; p.baseFrame=a.static[p.static].first
     end
     local duration=a.static[p.static].duration
+    p.cycle=p.staticMode==2 or p.staticMode==4 or p.staticMode==6
     if p.kind~='none' then
         for _,clip in ipairs(a[p.kind]) do
             if clip.name==p.clip then
                 duration=clip.duration
+                p.cycle=clip.loop==true
                 if p.kind=='articulated' then duration=duration/math.max(0.0001,math.abs(clip.speed)) end
             end
         end
@@ -261,7 +263,11 @@ function UI.options()
                 if changed then p.static=index; selectAnimation(true) end
                 local modes={L('paused'),L('growing'),L('growing_loop'),L('decreasing'),L('decreasing_loop'),L('recursive'),L('recursive_loop')}
                 local mc,mi=combo('static_mode',p.staticMode+1,modes)
-                if mc then p.staticMode=mi-1; change() end
+                if mc then
+                    p.staticMode=mi-1
+                    if p.kind=='none' then p.cycle=p.staticMode==2 or p.staticMode==4 or p.staticMode==6 end
+                    change()
+                end
                 number('static_interval',p,'staticInterval',false,0.001,3600)
                 local base=E.animation.static[p.static]
                 if p.staticMode==0 and base then number('base_frame',p,'baseFrame',true,base.first,base.last) end
@@ -397,7 +403,10 @@ function UI.preview()
             local size=P.fitSize(p.width,p.height,available.x,available.y-100-reserved)
             imagePreview(E.texture,size,true,p)
             if E.animation and not E.job then
-                if tImGui.Button(E.playing and L('pause') or L('play')) then E.playing=not E.playing end
+                if tImGui.Button(E.playing and L('pause') or L('play')) then
+                    if not E.playing and E.time>=p.stop then E.time=p.start; E.poseDirty=true end
+                    E.playing=not E.playing
+                end
                 local changed,time=tImGui.SliderFloat(L('time'),E.time,p.start,math.max(p.start+0.001,p.stop),'%.3f s')
                 if changed then E.time=time; E.poseDirty=true; E.playing=false end
                 if tImGui.Button(L('previous')) then E.time=math.max(p.start,E.time-(p.stop-p.start)/p.count); E.poseDirty=true end

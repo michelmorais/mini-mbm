@@ -107,7 +107,7 @@ function onInitScene()
         init();started=mbm.getTimeRun();mbm.addPath('src/test-lib')
         setup('src/test-lib/ChompBot.msh')
         assert(e.animation.articulated[2].name=='bite')
-        chooseBite=true
+        e.project.cycle=true;chooseBite=true
         assert(not pcall(function() e.animation.object:setIndexFrame(0) end))
         staticFixture();staticFixture(true)
     end)
@@ -115,6 +115,7 @@ function onInitScene()
 end
 local function advance()
     if stage==0 and e.texture then
+        assert(not e.project.cycle,'Non-looping bite selected with loop enabled')
         assert(e.project.clip=='bite' and e.project.name=='bite','Clip name did not initialize output name')
         e.capture();stage=1
     elseif stage==1 and e.captured then
