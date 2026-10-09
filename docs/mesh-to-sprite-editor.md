@@ -1,13 +1,15 @@
 # Mesh to Sprite
 
-Editor disponível a partir de `7.355`, no menu dos launchers desktop, como **Mesh to Sprite / Mesh para Sprite**.
+O **Mesh to Sprite / Mesh para Sprite** converte animações de meshes 3D em sprites 2D `.spt` acompanhados de imagens PNG. Está disponível no menu dos launchers desktop.
+
+Exemplo de execução no Linux, a partir da raiz do repositório:
 
 ```sh
 bin/debug/linux_x86/mini-mbm --scene editor/mesh_to_sprite_editor.lua \
   --disable_select_monitor --nosplash -w 1400 -h 1000
 ```
 
-Requer build com Lua e ImGui (`-DUSE_ALL=1`). O [plano de implementação](mesh-to-sprite-editor-plan.md) descreve o desenho e as evoluções previstas.
+Requer build com Lua e ImGui (`-DUSE_ALL=1`). No Windows e no macOS, usar o launcher ou o executável correspondente à plataforma, passando o mesmo script.
 
 ## Uso
 
@@ -28,7 +30,7 @@ Alterar tamanho do frame ou pivô não exige recapturar: os novos valores são u
 
 ## Projeto e dependências
 
-Desde `7.357`, o esquema do projeto é versão 3, com transformação final e sua habilitação. Projetos versões 1 e 2 são migrados ao abrir com a transformação animada desabilitada e valores finais iguais aos iniciais. A migração da versão 1 também mantém frame com tamanho da imagem, proporção habilitada e marcador oculto. O arquivo `.mesh2sprite` contém uma receita Lua versionada, com seleção das animações, amostragem, transformação, câmera, iluminação, skinning, resolução, fundo, pivô e opções de saída. Não contém imagens capturadas nem a mesh original. Pode ser salvo antes da captura.
+O esquema do projeto é versão 3. O arquivo `.mesh2sprite` contém uma receita Lua versionada, com seleção das animações, amostragem, transformação, câmera, iluminação, skinning, resolução, fundo, pivô e opções de saída. Não contém imagens capturadas nem a mesh original. Pode ser salvo antes da captura.
 
 Ao salvar, referências dentro do diretório do projeto são relativas; outras permanecem absolutas. Ao reabrir, os caminhos relativos são resolvidos a partir do projeto. A mesh e suas texturas continuam necessárias. A assinatura da mesh permite avisar quando o conteúdo de origem mudou; texturas externas não têm assinatura própria. Se a origem não puder ser carregada, a receita permanece aberta e o botão de substituir mesh permite localizar outra fonte. Revise as seleções após substituir a origem.
 
@@ -36,9 +38,9 @@ Os PNGs intermediários são temporários e removidos ao recapturar, trocar proj
 
 ## Animação e renderização
 
-A animação estática escolhe o frame da mesh. O editor congela esse frame usando `setIndexFrame` e posiciona o player articulado/esquelético no tempo correspondente. Não há um novo mixer: a combinação segue o renderizador existente, inclusive as restrições dos assets e dos backends. Os modos estáticos são Pausada, Crescente, Crescente com loop, Decrescente, Decrescente com loop, Recursiva e Recursiva com loop.
+A animação estática escolhe o frame da mesh. O editor congela esse frame usando `setIndexFrame` e posiciona o player articulado/esquelético no tempo correspondente. A combinação segue o renderizador da engine, inclusive as restrições dos assets e dos backends. Os modos estáticos são Pausada, Crescente, Crescente com loop, Decrescente, Decrescente com loop, Recursiva e Recursiva com loop.
 
-A transformação animada é aplicada à mesh inteira, combinada com a animação estática/articulada/esquelética existente. A interpolação é linear em cada eixo: posição e escala em suas unidades habituais, rotação em graus, sem escolher o caminho angular mais curto. Assim, 0 a 180 produz meia volta e 0 a 720 produz duas voltas. O primeiro quadro usa os valores iniciais e o último os finais. Com **Ciclo**, a animação interna continua excluindo o instante final, mas a transformação chega ao destino no último instante amostrado e a prévia mantém esse valor até reiniciar; os valores inicial/final devem coincidir se for desejada uma transição contínua no retorno. Capturas com um único quadro ou intervalo de tempo zero usam a transformação inicial. As duas passagens preto/branco de um quadro compartilham exatamente a mesma pose e transformação.
+A transformação animada é aplicada à mesh inteira, combinada com a animação estática/articulada/esquelética existente. A interpolação é linear em cada eixo: posição e escala em suas unidades habituais, rotação em graus, sem escolher o caminho angular mais curto. Assim, 0 a 180 produz meia volta e 0 a 720 produz duas voltas. O primeiro quadro usa os valores iniciais e o último os finais. Com **Ciclo**, a animação interna continua excluindo o instante final, mas a transformação chega ao destino no último instante amostrado e a prévia mantém esse valor até reiniciar; as poses inicial/final devem coincidir se for desejada uma transição contínua no retorno. Capturas com um único quadro ou intervalo de tempo zero usam a transformação inicial. As duas passagens preto/branco de um quadro compartilham exatamente a mesma pose e transformação.
 
 O intervalo selecionado usa segundos desde o início da reprodução. Na articulada, a velocidade do clip é aplicada ao tempo; na esquelética, a velocidade é a padrão. O modo recursivo percorre a sequência nos dois sentidos sem repetir as extremidades. A captura de uma ação única preserva a pose final do clip, em vez de substituí-la pela primeira pose por causa do loop. Camadas adicionais e aplicação automática de root motion ficam desabilitadas. O deslocamento presente na pose é preservado.
 
@@ -50,15 +52,22 @@ As meshes são carregadas com shaders padrão capazes de iluminação, permitind
 
 A captura congela a pose antes do render e lê os pixels na próxima chamada da lógica, após a passagem de render correspondente. Para fundo com alpha menor que 1, renderiza sobre preto e branco e reconstrói cor/opacidade em PNG com alpha não pré-multiplicado; isso evita escurecer bordas semitransparentes ao usar o sprite. Essa reconstrução pressupõe a composição alpha padrão; materiais com blend aditivo ou outros modos especiais precisam de conferência própria. Não depende do FPS do editor. No editor parado, o alvo fica desabilitado: não há `seek`, leitura GPU ou reconstrução de assets contínua. Durante reprodução e captura, apenas as atualizações necessárias são executadas.
 
-## Limites e validação
+## Limites
 
-A versão inicial trabalha com uma mesh e uma direção por projeto, até 4096 quadros e resolução de 8 a 4096 pixels por eixo, limitados adicionalmente a 1 GiB estimado de RGBA não comprimido. A criação do alvo ainda depende da capacidade real da GPU. Exporta um quad de canvas uniforme por quadro, sem atlas ou recorte individual. Enquadramento automático pela união das poses, sombras, pós-processamento, edição de materiais e múltiplas direções permanecem como evoluções.
+O editor trabalha com uma mesh e uma direção por projeto, até 4096 quadros e resolução de 8 a 4096 pixels por eixo, limitados adicionalmente a 1 GiB estimado de RGBA não comprimido. A criação do alvo depende da capacidade real da GPU. Exporta um retângulo de canvas uniforme por quadro. Não oferece atlas, recorte individual, enquadramento automático pela união das poses, sombras, pós-processamento, edição de materiais ou captura de múltiplas direções no mesmo projeto.
 
-Validação realizada em Linux/OpenGL ES: ChompBot/bite, Lorekeeper, fixtures estáticas de três frames e alpha 128, mudança efetiva de iluminação, `.spt` recarregado/renderizado, persistência sem cache, cancelamento, navegação de quadros nos dois sentidos e editor ocioso. A importação no Sprite Maker também é verificada com um sprite CCW, incluindo salvar/reabrir o projeto. Também são verificados tamanho independente do frame, pivô deslocado, proporção, migração de projetos versões 1/2 e interpolação de posição/rotação/escala, incluindo os valores reais aplicados à mesh e sua persistência. O alpha do primeiro quadro do sprite recarregado é comparado ao PNG de origem. As fontes animadas também exercitam o frame estático base combinado com o respectivo player.
+## Testes
 
-O asset **Tango Way** não foi localizado no repositório; a fixture verifica o caminho de animação estática, mas não substitui a validação desse asset. Combinações com troca entre múltiplos frames de uma mesh articulada/esquelética ainda dependem de um asset compatível para validação visual específica. DirectX 9/11 e Metal não foram executados neste ambiente. Gizmos foram renderizados e inspecionados; interação manual de arrastar/clicar ainda requer conferência no editor.
+Os testes automatizados cobrem os seguintes comportamentos:
 
-Testes:
+| Teste | Cobertura |
+| --- | --- |
+| `src/test-lib/mesh_to_sprite_project_test.lua` | Validação e compatibilidade de projetos, amostragem, nomes UTF-8, proporção do frame, interpolação de transformações e reconstrução de alpha |
+| `src/test-lib/mesh_to_sprite_smoke.lua` | ChompBot/bite, Lorekeeper, animação estática, alpha, iluminação, captura e exportação, navegação dos quadros, pivô, tamanho do frame, transformações, persistência, cancelamento e editor ocioso |
+| `src/test-lib/sprite_maker_import_smoke.lua` | Importação de sprite CCW, renderização da prévia, duplicação e salvar/reabrir no Sprite Maker |
+| `src/test-lib/mesh_to_sprite_depth_smoke.lua` | Oclusão do ChompBot em 512 x 512 e parada da prévia sem ciclo |
+
+Executar a partir da raiz do repositório. Exemplos para Linux:
 
 ```sh
 bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/mesh_to_sprite_project_test.lua
@@ -66,11 +75,21 @@ bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/mesh_to_sprite_project_test.lua
 timeout -s KILL 40 bin/debug/linux_x86/mini-mbm \
   --scene src/test-lib/mesh_to_sprite_smoke.lua \
   --disable_select_monitor --nosplash -w 1280 -h 1000
+
 timeout -s KILL 25 bin/debug/linux_x86/mini-mbm \
   --scene src/test-lib/sprite_maker_import_smoke.lua \
   --disable_select_monitor --nosplash -w 1280 -h 1000
+
+timeout -s KILL 20 bin/debug/linux_x86/mini-mbm \
+  --scene src/test-lib/mesh_to_sprite_depth_smoke.lua \
+  --disable_select_monitor --nosplash -w 1280 -h 1000
+
 ```
 
 O teste `src/test-lib/mesh_to_sprite_depth_smoke.lua` usa ChompBot em 512 x 512 e compara a mesma pose com planos próximos 0.1 e 10, verificando oclusão e parada da prévia sem ciclo. Requer render target com profundidade de 24 bits; o fallback de 16 bits não atende esse teste de precisão.
 
-Para execução automatizada, configurar `-DUSE_TEXTURE_MISSING_DIALOG=0`. O teste gráfico imprime `M2S SMOKE OK` ou `M2S SMOKE FAIL`; conferir o marcador e os logs, além do exit code. Os artefatos finais do teste ficam no diretório temporário para inspeção, com o caminho impresso em `M2S ARTIFACT`. Os testes usam `src/test-lib/test_temp_path.lua`: `MBM_TEST_TMPDIR` permite escolher um diretório existente e gravável; sem esse override, usam `TEMP`/`TMP` no Windows, `TMPDIR` no Unix ou o local temporário nativo disponível. Os testes devem ser iniciados na raiz do repositório. Para Windows, usar o executável da plataforma e um timeout do runner no lugar do comando Unix `timeout`; os testes gráficos também têm limite de tempo interno.
+Para execução automatizada, configurar `-DUSE_TEXTURE_MISSING_DIALOG=0`. Conferir os logs e os marcadores de sucesso, além do exit code: `MESH TO SPRITE PROJECT TEST OK`, `M2S SMOKE OK`, `SPRITE IMPORT OK` e `M2S DEPTH OK`. Os testes gráficos também imprimem marcadores `FAIL` em caso de erro.
+
+Os artefatos finais do teste de captura ficam no diretório temporário para inspeção, com o caminho impresso em `M2S ARTIFACT`. Os testes usam `src/test-lib/test_temp_path.lua`: `MBM_TEST_TMPDIR` permite escolher um diretório existente e gravável. Sem esse override, o helper usa `TEMP`/`TMP` no Windows ou `TMPDIR` no Unix; na ausência dessas variáveis, usa o diretório corrente no Windows e o diretório de `os.tmpname()` no Unix.
+
+No Windows, usar os executáveis da plataforma e um timeout do runner no lugar do comando Unix `timeout`. Os testes gráficos também têm limite de tempo interno.
