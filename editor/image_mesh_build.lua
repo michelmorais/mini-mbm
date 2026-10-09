@@ -45,6 +45,7 @@ local function geometry(E,project,region,options,callbacks)
     -- Match Mesh Debug's +Z front view. Rotate positions and authored normals by 180 degrees around
     -- Y while preserving UVs, winding, and the source's smooth or hard edges.
     local vertices=Asset.vertices(asset,true)
+    local center=Asset.center(asset,vertices)
     if callbacks and callbacks.beforeSimplify then
         callbacks.beforeSimplify(asset,report,vertices,options)
     end
@@ -58,6 +59,7 @@ local function geometry(E,project,region,options,callbacks)
             return nil,Budget.error(region,originalReport)
         end
         local originalVertices=Asset.vertices(original,true)
+        Asset.center(original,originalVertices)
         if callbacks.curvedSource then
             callbacks.curvedSource(original,originalReport,originalVertices,options)
         end
@@ -68,6 +70,11 @@ local function geometry(E,project,region,options,callbacks)
     report.vertexLimit=math.min(options.maxVertices,65535)
     report.triangleLimit=options.maxTriangles
     Simplify.apply(E,asset,options,report)
+    -- Simplification/remeshing can change the extrema. Use the final bounds for
+    -- the exported pivot, while retaining the base-plane offset for assembly.
+    local adjustment={x=0,y=0,z=0}
+    if options.simplify or options.remesh then adjustment=Asset.center(asset) end
+    report.centerOffset={x=center.x+adjustment.x,y=center.y+adjustment.y,z=center.z+adjustment.z}
     return asset,report,options,vertices
 end
 

@@ -21,6 +21,23 @@
 ]]--
 
 local M={}
+-- Translate the whole frame together; centering subsets independently separates
+-- the front, back and walls. UVs, normals and triangle indices stay unchanged.
+function M.center(asset,vertices)
+    vertices=vertices or M.vertices(asset)
+    local lo={x=math.huge,y=math.huge,z=math.huge}
+    local hi={x=-math.huge,y=-math.huge,z=-math.huge}
+    for _,v in ipairs(vertices) do
+        lo.x=math.min(lo.x,v.x);hi.x=math.max(hi.x,v.x)
+        lo.y=math.min(lo.y,v.y);hi.y=math.max(hi.y,v.y)
+        lo.z=math.min(lo.z,v.z);hi.z=math.max(hi.z,v.z)
+    end
+    assert(#vertices>0,'Cannot center an empty image mesh')
+    local center={x=(lo.x+hi.x)/2,y=(lo.y+hi.y)/2,z=(lo.z+hi.z)/2}
+    asset:translateFrame(1,-center.x,-center.y,-center.z)
+    for _,v in ipairs(vertices) do v.x=v.x-center.x;v.y=v.y-center.y;v.z=v.z-center.z end
+    return center
+end
 function M.vertices(asset,rotate)
     local all={}
     for subset=1,asset:getTotalSubset(1) do

@@ -104,7 +104,7 @@ function M.layout(E)
     local depth=0
     for _,item in ipairs(a.items) do
         item.x=item.x-cx-item.centerX;item.y=item.y-cy-item.centerY
-        item.z=(item.curvedFlat and 0 or -item.depth/2)+item.slot.z
+        item.z=(item.curvedFlat and 0 or -item.depth/2)+(item.report.centerOffset and item.report.centerOffset.z or 0)+item.slot.z
         item.preview:setPos(item.x,item.y,item.z)
         if item.wireObject then item.wireObject:setPos(item.x,item.y,item.z) end
         depth=math.max(depth,item.depth+item.relief+math.abs(item.slot.z))

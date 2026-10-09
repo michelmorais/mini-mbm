@@ -44,11 +44,11 @@ local function check()
  if E.meshTask or E.dirty then return end
  if phase==1 then
   assert(#a.items==3 and a.builds==1 and not E.preview,'assembly did not replace single preview')
-  for _,item in ipairs(a.items) do assert(item.preview.visible);close(item.z+item.depth/2,0) end
+  for _,item in ipairs(a.items) do assert(item.preview.visible);close(item.z+item.depth/2-item.report.centerOffset.z,0) end
   a.gapX=5;Assembly.layout(E);close(a.items[2].x-a.items[1].x,45)
   a.slots[2].row=1;a.slots[2].column=0;a.slots[2].z=3;Assembly.layout(E)
   close(a.items[2].x,a.items[1].x);close(a.items[2].y-a.items[1].y,-40)
-  close(a.items[2].z+a.items[2].depth/2,3)
+  close(a.items[2].z+a.items[2].depth/2-a.items[2].report.centerOffset.z,3)
   api.setWireframe(true)
   for _,item in ipairs(a.items) do assert(item.wireObject.visible and not item.preview.visible) end
   a.slots[2].visible=false;Assembly.sync(E);assert(not a.items[2].wireObject.visible)

@@ -614,8 +614,13 @@ shown when border locking is enabled. **Preserve image aspect ratio** derives wo
 from world width using the crop's pixel-center spans, `(h - 1) / (w - 1)`, with
 minimum one-pixel spans. Disable it for independent width and height.
 
-The editor's front faces +Z, matching Mesh Debug's initial view. The origin is at
-the center of the base volume. The underlying `mbm.generateImageMesh` API faces
+The editor's front faces +Z, matching Mesh Debug's initial view. Every generated
+module has its origin at the center of its final geometry's axis-aligned bounds
+in X, Y and Z, including relief and all material subsets. This also applies to
+polygons occupying only part of their image crop, simplified meshes, previews and
+exports. Reopen existing projects and regenerate/re-export their meshes to use
+the centered pivot; existing exported files are not rewritten automatically.
+The underlying `mbm.generateImageMesh` API retains its base-volume origin and faces
 -Z; the editor rotates positions and normals before preview/export, preserving
 UVs and winding.
 
@@ -990,7 +995,8 @@ copies side by side without duplicating the editable module.
 Set grid columns, X/Y spacing, and Arrange to distribute objects in preview order.
 Cells use the largest displayed module dimensions. Select a preview object to change
 its zero-based row/column, depth offset, or visibility, independently of other copies. Fit Assembly centers the view. Base front
-planes align at Z=0 before relief and per-module depth offsets.
+planes align at Z=0 before relief and per-module depth offsets; placement
+compensates for the generated mesh's centered pivot.
 
 Placement uses numeric controls; it is a session preview, not saved/exported scene
 layout or project history. Disabling it restores the individual view. Edit mode
@@ -1066,6 +1072,7 @@ inputs change or an operation is requested, not continuously while idle.
 
 Representative automated coverage in `src/test-lib/` includes:
 
+- `image_mesh_center_smoke.lua`: centered XYZ bounds, subset alignment, unchanged UVs/normals/topology, export/reload and idle orbit. Set `IMAGE_MESH_CENTER_PROJECT` to an existing `.imesh` path to also check its `wall-fac_004` module.
 - `image_mesh_smoke.lua`: geometry, validation, export/reload, and rendering.
 - `image_mesh_relief_smoke.lua`: sampled relief interpolation and adaptive geometry.
 - `image_mesh_areas_smoke.lua` and `image_mesh_height_line_smoke.lua`: manual heights.
