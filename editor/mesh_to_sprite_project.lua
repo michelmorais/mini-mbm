@@ -40,11 +40,13 @@ function M.suggestAnimationName(name)
     return name:sub(1,last)
 end
 function M.defaults()
-    return {version=2, source='', signature='', static=1, staticName='', staticMode=0, staticInterval=1, baseFrame=1, skinning='auto', kind='none', clip='',
+    return {version=3, source='', signature='', static=1, staticName='', staticMode=0, staticInterval=1, baseFrame=1, skinning='auto', kind='none', clip='',
         start=0, stop=1, count=16, cycle=true, frameTime=1/16, width=256, height=256,
         frameWidth=256, frameHeight=256, followImage=true, keepAspect=true, showPivot=false,
         pivotX=0.5, pivotY=0.5, output='', name='animation',
         position={x=0,y=0,z=0}, rotation={x=0,y=0,z=0}, scale={x=1,y=1,z=1},
+        animateTransform=false,
+        finalTransform={position={x=0,y=0,z=0},rotation={x=0,y=0,z=0},scale={x=1,y=1,z=1}},
         camera={azimuth=0.3,elevation=0.2,roll=0,distance=500,fx=0,fy=0,fz=0,near=0.1,far=100000},
         background={r=0,g=0,b=0,a=0},
         light={enabled=false, ambient={r=0.3,g=0.3,b=0.3,a=1},
@@ -62,7 +64,7 @@ local function check(v, ref, path)
 end
 function M.validate(p)
     check(p,M.defaults(),'project')
-    assert(p.version==2,'Unsupported project version')
+    assert(p.version==3,'Unsupported project version')
     assert(p.kind=='none' or p.kind=='skeletal' or p.kind=='articulated','Invalid animation kind')
     assert(p.staticMode>=0 and p.staticMode<=6 and p.staticMode%1==0 and p.staticInterval>0,'Invalid static playback')
     assert(p.baseFrame>=1 and p.baseFrame%1==0,'Invalid base frame')
@@ -83,6 +85,18 @@ function M.validate(p)
     assert(p.pivotX>=0 and p.pivotX<=1 and p.pivotY>=0 and p.pivotY<=1,'Invalid pivot')
     assert(#p.name>0 and #p.name<32,'Animation name must contain 1..31 bytes')
     return p
+end
+-- Use the final sampled instant as the endpoint so loop sampling also reaches
+-- the requested transform. Preview holds it until the playback interval restarts.
+function M.transformProgress(p,time)
+    if not p.animateTransform or p.count<=1 then return 0 end
+    local span=M.sample(p,p.count)-p.start
+    if span<=0 then return 0 end
+    return math.max(0,math.min(1,(time-p.start)/span))
+end
+function M.transformComponents(p,key,progress)
+    local a,b=p[key],p.finalTransform[key]
+    return a.x+(b.x-a.x)*progress,a.y+(b.y-a.y)*progress,a.z+(b.z-a.z)*progress
 end
 function M.frameSize(p)
     if p.followImage then return p.width,p.height end
@@ -190,6 +204,10 @@ function M.load(path)
         p.version=2
         p.frameWidth=p.width; p.frameHeight=p.height
         p.followImage=true; p.keepAspect=true; p.showPivot=false
+    end
+    if type(p)=='table' and p.version==2 then
+        p.version=3; p.animateTransform=false
+        p.finalTransform={position=M.copy(p.position),rotation=M.copy(p.rotation),scale=M.copy(p.scale)}
     end
     M.validate(p)
     local base=M.dirname(path)

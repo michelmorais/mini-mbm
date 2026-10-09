@@ -38,6 +38,23 @@ end
 local p=P.defaults(); p.count=4; p.start=2; p.stop=6
 near(P.sample(p,1),2); near(P.sample(p,4),5)
 p.cycle=false; near(P.sample(p,4),6); p.count=1; near(P.sample(p,1),2)
+local motion=P.defaults();motion.animateTransform=true;motion.start=2;motion.stop=6;motion.count=4
+motion.position={x=-3,y=2,z=4}
+motion.finalTransform.position={x=9,y=-4,z=10}
+motion.finalTransform.rotation={x=-180,y=180,z=720}
+motion.finalTransform.scale={x=2,y=0.5,z=3}
+for _,cycle in ipairs({false,true}) do
+    motion.cycle=cycle
+    for i=1,4 do near(P.transformProgress(motion,P.sample(motion,i)),(i-1)/3) end
+    local t=P.transformProgress(motion,(motion.start+P.sample(motion,4))/2)
+    local x,y,z=P.transformComponents(motion,'position',t);near(x,3);near(y,-1);near(z,7)
+    x,y,z=P.transformComponents(motion,'rotation',t);near(x,-90);near(y,90);near(z,360)
+    x,y,z=P.transformComponents(motion,'scale',t);near(x,1.5);near(y,0.75);near(z,2)
+end
+near(P.transformProgress(motion,0),0);near(P.transformProgress(motion,99),1)
+motion.count=1;near(P.transformProgress(motion,6),0)
+motion.count=4;motion.stop=motion.start;near(P.transformProgress(motion,6),0)
+motion.animateTransform=false;near(P.transformProgress(motion,6),0)
 local sizing=P.defaults()
 sizing.width=320;sizing.height=160
 local fw,fh=P.frameSize(sizing);assert(fw==320 and fh==160)
@@ -55,13 +72,18 @@ end end
 local tmp=os.tmpname(); P.save(p,tmp)
 local q=P.load(tmp); assert(q.count==1 and q.start==2 and q.camera.distance==p.camera.distance)
 local legacyFile=assert(io.open(tmp,'r'));local legacy=legacyFile:read('*a');legacyFile:close()
+legacy=legacy:gsub('%["version"%]=3,','["version"]=2,')
+legacy=legacy:gsub('%["animateTransform"%]=[^,]+,',''):gsub('%["finalTransform"%]=%b{},','')
+local v2=assert(io.open(tmp,'w'));v2:write(legacy);v2:close()
+local fromV2=P.load(tmp)
+assert(fromV2.version==3 and not fromV2.animateTransform and fromV2.finalTransform.scale.x==p.scale.x)
 legacy=legacy:gsub('%["version"%]=2,','["version"]=1,')
 for _,key in ipairs({'frameWidth','frameHeight','followImage','keepAspect','showPivot'}) do
     legacy=legacy:gsub('%["'..key..'"%]=[^,]+,','')
 end
 local lf=assert(io.open(tmp,'w'));lf:write(legacy);lf:close()
 local migrated=P.load(tmp)
-assert(migrated.version==2 and migrated.followImage and migrated.keepAspect and not migrated.showPivot)
+assert(migrated.version==3 and migrated.followImage and migrated.keepAspect and not migrated.showPivot)
 assert(migrated.frameWidth==migrated.width and migrated.frameHeight==migrated.height)
 os.remove(tmp)
 local function rejects(change)
@@ -69,7 +91,7 @@ local function rejects(change)
 end
 rejects(function(v) v.count=0 end); rejects(function(v) v.camera.distance=0/0 end)
 rejects(function(v) v.width=4096;v.height=4096;v.count=4096 end)
-rejects(function(v) v.version=3 end); rejects(function(v) v.unknown=true end)
+rejects(function(v) v.version=4 end); rejects(function(v) v.unknown=true end)
 local f=assert(io.open(tmp,'w'));f:write('while true do end');f:close()
 assert(not pcall(P.load,tmp));os.remove(tmp)
 local Pixels=require 'mesh_to_sprite_pixels'

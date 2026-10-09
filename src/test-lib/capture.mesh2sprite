@@ -19,7 +19,7 @@ return {
 },
 ["clip"]="bite",
 ["count"]=16,
-["cycle"]=true,
+["cycle"]=false,
 ["followImage"]=true,
 ["frameHeight"]=256,
 ["frameTime"]=0.09375,

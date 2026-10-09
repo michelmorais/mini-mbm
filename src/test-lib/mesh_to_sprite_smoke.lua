@@ -31,8 +31,20 @@ local unlit
 local temp=os.tmpname(); os.remove(temp)
 local output=temp..'.spt'; local project=temp..'.mesh2sprite'; local fixture=temp..'.msh'
 local originalPose=A.pose
-A.pose=function(...) reads=reads+1; return originalPose(...) end
 local e=MeshToSpriteEditor
+local transformedFrames={}
+A.pose=function(a,time)
+    reads=reads+1
+    originalPose(a,time)
+    if a.config.animateTransform and e.job then
+        local i=e.job.index
+        local position,angle,scale=a.object:getPos(),a.object:getAngle(),a.object:getScale()
+        assert(math.abs(position.x-({0,3,6,9})[i])<0.0001)
+        assert(math.abs(math.deg(angle.y)-({0,60,120,180})[i])<0.001)
+        assert(math.abs(scale.x-({1,4/3,5/3,2})[i])<0.0001)
+        transformedFrames[i]=true
+    end
+end
 local image=tImGui.Image
 local seenImages={}
 local suggestedOutput
@@ -89,6 +101,7 @@ local function checkImages()
 end
 local function setup(path)
     e.loadSource(path)
+    e.project.animateTransform=false
     e.project.width=128;e.project.height=128;e.project.count=4
     e.project.cycle=false;e.refresh=true
 end
@@ -108,6 +121,10 @@ function onInitScene()
         setup('src/test-lib/ChompBot.msh')
         assert(e.animation.articulated[2].name=='bite')
         e.project.cycle=true;chooseBite=true
+        e.project.animateTransform=true
+        e.project.finalTransform.position.x=9
+        e.project.finalTransform.rotation.y=180
+        e.project.finalTransform.scale={x=2,y=2,z=2}
         assert(not pcall(function() e.animation.object:setIndexFrame(0) end))
         staticFixture();staticFixture(true)
     end)
@@ -119,7 +136,11 @@ local function advance()
         assert(e.project.clip=='bite' and e.project.name=='bite','Clip name did not initialize output name')
         e.capture();stage=1
     elseif stage==1 and e.captured then
-        checkImages();e.selected=navigation[1];stage=30
+        checkImages()
+        for i=1,4 do assert(transformedFrames[i],'Missing animated transform frame') end
+        C.preview(e,0.75)
+        assert(math.abs(math.deg(e.animation.object:getAngle().y)-90)<0.001,'Preview transform differs from capture')
+        e.selected=navigation[1];stage=30
     elseif stage==30 then
         navigationStep=navigationStep+1
         if navigation[navigationStep] then e.selected=navigation[navigationStep]
@@ -150,6 +171,7 @@ local function advance()
         e.open(project)
         assert(e.project.frameWidth==64 and e.project.frameHeight==192 and e.project.showPivot)
         assert(e.project.clip=='bite' and e.project.stop==1.5)
+        assert(e.project.animateTransform and e.project.finalTransform.rotation.y==180,'Lost final transform')
         assert(e.project.name=='custom_bite','Reopen overwrote custom animation name')
         assert(#e.images==0 and not e.captured,'Project restored image cache')
         e.capture();stage=3

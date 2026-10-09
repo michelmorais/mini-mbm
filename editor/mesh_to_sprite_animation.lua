@@ -94,6 +94,13 @@ function M.configure(a,p)
 end
 function M.pose(a,t)
     local p=a.config; local obj=a.object
+    if p.animateTransform then
+        local progress=P.transformProgress(p,t)
+        obj:setPos(P.transformComponents(p,'position',progress))
+        local x,y,z=P.transformComponents(p,'rotation',progress)
+        obj:setAngle(math.rad(x),math.rad(y),math.rad(z))
+        obj:setScale(P.transformComponents(p,'scale',progress))
+    end
     local base=a.static[p.static]
     obj:setIndexFrame(p.staticMode==0 and p.baseFrame or P.staticFrame({first=base.first,last=base.last,interval=p.staticInterval,mode=p.staticMode},t))
     if p.kind=='skeletal' then

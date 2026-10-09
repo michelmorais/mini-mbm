@@ -298,7 +298,18 @@ function UI.options()
                 checkbox('cycle',p,'cycle')
                 number('frame_time',p,'frameTime',false,0.001,3600,false)
                 if tImGui.CollapsingHeader(L('mesh')) then
+                    checkbox('animate_transform',p,'animateTransform')
+                    if p.animateTransform then tImGui.Text(L('initial_transform')) end
                     vector('position',p.position); vector('rotation',p.rotation); vector('scale',p.scale)
+                    if p.animateTransform then
+                        tImGui.Separator();tImGui.Text(L('final_transform'))
+                        tImGui.PushID('finalTransform')
+                        vector('position',p.finalTransform.position)
+                        vector('rotation',p.finalTransform.rotation)
+                        vector('scale',p.finalTransform.scale)
+                        tImGui.PopID()
+                        tImGui.TextWrapped(L('transform_hint'))
+                    end
                 end
                 if tImGui.CollapsingHeader(L('capture_settings')) then
                     number('width',p,'width',true,8,4096); number('height',p,'height',true,8,4096)
