@@ -21,6 +21,32 @@
 ]]--
 
 local M={}
+function M.beginNotification(E)
+ if E.generationNotice and tUtil.sMessageOverlay==E.generationNotice then
+  tUtil.sMessageOverlay=false
+ end
+ E.generationNotice=nil
+end
+-- Emit once at the operation boundary, after every geometry/material/preview stage.
+function M.notify(E,ok,name,report)
+ local key=ok and 'success' or (E.generationCancelled and 'cancelled' or 'failed')
+ local message=string.format(tLang.L('ime_generation_result_'..key),name)
+ if ok and report then
+  message=message..string.format(tLang.L('ime_generation_result_triangles'),report.triangles)
+  if report.detailSeparation and not report.detailSeparation.reached then
+   message=message..' '..tLang.L('ime_normal_target_unmet')
+  elseif report.curvedTargetReached==false then
+   message=message..' '..tLang.L('ime_curved_simplify_limited')
+  end
+ elseif not ok and not E.generationCancelled then
+  message=message..'\n'..tostring(E.status or '')
+ end
+ E.generationNotice=message
+ tUtil.showMessage(message,6)
+ -- showMessage skips identical text; repeated results still need a full duration.
+ tUtil.bWarnMessage=false
+ tUtil.tTimerOverlay:set(6);tUtil.tTimerOverlay:restart()
+end
 function M.cancel(E)
  if E.targetSearch then E.targetSearch.cancelled=true;E.generationCancelling=true end
  if E.normalProcessing then E.generationCancelling=true end

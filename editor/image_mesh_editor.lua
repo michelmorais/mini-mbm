@@ -211,12 +211,14 @@ local function updateStatisticsImpl()
     if not cached then
         local region=Model.region(E.project,E.selected)
         if not region then return end
+        Generation.beginNotification(E)
         GeometryCache.begin(E,region.id)
         local ok,asset,report=dpCall(generate,region,nil,false,true)
         if ok then GeometryCache.finish(E,asset,report) else GeometryCache.clear(E) end
         if E.generationCancelled then cached=nil else cached=ok and {report=report} or {error=E.status} end
         E.statistics[E.selected]=cached
         E.statisticsBuilds=(E.statisticsBuilds or 0)+1
+        Generation.notify(E,ok,region.name,ok and report or nil)
     end
     E.report=cached and cached.report; E.generationFailure=cached and cached.error
 end
@@ -235,6 +237,7 @@ local function rebuildImpl()
     if E.assembly and E.assembly.enabled then return Assembly.build(E,generate,dpCall,camera) end
     E.dirty=false
     local r=Model.region(E.project,E.selected); if not r or not E.texture then return end
+    Generation.beginNotification(E)
     local path=tUtil.getTemporaryFilePath('.msh'); local object;local staged={};local installed=false
     local ok=dpCall(function()
         local asset,report
@@ -278,6 +281,7 @@ local function rebuildImpl()
         E.previewStale=E.preview~=nil
         Comparison.sync(E)
     end
+    Generation.notify(E,ok,r.name,ok and E.report or nil)
 end
 local function rebuild()
     if E.meshTask or not E.dirty or E.drag or E.editMode then return end
@@ -507,6 +511,10 @@ local function setEditMode(enabled)
     Comparison.sync(E); Assembly.sync(E)
     if E.heightObject then E.heightObject.visible=enabled and E.heightView~=1 end
     Canvas.sync(E)
+    if not enabled and not E.dirty and E.preview and not (E.assembly and E.assembly.enabled) then
+        local region=Model.region(E.project,E.selected)
+        Generation.notify(E,true,region and region.name or '',E.report)
+    end
 end
 local function setComparison(sideBySide)
     Normal.clearComparison(E)

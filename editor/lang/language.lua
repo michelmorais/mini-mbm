@@ -8062,4 +8062,13 @@ M.pt_br.m2s_direction = 'Direcao da luz'
 M.en.m2s_loaded = 'Mesh loaded. Configure the animation and capture frames.'
 M.pt_br.m2s_loaded = 'Mesh carregada. Configure a animacao e capture os quadros.'
 
+M.en.ime_generation_result_success = '3D mesh generated successfully: %s.'
+M.pt_br.ime_generation_result_success = 'Malha 3D gerada com sucesso: %s.'
+M.en.ime_generation_result_failed = '3D mesh generation failed: %s.'
+M.pt_br.ime_generation_result_failed = 'Falha ao gerar malha 3D: %s.'
+M.en.ime_generation_result_cancelled = '3D mesh generation cancelled: %s.'
+M.pt_br.ime_generation_result_cancelled = 'Geracao da malha 3D cancelada: %s.'
+M.en.ime_generation_result_triangles = ' Triangles: %d.'
+M.pt_br.ime_generation_result_triangles = ' Triangulos: %d.'
+
 return M

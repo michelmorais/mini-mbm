@@ -118,6 +118,7 @@ function M.ensureWire(E)
     M.layout(E)
 end
 function M.build(E,generate,dpCall,camera)
+    require('image_mesh_generation').beginNotification(E)
     local a=slots(E)
     for i=#a.order,1,-1 do
         local id=a.order[i]
@@ -129,7 +130,7 @@ function M.build(E,generate,dpCall,camera)
     E.dirty=false
     if a.revision==E.revision and a.builtConfig==a.configRevision then
         for _,item in ipairs(a.items) do if item.id==E.selected then E.report=item.report end end
-        M.sync(E);return
+        M.sync(E);require('image_mesh_generation').notify(E,true,L('title'));return
     end
     local staged={items={},slots=Model.copy(a.slots),gapX=a.gapX,gapY=a.gapY}
     local staging={assembly=staged}
@@ -185,6 +186,7 @@ function M.build(E,generate,dpCall,camera)
         E.generationFailure=not E.generationCancelled and E.status or nil
     end
     M.sync(E)
+    require('image_mesh_generation').notify(E,ok,L('title'))
 end
 function M.arrange(E)
     local a=M.state(E)
