@@ -8071,4 +8071,7 @@ M.pt_br.ime_generation_result_cancelled = 'Geracao da malha 3D cancelada: %s.'
 M.en.ime_generation_result_triangles = ' Triangles: %d.'
 M.pt_br.ime_generation_result_triangles = ' Triangulos: %d.'
 
+M.en.ime_paint_finishing_compare_help = 'Hold Ctrl to show the original image. Release Ctrl to restore the height preview, without changing the painting.'
+M.pt_br.ime_paint_finishing_compare_help = 'Segure Ctrl para mostrar a imagem original. Solte Ctrl para restaurar a previa de altura, sem alterar a pintura.'
+
 return M

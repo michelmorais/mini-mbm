@@ -97,6 +97,7 @@ function M.panel(E,action,apply)
     if not tImGui.CollapsingHeader(L('title')) then return end
     local settings=M.state(E)
     local finishing=tImGui.Checkbox(L('finishing'),E.values.heightFinishing~=false)
+    if finishing and tImGui.IsItemHovered() then Help.tooltip(L('finishing_compare_help')) end
     if finishing~=(E.values.heightFinishing~=false) then
         M.cancel(E);settings.enabled=false
         local previous=E.values.heightFinishing;E.values.heightFinishing=finishing

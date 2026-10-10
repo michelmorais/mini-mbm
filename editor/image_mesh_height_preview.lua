@@ -100,7 +100,10 @@ function M.sync(E,protectedCall)
         if not ok then E.heightError=E.status end
     end
     if E.heightObject then
-        E.heightObject.visible=visible and E.heightSelected==E.selected and E.heightSourcePath==E.project.image.path
+        -- Ctrl compares against the source image underneath without invalidating
+        -- the map, cancelling its worker, or changing the selected preview mode.
+        local showOriginal=E.control and E.values and E.values.heightFinishing~=false
+        E.heightObject.visible=visible and not showOriginal and E.heightSelected==E.selected and E.heightSourcePath==E.project.image.path
         if E.heightScale~=E.zoom then
             local r=E.heightRegion
             E.heightObject:setScale(E.zoom,E.zoom)

@@ -30,7 +30,23 @@ local function test()
  api.openImage('/tmp/ime-map-editor-source.png')
  assert(api.action(function(p) Model.add(p,'rectangle',0,0,129,129) end));api.select(1,false)
  E.heightView=2;api.updateHeightPreview();assert(E.heightJob and not E.heightObject)
+ local ctrl=mbm.getKeyCode('control');local pending=E.heightJob
+ onKeyDown(ctrl);api.updateHeightPreview()
+ assert(not pending.discard,'Ctrl cancelled the pending height map')
  local frame=frames;settle(E);assert(frames>frame and E.heightObject)
+ assert(not E.heightObject.visible,'Ctrl did not reveal the original image')
+ onKeyUp(ctrl);api.updateHeightPreview();assert(E.heightObject.visible)
+ local preview,previewBuilds,revision=E.heightObject,E.heightBuilds,E.revision
+ for i=1,3 do
+  onKeyDown(ctrl);coroutine.yield();assert(not preview.visible)
+  onKeyUp(ctrl);coroutine.yield();assert(preview.visible)
+ end
+ assert(E.heightObject==preview and E.heightBuilds==previewBuilds and E.revision==revision and E.heightView==2,
+  'Ctrl comparison rebuilt the map or changed the project/view')
+ E.values.heightFinishing=false;onKeyDown(ctrl);api.updateHeightPreview()
+ assert(preview.visible,'Disabled finishing still enabled Ctrl comparison')
+ onKeyUp(ctrl);E.values.heightFinishing=true
+ print('IMAGE MESH HEIGHT CTRL PRESS / RELEASE / PENDING MAP / CACHE / FINISHING GATE OK')
  local old,path,builds=E.heightObject,E.heightPath,E.heightBuilds
  E.values.heightCurve=2;assert(api.applyProperties());assert(E.heightObject==old)
  api.updateHeightPreview();local obsolete=E.heightJob.path
