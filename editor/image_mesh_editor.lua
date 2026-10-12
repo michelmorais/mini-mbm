@@ -288,9 +288,9 @@ local function rebuild()
     return Simplify.run(E,rebuildImpl)
 end
 local function loadTexture(path)
-    assert(IO.exists(path),L('missing_image'))
+    assert(IO.exists(path),L('missing_image')..'\n'..path)
     mbm.addPath(IO.directory(path))
-    local texture=assert(mbm.loadTexture(path),L('invalid_image'))
+    local texture=assert(mbm.loadTexture(path),L('invalid_image')..'\n'..path)
     assert(texture.width*texture.height<=16777216,L('invalid_image'))
     return texture
 end
@@ -312,7 +312,12 @@ end
 local function openProject(path)
     mbm.addPath(IO.directory(path))
     local project=IO.load(path)
-    if not IO.exists(project.image.path) then E.missing={project=project,path=path}; E.status=L('missing_image'); return false end
+    if not IO.exists(project.image.path) then
+        E.missing={project=project,path=path}
+        E.status=L('missing_image')..'\n'..project.image.path
+        tUtil.showMessageWarn(E.status,8)
+        return false
+    end
     local texture=loadTexture(project.image.path)
     assert(texture.width==project.image.width and texture.height==project.image.height,L('image_size_changed'))
     install(project,path,texture); return true
@@ -960,9 +965,16 @@ local function regionsPanel()
         end
         if E.previewStale and not E.editMode then tImGui.TextWrapped(L('generation_previous')) end
         if E.missing then
-            tImGui.Text(L('missing_image'))
-            if tImGui.Button(L('relink')) then dpCall(function() local path=mbm.openFile('',table.unpack(tUtil.supported_images)); if path then relink(path) end end) end
-            tImGui.SameLine(); if tImGui.Button(L('cancel')) then E.missing=nil end
+            local image=E.missing.project.image
+            tImGui.TextWrapped(L('missing_image'))
+            tImGui.TextWrapped(string.format(L('missing_image_name'),tUtil.getShortName(image.path)))
+            tImGui.TextWrapped(string.format(L('missing_image_path'),image.path))
+            tImGui.TextWrapped(string.format(L('missing_image_size'),image.width,image.height))
+            if tImGui.Button(L('relink')) then dpCall(function()
+                local path=mbm.openFile(image.path,table.unpack(tUtil.supported_images))
+                if path then relink(path) end
+            end) end
+            tImGui.SameLine(); if tImGui.Button(L('cancel')) then E.missing=nil; E.status=L('cancelled') end
         end
         if E.texture then
             if tImGui.CollapsingHeader(L('grid')) then
