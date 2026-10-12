@@ -1,6 +1,8 @@
 # mini-mbm Lua API Reference
 
-This document is the canonical reference for every Lua symbol exposed by the mini-mbm engine.  
+This document is the canonical Lua API reference for the mini-mbm engine.
+For the complete registered plugin method inventory, including APIs without a detailed
+usage entry here, see the [plugin symbol index](lua-plugin-symbols.md).
 Engine version: see `mbm.get("mbm")` at runtime.
 
 ---
@@ -21,7 +23,12 @@ Engine version: see `mbm.get("mbm")` at runtime.
 11. [Plugin: box2dLiquidFun](#11-plugin-box2dliquidfun)
 12. [Plugin: ImGui](#12-plugin-imgui)
 13. [Plugin: lsqlite3](#13-plugin-lsqlite3)
+13b. [Plugin: bullet3d](#13b-plugin-bullet3d)
+13c. [Plugin: tilemap](#13c-plugin-tilemap-tiled-editor)
+13d. [Plugin: steam](#13d-plugin-steam)
 14. [print() extensions](#14-print-extensions)
+
+[Complete plugin method index](lua-plugin-symbols.md)
 
 ---
 
@@ -63,7 +70,10 @@ obj.visible = false      -- correct
 obj.setPos(100, 200)     -- WRONG — self is not passed
 ```
 
-Rule of thumb: if the operation *does something*, use `:`; if you're *reading or writing a value*, use `.`.
+Use `:` for engine object methods and physics worlds. Namespace functions (`mbm.*`)
+and module functions such as `tImGui.*`, `steam.*`, and `sqlite3.open` use `.`.
+SQLite database/statement methods and tilemap editor methods use `:`. Follow the
+signature for the specific API; an operation is not automatically a colon method.
 
 ---
 
@@ -1103,60 +1113,307 @@ Access as `mbm.CONSTANT_NAME`.
 
 ## 10. Plugin: box2d
 
-2D rigid-body physics. Load with:
-```lua
-require "box2d" -- registers the global box2d factory
-```
+Box2D 2.4.1 rigid-body physics; build with `-DUSE_BOX2D=1` (included in
+`USE_ALL`). The bindings are in
+[`physics-box-2d-lua.cpp`](../plugins/box2d/physics-box-2d-lua.cpp) and
+[`physics-box2d-joint-lua.cpp`](../plugins/box2d/physics-box2d-joint-lua.cpp).
+The [plugin symbol index](lua-plugin-symbols.md) lists every registered method.
 
 ```lua
-local world = box2d:new()
-world:setGravity(0, -10)
-world:pause()                                   -- optional: stop automatic simulation
-world:start()                                   -- resume automatic simulation
-
--- Add bodies (pass a renderizable as the shape source)
-world:addDynamicBody(renderizable, density?, friction?, restitution?)
-world:addStaticBody(renderizable)
-world:addKinematicBody(renderizable)
-
--- Collision callbacks
-world:setContactListener(
-    onBegin,    -- function(bodyA, bodyB, manifold)
-    onEnd,      -- function(bodyA, bodyB)
-    onPreSolve, -- function(bodyA, bodyB, manifold)  optional
-    onPostSolve -- function(bodyA, bodyB, impulse)   optional
-)
-
-world:getWorldManifolds(body)   -- returns contact manifold table
--- Simulation advances through the plugin's engine callback. The world is released with its
--- Lua scene/userdata; there are no world:step() or world:destroy() methods.
+require "box2d" -- registers the global factory; do not assign require's result to box2d
+local world = box2d:new(0, -10)
 ```
+
+All world and joint calls below use `:`. `body` means the original **loaded
+renderizable**, not a separately returned body object. Body creation returns a boolean.
+Keep the world alive while using its bodies/joints. Simulation advances automatically
+through engine callbacks; `pause()` / `start()` control it. There is no `step()` or
+`destroy()` world method; scene/userdata cleanup releases the world.
+
+In signatures, `arg=default` denotes an optional trailing argument, not Lua named-argument
+syntax. Omit trailing arguments to use defaults; most numeric options do not accept `nil`.
+`none` means no Lua return values.
+
+### 10.1 World configuration
+
+| Call | Returns / behavior |
+|---|---|
+| `box2d:new(gx=0, gy=-90.8, scale=10, velocityIterations=10, positionIterations=3, multiply=1)` | World table; nonpositive constructor `multiply` becomes 1 |
+| `box2d:getVersion()` | Library version string |
+| `world:setGravity(x, y)` / `world:getGravity()` | none / `x, y` |
+| `world:setScale(scale)` / `world:getScale()` | none / number |
+| `world:setMultiply(value)` / `world:getMultiply()` | none / simulation time multiplier |
+| `world:getVelocityIterations()` / `world:getPositionIterations()` | Integer solver iteration counts |
+| `world:pause()` / `world:start()` | none |
+
+`scale` is render units per physics unit. Body creation and `setTransform`, `testPoint`,
+`queryAABB`, and `rayCast` convert render coordinates. Ray hit positions are converted
+back to render coordinates. Body position/center/point/vector getters, velocities,
+forces, impulses, manifolds, and joint definitions/accessors use raw physics units.
+Angles and angular velocities use radians and radians/second.
+
+### 10.2 Bodies
+
+| Call | Returns / behavior |
+|---|---|
+| `world:addStaticBody(body, density=0, friction=0.3, sx=1, sy=1, isSensor=false)` | boolean |
+| `world:addDynamicBody(body, density=1, friction=10, restitution=0.1, sx=1, sy=1, isSensor=false, isBullet=false)` | boolean |
+| `world:addKinematicBody(body, density=1, friction=10, restitution=0.1, sx=1, sy=1, isSensor=false)` | boolean |
+| `world:addBody(body, info)` | boolean; table form described below |
+| `world:destroyBody(body)` | none; queues body removal |
+| `world:setTransform(body, x=body.x, y=body.y, angle=body.az)` | none; synchronizes the physics transform using render coordinates |
+| `world:getPosition(body)` | `x, y` in physics units |
+| `world:getType(body)` | `"static"`, `"kinematic"`, or `"dynamic"` |
+| `world:setType(body, type)` | **Binding limitation:** currently reads argument 2 as both body and type and throws for a normal body table. Choose the type at creation. |
+| `world:getMass(body)` / `world:setMass(body, mass)` | number / none |
+| `world:getInertia(body)` | number |
+| `world:setDensity(body, density, resetMass=true)` | none |
+| `world:setFriction(body, friction, updateContacts=true)` | none |
+| `world:setRestitution(body, restitution, updateContacts=true)` | none |
+| `world:getGravityScale(body)` / `world:setGravityScale(body, value)` | number / none |
+| `world:setAngularDamping(body, value)` | none |
+| `world:setFixedRotation(body, enabled)` / `world:setSleepingAllowed(body, enabled)` | none |
+| `world:setBullet(body, enabled)` | none |
+| `world:isAwake(body)` / `world:setAwake(body, awake)` | boolean / none |
+| `world:isActive(body)` / `world:setActive(body, active)` | boolean / none; setter queues activation/deactivation |
+| `world:setEnable(body, enabled)` | none; changes fixture collision mask to `0xFFFF` or `0`, rather than changing body activity |
+| `world:setFilter(body, filter)` / `world:setFilter(filter)` | none; one body's fixtures / all bodies |
+| `world:isOnTheGround(body)` | boolean; engine ground-contact test |
+| `world:testPoint(body, x, y)` | boolean; point is in render coordinates |
+
+`addBody` requires `info.type`: `"static"`, `"dynamic"`, `"kinematic"`, or
+`"character"`. Fields: `density` (default 1), `friction` (0.3 for static, otherwise 10),
+`sx=1`, `sy=1`, `isSensor=false`, `restitution=0.1` (nonstatic), `isBullet=false`
+(dynamic only). `character` creates a dynamic body with fixed rotation and sleeping
+disabled. The table reads `density`, **not** `mass`; use `setMass` separately.
+Creation can throw for unloaded objects or objects already owning a body.
+
+A filter is `{categoryBits=0x0001, maskBits=0xFFFF, groupIndex=0}`. Supply the fields
+you want to override. `sx` and `sy` scale the collision geometry, not the render object.
+
+### 10.3 Motion and coordinate conversion
+
+| Call | Returns / behavior |
+|---|---|
+| `world:setLinearVelocity(body, x, y)` / `world:getLinearVelocity(body)` | none / `x, y` |
+| `world:setAngularVelocity(body, value)` / `world:getAngularVelocity(body)` | none / number |
+| `world:applyForce(body, x, y, worldX?, worldY?)` | none; wakes body; omitting both point coordinates applies at center |
+| `world:applyForceToCenter(body, x, y, awake=false)` | none |
+| `world:applyTorque(body, torque, awake=true)` | none |
+| `world:applyAngularImpulse(body, impulse, awake=true)` | none |
+| `world:applyLinearImpulse(body, x, y, worldX?, worldY?)` | none; wakes body; omitting both point coordinates applies at center |
+| `world:applyLinearImpulseToCenter(body, x, y)` | none; wakes body |
+| `world:getLocalCenter(body)` / `world:getWorldCenter(body)` | `x, y` |
+| `world:getLocalPoint(body, worldX, worldY)` | `x, y` |
+| `world:getWorldPoint(body, localX, localY)` | `x, y` |
+| `world:getWorldVector(body, localX, localY)` | `x, y`; transforms a direction |
+
+### 10.4 Contacts and queries
+
+`world:setContactListener(onBegin, onEnd?, onPreSolve?, onPostSolve?)` returns nothing.
+Pass `nil` for callbacks to clear; `world:setContactListener(nil)` clears all four.
+Calling it with no arguments raises an error. Callback arguments are:
+
+| Callback | Arguments |
+|---|---|
+| Begin / end | `bodyA, bodyB` (no manifold argument) |
+| Pre-solve | `bodyA, bodyB, oldManifold` |
+| Post-solve | `bodyA, bodyB, impulse` |
+
+`oldManifold` has `type` (`circles`, `face_a`, `face_b`, or `unknown`), `pointCount`,
+`localNormal={x,y}`, `localPoint={x,y}`, and `points`, a 1-based array of two records
+`{localPoint={x,y}, normalImpulse=number, tangentImpulse=number}`. Only `pointCount`
+entries represent active contacts. `impulse` has `count`, `normalImpulses`, and
+`tangentImpulses` (two-element arrays; use `count`).
+
+| Call | Returns / behavior |
+|---|---|
+| `world:getManifolds(body, touchingOnly=false, enabledOnly=false)` | Array of local manifold tables |
+| `world:getWorldManifolds(body)` | Array of `{normal={x,y}, separations={s1,s2}, points={{x,y},{x,y}}}`; includes the contact list without filtering |
+| `world:setManifolds(body, manifolds)` | none; requires the full current contact-list length and the local manifold structure above |
+| `world:queryAABB(x1, y1, x2, y2, callback)` | none; callback receives `body`, returns `true` to continue or `false` to stop; nonboolean return stops |
+| `world:rayCast(x1, y1, x2, y2, callback)` | none; callback receives `body, hitX, hitY, normalX, normalY, fraction`; returns a numeric ray fraction/control value |
+
+Ray callback control: `0` stops, `1` continues the whole ray, a hit fraction clips it,
+and `-1` ignores a fixture. A nonnumeric result uses the current hit fraction. Ray
+endpoints must differ. Queries operate on fixtures, so a body can be reported more than once.
+
+### 10.5 Joint creation
+
+`world:joint(bodyA, bodyB, definition)` returns a numeric joint registration index
+(or 0 on creation failure), **not** a joint table. Use `world:getJoint(body, index=1)`
+to retrieve a joint table or `nil`. The current lookup first uses the 1-based index
+in the world joint list, without checking body ownership; if out of range, it falls
+back to the first joint associated with that body. Use the returned registration index
+while the joint list is unchanged; removal can shift indices. `world:destroyJoint(body)`
+returns nothing and removes joints associated with the body. Discard joint tables when
+their joint/body/world is destroyed.
+
+`definition.name` selects a joint. All definitions accept `collideConnected`.
+Vector fields below are tables `{x=number, y=number}` in physics units; angular fields
+are radians. Other omitted fields retain the binding/Box2D joint-definition defaults.
+
+| Name | Additional accepted fields |
+|---|---|
+| `distance` | `anchor1`, `anchor2`, `localAnchorA`, `localAnchorB`, `length`, `frequencyHz`, `dampingRatio` |
+| `friction` | `anchor`, `localAnchorA`, `localAnchorB`, `maxForce`, `maxTorque` |
+| `gear` | `indexA=1`, `indexB=1` (existing joints on each body), `ratio` |
+| `motor` | `correctionFactor`, `linearOffset`, `angularOffset`, `maxForce`, `maxTorque` |
+| `mouse` | `target`, `maxForce`, `frequencyHz`, `dampingRatio` |
+| `prismatic` | `anchor`, `axis`, `localAnchorA`, `localAnchorB`, `localAxisA`, `enableLimit`, `enableMotor`, `lowerTranslation`, `upperTranslation`, `maxMotorForce`, `motorSpeed`, `referenceAngle` |
+| `pulley` | `anchorA`, `anchorB`, `groundAnchorA`, `groundAnchorB`, `localAnchorA`, `localAnchorB`, `lengthA`, `lengthB`, `ratio` |
+| `revolute` | `anchor`, `localAnchorA`, `localAnchorB`, `enableLimit`, `enableMotor`, `lowerAngle`, `upperAngle`, `maxMotorTorque`, `motorSpeed`, `referenceAngle` |
+| `rope` | `localAnchorA`, `localAnchorB`, `maxLength`; implemented using a distance joint in Box2D 2.4.1 |
+| `weld` | `anchor`, `localAnchorA`, `localAnchorB`, `frequencyHz`, `dampingRatio`, `referenceAngle` |
+| `wheel` / `line` | `anchor`, `axis`, `localAnchorA`, `localAnchorB`, `localAxisA`, `frequencyHz`, `dampingRatio`, `enableMotor`, `maxMotorTorque`, `motorSpeed` |
+
+### 10.6 Joint methods
+
+Setters below return nothing; scalar getters return a number unless stated otherwise.
+Methods are registered on every joint table, but only the listed joint types support
+specialized operations. Unsupported operations log a warning; setters do nothing
+and getters generally return zero, so zero alone does not prove support.
+
+| Calls on `joint` | Supported types / result |
+|---|---|
+| `getReactionForce(invDt)` / `getReactionTorque(invDt)` | All; `x, y` / number; argument is inverse timestep |
+| `isActive()` / `setActive(active)` | All; boolean / none; setter changes **both bodies'** activity |
+| `getAnchorA()` / `getAnchorB()` | All; `x, y` |
+| `getMotorSpeed()` / `setMotorSpeed(value)` / `enableMotor(enabled)` | revolute, prismatic, wheel |
+| `getMaxMotorTorque()` / `setMaxMotorTorque(value)` | revolute, wheel, motor (motor's maximum torque) |
+| `getDamping()` / `setDamping(value)` | distance, wheel, weld; on gear this reads/writes the gear **ratio** |
+| `getStiffness()` / `setStiffness(value)` | distance, wheel, weld |
+| `getMaxForce()` / `setMaxForce(value)` | mouse, friction, motor, prismatic (maximum motor force) |
+| `getLength()` / `setLength(value)` | distance (including the `rope` construction above) |
+| `getTarget()` / `setTarget(x, y)` | mouse; getter returns `x, y` |
+| `getCorrectionFactor()` / `setCorrectionFactor(value)` | motor |
+| `getLinearOffset()` / `setLinearOffset(x, y)` | motor; getter returns `x, y` |
+| `getAngularOffset()` / `setAngularOffset(value)` | motor |
+| `getLimits()` / `setLimits(lower, upper)` / `enableLimit(enabled)` | revolute, prismatic; getter returns `lower, upper` |
 
 ---
 
 ## 11. Plugin: box2dLiquidFun
 
-2D fluid simulation using LiquidFun 1.1.0, an extended branch of Box2D 2.3.0. This is separate
-from the standalone `box2d` plugin, which uses the newer Box2D 2.4.1. Load with:
-```lua
-require "box2dLiquidFun" -- registers the global box2dLiquidFun factory
-```
+LiquidFun 1.1.0 (based on Box2D 2.3.0), built with `-DUSE_BOX2D_LIQUID_FUN=1`
+(included in `USE_ALL`). Load with `require "box2dLiquidFun"`, then construct using
+`box2dLiquidFun:new(gx=0, gy=-90.8, scale=10, velocityIterations=10, positionIterations=3, multiply=1)`.
+`box2dLiquidFun:getVersion()` returns its version string.
+
+The world exposes all the rigid-body method names in section 10, plus `createFluid`
+and `destroyFluid`. The shared body arguments, contact callbacks and unit conventions
+apply here too, including the current `setType` binding limitation. Bodies and joints
+belong to their own physics plugin; do not pass Box2D objects to LiquidFun or vice versa.
+Sources: [`world bindings`](../plugins/box2d-liquid-fun-lua/physics-box-2d-liquid-fun-lua.cpp),
+[`joint bindings`](../plugins/box2d-liquid-fun-lua/physics-box2d-liquid-fun-joint-lua.cpp),
+and [`fluid bindings`](../plugins/box2d-liquid-fun-lua/physics-box-2d-fluid-lua.cpp).
+
+### 11.1 Joint differences
+
+LiquidFun registers `joint:getDampingRatio()` / `joint:setDampingRatio(value)` instead
+of `getDamping` / `setDamping`, and `joint:getFrequencyHz()` /
+`joint:setFrequencyHz(value)` instead of `getStiffness` / `setStiffness`.
+These are frequency and damping-ratio values from the older Box2D API, not stiffness
+and damping coefficients. The ratio methods also operate on gear ratio. LiquidFun's
+`rope` creates an actual rope joint; `getLength` / `setLength` support its maximum length
+as well as distance joints. The remaining joint method names match section 10.6.
+
+### 11.2 Fluid construction and options
+
+`world:createFluid(shapeOrRenderizable, options?)` returns a fluid table; errors are
+raised on failure. A physics table uses the same shape format as `setPhysics`, e.g.
+`{type="rectangle", width=200, height=100, center={x=0,y=0,z=0}}`.
+A renderizable supplies its collision geometry. Place the fluid using `options.position`.
 
 ```lua
-local world = box2dLiquidFun:new()
-world:setGravity(0, -10)
-
+require "box2dLiquidFun"
+local world = box2dLiquidFun:new(0, -10)
 local fluid = world:createFluid(
-    {type="rectangle", center={x=0, y=100, z=0}, width=200, height=100},
-    {particleRadius=5, density=1.0, damping=0.2}
+    {type="rectangle", width=200, height=100, center={x=0,y=0,z=0}},
+    {radius=0.5, damping=0.2, position={x=0,y=100,z=0}, flags="water"}
 )
-local fluidShader = fluid:getShader()   -- returns shader config table
--- Simulation and world lifetime follow the same automatic plugin lifecycle as box2d.
+fluid:setDensity(1)
+local shader = fluid:getShader()
 ```
+
+| Option | Default / meaning |
+|---|---|
+| `texture` | `"#FF00FFAA"`; texture name or solid-color texture |
+| `is2dScreen`, `is3d` | false, false |
+| `segmented`, `radiusScale` | false, 1; rendering configuration |
+| `radius`, `damping` | 0.5 physics units, 0.5 |
+| `lifetime`, `angularVelocity`, `strength`, `stride` | 0, 0, 1, 0 |
+| `angle` | Source renderizable's z angle, otherwise 0 |
+| `scale` | `{x=1,y=1}` |
+| `linearVelocity` | `{x=0,y=0}` |
+| `position` | `{x=0,y=0,z=0}` in render coordinates |
+| `color` | Optional `{r,g,b,a}`; omitted channels default to 1 |
+| `blend` | Optional `disable`, `zero`, `one`, `src_color`, `inv_src_color`, `src_alpha`, `inv_src_alpha`, `dest_alpha`, `inv_dest_alpha`, `dest_color`, `inv_dest_color` |
+| `operation` | Optional `ADD`, `SUBTRACT`, `REVERSE_SUBTRACT`, `MIN`, `MAX` |
+| `flags` | String or array of strings; defaults to `water` |
+| `groupFlags` | String or array of strings; defaults to `solidParticleGroup` |
+
+`particleRadius` and `density` are **not** read from the options table. Use `radius`
+and `fluid:setDensity(value)`. Supported particle flag strings (case-sensitive):
+`water`, `zombie`, `wall`, `spring`, `elastic`, `viscous`, `powder`, `tensile`,
+`colorMixing`, `destructionListener`, `barrier`, `staticPressure`, `reactive`,
+`repulsive`, `fixtureContactListener`, `particleContactListener`, `fixtureContactFilter`,
+`particleContactFilter`. These select flags, not additional Lua callback registrations.
+Group strings: `solidParticleGroup`, `rigidParticleGroup`, `particleGroupCanBeEmpty`,
+`particleGroupWillBeDestroyed`, `particleGroupNeedsUpdateDepth`, `particleGroupInternalMask`.
+An array of group flags is ORed with the default solid-group flag; a string replaces it.
+
+### 11.3 Fluid methods
+
+All calls use `fluid:`. Setters, forces, queries and particle destruction return nothing
+unless a result is stated. Particle indices are **1-based**; color group indices are
+**0-based**. Particle indices can change as the system removes particles.
+
+| Call | Returns / behavior |
+|---|---|
+| `add(shapeOrRenderizable, transform)` | Number of added particles; required transform table accepts `x,y,z,sx,sy,sz` |
+| `getParticleCount()` / `getMaxParticleCount()` / `setMaxParticleCount(count)` | Integer / integer / none |
+| `setPaused(paused)` | Pauses this particle system |
+| `getDensity()` / `setDensity(value)` | number / none |
+| `getGravityScale()` / `setGravityScale(value)` | number / none |
+| `getDamping()` / `setDamping(value)` | number / none |
+| `getStaticPressureIterations()` / `setStaticPressureIterations(count)` | integer / none |
+| `getRadius()` | Radius in physics units; there is no `setRadius` binding |
+| `getParticleLifetime(index)` / `setParticleLifetime(index, seconds)` | number / none; invalid index reads as 0 and writes are ignored |
+| `destroyParticle(index)` | Invalid index is ignored |
+| `destroyParticlesInShape(shapeOrRenderizable)` | Number destroyed; explicit shape supports `rectangle`/`rect`, `circle`, `triangle` plus `x,y,angle` |
+| `setColor(groupIndex, r, g, b, a?)` / `setColor(groupIndex, {r,g,b,a})` | Rendering group color; omitted alpha preserves current alpha |
+| `getColor(groupIndex)` | `r, g, b, a` |
+| `particleApplyLinearImpulse(index, x, y)` / `particleApplyForce(index, x, y)` | Single particle; also accept an array `{{index=1,x=0,y=1}, ...}` instead of numeric arguments |
+| `applyLinearImpulse(first, last, x, y)` / `applyForce(first, last, x, y)` | Range operation; see range limitation below |
+| `queryAABB(x1, y1, x2, y2, callback)` | Render-coordinate bounds; callback `(fluid, index)`; `false` stops, `nil` continues |
+| `queryShapeAABB(shapeOrRenderizable, callback)` | Shape-bounds query; callback as above; prefer a renderizable (see limitation below) |
+| `computeAABB()` | `{lowerBound={x,y}, upperBound={x,y}}` in render coordinates |
+| `rayCast(x1, y1, x2, y2, callback)` | Callback `(fluid, index, hitX, hitY, normalX, normalY, fraction)`; numeric result controls ray clipping; nonnumeric uses current fraction |
+| `getShader()` | Shader configuration table |
+
+Range limitation: the wrapper subtracts 1 from **both** endpoints, clamps each to
+`0..particleCount-1`, then forwards them to LiquidFun's end-exclusive range API. Thus
+`applyForce(1, count, x, y)` excludes the last particle. Prefer the per-particle methods
+(including their array overload) when targeting every particle. Avoid range calls on
+an empty system.
+
+`queryShapeAABB`'s explicit-table branch currently reads the wrong Lua stack slot for
+the shape fields; use a renderizable or `queryAABB` instead. `destroyParticlesInShape`
+reads explicit shape fields correctly: rectangle `width,height`, circle `ray`,
+triangle `a,b,c` (each `{x,y}`), with optional `x,y,angle`.
+
+`world:destroyFluid(fluid)` returns nothing and releases the fluid through the world.
+Do not use the fluid or its shader table after destruction. Dropping the Lua fluid table
+alone does not explicitly destroy the particle system; the world owns its lifetime.
+The fluid table exposes the methods above, not the full common renderizable API.
 
 ---
 
 ## 12. Plugin: ImGui
+
+The tables below cover common usage; the [complete ImGui method index](lua-plugin-symbols.md#imgui)
+includes all registered functions with links to their bindings.
 
 Dear ImGui immediate-mode UI. Load with:
 ```lua
@@ -1389,6 +1646,9 @@ tImGui.CaptureKeyboardFromApp(bool?) -- manually override WantCaptureKeyboard fo
 
 ## 13. Plugin: lsqlite3
 
+The [complete SQLite method index](lua-plugin-symbols.md#sqlite) covers module, database,
+statement, callback-context, and backup methods, including aliases and conditional APIs.
+
 SQLite3 Lua bindings. Load with:
 ```lua
 sqlite3 = require "lsqlite3"
@@ -1412,6 +1672,112 @@ stmt:finalize()
 
 db:close()
 ```
+
+---
+
+## 13b. Plugin: bullet3d
+
+Optional Bullet 2.84 physics: `-DUSE_BULLET3D=1` (not enabled by `USE_ALL`).
+`require "bullet3d"` registers the global factory. Construct with
+`bullet3d:new(gx=0, gy=-90.8, gz=0, scale=0.2, maxSubSteps=10, fixedTimeStep=1/60)`.
+The world advances through the engine; the methods below use `world:` and `body`
+is a loaded renderizable. Omitted trailing numeric arguments use the defaults shown.
+Source: [Bullet bindings](../plugins/bullet3d/physics-bullet-3d-lua.cpp).
+
+| Call | Returns / behavior |
+|---|---|
+| `getGravity()` / `setGravity(x,y,z)` | `x,y,z` / none |
+| `addStaticBody(body, friction=0.3, sx=1, sy=1, sz=1)` | boolean |
+| `addDynamicBody(body, mass=1, friction=0.3, sx=1, sy=1, sz=1)` | boolean |
+| `addKinematicBody(body, mass=1, friction=0.3, sx=1, sy=1, sz=1)` | boolean |
+| `addDynamicCharacterBody(body, mass=1, friction=0.3, sx=1, sy=1, sz=1)` | boolean |
+| `applyForce(body,x,y,z)` / `applyTorque(body,x,y,z)` / `applyImpulse(body,x,y,z)` | none |
+| `setLinearVelocity(body,x,y,z)` | none |
+| `setFriction(body,value)` / `setRestituition(body,value)` | none; **`Restituition` is the registered spelling** |
+| `setMass(body,mass,x,y,z)` | none; includes inertia vector components |
+| `interfere(body,x?,y?,z?,ax?,ay?,az?)` | none; omitted coordinates/angles come from the renderizable |
+| `setAwake(body,awake)` / `isAwake(body)` / `isOnTheGround(body)` | none / boolean / boolean |
+| `setContactListener(beginName?,keepName?,endName?)` | none; names of global Lua functions, not function values; each receives `bodyA,bodyB` |
+| `rayCast(x,y,z,endX,endY,endZ)` | `nil` on miss, otherwise `body,x,y,z,endX,endY,endZ` |
+
+The ray binding currently returns the input endpoints alongside the body, **not** the
+computed hit point and normal. Passing `nil` contact names leaves existing callbacks
+unchanged. Box2D-only methods such as `joint`, `pause`, `destroyBody`, and `queryAABB`
+are commented out in the Bullet registration table and are not callable Lua APIs.
+
+---
+
+## 13c. Plugin: tilemap (Tiled editor)
+
+Build with `-DUSE_TILEMAP=1` (included in `USE_ALL`). This is the map **authoring**
+plugin, distinct from the core `tile:new(...)` render type in section 7.10.
+
+```lua
+local mapEditor = require "tilemap" -- returns an editor instance; also registers TileEditor
+-- Additional instances: local other = TileEditor:new()
+local version = mapEditor:version()
+```
+
+Methods use `:`. `mapEditor:load(filename)` and `mapEditor:save(filename)` read/write
+engine binary maps and return booleans. The editor operates in 2D world coordinates.
+Its [complete method index](lua-plugin-symbols.md#tilemap-editor) links to each binding,
+including APIs for:
+
+- Map dimensions, tile dimensions, background color/texture, map properties, map type,
+  render direction, and render limits.
+- Layer creation, update, deletion, ordering, movement, properties, and shaders.
+- Tileset creation, dimensions, names, and existence checks.
+- Brick lookup, editing, expansion, collision geometry, properties, selection,
+  rotation, flipping, and duplication.
+- Map objects and history (`addHistoric`, `unDo`, `redDo`, `clearHistory` — preserve spelling).
+- Preview/render mode, scale, persistence, and version.
+
+Property setters accept records `{name=string,value=number|boolean|string}`;
+property getters build arrays of `{name,value,type}` records. The exact setter prefix
+and extra layer/brick index arguments vary by target. Consult the linked binding for
+those signatures; the method inventory does not imply the signatures are interchangeable.
+The commented-out `isLoaded` entry is not exported.
+
+---
+
+## 13d. Plugin: steam
+
+Optional Steamworks plugin: `-DUSE_STEAM=1` and
+`-DSTEAMWORKS_SDK_PATH=/path/to/steamworks_sdk`; not enabled by `USE_ALL`.
+`local steam = require "steam"` returns an automatically subscribed module. All calls
+use **`.`**, with no `self` argument. Source:
+[Steam bindings](../plugins/steam/steam-class-lua.cpp).
+
+Check `steam.isReady()` before other calls. Except `isReady`, every method returns
+`nil` immediately when the integration is not ready; asynchronous requests then do
+not schedule their callback. The normal ready-state contracts are:
+
+| Call | Returns / callback |
+|---|---|
+| `steam.isReady()` | boolean |
+| `steam.getPlayerName()` / `steam.getCurrentLanguage()` | string |
+| `steam.getAppId()` | integer |
+| `steam.setAchievement(id)` / `steam.clearAchievement(id)` | boolean; also store stats |
+| `steam.isAchievementAchieved(id)` | boolean |
+| `steam.setStatInt(name,value)` / `steam.setStatFloat(name,value)` | boolean |
+| `steam.getStatInt(name)` / `steam.getStatFloat(name)` | integer / number |
+| `steam.storeStats()` | boolean; flush pending stat changes |
+| `steam.findLeaderboard(name,callback)` | none; callback `(handle)` with integer handle or `nil` |
+| `steam.uploadScore(handle,score,callback?)` | none; keeps best score; callback `(success)` |
+| `steam.downloadScores(handle,dataType,startRank,endRank,callback)` | none; callback `(entries)` or `nil`; entries are `{rank,score,name}` records |
+| `steam.cloudWrite(filename,data)` | boolean; data can be a binary Lua string |
+| `steam.cloudRead(filename)` | string or `nil` |
+| `steam.cloudDelete(filename)` / `steam.cloudFileExists(filename)` | boolean |
+| `steam.isCloudEnabled()` | boolean; both account and app must enable cloud saves |
+| `steam.activateOverlay(dialog)` / `steam.activateOverlayURL(url)` | none |
+| `steam.showStore(appId)` | none |
+| `steam.isDlcInstalled(appId)` | boolean |
+
+`downloadScores` recognizes `"friends"` and `"around_user"`; `"global"` and other
+strings use the global request mode. Overlay dialog examples include `"achievements"`,
+`"friends"`, `"community"`, `"stats"`, `"leaderboards"`, and `"officialgamegroup"`.
+Leaderboard callbacks are processed by the plugin's engine lifecycle; no manual Lua
+`runCallbacks` function is exported.
 
 ---
 
