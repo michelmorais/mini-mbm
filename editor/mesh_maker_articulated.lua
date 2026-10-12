@@ -225,6 +225,10 @@ local function partsPanel()
         local edit,position=tImGui.DragFloat3(L('pivot_position'),draft.pivot,0.01,-math.huge,math.huge,'%.3f')
         if edit then draft.pivot=position end
         help('ame_pivot_tip')
+        button('center_pivot',function()
+            local bounds=E.subsetBounds[E.frame][p.subset]
+            draft.pivot={(bounds.minX+bounds.maxX)*0.5,(bounds.minY+bounds.maxY)*0.5,(bounds.minZ+bounds.maxZ)*0.5}
+        end)
         local edit,euler=tImGui.DragFloat3(L('pivot_rotation'),E.pivotEuler,0.5,-360,360,'%.2f')
         if edit then E.pivotEuler=euler; draft.q=Pose.quaternion(euler) end
         help('ame_pivot_tip')
@@ -351,6 +355,15 @@ local function timelinePanel()
     if tImGui.Button(A('delete_clip')) then action(function() table.remove(E.project.clips,E.clip); selectClip(1) end) end
     tImGui.EndDisabled(); clip=E.project.clips[E.clip]
     if not clip then tImGui.TextWrapped(A('tl_no_clip')); return end
+    tImGui.PushItemWidth(-1)
+    local edit,time=tImGui.SliderFloat('##ame_time_slider',E.time,0,clip.duration,'%.3f s')
+    help('ase_time_tip')
+    tImGui.PopItemWidth()
+    if edit then
+        local timeline=Timeline.sync(E)
+        if timeline.snap then time=math.floor(time/timeline.step+0.5)*timeline.step end
+        Timeline.seek(E,math.max(0,math.min(clip.duration,time)))
+    end
     local avail=tImGui.GetContentRegionAvail(); local side=avail.x>=760
     if tImGui.BeginChild('##ame_graph',{x=side and avail.x-340 or 0,y=side and 0 or 240},false) then Timeline.draw(E,{action=action}) end
     tImGui.EndChild(); if side then tImGui.SameLine() end
