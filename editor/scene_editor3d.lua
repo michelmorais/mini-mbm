@@ -23,7 +23,7 @@
    This is a script based on mbm engine.
 
    Scene Editor 3D is a quick-setup tool for 3D scenes: place any renderizable (mesh, sprite, texture, tile,
-   particle, gif) on an orthogonal or isometric grid (or freely), organize them into Y layers, and export a
+   particle, gif) on an orthogonal or isometric grid (or freely), organize them into floor (XZ) or wall (XY) layers, and export a
    ready-to-`require` Lua scene script for the real game to load.
 
    More info at: https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-3d
@@ -97,6 +97,7 @@ tShowGridByTab = { map = false, mesh_set = true, layer = true }
 -- ---- Layers ----
 tLayers        = {}
 iSelectedLayer = 0
+bNewLayerWall = false
 
 -- ---- Placed mesh-instances ----
 tPlacedMeshes = {}
@@ -552,6 +553,18 @@ function getMapRotationRad()
     return tMapOptions.sMapType == 'Isometric' and (math.pi * 0.25) or 0
 end
 
+-- cellZ/depth/count keep their saved field names for compatibility, but describe the
+-- second in-plane axis: Z on floors, Y on walls. Isometric rotation stays in that plane.
+function layerPlaneToWorld(x, v, layer)
+    if layer.bWall then return x + layer.offset.x, v + layer.fY, layer.offset.z end
+    return x + layer.offset.x, layer.fY, v + layer.offset.z
+end
+
+function worldToLayerPlane(wx, wy, wz, layer)
+    if layer.bWall then return wx - layer.offset.x, wy - layer.fY end
+    return wx - layer.offset.x, wz - layer.offset.z
+end
+
 -- "Half X/Z offset for each odd line" staggers alternate rows/columns by half a cell -- the
 -- classic brick-wall pattern -- applied here in local (pre-rotation) grid space so Isometric's
 -- 45-degree rotation carries the stagger along with it, same as the base cell lattice itself.
@@ -569,36 +582,34 @@ function gridCellToWorld(cx, cz, layer)
     end
     local rot = getMapRotationRad()
     local cosr, sinr = math.cos(rot), math.sin(rot)
-    local x = lx * cosr - lz * sinr + layer.offset.x
-    local z = lx * sinr + lz * cosr + layer.offset.z
-    return x, layer.fY, z
+    return layerPlaneToWorld(lx * cosr - lz * sinr, lx * sinr + lz * cosr, layer)
 end
 
-function worldToGridCell(wx, wz, layer)
-    local lx = wx - layer.offset.x
-    local lz = wz - layer.offset.z
+function worldToGridCell(wx, wy, wz, layer)
+    local lx, lz = worldToLayerPlane(wx, wy, wz, layer)
     -- inverse rotation: rotate world-space coords back into the grid's own (unrotated) local space
     local rot = -getMapRotationRad()
     local cosr, sinr = math.cos(rot), math.sin(rot)
     local localX = lx * cosr - lz * sinr
     local localZ = lx * sinr + lz * cosr
     local w, d = tMapOptions.fGridCellWidthX, tMapOptions.fGridCellDepthZ
-    -- gridCellToWorld's half-offset stagger is mutually dependent -- X's offset keys off cz's
-    -- parity, Z's keys off cx's parity -- so it can't be undone with a single division like the
-    -- unstaggered case above. This was the real bug behind the hover-highlight/click-placement
-    -- landing in the wrong cell whenever "Half X/Z offset for each odd line" was on: the forward
-    -- placement math (gridCellToWorld) staggered alternate rows/columns, but this inverse never
-    -- accounted for that shift at all. Fixed with a short fixed-point pass: start from the
-    -- unstaggered guess, then alternately re-derive each axis using the other's latest parity --
-    -- converges within a couple of iterations since the correction is a fixed +/- half cell, never
-    -- a moving target.
     local cx = math.floor(localX / w + 0.5)
     local cz = math.floor(localZ / d + 0.5)
-    for _ = 1, 3 do
-        local adjX = (layer.bHalfOffsetX and (cz % 2 ~= 0)) and (w * 0.5) or 0
-        local adjZ = (layer.bHalfOffsetZ and (cx % 2 ~= 0)) and (d * 0.5) or 0
-        cx = math.floor((localX - adjX) / w + 0.5)
-        cz = math.floor((localZ - adjZ) / d + 0.5)
+    if not layer.bHalfOffsetX and not layer.bHalfOffsetZ then return cx, cz end
+    -- Both staggers can be enabled. A parity iteration can get stuck on the wrong
+    -- cell; choose the nearest center among the bounded neighboring candidates.
+    local bestDistance = math.huge
+    local baseX, baseZ = cx, cz
+    for x = baseX - 1, baseX + 1 do
+        for z = baseZ - 1, baseZ + 1 do
+            local adjX = (layer.bHalfOffsetX and z % 2 ~= 0) and w * 0.5 or 0
+            local adjZ = (layer.bHalfOffsetZ and x % 2 ~= 0) and d * 0.5 or 0
+            local dx, dz = localX - x * w - adjX, localZ - z * d - adjZ
+            local distance = dx * dx + dz * dz
+            if distance < bestDistance then
+                cx, cz, bestDistance = x, z, distance
+            end
+        end
     end
     return cx, cz
 end
@@ -642,9 +653,8 @@ end
 -- position is valid as long as it falls within the same extent the grid lines are drawn at
 -- (allowing for the layer's own offset and the map's rotation, exactly like worldToGridCell's
 -- inverse-rotation step).
-function isWorldPosWithinGridBounds(wx, wz, layer)
-    local lx = wx - layer.offset.x
-    local lz = wz - layer.offset.z
+function isWorldPosWithinGridBounds(wx, wy, wz, layer)
+    local lx, lz = worldToLayerPlane(wx, wy, wz, layer)
     local rot = -getMapRotationRad()
     local cosr, sinr = math.cos(rot), math.sin(rot)
     local localX = lx * cosr - lz * sinr
@@ -665,7 +675,7 @@ function removePlacedMeshesOutsideGrid()
         if not layer then
             within = true -- no layer to test against -- leave orphaned entries alone here
         elseif tMapOptions.sMapType == 'Free' then
-            within = isWorldPosWithinGridBounds(tPlaced.freeX, tPlaced.freeZ, layer)
+            within = isWorldPosWithinGridBounds(tPlaced.freeX, tPlaced.freeY, tPlaced.freeZ, layer)
         else
             within = isCellWithinGridBounds(tPlaced.cellX, tPlaced.cellZ)
         end
@@ -686,22 +696,19 @@ function snapRotation(angleRad)
     return angleRad
 end
 
--- Mouse -> world position on a fixed Y-plane, via ray reconstruction from mbm.to3d at two depths.
--- NOTE: verify empirically that mbm.to3d(sx,sy,depth)'s `depth` behaves as a literal distance
--- along the view direction; if not, this needs to be replaced with a camera-matrix unprojection.
-function screenToWorldOnLayerPlane(sx, sy, planeY)
-    local x1, y1, z1 = mbm.to3d(sx, sy, 100)
-    local x2, y2, z2 = mbm.to3d(sx, sy, 1000)
-    local dx, dy, dz = x2 - x1, y2 - y1, z2 - z1
-    if math.abs(dy) < 1e-6 then
-        return nil
-    end
-    local t = (planeY - y1) / dy
-    return x1 + dx * t, planeY, z1 + dz * t
+-- Intersect the screen ray with the layer's fixed Y (floor) or Z (wall) plane.
+function screenToWorldOnLayerPlane(sx, sy, layer)
+    local x1, y1, z1, dx, dy, dz = mbm.getPickRay(sx, sy)
+    local denominator, distance = dy, layer.fY - y1
+    if layer.bWall then denominator, distance = dz, layer.offset.z - z1 end
+    if math.abs(denominator) < 1e-6 then return nil end
+    local t = distance / denominator
+    if t < 0 then return nil end
+    return x1 + dx * t, y1 + dy * t, z1 + dz * t
 end
 
 -- Computes the scale factor to apply to a placed mesh according to the active snap/scale mode.
-function computeSnapScale(tObj)
+function computeSnapScale(tObj, layer)
     if tMapOptions.sSnapScaleMode == 'none' or tMapOptions.sMapType == 'Free' then
         return 1, 1, 1
     end
@@ -714,6 +721,7 @@ function computeSnapScale(tObj)
     tObj:setScale(1, 1, 1)
     local w, h, d = tObj:getAABB(true)
     w, h, d = w or 1, h or 1, d or 1
+    if layer and layer.bWall then d = h end
     local targetW, targetD = tMapOptions.fGridCellWidthX, tMapOptions.fGridCellDepthZ
     local scaleX = targetW / math.max(w, 1e-4)
     local scaleZ = targetD / math.max(d, 1e-4)
@@ -798,7 +806,11 @@ function rebuildGridVisual()
             local x2, z2 = rotXZ(x, zHigh)
             local ln = tGridLines[idx]
             ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
-            ln:set({x1, 0, z1, x2, 0, z2}, 1)
+            if layer.bWall then
+                ln:set({x1, z1, 0, x2, z2, 0}, 1)
+            else
+                ln:set({x1, 0, z1, x2, 0, z2}, 1)
+            end
             ln:setColor(0.35, 0.35, 0.35, 0.63)
             idx = idx + 1
         end
@@ -808,7 +820,11 @@ function rebuildGridVisual()
             local x2, z2 = rotXZ(xHigh, z)
             local ln = tGridLines[idx]
             ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
-            ln:set({x1, 0, z1, x2, 0, z2}, 1)
+            if layer.bWall then
+                ln:set({x1, z1, 0, x2, z2, 0}, 1)
+            else
+                ln:set({x1, 0, z1, x2, 0, z2}, 1)
+            end
             ln:setColor(0.35, 0.35, 0.35, 0.63)
             idx = idx + 1
         end
@@ -1490,11 +1506,11 @@ end
 function resolvePlacedMeshWorldPos(tPlaced)
     local layer = tLayers[tPlaced.layerIndex]
     if tMapOptions.sMapType == 'Free' then
-        local y = tPlaced.freeY
+        local y, z = tPlaced.freeY, tPlaced.freeZ
         if tPlaced.bAttachedToLayer and layer then
-            y = layer.fY
+            if layer.bWall then z = layer.offset.z else y = layer.fY end
         end
-        return tPlaced.freeX, y, tPlaced.freeZ
+        return tPlaced.freeX, y, z
     else
         local x, y, z = gridCellToWorld(tPlaced.cellX, tPlaced.cellZ, layer)
         return x, y, z
@@ -1557,15 +1573,15 @@ function pasteCopiedMeshes()
         local wx, wy, wz = ax + tCopy.dx, ay + tCopy.dy, az + tCopy.dz
         local tNew = nil
         if tMapOptions.sMapType == 'Free' then
-            if isWorldPosWithinGridBounds(wx, wz, layer) then
-                tNew = addPlacedMesh(tCopy.fileName, tCopy.type, iSelectedLayer, 0, 0, wx, wz, true)
+            if isWorldPosWithinGridBounds(wx, wy, wz, layer) then
+                tNew = addPlacedMesh(tCopy.fileName, tCopy.type, iSelectedLayer, 0, 0, wx, wz, true, wy)
                 -- Explicit Y (not layer-attached) so the copied group's own vertical offsets carry
                 -- over exactly, even for a mesh that was originally layer-attached at copy time.
                 tNew.bAttachedToLayer = false
                 tNew.freeY = wy
             end
         else
-            local cx, cz = worldToGridCell(wx, wz, layer)
+            local cx, cz = worldToGridCell(wx, wy, wz, layer)
             if isCellWithinGridBounds(cx, cz) then
                 local existingIndex = findPlacedMeshAtCell(iSelectedLayer, cx, cz)
                 if existingIndex then removePlacedMesh(existingIndex) end
@@ -1675,7 +1691,7 @@ function resyncAllPlacedMeshes()
     for _, tPlaced in ipairs(tPlacedMeshes) do
         if tPlaced.tObj then
             if tMapOptions.sSnapScaleMode ~= 'none' then
-                local sx, sy, sz = computeSnapScale(tPlaced.tObj)
+                local sx, sy, sz = computeSnapScale(tPlaced.tObj, tLayers[tPlaced.layerIndex])
                 tPlaced.scale = {x = sx, y = sy, z = sz}
             end
             syncPlacedMeshTransform(tPlaced)
@@ -1686,12 +1702,12 @@ end
 -- `bSync`: true for direct interactive placement (Layer tab click, fill-layer) -- always
 -- synchronous, no progress modal. false/nil (the default) goes through the async-capable path,
 -- with a progress modal, used for bulk/first-time loads like "Load 3D Scene".
-function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, bSync)
+function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, bSync, freeY)
     local tPlaced = {
         fileName = fileName, type = sType, layerIndex = layerIndex,
         cellX = cellX or 0, cellZ = cellZ or 0,
         freeX = freeX or 0, freeZ = freeZ or 0,
-        bAttachedToLayer = true, freeY = 0,
+        bAttachedToLayer = true, freeY = freeY or 0,
         rotationY = 0, scale = {x = 1, y = 1, z = 1},
         animationName = '', articulatedAnimationNames = {},
         isSelected = false, tObj = nil,
@@ -1706,7 +1722,7 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
             -- to the orientation this placement will actually use (0, rotationY, 0) *before*
             -- measuring, or "fit to cell" scale is computed against the wrong footprint.
             tObj:setAngle(0, tPlaced.rotationY or 0, 0)
-            local sx, sy, sz = computeSnapScale(tObj)
+            local sx, sy, sz = computeSnapScale(tObj, tLayers[layerIndex])
             tPlaced.scale = {x = sx, y = sy, z = sz}
             syncPlacedMeshTransform(tPlaced)
             applyPlacedMeshAnimations(tPlaced)
@@ -2330,7 +2346,7 @@ function applyPlacedMeshWorldPositions(tSnapshots)
             local layer = tLayers[tPlaced.layerIndex]
             tPlaced.freeX, tPlaced.freeY, tPlaced.freeZ = snap.x, snap.y, snap.z
             if layer then
-                tPlaced.cellX, tPlaced.cellZ = worldToGridCell(snap.x, snap.z, layer)
+                tPlaced.cellX, tPlaced.cellZ = worldToGridCell(snap.x, snap.y, snap.z, layer)
             end
         end
     end
@@ -2371,7 +2387,7 @@ function drawMapTab(item_width)
     -- once instead, when the field actually loses focus/the button is released, after having
     -- really changed.
     local bWidthChanged = tImGui.IsItemDeactivatedAfterEdit()
-    local c2, d = tImGui.InputFloat(tLang.L('grid_depth_z') .. '##GridDepthZ', tMapOptions.fGridCellDepthZ, 1, 10, '%.2f')
+    local c2, d = tImGui.InputFloat(tLang.L('grid_depth_z_height_y') .. '##GridDepthZ', tMapOptions.fGridCellDepthZ, 1, 10, '%.2f')
     local bDepthChanged = tImGui.IsItemDeactivatedAfterEdit()
     if c1 then tMapOptions.fGridCellWidthX = math.max(MIN_GRID_CELL_SIZE, w) end
     if c2 then tMapOptions.fGridCellDepthZ = math.max(MIN_GRID_CELL_SIZE, d) end
@@ -2388,7 +2404,7 @@ function drawMapTab(item_width)
     -- at 10 half-lines (21x21) regardless of any setting.
     local c3, cx = tImGui.InputInt(tLang.L('grid_count_x') .. '##GridCountX', tMapOptions.iGridCountX, 1, 10)
     local bCountXChanged = tImGui.IsItemDeactivatedAfterEdit()
-    local c4, cz = tImGui.InputInt(tLang.L('grid_count_z') .. '##GridCountZ', tMapOptions.iGridCountZ, 1, 10)
+    local c4, cz = tImGui.InputInt(tLang.L('grid_count_z_height_y') .. '##GridCountZ', tMapOptions.iGridCountZ, 1, 10)
     local bCountZChanged = tImGui.IsItemDeactivatedAfterEdit()
     if c3 then tMapOptions.iGridCountX = math.max(MIN_GRID_COUNT, cx) end
     if c4 then tMapOptions.iGridCountZ = math.max(MIN_GRID_COUNT, cz) end
@@ -2641,8 +2657,9 @@ end
 -- Layer tab
 ------------------------------------------------------------------------------------------------------------------
 
-function addLayer()
+function addLayer(bWall)
     table.insert(tLayers, {
+        bWall = bWall == true,
         name = 'Layer-' .. (#tLayers + 1), visible = true, fY = 0, offset = {x = 0, z = 0},
         bHalfOffsetX = false, bHalfOffsetZ = false,
     })
@@ -2650,9 +2667,37 @@ function addLayer()
     rebuildGridVisual()
 end
 
+function setLayerWall(layerIndex, bWall)
+    local layer = tLayers[layerIndex]
+    if not layer or (layer.bWall == true) == bWall then return end
+    -- Carry free positions into the new plane around the layer origin. Grid positions
+    -- retain their cell indices. Mesh orientation remains an explicit asset/user choice.
+    for _, placed in ipairs(tPlacedMeshes) do
+        if placed.layerIndex == layerIndex then
+            placed.freeY, placed.freeZ = layer.fY + placed.freeZ - layer.offset.z,
+                layer.offset.z + placed.freeY - layer.fY
+        end
+    end
+    layer.bWall = bWall
+    for _, placed in ipairs(tPlacedMeshes) do
+        if placed.layerIndex == layerIndex and placed.tObj then
+            if tMapOptions.sSnapScaleMode ~= 'none' then
+                local sx, sy, sz = computeSnapScale(placed.tObj, layer)
+                placed.scale = {x = sx, y = sy, z = sz}
+            end
+            syncPlacedMeshTransform(placed)
+        end
+    end
+    rebuildGridVisual()
+    -- Existing history intentionally excludes layer properties; old placements must not
+    -- be restored using a different plane from the one in which they were captured.
+    resetUndoHistory()
+end
+
 function drawLayerTab(item_width)
+    bNewLayerWall = tImGui.Checkbox(tLang.L('layer_wall_xy') .. '##new_layer_wall', bNewLayerWall)
     if tImGui.Button(tLang.L('add_layer'), tUtil.getResponsiveItemSize(item_width - 40)) then
-        addLayer()
+        addLayer(bNewLayerWall)
     end
 
     for i, layer in ipairs(tLayers) do
@@ -2682,6 +2727,9 @@ function drawLayerTab(item_width)
                 rebuildGridVisual()
             end
 
+            local wall = tImGui.Checkbox(tLang.L('layer_wall_xy') .. '##layer_wall' .. i, layer.bWall == true)
+            if wall ~= (layer.bWall == true) then setLayerWall(i, wall) end
+
             local cY, y = tImGui.InputFloat(tLang.L('offset_y') .. '##layer_offset_y' .. i, layer.fY, 1, 10, '%.2f')
             local cOX, ox = tImGui.InputFloat(tLang.L('offset_x') .. '##layer_offset_x' .. i, layer.offset.x, 1, 10, '%.2f')
             local cOZ, oz = tImGui.InputFloat(tLang.L('offset_z') .. '##layer_offset_z' .. i, layer.offset.z, 1, 10, '%.2f')
@@ -2701,7 +2749,7 @@ function drawLayerTab(item_width)
             -- Isometric) -- Free mode has no cellX/cellZ "line" to key off of.
             if tMapOptions.sMapType ~= 'Free' then
                 local hx = tImGui.Checkbox(tLang.L('half_offset_x_odd_line') .. '##layer_half_x' .. i, layer.bHalfOffsetX)
-                local hz = tImGui.Checkbox(tLang.L('half_offset_z_odd_line') .. '##layer_half_z' .. i, layer.bHalfOffsetZ)
+                local hz = tImGui.Checkbox(tLang.L(layer.bWall and 'half_offset_y_odd_line' or 'half_offset_z_odd_line') .. '##layer_half_z' .. i, layer.bHalfOffsetZ)
                 if hx ~= layer.bHalfOffsetX or hz ~= layer.bHalfOffsetZ then
                     layer.bHalfOffsetX = hx
                     layer.bHalfOffsetZ = hz
@@ -2906,9 +2954,12 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
                 syncPlacedMeshTransform(tPlaced)
             end
             if not tPlaced.bAttachedToLayer then
-                local cFY, fy = tImGui.InputFloat(tLang.L('axis_y') .. '##placed_freey' .. i, tPlaced.freeY, 1, 10, '%.2f')
+                local layer = tLayers[tPlaced.layerIndex]
+                local axis = layer and layer.bWall and 'freeZ' or 'freeY'
+                local label = layer and layer.bWall and 'axis_z' or 'axis_y'
+                local cFY, fy = tImGui.InputFloat(tLang.L(label) .. '##placed_free_normal' .. i, tPlaced[axis], 1, 10, '%.2f')
                 if cFY then
-                    tPlaced.freeY = fy
+                    tPlaced[axis] = fy
                     syncPlacedMeshTransform(tPlaced)
                 end
             end
@@ -3990,6 +4041,7 @@ function applyLoadedScene3d(tLoaded)
             table.insert(tLayers, {
                 name = l.name, visible = l.visible, fY = l.fY,
                 offset = {x = l.offset.x, z = l.offset.z},
+                bWall = l.bWall == true,
                 bHalfOffsetX = l.bHalfOffsetX or false, bHalfOffsetZ = l.bHalfOffsetZ or false,
             })
         end
@@ -4449,15 +4501,15 @@ function tryPlaceMeshAt(x, y)
     end
     if not entry or iSelectedLayer == 0 then return end
     local layer = tLayers[iSelectedLayer]
-    local wx, wy, wz = screenToWorldOnLayerPlane(x, y, layer.fY)
+    local wx, wy, wz = screenToWorldOnLayerPlane(x, y, layer)
     if not wx then return end
     if tMapOptions.sMapType == 'Free' then
         -- The grid still borders Free mode (no snapping, but bounded) -- reject a click past the
         -- grid's edge the same way grid modes do.
-        if not isWorldPosWithinGridBounds(wx, wz, layer) then return end
-        addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, 0, 0, wx, wz, true)
+        if not isWorldPosWithinGridBounds(wx, wy, wz, layer) then return end
+        addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, 0, 0, wx, wz, true, wy)
     else
-        local cx, cz = worldToGridCell(wx, wz, layer)
+        local cx, cz = worldToGridCell(wx, wy, wz, layer)
         -- The grid represents the bounds of the scene being built -- clicking past its edge is
         -- not a valid placement, so it's silently rejected rather than placing a mesh the grid
         -- itself doesn't visually contain.

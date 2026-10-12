@@ -101,10 +101,9 @@ math) — `mbm.to3d`'s `howFarZFromCamera` is therefore a scaling factor along a
 vector, not a literal real-world distance except exactly at screen center. `mbm.getPickRay`
 (below) normalizes this before returning it, specifically so it doesn't carry this gotcha into
 new code. To reconstruct a full ray from `mbm.to3d` alone (e.g. to intersect a known plane),
-sample at two different `depth` values and use their difference as the direction — see
-`screenToWorldOnLayerPlane` in `editor/scene_editor3d.lua` for a worked example (still valid:
-the *direction* it derives is correct even though neither sample point is a literal-distance
-position on its own).
+sample at two different `depth` values and use their difference as the direction. For new
+code, prefer `mbm.getPickRay`; `screenToWorldOnLayerPlane` in `editor/scene_editor3d.lua`
+uses it to intersect floor (XZ) and wall (XY) planes.
 
 **`mbm.getPickRay(sx, sy)` returns a proper 3D pick ray for the given screen pixel: `ox,oy,oz`**
 (the ray origin — always the camera's own current world position, for any pixel) **and
