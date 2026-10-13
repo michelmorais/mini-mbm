@@ -465,6 +465,7 @@ namespace mbm
         VEC2 linearVelocity(0,0);
         bool is2dScreen        = false;
         bool is3d              = false;
+        uint16 fixtureMaskBits = 0xffff;
         float radiusScale      = 1.0f;
         float radius           = 0.5f;
         float damping          = 0.5f;
@@ -483,6 +484,15 @@ namespace mbm
         if(top == 3)
         {
             constexpr int indexTable = 3;
+            lua_getfield(lua, indexTable, "fixtureMaskBits");
+            if (!lua_isnil(lua, -1))
+            {
+                const lua_Number mask = luaL_checknumber(lua, -1);
+                if (!(mask >= 0 && mask <= 65535) || mask != static_cast<uint16>(mask))
+                    return lua_error_debug(lua, "fixtureMaskBits must be an integer from 0 to 65535");
+                fixtureMaskBits = static_cast<uint16>(mask);
+            }
+            lua_pop(lua, 1);
             
             getFieldPrimaryFromTable(lua, indexTable, "texture",          LUA_TSTRING,  &texture);
             getFieldPrimaryFromTable(lua, indexTable, "is2dScreen",       LUA_TBOOLEAN, &is2dScreen);
@@ -557,7 +567,8 @@ namespace mbm
                                                         is3d,
                                                         is2dScreen,
                                                         segmented,
-                                                        radiusScale);
+                                                        radiusScale,
+                                                        fixtureMaskBits);
         if (info == nullptr || info->particleSystem == nullptr || info->steered_particle == nullptr)
         {
             return lua_error_debug(lua, "Failed to create fluid. particleSystem:%p steered_particle:%p",info->particleSystem,info->steered_particle);

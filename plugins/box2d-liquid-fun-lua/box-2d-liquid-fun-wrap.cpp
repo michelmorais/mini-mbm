@@ -325,6 +325,7 @@ namespace mbm
         {
             b2Vec2 b2Gravity(gravity->x,gravity->y);
             this->world = new b2World(b2Gravity);
+            this->world->SetContactFilter(this);
         }
     }
     
@@ -1068,7 +1069,8 @@ namespace mbm
                                         const bool is3d,
                                         const bool is2dScreen,
                                         const bool segmented,
-                                        const float radiusScale)
+                                        const float radiusScale,
+                                        const uint16 fixtureMaskBits)
     {
         if(physics == nullptr)
             return nullptr;
@@ -1092,7 +1094,12 @@ namespace mbm
         pParticleSystem->SetDamping(damping);
         p_steered_particle->setRadiusScale(radiusScale);
 
-        info->pd.flags            = flags;
+        info->fixtureMaskBits = fixtureMaskBits;
+        // Group userdata keeps filtering O(1), including groups emitted by fluid:add().
+        info->pd.userData = info;
+        info->pd.flags = flags;
+        if (fixtureMaskBits != 0xffff)
+            info->pd.flags |= b2_fixtureContactFilterParticle;
         info->pd.groupFlags       = groupFlags;
         info->pd.lifetime         = lifetime;
         info->pd.strength         = strength;
@@ -1112,6 +1119,18 @@ namespace mbm
         update_uv_fluid(info);
         this->lsFluid.push_back(info);
         return info;
+    }
+
+    bool PHYSICS_BOX2D_LIQUID_FUN::ShouldCollide(b2Fixture* fixture,
+                                                b2ParticleSystem* particleSystem,
+                                                int32 particleIndex)
+    {
+        const b2ParticleGroup* group = particleSystem->GetGroupBuffer()[particleIndex];
+        if (group == nullptr)
+            return true;
+        const auto* info = static_cast<const INFO_FLUID*>(group->GetUserData());
+        return info == nullptr || info->fixtureMaskBits == 0xffff ||
+               (fixture->GetFilterData().categoryBits & info->fixtureMaskBits) != 0;
     }
 
     int32 PHYSICS_BOX2D_LIQUID_FUN::addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine)

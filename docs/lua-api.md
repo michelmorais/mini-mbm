@@ -1342,6 +1342,7 @@ local shader = fluid:getShader()
 | `is2dScreen`, `is3d` | false, false |
 | `segmented`, `radiusScale` | false, 1; rendering configuration |
 | `radius`, `damping` | 0.5 physics units, 0.5 |
+| `fixtureMaskBits` | 65535; integer bitmask of rigid-body categories allowed to collide with this fluid (0 disables all) |
 | `lifetime`, `angularVelocity`, `strength`, `stride` | 0, 0, 1, 0 |
 | `angle` | Source renderizable's z angle, otherwise 0 |
 | `scale` | `{x=1,y=1}` |
@@ -1362,6 +1363,35 @@ and `fluid:setDensity(value)`. Supported particle flag strings (case-sensitive):
 Group strings: `solidParticleGroup`, `rigidParticleGroup`, `particleGroupCanBeEmpty`,
 `particleGroupWillBeDestroyed`, `particleGroupNeedsUpdateDepth`, `particleGroupInternalMask`.
 An array of group flags is ORed with the default solid-group flag; a string replaces it.
+
+#### Fluid collision filtering
+
+Since engine 7.362, `fixtureMaskBits` in `createFluid` selects which rigid-body
+categories the fluid can collide with. It is an integer from 0 to 65535 and defaults
+to 65535 (unrestricted, preserving legacy behavior even for category zero).
+For a restricted mask, a contact is allowed when
+`fixture.categoryBits & fixtureMaskBits ~= 0`; zero disables all fluid/body contacts.
+The body categories are assigned using `world:setFilter(body, {...})`.
+
+```lua
+world:setFilter(rat, {categoryBits=0x0002, maskBits=0xffff, groupIndex=-1})
+local fluid = world:createFluid({type='circle', ray=10}, {
+    fixtureMaskBits = 0xffff ~ 0x0002, -- ignore rats; default-category ground remains solid
+    flags = 'water',
+})
+```
+
+The engine automatically adds `fixtureContactFilter` to the particle flags when the
+mask restricts any category. The same mask applies to later `fluid:add()` emissions.
+Filtering runs in native code without Lua callbacks; it changes neither rendering
+nor particle/particle interactions. Body `maskBits` and `groupIndex` still govern
+body/body collisions, but do not participate in this fluid mask test. The mask is
+set at creation; there is no fluid-mask setter. Existing fluids without the option
+retain their previous behavior.
+
+Regression scene: `src/test-lib/fluid_filter_smoke.lua` checks the default behavior,
+excluded categories, floor collision, a zero mask, later emissions, invalid masks,
+and preservation of body/body contacts.
 
 #### 3D fluid rendering
 

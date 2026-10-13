@@ -51,6 +51,7 @@ struct VEC3;
         RENDERIZABLE    * steered_particle;
         b2ParticleSystem*  particleSystem;
         b2ParticleGroupDef pd;
+        uint16 fixtureMaskBits = 0xffff;
         INFO_FLUID(const bool is3d,const bool is2dScreen,const bool segmented,const float* _scale_physics_engine) noexcept;
         virtual ~INFO_FLUID() noexcept;
     };
@@ -73,7 +74,7 @@ struct VEC3;
     typedef void(*On_box2d_DestroyBodyFromListLF)(RENDERIZABLE* ptr);
 
 
-    class PHYSICS_BOX2D_LIQUID_FUN : public PHYSICS, public b2ContactListener
+    class PHYSICS_BOX2D_LIQUID_FUN : public PHYSICS, public b2ContactListener, public b2ContactFilter
     {
     public:
         int32   velocityIterations;
@@ -150,7 +151,8 @@ struct VEC3;
                                         const bool is3d,
                                         const bool is2dScreen,
                                         const bool segmented,
-                                        const float radiusScale);
+                                        const float radiusScale,
+                                        const uint16 fixtureMaskBits = 0xffff);
         static int32 addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine);
         void applyForce(SHAPE_INFO_B2DLF* info,const float x,const float y,const float wx,const float wy);
         void applyTorque(SHAPE_INFO_B2DLF* info,const float torque,bool awake);
@@ -197,6 +199,8 @@ struct VEC3;
                                         const bool  isSensor,
                                         const bool iskinematicBody,
                                         const bool isBullet);
+        using b2ContactFilter::ShouldCollide;
+        bool ShouldCollide(b2Fixture* fixture, b2ParticleSystem* particleSystem, int32 particleIndex) override;
         void BeginContact(b2Contact* contact);
         void EndContact(b2Contact* contact);
         void PreSolve(b2Contact* contact,const b2Manifold* oldManifold);
