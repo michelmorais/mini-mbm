@@ -8,7 +8,6 @@ set(THIRD_PARTY           ${CMAKE_SOURCE_DIR}/third-party)
 set(LUA_INCLUDE           ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(BOX2D_PATH      	    ${CMAKE_SOURCE_DIR}/third-party/box2d-${BOX2DLIB_VERSION})
 set(BOX2D_INCLUDE         ${BOX2D_PATH}/include)
-set(BOX2D_LUA_SOURCE      ${CMAKE_SOURCE_DIR}/plugins/box2d)
 set(MBM_CORE_INCLUDE      ${CORE_MBM_INCLUDES}/core_mbm)
 
  
@@ -20,23 +19,13 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing -Wno-unused-but-set-variable -Wno-maybe-uninitialized")
 endif()
 
-#set_target_properties(box2d PROPERTIES
-#	CXX_STANDARD 11
-#    CXX_STANDARD_REQUIRED YES
-#    CXX_EXTENSIONS NO
-#    VERSION ${PROJECT_VERSION}
-#    SOVERSION ${PROJECT_VERSION_MAJOR}
-#)
-#
-
-#Bring the headers, such as xxx.h into the project
 include_directories(  ${LUA_INCLUDE}
                       ${CORE_MBM_INCLUDES}
                       ${PLUGIN_HELPER_INC}
                       ${BOX2D_INCLUDE}
                       ${MBM_CORE_INCLUDE})
  
-#However, the file(GLOB...) allows for wildcard additions:
+# Particle sources are included only in the ON profile.
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${BOX2D_PATH}/src/*.cpp")
 list(APPEND SOURCES box2d-lua.cpp box-2d-wrap.cpp physics-box-2d-lua.cpp physics-box2d-joint-lua.cpp)
 if(USE_BOX2D_PARTICLES)
@@ -73,7 +62,6 @@ endif()
 if (NOT (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY))
     target_link_libraries(${BOX2D_LUA_LIBRARY} PRIVATE ${LUA_LIBRARY})
     target_link_libraries(${BOX2D_LUA_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
-    #target_link_libraries(${BOX2D_LUA_LIBRARY} mini-mbm)
     target_link_libraries(${BOX2D_LUA_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
 endif()
 

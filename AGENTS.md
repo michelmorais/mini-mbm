@@ -114,8 +114,8 @@ mini-mbm/
 ├── platform-msvs/            Windows Visual Studio solution + project files
 ├── plugins/                  Optional plugin shared libraries
 │   ├── plugin-helper/        Shared Lua helper utilities used by all plugins
-│   ├── box2d/                Box2D 2.4.1 Lua bindings
-│   ├── box2d-liquid-fun-lua/ LiquidFun 1.1.0 / Box2D 2.3.0 Lua bindings
+│   ├── box2d/                Unified Box2D 2.4.1 + optional LiquidFun Lua bindings
+│   ├── box2d-liquid-fun-lua/ Legacy-only LiquidFun comparison wrapper
 │   ├── bullet3d/             Bullet 2.84 Lua bindings
 │   ├── imGui/                Dear ImGui plugin (powers all editor tools)
 │   └── tiled/                Tiled-map plugin with tile_editor
@@ -399,8 +399,8 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 |---|---|---|
 | lua | 5.4.1 | Scripting engine |
 | portaudio | — | Audio (Linux/Windows) |
-| box2d | 2.4.1 | 2D physics |
-| box2d-liquid-fun | LiquidFun 1.1.0 / Box2D 2.3.0 | 2D fluid simulation |
+| box2d | 2.4.1 + optional ported LiquidFun particles | Unified 2D physics/fluids |
+| box2d-liquid-fun | LiquidFun 1.1.0 / Box2D 2.3.0 | Legacy-only comparison backend |
 | bullet | 2.84 | 3D physics |
 | stb | — | Image loading helpers |
 | lodepng | — | PNG loading |

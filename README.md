@@ -253,7 +253,7 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 | **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS/iOS). Vulkan planned |
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
-| **Physics** | Box2D 2.4.1 (2D), LiquidFun 1.1.0 over Box2D 2.3.0 (fluids), Bullet 2.84 (3D) — all as optional plugins |
+| **Physics** | Box2D 2.4.1 with optional ported LiquidFun particles (2D/fluids), Bullet 2.84 (3D) — all as optional plugins |
 | **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis with software mixer (Linux and Windows), OpenSL ES (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
@@ -718,14 +718,14 @@ Plugins are registered with `CORE_MANAGER::addPlugin(PLUGIN*)`.
 | Plugin | Directory | Description |
 |---|---|---|
 | **Box2D** | `plugins/box2d/` | 2D physics simulation via Box2D 2.4.1. Full Lua bindings for bodies, fixtures, joints, collisions, and debug rendering. |
-| **Box2D LiquidFun** | `plugins/box2d-liquid-fun-lua/` | Fluid simulation extension (LiquidFun 1.1.0 over Box2D 2.3.0). Lua bindings for particle-based fluids and joints. |
+| **Box2D LiquidFun** | `plugins/box2d/` | Compatibility module and optional fluid bindings in the unified 2.4.1 backend. `plugins/box2d-liquid-fun-lua/` is the legacy-only comparison wrapper. |
 | **Bullet 3D** | `plugins/bullet3d/` | 3D physics simulation via Bullet 2.84. Lua bindings for rigid bodies, collision shapes, and world configuration. |
 | **Dear ImGui** | `plugins/imGui/` | Immediate-mode GUI integration with Lua bindings. Backends for DirectX 9, OpenGL 3, Win32, and Metal. Powers all built-in editors. |
 | **Tiled** | `plugins/tiled/` | Tile map support with tile sets, layers, bricks, and a `TILE_EDITOR` renderizable subclass for in-engine level editing. |
 | **Steam** | `plugins/steam/` | Steamworks Lua plugin. Requires `-DUSE_STEAM=1` and `-DSTEAMWORKS_SDK_PATH=/path/to/steamworks_sdk`. |
 | **Plugin Helper** | `plugins/plugin-helper/` | Shared utilities for plugin development: Lua shader bindings, user data Lua bindings, and class identification. |
 
-Plugin flags default to `OFF` and require Lua. `-DUSE_ALL=1` enables Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled; it does **not** enable Steam because every developer must supply their own Steamworks SDK path. On iOS and macOS App Store (`MAS_DELIVERY`) builds, plugins are linked statically and CMake disables LiquidFun automatically when Box2D is also enabled to avoid duplicate symbols.
+Plugin flags default to `OFF` and require Lua. `-DUSE_ALL=1` enables Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled; it does **not** enable Steam because every developer must supply their own Steamworks SDK path. With `USE_BOX2D=1`, `box2dLiquidFun` uses the unified backend on every platform. Enable fluids with `USE_BOX2D_PARTICLES=ON`; explicit OFF is respected even with `USE_ALL`. iOS and macOS App Store (`MAS_DELIVERY`) builds link plugins statically.
 
 ---
 
@@ -1055,7 +1055,7 @@ mini-mbm/
 │   └── test-lib/               #   Interactive renderable test executable/assets
 ├── plugins/                    # Plugin implementations
 │   ├── box2d/                  #   Box2D 2D physics
-│   ├── box2d-liquid-fun-lua/   #   LiquidFun fluid simulation
+│   ├── box2d-liquid-fun-lua/   #   Legacy LiquidFun comparison wrapper
 │   ├── bullet3d/               #   Bullet 3D physics
 │   ├── imGui/                  #   Dear ImGui integration
 │   ├── tiled/                  #   Tile map support
@@ -1095,7 +1095,7 @@ mini-mbm/
 |---|---|---|
 | [Lua](https://www.lua.org/) | 5.4.1 | Embedded scripting language |
 | [Box2D](https://box2d.org/) | 2.4.1 | 2D physics engine |
-| [LiquidFun](https://google.github.io/liquidfun/) | 1.1.0 (Box2D 2.3.0) | 2D fluid simulation (Box2D extension) |
+| [LiquidFun](https://google.github.io/liquidfun/) | 1.1.0 particles ported to Box2D 2.4.1 | Optional 2D fluids; original Box2D 2.3.0 tree retained for comparison |
 | [Bullet](https://pybullet.org/) | 2.84 | 3D physics engine |
 | [Dear ImGui](https://github.com/ocornut/imgui) | — | Immediate-mode GUI |
 | [PortAudio](http://www.portaudio.com/) | — | Cross-platform audio I/O (Linux and Windows). Uses a single shared output stream with a software mixer — all sounds share one OS audio stream for low overhead even with many simultaneous effects. |
@@ -1295,7 +1295,7 @@ int main() {
 | **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS/iOS). Vulkan planejado |
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
-| **Física** | Box2D 2.4.1 (2D), LiquidFun 1.1.0 sobre Box2D 2.3.0 (fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
+| **Física** | Box2D 2.4.1 com partículas LiquidFun portadas e opcionais (2D/fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
 | **Áudio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis com mixer por software (Linux e Windows), OpenSL ES (Android) |
 | **GUI** | Plugin Dear ImGui com bindings Lua — alimenta todos os editores integrados |
 | **Editores** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
@@ -1564,7 +1564,7 @@ Plugins são registrados com `CORE_MANAGER::addPlugin(PLUGIN*)`.
 | Plugin | Diretório | Descrição |
 |---|---|---|
 | **Box2D** | `plugins/box2d/` | Simulação de física 2D via Box2D 2.4.1. Bindings Lua completos. |
-| **Box2D LiquidFun** | `plugins/box2d-liquid-fun-lua/` | Simulação de fluidos (LiquidFun 1.1.0 sobre Box2D 2.3.0). Bindings Lua para partículas. |
+| **Box2D LiquidFun** | `plugins/box2d/` | Fachada de compatibilidade e fluidos opcionais no backend 2.4.1 unificado. `plugins/box2d-liquid-fun-lua/` é o wrapper antigo de comparação. |
 | **Bullet 3D** | `plugins/bullet3d/` | Simulação de física 3D via Bullet 2.84. |
 | **Dear ImGui** | `plugins/imGui/` | Integração GUI de modo imediato com bindings Lua. |
 | **Tiled** | `plugins/tiled/` | Suporte a tile maps com tile sets, camadas e edição. |
@@ -1593,7 +1593,7 @@ Consulte a [seção em inglês](#project-structure) acima para a estrutura compl
 |---|---|---|
 | [Lua](https://www.lua.org/) | 5.4.1 | Linguagem de script embarcada |
 | [Box2D](https://box2d.org/) | 2.4.1 | Motor de física 2D |
-| [LiquidFun](https://google.github.io/liquidfun/) | 1.1.0 (Box2D 2.3.0) | Simulação de fluidos 2D |
+| [LiquidFun](https://google.github.io/liquidfun/) | Partículas 1.1.0 portadas para Box2D 2.4.1 | Fluidos 2D opcionais; árvore Box2D 2.3.0 original preservada para comparação |
 | [Bullet](https://pybullet.org/) | 2.84 | Motor de física 3D |
 | [Dear ImGui](https://github.com/ocornut/imgui) | — | GUI de modo imediato |
 | [PortAudio](http://www.portaudio.com/) | — | I/O de áudio multiplataforma (Linux e Windows). Utiliza uma única stream de saída com um mixer por software — todos os sons compartilham uma stream de áudio do sistema operacional, ideal para jogos com muitos efeitos simultâneos. |

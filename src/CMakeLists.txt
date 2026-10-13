@@ -218,7 +218,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${SCENE_CPP}
                             ${LIB_MINIMBM_LUA_SRC}
@@ -226,7 +225,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${SCENE_CPP})
     endif()

@@ -29,6 +29,7 @@ Performance, plataformas restantes e remoção do legado pendentes**.
 Marco atual: [migração e consolidação](box2d-liquidfun-migration.md).
 Continuação: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
 Medições ampliadas: [custo nativo OFF/ON e escalabilidade](box2d-liquidfun-performance.md).
+Preparação para Windows: [revisão e limpeza Linux](box2d-liquidfun-linux-cleanup.md).
 Matriz de plataformas: [regressão](box2d-liquidfun-platforms.md).
 Cliente de referência: [Ratworks](box2d-liquidfun-ratworks.md).
 Marco anterior: [integração Lua e perfis de build](box2d-liquidfun-integration.md).
