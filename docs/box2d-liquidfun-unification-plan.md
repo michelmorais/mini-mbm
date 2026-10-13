@@ -23,7 +23,9 @@
 
 # Unificação de Box2D e LiquidFun: viabilidade e plano
 
-Data: 2026-10-13. Estado: **proposta, sem implementação**.
+Data: 2026-10-13. Estado: **baseline inicial e protótipo nativo opcional implementados;
+integração Lua e migração de produção pendentes**.
+Resultados e reprodução: [baseline de compatibilidade](box2d-liquidfun-baseline.md).
 Base inspecionada: mini-mbm `e29aa3cd`; Ratworks `c52d991`, em
 `/home/michel/Ratworks`. Ambos estavam sem alterações locais no início da análise.
 Complemento: exemplos de `/home/michel/mbm-documentation`, revisão `b1b41b6`,
@@ -83,7 +85,8 @@ Não combinar essa migração com a consolidação proposta.
 
 ## 3. Evidências sobre o custo atual
 
-Inspeção estática, **sem benchmark ou execução do jogo nesta análise**. As linhas
+Esta seção registra a inspeção estática inicial; as medições e execuções posteriores
+estão no [relatório de baseline](box2d-liquidfun-baseline.md). As linhas
 abaixo distinguem comportamento observado de hipóteses que precisam de medição.
 
 | Questão | Evidência local | Conclusão |
@@ -194,7 +197,11 @@ trechos condicionais, mas não apaga os arquivos do checkout. Separar fisicament
 os arquivos facilita manutenção; a exclusão real do binário depende do CMake e
 das definições consistentes descritas abaixo.
 
-Proposta de nomes, **ainda não disponíveis no CMake**:
+O protótipo atual usa `MBM_BOX2D_PARTICLES=1` somente no target nativo
+`physics_candidate` de `src/test-lib/physics-compat`. O plugin de produção exclui
+as fontes `src/particle/`; ainda não oferece fluidos em `require "box2d"`.
+
+Proposta de nomes, **ainda não disponíveis no CMake raiz**:
 
 | Configuração | Resultado pretendido |
 | --- | --- |
@@ -411,10 +418,13 @@ não nesta proposta. Se otimizações de buffers alterarem limites públicos/PIM
 core, atualizar também `docs/core-pimpl-status.md`.
 
 Ratworks e mbm-documentation foram consultados somente para leitura nesta análise.
-A adaptação e execução dos exemplos externos fazem parte da futura implementação;
-não foram realizadas nesta revisão do plano. O plano não altera o jogo nem
+A etapa 0 extraiu e executou exemplos externos em um harness local, sem alterar
+os arquivos publicados. A adaptação à nova API e a equivalência visual permanecem
+pendentes. O plano não altera o jogo nem
 assume que sua cena atual cobre todas as necessidades futuras de fluidos.
 A análise verificou caminhos e contratos concretos no código e consultou fontes
-oficiais. Não executou benchmarks, compilação, testes de runtime ou o port; logo,
+oficiais. A baseline posterior acrescenta builds, testes de runtime e medições
+nativas. Existe agora um port nativo inicial, com comparação OFF/ON; integração
+Lua, equivalência visual, jogos e demais plataformas ainda estão pendentes. Portanto,
 **viabilidade estrutural é favorável, ganho de performance e equivalência física
 permanecem por demonstrar**.

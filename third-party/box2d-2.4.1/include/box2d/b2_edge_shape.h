@@ -32,6 +32,10 @@
 class B2_API b2EdgeShape : public b2Shape
 {
 public:
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    void ComputeDistance(const b2Transform& xf, const b2Vec2& p, float* distance, b2Vec2* normal, int32 childIndex) const override;
+#endif
 	b2EdgeShape();
 
 	/// Set this as a part of a sequence. Vertex v0 precedes the edge and vertex v3

@@ -59,6 +59,10 @@ public:
 	};
 
 	virtual ~b2Shape() {}
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    virtual void ComputeDistance(const b2Transform& xf, const b2Vec2& p, float* distance, b2Vec2* normal, int32 childIndex) const = 0;
+#endif
+
 
 	/// Clone the concrete shape using the provided allocator.
 	virtual b2Shape* Clone(b2BlockAllocator* allocator) const = 0;

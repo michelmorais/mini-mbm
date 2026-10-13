@@ -38,6 +38,9 @@ include_directories(  ${LUA_INCLUDE}
  
 #However, the file(GLOB...) allows for wildcard additions:
 file(GLOB_RECURSE SOURCES "${BOX2D_PATH}/*.cpp" "${BOX2D_LUA_SOURCE}/*.cpp")
+# The particle port is currently exercised only by physics-compat's candidate.
+# Production remains rigid-only until the Lua/API migration passes its gates.
+list(FILTER SOURCES EXCLUDE REGEX "/src/particle/")
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources

@@ -349,7 +349,8 @@ static inline uint32 computeTag(float32 x, float32 y)
 
 static inline uint32 computeRelativeTag(uint32 tag, int32 x, int32 y)
 {
-	return tag + (y << yShift) + (x << xShift);
+    // mini-mbm: preserve modulo-2^32 offsets without shifting negative integers.
+    return tag + (static_cast<uint32>(y) << yShift) + (static_cast<uint32>(x) << xShift);
 }
 
 b2ParticleSystem::InsideBoundsEnumerator::InsideBoundsEnumerator(

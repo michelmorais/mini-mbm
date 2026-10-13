@@ -162,6 +162,11 @@ public:
 	/// Test a point for containment in this fixture.
 	/// @param p a point in world coordinates.
 	bool TestPoint(const b2Vec2& p) const;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    void ComputeDistance(const b2Vec2& p, float* distance, b2Vec2* normal, int32 childIndex) const
+    { m_shape->ComputeDistance(m_body->GetTransform(), p, distance, normal, childIndex); }
+#endif
+
 
 	/// Cast a ray against this shape.
 	/// @param output the ray-cast results.

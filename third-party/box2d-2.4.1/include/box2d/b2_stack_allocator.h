@@ -46,6 +46,10 @@ public:
 	~b2StackAllocator();
 
 	void* Allocate(int32 size);
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    // Particle Voronoi queues may grow the most recent stack allocation.
+    void* Reallocate(void* p, int32 size);
+#endif
 	void Free(void* p);
 
 	int32 GetMaxAllocation() const;
