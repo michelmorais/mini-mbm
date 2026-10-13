@@ -1365,6 +1365,55 @@ Group strings: `solidParticleGroup`, `rigidParticleGroup`, `particleGroupCanBeEm
 `particleGroupWillBeDestroyed`, `particleGroupNeedsUpdateDepth`, `particleGroupInternalMask`.
 An array of group flags is ORed with the default solid-group flag; a string replaces it.
 
+#### Convex polygon contours
+
+Since engine 7.364, the shared physics-table parser accepts `convexPolygon`:
+
+```lua
+local contour = {
+    type = "convexPolygon",
+    points = {
+        {x=-10, y=-5}, {x=10, y=-5},
+        {x=6, y=5}, {x=-6, y=5},
+    },
+}
+local fluid = world:createFluid(contour, {
+    position = {x=100, y=30, z=0},
+    radius = 0.3,
+    riseTime = 1,
+})
+-- Later additions use the same shape format (and remain immediate):
+fluid:add(contour, {x=120, y=30})
+```
+
+`points` must contain 3 to 64 vertices with finite numeric `x,y`, in clockwise or
+counterclockwise perimeter order. Coordinates are local XY render units; place the
+fluid with `options.position`, or the transform passed to `fluid:add`. Do not repeat
+the first vertex to close the contour. Concavity, self-intersection, repeated points,
+collinear edges and near-degenerate contours are rejected (cross-product tolerance
+is `1e-7` times the squared coordinate extent). This does not compute a convex hull
+from an unordered point cloud. Holes and concave contours are not supported.
+
+The parser normalizes winding and stores a triangle fan using the existing physics
+representation; no new mesh-file shape is introduced. It is also available to other
+consumers of the shared parser, including `line:setPhysics(contour, true)` (the second
+argument draws the outline). This is physics geometry, not a new `shape:create` mode.
+
+`triangleList` is an explicit alias for the legacy `polygon`/`polyline` triplet
+interpretation. Supply a multiple of three points, one independent triangle per
+triplet. Existing `polygon` and `polyline` names retain that interpretation; they do
+**not** become ordered-contour inputs.
+
+LiquidFun now fills the union of a physics table's triangles on one sampling grid,
+both for immediate creation and `riseTime`. Shared edges and overlapping triangles
+no longer emit duplicate particles. Consequently, older triangle lists that relied
+on overlapping emissions can produce fewer particles. Separate shapes of different
+kinds (e.g. an overlapping circle and triangle) are not unioned by this change.
+
+Regression scene: `src/test-lib/fluid_convex_smoke.lua` covers rectangle equivalence,
+shared-edge uniqueness, both windings, a hexagon, legacy aliases, invalid contours,
+`fluid:add`, gradual emission and a static body built from a line's physics outline.
+
 #### Gradual initial emission
 
 Since engine 7.363, `createFluid(..., {riseTime=1})` distributes the initial

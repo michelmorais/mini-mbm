@@ -1157,19 +1157,34 @@ namespace mbm
             FLUID_EMISSION emission;
             emission.definition = info->pd;
             emission.definition.shape = nullptr;
+            emission.definition.shapes = nullptr;
+            emission.definition.shapeCount = 0;
             emission.definition.group = nullptr;
             // Match LiquidFun's filled-shape lattice without creating live particles.
             const float stride = info->pd.stride > 0 ? info->pd.stride : b2_particleStride * (2.0f * info->particleSystem->GetRadius());
             b2Transform identity;
             identity.SetIdentity();
             b2AABB bounds;
-            info->pd.shape->ComputeAABB(&bounds, identity, 0);
+            if (info->pd.shape)
+                info->pd.shape->ComputeAABB(&bounds, identity, 0);
+            else
+            {
+                info->pd.shapes[0]->ComputeAABB(&bounds, identity, 0);
+                for (int32 i = 1; i < info->pd.shapeCount; ++i)
+                {
+                    b2AABB other;
+                    info->pd.shapes[i]->ComputeAABB(&other, identity, 0);
+                    bounds.Combine(other);
+                }
+            }
             for (float y = floorf(bounds.lowerBound.y / stride) * stride; y < bounds.upperBound.y; y += stride)
                 for (float x = floorf(bounds.lowerBound.x / stride) * stride; x < bounds.upperBound.x; x += stride)
                 {
                     const b2Vec2 p(x, y);
-                    if (info->pd.shape->TestPoint(identity, p))
-                        emission.positions.push_back(p);
+                    bool inside = info->pd.shape && info->pd.shape->TestPoint(identity, p);
+                    for (int32 i = 0; !inside && i < info->pd.shapeCount; ++i)
+                        inside = info->pd.shapes[i]->TestPoint(identity, p);
+                    if (inside) emission.positions.push_back(p);
                 }
             scheduled += static_cast<int32>(emission.positions.size());
             if (!emission.positions.empty())
@@ -1201,17 +1216,29 @@ namespace mbm
             createGroup();
         }
 
-        for(const TRIANGLE * triangle : infoPhysics->lsTriangle)
+        // Fill the union once, so internal triangulation edges do not duplicate particles.
+        if (!infoPhysics->lsTriangle.empty())
         {
-            b2PolygonShape  groundTriangle;
-            b2Vec2 vertices[3];
-            vertices[0].Set(triangle->point[0].x* scalePercentage * scale.x,triangle->point[0].y* scalePercentage * scale.y);
-            vertices[1].Set(triangle->point[1].x* scalePercentage * scale.x,triangle->point[1].y* scalePercentage * scale.y);
-            vertices[2].Set(triangle->point[2].x* scalePercentage * scale.x,triangle->point[2].y* scalePercentage * scale.y);
-            groundTriangle.Set(vertices, 3);
-            info->pd.shape = &groundTriangle;
-            info->pd.position.Set(position.x * scalePercentage,position.y * scalePercentage);
+            std::vector<b2PolygonShape> triangles(infoPhysics->lsTriangle.size());
+            std::vector<const b2Shape*> shapes(triangles.size());
+            for (size_t i = 0; i < triangles.size(); ++i)
+            {
+                b2Vec2 vertices[3];
+                for (size_t j = 0; j < 3; ++j)
+                {
+                    const auto& p = infoPhysics->lsTriangle[i]->point[j];
+                    vertices[j].Set(p.x * scalePercentage * scale.x, p.y * scalePercentage * scale.y);
+                }
+                triangles[i].Set(vertices, 3);
+                shapes[i] = &triangles[i];
+            }
+            info->pd.shape = nullptr;
+            info->pd.shapes = shapes.data();
+            info->pd.shapeCount = static_cast<int32>(shapes.size());
+            info->pd.position.Set(position.x * scalePercentage, position.y * scalePercentage);
             createGroup();
+            info->pd.shapes = nullptr;
+            info->pd.shapeCount = 0;
         }
 
         for(const CUBE_COMPLEX * cube : infoPhysics->lsCubeComplex)

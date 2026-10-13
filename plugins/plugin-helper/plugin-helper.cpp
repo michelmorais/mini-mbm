@@ -23,11 +23,17 @@
 #include <core_mbm/renderizable.h>
 #include <core_mbm/dynamic-var.h>
 #include "plugin-helper.h"
+#include <array>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace mbm
 {
     static const char * informationSetPhysics =  "\nExpected table physics's information\nExample:\n"
                 "{} unique table or array table as described bellow\n"
+                "{type='convexPolygon',points={{x=0,y=0},{x=20,y=0},{x=10,y=10}}} ordered convex contour\n"
+                "{type='triangleList',points={{x=0,y=0},{x=20,y=0},{x=10,y=10},...}} independent triplets\n"
                 "{[1]={type='cube',    center={x=0,y=0,z=0},half={x=0,y=0,z=0}},[2]={...}} \n"
                 "{[1]={type='rect',    width=>0,height=>0 or points={[1]={x,y},[2]={x,y},[3]={x,y},[4]={x,y}} \n"
                 "{[1]={type='polyline',points={[1]={x,y},[2]={x,y},[3]={x,y},[4]={x,y},...} \n"
@@ -1105,6 +1111,78 @@ namespace mbm
         return 0;
     }
 
+    // Contour input is deliberately separate from the legacy polygon triangle list.
+    static int setConvexPolygonPhysics(lua_State* lua, const int table,
+                                      INFO_PHYSICS* info, LINE_MESH* lineMesh)
+    {
+        std::array<VEC2, 64> points;
+        lua_getfield(lua, table, "points");
+        if (!lua_istable(lua, -1))
+            return lua_error_debug(lua, "convexPolygon requires points={{x=...,y=...},...}");
+        const size_t count = lua_rawlen(lua, -1);
+        if (count < 3 || count > points.size())
+            return lua_error_debug(lua, "convexPolygon requires 3 to 64 vertices");
+        double extent = 0;
+        for (size_t i = 0; i < count; ++i)
+        {
+            lua_rawgeti(lua, -1, static_cast<lua_Integer>(i + 1));
+            if (!lua_istable(lua, -1))
+                return lua_error_debug(lua, "convexPolygon vertex must contain numeric x and y");
+            for (const char* axis : {"x", "y"})
+            {
+                lua_getfield(lua, -1, axis);
+                const double value = lua_tonumber(lua, -1);
+                if (lua_type(lua, -1) != LUA_TNUMBER || !std::isfinite(value) ||
+                    std::abs(value) > std::numeric_limits<float>::max())
+                    return lua_error_debug(lua, "convexPolygon coordinates must be finite numbers");
+                if (*axis == 'x') points[i].x = static_cast<float>(value);
+                else points[i].y = static_cast<float>(value);
+                lua_pop(lua, 1);
+            }
+            lua_pop(lua, 1);
+            extent = std::max(extent, std::abs(double(points[i].x) - points[0].x));
+            extent = std::max(extent, std::abs(double(points[i].y) - points[0].y));
+        }
+        lua_pop(lua, 1);
+        const double tolerance = extent * extent * 1e-7;
+        int winding = 0;
+        // Every other vertex must lie strictly on the same side of every edge.
+        // This also rejects repeats, collinear edges and self-intersecting contours.
+        for (size_t i = 0; i < count; ++i)
+        {
+            const auto& a = points[i];
+            const auto& b = points[(i + 1) % count];
+            for (size_t j = 0; j < count; ++j)
+            {
+                if (j == i || j == (i + 1) % count) continue;
+                const double cross = (double(b.x) - a.x) * (double(points[j].y) - a.y) -
+                                     (double(b.y) - a.y) * (double(points[j].x) - a.x);
+                const int side = cross > tolerance ? 1 : (cross < -tolerance ? -1 : 0);
+                if (!side || (winding && side != winding))
+                    return lua_error_debug(lua, "convexPolygon requires a strictly convex ordered contour, without repeated or collinear vertices");
+                winding = side;
+            }
+        }
+        if (winding < 0) std::reverse(points.begin(), points.begin() + count);
+        // Reuse existing physics storage/serialization; no new mesh-format shape is needed.
+        for (size_t i = 1; i + 1 < count; ++i)
+        {
+            auto* triangle = new TRIANGLE();
+            triangle->point[0] = VEC3(points[0].x, points[0].y, 0);
+            triangle->point[1] = VEC3(points[i].x, points[i].y, 0);
+            triangle->point[2] = VEC3(points[i+1].x, points[i+1].y, 0);
+            info->lsTriangle.push_back(triangle);
+        }
+        if (lineMesh)
+        {
+            std::vector<VEC3> outline;
+            for (size_t i = 0; i <= count; ++i)
+                outline.emplace_back(points[i % count].x, points[i % count].y, 0);
+            lineMesh->add(std::move(outline));
+        }
+        return 0;
+    }
+
     static int setPhysicsFromTablePureLua(lua_State *lua, INFO_PHYSICS* infoPhysics,const int indexTable,LINE_MESH* lineMesh,const bool singleObj)
     {
         std::string strType;
@@ -1116,7 +1194,9 @@ namespace mbm
             if (strType.size() > 0)
             {
                 const char* myType = strType.c_str();
-                if (strcmp(myType, "rectangle") == 0)//from Tile
+                if (strcmp(myType, "convexPolygon") == 0)
+                    return setConvexPolygonPhysics(lua, indexTable, infoPhysics, lineMesh);
+                else if (strcmp(myType, "rectangle") == 0)//from Tile
                 {
                     float width = 0;
                     float height = 0;
@@ -1601,7 +1681,7 @@ namespace mbm
                         lineMesh->add(std::move(circleLine));
                     }
                 }
-                else if(strcmp(myType,"polyline") == 0 || strcmp(myType,"polygon") == 0)//from tile
+                else if(strcmp(myType,"polyline") == 0 || strcmp(myType,"polygon") == 0 || strcmp(myType,"triangleList") == 0)//from tile
                 {
                     lua_getfield(lua,indexTable,"points");
                     if (lua_istable(lua, indexSubTable))
