@@ -1,0 +1,2062 @@
+{
+  "date": "2026-10-13",
+  "host": "Windows-11-10.0.26300-SP0",
+  "compiler": "MSVC 19.51.36260.0, Visual Studio 18.10.1, Windows SDK 10.0.28000.0",
+  "architecture": "Win32/x86; solution x64 also maps to Win32",
+  "native_tests": [
+    {
+      "name": "physics_rigid",
+      "classname": "physics_rigid",
+      "time": "0.0929838",
+      "status": "run"
+    },
+    {
+      "name": "physics_liquidfun",
+      "classname": "physics_liquidfun",
+      "time": "0.156149",
+      "status": "run"
+    },
+    {
+      "name": "physics_candidate",
+      "classname": "physics_candidate",
+      "time": "0.126037",
+      "status": "run"
+    },
+    {
+      "name": "rigid_particle_off_on_equivalence",
+      "classname": "rigid_particle_off_on_equivalence",
+      "time": "0.228482",
+      "status": "run"
+    }
+  ],
+  "contracts": {
+    "gles-debug-on": {
+      "passed": true,
+      "profile": "on",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe": "179791298c78a79d2ee02803b8d59e5faae1c75c5b5999d7e751f354fa1d34c4",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2d.dll": "56d1b479a77a21389981f7271cb82533dfa1eb0059a6231582dae7223c57ab0c",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2dLiquidFun.dll": "e34f784be1865680717756c180c3703a3420d631888b32a28ff46c7c36209fb5"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "84b7776ea5b33929c26e86d448819ba6ed0ee749076c80fff3762f65e9f85405",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "legacy",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "fdc7c7e2d4ef5b181fa39ff882084af2eb670856854b234034d3d95228c60917",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "rise",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+          "log_sha256": "890659d7b39e961a22b304172581edeb201d904ed0c2e080e98eeb7350c6e03b",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "filter",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+          "log_sha256": "a9405e39650a0687f69fb14c83dc5a34a5bc0b9c29f5244073f0ad4ad940622a",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "convex",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "8d83958a26cb5dbddcf2488650c721453692920e5b5fe318e139118e8b657582",
+          "log_sha256": "56180124879c4713d37aa794feacef133f9e289ad645b3e85add387b8c1bb93a",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "depth",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "95c81d7e760b442650fe8e4b95d1856e9944a5895c109881e3832a573d0f634a",
+          "log_sha256": "369e44c428d01fa0999a533756326bdc594bcbfce6635c16efe45627d5d5b979",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "gles-debug-off": {
+      "passed": true,
+      "profile": "off",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe": "179791298c78a79d2ee02803b8d59e5faae1c75c5b5999d7e751f354fa1d34c4",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2d.dll": "05ead4943113a53176b44d398ef3efdbcc9c123f52cf92a9177a96d78fe1dd26",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2dLiquidFun.dll": "e34f784be1865680717756c180c3703a3420d631888b32a28ff46c7c36209fb5"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "44fd5489cb69d190bb3e64ef1488b24fde21e30f96d97066e6fdb7dd62f0fe88",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "dx11-release-off": {
+      "passed": true,
+      "profile": "off",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe": "2cc5d0a57eb3b2f81aa98cbe8329280a1ff0a870a960a6481809828ec4e6f182",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\box2d.dll": "26f78a2cfa1d57bdcde741e8e2f26ab70462203121afd3990ea823f0b8b0eaa4",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\box2dLiquidFun.dll": "bd241e29d141f57027e2cc83101fca9f13fc62bb6f118bc32db0b6cb5d2a0e36"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "d80e3f253b996fcf4bff7b50d96fdf20a422672abe80e671d7361c330a67bad8",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "dx11-release-on-fixed": {
+      "passed": true,
+      "profile": "on",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe": "2cc5d0a57eb3b2f81aa98cbe8329280a1ff0a870a960a6481809828ec4e6f182",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\box2d.dll": "f626fd519941645fbc9276e250eafa346ebaa0ee5a86b0aa34563a79f7428a18",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\box2dLiquidFun.dll": "3feb1f4d792609e8f26d8d7c8aa4a5a4bb041156840f0d03eaaf0811e7d19b19"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "262e27124e403885e73519f0cd8336d950d07567358ed4b5b1351f407530c62d",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "legacy",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "358f0ece251faf590e48fe1e487a9004dacecda7d651971c59a0cc8565b25a85",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "rise",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+          "log_sha256": "69214158dc912c4b789a55b8ecf4f2bb76d31bf634ef798d0071b05acb17f7d7",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "filter",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+          "log_sha256": "b4299f5e72fc2f5ed632a8e9fbe7d5388af11aa66782a7d904a6a4b9f8de3290",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "convex",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "8d83958a26cb5dbddcf2488650c721453692920e5b5fe318e139118e8b657582",
+          "log_sha256": "02bb0597749faf4ba27381279179240fe07f3e5ad6298bf6feb5840639b0420e",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "depth",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "5f8af35c00a6f312eff61be7cec36c4dd9178c095884ee2dbc1deb4454f1977c",
+          "log_sha256": "c3790c098e8ac228deaada1ef32a857e1c9abe6a8b70a98ee442700009d9c6cb",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "dx9-release-on-fixed": {
+      "passed": true,
+      "profile": "on",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe": "a6faafdb19139b11e0d38b015d561fd39e192d3b9cd8e6bdad66060c01a3a32e",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\box2d.dll": "26417221ff4ec22381d605a806c90c8d0e2dce51c98dc91064c02d7a9c023a31",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\box2dLiquidFun.dll": "5033fd9ac322dac5b83c3bf96b8d0acdb42f98d470d7a968cbfc0f87127c7d43"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "1ebe9a62b2c72f042b19dd4780120f38cf2d943d490879650af57b960916ce92",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "legacy",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "e8f4e7633206f05e56f6ddc2ef29760986addeca0817973a6ec1e88e8b89d7a6",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "rise",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+          "log_sha256": "debd96e023d1e60e7072aaacfc1011b7373992cca7c4573a637339c683a35adf",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "filter",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+          "log_sha256": "892e0001f00323791f19be7b99d57d218691bf7c379c146c4e4fa21a75f09964",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "convex",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "8d83958a26cb5dbddcf2488650c721453692920e5b5fe318e139118e8b657582",
+          "log_sha256": "9431958c75510101dcd50f34e200c596993d5abe40e8819dddfc5e28c8ebf735",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "depth",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "5f8af35c00a6f312eff61be7cec36c4dd9178c095884ee2dbc1deb4454f1977c",
+          "log_sha256": "69d70660cf85156af22de0ef2fba53ce42e44b1b2d2a4c34e011a9ce1b4b202e",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "dx9-release-off": {
+      "passed": true,
+      "profile": "off",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe": "a6faafdb19139b11e0d38b015d561fd39e192d3b9cd8e6bdad66060c01a3a32e",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\box2d.dll": "7c6784f6bfe7748721385fc4618c78c627cc7bcfc50f2ae5c1064c868024aada",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\box2dLiquidFun.dll": "5033fd9ac322dac5b83c3bf96b8d0acdb42f98d470d7a968cbfc0f87127c7d43"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "bee7066cf54e9e6deddec987f3700e698ff9be349987fca5de7b2f40e7825405",
+          "command": [
+            "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+            "--scene",
+            "C:/Users/miche/Documents/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    }
+  },
+  "ratworks": {
+    "ratworks-gles-debug": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+        "--scene",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-client.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 60.0,
+      "wall_seconds": 61.227,
+      "host": "Windows-11-10.0.26300-SP0",
+      "hashes": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe": "179791298c78a79d2ee02803b8d59e5faae1c75c5b5999d7e751f354fa1d34c4",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-client.lua": "d85e31cea40d0df9de3e2a345a51dc9b8ae7e500033fc622083f766834d2101c",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2d.dll": "56d1b479a77a21389981f7271cb82533dfa1eb0059a6231582dae7223c57ab0c",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2dLiquidFun.dll": "e34f784be1865680717756c180c3703a3420d631888b32a28ff46c7c36209fb5",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\core_mbm.dll": "fb863c659afc1f595fea288fdd21e60d2dda6bbdcd863c9e3e021ec7092f6c7e"
+      },
+      "rss_samples": [],
+      "rss_supported": false,
+      "markers": [
+        " RATWORKS_RESULT frames=1953 spawned=3 consumed=3 fluids=3 peak=572 expired=3 cpu_s=60.023003 update_p50_ms=0.000000 update_p95_ms=0.000000 update_p99_ms=0.999451",
+        " RATWORKS_OK"
+      ],
+      "game_revision": "c52d9918bfee242861fef0b7a502ea141f8be68d",
+      "game_source_hashes": {
+        "concept\\captures\\capture-idle.lua": "9753e3e8b783579b3314c2869c13ae23076029a8b0a941f3a1479c0b013cf852",
+        "levels\\scene-1-scene3d.lua": "b8a21f3291f25b22520ce5b862773d2231fc5b1a0b0fd4b88d5801d88b31b8c5",
+        "logic\\camera-config.lua": "66f49b6e9ea4a56006a67a087ed5aabfee88b789505b33d510b46b8198d1154d",
+        "logic\\camera.lua": "12273126b8d8de6ce5de4e2139e100100aa86316c083328e7ee9b822a63c6d7c",
+        "logic\\game.lua": "5c4ae60eb59c8f8a244f95a17f0e5406abc4709c1fe0d52cf503e1b0ec5d44b4",
+        "logic\\level-config.lua": "cfddc645608a38250dd3d15b6daed5647638c09ee0bcbe5de6c0fd86005816e8",
+        "logic\\physics.lua": "38c97b0a95bc02d8608bdbd4c315ea67763d796d0645e1d0f60abe1a01a2a004",
+        "logic\\rat.lua": "31d078c9d46c2ba37ad10cc569f010dbd8afc9c0e67be3adc482584744d52083",
+        "logic\\swarm.lua": "61552b07962642731fd636a8979f616fb70fec4195175e4b623cf2bf14c72c7b",
+        "main.lua": "4433e39985e0c0a6bd7edfc93b9007804ab2d2bee17d4870e6b610e7a6c8054f",
+        "raw\\scene-1.scene3d-edit.lua": "3d0f48e7ea21c9cac69bb1a32e4fb5a6a2ba6164565f09b187af7c78c554d981",
+        "tests\\camera.lua": "a2e2c866e6c2d5f7878b8905b8cc9496d79567bf87329440dca4a26b7f3efdf1",
+        "tests\\smoke-camera.lua": "378d750eb9f5f6b9dc5af410c5977c6856ef22e3003526561c9ed6cf7f71a03b",
+        "tests\\smoke-scene.lua": "c2d188e24377cb1d1a23a7cc7c24d0bfd5d8beafe51d9301bb8c81414bb64be9"
+      }
+    },
+    "ratworks-dx11-release-fixed": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+        "--scene",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-client.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 60.0,
+      "wall_seconds": 61.068,
+      "host": "Windows-11-10.0.26300-SP0",
+      "hashes": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe": "2cc5d0a57eb3b2f81aa98cbe8329280a1ff0a870a960a6481809828ec4e6f182",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-client.lua": "d85e31cea40d0df9de3e2a345a51dc9b8ae7e500033fc622083f766834d2101c",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\box2d.dll": "f626fd519941645fbc9276e250eafa346ebaa0ee5a86b0aa34563a79f7428a18",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\box2dLiquidFun.dll": "3feb1f4d792609e8f26d8d7c8aa4a5a4bb041156840f0d03eaaf0811e7d19b19",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\core_mbm.dll": "3419eb1446c567c085110344563c764b480a6dfa6061630f9fb97c4ab3a35b89"
+      },
+      "rss_samples": [],
+      "rss_supported": false,
+      "markers": [
+        " RATWORKS_RESULT frames=4892 spawned=3 consumed=3 fluids=3 peak=635 expired=3 cpu_s=60.000999 update_p50_ms=0.000000 update_p95_ms=0.000000 update_p99_ms=0.000000",
+        " RATWORKS_OK"
+      ],
+      "game_revision": "c52d9918bfee242861fef0b7a502ea141f8be68d",
+      "game_source_hashes": {
+        "concept\\captures\\capture-idle.lua": "9753e3e8b783579b3314c2869c13ae23076029a8b0a941f3a1479c0b013cf852",
+        "levels\\scene-1-scene3d.lua": "b8a21f3291f25b22520ce5b862773d2231fc5b1a0b0fd4b88d5801d88b31b8c5",
+        "logic\\camera-config.lua": "66f49b6e9ea4a56006a67a087ed5aabfee88b789505b33d510b46b8198d1154d",
+        "logic\\camera.lua": "12273126b8d8de6ce5de4e2139e100100aa86316c083328e7ee9b822a63c6d7c",
+        "logic\\game.lua": "5c4ae60eb59c8f8a244f95a17f0e5406abc4709c1fe0d52cf503e1b0ec5d44b4",
+        "logic\\level-config.lua": "cfddc645608a38250dd3d15b6daed5647638c09ee0bcbe5de6c0fd86005816e8",
+        "logic\\physics.lua": "38c97b0a95bc02d8608bdbd4c315ea67763d796d0645e1d0f60abe1a01a2a004",
+        "logic\\rat.lua": "31d078c9d46c2ba37ad10cc569f010dbd8afc9c0e67be3adc482584744d52083",
+        "logic\\swarm.lua": "61552b07962642731fd636a8979f616fb70fec4195175e4b623cf2bf14c72c7b",
+        "main.lua": "4433e39985e0c0a6bd7edfc93b9007804ab2d2bee17d4870e6b610e7a6c8054f",
+        "raw\\scene-1.scene3d-edit.lua": "3d0f48e7ea21c9cac69bb1a32e4fb5a6a2ba6164565f09b187af7c78c554d981",
+        "tests\\camera.lua": "a2e2c866e6c2d5f7878b8905b8cc9496d79567bf87329440dca4a26b7f3efdf1",
+        "tests\\smoke-camera.lua": "378d750eb9f5f6b9dc5af410c5977c6856ef22e3003526561c9ed6cf7f71a03b",
+        "tests\\smoke-scene.lua": "c2d188e24377cb1d1a23a7cc7c24d0bfd5d8beafe51d9301bb8c81414bb64be9"
+      }
+    },
+    "ratworks-dx9-release": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+        "--scene",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-client.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 60.0,
+      "wall_seconds": 61.053,
+      "host": "Windows-11-10.0.26300-SP0",
+      "hashes": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe": "a6faafdb19139b11e0d38b015d561fd39e192d3b9cd8e6bdad66060c01a3a32e",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-client.lua": "d85e31cea40d0df9de3e2a345a51dc9b8ae7e500033fc622083f766834d2101c",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\box2d.dll": "26417221ff4ec22381d605a806c90c8d0e2dce51c98dc91064c02d7a9c023a31",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\box2dLiquidFun.dll": "5033fd9ac322dac5b83c3bf96b8d0acdb42f98d470d7a968cbfc0f87127c7d43",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\core_mbm.dll": "7580a5599a73802d8a9aee2a28cb9a9e2408031f654a06313f6ba35b052371a1"
+      },
+      "rss_samples": [],
+      "rss_supported": false,
+      "markers": [
+        " RATWORKS_RESULT frames=7213 spawned=3 consumed=3 fluids=3 peak=638 expired=3 cpu_s=60.001003 update_p50_ms=0.000000 update_p95_ms=0.000000 update_p99_ms=0.999451",
+        " RATWORKS_OK"
+      ],
+      "game_revision": "c52d9918bfee242861fef0b7a502ea141f8be68d",
+      "game_source_hashes": {
+        "concept\\captures\\capture-idle.lua": "9753e3e8b783579b3314c2869c13ae23076029a8b0a941f3a1479c0b013cf852",
+        "levels\\scene-1-scene3d.lua": "b8a21f3291f25b22520ce5b862773d2231fc5b1a0b0fd4b88d5801d88b31b8c5",
+        "logic\\camera-config.lua": "66f49b6e9ea4a56006a67a087ed5aabfee88b789505b33d510b46b8198d1154d",
+        "logic\\camera.lua": "12273126b8d8de6ce5de4e2139e100100aa86316c083328e7ee9b822a63c6d7c",
+        "logic\\game.lua": "5c4ae60eb59c8f8a244f95a17f0e5406abc4709c1fe0d52cf503e1b0ec5d44b4",
+        "logic\\level-config.lua": "cfddc645608a38250dd3d15b6daed5647638c09ee0bcbe5de6c0fd86005816e8",
+        "logic\\physics.lua": "38c97b0a95bc02d8608bdbd4c315ea67763d796d0645e1d0f60abe1a01a2a004",
+        "logic\\rat.lua": "31d078c9d46c2ba37ad10cc569f010dbd8afc9c0e67be3adc482584744d52083",
+        "logic\\swarm.lua": "61552b07962642731fd636a8979f616fb70fec4195175e4b623cf2bf14c72c7b",
+        "main.lua": "4433e39985e0c0a6bd7edfc93b9007804ab2d2bee17d4870e6b610e7a6c8054f",
+        "raw\\scene-1.scene3d-edit.lua": "3d0f48e7ea21c9cac69bb1a32e4fb5a6a2ba6164565f09b187af7c78c554d981",
+        "tests\\camera.lua": "a2e2c866e6c2d5f7878b8905b8cc9496d79567bf87329440dca4a26b7f3efdf1",
+        "tests\\smoke-camera.lua": "378d750eb9f5f6b9dc5af410c5977c6856ef22e3003526561c9ed6cf7f71a03b",
+        "tests\\smoke-scene.lua": "c2d188e24377cb1d1a23a7cc7c24d0bfd5d8beafe51d9301bb8c81414bb64be9"
+      }
+    }
+  },
+  "soak": {
+    "passed": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "inputs_unchanged": true,
+    "backend": "unified",
+    "command": [
+      "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+      "--scene",
+      "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-reduced.lua",
+      "--disable_select_monitor",
+      "--nosplash",
+      "-w",
+      "800",
+      "-h",
+      "600"
+    ],
+    "requested_seconds": 600.0,
+    "wall_seconds": 601.207,
+    "host": "Windows-11-10.0.26300-SP0",
+    "hashes": {
+      "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe": "179791298c78a79d2ee02803b8d59e5faae1c75c5b5999d7e751f354fa1d34c4",
+      "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-reduced.lua": "308007b034fdcac4204877c44a000b3f7f874ea693dfa4c116523bf0d536a1a8",
+      "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2d.dll": "56d1b479a77a21389981f7271cb82533dfa1eb0059a6231582dae7223c57ab0c",
+      "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2dLiquidFun.dll": "e34f784be1865680717756c180c3703a3420d631888b32a28ff46c7c36209fb5",
+      "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\core_mbm.dll": "fb863c659afc1f595fea288fdd21e60d2dda6bbdcd863c9e3e021ec7092f6c7e"
+    },
+    "rss_samples": [],
+    "rss_supported": false,
+    "markers": [
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t1\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t2\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t3\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t4\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t5\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t6\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t7\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t8\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t9\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t10\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t11\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t12\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t13\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t14\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t15\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t16\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t17\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t18\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t19\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t20\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t21\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t22\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t23\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t24\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t25\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t26\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t27\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t28\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t29\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t30\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t31\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t32\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t33\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t34\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t35\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t36\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t37\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t38\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t39\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t40\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t41\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t42\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t43\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t44\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t45\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t46\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t47\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t48\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t49\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t50\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t51\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t52\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t53\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t54\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t55\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t56\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t57\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t58\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t59\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t60\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t61\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t62\t385",
+      " RATWORKS_REDUCED_BOUNDS\t-0.5999075\t1.376067\t385",
+      " RATWORKS_REDUCED_CYCLE\t63\t385",
+      " RATWORKS_REDUCED_OK\t63\t385"
+    ]
+  },
+  "examples": {
+    "examples-dx11-off": {
+      "counts": {
+        "outside_profile": 135,
+        "needs_context": 14,
+        "smoke_pass": 31
+      },
+      "binaries_sha256": {
+        "mini_mbm.exe": "2cc5d0a57eb3b2f81aa98cbe8329280a1ff0a870a960a6481809828ec4e6f182",
+        "box2d.dll": "26f78a2cfa1d57bdcde741e8e2f26ab70462203121afd3990ea823f0b8b0eaa4",
+        "box2dLiquidFun.dll": "bd241e29d141f57027e2cc83101fca9f13fc62bb6f118bc32db0b6cb5d2a0e36"
+      },
+      "report_sha256": "351d790dab55ef60c1a52b240e465a8ad1cacaa694e8a665218509ecb1d4b3c3",
+      "tested": [
+        {
+          "id": "box2d/box2d/10",
+          "source": "doc/box2d.rst",
+          "line": 206,
+          "sha256": "d8990c53e67a852b07a421918d8c5f165c708946e159ac1b32bf1f577878ffc5",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d__10.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/box2d_manifold/03",
+          "source": "doc/box2d.rst",
+          "line": 439,
+          "sha256": "50842df332035e65729d77fe4fae978de9b875678e8791aa45bd61c7a0c3101f",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d_manifold__03.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/box2d_manifold/05",
+          "source": "doc/box2d.rst",
+          "line": 502,
+          "sha256": "79df4dfa7defc1170ea23bbce2a917582046d159c6e215df8bddada7af33a4d7",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d_manifold__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/box2d_Scale/05",
+          "source": "doc/box2d.rst",
+          "line": 746,
+          "sha256": "222a83642c156a184c379aad32f86c6a35d05c44ab33f484ca4d887eca96280d",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d_Scale__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/box2d_Scale/08",
+          "source": "doc/box2d.rst",
+          "line": 852,
+          "sha256": "1e1ac8ad809c342dc333a451592bf9445a2a210c62804ada4c659eac17adf079",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d_Scale__08.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/02",
+          "source": "doc/box2d.rst",
+          "line": 960,
+          "sha256": "129e0d445cbe910b8461938aa0a43ccdc2f5bdf2bf4d2d47ed8ffee0b8545ff7",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__02.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/06",
+          "source": "doc/box2d.rst",
+          "line": 1069,
+          "sha256": "1d83c8bb704c73021f8f69539a7f56f07a7b24ac2fd4113e3372b7948111333e",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__06.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/07",
+          "source": "doc/box2d.rst",
+          "line": 1119,
+          "sha256": "21ae811d50037997073b7bf10ce8a7143820ae9e28d36f01fb20dfcc3214a3de",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__07.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/09",
+          "source": "doc/box2d.rst",
+          "line": 1204,
+          "sha256": "9c2de8e95c4f06a1c168c624a8e2d02cbe4684c60b69294742af6b82c2e50b78",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__09.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/10",
+          "source": "doc/box2d.rst",
+          "line": 1279,
+          "sha256": "a025ce6bc040546fe6131e694917e55f8a8bfbecc40b4497205bce17ac9baea5",
+          "input_callbacks": [
+            "onKeyDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__10.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/11",
+          "source": "doc/box2d.rst",
+          "line": 1326,
+          "sha256": "e3ca4a1c11e7217991389949022b15f3040ad2a498209e735884e5adce3d6646",
+          "input_callbacks": [
+            "onKeyDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__11.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/12",
+          "source": "doc/box2d.rst",
+          "line": 1376,
+          "sha256": "95f1b6db266b5777e5357d2343bb757dfdc6184f0a826f9ceb7c9ec41b94f17c",
+          "input_callbacks": [
+            "onKeyDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__12.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/13",
+          "source": "doc/box2d.rst",
+          "line": 1424,
+          "sha256": "f4130961b8c4c901972651951211a45a45ef25aaba1c0225b7918daec2021eca",
+          "input_callbacks": [
+            "onKeyDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__13.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/21",
+          "source": "doc/box2d.rst",
+          "line": 1586,
+          "sha256": "037ed3c134bff1f63c694a94fe2c827c926b40fb387046f2cf58ba3d0b4bee51",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__21.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/get_position_box2d/09",
+          "source": "doc/box2d.rst",
+          "line": 1784,
+          "sha256": "618548006a4a4a9a64adc966f598414171df80834592dcc6076d61a1fd9b4ade",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__get_position_box2d__09.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/get_position_box2d/10",
+          "source": "doc/box2d.rst",
+          "line": 1835,
+          "sha256": "9f53e1430e58a389a3e5480c7179fd5e2a4668fb07e2b84ff7f44c8a52da5d68",
+          "input_callbacks": [
+            "onTouchMove"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__get_position_box2d__10.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/get_position_box2d/12",
+          "source": "doc/box2d.rst",
+          "line": 1902,
+          "sha256": "fd575b7e083b3ba6f776be1417182f3623256a7f6385d9c84da732abc527a4bf",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__get_position_box2d__12.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/get_position_box2d/13",
+          "source": "doc/box2d.rst",
+          "line": 1940,
+          "sha256": "7e961753e53ca73e5a1b9ff769cdfe6332635a4c8f71cf10e1290a0723b21e59",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__get_position_box2d__13.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/getWorldPoint_box2d/01",
+          "source": "doc/box2d.rst",
+          "line": 1979,
+          "sha256": "567fe1864da80a19181c2c2bb487b79c5d2e60522d3849413c011a5b6c2a634f",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__getWorldPoint_box2d__01.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/getWorldVector_box2d/01",
+          "source": "doc/box2d.rst",
+          "line": 2020,
+          "sha256": "cad0c5b64f4882dd47ae5a7335cf3674edf91c07e3f011b8abba01addafe7db7",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__getWorldVector_box2d__01.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/01",
+          "source": "doc/box2d.rst",
+          "line": 2690,
+          "sha256": "bed293231d03e4bccd88e65b52e6dc295656d0320e44b1576338f8dd4bf6ddae",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__01.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/02",
+          "source": "doc/box2d.rst",
+          "line": 2748,
+          "sha256": "63f35ec92137c74636865728cc70f55dc404ee49b4b6a1559560d6d86fc28b3e",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__02.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/03",
+          "source": "doc/box2d.rst",
+          "line": 2806,
+          "sha256": "06e2d4a72ad16bc2a1e3a0b8ad2b86b2548d690bfe9c59d9ca6a6ba65b71b371",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__03.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/04",
+          "source": "doc/box2d.rst",
+          "line": 2914,
+          "sha256": "97771941462ef21cf79b97d0f9bac812a12e7d60d5f3556c9f911be67b861412",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__04.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/05",
+          "source": "doc/box2d.rst",
+          "line": 2976,
+          "sha256": "aa5683174010952ccca75e48cacf536a3f0f7219925547e5f37703817f854b47",
+          "input_callbacks": [
+            "onTouchDown",
+            "onTouchMove",
+            "onTouchUp"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/06",
+          "source": "doc/box2d.rst",
+          "line": 3093,
+          "sha256": "ac39ca098441db4646bf7b4c3e612492968aa8afbf7bf59b5040230bd3fd0e10",
+          "input_callbacks": [
+            "onKeyDown",
+            "onKeyUp"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__06.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/07",
+          "source": "doc/box2d.rst",
+          "line": 3190,
+          "sha256": "2f9e29903bfa5feba2eb77c017f54495d8627905d2247490099709522b32e304",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__07.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/08",
+          "source": "doc/box2d.rst",
+          "line": 3249,
+          "sha256": "b0e06525a6fa25647e7410c7ff163975b06f2f9901ff9852424d0ec0b4aa7593",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__08.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/09",
+          "source": "doc/box2d.rst",
+          "line": 3325,
+          "sha256": "1a22705466ed661819a4d68b48dbeced915bb6cb722eabadb6885e75420e6151",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__09.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/10",
+          "source": "doc/box2d.rst",
+          "line": 3381,
+          "sha256": "0c67226c6a9bcc507844aa5eb43d23d256e6387fb6b663db6345c2f834ff7b95",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__10.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/11",
+          "source": "doc/box2d.rst",
+          "line": 3449,
+          "sha256": "1335ae62e8792113bb561a0c2545b6b93b36c293d994bd9502736cba873a8ccd",
+          "input_callbacks": [
+            "onKeyDown",
+            "onKeyUp"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__11.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        }
+      ]
+    },
+    "examples-dx11-on": {
+      "counts": {
+        "needs_context": 140,
+        "smoke_pass": 40
+      },
+      "binaries_sha256": {
+        "mini_mbm.exe": "2cc5d0a57eb3b2f81aa98cbe8329280a1ff0a870a960a6481809828ec4e6f182",
+        "box2d.dll": "f626fd519941645fbc9276e250eafa346ebaa0ee5a86b0aa34563a79f7428a18",
+        "box2dLiquidFun.dll": "3feb1f4d792609e8f26d8d7c8aa4a5a4bb041156840f0d03eaaf0811e7d19b19"
+      },
+      "report_sha256": "cb29a9c8e6211045a1694ee5e4d272dec766b2066a8440f02d96f26014986b69",
+      "tested": [
+        {
+          "id": "box2d/box2d/10",
+          "source": "doc/box2d.rst",
+          "line": 206,
+          "sha256": "d8990c53e67a852b07a421918d8c5f165c708946e159ac1b32bf1f577878ffc5",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d__10.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/box2d_manifold/03",
+          "source": "doc/box2d.rst",
+          "line": 439,
+          "sha256": "50842df332035e65729d77fe4fae978de9b875678e8791aa45bd61c7a0c3101f",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d_manifold__03.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/box2d_manifold/05",
+          "source": "doc/box2d.rst",
+          "line": 502,
+          "sha256": "79df4dfa7defc1170ea23bbce2a917582046d159c6e215df8bddada7af33a4d7",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d_manifold__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/box2d_Scale/05",
+          "source": "doc/box2d.rst",
+          "line": 746,
+          "sha256": "222a83642c156a184c379aad32f86c6a35d05c44ab33f484ca4d887eca96280d",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d_Scale__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/box2d_Scale/08",
+          "source": "doc/box2d.rst",
+          "line": 852,
+          "sha256": "1e1ac8ad809c342dc333a451592bf9445a2a210c62804ada4c659eac17adf079",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__box2d_Scale__08.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/02",
+          "source": "doc/box2d.rst",
+          "line": 960,
+          "sha256": "129e0d445cbe910b8461938aa0a43ccdc2f5bdf2bf4d2d47ed8ffee0b8545ff7",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__02.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/06",
+          "source": "doc/box2d.rst",
+          "line": 1069,
+          "sha256": "1d83c8bb704c73021f8f69539a7f56f07a7b24ac2fd4113e3372b7948111333e",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__06.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/07",
+          "source": "doc/box2d.rst",
+          "line": 1119,
+          "sha256": "21ae811d50037997073b7bf10ce8a7143820ae9e28d36f01fb20dfcc3214a3de",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__07.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/09",
+          "source": "doc/box2d.rst",
+          "line": 1204,
+          "sha256": "9c2de8e95c4f06a1c168c624a8e2d02cbe4684c60b69294742af6b82c2e50b78",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__09.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/10",
+          "source": "doc/box2d.rst",
+          "line": 1279,
+          "sha256": "a025ce6bc040546fe6131e694917e55f8a8bfbecc40b4497205bce17ac9baea5",
+          "input_callbacks": [
+            "onKeyDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__10.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/11",
+          "source": "doc/box2d.rst",
+          "line": 1326,
+          "sha256": "e3ca4a1c11e7217991389949022b15f3040ad2a498209e735884e5adce3d6646",
+          "input_callbacks": [
+            "onKeyDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__11.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/12",
+          "source": "doc/box2d.rst",
+          "line": 1376,
+          "sha256": "95f1b6db266b5777e5357d2343bb757dfdc6184f0a826f9ceb7c9ec41b94f17c",
+          "input_callbacks": [
+            "onKeyDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__12.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/13",
+          "source": "doc/box2d.rst",
+          "line": 1424,
+          "sha256": "f4130961b8c4c901972651951211a45a45ef25aaba1c0225b7918daec2021eca",
+          "input_callbacks": [
+            "onKeyDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__13.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/body_box2d/21",
+          "source": "doc/box2d.rst",
+          "line": 1586,
+          "sha256": "037ed3c134bff1f63c694a94fe2c827c926b40fb387046f2cf58ba3d0b4bee51",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__body_box2d__21.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/get_position_box2d/09",
+          "source": "doc/box2d.rst",
+          "line": 1784,
+          "sha256": "618548006a4a4a9a64adc966f598414171df80834592dcc6076d61a1fd9b4ade",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__get_position_box2d__09.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/get_position_box2d/10",
+          "source": "doc/box2d.rst",
+          "line": 1835,
+          "sha256": "9f53e1430e58a389a3e5480c7179fd5e2a4668fb07e2b84ff7f44c8a52da5d68",
+          "input_callbacks": [
+            "onTouchMove"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__get_position_box2d__10.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/get_position_box2d/12",
+          "source": "doc/box2d.rst",
+          "line": 1902,
+          "sha256": "fd575b7e083b3ba6f776be1417182f3623256a7f6385d9c84da732abc527a4bf",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__get_position_box2d__12.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/get_position_box2d/13",
+          "source": "doc/box2d.rst",
+          "line": 1940,
+          "sha256": "7e961753e53ca73e5a1b9ff769cdfe6332635a4c8f71cf10e1290a0723b21e59",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__get_position_box2d__13.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/getWorldPoint_box2d/01",
+          "source": "doc/box2d.rst",
+          "line": 1979,
+          "sha256": "567fe1864da80a19181c2c2bb487b79c5d2e60522d3849413c011a5b6c2a634f",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__getWorldPoint_box2d__01.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/getWorldVector_box2d/01",
+          "source": "doc/box2d.rst",
+          "line": 2020,
+          "sha256": "cad0c5b64f4882dd47ae5a7335cf3674edf91c07e3f011b8abba01addafe7db7",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__getWorldVector_box2d__01.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/01",
+          "source": "doc/box2d.rst",
+          "line": 2690,
+          "sha256": "bed293231d03e4bccd88e65b52e6dc295656d0320e44b1576338f8dd4bf6ddae",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__01.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/02",
+          "source": "doc/box2d.rst",
+          "line": 2748,
+          "sha256": "63f35ec92137c74636865728cc70f55dc404ee49b4b6a1559560d6d86fc28b3e",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__02.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/03",
+          "source": "doc/box2d.rst",
+          "line": 2806,
+          "sha256": "06e2d4a72ad16bc2a1e3a0b8ad2b86b2548d690bfe9c59d9ca6a6ba65b71b371",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__03.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/04",
+          "source": "doc/box2d.rst",
+          "line": 2914,
+          "sha256": "97771941462ef21cf79b97d0f9bac812a12e7d60d5f3556c9f911be67b861412",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__04.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/05",
+          "source": "doc/box2d.rst",
+          "line": 2976,
+          "sha256": "aa5683174010952ccca75e48cacf536a3f0f7219925547e5f37703817f854b47",
+          "input_callbacks": [
+            "onTouchDown",
+            "onTouchMove",
+            "onTouchUp"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/06",
+          "source": "doc/box2d.rst",
+          "line": 3093,
+          "sha256": "ac39ca098441db4646bf7b4c3e612492968aa8afbf7bf59b5040230bd3fd0e10",
+          "input_callbacks": [
+            "onKeyDown",
+            "onKeyUp"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__06.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/07",
+          "source": "doc/box2d.rst",
+          "line": 3190,
+          "sha256": "2f9e29903bfa5feba2eb77c017f54495d8627905d2247490099709522b32e304",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__07.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/08",
+          "source": "doc/box2d.rst",
+          "line": 3249,
+          "sha256": "b0e06525a6fa25647e7410c7ff163975b06f2f9901ff9852424d0ec0b4aa7593",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__08.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/09",
+          "source": "doc/box2d.rst",
+          "line": 3325,
+          "sha256": "1a22705466ed661819a4d68b48dbeced915bb6cb722eabadb6885e75420e6151",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__09.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/10",
+          "source": "doc/box2d.rst",
+          "line": 3381,
+          "sha256": "0c67226c6a9bcc507844aa5eb43d23d256e6387fb6b663db6345c2f834ff7b95",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__10.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2d/create_joint_box2d/11",
+          "source": "doc/box2d.rst",
+          "line": 3449,
+          "sha256": "1335ae62e8792113bb561a0c2545b6b93b36c293d994bd9502736cba873a8ccd",
+          "input_callbacks": [
+            "onKeyDown",
+            "onKeyUp"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2d__create_joint_box2d__11.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/createFluid/03",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 176,
+          "sha256": "1d2e98496a012d426a7e51021cb86874ca9ff407a40c4c880b3ed5ddb9045777",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__createFluid__03.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/createFluid/04",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 226,
+          "sha256": "14cde39b3b77d727bd7981b72898d30e8bc36fda5c6bd9fb33e8ba262304854a",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__createFluid__04.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/createFluid/05",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 275,
+          "sha256": "4c77df9687161ba1a053ad7e4b5d575a50a0c538ad515c1484feb6bad482bcd9",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__createFluid__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/01",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 401,
+          "sha256": "f04e72e03ba5a1eeb447b1391d7a4e0a5a5b475685212afa439b09dd36d90c09",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__01.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/02",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 442,
+          "sha256": "b69eea5696c590f284156726ae93190794760ffb81655b46d622bb31c533c834",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__02.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/03",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 483,
+          "sha256": "325b4a7d882be4beaaed06768903a972effbaebb5ae07fc11a4fbf7769001a9f",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__03.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/04",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 524,
+          "sha256": "26eb23fe8b20243ba68d7b6267cc6d5ab2206275a59357f0fa0984782307a330",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__04.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/05",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 565,
+          "sha256": "f0d1dd1496828910097acc726c6d35759978eddcd452b137145c4a5412366434",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/06",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 635,
+          "sha256": "5a11d7f7e256b82aeee3039b03f76136096dc54bb8c7a1c2a06cca58becc0b03",
+          "input_callbacks": [
+            "onTouchDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__06.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        }
+      ]
+    },
+    "examples-dx11-fluids-fixed": {
+      "counts": {
+        "outside_profile": 170,
+        "smoke_pass": 9,
+        "needs_context": 1
+      },
+      "binaries_sha256": {
+        "mini_mbm.exe": "2cc5d0a57eb3b2f81aa98cbe8329280a1ff0a870a960a6481809828ec4e6f182",
+        "box2d.dll": "f626fd519941645fbc9276e250eafa346ebaa0ee5a86b0aa34563a79f7428a18",
+        "box2dLiquidFun.dll": "3feb1f4d792609e8f26d8d7c8aa4a5a4bb041156840f0d03eaaf0811e7d19b19"
+      },
+      "report_sha256": "6bf492f2fb1c22c2b7d4cc6237510c3e3c583df4ed130da2eea26ba114896e76",
+      "tested": [
+        {
+          "id": "box2LiquidFun/createFluid/03",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 176,
+          "sha256": "1d2e98496a012d426a7e51021cb86874ca9ff407a40c4c880b3ed5ddb9045777",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__createFluid__03.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/createFluid/04",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 226,
+          "sha256": "14cde39b3b77d727bd7981b72898d30e8bc36fda5c6bd9fb33e8ba262304854a",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__createFluid__04.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/createFluid/05",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 275,
+          "sha256": "4c77df9687161ba1a053ad7e4b5d575a50a0c538ad515c1484feb6bad482bcd9",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__createFluid__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/01",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 401,
+          "sha256": "f04e72e03ba5a1eeb447b1391d7a4e0a5a5b475685212afa439b09dd36d90c09",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__01.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/02",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 442,
+          "sha256": "b69eea5696c590f284156726ae93190794760ffb81655b46d622bb31c533c834",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__02.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/03",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 483,
+          "sha256": "325b4a7d882be4beaaed06768903a972effbaebb5ae07fc11a4fbf7769001a9f",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__03.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/04",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 524,
+          "sha256": "26eb23fe8b20243ba68d7b6267cc6d5ab2206275a59357f0fa0984782307a330",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__04.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/05",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 565,
+          "sha256": "f0d1dd1496828910097acc726c6d35759978eddcd452b137145c4a5412366434",
+          "input_callbacks": [],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__05.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/06",
+          "source": "doc/box2LiquidFun.rst",
+          "line": 635,
+          "sha256": "5a11d7f7e256b82aeee3039b03f76136096dc54bb8c7a1c2a06cca58becc0b03",
+          "input_callbacks": [
+            "onTouchDown"
+          ],
+          "status": "smoke_pass",
+          "exit_code": 0,
+          "log": "box2LiquidFun__fluid_group_flag__06.log",
+          "visual_equivalence": "not_checked",
+          "interactive_inputs": "not_replayed"
+        }
+      ]
+    }
+  },
+  "final_artifacts_sha256": {
+    "platform-msvs/Debug/mini_mbm.exe": "179791298c78a79d2ee02803b8d59e5faae1c75c5b5999d7e751f354fa1d34c4",
+    "platform-msvs/Debug/core_mbm.dll": "f69aaf93754113b63ae71e8e4742605d756b42eb188cd767f829ef2dee66c723",
+    "platform-msvs/Debug/mini-mbm.dll": "0fdb20d39e62e976320d85b4c1be6745b7b973abdfa6781f49472e23778ffc93",
+    "platform-msvs/Debug/plugin-helper.dll": "ed9b0b69c885a81ac711afd81fb77cc5902c6ab7e64b94a0c8bd98b3a93945a4",
+    "platform-msvs/Debug/box2d.dll": "960784549693f05c0029d051280b9fb55f1cd1bfde0241f4d2a8d53d5cceccf2",
+    "platform-msvs/Debug/box2dLiquidFun.dll": "344aad4f81cd324e848cb3be4df7f208628483c1d1ee753761dda5fb206d7f77",
+    "platform-msvs/Debug/lua5.4.dll": "8cf019d3d8e3eddfbe2abaf541888dc0c46d77866d2b05c167d86c66851358fd",
+    "platform-msvs/Release/mini_mbm.exe": "2cc5d0a57eb3b2f81aa98cbe8329280a1ff0a870a960a6481809828ec4e6f182",
+    "platform-msvs/Release/core_mbm.dll": "3419eb1446c567c085110344563c764b480a6dfa6061630f9fb97c4ab3a35b89",
+    "platform-msvs/Release/mini-mbm.dll": "d9294880b1c2a0d8aa16d7d1b855141cf41f118f9060b83c9b97edc2b72ae0c3",
+    "platform-msvs/Release/plugin-helper.dll": "e4b596340ae0c8283eb5c782b4838fe989c18c7a56ac3cabe9dc2d793ff0b870",
+    "platform-msvs/Release/box2d.dll": "f626fd519941645fbc9276e250eafa346ebaa0ee5a86b0aa34563a79f7428a18",
+    "platform-msvs/Release/box2dLiquidFun.dll": "3feb1f4d792609e8f26d8d7c8aa4a5a4bb041156840f0d03eaaf0811e7d19b19",
+    "platform-msvs/Release/lua5.4.dll": "22a0bf813630f2a7ac2717259e10997db2f233037e336fb368bd20fc15120241",
+    "build/physics-windows/dx9-bin/mini_mbm.exe": "a6faafdb19139b11e0d38b015d561fd39e192d3b9cd8e6bdad66060c01a3a32e",
+    "build/physics-windows/dx9-bin/core_mbm.dll": "7580a5599a73802d8a9aee2a28cb9a9e2408031f654a06313f6ba35b052371a1",
+    "build/physics-windows/dx9-bin/mini-mbm.dll": "1c611e1511d2f28e36b0f9e8d35e6cd78b2106ea967b35149f3ac9b808c70ac9",
+    "build/physics-windows/dx9-bin/plugin-helper.dll": "2f4ee46c82f9d702f981f589f037f168f276a37f16dfca205f23c4e9f1a7a0c7",
+    "build/physics-windows/dx9-bin/box2d.dll": "1ff8e92035d4ab85176cf083ebf2fdcd38846df840793bc1ce51b4c35e4c4c2e",
+    "build/physics-windows/dx9-bin/box2dLiquidFun.dll": "5033fd9ac322dac5b83c3bf96b8d0acdb42f98d470d7a968cbfc0f87127c7d43",
+    "build/physics-windows/dx9-bin/lua5.4.dll": "8c515ecdb60dcff343e330c3176c6dc55abf291750bffa24dfdbc6bfdf209e8e"
+  },
+  "logs_sha256": {
+    "build/windows-box2d-debug-gles-off-console.log": "81fbc9f81ca72572070ca8ffb93cca083e7c1519423ce560ec0a298640aa5b81",
+    "build/windows-box2d-debug-gles-off.log": "84aa61fdedbd0b1a9a7bfbf1daf084c895e147c2144a1f6ed7a33e3e7fbe5f7e",
+    "build/windows-box2d-debug-gles-on-restored-console.log": "2bedc3022b1e969bd93df94e29ec73f44567e5243abfb5ee5c0d242918fe3f7b",
+    "build/windows-box2d-debug-gles-on-restored.log": "9dfae6b1e8be31ba95393399b4a78f1d8e69cd7aa21d62b2d12371a02ef95c19",
+    "build/windows-box2d-debug-on.log": "00f2870f83707477c1fc1870864bbd712d47d5c8d228cbd5713ffd60003e5885",
+    "build/windows-box2d-final-Debug-console.log": "81fbc9f81ca72572070ca8ffb93cca083e7c1519423ce560ec0a298640aa5b81",
+    "build/windows-box2d-final-Debug.log": "9218862310dff072f7f74b0acf646c4a2f408f9187daaccb775a320e079dbc49",
+    "build/windows-box2d-final-Release-console.log": "81fbc9f81ca72572070ca8ffb93cca083e7c1519423ce560ec0a298640aa5b81",
+    "build/windows-box2d-final-Release.log": "9effabb4d5ed34c1fecf41aa10781cde871130bec6058b0f25284cd1801c119a",
+    "build/windows-box2d-release-dx11-off-console.log": "fd3523b5624c9b32b7b044e5f3d4a3e2ffdaef6c732e7b73d13836ae584f4913",
+    "build/windows-box2d-release-dx11-off.log": "be295ced35fd8298411eabd17000f4b0425b19d96ec427fb28bd87ded64d3f3d",
+    "build/windows-box2d-release-dx11-on-console.log": "2bedc3022b1e969bd93df94e29ec73f44567e5243abfb5ee5c0d242918fe3f7b",
+    "build/windows-box2d-release-dx11-on-solution-console.log": "81fbc9f81ca72572070ca8ffb93cca083e7c1519423ce560ec0a298640aa5b81",
+    "build/windows-box2d-release-dx11-on-solution.log": "9917b3ed19d143cbdbb19acb646bfddabc0a3912607c186f95e74fbcabc40f58",
+    "build/windows-box2d-release-dx11-on.log": "53e082c3f32f666edf086f2c3d96d22b9d66ed585d1049a8bbf7ebcf84bf678b",
+    "build/windows-box2d-release-dx9-off-console.log": "81fbc9f81ca72572070ca8ffb93cca083e7c1519423ce560ec0a298640aa5b81",
+    "build/windows-box2d-release-dx9-off.log": "994a19f75f3338bf005a722e69cfd06779b026752d001279c41d045f4a3cf2db",
+    "build/windows-box2d-release-dx9-on-console.log": "1941c67d5907533139042b48159e356df6c98b48fcdb34a76c2817110a16be30",
+    "build/windows-box2d-release-dx9-on-restored-console.log": "2bedc3022b1e969bd93df94e29ec73f44567e5243abfb5ee5c0d242918fe3f7b",
+    "build/windows-box2d-release-dx9-on-restored.log": "d76b27b539f978a4f76410e3742f85f057b130c3e77e17dcf22a36d27386baa0",
+    "build/windows-box2d-release-dx9-on.log": "aa84623e6a7d3c26ed0f57959f2f97e8d4d2f4ff82bfb5cecaf6c2c17f1f33fc",
+    "build/windows-dx11-fluid-render-fix-console.log": "81fbc9f81ca72572070ca8ffb93cca083e7c1519423ce560ec0a298640aa5b81",
+    "build/windows-dx11-fluid-render-fix.log": "22f1c037d0ee38ef3a731de129bab1c2056c1ceb233d789c17d8e7981c4aa38b",
+    "build/windows-dx9-fluid-render-fix-console.log": "81fbc9f81ca72572070ca8ffb93cca083e7c1519423ce560ec0a298640aa5b81",
+    "build/windows-dx9-fluid-render-fix.log": "8a0a9dbdfd184aaece9cf68cfdbc0c82222518f34e3c712b280fb05841526034",
+    "build/physics-windows/testlib-dx11.log": "648e8c54e0fa3f48d9918191072b8b5d096081b0a84d4b7a907773244d36af3a",
+    "build/physics-windows/testlib-dx9.log": "7a6e81d6723bf578dea9eb481f356a527068341e5a0eea8cdafc02f7aa9b461c"
+  },
+  "initial_failures": {
+    "msvc": "plugin-helper.cpp max macro expansion; dependent import libraries then missing",
+    "reduced_variable_step": {
+      "passed": false,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+        "--scene",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-reduced.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 600.0,
+      "wall_seconds": 5.045,
+      "host": "Windows-11-10.0.26300-SP0",
+      "hashes": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe": "179791298c78a79d2ee02803b8d59e5faae1c75c5b5999d7e751f354fa1d34c4",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-reduced.lua": "4f164c5ac6df51a27d82461e60f8b300c1eacf14fca110f8b934c2f2248d82ec",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2d.dll": "56d1b479a77a21389981f7271cb82533dfa1eb0059a6231582dae7223c57ab0c",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2dLiquidFun.dll": "e34f784be1865680717756c180c3703a3420d631888b32a28ff46c7c36209fb5",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\core_mbm.dll": "fb863c659afc1f595fea288fdd21e60d2dda6bbdcd863c9e3e021ec7092f6c7e"
+      },
+      "rss_samples": [],
+      "rss_supported": false,
+      "markers": [
+        " RATWORKS_REDUCED_BOUNDS\t-0.5996941\t20.88789\t385",
+        " RATWORKS_REDUCED_FAILED\t...ini-mbm\\src\\test-lib\\physics-compat\\ratworks-reduced.lua:86: Fluid did not bypass rat category and settle on floor"
+      ]
+    },
+    "reduced_60hz_at_3s": {
+      "passed": false,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe",
+        "--scene",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-reduced.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 8.0,
+      "wall_seconds": 7.159,
+      "host": "Windows-11-10.0.26300-SP0",
+      "hashes": {
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\mini_mbm.exe": "179791298c78a79d2ee02803b8d59e5faae1c75c5b5999d7e751f354fa1d34c4",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\physics-compat\\ratworks-reduced.lua": "c1f1a8c612a570f1e8dcd120f9f9af88217b6b301931cddb0aac2643bb788842",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2d.dll": "56d1b479a77a21389981f7271cb82533dfa1eb0059a6231582dae7223c57ab0c",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\box2dLiquidFun.dll": "e34f784be1865680717756c180c3703a3420d631888b32a28ff46c7c36209fb5",
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Debug\\core_mbm.dll": "fb863c659afc1f595fea288fdd21e60d2dda6bbdcd863c9e3e021ec7092f6c7e"
+      },
+      "rss_samples": [],
+      "rss_supported": false,
+      "markers": [
+        " RATWORKS_REDUCED_BOUNDS\t-0.5998315\t18.73335\t385",
+        " RATWORKS_REDUCED_FAILED\t...ini-mbm\\src\\test-lib\\physics-compat\\ratworks-reduced.lua:88: Fluid did not bypass rat category and settle on floor"
+      ]
+    },
+    "dx11_depth": {
+      "case": "depth",
+      "passed": false,
+      "exit_code": null,
+      "timed_out": true,
+      "marker_seen": false,
+      "scene_sha256": "95c81d7e760b442650fe8e4b95d1856e9944a5895c109881e3832a573d0f634a",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command": [
+        "C:\\Users\\miche\\Documents\\mini-mbm\\platform-msvs\\Release\\mini_mbm.exe",
+        "--scene",
+        "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "400",
+        "-h",
+        "300"
+      ]
+    },
+    "dx9_depth": {
+      "case": "depth",
+      "passed": false,
+      "exit_code": 0,
+      "timed_out": false,
+      "marker_seen": false,
+      "scene_sha256": "5f8af35c00a6f312eff61be7cec36c4dd9178c095884ee2dbc1deb4454f1977c",
+      "log_sha256": "3ae2109111997d7957095258653d826ca663d4555dac2ed24661c4334f7ee010",
+      "command": [
+        "C:\\Users\\miche\\Documents\\mini-mbm\\build\\physics-windows\\dx9-bin\\mini_mbm.exe",
+        "--scene",
+        "C:/Users/miche/Documents/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "400",
+        "-h",
+        "300"
+      ]
+    },
+    "dx9_sandbox": "Device creation failed; the same binary ran on the desktop outside sandbox"
+  },
+  "limits": [
+    "No MSVC ASan/UBSan/LSan run",
+    "No Windows RSS sampler in runner",
+    "No isolated performance acceptance; concurrent builds/tests",
+    "Documentation smoke tests did not replay input or compare published visual effects",
+    "No full playtest of tower-defense or space-ship-combat",
+    "No native x64 or MinGW validation; Android device and Apple remain pending"
+  ]
+}

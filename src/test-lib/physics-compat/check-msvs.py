@@ -51,7 +51,7 @@ def main():
         'physics-box-2d-fluid-create-lua.cpp')}
     expected = native | wrapper | {project.parent / 'dllmain-box-2d.cpp'}
     assert set(items) == expected, set(items) ^ expected
-    optional = {p for p in expected if '/particle/' in str(p) or 'fluid' in p.name}
+    optional = {p for p in expected if 'particle' in p.parts or 'fluid' in p.name}
     for path, item in items.items():
         excluded = item.find('m:ExcludedFromBuild', NS)
         if path in optional:

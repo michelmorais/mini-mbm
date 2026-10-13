@@ -1138,15 +1138,15 @@ namespace mbm
                 lua_getfield(lua, -1, axis);
                 const double value = lua_tonumber(lua, -1);
                 if (lua_type(lua, -1) != LUA_TNUMBER || !std::isfinite(value) ||
-                    std::abs(value) > std::numeric_limits<float>::max())
+                    std::abs(value) > (std::numeric_limits<float>::max)())
                     return lua_error_debug(lua, "convexPolygon coordinates must be finite numbers");
                 if (*axis == 'x') points[i].x = static_cast<float>(value);
                 else points[i].y = static_cast<float>(value);
                 lua_pop(lua, 1);
             }
             lua_pop(lua, 1);
-            extent = std::max(extent, std::abs(double(points[i].x) - points[0].x));
-            extent = std::max(extent, std::abs(double(points[i].y) - points[0].y));
+            extent = (std::max)(extent, std::abs(double(points[i].x) - points[0].x));
+            extent = (std::max)(extent, std::abs(double(points[i].y) - points[0].y));
         }
         lua_pop(lua, 1);
         const double tolerance = extent * extent * 1e-7;

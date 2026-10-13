@@ -23,7 +23,8 @@
 local root = assert(os.getenv('MBM_RATWORKS_ROOT'), 'Set MBM_RATWORKS_ROOT')
 local duration = tonumber(os.getenv('MBM_PHYSICS_SECONDS')) or 60
 local moduleDir = assert(os.getenv('MBM_PHYSICS_MODULE_DIR'))
-package.cpath = moduleDir .. '/?.so;' .. package.cpath
+local suffix = package.config:sub(1, 1) == '\\' and '.dll' or '.so'
+package.cpath = moduleDir .. '/?' .. suffix
 assert(loadfile(root .. '/main.lua'))(root)
 local init, update = onInitScene, onLoop
 local game = require 'game'

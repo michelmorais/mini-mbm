@@ -2531,33 +2531,8 @@ namespace mbm
         if (this->vShader)
             this->vShader->update(backendShaderSpecific);
         #endif
-        // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
-        // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
-        // but DirectX 9 does not use this specific constant or naming convention.
-
-        // Instead, DirectX 9 uses the D3DCULL enumeration to define which polygon faces to cull during rendering.
-        // The equivalent behavior to OpenGL's GL_FRONT culling can be achieved by setting the culling mode to D3DCULL_NONE (to render both front and back faces), 
-        // D3DCULL_CCW (counter-clockwise, typically front-facing), or D3DCULL_CW (clockwise, typically back-facing), depending on the desired rendering behavior.
-        // TODO: use the correct CULLMODE
-
-        switch (pBufferId->mode_cull_face)
-        {
-            case util::CULL_MODE::CULL_FRONT:
-            {
-                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CW);
-            }
-            break;
-            case util::CULL_MODE::CULL_BACK:
-            {
-                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
-            }
-            break;
-            case util::CULL_MODE::CULL_FRONT_AND_BACK:
-            {
-                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
-            }
-            break;
-        }
+        // Fluid quads are visible from both sides, matching the GLES particle path.
+        pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {

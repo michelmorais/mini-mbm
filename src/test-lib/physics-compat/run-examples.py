@@ -45,13 +45,15 @@ def main():
     if not 0.1 <= args.seconds <= 30:
         parser.error("--seconds must be between 0.1 and 30")
     args.output.mkdir(parents=True, exist_ok=True)
+    suffix = '.dll' if os.name == 'nt' else '.so'
     binaries = {}
-    for path in [args.engine.resolve()] + sorted(args.engine.resolve().parent.glob("box2d*.so")):
+    for path in [args.engine.resolve()] + sorted(args.engine.resolve().parent.glob('box2d*' + suffix)):
         binaries[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
     records = json.loads(args.inventory.read_text())["examples"]
     environment = os.environ.copy()
-    module_dir = str(args.engine.resolve().parent)
-    environment.update(LD_LIBRARY_PATH=module_dir, LUA_CPATH=module_dir + "/?.so")
+    module_dir = args.engine.resolve().parent.as_posix()
+    environment.update(LD_LIBRARY_PATH=module_dir, LUA_CPATH=module_dir + '/?' + suffix)
+    environment['PATH'] = str(args.engine.resolve().parent) + os.pathsep + environment.get('PATH', '')
     results = []
     for record in records:
         result = {key: record[key] for key in ("id", "source", "line", "sha256", "input_callbacks")}
@@ -70,9 +72,9 @@ def main():
         log = args.output / f"{stem}.log"
         scene.write_text(f'''-- Generated from {record['source']}:{record['line']}; do not edit.
 mbm.onErrorStop(true)
-package.cpath = {lua_string(module_dir + '/?.so;')} .. package.cpath
-mbm.addPath({lua_string(args.documentation.resolve() / 'doc')})
-mbm.addPath({lua_string(args.documentation.resolve() / 'doc/_static')})
+package.cpath = {lua_string(module_dir + '/?' + suffix)}
+mbm.addPath({lua_string((args.documentation.resolve() / 'doc').as_posix())})
+mbm.addPath({lua_string((args.documentation.resolve() / 'doc/_static').as_posix())})
 local failed = false
 local function checked(fn, ...)
     if not fn or failed then return end

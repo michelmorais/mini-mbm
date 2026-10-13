@@ -17,7 +17,7 @@
 # |                                                                                                                        |
 # |-----------------------------------------------------------------------------------------------------------------------*/
 
-"""Run Ratworks acceptance scenes with isolated libraries and Linux RSS sampling."""
+"""Run Ratworks acceptance scenes with isolated libraries (RSS sampling on Linux)."""
 import argparse
 import hashlib
 import json
@@ -26,6 +26,7 @@ import os
 from pathlib import Path
 import platform
 import subprocess
+import sys
 import time
 
 
@@ -49,15 +50,17 @@ def main():
     scene = Path(__file__).with_name('ratworks-client.lua' if args.game else 'ratworks-reduced.lua').resolve()
     args.output.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
-    env.update(LD_LIBRARY_PATH=str(engine.parent), LUA_CPATH=str(engine.parent / '?.so'),
-               MBM_PHYSICS_MODULE_DIR=str(engine.parent), MBM_PHYSICS_SECONDS=str(args.seconds),
+    suffix = '.dll' if os.name == 'nt' else '.so'
+    env.update(LD_LIBRARY_PATH=str(engine.parent), LUA_CPATH=engine.parent.as_posix() + '/?' + suffix,
+               MBM_PHYSICS_MODULE_DIR=engine.parent.as_posix(), MBM_PHYSICS_SECONDS=str(args.seconds),
                MBM_PHYSICS_BACKEND='legacy' if args.legacy else 'unified')
+    env['PATH'] = str(engine.parent) + os.pathsep + env.get('PATH', '')
     if args.game:
-        env['MBM_RATWORKS_ROOT'] = str(args.game.resolve())
+        env['MBM_RATWORKS_ROOT'] = args.game.resolve().as_posix()
     command = [str(engine), '--scene', str(scene), '--disable_select_monitor', '--nosplash',
                '-w', '800', '-h', '600']
-    files = [engine, scene, *sorted(engine.parent.glob('box2d*.so')),
-             engine.parent / 'libcore_mbm.so']
+    files = [engine, scene, *sorted(engine.parent.glob('box2d*' + suffix)),
+             engine.parent / ('core_mbm.dll' if os.name == 'nt' else 'libcore_mbm.so')]
     hashes = {str(p): digest(p) for p in files}
     game_hashes = ({str(p.relative_to(args.game)): digest(p)
                     for p in sorted(args.game.rglob('*.lua')) if '.git' not in p.parts}
@@ -96,11 +99,12 @@ def main():
                   inputs_unchanged=unchanged, backend='legacy' if args.legacy else 'unified',
                   command=command, requested_seconds=args.seconds,
                   wall_seconds=round(time.monotonic()-start, 3), host=platform.platform(),
-                  hashes=hashes, rss_samples=samples,
+                  hashes=hashes, rss_samples=samples, rss_supported=sys.platform.startswith('linux'),
                   markers=[line for line in text.splitlines() if 'RATWORKS_' in line])
     if args.game:
         result['game_revision'] = subprocess.check_output(
-            ['git', '-C', str(args.game), 'rev-parse', 'HEAD'], text=True).strip()
+            ['git', '-c', 'safe.directory=' + args.game.resolve().as_posix(),
+             '-C', str(args.game), 'rev-parse', 'HEAD'], text=True).strip()
         result['game_source_hashes'] = game_hashes
     (args.output / 'results.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({k: result[k] for k in ('passed', 'exit_code', 'wall_seconds', 'markers')}))

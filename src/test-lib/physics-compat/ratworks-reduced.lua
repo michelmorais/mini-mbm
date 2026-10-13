@@ -21,7 +21,8 @@
 --]]
 -- Asset-free Ratworks emission/ownership cycle; default duration is ten minutes.
 local moduleDir = assert(os.getenv('MBM_PHYSICS_MODULE_DIR'))
-package.cpath = moduleDir .. '/?.so;' .. package.cpath
+local suffix = package.config:sub(1, 1) == '\\' and '.dll' or '.so'
+package.cpath = moduleDir .. '/?' .. suffix
 require 'box2dLiquidFun'
 local duration = tonumber(os.getenv('MBM_PHYSICS_SECONDS')) or 600
 local world, floor, blocker, fluid, emitter, textureName
@@ -49,6 +50,8 @@ end
 function onInitScene()
     mbm.onErrorStop(true)
     checked(function()
+        -- Keep the emission/settling assertions independent of the host's frame rate.
+        mbm.setFakeFps(100000000, 60)
         world = box2dLiquidFun:new()
         assert(world:supportsParticles())
         world:setGravity(0,-10)
@@ -78,7 +81,9 @@ function onLoop(delta)
         elseif phase == 2 and age > .9 then
             assert(count == pausedCount, 'Paused world emitted/expired')
             world:start(); phase=3
-        elseif phase == 3 and age > 3 then
+        -- Emission finishes at about 2.1 s after both pauses. Allow the last
+        -- particles to settle at 60 Hz before testing the unchanged floor bounds.
+        elseif phase == 3 and age > 4 then
             assert(count > pausedCount, 'Emission did not resume after rat removal')
             local bounds=fluid:computeAABB()
             print('RATWORKS_REDUCED_BOUNDS',bounds.lowerBound.y,bounds.upperBound.y,count)

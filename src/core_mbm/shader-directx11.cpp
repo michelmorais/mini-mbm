@@ -1611,7 +1611,9 @@ namespace mbm
             return false;
 
         SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
-        if (!context->applyRasterizerState(pBufferId->mode_cull_face,
+        // Fluid quads are visible from both sides, matching the GLES particle path.
+        // CULL_FRONT_AND_BACK maps to D3D11_CULL_NONE in this backend.
+        if (!context->applyRasterizerState(util::CULL_FRONT_AND_BACK,
                                            pBufferId->mode_front_face_direction))
             return false;
         D3D11_MAPPED_SUBRESOURCE mapped = {};

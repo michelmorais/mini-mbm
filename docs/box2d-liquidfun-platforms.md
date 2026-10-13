@@ -28,6 +28,11 @@ build com Ratworks e relatou comportamento normal, autorizando esta etapa.
 Isso registra a aceitação do cliente; não transforma os números exploratórios
 anteriores em aprovação de performance.
 
+Continuação no Windows: [validação MSVC Win32](box2d-liquidfun-windows.md),
+com builds, contratos ON/OFF, Ratworks e correções visuais em DirectX9/11.
+A tabela abaixo registra a rodada Linux original; o relatório Windows acrescenta
+as evidências de execução sem encerrar as demais pendências.
+
 ## Implementação
 
 A solução Visual Studio agora usa o mesmo desenho do CMake: `box2d` compila a base
@@ -77,7 +82,7 @@ sem commit ou publicação.
 
 ## Pendências para encerrar o marco e consolidar
 
-- Executar ON/OFF em Windows (MSVC), macOS/iOS e em dispositivo Android; conferir
+- Completar Windows x64 real/MinGW, macOS/iOS e execução em dispositivo Android; conferir
   renderização dos fluidos nos backends gráficos correspondentes.
 - Fazer regressão completa dos jogos rígidos publicados. Foram localizadas cópias
   em `/home/michel/tower-defense` e `/home/michel/space-ship-combat`, mas seu gameplay

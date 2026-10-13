@@ -40,7 +40,7 @@ function onInitScene()
         local c=target:getCamera('3d');c:setPos(shift,0,200);c:setFocus(shift,0,0)
     end
 end
-function onLoop(delta)
+local function checkDepth(delta)
     elapsed=elapsed+delta
     if elapsed>1 then
         if target then
@@ -60,6 +60,14 @@ function onLoop(delta)
             end
         end
         print('FLUID_DEPTH_SMOKE_OK',fluid:getParticleCount())
+        mbm.quit()
+    end
+end
+
+function onLoop(delta)
+    local ok, err = pcall(checkDepth, delta)
+    if not ok then
+        print('FLUID_DEPTH_SMOKE_FAILED', tostring(err))
         mbm.quit()
     end
 end

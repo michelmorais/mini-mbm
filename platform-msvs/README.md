@@ -773,14 +773,20 @@ The solution defaults to `MbmBox2dParticles=1`. Build with
 `/p:MbmBox2dParticles=0` to exclude all particle sources and fluid bindings:
 
 ```cmd
-msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:MbmBox2dParticles=0
-msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:MbmBox2dParticles=1
+msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x86 /p:MbmBox2dParticles=0
+msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x86 /p:MbmBox2dParticles=1
 ```
 
 Use a rebuild when switching profiles. OFF retains the facade so that requiring
 `box2dLiquidFun` produces the explicit particles-disabled error; `require "box2d"`
 continues to work. Valid values are `0` and `1`. The default is declared in
 the `box2d` project's `UserMacros` property group.
+
+The current solution also maps its `x64` configuration to Win32 projects; those
+commands do not validate a native 64-bit build. The executable is
+`platform-msvs/Release/mini_mbm.exe` (or `Debug/mini_mbm.exe`). For unattended
+tests, pass `/p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO` to disable the
+missing-texture picker.
 
 Source-list checks can run without Windows:
 `python3 src/test-lib/physics-compat/check-msvs.py`. This checks manifests and

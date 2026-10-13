@@ -30,6 +30,9 @@ Marco atual: [migração e consolidação](box2d-liquidfun-migration.md).
 Continuação: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
 Medições ampliadas: [custo nativo OFF/ON e escalabilidade](box2d-liquidfun-performance.md).
 Preparação para Windows: [revisão e limpeza Linux](box2d-liquidfun-linux-cleanup.md).
+Validação Windows: [MSVC Win32 ON/OFF, OpenGL ES, DirectX11 e DirectX9](box2d-liquidfun-windows.md).
+Os contratos, Ratworks e cenário prolongado passaram no escopo registrado;
+x64 real, MinGW, sanitizadores Windows e aceitação geral da migração seguem pendentes.
 Matriz de plataformas: [regressão](box2d-liquidfun-platforms.md).
 Cliente de referência: [Ratworks](box2d-liquidfun-ratworks.md).
 Marco anterior: [integração Lua e perfis de build](box2d-liquidfun-integration.md).

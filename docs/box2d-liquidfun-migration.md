@@ -25,7 +25,9 @@
 
 Data: 2026-10-13. Engine **7.366.2**. Marco 5 **parcial**: guia, regressão
 reproduzível e correções de memória entregues; remoção da árvore antiga pendente.
-A aprovação manual do Ratworks está registrada. Windows ainda precisa ser validado.
+A aprovação manual do Ratworks está registrada. A continuação no Windows aprovou
+MSVC Win32 ON/OFF e corrigiu a renderização de fluidos em DirectX9/11:
+[resultados e limites](box2d-liquidfun-windows.md). x64 real e MinGW seguem pendentes.
 Continuação desta etapa: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
 Performance: [medições nativas OFF/ON e cargas de partículas](box2d-liquidfun-performance.md).
 Veja o [plano](box2d-liquidfun-unification-plan.md) e os
@@ -62,12 +64,15 @@ Executar em Developer Command Prompt com MSVC e Python 3, a partir da raiz.
 Reconstruir e testar cada perfil antes de trocar, pois o output é compartilhado:
 
 ```cmd
-msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:MbmBackend=DirectX11 /p:MbmBox2dParticles=0
-py -3 src/test-lib/physics-compat/run-lua-contracts.py --engine bin/release/windows_x86/mini-mbm.exe --profile off --output build/physics-windows/dx11-off
-msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:MbmBackend=DirectX11 /p:MbmBox2dParticles=1
-py -3 src/test-lib/physics-compat/run-lua-contracts.py --engine bin/release/windows_x86/mini-mbm.exe --profile on --output build/physics-windows/dx11-on
+msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=DirectX11 /p:MbmBox2dParticles=0 /p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO
+py -3 src/test-lib/physics-compat/run-lua-contracts.py --engine platform-msvs/Release/mini_mbm.exe --profile off --output build/physics-windows/dx11-off
+msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=DirectX11 /p:MbmBox2dParticles=1 /p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO
+py -3 src/test-lib/physics-compat/run-lua-contracts.py --engine platform-msvs/Release/mini_mbm.exe --profile on --output build/physics-windows/dx11-on
 ```
 
+O override de `MbmCoreFeatureDefines` desabilita o diálogo de textura ausente
+durante os testes automatizados. A solução atual mapeia também `Platform=x64`
+para projetos Win32: isso não valida binários de 64 bits.
 Confirmar o caminho do executável no output do MSBuild. Repetir para DirectX9 e
 OpenGLES, com diretórios de resultados distintos. A correção de destruição dos
 buffers DirectX9 nesta rodada também precisa dessa validação.
@@ -75,7 +80,8 @@ O runner exige `box2d.dll` e `box2dLiquidFun.dll` ao lado do executável, isola 
 carregamento dos plugins, grava logs e hashes e exige saída zero mais marcador de
 sucesso. Esperado: **1/1 OFF e 6/6 ON**. Inclui ambas as ordens de require,
 emissão gradual, filtros, contorno convexo e profundidade/captura dos fluidos.
-Esse roteiro foi executado no Linux; sua execução Windows permanece pendente.
+O roteiro passou em Windows MSVC Win32 nos três backends, além do Linux;
+veja [evidências, correções e limites](box2d-liquidfun-windows.md).
 
 ## Reprodução Linux e memória
 
