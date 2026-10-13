@@ -60,7 +60,7 @@ mingw32-make -j...        # Windows MinGW
 | `-DAUDIO=portaudio\|avfoundation\|opensl\|none` | Audio backend. `portaudio` is the default for Linux/Windows; `avfoundation` for macOS/iOS; `opensl` for Android |
 | `-DUSE_BOX2D=1` | Box2D 2.4.1 physics plugin |
 | `-DUSE_BOX2D_PARTICLES=ON` | Optional LiquidFun particles ported to Box2D 2.4.1; requires `USE_BOX2D=1` and `USE_LUA=1`. Default OFF; `USE_ALL` defaults ON and respects explicit OFF. |
-| `-DUSE_BOX2D_LIQUID_FUN=1` | Removed; use `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`. `box2dLiquidFun` remains a forwarding module. |
+| `-DUSE_BOX2D_LIQUID_FUN=1` | Unsupported; use `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`. `box2dLiquidFun` remains a forwarding module. |
 | `-DUSE_BULLET3D=1` | Bullet 2.84 3D physics plugin |
 | `-DUSE_IMGUI=1` | Dear ImGui plugin (required for editor tools) |
 | `-DUSE_LSQLITE3=1` | SQLite3 Lua bindings |

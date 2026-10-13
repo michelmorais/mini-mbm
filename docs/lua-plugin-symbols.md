@@ -205,8 +205,7 @@ Source: [plugins/box2d/physics-box-2d-fluid-lua.cpp](../plugins/box2d/physics-bo
 
 Available only with `USE_BOX2D_PARTICLES=ON`. `createFluid` / `destroyFluid`
 and the `legacyMethods` factory above have the same condition. `box2dLiquidFun`
-forwards to these unified bindings; the old wrapper was removed in 7.367.
-Historical sources are identified in the [migration guide](box2d-liquidfun-migration.md).
+forwards to these unified bindings. See [Box2D configuration](box2d.md).
 
 ## ImGui
 

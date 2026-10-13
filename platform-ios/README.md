@@ -214,8 +214,8 @@ Consequences of static linking on iOS:
 * Box2D 2.4.1 includes optional ported LiquidFun particles. Use
   `-DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_PARTICLES=ON` for fluids, or particles
   OFF for rigid-only. Embedded `box2dLiquidFun` calls the same backend.
-  The old `USE_BOX2D_LIQUID_FUN` option was removed. iOS runtime acceptance
-  remains a follow-up milestone; desktop acceptance does not certify iOS.
+  `USE_BOX2D_LIQUID_FUN=ON` is not supported. Verify physics and rendering on
+  the target device; desktop execution does not validate iOS runtime behavior.
 
 ---
 

@@ -239,8 +239,8 @@ cmake -S . -B build/macos_liquidfun_debug \
 
 Pass a distinct absolute `-DMBM_OUTPUT_ROOT=/path/to/profile-output` to each
 configuration to avoid mixing ON/OFF binaries. Both use the same physics backend;
-`box2dLiquidFun` forwards to it. macOS arm64 Metal ON/OFF was validated; Intel,
-iOS runtime and signed MAS delivery remain follow-up targets.
+`box2dLiquidFun` forwards to it. Run the [physics contracts](../src/test-lib/physics-compat/README.md)
+with the target architecture and graphics backend.
 
 ---
 
@@ -504,7 +504,7 @@ cmake ~/mini-mbm \
 
 The example selects rigid-only Box2D 2.4.1. A game that needs fluids sets
 `-DUSE_BOX2D_PARTICLES=ON` on the same plugin. `USE_ALL=1` defaults particles ON
-and respects explicit OFF. The old `USE_BOX2D_LIQUID_FUN` option was removed.
+and respects explicit OFF. `USE_BOX2D_LIQUID_FUN=ON` is not supported.
 
 | Flag | Required | Description |
 |---|---|---|

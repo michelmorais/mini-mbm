@@ -979,7 +979,7 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DDISABLE_VR=1` | `OFF` | Disable the VR class where it would otherwise be enabled |
 | `-DUSE_BOX2D=1` | `OFF` | Box2D physics plugin |
 | `-DUSE_BOX2D_PARTICLES=ON` | `OFF` | LiquidFun particles in Box2D 2.4.1; requires Lua and Box2D. `USE_ALL` defaults ON; explicit OFF is respected. |
-| `-DUSE_BOX2D_LIQUID_FUN=1` | `OFF` | Removed; use `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`. |
+| `-DUSE_BOX2D_LIQUID_FUN=1` | `OFF` | Unsupported; use `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`. |
 | `-DUSE_BULLET3D=1` | `OFF` | Bullet 3D physics plugin |
 | `-DUSE_IMGUI=1` | `OFF` | Dear ImGui plugin |
 | `-DUSE_LSQLITE3=1` | `OFF` | SQLite3 Lua bindings |
@@ -994,7 +994,7 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DGAME_BUNDLE_ID=` | Platform default | iOS/macOS bundle id |
 | `-DMAS_DELIVERY=1` | `OFF` | macOS App Store delivery mode with static plugin linking |
 
-> Plugin flags require `USE_LUA=1`. With Box2D enabled, `box2dLiquidFun` forwards to the same backend; particles require `USE_BOX2D_PARTICLES=ON`. See [integration status](docs/box2d-liquidfun-integration.md).
+> Plugin flags require `USE_LUA=1`. With Box2D enabled, `box2dLiquidFun` forwards to the same backend; particles require `USE_BOX2D_PARTICLES=ON`. See [Box2D configuration](docs/box2d.md).
 
 ### Game Delivery Builds
 
@@ -1570,7 +1570,7 @@ Plugins são registrados com `CORE_MANAGER::addPlugin(PLUGIN*)`.
 | **Steam** | `plugins/steam/` | Plugin Lua para Steamworks; requer `-DUSE_STEAM=1` e `-DSTEAMWORKS_SDK_PATH=/path/to/steamworks_sdk`. |
 | **Plugin Helper** | `plugins/plugin-helper/` | Utilitários compartilhados para desenvolvimento de plugins. |
 
-As flags de plugin começam desligadas e exigem `USE_LUA=1`. `-DUSE_ALL=1` habilita Lua, VR, Box2D com partículas opcionais, ImGui, lSQLite3 e Tiled; não habilita Steam nem Bullet3D. `USE_BOX2D_PARTICLES=OFF` explícito é respeitado. Com Box2D habilitado, `box2dLiquidFun` encaminha para a mesma biblioteca. Veja o [estado da integração](docs/box2d-liquidfun-integration.md).
+As flags de plugin começam desligadas e exigem `USE_LUA=1`. `-DUSE_ALL=1` habilita Lua, VR, Box2D com partículas opcionais, ImGui, lSQLite3 e Tiled; não habilita Steam nem Bullet3D. `USE_BOX2D_PARTICLES=OFF` explícito é respeitado. Com Box2D habilitado, `box2dLiquidFun` encaminha para a mesma biblioteca. Veja o [configuração do Box2D](docs/box2d.md).
 
 ---
 
@@ -1631,4 +1631,4 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER I
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-Box2D/LiquidFun migration, memory fixes and Windows validation: [consolidation guide](docs/box2d-liquidfun-migration.md).
+Box2D build profiles, fluid support and regression tests: [physics guide](docs/box2d.md).

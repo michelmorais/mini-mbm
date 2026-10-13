@@ -791,6 +791,4 @@ missing-texture picker.
 Source-list checks can run without Windows:
 `python3 src/test-lib/physics-compat/check-msvs.py`. This checks manifests and
 conditional exclusions; it does not replace compiling and testing with MSVC.
-See [platform regression status](../docs/box2d-liquidfun-platforms.md).
-
-Runtime ON/OFF commands and acceptance criteria: [migration guide](../docs/box2d-liquidfun-migration.md#validação-windows).
+Runtime ON/OFF commands and regression coverage: [physics test suite](../src/test-lib/physics-compat/README.md).

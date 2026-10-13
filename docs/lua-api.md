@@ -1299,7 +1299,7 @@ and getters generally return zero, so zero alone does not prove support.
 
 ## 11. Plugin: box2dLiquidFun
 
-Since engine 7.365, a CMake build with `USE_BOX2D=1` supplies `box2dLiquidFun`
+A CMake build with `USE_BOX2D=1` supplies `box2dLiquidFun`
 as a forwarding module to Box2D 2.4.1. Enable `USE_LUA=1` and
 `USE_BOX2D_PARTICLES=ON` to use fluids. Both `require "box2d"` and
 `require "box2dLiquidFun"` work in either order without compiling a second physics
@@ -1317,13 +1317,11 @@ Sources: [world](../plugins/box2d/physics-box-2d-lua.cpp),
 [fluid creation](../plugins/box2d/physics-box-2d-fluid-create-lua.cpp),
 [fluid methods](../plugins/box2d/physics-box-2d-fluid-lua.cpp).
 
-Since 7.367 the old solver and wrapper have been removed. Enabling
-`USE_BOX2D_LIQUID_FUN` is a configuration error; use `USE_BOX2D_PARTICLES=ON`
-with Lua and Box2D enabled. For historical comparisons see the pinned revision in
-[the migration guide](box2d-liquidfun-migration.md). Direct Visual Studio projects
+Enable fluids with `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`.
+`USE_BOX2D_LIQUID_FUN=ON` is a configuration error. Direct Visual Studio projects
 use `MbmBox2dParticles=0|1` with the unified backend and forwarding DLL.
-Embedded loaders call `mbm_open_box2d_compat` directly. Validated delivery scope:
-Linux, Windows MSVC Win32 and macOS arm64; other targets remain follow-up work.
+Embedded loaders call `mbm_open_box2d_compat` directly. See
+[Box2D configuration and regression tests](box2d.md).
 
 ### 11.1 Joint compatibility
 
@@ -1394,7 +1392,7 @@ An array of group flags is ORed with the default solid-group flag; a string repl
 
 #### Convex polygon contours
 
-Since engine 7.364, the shared physics-table parser accepts `convexPolygon`:
+The shared physics-table parser accepts `convexPolygon`:
 
 ```lua
 local contour = {
@@ -1431,11 +1429,10 @@ interpretation. Supply a multiple of three points, one independent triangle per
 triplet. Existing `polygon` and `polyline` names retain that interpretation; they do
 **not** become ordered-contour inputs.
 
-LiquidFun now fills the union of a physics table's triangles on one sampling grid,
+LiquidFun fills the union of a physics table's triangles on one sampling grid,
 both for immediate creation and `riseTime`. Shared edges and overlapping triangles
-no longer emit duplicate particles. Consequently, older triangle lists that relied
-on overlapping emissions can produce fewer particles. Separate shapes of different
-kinds (e.g. an overlapping circle and triangle) are not unioned by this change.
+do not emit duplicate particles. Separate shapes of different kinds (e.g. an
+overlapping circle and triangle) are not unioned.
 
 Regression scene: `src/test-lib/fluid_convex_smoke.lua` covers rectangle equivalence,
 shared-edge uniqueness, both windings, a hexagon, legacy aliases, invalid contours,
@@ -1443,7 +1440,7 @@ shared-edge uniqueness, both windings, a hexagon, legacy aliases, invalid contou
 
 #### Gradual initial emission
 
-Since engine 7.363, `createFluid(..., {riseTime=1})` distributes the initial
+`createFluid(..., {riseTime=1})` distributes the initial
 particles over one second of simulated time. `riseTime=0` (the default) keeps
 immediate creation. Negative and non-finite values are rejected.
 
@@ -1463,14 +1460,14 @@ pending emission. `fluid:add()` remains immediate and does not restart `riseTime
 The queue is released after completion; no Lua timer or callback is required.
 
 Regression: `src/test-lib/fluid_rise_smoke.lua` checks partial/complete emission,
-legacy behavior, pauses, invalid durations, early destruction, short lifetimes and
+immediate emission, pauses, invalid durations, early destruction, short lifetimes and
 adding particles after a group has expired.
 
 #### Fluid collision filtering
 
-Since engine 7.362, `fixtureMaskBits` in `createFluid` selects which rigid-body
+`fixtureMaskBits` in `createFluid` selects which rigid-body
 categories the fluid can collide with. It is an integer from 0 to 65535 and defaults
-to 65535 (unrestricted, preserving legacy behavior even for category zero).
+to 65535 (unrestricted, including category zero).
 For a restricted mask, a contact is allowed when
 `fixture.categoryBits & fixtureMaskBits ~= 0`; zero disables all fluid/body contacts.
 The body categories are assigned using `world:setFilter(body, {...})`.
@@ -1488,8 +1485,8 @@ mask restricts any category. The same mask applies to later `fluid:add()` emissi
 Filtering runs in native code without Lua callbacks; it changes neither rendering
 nor particle/particle interactions. Body `maskBits` and `groupIndex` still govern
 body/body collisions, but do not participate in this fluid mask test. The mask is
-set at creation; there is no fluid-mask setter. Existing fluids without the option
-retain their previous behavior.
+set at creation; there is no fluid-mask setter. Omitting the option uses the
+unrestricted default mask.
 
 Regression scene: `src/test-lib/fluid_filter_smoke.lua` checks the default behavior,
 excluded categories, floor collision, a zero mask, later emissions, invalid masks,
@@ -1500,10 +1497,9 @@ and preservation of body/body contacts.
 With `is3d=true`, fluids render after the normal non-fluid 3D objects, with depth
 **testing enabled and depth writes disabled**. This applies to the main viewport and
 `render2texture`; overlay priority layers retain precedence in the viewport. Transparent
-quad borders no longer block subsequently drawn geometry, and fluids behind opaque
-geometry remain occluded. 2D fluids and ordinary particle emitters keep their previous
-rendering behavior. The legacy C++ two-argument fluid draw overload also retains its
-2D depth policy; the steered-particle renderer supplies its 3D flag explicitly.
+quad borders do not write depth, and fluids behind opaque geometry remain occluded.
+The C++ two-argument fluid draw overload uses its 2D depth policy; the
+steered-particle renderer supplies its 3D flag explicitly.
 
 The default `blend="one"` is additive (`SRC_ALPHA, ONE`). Use
 `blend="inv_src_alpha"` for conventional alpha blending (`SRC_ALPHA, ONE_MINUS_SRC_ALPHA`)
@@ -1511,7 +1507,7 @@ on OpenGL/DX9; the option selects the **destination** factor, not the source fac
 Metal selects its existing additive/standard pipeline variants for these two modes.
 This is a dedicated fluid pass, not a general transparency sorter: transparent non-fluid
 meshes and intersecting fluid groups can still require scene-specific compositing.
-Particle order inside a fluid group is unchanged; no per-particle sorting cost was added.
+Particles inside a fluid group are not sorted by depth.
 The simulation remains XY and the renderer uses planar quads, not volumetric spheres.
 
 Regression scenes: `testLib 2 --fluid 3d` exercises the C++ steered-particle path;
@@ -1555,8 +1551,7 @@ Range limitation: the wrapper subtracts 1 from **both** endpoints, clamps each t
 (including their array overload) when targeting every particle. Avoid range calls on
 an empty system.
 
-The unified plugin accepts explicit shape tables in `queryShapeAABB`; the legacy-only
-2.3 plugin still has the wrong-stack-slot limitation (use a renderizable or `queryAABB`). `destroyParticlesInShape`
+`queryShapeAABB` accepts explicit shape tables. `destroyParticlesInShape`
 reads explicit shape fields correctly: rectangle `width,height`, circle `ray`,
 triangle `a,b,c` (each `{x,y}`), with optional `x,y,angle`.
 
