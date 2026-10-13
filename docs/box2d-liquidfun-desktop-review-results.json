@@ -1,0 +1,267 @@
+{
+  "reviewed_commits": [
+    "b6229260",
+    "6c63b7fa"
+  ],
+  "baseline": "f0c6ed8b",
+  "date": "2026-10-13",
+  "blocking_findings": [],
+  "scope": "source and recorded evidence review; Linux Debug runtime only in this round",
+  "linux": {
+    "build_exit_code": 0,
+    "sanitizers": false,
+    "contracts": {
+      "passed": true,
+      "profile": "on",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm": "cc4ed8a13326d52bb2846c144b7dff048bd385487a76531591278ec980af0eae",
+        "/home/michel/mini-mbm/bin/debug/linux_x86/box2d.so": "cb8aee8f24b7b43be21d47aaa036eec1bb27c99420707aec93b83fea2ffa9153",
+        "/home/michel/mini-mbm/bin/debug/linux_x86/box2dLiquidFun.so": "77bc8d2adf642ee1990425828432c6676434abba747352d877cfc873fdf32068"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "4b98d4479fd9e8f165c5ef6454cb789433d2a23f124d042f5283c2d9d8e89244",
+          "command": [
+            "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "legacy",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "87031294e44b6f4b0009a9158d023c3798cafc8e21134ec0807440759fefb91e",
+          "command": [
+            "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "rise",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+          "log_sha256": "adfd2f0ccc25f42ea94707f89a06f1e32f57cb61759a9cef89064467b3d00cdb",
+          "command": [
+            "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "filter",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+          "log_sha256": "db2161ec9eee0d32e0c02b475944d3ea2cde5a0cf39d90b44f7060ae2c23310c",
+          "command": [
+            "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "convex",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "56b5f70dbbedf2a8d190b05d03db245fef87da0d2aee1ebe1d0faa9daeecbf3d",
+          "log_sha256": "b228229382656887b325e7cde37d685c6a8d2e2e4c14f38937bdbba7b4c7b224",
+          "command": [
+            "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "depth",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "5f8af35c00a6f312eff61be7cec36c4dd9178c095884ee2dbc1deb4454f1977c",
+          "log_sha256": "6a3dbb55c3131d9e4356ea1836ee57a2b10d658cae156f8087f1c8d64248704e",
+          "command": [
+            "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "reduced": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+        "--scene",
+        "/home/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 16.0,
+      "wall_seconds": 17.113,
+      "host": "Linux-6.1.0-53-amd64-x86_64-with-glibc2.36",
+      "hashes": {
+        "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm": "cc4ed8a13326d52bb2846c144b7dff048bd385487a76531591278ec980af0eae",
+        "/home/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua": "5fcd3e38aa6d64fb41bba7505994d21aa808ce9bf0118898fe3aa8a896f61ac9",
+        "/home/michel/mini-mbm/bin/debug/linux_x86/box2d.so": "cb8aee8f24b7b43be21d47aaa036eec1bb27c99420707aec93b83fea2ffa9153",
+        "/home/michel/mini-mbm/bin/debug/linux_x86/box2dLiquidFun.so": "77bc8d2adf642ee1990425828432c6676434abba747352d877cfc873fdf32068",
+        "/home/michel/mini-mbm/bin/debug/linux_x86/libcore_mbm.so": "5486022180a4958e09b8030eaae6df264cef95ebf1f991d38caf902c5c6f9de8"
+      },
+      "rss_samples": [
+        {
+          "wall_s": 0.001,
+          "rss_kib": 8
+        },
+        {
+          "wall_s": 1.001,
+          "rss_kib": 108040
+        },
+        {
+          "wall_s": 2.001,
+          "rss_kib": 108244
+        },
+        {
+          "wall_s": 3.002,
+          "rss_kib": 108244
+        },
+        {
+          "wall_s": 4.002,
+          "rss_kib": 108412
+        },
+        {
+          "wall_s": 5.003,
+          "rss_kib": 108412
+        },
+        {
+          "wall_s": 6.003,
+          "rss_kib": 108412
+        },
+        {
+          "wall_s": 7.004,
+          "rss_kib": 108528
+        },
+        {
+          "wall_s": 8.005,
+          "rss_kib": 108528
+        },
+        {
+          "wall_s": 9.005,
+          "rss_kib": 108528
+        },
+        {
+          "wall_s": 10.006,
+          "rss_kib": 108528
+        },
+        {
+          "wall_s": 11.006,
+          "rss_kib": 108544
+        },
+        {
+          "wall_s": 12.007,
+          "rss_kib": 108544
+        },
+        {
+          "wall_s": 13.008,
+          "rss_kib": 108544
+        },
+        {
+          "wall_s": 14.008,
+          "rss_kib": 108544
+        },
+        {
+          "wall_s": 15.009,
+          "rss_kib": 108544
+        },
+        {
+          "wall_s": 16.009,
+          "rss_kib": 108544
+        }
+      ],
+      "rss_supported": true,
+      "markers": [
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t1\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t2\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t3\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t4\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t5\t385",
+        "\u001b[0mRATWORKS_REDUCED_OK\t5\t385"
+      ]
+    },
+    "animation": {
+      "exit_code": 0,
+      "marker": "ANIMATION_ZERO_INTERVAL_OK",
+      "log_sha256": "052477e8a94e23e816ab4bb4139f63484c2b0ac5eeb934813006463c603051fd"
+    }
+  },
+  "reviewed_evidence_sha256": {
+    "docs/box2d-liquidfun-windows-results.json": "0d4a5242be7f5035089c5f78983efb4c211d219c79cc45aefd29d9f9091bec71",
+    "docs/box2d-liquidfun-macos-results.json": "bee10e8302b2aa5fbb091d057147ecf22841f1f51a2db0ec44de7cdba1c56190"
+  }
+}
