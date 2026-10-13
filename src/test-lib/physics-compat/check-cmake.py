@@ -24,11 +24,11 @@ parser.add_argument('--build-root',type=Path,default=Path('build/physics-config-
 args_cli=parser.parse_args()
 args_cli.build_root.mkdir(parents=True,exist_ok=True)
 base=['cmake','-G','Unix Makefiles','-S','.', '-DPLAT=Linux','-DAUDIO=none','-DCMAKE_BUILD_TYPE=Debug','-DUSE_TEXTURE_MISSING_DIALOG=0','-DCMAKE_EXPORT_COMPILE_COMMANDS=ON']
-cases={'default':([],False,True),'all':(['-DUSE_ALL=1'],True,True),'all-off':(['-DUSE_ALL=1','-DUSE_BOX2D_PARTICLES=OFF'],False,True),'missing-box2d':(['-DUSE_LUA=1','-DUSE_BOX2D_PARTICLES=ON'],True,False),'missing-lua':(['-DUSE_BOX2D=1','-DUSE_BOX2D_PARTICLES=ON'],True,False),'legacy-only':(['-DUSE_LUA=1','-DUSE_BOX2D_LIQUID_FUN=1'],False,True)}
+cases={'default':([],False,True),'all':(['-DUSE_ALL=1'],True,True),'all-off':(['-DUSE_ALL=1','-DUSE_BOX2D_PARTICLES=OFF'],False,True),'missing-box2d':(['-DUSE_LUA=1','-DUSE_BOX2D_PARTICLES=ON'],True,False),'missing-lua':(['-DUSE_BOX2D=1','-DUSE_BOX2D_PARTICLES=ON'],True,False),'legacy-only':(['-DUSE_LUA=1','-DUSE_BOX2D_LIQUID_FUN=1'],False,False)}
 cases.update({
  'unified-on': (['-DUSE_LUA=1','-DUSE_BOX2D=1','-DUSE_BOX2D_PARTICLES=ON'],True,True),
  'unified-off': (['-DUSE_LUA=1','-DUSE_BOX2D=1','-DUSE_BOX2D_PARTICLES=OFF'],False,True),
- 'unified-old-flag': (['-DUSE_LUA=1','-DUSE_BOX2D=1','-DUSE_BOX2D_LIQUID_FUN=1'],False,True),
+ 'unified-old-flag': (['-DUSE_LUA=1','-DUSE_BOX2D=1','-DUSE_BOX2D_LIQUID_FUN=1'],False,False),
 })
 for name,(args,particles,success) in cases.items():
  d=args_cli.build_root/name
@@ -47,8 +47,7 @@ for name,(args,particles,success) in cases.items():
    show_target='\n'.join(line for line in dependencies.splitlines() if line.startswith('CMakeFiles/show_built.dir/all:'))
    assert 'plugins/box2d/CMakeFiles/box2dLiquidFun.dir/all' in show_target,name
    assert any('/src/particle/' in f for f in sourcefiles)==particles,name
-  if name == 'legacy-only':
-   assert any('box2d-liquid-fun-2.3.1' in f for f in sourcefiles),name
-   assert not any('/box2d-2.4.1/' in f for f in sourcefiles),name
- else: assert 'USE_BOX2D_PARTICLES requires USE_BOX2D=1 and USE_LUA=1' in p.stdout,name
+ else:
+  error = 'USE_BOX2D_LIQUID_FUN has been removed' if name in ('legacy-only', 'unified-old-flag') else 'USE_BOX2D_PARTICLES requires USE_BOX2D=1 and USE_LUA=1'
+  assert error in p.stdout,name
  print(name,'PASS')

@@ -1317,13 +1317,13 @@ Sources: [world](../plugins/box2d/physics-box-2d-lua.cpp),
 [fluid creation](../plugins/box2d/physics-box-2d-fluid-create-lua.cpp),
 [fluid methods](../plugins/box2d/physics-box-2d-fluid-lua.cpp).
 
-For comparison only, `USE_BOX2D=0 USE_BOX2D_PARTICLES=OFF USE_BOX2D_LIQUID_FUN=1`
-(with Lua ON and without USE_ALL) retains the original LiquidFun 1.1.0 / Box2D 2.3.0
-plugin. Its source tree is retained until the final migration milestone. Direct
-Visual Studio projects use `MbmBox2dParticles=0|1` with the unified backend and
-forwarding DLL. Native Windows validation remains pending. Embedded loaders call
-the unified compatibility entry point directly when `USE_BOX2D` is enabled; only
-the legacy-only fallback includes the old wrapper header.
+Since 7.367 the old solver and wrapper have been removed. Enabling
+`USE_BOX2D_LIQUID_FUN` is a configuration error; use `USE_BOX2D_PARTICLES=ON`
+with Lua and Box2D enabled. For historical comparisons see the pinned revision in
+[the migration guide](box2d-liquidfun-migration.md). Direct Visual Studio projects
+use `MbmBox2dParticles=0|1` with the unified backend and forwarding DLL.
+Embedded loaders call `mbm_open_box2d_compat` directly. Validated delivery scope:
+Linux, Windows MSVC Win32 and macOS arm64; other targets remain follow-up work.
 
 ### 11.1 Joint compatibility
 

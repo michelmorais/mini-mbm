@@ -718,7 +718,7 @@ Plugins are registered with `CORE_MANAGER::addPlugin(PLUGIN*)`.
 | Plugin | Directory | Description |
 |---|---|---|
 | **Box2D** | `plugins/box2d/` | 2D physics simulation via Box2D 2.4.1. Full Lua bindings for bodies, fixtures, joints, collisions, and debug rendering. |
-| **Box2D LiquidFun** | `plugins/box2d/` | Compatibility module and optional fluid bindings in the unified 2.4.1 backend. `plugins/box2d-liquid-fun-lua/` is the legacy-only comparison wrapper. |
+| **Box2D LiquidFun** | `plugins/box2d/` | Compatibility module and optional fluid bindings in the unified 2.4.1 backend. |
 | **Bullet 3D** | `plugins/bullet3d/` | 3D physics simulation via Bullet 2.84. Lua bindings for rigid bodies, collision shapes, and world configuration. |
 | **Dear ImGui** | `plugins/imGui/` | Immediate-mode GUI integration with Lua bindings. Backends for DirectX 9, OpenGL 3, Win32, and Metal. Powers all built-in editors. |
 | **Tiled** | `plugins/tiled/` | Tile map support with tile sets, layers, bricks, and a `TILE_EDITOR` renderizable subclass for in-engine level editing. |
@@ -979,7 +979,7 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DDISABLE_VR=1` | `OFF` | Disable the VR class where it would otherwise be enabled |
 | `-DUSE_BOX2D=1` | `OFF` | Box2D physics plugin |
 | `-DUSE_BOX2D_PARTICLES=ON` | `OFF` | LiquidFun particles in Box2D 2.4.1; requires Lua and Box2D. `USE_ALL` defaults ON; explicit OFF is respected. |
-| `-DUSE_BOX2D_LIQUID_FUN=1` | `OFF` | Legacy-only comparison backend with `USE_BOX2D=0`; otherwise the module forwards to unified Box2D. |
+| `-DUSE_BOX2D_LIQUID_FUN=1` | `OFF` | Removed; use `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`. |
 | `-DUSE_BULLET3D=1` | `OFF` | Bullet 3D physics plugin |
 | `-DUSE_IMGUI=1` | `OFF` | Dear ImGui plugin |
 | `-DUSE_LSQLITE3=1` | `OFF` | SQLite3 Lua bindings |
@@ -1055,7 +1055,6 @@ mini-mbm/
 │   └── test-lib/               #   Interactive renderable test executable/assets
 ├── plugins/                    # Plugin implementations
 │   ├── box2d/                  #   Box2D 2D physics
-│   ├── box2d-liquid-fun-lua/   #   Legacy LiquidFun comparison wrapper
 │   ├── bullet3d/               #   Bullet 3D physics
 │   ├── imGui/                  #   Dear ImGui integration
 │   ├── tiled/                  #   Tile map support
@@ -1564,7 +1563,7 @@ Plugins são registrados com `CORE_MANAGER::addPlugin(PLUGIN*)`.
 | Plugin | Diretório | Descrição |
 |---|---|---|
 | **Box2D** | `plugins/box2d/` | Simulação de física 2D via Box2D 2.4.1. Bindings Lua completos. |
-| **Box2D LiquidFun** | `plugins/box2d/` | Fachada de compatibilidade e fluidos opcionais no backend 2.4.1 unificado. `plugins/box2d-liquid-fun-lua/` é o wrapper antigo de comparação. |
+| **Box2D LiquidFun** | `plugins/box2d/` | Fachada de compatibilidade e fluidos opcionais no backend 2.4.1 unificado. |
 | **Bullet 3D** | `plugins/bullet3d/` | Simulação de física 3D via Bullet 2.84. |
 | **Dear ImGui** | `plugins/imGui/` | Integração GUI de modo imediato com bindings Lua. |
 | **Tiled** | `plugins/tiled/` | Suporte a tile maps com tile sets, camadas e edição. |

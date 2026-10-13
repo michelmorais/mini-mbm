@@ -23,8 +23,10 @@
 
 # Migração e consolidação de Box2D/LiquidFun
 
-Data: 2026-10-13. Engine **7.366.2**. Marco 5 **parcial**: guia, regressão
-reproduzível e correções de memória entregues; remoção da árvore antiga pendente.
+Data: 2026-10-13. Engine **7.367**. Marco 5: consolidação para **Linux, Windows MSVC Win32 e macOS arm64**.
+O usuário aceitou os exemplos recuperados como cobertura dos jogos antigos e
+a retirada do backend legado neste escopo. Demais alvos ficam para etapa posterior.
+Veja a [verificação da remoção](box2d-liquidfun-retirement.md).
 A aprovação manual do Ratworks está registrada. A continuação no Windows aprovou
 MSVC Win32 ON/OFF e corrigiu a renderização de fluidos em DirectX9/11:
 [resultados e limites](box2d-liquidfun-windows.md). x64 real e MinGW seguem pendentes.
@@ -54,10 +56,10 @@ OFF mantém a fachada para emitir erro explícito de partículas desabilitadas.
 Os arquivos exclusivos de partículas permanecem em `third-party/box2d-2.4.1`,
 compilados apenas em ON. Não se trata de LiquidFun oficial para Box2D 2.4.1:
 é um port local, com origem e adaptações registradas no repositório.
-A árvore `third-party/box2d-liquid-fun-2.3.1` e o wrapper antigo ainda são mantidos
-para comparação/fallback. O loader embedded unificado chama diretamente `mbm_open_box2d_compat`; somente
-o perfil de fallback inclui o header legado. Isso foi compilado/linkado em
-Android ARM64 ON/OFF; não substitui execução em dispositivo.
+A árvore antiga e seu wrapper foram removidos. O loader embedded chama diretamente
+`mbm_open_box2d_compat`. `USE_BOX2D_LIQUID_FUN=ON` agora produz erro com instruções
+de migração; OFF é tolerado para presets existentes. Reconfigure caches antigos
+removendo essa flag ou passando OFF. A flag de partículas continua independente.
 
 ## Validação Windows
 
@@ -76,7 +78,7 @@ durante os testes automatizados. A solução atual mapeia também `Platform=x64`
 para projetos Win32: isso não valida binários de 64 bits.
 Confirmar o caminho do executável no output do MSBuild. Repetir para DirectX9 e
 OpenGLES, com diretórios de resultados distintos. A correção de destruição dos
-buffers DirectX9 nesta rodada também precisa dessa validação.
+buffers DirectX9 foi incluída na validação registrada.
 O runner exige `box2d.dll` e `box2dLiquidFun.dll` ao lado do executável, isola o
 carregamento dos plugins, grava logs e hashes e exige saída zero mais marcador de
 sucesso. Esperado: **1/1 OFF e 6/6 ON**. Inclui ambas as ordens de require,
@@ -121,16 +123,34 @@ validou o Ratworks real por 60 s e 75 ciclos do cenário reduzido em dez minutos
 com sanitizadores completos; veja o relatório de ciclo de vida.
 Não foram usadas supressões nem `detect_leaks=0`/`detect_odr_violation=0`.
 
-## Fallback e critérios de remoção
+## Fallback histórico e escopo aceito
 
-O fallback de comparação continua disponível em build CMake separado:
+Revisão anterior à remoção: **`b488870c5c5a42cc2c194d38b0057801c114455b`**.
+Para reproduzir a engine antiga, use um checkout separado dessa revisão, com
 `USE_LUA=1 USE_BOX2D=0 USE_BOX2D_PARTICLES=OFF USE_BOX2D_LIQUID_FUN=1`, sem
-`USE_ALL`. Carregar somente esse conjunto de bibliotecas no processo.
+`USE_ALL`, com build/output próprios. Essa opção não funciona na versão atual.
+Nunca carregue bibliotecas dos dois checkouts no mesmo processo.
 
-Antes da remoção definitiva, concluir a matriz de plataformas (incluindo Windows,
-Android em dispositivo e Apple), a regressão dos jogos rígidos publicados,
-a equivalência interativa/visual dos exemplos externos e a aceitação de performance.
-Os 140 fragmentos de documentação ainda precisam de contexto; as 40 cenas já
-executadas não cobrem todas as interações. Preservar uma revisão identificada do
-fallback e atualizar referências de build/embedded/documentação antes de apagar
-as pastas antigas. Os relatórios anteriores permanecem como evidência histórica.
+Para comparar apenas os solvers com o harness atual, restaure as fontes antigas
+fora do checkout e use a opção exclusiva do harness:
+
+```sh
+mkdir -p /tmp/mbm-physics-history
+git archive b488870c5c5a42cc2c194d38b0057801c114455b third-party/box2d-liquid-fun-2.3.1 | tar -x -C /tmp/mbm-physics-history
+cmake -S src/test-lib/physics-compat -B build/physics-history -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DPHYSICS_LEGACY_SOURCE=/tmp/mbm-physics-history/third-party/box2d-liquid-fun-2.3.1
+cmake --build build/physics-history -j6
+ctest --test-dir build/physics-history --output-on-failure
+```
+
+Sem `PHYSICS_LEGACY_SOURCE`, o harness compila somente rigid/candidate e executa
+três testes (OFF, ON e equivalência rígida). Com a fonte histórica, são quatro.
+`measure.py` mede OFF/ON por padrão; acrescente `--backends rigid liquidfun candidate`
+para comparar os três executáveis. A fonte histórica não participa do build da engine.
+
+A decisão do usuário em 2026-10-13 substitui o bloqueio anterior por todas as
+plataformas e todos os jogos. As 40 cenas recuperadas (31 rígidas, nove de fluidos)
+são aceitas como cobertura dos jogos antigos; os 140 fragmentos inventariados
+não passam a ser 140 testes executados. A aceitação do Ratworks permanece registrada.
+Android em aparelho, iOS, Windows x64 real/MinGW, macOS Intel e MAS assinado
+ficam para uma etapa posterior. Os relatórios anteriores são evidências históricas,
+não alegações de execução da revisão atual em plataformas indisponíveis neste host.

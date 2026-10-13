@@ -60,7 +60,7 @@ mingw32-make -j...        # Windows MinGW
 | `-DAUDIO=portaudio\|avfoundation\|opensl\|none` | Audio backend. `portaudio` is the default for Linux/Windows; `avfoundation` for macOS/iOS; `opensl` for Android |
 | `-DUSE_BOX2D=1` | Box2D 2.4.1 physics plugin |
 | `-DUSE_BOX2D_PARTICLES=ON` | Optional LiquidFun particles ported to Box2D 2.4.1; requires `USE_BOX2D=1` and `USE_LUA=1`. Default OFF; `USE_ALL` defaults ON and respects explicit OFF. |
-| `-DUSE_BOX2D_LIQUID_FUN=1` | Legacy-only comparison backend (Box2D 2.3.0); requires `USE_BOX2D=0`. With Box2D enabled, `box2dLiquidFun` is a forwarding module. |
+| `-DUSE_BOX2D_LIQUID_FUN=1` | Removed; use `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`. `box2dLiquidFun` remains a forwarding module. |
 | `-DUSE_BULLET3D=1` | Bullet 2.84 3D physics plugin |
 | `-DUSE_IMGUI=1` | Dear ImGui plugin (required for editor tools) |
 | `-DUSE_LSQLITE3=1` | SQLite3 Lua bindings |
@@ -115,7 +115,6 @@ mini-mbm/
 ├── plugins/                  Optional plugin shared libraries
 │   ├── plugin-helper/        Shared Lua helper utilities used by all plugins
 │   ├── box2d/                Unified Box2D 2.4.1 + optional LiquidFun Lua bindings
-│   ├── box2d-liquid-fun-lua/ Legacy-only LiquidFun comparison wrapper
 │   ├── bullet3d/             Bullet 2.84 Lua bindings
 │   ├── imGui/                Dear ImGui plugin (powers all editor tools)
 │   └── tiled/                Tiled-map plugin with tile_editor
@@ -400,7 +399,6 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 | lua | 5.4.1 | Scripting engine |
 | portaudio | — | Audio (Linux/Windows) |
 | box2d | 2.4.1 + optional ported LiquidFun particles | Unified 2D physics/fluids |
-| box2d-liquid-fun | LiquidFun 1.1.0 / Box2D 2.3.0 | Legacy-only comparison backend |
 | bullet | 2.84 | 3D physics |
 | stb | — | Image loading helpers |
 | lodepng | — | PNG loading |

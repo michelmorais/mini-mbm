@@ -28,6 +28,11 @@ Data: 2026-10-13. Commits revisados: `b6229260` (Windows) e `6c63b7fa`
 Não foram identificados achados bloqueantes no escopo revisado. Isso não encerra
 a aceitação geral dos marcos 4/5 nem autoriza remover a árvore antiga.
 
+Atualização posterior: o usuário aceitou os exemplos como cobertura dos jogos antigos
+e aprovou consolidar Linux, Windows Win32 e macOS arm64. A decisão e a remoção
+estão no [relatório final desktop](box2d-liquidfun-retirement.md); o roteiro abaixo
+registra a situação anterior a essa decisão.
+
 ## Correções e evidências conferidas
 
 - Proteções contra a macro Windows `max` preservam as validações numéricas.

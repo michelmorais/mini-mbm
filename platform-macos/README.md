@@ -221,26 +221,26 @@ The first harness covers immediate destruction, rapid play/stop replacement, sim
 completion, Opus-to-WAV fallback, and engine shutdown with a loop active. The second changes scene
 while a completion callback is pending and waits in the replacement scene to expose late callbacks.
 
-Box2D and LiquidFun must be tested in separate build configurations:
+Test unified Box2D with particles OFF and ON in separate output directories:
 
 ```sh
 # Box2D 2.4.1 configuration
 cmake -S . -B build/macos_box2d_debug \
     -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug \
-    -DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_LIQUID_FUN=0 \
+    -DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_PARTICLES=OFF \
     -DUSE_TEXTURE_MISSING_DIALOG=0
 
-# LiquidFun / Box2D 2.3 configuration
+# Box2D 2.4.1 with ported LiquidFun particles
 cmake -S . -B build/macos_liquidfun_debug \
     -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug \
-    -DUSE_LUA=1 -DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1 \
+    -DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_PARTICLES=ON \
     -DUSE_TEXTURE_MISSING_DIALOG=0
 ```
 
-The local CMake configurations share `bin/<type>/arm64` as their output directory. Switching
-between them does not remove a plugin produced by the previous configuration, so verify or clean
-that output deliberately before claiming an exclusive-plugin test. Distribution builds avoid this
-ambiguity by selecting one static physics plugin in the Xcode configuration.
+Pass a distinct absolute `-DMBM_OUTPUT_ROOT=/path/to/profile-output` to each
+configuration to avoid mixing ON/OFF binaries. Both use the same physics backend;
+`box2dLiquidFun` forwards to it. macOS arm64 Metal ON/OFF was validated; Intel,
+iOS runtime and signed MAS delivery remain follow-up targets.
 
 ---
 
@@ -493,7 +493,7 @@ cmake ~/mini-mbm \
     -DUSE_LSQLITE3=1 \
     -DUSE_TILEMAP=1 \
     -DUSE_BOX2D=1 \
-    -DUSE_BOX2D_LIQUID_FUN=0 \
+    -DUSE_BOX2D_PARTICLES=OFF \
     -DMAS_DELIVERY=1 \
     -DMAS_BUNDLE_ID=com.mini.mbm.tower-defense \
     -DMAS_APP_NAME="Tower Defense Monsters" \
@@ -502,10 +502,9 @@ cmake ~/mini-mbm \
     -DCMAKE_BUILD_TYPE=Release
 ```
 
-The example selects Box2D 2.4.1. A game that needs LiquidFun must instead pass
-`-DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1`. These plugins contain conflicting Box2D symbols and
-cannot coexist in the statically linked macOS application. Do not use `USE_ALL=1` for a release
-configuration when the physics choice needs to be explicit.
+The example selects rigid-only Box2D 2.4.1. A game that needs fluids sets
+`-DUSE_BOX2D_PARTICLES=ON` on the same plugin. `USE_ALL=1` defaults particles ON
+and respects explicit OFF. The old `USE_BOX2D_LIQUID_FUN` option was removed.
 
 | Flag | Required | Description |
 |---|---|---|

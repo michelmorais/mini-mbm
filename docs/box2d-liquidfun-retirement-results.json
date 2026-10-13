@@ -1,0 +1,370 @@
+{
+  "date": "2026-10-13",
+  "version": "7.367",
+  "base_revision": "b488870c5c5a42cc2c194d38b0057801c114455b",
+  "state": "uncommitted_working_tree",
+  "milestone": 5,
+  "accepted_scope": [
+    "Linux",
+    "Windows MSVC Win32",
+    "macOS arm64"
+  ],
+  "decision": "User accepted recovered documentation examples as old-game coverage and explicitly deferred other targets.",
+  "deferred": [
+    "Android device",
+    "iOS runtime",
+    "Windows real x64",
+    "MinGW",
+    "macOS Intel",
+    "signed MAS runtime"
+  ],
+  "removed_tracked_legacy_files": 127,
+  "current_run_platform": "Linux",
+  "sanitizers_in_this_run": false,
+  "cmake_matrix": {
+    "passed": true,
+    "cases": [
+      "default PASS",
+      "all PASS",
+      "all-off PASS",
+      "missing-box2d PASS",
+      "missing-lua PASS",
+      "legacy-only PASS",
+      "unified-on PASS",
+      "unified-off PASS",
+      "unified-old-flag PASS"
+    ]
+  },
+  "native": {
+    "passed": true,
+    "current_tests": 3,
+    "historical_tests": 4,
+    "current_build": "/tmp/physics-final-native",
+    "historical_build": "/tmp/physics-final-history",
+    "historical_source": "/tmp/mbm-physics-history/third-party/box2d-liquid-fun-2.3.1"
+  },
+  "lua_on": {
+    "passed": true,
+    "profile": "on",
+    "binaries_unchanged": true,
+    "binaries_sha256": {
+      "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm": "c9aa1ade15e26b3bcfcd8a65fe575f27a78cf0d5d29141191d3cd21a5b1c84ee",
+      "/home/michel/mini-mbm/bin/debug/linux_x86/box2d.so": "cb8aee8f24b7b43be21d47aaa036eec1bb27c99420707aec93b83fea2ffa9153",
+      "/home/michel/mini-mbm/bin/debug/linux_x86/box2dLiquidFun.so": "77bc8d2adf642ee1990425828432c6676434abba747352d877cfc873fdf32068"
+    },
+    "cases": [
+      {
+        "case": "modern",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+        "log_sha256": "4b98d4479fd9e8f165c5ef6454cb789433d2a23f124d042f5283c2d9d8e89244",
+        "command": [
+          "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "legacy",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+        "log_sha256": "87031294e44b6f4b0009a9158d023c3798cafc8e21134ec0807440759fefb91e",
+        "command": [
+          "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "rise",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+        "log_sha256": "adfd2f0ccc25f42ea94707f89a06f1e32f57cb61759a9cef89064467b3d00cdb",
+        "command": [
+          "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "filter",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+        "log_sha256": "d08f3c7904b9026bc1b074ffda08d35ccec306b89c79e195c69f3dd35ae65022",
+        "command": [
+          "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "convex",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "56b5f70dbbedf2a8d190b05d03db245fef87da0d2aee1ebe1d0faa9daeecbf3d",
+        "log_sha256": "b228229382656887b325e7cde37d685c6a8d2e2e4c14f38937bdbba7b4c7b224",
+        "command": [
+          "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "depth",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "5f8af35c00a6f312eff61be7cec36c4dd9178c095884ee2dbc1deb4454f1977c",
+        "log_sha256": "6a3dbb55c3131d9e4356ea1836ee57a2b10d658cae156f8087f1c8d64248704e",
+        "command": [
+          "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      }
+    ]
+  },
+  "lua_off": {
+    "passed": true,
+    "profile": "off",
+    "binaries_unchanged": true,
+    "binaries_sha256": {
+      "/tmp/physics-final-off/output/bin/debug/linux_x86/mini-mbm": "a73735dd6c846beffa2445dc4edbc821bf747afc15d5c4cccfa450a94ba165c8",
+      "/tmp/physics-final-off/output/bin/debug/linux_x86/box2d.so": "ee3fb317630189e19fec04ecb76aa1477242ba69b0f9323689f8c69e0eed3ae1",
+      "/tmp/physics-final-off/output/bin/debug/linux_x86/box2dLiquidFun.so": "86462feae43db737f976cc060772b4a669400b0c7fe01ec1722bcb4202d98177"
+    },
+    "cases": [
+      {
+        "case": "modern",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+        "log_sha256": "913f724984be067286e3292f22cdcb24ae644a0a191c5a35ecbab3c451459b39",
+        "command": [
+          "/tmp/physics-final-off/output/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      }
+    ]
+  },
+  "ratworks_reduced": {
+    "passed": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "inputs_unchanged": true,
+    "backend": "unified",
+    "command": [
+      "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+      "--scene",
+      "/home/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua",
+      "--disable_select_monitor",
+      "--nosplash",
+      "-w",
+      "800",
+      "-h",
+      "600"
+    ],
+    "requested_seconds": 16.0,
+    "wall_seconds": 17.072,
+    "host": "Linux-6.1.0-53-amd64-x86_64-with-glibc2.36",
+    "hashes": {
+      "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm": "c9aa1ade15e26b3bcfcd8a65fe575f27a78cf0d5d29141191d3cd21a5b1c84ee",
+      "/home/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua": "5fcd3e38aa6d64fb41bba7505994d21aa808ce9bf0118898fe3aa8a896f61ac9",
+      "/home/michel/mini-mbm/bin/debug/linux_x86/box2d.so": "cb8aee8f24b7b43be21d47aaa036eec1bb27c99420707aec93b83fea2ffa9153",
+      "/home/michel/mini-mbm/bin/debug/linux_x86/box2dLiquidFun.so": "77bc8d2adf642ee1990425828432c6676434abba747352d877cfc873fdf32068",
+      "/home/michel/mini-mbm/bin/debug/linux_x86/libcore_mbm.so": "148c37a9fb4e9bae1f78d2875965975a13f59dafdeab27ccf42e289830007222"
+    },
+    "rss_samples": [
+      {
+        "wall_s": 0.001,
+        "rss_kib": 8
+      },
+      {
+        "wall_s": 1.001,
+        "rss_kib": 108072
+      },
+      {
+        "wall_s": 2.001,
+        "rss_kib": 108272
+      },
+      {
+        "wall_s": 3.001,
+        "rss_kib": 108272
+      },
+      {
+        "wall_s": 4.002,
+        "rss_kib": 108444
+      },
+      {
+        "wall_s": 5.002,
+        "rss_kib": 108444
+      },
+      {
+        "wall_s": 6.002,
+        "rss_kib": 108444
+      },
+      {
+        "wall_s": 7.002,
+        "rss_kib": 108540
+      },
+      {
+        "wall_s": 8.003,
+        "rss_kib": 108540
+      },
+      {
+        "wall_s": 9.003,
+        "rss_kib": 108540
+      },
+      {
+        "wall_s": 10.003,
+        "rss_kib": 108540
+      },
+      {
+        "wall_s": 11.003,
+        "rss_kib": 108556
+      },
+      {
+        "wall_s": 12.004,
+        "rss_kib": 108556
+      },
+      {
+        "wall_s": 13.004,
+        "rss_kib": 108556
+      },
+      {
+        "wall_s": 14.004,
+        "rss_kib": 108600
+      },
+      {
+        "wall_s": 15.004,
+        "rss_kib": 108600
+      },
+      {
+        "wall_s": 16.005,
+        "rss_kib": 108600
+      }
+    ],
+    "rss_supported": true,
+    "markers": [
+      "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+      "\u001b[0mRATWORKS_REDUCED_CYCLE\t1\t385",
+      "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+      "\u001b[0mRATWORKS_REDUCED_CYCLE\t2\t385",
+      "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+      "\u001b[0mRATWORKS_REDUCED_CYCLE\t3\t385",
+      "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+      "\u001b[0mRATWORKS_REDUCED_CYCLE\t4\t385",
+      "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5998486\t1.376229\t385",
+      "\u001b[0mRATWORKS_REDUCED_CYCLE\t5\t385",
+      "\u001b[0mRATWORKS_REDUCED_OK\t5\t385"
+    ]
+  },
+  "msvs_manifest": {
+    "passed": true,
+    "on_sources": 59,
+    "off_sources": 50,
+    "facade_sources": 2,
+    "native_msbuild_this_run": false
+  },
+  "platform_history": [
+    "box2d-liquidfun-windows-results.json",
+    "box2d-liquidfun-macos-results.json"
+  ],
+  "documentation": {
+    "master": {
+      "path": "/home/michel/mbm-documentation",
+      "base": "4ff9d93",
+      "html": "/tmp/physics-docs-master-html",
+      "language": "en",
+      "warnings": 0
+    },
+    "pt_br": {
+      "path": "/home/michel/mbm-documentation-pt-br-retirement",
+      "base": "d8721aa",
+      "detached": true,
+      "html": "/tmp/physics-docs-pt-html",
+      "language": "pt_BR",
+      "warnings": 0
+    },
+    "committed": false,
+    "published": false
+  },
+  "collector_smoke": {
+    "report": "/tmp/physics-final-measure.json",
+    "sha256": "cd9f6823b56d91d824aa10139b520eb9074076d79b37803912321a5b6ed4ce56",
+    "repetitions": 1,
+    "new_performance_conclusion": false
+  },
+  "source_sha256": {
+    "CMakeLists.txt": "a507d9a480278b6982c43246a12ee327a3568b69653a3cdef24c699c952d9635",
+    "src/CMakeLists.txt": "d8c0b2e66fd979d62a9451ac9d45062b8ee77db9c1f6c293680c3d3955d5886c",
+    "src/core_mbm/CMakeLists.txt": "ad70ee996161c1e111f1f954f6b25176dbf0f25d8c9c533f28b71a41f3c46fc3",
+    "src/lua-wrap/require_embedded.cpp": "c3e26d2aad577279fc678d9dc7f29722b7744369bfc919d10e92bd487735a466",
+    "src/test-lib/physics-compat/CMakeLists.txt": "8402ff8c97fb1ece49355f533ee54272b7dce8e5ed1439a1e269bf36aaac1d0a",
+    "src/test-lib/physics-compat/check-cmake.py": "1c4e2eb28b78490097cf7e1c61d8a09cdebab9adbecdc99907951f75d3a465cb",
+    "src/test-lib/physics-compat/measure.py": "f0a2f64dc65f44cd4b1cbfb8c98fb956631faf6ecec9d0b5c49eab3eaab0210c",
+    "platform-msvs/engine-distribution.cmake": "25d6eb19cc45917298391d98b8516292bf2e204bbd4e34975a6e5fe133463c45",
+    "platform-msvs/stage-engine.cmake.in": "350019a61cdf8a640ee2e0d41b60a6b6793183628902c97a4ab200cbe99fdcdc",
+    "include/version/version.h": "697952cd7da498e4631efb7d53c49ee92693cbeb8e42efab1643e6a564dfbf9c"
+  }
+}

@@ -68,7 +68,7 @@ Key differences:
 - **All** platform `.mm` files compiled with `-fobjc-arc`
 - `MACOSX_BUNDLE TRUE` + `MACOSX_BUNDLE_INFO_PLIST` set on target
 - Two CMake generators: plain `make` (unsigned binary, CI checks) and `-G Xcode` (signed deploy)
-- Plugin static linking mandatory (App Store sandbox); box2d + box2d-liquid-fun conflict → box2d wins with `USE_ALL=1`
+- Plugin static linking mandatory (App Store sandbox); unified Box2D includes optional particles, and embedded `box2dLiquidFun` forwards to the same backend
 - `GAME_BUNDLE_ID`, `GAME_NAME`, `GAME_ASSETS_DIR` CMake variables control the generated `.xcodeproj`
 - Assets bundled via `MACOSX_PACKAGE_LOCATION` source property (Xcode generator) or `POST_BUILD copy_directory` (make generator)
 

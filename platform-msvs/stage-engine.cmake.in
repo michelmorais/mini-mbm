@@ -108,7 +108,7 @@ endforeach()
 # Some bundled projects keep their license in a source header rather than LICENSE.
 foreach(_notice lua-5.4.1/lua.h portaudio/include/portaudio.h
         lodepng/lodepng.h stb/stb_image.h tinyfiledialogs/tinyfiledialogs.h
-        box2d-liquid-fun-2.3.1/Box2D/Common/b2Settings.h
+        box2d-2.4.1/include/box2d/b2_particle.h
         bullet-2.84/LinearMath/btScalar.h)
     if(EXISTS "@CMAKE_SOURCE_DIR@/third-party/${_notice}")
         get_filename_component(_directory "${_notice}" DIRECTORY)

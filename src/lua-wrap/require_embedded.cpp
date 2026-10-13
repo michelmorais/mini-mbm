@@ -32,13 +32,6 @@ extern "C"
 #endif
 #endif
 
-#if defined USE_BOX2D_LIQUID_FUN && !defined USE_BOX2D
-    #include <box2d-liquid-fun-lua/box2d-liquid-fun-lua.h>
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
-
 #if defined USE_BOX2D
     #include <box2d/box2d-lua.h>
 #ifndef REQUIRE_EMBEDDED
@@ -73,15 +66,11 @@ extern "C"
                 return luaopen_box2d(lua);
         #endif
 
-        #if defined USE_BOX2D_LIQUID_FUN || defined USE_BOX2D
-            #pragma message("Using USE_BOX2D_LIQUID_FUN embedded, usually this is for ANDROID")
+        #if defined USE_BOX2D
+            #pragma message("Using box2dLiquidFun compatibility embedded, usually this is for ANDROID")
             if((strcmp(name,"box2dLiquidFun") == 0 || strcmp(name,"libbox2dLiquidFun") == 0))
             {
-                #if defined USE_BOX2D
-                    return mbm_open_box2d_compat(lua);
-                #else
-                    return luaopen_box2dLiquidFun(lua);
-                #endif
+                return mbm_open_box2d_compat(lua);
             }
         #endif
 

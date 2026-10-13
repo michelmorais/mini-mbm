@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--build", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--backends", nargs="+", choices=("rigid", "liquidfun", "candidate"), default=["rigid", "liquidfun", "candidate"])
+    parser.add_argument("--backends", nargs="+", choices=("rigid", "liquidfun", "candidate"), default=["rigid", "candidate"])
     parser.add_argument("--cpu", type=int, help="Pin collector and serial child processes to one Linux CPU")
     args = parser.parse_args()
     if args.cpu is not None:
@@ -63,10 +63,19 @@ def main():
                 report["processor"] = line.split(":", 1)[1].strip()
                 break
     report["cmake_cache"] = (args.build / "CMakeCache.txt").read_text()
-    for directory in ("third-party/box2d-2.4.1", "third-party/box2d-liquid-fun-2.3.1", "src/test-lib/physics-compat"):
+    for directory in ("third-party/box2d-2.4.1", "src/test-lib/physics-compat"):
         for path in sorted((root / directory).rglob("*")):
             if path.is_file() and path.suffix in (".h", ".cpp", ".py", ".txt"):
                 report["source_sha256"][str(path.relative_to(root))] = sha(path)
+    if "liquidfun" in args.backends:
+        entry = next((line.split("=", 1)[1] for line in report["cmake_cache"].splitlines()
+                      if line.startswith("PHYSICS_LEGACY_SOURCE:PATH=")), "")
+        if not entry:
+            raise ValueError("liquidfun requires a build configured with PHYSICS_LEGACY_SOURCE")
+        legacy = Path(entry)
+        for path in sorted(legacy.rglob("*")):
+            if path.is_file() and path.suffix in (".h", ".cpp", ".txt"):
+                report["source_sha256"]["legacy/" + str(path.relative_to(legacy))] = sha(path)
     for name in args.backends:
         path = args.build / (f"physics_{name}" + (".exe" if platform.system() == "Windows" else ""))
         report["binaries"][name] = {"path": str(path.resolve()), "sha256": sha(path)}

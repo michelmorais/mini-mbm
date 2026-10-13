@@ -23,16 +23,19 @@
 
 # Unificação de Box2D e LiquidFun: viabilidade e plano
 
-Data: 2026-10-13. Estado: **baseline, port nativo e integração Lua/CMake implementados;
-Ratworks validado automaticamente e testado pelo usuário; marcos 4 e 5 parciais.
-Performance, plataformas restantes e remoção do legado pendentes**.
+Data: 2026-10-13. Estado: **consolidação desktop em 7.367; backend antigo removido**.
+Escopo aprovado: Linux, Windows MSVC Win32 e macOS arm64. O usuário aceitou os
+exemplos recuperados como cobertura dos jogos antigos e a flag ON/OFF com as
+medições disponíveis. Demais alvos ficam para etapa posterior, sem bloquear a remoção.
+A [verificação da remoção](box2d-liquidfun-retirement.md) e o guia de migração
+registram o estado atual; as seções de análise abaixo preservam decisões históricas.
 Marco atual: [migração e consolidação](box2d-liquidfun-migration.md).
 Continuação: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
 Medições ampliadas: [custo nativo OFF/ON e escalabilidade](box2d-liquidfun-performance.md).
 Preparação para Windows: [revisão e limpeza Linux](box2d-liquidfun-linux-cleanup.md).
 Validação Windows: [MSVC Win32 ON/OFF, OpenGL ES, DirectX11 e DirectX9](box2d-liquidfun-windows.md).
 Os contratos, Ratworks e cenário prolongado passaram no escopo registrado;
-x64 real, MinGW, sanitizadores Windows e aceitação geral da migração seguem pendentes.
+x64 real, MinGW e sanitizadores Windows ficam fora do escopo aceito desta entrega.
 Validação macOS: [Apple Silicon/Metal e Xcode](box2d-liquidfun-macos.md).
 Revisão integrada e próxima entrega: [aceitação de jogos e exemplos](box2d-liquidfun-desktop-review.md).
 Matriz de plataformas: [regressão](box2d-liquidfun-platforms.md).
@@ -73,7 +76,7 @@ contratos de colisão utilizados pela engine.
 | Box2D oficial | Já possui linha 3.x; 2.4.1 é a última release da linha 2 | Escolher 2.4.1 é uma decisão de compatibilidade, não de usar a linha mais recente |
 
 Fontes locais: [versão Box2D](../third-party/box2d-2.4.1/src/common/b2_settings.cpp),
-[versões LiquidFun](../third-party/box2d-liquid-fun-2.3.1/Box2D/Common/b2Settings.cpp)
+[versões LiquidFun](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/third-party/box2d-liquid-fun-2.3.1/Box2D/Common/b2Settings.cpp)
 e [CMake raiz](../CMakeLists.txt), variáveis `BOX2DLIB_VERSION` e
 `BOX2D_LIQUID_FUN_LIB_VERSION`.
 Fontes oficiais: [releases LiquidFun](https://github.com/google/liquidfun/releases),
@@ -112,10 +115,10 @@ abaixo distinguem comportamento observado de hipóteses que precisam de mediçã
 | Há trabalho fora do solver? | `update` chama `emitFluid`, `update_fluid` e, quando houve emissão, `update_uv_fluid`, antes do `Step` | Medir emissão, cópia visual e renderização separadamente da física |
 | `resizeParticleData` aloca sempre? | `FLUID_GROUP::resizeParticleData` só aumenta buffers quando `new_size > size_particle_array` | Não aloca a cada chamada; emissão gradual crescente pode causar várias realocações e cópias |
 
-Evidências: [mundo LiquidFun](../third-party/box2d-liquid-fun-2.3.1/Box2D/Dynamics/b2World.cpp)
-(`Step`, `Init`), [overloads de Step](../third-party/box2d-liquid-fun-2.3.1/Box2D/Dynamics/b2World.h),
-[solver de partículas](../third-party/box2d-liquid-fun-2.3.1/Box2D/Particle/b2ParticleSystem.cpp)
-(`Solve`), [wrapper](../plugins/box2d-liquid-fun-lua/box-2d-liquid-fun-wrap.cpp)
+Evidências: [mundo LiquidFun](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/third-party/box2d-liquid-fun-2.3.1/Box2D/Dynamics/b2World.cpp)
+(`Step`, `Init`), [overloads de Step](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/third-party/box2d-liquid-fun-2.3.1/Box2D/Dynamics/b2World.h),
+[solver de partículas](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/third-party/box2d-liquid-fun-2.3.1/Box2D/Particle/b2ParticleSystem.cpp)
+(`Solve`), [wrapper](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/plugins/box2d-liquid-fun-lua/box-2d-liquid-fun-wrap.cpp)
 (`update`, `createRenderizableFluid`, `update_fluid`, `update_uv_fluid`) e
 [buffers visuais](../src/core_mbm/particle-control.cpp) (`resizeParticleData`).
 
@@ -181,12 +184,12 @@ uma adaptação. Não presumir um método Lua inexistente.
 
 Referências: [joints rígidos](../plugins/box2d/physics-box2d-joint-lua.cpp),
 [criação rígida](../plugins/box2d/physics-box-2d-lua.cpp),
-[joints LiquidFun](../plugins/box2d-liquid-fun-lua/physics-box2d-liquid-fun-joint-lua.cpp),
-[criação LiquidFun](../plugins/box2d-liquid-fun-lua/physics-box-2d-liquid-fun-lua.cpp),
+[joints LiquidFun](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/plugins/box2d-liquid-fun-lua/physics-box2d-liquid-fun-joint-lua.cpp),
+[criação LiquidFun](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/plugins/box2d-liquid-fun-lua/physics-box-2d-liquid-fun-lua.cpp),
 [chain 2.4.1](../third-party/box2d-2.4.1/include/box2d/b2_chain_shape.h),
-[chain LiquidFun](../third-party/box2d-liquid-fun-2.3.1/Box2D/Collision/Shapes/b2ChainShape.h),
+[chain LiquidFun](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/third-party/box2d-liquid-fun-2.3.1/Box2D/Collision/Shapes/b2ChainShape.h),
 [userdata local](../third-party/box2d-2.4.1/include/box2d/b2_body.h),
-[callbacks LiquidFun](../third-party/box2d-liquid-fun-2.3.1/Box2D/Dynamics/b2WorldCallbacks.h)
+[callbacks LiquidFun](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/third-party/box2d-liquid-fun-2.3.1/Box2D/Dynamics/b2WorldCallbacks.h)
 e [API Lua, seções 10–11](lua-api.md).
 
 O port também deve preservar as melhorias recentes: máscara de fixtures
@@ -218,7 +221,7 @@ Desde 7.365, o CMake raiz oferece os seguintes perfis (com `USE_LUA=1`):
 | `USE_BOX2D=1`, `USE_BOX2D_PARTICLES=ON` | Mesmo backend, com extensão e bindings de partículas; sistemas criados sob demanda |
 | `USE_BOX2D=0`, `USE_BOX2D_PARTICLES=ON` | Erro de configuração (Lua também é obrigatória) |
 | `USE_ALL=1` | Partículas ON por padrão; OFF explícito ou já persistido no cache é respeitado |
-| `USE_BOX2D=0`, `USE_BOX2D_LIQUID_FUN=1`, partículas OFF | Backend legado de comparação; não usar USE_ALL |
+| `USE_BOX2D_LIQUID_FUN=1` | Removido em 7.367; erro com instruções de migração |
 
 `MBM_BOX2D_PARTICLES=0/1` é propagado pelo target Box2D a suas unidades e consumidores.
 OFF exclui fontes de partículas e bindings de fluido. Os arquivos continuam no checkout.
@@ -260,9 +263,9 @@ Cobrir também projetos Visual Studio, exports Windows, Android e entry points
 estáticos iOS/MAS.
 
 Referências: [CMake rígido](../plugins/box2d/CMakeLists.txt),
-[CMake LiquidFun](../plugins/box2d-liquid-fun-lua/CMakeLists.txt),
+[CMake LiquidFun](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/plugins/box2d-liquid-fun-lua/CMakeLists.txt),
 [CMake raiz](../CMakeLists.txt), [link da engine](../src/CMakeLists.txt)
-e [entry points LiquidFun](../plugins/box2d-liquid-fun-lua/box2d-liquid-fun-lua.cpp).
+e [entry points LiquidFun](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/plugins/box2d-liquid-fun-lua/box2d-liquid-fun-lua.cpp).
 
 ### 5.3 Melhorias de fluido separadas do port
 
@@ -284,6 +287,13 @@ interação física; deve ter sua própria cena de aceitação. Também avaliar 
 geométrica dos buffers para reduzir realocações durante `riseTime`, conforme perfil.
 
 ## 6. Plano de execução e pontos de decisão
+
+Atualização 7.367: etapas 0–5 concluídas no escopo desktop aprovado. A etapa 4
+aceita a cobertura dos jogos pelos exemplos recuperados; os demais alvos passam
+a uma continuação de plataformas. A etapa 5 removeu o solver/wrapper antigos,
+preservando fontes de partículas, fachada e flags ON/OFF. A documentação externa
+está preparada em master e em checkout destacado baseado no pt-br atual; revisão,
+commit e publicação continuam sob controle do mantenedor.
 
 | Etapa | Entrega verificável | Condição para avançar |
 | --- | --- | --- |
@@ -461,21 +471,20 @@ A atualização de `mbm-documentation` inclui explicitamente os branches `master
 e `pt-br`. As notas de build/fachada, exemplos e referências afetadas devem ser
 revisados em ambos, respeitando a organização e o procedimento de tradução de cada
 branch; atualizar os catálogos `pt_BR` em `master` não substitui essa revisão.
-Em 2026-10-13, as notas de `box2d.rst` e `box2LiquidFun.rst` foram também
-aplicadas ao working tree de `pt-br`, em `/home/michel/mbm-documentation-pt-br`,
-com traduções nos dois catálogos `.po` e `.mo` gerados pelo Sphinx. O build HTML
-com `language=pt_BR` passou e as notas em português foram verificadas na saída;
-o conteúdo original e os exemplos foram preservados. As alterações de `master`
-permanecem intactas. Ambas as atualizações estão sem commit/publicação. Registrar
-as revisões finais de ambos antes de considerar encerrada a documentação externa.
+Na consolidação 7.367, as instruções e traduções foram atualizadas em
+`/home/michel/mbm-documentation` (master `4ff9d93`) e
+`/home/michel/mbm-documentation-pt-br-retirement` (checkout destacado baseado em
+pt-br `d8721aa`). Ambos estão sem commit/publicação; o branch pt-br permanece livre
+para checkout. A cópia destacada antiga em `mbm-documentation-pt-br` foi preservada.
+Sphinx gerou inglês e português sem avisos; os exemplos não foram alterados.
 
-Critério de conclusão: todos os casos catalogados devem ter resultado registrado,
+Critério original de conclusão (substituído pela aceitação desktop acima): todos os casos catalogados devem ter resultado registrado,
 com a adaptação e evidência de equivalência quando aplicável. Caso não reproduzido,
 asset ausente ou diferença sem explicação permanece pendência, não aprovação.
 As execuções mínimas da suíte devem ser automatizáveis; cenas interativas precisam
 de entradas reproduzidas ou roteiro explícito de validação visual.
 
-## 8. Documentação, manutenção e limites desta análise
+## 8. Documentação, manutenção e limites da análise original
 
 Na implementação, manter manifesto da origem do código, revisões upstream,
 adaptações locais e testes do port. Preservar avisos de licença de cada fonte.

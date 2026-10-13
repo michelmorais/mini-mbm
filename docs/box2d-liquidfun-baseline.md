@@ -84,7 +84,7 @@ o wrapper mini-mbm, que é mantido separadamente do núcleo terceiro.
 ## Correção encontrada antes do port
 
 `computeRelativeTag` em
-[b2ParticleSystem.cpp](../third-party/box2d-liquid-fun-2.3.1/Box2D/Particle/b2ParticleSystem.cpp)
+[b2ParticleSystem.cpp](https://github.com/michelmorais/mini-mbm/blob/b488870c5c5a42cc2c194d38b0057801c114455b/third-party/box2d-liquid-fun-2.3.1/Box2D/Particle/b2ParticleSystem.cpp)
 deslocava `x=-1` à esquerda em tipo inteiro com sinal. UBSan interrompeu o teste
 na busca de vizinhos. Os deslocamentos agora convertem os offsets para `uint32`
 antes de deslocar, mantendo a aritmética módulo 2^32 das tags e eliminando essa
