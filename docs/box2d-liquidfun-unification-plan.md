@@ -438,6 +438,18 @@ Procedimento de comparação:
    da documentação e seus links/assets. Só atualizar GIFs após verificar que o
    resultado continua representando o mesmo efeito, sem encobrir regressões.
 
+A atualização de `mbm-documentation` inclui explicitamente os branches `master`
+e `pt-br`. As notas de build/fachada, exemplos e referências afetadas devem ser
+revisados em ambos, respeitando a organização e o procedimento de tradução de cada
+branch; atualizar os catálogos `pt_BR` em `master` não substitui essa revisão.
+Em 2026-10-13, as notas de `box2d.rst` e `box2LiquidFun.rst` foram também
+aplicadas ao working tree de `pt-br`, em `/home/michel/mbm-documentation-pt-br`,
+com traduções nos dois catálogos `.po` e `.mo` gerados pelo Sphinx. O build HTML
+com `language=pt_BR` passou e as notas em português foram verificadas na saída;
+o conteúdo original e os exemplos foram preservados. As alterações de `master`
+permanecem intactas. Ambas as atualizações estão sem commit/publicação. Registrar
+as revisões finais de ambos antes de considerar encerrada a documentação externa.
+
 Critério de conclusão: todos os casos catalogados devem ter resultado registrado,
 com a adaptação e evidência de equivalência quando aplicável. Caso não reproduzido,
 asset ausente ou diferença sem explicação permanece pendência, não aprovação.
