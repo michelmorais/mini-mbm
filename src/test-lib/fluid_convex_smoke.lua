@@ -9,12 +9,14 @@ local function make(points,rise,kind)
  objects[#objects+1]=f
  return f
 end
-function onInitScene()
+local function init()
  mbm.onErrorStop(true)
  world=box2dLiquidFun:new();world:setGravity(0,0);objects={}
  local rect=world:createFluid({type='rectangle',width=20,height=20},{radius=.3,texture='#FFFF00FF'})
  expected=rect:getParticleCount()
- local poly=make(square);assert(poly:getParticleCount()==expected,'Square contour differs from rectangle')
+ local poly=make(square)
+ assert(poly:getParticleCount()==expected,
+  string.format('Square contour differs from rectangle: %d ~= %d',poly:getParticleCount(),expected))
  local hits=0
  poly:queryAABB(-.01,-.01,.01,.01,function() hits=hits+1 end)
  assert(hits==1,'Duplicate particles on shared diagonal')
@@ -45,7 +47,7 @@ function onInitScene()
  end
  initialized=true
 end
-function onLoop(dt)
+local function check(dt)
  assert(initialized,'Initialization failed')
  elapsed=elapsed+dt
  if elapsed>1.2 then
@@ -54,3 +56,13 @@ function onLoop(dt)
   mbm.quit()
  end
 end
+
+local function checked(fn,...)
+ local ok,err=pcall(fn,...)
+ if not ok then
+  print('FLUID_CONVEX_SMOKE_FAILED',tostring(err))
+  mbm.quit()
+ end
+end
+function onInitScene() checked(init) end
+function onLoop(dt) checked(check,dt) end

@@ -32,6 +32,7 @@
 #include "directx9-skeletal-parity-tests.h"
 #include "directx11-skeletal-parity-tests.h"
 #include <core_mbm/light.h>
+#include <core_mbm/animation.h>
 #if defined(_WIN32)
 #include <core_mbm/parse-launcher-args.hpp>
 #endif
@@ -397,6 +398,7 @@ namespace
 //        testLib --launcher-args-test (Windows UTF-8 argument lifetime regression)
 //        testLib --normal-map-preparation-tests
 //        testLib --skeletal-foundation-tests
+//        testLib --animation-zero-interval-test
 //        testLib --gles-dqs-shader-test
 //        testLib --gles-skeletal-parity-test
 //        testLib --directx9-skeletal-parity-test
@@ -461,6 +463,31 @@ static int runTestLib(int argc, char **argv
 #endif
         std::printf("NORMAL MAP BUILD backend=%s normal=%d lights=%u\n", backend,
                     USE_NORMAL_MAPPING_3D, mbm::getSupportedMaxLights(mbm::LIGHT_TARGET_3D));
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "--animation-zero-interval-test") == 0)
+    {
+        mbm::ANIMATION animation;
+        animation.setType(mbm::TYPE_ANIMATION_GROWING_LOOP);
+        animation.setIndexFinalFrame(3);
+        for (const float interval : {0.0f, -1.0f})
+        {
+            animation.setIntervalChangeFrame(interval);
+            animation.updateAnimation(1.0f, nullptr, nullptr, nullptr);
+            if (animation.getIndexCurrentFrame() != 0)
+            {
+                std::printf("ANIMATION_ZERO_INTERVAL_FAILED: invalid interval advanced a frame\n");
+                return 1;
+            }
+        }
+        animation.setIntervalChangeFrame(0.25f);
+        animation.updateAnimation(0.25f, nullptr, nullptr, nullptr);
+        if (animation.getIndexCurrentFrame() != 1)
+        {
+            std::printf("ANIMATION_ZERO_INTERVAL_FAILED: resuming accumulated invalid time\n");
+            return 1;
+        }
+        std::printf("ANIMATION_ZERO_INTERVAL_OK\n");
         return 0;
     }
     if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)

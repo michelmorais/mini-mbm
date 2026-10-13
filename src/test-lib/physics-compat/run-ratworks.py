@@ -50,8 +50,14 @@ def main():
     scene = Path(__file__).with_name('ratworks-client.lua' if args.game else 'ratworks-reduced.lua').resolve()
     args.output.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
-    suffix = '.dll' if os.name == 'nt' else '.so'
+    if sys.platform == 'darwin':
+        suffix = '.dylib'
+    elif os.name == 'nt':
+        suffix = '.dll'
+    else:
+        suffix = '.so'
     env.update(LD_LIBRARY_PATH=str(engine.parent), LUA_CPATH=engine.parent.as_posix() + '/?' + suffix,
+               DYLD_LIBRARY_PATH=str(engine.parent), MBM_PHYSICS_MODULE_SUFFIX=suffix,
                MBM_PHYSICS_MODULE_DIR=engine.parent.as_posix(), MBM_PHYSICS_SECONDS=str(args.seconds),
                MBM_PHYSICS_BACKEND='legacy' if args.legacy else 'unified')
     env['PATH'] = str(engine.parent) + os.pathsep + env.get('PATH', '')
@@ -60,7 +66,7 @@ def main():
     command = [str(engine), '--scene', str(scene), '--disable_select_monitor', '--nosplash',
                '-w', '800', '-h', '600']
     files = [engine, scene, *sorted(engine.parent.glob('box2d*' + suffix)),
-             engine.parent / ('core_mbm.dll' if os.name == 'nt' else 'libcore_mbm.so')]
+             engine.parent / ('core_mbm.dll' if os.name == 'nt' else 'libcore_mbm' + suffix)]
     hashes = {str(p): digest(p) for p in files}
     game_hashes = ({str(p.relative_to(args.game)): digest(p)
                     for p in sorted(args.game.rglob('*.lua')) if '.git' not in p.parts}

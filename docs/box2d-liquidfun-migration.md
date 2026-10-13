@@ -28,6 +28,7 @@ reproduzível e correções de memória entregues; remoção da árvore antiga p
 A aprovação manual do Ratworks está registrada. A continuação no Windows aprovou
 MSVC Win32 ON/OFF e corrigiu a renderização de fluidos em DirectX9/11:
 [resultados e limites](box2d-liquidfun-windows.md). x64 real e MinGW seguem pendentes.
+Continuação macOS: [Xcode ON/OFF, link estático MAS e runtime Metal](box2d-liquidfun-macos.md).
 Continuação desta etapa: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
 Performance: [medições nativas OFF/ON e cargas de partículas](box2d-liquidfun-performance.md).
 Veja o [plano](box2d-liquidfun-unification-plan.md) e os

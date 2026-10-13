@@ -1,0 +1,1340 @@
+{
+  "date": "2026-10-13",
+  "revision": "b6229260dcc07332ec444ed1687acccfcc9cb720",
+  "working_tree_changes_included": true,
+  "host": "macOS-26.6.2-arm64-arm-64bit",
+  "architecture": "arm64",
+  "gpu": "Apple M4",
+  "xcode": "Xcode 27.0\nBuild version 27A266a",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+  "cmake": "cmake version 4.2.0",
+  "deployment_target": "12.0",
+  "metal_validation": true,
+  "native_sanitizers": {
+    "passed": true,
+    "tests": 4,
+    "log_sha256": "915faea62d37814222c67c9999b4fa4ea21cdee8558d00b24107b996e67ef60e"
+  },
+  "lsan": {
+    "supported": false,
+    "diagnostic": "==9806==AddressSanitizer: detect_leaks is not supported on this platform."
+  },
+  "animation_regression": {
+    "command": "UBSAN_OPTIONS=halt_on_error=1 build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/testLib --animation-zero-interval-test",
+    "before": "/Users/michel/mini-mbm/src/core_mbm/animation.cpp:852:50: runtime error: inf is outside the range of representable values of type 'unsigned int'\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /Users/michel/mini-mbm/src/core_mbm/animation.cpp:852:50 \n",
+    "after": "ANIMATION_ZERO_INTERVAL_OK\n"
+  },
+  "contracts": {
+    "contracts-on": {
+      "passed": false,
+      "profile": "on",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm": "f7b93731d545fc3901ce9e440d6140434e93cf0be0831895b05e9b353b2edf66",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/box2d.dylib": "89fac0ffb8ddbb8497ac6c6b3d8a6ffbe402c8f73a6da5c81857fea3e3ca359c",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/box2dLiquidFun.dylib": "4b370fc42a6c242d7a9fed90a2f85eea436a3f16c035d2367c116f88afc20e7b"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "a4f393d99b0d7438833a6a1450250a0bccf19c0e16bee4d70e101b57766c9aae",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "legacy",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "fed1c1447d1ce36554cf33bc23952f04d0a39929b91a8e7475d0e12f3da7e56e",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "rise",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+          "log_sha256": "d73d3ae2f34d519735fe51888601ffd1615eb6b0151befa69aacd3684cd43312",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "filter",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+          "log_sha256": "c09e8d6ed557395904867ac29d88cfcdc556a2332581398d3e8163668248575f",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "convex",
+          "passed": false,
+          "exit_code": null,
+          "timed_out": true,
+          "marker_seen": false,
+          "scene_sha256": "8d83958a26cb5dbddcf2488650c721453692920e5b5fe318e139118e8b657582",
+          "log_sha256": "fadbb2c30f73a7167325fbf9cb01e61b7e26517912fe57fd7e8ed66313ad4806",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "depth",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "5f8af35c00a6f312eff61be7cec36c4dd9178c095884ee2dbc1deb4454f1977c",
+          "log_sha256": "982a415e4567b1c85dc3b3b197945512c6ffe47ba144f7dab7406888d2a33ef7",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "contracts-fixed": {
+      "passed": true,
+      "profile": "on",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm": "c1736a3735cdb729344c425c2c89e4fdac6636fd2272f9686cc7ad3f2275c6d7",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/box2d.dylib": "c42869fa16fde3b957388d8637ab3247bf252292e9f1568880fc22c391f35f6f",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/box2dLiquidFun.dylib": "d76aee0c204ebd26d4a2b6e8b7c44b5f7a9a4edb7a1dda036ece2c845397ce28"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "b6e1fd565f4d907c0eea146c0f8d9873d78f641f5dd903397b1c7a6d565ff958",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "legacy",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "9c388829cbcb56bf282276244e70eabfc02cbf87395c9def22196fad2ee4fd7a",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "rise",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+          "log_sha256": "f1a0de3935e312b42eb502c62f5e4b592969821c8edce9af7a531953bb522626",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "filter",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+          "log_sha256": "705769322372d13fac10e614a932292a2d0fc3af51c71f626bf974584affc5e7",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "convex",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "56b5f70dbbedf2a8d190b05d03db245fef87da0d2aee1ebe1d0faa9daeecbf3d",
+          "log_sha256": "59f6e37ac724fd702f5e84032230bbc6eeaa4250d7fed44997d927cc4b27222f",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "depth",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "5f8af35c00a6f312eff61be7cec36c4dd9178c095884ee2dbc1deb4454f1977c",
+          "log_sha256": "64059f9ef1e99dfc46316f6101c9afc6e7e18ca625fd3f5cc1765d55daedb105",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "contracts-asan-final": {
+      "passed": true,
+      "profile": "on",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm": "b827b3daa56178453bfe291d0f4c3dace6c75573c383091c3b298cc72cb1b7a6",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/box2d.dylib": "2e6c8e430f0fc135eff7a3213bfa016cda8c0583616e5de75f1132cc0a3227ed",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/box2dLiquidFun.dylib": "85be8bffedc3014855ad9e1cea2ad37e85343bf7a67ef99c5acd91de93ea486c"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "c4fd0a0c099139265a8f1f91ea6eaa125b1103a6a11fc1200398c651a8bfe23e",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "legacy",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "1dcfe0a03fd6eea51328e57856fa41619fb72f961af16569f5d48ed15968ec9a",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "rise",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+          "log_sha256": "c157984b637e5060dc21b634f4c59c169595575ab682b7523daf2098cae20e81",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "filter",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+          "log_sha256": "080b1efe0b549cb6d18851917ef414a7f3058a81c8977a6daa54355a9b49a231",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "convex",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "56b5f70dbbedf2a8d190b05d03db245fef87da0d2aee1ebe1d0faa9daeecbf3d",
+          "log_sha256": "fa5a6064ae5d218bc994d6f3de297c4fc99fb35593b519f54127b8314f62edbe",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "depth",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "5f8af35c00a6f312eff61be7cec36c4dd9178c095884ee2dbc1deb4454f1977c",
+          "log_sha256": "e04167fb3d7b3246d0be0c6a987e9c689012161217820ddada038e81b650f266",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "contracts-off-final": {
+      "passed": true,
+      "profile": "off",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "/Users/michel/mini-mbm/build/physics-macos-off/output/bin/release/arm64/Release/mini-mbm": "88260efea19d2c1e03db6c727c80ea8ae76aab602130a11b7ac5fa215d5cd150",
+        "/Users/michel/mini-mbm/build/physics-macos-off/output/bin/release/arm64/Release/box2d.dylib": "c6fa71c5d4122356ad4558e0f2bd86313eb88c1b17332ee84136775b59cbb4c9",
+        "/Users/michel/mini-mbm/build/physics-macos-off/output/bin/release/arm64/Release/box2dLiquidFun.dylib": "4b68abcb6214a0dfe9855bb1f7ac8940683b8d31130a5ef349bf088fd311f4ac"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+          "log_sha256": "a5a280608531aa94cdd81494cf307a5a4189165d1b1edae5005a0ca72e05ad0f",
+          "command": [
+            "/Users/michel/mini-mbm/build/physics-macos-off/output/bin/release/arm64/Release/mini-mbm",
+            "--scene",
+            "/Users/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    }
+  },
+  "ratworks": {
+    "ratworks-fixed": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm",
+        "--scene",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-client.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 60.0,
+      "wall_seconds": 60.257,
+      "host": "macOS-26.6.2-arm64-arm-64bit",
+      "hashes": {
+        "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm": "c1736a3735cdb729344c425c2c89e4fdac6636fd2272f9686cc7ad3f2275c6d7",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-client.lua": "eac82440507a08155a20c9aacbea0065ff67fb3da7617001a34d3de4c6b9efc2",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/box2d.dylib": "c42869fa16fde3b957388d8637ab3247bf252292e9f1568880fc22c391f35f6f",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/box2dLiquidFun.dylib": "d76aee0c204ebd26d4a2b6e8b7c44b5f7a9a4edb7a1dda036ece2c845397ce28",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/libcore_mbm.dylib": "4d61ba248f19edb7b23bc5e5ef0ba96863ed2339f04b822b86d1077aa484d6ef"
+      },
+      "rss_supported": false,
+      "markers": [
+        "\u001b[0mRATWORKS_RESULT frames=3562 spawned=3 consumed=3 fluids=3 peak=634 expired=3 cpu_s=9.651384 update_p50_ms=0.021935 update_p95_ms=0.046968 update_p99_ms=0.124991",
+        "\u001b[0mRATWORKS_OK"
+      ],
+      "game_revision": "c52d9918bfee242861fef0b7a502ea141f8be68d",
+      "game_source_hashes": {
+        "concept/captures/capture-idle.lua": "9753e3e8b783579b3314c2869c13ae23076029a8b0a941f3a1479c0b013cf852",
+        "levels/scene-1-scene3d.lua": "b8a21f3291f25b22520ce5b862773d2231fc5b1a0b0fd4b88d5801d88b31b8c5",
+        "logic/camera-config.lua": "66f49b6e9ea4a56006a67a087ed5aabfee88b789505b33d510b46b8198d1154d",
+        "logic/camera.lua": "12273126b8d8de6ce5de4e2139e100100aa86316c083328e7ee9b822a63c6d7c",
+        "logic/game.lua": "5c4ae60eb59c8f8a244f95a17f0e5406abc4709c1fe0d52cf503e1b0ec5d44b4",
+        "logic/level-config.lua": "cfddc645608a38250dd3d15b6daed5647638c09ee0bcbe5de6c0fd86005816e8",
+        "logic/physics.lua": "38c97b0a95bc02d8608bdbd4c315ea67763d796d0645e1d0f60abe1a01a2a004",
+        "logic/rat.lua": "31d078c9d46c2ba37ad10cc569f010dbd8afc9c0e67be3adc482584744d52083",
+        "logic/swarm.lua": "61552b07962642731fd636a8979f616fb70fec4195175e4b623cf2bf14c72c7b",
+        "main.lua": "4433e39985e0c0a6bd7edfc93b9007804ab2d2bee17d4870e6b610e7a6c8054f",
+        "raw/scene-1.scene3d-edit.lua": "3d0f48e7ea21c9cac69bb1a32e4fb5a6a2ba6164565f09b187af7c78c554d981",
+        "tests/camera.lua": "a2e2c866e6c2d5f7878b8905b8cc9496d79567bf87329440dca4a26b7f3efdf1",
+        "tests/smoke-camera.lua": "378d750eb9f5f6b9dc5af410c5977c6856ef22e3003526561c9ed6cf7f71a03b",
+        "tests/smoke-scene.lua": "c2d188e24377cb1d1a23a7cc7c24d0bfd5d8beafe51d9301bb8c81414bb64be9"
+      },
+      "log_sha256": "38619349a2c8d631d7f0c066b515c5d159ed2b16927e5b7f002c00f6ef93ce78"
+    },
+    "ratworks-asan": {
+      "passed": false,
+      "exit_code": -6,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/mini-mbm",
+        "--scene",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-client.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 60.0,
+      "wall_seconds": 4.042,
+      "host": "macOS-26.6.2-arm64-arm-64bit",
+      "hashes": {
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/mini-mbm": "fa34fd6ed17a63a68434136bc0d5dbb107e62878788640ad62e291d0a0cf57b9",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-client.lua": "eac82440507a08155a20c9aacbea0065ff67fb3da7617001a34d3de4c6b9efc2",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/box2d.dylib": "237a6f6e83c6802c69e71ca4ffeedb6545daba7cd7df823cb19d0da335780375",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/box2dLiquidFun.dylib": "4586f4049e2bf22ddd8a5e9efa7e3d96d44cfda4a2066e4508551c2ff67b6363",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/libcore_mbm.dylib": "3c7a3231c4554efacd8af7e1ea51d30e1b1c36226fb233c668606f1a770b7a6f"
+      },
+      "rss_supported": false,
+      "markers": [],
+      "game_revision": "c52d9918bfee242861fef0b7a502ea141f8be68d",
+      "game_source_hashes": {
+        "concept/captures/capture-idle.lua": "9753e3e8b783579b3314c2869c13ae23076029a8b0a941f3a1479c0b013cf852",
+        "levels/scene-1-scene3d.lua": "b8a21f3291f25b22520ce5b862773d2231fc5b1a0b0fd4b88d5801d88b31b8c5",
+        "logic/camera-config.lua": "66f49b6e9ea4a56006a67a087ed5aabfee88b789505b33d510b46b8198d1154d",
+        "logic/camera.lua": "12273126b8d8de6ce5de4e2139e100100aa86316c083328e7ee9b822a63c6d7c",
+        "logic/game.lua": "5c4ae60eb59c8f8a244f95a17f0e5406abc4709c1fe0d52cf503e1b0ec5d44b4",
+        "logic/level-config.lua": "cfddc645608a38250dd3d15b6daed5647638c09ee0bcbe5de6c0fd86005816e8",
+        "logic/physics.lua": "38c97b0a95bc02d8608bdbd4c315ea67763d796d0645e1d0f60abe1a01a2a004",
+        "logic/rat.lua": "31d078c9d46c2ba37ad10cc569f010dbd8afc9c0e67be3adc482584744d52083",
+        "logic/swarm.lua": "61552b07962642731fd636a8979f616fb70fec4195175e4b623cf2bf14c72c7b",
+        "main.lua": "4433e39985e0c0a6bd7edfc93b9007804ab2d2bee17d4870e6b610e7a6c8054f",
+        "raw/scene-1.scene3d-edit.lua": "3d0f48e7ea21c9cac69bb1a32e4fb5a6a2ba6164565f09b187af7c78c554d981",
+        "tests/camera.lua": "a2e2c866e6c2d5f7878b8905b8cc9496d79567bf87329440dca4a26b7f3efdf1",
+        "tests/smoke-camera.lua": "378d750eb9f5f6b9dc5af410c5977c6856ef22e3003526561c9ed6cf7f71a03b",
+        "tests/smoke-scene.lua": "c2d188e24377cb1d1a23a7cc7c24d0bfd5d8beafe51d9301bb8c81414bb64be9"
+      },
+      "log_sha256": "60138a3accabf49c91979cabed094831b2baefa0f255680662cb9cd225e60319"
+    },
+    "ratworks-asan-fixed": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm",
+        "--scene",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-client.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 60.0,
+      "wall_seconds": 61.294,
+      "host": "macOS-26.6.2-arm64-arm-64bit",
+      "hashes": {
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm": "b827b3daa56178453bfe291d0f4c3dace6c75573c383091c3b298cc72cb1b7a6",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-client.lua": "eac82440507a08155a20c9aacbea0065ff67fb3da7617001a34d3de4c6b9efc2",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/box2d.dylib": "2e6c8e430f0fc135eff7a3213bfa016cda8c0583616e5de75f1132cc0a3227ed",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/box2dLiquidFun.dylib": "85be8bffedc3014855ad9e1cea2ad37e85343bf7a67ef99c5acd91de93ea486c",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/libcore_mbm.dylib": "d34354885fc321b27b4de72c466076562e1694d5f91a48d5a60e1ba99d60305a"
+      },
+      "rss_supported": false,
+      "markers": [
+        "\u001b[0mRATWORKS_RESULT frames=3343 spawned=3 consumed=3 fluids=3 peak=634 expired=3 cpu_s=18.790009 update_p50_ms=0.028610 update_p95_ms=0.159740 update_p99_ms=0.209808",
+        "\u001b[0mRATWORKS_OK"
+      ],
+      "game_revision": "c52d9918bfee242861fef0b7a502ea141f8be68d",
+      "game_source_hashes": {
+        "concept/captures/capture-idle.lua": "9753e3e8b783579b3314c2869c13ae23076029a8b0a941f3a1479c0b013cf852",
+        "levels/scene-1-scene3d.lua": "b8a21f3291f25b22520ce5b862773d2231fc5b1a0b0fd4b88d5801d88b31b8c5",
+        "logic/camera-config.lua": "66f49b6e9ea4a56006a67a087ed5aabfee88b789505b33d510b46b8198d1154d",
+        "logic/camera.lua": "12273126b8d8de6ce5de4e2139e100100aa86316c083328e7ee9b822a63c6d7c",
+        "logic/game.lua": "5c4ae60eb59c8f8a244f95a17f0e5406abc4709c1fe0d52cf503e1b0ec5d44b4",
+        "logic/level-config.lua": "cfddc645608a38250dd3d15b6daed5647638c09ee0bcbe5de6c0fd86005816e8",
+        "logic/physics.lua": "38c97b0a95bc02d8608bdbd4c315ea67763d796d0645e1d0f60abe1a01a2a004",
+        "logic/rat.lua": "31d078c9d46c2ba37ad10cc569f010dbd8afc9c0e67be3adc482584744d52083",
+        "logic/swarm.lua": "61552b07962642731fd636a8979f616fb70fec4195175e4b623cf2bf14c72c7b",
+        "main.lua": "4433e39985e0c0a6bd7edfc93b9007804ab2d2bee17d4870e6b610e7a6c8054f",
+        "raw/scene-1.scene3d-edit.lua": "3d0f48e7ea21c9cac69bb1a32e4fb5a6a2ba6164565f09b187af7c78c554d981",
+        "tests/camera.lua": "a2e2c866e6c2d5f7878b8905b8cc9496d79567bf87329440dca4a26b7f3efdf1",
+        "tests/smoke-camera.lua": "378d750eb9f5f6b9dc5af410c5977c6856ef22e3003526561c9ed6cf7f71a03b",
+        "tests/smoke-scene.lua": "c2d188e24377cb1d1a23a7cc7c24d0bfd5d8beafe51d9301bb8c81414bb64be9"
+      },
+      "log_sha256": "ec66453443884e042b2074461d324afb71ae9da88d9c115f9c7c1e4b52218c4b"
+    }
+  },
+  "reduced": {
+    "reduced": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm",
+        "--scene",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 600.0,
+      "wall_seconds": 600.598,
+      "host": "macOS-26.6.2-arm64-arm-64bit",
+      "hashes": {
+        "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/mini-mbm": "f7b93731d545fc3901ce9e440d6140434e93cf0be0831895b05e9b353b2edf66",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua": "5fcd3e38aa6d64fb41bba7505994d21aa808ce9bf0118898fe3aa8a896f61ac9",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/box2d.dylib": "89fac0ffb8ddbb8497ac6c6b3d8a6ffbe402c8f73a6da5c81857fea3e3ca359c",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/box2dLiquidFun.dylib": "4b370fc42a6c242d7a9fed90a2f85eea436a3f16c035d2367c116f88afc20e7b",
+        "/Users/michel/mini-mbm/build/physics-macos-on/output/bin/release/arm64/Release/libcore_mbm.dylib": "4d61ba248f19edb7b23bc5e5ef0ba96863ed2339f04b822b86d1077aa484d6ef"
+      },
+      "rss_supported": false,
+      "markers": [
+        "\u001b[0mRATWORKS_REDUCED_OK\t75\t385"
+      ],
+      "log_sha256": "fd36701128c7cfd1dd86ff82d8165e34a9624eeceff0933ae104a983af7ce4ee"
+    },
+    "reduced-asan": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/mini-mbm",
+        "--scene",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 600.0,
+      "wall_seconds": 600.639,
+      "host": "macOS-26.6.2-arm64-arm-64bit",
+      "hashes": {
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/mini-mbm": "fa34fd6ed17a63a68434136bc0d5dbb107e62878788640ad62e291d0a0cf57b9",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua": "5fcd3e38aa6d64fb41bba7505994d21aa808ce9bf0118898fe3aa8a896f61ac9",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/box2d.dylib": "237a6f6e83c6802c69e71ca4ffeedb6545daba7cd7df823cb19d0da335780375",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/box2dLiquidFun.dylib": "4586f4049e2bf22ddd8a5e9efa7e3d96d44cfda4a2066e4508551c2ff67b6363",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output/bin/debug/arm64/Debug/libcore_mbm.dylib": "3c7a3231c4554efacd8af7e1ea51d30e1b1c36226fb233c668606f1a770b7a6f"
+      },
+      "rss_supported": false,
+      "markers": [
+        "\u001b[0mRATWORKS_REDUCED_OK\t75\t385"
+      ],
+      "log_sha256": "17bad0010962222fba04512f27da20798fff016cbca1b6293f73424e276e273c"
+    },
+    "reduced-asan-final": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm",
+        "--scene",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 60.0,
+      "wall_seconds": 65.326,
+      "host": "macOS-26.6.2-arm64-arm-64bit",
+      "hashes": {
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm": "b827b3daa56178453bfe291d0f4c3dace6c75573c383091c3b298cc72cb1b7a6",
+        "/Users/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua": "5fcd3e38aa6d64fb41bba7505994d21aa808ce9bf0118898fe3aa8a896f61ac9",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/box2d.dylib": "2e6c8e430f0fc135eff7a3213bfa016cda8c0583616e5de75f1132cc0a3227ed",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/box2dLiquidFun.dylib": "85be8bffedc3014855ad9e1cea2ad37e85343bf7a67ef99c5acd91de93ea486c",
+        "/Users/michel/mini-mbm/build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/libcore_mbm.dylib": "d34354885fc321b27b4de72c466076562e1694d5f91a48d5a60e1ba99d60305a"
+      },
+      "rss_supported": false,
+      "markers": [
+        "\u001b[0mRATWORKS_REDUCED_OK\t8\t385"
+      ],
+      "log_sha256": "2ed6b5c1795554fea3b6209f3395a1836dd9b625a3ec2853515be8b1cfb683c6"
+    }
+  },
+  "reduced_build_scope": {
+    "reduced": "Before polygon and animation corrections; preserved binaries",
+    "reduced-asan": "Polygon correction included; before zero animation interval guard; preserved binaries",
+    "reduced-asan-final": "Both corrections included; 60-second follow-up"
+  },
+  "examples": {
+    "examples-final": {
+      "complete": true,
+      "binaries_sha256": {
+        "mini-mbm": "c1736a3735cdb729344c425c2c89e4fdac6636fd2272f9686cc7ad3f2275c6d7",
+        "box2d.dylib": "c42869fa16fde3b957388d8637ab3247bf252292e9f1568880fc22c391f35f6f",
+        "box2dLiquidFun.dylib": "d76aee0c204ebd26d4a2b6e8b7c44b5f7a9a4edb7a1dda036ece2c845397ce28"
+      },
+      "engine": "/Users/michel/mini-mbm/build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm",
+      "display": "/var/run/com.apple.launchd.DvWY6ZjvXH/org.xquartz:0",
+      "duration_seconds": 2.0,
+      "status_counts": {
+        "needs_context": 140,
+        "smoke_pass": 40
+      },
+      "executed": [
+        {
+          "id": "box2d/box2d/10",
+          "sha256": "d8990c53e67a852b07a421918d8c5f165c708946e159ac1b32bf1f577878ffc5",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/box2d_manifold/03",
+          "sha256": "50842df332035e65729d77fe4fae978de9b875678e8791aa45bd61c7a0c3101f",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/box2d_manifold/05",
+          "sha256": "79df4dfa7defc1170ea23bbce2a917582046d159c6e215df8bddada7af33a4d7",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/box2d_Scale/05",
+          "sha256": "edeed537f15d343fa08b5002a2b62385b211e1754548e18f3452c05395ca9e60",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/box2d_Scale/08",
+          "sha256": "be3f5899f838a11296dbf175b1f6e4a1b2504e98c26940b21030133194f92876",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/02",
+          "sha256": "129e0d445cbe910b8461938aa0a43ccdc2f5bdf2bf4d2d47ed8ffee0b8545ff7",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/06",
+          "sha256": "1d83c8bb704c73021f8f69539a7f56f07a7b24ac2fd4113e3372b7948111333e",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/07",
+          "sha256": "21ae811d50037997073b7bf10ce8a7143820ae9e28d36f01fb20dfcc3214a3de",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/09",
+          "sha256": "9c2de8e95c4f06a1c168c624a8e2d02cbe4684c60b69294742af6b82c2e50b78",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/10",
+          "sha256": "a025ce6bc040546fe6131e694917e55f8a8bfbecc40b4497205bce17ac9baea5",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/11",
+          "sha256": "e3ca4a1c11e7217991389949022b15f3040ad2a498209e735884e5adce3d6646",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/12",
+          "sha256": "95f1b6db266b5777e5357d2343bb757dfdc6184f0a826f9ceb7c9ec41b94f17c",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/13",
+          "sha256": "f4130961b8c4c901972651951211a45a45ef25aaba1c0225b7918daec2021eca",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/21",
+          "sha256": "037ed3c134bff1f63c694a94fe2c827c926b40fb387046f2cf58ba3d0b4bee51",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/get_position_box2d/09",
+          "sha256": "618548006a4a4a9a64adc966f598414171df80834592dcc6076d61a1fd9b4ade",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/get_position_box2d/10",
+          "sha256": "9f53e1430e58a389a3e5480c7179fd5e2a4668fb07e2b84ff7f44c8a52da5d68",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/get_position_box2d/12",
+          "sha256": "fd575b7e083b3ba6f776be1417182f3623256a7f6385d9c84da732abc527a4bf",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/get_position_box2d/13",
+          "sha256": "7e961753e53ca73e5a1b9ff769cdfe6332635a4c8f71cf10e1290a0723b21e59",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/getWorldPoint_box2d/01",
+          "sha256": "567fe1864da80a19181c2c2bb487b79c5d2e60522d3849413c011a5b6c2a634f",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/getWorldVector_box2d/01",
+          "sha256": "cad0c5b64f4882dd47ae5a7335cf3674edf91c07e3f011b8abba01addafe7db7",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/01",
+          "sha256": "bed293231d03e4bccd88e65b52e6dc295656d0320e44b1576338f8dd4bf6ddae",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/02",
+          "sha256": "63f35ec92137c74636865728cc70f55dc404ee49b4b6a1559560d6d86fc28b3e",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/03",
+          "sha256": "06e2d4a72ad16bc2a1e3a0b8ad2b86b2548d690bfe9c59d9ca6a6ba65b71b371",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/04",
+          "sha256": "97771941462ef21cf79b97d0f9bac812a12e7d60d5f3556c9f911be67b861412",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/05",
+          "sha256": "aa5683174010952ccca75e48cacf536a3f0f7219925547e5f37703817f854b47",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/06",
+          "sha256": "ac39ca098441db4646bf7b4c3e612492968aa8afbf7bf59b5040230bd3fd0e10",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/07",
+          "sha256": "2f9e29903bfa5feba2eb77c017f54495d8627905d2247490099709522b32e304",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/08",
+          "sha256": "b0e06525a6fa25647e7410c7ff163975b06f2f9901ff9852424d0ec0b4aa7593",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/09",
+          "sha256": "1a22705466ed661819a4d68b48dbeced915bb6cb722eabadb6885e75420e6151",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/10",
+          "sha256": "0c67226c6a9bcc507844aa5eb43d23d256e6387fb6b663db6345c2f834ff7b95",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/11",
+          "sha256": "0c798160f98bab9de88546733337b209e6db1888b1095159b3d8cfd7dcd96344",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/createFluid/03",
+          "sha256": "1d2e98496a012d426a7e51021cb86874ca9ff407a40c4c880b3ed5ddb9045777",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/createFluid/04",
+          "sha256": "14cde39b3b77d727bd7981b72898d30e8bc36fda5c6bd9fb33e8ba262304854a",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/createFluid/05",
+          "sha256": "4c77df9687161ba1a053ad7e4b5d575a50a0c538ad515c1484feb6bad482bcd9",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/01",
+          "sha256": "f04e72e03ba5a1eeb447b1391d7a4e0a5a5b475685212afa439b09dd36d90c09",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/02",
+          "sha256": "b69eea5696c590f284156726ae93190794760ffb81655b46d622bb31c533c834",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/03",
+          "sha256": "325b4a7d882be4beaaed06768903a972effbaebb5ae07fc11a4fbf7769001a9f",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/04",
+          "sha256": "26eb23fe8b20243ba68d7b6267cc6d5ab2206275a59357f0fa0984782307a330",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/05",
+          "sha256": "f0d1dd1496828910097acc726c6d35759978eddcd452b137145c4a5412366434",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2LiquidFun/fluid_group_flag/06",
+          "sha256": "5a11d7f7e256b82aeee3039b03f76136096dc54bb8c7a1c2a06cca58becc0b03",
+          "status": "smoke_pass",
+          "exit_code": 0
+        }
+      ],
+      "visual_equivalence": "not_checked",
+      "interactive_inputs": "not_replayed"
+    },
+    "examples-off-final": {
+      "complete": true,
+      "binaries_sha256": {
+        "mini-mbm": "88260efea19d2c1e03db6c727c80ea8ae76aab602130a11b7ac5fa215d5cd150",
+        "box2d.dylib": "c6fa71c5d4122356ad4558e0f2bd86313eb88c1b17332ee84136775b59cbb4c9",
+        "box2dLiquidFun.dylib": "4b68abcb6214a0dfe9855bb1f7ac8940683b8d31130a5ef349bf088fd311f4ac"
+      },
+      "engine": "/Users/michel/mini-mbm/build/physics-macos-off/output/bin/release/arm64/Release/mini-mbm",
+      "display": "/var/run/com.apple.launchd.DvWY6ZjvXH/org.xquartz:0",
+      "duration_seconds": 2.0,
+      "status_counts": {
+        "outside_profile": 135,
+        "needs_context": 14,
+        "smoke_pass": 31
+      },
+      "executed": [
+        {
+          "id": "box2d/box2d/10",
+          "sha256": "d8990c53e67a852b07a421918d8c5f165c708946e159ac1b32bf1f577878ffc5",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/box2d_manifold/03",
+          "sha256": "50842df332035e65729d77fe4fae978de9b875678e8791aa45bd61c7a0c3101f",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/box2d_manifold/05",
+          "sha256": "79df4dfa7defc1170ea23bbce2a917582046d159c6e215df8bddada7af33a4d7",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/box2d_Scale/05",
+          "sha256": "edeed537f15d343fa08b5002a2b62385b211e1754548e18f3452c05395ca9e60",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/box2d_Scale/08",
+          "sha256": "be3f5899f838a11296dbf175b1f6e4a1b2504e98c26940b21030133194f92876",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/02",
+          "sha256": "129e0d445cbe910b8461938aa0a43ccdc2f5bdf2bf4d2d47ed8ffee0b8545ff7",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/06",
+          "sha256": "1d83c8bb704c73021f8f69539a7f56f07a7b24ac2fd4113e3372b7948111333e",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/07",
+          "sha256": "21ae811d50037997073b7bf10ce8a7143820ae9e28d36f01fb20dfcc3214a3de",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/09",
+          "sha256": "9c2de8e95c4f06a1c168c624a8e2d02cbe4684c60b69294742af6b82c2e50b78",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/10",
+          "sha256": "a025ce6bc040546fe6131e694917e55f8a8bfbecc40b4497205bce17ac9baea5",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/11",
+          "sha256": "e3ca4a1c11e7217991389949022b15f3040ad2a498209e735884e5adce3d6646",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/12",
+          "sha256": "95f1b6db266b5777e5357d2343bb757dfdc6184f0a826f9ceb7c9ec41b94f17c",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/13",
+          "sha256": "f4130961b8c4c901972651951211a45a45ef25aaba1c0225b7918daec2021eca",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/body_box2d/21",
+          "sha256": "037ed3c134bff1f63c694a94fe2c827c926b40fb387046f2cf58ba3d0b4bee51",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/get_position_box2d/09",
+          "sha256": "618548006a4a4a9a64adc966f598414171df80834592dcc6076d61a1fd9b4ade",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/get_position_box2d/10",
+          "sha256": "9f53e1430e58a389a3e5480c7179fd5e2a4668fb07e2b84ff7f44c8a52da5d68",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/get_position_box2d/12",
+          "sha256": "fd575b7e083b3ba6f776be1417182f3623256a7f6385d9c84da732abc527a4bf",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/get_position_box2d/13",
+          "sha256": "7e961753e53ca73e5a1b9ff769cdfe6332635a4c8f71cf10e1290a0723b21e59",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/getWorldPoint_box2d/01",
+          "sha256": "567fe1864da80a19181c2c2bb487b79c5d2e60522d3849413c011a5b6c2a634f",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/getWorldVector_box2d/01",
+          "sha256": "cad0c5b64f4882dd47ae5a7335cf3674edf91c07e3f011b8abba01addafe7db7",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/01",
+          "sha256": "bed293231d03e4bccd88e65b52e6dc295656d0320e44b1576338f8dd4bf6ddae",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/02",
+          "sha256": "63f35ec92137c74636865728cc70f55dc404ee49b4b6a1559560d6d86fc28b3e",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/03",
+          "sha256": "06e2d4a72ad16bc2a1e3a0b8ad2b86b2548d690bfe9c59d9ca6a6ba65b71b371",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/04",
+          "sha256": "97771941462ef21cf79b97d0f9bac812a12e7d60d5f3556c9f911be67b861412",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/05",
+          "sha256": "aa5683174010952ccca75e48cacf536a3f0f7219925547e5f37703817f854b47",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/06",
+          "sha256": "ac39ca098441db4646bf7b4c3e612492968aa8afbf7bf59b5040230bd3fd0e10",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/07",
+          "sha256": "2f9e29903bfa5feba2eb77c017f54495d8627905d2247490099709522b32e304",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/08",
+          "sha256": "b0e06525a6fa25647e7410c7ff163975b06f2f9901ff9852424d0ec0b4aa7593",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/09",
+          "sha256": "1a22705466ed661819a4d68b48dbeced915bb6cb722eabadb6885e75420e6151",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/10",
+          "sha256": "0c67226c6a9bcc507844aa5eb43d23d256e6387fb6b663db6345c2f834ff7b95",
+          "status": "smoke_pass",
+          "exit_code": 0
+        },
+        {
+          "id": "box2d/create_joint_box2d/11",
+          "sha256": "0c798160f98bab9de88546733337b209e6db1888b1095159b3d8cfd7dcd96344",
+          "status": "smoke_pass",
+          "exit_code": 0
+        }
+      ],
+      "visual_equivalence": "not_checked",
+      "interactive_inputs": "not_replayed"
+    }
+  },
+  "builds": {
+    "on": {
+      "passed": true,
+      "generator": "Xcode",
+      "log_sha256": "719e1f8942469d8697822d0b5e778058781bec4e5b4d327a4ab5ab1c32d5eb2f",
+      "artifacts_sha256": {
+        "build/physics-macos-on/output-fixed/bin/release/arm64/Release/box2d.dylib": "c42869fa16fde3b957388d8637ab3247bf252292e9f1568880fc22c391f35f6f",
+        "build/physics-macos-on/output-fixed/bin/release/arm64/Release/box2dLiquidFun.dylib": "d76aee0c204ebd26d4a2b6e8b7c44b5f7a9a4edb7a1dda036ece2c845397ce28",
+        "build/physics-macos-on/output-fixed/bin/release/arm64/Release/libcore_mbm.dylib": "de2f415ed8f4141de4dc975d8f5ca3bfb8b121bc792a89ebb4aa537853c60be3",
+        "build/physics-macos-on/output-fixed/bin/release/arm64/Release/liblua-5.4.1.dylib": "204b468ffe28fd3ed7c35887ca732e6b082ac2c75f3e22ea427204155498b704",
+        "build/physics-macos-on/output-fixed/bin/release/arm64/Release/plugin_helper.dylib": "9d5622f3d967cdf4d585f2b95d358eb2b579a84cef01dece6082c9edd0593f6b",
+        "build/physics-macos-on/output-fixed/bin/release/arm64/Release/mini-mbm": "c1736a3735cdb729344c425c2c89e4fdac6636fd2272f9686cc7ad3f2275c6d7"
+      },
+      "legacy_physics_sources_in_project": false,
+      "facade_dependencies": [
+        "\t@rpath/box2dLiquidFun.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t@rpath/box2d.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t@rpath/liblua-5.4.1.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2200.27.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)"
+      ]
+    },
+    "off": {
+      "passed": true,
+      "generator": "Xcode",
+      "log_sha256": "8f1fda15f756403e16655c2be8c19ab72f95d536df9b8b6e589c45d9cae9e8c7",
+      "artifacts_sha256": {
+        "build/physics-macos-off/output/bin/release/arm64/Release/box2d.dylib": "c6fa71c5d4122356ad4558e0f2bd86313eb88c1b17332ee84136775b59cbb4c9",
+        "build/physics-macos-off/output/bin/release/arm64/Release/box2dLiquidFun.dylib": "4b68abcb6214a0dfe9855bb1f7ac8940683b8d31130a5ef349bf088fd311f4ac",
+        "build/physics-macos-off/output/bin/release/arm64/Release/libcore_mbm.dylib": "de2f415ed8f4141de4dc975d8f5ca3bfb8b121bc792a89ebb4aa537853c60be3",
+        "build/physics-macos-off/output/bin/release/arm64/Release/liblua-5.4.1.dylib": "204b468ffe28fd3ed7c35887ca732e6b082ac2c75f3e22ea427204155498b704",
+        "build/physics-macos-off/output/bin/release/arm64/Release/plugin_helper.dylib": "1e73e97bed330fff0bbea53de054d6b6f944c889811d90aa45d49d7e3df5f0ea",
+        "build/physics-macos-off/output/bin/release/arm64/Release/mini-mbm": "88260efea19d2c1e03db6c727c80ea8ae76aab602130a11b7ac5fa215d5cd150"
+      },
+      "legacy_physics_sources_in_project": false,
+      "facade_dependencies": [
+        "\t@rpath/box2dLiquidFun.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t@rpath/box2d.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t@rpath/liblua-5.4.1.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2200.27.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)"
+      ]
+    },
+    "mas-on": {
+      "passed": true,
+      "generator": "Xcode",
+      "log_sha256": "f3814c1296891df0308028293da0313f218ad553e7bf7844b3eb5df683ed3bae",
+      "artifacts_sha256": {
+        "build/physics-macos-mas-on/output/libs/release/arm64/Release/libbox2d.a": "1987a116c53a689aae8647db39ffdc726f984a587b1f33babee9763d8569dc1d",
+        "build/physics-macos-mas-on/output/libs/release/arm64/Release/libcore_mbm.a": "34ba37134ad4d2b6a2b157f024949d49bb90b39d7ab3e8b5ae1ad415c1ae5548",
+        "build/physics-macos-mas-on/output/libs/release/arm64/Release/liblua-5.4.1.a": "c5b6e5f447c2d2a4919cf34dfdcfe249192938f64c35a193a62a10c2cf854497",
+        "build/physics-macos-mas-on/output/libs/release/arm64/Release/libplugin_helper.a": "005c7b9861b5f63b886b3fff8605fe0efca94ea90ab6448343e24c152e460027",
+        "build/physics-macos-mas-on/build/Release/mini-mbm.app/Contents/MacOS/mini-mbm": "ef2dec421a890e528fd895959eac74da6b35bc444d5d22e1e458b993132d7d15"
+      },
+      "legacy_physics_sources_in_project": false,
+      "symbol_definition_counts": {
+        "_luaopen_box2d": 1,
+        "_luaopen_libbox2d": 1,
+        "_luaopen_box2dLiquidFun": 1,
+        "_luaopen_libbox2dLiquidFun": 1,
+        "__ZN7b2World4StepEfii": 1,
+        "__ZN7b2World20CreateParticleSystemEPK19b2ParticleSystemDef": 1
+      },
+      "application_dependencies": [
+        "\t/System/Library/Frameworks/Cocoa.framework/Versions/A/Cocoa (compatibility version 1.0.0, current version 24.0.0)",
+        "\t/System/Library/Frameworks/Metal.framework/Versions/A/Metal (compatibility version 1.0.0, current version 382.5.3)",
+        "\t/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 5027.0.69)",
+        "\t/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore (compatibility version 1.2.0, current version 1223.2.2)",
+        "\t/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (compatibility version 45.0.0, current version 2775.10.103)",
+        "\t/System/Library/Frameworks/AVFoundation.framework/Versions/A/AVFoundation (compatibility version 1.0.0, current version 2.0.0)",
+        "\t/System/Library/Frameworks/AudioToolbox.framework/Versions/A/AudioToolbox (compatibility version 1.0.0, current version 1000.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)",
+        "\t/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)",
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2200.27.0)",
+        "\t/System/Library/Frameworks/AVFAudio.framework/Versions/A/AVFAudio (compatibility version 1.0.0, current version 1.0.0)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5027.0.69)"
+      ]
+    },
+    "mas-off": {
+      "passed": true,
+      "generator": "Xcode",
+      "log_sha256": "3c9fd0a8956e3280745e91ab091cac1c07fcc69d9983f6c002b81e6b20972b18",
+      "artifacts_sha256": {
+        "build/physics-macos-mas-off/output/libs/release/arm64/Release/libbox2d.a": "254da9bd7213cd053cfbeddfa203f828cf3dd0efcfe592fc2aad94a3ed764a49",
+        "build/physics-macos-mas-off/output/libs/release/arm64/Release/libcore_mbm.a": "34ba37134ad4d2b6a2b157f024949d49bb90b39d7ab3e8b5ae1ad415c1ae5548",
+        "build/physics-macos-mas-off/output/libs/release/arm64/Release/liblua-5.4.1.a": "c5b6e5f447c2d2a4919cf34dfdcfe249192938f64c35a193a62a10c2cf854497",
+        "build/physics-macos-mas-off/output/libs/release/arm64/Release/libplugin_helper.a": "005c7b9861b5f63b886b3fff8605fe0efca94ea90ab6448343e24c152e460027",
+        "build/physics-macos-mas-off/build/Release/mini-mbm.app/Contents/MacOS/mini-mbm": "51ceaf213123a58fd751377a9146b003ee070e375ebd50ce4978ab95b999e767"
+      },
+      "legacy_physics_sources_in_project": false,
+      "symbol_definition_counts": {
+        "_luaopen_box2d": 1,
+        "_luaopen_libbox2d": 1,
+        "_luaopen_box2dLiquidFun": 1,
+        "_luaopen_libbox2dLiquidFun": 1,
+        "__ZN7b2World4StepEfii": 1,
+        "__ZN7b2World20CreateParticleSystemEPK19b2ParticleSystemDef": 0
+      },
+      "application_dependencies": [
+        "\t/System/Library/Frameworks/Cocoa.framework/Versions/A/Cocoa (compatibility version 1.0.0, current version 24.0.0)",
+        "\t/System/Library/Frameworks/Metal.framework/Versions/A/Metal (compatibility version 1.0.0, current version 382.5.3)",
+        "\t/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 5027.0.69)",
+        "\t/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore (compatibility version 1.2.0, current version 1223.2.2)",
+        "\t/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (compatibility version 45.0.0, current version 2775.10.103)",
+        "\t/System/Library/Frameworks/AVFoundation.framework/Versions/A/AVFoundation (compatibility version 1.0.0, current version 2.0.0)",
+        "\t/System/Library/Frameworks/AudioToolbox.framework/Versions/A/AudioToolbox (compatibility version 1.0.0, current version 1000.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)",
+        "\t/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)",
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2200.27.0)",
+        "\t/System/Library/Frameworks/AVFAudio.framework/Versions/A/AVFAudio (compatibility version 1.0.0, current version 1.0.0)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5027.0.69)"
+      ]
+    },
+    "asan": {
+      "passed": true,
+      "generator": "Xcode",
+      "log_sha256": "7cec9c5a7d1d587437b35bcac80e60e283b508ee87663c0089809177234b8e59",
+      "artifacts_sha256": {
+        "build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/box2d.dylib": "2e6c8e430f0fc135eff7a3213bfa016cda8c0583616e5de75f1132cc0a3227ed",
+        "build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/box2dLiquidFun.dylib": "85be8bffedc3014855ad9e1cea2ad37e85343bf7a67ef99c5acd91de93ea486c",
+        "build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/libcore_mbm.dylib": "d34354885fc321b27b4de72c466076562e1694d5f91a48d5a60e1ba99d60305a",
+        "build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/liblua-5.4.1.dylib": "f1e70aa3cd08c5f4bdf0c09a89d2ba9bcc9cfd8f85742a09cabf45badbae1e56",
+        "build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/plugin_helper.dylib": "d667935a701f65febc6248aa5d55342a667b45de961a12ac43862b4bbb541abb",
+        "build/physics-macos-asan/output-fixed/bin/debug/arm64/Debug/mini-mbm": "b827b3daa56178453bfe291d0f4c3dace6c75573c383091c3b298cc72cb1b7a6"
+      },
+      "legacy_physics_sources_in_project": false,
+      "facade_dependencies": [
+        "\t@rpath/box2dLiquidFun.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t@rpath/box2d.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t@rpath/liblua-5.4.1.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2200.27.0)",
+        "\t@rpath/libclang_rt.asan_osx_dynamic.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)"
+      ]
+    }
+  },
+  "source_sha256": {
+    "plugins/box2d/box-2d-wrap.cpp": "f5d7c35f75ca7d0c16c7c9ce4b6f113fca503c19744dd5d214b3bc4f3287d758",
+    "src/core_mbm/animation.cpp": "47c0f6e500fdd9885680835a3360acf4ead04f17e10d116105ae860c680f85da",
+    "src/test-lib/fluid_convex_smoke.lua": "56b5f70dbbedf2a8d190b05d03db245fef87da0d2aee1ebe1d0faa9daeecbf3d",
+    "src/test-lib/main.cpp": "65f47861ec75d186ef9659c5a3724d5305e50bb339c080cff30f9509f7b32833",
+    "src/test-lib/physics-compat/lua-unified.lua": "49a25fad63336d9c79cb7633c478e901ceb2f268caf0d95ca7f5bcda449f236a",
+    "src/test-lib/physics-compat/ratworks-client.lua": "eac82440507a08155a20c9aacbea0065ff67fb3da7617001a34d3de4c6b9efc2",
+    "src/test-lib/physics-compat/ratworks-reduced.lua": "5fcd3e38aa6d64fb41bba7505994d21aa808ce9bf0118898fe3aa8a896f61ac9",
+    "src/test-lib/physics-compat/run-examples.py": "710d7d2264b5dac9c069462c98f3b3f508d4076d2bf05ce36b568117898da73a",
+    "src/test-lib/physics-compat/run-lua-contracts.py": "331436f87f78c2d11812cee9550f40feab0aa8930c0b9d587dc4603a916f445a",
+    "src/test-lib/physics-compat/run-ratworks.py": "9b1d000bde601f4c6f87705d6f76cadc21b6b32dd398fb687ad27d7b9f43fb9e"
+  },
+  "limits": [
+    "No MAS signed/sandboxed runtime or distribution",
+    "No Intel or iOS runtime",
+    "No LSan or macOS RSS sampling",
+    "No comparative performance approval",
+    "No full interactive game playtest or example visual equivalence"
+  ],
+  "all_required_runs_complete": true,
+  "accepted_checks_passed": true,
+  "depth_capture_sha256": "1f51293637763ff817c95d13ae0dc727f96348353f65aa6888d3a6f6d03c4d37"
+}

@@ -26,6 +26,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 
 def lua_string(value):
@@ -45,14 +46,20 @@ def main():
     if not 0.1 <= args.seconds <= 30:
         parser.error("--seconds must be between 0.1 and 30")
     args.output.mkdir(parents=True, exist_ok=True)
-    suffix = '.dll' if os.name == 'nt' else '.so'
+    if sys.platform == 'darwin':
+        suffix = '.dylib'
+    elif os.name == 'nt':
+        suffix = '.dll'
+    else:
+        suffix = '.so'
     binaries = {}
     for path in [args.engine.resolve()] + sorted(args.engine.resolve().parent.glob('box2d*' + suffix)):
         binaries[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
     records = json.loads(args.inventory.read_text())["examples"]
     environment = os.environ.copy()
     module_dir = args.engine.resolve().parent.as_posix()
-    environment.update(LD_LIBRARY_PATH=module_dir, LUA_CPATH=module_dir + '/?' + suffix)
+    environment.update(LD_LIBRARY_PATH=module_dir, DYLD_LIBRARY_PATH=module_dir,
+                       LUA_CPATH=module_dir + '/?' + suffix)
     environment['PATH'] = str(args.engine.resolve().parent) + os.pathsep + environment.get('PATH', '')
     results = []
     for record in records:

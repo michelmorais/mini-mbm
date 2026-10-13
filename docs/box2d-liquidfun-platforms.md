@@ -33,6 +33,11 @@ com builds, contratos ON/OFF, Ratworks e correções visuais em DirectX9/11.
 A tabela abaixo registra a rodada Linux original; o relatório Windows acrescenta
 as evidências de execução sem encerrar as demais pendências.
 
+Continuação no macOS: [validação Apple Silicon/Xcode/Metal](box2d-liquidfun-macos.md),
+incluindo builds dinâmicos e link estático MAS ON/OFF, contratos Lua e correção do
+preenchimento de polígonos de fluido. A linha macOS/iOS abaixo é o estado histórico
+da rodada Linux; iOS e execução MAS assinada permanecem pendentes.
+
 ## Implementação
 
 A solução Visual Studio agora usa o mesmo desenho do CMake: `box2d` compila a base
@@ -82,7 +87,8 @@ sem commit ou publicação.
 
 ## Pendências para encerrar o marco e consolidar
 
-- Completar Windows x64 real/MinGW, macOS/iOS e execução em dispositivo Android; conferir
+- Completar Windows x64 real/MinGW, os limites macOS registrados na continuação,
+  iOS e execução em dispositivo Android; conferir
   renderização dos fluidos nos backends gráficos correspondentes.
 - Fazer regressão completa dos jogos rígidos publicados. Foram localizadas cópias
   em `/home/michel/tower-defense` e `/home/michel/space-ship-combat`, mas seu gameplay

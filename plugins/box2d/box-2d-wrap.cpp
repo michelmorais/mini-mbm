@@ -43,6 +43,30 @@ namespace mbm
     }
 #if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
 
+    namespace
+    {
+        class FLUID_POLYGON_SHAPE final : public b2PolygonShape
+        {
+        public:
+            bool TestPoint(const b2Transform &transform, const b2Vec2 &point) const override
+            {
+                const b2Vec2 local = b2MulT(transform.q, point - transform.p);
+                for (int32 i = 0; i < m_count; ++i)
+                {
+                    const b2Vec2 offset = local - m_vertices[i];
+                    // Float FMA can leave a positive residual on both sides of a
+                    // shared triangulation edge (Apple Silicon). Double products
+                    // preserve cancellation without expanding the filled contour.
+                    const double dot = static_cast<double>(m_normals[i].x) * offset.x +
+                                       static_cast<double>(m_normals[i].y) * offset.y;
+                    if (dot > 0.0)
+                        return false;
+                }
+                return true;
+            }
+        };
+    }
+
     INFO_FLUID::INFO_FLUID(const bool is3d,const bool is2dScreen,const bool segmented,const float* _scale_physics_engine) noexcept
     {
         DEVICE * device = DEVICE::getInstance();
@@ -1246,7 +1270,7 @@ namespace mbm
         // Fill the union once, so internal triangulation edges do not duplicate particles.
         if (!infoPhysics->lsTriangle.empty())
         {
-            std::vector<b2PolygonShape> triangles(infoPhysics->lsTriangle.size());
+            std::vector<FLUID_POLYGON_SHAPE> triangles(infoPhysics->lsTriangle.size());
             std::vector<const b2Shape*> shapes(triangles.size());
             for (size_t i = 0; i < triangles.size(); ++i)
             {

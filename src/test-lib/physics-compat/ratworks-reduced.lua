@@ -21,7 +21,8 @@
 --]]
 -- Asset-free Ratworks emission/ownership cycle; default duration is ten minutes.
 local moduleDir = assert(os.getenv('MBM_PHYSICS_MODULE_DIR'))
-local suffix = package.config:sub(1, 1) == '\\' and '.dll' or '.so'
+local suffix = os.getenv('MBM_PHYSICS_MODULE_SUFFIX') or
+    (package.config:sub(1, 1) == '\\' and '.dll' or '.so')
 package.cpath = moduleDir .. '/?' .. suffix
 require 'box2dLiquidFun'
 local duration = tonumber(os.getenv('MBM_PHYSICS_SECONDS')) or 600

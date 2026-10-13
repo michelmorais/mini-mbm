@@ -17,13 +17,14 @@
 # |                                                                                                                        |
 # |-----------------------------------------------------------------------------------------------------------------------*/
 
-"""Run the real engine's Box2D Lua contracts on Linux or Windows, with isolated DLLs/SOs."""
+"""Run the real engine's Box2D Lua contracts with isolated platform libraries."""
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 
 def digest(path):
@@ -39,7 +40,12 @@ def main():
     engine = args.engine.resolve()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    suffix = '.dll' if os.name == 'nt' else '.so'
+    if sys.platform == 'darwin':
+        suffix = '.dylib'
+    elif os.name == 'nt':
+        suffix = '.dll'
+    else:
+        suffix = '.so'
     artifacts = [engine, engine.parent / ('box2d' + suffix),
                  engine.parent / ('box2dLiquidFun' + suffix)]
     for path in artifacts:
@@ -48,6 +54,7 @@ def main():
     hashes = {str(p): digest(p) for p in artifacts}
     environment = os.environ.copy()
     environment.update(MBM_PHYSICS_MODULE_DIR=engine.parent.as_posix(),
+                       MBM_PHYSICS_MODULE_SUFFIX=suffix,
                        MBM_PHYSICS_PROFILE=args.profile,
                        LUA_CPATH=engine.parent.as_posix() + '/?' + suffix,
                        LD_LIBRARY_PATH=str(engine.parent), DYLD_LIBRARY_PATH=str(engine.parent))

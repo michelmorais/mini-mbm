@@ -385,6 +385,11 @@ contatos com corpos móveis na carga ampliada e orçamento no aparelho alvo.
 
 ### 7.2 Funcionalidade e plataformas
 
+Continuação macOS em 2026-10-13: [relatório Xcode/Metal](box2d-liquidfun-macos.md).
+O build unificado permite disponibilizar rígidos e fluidos no mesmo link estático
+MAS, com os dois nomes Lua; a validação distingue link, runtime desktop e as
+pendências de execução MAS assinada/iOS.
+
 Reutilizar [fluid_filter_smoke.lua](../src/test-lib/fluid_filter_smoke.lua),
 [fluid_rise_smoke.lua](../src/test-lib/fluid_rise_smoke.lua),
 [fluid_convex_smoke.lua](../src/test-lib/fluid_convex_smoke.lua) e
@@ -485,7 +490,10 @@ pendentes. O plano não altera o jogo nem
 assume que sua cena atual cobre todas as necessidades futuras de fluidos.
 A análise verificou caminhos e contratos concretos no código e consultou fontes
 oficiais. A baseline posterior acrescenta builds, testes de runtime e medições
-nativas. O port e sua integração Lua/CMake estão implementados e testados no Linux;
-equivalência visual, jogos e demais plataformas ainda estão pendentes. Portanto,
+nativas. O port e sua integração Lua/CMake foram testados inicialmente no Linux;
+as continuações [Windows](box2d-liquidfun-windows.md) e
+[macOS/Xcode](box2d-liquidfun-macos.md) acrescentam evidências e limites específicos.
+Equivalência visual completa, regressão de todos os jogos e os alvos restantes
+ainda estão pendentes. Portanto,
 **viabilidade estrutural é favorável, ganho de performance e equivalência física
 permanecem por demonstrar**.

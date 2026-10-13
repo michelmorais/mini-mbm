@@ -581,7 +581,7 @@ Collision queries do not change the object's position.
 |---|---|---|---|
 | `obj:setAnim` | `(name: string\|index: int)` | — | Play animation by name or index |
 | `obj:getAnim` | `(index?: int)` | name, index | Get current (or nth) animation name and index |
-| `obj:addAnim` | `(name, type, frames, fps, startFrame?)` | — | Define a new animation on the object |
+| `obj:addAnim` | `(name?, type?, startFrame?, finalFrame?, intervalSeconds?)` | name, index | Define a frame animation; frames and returned index are 1-based. Defaults: generated name, paused type, first frame, first frame, 1 second. A non-positive interval keeps the default. |
 | `obj:getTotalAnim` | `()` | int | Number of animations defined |
 | `obj:getTotalFrame` | `()` | int | Total frames in current animation |
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
