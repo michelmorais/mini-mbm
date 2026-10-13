@@ -86,12 +86,14 @@ endif()
 
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_LOWER)
 
+set(MBM_OUTPUT_ROOT "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH
+    "Root for bin/ and libs/; set per build when comparing incompatible feature profiles")
 if (CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
-    set(FOLDER_BIN "${CMAKE_CURRENT_LIST_DIR}/bin/debug")
-    set(FOLDER_LIB "${CMAKE_CURRENT_LIST_DIR}/libs/debug")
+    set(FOLDER_BIN "${MBM_OUTPUT_ROOT}/bin/debug")
+    set(FOLDER_LIB "${MBM_OUTPUT_ROOT}/libs/debug")
 else()
-    set(FOLDER_BIN "${CMAKE_CURRENT_LIST_DIR}/bin/release")
-    set(FOLDER_LIB "${CMAKE_CURRENT_LIST_DIR}/libs/release")
+    set(FOLDER_BIN "${MBM_OUTPUT_ROOT}/bin/release")
+    set(FOLDER_LIB "${MBM_OUTPUT_ROOT}/libs/release")
 endif()
 
 set(ROOT_FOLDER "${CMAKE_CURRENT_LIST_DIR}")
@@ -620,6 +622,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     if(NOT DEFINED USE_BOX2D_LIQUID_FUN)
         set(USE_BOX2D_LIQUID_FUN 0)
     endif()
+    # USE_ALL selects the unified fluid profile unless explicitly disabled.
+    option(USE_BOX2D_PARTICLES "Enable LiquidFun particles in Box2D 2.4.1" ${USE_ALL})
     if(NOT DEFINED USE_LSQLITE3)
         set(USE_LSQLITE3 0)
     endif()
@@ -644,7 +648,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         set(USE_VR                  1)
         set(USE_LUA                 1)
         set(USE_BOX2D               1)
-        set(USE_BOX2D_LIQUID_FUN    1)
         set(USE_IMGUI               1)
         set(USE_LSQLITE3            1)
         set(USE_TILEMAP             1)
@@ -652,17 +655,15 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         # STEAMWORKS_SDK_PATH which must be supplied by each developer.
     endif()
 
-    # On iOS and macOS MAS all plugins are compiled as STATIC archives and linked into
-    # a single executable.  box2d and box2d-liquid-fun share large amounts of object
-    # code (b2World, b2Body, …) so having both in the same link produces
-    # duplicate-symbol errors.  When USE_ALL is used (or the user enables both
-    # manually), keep only box2d and drop liquid-fun automatically.
-    if((PLAT_LOWER STREQUAL "ios" OR MAS_DELIVERY) AND USE_BOX2D AND USE_BOX2D_LIQUID_FUN)
-        message(WARNING
-            "iOS/MAS static build: box2d and box2d-liquid-fun share symbols and cannot "
-            "both be linked into the same binary.  Disabling USE_BOX2D_LIQUID_FUN. "
-            "To use liquid-fun instead, pass -DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1 "
-            "explicitly (do not use -DUSE_ALL=1).")
+    if(USE_BOX2D_PARTICLES AND (NOT USE_BOX2D OR NOT USE_LUA))
+        message(FATAL_ERROR "USE_BOX2D_PARTICLES requires USE_BOX2D=1 and USE_LUA=1")
+    endif()
+    if(USE_BOX2D)
+        # The compatibility module forwards to box2d; never build two backends
+        # into a unified profile. Legacy-only builds remain available for comparison.
+        if(USE_BOX2D_LIQUID_FUN)
+            message(STATUS "box2dLiquidFun will use the unified box2d compatibility module")
+        endif()
         set(USE_BOX2D_LIQUID_FUN 0)
     endif()
 

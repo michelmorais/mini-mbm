@@ -24,6 +24,9 @@
 Data: 2026-10-13. Etapa 0 do [plano de unificação](box2d-liquidfun-unification-plan.md).
 Base da engine: `02de9bda`; documentação externa: `b1b41b6`.
 
+Este documento registra a baseline anterior à integração Lua/CMake.
+O estado atual está em [integração Lua](box2d-liquidfun-integration.md).
+
 Esta entrega inicia a execução com ferramentas reproduzíveis, medições dos backends
 atuais, uma correção de comportamento indefinido no LiquidFun e um **protótipo nativo
 de partículas portadas para 2.4.1**. Não houve troca dos plugins de produção nem

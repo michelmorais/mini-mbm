@@ -20,6 +20,8 @@
 #include "physics-box-2d-joint-lua.h"
 #include "../plugin-helper/plugin-helper.h"
 #include <box2d/box2d.h>
+#include "box-2d-wrap.h"
+#include <cmath>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/class-identifier.h>
 
@@ -35,6 +37,8 @@ namespace mbm
     b2Joint *getJointBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<b2Joint **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D_JOINT));
+        if (*ud == nullptr)
+            luaL_error(lua, "joint has been destroyed");
         return *ud;
     }
 
@@ -536,7 +540,12 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2DistanceJoint*>(joint);
                 if(pJoint)
-                    pJoint->SetLength(v);
+                {
+                    if (static_cast<INFO_JOINT *>(joint->GetUserData())->legacyRope)
+                        pJoint->SetMaxLength(v);
+                    else
+                        pJoint->SetLength(v);
+                }
             }
             break;
             default:
@@ -557,7 +566,7 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2DistanceJoint*>(joint);
                 if(pJoint)
-                    lua_pushnumber(lua,pJoint->GetLength());
+                    lua_pushnumber(lua, static_cast<INFO_JOINT *>(joint->GetUserData())->legacyRope ? pJoint->GetMaxLength() : pJoint->GetLength());
                 else
                     lua_pushnumber(lua,0.0f);
             }
@@ -889,10 +898,112 @@ namespace mbm
         return 2;
     }
 
+    static INFO_JOINT *jointInfo(b2Joint *joint)
+    {
+        return static_cast<INFO_JOINT *>(joint->GetUserData());
+    }
+
+    static float jointMass(b2Joint *joint)
+    {
+        const bool angular = joint->GetType() == e_weldJoint;
+        const float a = angular ? joint->GetBodyA()->GetInertia() : joint->GetBodyA()->GetMass();
+        const float b = angular ? joint->GetBodyB()->GetInertia() : joint->GetBodyB()->GetMass();
+        if (a > 0 && b > 0) return a * b / (a + b);
+        return a > 0 ? a : b;
+    }
+
+    static void springValues(lua_State *lua, b2Joint *joint, float &stiffness, float &damping)
+    {
+        switch (joint->GetType())
+        {
+            case e_distanceJoint:
+                stiffness = static_cast<b2DistanceJoint *>(joint)->GetStiffness();
+                damping = static_cast<b2DistanceJoint *>(joint)->GetDamping(); break;
+            case e_wheelJoint:
+                stiffness = static_cast<b2WheelJoint *>(joint)->GetStiffness();
+                damping = static_cast<b2WheelJoint *>(joint)->GetDamping(); break;
+            case e_weldJoint:
+                stiffness = static_cast<b2WeldJoint *>(joint)->GetStiffness();
+                damping = static_cast<b2WeldJoint *>(joint)->GetDamping(); break;
+            default: luaL_error(lua, "joint has no frequency/damping-ratio contract");
+        }
+    }
+
+    static int legacySpring(lua_State *lua, bool frequency, bool setter)
+    {
+        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        // Legacy get/setDampingRatio on a gear actually means its dimensionless ratio.
+        if (!frequency && joint->GetType() == e_gearJoint)
+        {
+            auto *gear = static_cast<b2GearJoint *>(joint);
+            if (setter) gear->SetRatio(luaL_checknumber(lua, 2));
+            else lua_pushnumber(lua, gear->GetRatio());
+            return setter ? 0 : 1;
+        }
+        float k = 0, c = 0;
+        springValues(lua, joint, k, c);
+        const float mass = jointMass(joint);
+        const float omega = mass > 0 && k > 0 ? std::sqrt(k / mass) : 0;
+        float hz = omega / (2 * b2_pi);
+        float ratio = omega > 0 ? c / (2 * mass * omega) : jointInfo(joint)->legacyDampingRatio;
+        if (!setter)
+        {
+            lua_pushnumber(lua, frequency ? hz : ratio);
+            return 1;
+        }
+        const float value = luaL_checknumber(lua, 2);
+        if (!(value >= 0 && std::isfinite(value)))
+            return luaL_error(lua, "frequency and damping ratio must be finite and non-negative");
+        if (frequency) hz = value;
+        else ratio = value;
+        jointInfo(joint)->legacyDampingRatio = ratio;
+        if (joint->GetType() == e_weldJoint)
+            b2AngularStiffness(k, c, hz, ratio, joint->GetBodyA(), joint->GetBodyB());
+        else
+            b2LinearStiffness(k, c, hz, ratio, joint->GetBodyA(), joint->GetBodyB());
+        switch (joint->GetType())
+        {
+            case e_distanceJoint:
+            {
+                auto *distance = static_cast<b2DistanceJoint *>(joint);
+                distance->SetStiffness(k); distance->SetDamping(c);
+                distance->SetMinLength(hz > 0 ? 0 : distance->GetLength());
+                distance->SetMaxLength(hz > 0 ? b2_maxFloat : distance->GetLength());
+                break;
+            }
+            case e_wheelJoint:
+                static_cast<b2WheelJoint *>(joint)->SetStiffness(k);
+                static_cast<b2WheelJoint *>(joint)->SetDamping(c); break;
+            case e_weldJoint:
+                static_cast<b2WeldJoint *>(joint)->SetStiffness(k);
+                static_cast<b2WeldJoint *>(joint)->SetDamping(c); break;
+            default: break;
+        }
+        return 0;
+    }
+
+    static int getLegacyHz(lua_State *lua) { return legacySpring(lua, true, false); }
+    static int setLegacyHz(lua_State *lua) { return legacySpring(lua, true, true); }
+    static int getLegacyRatio(lua_State *lua) { return legacySpring(lua, false, false); }
+    static int setLegacyRatio(lua_State *lua) { return legacySpring(lua, false, true); }
+
+    static void releaseJointLua(INFO_JOINT *info)
+    {
+        for (int ref : info->luaHandles)
+        {
+            lua_rawgeti(info->lua, LUA_REGISTRYINDEX, ref);
+            auto **handle = static_cast<b2Joint **>(lua_touserdata(info->lua, -1));
+            *handle = nullptr;
+            lua_pop(info->lua, 1);
+            luaL_unref(info->lua, LUA_REGISTRYINDEX, ref);
+        }
+    }
+
     int onGetJointLua(lua_State *lua, b2Joint *joint)
     {
         lua_settop(lua, 0);
-        luaL_Reg regMethods[] = {   {"getReactionForce", onGetReactionForceJointBox2d},
+        luaL_Reg regMethods[] = { {"getFrequencyHz", getLegacyHz}, {"setFrequencyHz", setLegacyHz},
+                                    {"getDampingRatio", getLegacyRatio}, {"setDampingRatio", setLegacyRatio},   {"getReactionForce", onGetReactionForceJointBox2d},
                                     {"getReactionTorque", onGetReactionTorqueJointBox2d},
                                     {"isActive", onIsActiveJointBox2d},
                                     {"setActive", onSetActiveJointBox2d},
@@ -940,6 +1051,11 @@ namespace mbm
         luaL_newlib(lua, regMethods);
         auto **udata = static_cast<b2Joint **>(lua_newuserdata(lua, sizeof(b2Joint *)));
         *udata          = joint;
+        INFO_JOINT *info = jointInfo(joint);
+        info->lua = lua;
+        info->releaseLua = releaseJointLua;
+        lua_pushvalue(lua, -1);
+        info->luaHandles.push_back(luaL_ref(lua, LUA_REGISTRYINDEX));
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_BOX2D_JOINT);

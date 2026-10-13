@@ -7,7 +7,7 @@ coverage index, not a claim that every method has a complete usage guide or runt
 Internal `__*` metamethods are excluded. Constants and dynamically constructed data tables
 are outside this method inventory.
 
-Checked against the repository bindings on 2026-10-12. When updating a registration
+Checked against the repository bindings on 2026-10-12; unified Box2D entries updated on 2026-10-13. When updating a registration
 table, update this index and the relevant usage section together. Each binding link
 points to its implementation; table names distinguish factory, object and module APIs.
 
@@ -24,6 +24,7 @@ may depend on plugin/build configuration. See the source preprocessor guards.
 
 - [Box2D world and factory](#box2d-world-and-factory)
 - [Box2D joints](#box2d-joints)
+- [Box2D fluids](#box2d-fluids)
 - [LiquidFun world and factory](#liquidfun-world-and-factory)
 - [LiquidFun joints](#liquidfun-joints)
 - [LiquidFun fluids](#liquidfun-fluids)
@@ -41,76 +42,88 @@ Source: [plugins/box2d/physics-box-2d-lua.cpp](../plugins/box2d/physics-box-2d-l
 
 | Lua name | Binding |
 |---|---|
-| `addStaticBody` | [`onAddStaticBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L145) |
-| `addDynamicBody` | [`onAddDynamicBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L274) |
-| `addKinematicBody` | [`onAddKinematicBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L323) |
-| `addBody` | [`onAddBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L190) |
-| `applyForce` | [`onApplyForceBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L369) |
-| `applyForceToCenter` | [`onApplyForceToCenterBodyBox2dFromBody`](../plugins/box2d/physics-box-2d-lua.cpp#L390) |
-| `applyTorque` | [`onApplyTorqueBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L763) |
-| `applyAngularImpulse` | [`onApplyAngularImpulseBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L801) |
-| `applyLinearImpulse` | [`onApplyLinearImpulseBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L773) |
-| `applyLinearImpulseToCenter` | [`onApplyLinearImpulseToCenterBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L792) |
-| `destroyBody` | [`onDestroyBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1360) |
-| `destroyJoint` | [`onDestroyJointBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1371) |
-| `getAngularVelocity` | [`onGetAngularVelocityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L428) |
-| `getInertia` | [`onGetInertiaBox2dFromBody`](../plugins/box2d/physics-box-2d-lua.cpp#L435) |
-| `getJoint` | [`onGetJointBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1332) |
-| `getLinearVelocity` | [`onGetLinearVelocityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L410) |
-| `getGravity` | [`onGetGravityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L129) |
-| `getGravityScale` | [`onGetGravityScaleBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L138) |
-| `getPosition` | [`onGetPositionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L754) |
-| `getMass` | [`onGetMassBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L442) |
-| `getManifolds` | [`onGetManifoldBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L558) |
-| `getWorldManifolds` | [`onGetWorldManifoldBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L605) |
-| `getScale` | [`onGetScaleBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1047) |
-| `getLocalCenter` | [`onGetLocalCenterBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1091) |
-| `getLocalPoint` | [`onGetLocalPointBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1100) |
-| `getType` | [`onGetTypeBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1111) |
-| `getWorldCenter` | [`onGetWorldCenterBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1135) |
-| `getWorldPoint` | [`onGetWorldPointBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1144) |
-| `getWorldVector` | [`onGetWorldVectorBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1161) |
-| `setTransform` | [`onInterfereBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L908) |
-| `isActive` | [`onIsActiveBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L926) |
-| `isAwake` | [`onIsAwakeBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L944) |
-| `isOnTheGround` | [`onIsOnTheGroundBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L811) |
-| `joint` | [`onCreateJointBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1466) |
-| `pause` | [`onStopSimulateBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1346) |
-| `queryAABB` | [`onQueryAABBBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1317) |
-| `rayCast` | [`onRayCastBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1246) |
-| `setActive` | [`onSetActiveCollisionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L968) |
-| `setAngularVelocity` | [`onSetAngularVelocityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L420) |
-| `setAngularDamping` | [`onSetAngularDumpingBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1039) |
-| `setAwake` | [`onSetAwakeBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L936) |
-| `setBullet` | [`onSetBulletBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L951) |
-| `setContactListener` | [`onSetContactListenerBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L998) |
-| `setDensity` | [`onSetDensityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L897) |
-| `setEnable` | [`onSetEnabledBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L959) |
-| `setFilter` | [`onSetFilterBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1413) |
-| `setFixedRotation` | [`onSetFixedRotationBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1395) |
-| `setSleepingAllowed` | [`onSetSleepingAllowedBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1404) |
-| `setGravity` | [`onSetGravityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L113) |
-| `setGravityScale` | [`onSetGravityScaleBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L121) |
-| `setFriction` | [`onSetFrictionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L819) |
-| `setMass` | [`onSetMassBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L887) |
-| `setManifolds` | [`onSetManifoldBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L624) |
-| `setLinearVelocity` | [`onSetLinearVelocityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L400) |
-| `setRestitution` | [`onSetRestitutionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L830) |
-| `setScale` | [`onSetScaleBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1054) |
-| `setMultiply` | [`onSetMultiplyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1083) |
-| `getMultiply` | [`onGetMultiplyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1062) |
-| `getVelocityIterations` | [`onGetVelocityIterationsBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1069) |
-| `getPositionIterations` | [`onGetPositionIterationsBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1076) |
-| `start` | [`onResumeSimulateBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1353) |
-| `setType` | [`onSetTypeBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L841) |
-| `testPoint` | [`onTestPointBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1383) |
+| `createFluid` | [`onCreateFluidBodyBox2d`](../plugins/box2d/physics-box-2d-fluid-create-lua.cpp) |
+| `destroyFluid` | [`onDestroyFluidBox2d`](../plugins/box2d/physics-box-2d-fluid-create-lua.cpp) |
+| `supportsParticles` | [`supportsParticlesBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `addStaticBody` | [`onAddStaticBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `addDynamicBody` | [`onAddDynamicBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `addKinematicBody` | [`onAddKinematicBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `addBody` | [`onAddBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `applyForce` | [`onApplyForceBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `applyForceToCenter` | [`onApplyForceToCenterBodyBox2dFromBody`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `applyTorque` | [`onApplyTorqueBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `applyAngularImpulse` | [`onApplyAngularImpulseBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `applyLinearImpulse` | [`onApplyLinearImpulseBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `applyLinearImpulseToCenter` | [`onApplyLinearImpulseToCenterBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `destroyBody` | [`onDestroyBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `destroyJoint` | [`onDestroyJointBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getAngularVelocity` | [`onGetAngularVelocityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getInertia` | [`onGetInertiaBox2dFromBody`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getJoint` | [`onGetJointBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getLinearVelocity` | [`onGetLinearVelocityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getGravity` | [`onGetGravityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getGravityScale` | [`onGetGravityScaleBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getPosition` | [`onGetPositionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getMass` | [`onGetMassBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getManifolds` | [`onGetManifoldBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getWorldManifolds` | [`onGetWorldManifoldBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getScale` | [`onGetScaleBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getLocalCenter` | [`onGetLocalCenterBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getLocalPoint` | [`onGetLocalPointBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getType` | [`onGetTypeBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getWorldCenter` | [`onGetWorldCenterBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getWorldPoint` | [`onGetWorldPointBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getWorldVector` | [`onGetWorldVectorBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setTransform` | [`onInterfereBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `isActive` | [`onIsActiveBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `isAwake` | [`onIsAwakeBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `isOnTheGround` | [`onIsOnTheGroundBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `joint` | [`onCreateJointBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `pause` | [`onStopSimulateBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `queryAABB` | [`onQueryAABBBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `rayCast` | [`onRayCastBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setActive` | [`onSetActiveCollisionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setAngularVelocity` | [`onSetAngularVelocityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setAngularDamping` | [`onSetAngularDumpingBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setAwake` | [`onSetAwakeBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setBullet` | [`onSetBulletBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setContactListener` | [`onSetContactListenerBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setDensity` | [`onSetDensityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setEnable` | [`onSetEnabledBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setFilter` | [`onSetFilterBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setFixedRotation` | [`onSetFixedRotationBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setSleepingAllowed` | [`onSetSleepingAllowedBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setGravity` | [`onSetGravityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setGravityScale` | [`onSetGravityScaleBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setFriction` | [`onSetFrictionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setMass` | [`onSetMassBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setManifolds` | [`onSetManifoldBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setLinearVelocity` | [`onSetLinearVelocityBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setRestitution` | [`onSetRestitutionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setScale` | [`onSetScaleBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setMultiply` | [`onSetMultiplyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getMultiply` | [`onGetMultiplyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getVelocityIterations` | [`onGetVelocityIterationsBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getPositionIterations` | [`onGetPositionIterationsBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `start` | [`onResumeSimulateBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `setType` | [`onSetTypeBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `testPoint` | [`onTestPointBodyBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
 
 ### `regBox2dMMethods`
 
 | Lua name | Binding |
 |---|---|
-| `new` | [`onNewBox2dLua`](../plugins/box2d/physics-box-2d-lua.cpp#L1756) |
-| `getVersion` | [`getVersionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp#L1155) |
+| `supportsParticles` | [`supportsParticlesBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `new` | [`onNewBox2dLua`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getVersion` | [`getVersionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+
+### `legacyMethods`
+
+| Lua name | Binding |
+|---|---|
+| `new` | [`onNewLegacyBox2dLua`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `getVersion` | [`getVersionBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
+| `supportsParticles` | [`supportsParticlesBox2d`](../plugins/box2d/physics-box-2d-lua.cpp) |
 
 ## Box2D joints
 
@@ -120,36 +133,82 @@ Source: [plugins/box2d/physics-box2d-joint-lua.cpp](../plugins/box2d/physics-box
 
 | Lua name | Binding |
 |---|---|
-| `getReactionForce` | [`onGetReactionForceJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L70) |
-| `getReactionTorque` | [`onGetReactionTorqueJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L80) |
-| `isActive` | [`onIsActiveJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L89) |
-| `setActive` | [`onSetActiveJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L99) |
-| `getMotorSpeed` | [`onGetMotorSpeedJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L143) |
-| `setMotorSpeed` | [`onSetMotorSpeedJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L110) |
-| `getMaxMotorTorque` | [`onGetMaxMotorTorqueJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L221) |
-| `setMaxMotorTorque` | [`onSetMaxMotorTorqueJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L185) |
-| `getDamping` | [`onGetRatioJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L263) |
-| `setDamping` | [`onSetRatioJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L314) |
-| `setMaxForce` | [`onSetMaxForceJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L357) |
-| `getMaxForce` | [`onGetMaxForceJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L400) |
-| `setStiffness` | [`onSetFrequencyHzJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L451) |
-| `getStiffness` | [`onGetFrequencyHzJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L487) |
-| `getLength` | [`onGetLengthJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L551) |
-| `setLength` | [`onSetLengthJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L529) |
-| `getTarget` | [`onGetTargetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L599) |
-| `setTarget` | [`onSetTargetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L575) |
-| `enableMotor` | [`onEnableMotorJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L649) |
-| `enableLimit` | [`onEnableLimitJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L795) |
-| `getCorrectionFactor` | [`onGetCorrectionFactorJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L702) |
-| `setCorrectionFactor` | [`onSetCorrectionFactorJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L685) |
-| `getLinearOffset` | [`onGetLinearOffsetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L741) |
-| `setLinearOffset` | [`onSetLinearOffsetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L720) |
-| `getAngularOffset` | [`onGetAngularOffsetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L777) |
-| `setAngularOffset` | [`onSetAngularOffsetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L760) |
-| `getLimits` | [`onGetLimitsJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L854) |
-| `setLimits` | [`onSetLimitsJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp#L824) |
-| `getAnchorA` | [`onGetAnchorA`](../plugins/box2d/physics-box2d-joint-lua.cpp#L631) |
-| `getAnchorB` | [`onGetAnchorB`](../plugins/box2d/physics-box2d-joint-lua.cpp#L640) |
+| `getFrequencyHz` | [`getLegacyHz`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setFrequencyHz` | [`setLegacyHz`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getDampingRatio` | [`getLegacyRatio`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setDampingRatio` | [`setLegacyRatio`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getReactionForce` | [`onGetReactionForceJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getReactionTorque` | [`onGetReactionTorqueJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `isActive` | [`onIsActiveJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setActive` | [`onSetActiveJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getMotorSpeed` | [`onGetMotorSpeedJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setMotorSpeed` | [`onSetMotorSpeedJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getMaxMotorTorque` | [`onGetMaxMotorTorqueJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setMaxMotorTorque` | [`onSetMaxMotorTorqueJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getDamping` | [`onGetRatioJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setDamping` | [`onSetRatioJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setMaxForce` | [`onSetMaxForceJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getMaxForce` | [`onGetMaxForceJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setStiffness` | [`onSetFrequencyHzJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getStiffness` | [`onGetFrequencyHzJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getLength` | [`onGetLengthJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setLength` | [`onSetLengthJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getTarget` | [`onGetTargetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setTarget` | [`onSetTargetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `enableMotor` | [`onEnableMotorJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `enableLimit` | [`onEnableLimitJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getCorrectionFactor` | [`onGetCorrectionFactorJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setCorrectionFactor` | [`onSetCorrectionFactorJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getLinearOffset` | [`onGetLinearOffsetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setLinearOffset` | [`onSetLinearOffsetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getAngularOffset` | [`onGetAngularOffsetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setAngularOffset` | [`onSetAngularOffsetJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getLimits` | [`onGetLimitsJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `setLimits` | [`onSetLimitsJointBox2d`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getAnchorA` | [`onGetAnchorA`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+| `getAnchorB` | [`onGetAnchorB`](../plugins/box2d/physics-box2d-joint-lua.cpp) |
+
+## Box2D fluids
+
+Source: [plugins/box2d/physics-box-2d-fluid-lua.cpp](../plugins/box2d/physics-box-2d-fluid-lua.cpp).
+
+### `regMethods`
+
+| Lua name | Binding |
+|---|---|
+| `add` | [`onAddParticleFluidBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getParticleCount` | [`onGetParticleCountBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getMaxParticleCount` | [`onGetMaxParticleCountBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `setMaxParticleCount` | [`onSetMaxParticleCountBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `setColor` | [`onSetColorFluidParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getColor` | [`onGetColorFluidParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `setPaused` | [`onSetPausedParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getDensity` | [`onGetDensityParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `setDensity` | [`onSetDensityParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getGravityScale` | [`onGetGravityScaleParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `setGravityScale` | [`onSetGravityScaleParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getDamping` | [`onGetDampingParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `setDamping` | [`onSetDampingParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getStaticPressureIterations` | [`onGetStaticPressureIterationsParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `setStaticPressureIterations` | [`onSetStaticPressureIterationsParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getRadius` | [`onGetRadiusParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getParticleLifetime` | [`onGetParticleLifetimeParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `setParticleLifetime` | [`onSetParticleLifetimeParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `destroyParticle` | [`onDestroyParticleParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `destroyParticlesInShape` | [`onDestroyParticlesInShapeBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `particleApplyLinearImpulse` | [`onParticleApplyLinearImpulseBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `applyLinearImpulse` | [`onApplyLinearImpulseBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `particleApplyForce` | [`onParticleApplyForceBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `applyForce` | [`onApplyForceParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `queryAABB` | [`onQueryAABBParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `queryShapeAABB` | [`onQueryShapeAABBParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `computeAABB` | [`onComputeAABBParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `rayCast` | [`onRayCastParticleBox2d`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+| `getShader` | [`onGetFluidShaderLua`](../plugins/box2d/physics-box-2d-fluid-lua.cpp) |
+
+Available only with `USE_BOX2D_PARTICLES=ON`. `createFluid` / `destroyFluid`
+and the `legacyMethods` factory above have the same condition. The following
+LiquidFun sections inventory the retained **legacy-only backend**, not the forwarding module.
 
 ## LiquidFun world and factory
 

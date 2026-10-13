@@ -22,7 +22,15 @@
 
 int luaopen_box2d (lua_State *lua)
 {
-    mbm::registerClassBox2d(lua);
+    lua_getfield(lua, LUA_REGISTRYINDEX, "mbm.box2d.registered");
+    const bool registered = lua_toboolean(lua, -1);
+    lua_pop(lua, 1);
+    if (!registered)
+    {
+        mbm::registerClassBox2d(lua);
+        lua_pushboolean(lua, 1);
+        lua_setfield(lua, LUA_REGISTRYINDEX, "mbm.box2d.registered");
+    }
     lua_pushboolean(lua, 1);
     return 1;
 }
@@ -32,3 +40,13 @@ int luaopen_libbox2d (lua_State *lua)
     return luaopen_box2d(lua);
 }
 
+
+int mbm_open_box2d_compat(lua_State *lua)
+{
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    luaopen_box2d(lua);
+    return 1;
+#else
+    return luaL_error(lua, "box2dLiquidFun requires USE_BOX2D_PARTICLES=ON (and USE_BOX2D=1, USE_LUA=1)");
+#endif
+}

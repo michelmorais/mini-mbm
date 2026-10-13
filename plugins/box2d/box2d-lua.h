@@ -39,6 +39,8 @@ extern "C"
 }
 
 
+extern "C" BOX_2D_IMP_API int mbm_open_box2d_compat(lua_State *lua);
+
 extern "C" BOX_2D_IMP_API int luaopen_box2d (lua_State * lua);
 
 extern "C" BOX_2D_IMP_API int luaopen_libbox2d (lua_State *lua);

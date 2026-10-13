@@ -37,10 +37,13 @@ include_directories(  ${LUA_INCLUDE}
                       ${MBM_CORE_INCLUDE})
  
 #However, the file(GLOB...) allows for wildcard additions:
-file(GLOB_RECURSE SOURCES "${BOX2D_PATH}/*.cpp" "${BOX2D_LUA_SOURCE}/*.cpp")
-# The particle port is currently exercised only by physics-compat's candidate.
-# Production remains rigid-only until the Lua/API migration passes its gates.
-list(FILTER SOURCES EXCLUDE REGEX "/src/particle/")
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${BOX2D_PATH}/src/*.cpp")
+list(APPEND SOURCES box2d-lua.cpp box-2d-wrap.cpp physics-box-2d-lua.cpp physics-box2d-joint-lua.cpp)
+if(USE_BOX2D_PARTICLES)
+    list(APPEND SOURCES physics-box-2d-fluid-lua.cpp physics-box-2d-fluid-create-lua.cpp)
+else()
+    list(FILTER SOURCES EXCLUDE REGEX "/src/particle/")
+endif()
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
@@ -48,6 +51,16 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY)
     add_library(${BOX2D_LUA_LIBRARY} STATIC ${SOURCES})
 else()
     add_library(${BOX2D_LUA_LIBRARY} SHARED ${SOURCES})
+endif()
+
+target_compile_definitions(${BOX2D_LUA_LIBRARY} PUBLIC MBM_BOX2D_PARTICLES=$<BOOL:${USE_BOX2D_PARTICLES}>)
+# A forwarding module has no physics sources. Both require orders resolve to the
+# same shared library (or the same archive on embedded platforms).
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
+    target_sources(${BOX2D_LUA_LIBRARY} PRIVATE box2d-compat-lua.cpp)
+else()
+    add_library(box2dLiquidFun SHARED box2d-compat-lua.cpp)
+    target_link_libraries(box2dLiquidFun PRIVATE ${BOX2D_LUA_LIBRARY} ${LUA_LIBRARY})
 endif()
 
 # On iOS/MAS this is a STATIC archive absorbed into mini-mbm; Lua/core_mbm/plugin_helper

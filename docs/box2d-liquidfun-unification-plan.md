@@ -23,8 +23,9 @@
 
 # Unificação de Box2D e LiquidFun: viabilidade e plano
 
-Data: 2026-10-13. Estado: **baseline inicial e protótipo nativo opcional implementados;
-integração Lua e migração de produção pendentes**.
+Data: 2026-10-13. Estado: **baseline, port nativo e integração Lua/CMake implementados;
+aceitação Ratworks, demais plataformas e consolidação pendentes**.
+Marco atual: [integração Lua e perfis de build](box2d-liquidfun-integration.md).
 Resultados e reprodução: [baseline de compatibilidade](box2d-liquidfun-baseline.md).
 Base inspecionada: mini-mbm `e29aa3cd`; Ratworks `c52d991`, em
 `/home/michel/Ratworks`. Ambos estavam sem alterações locais no início da análise.
@@ -197,29 +198,22 @@ trechos condicionais, mas não apaga os arquivos do checkout. Separar fisicament
 os arquivos facilita manutenção; a exclusão real do binário depende do CMake e
 das definições consistentes descritas abaixo.
 
-O protótipo atual usa `MBM_BOX2D_PARTICLES=1` somente no target nativo
-`physics_candidate` de `src/test-lib/physics-compat`. O plugin de produção exclui
-as fontes `src/particle/`; ainda não oferece fluidos em `require "box2d"`.
+Desde 7.365, o CMake raiz oferece os seguintes perfis (com `USE_LUA=1`):
 
-Proposta de nomes, **ainda não disponíveis no CMake raiz**:
-
-| Configuração | Resultado pretendido |
+| Configuração | Resultado |
 | --- | --- |
-| `USE_BOX2D=1`, `USE_BOX2D_PARTICLES=0` | Plugin rígido 2.4.1; sem fontes/estado do solver de partículas e sem métodos Lua de fluido |
-| `USE_BOX2D=1`, `USE_BOX2D_PARTICLES=1` | Mesmo plugin/base rígida, com extensão de partículas; nenhum sistema criado até solicitação |
-| `USE_BOX2D=0`, `USE_BOX2D_PARTICLES=1` | Erro claro de configuração por dependência ausente |
+| `USE_BOX2D=1`, `USE_BOX2D_PARTICLES=OFF` | Plugin rígido 2.4.1; sem fontes/estado do solver e sem métodos Lua de fluido |
+| `USE_BOX2D=1`, `USE_BOX2D_PARTICLES=ON` | Mesmo backend, com extensão e bindings de partículas; sistemas criados sob demanda |
+| `USE_BOX2D=0`, `USE_BOX2D_PARTICLES=ON` | Erro de configuração (Lua também é obrigatória) |
+| `USE_ALL=1` | Partículas ON por padrão; OFF explícito ou já persistido no cache é respeitado |
+| `USE_BOX2D=0`, `USE_BOX2D_LIQUID_FUN=1`, partículas OFF | Backend legado de comparação; não usar USE_ALL |
 
-Internamente, uma definição como `MBM_BOX2D_PARTICLES` deve controlar fontes,
-declarações, callbacks e integração no `Step`, não somente a exposição Lua.
-Propagar o mesmo valor a todas as unidades que usam os headers físicos. Não
-misturar bibliotecas/headers com layouts distintos no mesmo processo; usar builds
-e artefatos separados para os perfis. Preferir listas explícitas de fontes ao
-`GLOB_RECURSE` atual, que incluiria partículas mesmo quando desabilitadas.
-
-Definir `USE_BOX2D_PARTICLES` como OFF por padrão. No build completo, `USE_ALL`
-pode habilitá-lo quando não houver escolha explícita; um OFF explícito deve ser
-respeitado. A regra precisa ser testada, pois o `USE_ALL` atual força ambos os
-plugins antigos para ON. Não aplicar o novo comportamento antes da migração.
+`MBM_BOX2D_PARTICLES=0/1` é propagado pelo target Box2D a suas unidades e consumidores.
+OFF exclui fontes de partículas e bindings de fluido. Os arquivos continuam no checkout.
+O backend antigo é desabilitado quando Box2D está habilitado; a fachada
+`box2dLiquidFun` encaminha para a biblioteca única e acusa a opção ausente em OFF.
+Usar artefatos separados para comparar perfis: os diretórios de saída padrão da engine
+são compartilhados entre diretórios de build do mesmo tipo/plataforma.
 
 No perfil completo, manter criação sob demanda por mundo. Não adicionar teste por
 fixture/corpo no caminho rígido apenas para decidir se há fluidos. Uma lista vazia
@@ -229,8 +223,8 @@ custo residual. O perfil sem partículas deve excluir esse caminho na compilaç�
 ### 5.2 API e carregamento
 
 `require "box2d"` deve continuar funcionando com o contrato rígido atual.
-No perfil completo, ele poderá oferecer `createFluid` e uma consulta explícita de
-capacidade, por exemplo `supportsParticles` (nome a definir na implementação).
+No perfil completo, ele oferece `createFluid` e a consulta
+`supportsParticles()`.
 No perfil sem partículas, a consulta deve indicar ausência e a compatibilidade
 `box2dLiquidFun` deve falhar com diagnóstico claro, sem fallback silencioso.
 
@@ -246,10 +240,10 @@ encontrar outro nome de módulo. Planejar um shim Lua, `package.preload` ou mód
 encaminhador, incluindo os carregadores estáticos. A ordem dos dois `require`s
 não pode duplicar factories, subscriptions ou instâncias do backend.
 
-Hoje os dois CMake de plugin compilam suas cópias completas da física. O CMake raiz
-desabilita LiquidFun quando ambos seriam ligados estaticamente em iOS/MAS devido
-a símbolos compartilhados. A unificação deve eliminar a duplicação, com teste de
-link e carregamento; não remover essa proteção enquanto existirem dois backends.
+Antes deste marco, os dois plugins compilavam cópias completas da física. Agora o
+CMake exclui o backend antigo sempre que `USE_BOX2D` está habilitado e constrói a
+fachada sobre o target único. A árvore antiga permanece apenas para builds isolados
+de comparação; a validação dos links estáticos continua no marco de plataformas.
 Cobrir também projetos Visual Studio, exports Windows, Android e entry points
 estáticos iOS/MAS.
 
@@ -424,7 +418,7 @@ pendentes. O plano não altera o jogo nem
 assume que sua cena atual cobre todas as necessidades futuras de fluidos.
 A análise verificou caminhos e contratos concretos no código e consultou fontes
 oficiais. A baseline posterior acrescenta builds, testes de runtime e medições
-nativas. Existe agora um port nativo inicial, com comparação OFF/ON; integração
-Lua, equivalência visual, jogos e demais plataformas ainda estão pendentes. Portanto,
+nativas. O port e sua integração Lua/CMake estão implementados e testados no Linux;
+equivalência visual, jogos e demais plataformas ainda estão pendentes. Portanto,
 **viabilidade estrutural é favorável, ganho de performance e equivalência física
 permanecem por demonstrar**.

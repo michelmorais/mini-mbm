@@ -1113,8 +1113,11 @@ Access as `mbm.CONSTANT_NAME`.
 
 ## 10. Plugin: box2d
 
-Box2D 2.4.1 rigid-body physics; build with `-DUSE_BOX2D=1` (included in
-`USE_ALL`). The bindings are in
+Box2D 2.4.1 rigid-body physics; build with `-DUSE_LUA=1 -DUSE_BOX2D=1`.
+Since engine 7.365, `-DUSE_BOX2D_PARTICLES=ON` adds the ported LiquidFun particle
+solver and the fluid API in section 11 to the same backend. The default is OFF;
+`USE_ALL=1` defaults it to ON, while respecting an explicit OFF (and cached values).
+OFF excludes particle sources and fluid methods. The bindings are in
 [`physics-box-2d-lua.cpp`](../plugins/box2d/physics-box-2d-lua.cpp) and
 [`physics-box2d-joint-lua.cpp`](../plugins/box2d/physics-box2d-joint-lua.cpp).
 The [plugin symbol index](lua-plugin-symbols.md) lists every registered method.
@@ -1140,6 +1143,7 @@ syntax. Omit trailing arguments to use defaults; most numeric options do not acc
 |---|---|
 | `box2d:new(gx=0, gy=-90.8, scale=10, velocityIterations=10, positionIterations=3, multiply=1)` | World table; nonpositive constructor `multiply` becomes 1 |
 | `box2d:getVersion()` | Library version string |
+| `box2d:supportsParticles()` / `world:supportsParticles()` | Boolean compile-time particle capability; does not create a particle system |
 | `world:setGravity(x, y)` / `world:getGravity()` | none / `x, y` |
 | `world:setScale(scale)` / `world:getScale()` | none / number |
 | `world:setMultiply(value)` / `world:getMultiply()` | none / simulation time multiplier |
@@ -1295,28 +1299,48 @@ and getters generally return zero, so zero alone does not prove support.
 
 ## 11. Plugin: box2dLiquidFun
 
-LiquidFun 1.1.0 (based on Box2D 2.3.0), built with `-DUSE_BOX2D_LIQUID_FUN=1`
-(included in `USE_ALL`). Load with `require "box2dLiquidFun"`, then construct using
+Since engine 7.365, a CMake build with `USE_BOX2D=1` supplies `box2dLiquidFun`
+as a forwarding module to Box2D 2.4.1. Enable `USE_LUA=1` and
+`USE_BOX2D_PARTICLES=ON` to use fluids. Both `require "box2d"` and
+`require "box2dLiquidFun"` work in either order without compiling a second physics
+backend. Their `luaopen_lib*` entry points remain available. With particles OFF,
+loading the compatibility module raises an error naming the required CMake option.
+
+Construct with
 `box2dLiquidFun:new(gx=0, gy=-90.8, scale=10, velocityIterations=10, positionIterations=3, multiply=1)`.
-`box2dLiquidFun:getVersion()` returns its version string.
+`box2dLiquidFun:getVersion()` returns `2.4.1`; `supportsParticles()` returns true.
+Both factories use the same backend but create separate worlds. Bodies, joints and
+fluids must remain with their owning world. Fluid destruction checks this ownership.
+The world exposes section 10's rigid methods plus `createFluid` and `destroyFluid`.
+Sources: [world](../plugins/box2d/physics-box-2d-lua.cpp),
+[joints](../plugins/box2d/physics-box2d-joint-lua.cpp),
+[fluid creation](../plugins/box2d/physics-box-2d-fluid-create-lua.cpp),
+[fluid methods](../plugins/box2d/physics-box-2d-fluid-lua.cpp).
 
-The world exposes all the rigid-body method names in section 10, plus `createFluid`
-and `destroyFluid`. The shared body arguments, contact callbacks and unit conventions
-apply here too, including the current `setType` binding limitation. Bodies and joints
-belong to their own physics plugin; do not pass Box2D objects to LiquidFun or vice versa.
-Sources: [`world bindings`](../plugins/box2d-liquid-fun-lua/physics-box-2d-liquid-fun-lua.cpp),
-[`joint bindings`](../plugins/box2d-liquid-fun-lua/physics-box2d-liquid-fun-joint-lua.cpp),
-and [`fluid bindings`](../plugins/box2d-liquid-fun-lua/physics-box-2d-fluid-lua.cpp).
+For comparison only, `USE_BOX2D=0 USE_BOX2D_PARTICLES=OFF USE_BOX2D_LIQUID_FUN=1`
+(with Lua ON and without USE_ALL) retains the original LiquidFun 1.1.0 / Box2D 2.3.0
+plugin. Its source tree is retained until the final migration milestone. Direct
+Visual Studio projects have not yet been migrated; these build selections describe CMake.
 
-### 11.1 Joint differences
+### 11.1 Joint compatibility
 
-LiquidFun registers `joint:getDampingRatio()` / `joint:setDampingRatio(value)` instead
-of `getDamping` / `setDamping`, and `joint:getFrequencyHz()` /
-`joint:setFrequencyHz(value)` instead of `getStiffness` / `setStiffness`.
-These are frequency and damping-ratio values from the older Box2D API, not stiffness
-and damping coefficients. The ratio methods also operate on gear ratio. LiquidFun's
-`rope` creates an actual rope joint; `getLength` / `setLength` support its maximum length
-as well as distance joints. The remaining joint method names match section 10.6.
+The unified backend retains `getDamping` / `setDamping` and `getStiffness` /
+`setStiffness` and adds the legacy `getDampingRatio` / `setDampingRatio` and
+`getFrequencyHz` / `setFrequencyHz` methods. The legacy methods convert physical
+units for distance, wheel and weld joints: `k = m*(2*pi*f)^2`,
+`c = 2*m*ratio*(2*pi*f)`, using reduced inertia for weld joints and reduced mass
+otherwise. Zero-frequency joints retain their damping-ratio setting. On gear joints,
+the ratio methods operate directly on the gear ratio. Unsupported legacy spring
+operations raise Lua errors. These methods are available in both particle profiles.
+
+The compatibility factory preserves legacy defaults (distance/weld: 0 Hz, ratio 0;
+wheel: 2 Hz, ratio 0.7). Its soft distance joints use free distance limits, and its
+`rope` uses a distance joint with only an upper limit; rope `getLength` / `setLength`
+operate on that maximum. The modern factory retains its existing construction
+behavior. These conversions preserve the API's units, not bit-identical trajectories
+between the two solvers; visual/game regression remains a separate acceptance step.
+Joint handles become invalid after their joint, either connected body or world is
+released; access raises an error after the queued destruction is processed.
 
 ### 11.2 Fluid construction and options
 
@@ -1528,13 +1552,15 @@ Range limitation: the wrapper subtracts 1 from **both** endpoints, clamps each t
 (including their array overload) when targeting every particle. Avoid range calls on
 an empty system.
 
-`queryShapeAABB`'s explicit-table branch currently reads the wrong Lua stack slot for
-the shape fields; use a renderizable or `queryAABB` instead. `destroyParticlesInShape`
+The unified plugin accepts explicit shape tables in `queryShapeAABB`; the legacy-only
+2.3 plugin still has the wrong-stack-slot limitation (use a renderizable or `queryAABB`). `destroyParticlesInShape`
 reads explicit shape fields correctly: rectangle `width,height`, circle `ray`,
 triangle `a,b,c` (each `{x,y}`), with optional `x,y,angle`.
 
 `world:destroyFluid(fluid)` returns nothing and releases the fluid through the world.
-Do not use the fluid or its shader table after destruction. Dropping the Lua fluid table
+In the unified plugin, methods on a destroyed fluid or its shader raise a Lua error;
+queued destruction also rejects further access. Retaining a fluid table does not keep
+its world alive. Dropping the Lua fluid table
 alone does not explicitly destroy the particle system; the world owns its lifetime.
 The fluid table exposes the methods above, not the full common renderizable API.
 
