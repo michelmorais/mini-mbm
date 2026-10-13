@@ -22,6 +22,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import statistics
@@ -38,7 +39,12 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--backends", nargs="+", choices=("rigid", "liquidfun", "candidate"), default=["rigid", "liquidfun", "candidate"])
+    parser.add_argument("--cpu", type=int, help="Pin collector and serial child processes to one Linux CPU")
     args = parser.parse_args()
+    if args.cpu is not None:
+        if not hasattr(os, "sched_getaffinity") or args.cpu not in os.sched_getaffinity(0):
+            parser.error("--cpu must be in this process's available Linux CPU set")
+        os.sched_setaffinity(0, {args.cpu})
     if args.runs < 1:
         parser.error("--runs must be positive")
     root = Path(__file__).resolve().parents[3]
@@ -47,6 +53,8 @@ def main():
         "platform": platform.platform(), "processor": platform.processor(),
         "warmup_steps": 600, "sample_steps": 3600, "dt": "1/60",
         "timing_unit": "microseconds", "scope": "native Step only; no Lua or rendering",
+        "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+        "warmup_note": "600 simulation steps, not 10 seconds of wall-clock warmup",
         "binaries": {}, "source_sha256": {}, "runs": [], "summary": [],
     }
     if Path("/proc/cpuinfo").exists():
@@ -81,6 +89,10 @@ def main():
             summary[field] = statistics.median(r[field] for r in rows)
         summary["median_range_us"] = [min(r["median_us"] for r in rows), max(r["median_us"] for r in rows)]
         report["summary"].append(summary)
+    report["binaries_unchanged"] = all(sha(Path(value["path"])) == value["sha256"]
+                                       for value in report["binaries"].values())
+    if not report["binaries_unchanged"]:
+        raise RuntimeError("Benchmark binary changed during collection")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report["summary"], indent=2))

@@ -27,6 +27,7 @@ Data: 2026-10-13. Engine **7.366.2**. Marco 5 **parcial**: guia, regressão
 reproduzível e correções de memória entregues; remoção da árvore antiga pendente.
 A aprovação manual do Ratworks está registrada. Windows ainda precisa ser validado.
 Continuação desta etapa: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
+Performance: [medições nativas OFF/ON e cargas de partículas](box2d-liquidfun-performance.md).
 Veja o [plano](box2d-liquidfun-unification-plan.md) e os
 [resultados desta rodada](box2d-liquidfun-consolidation-results.json).
 

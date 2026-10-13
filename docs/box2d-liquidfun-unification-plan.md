@@ -28,6 +28,7 @@ Ratworks validado automaticamente e testado pelo usuário; marcos 4 e 5 parciais
 Performance, plataformas restantes e remoção do legado pendentes**.
 Marco atual: [migração e consolidação](box2d-liquidfun-migration.md).
 Continuação: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
+Medições ampliadas: [custo nativo OFF/ON e escalabilidade](box2d-liquidfun-performance.md).
 Matriz de plataformas: [regressão](box2d-liquidfun-platforms.md).
 Cliente de referência: [Ratworks](box2d-liquidfun-ratworks.md).
 Marco anterior: [integração Lua e perfis de build](box2d-liquidfun-integration.md).
@@ -370,6 +371,13 @@ muito pequenos, calibrar também tolerância absoluta conforme resolução e ru�
 ambiente. Fixar o critério antes de avaliar o candidato. Para fluidos, exigir ausência
 de regressão estatisticamente distinguível e definir orçamento em ms no aparelho
 alvo do Ratworks após a baseline; não inventar meta universal de partículas/FPS.
+
+Atualização: a [coleta nativa ampliada](box2d-liquidfun-performance.md) executou
+cinco repetições dos perfis OFF/ON/legado e uma confirmação OFF/ON, com afinidade
+de CPU, sem observar regressão rígida repetível nos cenários medidos. Inclui
+1/100/1.000 sistemas vazios e até 10.000 partículas. Permanecem pendentes A/C
+contra upstream intocado, etapas do wrapper/renderização, memória/alocações,
+contatos com corpos móveis na carga ampliada e orçamento no aparelho alvo.
 
 ### 7.2 Funcionalidade e plataformas
 

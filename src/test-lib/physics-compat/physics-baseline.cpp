@@ -284,11 +284,22 @@ namespace
         for (b2Body *body = world.GetBodyList(); body; body = body->GetNext())
             checksum += body->GetPosition().x + body->GetPosition().y;
         require(std::isfinite(checksum), "nonfinite final body state");
+        int liveParticles = 0;
+#if PHYSICS_PARTICLES
+        for (b2ParticleSystem *system = world.GetParticleSystemList(); system; system = system->GetNext())
+        {
+            liveParticles += system->GetParticleCount();
+            const b2Vec2 *positions = system->GetPositionBuffer();
+            for (int i = 0; i < system->GetParticleCount(); ++i)
+                require(positions[i].IsValid(), "nonfinite final particle state");
+        }
+        require(liveParticles == systems * particles, "benchmark lost particles");
+#endif
         std::sort(timings.begin(), timings.end());
         std::printf("{\"backend\":\"%s\",\"scenario\":\"%s\",\"bodies\":%d,"
-                    "\"systems\":%d,\"particles_per_system\":%d,\"samples\":3600,"
+                    "\"systems\":%d,\"particles_per_system\":%d,\"samples\":3600,\"live_particles\":%d,"
                     "\"median_us\":%.6f,\"p95_us\":%.6f,\"p99_us\":%.6f,\"body_checksum\":%.9f}\n",
-                    PHYSICS_BACKEND, scenario, bodies, systems, particles,
+                    PHYSICS_BACKEND, scenario, bodies, systems, particles, liveParticles,
                     timings[1800], timings[3420], timings[3564], checksum);
     }
 
@@ -347,6 +358,11 @@ int main(int argc, char **argv)
             benchmark("empty_systems_100", 0, 100, 0, true);
             benchmark("empty_systems_1000", 0, 1000, 0, true);
             benchmark("particles_1000", 0, 1, 1000, true);
+            // Equal total count, but separate systems do not interact with each
+            // other; this measures a different physical workload, not a speedup.
+            benchmark("particles_1000_in_10_systems", 0, 10, 100, true);
+            benchmark("particles_5000", 0, 1, 5000, true);
+            benchmark("particles_10000", 0, 1, 10000, true);
 #endif
         }
     }
