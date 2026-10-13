@@ -46,12 +46,22 @@ struct VEC3;
         virtual ~SHAPE_INFO_B2DLF() noexcept;
     };
 
+    struct FLUID_EMISSION
+    {
+        b2ParticleGroupDef definition;
+        std::vector<b2Vec2> positions;
+        size_t emitted = 0;
+    };
+
     struct INFO_FLUID
     {
         RENDERIZABLE    * steered_particle;
         b2ParticleSystem*  particleSystem;
         b2ParticleGroupDef pd;
         uint16 fixtureMaskBits = 0xffff;
+        float riseTime = 0;
+        double emissionElapsed = 0;
+        std::vector<FLUID_EMISSION> pendingEmission;
         INFO_FLUID(const bool is3d,const bool is2dScreen,const bool segmented,const float* _scale_physics_engine) noexcept;
         virtual ~INFO_FLUID() noexcept;
     };
@@ -74,7 +84,7 @@ struct VEC3;
     typedef void(*On_box2d_DestroyBodyFromListLF)(RENDERIZABLE* ptr);
 
 
-    class PHYSICS_BOX2D_LIQUID_FUN : public PHYSICS, public b2ContactListener, public b2ContactFilter
+    class PHYSICS_BOX2D_LIQUID_FUN : public PHYSICS, public b2ContactListener, public b2ContactFilter, public b2DestructionListener
     {
     public:
         int32   velocityIterations;
@@ -152,8 +162,9 @@ struct VEC3;
                                         const bool is2dScreen,
                                         const bool segmented,
                                         const float radiusScale,
-                                        const uint16 fixtureMaskBits = 0xffff);
-        static int32 addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine);
+                                        const uint16 fixtureMaskBits = 0xffff,
+                                        const float riseTime = 0);
+        static int32 addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine, const bool gradual = false);
         void applyForce(SHAPE_INFO_B2DLF* info,const float x,const float y,const float wx,const float wy);
         void applyTorque(SHAPE_INFO_B2DLF* info,const float torque,bool awake);
         void setLinearVelocity(SHAPE_INFO_B2DLF* info,const float x,const float y);
@@ -175,6 +186,7 @@ struct VEC3;
     protected:
         void update(const float fps,const float delta);
         void update_fluid(INFO_FLUID* info);
+        bool emitFluid(INFO_FLUID* info, const float delta);
         void update_uv_fluid(INFO_FLUID* info);
 
     private:
@@ -199,6 +211,9 @@ struct VEC3;
                                         const bool  isSensor,
                                         const bool iskinematicBody,
                                         const bool isBullet);
+        void SayGoodbye(b2Joint*) override {}
+        void SayGoodbye(b2Fixture*) override {}
+        void SayGoodbye(b2ParticleGroup* group) override;
         using b2ContactFilter::ShouldCollide;
         bool ShouldCollide(b2Fixture* fixture, b2ParticleSystem* particleSystem, int32 particleIndex) override;
         void BeginContact(b2Contact* contact);

@@ -326,6 +326,7 @@ namespace mbm
             b2Vec2 b2Gravity(gravity->x,gravity->y);
             this->world = new b2World(b2Gravity);
             this->world->SetContactFilter(this);
+            this->world->SetDestructionListener(this);
         }
     }
     
@@ -720,7 +721,10 @@ namespace mbm
             {
                 if(info->steered_particle && info->particleSystem && info->steered_particle->getTypeClass() == mbm::TYPE_CLASS_STEERED_PARTICLE)
                 {
+                    const bool emitted = emitFluid(info, fps == 0.0f ? 0.0f : delta * this->multiplyStep);
                     update_fluid(info);
+                    if (emitted)
+                        update_uv_fluid(info);
                 }
             }
         }
@@ -1070,7 +1074,8 @@ namespace mbm
                                         const bool is2dScreen,
                                         const bool segmented,
                                         const float radiusScale,
-                                        const uint16 fixtureMaskBits)
+                                        const uint16 fixtureMaskBits,
+                                        const float riseTime)
     {
         if(physics == nullptr)
             return nullptr;
@@ -1094,6 +1099,7 @@ namespace mbm
         pParticleSystem->SetDamping(damping);
         p_steered_particle->setRadiusScale(radiusScale);
 
+        info->riseTime = riseTime;
         info->fixtureMaskBits = fixtureMaskBits;
         // Group userdata keeps filtering O(1), including groups emitted by fluid:add().
         info->pd.userData = info;
@@ -1109,10 +1115,10 @@ namespace mbm
         info->pd.angularVelocity  = angularVelocity;
         info->pd.angle            = angle;
 
-        if(addParticleToFluid(info,infoPhysics, position, scale,this->scale) == 0)
+        if(addParticleToFluid(info,infoPhysics, position, scale,this->scale, riseTime > 0) == 0)
         {
-            delete info;
             this->world->DestroyParticleSystem(pParticleSystem);
+            delete info;
             return nullptr;
         }
         update_fluid(info);
@@ -1133,13 +1139,42 @@ namespace mbm
                (fixture->GetFilterData().categoryBits & info->fixtureMaskBits) != 0;
     }
 
-    int32 PHYSICS_BOX2D_LIQUID_FUN::addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine)
+    int32 PHYSICS_BOX2D_LIQUID_FUN::addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine, const bool gradual)
     {
         int32 initialParticleCount = 0;
         if(info->pd.group != nullptr)
         {
             initialParticleCount     = info->pd.group->GetParticleCount();
         }
+        int32 scheduled = 0;
+        auto createGroup = [&]()
+        {
+            if (!gradual)
+            {
+                info->pd.group = info->particleSystem->CreateParticleGroup(info->pd);
+                return;
+            }
+            FLUID_EMISSION emission;
+            emission.definition = info->pd;
+            emission.definition.shape = nullptr;
+            emission.definition.group = nullptr;
+            // Match LiquidFun's filled-shape lattice without creating live particles.
+            const float stride = info->pd.stride > 0 ? info->pd.stride : b2_particleStride * (2.0f * info->particleSystem->GetRadius());
+            b2Transform identity;
+            identity.SetIdentity();
+            b2AABB bounds;
+            info->pd.shape->ComputeAABB(&bounds, identity, 0);
+            for (float y = floorf(bounds.lowerBound.y / stride) * stride; y < bounds.upperBound.y; y += stride)
+                for (float x = floorf(bounds.lowerBound.x / stride) * stride; x < bounds.upperBound.x; x += stride)
+                {
+                    const b2Vec2 p(x, y);
+                    if (info->pd.shape->TestPoint(identity, p))
+                        emission.positions.push_back(p);
+                }
+            scheduled += static_cast<int32>(emission.positions.size());
+            if (!emission.positions.empty())
+                info->pendingEmission.push_back(std::move(emission));
+        };
         const float scalePercentage = scaleEngine != 0 ? 1.0f / scaleEngine : 1.0f;
         for(const CUBE* cube : infoPhysics->lsCube)
         {
@@ -1150,8 +1185,7 @@ namespace mbm
                                 cube->halfDim.y * scale.y * scalePercentage,center,0);
             info->pd.shape            = &dynamicBox;
             info->pd.position.Set(center.x + (position.x * scalePercentage),center.y + (position.y * scalePercentage));
-            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
-            info->pd.group = group;
+            createGroup();
         }
 
         for(const SPHERE * sphere : infoPhysics->lsSphere)
@@ -1164,8 +1198,7 @@ namespace mbm
                             sphere->absCenter[1] * scale.y * scalePercentage);
             info->pd.shape = &shape;
             info->pd.position.Set(center.x + (position.x * scalePercentage),center.y + (position.y * scalePercentage));
-            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
-            info->pd.group = group;
+            createGroup();
         }
 
         for(const TRIANGLE * triangle : infoPhysics->lsTriangle)
@@ -1178,8 +1211,7 @@ namespace mbm
             groundTriangle.Set(vertices, 3);
             info->pd.shape = &groundTriangle;
             info->pd.position.Set(position.x * scalePercentage,position.y * scalePercentage);
-            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
-            info->pd.group = group;
+            createGroup();
         }
 
         for(const CUBE_COMPLEX * cube : infoPhysics->lsCubeComplex)
@@ -1193,10 +1225,12 @@ namespace mbm
             groundPolygn.Set(vertices, 4);
             info->pd.shape = &groundPolygn;
             info->pd.position.Set(position.x * scalePercentage,position.y * scalePercentage);
-            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
-            info->pd.group = group;
+            createGroup();
         }
 
+        info->pd.shape = nullptr;
+        if (gradual)
+            return scheduled;
         if(info->pd.group != nullptr)
         {
             const int32 particleCount       = info->pd.group->GetParticleCount();
@@ -1204,6 +1238,39 @@ namespace mbm
             return iTotalParticleAdded;
         }
         return 0;
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::SayGoodbye(b2ParticleGroup* group)
+    {
+        auto* info = static_cast<INFO_FLUID*>(group->GetUserData());
+        if (info && info->pd.group == group)
+            info->pd.group = nullptr;
+    }
+
+    bool PHYSICS_BOX2D_LIQUID_FUN::emitFluid(INFO_FLUID* info, const float delta)
+    {
+        if (info->pendingEmission.empty() || delta <= 0 || info->particleSystem->GetPaused())
+            return false;
+        info->emissionElapsed += delta;
+        const double fraction = std::min(1.0, info->emissionElapsed / info->riseTime);
+        bool changed = false;
+        for (auto& emission : info->pendingEmission)
+        {
+            const size_t target = fraction >= 1 ? emission.positions.size() :
+                static_cast<size_t>(emission.positions.size() * fraction);
+            if (target <= emission.emitted)
+                continue;
+            auto definition = emission.definition;
+            definition.group = info->pd.group;
+            definition.particleCount = static_cast<int32>(target - emission.emitted);
+            definition.positionData = emission.positions.data() + emission.emitted;
+            info->pd.group = info->particleSystem->CreateParticleGroup(definition);
+            emission.emitted = target;
+            changed = true;
+        }
+        if (fraction >= 1)
+            std::vector<FLUID_EMISSION>().swap(info->pendingEmission);
+        return changed;
     }
 
     void PHYSICS_BOX2D_LIQUID_FUN::update_uv_fluid(INFO_FLUID* info)

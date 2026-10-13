@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "physics-box-2d-liquid-fun-lua.h"
+#include <limits>
 #include <plugin-helper/plugin-helper.h>
 #include <core_mbm/class-identifier.h>
 #include <core_mbm/renderizable.h>
@@ -466,6 +467,7 @@ namespace mbm
         bool is2dScreen        = false;
         bool is3d              = false;
         uint16 fixtureMaskBits = 0xffff;
+        float riseTime         = 0.0f;
         float radiusScale      = 1.0f;
         float radius           = 0.5f;
         float damping          = 0.5f;
@@ -484,6 +486,15 @@ namespace mbm
         if(top == 3)
         {
             constexpr int indexTable = 3;
+            lua_getfield(lua, indexTable, "riseTime");
+            if (!lua_isnil(lua, -1))
+            {
+                const lua_Number value = luaL_checknumber(lua, -1);
+                if (!(value >= 0 && value <= std::numeric_limits<float>::max()))
+                    return lua_error_debug(lua, "riseTime must be finite and non-negative");
+                riseTime = static_cast<float>(value);
+            }
+            lua_pop(lua, 1);
             lua_getfield(lua, indexTable, "fixtureMaskBits");
             if (!lua_isnil(lua, -1))
             {
@@ -568,10 +579,11 @@ namespace mbm
                                                         is2dScreen,
                                                         segmented,
                                                         radiusScale,
-                                                        fixtureMaskBits);
+                                                        fixtureMaskBits,
+                                                        riseTime);
         if (info == nullptr || info->particleSystem == nullptr || info->steered_particle == nullptr)
         {
-            return lua_error_debug(lua, "Failed to create fluid. particleSystem:%p steered_particle:%p",info->particleSystem,info->steered_particle);
+            return lua_error_debug(lua, "Failed to create fluid. particleSystem:%p steered_particle:%p",info ? info->particleSystem : nullptr,info ? info->steered_particle : nullptr);
         }
         else
         {

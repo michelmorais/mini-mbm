@@ -1342,6 +1342,7 @@ local shader = fluid:getShader()
 | `is2dScreen`, `is3d` | false, false |
 | `segmented`, `radiusScale` | false, 1; rendering configuration |
 | `radius`, `damping` | 0.5 physics units, 0.5 |
+| `riseTime` | 0; non-negative finite duration in simulated seconds for the initial emission |
 | `fixtureMaskBits` | 65535; integer bitmask of rigid-body categories allowed to collide with this fluid (0 disables all) |
 | `lifetime`, `angularVelocity`, `strength`, `stride` | 0, 0, 1, 0 |
 | `angle` | Source renderizable's z angle, otherwise 0 |
@@ -1363,6 +1364,31 @@ and `fluid:setDensity(value)`. Supported particle flag strings (case-sensitive):
 Group strings: `solidParticleGroup`, `rigidParticleGroup`, `particleGroupCanBeEmpty`,
 `particleGroupWillBeDestroyed`, `particleGroupNeedsUpdateDepth`, `particleGroupInternalMask`.
 An array of group flags is ORed with the default solid-group flag; a string replaces it.
+
+#### Gradual initial emission
+
+Since engine 7.363, `createFluid(..., {riseTime=1})` distributes the initial
+particles over one second of simulated time. `riseTime=0` (the default) keeps
+immediate creation. Negative and non-finite values are rejected.
+
+With a positive duration the returned fluid initially contains zero particles.
+The C++ physics update creates proportional integer batches and emits the remainder
+on the first update reaching the duration. It samples the same shape/stride as
+immediate creation; pending particles are positions in a native queue, not live
+particles hidden from rendering. The emission region and transforms are captured
+at creation and do not follow a moving source mesh. Linear/angular initial velocity,
+particle flags and the fixture mask apply to each new batch. `lifetime` starts
+when each particle is born, so expired particles need not all be alive at the end.
+An explicit `setMaxParticleCount()` limit still applies to live particles.
+
+World pause, zero simulation delta and `fluid:setPaused(true)` suspend emission;
+resuming continues the remaining duration. Destroying the fluid or its world cancels
+pending emission. `fluid:add()` remains immediate and does not restart `riseTime`.
+The queue is released after completion; no Lua timer or callback is required.
+
+Regression: `src/test-lib/fluid_rise_smoke.lua` checks partial/complete emission,
+legacy behavior, pauses, invalid durations, early destruction, short lifetimes and
+adding particles after a group has expired.
 
 #### Fluid collision filtering
 
