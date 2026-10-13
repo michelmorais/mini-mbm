@@ -542,7 +542,12 @@ namespace mbm
                 ptr->setDistanceFromView(distFromCam.length());
             }
             std::sort(objects3d.begin(), objects3d.end(),
-                      [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
+                      [](const RENDERIZABLE *a, const RENDERIZABLE *b) {
+                          const bool fluidA = a->getTypeClass() == TYPE_CLASS_STEERED_PARTICLE;
+                          const bool fluidB = b->getTypeClass() == TYPE_CLASS_STEERED_PARTICLE;
+                          if (fluidA != fluidB) return !fluidA;
+                          return b->getDistanceFromView() < a->getDistanceFromView();
+                      });
             for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
                 RENDERIZABLE *ptr = objects3d[i];

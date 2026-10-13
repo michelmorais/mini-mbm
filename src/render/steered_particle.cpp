@@ -257,7 +257,7 @@ namespace mbm
         fx.setBlendOp();
         fx.shader.update();
 
-        return fx.shader.renderParticle(&this->bufferGl, pGroup);
+        return fx.shader.renderParticle(&this->bufferGl, pGroup, this->is3DObject());
     }
 
     bool STEERED_PARTICLE::loadParticleShader(const COLOR* p_color)

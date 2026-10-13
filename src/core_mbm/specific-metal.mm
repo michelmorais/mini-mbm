@@ -81,6 +81,7 @@ namespace mbm
         useNearestSampler    = false;
         defaultDepthStencilState = nil;
         noDepthStencilState  = nil;
+        fluidDepthReadState = nil;
         depthTexture         = nil;
 #if TARGET_OS_IOS
         metalView = nil;

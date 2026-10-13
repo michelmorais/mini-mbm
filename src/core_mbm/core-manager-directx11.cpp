@@ -173,6 +173,10 @@ namespace mbm
         depthDescription.BackFace = depthDescription.FrontFace;
         if (FAILED(context->device->CreateDepthStencilState(&depthDescription, &context->depthEnabledState)))
             return false;
+        depthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+        if (FAILED(context->device->CreateDepthStencilState(&depthDescription, &context->fluidDepthReadState)))
+            return false;
+        depthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
         depthDescription.DepthEnable = FALSE;
         depthDescription.StencilEnable = FALSE;
         if (FAILED(context->device->CreateDepthStencilState(&depthDescription, &context->depthDisabledState)))

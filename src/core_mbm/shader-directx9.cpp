@@ -2445,6 +2445,11 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
+        return renderParticle(pBufferId, pGroup, false);
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup, const bool is3d) const
+    {
         BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
         if (!backendBuffer)
             return false;
@@ -2453,7 +2458,19 @@ namespace mbm
         DWORD depthTestEnabled = FALSE;
 
         pd3dDevice->GetRenderState(D3DRS_ZENABLE, &depthTestEnabled);
-        pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+        struct FluidDepthScope
+        {
+            IDirect3DDevice9* device;
+            DWORD enabled, write;
+            ~FluidDepthScope()
+            {
+                device->SetRenderState(D3DRS_ZENABLE, enabled);
+                device->SetRenderState(D3DRS_ZWRITEENABLE, write);
+            }
+        } depthScope{pd3dDevice, depthTestEnabled, TRUE};
+        pd3dDevice->GetRenderState(D3DRS_ZWRITEENABLE, &depthScope.write);
+        pd3dDevice->SetRenderState(D3DRS_ZENABLE, is3d ? D3DZB_TRUE : D3DZB_FALSE);
+        if (is3d) pd3dDevice->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
 
         const D3DMATRIX* modelView = reinterpret_cast<const D3DMATRIX*>(&SHADER::modelView);
         if (FAILED(pd3dDevice->SetTransform(D3DTS_WORLD, modelView)))

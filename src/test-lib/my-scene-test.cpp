@@ -915,7 +915,8 @@ void MY_SCENE::onInitScene()
         {
             for (size_t i = 0; i < menuItems.size(); ++i)
             {
-                if (menuItems[i].objType == MenuObjectType::MESH)
+                const auto preloadType = cliMeshFile == "--fluid" ? MenuObjectType::STEERED_PARTICLE : MenuObjectType::MESH;
+                if (menuItems[i].objType == preloadType)
                 {
                     loadObjectAt(i, cliMeshMode);
                     break;

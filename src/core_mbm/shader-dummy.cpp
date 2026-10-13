@@ -311,6 +311,11 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
+        return renderParticle(pBufferId, pGroup, false);
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup, const bool is3d) const
+    {
         REMINDER_TODO
         return true;
     }

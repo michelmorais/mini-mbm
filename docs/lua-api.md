@@ -1363,6 +1363,31 @@ Group strings: `solidParticleGroup`, `rigidParticleGroup`, `particleGroupCanBeEm
 `particleGroupWillBeDestroyed`, `particleGroupNeedsUpdateDepth`, `particleGroupInternalMask`.
 An array of group flags is ORed with the default solid-group flag; a string replaces it.
 
+#### 3D fluid rendering
+
+With `is3d=true`, fluids render after the normal non-fluid 3D objects, with depth
+**testing enabled and depth writes disabled**. This applies to the main viewport and
+`render2texture`; overlay priority layers retain precedence in the viewport. Transparent
+quad borders no longer block subsequently drawn geometry, and fluids behind opaque
+geometry remain occluded. 2D fluids and ordinary particle emitters keep their previous
+rendering behavior. The legacy C++ two-argument fluid draw overload also retains its
+2D depth policy; the steered-particle renderer supplies its 3D flag explicitly.
+
+The default `blend="one"` is additive (`SRC_ALPHA, ONE`). Use
+`blend="inv_src_alpha"` for conventional alpha blending (`SRC_ALPHA, ONE_MINUS_SRC_ALPHA`)
+on OpenGL/DX9; the option selects the **destination** factor, not the source factor.
+Metal selects its existing additive/standard pipeline variants for these two modes.
+This is a dedicated fluid pass, not a general transparency sorter: transparent non-fluid
+meshes and intersecting fluid groups can still require scene-specific compositing.
+Particle order inside a fluid group is unchanged; no per-particle sorting cost was added.
+The simulation remains XY and the renderer uses planar quads, not volumetric spheres.
+
+Regression scenes: `testLib 2 --fluid 3d` exercises the C++ steered-particle path;
+`src/test-lib/fluid_depth_smoke.lua` exercises LiquidFun and can capture a pixel-checked
+3D foreground/background occlusion case using `MBM_FLUID_CAPTURE=/tmp/fluid.png`.
+Repeat with `MBM_FLUID_SHIFT=150` to check origin-independent ordering, or
+`MBM_FLUID_MODE=2dw` / `2ds` for legacy-mode smoke checks.
+
 ### 11.3 Fluid methods
 
 All calls use `fluid:`. Setters, forces, queries and particle destruction return nothing

@@ -70,6 +70,7 @@ namespace mbm
 
         id<MTLDepthStencilState> defaultDepthStencilState = nil;
         id<MTLDepthStencilState> noDepthStencilState      = nil;
+        id<MTLDepthStencilState> fluidDepthReadState      = nil;
         id<MTLTexture>           depthTexture             = nil;
     };
 }

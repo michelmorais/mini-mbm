@@ -619,7 +619,13 @@ namespace mbm
                 }
             }
         }
-        const auto sortByDistance = [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); };
+        const auto sortByDistance = [](const RENDERIZABLE *a, const RENDERIZABLE *b) {
+            const bool fluidA = a->getTypeClass() == TYPE_CLASS_STEERED_PARTICLE;
+            const bool fluidB = b->getTypeClass() == TYPE_CLASS_STEERED_PARTICLE;
+            // Fluids need the completed scene depth buffer. Keep overlay priorities outermost.
+            if (fluidA != fluidB) return !fluidA;
+            return b->getDistanceFromView() < a->getDistanceFromView();
+        };
         std::sort(lsRenderOnFrustum3d.begin(), lsRenderOnFrustum3d.end(), sortByDistance);
         const auto sortAlwaysOnTop = [&sortByDistance](const RENDERIZABLE *a, const RENDERIZABLE *b) {
             const int priorityA = a->getAlwaysOnTopPriority();
