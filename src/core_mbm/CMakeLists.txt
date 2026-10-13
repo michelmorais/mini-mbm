@@ -9,7 +9,6 @@ set(RENDER_SRC                 "../render")
 set(THIRD_PARTY                "../../third-party")
 set(RENDER_INCLUDE             ${SRC_INCLUDES}/render)
 set(CORE_OPENGLES_INCLUDE      ${SRC_INCLUDES}/core_mbm)
-set(BOX2D_LIQUID_FUN_WRAP_SRC  box-2d-liquid-fun-wrap)
 set(BULLET3d_WRAP_INCLUDE      ${SRC_INCLUDES}/bullet-3d-wrap)
 set(BULLET3d_WRAP_SRC          bullet-3d-wrap)
 set(CORE_OPENGLES_MINIZ        ${CORE_OPENGLES_SRC}/miniz)
@@ -17,7 +16,6 @@ set(CORE_OPENGLES_PLATFORM     ${CORE_OPENGLES_SRC}/platform)
 set(STB_DIR                    ${THIRD_PARTY}/stb)
 set(MINIZ_DIR                  ${THIRD_PARTY}/miniz)
 set(LODE_PNG_DIR               ${THIRD_PARTY}/lodepng)
-set(BOX2D_LIQUID_FUN_INC       ${THIRD_PARTY}/box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
 set(BULLET_3D_INC              ${THIRD_PARTY}/bullet-${BULLET_LIB_VERSION})
 set(TINYFILEDIALOGS_DIR        ${THIRD_PARTY}/tinyfiledialogs)
 set(PORT_AUDIO_SRC             ${THIRD_PARTY}/portaudio/src)
@@ -51,8 +49,6 @@ include_directories(${CORE_OPENGLES_INCLUDE}
                     ${SRC_INCLUDES} 
                     ${STB_DIR} 
                     ${THIRD_PARTY} 
-                    ${BOX2D_LIQUID_FUN_WRAP_INCLUDE} 
-                    ${BOX2D_LIQUID_FUN_INC}
                     ${BULLET_3D_INC}
                     ${PORT_AUDIO_INCLUDE}
                     ${WAVE_SRC})

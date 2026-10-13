@@ -581,7 +581,7 @@ Collision queries do not change the object's position.
 |---|---|---|---|
 | `obj:setAnim` | `(name: string\|index: int)` | — | Play animation by name or index |
 | `obj:getAnim` | `(index?: int)` | name, index | Get current (or nth) animation name and index |
-| `obj:addAnim` | `(name, type, frames, fps, startFrame?)` | — | Define a new animation on the object |
+| `obj:addAnim` | `(name?, type?, startFrame?, finalFrame?, intervalSeconds?)` | name, index | Define a frame animation; frames and returned index are 1-based. Defaults: generated name, paused type, first frame, first frame, 1 second. A non-positive interval keeps the default. |
 | `obj:getTotalAnim` | `()` | int | Number of animations defined |
 | `obj:getTotalFrame` | `()` | int | Total frames in current animation |
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
@@ -1113,8 +1113,11 @@ Access as `mbm.CONSTANT_NAME`.
 
 ## 10. Plugin: box2d
 
-Box2D 2.4.1 rigid-body physics; build with `-DUSE_BOX2D=1` (included in
-`USE_ALL`). The bindings are in
+Box2D 2.4.1 rigid-body physics; build with `-DUSE_LUA=1 -DUSE_BOX2D=1`.
+`-DUSE_BOX2D_PARTICLES=ON` adds the ported LiquidFun particle
+solver and the fluid API in section 11 to the same backend. The default is OFF;
+`USE_ALL=1` defaults it to ON, while respecting an explicit OFF (and cached values).
+OFF excludes particle sources and fluid methods. The bindings are in
 [`physics-box-2d-lua.cpp`](../plugins/box2d/physics-box-2d-lua.cpp) and
 [`physics-box2d-joint-lua.cpp`](../plugins/box2d/physics-box2d-joint-lua.cpp).
 The [plugin symbol index](lua-plugin-symbols.md) lists every registered method.
@@ -1140,6 +1143,7 @@ syntax. Omit trailing arguments to use defaults; most numeric options do not acc
 |---|---|
 | `box2d:new(gx=0, gy=-90.8, scale=10, velocityIterations=10, positionIterations=3, multiply=1)` | World table; nonpositive constructor `multiply` becomes 1 |
 | `box2d:getVersion()` | Library version string |
+| `box2d:supportsParticles()` / `world:supportsParticles()` | Boolean compile-time particle capability; does not create a particle system |
 | `world:setGravity(x, y)` / `world:getGravity()` | none / `x, y` |
 | `world:setScale(scale)` / `world:getScale()` | none / number |
 | `world:setMultiply(value)` / `world:getMultiply()` | none / simulation time multiplier |
@@ -1295,28 +1299,49 @@ and getters generally return zero, so zero alone does not prove support.
 
 ## 11. Plugin: box2dLiquidFun
 
-LiquidFun 1.1.0 (based on Box2D 2.3.0), built with `-DUSE_BOX2D_LIQUID_FUN=1`
-(included in `USE_ALL`). Load with `require "box2dLiquidFun"`, then construct using
+A CMake build with `USE_BOX2D=1` supplies `box2dLiquidFun`
+as a forwarding module to Box2D 2.4.1. Enable `USE_LUA=1` and
+`USE_BOX2D_PARTICLES=ON` to use fluids. Both `require "box2d"` and
+`require "box2dLiquidFun"` work in either order without compiling a second physics
+backend. Their `luaopen_lib*` entry points remain available. With particles OFF,
+loading the compatibility module raises an error naming the required CMake option.
+
+Construct with
 `box2dLiquidFun:new(gx=0, gy=-90.8, scale=10, velocityIterations=10, positionIterations=3, multiply=1)`.
-`box2dLiquidFun:getVersion()` returns its version string.
+`box2dLiquidFun:getVersion()` returns `2.4.1`; `supportsParticles()` returns true.
+Both factories use the same backend but create separate worlds. Bodies, joints and
+fluids must remain with their owning world. Fluid destruction checks this ownership.
+The world exposes section 10's rigid methods plus `createFluid` and `destroyFluid`.
+Sources: [world](../plugins/box2d/physics-box-2d-lua.cpp),
+[joints](../plugins/box2d/physics-box2d-joint-lua.cpp),
+[fluid creation](../plugins/box2d/physics-box-2d-fluid-create-lua.cpp),
+[fluid methods](../plugins/box2d/physics-box-2d-fluid-lua.cpp).
 
-The world exposes all the rigid-body method names in section 10, plus `createFluid`
-and `destroyFluid`. The shared body arguments, contact callbacks and unit conventions
-apply here too, including the current `setType` binding limitation. Bodies and joints
-belong to their own physics plugin; do not pass Box2D objects to LiquidFun or vice versa.
-Sources: [`world bindings`](../plugins/box2d-liquid-fun-lua/physics-box-2d-liquid-fun-lua.cpp),
-[`joint bindings`](../plugins/box2d-liquid-fun-lua/physics-box2d-liquid-fun-joint-lua.cpp),
-and [`fluid bindings`](../plugins/box2d-liquid-fun-lua/physics-box-2d-fluid-lua.cpp).
+Enable fluids with `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`.
+`USE_BOX2D_LIQUID_FUN=ON` is a configuration error. Direct Visual Studio projects
+use `MbmBox2dParticles=0|1` with the unified backend and forwarding DLL.
+Embedded loaders call `mbm_open_box2d_compat` directly. See
+[Box2D configuration and regression tests](box2d.md).
 
-### 11.1 Joint differences
+### 11.1 Joint compatibility
 
-LiquidFun registers `joint:getDampingRatio()` / `joint:setDampingRatio(value)` instead
-of `getDamping` / `setDamping`, and `joint:getFrequencyHz()` /
-`joint:setFrequencyHz(value)` instead of `getStiffness` / `setStiffness`.
-These are frequency and damping-ratio values from the older Box2D API, not stiffness
-and damping coefficients. The ratio methods also operate on gear ratio. LiquidFun's
-`rope` creates an actual rope joint; `getLength` / `setLength` support its maximum length
-as well as distance joints. The remaining joint method names match section 10.6.
+The unified backend retains `getDamping` / `setDamping` and `getStiffness` /
+`setStiffness` and adds the legacy `getDampingRatio` / `setDampingRatio` and
+`getFrequencyHz` / `setFrequencyHz` methods. The legacy methods convert physical
+units for distance, wheel and weld joints: `k = m*(2*pi*f)^2`,
+`c = 2*m*ratio*(2*pi*f)`, using reduced inertia for weld joints and reduced mass
+otherwise. Zero-frequency joints retain their damping-ratio setting. On gear joints,
+the ratio methods operate directly on the gear ratio. Unsupported legacy spring
+operations raise Lua errors. These methods are available in both particle profiles.
+
+The compatibility factory preserves legacy defaults (distance/weld: 0 Hz, ratio 0;
+wheel: 2 Hz, ratio 0.7). Its soft distance joints use free distance limits, and its
+`rope` uses a distance joint with only an upper limit; rope `getLength` / `setLength`
+operate on that maximum. The modern factory retains its existing construction
+behavior. The compatibility flag selects construction defaults and joint semantics
+within the same Box2D 2.4.1 backend; it does not select a second solver.
+Joint handles become invalid after their joint, either connected body or world is
+released; access raises an error after the queued destruction is processed.
 
 ### 11.2 Fluid construction and options
 
@@ -1342,6 +1367,8 @@ local shader = fluid:getShader()
 | `is2dScreen`, `is3d` | false, false |
 | `segmented`, `radiusScale` | false, 1; rendering configuration |
 | `radius`, `damping` | 0.5 physics units, 0.5 |
+| `riseTime` | 0; non-negative finite duration in simulated seconds for the initial emission |
+| `fixtureMaskBits` | 65535; integer bitmask of rigid-body categories allowed to collide with this fluid (0 disables all) |
 | `lifetime`, `angularVelocity`, `strength`, `stride` | 0, 0, 1, 0 |
 | `angle` | Source renderizable's z angle, otherwise 0 |
 | `scale` | `{x=1,y=1}` |
@@ -1362,6 +1389,132 @@ and `fluid:setDensity(value)`. Supported particle flag strings (case-sensitive):
 Group strings: `solidParticleGroup`, `rigidParticleGroup`, `particleGroupCanBeEmpty`,
 `particleGroupWillBeDestroyed`, `particleGroupNeedsUpdateDepth`, `particleGroupInternalMask`.
 An array of group flags is ORed with the default solid-group flag; a string replaces it.
+
+#### Convex polygon contours
+
+The shared physics-table parser accepts `convexPolygon`:
+
+```lua
+local contour = {
+    type = "convexPolygon",
+    points = {
+        {x=-10, y=-5}, {x=10, y=-5},
+        {x=6, y=5}, {x=-6, y=5},
+    },
+}
+local fluid = world:createFluid(contour, {
+    position = {x=100, y=30, z=0},
+    radius = 0.3,
+    riseTime = 1,
+})
+-- Later additions use the same shape format (and remain immediate):
+fluid:add(contour, {x=120, y=30})
+```
+
+`points` must contain 3 to 64 vertices with finite numeric `x,y`, in clockwise or
+counterclockwise perimeter order. Coordinates are local XY render units; place the
+fluid with `options.position`, or the transform passed to `fluid:add`. Do not repeat
+the first vertex to close the contour. Concavity, self-intersection, repeated points,
+collinear edges and near-degenerate contours are rejected (cross-product tolerance
+is `1e-7` times the squared coordinate extent). This does not compute a convex hull
+from an unordered point cloud. Holes and concave contours are not supported.
+
+The parser normalizes winding and stores a triangle fan using the existing physics
+representation; no new mesh-file shape is introduced. It is also available to other
+consumers of the shared parser, including `line:setPhysics(contour, true)` (the second
+argument draws the outline). This is physics geometry, not a new `shape:create` mode.
+
+`triangleList` is an explicit alias for the legacy `polygon`/`polyline` triplet
+interpretation. Supply a multiple of three points, one independent triangle per
+triplet. Existing `polygon` and `polyline` names retain that interpretation; they do
+**not** become ordered-contour inputs.
+
+LiquidFun fills the union of a physics table's triangles on one sampling grid,
+both for immediate creation and `riseTime`. Shared edges and overlapping triangles
+do not emit duplicate particles. Separate shapes of different kinds (e.g. an
+overlapping circle and triangle) are not unioned.
+
+Regression scene: `src/test-lib/fluid_convex_smoke.lua` covers rectangle equivalence,
+shared-edge uniqueness, both windings, a hexagon, legacy aliases, invalid contours,
+`fluid:add`, gradual emission and a static body built from a line's physics outline.
+
+#### Gradual initial emission
+
+`createFluid(..., {riseTime=1})` distributes the initial
+particles over one second of simulated time. `riseTime=0` (the default) keeps
+immediate creation. Negative and non-finite values are rejected.
+
+With a positive duration the returned fluid initially contains zero particles.
+The C++ physics update creates proportional integer batches and emits the remainder
+on the first update reaching the duration. It samples the same shape/stride as
+immediate creation; pending particles are positions in a native queue, not live
+particles hidden from rendering. The emission region and transforms are captured
+at creation and do not follow a moving source mesh. Linear/angular initial velocity,
+particle flags and the fixture mask apply to each new batch. `lifetime` starts
+when each particle is born, so expired particles need not all be alive at the end.
+An explicit `setMaxParticleCount()` limit still applies to live particles.
+
+World pause, zero simulation delta and `fluid:setPaused(true)` suspend emission;
+resuming continues the remaining duration. Destroying the fluid or its world cancels
+pending emission. `fluid:add()` remains immediate and does not restart `riseTime`.
+The queue is released after completion; no Lua timer or callback is required.
+
+Regression: `src/test-lib/fluid_rise_smoke.lua` checks partial/complete emission,
+immediate emission, pauses, invalid durations, early destruction, short lifetimes and
+adding particles after a group has expired.
+
+#### Fluid collision filtering
+
+`fixtureMaskBits` in `createFluid` selects which rigid-body
+categories the fluid can collide with. It is an integer from 0 to 65535 and defaults
+to 65535 (unrestricted, including category zero).
+For a restricted mask, a contact is allowed when
+`fixture.categoryBits & fixtureMaskBits ~= 0`; zero disables all fluid/body contacts.
+The body categories are assigned using `world:setFilter(body, {...})`.
+
+```lua
+world:setFilter(rat, {categoryBits=0x0002, maskBits=0xffff, groupIndex=-1})
+local fluid = world:createFluid({type='circle', ray=10}, {
+    fixtureMaskBits = 0xffff ~ 0x0002, -- ignore rats; default-category ground remains solid
+    flags = 'water',
+})
+```
+
+The engine automatically adds `fixtureContactFilter` to the particle flags when the
+mask restricts any category. The same mask applies to later `fluid:add()` emissions.
+Filtering runs in native code without Lua callbacks; it changes neither rendering
+nor particle/particle interactions. Body `maskBits` and `groupIndex` still govern
+body/body collisions, but do not participate in this fluid mask test. The mask is
+set at creation; there is no fluid-mask setter. Omitting the option uses the
+unrestricted default mask.
+
+Regression scene: `src/test-lib/fluid_filter_smoke.lua` checks the default behavior,
+excluded categories, floor collision, a zero mask, later emissions, invalid masks,
+and preservation of body/body contacts.
+
+#### 3D fluid rendering
+
+With `is3d=true`, fluids render after the normal non-fluid 3D objects, with depth
+**testing enabled and depth writes disabled**. This applies to the main viewport and
+`render2texture`; overlay priority layers retain precedence in the viewport. Transparent
+quad borders do not write depth, and fluids behind opaque geometry remain occluded.
+The C++ two-argument fluid draw overload uses its 2D depth policy; the
+steered-particle renderer supplies its 3D flag explicitly.
+
+The default `blend="one"` is additive (`SRC_ALPHA, ONE`). Use
+`blend="inv_src_alpha"` for conventional alpha blending (`SRC_ALPHA, ONE_MINUS_SRC_ALPHA`)
+on OpenGL/DX9; the option selects the **destination** factor, not the source factor.
+Metal selects its existing additive/standard pipeline variants for these two modes.
+This is a dedicated fluid pass, not a general transparency sorter: transparent non-fluid
+meshes and intersecting fluid groups can still require scene-specific compositing.
+Particles inside a fluid group are not sorted by depth.
+The simulation remains XY and the renderer uses planar quads, not volumetric spheres.
+
+Regression scenes: `testLib 2 --fluid 3d` exercises the C++ steered-particle path;
+`src/test-lib/fluid_depth_smoke.lua` exercises LiquidFun and can capture a pixel-checked
+3D foreground/background occlusion case using `MBM_FLUID_CAPTURE=/tmp/fluid.png`.
+Repeat with `MBM_FLUID_SHIFT=150` to check origin-independent ordering, or
+`MBM_FLUID_MODE=2dw` / `2ds` for legacy-mode smoke checks.
 
 ### 11.3 Fluid methods
 
@@ -1398,13 +1551,16 @@ Range limitation: the wrapper subtracts 1 from **both** endpoints, clamps each t
 (including their array overload) when targeting every particle. Avoid range calls on
 an empty system.
 
-`queryShapeAABB`'s explicit-table branch currently reads the wrong Lua stack slot for
-the shape fields; use a renderizable or `queryAABB` instead. `destroyParticlesInShape`
+`queryShapeAABB` accepts explicit shape tables. `destroyParticlesInShape`
 reads explicit shape fields correctly: rectangle `width,height`, circle `ray`,
 triangle `a,b,c` (each `{x,y}`), with optional `x,y,angle`.
 
 `world:destroyFluid(fluid)` returns nothing and releases the fluid through the world.
-Do not use the fluid or its shader table after destruction. Dropping the Lua fluid table
+In the unified plugin, methods on a destroyed fluid or its shader raise a Lua error;
+queued destruction also rejects further access. Retaining a fluid table does not keep
+its world alive. Fluid and joint handles created in a short-lived Lua coroutine
+remain valid after that coroutine is collected; their registry cleanup uses the
+main Lua thread. Dropping the Lua fluid table
 alone does not explicitly destroy the particle system; the world owns its lifetime.
 The fluid table exposes the methods above, not the full common renderizable API.
 

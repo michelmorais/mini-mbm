@@ -253,6 +253,8 @@ namespace mbm
                              uint32_t skeletalPaletteFloatCount = 0) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
+        // 3D fluid tests scene depth without writing transparent quad depth.
+        API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup, bool is3d) const;
         API_IMPL bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
                                     const RENDERIZABLE *renderizableOwner = nullptr) const;
         API_IMPL void update();

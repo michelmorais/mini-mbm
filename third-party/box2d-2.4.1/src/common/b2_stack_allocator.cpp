@@ -22,6 +22,9 @@
 
 #include "box2d/b2_stack_allocator.h"
 #include "box2d/b2_math.h"
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+#include <cstring>
+#endif
 
 b2StackAllocator::b2StackAllocator()
 {
@@ -85,3 +88,35 @@ int32 b2StackAllocator::GetMaxAllocation() const
 {
 	return m_maxAllocation;
 }
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+void* b2StackAllocator::Reallocate(void* p, int32 size)
+{
+    b2Assert(m_entryCount > 0);
+    b2StackEntry& entry = m_entries[m_entryCount - 1];
+    b2Assert(p == entry.data);
+    B2_NOT_USED(p);
+    if (size <= entry.size)
+        return entry.data;
+
+    const int32 growth = size - entry.size;
+    if (entry.usedMalloc || m_index + growth > b2_stackSize)
+    {
+        char* data = static_cast<char*>(b2Alloc(size));
+        std::memcpy(data, entry.data, entry.size);
+        if (entry.usedMalloc)
+            b2Free(entry.data);
+        else
+            m_index -= entry.size;
+        entry.data = data;
+        entry.usedMalloc = true;
+    }
+    else
+        m_index += growth;
+
+    m_allocation += growth;
+    m_maxAllocation = b2Max(m_maxAllocation, m_allocation);
+    entry.size = size;
+    return entry.data;
+}
+#endif

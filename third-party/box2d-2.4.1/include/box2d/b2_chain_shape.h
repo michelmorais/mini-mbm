@@ -36,6 +36,10 @@ class b2EdgeShape;
 class B2_API b2ChainShape : public b2Shape
 {
 public:
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    void ComputeDistance(const b2Transform& xf, const b2Vec2& p, float* distance, b2Vec2* normal, int32 childIndex) const override;
+#endif
 	b2ChainShape();
 
 	/// The destructor frees the vertices using b2Free.

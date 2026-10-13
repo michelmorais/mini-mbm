@@ -211,11 +211,11 @@ Consequences of static linking on iOS:
   propagate to the consumer's linker command even when marked `PRIVATE` — omitting the
   guard would cause the linker to see each library listed twice and emit
   `ld: warning: ignoring duplicate libraries`.
-* `box2d` and `box2d-liquid-fun` share large amounts of object code (`b2World`, `b2Body`,
-  …) and cannot both be linked into the same binary.  The root `CMakeLists.txt` detects
-  this combination on iOS and automatically disables `USE_BOX2D_LIQUID_FUN` with a
-  warning.  To use liquid-fun instead, pass `-DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1`
-  explicitly (do not use `-DUSE_ALL=1`).
+* Box2D 2.4.1 includes optional ported LiquidFun particles. Use
+  `-DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_PARTICLES=ON` for fluids, or particles
+  OFF for rigid-only. Embedded `box2dLiquidFun` calls the same backend.
+  `USE_BOX2D_LIQUID_FUN=ON` is not supported. Verify physics and rendering on
+  the target device; desktop execution does not validate iOS runtime behavior.
 
 ---
 

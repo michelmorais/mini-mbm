@@ -54,12 +54,13 @@ mingw32-make -j...        # Windows MinGW
 ### Important optional flags
 | Flag | Effect |
 |---|---|
-| `-DUSE_ALL=1` | Enable common full-feature set (Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, Tiled); does not enable Steam or Bullet3D |
+| `-DUSE_ALL=1` | Enable common full-feature set (Lua, VR, Box2D with optional particles, ImGui, lSQLite3, Tiled); does not enable Steam or Bullet3D |
 | `-DUSE_LUA=1` | Embed Lua 5.4 scripting |
 | `-DUSE_VR=1` | Enable VR class (default on Linux/Windows, off on Android) |
 | `-DAUDIO=portaudio\|avfoundation\|opensl\|none` | Audio backend. `portaudio` is the default for Linux/Windows; `avfoundation` for macOS/iOS; `opensl` for Android |
 | `-DUSE_BOX2D=1` | Box2D 2.4.1 physics plugin |
-| `-DUSE_BOX2D_LIQUID_FUN=1` | LiquidFun 1.1.0 fluid physics plugin, based on Box2D 2.3.0 |
+| `-DUSE_BOX2D_PARTICLES=ON` | Optional LiquidFun particles ported to Box2D 2.4.1; requires `USE_BOX2D=1` and `USE_LUA=1`. Default OFF; `USE_ALL` defaults ON and respects explicit OFF. |
+| `-DUSE_BOX2D_LIQUID_FUN=1` | Unsupported; use `USE_LUA=1 USE_BOX2D=1 USE_BOX2D_PARTICLES=ON`. `box2dLiquidFun` remains a forwarding module. |
 | `-DUSE_BULLET3D=1` | Bullet 2.84 3D physics plugin |
 | `-DUSE_IMGUI=1` | Dear ImGui plugin (required for editor tools) |
 | `-DUSE_LSQLITE3=1` | SQLite3 Lua bindings |
@@ -71,6 +72,9 @@ mingw32-make -j...        # Windows MinGW
 |---|---|---|
 | Debug | `bin/debug/` | `libs/debug/` |
 | Release | `bin/release/` | `libs/release/` |
+
+`-DMBM_OUTPUT_ROOT=/absolute/path` relocates both `bin/` and `libs/`. Use a distinct
+output root for each physics ON/OFF or sanitizer profile to avoid mixing binaries.
 
 ### Recommended build directories
 - `build/linux_debug/`, `build/linux_release/`
@@ -110,8 +114,7 @@ mini-mbm/
 ├── platform-msvs/            Windows Visual Studio solution + project files
 ├── plugins/                  Optional plugin shared libraries
 │   ├── plugin-helper/        Shared Lua helper utilities used by all plugins
-│   ├── box2d/                Box2D 2.4.1 Lua bindings
-│   ├── box2d-liquid-fun-lua/ LiquidFun 1.1.0 / Box2D 2.3.0 Lua bindings
+│   ├── box2d/                Unified Box2D 2.4.1 + optional LiquidFun Lua bindings
 │   ├── bullet3d/             Bullet 2.84 Lua bindings
 │   ├── imGui/                Dear ImGui plugin (powers all editor tools)
 │   └── tiled/                Tiled-map plugin with tile_editor
@@ -395,8 +398,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 |---|---|---|
 | lua | 5.4.1 | Scripting engine |
 | portaudio | — | Audio (Linux/Windows) |
-| box2d | 2.4.1 | 2D physics |
-| box2d-liquid-fun | LiquidFun 1.1.0 / Box2D 2.3.0 | 2D fluid simulation |
+| box2d | 2.4.1 + optional ported LiquidFun particles | Unified 2D physics/fluids |
 | bullet | 2.84 | 3D physics |
 | stb | — | Image loading helpers |
 | lodepng | — | PNG loading |
@@ -437,6 +439,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 ### Windows (Visual Studio)
 - Solution: `platform-msvs/mini-mbm.sln`, developed with Visual Studio 2026; no CMake needed
 - Key projects: `mini_mbm` (exe), `mini-mbm-lib` (launcher lib), `core_mbm` (engine lib), `lua5.4`, `lsqlite3`, `ImGui`, `box2d`, `box2dLiquidFun`, `bullet3d`
+- Unified Box2D: `MbmBox2dParticles=1` by default; pass `/p:MbmBox2dParticles=0` for rigid-only and rebuild when switching. `box2dLiquidFun` is a forwarding DLL referencing `box2d`, not a second physics backend.
 - CMake + MinGW also supported; audio: `-DAUDIO=portaudio`
 
 ---
@@ -444,7 +447,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 ## Important Constraints and Patterns
 
 - **CMake ≥ 3.25.1** is required; `cmake_policy(SET CMP0054 NEW)` is set everywhere
-- **`-DUSE_ALL=1`** is the recommended common full-featured build flag — it enables Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled; Steam and Bullet3D remain explicit
+- **`-DUSE_ALL=1`** is the recommended common full-featured build flag — it enables Lua, VR, Box2D with particles (unless explicitly OFF), ImGui, lSQLite3, and Tiled; Steam and Bullet3D remain explicit
 - **ImGui-visible text must use ASCII-safe punctuation and symbols.** The current editor font atlas supports Portuguese letters/accents, but do not put typographic glyphs such as `—`, `–`, `…`, `°`, `×`, or `→` in labels, tooltips, status messages, or dynamically rendered text; they may appear as `?`. Use `-`, `...`, `deg`, `x`, and `->` respectively. Comments and non-rendered documentation are not constrained by this rule.
 - **When touching `src/core_mbm/` or `include/core_mbm/`, preserve the current PIMPL/header-hygiene direction** — do not introduce new public mutable storage, backend handles, STL container exposure, or convenience accessors that leak `Impl`-owned state into public headers just to ship a feature. If a feature needs new internal state, prefer keeping it in `Impl`/`BackendData` or private translation-unit helpers, and update `docs/core-pimpl-status.md` when the work changes that boundary.
 - **When shipping a new feature, update `include/version/version.h`** — bump `MBM_VERSION` to reflect the new functionality, following the versioning notes already documented in that header.

@@ -405,6 +405,18 @@ static id<MTLDepthStencilState> getOrCreateNoDepthState(mbm::SPECIFIC_AUX_CONTEX
     return ctx->noDepthStencilState;
 }
 
+static id<MTLDepthStencilState> getOrCreateFluidDepthReadState(mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx)
+{
+    if (!ctx->fluidDepthReadState)
+    {
+        MTLDepthStencilDescriptor* dsd = [MTLDepthStencilDescriptor new];
+        dsd.depthCompareFunction = MTLCompareFunctionLessEqual;
+        dsd.depthWriteEnabled = NO;
+        ctx->fluidDepthReadState = [ctx->mtlDevice newDepthStencilStateWithDescriptor:dsd];
+    }
+    return ctx->fluidDepthReadState;
+}
+
 // Thin ObjC wrapper that stores two PSOs for one compiled program:
 //   standardPSO  — standard alpha blend (src_alpha * src + (1-src_alpha) * dst)
 //   additivePSO  — additive blend       (src_alpha * src + 1 * dst)
@@ -1893,8 +1905,12 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::renderParticle(const BUFFER_GL* pBufferId,
-                                const FLUID_GROUP* pGroup) const
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
+    {
+        return renderParticle(pBufferId, pGroup, false);
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup, const bool is3d) const
     {
         void *backendShaderSpecific = getBackendShaderSpecific();
         if (!backendShaderSpecific || !pBufferId || !pGroup) return false;
@@ -1911,10 +1927,10 @@ namespace mbm
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
             MBMPSOPair* pairF = (__bridge MBMPSOPair*)backendShaderSpecific;
 
-            [enc setRenderPipelineState:pairF.additivePSO];  // BLEND_ONE: src*alpha + dst*1
+            [enc setRenderPipelineState:(!is3d || ctx->currentBlendState == 2) ? pairF.additivePSO : pairF.standardPSO];
             [enc setFrontFacingWinding:MTLWindingCounterClockwise];
             [enc setCullMode:MTLCullModeNone]; // no culling for particles
-            [enc setDepthStencilState:getOrCreateNoDepthState(ctx)]; // no depth test
+            [enc setDepthStencilState:is3d ? getOrCreateFluidDepthReadState(ctx) : getOrCreateNoDepthState(ctx)];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
             uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
@@ -1985,6 +2001,10 @@ namespace mbm
                                indexBuffer:backendBuffer->indexBuffer
                          indexBufferOffset:0];
             }
+            // Following draws must not inherit the fluid's read-only depth state.
+            if (is3d)
+                [enc setDepthStencilState:ctx->depthTestEnabled
+                    ? getOrCreateDepthStencilState(ctx) : getOrCreateNoDepthState(ctx)];
         }
         return true;
     }

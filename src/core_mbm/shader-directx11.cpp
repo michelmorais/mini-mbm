@@ -1595,6 +1595,11 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
+        return renderParticle(pBufferId, pGroup, false);
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup, const bool is3d) const
+    {
         if (!pBufferId || !pGroup || pBufferId->mode_draw != util::MODE_DRAW_TRIANGLES)
             return false;
         BUFFER_SPECIFIC *buffer = pBufferId->getBackendBuffer();
@@ -1606,7 +1611,9 @@ namespace mbm
             return false;
 
         SPECIFIC_AUX_CONTEXT_DEVICE *context = DEVICE::getInstance()->getSpecificContextDevice();
-        if (!context->applyRasterizerState(pBufferId->mode_cull_face,
+        // Fluid quads are visible from both sides, matching the GLES particle path.
+        // CULL_FRONT_AND_BACK maps to D3D11_CULL_NONE in this backend.
+        if (!context->applyRasterizerState(util::CULL_FRONT_AND_BACK,
                                            pBufferId->mode_front_face_direction))
             return false;
         D3D11_MAPPED_SUBRESOURCE mapped = {};
@@ -1647,7 +1654,7 @@ namespace mbm
         ID3D11DepthStencilState *previousDepthState = nullptr;
         UINT previousStencilReference = 0;
         context->immediateContext->OMGetDepthStencilState(&previousDepthState, &previousStencilReference);
-        context->immediateContext->OMSetDepthStencilState(context->depthDisabledState, 0);
+        context->immediateContext->OMSetDepthStencilState(is3d ? context->fluidDepthReadState : context->depthDisabledState, 0);
         bool succeeded = pGroup->vertex_particle && pGroup->uv;
         for (uint32_t i = 0; succeeded && i < pGroup->totalParticleToRender; ++i)
         {

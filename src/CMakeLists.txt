@@ -173,9 +173,6 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         add_definitions(-DUSE_LSQLITE3)
     endif()
 
-    if(USE_BOX2D_LIQUID_FUN)
-        add_definitions(-DUSE_BOX2D_LIQUID_FUN)
-    endif()
 
     if(USE_BOX2D)
         add_definitions(-DUSE_BOX2D)
@@ -199,7 +196,6 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     add_library(mini-mbm  SHARED  ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${SCENE_CPP})
 
@@ -218,18 +214,14 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
-                            ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
                             ${LIB_MINIMBM_LUA_SRC}
                             ${LIB_MINIMBM_LUA_PLATFORM_SRC})
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
-                            ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP})
     endif()
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
@@ -487,7 +479,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${SCENE_CPP}
                             ${LIB_MINIMBM_LUA_SRC}
@@ -495,7 +486,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${SCENE_CPP})
     endif()
@@ -1308,7 +1298,6 @@ endif()
         add_executable(mini-mbm-dev
             ${_DEV_MAIN}
             ${SOURCES}
-            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
             ${BULLET3D_WRAP_SOURCES}
             ${LIB_MINIMBM_LUA_SRC}
             ${LIB_MINIMBM_LUA_PLATFORM_SRC}
@@ -1359,7 +1348,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
@@ -1368,7 +1356,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP})
@@ -1553,7 +1540,7 @@ echo '--- DMG ready: '\"\$DMG\"
     # Build with:
     #   mkdir -p <builddir> && cd <builddir>
     #   cmake ~/mini-mbm -G Xcode -DPLAT=MacOs -DUSE_LUA=1 \
-    #       -DUSE_BOX2D=1 -DUSE_BOX2D_LIQUID_FUN=0 \
+    #       -DUSE_BOX2D=1 -DUSE_BOX2D_PARTICLES=OFF \
     #       -DMAS_DELIVERY=1 \
     #       -DMAS_BUNDLE_ID=com.yourcompany.yourgame \
     #       [-DMAS_APP_NAME="My Game"] \
@@ -1709,9 +1696,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     if(USE_LSQLITE3)
         add_definitions(-DUSE_LSQLITE3)
     endif()
-    if(USE_BOX2D_LIQUID_FUN)
-        add_definitions(-DUSE_BOX2D_LIQUID_FUN)
-    endif()
     if(USE_BOX2D)
         add_definitions(-DUSE_BOX2D)
     endif()
@@ -1726,7 +1710,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         add_executable(mini-mbm ${MAIN}
                             ${IOS_PLATFORM_SOURCES}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${LIB_MINIMBM_LUA_SRC}
@@ -1735,7 +1718,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         add_executable(mini-mbm ${MAIN}
                             ${IOS_PLATFORM_SOURCES}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES})
     endif()
@@ -2006,10 +1988,6 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
     endif()
 
-    if(USE_BOX2D_LIQUID_FUN)
-        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled, ${BOX2D_LIQUID_FUN_LUA_LIBRARY} for ANDROID will be linked as workaround")
-        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
-    endif()
 
     if(USE_BULLET3D)
         message(STATUS "USE_BULLET3D is enabled, ${BULLET_3D_LIBRARY} for ANDROID will be linked as workaround")
@@ -2036,10 +2014,6 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
     endif()
 
-    if(USE_BOX2D_LIQUID_FUN)
-        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled — linking statically for iOS")
-        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
-    endif()
 
     if(USE_BULLET3D)
         message(STATUS "USE_BULLET3D is enabled — linking statically for iOS")
@@ -2066,10 +2040,6 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND MAS_DELIVERY)
         target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
     endif()
 
-    if(USE_BOX2D_LIQUID_FUN)
-        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled — linking statically for macOS MAS")
-        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
-    endif()
 
     if(USE_BULLET3D)
         message(STATUS "USE_BULLET3D is enabled — linking statically for macOS MAS")

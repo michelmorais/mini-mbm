@@ -574,6 +574,7 @@ namespace mbm
 
     BUFFER_GL::~BUFFER_GL()
     {
+        release();
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if(backendBuffer)
         {
@@ -2170,6 +2171,11 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
+        return renderParticle(pBufferId, pGroup, false);
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup, const bool is3d) const
+    {
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         constexpr uint32_t index_subset = 0;
@@ -2188,7 +2194,26 @@ namespace mbm
 
         GLboolean depthTestEnabled = true;
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
-        GLDisable(GL_DEPTH_TEST);
+        struct FluidDepthScope
+        {
+            GLboolean test, write;
+            ~FluidDepthScope()
+            {
+                glDepthMask(write);
+                if (test) { GLEnable(GL_DEPTH_TEST); }
+                else { GLDisable(GL_DEPTH_TEST); }
+            }
+        } depthScope{depthTestEnabled, GL_TRUE};
+        glGetBooleanv(GL_DEPTH_WRITEMASK, &depthScope.write);
+        if (is3d)
+        {
+            GLEnable(GL_DEPTH_TEST);
+            glDepthMask(GL_FALSE);
+        }
+        else
+        {
+            GLDisable(GL_DEPTH_TEST);
+        }
         // Disable face culling for particle quads – a previous draw (e.g. LINE_MESH)
         // may have set glCullFace(GL_FRONT_AND_BACK) which would cull every triangle.
         const GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);

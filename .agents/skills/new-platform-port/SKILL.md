@@ -1,6 +1,6 @@
 ---
 name: new-platform-port
-description: "Add a new target platform to mini-mbm. Use when porting to a new OS/device, adding a new PLAT= value, creating platform-<name>/ files, wiring CMakeLists.txt, or understanding how Linux/macOS/Android/iOS platform sources differ."
+description: "Add a new target platform to mini-mbm. Use when porting to a new OS/device, adding a new PLAT= value, creating platform-name/ files, wiring CMakeLists.txt, or understanding how Linux/macOS/Android/iOS platform sources differ."
 ---
 
 # New Platform Port — mini-mbm
@@ -72,7 +72,7 @@ See [platform file lists](./references/platform-files.md) for the exact files ea
 Android (since API 24) and iOS (App Store sandbox) **cannot load shared libraries at runtime**.
 All plugin libraries (`box2d`, `ImGui`, `lsqlite3`, …) must be **statically linked**.
 `src/CMakeLists.txt` has dedicated blocks for both platforms that call `add_definitions(-DUSE_<PLUGIN>)` and add each `target_link_libraries(mini-mbm ${PLUGIN_LIBRARY})` unconditionally.
-On iOS, `box2d` and `box2d-liquid-fun` share object code and **cannot coexist**; when `-DUSE_ALL=1` is passed, `USE_BOX2D_LIQUID_FUN` is forced to 0.
+Box2D uses one 2.4.1 backend with optional `USE_BOX2D_PARTICLES`. On iOS, the embedded `box2dLiquidFun` entry point forwards to that backend. `USE_ALL=1` defaults particles ON and respects explicit OFF; the removed `USE_BOX2D_LIQUID_FUN=ON` flag is an error.
 
 ## Step-by-Step: Adding a New Platform
 
@@ -196,7 +196,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "NewPlat")
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
@@ -205,7 +204,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "NewPlat")
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP})

@@ -27,6 +27,9 @@
 #include <core_mbm/util-interface.h>
 #include <platform/mismatch-platform.h>
 #include "box-2d-wrap.h"
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+#include "physics-box-2d-fluid-lua.h"
+#endif
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>
@@ -1553,7 +1556,14 @@ namespace mbm
                 getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
                 getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
                 getFieldPrimaryFromTable(lua,     4, "maxLength",              LUA_TNUMBER,  &def.maxLength);
+                if (box2d->legacyApi)
+                {
+                    def.minLength = 0;
+                    def.length = def.maxLength;
+                }
                 result = box2d->createJoint(info1, info2, def);
+                if (result != 0xffffffff)
+                    box2d->getInfoJoint(info1, result - 1)->legacyRope = box2d->legacyApi;
             }
             else if (strcasecmp(name, "friction") == 0) // done
             {
@@ -1571,7 +1581,7 @@ namespace mbm
             else if (strcasecmp(name, "wheel") == 0 || strcasecmp(name, "line") == 0) //old line, done
             {
                 b2WheelJointDef def;
-                float frequencyHz = 1.0f;
+                float frequencyHz = box2d->legacyApi ? 2.0f : 1.0f;
                 float dampingRatio = 0.7f;
                 b2Vec2 anchor(0.0f,0.0f);
                 b2Vec2 axis(0.0f,1.0f);
@@ -1589,12 +1599,14 @@ namespace mbm
                 getFieldPrimaryFromTable(lua,     4,     "motorSpeed",                  LUA_TNUMBER,    &def.motorSpeed);
                 b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
+                if (result != 0xffffffff)
+                    box2d->getInfoJoint(info1, result - 1)->legacyDampingRatio = dampingRatio;
             }
             else if (strcasecmp(name, "weld") == 0) // 'solda' done
             {
                 b2WeldJointDef def;
-                float frequencyHz = 5.0f;
-			    float dampingRatio = 0.7f;
+                float frequencyHz = box2d->legacyApi ? 0.0f : 5.0f;
+			    float dampingRatio = box2d->legacyApi ? 0.0f : 0.7f;
                 b2Vec2 anchor(info2->body->GetPosition());
                 getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
                 def.Initialize(info1->body, info2->body,anchor);
@@ -1606,6 +1618,8 @@ namespace mbm
                 getFieldPrimaryFromTable(lua,     4,  "referenceAngle",         LUA_TNUMBER,    &def.referenceAngle);
                 b2AngularStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
+                if (result != 0xffffffff)
+                    box2d->getInfoJoint(info1, result - 1)->legacyDampingRatio = dampingRatio;
             }
             else if (strcasecmp(name, "mouse") == 0) // done
             {
@@ -1643,8 +1657,8 @@ namespace mbm
             else if (strcasecmp(name, "distance") == 0) // done
             {
                 b2DistanceJointDef def;
-                float frequencyHz = 5.0f;
-                float dampingRatio = 0.7f;
+                float frequencyHz = box2d->legacyApi ? 0.0f : 5.0f;
+                float dampingRatio = box2d->legacyApi ? 0.0f : 0.7f;
                 b2Vec2 anchor1 (info1->body->GetPosition());
                 b2Vec2 anchor2 (info2->body->GetPosition());
                 getFloat2FieldTableFromTable(lua, 4, "anchor1", "x", "y", &anchor1.x, &anchor1.y);
@@ -1657,7 +1671,14 @@ namespace mbm
                 getFieldPrimaryFromTable(lua,     4,  "frequencyHz",                    LUA_TNUMBER,    &frequencyHz);
                 getFieldPrimaryFromTable(lua,     4,  "length",                         LUA_TNUMBER,    &def.length);
                 b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
+                if (box2d->legacyApi && frequencyHz > 0)
+                {
+                    def.minLength = 0;
+                    def.maxLength = b2_maxFloat;
+                }
                 result = box2d->createJoint(info1, info2, def);
+                if (result != 0xffffffff)
+                    box2d->getInfoJoint(info1, result - 1)->legacyDampingRatio = dampingRatio;
             }
             else if (strcasecmp(name, "prismatic") == 0) //done
             {
@@ -1740,7 +1761,11 @@ namespace mbm
 
     int onDestroyBox2dLua(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        auto **handle = static_cast<PHYSICS_BOX2D **>(lua_check_userType(lua, 1, 1, L_USER_TYPE_BOX2D));
+        PHYSICS_BOX2D *box2d = *handle;
+        if (!box2d)
+            return 0;
+        *handle = nullptr;
         USER_DATA_PHYSICS_2D *uData = box2d->userData;
         uData->unrefAllTableLua(lua);
         delete uData;
@@ -1753,7 +1778,17 @@ namespace mbm
         return 0;
     }
 
-    int onNewBox2dLua(lua_State *lua)
+    int supportsParticlesBox2d(lua_State *lua)
+    {
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+        lua_pushboolean(lua, 1);
+#else
+        lua_pushboolean(lua, 0);
+#endif
+        return 1;
+    }
+
+    static int newBox2dLua(lua_State *lua, bool legacyApi)
     {
         const int  top = lua_gettop(lua);
         const VEC2 gravity((top > 1 ? luaL_checknumber(lua, 2) : 0.0f),
@@ -1763,7 +1798,12 @@ namespace mbm
         const auto   positionIterations = (int)(top > 5 ? luaL_checkinteger(lua, 6) : 3);
         const float multiplyStep        =      (top > 6 ? luaL_checknumber(lua,   7) : 1.0f);
         lua_settop(lua, 0);
-        luaL_Reg regBox2dMethods[] = {  {"addStaticBody", onAddStaticBodyBox2d },
+        luaL_Reg regBox2dMethods[] = {
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+                                        {"createFluid", onCreateFluidBodyBox2d},
+                                        {"destroyFluid", onDestroyFluidBox2d},
+#endif
+                                        {"supportsParticles", supportsParticlesBox2d},  {"addStaticBody", onAddStaticBodyBox2d },
                                         {"addDynamicBody", onAddDynamicBodyBox2d },
                                         {"addKinematicBody", onAddKinematicBodyBox2d },
                                         {"addBody", onAddBodyBox2d },
@@ -1833,6 +1873,7 @@ namespace mbm
         auto **udata     = static_cast<PHYSICS_BOX2D **>(lua_newuserdata(lua, sizeof(PHYSICS_BOX2D *)));
         DEVICE *   device		  = DEVICE::getInstance();
         auto  box2d				  = new PHYSICS_BOX2D(device->getScene());
+        box2d->legacyApi = legacyApi;
         box2d->userData           = new USER_DATA_PHYSICS_2D();
         *udata                    = box2d;
         box2d->setScale(scaleWorld);
@@ -1857,10 +1898,19 @@ namespace mbm
         return 1;
     }
 
+    int onNewBox2dLua(lua_State *lua) { return newBox2dLua(lua, false); }
+    static int onNewLegacyBox2dLua(lua_State *lua) { return newBox2dLua(lua, true); }
+
     void registerClassBox2d(lua_State *lua)
     {
-        luaL_Reg regBox2dMMethods[] = {{"new", onNewBox2dLua}, {"__gc", onDestroyBox2dLua}, {"getVersion", getVersionBox2d}, {nullptr, nullptr}};
+        luaL_Reg regBox2dMMethods[] = {{"supportsParticles", supportsParticlesBox2d}, {"new", onNewBox2dLua}, {"__gc", onDestroyBox2dLua}, {"getVersion", getVersionBox2d}, {nullptr, nullptr}};
         mbm::plugin_register_factory(lua, "box2d", "_mbmBox2d", regBox2dMMethods);
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+        luaL_Reg legacyMethods[] = {{"new", onNewLegacyBox2dLua},
+            {"__gc", onDestroyBox2dLua}, {"getVersion", getVersionBox2d},
+            {"supportsParticles", supportsParticlesBox2d}, {nullptr, nullptr}};
+        mbm::plugin_register_factory(lua, "box2dLiquidFun", "_mbmBox2dLegacy", legacyMethods);
+#endif
     }
 
     enum EVENT_CONTACT_B2 : short
@@ -2032,6 +2082,8 @@ namespace mbm
     PHYSICS_BOX2D *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<PHYSICS_BOX2D **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D));
+        if (!*ud)
+            luaL_error(lua, "physics world has been destroyed");
         return *ud;
     }
 }

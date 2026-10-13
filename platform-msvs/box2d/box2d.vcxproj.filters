@@ -371,4 +371,15 @@
       <Filter>Source Files\example</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_free_list.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_particle.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_particle_assembly.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_particle_group.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_particle_system.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_tracked_block.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_voronoi_diagram.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\plugins\box2d\physics-box-2d-fluid-lua.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\plugins\box2d\physics-box-2d-fluid-create-lua.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
 </Project>

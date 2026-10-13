@@ -20,6 +20,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+
+// LiquidFun portions below are adapted from the following source license:
+/*
+* Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
+* Copyright (c) 2013 Google, Inc.
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
+*/
 #ifndef B2_WORLD_CALLBACKS_H
 #define B2_WORLD_CALLBACKS_H
 
@@ -28,6 +48,13 @@
 
 struct b2Vec2;
 struct b2Transform;
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+class b2ParticleSystem;
+class b2ParticleGroup;
+struct b2ParticleBodyContact;
+struct b2ParticleContact;
+#endif
 class b2Fixture;
 class b2Body;
 class b2Joint;
@@ -50,6 +77,25 @@ public:
 	/// Called when any fixture is about to be destroyed due
 	/// to the destruction of its parent body.
 	virtual void SayGoodbye(b2Fixture* fixture) = 0;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+	/// Called when any particle group is about to be destroyed.
+	virtual void SayGoodbye(b2ParticleGroup* group)
+	{
+		B2_NOT_USED(group);
+	}
+
+	/// Called when a particle is about to be destroyed.
+	/// The index can be used in conjunction with
+	/// b2ParticleSystem::GetUserDataBuffer() or
+	/// b2ParticleSystem::GetParticleHandleFromIndex() to determine which
+	/// particle has been destroyed.
+	virtual void SayGoodbye(b2ParticleSystem* particleSystem, int32 index)
+	{
+		B2_NOT_USED(particleSystem);
+		B2_NOT_USED(index);
+	}
+#endif
+
 };
 
 /// Implement this class to provide collision filtering. In other words, you can implement
@@ -62,6 +108,33 @@ public:
 	/// Return true if contact calculations should be performed between these two shapes.
 	/// @warning for performance reasons this is only called when the AABBs begin to overlap.
 	virtual bool ShouldCollide(b2Fixture* fixtureA, b2Fixture* fixtureB);
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+	/// Return true if contact calculations should be performed between a
+	/// fixture and particle.  This is only called if the
+	/// b2_fixtureContactFilterParticle flag is set on the particle.
+	virtual bool ShouldCollide(b2Fixture* fixture,
+							   b2ParticleSystem* particleSystem,
+							   int32 particleIndex)
+	{
+		B2_NOT_USED(fixture);
+		B2_NOT_USED(particleIndex);
+		B2_NOT_USED(particleSystem);
+		return true;
+	}
+
+	/// Return true if contact calculations should be performed between two
+	/// particles.  This is only called if the
+	/// b2_particleContactFilterParticle flag is set on the particle.
+	virtual bool ShouldCollide(b2ParticleSystem* particleSystem,
+							   int32 particleIndexA, int32 particleIndexB)
+	{
+		B2_NOT_USED(particleSystem);
+		B2_NOT_USED(particleIndexA);
+		B2_NOT_USED(particleIndexB);
+		return true;
+	}
+#endif
+
 };
 
 /// Contact impulses for reporting. Impulses are used instead of forces because
@@ -121,6 +194,47 @@ public:
 		B2_NOT_USED(contact);
 		B2_NOT_USED(impulse);
 	}
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+	/// Called when a fixture and particle start touching if the
+	/// b2_fixtureContactListenerParticle flag is set on the particle.
+	virtual void BeginContact(b2ParticleSystem* particleSystem,
+							  b2ParticleBodyContact* particleBodyContact)
+	{
+		B2_NOT_USED(particleSystem);
+		B2_NOT_USED(particleBodyContact);
+	}
+
+	/// Called when a fixture and particle stop touching if the
+	/// b2_fixtureContactListenerParticle flag is set on the particle.
+	virtual void EndContact(b2Fixture* fixture,
+							b2ParticleSystem* particleSystem, int32 index)
+	{
+		B2_NOT_USED(fixture);
+		B2_NOT_USED(particleSystem);
+		B2_NOT_USED(index);
+	}
+
+	/// Called when two particles start touching if
+	/// b2_particleContactListenerParticle flag is set on either particle.
+	virtual void BeginContact(b2ParticleSystem* particleSystem,
+							  b2ParticleContact* particleContact)
+	{
+		B2_NOT_USED(particleSystem);
+		B2_NOT_USED(particleContact);
+	}
+
+	/// Called when two particles start touching if
+	/// b2_particleContactListenerParticle flag is set on either particle.
+	virtual void EndContact(b2ParticleSystem* particleSystem,
+							int32 indexA, int32 indexB)
+	{
+		B2_NOT_USED(particleSystem);
+		B2_NOT_USED(indexA);
+		B2_NOT_USED(indexB);
+	}
+
+#endif
+
 };
 
 /// Callback class for AABB queries.
@@ -133,6 +247,29 @@ public:
 	/// Called for each fixture found in the query AABB.
 	/// @return false to terminate the query.
 	virtual bool ReportFixture(b2Fixture* fixture) = 0;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+	/// Called for each particle found in the query AABB.
+	/// @return false to terminate the query.
+	virtual bool ReportParticle(const b2ParticleSystem* particleSystem,
+								int32 index)
+	{
+		B2_NOT_USED(particleSystem);
+		B2_NOT_USED(index);
+		return false;
+	}
+
+	/// Cull an entire particle system from b2World::QueryAABB. Ignored for
+	/// b2ParticleSystem::QueryAABB.
+	/// @return true if you want to include particleSystem in the AABB query,
+	/// or false to cull particleSystem from the AABB query.
+	virtual bool ShouldQueryParticleSystem(
+		const b2ParticleSystem* particleSystem)
+	{
+		B2_NOT_USED(particleSystem);
+		return true;
+	}
+#endif
+
 };
 
 /// Callback class for ray casts.
@@ -156,6 +293,46 @@ public:
 	/// closest hit, 1 to continue
 	virtual float ReportFixture(	b2Fixture* fixture, const b2Vec2& point,
 									const b2Vec2& normal, float fraction) = 0;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+	/// Called for each particle found in the query. You control how the ray
+	/// cast proceeds by returning a float:
+	/// return <=0: ignore the remaining particles in this particle system
+	/// return fraction: ignore particles that are 'fraction' percent farther
+	///   along the line from 'point1' to 'point2'. Note that 'point1' and
+	///   'point2' are parameters to b2World::RayCast.
+	/// @param particleSystem the particle system containing the particle
+	/// @param index the index of the particle in particleSystem
+	/// @param point the point of intersection bt the ray and the particle
+	/// @param normal the normal vector at the point of intersection
+	/// @param fraction percent (0.0~1.0) from 'point0' to 'point1' along the
+	///   ray. Note that 'point1' and 'point2' are parameters to
+	///   b2World::RayCast.
+	/// @return <=0 to ignore rest of particle system, fraction to ignore
+	/// particles that are farther away.
+	virtual float ReportParticle(const b2ParticleSystem* particleSystem,
+								   int32 index, const b2Vec2& point,
+								   const b2Vec2& normal, float fraction)
+	{
+		B2_NOT_USED(particleSystem);
+		B2_NOT_USED(index);
+		B2_NOT_USED(&point);
+		B2_NOT_USED(&normal);
+		B2_NOT_USED(fraction);
+		return 0;
+	}
+
+	/// Cull an entire particle system from b2World::RayCast. Ignored in
+	/// b2ParticleSystem::RayCast.
+	/// @return true if you want to include particleSystem in the RayCast, or
+	/// false to cull particleSystem from the RayCast.
+	virtual bool ShouldQueryParticleSystem(
+		const b2ParticleSystem* particleSystem)
+	{
+		B2_NOT_USED(particleSystem);
+		return true;
+	}
+#endif
+
 };
 
 #endif

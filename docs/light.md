@@ -757,6 +757,10 @@ The following static 3D contracts apply with `USE_NORMAL_MAPPING_3D=1`:
   subset's normal map from leaking into another. Existing custom shaders are not
   rewritten; pairing a custom vertex shader with `lit textured.ps` retains its
   legacy varying contract and geometric-normal lighting.
+- OpenGL ES and DirectX 9 `BUFFER_GL` destruction calls `release()` before deleting
+  the backend buffer, releasing the CPU subset arrays and invalidating cached
+  normal-map source data even without a prior explicit release. DirectX 11 already
+  follows this lifecycle. This adds no per-frame work.
 - Resources are owned/released with the backend buffer and rebuilt by the normal
   asset reload path. Dynamic vertex updates discard stale derived buffers;
   regeneration after arbitrary edits and late assignment to an asset loaded

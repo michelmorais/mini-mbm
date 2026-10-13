@@ -24,6 +24,10 @@
 #define B2_WORLD_H
 
 #include "b2_api.h"
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+#include "b2_particle_system.h"
+#endif
+
 #include "b2_block_allocator.h"
 #include "b2_contact_manager.h"
 #include "b2_math.h"
@@ -46,6 +50,16 @@ class b2Joint;
 class B2_API b2World
 {
 public:
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    b2ParticleSystem* CreateParticleSystem(const b2ParticleSystemDef* def);
+    void DestroyParticleSystem(b2ParticleSystem* system);
+    b2ParticleSystem* GetParticleSystemList() { return m_particleSystemList; }
+    const b2ParticleSystem* GetParticleSystemList() const { return m_particleSystemList; }
+    int CalculateReasonableParticleIterations(float timeStep) const;
+    void Step(float timeStep, int32 velocityIterations, int32 positionIterations, int32 particleIterations);
+    void QueryShapeAABB(b2QueryCallback* callback, const b2Shape& shape, const b2Transform& xf) const;
+#endif
 	/// Construct a world object.
 	/// @param gravity the world gravity vector.
 	b2World(const b2Vec2& gravity);
@@ -217,6 +231,10 @@ public:
 private:
 
 	friend class b2Body;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    friend class b2ParticleSystem;
+#endif
+
 	friend class b2Fixture;
 	friend class b2ContactManager;
 	friend class b2Controller;
@@ -232,6 +250,10 @@ private:
 	b2ContactManager m_contactManager;
 
 	b2Body* m_bodyList;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    b2ParticleSystem* m_particleSystemList;
+#endif
+
 	b2Joint* m_jointList;
 
 	int32 m_bodyCount;

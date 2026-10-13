@@ -20,6 +20,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+
+// LiquidFun portions below are adapted from the following source license:
+/*
+* Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
+* Copyright (c) 2013 Google, Inc.
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
+*/
 #include "b2_contact_solver.h"
 #include "b2_island.h"
 
@@ -46,6 +66,10 @@ b2World::b2World(const b2Vec2& gravity)
 	m_debugDraw = nullptr;
 
 	m_bodyList = nullptr;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    m_particleSystemList = nullptr;
+#endif
+
 	m_jointList = nullptr;
 
 	m_bodyCount = 0;
@@ -73,6 +97,11 @@ b2World::b2World(const b2Vec2& gravity)
 
 b2World::~b2World()
 {
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    while (m_particleSystemList)
+        DestroyParticleSystem(m_particleSystemList);
+#endif
+
 	// Some shapes allocate using b2Alloc.
 	b2Body* b = m_bodyList;
 	while (b)
@@ -393,6 +422,12 @@ void b2World::SetAllowSleeping(bool flag)
 // Find islands, integrate and solve constraints, solve position constraints
 void b2World::Solve(const b2TimeStep& step)
 {
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    if (m_particleSystemList)
+        for (b2Body* body = m_bodyList; body; body = body->GetNext())
+            body->m_xf0 = body->m_xf;
+#endif
+
 	m_profile.solveInit = 0.0f;
 	m_profile.solveVelocity = 0.0f;
 	m_profile.solvePosition = 0.0f;
@@ -866,6 +901,10 @@ void b2World::SolveTOI(const b2TimeStep& step)
 		subStep.inv_dt = 1.0f / subStep.dt;
 		subStep.dtRatio = 1.0f;
 		subStep.positionIterations = 20;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+        subStep.particleIterations = step.particleIterations;
+#endif
+
 		subStep.velocityIterations = step.velocityIterations;
 		subStep.warmStarting = false;
 		island.SolveTOI(subStep, bA->m_islandIndex, bB->m_islandIndex);
@@ -902,7 +941,15 @@ void b2World::SolveTOI(const b2TimeStep& step)
 	}
 }
 
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
 void b2World::Step(float dt, int32 velocityIterations, int32 positionIterations)
+{
+    Step(dt, velocityIterations, positionIterations, 1);
+}
+void b2World::Step(float dt, int32 velocityIterations, int32 positionIterations, int32 particleIterations)
+#else
+void b2World::Step(float dt, int32 velocityIterations, int32 positionIterations)
+#endif
 {
 	b2Timer stepTimer;
 
@@ -919,6 +966,11 @@ void b2World::Step(float dt, int32 velocityIterations, int32 positionIterations)
 	step.dt = dt;
 	step.velocityIterations	= velocityIterations;
 	step.positionIterations = positionIterations;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    b2Assert(particleIterations > 0);
+    step.particleIterations = particleIterations;
+#endif
+
 	if (dt > 0.0f)
 	{
 		step.inv_dt = 1.0f / dt;
@@ -943,6 +995,11 @@ void b2World::Step(float dt, int32 velocityIterations, int32 positionIterations)
 	if (m_stepComplete && step.dt > 0.0f)
 	{
 		b2Timer timer;
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+        for (b2ParticleSystem* system = m_particleSystemList; system; system = system->GetNext())
+            system->Solve(step);
+#endif
 		Solve(step);
 		m_profile.solve = timer.GetMilliseconds();
 	}
@@ -997,6 +1054,17 @@ void b2World::QueryAABB(b2QueryCallback* callback, const b2AABB& aabb) const
 	wrapper.broadPhase = &m_contactManager.m_broadPhase;
 	wrapper.callback = callback;
 	m_contactManager.m_broadPhase.Query(&wrapper, aabb);
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+	for (b2ParticleSystem* p = m_particleSystemList; p; p = p->GetNext())
+	{
+		if (callback->ShouldQueryParticleSystem(p))
+		{
+			p->QueryAABB(callback, aabb);
+		}
+	}
+
+#endif
 }
 
 struct b2WorldRayCastWrapper
@@ -1034,6 +1102,17 @@ void b2World::RayCast(b2RayCastCallback* callback, const b2Vec2& point1, const b
 	input.p1 = point1;
 	input.p2 = point2;
 	m_contactManager.m_broadPhase.RayCast(&wrapper, input);
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+	for (b2ParticleSystem* p = m_particleSystemList; p; p = p->GetNext())
+	{
+		if (callback->ShouldQueryParticleSystem(p))
+		{
+			p->RayCast(callback, point1, point2);
+		}
+	}
+
+#endif
 }
 
 void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color& color)
@@ -1320,3 +1399,96 @@ void b2World::Dump()
 
 	b2CloseDump();
 }
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+b2ParticleSystem* b2World::CreateParticleSystem(const b2ParticleSystemDef* def)
+{
+	b2Assert(IsLocked() == false);
+	if (IsLocked())
+	{
+		return NULL;
+	}
+
+	void* mem = m_blockAllocator.Allocate(sizeof(b2ParticleSystem));
+	b2ParticleSystem* p = new (mem) b2ParticleSystem(def, this);
+
+	// Add to world doubly linked list.
+	p->m_prev = NULL;
+	p->m_next = m_particleSystemList;
+	if (m_particleSystemList)
+	{
+		m_particleSystemList->m_prev = p;
+	}
+	m_particleSystemList = p;
+
+	return p;
+}
+#endif
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+void b2World::DestroyParticleSystem(b2ParticleSystem* p)
+{
+	b2Assert(m_particleSystemList != NULL);
+	b2Assert(IsLocked() == false);
+	if (IsLocked())
+	{
+		return;
+	}
+
+	// Remove world particleSystem list.
+	if (p->m_prev)
+	{
+		p->m_prev->m_next = p->m_next;
+	}
+
+	if (p->m_next)
+	{
+		p->m_next->m_prev = p->m_prev;
+	}
+
+	if (p == m_particleSystemList)
+	{
+		m_particleSystemList = p->m_next;
+	}
+
+	p->~b2ParticleSystem();
+	m_blockAllocator.Free(p, sizeof(b2ParticleSystem));
+}
+#endif
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+void b2World::QueryShapeAABB(b2QueryCallback* callback, const b2Shape& shape,
+                             const b2Transform& xf) const
+{
+	b2AABB aabb;
+	shape.ComputeAABB(&aabb, xf, 0);
+	QueryAABB(callback, aabb);
+}
+#endif
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+static float GetSmallestRadius(const b2World* world)
+{
+	float smallestRadius = b2_maxFloat;
+	for (const b2ParticleSystem* system = world->GetParticleSystemList();
+		 system != NULL;
+		 system = system->GetNext())
+	{
+		smallestRadius = b2Min(smallestRadius, system->GetRadius());
+	}
+	return smallestRadius;
+}
+#endif
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+int b2World::CalculateReasonableParticleIterations(float timeStep) const
+{
+	if (m_particleSystemList == NULL)
+		return 1;
+
+	// Use the smallest radius, since that represents the worst-case.
+	return b2CalculateParticleIterations(m_gravity.Length(),
+										 GetSmallestRadius(this),
+										 timeStep);
+}
+#endif

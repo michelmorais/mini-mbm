@@ -391,6 +391,11 @@ public:
 private:
 
 	friend class b2World;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    friend class b2ParticleSystem;
+    friend class b2ParticleGroup;
+#endif
+
 	friend class b2Island;
 	friend class b2ContactManager;
 	friend class b2ContactSolver;
@@ -437,6 +442,10 @@ private:
 
 	int32 m_islandIndex;
 
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    b2Transform m_xf0;
+#endif
 	b2Transform m_xf;		// the body origin transform
 	b2Sweep m_sweep;		// the swept motion for CCD
 

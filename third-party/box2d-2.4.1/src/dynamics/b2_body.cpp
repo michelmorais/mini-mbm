@@ -64,6 +64,10 @@ b2Body::b2Body(const b2BodyDef* bd, b2World* world)
 
 	m_xf.p = bd->position;
 	m_xf.q.Set(bd->angle);
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    m_xf0 = m_xf;
+#endif
+
 
 	m_sweep.localCenter.SetZero();
 	m_sweep.c0 = m_xf.p;
@@ -427,6 +431,10 @@ void b2Body::SetTransform(const b2Vec2& position, float angle)
 
 	m_xf.q.Set(angle);
 	m_xf.p = position;
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+    m_xf0 = m_xf;
+#endif
+
 
 	m_sweep.c = b2Mul(m_xf, m_sweep.localCenter);
 	m_sweep.a = angle;

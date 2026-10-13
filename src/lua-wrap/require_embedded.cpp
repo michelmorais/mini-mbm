@@ -32,13 +32,6 @@ extern "C"
 #endif
 #endif
 
-#if defined USE_BOX2D_LIQUID_FUN
-    #include <box2d-liquid-fun-lua/box2d-liquid-fun-lua.h>
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
-
 #if defined USE_BOX2D
     #include <box2d/box2d-lua.h>
 #ifndef REQUIRE_EMBEDDED
@@ -62,25 +55,27 @@ extern "C"
         const char* name     = luaL_checkstring(lua,1);
         (void)name;
         #if defined USE_LSQLITE3
-            #pragma message("Using USE_LSQLITE3 embeeded, usually this is for ANDROID")
+            #pragma message("Using USE_LSQLITE3 embedded, usually this is for ANDROID")
             if(strcmp(name,"lsqlite3") == 0)
                 return luaopen_lsqlite3(lua);
         #endif
 
         #if defined USE_BOX2D
-            #pragma message("Using USE_BOX2D embeeded, usually this is for ANDROID")
-            if(strcmp(name,"box2d") == 0)
+            #pragma message("Using USE_BOX2D embedded, usually this is for ANDROID")
+            if((strcmp(name,"box2d") == 0 || strcmp(name,"libbox2d") == 0))
                 return luaopen_box2d(lua);
         #endif
 
-        #if defined USE_BOX2D_LIQUID_FUN
-            #pragma message("Using USE_BOX2D_LIQUID_FUN embeeded, usually this is for ANDROID")
-            if(strcmp(name,"box2dLiquidFun") == 0)
-                return luaopen_box2dLiquidFun(lua);
+        #if defined USE_BOX2D
+            #pragma message("Using box2dLiquidFun compatibility embedded, usually this is for ANDROID")
+            if((strcmp(name,"box2dLiquidFun") == 0 || strcmp(name,"libbox2dLiquidFun") == 0))
+            {
+                return mbm_open_box2d_compat(lua);
+            }
         #endif
 
         #if defined USE_IMGUI
-            #pragma message("Using USE_IMGUI embeeded, usually this is for ANDROID")
+            #pragma message("Using USE_IMGUI embedded, usually this is for ANDROID")
             if(strcmp(name,"ImGui") == 0)
                 return luaopen_ImGui(lua);
         #endif

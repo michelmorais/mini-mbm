@@ -51,6 +51,7 @@ namespace mbm
         ID3D11DepthStencilView *depthView;
         ID3D11DepthStencilState *depthEnabledState;
         ID3D11DepthStencilState *depthDisabledState;
+        ID3D11DepthStencilState *fluidDepthReadState;
         ID3D11BlendState *blendStates[11][5];
         ID3D11RasterizerState *rasterizerStates[3][2];
         int currentBlendState;

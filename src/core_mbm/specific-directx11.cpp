@@ -49,6 +49,7 @@ namespace mbm
         depthView(nullptr),
         depthEnabledState(nullptr),
         depthDisabledState(nullptr),
+        fluidDepthReadState(nullptr),
         currentBlendState(0),
         currentBlendOperation(1),
         featureLevel(D3D_FEATURE_LEVEL_10_0)
@@ -128,6 +129,7 @@ namespace mbm
         for (auto &statesByDirection : rasterizerStates)
             for (ID3D11RasterizerState *&state : statesByDirection)
                 releaseCom(state);
+        releaseCom(fluidDepthReadState);
         releaseCom(depthDisabledState);
         releaseCom(depthEnabledState);
         releaseCom(swapChain);

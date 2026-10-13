@@ -92,7 +92,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "NewPlat")
         add_executable(mini-mbm
             ${MAIN}
             ${SOURCES}                          # lua-wrap/ glob (when USE_LUA)
-            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
             ${BULLET3D_WRAP_SOURCES}
             ${TINYFILEDIALOGS_SOURCES}
             ${SCENE_CPP}                        # empty in Lua mode
@@ -102,7 +101,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "NewPlat")
         add_executable(mini-mbm
             ${MAIN}
             ${SOURCES}
-            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
             ${BULLET3D_WRAP_SOURCES}
             ${TINYFILEDIALOGS_SOURCES}
             ${SCENE_CPP})

@@ -844,9 +844,13 @@ namespace mbm
                 break;
                 default: break;
             }
+            const float intervalChangeFrame = this->getIntervalChangeFrame();
+            // Static-frame assets can carry a zero interval. Keep shader FX above
+            // updating, but never divide by that interval to advance frames.
+            if (!(intervalChangeFrame > 0.0f))
+                return;
             this->addCurrentTimeToChangeAnimation(delta);
             uint32_t incrDiff = 0;
-            const float intervalChangeFrame = this->getIntervalChangeFrame();
             if (this->getCurrentTimeToChangeAnimation() >= intervalChangeFrame)
             {
                 incrDiff = static_cast<uint32_t>(this->getCurrentTimeToChangeAnimation() / intervalChangeFrame);

@@ -23,6 +23,12 @@
 #ifndef BOX2D_H
 #define BOX2D_H
 
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+#include "b2_particle.h"
+#include "b2_particle_group.h"
+#include "b2_particle_system.h"
+#endif
+
 // These include files constitute the main Box2D API
 
 #include "b2_settings.h"

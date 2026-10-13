@@ -20,6 +20,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+
+// LiquidFun portions below are adapted from the following source license:
+/*
+* Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
+* Copyright (c) 2013 Google, Inc.
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
+*/
 #include "box2d/b2_polygon_shape.h"
 #include "box2d/b2_block_allocator.h"
 
@@ -457,3 +477,50 @@ bool b2PolygonShape::Validate() const
 
 	return true;
 }
+
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+// LiquidFun 1.1.0 distance query, ported for mini-mbm.
+void b2PolygonShape::ComputeDistance(const b2Transform& xf, const b2Vec2& p, float* distance, b2Vec2* normal, int32 childIndex) const
+{
+	B2_NOT_USED(childIndex);
+
+	b2Vec2 pLocal = b2MulT(xf.q, p - xf.p);
+	float maxDistance = -FLT_MAX;
+	b2Vec2 normalForMaxDistance = pLocal;
+
+	for (int32 i = 0; i < m_count; ++i)
+	{
+		float dot = b2Dot(m_normals[i], pLocal - m_vertices[i]);
+		if (dot > maxDistance)
+		{
+			maxDistance = dot;
+			normalForMaxDistance = m_normals[i];
+		}
+	}
+
+	if (maxDistance > 0)
+	{
+		b2Vec2 minDistance = normalForMaxDistance;
+		float minDistance2 = maxDistance * maxDistance;
+		for (int32 i = 0; i < m_count; ++i)
+		{
+			b2Vec2 distance = pLocal - m_vertices[i];
+			float distance2 = distance.LengthSquared();
+			if (minDistance2 > distance2)
+			{
+				minDistance = distance;
+				minDistance2 = distance2;
+			}
+		}
+
+		*distance = b2Sqrt(minDistance2);
+		*normal = b2Mul(xf.q, minDistance);
+		normal->Normalize();
+	}
+	else
+	{
+		*distance = maxDistance;
+		*normal = b2Mul(xf.q, normalForMaxDistance);
+	}
+}
+#endif
