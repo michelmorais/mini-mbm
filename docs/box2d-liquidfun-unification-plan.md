@@ -24,8 +24,10 @@
 # Unificação de Box2D e LiquidFun: viabilidade e plano
 
 Data: 2026-10-13. Estado: **baseline, port nativo e integração Lua/CMake implementados;
-aceitação Ratworks, demais plataformas e consolidação pendentes**.
-Marco atual: [integração Lua e perfis de build](box2d-liquidfun-integration.md).
+validação automatizada do Ratworks realizada; aceitação visual/performance,
+demais plataformas e consolidação pendentes**.
+Marco atual: [cliente Ratworks](box2d-liquidfun-ratworks.md).
+Marco anterior: [integração Lua e perfis de build](box2d-liquidfun-integration.md).
 Resultados e reprodução: [baseline de compatibilidade](box2d-liquidfun-baseline.md).
 Base inspecionada: mini-mbm `e29aa3cd`; Ratworks `c52d991`, em
 `/home/michel/Ratworks`. Ambos estavam sem alterações locais no início da análise.
@@ -292,6 +294,35 @@ plugins e entregar as melhorias de LiquidFun isoladamente.
 Não remover a árvore antiga antes da etapa 5. Durante comparação, usar executáveis
 separados para os backends: evita colisões de símbolos e contaminação de medidas.
 Não chamar isso de implementação final unificada enquanto ambos forem necessários.
+
+### 6.1 Pendência de memória: LSan no processo gráfico
+
+Registrar como tarefa de diagnóstico/correção antes da consolidação (etapa 5).
+Na integração Lua, os perfis ON e OFF reportaram **72.920 bytes em quatro
+alocações diretas**: 72.704 e 208 bytes em módulos ainda sem símbolos e duas
+alocações de 4 bytes em `BUFFER_GL::initializeIndexBufferControl`
+(`src/core_mbm/shader.cpp`). A igualdade entre perfis não elimina o vazamento,
+nem permite atribuir os módulos desconhecidos ao driver ou à extensão.
+
+- Reproduzir com cena gráfica mínima, rígidos OFF/ON e fluidos ON, com LSan ativo.
+- Simbolizar as duas pilhas desconhecidas e identificar ownership e teardown.
+- Corrigir a liberação dos controles de índices após confirmar o ciclo de vida.
+- Reexecutar a matriz e o cenário prolongado; registrar bytes, pilhas e versões.
+- Critério: nenhuma alocação própria sem liberação; eventual problema externo deve
+  ter origem comprovada e acompanhamento explícito. Não usar supressão global ou
+  `detect_leaks=0` como evidência de aprovação de memória.
+
+Evidência inicial: [relatório da integração](box2d-liquidfun-integration.md).
+O cenário prolongado da etapa 3 também deve registrar RSS, mas RSS estável não
+substitui LSan e não encerra esta pendência.
+
+A instrumentação da engine inteira na etapa 3 também encontrou duplicação de
+`tinyfd_needs` (tinyfiledialogs) entre executável e `libcore_mbm.so`, impedindo
+inicialização com a checagem ODR padrão do ASan. Acrescentar à tarefa a revisão do
+link de tinyfiledialogs em Linux e a repetição com checagem ODR habilitada. A rodada
+diagnóstica com somente essa checagem desabilitada manteve LSan ativo e confirmou
+os 72.920 bytes na regressão Lua. Não considerar essa rodada aprovação integral
+dos sanitizers.
 
 ## 7. Matriz de validação e performance
 

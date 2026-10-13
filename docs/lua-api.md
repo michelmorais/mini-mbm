@@ -1560,7 +1560,9 @@ triangle `a,b,c` (each `{x,y}`), with optional `x,y,angle`.
 `world:destroyFluid(fluid)` returns nothing and releases the fluid through the world.
 In the unified plugin, methods on a destroyed fluid or its shader raise a Lua error;
 queued destruction also rejects further access. Retaining a fluid table does not keep
-its world alive. Dropping the Lua fluid table
+its world alive. Fluid and joint handles created in a short-lived Lua coroutine
+remain valid after that coroutine is collected; their registry cleanup uses the
+main Lua thread. Dropping the Lua fluid table
 alone does not explicitly destroy the particle system; the world owns its lifetime.
 The fluid table exposes the methods above, not the full common renderizable API.
 

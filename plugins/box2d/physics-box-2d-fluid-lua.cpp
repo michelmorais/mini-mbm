@@ -1015,7 +1015,10 @@ namespace mbm
         *udata       = static_cast<mbm::STEERED_PARTICLE*>(steered_particle);
         auto *data = static_cast<USER_DATA_RENDER_LUA *>(steered_particle->getUserData());
         auto *info = static_cast<INFO_FLUID *>(data->extra);
-        info->lua = lua;
+        // Registry references are shared; the creating coroutine may be collected first.
+        lua_rawgeti(lua, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+        info->lua = lua_tothread(lua, -1);
+        lua_pop(lua, 1);
         info->luaHandle = udata;
         info->releaseLua = releaseFluidLua;
         lua_pushvalue(lua, -1);

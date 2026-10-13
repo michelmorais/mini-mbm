@@ -181,3 +181,5 @@ Criar o cenário reduzido do Ratworks, executar o jogo com o backend novo, regis
 emissão/filtros/pausa/lifetime/apresentação e medir o custo por etapa. Depois validar
 os exemplos de mbm-documentation e as plataformas restantes. Ratworks e a documentação
 externa não foram alterados neste marco; a árvore antiga permanece para comparação.
+
+Continuação executada: [cliente Ratworks e teste prolongado](box2d-liquidfun-ratworks.md).

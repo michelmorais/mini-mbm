@@ -1052,7 +1052,10 @@ namespace mbm
         auto **udata = static_cast<b2Joint **>(lua_newuserdata(lua, sizeof(b2Joint *)));
         *udata          = joint;
         INFO_JOINT *info = jointInfo(joint);
-        info->lua = lua;
+        // Registry references are shared; the creating coroutine may be collected first.
+        lua_rawgeti(lua, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+        info->lua = lua_tothread(lua, -1);
+        lua_pop(lua, 1);
         info->releaseLua = releaseJointLua;
         lua_pushvalue(lua, -1);
         info->luaHandles.push_back(luaL_ref(lua, LUA_REGISTRYINDEX));
