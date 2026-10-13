@@ -796,6 +796,8 @@ msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /m /v:minimal
 msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /m /v:minimal
 ```
 
+> The Visual Studio solution defaults to unified Box2D particles. Use
+> `/p:MbmBox2dParticles=0` for rigid bodies only, or `1` for fluids.
 > See [platform-msvs/README.md](platform-msvs/README.md) for full Visual Studio solution and project notes.
 
 ### Android (CMake + NDK)

@@ -69,7 +69,9 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Label="UserMacros">
+    <MbmBox2dParticles Condition="'$(MbmBox2dParticles)'==''">1</MbmBox2dParticles>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LibraryPath>$(OutDir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\third-party\box2d-2.4.1\include;..\..\third-party\box2d-2.4.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\box2d;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins\;$(IncludePath)</IncludePath>
@@ -90,9 +92,10 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;BOX2D_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);BOX_2D_BUILD_DLL;NOMINMAX</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;BOX2D_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);BOX_2D_BUILD_DLL;NOMINMAX;MBM_BOX2D_PARTICLES=$(MbmBox2dParticles)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
@@ -106,11 +109,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;BOX2D_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);BOX_2D_BUILD_DLL;NOMINMAX</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;BOX2D_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);BOX_2D_BUILD_DLL;NOMINMAX;MBM_BOX2D_PARTICLES=$(MbmBox2dParticles)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
@@ -125,9 +129,10 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;BOX2D_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);BOX_2D_BUILD_DLL;NOMINMAX</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;BOX2D_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);BOX_2D_BUILD_DLL;NOMINMAX;MBM_BOX2D_PARTICLES=$(MbmBox2dParticles)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
@@ -141,11 +146,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;BOX2D_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);BOX_2D_BUILD_DLL;NOMINMAX</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;BOX2D_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);BOX_2D_BUILD_DLL;NOMINMAX;MBM_BOX2D_PARTICLES=$(MbmBox2dParticles)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
@@ -268,6 +274,38 @@
   <ItemGroup>
     <None Include="..\..\plugins\box2d\box2d_example.lua" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_free_list.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_particle.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_particle_assembly.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_particle_group.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_particle_system.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_tracked_block.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-2.4.1\src\particle\b2_voronoi_diagram.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d\physics-box-2d-fluid-lua.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d\physics-box-2d-fluid-create-lua.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBox2dParticles)'!='1'">true</ExcludedFromBuild>
+    </ClCompile>
+  </ItemGroup>
+  <Target Name="ValidateMbmBox2dParticles" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(MbmBox2dParticles)'!='0' and '$(MbmBox2dParticles)'!='1'" Text="MbmBox2dParticles must be 0 or 1." />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

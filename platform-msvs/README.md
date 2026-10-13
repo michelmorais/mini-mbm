@@ -62,8 +62,8 @@ All projects live under `platform-msvs/` and build into the shared `bin/` and
 | **lua5.4** | `lua5.4/` | Lua 5.4.1 static library |
 | **lsqlite3** | `lsqlite3/` | SQLite3 Lua bindings (used by the Asset Packager) |
 | **ImGui** | `imGui/` | Dear ImGui plugin with DirectX 9, DirectX 11, OpenGL 3, and Win32 backends — powers all built-in editors |
-| **box2d** | `box2d/` | Box2D 2.4.1 physics plugin |
-| **box2dLiquidFun** | `box2d-liquid-fun/` | LiquidFun 2.3.1 fluid simulation plugin |
+| **box2d** | `box2d/` | Box2D 2.4.1 with optional LiquidFun particles |
+| **box2dLiquidFun** | `box2d-liquid-fun/` | Compatibility facade forwarding to `box2d.dll` |
 | **bullet3d** | `bullet2.8/` | Bullet 2.84 3D physics plugin |
 | **tilemap** | `tilemap/` | Tiled tile-map plugin |
 | **tiny_obj_loader** | `tiny-obj-loader/` | Tiny OBJ mesh loader library |
@@ -761,3 +761,28 @@ found it prints download instructions and exits cleanly.
 
 > **Tip:** Use absolute paths. The script does not expand environment variables
 > inside path arguments on all Windows configurations.
+
+## Optional Box2D particles
+
+`box2d` owns the only physics implementation. `box2dLiquidFun.dll` forwards the
+legacy Lua entry points to it, and its project references `box2d` to enforce build
+order and import-library linking. The old LiquidFun source tree remains available
+for the CMake legacy-only comparison profile.
+
+The solution defaults to `MbmBox2dParticles=1`. Build with
+`/p:MbmBox2dParticles=0` to exclude all particle sources and fluid bindings:
+
+```cmd
+msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:MbmBox2dParticles=0
+msbuild platform-msvs\mini-mbm.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:MbmBox2dParticles=1
+```
+
+Use a rebuild when switching profiles. OFF retains the facade so that requiring
+`box2dLiquidFun` produces the explicit particles-disabled error; `require "box2d"`
+continues to work. Valid values are `0` and `1`. The default is declared in
+the `box2d` project's `UserMacros` property group.
+
+Source-list checks can run without Windows:
+`python3 src/test-lib/physics-compat/check-msvs.py`. This checks manifests and
+conditional exclusions; it does not replace compiling and testing with MSVC.
+See [platform regression status](../docs/box2d-liquidfun-platforms.md).

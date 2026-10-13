@@ -1,0 +1,172 @@
+{
+  "milestone": 4,
+  "date": "2026-10-13",
+  "status": "partial; available Linux/Android build checks complete; native platform and shipped-game acceptance pending",
+  "ratworks_user_acceptance": "User tested their new build and reported normal behavior; authorized milestone 4",
+  "examples": {
+    "on": {
+      "counts": {
+        "needs_context": 140,
+        "smoke_pass": 40
+      },
+      "binaries_sha256": {
+        "mini-mbm": "0ec237c863af8f0ba848f5e283b0ac23380f4e0af0460ac06625318f5c4125ff",
+        "box2d.so": "fa9f22d5220ade1231fc1539c23a53333a32dbe4aa25145d2fb095f6da88b73f",
+        "box2dLiquidFun.so": "5ba694fe7f3c5f85d6273ebcbaffea8a875f399e3d03dd282d0afed07e1a55b8"
+      },
+      "duration_simulated_seconds": 2.0,
+      "passed_ids": [
+        "box2d/box2d/10",
+        "box2d/box2d_manifold/03",
+        "box2d/box2d_manifold/05",
+        "box2d/box2d_Scale/05",
+        "box2d/box2d_Scale/08",
+        "box2d/body_box2d/02",
+        "box2d/body_box2d/06",
+        "box2d/body_box2d/07",
+        "box2d/body_box2d/09",
+        "box2d/body_box2d/10",
+        "box2d/body_box2d/11",
+        "box2d/body_box2d/12",
+        "box2d/body_box2d/13",
+        "box2d/body_box2d/21",
+        "box2d/get_position_box2d/09",
+        "box2d/get_position_box2d/10",
+        "box2d/get_position_box2d/12",
+        "box2d/get_position_box2d/13",
+        "box2d/getWorldPoint_box2d/01",
+        "box2d/getWorldVector_box2d/01",
+        "box2d/create_joint_box2d/01",
+        "box2d/create_joint_box2d/02",
+        "box2d/create_joint_box2d/03",
+        "box2d/create_joint_box2d/04",
+        "box2d/create_joint_box2d/05",
+        "box2d/create_joint_box2d/06",
+        "box2d/create_joint_box2d/07",
+        "box2d/create_joint_box2d/08",
+        "box2d/create_joint_box2d/09",
+        "box2d/create_joint_box2d/10",
+        "box2d/create_joint_box2d/11",
+        "box2LiquidFun/createFluid/03",
+        "box2LiquidFun/createFluid/04",
+        "box2LiquidFun/createFluid/05",
+        "box2LiquidFun/fluid_group_flag/01",
+        "box2LiquidFun/fluid_group_flag/02",
+        "box2LiquidFun/fluid_group_flag/03",
+        "box2LiquidFun/fluid_group_flag/04",
+        "box2LiquidFun/fluid_group_flag/05",
+        "box2LiquidFun/fluid_group_flag/06"
+      ],
+      "visual_equivalence": "not_checked",
+      "interactive_callbacks": "not_replayed"
+    },
+    "off": {
+      "counts": {
+        "outside_profile": 135,
+        "needs_context": 14,
+        "smoke_pass": 31
+      },
+      "binaries_sha256": {
+        "mini-mbm": "d14e8890eed2cf1610830eb2faa75f81990ba06922cf1a32e716cb4a9463c42f",
+        "box2d.so": "cc7a9d2c38b980ffc80ea65b4c8d636dca8e3b12aee07270718424dae2d2bf24",
+        "box2dLiquidFun.so": "637466a84631b3f38ff4f5219e80df1f29220db1c64bfbe845a46e89fb9235b0"
+      },
+      "duration_simulated_seconds": 2.0,
+      "passed_ids": [
+        "box2d/box2d/10",
+        "box2d/box2d_manifold/03",
+        "box2d/box2d_manifold/05",
+        "box2d/box2d_Scale/05",
+        "box2d/box2d_Scale/08",
+        "box2d/body_box2d/02",
+        "box2d/body_box2d/06",
+        "box2d/body_box2d/07",
+        "box2d/body_box2d/09",
+        "box2d/body_box2d/10",
+        "box2d/body_box2d/11",
+        "box2d/body_box2d/12",
+        "box2d/body_box2d/13",
+        "box2d/body_box2d/21",
+        "box2d/get_position_box2d/09",
+        "box2d/get_position_box2d/10",
+        "box2d/get_position_box2d/12",
+        "box2d/get_position_box2d/13",
+        "box2d/getWorldPoint_box2d/01",
+        "box2d/getWorldVector_box2d/01",
+        "box2d/create_joint_box2d/01",
+        "box2d/create_joint_box2d/02",
+        "box2d/create_joint_box2d/03",
+        "box2d/create_joint_box2d/04",
+        "box2d/create_joint_box2d/05",
+        "box2d/create_joint_box2d/06",
+        "box2d/create_joint_box2d/07",
+        "box2d/create_joint_box2d/08",
+        "box2d/create_joint_box2d/09",
+        "box2d/create_joint_box2d/10",
+        "box2d/create_joint_box2d/11"
+      ],
+      "visual_equivalence": "not_checked",
+      "interactive_callbacks": "not_replayed"
+    }
+  },
+  "android": [
+    {
+      "profile": "on",
+      "full_engine_link": "pass",
+      "particle_symbols": true,
+      "both_entrypoints": true,
+      "one_backend_dependency": true,
+      "runtime": "not_run"
+    },
+    {
+      "profile": "off",
+      "full_engine_link": "pass",
+      "particle_symbols": false,
+      "both_entrypoints": true,
+      "one_backend_dependency": true,
+      "runtime": "not_run"
+    }
+  ],
+  "msvs": {
+    "status": "manifest_pass",
+    "on_sources": 59,
+    "off_sources": 50,
+    "facade_sources": 2,
+    "native_msbuild": "not_run"
+  },
+  "native_ctest": "4/4 pass including rigid OFF/ON trace equivalence",
+  "lua_contracts": [
+    "ON modern-first pass",
+    "ON legacy-first pass",
+    "OFF modern pass"
+  ],
+  "documentation": {
+    "revision": "b1b41b61da1d1ba0a360c8181ceb58bf136dbac1",
+    "lua_examples_unchanged": true,
+    "blocks": 180,
+    "changes": "Only build/compatibility notes added; all 180 extracted Lua blocks retain their hashes",
+    "files_sha256": {
+      "box2d.rst": "6bdbe8f3b4194a89c8bbd9d8626a23ccfaaa3702439f5ca5a33ba0fcac3ab282",
+      "box2LiquidFun.rst": "9231887f47ebc4871c12436687070ba2319f1fd89adfbc01439b7346e3bf2a72"
+    }
+  },
+  "source_sha256": {
+    "platform-msvs/box2d/box2d.vcxproj": "22a4a56fb0efd319a19c815f36d778e7c04d7a0a3ea408c334d9ebab40abc71f",
+    "platform-msvs/box2d-liquid-fun/box2d-liquid-fun.vcxproj": "b6c3a9fbcbf6a63123183b39d3a9d6a3b515707b8410c2a18863ad391ec3fafe",
+    "src/test-lib/physics-compat/run-examples.py": "0235c4efe6869457e03d50bf8c1a647d816b85911f1cd0eac260bcd952fa3b84",
+    "src/test-lib/physics-compat/check-msvs.py": "f129fe816b5c3c5e28ab25a05a60c42bb0cbe445ef446fc843736a400d45dd20",
+    "src/test-lib/physics-compat/inventory.py": "703d3ab50c70534540a446585e1a550fa4125feea5a200e70aa03640044b57e2"
+  },
+  "android_binary_sha256": {
+    "build/physics-android-on/output/bin/release/arm64-v8a/box2d.so": "fc3ad0fa0df22eced24bee398aa7cf823e20112cd6d21b052a7555733807e7a6",
+    "build/physics-android-on/output/bin/release/arm64-v8a/libmini-mbm.so": "27d5ec023f6d9d8f9765a2e46fc9dd106b83a2b5a1674a40870288915a0bfba4",
+    "build/physics-android-off/output/bin/release/arm64-v8a/box2d.so": "45ce348921ab6d01635ff52f206c76b9fe8b68da99649d8235068c78ca98177d",
+    "build/physics-android-off/output/bin/release/arm64-v8a/libmini-mbm.so": "27d5ec023f6d9d8f9765a2e46fc9dd106b83a2b5a1674a40870288915a0bfba4"
+  },
+  "logs_sha256": {
+    "physics-platform-on-modern": "2a18b5771dd864e8144c0ef41d1e5ca4c0bae1fd6362cb84d8a4d744cda852a9",
+    "physics-platform-on-legacy": "e5ca576ffa2dc110ad8aff84dde6b3df7f40bd3648c4681a0fb971a2867f7977",
+    "physics-platform-off-modern": "59cfbe0606935fc72a1a94de50f8859c554b017531410ce37ccf9869e41b438b",
+    "native": "5a226bccb1260dcde555ab945aeb08b796a4083d12013fddd15e0d20b7ee398d"
+  }
+}

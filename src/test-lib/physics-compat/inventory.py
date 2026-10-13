@@ -86,13 +86,24 @@ def examples(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--documentation", type=Path, required=True)
-    parser.add_argument("--upstream-box2d", type=Path, required=True)
+    parser.add_argument("--upstream-box2d", type=Path)
+    parser.add_argument("--examples-only", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.examples_only:
+        blocks = []
+        for name in ("box2d.rst", "box2LiquidFun.rst"):
+            blocks.extend(examples(args.documentation / "doc" / name))
+        assert len({block["id"] for block in blocks}) == len(blocks)
+        args.output.mkdir(parents=True, exist_ok=True)
+        report = {"documentation_revision": revision(args.documentation), "examples": blocks}
+        (args.output / "inventory.json").write_text(json.dumps(report, indent=2) + "\n")
+        print(f"Extracted {len(blocks)} Lua blocks")
+        return
     root = Path(__file__).resolve().parents[3]
     local = root / "third-party/box2d-2.4.1"
     upstream = args.upstream_box2d
-    if not (upstream / "include/box2d/b2_body.h").is_file():
+    if upstream is None or not (upstream / "include/box2d/b2_body.h").is_file():
         parser.error("--upstream-box2d must point to an extracted Box2D v2.4.1 tree")
     records = []
     diffs = []

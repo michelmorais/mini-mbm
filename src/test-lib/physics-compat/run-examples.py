@@ -40,6 +40,7 @@ def main():
     parser.add_argument("--engine", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--seconds", type=float, default=2.0)
+    parser.add_argument("--plugin", choices=("all", "box2d", "box2dLiquidFun"), default="all")
     args = parser.parse_args()
     if not 0.1 <= args.seconds <= 30:
         parser.error("--seconds must be between 0.1 and 30")
@@ -48,9 +49,16 @@ def main():
     for path in [args.engine.resolve()] + sorted(args.engine.resolve().parent.glob("box2d*.so")):
         binaries[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
     records = json.loads(args.inventory.read_text())["examples"]
+    environment = os.environ.copy()
+    module_dir = str(args.engine.resolve().parent)
+    environment.update(LD_LIBRARY_PATH=module_dir, LUA_CPATH=module_dir + "/?.so")
     results = []
     for record in records:
         result = {key: record[key] for key in ("id", "source", "line", "sha256", "input_callbacks")}
+        if args.plugin != "all" and args.plugin not in record["requires"]:
+            result["status"] = "outside_profile"
+            results.append(result)
+            continue
         # Select self-contained construction examples, not isolated calls/tables.
         runnable = record["requires"] and re.search(r"(?:shape|sprite):new", record["code"])
         if not runnable:
@@ -62,6 +70,7 @@ def main():
         log = args.output / f"{stem}.log"
         scene.write_text(f'''-- Generated from {record['source']}:{record['line']}; do not edit.
 mbm.onErrorStop(true)
+package.cpath = {lua_string(module_dir + '/?.so;')} .. package.cpath
 mbm.addPath({lua_string(args.documentation.resolve() / 'doc')})
 mbm.addPath({lua_string(args.documentation.resolve() / 'doc/_static')})
 local failed = false
@@ -94,7 +103,7 @@ end
         try:
             with log.open("w") as output:
                 process = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT,
-                                         timeout=args.seconds + 12, check=False)
+                                         timeout=args.seconds + 12, check=False, env=environment)
             text = log.read_text(errors="replace")
             passed = process.returncode == 0 and "EXAMPLE_SMOKE_OK" in text and "EXAMPLE_SMOKE_FAILED" not in text
             result.update(status="smoke_pass" if passed else "smoke_fail", exit_code=process.returncode)

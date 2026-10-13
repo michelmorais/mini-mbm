@@ -24,9 +24,10 @@
 # Unificação de Box2D e LiquidFun: viabilidade e plano
 
 Data: 2026-10-13. Estado: **baseline, port nativo e integração Lua/CMake implementados;
-validação automatizada do Ratworks realizada; aceitação visual/performance,
-demais plataformas e consolidação pendentes**.
-Marco atual: [cliente Ratworks](box2d-liquidfun-ratworks.md).
+Ratworks validado automaticamente e testado pelo usuário; marco 4 em andamento.
+Performance, plataformas restantes e consolidação pendentes**.
+Marco atual: [plataformas e regressão](box2d-liquidfun-platforms.md).
+Cliente de referência: [Ratworks](box2d-liquidfun-ratworks.md).
 Marco anterior: [integração Lua e perfis de build](box2d-liquidfun-integration.md).
 Resultados e reprodução: [baseline de compatibilidade](box2d-liquidfun-baseline.md).
 Base inspecionada: mini-mbm `e29aa3cd`; Ratworks `c52d991`, em

@@ -23,8 +23,8 @@
 
 # Box2D unificado: cliente Ratworks (marco 3)
 
-Data: 2026-10-13. **Validação automática implementada; aceitação visual interativa
-e orçamento de performance continuam pendentes.** A árvore antiga permanece como
+Data: 2026-10-13. **Validação automática implementada e teste manual do Ratworks aprovado pelo
+usuário; orçamento de performance continua pendente.** A árvore antiga permanece como
 referência, e os exemplos externos seguem na etapa 4.
 
 ## Entrega
@@ -110,7 +110,9 @@ mantém amostras e handles para observação, portanto seu RSS inclui instrument
 RSS do cenário reduzido permite procurar crescimento grosseiro ao longo dos ciclos,
 mas não substitui diagnóstico de leaks nem prova igualdade de desempenho.
 
-Para fechar o marco 3 faltam: aprovação visual/interativa do Ratworks, medições
+O usuário relatou em 2026-10-13 que testou o Ratworks com seu novo build e tudo
+pareceu normal, autorizando avançar ao marco 4. Essa aceitação do cliente não
+encerra a pendência de performance. Ainda faltam: medições
 isoladas por etapa (Step/partículas/emissão/sincronização/desenho), repetições
 comparáveis antigo/unificado e definição do orçamento no dispositivo alvo. Não
 avançar para remoção do backend antigo com base somente nestes smoke tests.

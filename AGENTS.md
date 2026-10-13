@@ -441,6 +441,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 ### Windows (Visual Studio)
 - Solution: `platform-msvs/mini-mbm.sln`, developed with Visual Studio 2026; no CMake needed
 - Key projects: `mini_mbm` (exe), `mini-mbm-lib` (launcher lib), `core_mbm` (engine lib), `lua5.4`, `lsqlite3`, `ImGui`, `box2d`, `box2dLiquidFun`, `bullet3d`
+- Unified Box2D: `MbmBox2dParticles=1` by default; pass `/p:MbmBox2dParticles=0` for rigid-only and rebuild when switching. `box2dLiquidFun` is a forwarding DLL referencing `box2d`, not a second physics backend.
 - CMake + MinGW also supported; audio: `-DAUDIO=portaudio`
 
 ---
