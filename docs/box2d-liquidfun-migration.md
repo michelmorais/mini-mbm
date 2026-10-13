@@ -23,9 +23,10 @@
 
 # Migração e consolidação de Box2D/LiquidFun
 
-Data: 2026-10-13. Engine **7.366.1**. Marco 5 **parcial**: guia, regressão
+Data: 2026-10-13. Engine **7.366.2**. Marco 5 **parcial**: guia, regressão
 reproduzível e correções de memória entregues; remoção da árvore antiga pendente.
 A aprovação manual do Ratworks está registrada. Windows ainda precisa ser validado.
+Continuação desta etapa: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
 Veja o [plano](box2d-liquidfun-unification-plan.md) e os
 [resultados desta rodada](box2d-liquidfun-consolidation-results.json).
 
@@ -50,8 +51,9 @@ Os arquivos exclusivos de partículas permanecem em `third-party/box2d-2.4.1`,
 compilados apenas em ON. Não se trata de LiquidFun oficial para Box2D 2.4.1:
 é um port local, com origem e adaptações registradas no repositório.
 A árvore `third-party/box2d-liquid-fun-2.3.1` e o wrapper antigo ainda são mantidos
-para comparação/fallback. O loader embedded também referencia o header legado;
-essa dependência deve ser eliminada antes de apagar sua pasta.
+para comparação/fallback. O loader embedded unificado chama diretamente `mbm_open_box2d_compat`; somente
+o perfil de fallback inclui o header legado. Isso foi compilado/linkado em
+Android ARM64 ON/OFF; não substitui execução em dispositivo.
 
 ## Validação Windows
 
@@ -106,7 +108,9 @@ com saída zero sem relatos dos sanitizadores no ambiente Mesa.
 Com enumeração EGL padrão, o contrato moderno termina funcionalmente mas LSan
 retorna erro pelos **208 bytes** externos. Selecionando Mesa, não há relatos nos
 casos acima. Isso não certifica todos os drivers, todos os caminhos de erro Lua,
-nem substitui uma nova rodada prolongada instrumentada de gameplay.
+nem certifica gameplay prolongado de todos os jogos. A continuação em 7.366.2
+validou o Ratworks real por 60 s e 75 ciclos do cenário reduzido em dez minutos,
+com sanitizadores completos; veja o relatório de ciclo de vida.
 Não foram usadas supressões nem `detect_leaks=0`/`detect_odr_violation=0`.
 
 ## Fallback e critérios de remoção

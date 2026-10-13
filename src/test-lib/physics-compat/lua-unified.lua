@@ -26,7 +26,7 @@ local moduleSuffix = package.config:sub(1,1) == "\\" and ".dll" or ".so"
 if moduleDir then package.cpath = moduleDir .. "/?" .. moduleSuffix .. ";" .. package.cpath end
 local enabled = os.getenv("MBM_PHYSICS_PROFILE") ~= "off"
 local legacyFirst = os.getenv("MBM_PHYSICS_ORDER") == "legacy"
-local world, legacy, bodyA, bodyB, joint, fluid, doomed, shader, retained
+local world, legacy, bodyA, bodyB, survivor, joint, fluid, doomed, shader, retained
 local elapsed, stage = 0, 0
 local function near(a,b) assert(math.abs(a-b)<0.001, tostring(a).." ~= "..tostring(b)) end
 local function fails(fn, message)
@@ -65,6 +65,11 @@ local function init()
     joint:setDampingRatio(.2);near(joint:getDampingRatio(),.2)
     joint:setFrequencyHz(0);near(joint:getDampingRatio(),.2)
     joint:setFrequencyHz(3);near(joint:getFrequencyHz(),3)
+    -- Keep a body after bodyB: destruction must not read bodyB's freed SHAPE_INFO
+    -- while scanning the remaining bodies (Ratworks machine consumption case).
+    survivor=shape:new("2dw",150,0)
+    assert(survivor:create("rectangle",10,10))
+    assert(world:addStaticBody(survivor))
     if not enabled then assert(world.createFluid==nil);return end
     legacy=box2dLiquidFun:new(0,0)
     local a,b=shape:new("2dw",0,100),shape:new("2dw",50,100)
@@ -132,6 +137,7 @@ function onLoop(delta)
         end
         if elapsed>.9 and stage==1 then
             fails(function()joint:getLength()end,"destroyed")
+            assert(world:testPoint(survivor,150,0), "Unrelated body lost during destruction")
             if enabled then
                 assert(fluid:getParticleCount()==0)
                 assert(fluid:add({type="circle",ray=5},{x=0,y=0})>0)

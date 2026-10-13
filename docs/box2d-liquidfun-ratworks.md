@@ -82,6 +82,10 @@ Resultados numéricos e hashes: [registro da execução](box2d-liquidfun-ratwork
   de memória continua aberta no
   [plano](box2d-liquidfun-unification-plan.md#61-pendência-de-memória-lsan-no-processo-gráfico).
 
+Atualização 7.366.2: o [relatório de ciclo de vida](box2d-liquidfun-lifecycle.md)
+registra a revalidação após as correções de memória/ODR e uma leitura após liberação
+adicional encontrada no jogo real. Os resultados acima são a baseline histórica.
+
 ## Medições e limites
 
 Máquina: Linux x86_64, Intel i7-9750H, Mesa Intel UHD 630, OpenGL ES 3.2.

@@ -27,6 +27,7 @@ Data: 2026-10-13. Estado: **baseline, port nativo e integração Lua/CMake imple
 Ratworks validado automaticamente e testado pelo usuário; marcos 4 e 5 parciais.
 Performance, plataformas restantes e remoção do legado pendentes**.
 Marco atual: [migração e consolidação](box2d-liquidfun-migration.md).
+Continuação: [destruição de corpos e validação prolongada](box2d-liquidfun-lifecycle.md).
 Matriz de plataformas: [regressão](box2d-liquidfun-platforms.md).
 Cliente de referência: [Ratworks](box2d-liquidfun-ratworks.md).
 Marco anterior: [integração Lua e perfis de build](box2d-liquidfun-integration.md).
@@ -303,8 +304,10 @@ Atualização da etapa 5: controles de índices, duplicação ODR, runtime da fa
 e erros Lua corrigidos; contratos ON/OFF passaram com sanitizadores completos
 no ambiente Mesa. A alocação externa de 208 bytes foi simbolizada e permanece
 acompanhada no [relatório de consolidação](box2d-liquidfun-migration.md).
-Abaixo fica o diagnóstico histórico e o critério de aceitação; a rodada prolongada
-instrumentada e os demais drivers/plataformas ainda não foram aprovados.
+A continuação em 7.366.2 aprovou 75 ciclos do cenário reduzido em dez minutos
+e o Ratworks real por 60 s com sanitizadores completos, após corrigir também
+uma leitura de corpo já liberado. Abaixo fica o diagnóstico histórico e o critério
+de aceitação; os demais drivers/plataformas ainda não foram aprovados.
 
 Diagnóstico inicial:
 Na integração Lua, os perfis ON e OFF reportaram **72.920 bytes em quatro

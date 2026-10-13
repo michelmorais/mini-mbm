@@ -1320,7 +1320,10 @@ Sources: [world](../plugins/box2d/physics-box-2d-lua.cpp),
 For comparison only, `USE_BOX2D=0 USE_BOX2D_PARTICLES=OFF USE_BOX2D_LIQUID_FUN=1`
 (with Lua ON and without USE_ALL) retains the original LiquidFun 1.1.0 / Box2D 2.3.0
 plugin. Its source tree is retained until the final migration milestone. Direct
-Visual Studio projects have not yet been migrated; these build selections describe CMake.
+Visual Studio projects use `MbmBox2dParticles=0|1` with the unified backend and
+forwarding DLL. Native Windows validation remains pending. Embedded loaders call
+the unified compatibility entry point directly when `USE_BOX2D` is enabled; only
+the legacy-only fallback includes the old wrapper header.
 
 ### 11.1 Joint compatibility
 

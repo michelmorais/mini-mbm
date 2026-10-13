@@ -1,0 +1,761 @@
+{
+  "date": "2026-10-13",
+  "version": "7.366.2",
+  "milestone": 5,
+  "status": "partial; Windows and other acceptance gates remain pending",
+  "sanitizers": {
+    "ASAN_OPTIONS": "detect_leaks=1",
+    "UBSAN_OPTIONS": "halt_on_error=1",
+    "odr": "default enabled",
+    "egl_vendor": "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
+    "suppressions": false
+  },
+  "before_fix": {
+    "game_exit_code": 1,
+    "regression_exit_code": 1,
+    "finding": "heap-use-after-free in PHYSICS_BOX2D::safeDestroyBody, box-2d-wrap.cpp:1514",
+    "game_log_sha256": "f11926ba9e3c27409a698b24a3ddc10f591522fe439f71a7f174de121ca6c0f2",
+    "regression_log_sha256": "b1908f16e1eb5baaa37aa6d660e3f7e18fb60ed35e6b4a78340e4516ae00c5db"
+  },
+  "after_fix": {
+    "game": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+        "--scene",
+        "/home/michel/mini-mbm/src/test-lib/physics-compat/ratworks-client.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 60.0,
+      "wall_seconds": 61.348,
+      "host": "Linux-6.1.0-53-amd64-x86_64-with-glibc2.36",
+      "hashes": {
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm": "c90c63a6c4b5f0038f137b421258e8d0b066ef3d83b71a65b51935974f1c32ee",
+        "/home/michel/mini-mbm/src/test-lib/physics-compat/ratworks-client.lua": "d0ef502e5453a683caaec19f401d1215ce2890f87f7d9a9ceae6864426a2a556",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2d.so": "98a4c11f6551f4cd9c1c72ce75d37897b6a266ae3f774d68bf80018574670fba",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2dLiquidFun.so": "d4635a1654260c3894334879b9482b77071664c8298d7df3c404fc7eda87572a",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/libcore_mbm.so": "910583d510588486b88508b0177449aea2070e6827b9894740d5ee1e3a6a1727"
+      },
+      "rss_samples": [
+        {
+          "wall_s": 0.0,
+          "rss_kib": 8
+        },
+        {
+          "wall_s": 1.001,
+          "rss_kib": 288452
+        },
+        {
+          "wall_s": 2.001,
+          "rss_kib": 388168
+        },
+        {
+          "wall_s": 3.001,
+          "rss_kib": 470336
+        },
+        {
+          "wall_s": 4.001,
+          "rss_kib": 475972
+        },
+        {
+          "wall_s": 5.002,
+          "rss_kib": 477636
+        },
+        {
+          "wall_s": 6.002,
+          "rss_kib": 479660
+        },
+        {
+          "wall_s": 7.002,
+          "rss_kib": 465264
+        },
+        {
+          "wall_s": 8.003,
+          "rss_kib": 468644
+        },
+        {
+          "wall_s": 9.003,
+          "rss_kib": 472028
+        },
+        {
+          "wall_s": 10.003,
+          "rss_kib": 475364
+        },
+        {
+          "wall_s": 11.003,
+          "rss_kib": 478940
+        },
+        {
+          "wall_s": 12.004,
+          "rss_kib": 483972
+        },
+        {
+          "wall_s": 13.004,
+          "rss_kib": 489164
+        },
+        {
+          "wall_s": 14.004,
+          "rss_kib": 494344
+        },
+        {
+          "wall_s": 15.005,
+          "rss_kib": 471384
+        },
+        {
+          "wall_s": 16.005,
+          "rss_kib": 477968
+        },
+        {
+          "wall_s": 17.005,
+          "rss_kib": 483924
+        },
+        {
+          "wall_s": 18.005,
+          "rss_kib": 488732
+        },
+        {
+          "wall_s": 19.006,
+          "rss_kib": 492904
+        },
+        {
+          "wall_s": 20.006,
+          "rss_kib": 497672
+        },
+        {
+          "wall_s": 21.006,
+          "rss_kib": 502648
+        },
+        {
+          "wall_s": 22.007,
+          "rss_kib": 471672
+        },
+        {
+          "wall_s": 23.007,
+          "rss_kib": 474664
+        },
+        {
+          "wall_s": 24.007,
+          "rss_kib": 478316
+        },
+        {
+          "wall_s": 25.008,
+          "rss_kib": 481792
+        },
+        {
+          "wall_s": 26.008,
+          "rss_kib": 483128
+        },
+        {
+          "wall_s": 27.008,
+          "rss_kib": 484192
+        },
+        {
+          "wall_s": 28.009,
+          "rss_kib": 485100
+        },
+        {
+          "wall_s": 29.009,
+          "rss_kib": 486004
+        },
+        {
+          "wall_s": 30.009,
+          "rss_kib": 487004
+        },
+        {
+          "wall_s": 31.01,
+          "rss_kib": 487896
+        },
+        {
+          "wall_s": 32.01,
+          "rss_kib": 488792
+        },
+        {
+          "wall_s": 33.01,
+          "rss_kib": 489868
+        },
+        {
+          "wall_s": 34.011,
+          "rss_kib": 490908
+        },
+        {
+          "wall_s": 35.011,
+          "rss_kib": 491848
+        },
+        {
+          "wall_s": 36.011,
+          "rss_kib": 492892
+        },
+        {
+          "wall_s": 37.012,
+          "rss_kib": 493880
+        },
+        {
+          "wall_s": 38.012,
+          "rss_kib": 494928
+        },
+        {
+          "wall_s": 39.012,
+          "rss_kib": 496032
+        },
+        {
+          "wall_s": 40.013,
+          "rss_kib": 497020
+        },
+        {
+          "wall_s": 41.013,
+          "rss_kib": 498064
+        },
+        {
+          "wall_s": 42.013,
+          "rss_kib": 499116
+        },
+        {
+          "wall_s": 43.014,
+          "rss_kib": 500052
+        },
+        {
+          "wall_s": 44.014,
+          "rss_kib": 500968
+        },
+        {
+          "wall_s": 45.014,
+          "rss_kib": 502000
+        },
+        {
+          "wall_s": 46.015,
+          "rss_kib": 503068
+        },
+        {
+          "wall_s": 47.015,
+          "rss_kib": 504028
+        },
+        {
+          "wall_s": 48.015,
+          "rss_kib": 505076
+        },
+        {
+          "wall_s": 49.015,
+          "rss_kib": 505972
+        },
+        {
+          "wall_s": 50.016,
+          "rss_kib": 507020
+        },
+        {
+          "wall_s": 51.016,
+          "rss_kib": 507944
+        },
+        {
+          "wall_s": 52.016,
+          "rss_kib": 508848
+        },
+        {
+          "wall_s": 53.017,
+          "rss_kib": 509792
+        },
+        {
+          "wall_s": 54.017,
+          "rss_kib": 510788
+        },
+        {
+          "wall_s": 55.018,
+          "rss_kib": 511864
+        },
+        {
+          "wall_s": 56.018,
+          "rss_kib": 512860
+        },
+        {
+          "wall_s": 57.018,
+          "rss_kib": 513916
+        },
+        {
+          "wall_s": 58.019,
+          "rss_kib": 514812
+        },
+        {
+          "wall_s": 59.019,
+          "rss_kib": 515948
+        },
+        {
+          "wall_s": 60.019,
+          "rss_kib": 516784
+        }
+      ],
+      "markers": [
+        "\u001b[0mRATWORKS_RESULT frames=7423 spawned=3 consumed=3 fluids=3 peak=636 expired=3 cpu_s=32.510612 update_p50_ms=0.038147 update_p95_ms=0.103951 update_p99_ms=0.135899",
+        "\u001b[0mRATWORKS_OK"
+      ],
+      "game_revision": "c52d9918bfee242861fef0b7a502ea141f8be68d",
+      "game_source_hashes": {
+        "concept/captures/capture-idle.lua": "9753e3e8b783579b3314c2869c13ae23076029a8b0a941f3a1479c0b013cf852",
+        "levels/scene-1-scene3d.lua": "b8a21f3291f25b22520ce5b862773d2231fc5b1a0b0fd4b88d5801d88b31b8c5",
+        "logic/camera-config.lua": "66f49b6e9ea4a56006a67a087ed5aabfee88b789505b33d510b46b8198d1154d",
+        "logic/camera.lua": "12273126b8d8de6ce5de4e2139e100100aa86316c083328e7ee9b822a63c6d7c",
+        "logic/game.lua": "5c4ae60eb59c8f8a244f95a17f0e5406abc4709c1fe0d52cf503e1b0ec5d44b4",
+        "logic/level-config.lua": "cfddc645608a38250dd3d15b6daed5647638c09ee0bcbe5de6c0fd86005816e8",
+        "logic/physics.lua": "38c97b0a95bc02d8608bdbd4c315ea67763d796d0645e1d0f60abe1a01a2a004",
+        "logic/rat.lua": "31d078c9d46c2ba37ad10cc569f010dbd8afc9c0e67be3adc482584744d52083",
+        "logic/swarm.lua": "61552b07962642731fd636a8979f616fb70fec4195175e4b623cf2bf14c72c7b",
+        "main.lua": "4433e39985e0c0a6bd7edfc93b9007804ab2d2bee17d4870e6b610e7a6c8054f",
+        "raw/scene-1.scene3d-edit.lua": "3d0f48e7ea21c9cac69bb1a32e4fb5a6a2ba6164565f09b187af7c78c554d981",
+        "tests/camera.lua": "a2e2c866e6c2d5f7878b8905b8cc9496d79567bf87329440dca4a26b7f3efdf1",
+        "tests/smoke-camera.lua": "378d750eb9f5f6b9dc5af410c5977c6856ef22e3003526561c9ed6cf7f71a03b",
+        "tests/smoke-scene.lua": "c2d188e24377cb1d1a23a7cc7c24d0bfd5d8beafe51d9301bb8c81414bb64be9"
+      }
+    },
+    "soak": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "inputs_unchanged": true,
+      "backend": "unified",
+      "command": [
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+        "--scene",
+        "/home/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua",
+        "--disable_select_monitor",
+        "--nosplash",
+        "-w",
+        "800",
+        "-h",
+        "600"
+      ],
+      "requested_seconds": 600.0,
+      "wall_seconds": 602.583,
+      "host": "Linux-6.1.0-53-amd64-x86_64-with-glibc2.36",
+      "hashes": {
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm": "c90c63a6c4b5f0038f137b421258e8d0b066ef3d83b71a65b51935974f1c32ee",
+        "/home/michel/mini-mbm/src/test-lib/physics-compat/ratworks-reduced.lua": "54d48c59ccb1b2ef8bd8c3430c26e685f9fab240a491a0b0644424dc64a5717b",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2d.so": "98a4c11f6551f4cd9c1c72ce75d37897b6a266ae3f774d68bf80018574670fba",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2dLiquidFun.so": "d4635a1654260c3894334879b9482b77071664c8298d7df3c404fc7eda87572a",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/libcore_mbm.so": "910583d510588486b88508b0177449aea2070e6827b9894740d5ee1e3a6a1727"
+      },
+      "markers": [
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5935766\t5.057448\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t1\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5795482\t4.197644\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t2\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5994233\t4.613146\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t3\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5957808\t4.275684\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t4\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5780841\t4.65872\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t5\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5896682\t3.785182\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t6\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5921166\t4.324377\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t7\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5950138\t3.83611\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t8\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5948373\t4.708273\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t9\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5897235\t3.975356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t10\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5848565\t4.200663\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t11\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5848565\t4.200663\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t12\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5933108\t3.748807\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t13\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5900503\t4.19643\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t14\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5869854\t4.43611\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t15\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5951779\t3.375356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t16\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5969501\t4.575356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t17\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5938474\t4.575356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t18\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.598606\t4.258037\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t19\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5897623\t4.303333\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t20\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5920714\t4.088353\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t21\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5928071\t4.575356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t22\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5937859\t4.108273\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t23\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5980414\t3.806506\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t24\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5890787\t3.375356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t25\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5930973\t5.0178\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t26\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5984871\t3.716049\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t27\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5984239\t4.108273\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t28\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5984239\t4.108273\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t29\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5942775\t4.596396\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t30\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5823394\t4.575356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t31\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5774863\t4.891034\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t32\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5960709\t4.291034\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t33\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5890787\t3.375356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t34\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5850986\t3.691034\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t35\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5877227\t4.091678\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t36\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5970859\t4.548503\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t37\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.592599\t3.869859\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t38\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5988285\t4.051367\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t39\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5957975\t4.27436\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t40\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5979525\t4.575356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t41\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5903482\t4.334032\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t42\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5890787\t3.375356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t43\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5960191\t3.937478\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t44\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5967149\t3.567239\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t45\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5901896\t3.865668\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t46\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5890787\t3.375356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t47\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5913163\t3.746519\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t48\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5782903\t3.754275\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t49\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.586503\t4.754725\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t50\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5890787\t3.375356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t51\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.589597\t4.750548\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t52\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5890787\t3.375356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t53\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5864013\t4.746376\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t54\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5864013\t4.746376\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t55\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5935169\t4.575356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t56\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5890787\t3.375356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t57\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5775266\t4.486779\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t58\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5878499\t3.632731\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t59\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5928903\t4.142212\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t60\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5975637\t3.542212\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t61\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5912446\t3.862314\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t62\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5955481\t4.575356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t63\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5865449\t4.394605\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t64\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5622109\t3.696223\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t65\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5892431\t4.240939\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t66\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.596392\t3.891001\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t67\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5911264\t4.612788\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t68\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5844308\t4.575356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t69\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5906508\t4.265119\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t70\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5961912\t3.975356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t71\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5993344\t4.079907\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t72\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5910892\t3.975356\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t73\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5773301\t3.700069\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t74\t385",
+        "\u001b[0mRATWORKS_REDUCED_BOUNDS\t-0.5929439\t4.783059\t385",
+        "\u001b[0mRATWORKS_REDUCED_CYCLE\t75\t385",
+        "\u001b[0mRATWORKS_REDUCED_OK\t75\t385"
+      ],
+      "rss_summary": {
+        "early": {
+          "window_seconds": [
+            60,
+            120
+          ],
+          "sample_count": 60,
+          "median_kib": 284296.0
+        },
+        "late": {
+          "window_seconds": [
+            540,
+            600
+          ],
+          "sample_count": 60,
+          "median_kib": 536114.0
+        }
+      },
+      "raw_results_sha256": "4a35a122521e37784f46fc4955182f26aadd31def34621d884d5de94149a714a",
+      "log_sha256": "75ed63d95398e63a4dc0124b066281722e03cc64990ee07fae268865bcae905e"
+    },
+    "contracts_on": {
+      "passed": true,
+      "profile": "on",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm": "c90c63a6c4b5f0038f137b421258e8d0b066ef3d83b71a65b51935974f1c32ee",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2d.so": "98a4c11f6551f4cd9c1c72ce75d37897b6a266ae3f774d68bf80018574670fba",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2dLiquidFun.so": "d4635a1654260c3894334879b9482b77071664c8298d7df3c404fc7eda87572a"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "5bfaf54e0556da37d1b1beef5eef694e4460df2c5fb0f4382555f835e9b8c648",
+          "command": [
+            "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "legacy",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "1cde5ea84d97f3b2ec4823a7920b76f64b40cbbc11b0f48d1144c48309b99100",
+          "command": [
+            "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "rise",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+          "log_sha256": "87cb2b6ea8b4a51bc88bf0d81dbd541e415b89903af61c84615cca30f60bbc89",
+          "command": [
+            "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "filter",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+          "log_sha256": "fbcf2de0084a18df889c32f4cffeba3d2b01b783f4ba85ada3af91a4ab68030a",
+          "command": [
+            "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "convex",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "8d83958a26cb5dbddcf2488650c721453692920e5b5fe318e139118e8b657582",
+          "log_sha256": "c2e7901bd4880dbde3fb548b73bc4e358e69ba61c4f0f30941848374daee3ee3",
+          "command": [
+            "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        },
+        {
+          "case": "depth",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "95c81d7e760b442650fe8e4b95d1856e9944a5895c109881e3832a573d0f634a",
+          "log_sha256": "cd917719896d26023d76a9fad03f97c439f348af832b35f0332848de97f109e0",
+          "command": [
+            "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    },
+    "contracts_off": {
+      "passed": true,
+      "profile": "off",
+      "binaries_unchanged": true,
+      "binaries_sha256": {
+        "/home/michel/mini-mbm/build/physics-consolidation-asan-off/output/bin/debug/linux_x86/mini-mbm": "b81f38dc9cf7104b9b34ad3fbc7e1192aac0fd5785d81450f7d1093ec25f4a1b",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan-off/output/bin/debug/linux_x86/box2d.so": "1780d7a9be25693267a0a7b9809fdfb7e5ae7c5e755cfd0c722c2d38c6a03742",
+        "/home/michel/mini-mbm/build/physics-consolidation-asan-off/output/bin/debug/linux_x86/box2dLiquidFun.so": "aabb960055e2baf37c947343cd1d781093588ed7fdf92c80632af555345a8d27"
+      },
+      "cases": [
+        {
+          "case": "modern",
+          "passed": true,
+          "exit_code": 0,
+          "timed_out": false,
+          "marker_seen": true,
+          "scene_sha256": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+          "log_sha256": "589318225ee6972ae678b38a4d03d0bb73bc909343eb16b2c62d1db0f644d095",
+          "command": [
+            "/home/michel/mini-mbm/build/physics-consolidation-asan-off/output/bin/debug/linux_x86/mini-mbm",
+            "--scene",
+            "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+            "--disable_select_monitor",
+            "--nosplash",
+            "-w",
+            "400",
+            "-h",
+            "300"
+          ]
+        }
+      ]
+    }
+  },
+  "android": {
+    "on": {
+      "profile": "on",
+      "build_exit_code": 0,
+      "artifacts": {
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/libcore_mbm.so": "f86efdffa0c544bf86f5d32b8438ea574e38aa09f3d38af388c483ceb63beada",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/box2d.so": "36d98ff0093f4ee7c046a8204a441eaf390e675f37ddc7c1a00e0562e7b17e50",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/libmini-mbm.so": "84a2976c5bc528691d36c512ade69cb93b03338e665216af78c7a2045cdc43fc",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/liblua-5.4.1.so": "c6c04ec0e8c64cc761ab992aee426136a1207e4f08e283fbebeefe3a0be92dfb",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/plugin_helper.so": "a248fc7ebca10d285f3bdcb7f375c761160215be08dcf1fb989cece0f0815f6a",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/libc++_shared.so": "0c52cfab2df0d957d8b346a2bdc5ae8d71feca2591924d77e1cd724d5bf74352"
+      },
+      "legacy_wrapper_header_dependency": false,
+      "compat_symbols": {
+        "libcore_mbm.so": [],
+        "box2d.so": [
+          "0000000000071554 T luaopen_box2dLiquidFun",
+          "000000000005e47c T mbm_open_box2d_compat"
+        ],
+        "libmini-mbm.so": [
+          "                 U mbm_open_box2d_compat"
+        ],
+        "liblua-5.4.1.so": [],
+        "plugin_helper.so": [],
+        "libc++_shared.so": []
+      }
+    },
+    "off": {
+      "profile": "off",
+      "build_exit_code": 0,
+      "artifacts": {
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/libcore_mbm.so": "f86efdffa0c544bf86f5d32b8438ea574e38aa09f3d38af388c483ceb63beada",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/box2d.so": "ed6c8c2ace8baea71e1128b68c7946d3032e0cb6d2d68739cc8f50a20bc12f0f",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/libmini-mbm.so": "84a2976c5bc528691d36c512ade69cb93b03338e665216af78c7a2045cdc43fc",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/liblua-5.4.1.so": "c6c04ec0e8c64cc761ab992aee426136a1207e4f08e283fbebeefe3a0be92dfb",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/plugin_helper.so": "a248fc7ebca10d285f3bdcb7f375c761160215be08dcf1fb989cece0f0815f6a",
+        "build/physics-consolidation-android/output/bin/release/arm64-v8a/libc++_shared.so": "0c52cfab2df0d957d8b346a2bdc5ae8d71feca2591924d77e1cd724d5bf74352"
+      },
+      "legacy_wrapper_header_dependency": false,
+      "compat_symbols": {
+        "libcore_mbm.so": [],
+        "box2d.so": [
+          "000000000004640c T luaopen_box2dLiquidFun",
+          "0000000000039da0 T mbm_open_box2d_compat"
+        ],
+        "libmini-mbm.so": [
+          "                 U mbm_open_box2d_compat"
+        ],
+        "liblua-5.4.1.so": [],
+        "plugin_helper.so": [],
+        "libc++_shared.so": []
+      }
+    }
+  },
+  "legacy_embedded_syntax": "passed; no runtime assertion",
+  "embedded_linux_probe": {
+    "source": "extern \"C\" {\n#include <lua.h>\n}\nint __luaB_require_embedded(lua_State *lua);\nextern \"C\" int luaopen_embedded_probe(lua_State *lua)\n{\n    lua_pushcfunction(lua, __luaB_require_embedded);\n    return 1;\n}\n",
+    "lua_scene": "local embedded = assert(package.loadlib('/tmp/physics-embedded-probe.so', 'luaopen_embedded_probe'))()\nlocal dynamicRequire = require\nrequire = function(name)\n    if name == 'box2d' or name == 'libbox2d' or name == 'box2dLiquidFun' or name == 'libbox2dLiquidFun' then\n        return embedded(name)\n    end\n    return dynamicRequire(name)\nend\ndofile('/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua')\n",
+    "compile_command": "g++ -shared -fPIC -fsanitize=address,undefined -DUSE_BOX2D -Iinclude/lua-interface -Ithird-party/lua-5.4.1 -Iplugins src/lua-wrap/require_embedded.cpp /tmp/physics-embedded-probe.cpp -Lbuild/physics-consolidation-asan/output/bin/debug/linux_x86 -l:box2d.so -o /tmp/physics-embedded-probe.so",
+    "on_exit_code": 0,
+    "off_exit_code": 0,
+    "log_hashes": {
+      "on": "f69ccf7ae3bebd5fdb760b6d37d29f61b599493f321c51c4c6db78004695d541",
+      "off": "9d65f71a76f0879a7e2d6797f2d2a20cfa2981ef1abad5eeaa520157060f7a41"
+    }
+  },
+  "limitations": [
+    "Android build/link only, no device run",
+    "No native Windows or Apple execution",
+    "Sanitized concurrent timings are not production performance measurements",
+    "Legacy backend retained",
+    "External EGL/NVIDIA 208-byte allocation remains tracked separately"
+  ],
+  "source_hashes": {
+    "plugins/box2d/box-2d-wrap.cpp": "632322ecc013de2c71900e6fecbcbea26d01a41b03f3fcce7728363fdb7464b3",
+    "src/lua-wrap/require_embedded.cpp": "c3ab0c3d08c28f87b75f2ef8f27ee560efd1d0c16e3261079cd180182b436cd4",
+    "src/test-lib/physics-compat/lua-unified.lua": "c114ed98920e700311ae5eb8d4db004256cd33fe97de36603b9ced91e65f31a1",
+    "include/version/version.h": "a6b422c4d76c948bbba7902dafdf6c8775bc0b08a62a1fc92d16992b5fbe8fec"
+  }
+}

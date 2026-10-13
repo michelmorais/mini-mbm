@@ -1495,6 +1495,9 @@ namespace mbm
     {
         if(infoBox2d && infoBox2d->body)
         {
+            // infoBox2d is deleted with its lsShape entry. Preserve the identity
+            // used by the remaining iterations without reading freed storage.
+            RENDERIZABLE *const renderizable = infoBox2d->ptr;
             for(std::vector<INFO_JOINT*>::size_type i = 0; i < this->lsJoint.size(); ++i)//must be size()
             {
                 INFO_JOINT* infoJoint = this->lsJoint[i];
@@ -1511,7 +1514,7 @@ namespace mbm
             for(std::vector<SHAPE_INFO*>::size_type i = 0; i < this->lsShape.size(); ++i)//must be size()
             {
                 SHAPE_INFO* infoShape = this->lsShape[i];
-                if(infoBox2d->ptr == infoShape->ptr)
+                if(renderizable == infoShape->ptr)
                 {
                     world->DestroyBody(infoShape->body);
                     infoShape->body = nullptr;
