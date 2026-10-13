@@ -1114,7 +1114,7 @@ Access as `mbm.CONSTANT_NAME`.
 ## 10. Plugin: box2d
 
 Box2D 2.4.1 rigid-body physics; build with `-DUSE_LUA=1 -DUSE_BOX2D=1`.
-Since engine 7.365, `-DUSE_BOX2D_PARTICLES=ON` adds the ported LiquidFun particle
+`-DUSE_BOX2D_PARTICLES=ON` adds the ported LiquidFun particle
 solver and the fluid API in section 11 to the same backend. The default is OFF;
 `USE_ALL=1` defaults it to ON, while respecting an explicit OFF (and cached values).
 OFF excludes particle sources and fluid methods. The bindings are in
@@ -1338,8 +1338,8 @@ The compatibility factory preserves legacy defaults (distance/weld: 0 Hz, ratio 
 wheel: 2 Hz, ratio 0.7). Its soft distance joints use free distance limits, and its
 `rope` uses a distance joint with only an upper limit; rope `getLength` / `setLength`
 operate on that maximum. The modern factory retains its existing construction
-behavior. These conversions preserve the API's units, not bit-identical trajectories
-between the two solvers; visual/game regression remains a separate acceptance step.
+behavior. The compatibility flag selects construction defaults and joint semantics
+within the same Box2D 2.4.1 backend; it does not select a second solver.
 Joint handles become invalid after their joint, either connected body or world is
 released; access raises an error after the queued destruction is processed.
 

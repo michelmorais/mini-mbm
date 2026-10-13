@@ -78,6 +78,13 @@ See [the Lua API](lua-api.md#11-plugin-box2dliquidfun) for signatures, shape for
 units, joint compatibility, ownership and rendering limits, and
 [the binding index](lua-plugin-symbols.md#box2d-world-and-factory) for source locations.
 
+## Platform scope
+
+The supported scope of this integration is Linux, Windows MSVC Win32 and macOS
+arm64. Android device execution, iOS runtime, Windows native x64/MinGW, macOS
+Intel and signed MAS runtime require separate target validation. CMake support
+or a successful static link does not establish runtime compatibility.
+
 ## Regression and version updates
 
 The [physics test suite](../src/test-lib/physics-compat/README.md) covers native
