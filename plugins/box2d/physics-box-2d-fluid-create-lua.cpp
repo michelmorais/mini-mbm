@@ -169,6 +169,32 @@ namespace mbm
         }
         PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        the_ptr     = getRenderizableNoThrowFromRawTable(lua, 1, 2);
+        // These validations can longjmp. Run before allocating shape storage.
+        uint16 fixtureMaskBits = 0xffff;
+        float riseTime = 0.0f;
+        if (top == 3)
+        {
+            constexpr int indexTable = 3;
+            lua_getfield(lua, indexTable, "riseTime");
+            if (!lua_isnil(lua, -1))
+            {
+                const lua_Number value = luaL_checknumber(lua, -1);
+                if (!(value >= 0 && value <= std::numeric_limits<float>::max()))
+                    return lua_error_debug(lua, "riseTime must be finite and non-negative");
+                riseTime = static_cast<float>(value);
+            }
+            lua_pop(lua, 1);
+            lua_getfield(lua, indexTable, "fixtureMaskBits");
+            if (!lua_isnil(lua, -1))
+            {
+                const lua_Number mask = luaL_checknumber(lua, -1);
+                if (!(mask >= 0 && mask <= 65535) || mask != static_cast<uint16>(mask))
+                    return lua_error_debug(lua, "fixtureMaskBits must be an integer from 0 to 65535");
+                fixtureMaskBits = static_cast<uint16>(mask);
+            }
+            lua_pop(lua, 1);
+
+        }
         INFO_PHYSICS  info_physics;
         INFO_PHYSICS*  local_info_physics = &info_physics;
         if(the_ptr != nullptr)
@@ -192,8 +218,6 @@ namespace mbm
         VEC2 linearVelocity(0,0);
         bool is2dScreen        = false;
         bool is3d              = false;
-        uint16 fixtureMaskBits = 0xffff;
-        float riseTime         = 0.0f;
         float radiusScale      = 1.0f;
         float radius           = 0.5f;
         float damping          = 0.5f;
@@ -212,25 +236,6 @@ namespace mbm
         if(top == 3)
         {
             constexpr int indexTable = 3;
-            lua_getfield(lua, indexTable, "riseTime");
-            if (!lua_isnil(lua, -1))
-            {
-                const lua_Number value = luaL_checknumber(lua, -1);
-                if (!(value >= 0 && value <= std::numeric_limits<float>::max()))
-                    return lua_error_debug(lua, "riseTime must be finite and non-negative");
-                riseTime = static_cast<float>(value);
-            }
-            lua_pop(lua, 1);
-            lua_getfield(lua, indexTable, "fixtureMaskBits");
-            if (!lua_isnil(lua, -1))
-            {
-                const lua_Number mask = luaL_checknumber(lua, -1);
-                if (!(mask >= 0 && mask <= 65535) || mask != static_cast<uint16>(mask))
-                    return lua_error_debug(lua, "fixtureMaskBits must be an integer from 0 to 65535");
-                fixtureMaskBits = static_cast<uint16>(mask);
-            }
-            lua_pop(lua, 1);
-
             getFieldPrimaryFromTable(lua, indexTable, "texture",          LUA_TSTRING,  &texture);
             getFieldPrimaryFromTable(lua, indexTable, "is2dScreen",       LUA_TBOOLEAN, &is2dScreen);
             getFieldPrimaryFromTable(lua, indexTable, "is3d",             LUA_TBOOLEAN, &is3d);

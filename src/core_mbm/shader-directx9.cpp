@@ -521,6 +521,7 @@ namespace mbm
 
     BUFFER_GL::~BUFFER_GL()
     {
+        release();
         BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         if(backendBuffer)
         {

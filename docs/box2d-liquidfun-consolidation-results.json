@@ -1,0 +1,362 @@
+{
+  "asan_on": {
+    "passed": true,
+    "profile": "on",
+    "binaries_unchanged": true,
+    "binaries_sha256": {
+      "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm": "31d0080f9017cee1eb5c09d99534cce922740b00c90ebf32a17eb590a04f39b5",
+      "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2d.so": "70f4090dadee14cf60c750112a9b650a9a7f845078884e81ed8fde9b0f0544b9",
+      "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2dLiquidFun.so": "d4635a1654260c3894334879b9482b77071664c8298d7df3c404fc7eda87572a"
+    },
+    "cases": [
+      {
+        "case": "modern",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "24645e9b7859a797b8b4c757ca1640028e269344e44bf099b00f1803c3520071",
+        "log_sha256": "5bfaf54e0556da37d1b1beef5eef694e4460df2c5fb0f4382555f835e9b8c648",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "legacy",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "24645e9b7859a797b8b4c757ca1640028e269344e44bf099b00f1803c3520071",
+        "log_sha256": "1cde5ea84d97f3b2ec4823a7920b76f64b40cbbc11b0f48d1144c48309b99100",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "rise",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+        "log_sha256": "87cb2b6ea8b4a51bc88bf0d81dbd541e415b89903af61c84615cca30f60bbc89",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "filter",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+        "log_sha256": "78ddae1ffabde16dd76d7b2f250b9a93c8a191189fc6425e4ae1607a6b572d12",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "convex",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "8d83958a26cb5dbddcf2488650c721453692920e5b5fe318e139118e8b657582",
+        "log_sha256": "c2e7901bd4880dbde3fb548b73bc4e358e69ba61c4f0f30941848374daee3ee3",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "depth",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "95c81d7e760b442650fe8e4b95d1856e9944a5895c109881e3832a573d0f634a",
+        "log_sha256": "cd917719896d26023d76a9fad03f97c439f348af832b35f0332848de97f109e0",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      }
+    ]
+  },
+  "asan_off": {
+    "passed": true,
+    "profile": "off",
+    "binaries_unchanged": true,
+    "binaries_sha256": {
+      "/home/michel/mini-mbm/build/physics-consolidation-asan-off/output/bin/debug/linux_x86/mini-mbm": "29eaf3b7002791e99e9e2c51f01687b418b5c4e3f3f7a423b02185b3e96942d5",
+      "/home/michel/mini-mbm/build/physics-consolidation-asan-off/output/bin/debug/linux_x86/box2d.so": "1b46de9c7a5d96f8b953d67e2ee05c86710e009d9c30c94c8ce187934b0fe880",
+      "/home/michel/mini-mbm/build/physics-consolidation-asan-off/output/bin/debug/linux_x86/box2dLiquidFun.so": "aabb960055e2baf37c947343cd1d781093588ed7fdf92c80632af555345a8d27"
+    },
+    "cases": [
+      {
+        "case": "modern",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "24645e9b7859a797b8b4c757ca1640028e269344e44bf099b00f1803c3520071",
+        "log_sha256": "589318225ee6972ae678b38a4d03d0bb73bc909343eb16b2c62d1db0f644d095",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-consolidation-asan-off/output/bin/debug/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      }
+    ]
+  },
+  "release_on": {
+    "passed": true,
+    "profile": "on",
+    "binaries_unchanged": true,
+    "binaries_sha256": {
+      "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/mini-mbm": "d334cd0cfba5970686af65e44b30b91df33c53b747182cf2f0148bb3899680a6",
+      "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/box2d.so": "8664ffbf9c998c5ffa43d5e06f006f25b5073d5cc82baa99c273bb3f9d3c13f3",
+      "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/box2dLiquidFun.so": "3d91c69928d5b111c2a943004dba28fb12c30dd624ae2514119b79e25f657aa5"
+    },
+    "cases": [
+      {
+        "case": "modern",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "24645e9b7859a797b8b4c757ca1640028e269344e44bf099b00f1803c3520071",
+        "log_sha256": "2a18b5771dd864e8144c0ef41d1e5ca4c0bae1fd6362cb84d8a4d744cda852a9",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "legacy",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "24645e9b7859a797b8b4c757ca1640028e269344e44bf099b00f1803c3520071",
+        "log_sha256": "e5ca576ffa2dc110ad8aff84dde6b3df7f40bd3648c4681a0fb971a2867f7977",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "rise",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "cc39534569d9429a2f7883c64da0ab6b4cadf17e862fbefb993620a008b3fa0d",
+        "log_sha256": "6cfe023e6bf3ae7bc65cccea141f7bbb576ecee1545ea40f761368df36e1d152",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_rise_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "filter",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "54531fa59d441013f04f000327f05879bb802189d216ecbf2f14bf77c399507b",
+        "log_sha256": "eb54bfde3182b509b7d25db1e1eb970c38783fd26a181022329638cbb30c6d80",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_filter_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "convex",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "8d83958a26cb5dbddcf2488650c721453692920e5b5fe318e139118e8b657582",
+        "log_sha256": "f2203bb3708cac7eb91842a2268310ba2e7c9cefb36544480a4031888f0c4f04",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_convex_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      },
+      {
+        "case": "depth",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "95c81d7e760b442650fe8e4b95d1856e9944a5895c109881e3832a573d0f634a",
+        "log_sha256": "2310c4117ff19dae62e4dda5e6df32170b2408252dacdf1262ac08480600692b",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-platform-on/output/bin/release/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/fluid_depth_smoke.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      }
+    ]
+  },
+  "release_off": {
+    "passed": true,
+    "profile": "off",
+    "binaries_unchanged": true,
+    "binaries_sha256": {
+      "/home/michel/mini-mbm/build/physics-platform-off/output/bin/release/linux_x86/mini-mbm": "656898b272780735f2956340385c16e04941e6842feda4cdf7e6d6e4078b1969",
+      "/home/michel/mini-mbm/build/physics-platform-off/output/bin/release/linux_x86/box2d.so": "cc7a9d2c38b980ffc80ea65b4c8d636dca8e3b12aee07270718424dae2d2bf24",
+      "/home/michel/mini-mbm/build/physics-platform-off/output/bin/release/linux_x86/box2dLiquidFun.so": "e82bef654456c989f5d277d24521cd41fdb9b0553878d45ab644ced4229e219f"
+    },
+    "cases": [
+      {
+        "case": "modern",
+        "passed": true,
+        "exit_code": 0,
+        "timed_out": false,
+        "marker_seen": true,
+        "scene_sha256": "24645e9b7859a797b8b4c757ca1640028e269344e44bf099b00f1803c3520071",
+        "log_sha256": "59cfbe0606935fc72a1a94de50f8859c554b017531410ce37ccf9869e41b438b",
+        "command": [
+          "/home/michel/mini-mbm/build/physics-platform-off/output/bin/release/linux_x86/mini-mbm",
+          "--scene",
+          "/home/michel/mini-mbm/src/test-lib/physics-compat/lua-unified.lua",
+          "--disable_select_monitor",
+          "--nosplash",
+          "-w",
+          "400",
+          "-h",
+          "300"
+        ]
+      }
+    ]
+  },
+  "milestone": 5,
+  "status": "partial",
+  "date": "2026-10-13",
+  "version": "7.366.1",
+  "sanitizer_environment": {
+    "ASAN_OPTIONS": "detect_leaks=1",
+    "UBSAN_OPTIONS": "halt_on_error=1",
+    "__EGL_VENDOR_LIBRARY_FILENAMES": "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
+    "odr": "default enabled",
+    "suppressions": false
+  },
+  "initial_leak_attribution": [
+    {
+      "pc": "0x7f34cafde4e9",
+      "module": "/home/michel/mini-mbm/build/physics-consolidation-asan/output/bin/debug/linux_x86/box2dLiquidFun.so",
+      "offset": "0x154e9",
+      "symbol": "_GLOBAL__sub_I_eh_alloc.cc\neh_alloc.o:?"
+    },
+    {
+      "pc": "0x7f34d246447b",
+      "module": "/usr/lib/x86_64-linux-gnu/libnvidia-egl-gbm.so.1.1.0",
+      "offset": "0x147b",
+      "symbol": "loadEGLExternalPlatform\n??:?"
+    }
+  ],
+  "default_egl_remaining_leak_bytes": 208,
+  "windows": "not executed",
+  "testlib": {
+    "arguments": "2 Crate.msh 3d",
+    "exit_code": 0,
+    "log_sha256": "e7233b53e23c757ee2dc81adf5a267152ecf3bea7a9754dcafe04d2249f6d78d"
+  }
+}

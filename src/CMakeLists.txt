@@ -220,7 +220,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
                             ${SOURCES}
                             ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
-                            ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
                             ${LIB_MINIMBM_LUA_SRC}
                             ${LIB_MINIMBM_LUA_PLATFORM_SRC})
@@ -229,7 +228,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
                             ${SOURCES}
                             ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
-                            ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP})
     endif()
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})

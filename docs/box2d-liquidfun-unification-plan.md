@@ -24,9 +24,10 @@
 # Unificação de Box2D e LiquidFun: viabilidade e plano
 
 Data: 2026-10-13. Estado: **baseline, port nativo e integração Lua/CMake implementados;
-Ratworks validado automaticamente e testado pelo usuário; marco 4 em andamento.
-Performance, plataformas restantes e consolidação pendentes**.
-Marco atual: [plataformas e regressão](box2d-liquidfun-platforms.md).
+Ratworks validado automaticamente e testado pelo usuário; marcos 4 e 5 parciais.
+Performance, plataformas restantes e remoção do legado pendentes**.
+Marco atual: [migração e consolidação](box2d-liquidfun-migration.md).
+Matriz de plataformas: [regressão](box2d-liquidfun-platforms.md).
 Cliente de referência: [Ratworks](box2d-liquidfun-ratworks.md).
 Marco anterior: [integração Lua e perfis de build](box2d-liquidfun-integration.md).
 Resultados e reprodução: [baseline de compatibilidade](box2d-liquidfun-baseline.md).
@@ -298,7 +299,14 @@ Não chamar isso de implementação final unificada enquanto ambos forem necess�
 
 ### 6.1 Pendência de memória: LSan no processo gráfico
 
-Registrar como tarefa de diagnóstico/correção antes da consolidação (etapa 5).
+Atualização da etapa 5: controles de índices, duplicação ODR, runtime da fachada
+e erros Lua corrigidos; contratos ON/OFF passaram com sanitizadores completos
+no ambiente Mesa. A alocação externa de 208 bytes foi simbolizada e permanece
+acompanhada no [relatório de consolidação](box2d-liquidfun-migration.md).
+Abaixo fica o diagnóstico histórico e o critério de aceitação; a rodada prolongada
+instrumentada e os demais drivers/plataformas ainda não foram aprovados.
+
+Diagnóstico inicial:
 Na integração Lua, os perfis ON e OFF reportaram **72.920 bytes em quatro
 alocações diretas**: 72.704 e 208 bytes em módulos ainda sem símbolos e duas
 alocações de 4 bytes em `BUFFER_GL::initializeIndexBufferControl`

@@ -121,9 +121,12 @@ namespace mbm
 		{
 			if (lua_getinfo(lua, "nSl", &ar))
 			{
-				std::string buffer_2(buffer);
-				delete [] buffer;
-				return luaL_error(lua,"File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer_2.c_str());
+                // lua_error longjmps: release native storage before raising it.
+                luaL_where(lua, 1);
+                lua_pushfstring(lua, "File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline, buffer);
+                delete[] buffer;
+                lua_concat(lua, 2);
+                return lua_error(lua);
 			}
 			else
 			{
@@ -134,10 +137,12 @@ namespace mbm
 		{
 			ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA");
 		}
-		std::string other_buffer(buffer);
-		ERROR_LOG("%s", buffer);
-		delete [] buffer;
-		return luaL_error(lua,"%s",other_buffer.c_str());
+        ERROR_LOG("%s", buffer);
+        luaL_where(lua, 1);
+        lua_pushstring(lua, buffer);
+        delete[] buffer;
+        lua_concat(lua, 2);
+        return lua_error(lua);
 	}
 
     inline const char* getTypeMetaTableNameUserData(lua_State *lua,L_USER_TYPE* foundType)

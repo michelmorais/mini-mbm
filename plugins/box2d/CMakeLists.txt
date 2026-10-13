@@ -61,6 +61,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY OR ${ENGINE_TARGET_
 else()
     add_library(box2dLiquidFun SHARED box2d-compat-lua.cpp)
     target_link_libraries(box2dLiquidFun PRIVATE ${BOX2D_LUA_LIBRARY} ${LUA_LIBRARY})
+    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
+        # The facade exposes only C entry points. Avoid another static libstdc++
+        # runtime/exception pool from the root CXX flags when Lua dlopens it.
+        set_target_properties(box2dLiquidFun PROPERTIES LINKER_LANGUAGE C)
+    endif()
 endif()
 
 # On iOS/MAS this is a STATIC archive absorbed into mini-mbm; Lua/core_mbm/plugin_helper

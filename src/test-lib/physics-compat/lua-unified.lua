@@ -22,7 +22,8 @@
 --]]
 -- MBM_PHYSICS_PROFILE=off|on, MBM_PHYSICS_ORDER=legacy|modern.
 local moduleDir = os.getenv("MBM_PHYSICS_MODULE_DIR")
-if moduleDir then package.cpath = moduleDir .. "/?.so;" .. package.cpath end
+local moduleSuffix = package.config:sub(1,1) == "\\" and ".dll" or ".so"
+if moduleDir then package.cpath = moduleDir .. "/?" .. moduleSuffix .. ";" .. package.cpath end
 local enabled = os.getenv("MBM_PHYSICS_PROFILE") ~= "off"
 local legacyFirst = os.getenv("MBM_PHYSICS_ORDER") == "legacy"
 local world, legacy, bodyA, bodyB, joint, fluid, doomed, shader, retained
