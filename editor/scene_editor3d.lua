@@ -38,6 +38,7 @@ end
 
 local markerMath = require 'scene_object_tools'
 local assetPaths = require 'editor_asset_paths'
+local placedTransformAxes = {rotation = {'X', 'Z'}, scale = {'x', 'y', 'z'}}
 
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
@@ -1542,7 +1543,9 @@ function copySelectedMeshes()
         local wx, wy, wz = resolvePlacedMeshWorldPos(tPlaced)
         table.insert(tCopyBuffer, {
             fileName = tPlaced.fileName, type = tPlaced.type,
+            rotationX = tPlaced.rotationX or 0,
             rotationY = tPlaced.rotationY or 0,
+            rotationZ = tPlaced.rotationZ or 0,
             animationName = tPlaced.animationName or '',
             articulatedAnimationNames = copyStringList(tPlaced.articulatedAnimationNames),
             sx = tPlaced.scale.x, sy = tPlaced.scale.y, sz = tPlaced.scale.z,
@@ -1590,6 +1593,8 @@ function pasteCopiedMeshes()
             end
         end
         if tNew then
+            tNew.rotationX = tCopy.rotationX or 0
+            tNew.rotationZ = tCopy.rotationZ or 0
             tNew.rotationY = tCopy.rotationY
             tNew.animationName = tCopy.animationName
             tNew.articulatedAnimationNames = copyStringList(tCopy.articulatedAnimationNames)
@@ -1628,7 +1633,8 @@ function syncPlacedMeshTransform(tPlaced)
     local x, y, z = resolvePlacedMeshWorldPos(tPlaced)
     local offset = getMeshOffset(tPlaced.fileName)
     tPlaced.tObj:setPos(x + offset.x, y + offset.y, z + offset.z)
-    tPlaced.tObj:setAngle(offset.rx, (tPlaced.rotationY or 0) + offset.ry, offset.rz)
+    tPlaced.tObj:setAngle((tPlaced.rotationX or 0) + offset.rx,
+        (tPlaced.rotationY or 0) + offset.ry, (tPlaced.rotationZ or 0) + offset.rz)
     tPlaced.tObj:setScale(tPlaced.scale.x * offset.sx, tPlaced.scale.y * offset.sy, tPlaced.scale.z * offset.sz)
 end
 
@@ -1709,7 +1715,7 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
         cellX = cellX or 0, cellZ = cellZ or 0,
         freeX = freeX or 0, freeZ = freeZ or 0,
         bAttachedToLayer = true, freeY = freeY or 0,
-        rotationY = 0, scale = {x = 1, y = 1, z = 1},
+        rotationX = 0, rotationY = 0, rotationZ = 0, scale = {x = 1, y = 1, z = 1},
         animationName = '', articulatedAnimationNames = {},
         isSelected = false, tObj = nil,
     }
@@ -1720,9 +1726,9 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
             -- Some mesh files embed a non-zero default angle (confirmed: e.g. Crate.msh loads at
             -- roughly -32/4/0 degrees) -- getAABB(true) measures the CURRENT world-space AABB,
             -- which for a tilted object is inflated/skewed relative to its true footprint. Reset
-            -- to the orientation this placement will actually use (0, rotationY, 0) *before*
+            -- to the orientation this placement will actually use *before*
             -- measuring, or "fit to cell" scale is computed against the wrong footprint.
-            tObj:setAngle(0, tPlaced.rotationY or 0, 0)
+            tObj:setAngle(tPlaced.rotationX or 0, tPlaced.rotationY or 0, tPlaced.rotationZ or 0)
             local sx, sy, sz = computeSnapScale(tObj, tLayers[layerIndex])
             tPlaced.scale = {x = sx, y = sy, z = sz}
             syncPlacedMeshTransform(tPlaced)
@@ -2892,6 +2898,7 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
     -- keys by fileName) -- registerMeshSetEntry is idempotent, returning the existing
     -- tMeshSetEntries entry for an already-registered fileName, so this shares one bake/texture
     -- across every placed instance of the same mesh instead of generating a thumbnail per instance.
+    tImGui.BeginGroup() -- Header includes both thumbnail and the Y controls.
     local entry = registerMeshSetEntry(tPlaced.fileName)
     local texInfo = entry and getOrCreateThumbnail(entry) or nil
     if texInfo then
@@ -2918,12 +2925,14 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
     -- Stored/applied in radians (matching rotationY everywhere else in this editor, see
     -- rotateSelectedMeshes) but shown in degrees, same convention as the mesh Offset rotation
     -- fields above. Unbounded (min=-360, max=360)
+    tUtil.pushResponsiveItemWidth(30, tImGui.CalcTextSize(tLang.L('placed_rotation_y')).x + 16)
     local cRotY, rotYDeg = tImGui.DragFloat(tLang.L('placed_rotation_y') .. '##placed_roty' .. i,
         math.deg(tPlaced.rotationY or 0), 1, -360, 360, '%.2f')
     -- Must be read immediately after the widget (ImGui's "last item" state) -- fires exactly once,
     -- on the frame the drag ends having actually changed the value, so an active drag collapses
     -- into one undo entry instead of one per dragged frame.
     local bRotYDragFinished = tImGui.IsItemDeactivatedAfterEdit()
+    tImGui.PopItemWidth()
     
     if tImGui.Button("+" .. '##add_1_deg_' .. i, {x = 40, y = 30}) then
         rotYDeg = rotYDeg + 1
@@ -2945,6 +2954,46 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
     if bRotYDragFinished then
         pushUndoSnapshot()
     end
+
+    tImGui.EndGroup() -- Y controls beside the thumbnail.
+    tImGui.EndGroup() -- Advance below the taller of thumbnail and controls.
+    local cursorStart = tImGui.GetCursorStartPos()
+    tImGui.SetCursorPosX(cursorStart.x)
+    tImGui.Spacing()
+    local labelWidth = 0
+    for _, axis in ipairs(placedTransformAxes.rotation) do
+        labelWidth = math.max(labelWidth, tImGui.CalcTextSize(tLang.L('placed_rotation_' .. axis:lower())).x)
+    end
+    for _, axis in ipairs(placedTransformAxes.scale) do
+        labelWidth = math.max(labelWidth, tImGui.CalcTextSize(tLang.L('scale_' .. axis)).x)
+    end
+    tUtil.pushResponsiveItemWidth(30, labelWidth + 16)
+
+    -- Per-instance controls: mesh-set offsets remain a separate shared adjustment.
+    -- Only changed widgets synchronize transforms; one undo entry per completed edit.
+    for _, axis in ipairs(placedTransformAxes.rotation) do
+        local field = 'rotation' .. axis
+        local changed, degrees = tImGui.DragFloat(tLang.L('placed_rotation_' .. axis:lower())
+            .. '##placed_rot' .. axis .. i, math.deg(tPlaced[field] or 0), 1, -360, 360, '%.2f')
+        local finished = tImGui.IsItemDeactivatedAfterEdit()
+        if changed then
+            tPlaced[field] = math.rad(degrees)
+            syncPlacedMeshTransform(tPlaced)
+        end
+        if finished then pushUndoSnapshot() end
+    end
+    for _, axis in ipairs(placedTransformAxes.scale) do
+        local changed, scale = tImGui.DragFloat(tLang.L('scale_' .. axis)
+            .. '##placed_scale' .. axis .. i, tPlaced.scale[axis], 0.01, 0.001, 1000, '%.3f')
+        local finished = tImGui.IsItemDeactivatedAfterEdit()
+        if changed then
+            tPlaced.scale[axis] = math.max(0.001, scale)
+            syncPlacedMeshTransform(tPlaced)
+        end
+        if finished then pushUndoSnapshot() end
+    end
+
+    tImGui.PopItemWidth()
 
     local bDeleted = false
     if bFullControls then
@@ -2972,15 +3021,7 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
             bDeleted = true
         end
     end
-    tImGui.EndGroup()
     if not bFullControls then
-        -- The thumbnail and its property widgets share a group that begins after SameLine(), so
-        -- any controls drawn inside it inherit the thumbnail-width X offset even after NewLine().
-        -- End that group first, then explicitly return to this window's content origin so both
-        -- animation selectors use the full row width below the thumbnail.
-        tImGui.NewLine()
-        local cursorStart = tImGui.GetCursorStartPos()
-        tImGui.SetCursorPosX(cursorStart.x)
         drawPlacedMeshAnimationControls(i, tPlaced)
     end
     tImGui.Separator()
@@ -3637,7 +3678,7 @@ tScene3d._addMesh = function(self, tInfo, onDone)
     local function finish(tObj)
         if tObj then
             tObj:setPos(tInfo.x + ox, tInfo.y + oy, tInfo.z + oz)
-            tObj:setAngle(orx, (tInfo.rotationY or 0) + ory, orz)
+            tObj:setAngle((tInfo.rotationX or 0) + orx, (tInfo.rotationY or 0) + ory, (tInfo.rotationZ or 0) + orz)
             tObj:setScale((tInfo.sx or 1) * osx, (tInfo.sy or 1) * osy, (tInfo.sz or 1) * osz)
             if tInfo.animationName and tInfo.animationName ~= '' then
                 tObj:setAnim(tInfo.animationName)
@@ -3805,7 +3846,9 @@ function captureScene3dSnapshot()
             cellX = tPlaced.cellX, cellZ = tPlaced.cellZ,
             freeX = tPlaced.freeX, freeZ = tPlaced.freeZ, freeY = tPlaced.freeY,
             bAttachedToLayer = tPlaced.bAttachedToLayer,
+            rotationX = tPlaced.rotationX or 0,
             rotationY = tPlaced.rotationY or 0,
+            rotationZ = tPlaced.rotationZ or 0,
             animationName = tPlaced.animationName or '',
             articulatedAnimationNames = copyStringList(tPlaced.articulatedAnimationNames),
             sx = tPlaced.scale.x, sy = tPlaced.scale.y, sz = tPlaced.scale.z,
@@ -3835,6 +3878,8 @@ function restoreScene3dSnapshot(snapshot)
             tInfo.cellX, tInfo.cellZ, tInfo.freeX, tInfo.freeZ, true)
         tPlaced.bAttachedToLayer = tInfo.bAttachedToLayer
         tPlaced.freeY            = tInfo.freeY
+        tPlaced.rotationX = tInfo.rotationX or 0
+        tPlaced.rotationZ = tInfo.rotationZ or 0
         tPlaced.rotationY        = tInfo.rotationY
         tPlaced.animationName = tInfo.animationName or ''
         tPlaced.articulatedAnimationNames = getArticulatedAnimationNames(tInfo)
@@ -3989,17 +4034,17 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
         local x, y, z = resolvePlacedMeshWorldPos(tPlaced)
         if bIsExport then
             fp:write(string.format(
-                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g,animationName=%q,articulatedAnimationNames=%s},\n',
+                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,rotationX=%g,rotationZ=%g,sx=%g,sy=%g,sz=%g,animationName=%q,articulatedAnimationNames=%s},\n',
                 i, savedPath(tPlaced.fileName), tPlaced.type, x, y, z, tPlaced.rotationY or 0,
-                tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
+                tPlaced.rotationX or 0, tPlaced.rotationZ or 0, tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
                 tPlaced.animationName or '', formatLuaStringList(tPlaced.articulatedAnimationNames)))
         else
             fp:write(string.format(
-                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g,'
+                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,rotationX=%g,rotationZ=%g,sx=%g,sy=%g,sz=%g,'
                 .. 'layerIndex=%d,cellX=%d,cellZ=%d,freeX=%g,freeZ=%g,freeY=%g,bAttachedToLayer=%s,'
                 .. 'animationName=%q,articulatedAnimationNames=%s},\n',
                 i, savedPath(tPlaced.fileName), tPlaced.type, x, y, z, tPlaced.rotationY or 0,
-                tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
+                tPlaced.rotationX or 0, tPlaced.rotationZ or 0, tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
                 tPlaced.layerIndex or 1, tPlaced.cellX or 0, tPlaced.cellZ or 0,
                 tPlaced.freeX or 0, tPlaced.freeZ or 0, tPlaced.freeY or 0,
                 tostring(tPlaced.bAttachedToLayer == true),
@@ -4098,6 +4143,8 @@ function applyLoadedScene3d(tLoaded)
             tInfo.cellX or 0, tInfo.cellZ or 0, tInfo.freeX or tInfo.x, tInfo.freeZ or tInfo.z, true)
         tPlaced.bAttachedToLayer = bAttached
         tPlaced.freeY = tInfo.freeY or tInfo.y
+        tPlaced.rotationX = tInfo.rotationX or 0
+        tPlaced.rotationZ = tInfo.rotationZ or 0
         tPlaced.rotationY = tInfo.rotationY
         tPlaced.animationName = tInfo.animationName or ''
         tPlaced.articulatedAnimationNames = getArticulatedAnimationNames(tInfo)

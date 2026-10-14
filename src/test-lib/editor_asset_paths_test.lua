@@ -91,7 +91,7 @@ local env = setmetatable({assetPaths=P, mbm={getAllPaths=function() return {P.di
     tOptionsEditor={iIndexResolution=1,sCurrentScriptExecution='',fSceneCamPos={},fSceneCamFocus={}},
     tResolution={{x=800,y=600}}, tLightConfig={}, tMeshOffsets={[expected]={y=7}},
     tSceneObjects={}, tMapOptions={}, tLayers={}, tCamByTab={}, sMeshSetFolder=P.directory(expected),
-    tPlacedMeshes={{fileName=expected,type='mesh',scale={x=1,y=1,z=1}}},
+    tPlacedMeshes={{fileName=expected,type='mesh',rotationX=0.25,rotationY=0.5,rotationZ=-0.75,scale={x=2,y=3,z=4}}},
     resolvePlacedMeshWorldPos=function() return 1,2,3 end, formatLuaStringList=function() return '{}' end,
 }, {__index=_G})
 assert(load(writer, '@scene-writer-test', 't', env))()
@@ -102,11 +102,14 @@ assert(saved.tMeshOffsets[assetName].y == 7)
 assert(env.tPlacedMeshes[1].fileName == expected, 'Saving mutated live state')
 local reloaded = P.loadScene(temp, {addPath=function() end})
 assert(reloaded.tPlacedMeshInfo[1].fileName == expected)
+assert(reloaded.tPlacedMeshInfo[1].rotationX == 0.25 and reloaded.tPlacedMeshInfo[1].rotationZ == -0.75)
+assert(reloaded.tPlacedMeshInfo[1].sx == 2 and reloaded.tPlacedMeshInfo[1].sz == 4)
 assert(reloaded.tMeshOffsets[expected].y == 7)
 -- Export keeps its existing independent game-facing contract.
 assert(env.writeScene3d(temp, false, true))
 local exported = assert(loadfile(temp, 't', setmetatable({mbm={addPath=function() end}}, {__index=_G})))()
 assert(exported.tPlacedMeshInfo[1].fileName == expected)
+assert(exported.tPlacedMeshInfo[1].rotationX == 0.25 and exported.tPlacedMeshInfo[1].rotationZ == -0.75)
 assert(exported.tMeshOffsets[expected].y == 7 and #exported.tAssetPaths > 0)
 os.remove(temp)
 os.remove(expected)
