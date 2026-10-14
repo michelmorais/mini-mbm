@@ -38,6 +38,13 @@ real assets encountered during project development.
 - preserve the existing simplifier progress, cancellation and atomic publication when adding new
   processing stages; add checkpoints and measure cancellation latency inside expensive stages.
 
+## 3D particles and fluids study
+
+[Particles and fluids in 3D](particles-3d-study.md) records the Ratworks investigation,
+the restored fluid ordering, visual experiments using existing controls, and a scoped
+proposal for ordinary-particle depth handling. This is a study for future evaluation,
+not an implemented feature or a commitment to reorganize rendering by material.
+
 ## Explicit blend-state API
 
 `BLEND_DISABLE` is a legacy and misleading name. Its established behavior on DirectX 9,
