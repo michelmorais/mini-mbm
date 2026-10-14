@@ -37,6 +37,7 @@ local function dpCall(fn, ...)
 end
 
 local markerMath = require 'scene_object_tools'
+local assetPaths = require 'editor_asset_paths'
 
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
@@ -3922,8 +3923,10 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
     fp:write(getHeader3d(fileName, bIsExport))
 
     local tPaths = mbm.getAllPaths()
-    for _, sPath in ipairs(tPaths) do
-        fp:write(string.format('mbm.addPath(%q)\n', sPath))
+    if bIsExport then
+        for _, sPath in ipairs(tPaths) do
+            fp:write(string.format('mbm.addPath(%q)\n', sPath))
+        end
     end
 
     fp:write('\nlocal tScene3d = {}\n')
@@ -3948,10 +3951,21 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
         end
     end
 
+    local function savedPath(path)
+        return bIsExport and path or assetPaths.relative(path, fileName)
+    end
+    if not bIsExport then
+        local paths = {}
+        for _, path in ipairs(tPaths) do paths[#paths+1] = savedPath(path) end
+        writeSavedTable('tScene3d.tAssetPaths', paths)
+    end
+    local offsets = {}
+    for path, value in pairs(tMeshOffsets) do offsets[savedPath(path)] = value end
+
     writeSavedTable('tScene3d.fCamPos', tOptionsEditor.fSceneCamPos)
     writeSavedTable('tScene3d.fCamFocus', tOptionsEditor.fSceneCamFocus)
     writeSavedTable('tScene3d.tLightConfig', tLightConfig)
-    writeSavedTable('tScene3d.tMeshOffsets', tMeshOffsets)
+    writeSavedTable('tScene3d.tMeshOffsets', offsets)
     for _, object in ipairs(tSceneObjects) do markerMath.ensureObjectGeometry(object) end
     writeSavedTable('tScene3d.tSceneObjects', tSceneObjects)
 
@@ -3963,11 +3977,11 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
         writeSavedTable('tScene3d.tLayers', tLayers)
         -- Mesh Set tab's asset-browser root (Mesh Set Folder) -- editor-authoring-only, same as
         -- tMapOptions/tLayers/tCamByTab above, so it has no place in an Export'd game-facing file.
-        writeSavedTable('tScene3d.sMeshSetFolder', sMeshSetFolder)
+        writeSavedTable('tScene3d.sMeshSetFolder', savedPath(sMeshSetFolder))
         writeSavedTable('tScene3d.tOptionsEditor', {
             iIndexResolution        = tOptionsEditor.iIndexResolution,
             bInvertResolution       = tOptionsEditor.bInvertResolution,
-            sCurrentScriptExecution = tOptionsEditor.sCurrentScriptExecution,
+            sCurrentScriptExecution = savedPath(tOptionsEditor.sCurrentScriptExecution),
             fSceneCamPos            = tOptionsEditor.fSceneCamPos,
             fSceneCamFocus          = tOptionsEditor.fSceneCamFocus,
         })
@@ -3984,7 +3998,7 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
         if bIsExport then
             fp:write(string.format(
                 '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g,animationName=%q,articulatedAnimationNames=%s},\n',
-                i, tPlaced.fileName, tPlaced.type, x, y, z, tPlaced.rotationY or 0,
+                i, savedPath(tPlaced.fileName), tPlaced.type, x, y, z, tPlaced.rotationY or 0,
                 tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
                 tPlaced.animationName or '', formatLuaStringList(tPlaced.articulatedAnimationNames)))
         else
@@ -3992,7 +4006,7 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
                 '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g,'
                 .. 'layerIndex=%d,cellX=%d,cellZ=%d,freeX=%g,freeZ=%g,freeY=%g,bAttachedToLayer=%s,'
                 .. 'animationName=%q,articulatedAnimationNames=%s},\n',
-                i, tPlaced.fileName, tPlaced.type, x, y, z, tPlaced.rotationY or 0,
+                i, savedPath(tPlaced.fileName), tPlaced.type, x, y, z, tPlaced.rotationY or 0,
                 tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
                 tPlaced.layerIndex or 1, tPlaced.cellX or 0, tPlaced.cellZ or 0,
                 tPlaced.freeX or 0, tPlaced.freeZ or 0, tPlaced.freeY or 0,
@@ -4141,21 +4155,13 @@ end
 function onOpenScene3d()
     local fileName = mbm.openFile(sFileNameScene3d, '*.scene3d-edit.lua')
     if not fileName then return end
+    local ok, tLoaded = dpCall(assetPaths.loadScene, fileName, mbm)
+    if not ok then
+        tUtil.showMessageWarn(tLang.L('scene_3d_load_failed'))
+        return
+    end
     sFileNameScene3d = fileName
     tUtil.showMessage(tLang.L('scene_3d_loaded_ok'))
-    -- Loading back into the editor's own live state (re-hydrating tLayers/tPlacedMeshes/etc from
-    -- the saved script) is intentionally left to the same async placeMeshAsync/addPlacedMesh path
-    -- used for normal placement, driven by the progress modal, once the file is dofile'd.
-    local chunk = loadfile(fileName)
-    if not chunk then
-        tUtil.showMessageWarn(tLang.L('scene_3d_load_failed'))
-        return
-    end
-    local ok, tLoaded = dpCall(chunk)
-    if not ok or not tLoaded then
-        tUtil.showMessageWarn(tLang.L('scene_3d_load_failed'))
-        return
-    end
     applyLoadedScene3d(tLoaded)
 end
 

@@ -23,18 +23,10 @@
 local Model=require 'image_mesh_model'
 local HoleGeometry=require 'image_mesh_holes_geometry'
 local M={}
-function M.directory(path) return path:gsub('\\','/'):match('^(.*)/[^/]*$') or '.' end
-local function absolute(path) return path:match('^[/\\]') or path:match('^%a:') end
-function M.resolve(path,projectPath)
-    if absolute(path) then return path end
-    return M.directory(projectPath)..'/'..path
-end
-function M.relative(path,projectPath)
-    local base=M.directory(projectPath):gsub('\\','/')..'/'
-    path=path:gsub('\\','/')
-    if path:sub(1,#base)==base then return path:sub(#base+1) end
-    return path
-end
+local AssetPaths=require 'editor_asset_paths'
+M.directory=AssetPaths.directory
+M.resolve=AssetPaths.resolve
+M.relative=AssetPaths.relative
 function M.exists(path)
     local f=io.open(path,'rb'); if not f then return false end; f:close(); return true
 end
