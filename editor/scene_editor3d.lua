@@ -3922,13 +3922,6 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
 
     fp:write(getHeader3d(fileName, bIsExport))
 
-    local tPaths = mbm.getAllPaths()
-    if bIsExport then
-        for _, sPath in ipairs(tPaths) do
-            fp:write(string.format('mbm.addPath(%q)\n', sPath))
-        end
-    end
-
     fp:write('\nlocal tScene3d = {}\n')
 
     local xRes, yRes
@@ -3952,13 +3945,12 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
     end
 
     local function savedPath(path)
-        return bIsExport and path or assetPaths.relative(path, fileName)
+        return assetPaths.saved(path, fileName)
     end
-    if not bIsExport then
-        local paths = {}
-        for _, path in ipairs(tPaths) do paths[#paths+1] = savedPath(path) end
-        writeSavedTable('tScene3d.tAssetPaths', paths)
-    end
+    local assetFolder
+    if not bIsExport then assetFolder = sMeshSetFolder end
+    writeSavedTable('tScene3d.tAssetPaths', assetPaths.searchPaths(
+        fileName, mbm.getAllPaths(), tPlacedMeshes, assetFolder))
     local offsets = {}
     for path, value in pairs(tMeshOffsets) do offsets[savedPath(path)] = value end
 
@@ -4016,6 +4008,7 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
     end
     fp:write('}\n\n')
 
+    if bIsExport then fp:write(assetPaths.exportResolver()) end
     fp:write(getSceneLoaderCode3d(bAsyncMesh))
     fp:close()
     os.setlocale(oldLocale, 'numeric')

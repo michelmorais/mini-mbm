@@ -51,7 +51,11 @@ function M.directory(path)
 end
 function M.exists(path)
     local file = io.open(path, 'rb')
-    if not file then return false end
+    if not file then
+        -- Windows does not allow io.open on directories. Renaming to itself
+        -- probes existence without changing the directory or its contents.
+        return os.rename(path, path) == true
+    end
     file:close()
     return true
 end
@@ -77,7 +81,7 @@ function M.resolve(path, projectPath, exists)
     if path == '' or path:sub(1,1) == '#' then return path end
     path = M.normalize(path)
     local base = M.directory(projectPath)
-    if not absolute(path) then return M.normalize(base .. '/' .. path) end
+    if not absolute(path) then path = M.normalize(base .. '/' .. path) end
     exists = exists or M.exists
     if exists(path) then return path end
     local candidates = {}
@@ -106,6 +110,69 @@ function M.resolve(path, projectPath, exists)
         found = candidate
     end
     return found or path
+end
+-- Recover absent legacy assets only when their containing directory can be
+-- located unambiguously. The missing filename remains visible to the user.
+function M.asset(path, projectPath)
+    local resolved = M.resolve(path, projectPath)
+    if resolved == '' or resolved:sub(1,1) == '#' or M.exists(resolved) then return resolved end
+    local parent = M.directory(resolved)
+    local moved = M.resolve(parent, projectPath)
+    if moved ~= parent then return moved .. '/' .. resolved:match('[^/]+$') end
+    return resolved
+end
+function M.saved(path, projectPath)
+    local resolved = M.asset(path, projectPath)
+    if resolved ~= '' and resolved:sub(1,1) ~= '#' and not M.exists(resolved)
+        and not M.exists(M.directory(resolved)) then
+        return resolved -- Keep unresolved external references explicit, not ../../home/...
+    end
+    return M.relative(resolved, projectPath)
+end
+-- Find the enclosing assets tree; do not capture the engine's process-wide paths.
+function M.searchPaths(projectPath, paths, meshes, folder)
+    local root = M.directory(projectPath)
+    while not M.exists(root .. '/assets') do
+        local parent = M.directory(root)
+        if parent == root or parent == '.' or root == '.' then
+            root = M.directory(projectPath)
+            break
+        end
+        root = parent
+    end
+    local result, seen = {}, {}
+    local function add(path)
+        path = M.normalize(path)
+        if path ~= '' and not seen[path] then
+            seen[path] = true
+            result[#result+1] = M.relative(path, projectPath)
+        end
+    end
+    for _, path in ipairs(paths) do
+        path = M.asset(path, projectPath)
+        if path == root or path:sub(1,#root+1) == root .. '/' then add(path) end
+    end
+    for _, mesh in ipairs(meshes) do add(M.directory(M.asset(mesh.fileName, projectPath))) end
+    if folder and folder ~= '' then add(M.asset(folder, projectPath)) end
+    return result
+end
+-- Embedded in game exports: no dependency on editor modules or the launch CWD.
+function M.exportResolver()
+    return [=[
+local source = debug.getinfo(1, 'S').source
+assert(source:sub(1,1) == '@', 'Scene must be loaded from a file')
+local sceneFile = source:sub(2):gsub('\\', '/')
+local sceneDir = sceneFile:match('^(.*)/[^/]*$') or '.'
+local function assetPath(path)
+    if path == '' or path:sub(1,1) == '#' or path:match('^/') or path:match('^%a:[/\\]') then return path end
+    return sceneDir .. '/' .. path
+end
+for _, path in ipairs(tScene3d.tAssetPaths) do mbm.addPath(assetPath(path)) end
+local offsets = {}
+for path, value in pairs(tScene3d.tMeshOffsets) do offsets[assetPath(path)] = value end
+tScene3d.tMeshOffsets = offsets
+for _, info in ipairs(tScene3d.tPlacedMeshInfo) do info.fileName = assetPath(info.fileName) end
+]=]
 end
 -- Convert only schema-defined asset fields, including path-keyed mesh offsets.
 function M.scene(scene, convert)
@@ -136,7 +203,7 @@ function M.loadScene(projectPath, engine)
     assert(type(scene) == 'table', 'Invalid scene file')
     local cache = {}
     local function resolve(path)
-        if cache[path] == nil then cache[path] = M.resolve(path, projectPath) end
+        if cache[path] == nil then cache[path] = M.asset(path, projectPath) end
         return cache[path]
     end
     M.scene(scene, resolve)

@@ -62,11 +62,14 @@ local function checkFile(text, expected)
     assert(scene.tMeshOffsets[expected].y == 7)
     assert(registered[1] == P.normalize(P.directory(temp)..'/assets'))
 end
-local expected = P.normalize(P.directory(temp)..'/assets/a.msh')
+local expected = temp .. '.msh'
+local assetFile = assert(io.open(expected, 'w')); assetFile:close()
+local assetName = expected:match('[^/]+$')
+local legacyExpected = P.normalize(P.directory(temp)..'/assets/a.msh')
 checkFile([[mbm.addPath('assets')
-return {tMeshOffsets={['assets/a.msh']={y=7}},tPlacedMeshInfo={{fileName='assets/a.msh'}}}]], expected)
+return {tMeshOffsets={['assets/a.msh']={y=7}},tPlacedMeshInfo={{fileName='assets/a.msh'}}}]], legacyExpected)
 checkFile([[return {tAssetPaths={'assets'},tMeshOffsets={['assets/a.msh']={y=7}},
-tPlacedMeshInfo={{fileName='assets/a.msh'}}}]], expected)
+tPlacedMeshInfo={{fileName='assets/a.msh'}}}]], legacyExpected)
 os.remove(temp)
 assert(loadfile('editor/scene_editor3d.lua'))
 assert(loadfile('editor/image_mesh_editor.lua'))
@@ -94,22 +97,65 @@ local env = setmetatable({assetPaths=P, mbm={getAllPaths=function() return {P.di
 assert(load(writer, '@scene-writer-test', 't', env))()
 assert(env.writeScene3d(temp, false, false))
 local saved = assert(loadfile(temp))()
-assert(saved.tPlacedMeshInfo[1].fileName == 'assets/a.msh')
-assert(saved.tMeshOffsets['assets/a.msh'].y == 7)
+assert(saved.tPlacedMeshInfo[1].fileName == assetName)
+assert(saved.tMeshOffsets[assetName].y == 7)
 assert(env.tPlacedMeshes[1].fileName == expected, 'Saving mutated live state')
 local reloaded = P.loadScene(temp, {addPath=function() end})
 assert(reloaded.tPlacedMeshInfo[1].fileName == expected)
 assert(reloaded.tMeshOffsets[expected].y == 7)
 -- Export keeps its existing independent game-facing contract.
 assert(env.writeScene3d(temp, false, true))
-local exported = assert(loadfile(temp, 't', {mbm={addPath=function() end}}))()
+local exported = assert(loadfile(temp, 't', setmetatable({mbm={addPath=function() end}}, {__index=_G})))()
 assert(exported.tPlacedMeshInfo[1].fileName == expected)
-assert(exported.tMeshOffsets[expected].y == 7 and exported.tAssetPaths == nil)
+assert(exported.tMeshOffsets[expected].y == 7 and #exported.tAssetPaths > 0)
 os.remove(temp)
+os.remove(expected)
 print('editor asset paths: PASS')
 -- Optional real user fixture: read only, never save over it.
 if arg[1] then
     local scene = P.loadScene(arg[1], {addPath=function() end})
+    -- Run the production writer with real project data, redirecting only its
+    -- destination so the user's project is never modified by the regression test.
+    env.tMeshOffsets = scene.tMeshOffsets
+    env.tPlacedMeshes = {}
+    for _, info in ipairs(scene.tPlacedMeshInfo) do
+        local mesh = {}
+        for k,v in pairs(info) do mesh[k] = v end
+        mesh.scale = {x=info.sx,y=info.sy,z=info.sz}
+        env.tPlacedMeshes[#env.tPlacedMeshes+1] = mesh
+    end
+    env.resolvePlacedMeshWorldPos = function(mesh) return mesh.x,mesh.y,mesh.z end
+    env.sMeshSetFolder = scene.sMeshSetFolder
+    local base = P.directory(P.directory(arg[1]))
+    env.mbm.getAllPaths = function() return {
+        '/Users/michel/mini-mbm/editor', '/var/folders/cache/mbm_scene3d_thumbnails',
+        base..'/assets/meshes', base..'/assets/textures', base..'/raw',
+    } end
+    env.io = {open=function() return io.open(temp, 'w') end}
+    assert(env.writeScene3d(arg[1], false, false))
+    local clean = assert(loadfile(temp))()
+    for _, path in ipairs(clean.tAssetPaths) do
+        assert(not path:find('mini%-mbm') and not path:find('var/folders'))
+    end
+    for path in pairs(clean.tMeshOffsets) do
+        assert(path:sub(1,17) == '../assets/meshes/', path)
+    end
+    assert(env.writeScene3d(base..'/levels/scene.lua', false, true))
+    local f = assert(io.open(temp)); local exportText = f:read('*a'); f:close()
+    assert(not exportText:find('/Users/') and not exportText:find('/home/'))
+    assert(not exportText:find('mini%-mbm') and not exportText:find('var/folders'))
+    -- Different location, directory depth, project name, and Windows drive.
+    for _, relocated in ipairs({'/opt/games/Renamed/levels/scene.lua', 'D:/Games/Renamed/levels/scene.lua'}) do
+        local gameEnv = setmetatable({mbm={addPath=function() end}}, {__index=_G})
+        local moved = assert(load(exportText, '@'..relocated, 't', gameEnv))()
+        assert(#moved.tPlacedMeshInfo == #scene.tPlacedMeshInfo)
+        for _, info in ipairs(moved.tPlacedMeshInfo) do
+            assert(info.fileName:find(P.directory(relocated), 1, true) == 1)
+            assert(moved.tMeshOffsets[info.fileName])
+        end
+    end
+    os.remove(temp)
+    print('Real project save/export relocation: PASS')
     local unique, count = {}, 0
     for _, info in ipairs(scene.tPlacedMeshInfo) do
         assert(P.exists(info.fileName), 'Unresolved mesh: '..info.fileName)
