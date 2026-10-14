@@ -218,6 +218,7 @@ function onInitScene()
             dz = 0,
         },
         texture = {
+            role = 'primary',
             frame = 0,
             subset = 0,
             stage = 0,
@@ -9359,67 +9360,7 @@ function showMeshOptions(tEntry, index)
             local _, ns = tImGui.InputInt('##txSubset-' .. index, tx.subset, 1, 1, 0)
             if ns ~= nil then tx.subset = math.max(0, math.min(ns, totalSubsets)) end
             tImGui.Spacing()
-            local roleOpts = {
-                tLang.L("tex_role_primary"),
-                tLang.L("tex_role_normal"),
-                tLang.L("tex_role_specular"),
-                tLang.L("tex_role_emissive"),
-                tLang.L("tex_role_mask"),
-            }
-            local roleValues = {'primary', 'normal', 'specular', 'emissive', 'mask'}
-            local roleIndex = 1
-            for i = 1, #roleValues do
-                if roleValues[i] == tx.role then
-                    roleIndex = i
-                    break
-                end
-            end
-            local specificTextureTarget = tx.frame > 0 and tx.subset > 0
-            local roleTableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
-            if tImGui.BeginTable('txRoleTable-' .. index, 3, roleTableFlags) then
-                tImGui.TableSetupColumn(tLang.L('select'),
-                    tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 55)
-                tImGui.TableSetupColumn(tLang.L('tex_role_label'),
-                    tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 105)
-                tImGui.TableSetupColumn(tLang.L('tex_texture_name'),
-                    tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
-                tImGui.TableHeadersRow()
-                for roleRow = 1, #roleValues do
-                        local roleValue = roleValues[roleRow]
-                        local okTexture, roleTexture
-                        if specificTextureTarget and roleValue == 'primary' then
-                            okTexture, roleTexture = dpCall(function()
-                                return meshD:getTexture(tx.frame, tx.subset)
-                            end)
-                        elseif specificTextureTarget then
-                            okTexture, roleTexture = dpCall(function()
-                                return meshD:getMaterialTexture(tx.frame, tx.subset, roleValue)
-                            end)
-                        end
-
-                        tImGui.TableNextRow()
-                        tImGui.TableSetColumnIndex(0)
-                        roleIndex = tImGui.RadioButton(
-                            '##txRoleSelect-' .. index .. '-' .. roleRow, roleIndex, roleRow)
-                        tImGui.TableSetColumnIndex(1)
-                        tImGui.Text(roleOpts[roleRow])
-                        tImGui.TableSetColumnIndex(2)
-                        if not specificTextureTarget then
-                            tImGui.Text('')
-                        elseif okTexture and roleTexture and roleTexture ~= '' then
-                            tImGui.TextDisabled(tUtil.getShortName(roleTexture))
-                            if tImGui.IsItemHovered(0) then
-                                tImGui.BeginTooltip()
-                                tImGui.Text(roleTexture)
-                                tImGui.EndTooltip()
-                            end
-                        else
-                            tImGui.TextDisabled('(none)')
-                        end
-                end
-                tImGui.EndTable()
-                tx.role = roleValues[roleIndex] or 'primary'
-            end
+            require('mesh_debug_texture_roles').draw(tx, index, meshD, dpCall)
 
             -- Filename input + browse button
             tImGui.Text(tLang.L("tex_filename_label"))
@@ -11197,7 +11138,11 @@ local function applyAllTexture(sType, bClear)
             local s2 = tx.subset == 0 and nS2 or tx.subset
             for s = s1, s2 do
                 local ok = dpCall(function()
-                    meshD:setTexture(f, s, bClear and '' or tx.filename)
+                    if (tx.role or 'primary') == 'primary' then
+                        meshD:setTexture(f, s, bClear and '' or tx.filename)
+                    else
+                        meshD:setMaterialTexture(f, s, tx.role, bClear and '' or tx.filename)
+                    end
                 end)
                 if ok then count = count + 1 end
             end
@@ -11647,6 +11592,9 @@ function showApplyAllWindow()
                     tImGui.Text(tLang.L('target_subset_label'))
                     local _, ns = tImGui.InputInt('##applyAllTxSubset', tx.subset, 1, 1, 0)
                     if ns ~= nil then tx.subset = math.max(0, ns) end
+                    tImGui.Spacing()
+                    require('mesh_debug_texture_roles').draw(tx, 'applyAll')
+                    tImGui.Text(tLang.L('tex_filename_label'))
                     local changedFile, newFile = tImGui.InputText('##applyAllTxFile', tx.filename or '', 512, 0)
                     if changedFile and newFile ~= nil then tx.filename = newFile end
                     tImGui.SameLine()
