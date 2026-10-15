@@ -2790,6 +2790,9 @@ assert(asset:save("panel.msh", false, false, true))
 | `heightAreas` | nil | Up to 32 ordered closed contours or open lines with flatten/raise/lower operation and inward transition; see below |
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief (endpoint thickness difference for curved mode); finite [0.001,1], constrained by density and sampling |
+| `bevel` | false | Enable planar bevel cuts on a closed convex extrusion (3..128 contour corners), before editor simplification |
+| `bevelWidth` | 1 | Cut width in mesh units, finite 0.001..1000000; must be smaller than half every contour edge and fit the contour interior and depth |
+| `bevelFront`, `bevelBack`, `bevelCorners` | true | Select front rim, back rim, and vertical corner cuts independently; only active with `bevel=true` |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
 | `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
 | `backExternal` | false | Flat back with an independent image material; mutually exclusive with other back modes |
@@ -3020,6 +3023,25 @@ normalize total thickness by the maximum. Asynchronous jobs deep-copy node geome
 Editor-only `shape` and `name` metadata is persisted in `.imesh` but ignored by the API.
 
 **Image-mesh back controls.**
+
+Bevel controls are shared by synchronous and asynchronous image-mesh generation.
+They require `lockBorder=true`, a closed flat back, no holes, and a convex contour;
+voxel and curved modes are rejected when bevel is enabled. A width that cannot fit
+is rejected with an error rather than silently changing the requested value. The
+sum of enabled front/back cut widths must be less than `depth`. Corner width is
+the inward distance of the cutting plane along the corner bisector. Excessively
+complex relief intersections fail rather than emitting an open mesh.
+
+Front and back bevel faces inherit their respective projected texture coordinates
+(and back remap/mirror/material settings). Corner faces use the side material:
+edge mode projects the source image, band mode interpolates inward across depth,
+and repeat mode fits one texture tile to each new corner strip. Original wall
+repeat settings remain unchanged. Cuts retain hard normals along new seams.
+Front cuts can trim relief where it intersects their planes; report height extrema
+describe the sampled relief before clipping. Final vertex/triangle counts include
+bevel faces and are checked against the same geometry budgets. With `bevel=false`,
+all bevel settings are ignored and legacy generation is unchanged. Map export
+continues to describe the height field, not the bevel cuts.
 
 `backRelief` and `backMirror` are strict optional booleans accepted by the image
 mesh options reader. Their defaults preserve existing geometry and UVs.

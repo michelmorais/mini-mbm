@@ -209,7 +209,9 @@ rasterization, topology validation, triangulation, refinement, normals, UV seams
 and temporary geometry remain generator-local or in private image-mesh helpers.
 Contour queries write to caller-provided buffers. Height-channel selection, tonal
 curves, separate height images, back materials, and side mapping follow this same
-request/result boundary.
+request/result boundary. Planar bevel settings are also scalar request values;
+clipping planes, intersection loops and temporary face buffers live only in the
+private `image-mesh-bevel.h` generator helper.
 
 The optional progress callback and context are borrowed, run on the generating
 thread, and must remain valid for that invocation. Returning false requests

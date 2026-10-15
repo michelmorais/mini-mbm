@@ -92,6 +92,9 @@ namespace mbm
         bool voxelized = false; // Sample one flat relief value per grid cell and build exposed block walls.
         uint32_t maxVertices = 65535, maxTriangles = 131070;
         float width = 100.0f, height = 100.0f, depth = 20.0f, relief = 8.0f;
+        // Planar cuts of a closed convex extrusion; width is in mesh units.
+        bool bevel = false, bevelFront = true, bevelBack = true, bevelCorners = true;
+        float bevelWidth = 1.0f;
         float borderWidth = 0.1f;
         bool invert = false;
         bool lockBorder = true;

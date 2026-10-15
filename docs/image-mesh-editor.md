@@ -1125,3 +1125,34 @@ The **Analyze mesh / Analisar malha** panel reports a stored-frame-1 snapshot
 without changing geometry. Configure `mbm-cgal-audit` in the CGAL options;
 analysis is explicit and supports cancellation and JSON export. See
 [Mesh Audit](mesh-audit.md) for the public Lua API and diagnostic limitations.
+
+## Planar bevel
+
+The **Bevel / Chanfro** section below volume settings adds an optional planar
+chamfer. Enable it to reveal width (mesh units) and independent front/top,
+back/bottom, and side-corner switches. Use Apply / Generate through the usual
+editor workflow. Disabling bevel retains its saved width and switches.
+Settings participate in defaults, per-region overrides, presets, undo/redo,
+`.imesh` persistence, previews, Mesh Debug project loading, and mesh export.
+Old projects default to bevel disabled.
+
+The initial implementation supports closed convex extrusions with 3..128 contour
+corners, a locked border and flat back, including image-following relief. It does
+not support holes, concave outlines, open/copied-relief backs, curved or voxel
+modes. Unsupported configurations produce an error; the UI explains the supported
+scope. Width must fit the depth, contour interior and half of each contour edge.
+The corner width measures the inward distance along the corner bisector. Front
+cut planes may trim adjacent relief. Simplification/remeshing runs afterwards
+and may remove small bevel detail, so inspect the final result when enabled.
+
+New faces have hard normal seams. Front/back cuts inherit their face textures;
+corner cuts inherit the side material. Repeat mode maps one tile onto each new
+corner strip, independently of the original walls' repeats. Geometry is generated
+only by the existing explicit generation/cache workflow; opening the section or
+leaving the editor idle does not cut or upload geometry every frame.
+
+Regression coverage: `image_mesh_bevel_smoke.lua` checks closed directed edge
+pairing, normals, all seven cut combinations, material modes, convex shapes,
+adaptive relief, invalid configurations, budgets and disabled compatibility.
+`image_mesh_bevel_editor_smoke.lua` checks the real panel, history, persistence,
+presets, export and idle build counters.

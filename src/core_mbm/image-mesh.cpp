@@ -27,6 +27,7 @@
 #include "private/image-mesh-frequency.h"
 #include "private/image-mesh-sides.h"
 #include "private/image-mesh-curved-simplify.h"
+#include "private/image-mesh-bevel.h"
 #include <lodepng/lodepng.h>
 #include <algorithm>
 #include <cmath>
@@ -98,6 +99,9 @@ namespace mbm
             image_mesh::TOPOLOGY topology;
             if (!image_mesh::buildTopology(o,topology,topologyError,(o.followImage || o.voxelized)?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
+            std::vector<image_mesh::bevel::PLANE> bevelPlanes;
+            if (o.bevel && !image_mesh::bevel::planes(o,topology,bevelPlanes,topologyError))
+                return fail(errorOut,errorOutLen,topologyError.c_str());
             if (!o.voxelized) image_mesh::curved_simplify::run(o,field,topology,report);
             image_mesh::checkpoint(o,"surface",0.9f);
             std::vector<IMAGE_MESH_POINT> sideInner;
@@ -151,10 +155,10 @@ namespace mbm
                 if (!o.voxelized) image_mesh::sideSplitRepeats(o,topology);
                 sideRows=static_cast<uint32_t>(std::ceil(o.sideRepeatV));
             }
-            const uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
+            uint32_t gridSize=static_cast<uint32_t>(topology.points.size());
             std::vector<size_t> backCorners;
             std::vector<std::array<uint32_t,3>> minimalTriangles;
-            bool minimalBack=!o.voxelized && !o.backOpen && !o.backRelief && o.holeCount==0 &&
+            bool minimalBack=!o.bevel && !o.voxelized && !o.backOpen && !o.backRelief && o.holeCount==0 &&
                 o.sideMode!=IMAGE_MESH_SIDE::REPEAT;
             // Per-edge opaque fallback UVs are discontinuous and need the original strips.
             if (minimalBack && o.sideMode!=IMAGE_MESH_SIDE::COLOR && o.sideMode!=IMAGE_MESH_SIDE::BAND)
@@ -189,7 +193,7 @@ namespace mbm
                     if (!image_mesh::triangulatePolygon(strip,minimalSides[c])) { minimalBack=false; break; }
                 }
             }
-            const bool compactBack=!o.voxelized && o.followImage && !o.backRelief && o.holeCount==0 && !topology.backTriangles.empty();
+            const bool compactBack=!o.bevel && !o.voxelized && o.followImage && !o.backRelief && o.holeCount==0 && !topology.backTriangles.empty();
             uint32_t backSize=gridSize;
             size_t backTriangles=topology.triangles.size();
             if (o.backOpen) { backSize=0; backTriangles=0; }
@@ -213,7 +217,7 @@ namespace mbm
                     2*sideRows*static_cast<uint32_t>(topology.boundary.size()));
             uint32_t vertexCount=gridSize+backSize+sideVertices;
             const bool faceted=o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED && o.curvedFaceted;
-            const uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+sideTriangles);
+            uint32_t triangleCount=static_cast<uint32_t>(topology.triangles.size()+backTriangles+sideTriangles);
             const uint32_t requiredVertices=faceted?3*triangleCount:vertexCount;
             if (requiredVertices>std::min(o.maxVertices,65535u) || triangleCount>o.maxTriangles)
             {
@@ -284,7 +288,7 @@ namespace mbm
             {
                 triangle(face[0], face[1], face[2]);
             }
-            const uint32_t backIndexStart=static_cast<uint32_t>(indices.size());
+            uint32_t backIndexStart=static_cast<uint32_t>(indices.size());
             if (!o.backOpen)
             {
                 const auto *faces=&topology.triangles;
@@ -350,7 +354,7 @@ namespace mbm
                 return false;
             };
             uint32_t sideVertexStart=static_cast<uint32_t>(vertices.size());
-            const uint32_t sideIndexStart=static_cast<uint32_t>(indices.size());
+            uint32_t sideIndexStart=static_cast<uint32_t>(indices.size());
             double sidePerimeter=0,sideWalked=0;
             if (o.sideMode==IMAGE_MESH_SIDE::REPEAT && o.voxelized)
                 for (const auto &wall:topology.voxelWalls)
@@ -639,6 +643,48 @@ namespace mbm
                 vertices.swap(facetVertices);vertexCount=static_cast<uint32_t>(vertices.size());
                 sideVertexStart=sideIndexStart;
                 for (uint32_t i=0;i<indices.size();++i) indices[i]=static_cast<uint16_t>(i);
+            }
+            if (o.bevel && !bevelPlanes.empty())
+            {
+                const auto bevelUv=[&](const VEC3 &position,const image_mesh::bevel::PLANE &plane)
+                {
+                    float u=position.x/o.width+.5f,v=.5f-position.y/o.height;
+                    if (plane.group==1)
+                    {
+                        if (o.backSolid) return VEC2(.5f,.5f);
+                        if (o.backMirror) u=1-u;
+                        if (externalBackImage) return VEC2((u*(backImageWidth-1)+.5f)/backImageWidth,(v*(backImageHeight-1)+.5f)/backImageHeight);
+                        if (o.backRemap) return VEC2((o.backX+u*(backWidth-1)+.5f)/imageWidth,(o.backY+v*(backHeight-1)+.5f)/imageHeight);
+                    }
+                    if (plane.group==2)
+                    {
+                        if (o.sideMode==IMAGE_MESH_SIDE::COLOR) return VEC2(.5f,.5f);
+                        // Sample the cut's projected source position. Its vertical
+                        // band stays constant along depth, matching EDGE walls.
+                        if (o.sideMode==IMAGE_MESH_SIDE::BAND)
+                        {
+                            const IMAGE_MESH_POINT point{u,v};
+                            const auto inner=image_mesh::sideMap(point,topology.contour,sideInner);
+                            float t=std::clamp(position.z/o.depth+.5f,0.0f,1.0f);
+                            if (o.sideBandInvert) t=1-t;
+                            u+=(inner.x-u)*t;v+=(inner.y-v)*t;
+                        }
+                        else if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
+                        {
+                            // A dedicated planar strip on each corner. Repeats on
+                            // the original walls keep their existing tiled mapping.
+                            const float repeatU=static_cast<float>((-plane.y*position.x+plane.x*position.y-plane.minAlong)/(plane.maxAlong-plane.minAlong));
+                            const float repeatV=std::clamp(position.z/o.depth+.5f,0.0f,1.0f);
+                            if (!repeatSourceCrop) return VEC2(repeatU,repeatV);
+                            u=repeatU;v=repeatV;
+                        }
+                    }
+                    return VEC2((o.x+u*(cw-1)+.5f)/imageWidth,(o.y+v*(ch-1)+.5f)/imageHeight);
+                };
+                if (!image_mesh::bevel::apply(o,bevelPlanes,vertices,indices,gridSize,backSize,
+                    backIndexStart,sideIndexStart,sideVertexStart,bevelUv,topologyError))
+                    return fail(errorOut,errorOutLen,topologyError.c_str());
+                vertexCount=static_cast<uint32_t>(vertices.size());triangleCount=static_cast<uint32_t>(indices.size()/3);
             }
             image_mesh::checkpoint(o,"finalize",0.98f);
             destination.setMeshType(util::TYPE_MESH_3D);
