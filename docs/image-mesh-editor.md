@@ -1135,36 +1135,46 @@ editor workflow. Disabling bevel retains its saved width and switches.
 **Round bevel / Arredondar chanfro** reveals a **Curve segments / Segmentos da
 curva** control (2..8, default 4). More segments approximate a circular profile
 more closely and increase the polygon count. Rounded faces use smooth radial
-normals. The width retains the flat bevel's endpoint footprint on adjacent faces;
-it is not a separate fillet-radius control. Intersections join the rounded strips,
-retaining seams at their intersections, without spherical corner patches. Disabling rounding restores flat cuts and
-retains the segment count. Existing projects retain flat bevels by default.
+normals. Width is the inward contour offset and the radius of the rounded profile.
+When side corners and a rim are selected together, convex corners use spherical
+patches with that same radius. Reentrant corners retain mitered joins. Disabling
+rounding restores straight profiles and retains the segment count. Existing
+projects retain flat bevels by default. Compared with the previous clipping
+implementation, corner footprints now use this consistent radius rather than a
+bisector cut distance.
 
 Settings participate in defaults, per-region overrides, presets, undo/redo,
 `.imesh` persistence, previews, Mesh Debug project loading, and mesh export.
 Old projects default to bevel disabled.
 
-The initial implementation supports closed convex extrusions with 3..128 contour
-corners, a constant-height border and flat back, including image-following relief.
-The border may be unlocked when its height is uniform, as with manual height.
-Cuts follow the actual front height and width limits use the actual rim thickness.
-Nonuniform unlocked borders require locking the border or making its height uniform.
-This mode does not support holes, concave outlines, open/copied-relief backs, curved or voxel
-modes. Unsupported configurations produce an error; the UI explains the supported
-scope. Width must fit the actual rim thickness, contour interior and half of each contour edge.
-The corner width measures the inward distance along the corner bisector. Front
-cut planes may trim adjacent relief. Simplification/remeshing runs afterwards
-and may remove small bevel detail, so inspect the final result when enabled.
+Closed extrusions support simple convex or concave outer contours and disjoint
+holes (3..128 vertices per contour), with a flat closed back. Unlocked front
+borders may have varying image/manual height: each strip follows its inset cap
+boundary. Locked borders retain zero rim relief. Open/copied-relief backs,
+curved and voxel modes remain unsupported.
 
-Flat bevel faces have hard normal seams; each rounded strip has smooth normals along its profile. Front/back cuts inherit their face textures;
-corner cuts inherit the side material. Repeat mode maps one tile onto each new
-corner strip, independently of the original walls' repeats. Geometry is generated
-only by the existing explicit generation/cache workflow; opening the section or
-leaving the editor idle does not cut or upload geometry every frame.
+The panel reports **Safe width for the last generation** from the existing
+asynchronous generation result. Until a result exists, it prompts Apply / Generate.
+Failures caused by excessive width include the calculated safe limit in the
+localized error. This is a conservative bound: it prevents collapsed inset edges,
+self-intersections, contour/hole collisions and overlap of front/back bevels.
+It uses baseline depth for variable relief and actual thickness for uniform
+unedited manual height. It does not promise the mathematically largest possible
+width after topology changes. Simplification/remeshing runs afterwards and may
+remove small bevel detail.
+
+Flat profiles have hard normals; rounded rims and convex corner patches use
+radial normals. Front/back faces inherit their projected texture coordinates;
+vertical walls use the side material. Repeat mode preserves the configured
+horizontal/vertical repetitions along the inset boundary, with one tile across
+each corner strip. Hole walls use edge projection for band mode. Geometry and
+width bounds are calculated only during generation; opening the section or
+leaving the editor idle does not rebuild or upload geometry every frame.
 
 Regression coverage: `image_mesh_bevel_smoke.lua` checks closed directed edge
 pairing, normals, all seven cut combinations, material modes, convex shapes,
-adaptive relief, circular-profile volume, smooth radial normals, rounded material
+adaptive and variable border relief, concavities, multiple holes, spherical
+corner coordinates, circular-profile volume, smooth radial normals, rounded material
 UVs, invalid configurations, budgets and disabled compatibility.
 `image_mesh_bevel_editor_smoke.lua` checks the real panel, history, persistence,
 presets, export and idle build counters.

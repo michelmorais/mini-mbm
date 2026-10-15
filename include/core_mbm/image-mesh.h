@@ -92,7 +92,7 @@ namespace mbm
         bool voxelized = false; // Sample one flat relief value per grid cell and build exposed block walls.
         uint32_t maxVertices = 65535, maxTriangles = 131070;
         float width = 100.0f, height = 100.0f, depth = 20.0f, relief = 8.0f;
-        // Planar cuts of a closed convex extrusion; width is in mesh units.
+        // Contour-local bevel of a closed extrusion; inset/radius in mesh units.
         bool bevel = false, bevelFront = true, bevelBack = true, bevelCorners = true;
         float bevelWidth = 1.0f;
         bool bevelRounded = false; // Circular segmented profile with smooth bevel normals.
@@ -160,6 +160,7 @@ namespace mbm
     {
         uint32_t vertices = 0, triangles = 0;
         float minHeight = 0.0f, maxHeight = 0.0f;
+        float bevelMaximumWidth = 0.0f; // Conservative safe width, mesh units.
         uint32_t curvedSourceTriangles = 0, curvedResultTriangles = 0;
         float curvedMaximumError = 0.0f; // Conservative normalized height error bound.
         bool curvedTargetReached = false;

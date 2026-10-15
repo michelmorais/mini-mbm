@@ -26,6 +26,8 @@ local switches={'bevelFront','bevelBack','bevelCorners'}
 local function L(key) return tLang.L('ime_bevel_'..key) end
 -- Translate native diagnostics at the editor boundary, before adding the region name.
 local errors={
+    ['Bevel supports contours with 3..128 corners']='corners_count',
+    ['Bevel requires a closed extrusion with flat back']='requirements',
     ['Bevel requires a constant border height; lock the border or use a uniform manual height']='border_height',
     ['Rounded bevel segments must be in [2,8]']='segments',
     ['Bevel width must be finite and in [0.001,1000000] mesh units']='width_range',
@@ -46,6 +48,8 @@ local errors={
     ['Geometry budget exceeded by bevel triangles']='triangles',
 }
 function M.error(message)
+    local maximum=message:match('^Bevel width exceeds the safe limit: (.+)$')
+    if maximum then return string.format(L('error_limit'),maximum) end
     local key=errors[message]
     if key then return L('error_'..key) end
 end
@@ -55,6 +59,12 @@ function M.panel(E)
     v.bevel=tImGui.Checkbox(L('enabled'),v.bevel==true)
     if not v.bevel then return end
     tImGui.TextWrapped(L('help'))
+    local maximum=E.report and E.report.bevelMaximumWidth
+    if maximum and maximum>0 and not E.editDefaults and not E.previewStale and not E.meshTask then
+        tImGui.TextWrapped(string.format(L('limit'),maximum))
+    else
+        tImGui.TextWrapped(L('limit_pending'))
+    end
     local changed,width=tImGui.InputFloat(L('width'),v.bevelWidth or 1,0.1,1,'%.3f')
     if changed then v.bevelWidth=Model.clampOption('bevelWidth',width,v.bevelWidth or 1) end
     v.bevelRounded=tImGui.Checkbox(L('rounded'),v.bevelRounded==true)
@@ -66,8 +76,7 @@ function M.panel(E)
     for _,key in ipairs(switches) do
         v[key]=tImGui.Checkbox(L(key),v[key]~=false)
     end
-    if v.voxelized or v.heightSource=='curved' or v.backOpen or v.backRelief or
-        (E.draft and E.draft.holes and #E.draft.holes>0) then
+    if v.voxelized or v.heightSource=='curved' or v.backOpen or v.backRelief then
         tImGui.TextWrapped(L('unsupported'))
     end
 end

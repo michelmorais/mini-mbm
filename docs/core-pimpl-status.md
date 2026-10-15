@@ -210,7 +210,8 @@ and temporary geometry remain generator-local or in private image-mesh helpers.
 Contour queries write to caller-provided buffers. Height-channel selection, tonal
 curves, separate height images, back materials, and side mapping follow this same
 request/result boundary. Bevel width, optional rounding and segment count are scalar request values;
-clipping planes, intersection loops and temporary face buffers live only in the
+the safe-width report is scalar too. Inset loops, cap topology and temporary
+triangle buffers live only in the
 private `image-mesh-bevel.h` generator helper.
 
 The optional progress callback and context are borrowed, run on the generating

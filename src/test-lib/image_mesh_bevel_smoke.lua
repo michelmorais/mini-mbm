@@ -128,11 +128,43 @@ local function run()
     local asset,r=mbm.generateImageMesh(path,o);assert(asset,r)
     o.maxVertices=r.vertices-1;assert(not mbm.generateImageMesh(path,o));o.maxVertices=nil
     o.maxTriangles=r.triangles-1;assert(not mbm.generateImageMesh(path,o));o.maxTriangles=nil
-    for _,bad in ipairs{{bevelWidth=10},{bevelWidth=0},{backOpen=true,backSolid=false},{lockBorder=false,relief=8,heightSource='manual',heightEdits={{x=1,y=.5,radius=.4,mode='raise',strength=1,height=1}}},{voxelized=true},{heightSource='curved'},
-        {shape='polygon',contour={{x=0,y=0},{x=1,y=0},{x=.5,y=.5},{x=1,y=1},{x=0,y=1}}}} do
+    for _,bad in ipairs{{bevelWidth=10},{bevelWidth=0},{backOpen=true,backSolid=false},{voxelized=true},{heightSource='curved'}} do
         local options=Model.copy(o);for k,v in pairs(bad) do options[k]=v end
         assert(not mbm.generateImageMesh(path,options),'unsupported bevel accepted')
     end
+    -- Concavities, multiple holes and varying border heights must remain closed.
+    for _,rounded in ipairs{false,true} do
+        for _,case in ipairs{
+            {shape='polygon',contour={{x=0,y=0},{x=1,y=0},{x=.5,y=.5},{x=1,y=1},{x=0,y=1}}},
+            {holes={{{x=.2,y=.2},{x=.4,y=.2},{x=.4,y=.4},{x=.2,y=.4}},{{x=.6,y=.6},{x=.8,y=.6},{x=.8,y=.8},{x=.6,y=.8}}}},
+            {lockBorder=false,relief=8,heightSource='manual',heightEdits={{x=1,y=.5,radius=.4,mode='raise',strength=1,height=1}}}
+        } do
+            local options=Model.copy(o);options.bevelRounded=rounded
+            for k,v in pairs(case) do options[k]=v end
+            local mesh,r=mbm.generateImageMesh(path,options);assert(mesh,r);inspect(mesh,r)
+            assert(r.bevelMaximumWidth>options.bevelWidth)
+        end
+    end
+    for _,rounded in ipairs{false,true} do
+        local options=Model.copy(o);options.bevelRounded=rounded;options.sideMode='repeat'
+        options.sideRepeatU=3.5;options.sideRepeatV=2.25
+        local mesh,r=mbm.generateImageMesh(path,options);assert(mesh,r);inspect(mesh,r)
+    end
+    -- All three coordinates of the corner lie on the same radius-two sphere.
+    local spherical=Model.copy(o);spherical.bevelRounded=true
+    local mesh,r=mbm.generateImageMesh(path,spherical);assert(mesh,r)
+    local sphereSamples=0
+    for subset=1,mesh:getTotalSubset(1) do
+        for _,v in ipairs(mesh:getVertex(1,subset,1,mesh:getTotalVertex(1,subset))) do
+            if v.x>48.001 and v.y>38.001 and v.z< -8.001 then
+                local x,y,z=v.x-48,v.y-38,v.z+8
+                assert(math.abs(x*x+y*y+z*z-4)<.002,'corner is not spherical')
+                assert(math.abs(v.nx-x/2)<.001 and math.abs(v.ny-y/2)<.001 and math.abs(v.nz-z/2)<.001)
+                sphereSamples=sphereSamples+1
+            end
+        end
+    end
+    assert(sphereSamples>0,'missing spherical corner patch')
     -- Unlocked, uniform manual height: bevel the actual front at -14,
     -- not the old baseline at -10. Preserve the requested height/depth settings.
     o.lockBorder=false;o.heightSource='manual';o.baseHeight=.5;o.relief=8;o.bevelWidth=5

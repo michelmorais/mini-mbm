@@ -97,12 +97,16 @@ namespace mbm
                 return fail(errorOut,errorOutLen,"Back UV crop is outside the source image");
             image_mesh::checkpoint(o,"topology",0.25f);
             image_mesh::TOPOLOGY topology;
-            if (!image_mesh::buildTopology(o,topology,topologyError,(o.followImage || o.voxelized)?&field:nullptr))
+            const bool activeBevel=o.bevel && (o.bevelFront || o.bevelBack || o.bevelCorners);
+            IMAGE_MESH_OPTIONS outline=o;
+            if (activeBevel && !o.voxelized && o.heightSource!=IMAGE_MESH_HEIGHT_SOURCE::CURVED)
+            { outline.columns=1;outline.rows=1;outline.followImage=false; }
+            if (!image_mesh::buildTopology(outline,topology,topologyError,(outline.followImage || o.voxelized)?&field:nullptr))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
-            std::vector<image_mesh::bevel::PLANE> bevelPlanes;
-            float bevelFrontRelief=0;
-            if (o.bevel && !image_mesh::bevel::planes(o,topology,field,bevelFrontRelief,bevelPlanes,topologyError))
+            image_mesh::bevel::RINGS bevelRings;
+            if (activeBevel && !image_mesh::bevel::prepare(o,topology,field,bevelRings,topologyError))
                 return fail(errorOut,errorOutLen,topologyError.c_str());
+            report.bevelMaximumWidth=static_cast<float>(bevelRings.maximum);
             if (!o.voxelized) image_mesh::curved_simplify::run(o,field,topology,report);
             image_mesh::checkpoint(o,"surface",0.9f);
             std::vector<IMAGE_MESH_POINT> sideInner;
@@ -645,9 +649,9 @@ namespace mbm
                 sideVertexStart=sideIndexStart;
                 for (uint32_t i=0;i<indices.size();++i) indices[i]=static_cast<uint16_t>(i);
             }
-            if (o.bevel && !bevelPlanes.empty())
+            if (activeBevel)
             {
-                const auto bevelUv=[&](const VEC3 &position,const image_mesh::bevel::PLANE &plane)
+                const auto bevelUv=[&](const VEC3 &position,const image_mesh::bevel::MAPPING &plane)
                 {
                     float u=position.x/o.width+.5f,v=.5f-position.y/o.height;
                     if (plane.group==1)
@@ -662,34 +666,19 @@ namespace mbm
                         if (o.sideMode==IMAGE_MESH_SIDE::COLOR) return VEC2(.5f,.5f);
                         // Sample the cut's projected source position. Its vertical
                         // band stays constant along depth, matching EDGE walls.
-                        if (o.sideMode==IMAGE_MESH_SIDE::BAND)
+                        if (o.sideMode==IMAGE_MESH_SIDE::BAND && !plane.hole)
                         {
                             const IMAGE_MESH_POINT point{u,v};
                             const auto inner=image_mesh::sideMap(point,topology.contour,sideInner);
-                            float t=std::clamp((position.z+o.depth*.5f+bevelFrontRelief)/(o.depth+bevelFrontRelief),0.0f,1.0f);
+                            float t=std::clamp((position.z+o.depth*.5f+plane.frontRelief)/(o.depth+plane.frontRelief),0.0f,1.0f);
                             if (o.sideBandInvert) t=1-t;
                             u+=(inner.x-u)*t;v+=(inner.y-v)*t;
                         }
-                        else if (o.sideMode==IMAGE_MESH_SIDE::REPEAT)
-                        {
-                            // A dedicated planar strip on each corner. Repeats on
-                            // the original walls keep their existing tiled mapping.
-                            float repeatU=static_cast<float>((-plane.y*position.x+plane.x*position.y-plane.minAlong)/(plane.maxAlong-plane.minAlong));
-                            if (plane.rounded)
-                            {
-                                const double x=position.x-plane.center.x,y=position.y-plane.center.y;
-                                const double startX=std::cos(plane.uvStart),startY=std::sin(plane.uvStart);
-                                const double angle=std::atan2(startX*y-startY*x,startX*x+startY*y);
-                                repeatU=static_cast<float>(std::clamp(angle/plane.uvSweep,0.0,1.0));
-                            }
-                            const float repeatV=std::clamp((position.z+o.depth*.5f+bevelFrontRelief)/(o.depth+bevelFrontRelief),0.0f,1.0f);
-                            if (!repeatSourceCrop) return VEC2(repeatU,repeatV);
-                            u=repeatU;v=repeatV;
-                        }
+
                     }
                     return VEC2((o.x+u*(cw-1)+.5f)/imageWidth,(o.y+v*(ch-1)+.5f)/imageHeight);
                 };
-                if (!image_mesh::bevel::apply(o,bevelPlanes,vertices,indices,gridSize,backSize,
+                if (!image_mesh::bevel::applyRings(o,bevelRings,field,vertices,indices,gridSize,backSize,
                     backIndexStart,sideIndexStart,sideVertexStart,bevelUv,topologyError))
                     return fail(errorOut,errorOutLen,topologyError.c_str());
                 vertexCount=static_cast<uint32_t>(vertices.size());triangleCount=static_cast<uint32_t>(indices.size()/3);

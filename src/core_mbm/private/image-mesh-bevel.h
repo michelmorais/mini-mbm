@@ -17,375 +17,314 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef IMAGE_MESH_BEVEL_H
-#define IMAGE_MESH_BEVEL_H
-
+#ifndef MBM_IMAGE_MESH_BEVEL_H
+#define MBM_IMAGE_MESH_BEVEL_H
 #include <map>
-#include <tuple>
-
-// Private clipping workspace. No mesh buffers or containers escape the generator.
 namespace mbm { namespace image_mesh { namespace bevel {
-struct PLANE
+struct MAPPING
 {
-    double x=0,y=0,z=0,d=0;
     unsigned group=0;
-    double minAlong=0,maxAlong=1;
-    double uvStart=0,uvSweep=0;
-    bool rounded=false;
-    VEC3 center{0,0,0},axis{0,0,1};
-    VEC3 startNormal{1,0,0},endNormal{0,1,0};
+    float frontRelief=0;
+    bool hole=false;
 };
-inline double dot(const PLANE &p,const VEC3 &v) { return p.x*v.x+p.y*v.y+p.z*v.z; }
-inline bool planes(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t,const HEIGHT_FIELD &field,
-                   float &frontRelief,std::vector<PLANE> &out,std::string &error)
+// All loops keep material on their right in engine XY. Insetting therefore
+// shrinks outer contours and expands holes with exactly the same operation.
+struct RINGS
 {
-    const auto fail=[&](const char *message) { error=message;return false; };
+    std::vector<std::vector<SIDE_POINT>> loops,inner;
+    TOPOLOGY core;
+    double maximum=0;
+};
+inline bool inset(const std::vector<std::vector<SIDE_POINT>> &loops,double width,
+                  std::vector<std::vector<SIDE_POINT>> &result)
+{
+    result.clear();
+    for (const auto &loop:loops)
+    {
+        std::vector<SIDE_POINT> ring;
+        for (size_t i=0;i<loop.size();++i)
+        {
+            const auto &a=loop[(i+loop.size()-1)%loop.size()],&b=loop[i],&c=loop[(i+1)%loop.size()];
+            const double l=std::hypot(b.x-a.x,b.y-a.y),m=std::hypot(c.x-b.x,c.y-b.y);
+            if (l<1e-9 || m<1e-9) return false;
+            const double ax=-(b.y-a.y)/l,ay=(b.x-a.x)/l,bx=-(c.y-b.y)/m,by=(c.x-b.x)/m;
+            const double denominator=1+ax*bx+ay*by;
+            if (denominator<1e-8) return false;
+            ring.push_back({b.x-width*(ax+bx)/denominator,b.y-width*(ay+by)/denominator});
+        }
+        for (size_t i=0;i<ring.size();++i)
+        {
+            size_t j=(i+1)%ring.size();
+            if ((ring[j].x-ring[i].x)*(loop[j].x-loop[i].x)+(ring[j].y-ring[i].y)*(loop[j].y-loop[i].y)<=1e-8) return false;
+            for (size_t k=i+1;k<ring.size();++k)
+            {
+                size_t l=(k+1)%ring.size();
+                if (k!=j && l!=i && sideHit(ring[i],ring[j],ring[k],ring[l])) return false;
+            }
+        }
+        result.push_back(std::move(ring));
+    }
+    for (size_t a=0;a<result.size();++a) for (size_t b=a+1;b<result.size();++b)
+    {
+        if (a==0 && !sideInside(result[0],result[b][0])) return false;
+        if (a>0 && (sideInside(result[a],result[b][0]) || sideInside(result[b],result[a][0]))) return false;
+        for (size_t i=0;i<result[a].size();++i) for (size_t j=0;j<result[b].size();++j)
+            if (sideHit(result[a][i],result[a][(i+1)%result[a].size()],result[b][j],result[b][(j+1)%result[b].size()])) return false;
+    }
+    return true;
+}
+inline bool prepare(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &source,const HEIGHT_FIELD &field,
+                    RINGS &rings,std::string &error)
+{
+    const auto fail=[&](const char *s) { error=s;return false; };
+    if (o.voxelized || o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED || o.backOpen || o.backRelief)
+        return fail("Bevel requires a closed extrusion with flat back");
     if (!std::isfinite(o.bevelWidth) || o.bevelWidth<.001f || o.bevelWidth>1000000)
         return fail("Bevel width must be finite and in [0.001,1000000] mesh units");
-    if (o.bevelRounded && (o.bevelSegments<2 || o.bevelSegments>8))
-        return fail("Rounded bevel segments must be in [2,8]");
-    if (o.voxelized || o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED || o.holeCount ||
-        o.backOpen || o.backRelief)
-        return fail("Bevel requires a closed convex extrusion without holes and with flat back");
-    if (!o.bevelFront && !o.bevelBack && !o.bevelCorners) return true;
-    const auto &c=t.contour;
-    if (c.size()<3 || c.size()>128) return fail("Bevel supports convex contours with 3..128 corners");
-    frontRelief=0;
-    if (!o.lockBorder)
+    if (o.bevelRounded && (o.bevelSegments<2 || o.bevelSegments>8)) return fail("Rounded bevel segments must be in [2,8]");
+    const auto add=[&](const std::vector<IMAGE_MESH_POINT> &loop) {
+        std::vector<SIDE_POINT> points;
+        for (auto p:loop) points.push_back({(p.x-.5)*o.width,(.5-p.y)*o.height});
+        rings.loops.push_back(std::move(points));
+    };
+    add(source.contour);for (const auto &h:source.holes) add(h);
+    for (const auto &loop:rings.loops)
+        if (loop.size()<3 || loop.size()>128) return fail("Bevel supports contours with 3..128 corners");
+    // A conservative thickness bound is valid even between sampled boundary points.
+    const unsigned faces=static_cast<unsigned>(o.bevelFront)+o.bevelBack;
+    double upper=std::min(o.width,o.height)*.5;
+    if (faces) upper=std::min(upper,static_cast<double>(o.depth)/faces);
+    if (!o.lockBorder && o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::MANUAL && !o.heightEditCount && !o.heightAreaCount)
+        if (faces) upper=std::min(static_cast<double>(std::min(o.width,o.height))*.5,static_cast<double>(o.depth+field.surface(.5f,.5f,o)*o.relief)/faces);
+    double lower=0;
+    std::vector<std::vector<SIDE_POINT>> trial;
+    for (unsigned i=0;i<28;++i)
     {
-        float minimum=o.relief,maximum=0;
-        for (uint32_t index:t.boundary)
-        {
-            const auto &p=t.points[index];
-            const float height=field.surface(p.x,p.y,o)*o.relief;
-            minimum=std::min(minimum,height);maximum=std::max(maximum,height);
-        }
-        if (maximum-minimum>std::max({1.0f,o.depth,o.relief})*1e-6f)
-            return fail("Bevel requires a constant border height; lock the border or use a uniform manual height");
-        frontRelief=(minimum+maximum)*.5f;
+        checkpoint(o,"bevel",.3f);
+        const double mid=(lower+upper)*.5;
+        if (inset(rings.loops,mid,trial)) lower=mid;else upper=mid;
     }
-    const double width=o.bevelWidth;
-    if (width*(static_cast<unsigned>(o.bevelFront)+o.bevelBack)>=o.depth+frontRelief)
-        return fail("Bevel width is too large for the block thickness");
-    std::vector<VEC3> points;
-    VEC3 center(0,0,0);
-    for (const auto &p:c)
+    rings.maximum=lower*(1-1e-5);
+    if (o.bevelWidth>rings.maximum)
     {
-        points.emplace_back((p.x-.5f)*o.width,(.5f-p.y)*o.height,0);
-        center.x+=points.back().x/static_cast<float>(c.size());
-        center.y+=points.back().y/static_cast<float>(c.size());
+        char message[160];std::snprintf(message,sizeof(message),"Bevel width exceeds the safe limit: %.6g",rings.maximum);
+        error=message;return false;
     }
-    std::vector<PLANE> edges;
-    for (size_t i=0;i<c.size();++i)
+    if (!inset(rings.loops,o.bevelWidth,rings.inner)) return fail("Invalid bevel corner");
+    std::vector<std::vector<IMAGE_MESH_POINT>> normalized;
+    for (const auto &loop:rings.inner)
     {
-        const auto &a=points[i],&b=points[(i+1)%c.size()];
-        const double dx=b.x-a.x,dy=b.y-a.y,length=std::hypot(dx,dy);
-        if (length<=2*width) return fail("Bevel width must be smaller than half of every contour edge");
-        // Contours are clockwise in engine XY, so left normals face outwards.
-        PLANE edge{-dy/length,dx/length,0,0,2};edge.d=dot(edge,a);
-        for (const auto &p:points)
-            if (dot(edge,p)>edge.d+1e-6*std::max(o.width,o.height))
-                return fail("Bevel currently requires a convex contour");
-        if (edge.d-dot(edge,center)<=width) return fail("Bevel width is too large for the contour interior");
-        edges.push_back(edge);
-        for (unsigned face=0;face<2;++face)
-        {
-            if ((face==0 && !o.bevelFront) || (face==1 && !o.bevelBack)) continue;
-            const double sign=face==0?-1:1;
-            const double extent=o.depth*.5+(face==0?frontRelief:0);
-            if (!o.bevelRounded)
-            {
-                out.push_back({edge.x,edge.y,sign,edge.d+extent-width,face});
-                continue;
-            }
-            const double step=1.5707963267948966/o.bevelSegments;
-            for (uint32_t segment=0;segment<o.bevelSegments;++segment)
-            {
-                const double angle=(segment+.5)*step,c=std::cos(angle),s=std::sin(angle);
-                PLANE p{edge.x*c,edge.y*c,sign*s,
-                    (edge.d-width)*c+(extent-width)*s+width*std::cos(step*.5),face};
-                p.rounded=true;
-                p.startNormal=VEC3(static_cast<float>(edge.x),static_cast<float>(edge.y),0);
-                p.endNormal=VEC3(0,0,static_cast<float>(sign));
-                p.center=VEC3(static_cast<float>(edge.x*(edge.d-width)),static_cast<float>(edge.y*(edge.d-width)),static_cast<float>(sign*(extent-width)));
-                p.axis=VEC3(static_cast<float>(-edge.y),static_cast<float>(edge.x),0);
-                out.push_back(p);
-            }
-        }
+        std::vector<IMAGE_MESH_POINT> points;
+        for (const auto &p:loop) points.push_back({static_cast<float>(p.x/o.width+.5),static_cast<float>(.5-p.y/o.height)});
+        normalized.push_back(std::move(points));
     }
-    if (o.bevelCorners)
-        for (size_t i=0;i<c.size();++i)
-        {
-            const auto &a=edges[(i+c.size()-1)%c.size()],&b=edges[i];
-            const double nx=a.x+b.x,ny=a.y+b.y,length=std::hypot(nx,ny);
-            if (length<1e-8) return fail("Invalid bevel corner");
-            PLANE p{nx/length,ny/length,0,0,2};
-            p.d=dot(p,points[i])-width;
-            if (p.d<=dot(p,center)) return fail("Bevel width is too large for a contour corner");
-            if (!o.bevelRounded) { out.push_back(p);continue; }
-            const double cosine=std::clamp(length*.5,0.0,1.0);
-            const double halfAngle=std::acos(cosine),sine=std::sin(halfAngle);
-            if (sine<1e-6) continue; // No corner at a straight contour join.
-            // Preserve the planar corner's endpoints on its neighboring walls.
-            const double radius=width*cosine/(sine*sine);
-            const double centerX=points[i].x-p.x*radius/cosine;
-            const double centerY=points[i].y-p.y*radius/cosine;
-            const double start=std::atan2(a.y,a.x);
-            const double turn=std::atan2(a.x*b.y-a.y*b.x,a.x*b.x+a.y*b.y);
-            const double step=turn/o.bevelSegments;
-            for (uint32_t segment=0;segment<o.bevelSegments;++segment)
-            {
-                const double angle=start+(segment+.5)*step,nx=std::cos(angle),ny=std::sin(angle);
-                PLANE cut{nx,ny,0,nx*centerX+ny*centerY+radius*std::cos(step*.5),2};
-                cut.uvStart=start;cut.uvSweep=turn;
-                cut.startNormal=VEC3(static_cast<float>(a.x),static_cast<float>(a.y),0);
-                cut.endNormal=VEC3(static_cast<float>(b.x),static_cast<float>(b.y),0);
-                cut.rounded=true;cut.center=VEC3(static_cast<float>(centerX),static_cast<float>(centerY),0);
-                out.push_back(cut);
-            }
-        }
+    std::vector<IMAGE_MESH_HOLE> holes;
+    for (size_t i=1;i<normalized.size();++i) holes.push_back({normalized[i].data(),static_cast<uint32_t>(normalized[i].size())});
+    IMAGE_MESH_OPTIONS core=o;core.bevel=false;core.shape=IMAGE_MESH_SHAPE::POLYGON;
+    core.contour=normalized[0].data();core.contourCount=static_cast<uint32_t>(normalized[0].size());
+    core.holes=holes.data();core.holeCount=static_cast<uint32_t>(holes.size());
+    if (!buildTopology(core,rings.core,error,o.followImage?&field:nullptr)) return false;
+    if (o.sideMode==IMAGE_MESH_SIDE::REPEAT) sideSplitRepeats(o,rings.core);
     return true;
 }
 
-template<class V> struct FACE { std::vector<V> vertices;unsigned group=0;PLANE profile; };
-template<class V> V interpolate(const V &a,const V &b,double t)
-{
-    V v=a;
-    const auto lerp=[&](float x,float y) { return static_cast<float>(x+(static_cast<double>(y)-x)*t); };
-    v.position=VEC3(lerp(a.position.x,b.position.x),lerp(a.position.y,b.position.y),lerp(a.position.z,b.position.z));
-    v.normal=VEC3(lerp(a.normal.x,b.normal.x),lerp(a.normal.y,b.normal.y),lerp(a.normal.z,b.normal.z));
-    v.uv=VEC2(lerp(a.uv.x,b.uv.x),lerp(a.uv.y,b.uv.y));return v;
-}
-
-// Clip each triangle/polygon, then close the exact intersection loop. Retaining
-// collinear intersection vertices avoids T junctions at the new hard normal seam.
-template<class V,class UV> bool cut(std::vector<FACE<V>> &faces,const PLANE &plane,double epsilon,
-                                    const UV &uv,std::string &error,const IMAGE_MESH_OPTIONS &o)
-{
-    using KEY=std::array<long long,3>;
-    std::map<KEY,uint32_t> pointMap;
-    std::vector<VEC3> points;
-    const auto id=[&](V &v) {
-        const auto &p=v.position;
-        KEY key{std::llround(p.x/epsilon),std::llround(p.y/epsilon),std::llround(p.z/epsilon)};
-        for (int x=-1;x<=1;++x) for (int y=-1;y<=1;++y) for (int z=-1;z<=1;++z)
-        {
-            const auto found=pointMap.find({key[0]+x,key[1]+y,key[2]+z});
-            if (found==pointMap.end()) continue;
-            const auto &q=points[found->second];
-            if (std::abs(p.x-q.x)<=epsilon && std::abs(p.y-q.y)<=epsilon && std::abs(p.z-q.z)<=epsilon)
-            { v.position=q;return found->second; }
-        }
-        auto inserted=pointMap.emplace(key,static_cast<uint32_t>(points.size()));
-        if (inserted.second) points.push_back(p);
-        v.position=points[inserted.first->second];return inserted.first->second;
-    };
-    std::map<std::pair<uint32_t,uint32_t>,unsigned> segments;
-    std::vector<FACE<V>> clipped;clipped.reserve(faces.size()+1);
-    bool removed=false;
-    size_t processed=0;
-    for (const auto &face:faces)
-    {
-        if (++processed%256==0) checkpoint(o,"bevel",.96f);
-        FACE<V> result;result.group=face.group;result.profile=face.profile;
-        for (size_t i=0;i<face.vertices.size();++i)
-        {
-            V a=face.vertices[i],b=face.vertices[(i+1)%face.vertices.size()];
-            double da=dot(plane,a.position)-plane.d,db=dot(plane,b.position)-plane.d;
-            if (std::abs(da)<epsilon) da=0;
-            if (std::abs(db)<epsilon) db=0;
-            if (da<=0) { if (da==0) id(a); result.vertices.push_back(a); }
-            else removed=true;
-            if ((da<0 && db>0) || (da>0 && db<0))
-            {
-                V v=interpolate(a,b,da/(da-db));id(v);result.vertices.push_back(v);
-            }
-        }
-        for (size_t i=0;i<result.vertices.size() && result.vertices.size()>1;)
-        {
-            const auto &a=result.vertices[i].position,&b=result.vertices[(i+1)%result.vertices.size()].position;
-            if (a.x==b.x && a.y==b.y && a.z==b.z) result.vertices.erase(result.vertices.begin()+static_cast<std::ptrdiff_t>(i));
-            else ++i;
-        }
-        if (result.vertices.size()<3) continue;
-        double areaX=0,areaY=0,areaZ=0;
-        for (size_t i=1;i+1<result.vertices.size();++i)
-        {
-            const auto &a=result.vertices[0].position,&b=result.vertices[i].position,&c=result.vertices[i+1].position;
-            const double bx=static_cast<double>(b.x)-a.x,by=static_cast<double>(b.y)-a.y,bz=static_cast<double>(b.z)-a.z;
-            const double cx=static_cast<double>(c.x)-a.x,cy=static_cast<double>(c.y)-a.y,cz=static_cast<double>(c.z)-a.z;
-            areaX+=by*cz-bz*cy;areaY+=bz*cx-bx*cz;areaZ+=bx*cy-by*cx;
-        }
-        if (areaX==0 && areaY==0 && areaZ==0) continue;
-        for (size_t i=0;i<result.vertices.size();++i)
-        {
-            auto &a=result.vertices[i],&b=result.vertices[(i+1)%result.vertices.size()];
-            if (std::abs(dot(plane,a.position)-plane.d)>2*epsilon ||
-                std::abs(dot(plane,b.position)-plane.d)>2*epsilon) continue;
-            uint32_t ia=id(a),ib=id(b);
-            if (ia!=ib) ++segments[std::minmax(ia,ib)];
-        }
-        clipped.push_back(std::move(result));
-    }
-    if (!removed) return true;
-    std::map<uint32_t,std::vector<uint32_t>> neighbors;
-    for (const auto &edge:segments)
-        if (edge.second==1)
-        {
-            neighbors[edge.first.first].push_back(edge.first.second);
-            neighbors[edge.first.second].push_back(edge.first.first);
-        }
-    if (neighbors.size()<3) { error="Bevel removed the surface or produced an empty cut";return false; }
-    for (const auto &n:neighbors)
-        if (n.second.size()!=2) { error="Bevel intersection is not a closed loop; reduce width or relief";return false; }
-    std::vector<uint32_t> loop;
-    uint32_t current=neighbors.begin()->first,previous=UINT32_MAX;
-    do
-    {
-        loop.push_back(current);
-        const auto &n=neighbors[current];
-        const uint32_t next=n[0]==previous?n[1]:n[0];previous=current;current=next;
-    } while (current!=loop.front() && loop.size()<=neighbors.size());
-    if (loop.size()!=neighbors.size()) { error="Bevel cut has multiple loops; reduce width or relief";return false; }
-    const double length=std::sqrt(plane.x*plane.x+plane.y*plane.y+plane.z*plane.z);
-    const VEC3 normal(static_cast<float>(plane.x/length),static_cast<float>(plane.y/length),static_cast<float>(plane.z/length));
-    // U lies horizontally in the cutting plane; V = N cross U.
-    const double horizontal=std::hypot(plane.x,plane.y);
-    const VEC3 u(static_cast<float>(-plane.y/horizontal),static_cast<float>(plane.x/horizontal),0);
-    const VEC3 v(-normal.z*u.y,normal.z*u.x,normal.x*u.y-normal.y*u.x);
-    std::vector<IMAGE_MESH_POINT> projected;
-    for (uint32_t i:loop)
-    {
-        const auto &p=points[i];projected.push_back({p.x*u.x+p.y*u.y,p.x*v.x+p.y*v.y+p.z*v.z});
-    }
-    double area=0;
-    for (size_t i=0;i<loop.size();++i)
-    { const auto &a=projected[i],&b=projected[(i+1)%loop.size()];area+=static_cast<double>(a.x)*b.y-static_cast<double>(b.x)*a.y; }
-    if (area<0) { std::reverse(projected.begin(),projected.end());std::reverse(loop.begin(),loop.end()); }
-    PLANE mapping=plane;
-    mapping.minAlong=1e300;mapping.maxAlong=-1e300;
-    for (uint32_t index:loop)
-    {
-        const auto &p=points[index];const double along=-plane.y*p.x+plane.x*p.y;
-        mapping.minAlong=std::min(mapping.minAlong,along);mapping.maxAlong=std::max(mapping.maxAlong,along);
-    }
-    FACE<V> cap;cap.group=plane.group;cap.profile=plane;
-    for (uint32_t index:loop)
-    {
-        V vertex;vertex.position=points[index];vertex.normal=normal;vertex.uv=uv(vertex.position,mapping);
-        cap.vertices.push_back(vertex);
-    }
-    clipped.push_back(std::move(cap));
-    faces.swap(clipped);return true;
-}
-
-template<class V,class UV> bool apply(const IMAGE_MESH_OPTIONS &o,const std::vector<PLANE> &planes,
+template<class V,class UV> bool applyRings(const IMAGE_MESH_OPTIONS &o,const RINGS &rings,const HEIGHT_FIELD &field,
     std::vector<V> &vertices,std::vector<uint16_t> &indices,uint32_t &frontCount,uint32_t &backCount,
     uint32_t &backStart,uint32_t &sideStart,uint32_t &sideVertices,const UV &uv,std::string &error)
 {
-    std::vector<FACE<V>> faces;faces.reserve(indices.size()/3);
-    for (size_t i=0;i<indices.size();i+=3)
+    struct TRI { V a,b,c;unsigned group; };
+    std::vector<TRI> triangles;
+    bool exceeded=false;
+    const auto &core=rings.core;
+    const auto make=[&](double x,double y,double z,unsigned group) {
+        V v;v.position=VEC3(static_cast<float>(x),static_cast<float>(y),static_cast<float>(z));
+        v.normal=VEC3(0,0,0);MAPPING p{group};
+        v.uv=uv(v.position,p);return v;
+    };
+    const auto tri=[&](V a,V b,V c,unsigned group,bool preserveNormals=false) {
+        const double x=b.position.x-a.position.x,y=b.position.y-a.position.y,z=b.position.z-a.position.z;
+        const double u=c.position.x-a.position.x,v=c.position.y-a.position.y,w=c.position.z-a.position.z;
+        const double nx=y*w-z*v,ny=z*u-x*w,nz=x*v-y*u,length=std::sqrt(nx*nx+ny*ny+nz*nz);
+        if (length<1e-12) return;
+        if (!preserveNormals && (!o.bevelRounded || (a.normal.x==0 && a.normal.y==0 && a.normal.z==0)))
+            a.normal=b.normal=c.normal=VEC3(static_cast<float>(nx/length),static_cast<float>(ny/length),static_cast<float>(nz/length));
+        if (triangles.size()>=o.maxTriangles) { exceeded=true;return; }
+        triangles.push_back({a,b,c,group});
+    };
+    std::vector<bool> boundary(core.points.size(),false);
+    for (auto i:core.boundary) boundary[i]=true;
+    std::vector<V> front,back;
+    for (size_t i=0;i<core.points.size();++i)
     {
-        FACE<V> face;face.group=i<backStart?0:(i<sideStart?1:2);
-        for (unsigned j=0;j<3;++j)
+        const auto &p=core.points[i];float height=field.surface(p.x,p.y,o)*o.relief;
+        if (o.lockBorder)
         {
-            V vertex=vertices[indices[i+j]];
-            const auto &n=vertex.normal;const double length=std::sqrt(static_cast<double>(n.x)*n.x+static_cast<double>(n.y)*n.y+static_cast<double>(n.z)*n.z);
-            vertex.normal=VEC3(static_cast<float>(n.x/length),static_cast<float>(n.y/length),static_cast<float>(n.z/length));
-            face.vertices.push_back(vertex);
+            if (boundary[i]) height=0;
+            else if (o.borderWidth>0) height*=std::min(1.0f,borderDistance(p,core)/o.borderWidth);
         }
-        faces.push_back(std::move(face));
+        front.push_back(make((p.x-.5f)*o.width,(.5f-p.y)*o.height,-o.depth*.5-height,0));
+        back.push_back(make(front.back().position.x,front.back().position.y,o.depth*.5,1));
     }
-    const double epsilon=std::max({o.width,o.height,o.depth+o.relief})*1e-7;
-    for (size_t i=0;i<planes.size();++i)
+    // Keep the relief cap's area-weighted smooth shading independent of bevel style.
+    for (const auto &t:core.triangles)
     {
-        checkpoint(o,"bevel",.96f+.015f*static_cast<float>(i)/static_cast<float>(planes.size()));
-        if (!cut(faces,planes[i],epsilon,uv,error,o)) return false;
+        const auto &a=front[t[0]].position,&b=front[t[1]].position,&c=front[t[2]].position;
+        const VEC3 n((b.y-a.y)*(c.z-a.z)-(b.z-a.z)*(c.y-a.y),
+                     (b.z-a.z)*(c.x-a.x)-(b.x-a.x)*(c.z-a.z),
+                     (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x));
+        for (auto i:t) { front[i].normal.x+=n.x;front[i].normal.y+=n.y;front[i].normal.z+=n.z; }
     }
-    if (o.bevelRounded)
+    for (size_t i=0;i<front.size();++i)
     {
-        // Recompute radial normals after clipping. Adjacent segments of the
-        // same cylinder agree exactly; different cylinders keep their join seam.
-        // Averaging those joins would bend shading across an entire long strip.
-        for (auto &face:faces)
+        auto &n=front[i].normal;const double length=std::sqrt(static_cast<double>(n.x)*n.x+static_cast<double>(n.y)*n.y+static_cast<double>(n.z)*n.z);
+        if (length>0) n=VEC3(static_cast<float>(n.x/length),static_cast<float>(n.y/length),static_cast<float>(n.z/length));
+        back[i].normal=VEC3(0,0,1);
+    }
+    for (const auto &t:core.triangles)
+    { tri(front[t[0]],front[t[1]],front[t[2]],0,true);tri(back[t[2]],back[t[1]],back[t[0]],1,true); }
+    double perimeter=0,walked=0;
+    for (size_t i=0;i<core.boundary.size();++i)
+    {
+        const auto &a=front[core.boundary[i]].position,&b=front[core.boundary[core.nextBoundary(i)]].position;
+        perimeter+=std::hypot(b.x-a.x,b.y-a.y);
+    }
+    size_t first=0;
+    for (size_t loop=0;loop<rings.inner.size();++loop)
+    {
+        checkpoint(o,"bevel",.96f);
+        const size_t end=core.loopEnds.empty()?core.boundary.size():core.loopEnds[loop];
+        const auto &inner=rings.inner[loop],&outer=rings.loops[loop];
+        struct SAMPLE { uint32_t id;double dx,dy,u=0,corner=0; };
+        std::vector<SAMPLE> samples;
+        for (size_t i=first;i<end;++i)
         {
-            if (!face.profile.rounded) continue;
-            const auto &p=face.profile;
-            const auto &start=p.startNormal,&end=p.endNormal;
-            const double cosine=std::clamp(static_cast<double>(start.x)*end.x+static_cast<double>(start.y)*end.y+static_cast<double>(start.z)*end.z,-1.0,1.0);
-            const double sine=std::sqrt(std::max(0.0,1-cosine*cosine));
-            if (!(sine>0)) { error="Invalid bevel corner";return false; }
-            const double tx=(end.x-start.x*cosine)/sine,ty=(end.y-start.y*cosine)/sine,tz=(end.z-start.z*cosine)/sine;
-            const double endAngle=std::acos(cosine);
-            for (auto &v:face.vertices)
+            const uint32_t id=core.boundary[i];const auto &p=front[id].position;
+            const auto &nextPoint=front[core.boundary[core.nextBoundary(i)]].position;
+            const double repeat=walked/perimeter*o.sideRepeatU;
+            walked+=std::hypot(nextPoint.x-p.x,nextPoint.y-p.y);
+            size_t edge=0;double best=1e300,t=0;
+            for (size_t j=0;j<inner.size();++j)
             {
-                double x=static_cast<double>(v.position.x)-p.center.x;
-                double y=static_cast<double>(v.position.y)-p.center.y;
-                double z=static_cast<double>(v.position.z)-p.center.z;
-                const double along=x*p.axis.x+y*p.axis.y+z*p.axis.z;
-                x-=along*p.axis.x;y-=along*p.axis.y;z-=along*p.axis.z;
-                const double length=std::sqrt(x*x+y*y+z*z);
-                if (!(length>0)) { error="Invalid bevel corner";return false; }
-                // Relief may intersect a cutting plane beyond the circular arc.
-                // Continue with its endpoint normal there, never invert the rim.
-                const double angle=std::clamp(std::atan2(x*tx+y*ty+z*tz,x*start.x+y*start.y+z*start.z),0.0,endAngle);
-                const double c=std::cos(angle),s=std::sin(angle);
-                v.normal=VEC3(static_cast<float>(start.x*c+tx*s),static_cast<float>(start.y*c+ty*s),static_cast<float>(start.z*c+tz*s));
+                const auto &a=inner[j],&b=inner[(j+1)%inner.size()];
+                const double dx=b.x-a.x,dy=b.y-a.y;
+                const double q=std::clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy),0.0,1.0);
+                const double d=std::hypot(p.x-a.x-q*dx,p.y-a.y-q*dy);
+                if (d<best) { best=d;edge=j;t=q; }
+            }
+            size_t corner=inner.size();
+            const double eps=std::max(o.width,o.height)*2e-6;
+            for (size_t j=0;j<inner.size();++j)
+                if (std::hypot(p.x-inner[j].x,p.y-inner[j].y)<eps) { corner=j;break; }
+            if (corner<inner.size() && o.bevelCorners)
+            {
+                const auto &a=outer[(corner+outer.size()-1)%outer.size()],&b=outer[corner],&c=outer[(corner+1)%outer.size()];
+                const double l=std::hypot(b.x-a.x,b.y-a.y),m=std::hypot(c.x-b.x,c.y-b.y);
+                const double ax=-(b.y-a.y)/l,ay=(b.x-a.x)/l,bx=-(c.y-b.y)/m,by=(c.x-b.x)/m;
+                const double turn=std::atan2(ax*by-ay*bx,ax*bx+ay*by);
+                if (turn< -1e-7)
+                {
+                    const unsigned count=o.bevelRounded?o.bevelSegments:1;
+                    const double start=std::atan2(ay,ax);
+                    for (unsigned s=0;s<=count;++s)
+                        samples.push_back({id,o.bevelWidth*std::cos(start+turn*s/count),o.bevelWidth*std::sin(start+turn*s/count),repeat,static_cast<double>(s)/count});
+                    continue;
+                }
+            }
+            const auto &a=outer[edge],&b=outer[(edge+1)%outer.size()];
+            samples.push_back({id,a.x+(b.x-a.x)*t-p.x,a.y+(b.y-a.y)*t-p.y,repeat,0});
+        }
+        const unsigned steps=o.bevelRounded?o.bevelSegments:1;
+        const auto ring=[&](unsigned face,unsigned step) {
+            std::vector<V> out;
+            const bool enabled=face==0?o.bevelFront:o.bevelBack;
+            const double angle=1.5707963267948966*step/steps;
+            const double horizontal=o.bevelRounded?std::sin(angle):static_cast<double>(step)/steps;
+            const double vertical=o.bevelRounded?1-std::cos(angle):horizontal;
+            for (const auto &s:samples)
+            {
+                V v=face==0?front[s.id]:back[s.id];
+                if (step)
+                {
+                    v=make(v.position.x+s.dx*horizontal,v.position.y+s.dy*horizontal,
+                        v.position.z+(face==0?1:-1)*(enabled?o.bevelWidth*vertical:0),face);
+                }
+                if (o.bevelRounded)
+                {
+                    const double length=std::hypot(s.dx,s.dy),h=enabled?std::sin(angle):0;
+                    v.normal=VEC3(static_cast<float>(s.dx/length*h),static_cast<float>(s.dy/length*h),static_cast<float>((face==0?-1:1)*(enabled?std::cos(angle):1)));
+                }
+                out.push_back(v);
+            }
+            return out;
+        };
+        std::vector<V> wall[2];
+        for (unsigned face=0;face<2;++face)
+        {
+            auto previous=ring(face,0);
+            for (unsigned step=1;step<=steps;++step)
+            {
+                auto next=ring(face,step);
+                for (size_t i=0;i<samples.size();++i)
+                {
+                    size_t j=(i+1)%samples.size();
+                    if (face==0) { tri(previous[i],next[i],next[j],face);tri(previous[i],next[j],previous[j],face); }
+                    else { tri(previous[i],next[j],next[i],face);tri(previous[i],previous[j],next[j],face); }
+                }
+                previous.swap(next);
+            }
+            wall[face]=std::move(previous);
+        }
+        for (size_t i=0;i<samples.size();++i)
+        {
+            size_t j=(i+1)%samples.size();
+            V a=wall[0][i],b=wall[1][i],c=wall[1][j],d=wall[0][j];
+            for (V *v:{&a,&b,&c,&d}) { MAPPING p{2};p.hole=loop>0;p.frontRelief=-front[(v==&a || v==&b)?samples[i].id:samples[j].id].position.z-o.depth*.5f;v->uv=uv(v->position,p);v->normal=VEC3(0,0,0); }
+            if (o.bevelRounded && o.bevelCorners && samples[i].id==samples[j].id)
+            {
+                const auto normal=[](const SAMPLE &s) { const double l=std::hypot(s.dx,s.dy);return VEC3(static_cast<float>(s.dx/l),static_cast<float>(s.dy/l),0); };
+                a.normal=b.normal=normal(samples[i]);c.normal=d.normal=normal(samples[j]);
+            }
+            if (o.sideMode!=IMAGE_MESH_SIDE::REPEAT) { tri(a,b,c,2);tri(a,c,d,2);continue; }
+            const bool corner=samples[i].id==samples[j].id;
+            const double u0=corner?samples[i].corner:samples[i].u;
+            const double u1=corner?samples[j].corner:(j==0?walked/perimeter*o.sideRepeatU:samples[j].u);
+            const double base=std::floor(u0+1e-5);
+            const auto tile=[&](double u,double v) {
+                if (o.sideTexture && *o.sideTexture) return VEC2(static_cast<float>(u),static_cast<float>(v));
+                return VEC2(static_cast<float>((o.x+u*(field.width-1)+.5)/field.imageWidth),
+                            static_cast<float>((o.y+v*(field.height-1)+.5)/field.imageHeight));
+            };
+            const auto at=[](const V &a,const V &b,double t) {
+                if (t==0) return a;
+                if (t==1) return b;
+                V v=a;v.position.z=static_cast<float>(a.position.z+(b.position.z-a.position.z)*t);return v;
+            };
+            for (unsigned row=0;row<static_cast<unsigned>(std::ceil(o.sideRepeatV));++row)
+            {
+                const double v0=row,v1=std::min(v0+1,static_cast<double>(o.sideRepeatV));
+                V aa=at(a,b,v0/o.sideRepeatV),bb=at(a,b,v1/o.sideRepeatV);
+                V cc=at(d,c,v1/o.sideRepeatV),dd=at(d,c,v0/o.sideRepeatV);
+                aa.uv=tile(std::clamp(u0-base,0.0,1.0),0);bb.uv=tile(std::clamp(u0-base,0.0,1.0),v1-v0);
+                cc.uv=tile(std::clamp(u1-base,0.0,1.0),v1-v0);dd.uv=tile(std::clamp(u1-base,0.0,1.0),0);
+                tri(aa,bb,cc,2);tri(aa,cc,dd,2);
             }
         }
+        first=end;
     }
+    if (exceeded) { error="Geometry budget exceeded by bevel triangles";return false; }
     vertices.clear();indices.clear();
     for (unsigned group=0;group<3;++group)
     {
         if (group==1) { frontCount=static_cast<uint32_t>(vertices.size());backStart=static_cast<uint32_t>(indices.size()); }
         if (group==2) { backCount=static_cast<uint32_t>(vertices.size())-frontCount;sideVertices=static_cast<uint32_t>(vertices.size());sideStart=static_cast<uint32_t>(indices.size()); }
-        std::map<std::array<float,8>,uint32_t> welded;
-        for (const auto &face:faces)
+        std::map<std::array<float,8>,uint32_t> weld;
+        for (const auto &t:triangles) if (t.group==group) for (const V *v:{&t.a,&t.b,&t.c})
         {
-            if (face.group!=group) continue;
-            std::vector<uint32_t> faceIndices;
-            for (const auto &v:face.vertices)
-            {
-                std::array<float,8> key{v.position.x,v.position.y,v.position.z,v.normal.x,v.normal.y,v.normal.z,v.uv.x,v.uv.y};
-                auto entry=welded.emplace(key,static_cast<uint32_t>(vertices.size()));
-                if (entry.second) vertices.push_back(v);
-                faceIndices.push_back(entry.first->second);
-            }
+            const auto &p=v->position,&n=v->normal;const auto &u=v->uv;
+            auto e=weld.emplace(std::array<float,8>{p.x,p.y,p.z,n.x,n.y,n.z,u.x,u.y},static_cast<uint32_t>(vertices.size()));
+            if (e.second) vertices.push_back(*v);
             if (vertices.size()>std::min(o.maxVertices,65535u)) { error="Geometry budget exceeded by bevel vertices";return false; }
-            std::vector<std::array<uint32_t,3>> triangles;
-            if (face.vertices.size()==3) triangles.push_back({0,1,2});
-            else
-            {
-                VEC3 normal(0,0,0);
-                for (size_t i=0;i<face.vertices.size();++i)
-                {
-                    const auto &a=face.vertices[i].position,&b=face.vertices[(i+1)%face.vertices.size()].position;
-                    normal.x+=(a.y-b.y)*(a.z+b.z);normal.y+=(a.z-b.z)*(a.x+b.x);normal.z+=(a.x-b.x)*(a.y+b.y);
-                }
-                unsigned axis=0;
-                if (std::abs(normal.y)>std::abs(normal.x)) axis=1;
-                if (std::abs(normal.z)>(axis==0?std::abs(normal.x):std::abs(normal.y))) axis=2;
-                const float component=axis==0?normal.x:(axis==1?normal.y:normal.z);
-                std::vector<IMAGE_MESH_POINT> projection;
-                for (const auto &v:face.vertices)
-                {
-                    const auto &p=v.position;
-                    IMAGE_MESH_POINT point=axis==0?IMAGE_MESH_POINT{p.y,p.z}:(axis==1?IMAGE_MESH_POINT{p.z,p.x}:IMAGE_MESH_POINT{p.x,p.y});
-                    if (component<0) point.y=-point.y;
-                    projection.push_back(point);
-                }
-                if (!triangulatePolygon(projection,triangles)) { error="Cannot triangulate final bevel face";return false; }
-            }
-            for (const auto &tri:triangles)
-            {
-                const auto &a=face.vertices[tri[0]].position,&b=face.vertices[tri[1]].position,&c=face.vertices[tri[2]].position;
-                const double bx=static_cast<double>(b.x)-a.x,by=static_cast<double>(b.y)-a.y,bz=static_cast<double>(b.z)-a.z;
-                const double cx=static_cast<double>(c.x)-a.x,cy=static_cast<double>(c.y)-a.y,cz=static_cast<double>(c.z)-a.z;
-                if (by*cz-bz*cy==0 && bz*cx-bx*cz==0 && bx*cy-by*cx==0)
-                { error="Degenerate bevel triangle; change the width or contour resolution";return false; }
-                for (uint32_t i:tri) indices.push_back(static_cast<uint16_t>(faceIndices[i]));
-            }
-            if (indices.size()/3>o.maxTriangles) { error="Geometry budget exceeded by bevel triangles";return false; }
+            indices.push_back(static_cast<uint16_t>(e.first->second));
         }
     }
     return true;

@@ -2790,10 +2790,10 @@ assert(asset:save("panel.msh", false, false, true))
 | `heightAreas` | nil | Up to 32 ordered closed contours or open lines with flatten/raise/lower operation and inward transition; see below |
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief (endpoint thickness difference for curved mode); finite [0.001,1], constrained by density and sampling |
-| `bevel` | false | Enable bevel cuts on a closed convex extrusion (3..128 contour corners), before editor simplification |
+| `bevel` | false | Enable bevel on a closed extrusion, including concavities and holes (3..128 corners per contour), before editor simplification |
 | `bevelRounded` | false | Optional circular segmented bevel profile with smooth normals; inactive when bevel is disabled |
 | `bevelSegments` | 4 | Integer 2..8; number of arc segments per selected edge/corner when rounding is enabled |
-| `bevelWidth` | 1 | Cut width in mesh units, finite 0.001..1000000; must be smaller than half every contour edge and fit the contour interior and depth |
+| `bevelWidth` | 1 | Inset distance / rounded radius in mesh units, finite 0.001..1000000; must fit the conservative contour and thickness bound |
 | `bevelFront`, `bevelBack`, `bevelCorners` | true | Select front rim, back rim, and vertical corner cuts independently; only active with `bevel=true` |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
 | `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
@@ -3027,39 +3027,32 @@ Editor-only `shape` and `name` metadata is persisted in `.imesh` but ignored by 
 **Image-mesh back controls.**
 
 Bevel controls are shared by synchronous and asynchronous image-mesh generation.
-They require a constant front-border height, a closed flat back, no holes, and a convex contour;
-voxel and curved modes are rejected when bevel is enabled. A width that cannot fit
-is rejected with an error rather than silently changing the requested value. The
-sum of enabled front/back cut widths must be less than the actual rim thickness
-(`depth` plus front-border relief). With `lockBorder=true`, that relief is zero.
-An unlocked border is supported when all generated boundary vertices have the
-same height (within a scale-relative floating-point tolerance), including uniform
-manual height. Front cuts and rounded-profile centers use that actual height;
-corner band/repeat depth coordinates use the actual rim thickness. Nonuniform
-unlocked borders are rejected with a diagnostic suggesting a locked border or
-uniform manual height. Corner width is
-the inward distance of the cutting plane along the corner bisector. Excessively
-complex relief intersections fail rather than emitting an open mesh.
+They require a closed flat back and simple disjoint contours (3..128 points per
+loop). Concave outlines, holes and unlocked varying front-border heights are
+supported. Voxel and curved modes remain unsupported. Width measures the inward
+contour offset and rounded radius; convex corners join selected rims with
+spherical patches. Reentrant corners retain miter joins. This replaces the old
+corner-bisector footprint. The front cap is triangulated inside the inset contour,
+and rings follow its boundary height, preserving continuity with variable relief.
 
-Front and back bevel faces inherit their respective projected texture coordinates
-(and back remap/mirror/material settings). Corner faces use the side material:
-edge mode projects the source image, band mode interpolates inward across depth,
-and repeat mode fits one texture tile to each new corner strip. Original wall
-repeat settings remain unchanged. Flat cuts retain hard normals along new seams. Rounded cuts sample circular arcs
-with `bevelSegments` chords and radial normals that agree along each strip.
-Intersections between different rounded strips retain their normal seam. Where
-relief extends beyond an arc endpoint, shading uses its endpoint normal instead
-of turning inward.
-Rounding preserves the planar bevel's endpoint footprint on the neighboring
-surfaces; `bevelWidth` is not a separate fillet radius. Strip intersections are
-joined clipping surfaces, not spherical corner patches. Increasing segments adds
-geometry and processing cost. Repeat UVs span one tile continuously across a
-rounded corner, rather than repeating on every arc segment.
-Front cuts can trim relief where it intersects their planes; report height extrema
-describe the sampled relief before clipping. Final vertex/triangle counts include
-bevel faces and are checked against the same geometry budgets. With `bevel=false`,
-all bevel settings are ignored and legacy generation is unchanged. Map export
-continues to describe the height field, not the bevel cuts.
+`report.bevelMaximumWidth` is the conservative safe width in mesh units (zero
+when no bevel edges are active). The bound prevents inset topology collapse and
+contour collisions. Front/back widths must fit baseline depth, or actual thickness
+for uniform unedited manual height. Excessive widths fail with
+`Bevel width exceeds the safe limit: <value>`; requests are never silently clamped.
+The editor translates that diagnostic. The bound and mesh are computed on the
+worker for asynchronous generation, never by per-frame UI queries.
+
+Front/back bevel faces inherit projected UVs and back remap/mirror/material
+settings. Vertical walls use the side material. Repeat mode splits at horizontal
+and vertical wrap boundaries, mapping configured repeats around the inset contour
+and one tile across each convex corner strip. Hole band walls use edge projection.
+Flat profiles use hard normals; rounded profiles and spherical patches use radial
+normals. Increasing segments adds geometry and processing cost. Final counts
+include all bevel geometry and obey the requested budgets. Report height extrema
+describe source relief samples before bevel construction. With `bevel=false`,
+legacy generation is unchanged. Height-map export describes the source field,
+not the bevel geometry.
 
 `backRelief` and `backMirror` are strict optional booleans accepted by the image
 mesh options reader. Their defaults preserve existing geometry and UVs.
