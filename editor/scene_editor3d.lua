@@ -36,6 +36,7 @@ local function dpCall(fn, ...)
     return table.unpack(result, 1, result.n)
 end
 
+local meshPanel = require 'scene_mesh_panel'
 local markerMath = require 'scene_object_tools'
 local assetPaths = require 'editor_asset_paths'
 local placedTransformAxes = {rotation = {'X', 'Z'}, scale = {'x', 'y', 'z'}}
@@ -2599,12 +2600,16 @@ function drawMeshSetTab(item_width)
             local o5, oryDeg = tImGui.InputFloat(tLang.L('axis_y') .. '##offset_ry', math.deg(offset.ry), 1, 10, '%.2f')
             local o6, orzDeg = tImGui.InputFloat(tLang.L('axis_z') .. '##offset_rz', math.deg(offset.rz), 1, 10, '%.2f')
 
+            local bakeRotation = meshPanel.button(entry, 'rotate')
+
             -- A multiplier on top of whatever scale placement/snap-scale already computed, not a
             -- replacement for it -- 1.0 (the default) means "no change".
             tImGui.Text(tLang.L('offset_scale'))
             local o7, osx = tImGui.InputFloat(tLang.L('axis_x') .. '##offset_sx', offset.sx, 0.1, 1, '%.2f')
             local o8, osy = tImGui.InputFloat(tLang.L('axis_y') .. '##offset_sy', offset.sy, 0.1, 1, '%.2f')
             local o9, osz = tImGui.InputFloat(tLang.L('axis_z') .. '##offset_sz', offset.sz, 0.1, 1, '%.2f')
+
+            local bakeScale = meshPanel.button(entry, 'scale')
 
             if o1 or o2 or o3 or o4 or o5 or o6 or o7 or o8 or o9 then
                 tMeshOffsets[entry.fileName] = {
@@ -2630,27 +2635,15 @@ function drawMeshSetTab(item_width)
             end
 
             tImGui.Separator()
+            if bakeRotation then meshPanel.run(entry, 'rotate', false) end
+            if bakeScale then meshPanel.run(entry, 'scale', false) end
             tImGui.Text(tLang.L('mesh_dimensions_fmt'):format(tUtil.getShortName(entry.fileName)))
-            -- Width/Height/Depth are read-only here -- they come straight off the mesh's physics
-            -- box (INFO_PHYSICS::getBounds(), same value the Physics tab authors), not something
-            -- this tab computes or lets you edit. Baked once per entry alongside its thumbnail
-            -- (processThumbnailQueue); getOrCreateThumbnail keeps that bake queued even if the
-            -- Mesh Selector window happens to be hidden right now.
-            getOrCreateThumbnail(entry)
-            if entry.physWidth then
-                tImGui.Text(string.format('%s: %.2f', tLang.L('width'), entry.physWidth))
-                tImGui.Text(string.format('%s: %.2f', tLang.L('height'), entry.physHeight))
-                tImGui.Text(string.format('%s: %.2f', tLang.L('depth'), entry.physDepth))
-                if entry.physicsBoundsSuspect then
-                    tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.7, b = 0, a = 1})
-                    tImGui.TextWrapped(tLang.L('thumb_physics_bounds_warning'))
-                    tImGui.PopStyleColor(1)
-                end
-            else
-                tImGui.TextDisabled(tLang.L('dimensions_computing'))
-            end
+            meshPanel.dimensions(entry)
+            tImGui.TextWrapped(tLang.L('scene3d_bake_help'))
         end
     end
+    local selected = iPreviewedMeshSetIndex > 0 and getFilteredMeshSetEntries()[iPreviewedMeshSetIndex] or nil
+    meshPanel.footer(selected)
 end
 
 function tComboMeshSetFilterIndexOf(sType)
@@ -4010,6 +4003,7 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
     -- Save-only -- Export must keep producing a clean, game-facing file with no editor concepts in
     -- it, per the earlier, separate "no editor information" requirement for Export Game Scene.
     if not bIsExport then
+        writeSavedTable('tScene3d.bShowSceneObjectMarkers', bShowSceneObjectMarkers)
         writeSavedTable('tScene3d.tMapOptions', tMapOptions)
         writeSavedTable('tScene3d.tLayers', tLayers)
         -- Mesh Set tab's asset-browser root (Mesh Set Folder) -- editor-authoring-only, same as
@@ -4076,6 +4070,7 @@ function applyLoadedScene3d(tLoaded)
     -- explicitly now that the real data is in place.
     applyLightConfigToEngine()
     clearSceneObjectVisuals()
+    bShowSceneObjectMarkers = tLoaded.bShowSceneObjectMarkers ~= false
     tSceneObjects = tLoaded.tSceneObjects or {}
     tSceneObjectShapes = {}
     for i = #tPlacedMeshes, 1, -1 do removePlacedMesh(i) end
