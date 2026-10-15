@@ -8203,4 +8203,13 @@ M.pt_br.scene3d_triangles_required = 'O processamento de normais exige uma mesh 
 M.en.scene3d_articulated_rotation_blocked = 'Permanent rotation of articulated meshes is not supported; the asset was preserved.'
 M.pt_br.scene3d_articulated_rotation_blocked = 'A rotação permanente de meshes articuladas não é suportada; o arquivo foi preservado.'
 
+M.en.scene3d_include_articulated = 'Include articulated animation'
+M.pt_br.scene3d_include_articulated = 'Incluir animação articulada'
+M.en.scene3d_include_skeletal = 'Include skeletal animation'
+M.pt_br.scene3d_include_skeletal = 'Incluir animação esquelética'
+M.en.scene3d_animation_filter_help = 'Applies to all three whole-scene actions. Rigged meshes are excluded by default, even with no active animation. Enabling inclusion keeps existing rotation/scale restrictions.'
+M.pt_br.scene3d_animation_filter_help = 'Aplica-se às três ações da cena inteira. Meshes com articulações ou esqueleto são excluídas por padrão, mesmo sem animação ativa. A inclusão mantém as restrições existentes de rotação/escala.'
+M.en.scene3d_bake_skipped = '%d meshes excluded by animation filters.'
+M.pt_br.scene3d_bake_skipped = '%d meshes excluídas pelos filtros de animação.'
+
 return M

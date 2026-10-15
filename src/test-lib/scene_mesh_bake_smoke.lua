@@ -50,7 +50,41 @@ local function unchanged(before)
     local after=positions()
     for i,verts in ipairs(before) do for j,v in ipairs(verts) do for k=1,3 do near(v[k],after[i][j][k]) end end end
 end
+local function checkAnimationFilters()
+    assert(panel.includeArticulated==false and panel.includeSkeletal==false)
+    local function asset(articulated,skeletal)
+        return {
+            load=function() return true end,
+            getTotalArticulatedParts=function() return articulated and 1 or 0 end,
+            getTotalArticulatedAnimations=function() return 0 end,
+            getSkeletonBindReport=function() return {boneCount=skeletal and 1 or 0} end,
+            getTotalSkeletalWeightBones=function() return 0 end,
+        }
+    end
+    for _,includeA in ipairs({false,true}) do for _,includeS in ipairs({false,true}) do
+        panel.includeArticulated,panel.includeSkeletal=includeA,includeS
+        for _,hasA in ipairs({false,true}) do for _,hasS in ipairs({false,true}) do
+            assert(panel.includesAsset(asset(hasA,hasS))==((not hasA or includeA) and (not hasS or includeS)))
+        end end
+    end end
+    panel.includeArticulated,panel.includeSkeletal=false,false
+    local legacy=asset(false,false)
+    legacy.getSkeletonBindReport=function() return nil end
+    legacy.getTotalSkeletalWeightBones=function() return 2 end
+    assert(not panel.includesAsset(legacy))
+    -- Exclusion precedes any file staging or scene work, for every bulk operation.
+    local factory=meshDebug
+    meshDebug={new=function() return asset(true,true) end}
+    local ok,err=pcall(function()
+        for _,operation in ipairs({'scale','rotate','normals'}) do
+            assert(panel.apply({fileName='excluded-animation.msh'},operation,true)==nil)
+        end
+    end)
+    meshDebug=factory
+    assert(ok,err)
+end
 local function run()
+    checkAnimationFilters()
     init();fixture();tMapOptions.sMapType='Free';addLayer(false)
     local entry=registerMeshSetEntry(path)
     for i=1,7 do

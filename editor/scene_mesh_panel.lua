@@ -20,7 +20,7 @@
 
 ]]--
 
-local M = {normalMethod=1, normalSurfaceAngle=25}
+local M = {normalMethod=1, normalSurfaceAngle=25, includeArticulated=false, includeSkeletal=false}
 local math3d = require 'scene_mesh_tools'
 local transforms = require 'mesh_debug_transform'
 local normals = require 'mesh_debug_normals'
@@ -57,10 +57,27 @@ local function instances(path,offset)
 end
 local function linear(r,s) return math3d.mul(math3d.rotation(table.unpack(r)),math3d.scale(table.unpack(s))) end
 
+-- Inspect authored data only when a scene-wide action is requested, never per frame.
+-- Rigs without a currently playing clip are protected too; assets with both kinds
+-- require both opt-ins. Opting in does not bypass the transform backend's limits.
+function M.includesAsset(d)
+    if not M.includeArticulated and
+            (d:getTotalArticulatedParts()>0 or d:getTotalArticulatedAnimations()>0) then return false end
+    if not M.includeSkeletal then
+        local report=d:getSkeletonBindReport(false)
+        if report and ((report.boneCount or 0)>0 or (report.animationClipCount or 0)>0) then return false end
+        if d:getTotalSkeletalWeightBones()>0 then return false end
+    end
+    return true
+end
+
 -- File writes are staged before changing any scene data. Retain a unique binary backup;
 -- undo snapshots cannot safely refer to geometry from before an in-place asset edit.
 function M.apply(entry,operation,scene,requestedScale)
     local path=entry.fileName
+    if scene and not (M.includeArticulated and M.includeSkeletal) and not M.includesAsset(load(path)) then
+        return nil -- excluded before staging, backups, physics changes or scene mutations
+    end
     local offset=copy(getMeshOffset(path))
     local items=instances(path,offset)
     local newOffset=copy(offset)
@@ -182,11 +199,12 @@ function M.run(entry,operation,scene,scale)
             seen[p.fileName]=true;targets[#targets+1]=registerMeshSetEntry(p.fileName)
         end end
     elseif entry and entry.type=='mesh' then targets[1]=entry end
-    local done,failed,variants=0,0,0
+    local done,failed,variants,skipped=0,0,0,0
     local errors={}
     for _,target in ipairs(targets) do
         local ok,result=dpCall(M.apply,target,operation,scene,scale)
-        if ok then done=done+1;variants=variants+result
+        if ok and result==nil then skipped=skipped+1
+        elseif ok then done=done+1;variants=variants+result
         else failed=failed+1;errors[#errors+1]=target.fileName..': '..tLang.L(tostring(result)) end
     end
     if scene then
@@ -194,6 +212,7 @@ function M.run(entry,operation,scene,scale)
         updatePreviewMesh3d(selected)
     end
     local message=string.format(tLang.L('scene3d_bake_result'),done,failed,variants)
+    if scene then message=message..'\n'..string.format(tLang.L('scene3d_bake_skipped'),skipped) end
     if #errors>0 then message=message..'\n'..table.concat(errors,'\n');tUtil.showMessageWarn(message,15)
     else tUtil.showMessage(message,8) end
 end
@@ -245,6 +264,9 @@ function M.footer(entry)
     if entry and entry.type=='mesh' and tImGui.Button(tLang.L('scene3d_apply_normals')) then M.run(entry,'normals',false) end
     tImGui.Separator()
     tImGui.TextWrapped(tLang.L('scene3d_scene_bake_help'))
+    M.includeArticulated=tImGui.Checkbox(tLang.L('scene3d_include_articulated'),M.includeArticulated)
+    M.includeSkeletal=tImGui.Checkbox(tLang.L('scene3d_include_skeletal'),M.includeSkeletal)
+    tImGui.TextWrapped(tLang.L('scene3d_animation_filter_help'))
     if tImGui.Button(tLang.L('scene3d_standard_scale')) then M.run(nil,'scale',true) end
     if tImGui.Button(tLang.L('scene3d_standard_rotation')) then M.run(nil,'rotate',true) end
     if tImGui.Button(tLang.L('scene3d_normalize_all')) then M.run(nil,'normals',true) end
