@@ -95,6 +95,8 @@ namespace mbm
         // Planar cuts of a closed convex extrusion; width is in mesh units.
         bool bevel = false, bevelFront = true, bevelBack = true, bevelCorners = true;
         float bevelWidth = 1.0f;
+        bool bevelRounded = false; // Circular segmented profile with smooth bevel normals.
+        uint32_t bevelSegments = 4; // 2..8, active only for rounded bevels.
         float borderWidth = 0.1f;
         bool invert = false;
         bool lockBorder = true;

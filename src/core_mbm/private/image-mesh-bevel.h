@@ -30,21 +30,42 @@ struct PLANE
     double x=0,y=0,z=0,d=0;
     unsigned group=0;
     double minAlong=0,maxAlong=1;
+    double uvStart=0,uvSweep=0;
+    bool rounded=false;
+    VEC3 center{0,0,0},axis{0,0,1};
+    VEC3 startNormal{1,0,0},endNormal{0,1,0};
 };
 inline double dot(const PLANE &p,const VEC3 &v) { return p.x*v.x+p.y*v.y+p.z*v.z; }
-inline bool planes(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t,std::vector<PLANE> &out,std::string &error)
+inline bool planes(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t,const HEIGHT_FIELD &field,
+                   float &frontRelief,std::vector<PLANE> &out,std::string &error)
 {
     const auto fail=[&](const char *message) { error=message;return false; };
     if (!std::isfinite(o.bevelWidth) || o.bevelWidth<.001f || o.bevelWidth>1000000)
         return fail("Bevel width must be finite and in [0.001,1000000] mesh units");
+    if (o.bevelRounded && (o.bevelSegments<2 || o.bevelSegments>8))
+        return fail("Rounded bevel segments must be in [2,8]");
     if (o.voxelized || o.heightSource==IMAGE_MESH_HEIGHT_SOURCE::CURVED || o.holeCount ||
-        o.backOpen || o.backRelief || !o.lockBorder)
-        return fail("Bevel requires a closed convex extrusion without holes, with locked border and flat back");
+        o.backOpen || o.backRelief)
+        return fail("Bevel requires a closed convex extrusion without holes and with flat back");
     if (!o.bevelFront && !o.bevelBack && !o.bevelCorners) return true;
     const auto &c=t.contour;
     if (c.size()<3 || c.size()>128) return fail("Bevel supports convex contours with 3..128 corners");
+    frontRelief=0;
+    if (!o.lockBorder)
+    {
+        float minimum=o.relief,maximum=0;
+        for (uint32_t index:t.boundary)
+        {
+            const auto &p=t.points[index];
+            const float height=field.surface(p.x,p.y,o)*o.relief;
+            minimum=std::min(minimum,height);maximum=std::max(maximum,height);
+        }
+        if (maximum-minimum>std::max({1.0f,o.depth,o.relief})*1e-6f)
+            return fail("Bevel requires a constant border height; lock the border or use a uniform manual height");
+        frontRelief=(minimum+maximum)*.5f;
+    }
     const double width=o.bevelWidth;
-    if (width*(static_cast<unsigned>(o.bevelFront)+o.bevelBack)>=o.depth)
+    if (width*(static_cast<unsigned>(o.bevelFront)+o.bevelBack)>=o.depth+frontRelief)
         return fail("Bevel width is too large for the block thickness");
     std::vector<VEC3> points;
     VEC3 center(0,0,0);
@@ -67,8 +88,30 @@ inline bool planes(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t,std::vector<PLA
                 return fail("Bevel currently requires a convex contour");
         if (edge.d-dot(edge,center)<=width) return fail("Bevel width is too large for the contour interior");
         edges.push_back(edge);
-        if (o.bevelFront) out.push_back({edge.x,edge.y,-1,edge.d+o.depth*.5-width,0});
-        if (o.bevelBack) out.push_back({edge.x,edge.y,1,edge.d+o.depth*.5-width,1});
+        for (unsigned face=0;face<2;++face)
+        {
+            if ((face==0 && !o.bevelFront) || (face==1 && !o.bevelBack)) continue;
+            const double sign=face==0?-1:1;
+            const double extent=o.depth*.5+(face==0?frontRelief:0);
+            if (!o.bevelRounded)
+            {
+                out.push_back({edge.x,edge.y,sign,edge.d+extent-width,face});
+                continue;
+            }
+            const double step=1.5707963267948966/o.bevelSegments;
+            for (uint32_t segment=0;segment<o.bevelSegments;++segment)
+            {
+                const double angle=(segment+.5)*step,c=std::cos(angle),s=std::sin(angle);
+                PLANE p{edge.x*c,edge.y*c,sign*s,
+                    (edge.d-width)*c+(extent-width)*s+width*std::cos(step*.5),face};
+                p.rounded=true;
+                p.startNormal=VEC3(static_cast<float>(edge.x),static_cast<float>(edge.y),0);
+                p.endNormal=VEC3(0,0,static_cast<float>(sign));
+                p.center=VEC3(static_cast<float>(edge.x*(edge.d-width)),static_cast<float>(edge.y*(edge.d-width)),static_cast<float>(sign*(extent-width)));
+                p.axis=VEC3(static_cast<float>(-edge.y),static_cast<float>(edge.x),0);
+                out.push_back(p);
+            }
+        }
     }
     if (o.bevelCorners)
         for (size_t i=0;i<c.size();++i)
@@ -79,12 +122,32 @@ inline bool planes(const IMAGE_MESH_OPTIONS &o,const TOPOLOGY &t,std::vector<PLA
             PLANE p{nx/length,ny/length,0,0,2};
             p.d=dot(p,points[i])-width;
             if (p.d<=dot(p,center)) return fail("Bevel width is too large for a contour corner");
-            out.push_back(p);
+            if (!o.bevelRounded) { out.push_back(p);continue; }
+            const double cosine=std::clamp(length*.5,0.0,1.0);
+            const double halfAngle=std::acos(cosine),sine=std::sin(halfAngle);
+            if (sine<1e-6) continue; // No corner at a straight contour join.
+            // Preserve the planar corner's endpoints on its neighboring walls.
+            const double radius=width*cosine/(sine*sine);
+            const double centerX=points[i].x-p.x*radius/cosine;
+            const double centerY=points[i].y-p.y*radius/cosine;
+            const double start=std::atan2(a.y,a.x);
+            const double turn=std::atan2(a.x*b.y-a.y*b.x,a.x*b.x+a.y*b.y);
+            const double step=turn/o.bevelSegments;
+            for (uint32_t segment=0;segment<o.bevelSegments;++segment)
+            {
+                const double angle=start+(segment+.5)*step,nx=std::cos(angle),ny=std::sin(angle);
+                PLANE cut{nx,ny,0,nx*centerX+ny*centerY+radius*std::cos(step*.5),2};
+                cut.uvStart=start;cut.uvSweep=turn;
+                cut.startNormal=VEC3(static_cast<float>(a.x),static_cast<float>(a.y),0);
+                cut.endNormal=VEC3(static_cast<float>(b.x),static_cast<float>(b.y),0);
+                cut.rounded=true;cut.center=VEC3(static_cast<float>(centerX),static_cast<float>(centerY),0);
+                out.push_back(cut);
+            }
         }
     return true;
 }
 
-template<class V> struct FACE { std::vector<V> vertices;unsigned group=0; };
+template<class V> struct FACE { std::vector<V> vertices;unsigned group=0;PLANE profile; };
 template<class V> V interpolate(const V &a,const V &b,double t)
 {
     V v=a;
@@ -124,7 +187,7 @@ template<class V,class UV> bool cut(std::vector<FACE<V>> &faces,const PLANE &pla
     for (const auto &face:faces)
     {
         if (++processed%256==0) checkpoint(o,"bevel",.96f);
-        FACE<V> result;result.group=face.group;
+        FACE<V> result;result.group=face.group;result.profile=face.profile;
         for (size_t i=0;i<face.vertices.size();++i)
         {
             V a=face.vertices[i],b=face.vertices[(i+1)%face.vertices.size()];
@@ -206,7 +269,7 @@ template<class V,class UV> bool cut(std::vector<FACE<V>> &faces,const PLANE &pla
         const auto &p=points[index];const double along=-plane.y*p.x+plane.x*p.y;
         mapping.minAlong=std::min(mapping.minAlong,along);mapping.maxAlong=std::max(mapping.maxAlong,along);
     }
-    FACE<V> cap;cap.group=plane.group;
+    FACE<V> cap;cap.group=plane.group;cap.profile=plane;
     for (uint32_t index:loop)
     {
         V vertex;vertex.position=points[index];vertex.normal=normal;vertex.uv=uv(vertex.position,mapping);
@@ -238,6 +301,38 @@ template<class V,class UV> bool apply(const IMAGE_MESH_OPTIONS &o,const std::vec
     {
         checkpoint(o,"bevel",.96f+.015f*static_cast<float>(i)/static_cast<float>(planes.size()));
         if (!cut(faces,planes[i],epsilon,uv,error,o)) return false;
+    }
+    if (o.bevelRounded)
+    {
+        // Recompute radial normals after clipping. Adjacent segments of the
+        // same cylinder agree exactly; different cylinders keep their join seam.
+        // Averaging those joins would bend shading across an entire long strip.
+        for (auto &face:faces)
+        {
+            if (!face.profile.rounded) continue;
+            const auto &p=face.profile;
+            const auto &start=p.startNormal,&end=p.endNormal;
+            const double cosine=std::clamp(static_cast<double>(start.x)*end.x+static_cast<double>(start.y)*end.y+static_cast<double>(start.z)*end.z,-1.0,1.0);
+            const double sine=std::sqrt(std::max(0.0,1-cosine*cosine));
+            if (!(sine>0)) { error="Invalid bevel corner";return false; }
+            const double tx=(end.x-start.x*cosine)/sine,ty=(end.y-start.y*cosine)/sine,tz=(end.z-start.z*cosine)/sine;
+            const double endAngle=std::acos(cosine);
+            for (auto &v:face.vertices)
+            {
+                double x=static_cast<double>(v.position.x)-p.center.x;
+                double y=static_cast<double>(v.position.y)-p.center.y;
+                double z=static_cast<double>(v.position.z)-p.center.z;
+                const double along=x*p.axis.x+y*p.axis.y+z*p.axis.z;
+                x-=along*p.axis.x;y-=along*p.axis.y;z-=along*p.axis.z;
+                const double length=std::sqrt(x*x+y*y+z*z);
+                if (!(length>0)) { error="Invalid bevel corner";return false; }
+                // Relief may intersect a cutting plane beyond the circular arc.
+                // Continue with its endpoint normal there, never invert the rim.
+                const double angle=std::clamp(std::atan2(x*tx+y*ty+z*tz,x*start.x+y*start.y+z*start.z),0.0,endAngle);
+                const double c=std::cos(angle),s=std::sin(angle);
+                v.normal=VEC3(static_cast<float>(start.x*c+tx*s),static_cast<float>(start.y*c+ty*s),static_cast<float>(start.z*c+tz*s));
+            }
+        }
     }
     vertices.clear();indices.clear();
     for (unsigned group=0;group<3;++group)

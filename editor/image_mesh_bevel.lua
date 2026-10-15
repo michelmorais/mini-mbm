@@ -26,8 +26,10 @@ local switches={'bevelFront','bevelBack','bevelCorners'}
 local function L(key) return tLang.L('ime_bevel_'..key) end
 -- Translate native diagnostics at the editor boundary, before adding the region name.
 local errors={
+    ['Bevel requires a constant border height; lock the border or use a uniform manual height']='border_height',
+    ['Rounded bevel segments must be in [2,8]']='segments',
     ['Bevel width must be finite and in [0.001,1000000] mesh units']='width_range',
-    ['Bevel requires a closed convex extrusion without holes, with locked border and flat back']='requirements',
+    ['Bevel requires a closed convex extrusion without holes and with flat back']='requirements',
     ['Bevel supports convex contours with 3..128 corners']='corners_count',
     ['Bevel width is too large for the block thickness']='thickness',
     ['Bevel width must be smaller than half of every contour edge']='edge_length',
@@ -55,10 +57,16 @@ function M.panel(E)
     tImGui.TextWrapped(L('help'))
     local changed,width=tImGui.InputFloat(L('width'),v.bevelWidth or 1,0.1,1,'%.3f')
     if changed then v.bevelWidth=Model.clampOption('bevelWidth',width,v.bevelWidth or 1) end
+    v.bevelRounded=tImGui.Checkbox(L('rounded'),v.bevelRounded==true)
+    if v.bevelRounded then
+        local changed,segments=tImGui.SliderInt(L('segments'),v.bevelSegments or 4,2,8)
+        if changed then v.bevelSegments=Model.clampOption('bevelSegments',segments,v.bevelSegments or 4) end
+        tImGui.TextWrapped(L('rounded_help'))
+    end
     for _,key in ipairs(switches) do
         v[key]=tImGui.Checkbox(L(key),v[key]~=false)
     end
-    if v.voxelized or v.heightSource=='curved' or v.backOpen or v.backRelief or not v.lockBorder or
+    if v.voxelized or v.heightSource=='curved' or v.backOpen or v.backRelief or
         (E.draft and E.draft.holes and #E.draft.holes>0) then
         tImGui.TextWrapped(L('unsupported'))
     end

@@ -26,7 +26,7 @@ local function run()
     assert(api.openImage(path));assert(api.action(function(p) Model.primitive(p,'rectangle',60,60) end))
     api.select(1,false)
     local E=api.state
-    E.values.relief=0;E.values.bevelWidth=2
+    E.values.relief=0;E.values.bevelWidth=2;E.values.bevelRounded=true;E.values.bevelSegments=4
     -- The real panel's checkbox is activated once by the widget shim below.
     repeat coroutine.yield() until activated
     assert(E.values.bevel);assert(api.applyProperties())
@@ -37,11 +37,20 @@ local function run()
     assert(api.saveProject('/tmp/ime_bevel_editor.imesh'))
     assert(api.openProject('/tmp/ime_bevel_editor.imesh'));api.select(1,false)
     assert(E.values.bevel and E.values.bevelWidth==2 and E.project.presets[1].settings.bevel)
-    E.values.bevel=false;assert(api.applyProperties());assert(E.values.bevelWidth==2)
+    assert(E.values.bevelRounded and E.values.bevelSegments==4 and E.project.presets[1].settings.bevelRounded)
+    E.values.bevelRounded=false;assert(api.applyProperties());assert(E.values.bevelSegments==4)
+    E.values.bevelRounded=true
+    E.values.bevel=false;assert(api.applyProperties());assert(E.values.bevelWidth==2 and E.values.bevelRounded)
     E.values.bevel=true;assert(api.applyProperties())
     api.exportOne('/tmp/ime_bevel_editor.msh')
     repeat coroutine.yield() until not E.meshTask
     local loaded=meshDebug:new();assert(loaded:load('/tmp/ime_bevel_editor.msh'));assert(loaded:check())
+    E.values.lockBorder=false;E.values.heightSource='manual';E.values.baseHeight=.5
+    E.values.relief=8;E.values.bevelWidth=5;assert(api.applyProperties())
+    assert(not Model.options(E.project,E.project.regions[1]).lockBorder)
+    api.exportOne('/tmp/ime_bevel_editor_unlocked.msh')
+    repeat coroutine.yield() until not E.meshTask
+    local unlocked=meshDebug:new();assert(unlocked:load('/tmp/ime_bevel_editor_unlocked.msh'));assert(unlocked:check())
     repeat coroutine.yield() until not E.meshTask and not E.heightJob
     baseline={builds=E.builds,height=E.heightBuilds,stats=E.statisticsBuilds}
     started=mbm.getTimeRun();print('BEVEL EDITOR HISTORY / PERSISTENCE / EXPORT OK')

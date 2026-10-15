@@ -67,14 +67,92 @@ local function run()
         end
     end
     o.shape='rectangle';o.followImage=false;o.relief=0
+    o.bevelRounded=false
+    local flat,flatReport=mbm.generateImageMesh(path,o);assert(flat,flatReport)
+    local flatVolume=inspect(flat,flatReport)
+    o.bevelRounded=true
+    local previous=flatVolume
+    for _,segments in ipairs{2,4,8} do
+        o.bevelSegments=segments
+        local rounded,rr=mbm.generateImageMesh(path,o);assert(rounded,rr)
+        local volume=inspect(rounded,rr)
+        assert(volume>previous and volume<160000,'rounded profile does not retain the expected volume')
+        previous=volume
+        local smooth=0
+        for subset=1,rounded:getTotalSubset(1) do
+            for _,v in ipairs(rounded:getVertex(1,subset,1,rounded:getTotalVertex(1,subset))) do
+                if v.x>48.001 and v.z< -8.001 and math.abs(v.ny)<.00001 then
+                    local x,z=v.x-48,v.z+8;local length=math.sqrt(x*x+z*z)
+                    assert(math.abs(v.nx-x/length)<.001 and math.abs(v.nz-z/length)<.001 and math.abs(v.ny)<.001,'rounded normals are faceted')
+                    smooth=smooth+1
+                end
+            end
+        end
+        assert(smooth>0,'rounded normal samples missing')
+        assert(rr.triangles>flatReport.triangles,'rounded profile did not add geometry')
+    end
+    for _,shape in ipairs{'rectangle','polygon','ellipse'} do
+        o.shape=shape;o.followImage=true;o.relief=8;o.bevelSegments=4
+        local rounded,rr=mbm.generateImageMesh(path,o);assert(rounded,rr);inspect(rounded,rr)
+    end
+    o.shape='rectangle';o.followImage=false;o.relief=0
+    for mask=1,7 do
+        o.bevelFront=mask%2==1;o.bevelBack=math.floor(mask/2)%2==1;o.bevelCorners=mask>=4
+        o.bevelWidth=8;o.bevelSegments=4
+        local rounded,rr=mbm.generateImageMesh(path,o);assert(rounded,rr);inspect(rounded,rr)
+    end
+    o.bevelFront=true;o.bevelBack=true;o.bevelCorners=true;o.bevelWidth=2
+    for _,segments in ipairs{0,1,9} do
+        o.bevelSegments=segments;assert(not mbm.generateImageMesh(path,o),'invalid rounded segment count accepted')
+    end
+    o.bevelSegments=4
+    for _,mode in ipairs{'edge','color','band','repeat'} do
+        o.sideMode=mode
+        local rounded,rr=mbm.generateImageMesh(path,o);assert(rounded,rr);inspect(rounded,rr)
+        for subset=1,rounded:getTotalSubset(1) do
+            for _,v in ipairs(rounded:getVertex(1,subset,1,rounded:getTotalVertex(1,subset))) do
+                assert(v.u>=0 and v.u<=1 and v.v>=0 and v.v<=1,'rounded UV outside source texture')
+            end
+        end
+    end
+    o.sideMode='color';o.relief=8;o.bevelWidth=8
+    local reliefMesh,reliefReport=mbm.generateImageMesh(path,o);assert(reliefMesh,reliefReport);inspect(reliefMesh,reliefReport)
+    for subset=1,reliefMesh:getTotalSubset(1) do
+        for _,v in ipairs(reliefMesh:getVertex(1,subset,1,reliefMesh:getTotalVertex(1,subset))) do
+            if v.x>20 and v.y>0 and v.z< -10 and v.ny==0 then
+                assert(v.nx>=-.0001,'rounded relief normal inverted toward the interior')
+            end
+        end
+    end
+    o.relief=0;o.bevelWidth=2;o.bevelRounded=false
     local asset,r=mbm.generateImageMesh(path,o);assert(asset,r)
     o.maxVertices=r.vertices-1;assert(not mbm.generateImageMesh(path,o));o.maxVertices=nil
     o.maxTriangles=r.triangles-1;assert(not mbm.generateImageMesh(path,o));o.maxTriangles=nil
-    for _,bad in ipairs{{bevelWidth=10},{bevelWidth=0},{backOpen=true,backSolid=false},{lockBorder=false},{voxelized=true},{heightSource='curved'},
+    for _,bad in ipairs{{bevelWidth=10},{bevelWidth=0},{backOpen=true,backSolid=false},{lockBorder=false,relief=8,heightSource='manual',heightEdits={{x=1,y=.5,radius=.4,mode='raise',strength=1,height=1}}},{voxelized=true},{heightSource='curved'},
         {shape='polygon',contour={{x=0,y=0},{x=1,y=0},{x=.5,y=.5},{x=1,y=1},{x=0,y=1}}}} do
         local options=Model.copy(o);for k,v in pairs(bad) do options[k]=v end
         assert(not mbm.generateImageMesh(path,options),'unsupported bevel accepted')
     end
+    -- Unlocked, uniform manual height: bevel the actual front at -14,
+    -- not the old baseline at -10. Preserve the requested height/depth settings.
+    o.lockBorder=false;o.heightSource='manual';o.baseHeight=.5;o.relief=8;o.bevelWidth=5
+    for _,rounded in ipairs{false,true} do
+        o.bevelRounded=rounded
+        for _,adaptive in ipairs{false,true} do
+            o.followImage=adaptive
+            local a,r=mbm.generateImageMesh(path,o);assert(a,r);inspect(a,r)
+            local minZ,maxZ,frontX=math.huge,-math.huge,-math.huge
+            for subset=1,a:getTotalSubset(1) do
+                for _,v in ipairs(a:getVertex(1,subset,1,a:getTotalVertex(1,subset))) do
+                    minZ=math.min(minZ,v.z);maxZ=math.max(maxZ,v.z)
+                    if math.abs(v.z+14)<.0001 then frontX=math.max(frontX,v.x) end
+                end
+            end
+            assert(math.abs(minZ+14)<.0001 and math.abs(maxZ-10)<.0001,'unlocked height was changed')
+            assert(math.abs(frontX-45)<.001,'bevel does not start at the actual front height')
+        end
+    end
+    o.bevelRounded=false;o.followImage=false;o.relief=0;o.lockBorder=true
     o.bevel=false;local plain,pr=mbm.generateImageMesh(path,o);assert(plain,pr)
     o.bevel=nil;local legacy,lr=mbm.generateImageMesh(path,o);assert(legacy,lr)
     assert(pr.vertices==lr.vertices and pr.triangles==lr.triangles)

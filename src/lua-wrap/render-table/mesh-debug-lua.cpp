@@ -3937,6 +3937,7 @@ namespace mbm
         boolean("bevel",options.bevel); number("bevelWidth",options.bevelWidth);
         boolean("bevelFront",options.bevelFront); boolean("bevelBack",options.bevelBack);
         boolean("bevelCorners",options.bevelCorners);
+        boolean("bevelRounded",options.bevelRounded); integer("bevelSegments",options.bevelSegments);
         number("borderWidth", options.borderWidth);
         boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
         boolean("backRelief", options.backRelief); boolean("backMirror", options.backMirror);
