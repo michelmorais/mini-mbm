@@ -20,6 +20,7 @@
 
 ]]--
 
+local Bevel=require 'image_mesh_bevel'
 local M={}
 local function L(key) return tLang.L('ime_'..key) end
 local stages={
@@ -37,6 +38,8 @@ local stages={
 -- Both native budget formats are supported. Do not relabel resources that fit.
 function M.error(region,message)
     message=tostring(message)
+    local translated=Bevel.error(message)
+    if translated then return region.name..': '..translated end
     if not message:find('Geometry budget exceeded',1,true) then return region.name..': '..message end
     local details={}
     for kind,relation,count,limit in message:gmatch('(%a+) ([>= ]*)(%d+), limit (%d+)') do

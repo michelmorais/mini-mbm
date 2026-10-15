@@ -19,6 +19,10 @@ for _,language in ipairs({'en','pt_br'}) do
     tLang.current=language
     local function L(k) return tLang.L('ime_'..k) end
     local region={name='module_002'}
+    local Bevel=require 'image_mesh_bevel'
+    local widthError=Bevel.error('Bevel width exceeds the safe limit: 11.9999')
+    assert(widthError==string.format(tLang.L('ime_bevel_error_limit'),'11.9999'))
+    assert(Bevel.error('Bevel requires a closed extrusion with flat back')==tLang.L('ime_bevel_error_requirements'))
     local result=Budget.error(region,'Geometry budget exceeded during painted height refinement: vertices >= 80000, limit 65535; triangles >= 140000, limit 131070;')
     assert(result:find('80000',1,true) and result:find('140000',1,true))
     assert(result:find(L('budget_stage_painting'),1,true))
@@ -45,6 +49,15 @@ for _,language in ipairs({'en','pt_br'}) do
         E[flag]=nil
     end
     E.report=nil;lines={};Budget.panel(E);assert(lines[2]==L('budget_pending'))
+    tImGui.Checkbox=function(_,v) return v end
+    tImGui.InputFloat=function(_,v) return false,v end
+    tImGui.SliderInt=function(_,v) return false,v end
+    local bevelState={values={bevel=true,bevelWidth=2},report={bevelMaximumWidth=9.9999}}
+    lines={};Bevel.panel(bevelState)
+    assert(table.concat(lines):find(string.format(tLang.L('ime_bevel_limit'),9.9999),1,true))
+    bevelState.previewStale=true;lines={};Bevel.panel(bevelState)
+    assert(table.concat(lines):find(tLang.L('ime_bevel_limit_pending'),1,true))
+    assert(not table.concat(lines):find('9.9999',1,true))
     tImGui.CollapsingHeader=function() return false end
     lines={};Budget.panel(E);assert(#lines==0)
 end

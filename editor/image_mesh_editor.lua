@@ -755,6 +755,7 @@ local function propertiesPanel()
             end
         end
         end
+        require('image_mesh_bevel').panel(E)
         BackUv.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         Sides.panel(E,function() if draftChanged() then return applyProperties() end return true end,dpCall)
         if tImGui.CollapsingHeader(L('resolution_group')) then

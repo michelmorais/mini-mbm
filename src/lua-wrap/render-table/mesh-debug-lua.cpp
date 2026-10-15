@@ -3934,6 +3934,10 @@ namespace mbm
         integer("maxVertices", options.maxVertices); integer("maxTriangles", options.maxTriangles);
         number("width", options.width); number("height", options.height);
         number("depth", options.depth); number("relief", options.relief);
+        boolean("bevel",options.bevel); number("bevelWidth",options.bevelWidth);
+        boolean("bevelFront",options.bevelFront); boolean("bevelBack",options.bevelBack);
+        boolean("bevelCorners",options.bevelCorners);
+        boolean("bevelRounded",options.bevelRounded); integer("bevelSegments",options.bevelSegments);
         number("borderWidth", options.borderWidth);
         boolean("invert", options.invert); boolean("lockBorder", options.lockBorder);
         boolean("backRelief", options.backRelief); boolean("backMirror", options.backMirror);
@@ -4335,6 +4339,7 @@ namespace mbm
             lua_pushinteger(lua,job->report.triangles);lua_setfield(lua,-2,"triangles");
             lua_pushnumber(lua,job->report.minHeight);lua_setfield(lua,-2,"minHeight");
             lua_pushnumber(lua,job->report.maxHeight);lua_setfield(lua,-2,"maxHeight");
+            lua_pushnumber(lua,job->report.bevelMaximumWidth);lua_setfield(lua,-2,"bevelMaximumWidth");
             if (job->report.curvedSourceTriangles)
             {
                 lua_pushinteger(lua,job->report.curvedSourceTriangles);lua_setfield(lua,-2,"curvedSourceTriangles");
@@ -4413,6 +4418,7 @@ namespace mbm
         lua_pushinteger(lua, report.triangles); lua_setfield(lua, -2, "triangles");
         lua_pushnumber(lua, report.minHeight); lua_setfield(lua, -2, "minHeight");
         lua_pushnumber(lua, report.maxHeight); lua_setfield(lua, -2, "maxHeight");
+        lua_pushnumber(lua, report.bevelMaximumWidth); lua_setfield(lua, -2, "bevelMaximumWidth");
         if (report.curvedSourceTriangles)
         {
             lua_pushinteger(lua,report.curvedSourceTriangles);lua_setfield(lua,-2,"curvedSourceTriangles");

@@ -2790,6 +2790,11 @@ assert(asset:save("panel.msh", false, false, true))
 | `heightAreas` | nil | Up to 32 ordered closed contours or open lines with flatten/raise/lower operation and inward transition; see below |
 | `heightEdits` | nil | Ordered array of at most 4096 brush dabs; see height painting below |
 | `heightTolerance` | 0.03 | Adaptive sampled interpolation-error target as a fraction of relief (endpoint thickness difference for curved mode); finite [0.001,1], constrained by density and sampling |
+| `bevel` | false | Enable bevel on a closed extrusion, including concavities and holes (3..128 corners per contour), before editor simplification |
+| `bevelRounded` | false | Optional circular segmented bevel profile with smooth normals; inactive when bevel is disabled |
+| `bevelSegments` | 4 | Integer 2..8; number of arc segments per selected edge/corner when rounding is enabled |
+| `bevelWidth` | 1 | Inset distance / rounded radius in mesh units, finite 0.001..1000000; must fit the conservative contour and thickness bound |
+| `bevelFront`, `bevelBack`, `bevelCorners` | true | Select front rim, back rim, and vertical corner cuts independently; only active with `bevel=true` |
 | `backRelief` | false | Copy final front relief outward onto the back, including painting and border attenuation; use full front topology on the back |
 | `backMirror` | false | Flip back UVs horizontally within its source crop; independent of relief, with no change to front or side UVs; ignored for an open back |
 | `backExternal` | false | Flat back with an independent image material; mutually exclusive with other back modes |
@@ -3020,6 +3025,34 @@ normalize total thickness by the maximum. Asynchronous jobs deep-copy node geome
 Editor-only `shape` and `name` metadata is persisted in `.imesh` but ignored by the API.
 
 **Image-mesh back controls.**
+
+Bevel controls are shared by synchronous and asynchronous image-mesh generation.
+They require a closed flat back and simple disjoint contours (3..128 points per
+loop). Concave outlines, holes and unlocked varying front-border heights are
+supported. Voxel and curved modes remain unsupported. Width measures the inward
+contour offset and rounded radius; convex corners join selected rims with
+spherical patches. Reentrant corners retain miter joins. This replaces the old
+corner-bisector footprint. The front cap is triangulated inside the inset contour,
+and rings follow its boundary height, preserving continuity with variable relief.
+
+`report.bevelMaximumWidth` is the conservative safe width in mesh units (zero
+when no bevel edges are active). The bound prevents inset topology collapse and
+contour collisions. Front/back widths must fit baseline depth, or actual thickness
+for uniform unedited manual height. Excessive widths fail with
+`Bevel width exceeds the safe limit: <value>`; requests are never silently clamped.
+The editor translates that diagnostic. The bound and mesh are computed on the
+worker for asynchronous generation, never by per-frame UI queries.
+
+Front/back bevel faces inherit projected UVs and back remap/mirror/material
+settings. Vertical walls use the side material. Repeat mode splits at horizontal
+and vertical wrap boundaries, mapping configured repeats around the inset contour
+and one tile across each convex corner strip. Hole band walls use edge projection.
+Flat profiles use hard normals; rounded profiles and spherical patches use radial
+normals. Increasing segments adds geometry and processing cost. Final counts
+include all bevel geometry and obey the requested budgets. Report height extrema
+describe source relief samples before bevel construction. With `bevel=false`,
+legacy generation is unchanged. Height-map export describes the source field,
+not the bevel geometry.
 
 `backRelief` and `backMirror` are strict optional booleans accepted by the image
 mesh options reader. Their defaults preserve existing geometry and UVs.
