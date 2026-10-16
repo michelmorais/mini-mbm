@@ -22,6 +22,7 @@
 
 local Pose=require 'articulated_mesh_pose'
 local Model=require 'articulated_sprite_model'
+local Gizmo=require 'mesh_debug_transform_gizmo'
 local M={}
 local function unitSphereVerts(latSegments, lonSegments)
     latSegments = latSegments or 8
@@ -77,6 +78,7 @@ function M.fit(E)
     M.camera(E)
 end
 function M.destroy(E)
+    if E.pivotGizmo then Gizmo.destroy(E.pivotGizmo); E.pivotGizmo=nil end
     if E.outline then E.outline:destroy(); E.outline=nil end
     if E.pivotMarker then E.pivotMarker:destroy(); E.pivotMarker=nil end
     E.viewSignature=nil
@@ -110,6 +112,48 @@ function M.update(E)
     E.pivotMarker:setScale(r,r,r)
     E.pivotMarker.visible=E.showPivot
 end
+-- Pivot edits use mesh/rest coordinates, just like the numeric fields. Keep the
+-- draft separate from the committed part until Apply part records one undo step.
+function M.updatePivotGizmo(E)
+    local p=Model.part(E.project,E.frame,E.selected)
+    local active=E.movePivotGizmo and E.mode=='setup' and not E.playing and p and E.bounds
+    if not active then
+        if E.pivotGizmo then
+            Gizmo.destroy(E.pivotGizmo); E.pivotGizmo=nil
+            E.viewSignature=nil -- restore the committed pivot marker
+        end
+        return
+    end
+    if E.partDraftSource~=p or not E.partDraft then
+        E.partDraft=Model.copy(p); E.partDraftSource=p; E.pivotEuler=Pose.euler(p.q)
+    end
+    local entry=E.pivotGizmo
+    if not entry then entry={}; E.pivotGizmo=entry end
+    if entry.draft~=E.partDraft then entry.tXformSubsetDrag=nil; entry.draft=E.partDraft end
+    local v=E.partDraft.pivot
+    local radius=E.extent*0.3
+    if entry.x~=v[1] or entry.y~=v[2] or entry.z~=v[3] or entry.radius~=radius then
+        Gizmo.rebuild(entry,{minX=v[1]-radius,minY=v[2]-radius,minZ=v[3]-radius,
+            maxX=v[1]+radius,maxY=v[2]+radius,maxZ=v[3]+radius},nil,true)
+        entry.x,entry.y,entry.z,entry.radius=v[1],v[2],v[3],radius
+    end
+    if E.pivotMarker and (entry.markerX~=v[1] or entry.markerY~=v[2] or
+        entry.markerZ~=v[3] or entry.markerSignature~=E.viewSignature) then
+        E.pivotMarker:setPos(v[1],v[2],v[3])
+        entry.markerX,entry.markerY,entry.markerZ=v[1],v[2],v[3]
+        entry.markerSignature=E.viewSignature
+    end
+end
+local function pivotDrag(E)
+    local entry=E.pivotGizmo
+    if not entry then return end
+    if not E.movePivotGizmo or E.mode~='setup' or E.playing or
+        entry.draft~=E.partDraft or E.partDraftSource~=Model.part(E.project,E.frame,E.selected) then
+        entry.tXformSubsetDrag=nil
+        return
+    end
+    return entry.tXformSubsetDrag
+end
 function M.pick(E,x,y)
     if not E.transform then return end
     local ox,oy,oz,dx,dy,dz=mbm.getPickRay(x,y)
@@ -131,13 +175,33 @@ local function captured()
 end
 function M.pointerDown(E,key,x,y)
     if captured() or not E.bounds then E.cameraDrag=nil; return end
+    if key==0 and E.pivotGizmo then
+        M.updatePivotGizmo(E)
+        local entry=E.pivotGizmo
+        local axis=entry and Gizmo.hitTest(entry,x,y)
+        local v=E.partDraft and E.partDraft.pivot
+        if axis and Gizmo.beginDrag(entry,axis,x,y,{dx=v[1],dy=v[2],dz=v[3]}) then
+            E.cameraDrag=nil
+            return
+        end
+    end
     if key==1 then M.pick(E,x,y)
     elseif key==0 or key==2 then E.cameraDrag={x=x,y=y,key=key} end
 end
 function M.pointerUp(E,key)
+    if key==0 and E.pivotGizmo then E.pivotGizmo.tXformSubsetDrag=nil end
     if E.cameraDrag and E.cameraDrag.key==key then E.cameraDrag=nil end
 end
 function M.pointerMove(E,x,y)
+    local pivot=pivotDrag(E)
+    if pivot then
+        local dx,dy,dz=Gizmo.updateDrag(pivot,x,y)
+        if dx then
+            local v=E.partDraft.pivot
+            v[1],v[2],v[3]=pivot.initialDx+dx,pivot.initialDy+dy,pivot.initialDz+dz
+        end
+        return
+    end
     if captured() then E.cameraDrag=nil; return end
     local drag=E.cameraDrag
     if not drag or (drag.x==x and drag.y==y) then return end
@@ -155,6 +219,7 @@ function M.pointerMove(E,x,y)
     M.camera(E)
 end
 function M.input(E)
+    if pivotDrag(E) then return end
     if captured() then E.cameraDrag=nil; return end
     if not E.bounds then return end
     local wheel=tImGui.GetZoom()

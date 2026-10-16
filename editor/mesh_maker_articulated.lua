@@ -229,6 +229,12 @@ local function partsPanel()
             local bounds=E.subsetBounds[E.frame][p.subset]
             draft.pivot={(bounds.minX+bounds.maxX)*0.5,(bounds.minY+bounds.maxY)*0.5,(bounds.minZ+bounds.maxZ)*0.5}
         end)
+        local movePivot=tImGui.Checkbox(L('move_center_gizmo'),E.movePivotGizmo or false)
+        if movePivot~=E.movePivotGizmo then
+            E.movePivotGizmo=movePivot
+            if movePivot then E.mode='setup'; E.playing=false; E.poseDirty=true; Pose.sync(E) end
+        end
+        help('ame_move_center_gizmo_tip')
         local edit,euler=tImGui.DragFloat3(L('pivot_rotation'),E.pivotEuler,0.5,-360,360,'%.2f')
         if edit then E.pivotEuler=euler; draft.q=Pose.quaternion(euler) end
         help('ame_pivot_tip')
@@ -441,7 +447,7 @@ function onLoop(delta)
     if E.showTimeline then window('timeline',{x=218,y=h*0.63},{x=w-222,y=h*0.36},timelinePanel) end
     local now=mbm.getTimeRun()
     if E.dirty and (not E.lastBuild or now-E.lastBuild>=0.08) then E.lastBuild=now; rebuild() end
-    applyPlayer(); View.update(E); View.input(E); tUtil.showOverlayMessage()
+    applyPlayer(); View.update(E); View.updatePivotGizmo(E); View.input(E); tUtil.showOverlayMessage()
 end
 function onTouchDown(key,x,y) View.pointerDown(E,key,x,y) end
 function onTouchMove(key,x,y) View.pointerMove(E,x,y) end

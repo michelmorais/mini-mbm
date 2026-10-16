@@ -63,3 +63,42 @@ end
 View.pointerUp(E,0)
 local idle=calls; View.input(E); View.pointerMove(E,0,0); assert(calls==idle)
 print('ARTICULATED MESH LEFT ORBIT / RIGHT PICK / GUI CAPTURE / RESET / FIXED FOCUS / PAN / IDLE OK')
+
+-- Exercise the real gizmo hit testing and dragging with controlled pick rays.
+local uploads,destroyed=0,0
+line={new=function()
+    return {add=function() uploads=uploads+1 end,set=function() uploads=uploads+1 end,
+        setPos=function() end,setColor=function() end,destroy=function() destroyed=destroyed+1 end}
+end}
+local part={id=1,pivot={0,0,0},q={0,0,0,1},parent=0}
+E.project={frames={{parts={part}}}}; E.frame=1; E.selected=1
+E.mode='setup'; E.movePivotGizmo=true; E.extent=10
+View.updatePivotGizmo(E)
+local idleUploads=uploads
+for i=1,20 do View.updatePivotGizmo(E) end
+assert(uploads==idleUploads,'idle gizmo rebuilt geometry')
+for axis=1,3 do
+    E.partDraft.pivot={0,0,0}; View.updatePivotGizmo(E)
+    mbm={getPickRay=function(x)
+        if axis==1 then return x,0,10,0,0,-1 end
+        if axis==2 then return 0,x,10,0,0,-1 end
+        return 0,10,x,0,-1,0
+    end}
+    local before=calls
+    View.pointerDown(E,0,1,0)
+    assert(E.pivotGizmo.tXformSubsetDrag,'axis was not picked')
+    View.pointerMove(E,2,0); View.updatePivotGizmo(E)
+    for i=1,3 do near(E.partDraft.pivot[i],i==axis and 1 or 0); near(part.pivot[i],0) end
+    assert(calls==before and not E.cameraDrag,'gizmo drag orbited camera')
+    View.pointerUp(E,0); View.pointerMove(E,3,0)
+    near(E.partDraft.pivot[axis],1)
+end
+E.partDraft.pivot={0,0,0}; View.updatePivotGizmo(E)
+View.pointerDown(E,0,1,0); assert(E.pivotGizmo.tXformSubsetDrag)
+E.selected=0; View.pointerMove(E,5,0); near(E.partDraft.pivot[3],0)
+View.updatePivotGizmo(E); assert(not E.pivotGizmo and destroyed==3)
+E.selected=1; View.updatePivotGizmo(E); assert(E.pivotGizmo)
+E.mode='animate'; View.updatePivotGizmo(E); assert(not E.pivotGizmo)
+E.mode='setup'; View.updatePivotGizmo(E)
+E.movePivotGizmo=false; View.updatePivotGizmo(E); assert(not E.pivotGizmo)
+print('ARTICULATED MESH PIVOT XYZ / DRAFT / CAMERA / RELEASE / SELECTION / MODE / IDLE OK')
