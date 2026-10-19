@@ -73,7 +73,7 @@ tPlacedMeshInfo={{fileName='assets/a.msh'}}}]], legacyExpected)
 os.remove(temp)
 assert(loadfile('editor/scene_editor3d.lua'))
 assert(loadfile('editor/image_mesh_editor.lua'))
-local source = assert(io.open('editor/scene_editor3d.lua'))
+local source = assert(io.open('editor/scene_editor_world.lua'))
 local code = source:read('*a'); source:close()
 local writer = assert(code:match('(function writeScene3d%b()%s*.-)\n%-%- Applies a loaded/'))
 local function serialize(value)
@@ -85,7 +85,7 @@ local function serialize(value)
     end
     return type(value) == 'string' and string.format('%q', value) or tostring(value)
 end
-local env = setmetatable({assetPaths=P, mbm={getAllPaths=function() return {P.directory(temp)..'/assets'} end},
+local env = setmetatable({world="3d",assetPaths=P, mbm={getAllPaths=function() return {P.directory(temp)..'/assets'} end},
     tUtil={save=function(name, value, lines) lines[#lines+1]=name..'='..serialize(value) end},
     getHeader3d=function() return '' end, getSceneLoaderCode3d=function() return 'return tScene3d' end,
     tOptionsEditor={iIndexResolution=1,sCurrentScriptExecution='',fSceneCamPos={},fSceneCamFocus={}},
@@ -138,7 +138,7 @@ if arg[1] then
     assert(env.writeScene3d(arg[1], false, false))
     local clean = assert(loadfile(temp))()
     for _, path in ipairs(clean.tAssetPaths) do
-        assert(not path:find('mini%-mbm') and not path:find('var/folders'))
+        assert((not path:find('mini%-mbm') or path == P.saved(scene.sMeshSetFolder,arg[1])) and not path:find('var/folders'))
     end
     for path in pairs(clean.tMeshOffsets) do
         assert(path:sub(1,17) == '../assets/meshes/', path)
@@ -146,15 +146,17 @@ if arg[1] then
     assert(env.writeScene3d(base..'/levels/scene.lua', false, true))
     local f = assert(io.open(temp)); local exportText = f:read('*a'); f:close()
     assert(not exportText:find('/Users/') and not exportText:find('/home/'))
-    assert(not exportText:find('mini%-mbm') and not exportText:find('var/folders'))
+    assert((not exportText:find('mini%-mbm') or scene.sMeshSetFolder:find('mini%-mbm')) and not exportText:find('var/folders'))
     -- Different location, directory depth, project name, and Windows drive.
     for _, relocated in ipairs({'/opt/games/Renamed/levels/scene.lua', 'D:/Games/Renamed/levels/scene.lua'}) do
         local gameEnv = setmetatable({mbm={addPath=function() end}}, {__index=_G})
         local moved = assert(load(exportText, '@'..relocated, 't', gameEnv))()
         assert(#moved.tPlacedMeshInfo == #scene.tPlacedMeshInfo)
-        for _, info in ipairs(moved.tPlacedMeshInfo) do
+        for i, info in ipairs(moved.tPlacedMeshInfo) do
             assert(info.fileName:find(P.directory(relocated), 1, true) == 1)
-            assert(moved.tMeshOffsets[info.fileName])
+            if scene.tMeshOffsets[scene.tPlacedMeshInfo[i].fileName] then
+                assert(moved.tMeshOffsets[info.fileName])
+            end
         end
     end
     os.remove(temp)

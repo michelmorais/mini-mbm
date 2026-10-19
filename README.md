@@ -256,7 +256,7 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 | **Physics** | Box2D 2.4.1 with optional ported LiquidFun particles (2D/fluids), Bullet 2.84 (3D) — all as optional plugins |
 | **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis with software mixer (Linux and Windows), OpenSL ES (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
-| **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
+| **Editors** | Sprite Maker, Font Maker, GUI Editor, Scene Editor 2D/3D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Platforms** | Windows, Linux, macOS, Android, iOS |
 | **Camera** | 2D/3D camera with projection/view matrices, billboard, azimuth, pixel-perfect mode |
 | **Shaders** | Custom FX system with per-variable min/max animation, PS + VS support |
@@ -665,11 +665,19 @@ The global `mbm` table exposes the engine's core API to Lua (separate from the r
 
 Mini MBM ships with a set of **Lua-based visual editors** (in the `editor/` folder) that use Dear ImGui for their GUI. These editors run inside the engine itself and produce optimized binary files for use in your game.
 
+Open projects created by the former `scene_editor2d.lua` in **GUI Editor**. The new 2D world editor saves `*.scene2d-edit.lua` and exports `*-scene2d.lua`; the 3D format remains `*.scene3d-edit.lua`. Both world editors use the shared `scene_editor_world.lua` implementation and `scene_editor_view.lua` projection adapter. Left drag or right drag pans the 2D view, the wheel zooms toward the cursor, WASD/arrows move the camera, and Shift+drag selects objects. Quick rotation acts around Z in 2D.
+
+GUI saves and exports now keep asset and script paths relative to the saved file. Move the project with its assets while preserving the internal folder layout; loading does not depend on the launch working directory. Legacy absolute paths are relocated when their directory suffix matches unambiguously. External assets must still be available or moved with the project.
+
+In the 2D world editor, clicking an existing mesh selects it even with a placement brush active; Shift+click toggles selection and Shift+drag selects a rectangle. New scenes use neutral ambient light at RGB 230/255. Existing scenes retain their saved lighting: use **Restore neutral ambient** in the lighting panel to brighten older dark scenes. 2DW uses ambient and point lights; directional light is a 3D setting. New 2D point lights start above the active layer (+100 Z).
+
 | Editor | Script | Description |
 |---|---|---|
 | **Sprite Maker** | `sprite_maker.lua` | Create animations from images. Import frames, define animation sequences, configure physics collision shapes, preview animations in real-time. Exports `.spt` sprite files. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker) |
 | **Font Maker** | `font_maker.lua` | Convert TrueType (`.ttf`) fonts into the engine's binary (`.fnt`) bitmap font format with configurable size and character sets. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker) |
-| **Scene Editor 2D** | `scene_editor2d.lua` | Visual 2D scene editor for placing and arranging objects (sprites, textures, meshes, text) in both world and screen coordinate spaces. Includes a **simulator** — run your Lua game script with a play button. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d) |
+| **GUI Editor** | `gui_editor.lua` | Former 2D scene editor: resolution-independent panels, anchors, GUI layouts and script preview. Opens existing GUI projects without conversion. |
+| **Scene Editor 2D** | `scene_editor2d.lua` | World-space (`2dw`) scenes with XY layers, Z depth, orthogonal/isometric snap, lighting, asset properties, selection, undo/redo and Lua export. Shares its tabs and windows with the 3D editor; navigation uses pan and zoom. |
+| **Scene Editor 3D** | `scene_editor3d.lua` | 3D scenes with orbit camera, floor/wall layers, snap, lighting and Lua export. |
 | **Shader Editor** | `shader_editor.lua` | Create and edit shader effects (pixel + vertex shaders) for any renderable type. Configure per-variable animation with min/max ranges. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor) |
 | **Particle Editor** | `particle_editor.lua` | Design multi-stage particle systems (`.ptl`) with configurable emitters, forces, colors, and lifetimes. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor) |
 | **Texture Packer** | `texture_packer.lua` | Pack multiple textures into optimized sprite sheet files for efficient rendering and memory usage. |
@@ -1063,7 +1071,11 @@ mini-mbm/
 ├── editor/                     # Lua-based editor tools
 │   ├── sprite_maker.lua
 │   ├── font_maker.lua
+│   ├── gui_editor.lua
 │   ├── scene_editor2d.lua
+│   ├── scene_editor3d.lua
+│   ├── scene_editor_world.lua
+│   ├── scene_editor_view.lua
 │   ├── shader_editor.lua
 │   ├── particle_editor.lua
 │   ├── texture_packer.lua
@@ -1297,7 +1309,7 @@ int main() {
 | **Física** | Box2D 2.4.1 com partículas LiquidFun portadas e opcionais (2D/fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
 | **Áudio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis com mixer por software (Linux e Windows), OpenSL ES (Android) |
 | **GUI** | Plugin Dear ImGui com bindings Lua — alimenta todos os editores integrados |
-| **Editores** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
+| **Editores** | Sprite Maker, Font Maker, GUI Editor, Scene Editor 2D/3D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Plataformas** | Windows, Linux, macOS, Android, iOS |
 | **Câmera** | Câmera 2D/3D com matrizes de projeção/visão, billboard, azimute, modo pixel-perfect |
 | **Shaders** | Sistema FX customizado com animação min/max por variável, suporte a PS + VS |
@@ -1514,11 +1526,19 @@ A tabela global `mbm` expõe a API core do motor para Lua (separada das tabelas 
 
 O Mini MBM inclui um conjunto de **editores visuais baseados em Lua** (na pasta `editor/`) que usam Dear ImGui. Estes editores rodam dentro do próprio motor e produzem arquivos binários otimizados para uso no jogo.
 
+Abra os projetos criados pelo antigo `scene_editor2d.lua` no **GUI Editor**. O novo editor de mundo 2D salva `*.scene2d-edit.lua` e exporta `*-scene2d.lua`; o formato 3D continua `*.scene3d-edit.lua`. Arraste com o botão esquerdo ou direito para mover a câmera 2D, use a roda para zoom no cursor e WASD/setas para navegar. Shift+arraste seleciona objetos; a rotação rápida usa o eixo Z.
+
+Arquivos salvos e exportados pelo GUI Editor usam caminhos de assets e scripts relativos ao arquivo. Mova o projeto junto com seus assets, mantendo a estrutura interna das pastas; o carregamento independe da pasta de execução. Caminhos absolutos antigos são recuperados quando o trecho final da pasta corresponde sem ambiguidade. Assets externos precisam continuar disponíveis ou acompanhar o projeto.
+
+No editor 2D, clicar em uma mesh existente seleciona mesmo com pincel ativo; Shift+clique alterna a seleção e Shift+arraste seleciona uma área. Cenas novas começam com luz ambiente neutra em RGB 230/255. Cenas antigas mantêm a iluminação salva: use **Restaurar ambiente neutro** no painel de iluminação. O modo 2DW usa luz ambiente e luzes pontuais; a luz direcional pertence ao 3D. Novas luzes pontuais 2D começam acima da camada ativa (+100 Z).
+
 | Editor | Script | Descrição |
 |---|---|---|
 | **Sprite Maker** | `sprite_maker.lua` | Cria animações a partir de imagens. Importa frames, define sequências de animação, configura shapes de colisão, prévia em tempo real. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker) |
 | **Font Maker** | `font_maker.lua` | Converte fontes TrueType (`.ttf`) para o formato binário (`.fnt`) bitmap do motor. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker) |
-| **Scene Editor 2D** | `scene_editor2d.lua` | Editor visual de cenas 2D. Inclui **simulador** — rode seu script Lua com o botão play. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d) |
+| **GUI Editor** | `gui_editor.lua` | Antigo editor 2D: painéis, âncoras, layouts independentes de resolução e prévia de scripts. Abre os projetos de GUI existentes sem conversão. |
+| **Scene Editor 2D** | `scene_editor2d.lua` | Cenas em `2dw`: camadas XY, profundidade Z, snap ortogonal/isométrico, iluminação, propriedades, seleção, undo/redo e exportação Lua. Compartilha abas e janelas com o 3D, com câmera de pan e zoom. |
+| **Scene Editor 3D** | `scene_editor3d.lua` | Cenas 3D com câmera orbital, camadas de piso/parede, snap, iluminação e exportação Lua. |
 | **Shader Editor** | `shader_editor.lua` | Cria e edita efeitos de shader (pixel + vertex) para qualquer tipo renderizável. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor) |
 | **Particle Editor** | `particle_editor.lua` | Projeta sistemas de partículas (`.ptl`) multi-estágio. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor) |
 | **Texture Packer** | `texture_packer.lua` | Empacota múltiplas texturas em sprite sheets otimizadas. |

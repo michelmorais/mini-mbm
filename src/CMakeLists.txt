@@ -2095,6 +2095,8 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias for mini-mbm"
         COMMAND cmake -E echo "---------------------------------------------"
         COMMAND cmake -E echo "alias lua='${PATH_BIN}/lua-${LUA_LIB_VERSION}.exe'" > ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias gui_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/gui_editor.lua  --nosplash --name gui_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias scene_editor2d='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor2d.lua  --nosplash --name scene_editor2d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias scene_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor2d.lua  --nosplash --name scene_editor2d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias scene_editor3d='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor3d.lua  --nosplash --name scene_editor3d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias sprite_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/sprite_maker.lua  --nosplash --name sprite_maker'" >> ${PATH_BIN}/shortcuts.sh
@@ -2173,6 +2175,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         COMMAND cmake -E echo "alias for mini-mbm"
         COMMAND cmake -E echo "---------------------------------------------"
         COMMAND cmake -E echo "alias lua='${PATH_BIN}/lua-${LUA_LIB_VERSION}'" > ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias gui_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/gui_editor.lua -w 1470 -h 900 --nosplash --name gui_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias scene_editor2d='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor2d.lua -w 1470 -h 900 --nosplash --name scene_editor2d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias scene_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor2d.lua -w 1470 -h 900 --nosplash --name scene_editor2d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias scene_editor3d='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor3d.lua -w 1470 -h 900 --nosplash --name scene_editor3d'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias sprite_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/sprite_maker.lua -w 1470 -h 900 --nosplash --name sprite_maker'" >> ${PATH_BIN}/shortcuts.sh

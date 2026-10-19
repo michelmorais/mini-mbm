@@ -28,6 +28,7 @@
 #define STR_PT_BR_SKELETAL_ANIMATION_EDITOR "Editor de Anima" "\xE7" "\xE3" "o Esquel" "\xE9" "tica"
 #define STR_PT_BR_PARTICLE_EDITOR           "Editor de Part" "\xED" "culas"
 #define STR_PT_BR_PHYSICS_EDITOR            "Editor de F" "\xED" "sica"
+#define STR_PT_BR_GUI_EDITOR                "Editor de GUI"
 #define STR_PT_BR_SCENE_2D_EDITOR           "Editor de Cena 2D"
 #define STR_PT_BR_SCENE_3D_EDITOR           "Editor de Cena 3D"
 #define STR_PT_BR_SHADER_EDITOR             "Editor de Shader"

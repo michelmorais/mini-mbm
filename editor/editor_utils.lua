@@ -682,7 +682,7 @@ tUtil.getShortName = function(str,quote)--given a directory name (get name split
 	return nil
 end
 
-tUtil.onAddMeshToEditor = function(fileName,insertIntoCenter,_2d_3d,sText)
+tUtil.onAddMeshToEditor = function(fileName,insertIntoCenter,_2d_3d,sText,createSelectionShape)
 	if fileName == nil then return nil end
 	local tInfo = meshDebug:getInfo(fileName)
 	if tInfo then
@@ -738,7 +738,9 @@ tUtil.onAddMeshToEditor = function(fileName,insertIntoCenter,_2d_3d,sText)
         end
 
         tMesh.type     = tInfo.type
-        tUtil.setShapeToMesh(tMesh)
+        -- GUI editors use this overlay and its transform wrappers. World editors own
+        -- their selection visuals and must opt out before the auxiliary shape is created.
+        if createSelectionShape ~= false then tUtil.setShapeToMesh(tMesh) end
         if insertIntoCenter then
             local iWs,iHs 	= mbm.getSizeScreen()
 			local x,y = mbm.to2dw(iWs/2,iHs/2)

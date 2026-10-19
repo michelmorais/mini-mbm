@@ -21,7 +21,7 @@
 ]]--
 
 -- Run from the repository root with the bundled Lua interpreter.
-local file = assert(io.open('editor/scene_editor3d.lua'))
+local file = assert(io.open('editor/scene_editor_world.lua'))
 local source = file:read('*a'); file:close()
 local env = setmetatable({}, {__index=_G})
 local function import(name)
@@ -30,6 +30,7 @@ local function import(name)
     assert(load(source:sub(start,finish-1), '@'..name, 't', env))()
 end
 local function near(a,b) assert(math.abs(a-b)<0.00001, tostring(a)..' ~= '..tostring(b)) end
+env.view={loader=function(code) return code end}
 local calls, undo = 0, 0
 local object = {
     setPos=function() end,
@@ -64,6 +65,8 @@ near(object.angles[2],0.7)
 local edits, last = {}, nil
 env.placedTransformAxes={rotation={'X','Z'},scale={'x','y','z'}}
 env.tLang={L=function(key) return key end}
+env.L=env.tLang.L
+env.primaryRotation='rotationY'
 env.tUtil={getShortName=function(name) return name end, pushResponsiveItemWidth=function() end}
 env.tMapOptions={sMapType='Orthogonal'}
 env.registerMeshSetEntry=function() end
