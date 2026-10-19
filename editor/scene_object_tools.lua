@@ -75,8 +75,8 @@ function M.nextGeometryId()
 end
 
 -- Same closest ray/axis parameter and parallel guard as the skeletal translation gizmo.
-function M.axisParameter(sx, sy, origin, axis)
-    local ox,oy,oz,dx,dy,dz = mbm.getPickRay(sx,sy)
+function M.axisParameter(sx, sy, origin, axis, pickRay)
+    local ox,oy,oz,dx,dy,dz = (pickRay or mbm.getPickRay)(sx,sy)
     local wx,wy,wz = ox-origin.x,oy-origin.y,oz-origin.z
     local parallel = dx*axis.x+dy*axis.y+dz*axis.z
     local denominator = 1-parallel*parallel
@@ -84,8 +84,8 @@ function M.axisParameter(sx, sy, origin, axis)
     return (axis.x*wx+axis.y*wy+axis.z*wz-parallel*(dx*wx+dy*wy+dz*wz))/denominator
 end
 
-function M.planeHit(sx, sy, origin, normal)
-    local ox,oy,oz,dx,dy,dz = mbm.getPickRay(sx,sy)
+function M.planeHit(sx, sy, origin, normal, pickRay)
+    local ox,oy,oz,dx,dy,dz = (pickRay or mbm.getPickRay)(sx,sy)
     local denominator = dx*normal.x+dy*normal.y+dz*normal.z
     if math.abs(denominator) < 1e-6 then return nil end
     local t = ((origin.x-ox)*normal.x+(origin.y-oy)*normal.y+(origin.z-oz)*normal.z)/denominator

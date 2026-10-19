@@ -28,6 +28,7 @@ dofile('editor/scene_editor3d.lua')
 local init=onInitScene
 local start,phase=0,0
 local scenes={}
+local unlitFixture
 function onInitScene()
     init()
     mbm.addPath('src/test-lib')
@@ -37,8 +38,13 @@ function onInitScene()
     tLightConfig.directionalColor={r=0,g=0,b=0,a=1}
     applyLightConfigToEngine()
     cam3d.azimuth=0; cam3d.elevation=0.2; cam3d.distance=400
-    local lit='src/test-lib/Crate.msh'
-    local unlit='./src/test-lib/Crate.msh'
+    local lit=(os.getenv('PWD') or '.')..'/src/test-lib/Crate.msh'
+    -- Distinct assets: './Crate.msh' aliases are normalized by scene serialization.
+    unlitFixture=os.tmpname()
+    local input=assert(io.open(lit,'rb'))
+    local output=assert(io.open(unlitFixture,'wb'))
+    output:write(input:read('*a'));input:close();output:close()
+    local unlit=unlitFixture
     tMeshOffsets[lit]={receiveLight=true}
     tMeshOffsets[unlit]={receiveLight=false}
     tMapOptions.sMapType='Free'
@@ -51,8 +57,8 @@ function onInitScene()
         assert(writeScene3d(path,async,true))
         local scene=assert(loadfile(path))()
         os.remove(path)
-        assert(scene.tMeshOffsets[lit].receiveLight==true)
-        assert(scene.tMeshOffsets[unlit].receiveLight==false)
+        assert(scene.tMeshOffsets[scene.tPlacedMeshInfo[1].fileName].receiveLight==true)
+        assert(scene.tMeshOffsets[scene.tPlacedMeshInfo[2].fileName].receiveLight==false)
         scenes[#scenes+1]=scene
     end
     assert(getMeshOffset('legacy').receiveLight==true)
@@ -82,6 +88,7 @@ function onLoop(delta)
     tImGui.End()
     if mbm.getTimeRun()-start>7 then
         assert(phase==1,'async scene did not finish')
+        os.remove(unlitFixture)
         print('LIGHTING SMOKE OK')
         mbm.quit()
     end

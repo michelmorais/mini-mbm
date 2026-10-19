@@ -109,7 +109,27 @@ function M.resolve(path, projectPath, exists)
         if found then return path end
         found = candidate
     end
-    return found or path
+    if found then return found end
+    -- Legacy absolute paths may name a project that has since been renamed.
+    -- Try structural suffixes only beside the scene and under its parent project;
+    -- never scan recursively or silently choose between duplicate candidates.
+    if absolute(path) then
+        local roots = {base, M.directory(base)}
+        local suffix = path:gsub('^%a:/', ''):gsub('^/+', '')
+        while suffix:find('/',1,true) do
+            suffix = suffix:match('^[^/]+/(.+)$')
+            local match
+            for _, root in ipairs(roots) do
+                local candidate = M.normalize(root .. '/' .. suffix)
+                if exists(candidate) then
+                    if match and match ~= candidate then return path end
+                    match = candidate
+                end
+            end
+            if match then return match end
+        end
+    end
+    return path
 end
 -- Recover absent legacy assets only when their containing directory can be
 -- located unambiguously. The missing filename remains visible to the user.

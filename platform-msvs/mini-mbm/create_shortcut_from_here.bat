@@ -5,7 +5,9 @@ rem -> Is expected all editors and executable in this same folder
 SETLOCAL
 @echo off
 set default_args="-w 800 -h 600 -nosplash --showconsole"
-CALL :CreateShortcutFromHere scene_editor,     scene_editor2d.lua,   %default_args%
+CALL :CreateShortcutFromHere gui_editor,       gui_editor.lua,       %default_args%
+CALL :CreateShortcutFromHere scene_editor2d,   scene_editor2d.lua,   %default_args%
+CALL :CreateShortcutFromHere scene_editor3d,   scene_editor3d.lua,   %default_args%
 CALL :CreateShortcutFromHere sprite_maker,     sprite_maker.lua,     %default_args%
 CALL :CreateShortcutFromHere sprite_maker_articulated, sprite_maker_articulated.lua, %default_args%
 CALL :CreateShortcutFromHere image_mesh_editor, image_mesh_editor.lua, %default_args%
