@@ -754,16 +754,21 @@ namespace mbm
                                                          boneIdCount, time, errorOut, errorOutLen);
     }
 
-    bool MESH::setFacialWeight(uint32_t target, float weight) noexcept
+    bool MESH::setFacialWeight(uint32_t target, float weight)
     {
-        if (!facialState || !facialState->ready || target >= facialState->weights.size() || !std::isfinite(weight)) return false;
+        if (!mesh || !facialState || !facialState->ready || target >= facialState->weights.size() || !std::isfinite(weight)) return false;
         const float clamped = std::max(0.0f, std::min(1.0f, weight));
-        if (facialState->weights[target] != clamped)
-        {
-            facialState->weights[target] = clamped;
-            facialState->dirty = true;
-        }
-        return true;
+        facialState->weights[target] = clamped;
+        facialState->manualOverrides[target] = 1;
+        facialState->dirty = true;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::setFacialWeightByName(const char *name, float weight)
+    {
+        if (!mesh) return false;
+        const uint32_t index = mesh->findFacialTarget(name);
+        return index != UINT32_MAX && setFacialWeight(index, weight);
     }
 
     bool MESH::getFacialWeight(uint32_t target, float *weight) const noexcept
@@ -771,6 +776,145 @@ namespace mbm
         if (!weight || !facialState || target >= facialState->weights.size()) return false;
         *weight = facialState->weights[target];
         return true;
+    }
+
+    bool MESH::getFacialWeightByName(const char *name, float *weight) const noexcept
+    {
+        if (!mesh) return false;
+        const uint32_t index = mesh->findFacialTarget(name);
+        return index != UINT32_MAX && getFacialWeight(index, weight);
+    }
+
+    bool MESH::clearFacialWeight(uint32_t target)
+    {
+        if (!mesh || !facialState || target >= facialState->weights.size() ||
+            target >= facialState->manualOverrides.size() || !facialState->manualOverrides[target]) return false;
+        facialState->manualOverrides[target] = 0;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::clearFacialWeightByName(const char *name)
+    {
+        if (!mesh) return false;
+        const uint32_t index = mesh->findFacialTarget(name);
+        return index != UINT32_MAX && clearFacialWeight(index);
+    }
+
+    bool MESH::resetFacialWeights()
+    {
+        if (!mesh || !facialState || facialState->manualOverrides.empty()) return false;
+        bool changed = false;
+        for (uint8_t &overrideValue : facialState->manualOverrides)
+        {
+            changed = changed || overrideValue != 0;
+            overrideValue = 0;
+        }
+        if (!changed) return true;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    uint32_t MESH::getTotalFacialTargets() const noexcept
+    {
+        return mesh ? mesh->getTotalFacialTargets() : 0;
+    }
+
+    const char *MESH::getFacialTargetName(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialTargetName(index) : nullptr;
+    }
+
+    uint64_t MESH::getFacialTargetId(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialTargetId(index) : 0;
+    }
+
+    const char *MESH::getFacialTargetConvention(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialTargetConvention(index) : nullptr;
+    }
+
+    float MESH::getFacialTargetDefaultWeight(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialTargetDefaultWeight(index) : 0.0f;
+    }
+
+    uint32_t MESH::getTotalFacialClips() const noexcept
+    {
+        return mesh ? mesh->getTotalFacialClips() : 0;
+    }
+
+    const char *MESH::getFacialClipName(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialClipName(index) : nullptr;
+    }
+
+    bool MESH::getFacialClipDuration(uint32_t index, float *duration) const noexcept
+    {
+        return mesh && mesh->getFacialClipDuration(index, duration);
+    }
+
+    bool MESH::playFacialAnimation(const char *name)
+    {
+        if (!mesh || !facialState || !facialState->ready) return false;
+        const uint32_t index = mesh->findFacialClip(name);
+        if (index == UINT32_MAX) return false;
+        facialState->clipIndex = index;
+        facialState->clipTime = 0.0f;
+        facialState->clipPlaying = true;
+        facialState->clipPaused = false;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::pauseFacialAnimation() noexcept
+    {
+        if (!facialState || facialState->clipIndex == UINT32_MAX || !facialState->clipPlaying) return false;
+        facialState->clipPaused = true;
+        return true;
+    }
+
+    bool MESH::resumeFacialAnimation() noexcept
+    {
+        if (!facialState || facialState->clipIndex == UINT32_MAX || !facialState->clipPlaying) return false;
+        facialState->clipPaused = false;
+        return true;
+    }
+
+    bool MESH::stopFacialAnimation()
+    {
+        if (!mesh || !facialState || facialState->clipIndex == UINT32_MAX) return false;
+        facialState->clipIndex = UINT32_MAX;
+        facialState->clipTime = 0.0f;
+        facialState->clipPlaying = false;
+        facialState->clipPaused = false;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::seekFacialAnimation(float time)
+    {
+        if (!mesh || !facialState || facialState->clipIndex == UINT32_MAX || !std::isfinite(time)) return false;
+        float duration = 0.0f;
+        if (!mesh->getFacialClipDuration(facialState->clipIndex, &duration)) return false;
+        facialState->clipTime = std::max(0.0f, std::min(duration, time));
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::getFacialAnimationTime(float *time) const noexcept
+    {
+        if (!time || !facialState || facialState->clipIndex == UINT32_MAX) return false;
+        *time = facialState->clipTime;
+        return true;
+    }
+
+    bool MESH::setFacialAnimationPlaybackSpeed(float speed) noexcept
+    {
+        if (!facialState || !std::isfinite(speed) || speed < 0.0f) return false;
+        facialState->clipSpeed = speed;
+        return true;
+    }
+
+    float MESH::getFacialAnimationPlaybackSpeed() const noexcept
+    {
+        return facialState ? facialState->clipSpeed : 1.0f;
     }
 
     void MESH::getFacialAnimationReport(FACIAL_ANIMATION_REPORT &out) const noexcept
@@ -782,7 +926,18 @@ namespace mbm
         out.deformationCount = facialState->evaluations;
         out.uploadCount = facialState->uploads;
         out.ready = facialState->ready && facialState->status == "ready";
-        out.executionPath = facialState->targetCount ? "cpu" : "none";
+        out.playing = facialState->clipPlaying;
+        out.paused = facialState->clipPaused;
+        out.clipIndex = facialState->clipIndex;
+        out.clipTime = facialState->clipTime;
+        out.playbackSpeed = facialState->clipSpeed;
+        if (mesh && facialState->clipIndex < mesh->getTotalFacialClips())
+        {
+            out.clipDuration = mesh->getFacialClipDurationValue(facialState->clipIndex);
+            out.clipName = mesh->getFacialClipName(facialState->clipIndex);
+        }
+        out.executionPath = !facialState->targetCount ? "none" :
+            (facialState->ready ? "cpu" : "unsupported");
         out.status = facialState->status.c_str();
     }
 
@@ -793,6 +948,8 @@ namespace mbm
         if (advancePose && !shared && mesh->hasActiveSkeletalAnimation(player) &&
             !mesh->updateSkeletalAnimation(player, DEVICE::getInstance()->delta, this, getOnEndAnimation()))
         { facialState->status = "facial-skeletal-update-failed"; return false; }
+        if (advancePose && !mesh->advanceFacial(*facialState, DEVICE::getInstance()->delta))
+        { facialState->status = "facial-clip-advance-failed"; return false; }
         const SKELETAL_ANIMATION_PLAYER *source = shared ?
             &skeletalPoseSharingState->source->getSkeletalAnimationPlayer() : &player;
         const uint64_t revision = facialState->evaluations;

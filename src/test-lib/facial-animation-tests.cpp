@@ -211,6 +211,12 @@ namespace
         expect(!facial::deform(invalid,base,normals,{0,0},p,n,error),"lit profile rejects missing normals even at zero");
         invalid=a; invalid.targets[0].normals[0]=VEC3(0,0,1);
         expect(!facial::deform(invalid,base,normals,{1,0},p,n,error),"degenerate normal rejected");
+        std::vector<float> sampled;
+        expect(facial::sampleClip(a,0,.5f,sampled,error) && sampled.size()==2 &&
+            std::fabs(sampled[0]-.5f)<1e-6f && std::fabs(sampled[1]-.25f)<1e-6f,
+            "linear facial clip sampling");
+        expect(facial::sampleClip(a,0,4.0f,sampled,error) && sampled[0]==1.0f && sampled[1]==.5f,
+            "facial clip sampling clamps to duration");
         // Representative allocation/workload size, synthetic and reproducible; no GPU capacity claim.
         facial::ASSET benchmark; benchmark.meshId=1; benchmark.geometrySignature=1; benchmark.vertexCount=20000;
         benchmark.targets.resize(52);
@@ -249,6 +255,9 @@ bool beginFacialRuntimeTests(const mbm::SCENE *scene)
     const auto path=(directory/"runtime.msh").string();
     if (!first->load(path.c_str()) || !second->load(path.c_str())) return false;
     first->setPosition(VEC3(-120,0,0)); second->setPosition(VEC3(120,0,0));
+    expect(first->getTotalFacialTargets()==2 && first->getTotalFacialClips()==1,
+        "facial target and clip enumeration");
+    expect(first->playFacialAnimation("expression"),"start facial clip");
     expect(first->playSkeletalAnimation("pose") && first->pauseSkeletalAnimation(),"start and pause skin pose");
     expect(!first->setFacialWeight(99,1) && !first->setFacialWeight(0,std::numeric_limits<float>::quiet_NaN()),"invalid runtime weight rejected");
     asyncMesh->loadAsync((directory/"async.msh").string().c_str(),[](bool ok){asyncDone=true;asyncOk=ok;});
@@ -264,13 +273,15 @@ int stepFacialRuntimeTests()
     first->getFacialAnimationReport(a); second->getFacialAnimationReport(b);
     if (tick==10)
     {
-        expect(a.ready && b.ready && a.targetCount==2 && a.clipCount==1 && a.uploadCount>0,"runtime drew both instances");
+        expect(a.ready && b.ready && a.targetCount==2 && a.clipCount==1 && a.uploadCount>0 &&
+            a.playing && a.clipName && std::strcmp(a.clipName,"expression")==0,
+            "runtime drew both instances and reports facial clip");
         baseline=a;
     }
     if (tick==20)
     {
         expect(a.deformationCount==baseline.deformationCount && a.uploadCount==baseline.uploadCount,"idle pose does not deform/upload");
-        expect(first->setFacialWeight(0,.5f) && first->setFacialWeight(1,.25f),"set simultaneous weights");
+        expect(first->setFacialWeightByName("jawOpen",.5f) && first->setFacialWeight(1,.25f),"set named and indexed weights");
     }
     if (tick==30)
     {
@@ -282,7 +293,8 @@ int stepFacialRuntimeTests()
     if (tick==40)
     {
         expect(a.deformationCount==changed.deformationCount && a.uploadCount==changed.uploadCount,"same weight stays idle");
-        expect(first->seekSkeletalAnimation(.5f),"seek skin pose with morphs active");
+        expect(first->clearFacialWeightByName("jawOpen") && first->seekFacialAnimation(.5f) &&
+            first->seekSkeletalAnimation(.5f),"seek facial and skin poses with morphs active");
     }
     if (tick==50)
     {

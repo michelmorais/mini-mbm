@@ -43,4 +43,5 @@ The first runtime path is Linux OpenGL ES with triangle meshes and dynamic CPU v
 rejects explicit GPU skeletal execution, dual-quaternion skinning, normal-map material assets, and
 custom vertex shaders for facial meshes. Geometry signatures cover positions, normals, indices,
 vertex order, and counts; UV/subset remapping is deferred with the rest of the geometry-edit work.
-Facial clips are persisted and reported, while playback controls and Lua enumeration are Phase 2.
+Facial clips are persisted and reported; playback controls and Lua enumeration are delivered in
+[Phase 2](realtime-facial-animation-phase2.md). Import/editor integration remains Phase 3.

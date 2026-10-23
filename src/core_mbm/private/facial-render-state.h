@@ -29,13 +29,17 @@ namespace mbm::facial
     {
         BUFFER_MESH buffer;
         INFO_PHYSICS bounds;
-        std::vector<float> weights, palette;
+        std::vector<float> weights, sampledWeights, palette;
+        std::vector<uint8_t> manualOverrides;
         std::vector<VEC3> morphPositions, morphNormals, positions, normals;
         std::vector<int> vertexStarts, vertexCounts;
         std::string status = "no-facial-data";
         uint32_t targetCount = 0, clipCount = 0;
+        uint32_t clipIndex = UINT32_MAX;
+        float clipTime = 0.0f, clipSpeed = 1.0f;
         uint64_t evaluations = 0, uploads = 0;
         bool ready = false, dirty = true, uploadDirty = true, initialized = false;
+        bool clipPlaying = false, clipPaused = false;
         bool hadSkin = false, poseAdvancedForRender = false;
         RENDER_STATE() { bounds.lsCube.push_back(new CUBE()); }
     };

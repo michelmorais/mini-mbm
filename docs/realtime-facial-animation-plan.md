@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 1 asset format and CPU runtime slice complete; Phase 2 controls pending**
+Status: **Phase 2 per-instance controls and Lua surface complete; Phase 3 import/editor work pending**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -9,7 +9,8 @@ the V11 payload contract, and CPU runtime validation are in
 [Phase 1 asset and runtime slice](realtime-facial-animation-phase1.md). The generated Blender
 5.1.2 fixture preserves vertex association and sampled weights through the helper, FBX and GLB.
 The canonical initial route is `.blend` through the existing Blender helper. A real baked Faceit
-character and custom-normal fidelity remain integration acceptance items for later phases.
+character and custom-normal fidelity remain integration acceptance items for later phases. Phase 2
+evidence and the Lua contract are in [Facial controls and playback](realtime-facial-animation-phase2.md).
 
 ## 1. Purpose
 
@@ -81,6 +82,8 @@ Deliverable: a `.msh` round trip and an inspectable runtime report showing targe
 active execution path, and validation failures.
 
 ### Phase 2: Runtime and Lua controls
+
+**Completed for per-instance controls on 2026-10-23.**
 
 Add per-instance APIs to:
 

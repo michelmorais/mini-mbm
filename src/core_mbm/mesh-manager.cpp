@@ -12202,6 +12202,13 @@ namespace mbm
             if (impl->skeletalBindHasNormals && target.normals.empty()) return fail("facial-normal-deltas-required");
             state.weights.push_back(target.defaultWeight);
         }
+        state.manualOverrides.assign(asset.targets.size(), 0);
+        state.sampledWeights.resize(asset.targets.size());
+        state.clipIndex = UINT32_MAX;
+        state.clipTime = 0.0f;
+        state.clipSpeed = 1.0f;
+        state.clipPlaying = false;
+        state.clipPaused = false;
         state.vertexStarts.reserve(impl->buffer[0].totalSubset);
         state.vertexCounts.reserve(impl->buffer[0].totalSubset);
         for (uint32_t i=0;i<impl->buffer[0].totalSubset;++i)
@@ -12211,6 +12218,125 @@ namespace mbm
         }
         state.ready = true;
         return prepareFacial(state, nullptr);
+    }
+
+    uint32_t MESH_MBM::findFacialTarget(const char *name) const noexcept
+    {
+        if (!name || !name[0]) return UINT32_MAX;
+        for (uint32_t index = 0; index < impl->facialAsset.targets.size(); ++index)
+            if (impl->facialAsset.targets[index].name == name) return index;
+        return UINT32_MAX;
+    }
+
+    uint32_t MESH_MBM::findFacialClip(const char *name) const noexcept
+    {
+        if (!name || !name[0]) return UINT32_MAX;
+        for (uint32_t index = 0; index < impl->facialAsset.clips.size(); ++index)
+            if (impl->facialAsset.clips[index].name == name) return index;
+        return UINT32_MAX;
+    }
+
+    uint32_t MESH_MBM::getTotalFacialTargets() const noexcept
+    {
+        return static_cast<uint32_t>(impl->facialAsset.targets.size());
+    }
+
+    const char *MESH_MBM::getFacialTargetName(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].name.c_str() : nullptr;
+    }
+
+    uint64_t MESH_MBM::getFacialTargetId(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].id : 0;
+    }
+
+    const char *MESH_MBM::getFacialTargetConvention(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].convention.c_str() : nullptr;
+    }
+
+    float MESH_MBM::getFacialTargetDefaultWeight(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].defaultWeight : 0.0f;
+    }
+
+    uint32_t MESH_MBM::getTotalFacialClips() const noexcept
+    {
+        return static_cast<uint32_t>(impl->facialAsset.clips.size());
+    }
+
+    const char *MESH_MBM::getFacialClipName(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.clips.size() ? impl->facialAsset.clips[index].name.c_str() : nullptr;
+    }
+
+    bool MESH_MBM::getFacialClipDuration(const uint32_t index, float *duration) const noexcept
+    {
+        if (!duration || index >= impl->facialAsset.clips.size()) return false;
+        *duration = impl->facialAsset.clips[index].duration;
+        return true;
+    }
+
+    float MESH_MBM::getFacialClipDurationValue(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.clips.size() ? impl->facialAsset.clips[index].duration : 0.0f;
+    }
+
+    bool MESH_MBM::refreshFacialWeights(facial::RENDER_STATE &state) const
+    {
+        if (!state.targetCount) return false;
+        std::vector<float> &next = state.sampledWeights;
+        next.assign(state.targetCount, 0.0f);
+        for (uint32_t index = 0; index < state.targetCount; ++index)
+            next[index] = impl->facialAsset.targets[index].defaultWeight;
+        if (state.clipIndex != UINT32_MAX)
+        {
+            std::string error;
+            if (!facial::sampleClip(impl->facialAsset, state.clipIndex, state.clipTime, next, error))
+            {
+                state.status = error;
+                return false;
+            }
+        }
+        for (uint32_t index = 0; index < state.targetCount; ++index)
+            if (index < state.manualOverrides.size() && state.manualOverrides[index])
+                next[index] = state.weights[index];
+        if (next != state.weights)
+        {
+            state.weights = next;
+            state.dirty = true;
+        }
+        return true;
+    }
+
+    bool MESH_MBM::advanceFacial(facial::RENDER_STATE &state, const float delta) const
+    {
+        if (!state.targetCount || state.clipIndex == UINT32_MAX || !state.clipPlaying || state.clipPaused)
+            return true;
+        if (!std::isfinite(delta) || delta <= 0.0f || !std::isfinite(state.clipSpeed) || state.clipSpeed < 0.0f)
+            return false;
+        const facial::CLIP &clip = impl->facialAsset.clips[state.clipIndex];
+        if (clip.duration <= 0.0f)
+        {
+            state.clipTime = 0.0f;
+            state.clipPlaying = false;
+            return refreshFacialWeights(state);
+        }
+        const float advance = delta * state.clipSpeed;
+        if (!std::isfinite(advance)) return false;
+        const float next = state.clipTime + advance;
+        if (!std::isfinite(next)) return false;
+        if (clip.loop)
+            state.clipTime = std::fmod(next, clip.duration);
+        else if (next >= clip.duration)
+        {
+            state.clipTime = clip.duration;
+            state.clipPlaying = false;
+        }
+        else
+            state.clipTime = next;
+        return refreshFacialWeights(state);
     }
 
     bool MESH_MBM::prepareFacial(facial::RENDER_STATE &state, const SKELETAL_ANIMATION_PLAYER *player) const

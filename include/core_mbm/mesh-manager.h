@@ -832,8 +832,21 @@ namespace mbm
                                    const SKELETAL_ANIMATION_PLAYER *player = nullptr,
                                    const char **reason = nullptr) const noexcept;
         bool initializeFacial(facial::RENDER_STATE &state) const;
+        bool refreshFacialWeights(facial::RENDER_STATE &state) const;
+        bool advanceFacial(facial::RENDER_STATE &state, float delta) const;
         bool prepareFacial(facial::RENDER_STATE &state, const SKELETAL_ANIMATION_PLAYER *player) const;
         bool renderFacial(facial::RENDER_STATE &state, const SHADER *shader, const RENDERIZABLE *owner) const;
+        uint32_t findFacialTarget(const char *name) const noexcept;
+        uint32_t findFacialClip(const char *name) const noexcept;
+        uint32_t getTotalFacialTargets() const noexcept;
+        const char *getFacialTargetName(uint32_t index) const noexcept;
+        uint64_t getFacialTargetId(uint32_t index) const noexcept;
+        const char *getFacialTargetConvention(uint32_t index) const noexcept;
+        float getFacialTargetDefaultWeight(uint32_t index) const noexcept;
+        uint32_t getTotalFacialClips() const noexcept;
+        const char *getFacialClipName(uint32_t index) const noexcept;
+        bool getFacialClipDuration(uint32_t index, float *duration) const noexcept;
+        float getFacialClipDurationValue(uint32_t index) const noexcept;
         bool renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
                                const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
                                std::vector<VEC3> &positions, std::vector<VEC3> &normals,

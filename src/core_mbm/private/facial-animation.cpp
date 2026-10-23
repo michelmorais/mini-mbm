@@ -240,6 +240,40 @@ namespace mbm::facial
         return true;
     }
 
+    bool sampleClip(const ASSET &a, const uint32_t clipIndex, const float time,
+                    std::vector<float> &weights, std::string &error)
+    {
+        if (clipIndex >= a.clips.size() || !std::isfinite(time) || time < 0.0f)
+            return fail(error, "facial-clip-index-or-time-invalid");
+        const CLIP &clip = a.clips[clipIndex];
+        if (clip.keys.empty()) return fail(error, "facial-clip-has-no-keys");
+        const float clamped = std::min(time, clip.duration);
+        const KEY *left = &clip.keys.front();
+        const KEY *right = left;
+        for (size_t index = 1; index < clip.keys.size(); ++index)
+        {
+            if (clamped <= clip.keys[index].time)
+            {
+                right = &clip.keys[index];
+                left = &clip.keys[index - 1];
+                break;
+            }
+            left = right = &clip.keys[index];
+        }
+        weights.resize(a.targets.size());
+        if (left == right || clip.interpolation == 0 || right->time <= left->time)
+        {
+            weights = left->weights;
+            error.clear();
+            return true;
+        }
+        const float alpha = (clamped - left->time) / (right->time - left->time);
+        for (size_t index = 0; index < weights.size(); ++index)
+            weights[index] = left->weights[index] + (right->weights[index] - left->weights[index]) * alpha;
+        error.clear();
+        return true;
+    }
+
     bool deform(const ASSET &a, const std::vector<VEC3> &basePositions, const std::vector<VEC3> &baseNormals,
                  const std::vector<float> &weights, std::vector<VEC3> &p, std::vector<VEC3> &n, std::string &error)
     {

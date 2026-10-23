@@ -76,6 +76,8 @@ namespace mbm::facial
     bool readClips(util::MEM_CURSOR_V11 &cursor, uint16_t version, ASSET &out, std::string &error);
     bool writeTargets(FILE *file, const ASSET &asset);
     bool writeClips(FILE *file, const ASSET &asset);
+    bool sampleClip(const ASSET &asset, uint32_t clipIndex, float time,
+                   std::vector<float> &weights, std::string &error);
     // Evaluates only immutable bind data; output buffers are caller/instance-owned.
     bool deform(const ASSET &asset, const std::vector<VEC3> &basePositions,
                  const std::vector<VEC3> &baseNormals, const std::vector<float> &weights,
