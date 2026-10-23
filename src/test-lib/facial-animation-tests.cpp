@@ -261,6 +261,81 @@ int runFacialFoundationTests()
     return failures?1:0;
 }
 
+int runFacialPerformanceBenchmark()
+{
+    struct PROFILE
+    {
+        const char *name;
+        uint32_t vertices;
+        uint32_t targets;
+        uint32_t active;
+    };
+    constexpr PROFILE profiles[] = {
+        {"small", 5000, 16, 4},
+        {"medium", 20000, 52, 8},
+        {"large", 40000, 52, 8},
+    };
+    bool passed = true;
+    for (const PROFILE &profile : profiles)
+    {
+        facial::ASSET asset;
+        asset.meshId = 1;
+        asset.geometrySignature = 1;
+        asset.vertexCount = profile.vertices;
+        asset.targets.resize(profile.targets);
+        for (uint32_t targetIndex = 0; targetIndex < profile.targets; ++targetIndex)
+        {
+            facial::TARGET &target = asset.targets[targetIndex];
+            target.id = targetIndex + 1;
+            target.name = std::to_string(targetIndex);
+            target.positions.assign(profile.vertices, VEC3(0.001f, 0.0f, 0.0f));
+            target.normals.assign(profile.vertices, VEC3());
+        }
+        std::vector<VEC3> base(profile.vertices, VEC3());
+        std::vector<VEC3> normals(profile.vertices, VEC3(0.0f, 0.0f, 1.0f));
+        std::vector<float> weights(profile.targets, 0.0f);
+        std::fill_n(weights.begin(), profile.active, 0.5f);
+        std::vector<VEC3> positions, outputNormals;
+        std::string error;
+        for (unsigned warmup = 0; warmup < 3; ++warmup)
+        {
+            if (!facial::deform(asset, base, normals, weights, positions, outputNormals, error))
+            {
+                std::fprintf(stderr, "FACIAL PERF FAIL profile=%s error=%s\n", profile.name,
+                             error.c_str());
+                return 1;
+            }
+        }
+        std::vector<double> samples;
+        samples.reserve(12);
+        for (unsigned sample = 0; sample < 12; ++sample)
+        {
+            const auto start = std::chrono::steady_clock::now();
+            if (!facial::deform(asset, base, normals, weights, positions, outputNormals, error))
+            {
+                std::fprintf(stderr, "FACIAL PERF FAIL profile=%s error=%s\n", profile.name,
+                             error.c_str());
+                return 1;
+            }
+            samples.push_back(std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - start).count());
+        }
+        std::sort(samples.begin(), samples.end());
+        const double median = samples[samples.size() / 2];
+        const double p95 = samples[std::min(samples.size() - 1, (samples.size() * 95) / 100)];
+        const uint64_t deltaBytes = static_cast<uint64_t>(profile.vertices) * profile.targets *
+            static_cast<uint64_t>(sizeof(VEC3)) * 2u;
+        std::printf("FACIAL PERF profile=%s vertices=%u targets=%u active=%u medianMs=%.3f p95Ms=%.3f "
+                    "deltaBytes=%llu reference=cpu\n", profile.name, profile.vertices,
+                    profile.targets, profile.active, median, p95,
+                    static_cast<unsigned long long>(deltaBytes));
+        passed = passed && !positions.empty() && positions.size() == profile.vertices;
+    }
+    std::printf("FACIAL PERFORMANCE %s (reference CPU; no hard hardware threshold)\n",
+                passed ? "PASS" : "FAIL");
+    return passed ? 0 : 1;
+}
+
 bool beginFacialRuntimeTests(const mbm::SCENE *scene)
 {
     failures=0; tick=0; asyncDone=false; asyncOk=false;

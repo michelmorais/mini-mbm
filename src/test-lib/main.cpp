@@ -399,6 +399,7 @@ namespace
 //        testLib --launcher-args-test (Windows UTF-8 argument lifetime regression)
 //        testLib --normal-map-preparation-tests
 //        testLib --skeletal-foundation-tests
+//        testLib --facial-performance-benchmark
 //        testLib --animation-zero-interval-test
 //        testLib --gles-dqs-shader-test
 //        testLib --gles-skeletal-parity-test
@@ -517,6 +518,8 @@ static int runTestLib(int argc, char **argv
 #endif
     if (argc == 2 && std::strcmp(argv[1], "--facial-foundation-tests") == 0)
         return runFacialFoundationTests();
+    if (argc == 2 && std::strcmp(argv[1], "--facial-performance-benchmark") == 0)
+        return runFacialPerformanceBenchmark();
     GAME game;
     if (argc == 2 && std::strcmp(argv[1], "--facial-runtime-test") == 0)
     {

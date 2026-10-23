@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 3 Blender/Faceit import, Mesh Debug preview, `.blend` reverse export, and automated direct-MSH round trip complete; FBX facial-curve round trip pending**
+Status: **Phase 4 CPU performance profile complete; GPU morph path not yet justified; FBX facial-curve round trip pending**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -13,6 +13,7 @@ character and custom-normal fidelity remain integration acceptance items for lat
 evidence and the Lua contract are in [Facial controls and playback](realtime-facial-animation-phase2.md).
 The Phase 3 editor decision and implementation slice are in
 [Blender import and Mesh Debug preview](realtime-facial-animation-phase3.md).
+The first Phase 4 performance profile is in [CPU performance profile](realtime-facial-animation-phase4.md).
 
 ## 1. Purpose
 
@@ -120,6 +121,14 @@ Deliverable: edit/import, save, reload, preview, export, and re-import a fixture
 target identity or animation curves.
 
 ### Phase 4: Backend optimization and capture workflows
+
+**Initial CPU profile completed on 2026-10-23.** The testLib benchmark now measures small, medium,
+and large synthetic profiles and reports median/p95 timings and dense delta memory. The current
+reference path is approximately 9.6 ms median for 20,000 vertices, 52 targets, and 8 active targets
+on the development Linux build. This is evidence for a later decision, not a hardware-independent
+budget. The reference loop already skips zero-weight targets; a measured two-pass active-target
+experiment did not improve the medium profile, so GPU morph evaluation remains deferred until
+representative game meshes or a target backend show that the CPU path is insufficient.
 
 Measure the CPU reference path on representative face meshes and target counts. If the measured cost
 requires it, add GPU morph evaluation for explicitly selected backends, with CPU fallback where

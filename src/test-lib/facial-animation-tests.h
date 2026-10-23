@@ -21,6 +21,7 @@
 #define FACIAL_ANIMATION_TESTS_H
 namespace mbm { class SCENE; }
 int runFacialFoundationTests();
+int runFacialPerformanceBenchmark();
 bool beginFacialRuntimeTests(const mbm::SCENE *scene);
 int stepFacialRuntimeTests(); // 0 running, 1 passed, -1 failed
 void endFacialRuntimeTests();
