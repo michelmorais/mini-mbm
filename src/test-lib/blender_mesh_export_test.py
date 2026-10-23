@@ -311,6 +311,7 @@ class BlenderMeshExportTests(unittest.TestCase):
 
     def test_facial_reverse_metadata_ids_accept_hex_and_fallback(self) -> None:
         self.assertEqual(EXPORTER.facial_metadata_id("0011223344556677", 0), 0x0011223344556677)
+        self.assertEqual(EXPORTER.facial_metadata_id(301, 0), 301)
         self.assertEqual(EXPORTER.facial_metadata_id("not-an-id", 99), 99)
         self.assertEqual(EXPORTER.facial_metadata_id(None, 101), 101)
 

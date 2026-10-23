@@ -44,6 +44,12 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"Could not load {EXPORTER_PATH}")
 EXPORTER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(EXPORTER)
+IMPORTER_PATH = ROOT / "editor" / "blender_mesh_export.py"
+IMPORTER_SPEC = importlib.util.spec_from_file_location("blender_mesh_export", IMPORTER_PATH)
+if IMPORTER_SPEC is None or IMPORTER_SPEC.loader is None:
+    raise RuntimeError(f"Could not load {IMPORTER_PATH}")
+IMPORTER = importlib.util.module_from_spec(IMPORTER_SPEC)
+IMPORTER_SPEC.loader.exec_module(IMPORTER)
 
 
 def payload() -> dict:
@@ -73,11 +79,11 @@ def payload() -> dict:
                  "normalDeltas": zero_normals},
             ],
             "clips": [
-                {"id": "301", "name": "FaceIdle", "duration": 1.0, "loop": True, "interpolation": 1,
+                {"id": 301, "name": "FaceIdle", "duration": 1.0, "loop": True, "interpolation": 1,
                  "keys": [{"time": 0.0, "weights": [0.0, 0.1]},
                           {"time": 0.5, "weights": [0.4, 0.2]},
                           {"time": 1.0, "weights": [0.0, 0.1]}]},
-                {"id": "302", "name": "FaceBlink", "duration": 0.25, "loop": False, "interpolation": 0,
+                {"id": 302, "name": "FaceBlink", "duration": 0.25, "loop": False, "interpolation": 0,
                  "keys": [{"time": 0.0, "weights": [0.0, 0.0]},
                           {"time": 0.125, "weights": [1.0, 0.0]},
                           {"time": 0.25, "weights": [0.0, 0.0]}]},
@@ -130,6 +136,22 @@ def verify(path: Path) -> None:
             raise AssertionError(f"{name} interpolation changed")
 
 
+def verify_fbx(path: Path) -> None:
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.fbx(filepath=str(path), use_custom_normals=False)
+    args = type("FacialArgs", (), {"include_facial": True, "debug_steps": False,
+                                    "facial_normal_deltas": False})()
+    source = IMPORTER.discover_facial_source(bpy.context.scene, args)
+    if source is None or len(source.get("clipPayload", [])) != 2:
+        raise AssertionError("FBX facial clip metadata was not restored")
+    specs = IMPORTER.facial_clip_specs(source, [], bpy.context.scene)
+    clips = IMPORTER.sample_facial_clips(bpy.context.scene, source, specs, 24.0, args)
+    if len(clips) != 2 or clips[0]["id"] != 301 or clips[0]["keys"][1]["weights"] != [0.4, 0.2]:
+        raise AssertionError("FBX facial weights were not restored")
+    if clips[1]["id"] != 302 or clips[1]["interpolation"] != "step" or clips[1]["keys"][1]["weights"] != [1.0, 0.0]:
+        raise AssertionError("FBX facial step clip was not restored")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", required=True)
@@ -147,8 +169,12 @@ def main() -> int:
         raise AssertionError(f"unexpected build counts: targets={target_count} actions={action_count}")
     bpy.ops.wm.save_as_mainfile(filepath=str(output))
     verify(output)
+    fbx_output = output_dir / "facial-curve-roundtrip.fbx"
+    mesh_obj = next(obj for obj in bpy.data.objects if obj.type == "MESH")
+    EXPORTER.prepare_and_export(mesh_obj, None, str(fbx_output), action_count, False)
+    verify_fbx(fbx_output)
     print("BLENDER FACIAL CURVE ROUNDTRIP PASS", json.dumps({"targets": target_count,
-          "actions": action_count, "output": str(output)}), flush=True)
+          "actions": action_count, "fbx": str(fbx_output), "output": str(output)}), flush=True)
     return 0
 
 

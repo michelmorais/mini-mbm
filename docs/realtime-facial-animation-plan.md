@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 4 sparse CPU optimization and facial-plus-skeletal validation complete; `.blend` facial-curve round trip validated; GPU morph path not yet justified; FBX facial-curve round trip pending**
+Status: **Phase 4 sparse CPU optimization and facial-plus-skeletal validation complete; Blender facial-curve interchange validated for `.blend` and MeshDebug-owned FBX; GPU morph path not yet justified**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -145,8 +145,10 @@ Blender `.blend`/MSH workflow. The route is covered by a headless Blender 5.1 re
 reloads the generated file and checks target names, metadata, clip Actions, timestamps, weights,
 and both linear and step interpolation.
 
-The next milestone is to evaluate and document reliable FBX facial-curve transport before
-choosing a live capture producer.
+MeshDebug-owned FBX exports now carry a serialized facial clip payload in mesh custom properties.
+When Blender's FBX importer drops the original Shape Key Actions, the direct MSH importer restores
+clips from that payload. Arbitrary external FBX files without this metadata still provide target
+geometry only, so the next milestone is to evaluate a live capture producer and its naming contract.
 
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
 rigged facial-plus-skeletal asset. If the measured cost still requires it, add GPU morph evaluation

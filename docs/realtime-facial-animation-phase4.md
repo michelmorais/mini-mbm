@@ -88,4 +88,6 @@ without making the test depend on a window or a manually selected file.
 The facial clip interchange milestone is also covered by
 `src/test-lib/blender_facial_curve_roundtrip_test.py`. It reloads the generated Blender project
 and checks both linear and step Actions; this caught and fixed an explicit-zero interpolation bug
-in the reverse exporter. Reliable FBX facial-curve transport remains the next interchange scope.
+in the reverse exporter. The same regression exports and reimports FBX, confirming that the
+MeshDebug-owned custom-property payload restores the clips after Blender drops the original
+Actions. External FBX files without that payload remain geometry-only for facial animation.

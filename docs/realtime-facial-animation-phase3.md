@@ -45,15 +45,20 @@ later.
   headlessly and verifies facial target metadata, multiple named Actions, sampled keyframes, and
   both linear and step interpolation. Explicit V11 interpolation value `0` is preserved as a
   Blender `CONSTANT` curve instead of being coerced to linear.
+- MeshDebug-owned FBX exports store the sampled facial clip payload as a mesh custom property. The
+  direct Blender importer uses that payload when FBX has preserved shape keys but dropped their
+  Actions, restoring named clips, weights, durations, and interpolation without changing the MSH
+  facial contract.
 
 ## Scope boundary
 
 The stream/intermediate Lua exporter does not author facial sections; the normal direct-MSH import
 path is the supported route. Facial edits that reorder or resize frame-0 geometry remain rejected by
 the runtime. Direct Blender -> MSH import and Mesh Debug -> `.blend` export are the supported
-acceptance paths in this slice. FBX export preserves shape-key geometry in the tested Blender
-version, but FBX facial Actions are not restored on re-import; reliable FBX curve transport,
-authoring new dense targets, and editing facial curves inside mini-mbm remain future work.
+acceptance paths in this slice. MeshDebug-owned FBX export preserves shape-key geometry and carries
+its facial clips through mesh custom properties; arbitrary external FBX files may still omit those
+properties and therefore expose geometry without clips. Authoring new dense targets and editing
+facial curves inside mini-mbm remain future work.
 
 ## Validation
 
@@ -61,7 +66,8 @@ The pure exporter tests cover the V11 geometry signature, signed-zero canonicali
 and clip payload headers. Lua preflight covers the new playback module and the existing Mesh Debug
 script. Blender 5.1 fixture execution covers `.blend` shape-key/action creation; FBX geometry is
 present after re-import, and the direct MSH acceptance route is checked from the same fixture while
-facial curves are intentionally recorded as a remaining limitation for FBX.
+MeshDebug-owned FBX curve transport is checked through the custom-property fallback; external FBX
+curve transport remains dependent on the source file carrying the mini-mbm metadata.
 
 Run the reverse-curve regression with:
 

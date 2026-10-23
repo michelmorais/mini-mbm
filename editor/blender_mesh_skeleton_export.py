@@ -323,7 +323,8 @@ def build_facial_shape_keys(data: dict, mesh_obj, rotation_deg: tuple[float, flo
         key_block.value = float(target.get("defaultWeight") or 0.0)
         key_block.slider_min = 0.0
         key_block.slider_max = 1.0
-        target_ids.append(str(target.get("id") or "0"))
+        target_id = target.get("id")
+        target_ids.append(target_id if isinstance(target_id, (int, float)) else str(target_id or "0"))
         target_conventions.append(str(target.get("convention") or ""))
         target_defaults.append(float(target.get("defaultWeight") or 0.0))
     mesh_obj.data["mini_mbm_facial_mesh_id"] = str(facial.get("meshId") or "0")
@@ -359,16 +360,19 @@ def build_facial_animation_actions(data: dict, mesh_obj, target_names: list[str]
     shape_keys = mesh_obj.data.shape_keys
     shape_keys.animation_data_create()
     built = 0
+    metadata_clips = []
     for clip_index, clip in enumerate(clips):
         keys = clip.get("keys") or []
         if not keys:
             continue
         action_name = str(clip.get("name") or f"FacialClip_{clip_index + 1}")
         interpolation = facial_clip_interpolation(clip)
+        metadata_keys = []
         action = bpy.data.actions.new(name=action_name)
         action.use_fake_user = True
         action["mini_mbm_loop"] = bool(clip.get("loop", False))
-        action["mini_mbm_clip_id"] = str(clip.get("id") or "0")
+        clip_id = clip.get("id")
+        action["mini_mbm_clip_id"] = clip_id if isinstance(clip_id, (int, float)) else str(clip_id or "0")
         action["mini_mbm_interpolation"] = "step" if interpolation == 0 else "linear"
         shape_keys.animation_data.action = action
         curves = []
@@ -393,6 +397,10 @@ def build_facial_animation_actions(data: dict, mesh_obj, target_names: list[str]
             if len(weights) != len(target_names):
                 raise RuntimeError(f"Facial clip '{action_name}' key {key_index} has {len(weights)} "
                                    f"weights; expected {len(target_names)}.")
+            metadata_keys.append({
+                "time": float(key.get("time") or 0.0),
+                "weights": [float(weight or 0.0) for weight in weights],
+            })
             for target_index, curve in enumerate(curves):
                 coordinates = curve_values[curve]
                 coordinates[key_index * 2] = frame
@@ -404,8 +412,21 @@ def build_facial_animation_actions(data: dict, mesh_obj, target_names: list[str]
                 keyframe.interpolation = interpolation_name
             curve.update()
         built += 1
+        metadata_clips.append({
+            "id": clip_id if isinstance(clip_id, (int, float)) else str(clip_id or "0"),
+            "name": action_name,
+            "duration": float(clip.get("duration") or 0.0),
+            "loop": bool(clip.get("loop", False)),
+            "interpolation": "step" if interpolation == 0 else "linear",
+            "keys": metadata_keys,
+        })
         debug_print(debug, f"facial action built: {action_name} ({len(keys)} keys at {sample_rate} FPS)")
     shape_keys.animation_data.action = None
+    # Blender's FBX exporter/importer preserves mesh custom properties but commonly drops shape-key
+    # Actions. Keep the sampled clip payload beside the target metadata so Mesh Debug can restore
+    # authored facial clips when this is one of its own FBX exports.
+    mesh_obj.data["mini_mbm_facial_clip_sample_rate"] = sample_rate
+    mesh_obj.data["mini_mbm_facial_clips"] = json.dumps(metadata_clips, separators=(",", ":"))
     scene.frame_end = max(scene.frame_end, maximum_frame)
     scene.frame_set(1)
     return built

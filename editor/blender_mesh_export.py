@@ -1526,6 +1526,15 @@ def discover_facial_source(scene: Any, args: argparse.Namespace) -> dict[str, An
         except (TypeError, ValueError):
             return []
         return value if isinstance(value, list) else []
+    # Blender's FBX importer may preserve the shape keys and mesh custom properties while dropping
+    # the shape-key Actions. MeshDebug-owned FBX exports use this payload as a curve fallback.
+    raw_clip_payload = obj.data.get("mini_mbm_facial_clips")
+    try:
+        clip_payload = json.loads(str(raw_clip_payload)) if raw_clip_payload else []
+    except (TypeError, ValueError):
+        clip_payload = []
+    if not isinstance(clip_payload, list):
+        clip_payload = []
     return {
         "object": obj,
         "keys": keys,
@@ -1534,6 +1543,7 @@ def discover_facial_source(scene: Any, args: argparse.Namespace) -> dict[str, An
         "targetIds": metadata_list("mini_mbm_facial_target_ids"),
         "targetConventions": metadata_list("mini_mbm_facial_target_conventions"),
         "targetDefaults": metadata_list("mini_mbm_facial_target_defaults"),
+        "clipPayload": clip_payload,
     }
 
 
@@ -1542,7 +1552,8 @@ def facial_clip_specs(source: dict[str, Any], clips: list[dict[str, Any]], scene
     if clips:
         return [dict(clip) for clip in clips]
     if action is None:
-        return []
+        return [dict(clip) for clip in source.get("clipPayload", [])
+                if isinstance(clip, dict) and isinstance(clip.get("keys"), list)]
     start, end = action_frame_range(action)
     return [{"name": str(action.name or "Face"), "id": action.get("mini_mbm_clip_id"),
              "interpolation": action.get("mini_mbm_interpolation", "linear"),
@@ -1551,9 +1562,16 @@ def facial_clip_specs(source: dict[str, Any], clips: list[dict[str, Any]], scene
 
 
 def facial_metadata_id(value: Any, fallback: int) -> int:
-    """Reads the hexadecimal ids stored by the reverse Blender exporter."""
+    """Reads numeric ids and hexadecimal strings stored by the reverse Blender exporter."""
     if value is None or value == "":
         return fallback
+    if isinstance(value, bool):
+        return fallback
+    if isinstance(value, int):
+        return value or fallback
+    if isinstance(value, float) and math.isfinite(value) and value.is_integer():
+        parsed = int(value)
+        return parsed or fallback
     try:
         text = str(value)
         parsed = int(text, 16) if all(character in "0123456789abcdefABCDEF" for character in text) else int(text)
@@ -1570,6 +1588,35 @@ def sample_facial_clips(scene: Any, source: dict[str, Any], clips: list[dict[str
     keys = source["keys"].key_blocks
     result: list[dict[str, Any]] = []
     for clip in clips:
+        stored_keys = clip.get("keys")
+        if isinstance(stored_keys, list):
+            weights_out: list[dict[str, Any]] = []
+            previous_time = -math.inf
+            for key_index, key in enumerate(stored_keys):
+                if not isinstance(key, dict):
+                    raise RuntimeError(f"{obj.name}: facial clip key {key_index} is invalid")
+                time = float(key.get("time", 0.0))
+                weights = [float(weight) for weight in (key.get("weights") or [])]
+                if not math.isfinite(time) or time < previous_time:
+                    raise RuntimeError(f"{obj.name}: facial clip key times must be finite and ordered")
+                if len(weights) != len(keys) - 1 or any(
+                        not math.isfinite(weight) or weight < 0.0 or weight > 1.0 for weight in weights):
+                    raise RuntimeError(f"{obj.name}: facial clip weights must match targets and stay within [0, 1]")
+                weights_out.append({"time": time, "weights": weights})
+                previous_time = time
+            duration = float(clip.get("duration", weights_out[-1]["time"] if weights_out else 0.0))
+            if not math.isfinite(duration) or duration < 0.0:
+                raise RuntimeError(f"{obj.name}: facial clip duration is invalid")
+            result.append({
+                "id": facial_metadata_id(clip.get("id"),
+                                         stable_id("mini-mbm.facial.clip/", f"{obj.name}/{clip.get('name') or 'Face'}")),
+                "name": str(clip.get("name") or "Face"),
+                "duration": duration,
+                "loop": bool(clip.get("loop", True)),
+                "interpolation": str(clip.get("interpolation") or "linear"),
+                "keys": weights_out,
+            })
+            continue
         frames = facial_clip_frame_numbers(clip)
         keys_out: list[dict[str, Any]] = []
         for frame in frames:
