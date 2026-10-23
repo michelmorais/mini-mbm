@@ -20,6 +20,11 @@ assert(topology.signature~='')
 local hit=Landmarks.nearestVertex(topology,{x=-1,y=0,z=-5},{x=0,y=0,z=1},0.1)
 assert(hit and hit.index==1)
 local project=Project.new()
+assert(project.schemaVersion==3 and project.landmarkEditMode==1)
+project.landmarkEditMode=2
+assert(Project.normalize(project).landmarkEditMode==2)
+assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
+    'legacy facial projects must default to independent side editing')
 project.meshPath='fixture.msh'
 Project.setTopology(project,topology)
 assert(not project.faceOrigin.placed)

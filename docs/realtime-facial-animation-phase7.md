@@ -171,7 +171,7 @@ The second implementation slice now provides:
 - an always-on-top 3D facial wireframe with independent contour, eye, brow, nose, mouth, and jaw paths,
   selectable joints, and X/Y/Z translation axes;
 - landmark coordinates stored relative to the face reference origin while preserving mesh-local positions;
-- independent and synchronized landmark side editing, with synchronized sides mirrored across the nose X position;
+- independent and synchronized landmark side editing, with synchronized sides mirrored across the nose X position and persisted in the facial project;
 - click-to-select placed landmarks, Ctrl-click snapping to the nearest visible mesh vertex, and empty-space orbiting;
 - Ctrl+Z/Ctrl+Y project history for facial placement, mask, role, and landmark edits;
 - add/remove mask editing by nearest vertex in the Masks / Regions workspace;

@@ -177,7 +177,7 @@ end
 local function historySnapshot()
     return {project=tUtil.deepCopyTable(state.project),modified=state.modified,
         selectedRole=state.selectedRole,selectedLandmark=state.selectedLandmark,
-        selectedMask=state.selectedMask}
+        selectedMask=state.selectedMask,landmarkEditMode=state.landmarkEditMode}
 end
 
 local function pushUndoSnapshot()
@@ -193,9 +193,11 @@ local function restoreHistorySnapshot(snapshot)
     state.selectedRole=snapshot.selectedRole or state.project.selectedRole or 1
     state.selectedLandmark=snapshot.selectedLandmark or state.project.selectedLandmark or 1
     state.selectedMask=snapshot.selectedMask or state.project.selectedMask or 1
+    state.landmarkEditMode=snapshot.landmarkEditMode or state.project.landmarkEditMode or 1
     state.project.selectedRole=state.selectedRole
     state.project.selectedLandmark=state.selectedLandmark
     state.project.selectedMask=state.selectedMask
+    state.project.landmarkEditMode=state.landmarkEditMode
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
     return true
@@ -523,6 +525,7 @@ local function loadMesh(path, preserveProject)
     state.selectedRole=state.project.selectedRole or 1
     state.selectedLandmark=state.project.selectedLandmark or 1
     state.selectedMask=state.project.selectedMask or 1
+    state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
     state.modified=preserveProject and state.modified or true
     markLandmarkMarkersDirty()
@@ -540,6 +543,7 @@ local function newProject()
     state.selectedRole=1
     state.selectedLandmark=1
     state.selectedMask=1
+    state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
@@ -563,6 +567,7 @@ local function openProject()
     state.projectPath=path
     state.selectedRole=project.selectedRole or 1
     state.selectedLandmark=project.selectedLandmark or 1
+    state.landmarkEditMode=project.landmarkEditMode or 1
     state.modified=false
     if project.meshPath~='' then
         if not loadMesh(project.meshPath,true) then state.project=project end
@@ -579,6 +584,7 @@ local function saveProject(path)
     state.project.selectedRole=state.selectedRole
     state.project.selectedLandmark=state.selectedLandmark
     state.project.selectedMask=state.selectedMask
+    state.project.landmarkEditMode=state.landmarkEditMode
     local saved,errorMessage=tFacialProject.save(state.project,path,tUtil.save)
     if not saved then
         setStatus(string.format(tLang.L('fre_project_save_failed_fmt'),tostring(errorMessage)),true)
