@@ -264,6 +264,19 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, '--direct-msh-output')
     end
 
+    if options.includeFacial then
+        table.insert(args, '--include-facial')
+    end
+
+    if options.facialConvention and options.facialConvention ~= '' then
+        table.insert(args, '--facial-convention')
+        table.insert(args, shellQuote(options.facialConvention))
+    end
+
+    if options.facialNormalDeltas then
+        table.insert(args, '--facial-normal-deltas')
+    end
+
     if options.bakeAnimation then
         table.insert(args, '--bake-animation')
     end

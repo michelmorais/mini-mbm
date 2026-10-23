@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import importlib.util
+import struct
 import tempfile
 import unittest
 from argparse import Namespace
@@ -252,6 +253,36 @@ class BlenderMeshExportTests(unittest.TestCase):
         for invalid in (0.0, -0.1, 1.01, float("inf"), float("nan")):
             with self.subTest(ratio=invalid), self.assertRaisesRegex(RuntimeError, "Decimate ratio"):
                 EXPORTER.get_decimation_ratio(self._args(invalid))
+
+    def test_facial_geometry_signature_canonicalizes_signed_zero(self) -> None:
+        base = {
+            "vertices": [
+                {"x": 0.0, "y": 1.0, "z": 2.0, "nx": 0.0, "ny": 1.0, "nz": 0.0},
+                {"x": 1.0, "y": 0.0, "z": 2.0, "nx": 0.0, "ny": 1.0, "nz": 0.0},
+                {"x": 0.0, "y": 0.0, "z": 3.0, "nx": 0.0, "ny": 1.0, "nz": 0.0},
+            ],
+            "indices": [1, 2, 3],
+        }
+        signed_zero = {**base, "vertices": [dict(vertex) for vertex in base["vertices"]]}
+        signed_zero["vertices"][0]["x"] = struct.unpack("<f", b"\x00\x00\x00\x80")[0]
+        self.assertEqual(EXPORTER.facial_geometry_signature([base])[0],
+                         EXPORTER.facial_geometry_signature([signed_zero])[0])
+
+    def test_facial_payloads_write_target_and_clip_headers(self) -> None:
+        asset = {
+            "meshId": 11, "geometrySignature": 22, "vertexCount": 1,
+            "targets": [{"id": 33, "name": "jawOpen", "convention": "ARKit",
+                         "defaultWeight": 0.0, "positionDeltas": [(1.0, 2.0, 3.0)]}],
+            "clips": [{"id": 44, "name": "Face", "duration": 1.0, "loop": True,
+                       "interpolation": "linear", "keys": [
+                           {"time": 0.0, "weights": [0.0]},
+                           {"time": 1.0, "weights": [1.0]},
+                       ]}],
+        }
+        targets = EXPORTER.build_facial_targets_payload_v11(asset)
+        clips = EXPORTER.build_facial_clips_payload_v11(asset)
+        self.assertEqual(struct.unpack_from("<QQII", targets, 0), (11, 22, 1, 1))
+        self.assertEqual(struct.unpack_from("<QI", clips, 0), (11, 1))
 
 
 if __name__ == "__main__":

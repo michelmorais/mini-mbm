@@ -280,6 +280,9 @@ function onInitScene()
         nReducePolygonRatio = 0.5,
         bImportPreferSkeletal = true,
         bImportIncludeBones = true, -- legacy state name kept for older saved sessions
+        bImportIncludeFacial = true,
+        bImportFacialNormalDeltas = true,
+        sImportFacialConvention = 'ARKit',
         bNormalizeTextures = true,
         bIncludeTextureDiffuse = true,
         bIncludeTextureNormal = true,
@@ -2141,6 +2144,9 @@ local function blenderImportCoroutine()
         end
         importOptions.unweightedMeshMode = ({'fail', 'skip', 'bake'})[st.iUnweightedMeshMode or 1]
         importOptions.includeBones = tBlender.getPreferSkeletal()
+        importOptions.includeFacial = st.bImportIncludeFacial == true
+        importOptions.facialNormalDeltas = st.bImportFacialNormalDeltas == true
+        importOptions.facialConvention = st.sImportFacialConvention or ''
         importOptions.normalizeTextures = st.bNormalizeTextures
         importOptions.includeTextureDiffuse = st.bIncludeTextureDiffuse
         importOptions.includeTextureNormal = st.bIncludeTextureNormal
@@ -2945,6 +2951,20 @@ function showBlenderImportDialog()
     if skinChanged then st.iUnweightedMeshMode = skinMode end
     tImGui.SameLine()
     tImGui.HelpMarker(tLang.L('blender_import_unweighted_help'))
+    tImGui.EndDisabled()
+    tImGui.BeginDisabled(st.bIntermediateOnly)
+    st.bImportIncludeFacial = tImGui.Checkbox(tLang.L('blender_import_include_facial'), st.bImportIncludeFacial == true)
+    tImGui.SameLine()
+    tImGui.HelpMarker(tLang.L('blender_import_include_facial_help'))
+    tImGui.BeginDisabled(not st.bImportIncludeFacial)
+    st.bImportFacialNormalDeltas = tImGui.Checkbox(
+        tLang.L('blender_import_facial_normal_deltas'), st.bImportFacialNormalDeltas == true)
+    tImGui.PushItemWidth(180)
+    local facialConventionChanged, facialConvention = tImGui.InputText(
+        tLang.L('blender_import_facial_convention'), st.sImportFacialConvention or '', 128)
+    if facialConventionChanged and facialConvention then st.sImportFacialConvention = facialConvention end
+    tImGui.PopItemWidth()
+    tImGui.EndDisabled()
     tImGui.EndDisabled()
     tImGui.Separator()
     st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
@@ -9760,6 +9780,14 @@ function showMeshOptions(tEntry, index)
             meshD,
             index == iSelectedMeshIndex and tPreviewMesh or nil,
             index == iSelectedMeshIndex and tPreviewMesh ~= nil and not tEntry.modified, dpCall,onEdit)
+        tImGui.TreePop()
+    end
+
+    if openNode(tEntry, 'facial', tLang.L('mesh_debug_facial_animation'), 0, 'facial-' .. index) then
+        require('facial_mesh_playback').draw(tEntry,
+            meshD,
+            index == iSelectedMeshIndex and tPreviewMesh or nil,
+            index == iSelectedMeshIndex and tPreviewMesh ~= nil and not tEntry.modified, dpCall)
         tImGui.TreePop()
     end
 

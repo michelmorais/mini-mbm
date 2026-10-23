@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 2 per-instance controls and Lua surface complete; Phase 3 import/editor work pending**
+Status: **Phase 3 Blender/Faceit import and Mesh Debug preview slice complete; reverse export pending**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -11,6 +11,8 @@ the V11 payload contract, and CPU runtime validation are in
 The canonical initial route is `.blend` through the existing Blender helper. A real baked Faceit
 character and custom-normal fidelity remain integration acceptance items for later phases. Phase 2
 evidence and the Lua contract are in [Facial controls and playback](realtime-facial-animation-phase2.md).
+The Phase 3 editor decision and implementation slice are in
+[Blender import and Mesh Debug preview](realtime-facial-animation-phase3.md).
 
 ## 1. Purpose
 
@@ -107,10 +109,10 @@ report unsupported modifiers, topology changes, missing targets, and animation s
 diagnostics. Export support should round-trip facial targets and clips back to Blender when the
 canonical interchange supports it.
 
-Add a focused preview surface to the existing skeletal animation editor or a companion facial
-editor: target list, weight sliders, clip selection, playback controls, and visible validation
-status. Keep scans, mesh rebuilds, uploads, and serialization event-driven; an idle editor must not
-recompute facial deformation continuously.
+Add a focused preview surface to Mesh Debug, backed by a small companion module rather than adding
+facial controls to the large skeletal authoring editor: target list, weight sliders, clip selection,
+playback controls, and visible validation status. Keep scans, mesh rebuilds, uploads, and serialization
+event-driven; an idle editor must not recompute facial deformation continuously.
 
 Deliverable: edit/import, save, reload, preview, export, and re-import a fixture without losing
 target identity or animation curves.
