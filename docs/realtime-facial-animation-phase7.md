@@ -131,18 +131,34 @@ Shared viewport and mesh utilities may be reused. Per-frame code must only draw 
 actively edited gizmo; loading, mask scans, Blender exports, serialization, and rig generation
 must be dirty or explicitly requested operations.
 
-## Next implementation milestone: editor shell, setup, and landmarks
+## Delivered first slice: editor shell and setup
 
-The first implementation slice will provide:
+The first implementation slice now provides:
 
-1. a standalone facial editor entry point registered beside the skeletal animation editor;
-2. a saved facial project state using the same persistence conventions as the skeletal editor;
-3. facial-only workspace switching and a setup report;
-4. object/role registration;
-5. stable vertex-region masks;
-6. landmark placement and editing;
-7. topology and required-landmark validation;
-8. a reviewable setup report for the Fuzzy Fury and Megan fixtures.
+- `editor/facial_rig_editor.lua` as a standalone launcher entry following the skeletal editor shell;
+- `editor/facial_rig_project.lua` with versioned project state, role/mask/landmark persistence, and
+  validation;
+- setup and masks/regions workspaces with mesh loading, role registration, object assignment, and
+  stable project-side mask records;
+- a landmarks workspace with the required landmark schema, local coordinates, placed state, and
+  validation feedback;
+- rig, expressions, and preview workspaces reserved for the next authoring slices;
+- Linux, macOS, and Windows-dev launcher registration plus English and Portuguese labels.
+
+The editor currently loads `.msh` assets for the initial setup workflow. Blender/GLB import remains
+the established Mesh Debug and Blender bridge path until the facial editor's bridge workspace is
+implemented.
+
+## Next implementation milestone: landmark viewport editing and binding data
+
+The next implementation slice will provide:
+
+1. viewport landmark markers and selection;
+2. snap-to-vertex landmark placement;
+3. mask vertex editing against the inspected mesh topology;
+4. topology signatures and stale-project diagnostics;
+5. a binding description preview without committing generated weights;
+6. a reviewable setup report for the Fuzzy Fury and Megan fixtures.
 
 It will not yet claim automatic binding, full Faceit rig parity, live capture, or production-quality
 facial expressions. Those depend on the setup data being inspectable and stable first.

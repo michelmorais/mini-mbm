@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 6 deterministic replay complete; Phase 7 dedicated facial rig editor planned; runtime, Blender interchange, and capture naming foundations are complete**
+Status: **Phase 6 deterministic replay complete; Phase 7 editor shell/setup slice complete; runtime, Blender interchange, and capture naming foundations are complete**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -191,7 +191,7 @@ applies to all others.
 
 ### Phase 7: Dedicated facial rig authoring editor
 
-**Planned after the runtime and interchange foundations; this is now the primary authoring direction.**
+**The first shell/setup slice is implemented; the remaining rig and expression work is staged below.**
 
 The project will provide a standalone facial rig editor whose application shell follows the
 existing skeletal animation editor. It will reuse shared viewport, serialization, mesh inspection,
