@@ -53,3 +53,11 @@ The CPU reference remains the default path. A GPU morph implementation should be
 a representative game mesh, capture workload, or target backend demonstrates that CPU deformation is
 the limiting cost. The next optimization milestone should retain this command and compare CPU/GPU
 results against the same target weights and output tolerance.
+
+The Fuzzy Fury fixture provides that representative high-poly measurement: its 57,746-vertex, six-
+target dense deformation measured approximately 19.4 ms per evaluation in the current Linux Debug
+build and 1.0 ms in an otherwise equivalent optimized standalone profile on the same machine. The
+Debug result is therefore unsuitable as a frame-rate estimate, but it confirms that continuously
+playing a high-poly facial clip performs a full CPU morph and normal update every frame. The preview
+clip intentionally overlaps several targets, so its visible result is a composite rather than a
+single-target isolation test.
