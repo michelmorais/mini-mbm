@@ -36,6 +36,18 @@ namespace mbm
 
 struct SKELETAL_SHARING_COMPATIBILITY;
 
+namespace facial { struct RENDER_STATE; }
+struct FACIAL_ANIMATION_REPORT
+{
+    uint32_t targetCount = 0;
+    uint32_t clipCount = 0;
+    uint64_t deformationCount = 0;
+    uint64_t uploadCount = 0;
+    bool ready = false;
+    const char *executionPath = "none";
+    const char *status = "no-facial-data";
+};
+
 class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
 {
   public:
@@ -43,6 +55,10 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL virtual ~MESH();
     API_IMPL void release();
     API_IMPL bool load(const char *fileName);
+    // Phase-1 reference controls. Indices are zero-based; finite weights clamp to [0,1].
+    API_IMPL bool setFacialWeight(uint32_t target, float weight) noexcept;
+    API_IMPL bool getFacialWeight(uint32_t target, float *weight) const noexcept;
+    API_IMPL void getFacialAnimationReport(FACIAL_ANIMATION_REPORT &out) const noexcept;
     // Background-thread-friendly equivalent of load(): does the file I/O + v11 parsing on a worker
     // thread (MESH_MANAGER::loadAsync), runs the exact same
     // finish logic load() runs, then invokes callback(success) - always from pumpAsyncLoads() on
@@ -141,6 +157,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     struct SKELETAL_POSE_SHARING_STATE;
     struct CPU_SKELETAL_RENDER_STATE;
     bool                     finishLoad(const char *fileName);
+    bool                     prepareFacial(bool advancePose);
+    std::unique_ptr<facial::RENDER_STATE> facialState;
     void                     startAutoplayAnimation();
     bool                     render() override;
     bool                     onRestoreDevice() override;

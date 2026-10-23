@@ -14,6 +14,7 @@
 #include <skeletal-animation-foundation.h>
 #include <skeletal-gpu-lbs.h>
 #include "private/normal-map-asset.h"
+#include "private/facial-animation.h"
 #include <atomic>
 #include <memory>
 #include <string>
@@ -121,6 +122,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        facial::ASSET facialAsset;
         // Immutable runtime preparation; pending uploads share its lifetime.
         std::shared_ptr<const normal_map::ASSET_FRAMES> normalMapFrames;
         normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
@@ -161,6 +163,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        facial::ASSET facialAsset;
         normal_map::ASSET_FRAMES normalMapFrames;
         normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
         skeletal::SKELETAL_POSE authoringPose;

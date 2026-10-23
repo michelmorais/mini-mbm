@@ -26,6 +26,7 @@
 
 #include "my-scene-test.h"
 #include "skeletal-foundation-tests.h"
+#include "facial-animation-tests.h"
 #include "normal-map-preparation-tests.h"
 #include "normal-map-native-resource-tests.h"
 #include "gles-skeletal-parity-tests.h"
@@ -514,7 +515,14 @@ static int runTestLib(int argc, char **argv
         return passed ? 0 : 1;
     }
 #endif
+    if (argc == 2 && std::strcmp(argv[1], "--facial-foundation-tests") == 0)
+        return runFacialFoundationTests();
     GAME game;
+    if (argc == 2 && std::strcmp(argv[1], "--facial-runtime-test") == 0)
+    {
+        game.myScene.testFacialAnimation = true;
+        game.myScene.testTimeoutSeconds = 8.0f;
+    }
     game.myScene.testCoreManager = &game;
 #if defined(USE_DIRECTX11)
     if (argc == 2 && std::strcmp(argv[1], "--directx11-builtin-shader-test") == 0)

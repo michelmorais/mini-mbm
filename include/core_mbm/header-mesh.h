@@ -574,6 +574,8 @@ namespace util
         SECTION_SKELETAL_WEIGHTS   = 42, // canonical runtime weights, docs Sec. 6h
         SECTION_SKELETAL_ANIMATION = 43, // canonical skeletal clips, docs Sec. 6h
         SECTION_AUTOPLAY_ANIMATION = 44, // optional animation selected for new runtime instances
+        SECTION_FACIAL_TARGETS     = 45, // dense frame-0 morph targets, section version 1
+        SECTION_FACIAL_CLIPS       = 46, // dense sampled facial weights, section version 1
     };
 
     enum AUTOPLAY_ANIMATION_KIND_V11 : uint8_t

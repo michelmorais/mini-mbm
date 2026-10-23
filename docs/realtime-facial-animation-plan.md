@@ -1,14 +1,15 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 0 synthetic interchange spike complete; Phase 1 runtime work pending**
+Status: **Phase 1 asset format and CPU runtime slice complete; Phase 2 controls pending**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
-[Blender interchange and initial design](realtime-facial-animation-phase0.md). The generated Blender
+[Blender interchange and initial design](realtime-facial-animation-phase0.md). Phase 1 evidence,
+the V11 payload contract, and CPU runtime validation are in
+[Phase 1 asset and runtime slice](realtime-facial-animation-phase1.md). The generated Blender
 5.1.2 fixture preserves vertex association and sampled weights through the helper, FBX and GLB.
 The canonical initial route is `.blend` through the existing Blender helper. A real baked Faceit
-character and custom-normal fidelity remain integration acceptance items; runtime facial animation
-is not yet implemented.
+character and custom-normal fidelity remain integration acceptance items for later phases.
 
 ## 1. Purpose
 
@@ -54,6 +55,8 @@ scope. Do not begin runtime implementation until vertex identity and animated we
 chosen interchange path.
 
 ### Phase 1: Asset representation and CPU reference deformation
+
+**Completed for the bounded Linux OpenGL ES path on 2026-10-23.**
 
 Extend Mesh V11 with optional, versioned facial sections for:
 

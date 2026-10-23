@@ -1,6 +1,6 @@
 # Facial Animation Phase 0: Blender Interchange and Initial Design
 
-Status: **Synthetic interchange spike implemented and validated; runtime not implemented.**
+Status: **Synthetic interchange spike implemented and validated; Phase 1 runtime slice delivered separately.**
 Validated: **2026-10-23**, Linux, Blender **5.1.2**.
 Parent: [Facial animation implementation plan](realtime-facial-animation-plan.md).
 
@@ -138,12 +138,16 @@ is claimed. Future import must expose sampling resolution and reject unsupported
 Sampling, temporary Action detachment, target evaluation and modifier changes run inside restoration
 logic. The spike is a one-shot process; it introduces no editor `onLoop` or per-frame work.
 
-## 4. Bounded Phase 1 design (not implemented)
+## 4. Bounded Phase 1 design
+
+The implementation described in this section is delivered in
+[the Phase 1 evidence note](realtime-facial-animation-phase1.md). The remaining items below are
+deliberately deferred to later phases.
 
 ### Asset and validation
 
 Add optional versioned facial target and facial clip sections after the current V11 section 44;
-45 and 46 are candidates, not yet allocated. Keep immutable target arrays, names, IDs and clips in
+the delivered sections are 45 and 46. Keep immutable target arrays, names, IDs and clips in
 private cached-asset storage. Tie their vertex count and topology identity to the complete frame-0
 stream after subset preparation. Persist mesh/target IDs in `.msh`; validate names and ID collisions
 and keep IDs on ordinary load/save. Validate all sections transactionally before publishing an asset.
@@ -199,9 +203,9 @@ Public C++/Lua method names remain unallocated. The initial semantic contract sh
 
 ## 5. Completion boundary
 
-The synthetic vertex-identity and animated-weight gate in Phase 0 has passed, so Phase 1 can start
-with this bounded profile. Remaining integration acceptance includes a real baked Faceit character,
+The synthetic vertex-identity and animated-weight gate in Phase 0 has passed, and the bounded Phase 1
+profile is implemented. Remaining integration acceptance includes a real baked Faceit character,
 normal/seam fidelity, multiple meshes/clips, robust sampling, larger-asset budgets, `.msh` round trips,
-engine/Lua controls, culling, instance isolation, editor integration and backend measurements.
-No new runtime facial feature is shipped by this spike; `MBM_VERSION` remains unchanged until that
-feature is delivered.
+engine/Lua controls, editor integration and backend measurements. The Phase 1 runtime path is
+limited to Linux/OpenGL ES generated-material meshes; see the Phase 1 note for explicit rejection
+conditions and the headless-display limitation on its interactive smoke test.

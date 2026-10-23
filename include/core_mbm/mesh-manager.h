@@ -38,6 +38,8 @@ namespace util
 
 namespace mbm
 {
+    namespace facial { struct RENDER_STATE; }
+
     enum class NORMAL_MAP_POLICY : uint8_t { PRESERVE, GENERATE, IMPORT };
     // Authoring value: one tangent per expanded triangle corner (not source vertex).
     struct NORMAL_MAP_CORNER { float x, y, z, sign; };
@@ -707,6 +709,7 @@ namespace mbm
       private:
         friend API_IMPL bool skeletal::copyCanonicalParityAsset(
             const MESH_MBM_DEBUG &mesh, skeletal::CANONICAL_PARITY_ASSET &out) noexcept;
+        bool loadV11InPlace(const char *fileNamePath);
         void fillAtLeastOneBound();
         bool fillInSubsetDebug(const MESH_MBM* meshMemory,
                                const int currentFrame,
@@ -828,6 +831,9 @@ namespace mbm
         bool canUseCpuSkeletalPath(SKELETAL_SHADER_METHOD method,
                                    const SKELETAL_ANIMATION_PLAYER *player = nullptr,
                                    const char **reason = nullptr) const noexcept;
+        bool initializeFacial(facial::RENDER_STATE &state) const;
+        bool prepareFacial(facial::RENDER_STATE &state, const SKELETAL_ANIMATION_PLAYER *player) const;
+        bool renderFacial(facial::RENDER_STATE &state, const SHADER *shader, const RENDERIZABLE *owner) const;
         bool renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
                                const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
                                std::vector<VEC3> &positions, std::vector<VEC3> &normals,

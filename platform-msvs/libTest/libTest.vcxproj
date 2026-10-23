@@ -176,6 +176,9 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\core_mbm\mesh-v11-io.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-animation-foundation.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\facial-animation.cpp" />
+    <ClInclude Include="..\..\src\core_mbm\private\facial-animation.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\facial-render-state.h" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.cpp">
       <ExcludedFromBuild Condition="'$(MbmBackend)'!='OpenGLES'">true</ExcludedFromBuild>
     </ClCompile>
@@ -201,6 +204,8 @@
     <ClInclude Include="..\..\src\test-lib\normal-map-native-resource-tests.h" />
     <ClCompile Include="..\..\src\test-lib\my-scene-test.cpp" />
     <ClCompile Include="..\..\src\test-lib\skeletal-foundation-tests.cpp" />
+    <ClCompile Include="..\..\src\test-lib\facial-animation-tests.cpp" />
+    <ClInclude Include="..\..\src\test-lib\facial-animation-tests.h" />
     <ClCompile Include="..\..\src\test-lib\skeletal-parity-tests.cpp" />
   </ItemGroup>
   <ItemGroup>

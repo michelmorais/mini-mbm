@@ -29,6 +29,9 @@
 #include <algorithm>
 #include <vector>
 
+#include "private/facial-render-state.h"
+#include <cmath>
+
 namespace mbm
 {
     struct MESH::SKELETAL_POSE_SHARING_STATE
@@ -75,6 +78,7 @@ namespace mbm
     {
         this->detachSkeletalPoseSharingSource();
         this->detachSkeletalPoseSharingFollowers();
+        this->facialState.reset();
         this->releaseAnimation();
         this->releaseCpuSkeletalRenderState();
         this->setIndexAnimation(0);
@@ -129,8 +133,23 @@ namespace mbm
 
     bool MESH::finishLoad(const char *fileName)
     {
+        this->facialState = std::make_unique<facial::RENDER_STATE>();
+        if (!this->mesh->initializeFacial(*facialState))
+        {
+            this->mesh = nullptr;
+            return false;
+        }
         this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
         this->resolveSkeletalExecutionPath();
+        if (facialState->targetCount && (!this->is3DObject() ||
+            cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::GPU ||
+            getResolvedSkeletalSkinningMethod() == SKELETAL_SHADER_METHOD::DQS_RIGID))
+        {
+            facialState->status = "facial-requires-3d-cpu-lbs";
+            facialState->ready = false;
+            this->mesh = nullptr;
+            return false;
+        }
         const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
         if (result == MeshLoadFinishResult::ANIMATION_FAILED)
         {
@@ -164,28 +183,8 @@ namespace mbm
                 return;
             }
             this->mesh = mesh;
-            this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
-            this->resolveSkeletalExecutionPath();
-            const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
-            if (result == MeshLoadFinishResult::ANIMATION_FAILED)
-            {
-                this->release();
-                if (callback)
-                    callback(false);
-                return;
-            }
-            else if (result != MeshLoadFinishResult::OK)
-            {
-                if (callback)
-                    callback(false);
-                return;
-            }
-            this->setInternalFileName(fileNameCopy.c_str());
-            this->restartAnimation();
-            this->startAutoplayAnimation();
-            this->updateAABB();
-            if (callback)
-                callback(true);
+            const bool finished = this->finishLoad(fileNameCopy.c_str());
+            if (callback) callback(finished);
         });
     }
 
@@ -343,6 +342,12 @@ namespace mbm
         {
             cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::CPU;
             cpuSkeletalRenderState->executionReason = "explicit-cpu";
+            return;
+        }
+        if (facialState && facialState->targetCount)
+        {
+            cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::CPU;
+            cpuSkeletalRenderState->executionReason = "facial-cpu-reference";
             return;
         }
         const char *cpuReason = nullptr;
@@ -749,6 +754,53 @@ namespace mbm
                                                          boneIdCount, time, errorOut, errorOutLen);
     }
 
+    bool MESH::setFacialWeight(uint32_t target, float weight) noexcept
+    {
+        if (!facialState || !facialState->ready || target >= facialState->weights.size() || !std::isfinite(weight)) return false;
+        const float clamped = std::max(0.0f, std::min(1.0f, weight));
+        if (facialState->weights[target] != clamped)
+        {
+            facialState->weights[target] = clamped;
+            facialState->dirty = true;
+        }
+        return true;
+    }
+
+    bool MESH::getFacialWeight(uint32_t target, float *weight) const noexcept
+    {
+        if (!weight || !facialState || target >= facialState->weights.size()) return false;
+        *weight = facialState->weights[target];
+        return true;
+    }
+
+    void MESH::getFacialAnimationReport(FACIAL_ANIMATION_REPORT &out) const noexcept
+    {
+        out = {};
+        if (!facialState) return;
+        out.targetCount = facialState->targetCount;
+        out.clipCount = facialState->clipCount;
+        out.deformationCount = facialState->evaluations;
+        out.uploadCount = facialState->uploads;
+        out.ready = facialState->ready && facialState->status == "ready";
+        out.executionPath = facialState->targetCount ? "cpu" : "none";
+        out.status = facialState->status.c_str();
+    }
+
+    bool MESH::prepareFacial(bool advancePose)
+    {
+        const bool shared = canUseSkeletalPoseSharing(nullptr);
+        SKELETAL_ANIMATION_PLAYER &player = getSkeletalAnimationPlayer();
+        if (advancePose && !shared && mesh->hasActiveSkeletalAnimation(player) &&
+            !mesh->updateSkeletalAnimation(player, DEVICE::getInstance()->delta, this, getOnEndAnimation()))
+        { facialState->status = "facial-skeletal-update-failed"; return false; }
+        const SKELETAL_ANIMATION_PLAYER *source = shared ?
+            &skeletalPoseSharingState->source->getSkeletalAnimationPlayer() : &player;
+        const uint64_t revision = facialState->evaluations;
+        if (!mesh->prepareFacial(*facialState, source)) return false;
+        if (revision != facialState->evaluations) updateAABB();
+        return true;
+    }
+
     bool MESH::render()
     {
         if (!mesh)
@@ -765,10 +817,16 @@ namespace mbm
         anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
         this->mesh->updateArticulatedAnimations(articulatedPlayer, device->delta,
                                                  this, this->getOnEndAnimation());
+        if (facialState && facialState->targetCount)
+        {
+            const bool prepared = prepareFacial(!facialState->poseAdvancedForRender);
+            facialState->poseAdvancedForRender = false;
+            if (!prepared) return false;
+        }
         const bool hasSharedSkeletal = this->canUseSkeletalPoseSharing(nullptr);
         const bool hasSkeletal = hasSharedSkeletal ||
             this->mesh->hasActiveSkeletalAnimation(skeletalPlayer);
-        if (!hasSharedSkeletal && hasSkeletal && !this->mesh->updateSkeletalAnimation(
+        if ((!facialState || !facialState->targetCount) && !hasSharedSkeletal && hasSkeletal && !this->mesh->updateSkeletalAnimation(
                 skeletalPlayer, device->delta, this, this->getOnEndAnimation()))
             return false;
         const VEC3 &position = this->getPosition();
@@ -808,7 +866,13 @@ namespace mbm
         fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
         const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
         bool rendered = false;
-        if (hasSkeletal)
+        if (facialState && facialState->targetCount)
+        {
+            if (fx.fxVS->getCurrentShader() || fx.fxPS->getCurrentShader())
+            { facialState->status = "facial-custom-shader-unsupported"; return false; }
+            rendered = this->mesh->renderFacial(*facialState, &fx.shader, this);
+        }
+        else if (hasSkeletal)
         {
             const SKELETAL_ANIMATION_PLAYER *renderSkeletalPlayer = nullptr;
             if (hasSharedSkeletal)
@@ -855,6 +919,7 @@ namespace mbm
             return MESH_EDITOR_ACCESS::loadPreview(*this, path.c_str());
         }
         this->releaseCpuSkeletalRenderState();
+        this->facialState.reset();
 		this->mesh = nullptr;
         const char *internalFileName = this->getInternalFileName();
         const bool ret = this->load(internalFileName);
@@ -877,6 +942,11 @@ namespace mbm
     {
         if (this->mesh && this->mesh->isLoaded())
         {
+            if (facialState && facialState->targetCount)
+            {
+                if (!prepareFacial(true)) return false;
+                facialState->poseAdvancedForRender = true;
+            }
             IS_ON_FRUSTUM verify(this);
             bool ret = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
             if(ret == false)
@@ -887,7 +957,7 @@ namespace mbm
                 this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
                                                          this, this->getOnEndAnimation());
                 const bool hasSharedSkeletal = this->canUseSkeletalPoseSharing(nullptr);
-                if (!hasSharedSkeletal &&
+                if ((!facialState || !facialState->targetCount) && !hasSharedSkeletal &&
                     this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer()))
                     this->mesh->updateSkeletalAnimation(this->getSkeletalAnimationPlayer(),
                                                         device->delta, this,
@@ -906,6 +976,8 @@ namespace mbm
     
     const mbm::INFO_PHYSICS * MESH::getInfoPhysics() const
     {
+        if (facialState && facialState->targetCount && facialState->ready)
+            return &facialState->bounds;
         if (this->mesh)
             return &this->mesh->getPhysicsInfo();
         return nullptr;
