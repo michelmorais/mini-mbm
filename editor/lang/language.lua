@@ -1213,7 +1213,7 @@ M.en = {
     fre_frame_mesh = "Frame mesh",
     fre_show_mesh = "Show mesh",
     fre_camera_distance_fmt = "Camera distance: %.3f",
-    fre_camera_help = "Drag the viewport to orbit and use the wheel to zoom.",
+    fre_camera_help = "Left drag: orbit. Right drag: move in the camera plane. Wheel: zoom.",
     -- Skeletal Animation Editor / Skin Weight Lab
     swl_title = "Skeletal Animation Editor",
     swl_about_editor = "Skeletal Animation Editor",
@@ -5111,7 +5111,7 @@ M.pt_br = {
     fre_frame_mesh = "Enquadrar mesh",
     fre_show_mesh = "Mostrar mesh",
     fre_camera_distance_fmt = "Distancia da camera: %.3f",
-    fre_camera_help = "Arraste o viewport para orbitar e use a roda para aproximar.",
+    fre_camera_help = "Arraste esquerdo: orbita. Arraste direito: move no plano da camera. Roda: aproxima.",
     -- Editor de Animação Esquelética / Laboratório de Pesos
     swl_title = "Editor de Animação Esquelética",
     swl_about_editor = "Editor de Animação Esquelética",

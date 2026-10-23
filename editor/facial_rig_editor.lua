@@ -40,7 +40,7 @@ local state = {
     meshBounds=nil, meshVertexCount=0, workspace='setup', modified=false,
     selectedRole=1, selectedLandmark=1, status='', statusError=false,
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
-    cameraDrag=nil, controlDown=false, shiftDown=false,
+    cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
     windowMove=false, leftPanelRight=440
 }
 
@@ -449,11 +449,38 @@ function onEndScene()
 end
 
 function onTouchDown(key,x,y)
-    if key==0 and not tImGui.GetWantCaptureMouse() then state.cameraDrag={x=x,y=y} end
+    if tImGui.GetWantCaptureMouse() then return end
+    if key==0 then
+        state.cameraDrag={x=x,y=y}
+    elseif key==1 then
+        state.cameraPan={x=x,y=y}
+    end
 end
 
 function onTouchMove(key,x,y)
-    if not state.cameraDrag or tImGui.GetWantCaptureMouse() then return end
+    if tImGui.GetWantCaptureMouse() then return end
+    if state.cameraPan then
+        local c=state.camera
+        local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
+        local pz=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
+        local vx,vz=c.fx-px,c.fz-pz
+        local viewLength=math.sqrt(vx*vx+vz*vz)
+        if viewLength>0 then vx,vz=vx/viewLength,vz/viewLength end
+        -- Match MeshDebug: horizontal movement follows camera-right and vertical movement
+        -- follows the screen/world Y axis while keeping the orbit orientation unchanged.
+        local rx,rz=vz,-vx
+        local rightLength=math.sqrt(rx*rx+rz*rz)
+        if rightLength>0 then rx,rz=rx/rightLength,rz/rightLength end
+        local scale=c.distance*0.001
+        local dx=(state.cameraPan.x-x)*scale
+        c.fx=c.fx+rx*dx
+        c.fy=c.fy+(y-state.cameraPan.y)*scale
+        c.fz=c.fz+rz*dx
+        state.cameraPan={x=x,y=y}
+        applyCamera()
+        return
+    end
+    if not state.cameraDrag then return end
     state.camera.azimuth=state.camera.azimuth+(x-state.cameraDrag.x)*0.008
     state.camera.elevation=math.max(-1.45,math.min(1.45,
         state.camera.elevation+(y-state.cameraDrag.y)*0.008))
@@ -462,7 +489,8 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
-    if key==0 then state.cameraDrag=nil end
+    if key==0 then state.cameraDrag=nil
+    elseif key==1 then state.cameraPan=nil end
 end
 
 function onTouchZoom(zoom)
