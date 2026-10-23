@@ -25,6 +25,7 @@
 tImGui = require "ImGui"
 tUtil = require "editor_utils"
 tFacialProject = require "facial_rig_project"
+tFacialLandmarks = require "facial_rig_landmarks"
 
 -- Protected-call wrapper used by all editor operations that can cross the Lua/C++ boundary.
 local function dpCall(fn, ...)
@@ -37,8 +38,10 @@ end
 
 local state = {
     project=tFacialProject.new(), projectPath=nil, mesh=nil, meshDebug=nil,
-    meshBounds=nil, meshVertexCount=0, workspace='setup', modified=false,
+    meshBounds=nil, meshVertexCount=0, topology=nil, landmarkMarkers={}, landmarkMarkersDirty=true,
+    workspace='setup', modified=false,
     selectedRole=1, selectedLandmark=1, status='', statusError=false,
+    selectedMask=1, maskEditMode='add',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
     windowMove=false, leftPanelRight=440
@@ -63,6 +66,10 @@ local function markModified()
 end
 
 local function destroyPreview()
+    for _,marker in ipairs(state.landmarkMarkers or {}) do
+        dpCall(function() marker:destroy() end)
+    end
+    state.landmarkMarkers={}
     if state.mesh then
         dpCall(function() state.mesh:destroy() end)
         state.mesh=nil
@@ -70,6 +77,8 @@ local function destroyPreview()
     state.meshDebug=nil
     state.meshBounds=nil
     state.meshVertexCount=0
+    state.topology=nil
+    state.landmarkMarkersDirty=true
 end
 
 local function applyCamera()
@@ -94,31 +103,41 @@ local function frameCamera(bounds)
 end
 
 local function inspectMesh(meshDebugObject)
-    local bounds={minX=math.huge,minY=math.huge,minZ=math.huge,
-        maxX=-math.huge,maxY=-math.huge,maxZ=-math.huge,total=0}
-    local okSubsets, subsets=dpCall(function() return meshDebugObject:getTotalSubset(1) end)
-    if not okSubsets then return nil, 0 end
-    for subset=1,subsets do
-        local okVertices, count=dpCall(function() return meshDebugObject:getTotalVertex(1,subset) end)
-        if okVertices then
-            bounds.total=bounds.total+count
-            for vertex=1,count do
-                local okPoint, point=dpCall(function()
-                    return meshDebugObject:getVertex(1,subset,vertex)
-                end)
-                if okPoint and point then
-                    bounds.minX=math.min(bounds.minX,point.x)
-                    bounds.minY=math.min(bounds.minY,point.y)
-                    bounds.minZ=math.min(bounds.minZ,point.z)
-                    bounds.maxX=math.max(bounds.maxX,point.x)
-                    bounds.maxY=math.max(bounds.maxY,point.y)
-                    bounds.maxZ=math.max(bounds.maxZ,point.z)
-                end
-            end
+    local ok,topology=dpCall(function() return tFacialLandmarks.inspect(meshDebugObject) end)
+    if not ok or not topology or not topology.bounds then return nil, 0, nil end
+    topology.bounds.total=topology.vertexCount
+    return topology.bounds,topology.vertexCount,topology
+end
+
+local function refreshLandmarkMarkers()
+    if not state.topology or not state.mesh then return end
+    local bounds=state.meshBounds
+    local extent=math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
+        (bounds.maxZ-bounds.minZ)^2)
+    local size=math.max(extent*0.012,0.001)
+    local landmarks=state.project.landmarks or {}
+    for index,landmark in ipairs(landmarks) do
+        local marker=state.landmarkMarkers[index]
+        if not marker then
+            marker=line:new('3d',0,0,0)
+            marker:add({{x=-size,y=0,z=0},{x=size,y=0,z=0},
+                {x=0,y=-size,z=0},{x=0,y=size,z=0},
+                {x=0,y=0,z=-size},{x=0,y=0,z=size}})
+            marker.alwaysOnTop=true
+            marker.alwaysOnTopPriority=1
+            state.landmarkMarkers[index]=marker
         end
+        local visible=state.workspace=='landmarks' and state.mesh.visible and landmark.placed and landmark.position
+        marker.visible=visible and true or false
+        if landmark.position then marker:setPos(landmark.position.x,landmark.position.y,landmark.position.z) end
+        if index==state.selectedLandmark then marker:setColor(1,0.8,0.1,1)
+        else marker:setColor(0.2,0.8,1,0.9) end
     end
-    if bounds.total==0 or bounds.minX==math.huge then return nil, 0 end
-    return bounds,bounds.total
+    state.landmarkMarkersDirty=false
+end
+
+local function markLandmarkMarkersDirty()
+    state.landmarkMarkersDirty=true
 end
 
 local function loadMesh(path, preserveProject)
@@ -139,19 +158,29 @@ local function loadMesh(path, preserveProject)
         setStatus(tLang.L('fre_mesh_inspection_failed'),true)
         return false
     end
-    local bounds,count=inspectMesh(inspector)
+    local bounds,count,topology=inspectMesh(inspector)
     destroyPreview()
+    if not topology then
+        candidate:destroy()
+        setStatus(tLang.L('fre_mesh_inspection_failed'),true)
+        return false
+    end
     state.mesh=candidate
     state.meshDebug=inspector
     state.meshBounds=bounds
     state.meshVertexCount=count
+    state.topology=topology
     state.mesh.visible=true
     if not preserveProject then state.project=tFacialProject.new() end
     state.project.meshPath=path
-    state.project.meshVertexCount=count
+    if not preserveProject or state.project.meshTopologySignature=='' then
+        tFacialProject.setTopology(state.project,topology)
+    end
     state.selectedRole=state.project.selectedRole or 1
     state.selectedLandmark=state.project.selectedLandmark or 1
+    state.selectedMask=state.project.selectedMask or 1
     state.modified=preserveProject and state.modified or true
+    markLandmarkMarkersDirty()
     frameCamera(bounds)
     setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
     return true
@@ -164,6 +193,8 @@ local function newProject()
     state.modified=false
     state.selectedRole=1
     state.selectedLandmark=1
+    state.selectedMask=1
+    markLandmarkMarkersDirty()
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -198,6 +229,7 @@ local function saveProject(path)
     if not path or path=='' then return false end
     state.project.selectedRole=state.selectedRole
     state.project.selectedLandmark=state.selectedLandmark
+    state.project.selectedMask=state.selectedMask
     local saved,errorMessage=tFacialProject.save(state.project,path,tUtil.save)
     if not saved then
         setStatus(string.format(tLang.L('fre_project_save_failed_fmt'),tostring(errorMessage)),true)
@@ -251,7 +283,10 @@ local function showMenu()
 end
 
 local function selectWorkspace(workspace)
-    if state.workspace~=workspace then state.workspace=workspace end
+    if state.workspace~=workspace then
+        state.workspace=workspace
+        markLandmarkMarkersDirty()
+    end
 end
 
 local function showWorkspaceButtons()
@@ -318,8 +353,44 @@ local function showMasks()
         if enabled~=selected.enabled then selected.enabled=enabled; markModified() end
         if tImGui.Button(tLang.L('fre_add_mask')) then
             tFacialProject.addMask(state.project,selected.name,state.selectedRole)
+            state.selectedMask=#state.project.masks
             markModified()
         end
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_masks'))
+    if tImGui.BeginTable('freMasks',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+        tImGui.TableSetupColumn(tLang.L('fre_mask_column'))
+        tImGui.TableSetupColumn(tLang.L('fre_role_column'))
+        tImGui.TableSetupColumn(tLang.L('fre_mask_vertices_column'))
+        tImGui.TableHeadersRow()
+        for index,mask in ipairs(state.project.masks) do
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0)
+            if tImGui.Selectable(mask.name,index==state.selectedMask) then state.selectedMask=index end
+            tImGui.TableSetColumnIndex(1)
+            local role=state.project.roles[mask.roleIndex or 1]
+            tImGui.Text(role and role.name or tLang.L('fre_unassigned'))
+            tImGui.TableSetColumnIndex(2)
+            tImGui.Text(tostring(#(mask.vertices or {})))
+        end
+        tImGui.EndTable()
+    end
+    local selectedMask=state.project.masks[state.selectedMask]
+    if selectedMask then
+        local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '',128)
+        if changed and name~='' then selectedMask.name=name; markModified() end
+        local roleNames=tFacialProject.roleNames()
+        local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
+        if roleChanged then selectedMask.roleIndex=roleIndex; markModified() end
+        tImGui.TextWrapped(tLang.L('fre_mask_edit_help'))
+        local addPressed=tImGui.Button(tLang.L('fre_mask_add_vertices'))
+        tImGui.SameLine()
+        local removePressed=tImGui.Button(tLang.L('fre_mask_remove_vertices'))
+        if addPressed then state.maskEditMode='add' end
+        if removePressed then state.maskEditMode='remove' end
+        tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. state.maskEditMode)
+        if tImGui.Button(tLang.L('fre_mask_clear')) then selectedMask.vertices={}; markModified() end
     end
 end
 
@@ -334,27 +405,28 @@ local function showLandmarks()
     local names={}
     for _,landmark in ipairs(landmarks) do names[#names+1]=landmark.name end
     local changed,index=tImGui.Combo(tLang.L('fre_landmark_select'),state.selectedLandmark,names)
-    if changed then state.selectedLandmark=index end
+    if changed then state.selectedLandmark=index; markLandmarkMarkersDirty() end
     local selected=landmarks[state.selectedLandmark]
     if selected then
         tImGui.Text(string.format(tLang.L('fre_landmark_side_fmt'),selected.name,selected.side))
         local xChanged,x=tImGui.InputFloat('X##freLandmarkX',selected.position.x,0,0,'%.4f',0)
         local yChanged,y=tImGui.InputFloat('Y##freLandmarkY',selected.position.y,0,0,'%.4f',0)
         local zChanged,z=tImGui.InputFloat('Z##freLandmarkZ',selected.position.z,0,0,'%.4f',0)
-        if xChanged then selected.position.x=x; selected.placed=true; markModified() end
-        if yChanged then selected.position.y=y; selected.placed=true; markModified() end
-        if zChanged then selected.position.z=z; selected.placed=true; markModified() end
+        if xChanged then selected.position.x=x; selected.vertexIndex=nil; selected.placed=true; markModified(); markLandmarkMarkersDirty() end
+        if yChanged then selected.position.y=y; selected.vertexIndex=nil; selected.placed=true; markModified(); markLandmarkMarkersDirty() end
+        if zChanged then selected.position.z=z; selected.vertexIndex=nil; selected.placed=true; markModified(); markLandmarkMarkersDirty() end
         local placed=tImGui.Checkbox(tLang.L('fre_landmark_placed'),selected.placed)
-        if placed~=selected.placed then selected.placed=placed; markModified() end
+        if placed~=selected.placed then selected.placed=placed; markModified(); markLandmarkMarkersDirty() end
     end
     tImGui.PopItemWidth()
-    local report=tFacialProject.validate(state.project,true)
+    local report=tFacialProject.validate(state.project,true,state.topology)
     tImGui.Text(string.format(tLang.L('fre_landmark_count_fmt'),report.placedLandmarkCount,report.landmarkCount))
+    for _,message in ipairs(report.errors) do tImGui.TextWrapped('Error: ' .. message) end
 end
 
 local function showRig()
     tImGui.TextWrapped(tLang.L('fre_rig_help'))
-    local report=tFacialProject.validate(state.project,state.mesh~=nil)
+    local report=tFacialProject.validate(state.project,state.mesh~=nil,state.topology)
     if report.ok then
         tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_validation_ok'))
     else
@@ -362,6 +434,11 @@ local function showRig()
     end
     for _,message in ipairs(report.errors) do tImGui.TextWrapped('Error: ' .. message) end
     for _,message in ipairs(report.warnings) do tImGui.TextWrapped('Warning: ' .. message) end
+    local binding=tFacialProject.bindingDescription(state.project,state.topology)
+    tImGui.Separator()
+    tImGui.Text(string.format(tLang.L('fre_binding_summary_fmt'),#binding.roles,#binding.masks,
+        #binding.landmarks,binding.vertexCount))
+    tImGui.TextWrapped(tLang.L('fre_binding_preview_help'))
     tImGui.Separator()
     tImGui.TextWrapped(tLang.L('fre_rig_not_implemented'))
 end
@@ -408,7 +485,7 @@ local function showCameraPanel()
         if tImGui.Button(tLang.L('fre_frame_mesh')) then frameCamera(state.meshBounds) end
         tImGui.SameLine()
         local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),state.mesh and state.mesh.visible or false)
-        if state.mesh and visible~=state.mesh.visible then state.mesh.visible=visible end
+        if state.mesh and visible~=state.mesh.visible then state.mesh.visible=visible; markLandmarkMarkersDirty() end
         tImGui.Separator()
         tImGui.Text(string.format(tLang.L('fre_camera_distance_fmt'),state.camera.distance))
         tImGui.TextWrapped(tLang.L('fre_camera_help'))
@@ -441,6 +518,7 @@ function onLoop(delta)
     showMenu()
     showMainPanel()
     showCameraPanel()
+    if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
     tUtil.showOverlayMessage()
 end
 
@@ -448,8 +526,74 @@ function onEndScene()
     destroyPreview()
 end
 
+local function viewportPickRay(x,y)
+    local ok,ox,oy,oz,dx,dy,dz=dpCall(function() return mbm.getPickRay(x,y) end)
+    if not ok or not ox or not dx then return nil end
+    return {x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz}
+end
+
+local function viewportPickRadius(fraction)
+    if not state.meshBounds then return 0.001 end
+    local bounds=state.meshBounds
+    local extent=math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
+        (bounds.maxZ-bounds.minZ)^2)
+    return math.max(extent*(fraction or 0.02),0.001)
+end
+
+local function toggleMaskVertex(index)
+    local mask=state.project.masks[state.selectedMask]
+    if not mask or not index then return false end
+    mask.topologySignature=state.topology.signature
+    for position,vertex in ipairs(mask.vertices or {}) do
+        if vertex==index then
+            if state.maskEditMode=='remove' then table.remove(mask.vertices,position); markModified() end
+            return true
+        end
+    end
+    if state.maskEditMode=='add' then mask.vertices[#mask.vertices+1]=index; markModified() end
+    return true
+end
+
+local function handleViewportAuthoringClick(x,y)
+    if not state.topology or not state.mesh then return false end
+    local origin,direction=viewportPickRay(x,y)
+    if not origin then return false end
+    if state.workspace=='landmarks' then
+        local landmarkHit=tFacialLandmarks.nearestLandmark(state.project.landmarks,origin,direction,
+            viewportPickRadius(0.04))
+        if landmarkHit then
+            state.selectedLandmark=landmarkHit.index
+            state.project.selectedLandmark=landmarkHit.index
+            markLandmarkMarkersDirty()
+            return true
+        end
+        local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
+            viewportPickRadius(0.025))
+        if vertexHit then
+            local selected=state.project.landmarks[state.selectedLandmark]
+            if selected then
+                selected.position={x=vertexHit.point.x,y=vertexHit.point.y,z=vertexHit.point.z}
+                selected.placed=true
+                selected.vertexIndex=vertexHit.index
+                state.project.selectedLandmark=state.selectedLandmark
+                markModified()
+                markLandmarkMarkersDirty()
+                return true
+            end
+        end
+    elseif state.workspace=='masks' then
+        local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
+            viewportPickRadius(0.025))
+        if vertexHit and state.project.masks[state.selectedMask] then
+            return toggleMaskVertex(vertexHit.index)
+        end
+    end
+    return false
+end
+
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if key==0 and handleViewportAuthoringClick(x,y) then return end
     if key==0 then
         state.cameraDrag={x=x,y=y}
     elseif key==1 then

@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 6 deterministic replay complete; Phase 7 editor shell/setup slice complete; runtime, Blender interchange, and capture naming foundations are complete**
+Status: **Phase 7 landmark viewport and binding-data slice complete; runtime, Blender interchange, and capture naming foundations are complete**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in

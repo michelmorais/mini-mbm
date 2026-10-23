@@ -68,11 +68,13 @@ function M.new()
         schemaVersion=1,
         meshPath='',
         meshVertexCount=0,
+        meshTopologySignature='',
         roles=defaultRoles(),
         masks={},
         landmarks=defaultLandmarks(),
         selectedRole=1,
-        selectedLandmark=1
+        selectedLandmark=1,
+        selectedMask=1
     }
 end
 
@@ -87,11 +89,14 @@ function M.normalize(project)
     project.schemaVersion=tonumber(project.schemaVersion) or 1
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
+    project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
+        project.meshTopologySignature or ''
     project.roles=type(project.roles) == 'table' and project.roles or defaultRoles()
     project.masks=type(project.masks) == 'table' and project.masks or {}
     project.landmarks=type(project.landmarks) == 'table' and project.landmarks or defaultLandmarks()
     project.selectedRole=math.max(1, math.floor(tonumber(project.selectedRole) or 1))
     project.selectedLandmark=math.max(1, math.floor(tonumber(project.selectedLandmark) or 1))
+    project.selectedMask=math.max(1, math.floor(tonumber(project.selectedMask) or 1))
     for index, role in ipairs(project.roles) do
         if type(role) ~= 'table' then
             project.roles[index]={name=ROLE_NAMES[index] or ('role_' .. index), object='', enabled=true}
@@ -100,6 +105,17 @@ function M.normalize(project)
                 (ROLE_NAMES[index] or ('role_' .. index))
             role.object=type(role.object) == 'string' and role.object or ''
             role.enabled=role.enabled ~= false
+        end
+    end
+    for index, mask in ipairs(project.masks) do
+        if type(mask) ~= 'table' then
+            project.masks[index]={name='region_' .. index,roleIndex=1,vertices={},topologySignature='',enabled=true}
+        else
+            mask.name=type(mask.name)=='string' and mask.name~='' and mask.name or ('region_' .. index)
+            mask.roleIndex=math.max(1,math.floor(tonumber(mask.roleIndex) or 1))
+            mask.vertices=type(mask.vertices)=='table' and mask.vertices or {}
+            mask.topologySignature=type(mask.topologySignature)=='string' and mask.topologySignature or ''
+            mask.enabled=mask.enabled ~= false
         end
     end
     for index, landmark in ipairs(project.landmarks) do
@@ -111,6 +127,8 @@ function M.normalize(project)
             landmark.required=landmark.required == true
             landmark.position=copyPoint(landmark.position)
             landmark.placed=landmark.placed == true
+            local vertexIndex=tonumber(landmark.vertexIndex)
+            landmark.vertexIndex=vertexIndex and math.floor(vertexIndex) or nil
         end
     end
     return project
@@ -118,12 +136,19 @@ end
 
 function M.addMask(project, name, roleIndex)
     local mask = {name=name or ('region_' .. (#project.masks + 1)), roleIndex=roleIndex or 1,
-        vertices={}, topologySignature='', enabled=true}
+        vertices={}, topologySignature=project.meshTopologySignature or '', enabled=true}
     project.masks[#project.masks + 1] = mask
     return mask
 end
 
-function M.validate(project, meshLoaded)
+function M.setTopology(project, topology)
+    if type(project) ~= 'table' or type(topology) ~= 'table' then return false end
+    project.meshVertexCount=math.max(0, math.floor(tonumber(topology.vertexCount) or 0))
+    project.meshTopologySignature=type(topology.signature) == 'string' and topology.signature or ''
+    return project.meshTopologySignature ~= '' and project.meshVertexCount > 0
+end
+
+function M.validate(project, meshLoaded, topology)
     local report = {ok=true, errors={}, warnings={}, roleCount=0, maskCount=0,
         landmarkCount=0, placedLandmarkCount=0}
     if type(project) ~= 'table' then
@@ -134,6 +159,18 @@ function M.validate(project, meshLoaded)
     if not meshLoaded or project.meshPath == '' then
         report.ok=false
         report.errors[#report.errors + 1]='mesh is not loaded'
+    end
+    if topology then
+        if project.meshTopologySignature == '' then
+            report.warnings[#report.warnings + 1]='project has no saved topology signature'
+        elseif project.meshTopologySignature ~= topology.signature then
+            report.ok=false
+            report.errors[#report.errors + 1]='mesh topology changed since the project was saved'
+        end
+        if project.meshVertexCount > 0 and project.meshVertexCount ~= topology.vertexCount then
+            report.ok=false
+            report.errors[#report.errors + 1]='mesh vertex count changed since the project was saved'
+        end
     end
     local names={}
     for _, role in ipairs(project.roles or {}) do
@@ -163,17 +200,63 @@ function M.validate(project, meshLoaded)
             report.ok=false
             report.errors[#report.errors + 1]='mask has invalid vertex list'
         end
+        local vertices=type(mask.vertices)=='table' and mask.vertices or {}
+        if topology and (mask.topologySignature or '') ~= '' and mask.topologySignature ~= topology.signature then
+            report.ok=false
+            report.errors[#report.errors + 1]='mask topology is stale: ' .. tostring(mask.name)
+        end
+        local seen={}
+        for _, vertex in ipairs(vertices) do
+            local index=tonumber(vertex)
+            if not index or index<1 or index> (topology and topology.vertexCount or project.meshVertexCount) or
+                    index%1~=0 or seen[index] then
+                report.ok=false
+                report.errors[#report.errors + 1]='mask has an invalid or duplicate vertex: ' .. tostring(mask.name)
+                break
+            end
+            seen[index]=true
+        end
     end
     for _, landmark in ipairs(project.landmarks or {}) do
         report.landmarkCount=report.landmarkCount+1
         if landmark.placed then
             report.placedLandmarkCount=report.placedLandmarkCount+1
+            if topology and landmark.vertexIndex and
+                    (landmark.vertexIndex<1 or landmark.vertexIndex>topology.vertexCount) then
+                report.ok=false
+                report.errors[#report.errors + 1]='landmark vertex is outside the current topology: ' .. tostring(landmark.name)
+            end
         elseif landmark.required then
             report.ok=false
             report.errors[#report.errors + 1]='required landmark not placed: ' .. tostring(landmark.name)
         end
     end
     return report
+end
+
+function M.bindingDescription(project, topology)
+    local description={meshTopologySignature=project.meshTopologySignature or '',
+        vertexCount=topology and topology.vertexCount or project.meshVertexCount or 0,
+        roles={},masks={},landmarks={}}
+    for index,role in ipairs(project.roles or {}) do
+        if role.enabled then
+            description.roles[#description.roles + 1]={index=index,name=role.name,object=role.object or ''}
+        end
+    end
+    for index,mask in ipairs(project.masks or {}) do
+        local vertices=type(mask.vertices)=='table' and mask.vertices or {}
+        description.masks[#description.masks + 1]={index=index,name=mask.name,
+            roleIndex=mask.roleIndex or 1,vertexCount=#vertices,
+            topologySignature=mask.topologySignature or ''}
+    end
+    for index,landmark in ipairs(project.landmarks or {}) do
+        if landmark.placed then
+            description.landmarks[#description.landmarks + 1]={index=index,name=landmark.name,
+                side=landmark.side,vertexIndex=landmark.vertexIndex,
+                position={x=landmark.position.x,y=landmark.position.y,z=landmark.position.z}}
+        end
+    end
+    return description
 end
 
 function M.save(project, path, serializer)

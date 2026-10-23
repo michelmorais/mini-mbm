@@ -149,16 +149,31 @@ The editor currently loads `.msh` assets for the initial setup workflow. Blender
 the established Mesh Debug and Blender bridge path until the facial editor's bridge workspace is
 implemented.
 
+## Delivered second slice: landmark viewport and binding data
+
+The second implementation slice now provides:
+
+- a frame-0 topology signature containing ordered vertex positions, subset boundaries, and subset index data;
+- stale-project and stale-mask diagnostics when the loaded mesh no longer matches the saved topology;
+- persistent landmark vertex associations when a landmark is snapped to the viewport;
+- always-on-top landmark cross markers with selection feedback in the 3D viewport;
+- click-to-select placed landmarks and click-to-snap the selected landmark to the nearest visible mesh vertex;
+- add/remove mask editing by nearest vertex in the Masks / Regions workspace;
+- a review-only binding description summarizing enabled roles, masks, landmarks, and source topology;
+- regression coverage for topology inspection, ray picking, project validation, and binding summaries.
+
+This slice remains authoring data only. It does not generate facial bones, automatic weights, or
+runtime expression targets.
+
 ## Next implementation milestone: landmark viewport editing and binding data
 
-The next implementation slice will provide:
+The delivered landmark slice moves the next implementation milestone to rig preview and binding:
 
-1. viewport landmark markers and selection;
-2. snap-to-vertex landmark placement;
-3. mask vertex editing against the inspected mesh topology;
-4. topology signatures and stale-project diagnostics;
-5. a binding description preview without committing generated weights;
-6. a reviewable setup report for the Fuzzy Fury and Megan fixtures.
+1. generate a canonical facial rig description from validated landmarks;
+2. preview generated facial bones and role bindings without committing weights;
+3. validate role masks and landmark groups against the generated rig;
+4. produce reviewable setup reports for the Fuzzy Fury and Megan fixtures.
 
-It will not yet claim automatic binding, full Faceit rig parity, live capture, or production-quality
-facial expressions. Those depend on the setup data being inspectable and stable first.
+It will not yet claim automatic weight generation, full Faceit rig parity, live capture, or
+production-quality facial expressions. Those depend on the generated rig description being stable
+and reviewable first.
