@@ -40,24 +40,27 @@ local state = {
     project=tFacialProject.new(), projectPath=nil, mesh=nil, meshDebug=nil,
     meshBounds=nil, meshVertexCount=0, topology=nil, landmarkMarkers={}, landmarkMarkersDirty=true,
     workspace='setup', modified=false,
-    selectedRole=1, selectedLandmark=1, status='', statusError=false,
+    selectedRole=1, selectedLandmark=1, landmarkEditMode=1, status='', statusError=false,
     selectedMask=1, maskEditMode='add',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
     faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
-    faceGizmoDrag=nil, windowMove=false, leftPanelRight=560
+    faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
+    undoStack={}, redoStack={}, historyLimit=50
 }
 
 local windows = {
     main='facial_rig_main', camera='facial_rig_camera', report='facial_rig_report'
 }
 
-local faceGuideEdges={
-    {'left_eye_corner','right_eye_corner'},{'left_eye_center','left_eye_corner'},{'right_eye_center','right_eye_corner'},
-    {'left_eye_center','brow_left'},{'right_eye_center','brow_right'},
-    {'nose_bridge','nose_tip'},{'nose_tip','upper_lip'},{'upper_lip','mouth_left'},
-    {'upper_lip','mouth_right'},{'mouth_left','lower_lip'},{'lower_lip','mouth_right'},
-    {'lower_lip','chin'},{'jaw_hinge_left','mouth_left'},{'jaw_hinge_right','mouth_right'}
+local faceGuidePaths={
+    {'left_eye_corner','left_eye_center','brow_left'},
+    {'right_eye_corner','right_eye_center','brow_right'},
+    {'nose_bridge','nose_tip','upper_lip'},
+    {'mouth_left','upper_lip','mouth_right','lower_lip','mouth_left'},
+    {'jaw_hinge_left','mouth_left'},
+    {'jaw_hinge_right','mouth_right'},
+    {'jaw_hinge_left','chin','jaw_hinge_right'}
 }
 
 local landmarkReferencePoints={
@@ -166,6 +169,54 @@ local function markModified()
     state.modified=true
 end
 
+local function clearHistory()
+    state.undoStack={}
+    state.redoStack={}
+end
+
+local function historySnapshot()
+    return {project=tUtil.deepCopyTable(state.project),modified=state.modified,
+        selectedRole=state.selectedRole,selectedLandmark=state.selectedLandmark,
+        selectedMask=state.selectedMask}
+end
+
+local function pushUndoSnapshot()
+    state.undoStack[#state.undoStack+1]=historySnapshot()
+    while #state.undoStack>(state.historyLimit or 50) do table.remove(state.undoStack,1) end
+    state.redoStack={}
+end
+
+local function restoreHistorySnapshot(snapshot)
+    if not snapshot or not snapshot.project then return false end
+    state.project=tUtil.deepCopyTable(snapshot.project)
+    state.modified=snapshot.modified == true
+    state.selectedRole=snapshot.selectedRole or state.project.selectedRole or 1
+    state.selectedLandmark=snapshot.selectedLandmark or state.project.selectedLandmark or 1
+    state.selectedMask=snapshot.selectedMask or state.project.selectedMask or 1
+    state.project.selectedRole=state.selectedRole
+    state.project.selectedLandmark=state.selectedLandmark
+    state.project.selectedMask=state.selectedMask
+    state.landmarkMarkersDirty=true
+    state.faceGuideDirty=true
+    return true
+end
+
+local function undoProject()
+    if #state.undoStack==0 then return false end
+    local current=historySnapshot()
+    local snapshot=table.remove(state.undoStack)
+    state.redoStack[#state.redoStack+1]=current
+    return restoreHistorySnapshot(snapshot)
+end
+
+local function redoProject()
+    if #state.redoStack==0 then return false end
+    local current=historySnapshot()
+    local snapshot=table.remove(state.redoStack)
+    state.undoStack[#state.undoStack+1]=current
+    return restoreHistorySnapshot(snapshot)
+end
+
 local function destroyPreview()
     for _,marker in ipairs(state.landmarkMarkers or {}) do
         dpCall(function() marker:destroy() end)
@@ -256,14 +307,13 @@ local function selectedFaceGuideName()
     return landmark and landmark.name or nil
 end
 
-local function addWireSegment(points,first,second)
-    points[#points+1]=first.x; points[#points+1]=first.y; points[#points+1]=first.z
-    points[#points+1]=second.x; points[#points+1]=second.y; points[#points+1]=second.z
+local function appendWirePoint(points,point)
+    points[#points+1]=point.x; points[#points+1]=point.y; points[#points+1]=point.z
 end
 
-local function appendFaceOutline(points,relative,scale)
+local function buildFaceOutline(relative,scale)
     local left,right,top,bottom=relative.face_left,relative.face_right,relative.face_top,relative.face_bottom
-    if not left or not right or not top or not bottom then return end
+    if not left or not right or not top or not bottom then return nil end
     local centerX=(left.x+right.x)*0.5
     local centerY=(top.y+bottom.y)*0.5
     local centerZ=(left.z+right.z+top.z+bottom.z)*0.25
@@ -281,9 +331,27 @@ local function appendFaceOutline(points,relative,scale)
         {x=left.x,y=centerY+radiusY*0.35,z=left.z},
         {x=centerX-radiusX*0.5,y=centerY+radiusY*0.866,z=centerZ}
     }
-    for index,point in ipairs(outline) do
-        addWireSegment(points,point,outline[index % #outline + 1])
+    local points={}
+    for _,point in ipairs(outline) do
+        appendWirePoint(points,point)
     end
+    appendWirePoint(points,outline[1])
+    return points
+end
+
+local function buildFaceGuidePaths(relative,scale)
+    local paths={}
+    local outline=buildFaceOutline(relative,scale)
+    if outline then paths[#paths+1]=outline end
+    for _,path in ipairs(faceGuidePaths) do
+        local points={}
+        for _,name in ipairs(path) do
+            local point=relative[name]
+            if point then appendWirePoint(points,point) end
+        end
+        if #points>=6 then paths[#paths+1]=points end
+    end
+    return paths
 end
 
 local function refreshFaceGuide()
@@ -306,21 +374,14 @@ local function refreshFaceGuide()
     guide.worldPoints={}
     for name,point in pairs(relative) do guide.worldPoints[name]=addPoint(originPoint,point) end
 
-    local wirePoints={}
-    appendFaceOutline(wirePoints,relative,scale)
-    for _,edge in ipairs(faceGuideEdges) do
-        local first,second=relative[edge[1]],relative[edge[2]]
-        if first and second then
-            addWireSegment(wirePoints,first,second)
-        end
-    end
+    local wirePaths=buildFaceGuidePaths(relative,scale)
     if not guide.wireframe then
         guide.wireframe=line:new('3d',0,0,0)
-        guide.wireframe:add(wirePoints)
+        for _,path in ipairs(wirePaths) do guide.wireframe:add(path) end
         guide.wireframe.alwaysOnTop=true
         guide.wireframe.alwaysOnTopPriority=2
     else
-        guide.wireframe:set(wirePoints,1)
+        for index,path in ipairs(wirePaths) do guide.wireframe:set(path,index) end
     end
     guide.wireframe:setPos(originPoint.x,originPoint.y,originPoint.z)
     guide.wireframe:setColor(0.25,0.8,1,0.9)
@@ -330,15 +391,19 @@ local function refreshFaceGuide()
     local selectedName=selectedFaceGuideName()
     for name,point in pairs(relative) do
         local marker=guide.markers[name]
-        local points={-pointSize,0,0,pointSize,0,0,0,-pointSize,0,0,pointSize,0,0,0,-pointSize,0,0,0,pointSize}
+        local paths={
+            {-pointSize,0,0,pointSize,0,0},
+            {0,-pointSize,0,0,pointSize,0},
+            {0,0,-pointSize,0,0,pointSize}
+        }
         if not marker then
             marker=line:new('3d',0,0,0)
-            marker:add(points)
+            for _,path in ipairs(paths) do marker:add(path) end
             marker.alwaysOnTop=true
             marker.alwaysOnTopPriority=3
             guide.markers[name]=marker
         else
-            marker:set(points,1)
+            for index,path in ipairs(paths) do marker:set(path,index) end
         end
         local world=guide.worldPoints[name]
         marker:setPos(world.x,world.y,world.z)
@@ -387,14 +452,19 @@ local function refreshLandmarkMarkers()
     local landmarks=state.project.landmarks or {}
     for index,landmark in ipairs(landmarks) do
         local marker=state.landmarkMarkers[index]
+        local markerPaths={
+            {-size,0,0,size,0,0},
+            {0,-size,0,0,size,0},
+            {0,0,-size,0,0,size}
+        }
         if not marker then
             marker=line:new('3d',0,0,0)
-            marker:add({{x=-size,y=0,z=0},{x=size,y=0,z=0},
-                {x=0,y=-size,z=0},{x=0,y=size,z=0},
-                {x=0,y=0,z=-size},{x=0,y=0,z=size}})
+            for _,path in ipairs(markerPaths) do marker:add(path) end
             marker.alwaysOnTop=true
             marker.alwaysOnTopPriority=1
             state.landmarkMarkers[index]=marker
+        else
+            for pathIndex,path in ipairs(markerPaths) do marker:set(path,pathIndex) end
         end
         local originPlaced=state.project.faceOrigin and state.project.faceOrigin.placed
         local visible=state.workspace=='landmarks' and state.mesh.visible and landmark.placed and landmark.position and not originPlaced
@@ -453,6 +523,7 @@ local function loadMesh(path, preserveProject)
     state.selectedRole=state.project.selectedRole or 1
     state.selectedLandmark=state.project.selectedLandmark or 1
     state.selectedMask=state.project.selectedMask or 1
+    clearHistory()
     state.modified=preserveProject and state.modified or true
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
@@ -469,6 +540,7 @@ local function newProject()
     state.selectedRole=1
     state.selectedLandmark=1
     state.selectedMask=1
+    clearHistory()
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     setStatus(tLang.L('fre_new_project'),false)
@@ -497,6 +569,7 @@ local function openProject()
     else
         destroyPreview()
     end
+    clearHistory()
     setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
 end
 
@@ -541,6 +614,12 @@ local function showMenu()
             saveProject()
         end
         if tImGui.MenuItem(tLang.L('fre_save_as'), nil, false, true) then saveProjectAs() end
+        if tImGui.MenuItem(tLang.L('fre_undo'), 'Ctrl+Z', false, #state.undoStack>0) then
+            if undoProject() then setStatus(tLang.L('fre_undo_done'),false) end
+        end
+        if tImGui.MenuItem(tLang.L('fre_redo'), 'Ctrl+Y', false, #state.redoStack>0) then
+            if redoProject() then setStatus(tLang.L('fre_redo_done'),false) end
+        end
         tImGui.Separator()
         if tImGui.MenuItem(tLang.L('menu_quit'), 'Ctrl+Q') then mbm.quit() end
         tImGui.EndMenu()
@@ -609,11 +688,20 @@ local function showMasks()
         tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
         tImGui.PushItemWidth(320)
         local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',selected.object or '')
-        if changed then selected.object=object; markModified() end
+        if changed then
+            pushUndoSnapshot()
+            selected.object=object
+            markModified()
+        end
         tImGui.PopItemWidth()
         local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
-        if enabled~=selected.enabled then selected.enabled=enabled; markModified() end
+        if enabled~=selected.enabled then
+            pushUndoSnapshot()
+            selected.enabled=enabled
+            markModified()
+        end
         if tImGui.Button(tLang.L('fre_add_mask')) then
+            pushUndoSnapshot()
             tFacialProject.addMask(state.project,selected.name,state.selectedRole)
             state.selectedMask=#state.project.masks
             markModified()
@@ -642,11 +730,19 @@ local function showMasks()
     if selectedMask then
         tImGui.PushItemWidth(320)
         local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '')
-        if changed and name~='' then selectedMask.name=name; markModified() end
+        if changed and name~='' then
+            pushUndoSnapshot()
+            selectedMask.name=name
+            markModified()
+        end
         tImGui.PopItemWidth()
         local roleNames=tFacialProject.roleNames()
         local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
-        if roleChanged then selectedMask.roleIndex=roleIndex; markModified() end
+        if roleChanged then
+            pushUndoSnapshot()
+            selectedMask.roleIndex=roleIndex
+            markModified()
+        end
         tImGui.TextWrapped(tLang.L('fre_mask_edit_help'))
         local addPressed=tImGui.Button(tLang.L('fre_mask_add_vertices'))
         tImGui.SameLine()
@@ -654,15 +750,26 @@ local function showMasks()
         if addPressed then state.maskEditMode='add' end
         if removePressed then state.maskEditMode='remove' end
         tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. state.maskEditMode)
-        if tImGui.Button(tLang.L('fre_mask_clear')) then selectedMask.vertices={}; markModified() end
+        if tImGui.Button(tLang.L('fre_mask_clear')) then
+            pushUndoSnapshot()
+            selectedMask.vertices={}
+            markModified()
+        end
     end
 end
 
 local function setFaceOriginFromVertex(vertexHit)
     if not vertexHit or not state.meshBounds then return false end
+    pushUndoSnapshot()
     local origin=state.project.faceOrigin or {position={x=0,y=0,z=0}}
     local scale=origin.placed and origin.scale or faceGuideScale(state.meshBounds)
     if not tFacialProject.setFaceOrigin(state.project,vertexHit.point,scale,vertexHit.index) then return false end
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        if landmark.placed and landmark.position and not landmark.relativePosition then
+            landmark.relativePosition={x=landmark.position.x-vertexHit.point.x,
+                y=landmark.position.y-vertexHit.point.y,z=landmark.position.z-vertexHit.point.z}
+        end
+    end
     state.project.selectedLandmark=state.selectedLandmark
     markModified()
     markFaceGuideDirty()
@@ -685,6 +792,7 @@ local function showFacePosition()
     tImGui.Text(string.format(tLang.L('fre_face_origin_placed_fmt'),origin.position.x,origin.position.y,origin.position.z))
     tImGui.TextWrapped(tLang.L('fre_face_origin_drag_help'))
     if tImGui.Button(tLang.L('fre_face_position_clear')) then
+        pushUndoSnapshot()
         origin.placed=false
         origin.vertexIndex=nil
         origin.position={x=0,y=0,z=0}
@@ -702,6 +810,95 @@ local function syncLandmarkRelativePosition(landmark)
         y=landmark.position.y-origin.position.y,z=landmark.position.z-origin.position.z}
 end
 
+local function findLandmark(name)
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        if landmark.name==name then return landmark end
+    end
+    return nil
+end
+
+local function mirrorLandmarkName(name,side)
+    if type(name)~='string' or (side~='left' and side~='right') then return nil end
+    local sourcePrefix=side .. '_'
+    local oppositePrefix=(side=='left' and 'right_' or 'left_')
+    if name:sub(1,#sourcePrefix)==sourcePrefix then
+        return oppositePrefix .. name:sub(#sourcePrefix+1)
+    end
+    local sourceSuffix='_' .. side
+    if name:sub(-#sourceSuffix)==sourceSuffix then
+        return name:sub(1,-#sourceSuffix-1) .. '_' .. (side=='left' and 'right' or 'left')
+    end
+    return nil
+end
+
+local function landmarkMirrorCenterX()
+    local nose=findLandmark('nose_tip') or findLandmark('nose_bridge')
+    if nose and nose.placed and nose.position then return nose.position.x end
+    local origin=state.project.faceOrigin
+    if origin and origin.placed and origin.position then return origin.position.x end
+    return 0
+end
+
+local function mirrorLandmark(landmark)
+    if state.landmarkEditMode~=2 or not landmark or
+            (landmark.side~='left' and landmark.side~='right') then return end
+    local oppositeName=mirrorLandmarkName(landmark.name,landmark.side)
+    local opposite=oppositeName and findLandmark(oppositeName)
+    if not opposite or not landmark.position then return end
+    local centerX=landmarkMirrorCenterX()
+    opposite.position={x=2*centerX-landmark.position.x,y=landmark.position.y,z=landmark.position.z}
+    opposite.placed=landmark.placed
+    opposite.vertexIndex=nil
+    syncLandmarkRelativePosition(opposite)
+end
+
+local function synchronizeLandmarkSides()
+    local changed=false
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        if landmark.placed and landmark.position and
+                (landmark.side=='left' or landmark.side=='right') then
+            local oppositeName=mirrorLandmarkName(landmark.name,landmark.side)
+            local opposite=oppositeName and findLandmark(oppositeName)
+            if opposite then
+                local centerX=landmarkMirrorCenterX()
+                local mirroredX=2*centerX-landmark.position.x
+                local previous=opposite.position
+                local origin=state.project.faceOrigin
+                local relative=origin and origin.placed and {
+                    x=mirroredX-origin.position.x,
+                    y=landmark.position.y-origin.position.y,
+                    z=landmark.position.z-origin.position.z} or nil
+                local previousRelative=opposite.relativePosition
+                if not previous or math.abs(previous.x-mirroredX)>1e-6 or
+                        math.abs(previous.y-landmark.position.y)>1e-6 or
+                        math.abs(previous.z-landmark.position.z)>1e-6 or
+                        relative and (not previousRelative or
+                            math.abs(previousRelative.x-relative.x)>1e-6 or
+                            math.abs(previousRelative.y-relative.y)>1e-6 or
+                            math.abs(previousRelative.z-relative.z)>1e-6) or
+                        not opposite.placed or opposite.vertexIndex~=nil then
+                    changed=true
+                end
+                opposite.position={x=mirroredX,y=landmark.position.y,z=landmark.position.z}
+                opposite.placed=true
+                opposite.vertexIndex=nil
+                syncLandmarkRelativePosition(opposite)
+            end
+        end
+    end
+    return changed
+end
+
+local function setLandmarkPosition(landmark,position,vertexIndex)
+    if not landmark or not position then return end
+    pushUndoSnapshot()
+    landmark.position={x=position.x,y=position.y,z=position.z}
+    landmark.vertexIndex=vertexIndex
+    landmark.placed=true
+    syncLandmarkRelativePosition(landmark)
+    mirrorLandmark(landmark)
+end
+
 local function showLandmarks()
     tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
     if not state.mesh then
@@ -710,6 +907,28 @@ local function showLandmarks()
     end
     local landmarks=state.project.landmarks
     tImGui.PushItemWidth(220)
+    tImGui.Text(tLang.L('fre_landmark_edit_mode'))
+    local previousEditMode=state.landmarkEditMode
+    state.landmarkEditMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_async'),state.landmarkEditMode,1)
+    tImGui.SameLine()
+    state.landmarkEditMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_sync'),state.landmarkEditMode,2)
+    if previousEditMode~=2 and state.landmarkEditMode==2 then
+        pushUndoSnapshot()
+        if synchronizeLandmarkSides() then
+            markModified()
+            markLandmarkMarkersDirty()
+            markFaceGuideDirty()
+        else
+            table.remove(state.undoStack)
+        end
+    end
+    if state.landmarkEditMode==2 then
+        tImGui.TextWrapped(tLang.L('fre_landmark_sync_help'))
+        local nose=findLandmark('nose_tip') or findLandmark('nose_bridge')
+        if not nose or not nose.placed then
+            tImGui.TextDisabled(tLang.L('fre_landmark_sync_center_fallback'))
+        end
+    end
     local names={}
     for _,landmark in ipairs(landmarks) do names[#names+1]=localizedLandmarkName(landmark.name) end
     local option=math.max(1,math.min(#names,state.selectedLandmark))
@@ -727,11 +946,17 @@ local function showLandmarks()
         local xChanged,x=tImGui.InputFloat('X##freLandmarkX',selected.position.x,0,0,'%.4f',0)
         local yChanged,y=tImGui.InputFloat('Y##freLandmarkY',selected.position.y,0,0,'%.4f',0)
         local zChanged,z=tImGui.InputFloat('Z##freLandmarkZ',selected.position.z,0,0,'%.4f',0)
-        if xChanged then selected.position.x=x; selected.vertexIndex=nil; selected.placed=true; syncLandmarkRelativePosition(selected); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
-        if yChanged then selected.position.y=y; selected.vertexIndex=nil; selected.placed=true; syncLandmarkRelativePosition(selected); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
-        if zChanged then selected.position.z=z; selected.vertexIndex=nil; selected.placed=true; syncLandmarkRelativePosition(selected); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+        if xChanged then setLandmarkPosition(selected,{x=x,y=selected.position.y,z=selected.position.z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+        if yChanged then setLandmarkPosition(selected,{x=selected.position.x,y=y,z=selected.position.z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+        if zChanged then setLandmarkPosition(selected,{x=selected.position.x,y=selected.position.y,z=z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
         local placed=tImGui.Checkbox(tLang.L('fre_landmark_placed'),selected.placed)
-        if placed~=selected.placed then selected.placed=placed; syncLandmarkRelativePosition(selected); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+        if placed~=selected.placed then
+            pushUndoSnapshot()
+            selected.placed=placed
+            syncLandmarkRelativePosition(selected)
+            mirrorLandmark(selected)
+            markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty()
+        end
     end
     tImGui.PopItemWidth()
     local report=tFacialProject.validate(state.project,true,state.topology)
@@ -899,7 +1124,7 @@ local function nearestFaceGuidePoint(x,y)
     if length<=1e-8 then return nil end
     dx,dy,dz=dx/length,dy/length,dz/length
     local scale=state.project.faceOrigin and state.project.faceOrigin.scale or 1
-    local radius=math.max(scale*0.055,0.003)
+    local radius=math.max(scale*0.035,0.003)
     local best,bestDistance=nil,math.huge
     for name,point in pairs(guide.worldPoints) do
         local distance=rayPointDistance(ox,oy,oz,dx,dy,dz,point,radius)
@@ -985,6 +1210,7 @@ local function applyFaceGuideAxisDelta(axisName,delta,baseOrigin,baseRelative)
         landmark.position=addPoint(origin.position,relative)
         landmark.placed=true
         landmark.vertexIndex=nil
+        mirrorLandmark(landmark)
     end
     markModified()
     markLandmarkMarkersDirty()
@@ -997,11 +1223,19 @@ local function toggleMaskVertex(index)
     mask.topologySignature=state.topology.signature
     for position,vertex in ipairs(mask.vertices or {}) do
         if vertex==index then
-            if state.maskEditMode=='remove' then table.remove(mask.vertices,position); markModified() end
+            if state.maskEditMode=='remove' then
+                pushUndoSnapshot()
+                table.remove(mask.vertices,position)
+                markModified()
+            end
             return true
         end
     end
-    if state.maskEditMode=='add' then mask.vertices[#mask.vertices+1]=index; markModified() end
+    if state.maskEditMode=='add' then
+        pushUndoSnapshot()
+        mask.vertices[#mask.vertices+1]=index
+        markModified()
+    end
     return true
 end
 
@@ -1010,9 +1244,12 @@ local function handleViewportAuthoringClick(x,y)
     local origin,direction=viewportPickRay(x,y)
     if not origin then return false end
     if state.workspace=='face_position' then
-        local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
-            viewportPickRadius(0.025))
-        if vertexHit then return setFaceOriginFromVertex(vertexHit) end
+        local faceOrigin=state.project.faceOrigin
+        if not faceOrigin or not faceOrigin.placed or state.controlDown then
+            local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
+                viewportPickRadius(0.025))
+            if vertexHit then return setFaceOriginFromVertex(vertexHit) end
+        end
     elseif state.workspace=='landmarks' then
         local guideHit=nearestFaceGuidePoint(x,y)
         if guideHit then
@@ -1032,27 +1269,26 @@ local function handleViewportAuthoringClick(x,y)
             return true
         end
         local landmarkHit=tFacialLandmarks.nearestLandmark(state.project.landmarks,origin,direction,
-            viewportPickRadius(0.04))
+            viewportPickRadius(0.025))
         if landmarkHit then
             state.selectedLandmark=landmarkHit.index
             state.project.selectedLandmark=landmarkHit.index
             markLandmarkMarkersDirty()
             return true
         end
-        local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
-            viewportPickRadius(0.025))
-        if vertexHit then
-            local selected=state.project.landmarks[state.selectedLandmark]
-            if selected then
-                selected.position={x=vertexHit.point.x,y=vertexHit.point.y,z=vertexHit.point.z}
-                selected.placed=true
-                selected.vertexIndex=vertexHit.index
-                syncLandmarkRelativePosition(selected)
-                state.project.selectedLandmark=state.selectedLandmark
-                markModified()
-                markLandmarkMarkersDirty()
-                markFaceGuideDirty()
-                return true
+        if state.controlDown then
+            local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
+                viewportPickRadius(0.025))
+            if vertexHit then
+                local selected=state.project.landmarks[state.selectedLandmark]
+                if selected then
+                    setLandmarkPosition(selected,vertexHit.point,vertexHit.index)
+                    state.project.selectedLandmark=state.selectedLandmark
+                    markModified()
+                    markLandmarkMarkersDirty()
+                    markFaceGuideDirty()
+                    return true
+                end
             end
         end
     elseif state.workspace=='masks' then
@@ -1073,6 +1309,7 @@ function onTouchDown(key,x,y)
             local axisVector=axis=='x' and {x=1,y=0,z=0} or axis=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
             local parameter=rayAxisParameter(x,y,state.faceGuide.origin,axisVector)
             if parameter then
+                pushUndoSnapshot()
                 local selectedName=selectedFaceGuideName()
                 local baseRelative={x=0,y=0,z=0}
                 if selectedName and selectedName~='face_origin' then
@@ -1158,6 +1395,14 @@ end
 function onKeyDown(key)
     if key==mbm.getKeyCode('control') then state.controlDown=true
     elseif key==mbm.getKeyCode('shift') then state.shiftDown=true
+    elseif state.controlDown and key==mbm.getKeyCode('Z') and not tImGui.IsAnyItemActive() then
+        if state.shiftDown then
+            if redoProject() then setStatus(tLang.L('fre_redo_done'),false) end
+        elseif undoProject() then
+            setStatus(tLang.L('fre_undo_done'),false)
+        end
+    elseif state.controlDown and key==mbm.getKeyCode('Y') and not tImGui.IsAnyItemActive() then
+        if redoProject() then setStatus(tLang.L('fre_redo_done'),false) end
     elseif state.controlDown and key==mbm.getKeyCode('N') then newProject()
     elseif state.controlDown and key==mbm.getKeyCode('O') then openProject()
     elseif state.controlDown and key==mbm.getKeyCode('S') then

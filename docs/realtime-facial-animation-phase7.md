@@ -168,9 +168,12 @@ The second implementation slice now provides:
 - fixed-size authoring and camera panels so localized labels and input fields keep a stable layout;
 - localized landmark names, side labels, and validation diagnostics in English and Portuguese;
 - a dedicated Face position worktree that anchors the facial reference wireframe to a mesh point such as the nose;
-- an always-on-top 3D facial wireframe with selectable joints and X/Y/Z translation axes;
+- an always-on-top 3D facial wireframe with independent contour, eye, brow, nose, mouth, and jaw paths,
+  selectable joints, and X/Y/Z translation axes;
 - landmark coordinates stored relative to the face reference origin while preserving mesh-local positions;
-- click-to-select placed landmarks and click-to-snap the selected landmark to the nearest visible mesh vertex;
+- independent and synchronized landmark side editing, with synchronized sides mirrored across the nose X position;
+- click-to-select placed landmarks, Ctrl-click snapping to the nearest visible mesh vertex, and empty-space orbiting;
+- Ctrl+Z/Ctrl+Y project history for facial placement, mask, role, and landmark edits;
 - add/remove mask editing by nearest vertex in the Masks / Regions workspace;
 - a review-only binding description summarizing enabled roles, masks, landmarks, and source topology;
 - regression coverage for topology inspection, ray picking, project validation, and binding summaries.
