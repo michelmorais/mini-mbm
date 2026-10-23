@@ -164,7 +164,8 @@ The second implementation slice now provides:
 - persistent landmark vertex associations when a landmark is snapped to the viewport;
 - always-on-top landmark cross markers with selection feedback in the 3D viewport;
 - the shared Mesh Debug orbit gizmo in the facial camera panel, including axis snap views;
-- separate camera commands for framing the complete mesh and the facial landmark region, with face framing centered on the face origin and front-aligned;
+- separate camera commands for framing the complete mesh, the facial landmark region, and the selected landmark, with face framing centered on the face origin and front-aligned;
+- a human-face initial wireframe calibrated from the mapped Megan landmark project;
 - a TreeNode workspace navigator with one facial worktree open at a time;
 - fixed-size authoring and camera panels so localized labels and input fields keep a stable layout;
 - localized landmark names, side labels, and validation diagnostics in English and Portuguese;

@@ -262,15 +262,17 @@ local function frameCamera(bounds)
 end
 
 local function faceGuideRelative(name, scale)
+    -- Human-face reference preset calibrated from the mapped Megan project.
     local points={
-        face_left={-1,0,0}, face_right={1,0,0}, face_top={0,1,0}, face_bottom={0,-1,0},
-        left_eye_center={-0.38,0.35,0.03}, right_eye_center={0.38,0.35,0.03},
-        left_eye_corner={-0.58,0.35,0.02}, right_eye_corner={0.58,0.35,0.02},
-        nose_bridge={0,0.18,0.08}, nose_tip={0,-0.02,0.18},
-        mouth_left={-0.42,-0.42,0.04}, mouth_right={0.42,-0.42,0.04},
-        upper_lip={0,-0.36,0.08}, lower_lip={0,-0.54,0.07}, chin={0,-0.78,0.01},
-        jaw_hinge_left={-0.82,-0.36,0}, jaw_hinge_right={0.82,-0.36,0},
-        brow_left={-0.36,0.58,0.02}, brow_right={0.36,0.58,0.02}
+        face_left={-0.3618,0.1413,-0.2554}, face_right={0.3595,0.1413,-0.2554},
+        face_top={0,0.6291,-0.2279}, face_bottom={0.1052,-0.4323,-0.1315},
+        left_eye_center={-0.1905,0.1697,-0.1346}, right_eye_center={0.1882,0.1697,-0.1346},
+        left_eye_corner={-0.2819,0.1455,-0.1914}, right_eye_corner={0.2796,0.1455,-0.1914},
+        nose_bridge={0,0.005,0.0789}, nose_tip={-0.0012,0.0021,0.0882},
+        mouth_left={-0.1418,-0.1959,-0.0603}, mouth_right={0.1395,-0.1959,-0.0603},
+        upper_lip={0,-0.1635,0.0187}, lower_lip={0,-0.2314,0.0034}, chin={0,-0.4175,-0.0558},
+        jaw_hinge_left={-0.1193,-0.3522,-0.0601}, jaw_hinge_right={0.1193,-0.3522,-0.0601},
+        brow_left={-0.1871,0.2732,-0.1142}, brow_right={0.1848,0.2732,-0.1142}
     }
     local point=points[name] or {0,0,0}
     return {x=point[1]*scale,y=point[2]*scale,z=point[3]*scale}
@@ -351,6 +353,18 @@ local function frameFaceCamera()
     state.camera.azimuth=0
     state.camera.elevation=0
     frameCamera(bounds)
+end
+
+local function frameLandmarkCamera()
+    local landmark=state.project.landmarks[state.selectedLandmark]
+    if not landmark or not landmark.placed or not landmark.position then return end
+    local origin=state.project.faceOrigin
+    local scale=origin and origin.placed and origin.scale or faceGuideScale(state.meshBounds)
+    local radius=math.max(tonumber(scale) or 1,0.05)*0.18
+    local point=landmark.position
+    frameCamera({minX=point.x-radius,maxX=point.x+radius,
+        minY=point.y-radius,maxY=point.y+radius,
+        minZ=point.z-radius,maxZ=point.z+radius})
 end
 
 local function hideFaceGuide()
@@ -1154,6 +1168,12 @@ local function showCameraPanel()
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_frame_face')) then frameFaceCamera() end
         tImGui.Separator()
+        local selectedLandmark=state.project.landmarks[state.selectedLandmark]
+        local canFrameLandmark=selectedLandmark and selectedLandmark.placed and selectedLandmark.position
+        tImGui.BeginDisabled(not canFrameLandmark)
+        if tImGui.Button(tLang.L('fre_frame_landmark')) then frameLandmarkCamera() end
+        tImGui.EndDisabled()
+        tImGui.SameLine()
         local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),state.mesh and state.mesh.visible or false)
         if state.mesh and visible~=state.mesh.visible then state.mesh.visible=visible; markLandmarkMarkersDirty() end
         tImGui.Separator()
