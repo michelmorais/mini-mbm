@@ -7,9 +7,10 @@ surface to Mesh Debug.
 
 The preview lives in `editor/facial_mesh_playback.lua`, mounted as a **Facial animation** node in
 `editor/mesh_debug.lua`. The skeletal animation editor remains focused on bones, pose authoring,
-and skeletal timelines. The preview is not the authoring workflow. A dedicated facial rig authoring editor is now
-planned as Phase 7, using this module for playback and validation while keeping setup, masks,
-landmarks, rig generation, and expression authoring in its own editor.
+and skeletal timelines. The preview is not the authoring workflow. A dedicated facial rig authoring
+editor is now planned as Phase 7. It will be a separate entry point following the skeletal editor's
+application shell and persistence conventions, while keeping setup, masks, landmarks, rig
+generation, and expression authoring in facial-only workspaces.
 
 ## Delivered in this slice
 

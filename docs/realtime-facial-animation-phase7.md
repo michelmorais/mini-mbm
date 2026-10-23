@@ -90,32 +90,59 @@ mirroring and corrective edits, and sample clips into the existing facial runtim
 current Mesh Debug facial playback module remains the shared review surface until the authoring
 editor has its own expression panel.
 
-## Architecture
+## Architecture and editor pattern
 
-The editor will be a separate Lua entry point, not a new workspace inside the skeletal animation
-editor:
+The facial editor is a separate Lua entry point, but its application shell follows
+`editor/skeletal_animation_editor.lua`. This keeps the two tools familiar and lets them share
+engine conventions without turning the skeletal editor into a collection of unrelated panels:
 
-- facial_rig_editor.lua - lifecycle, viewport, setup panels, and dirty-state orchestration;
-- facial_rig_project.lua - project schema, role/mask/landmark validation, and save/load model;
-- facial_rig_landmarks.lua - landmark placement and geometric validation;
-- facial_rig_blender_bridge.lua - transactional Blender export/import of rig descriptions;
-- facial_capture_mapping.lua and facial_capture_stream.lua - downstream named-weight mapping and
+- the same launcher registration and localized application label;
+- the same `tImGui`/`tUtil` setup, scene lifecycle, state-table organization, and workspace switching;
+- the same viewport, camera navigation, selection, gizmo, status, diagnostics, and dirty-state
+  conventions;
+- the same event-driven save/load approach for editor state and generated Lua project files.
+
+The facial editor keeps its own file and project schema. It is not a new workspace in the skeletal
+animation editor, because the workflows have different primary data and validation rules. Its
+workspaces are limited to facial authoring:
+
+1. **Setup** - load the mesh, register objects, assign facial roles, and inspect the base pose.
+2. **Masks/regions** - create and validate stable vertex or object regions.
+3. **Landmarks** - place, edit, snap, and validate facial landmarks in the 3D viewport.
+4. **Rig** - preview and validate the generated facial rig and binding description.
+5. **Expressions** - author, mirror, correct, and inspect facial targets and clips.
+6. **Preview** - review target weights, facial clips, and deterministic capture replay.
+
+Skeletal-only features remain outside this editor: bone animation timelines, skeletal animation
+layers, general skin-weight painting, and skeletal playback controls. A narrowly scoped shared
+routine is allowed when it is required to bind facial geometry, but it must not expose the whole
+skeletal workflow in the facial UI.
+
+The proposed modules are:
+
+- `facial_rig_editor.lua` - lifecycle, viewport, facial workspaces, and dirty-state orchestration;
+- `facial_rig_project.lua` - project schema, role/mask/landmark validation, and save/load model;
+- `facial_rig_landmarks.lua` - landmark placement and geometric validation;
+- `facial_rig_blender_bridge.lua` - transactional Blender export/import of rig descriptions;
+- `facial_capture_mapping.lua` and `facial_capture_stream.lua` - downstream named-weight mapping and
   deterministic replay utilities.
 
 Shared viewport and mesh utilities may be reused. Per-frame code must only draw UI or update an
 actively edited gizmo; loading, mask scans, Blender exports, serialization, and rig generation
 must be dirty or explicitly requested operations.
 
-## Next implementation milestone: setup and landmarks
+## Next implementation milestone: editor shell, setup, and landmarks
 
 The first implementation slice will provide:
 
-1. a saved facial project state;
-2. object/role registration;
-3. stable vertex-region masks;
-4. landmark placement and editing;
-5. topology and required-landmark validation;
-6. a reviewable setup report for the Fuzzy Fury and Megan fixtures.
+1. a standalone facial editor entry point registered beside the skeletal animation editor;
+2. a saved facial project state using the same persistence conventions as the skeletal editor;
+3. facial-only workspace switching and a setup report;
+4. object/role registration;
+5. stable vertex-region masks;
+6. landmark placement and editing;
+7. topology and required-landmark validation;
+8. a reviewable setup report for the Fuzzy Fury and Megan fixtures.
 
 It will not yet claim automatic binding, full Faceit rig parity, live capture, or production-quality
 facial expressions. Those depend on the setup data being inspectable and stable first.

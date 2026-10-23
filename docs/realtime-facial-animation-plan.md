@@ -193,10 +193,17 @@ applies to all others.
 
 **Planned after the runtime and interchange foundations; this is now the primary authoring direction.**
 
-The project will provide a standalone facial rig editor with its own setup workflow, while reusing
-shared viewport, serialization, mesh inspection, and skeletal utilities where practical. The
-existing skeletal animation editor remains focused on bones, animation timelines, masks, and
-skeletal playback. Mesh Debug keeps the compact facial playback/import preview.
+The project will provide a standalone facial rig editor whose application shell follows the
+existing skeletal animation editor. It will reuse shared viewport, serialization, mesh inspection,
+selection, gizmo, and launcher conventions while keeping a separate facial project state and
+separate Lua entry point. The skeletal animation editor remains focused on bones, animation
+timelines, skeletal masks, and skeletal playback. Mesh Debug keeps the compact facial
+playback/import preview.
+
+The facial editor will expose only facial workspaces: setup and object roles, masks/regions,
+landmarks, facial rig preview/binding, expressions, and facial playback. Skeletal timelines,
+general skin painting, and unrelated skeletal controls stay out of its UI; a small shared binding
+helper is allowed only where facial geometry needs it.
 
 The workflow is intentionally compatible with Faceit concepts without depending on Faceit internal
 files: register facial objects, assign semantic regions, place landmarks, generate a facial rig,
