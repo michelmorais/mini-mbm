@@ -164,16 +164,19 @@ The second implementation slice now provides:
 - persistent landmark vertex associations when a landmark is snapped to the viewport;
 - always-on-top landmark cross markers with selection feedback in the 3D viewport;
 - the shared Mesh Debug orbit gizmo in the facial camera panel, including axis snap views;
+- separate camera commands for framing the complete mesh and the facial landmark region, with face framing centered on the face origin and front-aligned;
 - a TreeNode workspace navigator with one facial worktree open at a time;
 - fixed-size authoring and camera panels so localized labels and input fields keep a stable layout;
 - localized landmark names, side labels, and validation diagnostics in English and Portuguese;
 - a dedicated Face position worktree that anchors the facial reference wireframe to a mesh point such as the nose;
+- editable face-reference scale around the origin, with placed landmarks scaled together;
 - an always-on-top 3D facial wireframe with independent contour, eye, brow, nose, mouth, and jaw paths,
   selectable joints, and X/Y/Z translation axes;
 - landmark coordinates stored relative to the face reference origin while preserving mesh-local positions;
 - independent and synchronized landmark side editing, with synchronized sides mirrored across the nose X position and persisted in the facial project;
 - click-to-select placed landmarks, Ctrl-click snapping to the nearest visible mesh vertex, and empty-space orbiting;
 - Ctrl+Z/Ctrl+Y project history for facial placement, mask, role, and landmark edits;
+- project files preserve the selected facial side-editing mode and preferred editor language;
 - add/remove mask editing by nearest vertex in the Masks / Regions workspace;
 - a review-only binding description summarizing enabled roles, masks, landmarks, and source topology;
 - regression coverage for topology inspection, ray picking, project validation, and binding summaries.

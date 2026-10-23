@@ -69,7 +69,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=3,
+        schemaVersion=4,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -80,7 +80,8 @@ function M.new()
         selectedRole=1,
         selectedLandmark=1,
         selectedMask=1,
-        landmarkEditMode=1
+        landmarkEditMode=1,
+        language=nil
     }
 end
 
@@ -92,7 +93,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(3,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(4,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -111,6 +112,7 @@ function M.normalize(project)
     project.selectedMask=math.max(1, math.floor(tonumber(project.selectedMask) or 1))
     project.landmarkEditMode=math.max(1,math.min(2,
         math.floor(tonumber(project.landmarkEditMode) or 1)))
+    if project.language~='en' and project.language~='pt_br' then project.language=nil end
     for index, role in ipairs(project.roles) do
         if type(role) ~= 'table' then
             project.roles[index]={name=ROLE_NAMES[index] or ('role_' .. index), object='', enabled=true}

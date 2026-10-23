@@ -293,6 +293,66 @@ local function addPoint(a,b)
     return {x=a.x+b.x,y=a.y+b.y,z=a.z+b.z}
 end
 
+local function faceFrameBounds()
+    local minX,minY,minZ,maxX,maxY,maxZ
+    local function include(point)
+        if not point then return end
+        minX=minX and math.min(minX,point.x) or point.x
+        minY=minY and math.min(minY,point.y) or point.y
+        minZ=minZ and math.min(minZ,point.z) or point.z
+        maxX=maxX and math.max(maxX,point.x) or point.x
+        maxY=maxY and math.max(maxY,point.y) or point.y
+        maxZ=maxZ and math.max(maxZ,point.z) or point.z
+    end
+    local placedCount=0
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        if landmark.placed and landmark.position then
+            include(landmark.position)
+            placedCount=placedCount+1
+        end
+    end
+    local origin=state.project.faceOrigin
+    if placedCount==0 and origin and origin.placed and origin.position then
+        local scale=math.max(tonumber(origin.scale) or faceGuideScale(state.meshBounds),0.001)
+        include(origin.position)
+        for _,landmark in ipairs(state.project.landmarks or {}) do
+            include(addPoint(origin.position,faceGuideRelative(landmark.name,scale)))
+        end
+    end
+    if not minX then return state.meshBounds end
+    local centerX=(minX+maxX)*0.5
+    local centerY=(minY+maxY)*0.5
+    local centerZ=(minZ+maxZ)*0.5
+    local extent=math.max(maxX-minX,maxY-minY,maxZ-minZ)
+    local minimumExtent=origin and origin.placed and tonumber(origin.scale) or 0
+    extent=math.max(extent,minimumExtent*1.2,0.1)
+    local half=extent*0.5
+    return {minX=centerX-half,maxX=centerX+half,
+        minY=centerY-half,maxY=centerY+half,
+        minZ=centerZ-half,maxZ=centerZ+half}
+end
+
+local function frameFaceCamera()
+    local bounds=faceFrameBounds()
+    if not bounds then return end
+    local origin=state.project.faceOrigin
+    if origin and origin.placed and origin.position then
+        local center=origin.position
+        local halfX=math.max(math.abs(bounds.minX-center.x),math.abs(bounds.maxX-center.x))
+        local halfY=math.max(math.abs(bounds.minY-center.y),math.abs(bounds.maxY-center.y))
+        local halfZ=math.max(math.abs(bounds.minZ-center.z),math.abs(bounds.maxZ-center.z))
+        bounds={minX=center.x-math.max(halfX,0.05),maxX=center.x+math.max(halfX,0.05),
+            minY=center.y-math.max(halfY,0.05),maxY=center.y+math.max(halfY,0.05),
+            minZ=center.z-math.max(halfZ,0.05),maxZ=center.z+math.max(halfZ,0.05)}
+    end
+    -- A face frame is an authoring view: use the front axis so the facial
+    -- landmarks and wireframe are centered in the viewport instead of keeping
+    -- an arbitrary orbit left by a previous inspection.
+    state.camera.azimuth=0
+    state.camera.elevation=0
+    frameCamera(bounds)
+end
+
 local function hideFaceGuide()
     local guide=state.faceGuide
     if guide.wireframe then guide.wireframe.visible=false end
@@ -563,6 +623,7 @@ local function openProject()
         setStatus(string.format(tLang.L('fre_project_load_failed_fmt'),tostring(errorMessage)),true)
         return
     end
+    if project.language then tLang.setLanguage(project.language) end
     state.project=project
     state.projectPath=path
     state.selectedRole=project.selectedRole or 1
@@ -585,6 +646,7 @@ local function saveProject(path)
     state.project.selectedLandmark=state.selectedLandmark
     state.project.selectedMask=state.selectedMask
     state.project.landmarkEditMode=state.landmarkEditMode
+    state.project.language=tLang.getLanguage()
     local saved,errorMessage=tFacialProject.save(state.project,path,tUtil.save)
     if not saved then
         setStatus(string.format(tLang.L('fre_project_save_failed_fmt'),tostring(errorMessage)),true)
@@ -784,6 +846,30 @@ local function setFaceOriginFromVertex(vertexHit)
     return true
 end
 
+local function scaleFaceReference(newScale)
+    local origin=state.project.faceOrigin
+    if not origin or not origin.placed or not origin.position then return false end
+    local oldScale=math.max(tonumber(origin.scale) or 1e-6,1e-6)
+    local scale=math.max(tonumber(newScale) or oldScale,1e-6)
+    local factor=scale/oldScale
+    if math.abs(factor-1)<=1e-7 then return false end
+    origin.scale=scale
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        if landmark.placed and landmark.position then
+            local relative=landmark.relativePosition or {
+                x=landmark.position.x-origin.position.x,
+                y=landmark.position.y-origin.position.y,
+                z=landmark.position.z-origin.position.z}
+            relative={x=relative.x*factor,y=relative.y*factor,z=relative.z*factor}
+            landmark.relativePosition=relative
+            landmark.position={x=origin.position.x+relative.x,
+                y=origin.position.y+relative.y,z=origin.position.z+relative.z}
+            landmark.vertexIndex=nil
+        end
+    end
+    return true
+end
+
 local function showFacePosition()
     tImGui.TextWrapped(tLang.L('fre_face_position_help'))
     if not state.mesh then
@@ -797,6 +883,21 @@ local function showFacePosition()
     end
     tImGui.Text(string.format(tLang.L('fre_face_origin_placed_fmt'),origin.position.x,origin.position.y,origin.position.z))
     tImGui.TextWrapped(tLang.L('fre_face_origin_drag_help'))
+    tImGui.PushItemWidth(240)
+    local scaleChanged,newScale=tImGui.DragFloat(tLang.L('fre_face_scale'),origin.scale,
+        math.max(origin.scale*0.01,0.001),0.001,0,'%.4f',0)
+    tImGui.PopItemWidth()
+    tImGui.TextWrapped(tLang.L('fre_face_scale_help'))
+    if scaleChanged then
+        pushUndoSnapshot()
+        if scaleFaceReference(newScale) then
+            markModified()
+            markFaceGuideDirty()
+            markLandmarkMarkersDirty()
+        else
+            table.remove(state.undoStack)
+        end
+    end
     if tImGui.Button(tLang.L('fre_face_position_clear')) then
         pushUndoSnapshot()
         origin.placed=false
@@ -1051,6 +1152,8 @@ local function showCameraPanel()
     if opened then
         if tImGui.Button(tLang.L('fre_frame_mesh')) then frameCamera(state.meshBounds) end
         tImGui.SameLine()
+        if tImGui.Button(tLang.L('fre_frame_face')) then frameFaceCamera() end
+        tImGui.Separator()
         local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),state.mesh and state.mesh.visible or false)
         if state.mesh and visible~=state.mesh.visible then state.mesh.visible=visible; markLandmarkMarkersDirty() end
         tImGui.Separator()
