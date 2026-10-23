@@ -102,6 +102,48 @@ local function showProjectMessages(report)
     end
 end
 
+local function localizedLandmarkDescription(name)
+    local key='fre_landmark_reference_' .. tostring(name or '')
+    local translated=tLang.L(key)
+    return translated==key and localizedLandmarkName(name) or translated
+end
+
+local function showLandmarkReference(selected)
+    if not selected then return end
+    tImGui.Text(tLang.L('fre_landmark_reference_title'))
+    tImGui.TextWrapped(localizedLandmarkDescription(selected.name))
+    tImGui.TextWrapped(tLang.L('fre_landmark_reference_help'))
+
+    local origin=tImGui.GetCursorScreenPos()
+    local width,height=250,180
+    tImGui.Dummy({x=width,y=height})
+    local center={x=origin.x+width*0.5,y=origin.y+height*0.5}
+    local faceRadius=72
+    tImGui.AddCircle(center,faceRadius,{r=0.45,g=0.48,b=0.55,a=0.9},36,1.5)
+    tImGui.AddLine({x=center.x-37,y=center.y-25},{x=center.x-12,y=center.y-25},{r=0.55,g=0.65,b=0.9,a=0.8},1.5)
+    tImGui.AddLine({x=center.x+12,y=center.y-25},{x=center.x+37,y=center.y-25},{r=0.55,g=0.65,b=0.9,a=0.8},1.5)
+    tImGui.AddLine({x=center.x,y=center.y-18},{x=center.x,y=center.y+20},{r=0.55,g=0.65,b=0.9,a=0.8},1.5)
+    tImGui.AddLine({x=center.x-28,y=center.y+38},{x=center.x+28,y=center.y+38},{r=0.55,g=0.65,b=0.9,a=0.8},1.5)
+
+    local points={
+        face_left={0.18,0.50}, face_right={0.82,0.50}, face_top={0.50,0.10}, face_bottom={0.50,0.90},
+        left_eye_center={0.39,0.36}, right_eye_center={0.61,0.36},
+        left_eye_corner={0.31,0.36}, right_eye_corner={0.69,0.36},
+        nose_bridge={0.50,0.40}, nose_tip={0.50,0.54},
+        mouth_left={0.38,0.68}, mouth_right={0.62,0.68},
+        upper_lip={0.50,0.64}, lower_lip={0.50,0.72}, chin={0.50,0.82},
+        jaw_hinge_left={0.25,0.66}, jaw_hinge_right={0.75,0.66},
+        brow_left={0.37,0.27}, brow_right={0.63,0.27}
+    }
+    for name,point in pairs(points) do
+        local position={x=origin.x+point[1]*width,y=origin.y+point[2]*height}
+        local selectedPoint=name==selected.name
+        local color=selectedPoint and {r=1,g=0.75,b=0.15,a=1} or {r=0.2,g=0.75,b=1,a=0.9}
+        tImGui.AddCircleFilled(position,selectedPoint and 5 or 3,color,12)
+        if selectedPoint then tImGui.AddCircle(position,8,{r=1,g=0.85,b=0.3,a=1},16,1.5) end
+    end
+end
+
 local function setStatus(message, isError)
     state.status=tostring(message or '')
     state.statusError=isError == true
@@ -378,7 +420,7 @@ local function showMasks()
         tImGui.Separator()
         tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
         tImGui.PushItemWidth(320)
-        local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',selected.object or '',256)
+        local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',selected.object or '')
         if changed then selected.object=object; markModified() end
         tImGui.PopItemWidth()
         local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
@@ -411,7 +453,7 @@ local function showMasks()
     local selectedMask=state.project.masks[state.selectedMask]
     if selectedMask then
         tImGui.PushItemWidth(320)
-        local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '',128)
+        local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '')
         if changed and name~='' then selectedMask.name=name; markModified() end
         tImGui.PopItemWidth()
         local roleNames=tFacialProject.roleNames()
@@ -443,6 +485,7 @@ local function showLandmarks()
     local selected=landmarks[state.selectedLandmark]
     if selected then
         tImGui.Text(string.format(tLang.L('fre_landmark_side_fmt'),localizedLandmarkName(selected.name),localizedLandmarkSide(selected.side)))
+        showLandmarkReference(selected)
         local xChanged,x=tImGui.InputFloat('X##freLandmarkX',selected.position.x,0,0,'%.4f',0)
         local yChanged,y=tImGui.InputFloat('Y##freLandmarkY',selected.position.y,0,0,'%.4f',0)
         local zChanged,z=tImGui.InputFloat('Z##freLandmarkZ',selected.position.z,0,0,'%.4f',0)
@@ -484,7 +527,7 @@ end
 local function showWorkspaceTree()
     tImGui.Text(tLang.L('fre_workspaces'))
     local workspaces={
-        {'setup','fre_setup'}, {'masks','fre_masks'}, {'landmarks','fre_landmarks'},
+        {'setup','fre_setup'}, {'landmarks','fre_landmarks'}, {'masks','fre_masks'},
         {'rig','fre_rig'}, {'expressions','fre_expressions'}, {'preview','fre_preview'}
     }
     for _,entry in ipairs(workspaces) do

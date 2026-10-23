@@ -107,8 +107,10 @@ animation editor, because the workflows have different primary data and validati
 workspaces are limited to facial authoring:
 
 1. **Setup** - load the mesh, register objects, assign facial roles, and inspect the base pose.
-2. **Masks/regions** - create and validate stable vertex or object regions.
-3. **Landmarks** - place, edit, snap, and validate facial landmarks in the 3D viewport.
+2. **Landmarks** - place, edit, snap, and validate facial landmarks in the 3D viewport. The face
+   bounds near the forehead and chin area are reference boundaries; the chin landmark is separate.
+3. **Masks/regions** - create and validate stable vertex or object regions after the facial reference
+   points are established.
 4. **Rig** - preview and validate the generated facial rig and binding description.
 5. **Expressions** - author, mirror, correct, and inspect facial targets and clips.
 6. **Preview** - review target weights, facial clips, and deterministic capture replay.
@@ -169,7 +171,7 @@ The second implementation slice now provides:
 This slice remains authoring data only. It does not generate facial bones, automatic weights, or
 runtime expression targets.
 
-## Next implementation milestone: landmark viewport editing and binding data
+## Next implementation milestone: rig preview and binding data
 
 The delivered landmark slice moves the next implementation milestone to rig preview and binding:
 
