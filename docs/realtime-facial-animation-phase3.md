@@ -30,17 +30,23 @@ later.
 - Mesh Debug exposes target sliders, clear/reset controls, clip playback controls, time, execution
   status, and validation state. Controls update only on user interaction; idle frames do not rebuild
   or serialize the mesh.
+- Mesh Debug can export its loaded facial asset to the existing Blender skeleton-export JSON bridge.
+  The Blender side creates one Basis plus one shape key per target, stores stable facial metadata on
+  the mesh datablock, and writes one linear or step Action per facial clip. `.blend` output retains
+  the shape keys and Actions for continued authoring.
 
 ## Scope boundary
 
 The stream/intermediate Lua exporter does not author facial sections; the normal direct-MSH import
 path is the supported route. Facial edits that reorder or resize frame-0 geometry remain rejected by
-the runtime. Direct Blender -> MSH import is the supported acceptance path in this slice. MSH ->
-Blender shape-key export, authoring new dense targets, and editing facial curves inside mini-mbm
-remain future work.
+the runtime. Direct Blender -> MSH import and Mesh Debug -> `.blend` export are the supported
+acceptance paths in this slice. FBX export preserves shape-key geometry in the tested Blender
+version, but FBX facial Actions are not restored on re-import; reliable FBX curve transport,
+authoring new dense targets, and editing facial curves inside mini-mbm remain future work.
 
 ## Validation
 
 The pure exporter tests cover the V11 geometry signature, signed-zero canonicalization, and target
 and clip payload headers. Lua preflight covers the new playback module and the existing Mesh Debug
-script. Blender 5.1 fixture execution remains the integration check when Blender is available.
+script. Blender 5.1 fixture execution covers `.blend` shape-key/action creation; FBX geometry is
+present after re-import, while facial curves are intentionally recorded as a remaining limitation.

@@ -426,6 +426,25 @@ namespace mbm
         API_IMPL bool setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept;
         API_IMPL bool getSkeletalSharingCompatibility(const MESH_MBM_DEBUG &other,
                                                        SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
+        // Read-only facial authoring data for explicit round-trip/export operations. The asset
+        // remains PIMPL-owned; callers receive scalar values and caller-owned copy-outs only.
+        API_IMPL uint64_t getFacialMeshId() const noexcept;
+        API_IMPL uint64_t getFacialGeometrySignature() const noexcept;
+        API_IMPL uint32_t getFacialVertexCount() const noexcept;
+        API_IMPL uint32_t getTotalFacialTargets() const noexcept;
+        API_IMPL const char *getFacialTargetName(const uint32_t index) const noexcept;
+        API_IMPL uint64_t getFacialTargetId(const uint32_t index) const noexcept;
+        API_IMPL const char *getFacialTargetConvention(const uint32_t index) const noexcept;
+        API_IMPL float getFacialTargetDefaultWeight(const uint32_t index) const noexcept;
+        API_IMPL bool getFacialTargetDelta(const uint32_t targetIndex, const uint32_t vertexIndex,
+                                           VEC3 *positionDelta, VEC3 *normalDelta) const noexcept;
+        API_IMPL uint32_t getTotalFacialClips() const noexcept;
+        API_IMPL const char *getFacialClipName(const uint32_t index) const noexcept;
+        API_IMPL uint64_t getFacialClipId(const uint32_t index) const noexcept;
+        API_IMPL bool getFacialClipInfo(const uint32_t index, float *duration, bool *loop,
+                                        uint8_t *interpolation, uint32_t *keyCount) const noexcept;
+        API_IMPL bool getFacialClipKey(const uint32_t clipIndex, const uint32_t keyIndex,
+                                       float *time, float *weights, const uint32_t weightCapacity) const noexcept;
         // Read-only views of the canonical skeleton compiled and validated during load.
         API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
         API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out,

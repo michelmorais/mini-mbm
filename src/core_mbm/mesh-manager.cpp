@@ -6625,6 +6625,118 @@ namespace mbm
                                                    other.impl->canonicalSkeleton, out);
     }
 
+    uint64_t MESH_MBM_DEBUG::getFacialMeshId() const noexcept
+    {
+        return impl->facialAsset.meshId;
+    }
+
+    uint64_t MESH_MBM_DEBUG::getFacialGeometrySignature() const noexcept
+    {
+        return impl->facialAsset.geometrySignature;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getFacialVertexCount() const noexcept
+    {
+        return impl->facialAsset.vertexCount;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalFacialTargets() const noexcept
+    {
+        return static_cast<uint32_t>(impl->facialAsset.targets.size());
+    }
+
+    const char *MESH_MBM_DEBUG::getFacialTargetName(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ?
+            impl->facialAsset.targets[index].name.c_str() : nullptr;
+    }
+
+    uint64_t MESH_MBM_DEBUG::getFacialTargetId(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].id : 0;
+    }
+
+    const char *MESH_MBM_DEBUG::getFacialTargetConvention(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ?
+            impl->facialAsset.targets[index].convention.c_str() : nullptr;
+    }
+
+    float MESH_MBM_DEBUG::getFacialTargetDefaultWeight(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ?
+            impl->facialAsset.targets[index].defaultWeight : 0.0f;
+    }
+
+    bool MESH_MBM_DEBUG::getFacialTargetDelta(const uint32_t targetIndex, const uint32_t vertexIndex,
+                                               VEC3 *positionDelta, VEC3 *normalDelta) const noexcept
+    {
+        if (targetIndex >= impl->facialAsset.targets.size() ||
+            vertexIndex >= impl->facialAsset.vertexCount || (!positionDelta && !normalDelta))
+            return false;
+        const facial::TARGET &target = impl->facialAsset.targets[targetIndex];
+        if (positionDelta)
+        {
+            if (vertexIndex >= target.positions.size()) return false;
+            *positionDelta = target.positions[vertexIndex];
+        }
+        if (normalDelta)
+        {
+            if (target.normals.empty())
+                *normalDelta = VEC3();
+            else
+            {
+                if (vertexIndex >= target.normals.size()) return false;
+                *normalDelta = target.normals[vertexIndex];
+            }
+        }
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalFacialClips() const noexcept
+    {
+        return static_cast<uint32_t>(impl->facialAsset.clips.size());
+    }
+
+    const char *MESH_MBM_DEBUG::getFacialClipName(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.clips.size() ?
+            impl->facialAsset.clips[index].name.c_str() : nullptr;
+    }
+
+    uint64_t MESH_MBM_DEBUG::getFacialClipId(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.clips.size() ? impl->facialAsset.clips[index].id : 0;
+    }
+
+    bool MESH_MBM_DEBUG::getFacialClipInfo(const uint32_t index, float *duration, bool *loop,
+                                            uint8_t *interpolation, uint32_t *keyCount) const noexcept
+    {
+        if (index >= impl->facialAsset.clips.size()) return false;
+        const facial::CLIP &clip = impl->facialAsset.clips[index];
+        if (duration) *duration = clip.duration;
+        if (loop) *loop = clip.loop;
+        if (interpolation) *interpolation = static_cast<uint8_t>(clip.interpolation);
+        if (keyCount) *keyCount = static_cast<uint32_t>(clip.keys.size());
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getFacialClipKey(const uint32_t clipIndex, const uint32_t keyIndex,
+                                           float *time, float *weights,
+                                           const uint32_t weightCapacity) const noexcept
+    {
+        if (clipIndex >= impl->facialAsset.clips.size()) return false;
+        const facial::CLIP &clip = impl->facialAsset.clips[clipIndex];
+        if (keyIndex >= clip.keys.size()) return false;
+        const facial::KEY &key = clip.keys[keyIndex];
+        if (time) *time = key.time;
+        if (!weights) return true;
+        if (weightCapacity < key.weights.size()) return false;
+        for (uint32_t index = 0; index < key.weights.size(); ++index)
+            weights[index] = key.weights[index];
+        return true;
+    }
+
     bool MESH_MBM::getSkeletalSharingCompatibility(
         const MESH_MBM &other, SKELETAL_SHARING_COMPATIBILITY &out) const noexcept
     {

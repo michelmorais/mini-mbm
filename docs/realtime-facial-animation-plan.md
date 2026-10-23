@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 3 Blender/Faceit import and Mesh Debug preview slice complete; reverse export pending**
+Status: **Phase 3 Blender/Faceit import, Mesh Debug preview, and `.blend` reverse export complete; FBX facial-curve round trip pending**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -106,8 +106,10 @@ also uses skeletal animation.
 Integrate the selected Blender interchange path into Mesh Debug's existing Blender import workflow.
 Import shape-key deltas and weight curves transactionally, preserve existing skeletal data, and
 report unsupported modifiers, topology changes, missing targets, and animation sources with clear
-diagnostics. Export support should round-trip facial targets and clips back to Blender when the
-canonical interchange supports it.
+diagnostics. Export support round-trips facial targets and clips back to Blender's canonical
+`.blend` interchange. FBX preserves the shape-key geometry in the tested Blender version, but its
+facial animation curves are not restored on re-import; FBX curve round-trip remains a separate
+acceptance item.
 
 Add a focused preview surface to Mesh Debug, backed by a small companion module rather than adding
 facial controls to the large skeletal authoring editor: target list, weight sliders, clip selection,

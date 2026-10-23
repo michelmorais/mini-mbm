@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import math
 import os
 import re
@@ -1520,7 +1521,24 @@ def discover_facial_source(scene: Any, args: argparse.Namespace) -> dict[str, An
         if modifier.type != "ARMATURE":
             raise RuntimeError(f"{obj.name}: unsupported facial modifier {modifier.type}")
     action = keys.animation_data.action if keys.animation_data and keys.animation_data.action else None
-    return {"object": obj, "keys": keys, "action": action}
+    def metadata_list(property_name: str) -> list[Any]:
+        raw = obj.data.get(property_name)
+        if not raw:
+            return []
+        try:
+            value = json.loads(str(raw))
+        except (TypeError, ValueError):
+            return []
+        return value if isinstance(value, list) else []
+    return {
+        "object": obj,
+        "keys": keys,
+        "action": action,
+        "meshId": obj.data.get("mini_mbm_facial_mesh_id"),
+        "targetIds": metadata_list("mini_mbm_facial_target_ids"),
+        "targetConventions": metadata_list("mini_mbm_facial_target_conventions"),
+        "targetDefaults": metadata_list("mini_mbm_facial_target_defaults"),
+    }
 
 
 def facial_clip_specs(source: dict[str, Any], clips: list[dict[str, Any]], scene: Any) -> list[dict[str, Any]]:
@@ -1530,7 +1548,22 @@ def facial_clip_specs(source: dict[str, Any], clips: list[dict[str, Any]], scene
     if action is None:
         return []
     start, end = action_frame_range(action)
-    return [{"name": str(action.name or "Face"), "frameStart": start, "frameEnd": end, "sampleStep": 1}]
+    return [{"name": str(action.name or "Face"), "id": action.get("mini_mbm_clip_id"),
+             "interpolation": action.get("mini_mbm_interpolation", "linear"),
+             "loop": bool(action.get("mini_mbm_loop", True)),
+             "frameStart": start, "frameEnd": end, "sampleStep": 1}]
+
+
+def facial_metadata_id(value: Any, fallback: int) -> int:
+    """Reads the hexadecimal ids stored by the reverse Blender exporter."""
+    if value is None or value == "":
+        return fallback
+    try:
+        text = str(value)
+        parsed = int(text, 16) if all(character in "0123456789abcdefABCDEF" for character in text) else int(text)
+        return parsed or fallback
+    except (TypeError, ValueError):
+        return fallback
 
 
 def sample_facial_clips(scene: Any, source: dict[str, Any], clips: list[dict[str, Any]], fps: float,
@@ -1552,11 +1585,12 @@ def sample_facial_clips(scene: Any, source: dict[str, Any], clips: list[dict[str
             keys_out.append({"time": float(frame - frames[0]) / fps, "weights": weights})
         duration = float(frames[-1] - frames[0]) / fps
         result.append({
-            "id": stable_id("mini-mbm.facial.clip/", f"{obj.name}/{clip.get('name') or 'Face'}"),
+            "id": facial_metadata_id(clip.get("id"),
+                                     stable_id("mini-mbm.facial.clip/", f"{obj.name}/{clip.get('name') or 'Face'}")),
             "name": str(clip.get("name") or "Face"),
             "duration": duration,
-            "loop": True,
-            "interpolation": "linear",
+            "loop": bool(clip.get("loop", True)),
+            "interpolation": str(clip.get("interpolation") or "linear"),
             "keys": keys_out,
         })
     return result
@@ -1622,11 +1656,18 @@ def build_facial_asset(scene: Any, source: dict[str, Any], base_subsets: list[di
              float(evaluated["z"]) - float(base["z"]))
             for base, evaluated in zip(base_vertices, evaluated_vertices)
         ]
+        target_index = len(targets)
         target: dict[str, Any] = {
-            "id": stable_id("mini-mbm.facial.target/", f"{obj.name}/{key.name}"),
+            "id": facial_metadata_id((source.get("targetIds") or [])[target_index]
+                                     if target_index < len(source.get("targetIds") or []) else None,
+                                     stable_id("mini-mbm.facial.target/", f"{obj.name}/{key.name}")),
             "name": str(key.name),
-            "convention": str(args.facial_convention or ""),
-            "defaultWeight": 0.0,
+            "convention": str((source.get("targetConventions") or [])[target_index]
+                               if target_index < len(source.get("targetConventions") or []) and
+                               (source.get("targetConventions") or [])[target_index] else
+                               args.facial_convention or ""),
+            "defaultWeight": float((source.get("targetDefaults") or [])[target_index]
+                                   if target_index < len(source.get("targetDefaults") or []) else 0.0),
             "positionDeltas": position_deltas,
         }
         if args.facial_normal_deltas:
@@ -1638,7 +1679,7 @@ def build_facial_asset(scene: Any, source: dict[str, Any], base_subsets: list[di
         targets.append(target)
         key.value = 0.0
     return {
-        "meshId": stable_id("mini-mbm.facial.mesh/", str(obj.name)),
+        "meshId": facial_metadata_id(source.get("meshId"), stable_id("mini-mbm.facial.mesh/", str(obj.name))),
         "geometrySignature": signature,
         "vertexCount": vertex_count,
         "targets": targets,

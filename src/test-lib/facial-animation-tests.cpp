@@ -160,6 +160,22 @@ namespace
         if (!read(directory/"indexed.msh",original)) { expect(false,"read fixture"); return; }
         MESH_MBM_DEBUG mesh;
         expect(mesh.loadV11((directory/"indexed.msh").string().c_str()),"load facial sections before geometry");
+        expect(mesh.getFacialMeshId()==123 && mesh.getFacialVertexCount()==3 &&
+            mesh.getTotalFacialTargets()==2 && mesh.getTotalFacialClips()==1,
+            "debug facial export metadata");
+        expect(std::strcmp(mesh.getFacialTargetName(0),"jawOpen")==0 &&
+            std::strcmp(mesh.getFacialTargetConvention(0),"test")==0 &&
+            mesh.getFacialTargetId(0)==100,
+            "debug facial target identity");
+        VEC3 targetDelta, targetNormal;
+        expect(mesh.getFacialTargetDelta(0,2,&targetDelta,&targetNormal) &&
+            targetDelta.y==-60.0f && targetNormal.z==0.0f,
+            "debug facial target deltas");
+        float clipTime=0.0f, clipWeights[2]={};
+        expect(mesh.getFacialClipId(0)==90 && mesh.getFacialClipInfo(0,nullptr,nullptr,nullptr,nullptr) &&
+            mesh.getFacialClipKey(0,1,&clipTime,clipWeights,2) && clipTime==1.0f &&
+            clipWeights[0]==1.0f && clipWeights[1]==0.5f,
+            "debug facial clip keys");
         for (bool compressed : {false,true})
         {
             expect(save(mesh,"roundtrip.msh",compressed),"roundtrip save");

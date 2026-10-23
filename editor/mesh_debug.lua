@@ -5440,7 +5440,67 @@ local function writeMeshDebugJson(meshD, jsonPath)
         f:write('    ] }')
         f:write(clipIndex < #animations and ',\n' or '\n')
     end
-    f:write('  ] },\n  "mesh": {\n    "vertices": [\n')
+    local okFacial, facial = dpCall(function() return meshD:getFacialExportData() end)
+    if not okFacial then
+        return abortWrite(string.format('Facial export data failed: %s', tostring(facial)))
+    end
+    facial = type(facial) == 'table' and facial or nil
+    local facialTargets = facial and facial.targets or {}
+    local facialVertexCount = facial and tonumber(facial.vertexCount) or 0
+    if facial and #facialTargets > 0 and facialVertexCount > 0 then
+        f:write('  ] },\n  "facial": {\n')
+        f:write(string.format('    "meshId": %s, "geometrySignature": %s, "vertexCount": %d, ' ..
+            '"sampleRate": 30,\n', jsonStr(facial.meshId or '0'),
+            jsonStr(facial.geometrySignature or '0'), facialVertexCount))
+        f:write('    "targets": [\n')
+        for targetIndex, target in ipairs(facialTargets) do
+            f:write(string.format('      { "id": %s, "name": %s, "convention": %s, "defaultWeight": %.9g,\n',
+                jsonStr(target.id or '0'), jsonStr(target.name or ''),
+                jsonStr(target.convention or ''), tonumber(target.defaultWeight) or 0))
+            local function writeFacialDeltaArray(fieldName)
+                f:write(string.format('        "%s": [', fieldName))
+                local values = target[fieldName] or {}
+                for vertexIndex = 1, facialVertexCount do
+                    local value = values[vertexIndex] or {}
+                    f:write(string.format('[%.9g, %.9g, %.9g]', tonumber(value.x) or 0,
+                        tonumber(value.y) or 0, tonumber(value.z) or 0))
+                    if vertexIndex < facialVertexCount then f:write(', ') end
+                end
+                f:write(']')
+            end
+            writeFacialDeltaArray('positionDeltas')
+            f:write(',\n')
+            writeFacialDeltaArray('normalDeltas')
+            f:write('\n      }')
+            f:write(targetIndex < #facialTargets and ',\n' or '\n')
+        end
+        f:write('    ],\n    "clips": [\n')
+        local facialClips = facial.clips or {}
+        for clipIndex, clip in ipairs(facialClips) do
+            f:write(string.format('      { "id": %s, "name": %s, "duration": %.9g, "loop": %s, ' ..
+                '"interpolation": %d, "keys": [\n',
+                jsonStr(clip.id or '0'), jsonStr(clip.name or ''), tonumber(clip.duration) or 0,
+                clip.loop and 'true' or 'false', tonumber(clip.interpolation) or 1))
+            local keys = clip.keys or {}
+            for keyIndex, key in ipairs(keys) do
+                local weights = key.weights or {}
+                f:write(string.format('        { "time": %.9g, "weights": [%s] }',
+                    tonumber(key.time) or 0, table.concat((function()
+                        local serialized = {}
+                        for targetIndex = 1, #facialTargets do
+                            serialized[targetIndex] = string.format('%.9g', tonumber(weights[targetIndex]) or 0)
+                        end
+                        return serialized
+                    end)(), ', ')))
+                f:write(keyIndex < #keys and ',\n' or '\n')
+            end
+            f:write('      ] }')
+            f:write(clipIndex < #facialClips and ',\n' or '\n')
+        end
+        f:write('    ]\n  },\n  "mesh": {\n    "vertices": [\n')
+    else
+        f:write('  ] },\n  "mesh": {\n    "vertices": [\n')
+    end
 
     -- Canonical type-42 weights ride along on each vertex so Blender can restore the authored
     -- groups exactly. The API uses the same global, frame-wide, one-based vertex order written

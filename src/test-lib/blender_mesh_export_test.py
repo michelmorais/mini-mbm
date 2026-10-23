@@ -34,6 +34,11 @@ SPEC = importlib.util.spec_from_file_location("blender_mesh_export", EXPORTER_PA
 assert SPEC and SPEC.loader
 EXPORTER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(EXPORTER)
+SKELETON_EXPORTER_PATH = Path(__file__).resolve().parents[2] / "editor" / "blender_mesh_skeleton_export.py"
+SKELETON_SPEC = importlib.util.spec_from_file_location("blender_mesh_skeleton_export", SKELETON_EXPORTER_PATH)
+assert SKELETON_SPEC and SKELETON_SPEC.loader
+SKELETON_EXPORTER = importlib.util.module_from_spec(SKELETON_SPEC)
+SKELETON_SPEC.loader.exec_module(SKELETON_EXPORTER)
 
 
 class BlenderMeshExportTests(unittest.TestCase):
@@ -283,6 +288,19 @@ class BlenderMeshExportTests(unittest.TestCase):
         clips = EXPORTER.build_facial_clips_payload_v11(asset)
         self.assertEqual(struct.unpack_from("<QQII", targets, 0), (11, 22, 1, 1))
         self.assertEqual(struct.unpack_from("<QI", clips, 0), (11, 1))
+
+    def test_facial_reverse_metadata_ids_accept_hex_and_fallback(self) -> None:
+        self.assertEqual(EXPORTER.facial_metadata_id("0011223344556677", 0), 0x0011223344556677)
+        self.assertEqual(EXPORTER.facial_metadata_id("not-an-id", 99), 99)
+        self.assertEqual(EXPORTER.facial_metadata_id(None, 101), 101)
+
+    def test_facial_reverse_delta_uses_canonical_reflection_and_rotation(self) -> None:
+        self.assertEqual(SKELETON_EXPORTER._facial_delta_to_blender(
+            [1.0, 2.0, 3.0], None, True), (-1.0, 2.0, 3.0))
+        rotated = SKELETON_EXPORTER._facial_delta_to_blender(
+            {"x": 1.0, "y": 0.0, "z": 0.0}, (0.0, 0.0, 90.0), False)
+        self.assertAlmostEqual(rotated[0], 0.0, places=6)
+        self.assertAlmostEqual(rotated[1], 1.0, places=6)
 
 
 if __name__ == "__main__":

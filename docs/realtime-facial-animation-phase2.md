@@ -33,6 +33,7 @@ environment when display `:1` is unavailable.
 
 The Lua surface is available for loaded `mesh` objects. Name enumeration returns `nil` for invalid
 indices, while mutating controls return `false` for unloaded meshes or unknown targets/clips. Clip
-transitions and blending between facial clips remain future work. Blender/Faceit import and the Mesh
-Debug preview are covered by [Phase 3](realtime-facial-animation-phase3.md); reverse MSH-to-Blender
-export remains future work.
+transitions and blending between facial clips remain future work. Blender/Faceit import, the Mesh
+Debug preview, and `.blend` reverse export are covered by
+[Phase 3](realtime-facial-animation-phase3.md); reliable FBX facial-curve transport remains future
+work.

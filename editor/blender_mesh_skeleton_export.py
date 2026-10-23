@@ -2,8 +2,10 @@
 """
 Blender headless exporter for mini-mbm's Mesh Debug tool: takes a JSON dump of a loaded mesh's raw
 geometry (and, optionally, its editor-authored/imported bone hierarchy) and produces a real FBX or
-Blender project with a skinned armature and one Blender Action per sampled canonical skeletal clip,
-ready for round-trip editing or upload to an auto-rigging/animation service (Mixamo or similar).
+Blender project with a skinned armature, shape keys, and one Blender Action per sampled canonical
+skeletal or facial clip, ready for round-trip editing or upload to an auto-rigging/animation
+service (Mixamo or similar). Facial Actions are retained in `.blend`; FBX shape-key curve support
+depends on the Blender FBX exporter and is not assumed by the Mesh Debug contract.
 
 This script's input comes from editor/mesh_debug.lua's own geometry -- which is in the ENGINE's
 own coordinate convention (Y-up), not Blender's native Z-up, ever since editor/blender_mesh_export.py's
@@ -262,6 +264,150 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
     bpy.context.collection.objects.link(mesh_obj)
     debug_print(debug, f"mesh built: vertices={len(positions)} faces={len(faces)} materials={len(subsets)}")
     return mesh_obj
+
+
+def _facial_delta_to_blender(delta: dict, rotation_deg: tuple[float, float, float] | None,
+                             canonical: bool) -> tuple[float, float, float]:
+    """Converts one engine-space facial delta using the same basis as base vertices."""
+    if isinstance(delta, (list, tuple)):
+        x = float(delta[0]) if len(delta) > 0 else 0.0
+        y = float(delta[1]) if len(delta) > 1 else 0.0
+        z = float(delta[2]) if len(delta) > 2 else 0.0
+    else:
+        x = float(delta.get("x", 0.0))
+        y = float(delta.get("y", 0.0))
+        z = float(delta.get("z", 0.0))
+    position = (-x, y, z) if canonical else (x, y, z)
+    return rotate_point_deg(*position, *rotation_deg) if rotation_deg else position
+
+
+def build_facial_shape_keys(data: dict, mesh_obj, rotation_deg: tuple[float, float, float] | None,
+                            debug: bool) -> tuple[list[str], int]:
+    """Builds Blender shape keys from dense mini-mbm facial position deltas.
+
+    The base mesh and every delta use the same canonical reflection/rotation conversion. This
+    keeps the target topology aligned after a Mesh Debug -> Blender round trip; normal deltas are
+    retained in the JSON contract but Blender derives normals from the shape-key geometry.
+    """
+    import bpy
+
+    facial = data.get("facial") or {}
+    targets = facial.get("targets") or []
+    if not targets:
+        return [], 0
+    mesh_vertices = data.get("mesh", {}).get("vertices") or []
+    vertex_count = len(mesh_vertices)
+    declared_count = int(facial.get("vertexCount") or vertex_count)
+    if declared_count != vertex_count:
+        raise RuntimeError(f"Facial vertex count {declared_count} does not match mesh vertex count {vertex_count}.")
+    if len(mesh_obj.data.vertices) != vertex_count:
+        raise RuntimeError("Facial mesh vertex count does not match Blender mesh topology.")
+
+    basis = mesh_obj.shape_key_add(name="Basis")
+    target_names: list[str] = []
+    target_ids: list[str] = []
+    target_conventions: list[str] = []
+    target_defaults: list[float] = []
+    canonical = data.get("canonicalSkeleton") is True
+    for target_index, target in enumerate(targets):
+        name = str(target.get("name") or f"FacialTarget_{target_index + 1}")
+        key_block = mesh_obj.shape_key_add(name=name)
+        target_names.append(key_block.name)
+        deltas = target.get("positionDeltas") or []
+        if len(deltas) != vertex_count:
+            raise RuntimeError(f"Facial target '{name}' has {len(deltas)} deltas; expected {vertex_count}.")
+        for vertex_index, delta in enumerate(deltas):
+            dx, dy, dz = _facial_delta_to_blender(delta, rotation_deg, canonical)
+            base = basis.data[vertex_index].co
+            key_block.data[vertex_index].co = (base.x + dx, base.y + dy, base.z + dz)
+        key_block.value = float(target.get("defaultWeight") or 0.0)
+        key_block.slider_min = 0.0
+        key_block.slider_max = 1.0
+        target_ids.append(str(target.get("id") or "0"))
+        target_conventions.append(str(target.get("convention") or ""))
+        target_defaults.append(float(target.get("defaultWeight") or 0.0))
+    mesh_obj.data["mini_mbm_facial_mesh_id"] = str(facial.get("meshId") or "0")
+    mesh_obj.data["mini_mbm_facial_geometry_signature"] = str(facial.get("geometrySignature") or "0")
+    mesh_obj.data["mini_mbm_facial_target_count"] = len(targets)
+    mesh_obj.data["mini_mbm_facial_target_ids"] = json.dumps(target_ids)
+    mesh_obj.data["mini_mbm_facial_target_conventions"] = json.dumps(target_conventions)
+    mesh_obj.data["mini_mbm_facial_target_defaults"] = json.dumps(target_defaults)
+    # Action construction starts from neutral values; authored defaults remain metadata on each
+    # key block and can be restored explicitly by a user after opening the .blend.
+    for key_block in mesh_obj.data.shape_keys.key_blocks:
+        key_block.value = 0.0
+    debug_print(debug, f"facial shape keys built: targets={len(targets)} vertices={vertex_count}")
+    return target_names, len(targets)
+
+
+def build_facial_animation_actions(data: dict, mesh_obj, target_names: list[str], debug: bool) -> int:
+    """Creates one shape-key Action per sampled facial clip using seconds -> frame conversion."""
+    import bpy
+
+    facial = data.get("facial") or {}
+    clips = facial.get("clips") or []
+    if not clips or not target_names:
+        return 0
+    sample_rate = int(facial.get("sampleRate") or 30)
+    if sample_rate <= 0:
+        raise RuntimeError("Facial animation sample rate must be positive.")
+    scene = bpy.context.scene
+    scene.render.fps = sample_rate
+    scene.render.fps_base = 1.0
+    scene.frame_start = 1
+    maximum_frame = 1
+    shape_keys = mesh_obj.data.shape_keys
+    shape_keys.animation_data_create()
+    built = 0
+    for clip_index, clip in enumerate(clips):
+        keys = clip.get("keys") or []
+        if not keys:
+            continue
+        action_name = str(clip.get("name") or f"FacialClip_{clip_index + 1}")
+        action = bpy.data.actions.new(name=action_name)
+        action.use_fake_user = True
+        action["mini_mbm_loop"] = bool(clip.get("loop", False))
+        action["mini_mbm_clip_id"] = str(clip.get("id") or "0")
+        action["mini_mbm_interpolation"] = "step" if int(clip.get("interpolation") or 1) == 0 else "linear"
+        shape_keys.animation_data.action = action
+        curves = []
+        curve_values = {}
+        for target_name in target_names:
+            key_block = shape_keys.key_blocks.get(target_name)
+            if key_block is None:
+                raise RuntimeError(f"Facial target '{target_name}' disappeared while building action.")
+            data_path = key_block.path_from_id("value")
+            if hasattr(action, "fcurve_ensure_for_datablock"):
+                curve = action.fcurve_ensure_for_datablock(shape_keys, data_path, index=0,
+                                                           group_name="Facial")
+            else:
+                curve = action.fcurves.new(data_path=data_path, index=0, action_group="Facial")
+            curve.keyframe_points.add(len(keys))
+            curves.append(curve)
+            curve_values[curve] = [0.0] * (len(keys) * 2)
+        for key_index, key in enumerate(keys):
+            frame = 1.0 + float(key.get("time") or 0.0) * sample_rate
+            maximum_frame = max(maximum_frame, int(math.ceil(frame)))
+            weights = key.get("weights") or []
+            if len(weights) != len(target_names):
+                raise RuntimeError(f"Facial clip '{action_name}' key {key_index} has {len(weights)} "
+                                   f"weights; expected {len(target_names)}.")
+            for target_index, curve in enumerate(curves):
+                coordinates = curve_values[curve]
+                coordinates[key_index * 2] = frame
+                coordinates[key_index * 2 + 1] = float(weights[target_index] or 0.0)
+        for curve in curves:
+            curve.keyframe_points.foreach_set("co", curve_values[curve])
+            interpolation = 'CONSTANT' if int(clip.get("interpolation") or 1) == 0 else 'LINEAR'
+            for keyframe in curve.keyframe_points:
+                keyframe.interpolation = interpolation
+            curve.update()
+        built += 1
+        debug_print(debug, f"facial action built: {action_name} ({len(keys)} keys at {sample_rate} FPS)")
+    shape_keys.animation_data.action = None
+    scene.frame_end = max(scene.frame_end, maximum_frame)
+    scene.frame_set(1)
+    return built
 
 
 def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None):
@@ -883,6 +1029,9 @@ def main() -> int:
     check_cancel_requested(args.cancel_file)
     mesh_obj = build_mesh(data, args.debug_steps, rotation_deg, args.invert_u, args.invert_v)
     check_cancel_requested(args.cancel_file)
+    facial_target_names, _ = build_facial_shape_keys(
+        data, mesh_obj, rotation_deg, args.debug_steps)
+    check_cancel_requested(args.cancel_file)
     armature_obj = build_armature(data, args.debug_steps, rotation_deg)
     if armature_obj:
         check_cancel_requested(args.cancel_file)
@@ -902,7 +1051,10 @@ def main() -> int:
         debug_print(args.debug_steps, "no bones in input -- exporting mesh-only output")
 
     check_cancel_requested(args.cancel_file)
-    animation_count = build_animation_actions(data, armature_obj, rotation_deg, args.debug_steps)
+    skeletal_animation_count = build_animation_actions(data, armature_obj, rotation_deg, args.debug_steps)
+    facial_animation_count = build_facial_animation_actions(
+        data, mesh_obj, facial_target_names, args.debug_steps)
+    animation_count = skeletal_animation_count + facial_animation_count
     check_cancel_requested(args.cancel_file)
     out_path = os.path.abspath(args.output)
     out_dir = os.path.dirname(out_path)
