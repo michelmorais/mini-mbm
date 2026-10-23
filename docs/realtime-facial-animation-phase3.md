@@ -7,9 +7,9 @@ surface to Mesh Debug.
 
 The preview lives in `editor/facial_mesh_playback.lua`, mounted as a **Facial animation** node in
 `editor/mesh_debug.lua`. The skeletal animation editor remains focused on bones, pose authoring,
-and skeletal timelines. A separate facial authoring editor is deferred until the runtime has an
-editing contract for dense deltas and facial keys; the preview module can be reused by that editor
-later.
+and skeletal timelines. The preview is not the authoring workflow. A dedicated facial rig authoring editor is now
+planned as Phase 7, using this module for playback and validation while keeping setup, masks,
+landmarks, rig generation, and expression authoring in its own editor.
 
 ## Delivered in this slice
 
@@ -57,8 +57,8 @@ path is the supported route. Facial edits that reorder or resize frame-0 geometr
 the runtime. Direct Blender -> MSH import and Mesh Debug -> `.blend` export are the supported
 acceptance paths in this slice. MeshDebug-owned FBX export preserves shape-key geometry and carries
 its facial clips through mesh custom properties; arbitrary external FBX files may still omit those
-properties and therefore expose geometry without clips. Authoring new dense targets and editing
-facial curves inside mini-mbm remain future work.
+properties and therefore expose geometry without clips. Authoring new dense targets and editing facial curves inside mini-mbm remain future work in the
+Phase 7 editor; this phase remains the import/export and playback foundation.
 
 ## Validation
 

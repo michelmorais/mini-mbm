@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 6 deterministic capture replay adapter complete; naming contract, sparse CPU optimization, facial-plus-skeletal validation, and Blender facial-curve interchange are complete; no external live transport is bundled**
+Status: **Phase 6 deterministic replay complete; Phase 7 dedicated facial rig editor planned; runtime, Blender interchange, and capture naming foundations are complete**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -16,6 +16,7 @@ The Phase 3 editor decision and implementation slice are in
 The first Phase 4 performance profile is in [CPU performance profile](realtime-facial-animation-phase4.md).
 The Phase 5 producer contract is in [Live capture naming contract](realtime-facial-animation-phase5.md).
 The Phase 6 producer contract is in [Deterministic capture replay](realtime-facial-animation-phase6.md).
+The Phase 7 editor design is in [Facial rig authoring editor](realtime-facial-animation-phase7.md).
 
 ## 1. Purpose
 
@@ -187,6 +188,25 @@ rigged facial-plus-skeletal asset. If the measured cost still requires it, add G
 for explicitly selected backends, with CPU fallback where supported. Establish limits for active
 targets, vertex counts, buffer memory, and shader resources; do not assume one backend's capacity
 applies to all others.
+
+### Phase 7: Dedicated facial rig authoring editor
+
+**Planned after the runtime and interchange foundations; this is now the primary authoring direction.**
+
+The project will provide a standalone facial rig editor with its own setup workflow, while reusing
+shared viewport, serialization, mesh inspection, and skeletal utilities where practical. The
+existing skeletal animation editor remains focused on bones, animation timelines, masks, and
+skeletal playback. Mesh Debug keeps the compact facial playback/import preview.
+
+The workflow is intentionally compatible with Faceit concepts without depending on Faceit internal
+files: register facial objects, assign semantic regions, place landmarks, generate a facial rig,
+bind geometry, author expressions, and export ARKit-compatible named targets and clips. Faceit
+compatibility means compatible names, regions, landmarks, weights, and Blender/MSH interchange;
+it does not mean reproducing Blender add-on internals.
+
+Capture remains downstream of this editor. The file-backed replay and named-weight contract are
+producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the
+rigging workflow.
 
 After offline import and runtime controls are stable, evaluate ARKit-compatible live capture and
 audio-driven generation such as Audio2Face as producers of named weights. Keep capture transport and
