@@ -37,7 +37,8 @@ The setup mask is a preparation and binding mask. It identifies which vertices o
 each facial role. It is separate from a runtime expression weight:
 
 - region masks answer **which geometry is allowed to be affected**;
-- landmarks answer **where the facial rig is placed**;
+- the face reference origin answers **where the facial rig is placed**;
+- landmarks answer **where facial features are placed relative to that origin**;
 - expression weights answer **how much a target is active at runtime**.
 
 The first implementation should prefer stable frame-0 vertex indices and object references. It
@@ -163,6 +164,9 @@ The second implementation slice now provides:
 - a TreeNode workspace navigator with one facial worktree open at a time;
 - fixed-size authoring and camera panels so localized labels and input fields keep a stable layout;
 - localized landmark names, side labels, and validation diagnostics in English and Portuguese;
+- a face-position option that anchors the facial reference wireframe to a mesh point such as the nose;
+- an always-on-top 3D facial wireframe with selectable joints and X/Y/Z translation axes;
+- landmark coordinates stored relative to the face reference origin while preserving mesh-local positions;
 - click-to-select placed landmarks and click-to-snap the selected landmark to the nearest visible mesh vertex;
 - add/remove mask editing by nearest vertex in the Masks / Regions workspace;
 - a review-only binding description summarizing enabled roles, masks, landmarks, and source topology;

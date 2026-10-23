@@ -63,15 +63,20 @@ local function defaultLandmarks()
     return result
 end
 
+local function defaultFaceOrigin()
+    return {placed=false, position={x=0, y=0, z=0}, vertexIndex=nil, scale=1}
+end
+
 function M.new()
     return {
-        schemaVersion=1,
+        schemaVersion=2,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
         roles=defaultRoles(),
         masks={},
         landmarks=defaultLandmarks(),
+        faceOrigin=defaultFaceOrigin(),
         selectedRole=1,
         selectedLandmark=1,
         selectedMask=1
@@ -86,7 +91,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=tonumber(project.schemaVersion) or 1
+    project.schemaVersion=math.max(2,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -94,6 +99,12 @@ function M.normalize(project)
     project.roles=type(project.roles) == 'table' and project.roles or defaultRoles()
     project.masks=type(project.masks) == 'table' and project.masks or {}
     project.landmarks=type(project.landmarks) == 'table' and project.landmarks or defaultLandmarks()
+    if type(project.faceOrigin) ~= 'table' then project.faceOrigin=defaultFaceOrigin() end
+    project.faceOrigin.placed=project.faceOrigin.placed == true
+    project.faceOrigin.position=copyPoint(project.faceOrigin.position)
+    local originVertex=tonumber(project.faceOrigin.vertexIndex)
+    project.faceOrigin.vertexIndex=originVertex and math.floor(originVertex) or nil
+    project.faceOrigin.scale=math.max(tonumber(project.faceOrigin.scale) or 1,1e-6)
     project.selectedRole=math.max(1, math.floor(tonumber(project.selectedRole) or 1))
     project.selectedLandmark=math.max(1, math.floor(tonumber(project.selectedLandmark) or 1))
     project.selectedMask=math.max(1, math.floor(tonumber(project.selectedMask) or 1))
@@ -126,12 +137,29 @@ function M.normalize(project)
             landmark.side=type(landmark.side) == 'string' and landmark.side or 'midline'
             landmark.required=landmark.required == true
             landmark.position=copyPoint(landmark.position)
+            if landmark.relativePosition ~= nil then
+                landmark.relativePosition=copyPoint(landmark.relativePosition)
+            elseif project.faceOrigin.placed and landmark.placed then
+                landmark.relativePosition={x=landmark.position.x-project.faceOrigin.position.x,
+                    y=landmark.position.y-project.faceOrigin.position.y,
+                    z=landmark.position.z-project.faceOrigin.position.z}
+            end
             landmark.placed=landmark.placed == true
             local vertexIndex=tonumber(landmark.vertexIndex)
             landmark.vertexIndex=vertexIndex and math.floor(vertexIndex) or nil
         end
     end
     return project
+end
+
+function M.setFaceOrigin(project, point, scale, vertexIndex)
+    if type(project) ~= 'table' or type(point) ~= 'table' then return false end
+    project.faceOrigin=project.faceOrigin or defaultFaceOrigin()
+    project.faceOrigin.position=copyPoint(point)
+    project.faceOrigin.scale=math.max(tonumber(scale) or project.faceOrigin.scale or 1,1e-6)
+    project.faceOrigin.vertexIndex=tonumber(vertexIndex) and math.floor(vertexIndex) or nil
+    project.faceOrigin.placed=true
+    return true
 end
 
 function M.addMask(project, name, roleIndex)
@@ -149,8 +177,11 @@ function M.setTopology(project, topology)
 end
 
 function M.validate(project, meshLoaded, topology)
+    local faceOriginPlaced=type(project)=='table' and type(project.faceOrigin)=='table' and
+        project.faceOrigin.placed == true
     local report = {ok=true, errors={}, warnings={}, roleCount=0, maskCount=0,
-        landmarkCount=0, placedLandmarkCount=0}
+        landmarkCount=0, placedLandmarkCount=0,
+        faceOriginPlaced=faceOriginPlaced}
     if type(project) ~= 'table' then
         report.ok=false
         report.errors[#report.errors + 1]='project is missing'
@@ -159,6 +190,14 @@ function M.validate(project, meshLoaded, topology)
     if not meshLoaded or project.meshPath == '' then
         report.ok=false
         report.errors[#report.errors + 1]='mesh is not loaded'
+    end
+    if not report.faceOriginPlaced then
+        report.ok=false
+        report.errors[#report.errors + 1]='face origin is not placed'
+    elseif topology and project.faceOrigin.vertexIndex and
+            (project.faceOrigin.vertexIndex<1 or project.faceOrigin.vertexIndex>topology.vertexCount) then
+        report.ok=false
+        report.errors[#report.errors + 1]='face origin vertex is outside the current topology'
     end
     if topology then
         if project.meshTopologySignature == '' then
@@ -235,8 +274,11 @@ function M.validate(project, meshLoaded, topology)
 end
 
 function M.bindingDescription(project, topology)
+    local origin=project.faceOrigin or defaultFaceOrigin()
     local description={meshTopologySignature=project.meshTopologySignature or '',
         vertexCount=topology and topology.vertexCount or project.meshVertexCount or 0,
+        faceOrigin={placed=origin.placed == true,position=copyPoint(origin.position),
+            vertexIndex=origin.vertexIndex,scale=origin.scale},
         roles={},masks={},landmarks={}}
     for index,role in ipairs(project.roles or {}) do
         if role.enabled then
@@ -253,7 +295,8 @@ function M.bindingDescription(project, topology)
         if landmark.placed then
             description.landmarks[#description.landmarks + 1]={index=index,name=landmark.name,
                 side=landmark.side,vertexIndex=landmark.vertexIndex,
-                position={x=landmark.position.x,y=landmark.position.y,z=landmark.position.z}}
+                position={x=landmark.position.x,y=landmark.position.y,z=landmark.position.z},
+                relativePosition=landmark.relativePosition and copyPoint(landmark.relativePosition) or nil}
         end
     end
     return description

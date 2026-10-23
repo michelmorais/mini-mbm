@@ -40,15 +40,36 @@ local state = {
     project=tFacialProject.new(), projectPath=nil, mesh=nil, meshDebug=nil,
     meshBounds=nil, meshVertexCount=0, topology=nil, landmarkMarkers={}, landmarkMarkersDirty=true,
     workspace='setup', modified=false,
-    selectedRole=1, selectedLandmark=1, status='', statusError=false,
+    selectedRole=1, selectedLandmark=1, selectedLandmarkOption=1, status='', statusError=false,
     selectedMask=1, maskEditMode='add',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
-    windowMove=false, leftPanelRight=560
+    faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
+    faceGizmoDrag=nil, windowMove=false, leftPanelRight=560
 }
 
 local windows = {
     main='facial_rig_main', camera='facial_rig_camera', report='facial_rig_report'
+}
+
+local faceGuideEdges={
+    {'face_left','face_top'},{'face_top','face_right'},{'face_right','face_bottom'},{'face_bottom','face_left'},
+    {'left_eye_corner','right_eye_corner'},{'left_eye_center','left_eye_corner'},{'right_eye_center','right_eye_corner'},
+    {'left_eye_center','brow_left'},{'right_eye_center','brow_right'},
+    {'nose_bridge','nose_tip'},{'nose_tip','upper_lip'},{'upper_lip','mouth_left'},
+    {'upper_lip','mouth_right'},{'mouth_left','lower_lip'},{'lower_lip','mouth_right'},
+    {'lower_lip','chin'},{'jaw_hinge_left','mouth_left'},{'jaw_hinge_right','mouth_right'}
+}
+
+local landmarkReferencePoints={
+    face_left={0.18,0.50}, face_right={0.82,0.50}, face_top={0.50,0.10}, face_bottom={0.50,0.90},
+    left_eye_center={0.39,0.36}, right_eye_center={0.61,0.36},
+    left_eye_corner={0.31,0.36}, right_eye_corner={0.69,0.36},
+    nose_bridge={0.50,0.40}, nose_tip={0.50,0.54},
+    mouth_left={0.38,0.68}, mouth_right={0.62,0.68},
+    upper_lip={0.50,0.64}, lower_lip={0.50,0.72}, chin={0.50,0.82},
+    jaw_hinge_left={0.25,0.66}, jaw_hinge_right={0.75,0.66},
+    brow_left={0.37,0.27}, brow_right={0.63,0.27}
 }
 
 local function shortName(path)
@@ -87,6 +108,8 @@ local function localizedProjectMessage(message)
         ['mesh vertex count changed since the project was saved']='fre_error_mesh_vertex_count',
         ['mesh is not loaded']='fre_error_mesh_not_loaded',
         ['project is missing']='fre_error_project_missing',
+        ['face origin is not placed']='fre_error_face_origin',
+        ['face origin vertex is outside the current topology']='fre_error_face_origin_vertex',
         ['mask has no name']='fre_error_mask_no_name',
         ['mask has invalid vertex list']='fre_error_mask_invalid_list',
     }
@@ -125,17 +148,7 @@ local function showLandmarkReference(selected)
     tImGui.AddLine({x=center.x,y=center.y-18},{x=center.x,y=center.y+20},{r=0.55,g=0.65,b=0.9,a=0.8},1.5)
     tImGui.AddLine({x=center.x-28,y=center.y+38},{x=center.x+28,y=center.y+38},{r=0.55,g=0.65,b=0.9,a=0.8},1.5)
 
-    local points={
-        face_left={0.18,0.50}, face_right={0.82,0.50}, face_top={0.50,0.10}, face_bottom={0.50,0.90},
-        left_eye_center={0.39,0.36}, right_eye_center={0.61,0.36},
-        left_eye_corner={0.31,0.36}, right_eye_corner={0.69,0.36},
-        nose_bridge={0.50,0.40}, nose_tip={0.50,0.54},
-        mouth_left={0.38,0.68}, mouth_right={0.62,0.68},
-        upper_lip={0.50,0.64}, lower_lip={0.50,0.72}, chin={0.50,0.82},
-        jaw_hinge_left={0.25,0.66}, jaw_hinge_right={0.75,0.66},
-        brow_left={0.37,0.27}, brow_right={0.63,0.27}
-    }
-    for name,point in pairs(points) do
+    for name,point in pairs(landmarkReferencePoints) do
         local position={x=origin.x+point[1]*width,y=origin.y+point[2]*height}
         local selectedPoint=name==selected.name
         local color=selectedPoint and {r=1,g=0.75,b=0.15,a=1} or {r=0.2,g=0.75,b=1,a=0.9}
@@ -158,6 +171,11 @@ local function destroyPreview()
     for _,marker in ipairs(state.landmarkMarkers or {}) do
         dpCall(function() marker:destroy() end)
     end
+    if state.faceGuide.wireframe then dpCall(function() state.faceGuide.wireframe:destroy() end) end
+    for _,marker in pairs(state.faceGuide.markers or {}) do dpCall(function() marker:destroy() end) end
+    for _,axis in pairs(state.faceGuide.axes or {}) do dpCall(function() axis:destroy() end) end
+    state.faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil}
+    state.faceGuideDirty=true
     state.landmarkMarkers={}
     if state.mesh then
         dpCall(function() state.mesh:destroy() end)
@@ -191,6 +209,133 @@ local function frameCamera(bounds)
     applyCamera()
 end
 
+local function faceGuideRelative(name, scale)
+    local points={
+        face_left={-1,0,0}, face_right={1,0,0}, face_top={0,1,0}, face_bottom={0,-1,0},
+        left_eye_center={-0.38,0.35,0.03}, right_eye_center={0.38,0.35,0.03},
+        left_eye_corner={-0.58,0.35,0.02}, right_eye_corner={0.58,0.35,0.02},
+        nose_bridge={0,0.18,0.08}, nose_tip={0,-0.02,0.18},
+        mouth_left={-0.42,-0.42,0.04}, mouth_right={0.42,-0.42,0.04},
+        upper_lip={0,-0.36,0.08}, lower_lip={0,-0.54,0.07}, chin={0,-0.78,0.01},
+        jaw_hinge_left={-0.82,-0.36,0}, jaw_hinge_right={0.82,-0.36,0},
+        brow_left={-0.36,0.58,0.02}, brow_right={0.36,0.58,0.02}
+    }
+    local point=points[name] or {0,0,0}
+    return {x=point[1]*scale,y=point[2]*scale,z=point[3]*scale}
+end
+
+local function faceGuideScale(bounds)
+    if not bounds then return 1 end
+    local width=math.abs(bounds.maxX-bounds.minX)
+    local height=math.abs(bounds.maxY-bounds.minY)
+    local depth=math.abs(bounds.maxZ-bounds.minZ)
+    return math.max(width*0.4,height*0.12,depth*0.4,0.001)
+end
+
+local function addPoint(a,b)
+    return {x=a.x+b.x,y=a.y+b.y,z=a.z+b.z}
+end
+
+local function hideFaceGuide()
+    local guide=state.faceGuide
+    if guide.wireframe then guide.wireframe.visible=false end
+    for _,object in pairs(guide.markers) do object.visible=false end
+    for _,object in pairs(guide.axes) do object.visible=false end
+    guide.worldPoints={}
+    guide.origin=nil
+    guide.length=nil
+end
+
+local function selectedFaceGuideName()
+    if state.selectedLandmarkOption==1 then return 'face_origin' end
+    local landmark=state.project.landmarks[state.selectedLandmark]
+    return landmark and landmark.name or nil
+end
+
+local function refreshFaceGuide()
+    local guide=state.faceGuide
+    local origin=state.project and state.project.faceOrigin
+    if state.workspace~='landmarks' or not state.mesh or not origin or not origin.placed then
+        hideFaceGuide()
+        state.faceGuideDirty=false
+        return
+    end
+    local scale=math.max(tonumber(origin.scale) or faceGuideScale(state.meshBounds),0.001)
+    local originPoint={x=origin.position.x,y=origin.position.y,z=origin.position.z}
+    local relative={face_origin={x=0,y=0,z=0}}
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        relative[landmark.name]=landmark.relativePosition and
+            {x=landmark.relativePosition.x,y=landmark.relativePosition.y,z=landmark.relativePosition.z} or
+            faceGuideRelative(landmark.name,scale)
+    end
+    guide.worldPoints={}
+    for name,point in pairs(relative) do guide.worldPoints[name]=addPoint(originPoint,point) end
+
+    local wirePoints={}
+    for _,edge in ipairs(faceGuideEdges) do
+        local first,second=relative[edge[1]],relative[edge[2]]
+        if first and second then
+            wirePoints[#wirePoints+1]=first.x; wirePoints[#wirePoints+1]=first.y; wirePoints[#wirePoints+1]=first.z
+            wirePoints[#wirePoints+1]=second.x; wirePoints[#wirePoints+1]=second.y; wirePoints[#wirePoints+1]=second.z
+        end
+    end
+    if not guide.wireframe then
+        guide.wireframe=line:new('3d',0,0,0)
+        guide.wireframe:add(wirePoints)
+        guide.wireframe.alwaysOnTop=true
+        guide.wireframe.alwaysOnTopPriority=2
+    else
+        guide.wireframe:set(wirePoints,1)
+    end
+    guide.wireframe:setPos(originPoint.x,originPoint.y,originPoint.z)
+    guide.wireframe:setColor(0.25,0.8,1,0.9)
+    guide.wireframe.visible=true
+
+    local pointSize=math.max(scale*0.045,0.003)
+    local selectedName=selectedFaceGuideName()
+    for name,point in pairs(relative) do
+        local marker=guide.markers[name]
+        local points={-pointSize,0,0,pointSize,0,0,0,-pointSize,0,0,pointSize,0,0,0,-pointSize,0,0,0,pointSize}
+        if not marker then
+            marker=line:new('3d',0,0,0)
+            marker:add(points)
+            marker.alwaysOnTop=true
+            marker.alwaysOnTopPriority=3
+            guide.markers[name]=marker
+        else
+            marker:set(points,1)
+        end
+        local world=guide.worldPoints[name]
+        marker:setPos(world.x,world.y,world.z)
+        if name==selectedName then marker:setColor(1,0.78,0.12,1)
+        elseif name=='face_origin' then marker:setColor(1,0.35,0.85,1)
+        else marker:setColor(0.2,0.85,1,0.95) end
+        marker.visible=true
+    end
+    for name,axis in pairs({x={x=1,y=0,z=0},y={x=0,y=1,z=0},z={x=0,y=0,z=1}}) do
+        local object=guide.axes[name]
+        local length=math.max(scale*0.65,0.01)
+        local points={0,0,0,axis.x*length,axis.y*length,axis.z*length}
+        if not object then
+            object=line:new('3d',0,0,0)
+            object:add(points)
+            object.alwaysOnTop=true
+            object.alwaysOnTopPriority=4
+            guide.axes[name]=object
+        else
+            object:set(points,1)
+        end
+        local gizmoOrigin=guide.worldPoints[selectedName or 'face_origin'] or originPoint
+        object:setPos(gizmoOrigin.x,gizmoOrigin.y,gizmoOrigin.z)
+        local color=name=='x' and {1,0.15,0.15,1} or name=='y' and {0.15,1,0.2,1} or {0.2,0.45,1,1}
+        object:setColor(table.unpack(color))
+        object.visible=true
+        guide.length=length
+    end
+    guide.origin=guide.worldPoints[selectedName or 'face_origin'] or originPoint
+    state.faceGuideDirty=false
+end
+
 local function inspectMesh(meshDebugObject)
     local ok,topology=dpCall(function() return tFacialLandmarks.inspect(meshDebugObject) end)
     if not ok or not topology or not topology.bounds then return nil, 0, nil end
@@ -216,7 +361,8 @@ local function refreshLandmarkMarkers()
             marker.alwaysOnTopPriority=1
             state.landmarkMarkers[index]=marker
         end
-        local visible=state.workspace=='landmarks' and state.mesh.visible and landmark.placed and landmark.position
+        local originPlaced=state.project.faceOrigin and state.project.faceOrigin.placed
+        local visible=state.workspace=='landmarks' and state.mesh.visible and landmark.placed and landmark.position and not originPlaced
         marker.visible=visible and true or false
         if landmark.position then marker:setPos(landmark.position.x,landmark.position.y,landmark.position.z) end
         if index==state.selectedLandmark then marker:setColor(1,0.8,0.1,1)
@@ -227,6 +373,10 @@ end
 
 local function markLandmarkMarkersDirty()
     state.landmarkMarkersDirty=true
+end
+
+local function markFaceGuideDirty()
+    state.faceGuideDirty=true
 end
 
 local function loadMesh(path, preserveProject)
@@ -268,8 +418,11 @@ local function loadMesh(path, preserveProject)
     state.selectedRole=state.project.selectedRole or 1
     state.selectedLandmark=state.project.selectedLandmark or 1
     state.selectedMask=state.project.selectedMask or 1
+    state.selectedLandmarkOption=state.project.faceOrigin and state.project.faceOrigin.placed and
+        state.selectedLandmark+1 or 1
     state.modified=preserveProject and state.modified or true
     markLandmarkMarkersDirty()
+    markFaceGuideDirty()
     frameCamera(bounds)
     setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
     return true
@@ -282,8 +435,10 @@ local function newProject()
     state.modified=false
     state.selectedRole=1
     state.selectedLandmark=1
+    state.selectedLandmarkOption=1
     state.selectedMask=1
     markLandmarkMarkersDirty()
+    markFaceGuideDirty()
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -304,6 +459,8 @@ local function openProject()
     state.projectPath=path
     state.selectedRole=project.selectedRole or 1
     state.selectedLandmark=project.selectedLandmark or 1
+    state.selectedLandmarkOption=project.faceOrigin and project.faceOrigin.placed and
+        state.selectedLandmark+1 or 1
     state.modified=false
     if project.meshPath~='' then
         if not loadMesh(project.meshPath,true) then state.project=project end
@@ -374,6 +531,7 @@ end
 local function selectWorkspace(workspace)
     state.workspace=state.workspace==workspace and nil or workspace
     markLandmarkMarkersDirty()
+    markFaceGuideDirty()
 end
 
 local function showSetup()
@@ -470,6 +628,50 @@ local function showMasks()
     end
 end
 
+local function setFaceOriginFromVertex(vertexHit)
+    if not vertexHit or not state.meshBounds then return false end
+    local origin=state.project.faceOrigin or {position={x=0,y=0,z=0}}
+    local hadOrigin=origin.placed == true
+    local scale=origin.placed and origin.scale or faceGuideScale(state.meshBounds)
+    if not tFacialProject.setFaceOrigin(state.project,vertexHit.point,scale,vertexHit.index) then return false end
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        if landmark.placed and not landmark.relativePosition and not hadOrigin then
+            landmark.relativePosition={x=landmark.position.x-vertexHit.point.x,
+                y=landmark.position.y-vertexHit.point.y,z=landmark.position.z-vertexHit.point.z}
+        elseif not landmark.relativePosition then
+            landmark.relativePosition=faceGuideRelative(landmark.name,scale)
+        end
+        landmark.position=addPoint(vertexHit.point,landmark.relativePosition)
+        landmark.placed=true
+        landmark.vertexIndex=nil
+    end
+    state.selectedLandmarkOption=1
+    state.project.selectedLandmark=state.selectedLandmark
+    markModified()
+    markFaceGuideDirty()
+    markLandmarkMarkersDirty()
+    setStatus(tLang.L('fre_face_origin_set'),false)
+    return true
+end
+
+local function showFaceOriginControls()
+    tImGui.TextWrapped(tLang.L('fre_face_origin_help'))
+    local origin=state.project.faceOrigin
+    if not origin or not origin.placed then
+        tImGui.TextDisabled(tLang.L('fre_face_origin_not_placed'))
+        return
+    end
+    tImGui.Text(string.format(tLang.L('fre_face_origin_placed_fmt'),origin.position.x,origin.position.y,origin.position.z))
+    tImGui.TextWrapped(tLang.L('fre_face_origin_drag_help'))
+end
+
+local function syncLandmarkRelativePosition(landmark)
+    local origin=state.project.faceOrigin
+    if not origin or not origin.placed or not landmark or not landmark.position then return end
+    landmark.relativePosition={x=landmark.position.x-origin.position.x,
+        y=landmark.position.y-origin.position.y,z=landmark.position.z-origin.position.z}
+end
+
 local function showLandmarks()
     tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
     if not state.mesh then
@@ -478,22 +680,32 @@ local function showLandmarks()
     end
     local landmarks=state.project.landmarks
     tImGui.PushItemWidth(220)
-    local names={}
+    local names={tLang.L('fre_face_origin_option')}
     for _,landmark in ipairs(landmarks) do names[#names+1]=localizedLandmarkName(landmark.name) end
-    local changed,index=tImGui.Combo(tLang.L('fre_landmark_select'),state.selectedLandmark,names)
-    if changed then state.selectedLandmark=index; markLandmarkMarkersDirty() end
-    local selected=landmarks[state.selectedLandmark]
+    local option=math.max(1,math.min(#names,state.selectedLandmarkOption or 1))
+    local changed,index=tImGui.Combo(tLang.L('fre_landmark_select'),option,names)
+    if changed then
+        state.selectedLandmarkOption=index
+        if index>1 then
+            state.selectedLandmark=index-1
+            state.project.selectedLandmark=state.selectedLandmark
+        end
+        markLandmarkMarkersDirty()
+        markFaceGuideDirty()
+    end
+    if state.selectedLandmarkOption==1 then showFaceOriginControls() end
+    local selected=state.selectedLandmarkOption>1 and landmarks[state.selectedLandmark] or nil
     if selected then
         tImGui.Text(string.format(tLang.L('fre_landmark_side_fmt'),localizedLandmarkName(selected.name),localizedLandmarkSide(selected.side)))
         showLandmarkReference(selected)
         local xChanged,x=tImGui.InputFloat('X##freLandmarkX',selected.position.x,0,0,'%.4f',0)
         local yChanged,y=tImGui.InputFloat('Y##freLandmarkY',selected.position.y,0,0,'%.4f',0)
         local zChanged,z=tImGui.InputFloat('Z##freLandmarkZ',selected.position.z,0,0,'%.4f',0)
-        if xChanged then selected.position.x=x; selected.vertexIndex=nil; selected.placed=true; markModified(); markLandmarkMarkersDirty() end
-        if yChanged then selected.position.y=y; selected.vertexIndex=nil; selected.placed=true; markModified(); markLandmarkMarkersDirty() end
-        if zChanged then selected.position.z=z; selected.vertexIndex=nil; selected.placed=true; markModified(); markLandmarkMarkersDirty() end
+        if xChanged then selected.position.x=x; selected.vertexIndex=nil; selected.placed=true; syncLandmarkRelativePosition(selected); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+        if yChanged then selected.position.y=y; selected.vertexIndex=nil; selected.placed=true; syncLandmarkRelativePosition(selected); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+        if zChanged then selected.position.z=z; selected.vertexIndex=nil; selected.placed=true; syncLandmarkRelativePosition(selected); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
         local placed=tImGui.Checkbox(tLang.L('fre_landmark_placed'),selected.placed)
-        if placed~=selected.placed then selected.placed=placed; markModified(); markLandmarkMarkersDirty() end
+        if placed~=selected.placed then selected.placed=placed; syncLandmarkRelativePosition(selected); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
     end
     tImGui.PopItemWidth()
     local report=tFacialProject.validate(state.project,true,state.topology)
@@ -618,6 +830,7 @@ function onLoop(delta)
     showMainPanel()
     showCameraPanel()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
+    if state.faceGuideDirty then refreshFaceGuide() end
     tUtil.showOverlayMessage()
 end
 
@@ -639,6 +852,116 @@ local function viewportPickRadius(fraction)
     return math.max(extent*(fraction or 0.02),0.001)
 end
 
+local function rayPointDistance(ox,oy,oz,dx,dy,dz,point,maxDistance)
+    local vx,vy,vz=point.x-ox,point.y-oy,point.z-oz
+    local depth=vx*dx+vy*dy+vz*dz
+    if depth<0 then return nil end
+    local px,py,pz=ox+dx*depth,oy+dy*depth,oz+dz*depth
+    local ex,ey,ez=point.x-px,point.y-py,point.z-pz
+    local distance=math.sqrt(ex*ex+ey*ey+ez*ez)
+    return distance<=maxDistance and distance or nil
+end
+
+local function nearestFaceGuidePoint(x,y)
+    local guide=state.faceGuide
+    if state.workspace~='landmarks' or not guide.worldPoints or not guide.origin then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
+    if not ok then return nil end
+    local length=math.sqrt(dx*dx+dy*dy+dz*dz)
+    if length<=1e-8 then return nil end
+    dx,dy,dz=dx/length,dy/length,dz/length
+    local scale=state.project.faceOrigin and state.project.faceOrigin.scale or 1
+    local radius=math.max(scale*0.055,0.003)
+    local best,bestDistance=nil,math.huge
+    for name,point in pairs(guide.worldPoints) do
+        local distance=rayPointDistance(ox,oy,oz,dx,dy,dz,point,radius)
+        if distance and distance<bestDistance then
+            best={name=name,point=point}; bestDistance=distance
+        end
+    end
+    return best
+end
+
+local function raySegmentDistance(ox,oy,oz,dx,dy,dz,a,b,radius)
+    local vx,vy,vz=b.x-a.x,b.y-a.y,b.z-a.z
+    local lengthSquared=vx*vx+vy*vy+vz*vz
+    if lengthSquared<1e-12 then return rayPointDistance(ox,oy,oz,dx,dy,dz,a,radius) end
+    local wx,wy,wz=ox-a.x,oy-a.y,oz-a.z
+    local uv=dx*vx+dy*vy+dz*vz
+    local uw=dx*wx+dy*wy+dz*wz
+    local vw=vx*wx+vy*wy+vz*wz
+    local denominator=lengthSquared-uv*uv
+    local segmentT=math.abs(denominator)<1e-12 and -vw/lengthSquared or
+        (vw-uv*uw)/denominator
+    segmentT=math.max(0,math.min(1,segmentT))
+    local px,py,pz=a.x+vx*segmentT,a.y+vy*segmentT,a.z+vz*segmentT
+    local rayT=(px-ox)*dx+(py-oy)*dy+(pz-oz)*dz
+    if rayT<0 then return nil end
+    local qx,qy,qz=ox+dx*rayT,oy+dy*rayT,oz+dz*rayT
+    local ex,ey,ez=px-qx,py-qy,pz-qz
+    return ex*ex+ey*ey+ez*ez<=radius*radius and rayT or nil
+end
+
+local function hitTestFaceGuideAxis(x,y)
+    local guide=state.faceGuide
+    if state.workspace~='landmarks' or not guide.origin or not guide.length then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
+    if not ok then return nil end
+    local radius=math.max(((state.project.faceOrigin and state.project.faceOrigin.scale) or 1)*0.08,0.003)
+    local best,bestDistance=nil,math.huge
+    for name,axis in pairs({x={x=1,y=0,z=0},y={x=0,y=1,z=0},z={x=0,y=0,z=1}}) do
+        local endpoint={x=guide.origin.x+axis.x*guide.length,
+            y=guide.origin.y+axis.y*guide.length,z=guide.origin.z+axis.z*guide.length}
+        local distance=raySegmentDistance(ox,oy,oz,dx,dy,dz,guide.origin,endpoint,radius)
+        if distance and distance<bestDistance then best,bestDistance=name,distance end
+    end
+    return best
+end
+
+local function rayAxisParameter(x,y,origin,axis)
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
+    if not ok then return nil end
+    local wx,wy,wz=ox-origin.x,oy-origin.y,oz-origin.z
+    local parallel=dx*axis.x+dy*axis.y+dz*axis.z
+    local rayProjection=dx*wx+dy*wy+dz*wz
+    local axisProjection=axis.x*wx+axis.y*wy+axis.z*wz
+    local denominator=1-parallel*parallel
+    if math.abs(denominator)<0.05 then return nil end
+    return (axisProjection-parallel*rayProjection)/denominator
+end
+
+local function applyFaceGuideAxisDelta(axisName,delta,baseOrigin,baseRelative)
+    local axis=axisName=='x' and {x=1,y=0,z=0} or axisName=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
+    local origin=state.project.faceOrigin
+    if not origin then return end
+    local selectedName=selectedFaceGuideName()
+    if selectedName=='face_origin' then
+        origin.position={x=baseOrigin.x+axis.x*delta,y=baseOrigin.y+axis.y*delta,z=baseOrigin.z+axis.z*delta}
+        origin.vertexIndex=nil
+        for _,landmark in ipairs(state.project.landmarks or {}) do
+            if landmark.placed and landmark.relativePosition then
+                landmark.position=addPoint(origin.position,landmark.relativePosition)
+                landmark.vertexIndex=nil
+            end
+        end
+    else
+        local landmark
+        for _,candidate in ipairs(state.project.landmarks or {}) do
+            if candidate.name==selectedName then landmark=candidate break end
+        end
+        if not landmark then return end
+        local relative={x=baseRelative.x+axis.x*delta,y=baseRelative.y+axis.y*delta,
+            z=baseRelative.z+axis.z*delta}
+        landmark.relativePosition=relative
+        landmark.position=addPoint(origin.position,relative)
+        landmark.placed=true
+        landmark.vertexIndex=nil
+    end
+    markModified()
+    markLandmarkMarkersDirty()
+    markFaceGuideDirty()
+end
+
 local function toggleMaskVertex(index)
     local mask=state.project.masks[state.selectedMask]
     if not mask or not index then return false end
@@ -658,6 +981,30 @@ local function handleViewportAuthoringClick(x,y)
     local origin,direction=viewportPickRay(x,y)
     if not origin then return false end
     if state.workspace=='landmarks' then
+        if state.selectedLandmarkOption==1 then
+            local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
+                viewportPickRadius(0.025))
+            if vertexHit then return setFaceOriginFromVertex(vertexHit) end
+            return false
+        end
+        local guideHit=nearestFaceGuidePoint(x,y)
+        if guideHit then
+            if guideHit.name=='face_origin' then
+                state.selectedLandmarkOption=1
+            else
+                for index,landmark in ipairs(state.project.landmarks or {}) do
+                    if landmark.name==guideHit.name then
+                        state.selectedLandmark=index
+                        state.selectedLandmarkOption=index+1
+                        state.project.selectedLandmark=index
+                        break
+                    end
+                end
+            end
+            markLandmarkMarkersDirty()
+            markFaceGuideDirty()
+            return true
+        end
         local landmarkHit=tFacialLandmarks.nearestLandmark(state.project.landmarks,origin,direction,
             viewportPickRadius(0.04))
         if landmarkHit then
@@ -674,9 +1021,11 @@ local function handleViewportAuthoringClick(x,y)
                 selected.position={x=vertexHit.point.x,y=vertexHit.point.y,z=vertexHit.point.z}
                 selected.placed=true
                 selected.vertexIndex=vertexHit.index
+                syncLandmarkRelativePosition(selected)
                 state.project.selectedLandmark=state.selectedLandmark
                 markModified()
                 markLandmarkMarkersDirty()
+                markFaceGuideDirty()
                 return true
             end
         end
@@ -692,6 +1041,36 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if key==0 and state.workspace=='landmarks' then
+        local axis=hitTestFaceGuideAxis(x,y)
+        if axis and state.faceGuide.origin then
+            local axisVector=axis=='x' and {x=1,y=0,z=0} or axis=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
+            local parameter=rayAxisParameter(x,y,state.faceGuide.origin,axisVector)
+            if parameter then
+                local selectedName=selectedFaceGuideName()
+                local baseRelative={x=0,y=0,z=0}
+                if selectedName and selectedName~='face_origin' then
+                    for _,candidate in ipairs(state.project.landmarks or {}) do
+                        if candidate.name==selectedName then
+                            if candidate.relativePosition then baseRelative={x=candidate.relativePosition.x,
+                                y=candidate.relativePosition.y,z=candidate.relativePosition.z}
+                            else
+                                baseRelative=faceGuideRelative(selectedName,
+                                    (state.project.faceOrigin and state.project.faceOrigin.scale) or 1)
+                            end
+                            break
+                        end
+                    end
+                end
+                local baseOrigin={x=state.project.faceOrigin.position.x,y=state.project.faceOrigin.position.y,
+                    z=state.project.faceOrigin.position.z}
+                local basePoint=selectedName=='face_origin' and baseOrigin or addPoint(baseOrigin,baseRelative)
+                state.faceGizmoDrag={axis=axis,axisVector=axisVector,startParameter=parameter,
+                    baseOrigin=baseOrigin,baseRelative=baseRelative,basePoint=basePoint}
+                return
+            end
+        end
+    end
     if key==0 and handleViewportAuthoringClick(x,y) then return end
     if key==0 then
         state.cameraDrag={x=x,y=y}
@@ -702,6 +1081,14 @@ end
 
 function onTouchMove(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if state.faceGizmoDrag then
+        local drag=state.faceGizmoDrag
+        local parameter=rayAxisParameter(x,y,drag.basePoint,drag.axisVector)
+        if parameter then
+            applyFaceGuideAxisDelta(drag.axis,parameter-drag.startParameter,drag.baseOrigin,drag.baseRelative)
+        end
+        return
+    end
     if state.cameraPan then
         local c=state.camera
         local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
@@ -732,7 +1119,7 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
-    if key==0 then state.cameraDrag=nil
+    if key==0 then state.cameraDrag=nil; state.faceGizmoDrag=nil
     elseif key==1 then state.cameraPan=nil end
 end
 

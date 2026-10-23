@@ -22,6 +22,9 @@ assert(hit and hit.index==1)
 local project=Project.new()
 project.meshPath='fixture.msh'
 Project.setTopology(project,topology)
+assert(not project.faceOrigin.placed)
+assert(Project.setFaceOrigin(project,{x=0,y=0,z=0},1,1))
+assert(project.faceOrigin.placed and project.faceOrigin.vertexIndex==1)
 local mask=Project.addMask(project,'face',1)
 mask.vertices={1,2}
 project.landmarks[1].placed=true
@@ -33,7 +36,10 @@ end
 local report=Project.validate(project,true,topology)
 assert(report.ok and report.maskCount==1 and report.placedLandmarkCount>0)
 local binding=Project.bindingDescription(project,topology)
-assert(#binding.roles==1 and #binding.masks==1 and #binding.landmarks==report.placedLandmarkCount)
+assert(binding.faceOrigin.placed and #binding.roles==1 and #binding.masks==1 and #binding.landmarks==report.placedLandmarkCount)
+project.faceOrigin.vertexIndex=99
+assert(not Project.validate(project,true,topology).ok)
+project.faceOrigin.vertexIndex=1
 local stale={signature='stale',vertexCount=3}
 assert(not Project.validate(project,true,stale).ok)
 mask.topologySignature='stale'

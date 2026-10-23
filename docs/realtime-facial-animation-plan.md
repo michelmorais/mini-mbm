@@ -206,7 +206,7 @@ general skin painting, and unrelated skeletal controls stay out of its UI; a sma
 helper is allowed only where facial geometry needs it.
 
 The workflow is intentionally compatible with Faceit concepts without depending on Faceit internal
-files: register facial objects, place landmarks, assign semantic regions, generate a facial rig,
+files: register facial objects, place a face reference origin, position landmarks, assign semantic regions, generate a facial rig,
 bind geometry, author expressions, and export ARKit-compatible named targets and clips. Faceit
 compatibility means compatible names, regions, landmarks, weights, and Blender/MSH interchange;
 it does not mean reproducing Blender add-on internals.
