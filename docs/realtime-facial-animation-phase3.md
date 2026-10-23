@@ -34,6 +34,9 @@ later.
   The Blender side creates one Basis plus one shape key per target, stores stable facial metadata on
   the mesh datablock, and writes one linear or step Action per facial clip. `.blend` output retains
   the shape keys and Actions for continued authoring.
+- The Blender fixture now runs the direct `.blend -> MSH` path headlessly and parses the emitted V11
+  sections 45/46. It verifies the post-split vertex count, target names and ids, non-zero dense
+  deltas, and the sampled clip key count without opening the Mesh Debug window.
 
 ## Scope boundary
 
@@ -49,4 +52,5 @@ authoring new dense targets, and editing facial curves inside mini-mbm remain fu
 The pure exporter tests cover the V11 geometry signature, signed-zero canonicalization, and target
 and clip payload headers. Lua preflight covers the new playback module and the existing Mesh Debug
 script. Blender 5.1 fixture execution covers `.blend` shape-key/action creation; FBX geometry is
-present after re-import, while facial curves are intentionally recorded as a remaining limitation.
+present after re-import, and the direct MSH acceptance route is checked from the same fixture while
+facial curves are intentionally recorded as a remaining limitation for FBX.

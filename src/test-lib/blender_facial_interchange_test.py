@@ -19,8 +19,8 @@
 
 """Phase-0 spike, run with Blender --background --python-exit-code 1 --python this_file -- --output-dir DIR.
 
-Writes a generated .blend fixture, FBX/GLB comparison artifacts and an experimental JSON
-helper payload. This is deliberately not a Mesh V11 writer or a supported runtime format.
+Writes a generated .blend fixture, FBX/GLB comparison artifacts, an experimental JSON helper
+payload, and a direct Mesh V11 round-trip artifact used by the headless acceptance checks.
 """
 
 from __future__ import annotations
@@ -30,7 +30,9 @@ import importlib.util
 import json
 import math
 from pathlib import Path
+import struct
 import sys
+import zlib
 
 import bpy
 from mathutils import Vector
@@ -45,6 +47,81 @@ ROTATION = (-90.0, 0.0, 0.0)
 FRAMES = (1, 7, 13, 19, 25)
 TARGETS = ("jawOpen", "mouthSmileLeft", "eyeBlinkRight")
 TOLERANCE = 2e-5
+
+
+def read_msh_sections(path):
+    """Reads the V11 section envelope used by the direct Blender -> MSH acceptance route."""
+    data = Path(path).read_bytes()
+    if data[:4] != b'MBM1' or struct.unpack_from('<H', data, 4)[0] != 11:
+        raise AssertionError('direct output is not a Mesh V11 file')
+    section_count = struct.unpack_from('<I', data, 16)[0]
+    offset = 20
+    sections = []
+    for _ in range(section_count):
+        if offset + 20 > len(data):
+            raise AssertionError('truncated Mesh V11 section header')
+        section_type, version = struct.unpack_from('<HH', data, offset)
+        compression = data[offset + 4]
+        uncompressed_length, compressed_length, crc = struct.unpack_from('<III', data, offset + 8)
+        start = offset + 20
+        payload = data[start:start + compressed_length]
+        if len(payload) != compressed_length:
+            raise AssertionError('truncated Mesh V11 section payload')
+        if compression:
+            payload = zlib.decompress(payload)
+        if len(payload) != uncompressed_length:
+            raise AssertionError('Mesh V11 section decompressed length mismatch')
+        sections.append((section_type, version, payload))
+        offset = start + compressed_length
+    return sections
+
+
+def read_v11_string(payload, offset):
+    length = struct.unpack_from('<H', payload, offset)[0]
+    offset += 2
+    value = payload[offset:offset + length].decode('utf-8')
+    return value, offset + length
+
+
+def read_facial_payloads(path):
+    targets_payload = next(payload for section, _, payload in read_msh_sections(path) if section == 45)
+    mesh_id, signature, vertex_count, target_count = struct.unpack_from('<QQII', targets_payload, 0)
+    offset = 24
+    targets = []
+    for _ in range(target_count):
+        target_id = struct.unpack_from('<Q', targets_payload, offset)[0]
+        offset += 8
+        name, offset = read_v11_string(targets_payload, offset)
+        convention, offset = read_v11_string(targets_payload, offset)
+        default_weight = struct.unpack_from('<f', targets_payload, offset)[0]
+        flags = struct.unpack_from('<I', targets_payload, offset + 4)[0]
+        offset += 8
+        deltas = [struct.unpack_from('<fff', targets_payload, offset + index * 12)
+                  for index in range(vertex_count)]
+        offset += vertex_count * 12
+        if flags & 1:
+            offset += vertex_count * 12
+        targets.append({'id': target_id, 'name': name, 'convention': convention,
+                        'defaultWeight': default_weight, 'deltas': deltas})
+    clip_sections = [payload for section, _, payload in read_msh_sections(path) if section == 46]
+    clips = []
+    if clip_sections:
+        clip_payload = clip_sections[0]
+        clip_mesh_id, clip_count = struct.unpack_from('<QI', clip_payload, 0)
+        offset = 12
+        for _ in range(clip_count):
+            clip_id = struct.unpack_from('<Q', clip_payload, offset)[0]
+            offset += 8
+            name, offset = read_v11_string(clip_payload, offset)
+            duration, loop, interpolation, key_count = struct.unpack_from('<fIII', clip_payload, offset)
+            offset += 16 + key_count * target_count * 4
+            clips.append({'id': clip_id, 'name': name, 'duration': duration,
+                          'loop': bool(loop), 'interpolation': interpolation,
+                          'keyCount': key_count})
+    else:
+        clip_mesh_id = None
+    return {'meshId': mesh_id, 'signature': signature, 'vertexCount': vertex_count,
+            'targets': targets, 'clipMeshId': clip_mesh_id, 'clips': clips}
 
 
 def checked_vector(values):
@@ -486,6 +563,27 @@ def main():
     report['helper']['maxNormalDeltaComponent'] = max(
         abs(value) for mesh in reference['meshes'] for target in mesh['targets']
         for delta in target['normalDeltas'] for value in delta)
+    direct_msh = output / 'facial-roundtrip.msh'
+    direct_args = EXPORTER.parse_args([
+        '--input', str(fixture), '--output', str(direct_msh), '--direct-msh-output',
+        '--include-bones', '--include-facial', '--facial-convention', 'ARKit',
+        '--facial-normal-deltas', '--post-process',
+        '--angle-x', '-90', '--unweighted-mesh-mode', 'bake', '--debug-steps'])
+    EXPORTER.build_direct_msh_output(direct_args, str(direct_msh))
+    direct = read_facial_payloads(direct_msh)
+    expected_mesh_id = EXPORTER.stable_id('mini-mbm.facial.mesh/', 'Face')
+    assert direct['meshId'] == expected_mesh_id and direct['clipMeshId'] == expected_mesh_id
+    expected_direct_vertices = sum(len(subset['vertices']) for subset in reference['subsets'])
+    assert direct['vertexCount'] == expected_direct_vertices and len(direct['targets']) == len(TARGETS)
+    assert [target['name'] for target in direct['targets']] == list(TARGETS)
+    assert all(target['convention'] == 'ARKit' for target in direct['targets'])
+    assert all(any(abs(value) > 1e-6 for delta in target['deltas'] for value in delta)
+               for target in direct['targets'])
+    assert len(direct['clips']) == 1 and direct['clips'][0]['keyCount'] == 25
+    report['routes']['direct_msh'] = {'status': 'PASS', 'targets': len(direct['targets']),
+                                      'clips': len(direct['clips']),
+                                      'vertexCount': direct['vertexCount'],
+                                      'stableMeshId': True, 'stableTargetNames': True}
     for route in ('fbx', 'glb'):
         bpy.ops.wm.open_mainfile(filepath=str(fixture))
         path = output / f'facial-fixture.{route}'

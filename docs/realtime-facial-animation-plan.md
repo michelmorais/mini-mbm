@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 3 Blender/Faceit import, Mesh Debug preview, and `.blend` reverse export complete; FBX facial-curve round trip pending**
+Status: **Phase 3 Blender/Faceit import, Mesh Debug preview, `.blend` reverse export, and automated direct-MSH round trip complete; FBX facial-curve round trip pending**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
