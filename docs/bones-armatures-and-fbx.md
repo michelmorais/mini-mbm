@@ -17,6 +17,11 @@ Rigid subset animation is a separate implemented feature documented in
 [`articulated-animation.md`](articulated-animation.md). It should not be confused with bone-weighted
 skeletal deformation.
 
+Facial shape-key animation is a separate workstream. Its
+[Phase 0 Blender interchange spike](realtime-facial-animation-phase0.md) validates a generated
+fixture through the helper, FBX and glTF, but the current Mesh Debug import does not yet retain
+editable facial targets/clips in `.msh`. See the [implementation plan](realtime-facial-animation-plan.md).
+
 ## Quick Mental Model (Read This First)
 
 Skip this section if you already know how bones/skinning work in a modern engine — the rest of the

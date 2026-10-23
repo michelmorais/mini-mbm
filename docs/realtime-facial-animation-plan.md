@@ -1,7 +1,14 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Proposed; implementation has not started**
+Status: **Phase 0 synthetic interchange spike complete; Phase 1 runtime work pending**
 Last reviewed: **2026-10-23**
+
+Phase 0 results, reproduction commands and the bounded first-runtime design are in
+[Blender interchange and initial design](realtime-facial-animation-phase0.md). The generated Blender
+5.1.2 fixture preserves vertex association and sampled weights through the helper, FBX and GLB.
+The canonical initial route is `.blend` through the existing Blender helper. A real baked Faceit
+character and custom-normal fidelity remain integration acceptance items; runtime facial animation
+is not yet implemented.
 
 ## 1. Purpose
 
@@ -33,6 +40,9 @@ but the runtime format must not require a specific vendor's target set.
 ## 3. Proposed Delivery Order
 
 ### Phase 0: Interchange spike and bounded design
+
+**Completed for the synthetic profile on 2026-10-23.** See the
+[evidence and limitations](realtime-facial-animation-phase0.md#2-reproduction-and-evidence).
 
 Use a small Blender fixture with a skinned face, a handful of shape keys, and one animated facial
 clip. Confirm what the project's Blender/FBX boundary can reliably extract. Compare extending the

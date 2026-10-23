@@ -1109,7 +1109,8 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                           output_dir: str | None = None, capture_weights: bool = False,
                           canonical_coordinates: bool = False, uniform_scale: float = 1.0,
                           normalize_textures: bool = False, output_stem: str = "mesh",
-                          excluded_texture_roles: set[str] | None = None) -> list[dict[str, Any]]:
+                          excluded_texture_roles: set[str] | None = None,
+                          capture_source_vertices: bool = False) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
     scene_frame = int(scene.frame_current)
@@ -1210,6 +1211,12 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                         no_y,
                         no_z,
                     )
+                    if capture_source_vertices:
+                        # The facial interchange spike freezes corner identity before evaluating
+                        # targets: equal base normals can diverge when a shape key is applied.
+                        # These are evaluated-mesh indices; callers must reject topology modifiers
+                        # before treating them as original shape-key indices.
+                        key += (int(loop_index),)
 
                     idx = vmap.get(key)
                     if idx is None:
@@ -1225,6 +1232,10 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                             "ny": no_y,
                             "nz": no_z,
                         }
+                        if capture_source_vertices:
+                            vertex_dict["sourceObject"] = obj.name
+                            vertex_dict["sourceVertex"] = int(loop.vertex_index)
+                            vertex_dict["sourceLoop"] = int(loop_index)
                         if capture_weights and obj.vertex_groups:
                             # Already capped to <=4 influences summing to ~1.0 by the
                             # vertex_group_limit_total/vertex_group_normalize_all ops applied
