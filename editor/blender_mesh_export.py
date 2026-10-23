@@ -1921,7 +1921,25 @@ def write_section_v11(fp: Any, section_type: int, section_version: int, payload:
     fp.write(compressed)
 
 
-def build_material_transform_payload_v11(angles: tuple[float, float, float]) -> bytes:
+def scene_uses_backface_culling(scene: Any) -> bool:
+    """Return whether the imported materials request back-face culling.
+
+    glTF/GLB stores this as ``doubleSided`` and Blender exposes the imported value through
+    ``use_backface_culling``.  A number of character assets intentionally contain mixed winding
+    on fur, tongues, and inner-mouth surfaces; preserving that material setting is necessary for
+    those surfaces to remain visible in mini-mbm.
+    """
+    for obj in scene.objects:
+        if obj.type != "MESH" or not obj.visible_get():
+            continue
+        for material in obj.data.materials:
+            if material is not None and not bool(getattr(material, "use_backface_culling", True)):
+                return False
+    return True
+
+
+def build_material_transform_payload_v11(angles: tuple[float, float, float],
+                                         cull_face: int = 0x0405) -> bytes:
     buf = io.BytesIO()
     write_material_default(buf)
     write_f32(buf, angles[0])
@@ -1931,7 +1949,7 @@ def build_material_transform_payload_v11(angles: tuple[float, float, float]) -> 
     write_f32(buf, 0.0)  # posY
     write_f32(buf, 0.0)  # posZ
     write_u32(buf, 4)       # mode_draw = MODE_DRAW_TRIANGLES
-    write_u32(buf, 0x0405)  # mode_cull_face = CULL_BACK
+    write_u32(buf, cull_face)  # mode_cull_face = CULL_BACK or CULL_FRONT_AND_BACK (no culling)
     write_u32(buf, 0x0900)  # mode_front_face_direction = CW
     return buf.getvalue()
 
@@ -2742,6 +2760,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    cull_face = 0x0405 if scene_uses_backface_culling(scene) else 0x0408
+    debug_print(args.debug_steps, "material culling: " + ("back" if cull_face == 0x0405 else "disabled"))
     prepare_static_decimation(scene, args)
     facial_source = discover_facial_source(scene, args)
     facial_state = save_facial_source_state(facial_source) if facial_source else None
@@ -2950,7 +2970,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         with open(tmp_out, "wb") as fp:
             write_file_header_v11(fp, TYPE_MESH_3D, 0, 0, section_count)
 
-            write_section_v11(fp, SECTION_MATERIAL_TRANSFORM, 1, build_material_transform_payload_v11(angles), False)
+            write_section_v11(fp, SECTION_MATERIAL_TRANSFORM, 1,
+                              build_material_transform_payload_v11(angles, cull_face), False)
 
             if texture_path_list:
                 write_section_v11(fp, SECTION_EXTRA_PATHS, 1, build_extra_paths_payload_v11(texture_path_list), False)

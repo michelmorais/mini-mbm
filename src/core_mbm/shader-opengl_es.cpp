@@ -43,6 +43,30 @@ namespace mbm
     static uint32_t loadShaderProgram(BASE_SHADER* pShader, BASE_SHADER* vShader, void* ptrShaderSpecific, const char* vertShaderSrc, const char* fragShaderSrc);
     static uint32_t compileCodeShader(BASE_SHADER* ptrShader, const unsigned int type, const char* shaderSrc);
 
+    // CULL_FRONT_AND_BACK is the cross-backend mesh value for rendering both sides. OpenGL's
+    // glCullFace(GL_FRONT_AND_BACK) instead culls every triangle, so temporarily disable the
+    // capability and restore the previous state when this draw returns (including early exits).
+    struct ScopedMeshNoCulling
+    {
+        bool restore = false;
+
+        explicit ScopedMeshNoCulling(const uint32_t modeCullFace) noexcept
+        {
+            if (modeCullFace != util::CULL_FRONT_AND_BACK || glIsEnabled(GL_CULL_FACE) != GL_TRUE)
+                return;
+            GLDisable(GL_CULL_FACE);
+            restore = true;
+        }
+
+        ~ScopedMeshNoCulling() noexcept
+        {
+            if (restore)
+            {
+                GLEnable(GL_CULL_FACE);
+            }
+        }
+    };
+
     // Process-lifetime cache of compiled "pure default shader pair" programs (no custom .cfg
     // effect), keyed by the small set of flags that fully determine the generated GLSL source
     // (see SHADER::compileShader). Every placed instance of the same mesh type would otherwise
@@ -1820,7 +1844,11 @@ namespace mbm
         const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
-        GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
+        const ScopedMeshNoCulling noCulling(pBufferId->mode_cull_face);
+        if (pBufferId->mode_cull_face != util::CULL_FRONT_AND_BACK)
+        {
+            GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029 (CullFaceMode)
+        }
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
@@ -1975,7 +2003,11 @@ namespace mbm
         const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
-        GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
+        const ScopedMeshNoCulling noCulling(pBufferId->mode_cull_face);
+        if (pBufferId->mode_cull_face != util::CULL_FRONT_AND_BACK)
+        {
+            GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK (CullFaceMode)
+        }
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();

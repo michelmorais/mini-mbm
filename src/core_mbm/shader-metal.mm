@@ -359,7 +359,7 @@ static MTLCullMode metalCullMode(uint32_t mode_cull_face)
     {
         case 0x0404: return MTLCullModeFront;  // CULL_FRONT
         case 0x0405: return MTLCullModeBack;   // CULL_BACK
-        case 0x0408: return MTLCullModeBack;   // CULL_FRONT_AND_BACK — best Metal approximation
+        case 0x0408: return MTLCullModeNone;   // CULL_FRONT_AND_BACK means render both sides
         default:     return MTLCullModeNone;   // 0 / unknown = no culling
     }
 }

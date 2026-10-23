@@ -316,11 +316,13 @@ Example translation table:
 |---|---|---|---|---|
 | `CULL_FRONT` (0x0404) | `GL_FRONT` | `MTLCullModeFront` | `D3DCULL_CW` | `VK_CULL_MODE_FRONT_BIT` |
 | `CULL_BACK` (0x0405) | `GL_BACK` | `MTLCullModeBack` | `D3DCULL_CCW` | `VK_CULL_MODE_BACK_BIT` |
-| `CULL_FRONT_AND_BACK` (0x0408) | `GL_FRONT_AND_BACK` | `MTLCullModeBack`* | — | `VK_CULL_MODE_FRONT_AND_BACK` |
+| `CULL_FRONT_AND_BACK` (0x0408) | disable `GL_CULL_FACE` (render both sides) | `MTLCullModeNone` | `D3DCULL_NONE` | `VK_CULL_MODE_NONE` |
 | `CW` (0x0900) | `GL_CW` | `MTLWindingClockwise` | — | `VK_FRONT_FACE_CLOCKWISE` |
 | `CCW` (0x0901) | `GL_CCW` | `MTLWindingCounterClockwise` | — | `VK_FRONT_FACE_COUNTER_CLOCKWISE` |
 
-*Metal has no true FRONT_AND_BACK — use `MTLCullModeNone` or handle via blending.
+`CULL_FRONT_AND_BACK` is the engine's cross-backend value for rendering both sides. OpenGL's
+`GL_FRONT_AND_BACK` means "cull every face", so the OpenGL backend must disable the culling
+capability for this value instead of passing it to `glCullFace`.
 
 **Forgetting to apply culling** will cause closed meshes to draw their inner faces, making
 them appear hollow or incorrectly lit.
