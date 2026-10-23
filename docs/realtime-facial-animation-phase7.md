@@ -157,6 +157,7 @@ The second implementation slice now provides:
 - stale-project and stale-mask diagnostics when the loaded mesh no longer matches the saved topology;
 - persistent landmark vertex associations when a landmark is snapped to the viewport;
 - always-on-top landmark cross markers with selection feedback in the 3D viewport;
+- the shared Mesh Debug orbit gizmo in the facial camera panel, including axis snap views;
 - click-to-select placed landmarks and click-to-snap the selected landmark to the nearest visible mesh vertex;
 - add/remove mask editing by nearest vertex in the Masks / Regions workspace;
 - a review-only binding description summarizing enabled roles, masks, landmarks, and source topology;

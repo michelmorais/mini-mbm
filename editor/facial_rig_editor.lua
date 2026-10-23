@@ -487,6 +487,8 @@ local function showCameraPanel()
         local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),state.mesh and state.mesh.visible or false)
         if state.mesh and visible~=state.mesh.visible then state.mesh.visible=visible; markLandmarkMarkersDirty() end
         tImGui.Separator()
+        if tUtil.drawOrbitGizmo(state.camera,{size=110}) then applyCamera() end
+        tImGui.Separator()
         tImGui.Text(string.format(tLang.L('fre_camera_distance_fmt'),state.camera.distance))
         tImGui.TextWrapped(tLang.L('fre_camera_help'))
     end
