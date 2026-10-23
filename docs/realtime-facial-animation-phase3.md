@@ -41,6 +41,10 @@ later.
 - The Blender fixture now runs the direct `.blend -> MSH` path headlessly and parses the emitted V11
   sections 45/46. It verifies the post-split vertex count, target names and ids, non-zero dense
   deltas, and the sampled clip key count without opening the Mesh Debug window.
+- `src/test-lib/blender_facial_curve_roundtrip_test.py` now reloads a generated `.blend` in Blender
+  headlessly and verifies facial target metadata, multiple named Actions, sampled keyframes, and
+  both linear and step interpolation. Explicit V11 interpolation value `0` is preserved as a
+  Blender `CONSTANT` curve instead of being coerced to linear.
 
 ## Scope boundary
 
@@ -58,3 +62,10 @@ and clip payload headers. Lua preflight covers the new playback module and the e
 script. Blender 5.1 fixture execution covers `.blend` shape-key/action creation; FBX geometry is
 present after re-import, and the direct MSH acceptance route is checked from the same fixture while
 facial curves are intentionally recorded as a remaining limitation for FBX.
+
+Run the reverse-curve regression with:
+
+```sh
+blender -b --factory-startup --python src/test-lib/blender_facial_curve_roundtrip_test.py -- \
+    --output-dir /tmp/mini-mbm-facial-curve-roundtrip
+```

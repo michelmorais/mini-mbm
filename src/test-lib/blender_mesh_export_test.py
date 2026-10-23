@@ -322,6 +322,12 @@ class BlenderMeshExportTests(unittest.TestCase):
         self.assertAlmostEqual(rotated[0], 0.0, places=6)
         self.assertAlmostEqual(rotated[1], 1.0, places=6)
 
+    def test_facial_clip_interpolation_preserves_explicit_step_mode(self) -> None:
+        self.assertEqual(SKELETON_EXPORTER.facial_clip_interpolation({"interpolation": 0}), 0)
+        self.assertEqual(SKELETON_EXPORTER.facial_clip_interpolation({"interpolation": "0"}), 0)
+        self.assertEqual(SKELETON_EXPORTER.facial_clip_interpolation({"interpolation": 1}), 1)
+        self.assertEqual(SKELETON_EXPORTER.facial_clip_interpolation({}), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

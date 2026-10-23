@@ -364,11 +364,12 @@ def build_facial_animation_actions(data: dict, mesh_obj, target_names: list[str]
         if not keys:
             continue
         action_name = str(clip.get("name") or f"FacialClip_{clip_index + 1}")
+        interpolation = facial_clip_interpolation(clip)
         action = bpy.data.actions.new(name=action_name)
         action.use_fake_user = True
         action["mini_mbm_loop"] = bool(clip.get("loop", False))
         action["mini_mbm_clip_id"] = str(clip.get("id") or "0")
-        action["mini_mbm_interpolation"] = "step" if int(clip.get("interpolation") or 1) == 0 else "linear"
+        action["mini_mbm_interpolation"] = "step" if interpolation == 0 else "linear"
         shape_keys.animation_data.action = action
         curves = []
         curve_values = {}
@@ -398,9 +399,9 @@ def build_facial_animation_actions(data: dict, mesh_obj, target_names: list[str]
                 coordinates[key_index * 2 + 1] = float(weights[target_index] or 0.0)
         for curve in curves:
             curve.keyframe_points.foreach_set("co", curve_values[curve])
-            interpolation = 'CONSTANT' if int(clip.get("interpolation") or 1) == 0 else 'LINEAR'
+            interpolation_name = 'CONSTANT' if interpolation == 0 else 'LINEAR'
             for keyframe in curve.keyframe_points:
-                keyframe.interpolation = interpolation
+                keyframe.interpolation = interpolation_name
             curve.update()
         built += 1
         debug_print(debug, f"facial action built: {action_name} ({len(keys)} keys at {sample_rate} FPS)")
@@ -408,6 +409,14 @@ def build_facial_animation_actions(data: dict, mesh_obj, target_names: list[str]
     scene.frame_end = max(scene.frame_end, maximum_frame)
     scene.frame_set(1)
     return built
+
+
+def facial_clip_interpolation(clip: dict) -> int:
+    """Returns the V11 facial interpolation mode, preserving explicit zero (step)."""
+    value = clip.get("interpolation", 1)
+    if value is None:
+        value = 1
+    return 0 if int(value) == 0 else 1
 
 
 def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None):

@@ -84,3 +84,8 @@ headless facial foundation suite now loads a representative composition fixture,
 skeletal and facial metadata, and compares facial sections plus skeletal sections 41-43 after both
 compressed and uncompressed save/reload round trips. This protects the combined asset contract
 without making the test depend on a window or a manually selected file.
+
+The facial clip interchange milestone is also covered by
+`src/test-lib/blender_facial_curve_roundtrip_test.py`. It reloads the generated Blender project
+and checks both linear and step Actions; this caught and fixed an explicit-zero interpolation bug
+in the reverse exporter. Reliable FBX facial-curve transport remains the next interchange scope.
