@@ -136,6 +136,8 @@ namespace mbm
         this->facialState = std::make_unique<facial::RENDER_STATE>();
         if (!this->mesh->initializeFacial(*facialState))
         {
+            ERROR_LOG("facial mesh initialization failed for [%s]: %s", fileName ? fileName : "<unknown>",
+                      facialState->status.c_str());
             this->mesh = nullptr;
             return false;
         }

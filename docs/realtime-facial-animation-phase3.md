@@ -27,6 +27,10 @@ later.
   normals when normal deltas are requested fail with diagnostics. Animated facial clips require a
   canonical skeletal asset (or a static facial frame); the legacy multi-frame baked mesh path is
   rejected because V11 facial data is tied to one frame-0 topology.
+- Facial direct exports omit normal-map texture slots automatically. The current facial renderer
+  uses the CPU morph path and rejects prepared 3D normal-map state; retaining a normal slot would
+  make the runtime prepare tangents during load and reject the otherwise valid facial asset. Static
+  exports keep normal-map slots unchanged.
 - Mesh Debug exposes target sliders, clear/reset controls, clip playback controls, time, execution
   status, and validation state. Controls update only on user interaction; idle frames do not rebuild
   or serialize the mesh.

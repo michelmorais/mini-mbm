@@ -2755,6 +2755,23 @@ def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: arg
     write_direct_frame_chunk_indexed(path, subsets, args)
 
 
+def effective_excluded_texture_roles(args: argparse.Namespace, facial_active: bool | None = None) -> set[str]:
+    """Return texture roles that are safe for the selected direct-export path.
+
+    The current facial renderer rejects meshes with prepared 3D normal-map state.  With
+    ``USE_NORMAL_MAPPING_3D`` enabled, merely retaining a normal texture slot causes the
+    runtime loader to prepare that state automatically, even when the MSH has no explicit
+    tangent section.  Exclude the slot for facial exports so the resulting asset can reach
+    ``MESH::finishLoad``; static exports preserve the author's normal texture as before.
+    """
+    excluded = set(args.exclude_texture_role or [])
+    if facial_active is None:
+        facial_active = bool(args.include_facial)
+    if facial_active:
+        excluded.add("normal")
+    return excluded
+
+
 def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     source_path = os.path.abspath(args.input)
     debug_print(args.debug_steps, f"import source: {source_path}")
@@ -2823,7 +2840,13 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # had the file and is otherwise meaningless on this one.
         output_dir = os.path.dirname(os.path.abspath(out_path))
         output_stem = os.path.splitext(os.path.basename(out_path))[0]
-        excluded_texture_roles = set(args.exclude_texture_role or [])
+        excluded_texture_roles = effective_excluded_texture_roles(args, facial_source is not None)
+        if facial_source is not None and "normal" not in (args.exclude_texture_role or []):
+            debug_print(
+                args.debug_steps,
+                "facial export: excluding normal textures because the current facial render path "
+                "does not support normal mapping",
+            )
         # Real per-vertex weights only make sense alongside a real skeleton (--include-bones), and
         # only for the default indexed write path -- see build_canonical_weights_payload_v11's
         # own docstring for why vb_only mode is excluded.

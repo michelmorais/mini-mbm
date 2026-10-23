@@ -128,6 +128,17 @@ class BlenderMeshExportTests(unittest.TestCase):
             self.assertEqual(chunk["extraTextures"], subset["extraTextures"])
             self.assertIsNot(chunk["extraTextures"], subset["extraTextures"])
 
+    def test_facial_export_excludes_normal_mapping_role(self) -> None:
+        static_args = Namespace(exclude_texture_role=[], include_facial=False)
+        facial_args = Namespace(exclude_texture_role=[], include_facial=True)
+        explicit_args = Namespace(exclude_texture_role=["normal"], include_facial=True)
+        static_fallback_args = Namespace(exclude_texture_role=[], include_facial=True)
+
+        self.assertNotIn("normal", EXPORTER.effective_excluded_texture_roles(static_args))
+        self.assertIn("normal", EXPORTER.effective_excluded_texture_roles(facial_args))
+        self.assertIn("normal", EXPORTER.effective_excluded_texture_roles(explicit_args))
+        self.assertNotIn("normal", EXPORTER.effective_excluded_texture_roles(static_fallback_args, False))
+
     def test_material_ignores_image_node_without_pixel_data_or_file(self) -> None:
         image = SimpleNamespace(has_data=False, filepath="", packed_file=None)
         image.save = mock.Mock(side_effect=AssertionError("empty image must not be saved"))
