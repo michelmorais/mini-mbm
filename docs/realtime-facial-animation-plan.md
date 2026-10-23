@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 4 sparse CPU optimization and facial-plus-skeletal validation complete; Blender facial-curve interchange validated for `.blend` and MeshDebug-owned FBX; GPU morph path not yet justified**
+Status: **Phase 5 capture naming contract complete; sparse CPU optimization, facial-plus-skeletal validation, and Blender facial-curve interchange are complete; no live transport is bundled**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -14,6 +14,7 @@ evidence and the Lua contract are in [Facial controls and playback](realtime-fac
 The Phase 3 editor decision and implementation slice are in
 [Blender import and Mesh Debug preview](realtime-facial-animation-phase3.md).
 The first Phase 4 performance profile is in [CPU performance profile](realtime-facial-animation-phase4.md).
+The Phase 5 producer contract is in [Live capture naming contract](realtime-facial-animation-phase5.md).
 
 ## 1. Purpose
 
@@ -148,7 +149,23 @@ and both linear and step interpolation.
 MeshDebug-owned FBX exports now carry a serialized facial clip payload in mesh custom properties.
 When Blender's FBX importer drops the original Shape Key Actions, the direct MSH importer restores
 clips from that payload. Arbitrary external FBX files without this metadata still provide target
-geometry only, so the next milestone is to evaluate a live capture producer and its naming contract.
+geometry only; the transport-independent naming contract is defined in Phase 5 below.
+
+### Phase 5: Live capture naming contract
+
+**Completed for the transport-independent mapping slice on 2026-10-23.**
+
+The editor module editor/facial_capture_mapping.lua defines the boundary for an optional
+Faceit/ARKit-compatible producer. It discovers the exact target names in a loaded mesh, resolves
+canonical names and conservative Faceit side-suffix aliases, clamps finite incoming weights, and
+reports unknown names, duplicate source names, missing required targets, rejected values, and
+failed runtime assignments. It caches the last applied values and skips assignments within an
+epsilon, so a later capture loop does not upload unchanged weights every frame.
+
+The module has no camera, network, or vendor SDK dependency. A future OSC, webcam, or native
+capture adapter can feed a name-to-weight table into the same contract without changing the .msh
+format or the core renderer. The remaining capture milestone is to select and test one concrete
+producer and transport against this contract.
 
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
 rigged facial-plus-skeletal asset. If the measured cost still requires it, add GPU morph evaluation
