@@ -44,7 +44,7 @@ local state = {
     selectedMask=1, maskEditMode='add',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
-    windowMove=false, leftPanelRight=440
+    windowMove=false, leftPanelRight=560
 }
 
 local windows = {
@@ -53,6 +53,53 @@ local windows = {
 
 local function shortName(path)
     return tUtil.getShortName(path or '', false) or path or ''
+end
+
+local function localizedLandmarkName(name)
+    local key='fre_landmark_name_' .. tostring(name or '')
+    local translated=tLang.L(key)
+    return translated==key and tostring(name or '') or translated
+end
+
+local function localizedLandmarkSide(side)
+    local key='fre_side_' .. tostring(side or '')
+    local translated=tLang.L(key)
+    return translated==key and tostring(side or '') or translated
+end
+
+local function localizedProjectMessage(message)
+    local text=tostring(message or '')
+    local lower=text:lower()
+    local function diagnosticName(pattern)
+        local value=lower:match(pattern)
+        return value and value:gsub('[%s%.]+$','') or nil
+    end
+    local name=diagnosticName('^required landmark not placed:?%s*(.+)$')
+    if name then return string.format(tLang.L('fre_error_required_landmark_fmt'),localizedLandmarkName(name)) end
+    name=diagnosticName('^landmark vertex is outside the current topology:?%s*(.+)$')
+    if name then return string.format(tLang.L('fre_error_landmark_vertex_fmt'),localizedLandmarkName(name)) end
+    name=diagnosticName('^mask topology is stale:?%s*(.+)$')
+    if name then return string.format(tLang.L('fre_error_mask_stale_fmt'),name) end
+    name=diagnosticName('^mask has an invalid or duplicate vertex:?%s*(.+)$')
+    if name then return string.format(tLang.L('fre_error_mask_invalid_vertex_fmt'),name) end
+    local exact={
+        ['mesh topology changed since the project was saved']='fre_error_mesh_topology',
+        ['mesh vertex count changed since the project was saved']='fre_error_mesh_vertex_count',
+        ['mesh is not loaded']='fre_error_mesh_not_loaded',
+        ['project is missing']='fre_error_project_missing',
+        ['mask has no name']='fre_error_mask_no_name',
+        ['mask has invalid vertex list']='fre_error_mask_invalid_list',
+    }
+    return exact[lower] and tLang.L(exact[lower]) or text
+end
+
+local function showProjectMessages(report)
+    for _,message in ipairs(report.errors or {}) do
+        tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedProjectMessage(message))
+    end
+    for _,message in ipairs(report.warnings or {}) do
+        tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedProjectMessage(message))
+    end
 end
 
 local function setStatus(message, isError)
@@ -283,25 +330,8 @@ local function showMenu()
 end
 
 local function selectWorkspace(workspace)
-    if state.workspace~=workspace then
-        state.workspace=workspace
-        markLandmarkMarkersDirty()
-    end
-end
-
-local function showWorkspaceButtons()
-    tImGui.Text(tLang.L('fre_workspaces'))
-    local workspaces={
-        {'setup','fre_setup'}, {'masks','fre_masks'}, {'landmarks','fre_landmarks'},
-        {'rig','fre_rig'}, {'expressions','fre_expressions'}, {'preview','fre_preview'}
-    }
-    for _,entry in ipairs(workspaces) do
-        local label=tLang.L(entry[2])
-        if state.workspace==entry[1] then label='[x] ' .. label end
-        if tImGui.SmallButton(label .. '##freWorkspace_' .. entry[1]) then selectWorkspace(entry[1]) end
-        tImGui.SameLine()
-    end
-    tImGui.NewLine()
+    state.workspace=state.workspace==workspace and nil or workspace
+    markLandmarkMarkersDirty()
 end
 
 local function showSetup()
@@ -347,8 +377,10 @@ local function showMasks()
     if selected then
         tImGui.Separator()
         tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
+        tImGui.PushItemWidth(320)
         local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',selected.object or '',256)
         if changed then selected.object=object; markModified() end
+        tImGui.PopItemWidth()
         local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
         if enabled~=selected.enabled then selected.enabled=enabled; markModified() end
         if tImGui.Button(tLang.L('fre_add_mask')) then
@@ -378,8 +410,10 @@ local function showMasks()
     end
     local selectedMask=state.project.masks[state.selectedMask]
     if selectedMask then
+        tImGui.PushItemWidth(320)
         local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '',128)
         if changed and name~='' then selectedMask.name=name; markModified() end
+        tImGui.PopItemWidth()
         local roleNames=tFacialProject.roleNames()
         local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
         if roleChanged then selectedMask.roleIndex=roleIndex; markModified() end
@@ -403,12 +437,12 @@ local function showLandmarks()
     local landmarks=state.project.landmarks
     tImGui.PushItemWidth(220)
     local names={}
-    for _,landmark in ipairs(landmarks) do names[#names+1]=landmark.name end
+    for _,landmark in ipairs(landmarks) do names[#names+1]=localizedLandmarkName(landmark.name) end
     local changed,index=tImGui.Combo(tLang.L('fre_landmark_select'),state.selectedLandmark,names)
     if changed then state.selectedLandmark=index; markLandmarkMarkersDirty() end
     local selected=landmarks[state.selectedLandmark]
     if selected then
-        tImGui.Text(string.format(tLang.L('fre_landmark_side_fmt'),selected.name,selected.side))
+        tImGui.Text(string.format(tLang.L('fre_landmark_side_fmt'),localizedLandmarkName(selected.name),localizedLandmarkSide(selected.side)))
         local xChanged,x=tImGui.InputFloat('X##freLandmarkX',selected.position.x,0,0,'%.4f',0)
         local yChanged,y=tImGui.InputFloat('Y##freLandmarkY',selected.position.y,0,0,'%.4f',0)
         local zChanged,z=tImGui.InputFloat('Z##freLandmarkZ',selected.position.z,0,0,'%.4f',0)
@@ -421,7 +455,7 @@ local function showLandmarks()
     tImGui.PopItemWidth()
     local report=tFacialProject.validate(state.project,true,state.topology)
     tImGui.Text(string.format(tLang.L('fre_landmark_count_fmt'),report.placedLandmarkCount,report.landmarkCount))
-    for _,message in ipairs(report.errors) do tImGui.TextWrapped('Error: ' .. message) end
+    showProjectMessages(report)
 end
 
 local function showRig()
@@ -432,8 +466,7 @@ local function showRig()
     else
         tImGui.TextColored({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_validation_pending'))
     end
-    for _,message in ipairs(report.errors) do tImGui.TextWrapped('Error: ' .. message) end
-    for _,message in ipairs(report.warnings) do tImGui.TextWrapped('Warning: ' .. message) end
+    showProjectMessages(report)
     local binding=tFacialProject.bindingDescription(state.project,state.topology)
     tImGui.Separator()
     tImGui.Text(string.format(tLang.L('fre_binding_summary_fmt'),#binding.roles,#binding.masks,
@@ -448,16 +481,42 @@ local function showPlaceholder(key)
     tImGui.TextDisabled(tLang.L('fre_future_workspace'))
 end
 
+local function showWorkspaceTree()
+    tImGui.Text(tLang.L('fre_workspaces'))
+    local workspaces={
+        {'setup','fre_setup'}, {'masks','fre_masks'}, {'landmarks','fre_landmarks'},
+        {'rig','fre_rig'}, {'expressions','fre_expressions'}, {'preview','fre_preview'}
+    }
+    for _,entry in ipairs(workspaces) do
+        local label=tLang.L(entry[2])
+        local flags=state.workspace==entry[1] and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
+        tImGui.SetNextItemOpen(state.workspace==entry[1],tImGui.Flags('ImGuiCond_Always'))
+        local opened=tImGui.TreeNodeEx(label .. '##freWorkspace_' .. entry[1],flags)
+        if tImGui.IsItemClicked() then selectWorkspace(entry[1]) end
+        if opened then
+            if state.workspace==entry[1] then
+                if entry[1]=='setup' then showSetup()
+                elseif entry[1]=='masks' then showMasks()
+                elseif entry[1]=='landmarks' then showLandmarks()
+                elseif entry[1]=='rig' then showRig()
+                elseif entry[1]=='expressions' then showPlaceholder('fre_expressions_help')
+                elseif entry[1]=='preview' then showPlaceholder('fre_preview_help') end
+            end
+            tImGui.TreePop()
+        end
+    end
+end
+
 local function showMainPanel()
     local flags=state.windowMove and 0 or noMoveFlag
-    tUtil.setInitialWindowPositionLeft(windows.main,0,24,440)
-    tImGui.SetNextWindowSizeConstraints({x=350,y=360},{x=800,y=900})
+    tUtil.setInitialWindowPositionLeft(windows.main,0,24,560)
+    tImGui.SetNextWindowSize({x=560,y=720},tImGui.Flags('ImGuiCond_Always'))
+    tImGui.SetNextWindowSizeConstraints({x=560,y=720},{x=560,y=720})
     local opened=tImGui.Begin(tLang.L('fre_title')..'##'..windows.main,true,flags)
     local position=tImGui.GetWindowPos()
     local size=tImGui.GetWindowSize()
     state.leftPanelRight=(position.x or 0)+(size.x or 440)
     if opened then
-        showWorkspaceButtons()
         if state.projectPath then
             tImGui.Text(shortName(state.projectPath) .. (state.modified and ' *' or ''))
         else
@@ -465,20 +524,15 @@ local function showMainPanel()
         end
         showStatus()
         tImGui.Separator()
-        if state.workspace=='setup' then showSetup()
-        elseif state.workspace=='masks' then showMasks()
-        elseif state.workspace=='landmarks' then showLandmarks()
-        elseif state.workspace=='rig' then showRig()
-        elseif state.workspace=='expressions' then showPlaceholder('fre_expressions_help')
-        elseif state.workspace=='preview' then showPlaceholder('fre_preview_help')
-        end
+        showWorkspaceTree()
     end
     tImGui.End()
 end
 
 local function showCameraPanel()
-    local width=mbm.getRealSizeScreen()
-    tUtil.setInitialWindowPositionRight(windows.camera,0,25,310)
+    tUtil.setInitialWindowPositionRight(windows.camera,0,25,330)
+    tImGui.SetNextWindowSize({x=330,y=300},tImGui.Flags('ImGuiCond_Always'))
+    tImGui.SetNextWindowSizeConstraints({x=330,y=300},{x=330,y=300})
     local opened=tImGui.Begin(tLang.L('fre_camera')..'##'..windows.camera,true,
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
     if opened then
