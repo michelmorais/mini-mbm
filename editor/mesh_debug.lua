@@ -42,6 +42,11 @@ local Simplification = require "mesh_debug_simplification"
 local CaptureVolume = require "mesh_debug_capture_volume"
 tImageMeshWorktree = require "image_mesh_worktree"
 
+-- Preview creation runs before the bounds helpers below are defined. Forward-declare the
+-- helpers so the first selected mesh can receive a size-aware camera before it is rendered.
+local computeMeshVertexBoundsFrame1
+local fitCam3dToMesh
+
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
     local res = table.pack(pcall(fn, ...))
@@ -3351,7 +3356,7 @@ function addMeshToTable(fileName,imageMeshProjectOwner,imageMeshRegion)
         bFrameSelectionDirty = false,
         framePreviewPath     = nil,
         bPreviewIsFiltered   = false,
-        cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
+        cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0, autoFit=true },
         tPendingOps          = {},
         tSimplifyState       = imageMeshProjectOwner and imageMeshRegion and
                               tImageMeshWorktree.simplifyState(imageMeshProjectOwner.project,imageMeshRegion) or
@@ -3616,7 +3621,8 @@ function selectMeshIndex(newIndex)
 
     local tOld = tLoadedMeshes[iSelectedMeshIndex]
     local tNew = tLoadedMeshes[newIndex]
-    if bCameraMode3D and isMesh3DType(tOld) and isMesh3DType(tNew) then
+    if bCameraMode3D and isMesh3DType(tOld) and isMesh3DType(tNew) and
+       not (tNew.cam3d and tNew.cam3d.autoFit) then
         local c = tOld.cam3d
         tNew.cam3d.azimuth   = c.azimuth
         tNew.cam3d.elevation = c.elevation
@@ -3721,6 +3727,9 @@ function updatePreviewMesh()
         -- straight to the origin is the correct fix rather than reading any stored value.
         if ok then
             tPreviewMesh:setPos(0, 0, 0)
+            if bCameraMode3D and tEntry.cam3d.autoFit then
+                fitCam3dToMesh(tEntry)
+            end
         end
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new(coordType)
@@ -3872,7 +3881,7 @@ end
 
 -- Computes the mesh's own bounding box from frame 1's vertex data only (not mesh:getSize()).
 -- Returns center/width/height/depth, or false if frame 1 has no vertices.
-function computeMeshVertexBoundsFrame1(meshD)
+computeMeshVertexBoundsFrame1 = function(meshD)
     local ok, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
     if not ok or not nSubsets then return false end
     local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
@@ -3897,6 +3906,23 @@ function computeMeshVertexBoundsFrame1(meshD)
         cx = (minX + maxX) * 0.5, cy = (minY + maxY) * 0.5, cz = (minZ + maxZ) * 0.5,
         width = maxX - minX, height = maxY - minY, depth = maxZ - minZ,
     }
+end
+
+-- Chooses a perspective distance from the actual frame-1 geometry. Imported assets use very
+-- different unit scales; a fixed distance of 500 makes a roughly two-unit head occupy only a
+-- handful of pixels while a 100-unit mesh looks normal.
+fitCam3dToMesh = function(tEntry)
+    if not tEntry or not tEntry.cam3d then return false end
+    local bounds = computeMeshVertexBoundsFrame1(tEntry.meshDebug)
+    if not bounds then return false end
+    local diagonal = math.sqrt(bounds.width * bounds.width + bounds.height * bounds.height +
+                               bounds.depth * bounds.depth)
+    if diagonal <= 0 or diagonal ~= diagonal then return false end
+    local c = tEntry.cam3d
+    c.fx, c.fy, c.fz = bounds.cx, bounds.cy, bounds.cz
+    c.distance = math.max(diagonal * 1.8, 0.5)
+    c.autoFit = false
+    return true
 end
 
 -- Physics-only bounding extent, unioned across every shape kind in a meshD:getPhysics() list --
