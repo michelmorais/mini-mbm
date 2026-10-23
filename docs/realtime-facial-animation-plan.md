@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 4 sparse CPU optimization complete; GPU morph path not yet justified; FBX facial-curve round trip pending**
+Status: **Phase 4 sparse CPU optimization and facial-plus-skeletal validation complete; GPU morph path not yet justified; FBX facial-curve round trip pending**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -136,8 +136,13 @@ vertices, six facial targets, and one clip. It is currently a procedural facial 
 an armature; use it to measure the isolated CPU morph path before deciding whether a GPU path is
 needed. A Megan Mixamo fixture now provides the composition test asset: 65 canonical bones, 34,164
 facial vertices, six facial targets, one 211-frame facial clip, and the original 211-frame skeletal
-clip. The next validation step is to preview this asset in MeshDebug and verify isolated and
-simultaneous facial-plus-skeletal playback.
+clip. MeshDebug preview confirmed isolated and simultaneous facial-plus-skeletal playback. The
+headless foundation suite now also verifies that facial and skeletal metadata and sections 41-43
+survive load/save round trips in a representative combined asset.
+
+The next milestone is facial clip interchange: preserve named facial curves through the Blender
+`.blend`/MSH workflow, then document the remaining FBX curve limitation before evaluating a live
+capture producer.
 
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
 rigged facial-plus-skeletal asset. If the measured cost still requires it, add GPU morph evaluation

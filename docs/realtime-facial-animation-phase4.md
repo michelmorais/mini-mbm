@@ -78,3 +78,9 @@ Its exported MSH preserves 65 canonical bones, the original 211-frame skeletal c
 vertices, and a 211-frame facial clip. The FBX custom normals were cleared in the preparation blend,
 allowing all six targets to carry position and normal deltas; the facial renderer continues to
 exclude normal-map slots.
+
+MeshDebug preview confirmed that the Megan skeletal clip and facial clip play together. The
+headless facial foundation suite now loads a representative composition fixture, checks canonical
+skeletal and facial metadata, and compares facial sections plus skeletal sections 41-43 after both
+compressed and uncompressed save/reload round trips. This protects the combined asset contract
+without making the test depend on a window or a manually selected file.

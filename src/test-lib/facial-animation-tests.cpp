@@ -176,6 +176,16 @@ namespace
         expect(mesh.getFacialMeshId()==123 && mesh.getFacialVertexCount()==3 &&
             mesh.getTotalFacialTargets()==2 && mesh.getTotalFacialClips()==1,
             "debug facial export metadata");
+        SKELETON_BIND_SUMMARY skeletonSummary;
+        SKELETAL_CLIP_INFO skeletalClip;
+        expect(mesh.getSkeletonBindSummary(skeletonSummary) && skeletonSummary.valid &&
+            skeletonSummary.canonical && skeletonSummary.boneCount==1,
+            "debug skeletal bind metadata survives facial load");
+        expect(mesh.getTotalSkeletalClips()==1 &&
+            std::strcmp(mesh.getSkeletalClipName(0),"pose")==0 &&
+            mesh.getSkeletalClip(0,skeletalClip) && skeletalClip.duration==1.0f &&
+            skeletalClip.trackCount==1,
+            "debug skeletal clip metadata survives facial load");
         expect(std::strcmp(mesh.getFacialTargetName(0),"jawOpen")==0 &&
             std::strcmp(mesh.getFacialTargetConvention(0),"test")==0 &&
             mesh.getFacialTargetId(0)==100,
@@ -197,6 +207,21 @@ namespace
             {
                 auto found=std::find_if(out.sections.begin(),out.sections.end(),[&](const SECTION &s){return s.header.type==original.sections[i].header.type;});
                 expect(found!=out.sections.end() && found->bytes==original.sections[i].bytes,"facial payload preserved byte-for-byte");
+            }
+            constexpr uint16_t skeletalSections[] = {
+                util::SECTION_SKELETAL_SKELETON,
+                util::SECTION_SKELETAL_WEIGHTS,
+                util::SECTION_SKELETAL_ANIMATION,
+            };
+            for (const uint16_t type : skeletalSections)
+            {
+                const auto originalSection=std::find_if(original.sections.begin(),original.sections.end(),
+                    [type](const SECTION &s){ return s.header.type==type; });
+                const auto roundtripSection=std::find_if(out.sections.begin(),out.sections.end(),
+                    [type](const SECTION &s){ return s.header.type==type; });
+                expect(originalSection!=original.sections.end() && roundtripSection!=out.sections.end() &&
+                    roundtripSection->bytes==originalSection->bytes,
+                    "skeletal payload preserved alongside facial payload");
             }
         }
         const auto reject=[&](FILE_DATA bad,const char *what) {
