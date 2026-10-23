@@ -1208,7 +1208,10 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                         v = 0.0
 
                     # Use a topology-safe key. Avoid float rounding welds because they can
-                    # collapse distinct vertices and produce broken triangles.
+                    # collapse distinct vertices and produce broken triangles. Facial source
+                    # associations are stored on each new vertex below; the loop index is not part
+                    # of this key because making every triangle corner unique can exceed the MSH
+                    # 16-bit index limit on otherwise valid high-poly facial meshes.
                     key = (
                         int(loop.vertex_index),
                         float(u),
@@ -1217,13 +1220,6 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                         no_y,
                         no_z,
                     )
-                    if capture_source_vertices:
-                        # The facial interchange spike freezes corner identity before evaluating
-                        # targets: equal base normals can diverge when a shape key is applied.
-                        # These are evaluated-mesh indices; callers must reject topology modifiers
-                        # before treating them as original shape-key indices.
-                        key += (int(loop_index),)
-
                     idx = vmap.get(key)
                     if idx is None:
                         idx = len(bucket["vertices"]) + 1

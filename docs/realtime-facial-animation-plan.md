@@ -130,6 +130,11 @@ budget. The reference loop already skips zero-weight targets; a measured two-pas
 experiment did not improve the medium profile, so GPU morph evaluation remains deferred until
 representative game meshes or a target backend show that the CPU path is insufficient.
 
+A local Fuzzy Fury fixture now provides that representative geometry: approximately 57.7k exported
+vertices, six facial targets, and one clip. It is currently a procedural facial test fixture without
+an armature; use it to measure the isolated CPU morph path before deciding whether a GPU path is
+needed. A separate rigged asset remains necessary for the facial-plus-skeletal composition test.
+
 Measure the CPU reference path on representative face meshes and target counts. If the measured cost
 requires it, add GPU morph evaluation for explicitly selected backends, with CPU fallback where
 supported. Establish limits for active targets, vertex counts, buffer memory, and shader resources;

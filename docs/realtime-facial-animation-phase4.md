@@ -34,6 +34,19 @@ active-target experiment did not show a measurable improvement in the medium pro
 debug build, so it was not retained. The next CPU optimization should target a measurable source of
 work rather than duplicate this existing guard.
 
+## Representative high-poly fixture
+
+The Fuzzy Fury GLB was imported into Blender and prepared as a local facial test fixture. The
+generated `.blend` contains 57,746 vertices, six Basis-relative targets (`jawOpen`, `mouthClose`,
+`mouthSmile`, `tongueOut`, `eyeBlink`, and `browUp`) and one 25-frame facial clip. Its exported MSH
+contains facial sections 45 and 46 and stays within the 16-bit frame vertex limit. The original GLB
+has no morph targets or armature, so this fixture isolates facial deformation and is not a production
+Faceit rig yet.
+
+Facial export now keeps `sourceVertex` and `sourceLoop` associations on emitted vertices without
+forcing the loop index into the deduplication key. This preserves stable target mapping while
+allowing high-poly meshes whose deduplicated vertex count remains below 65,535.
+
 ## Decision
 
 The CPU reference remains the default path. A GPU morph implementation should be proposed only when
