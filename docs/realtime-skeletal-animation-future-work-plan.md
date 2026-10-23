@@ -16,9 +16,10 @@ platform scope, fixtures, performance budget, and versioned acceptance criteria.
 
 | Order | Project | Reason |
 |---|---|---|
-| 1 | Lua/prefab skeletal-sharing workflows | Keeps body/wearable composition in game code while reusing the existing transient runtime sharing |
-| 2 | Editor refinements | Keeps optional authoring aids separate and driven by concrete editor needs |
-| 3 | Lightweight secondary motion | Keeps optional appendage motion bounded above the accepted skeletal pose contract |
+| 1 | Facial blend-shape animation | Adds a Blender/Faceit authored deformation system alongside skeletal animation; tracked in the [Facial Animation Plan](realtime-facial-animation-plan.md) |
+| 2 | Lua/prefab skeletal-sharing workflows | Keeps body/wearable composition in game code while reusing the existing transient runtime sharing |
+| 3 | Editor refinements | Keeps optional authoring aids separate and driven by concrete editor needs |
+| 4 | Lightweight secondary motion | Keeps optional appendage motion bounded above the accepted skeletal pose contract |
 
 ## 3. Deferred Projects
 
@@ -55,6 +56,13 @@ stable across pause/reset and fixed or variable frame steps, and must not destab
 playback, root motion, or LBS/DQS skinning. Backend modernization policy belongs to
 [Implementing a New Rendering Backend](new-backend-instructions.md#project-direction-and-complexity-gate),
 not to the skeletal-animation roadmap.
+
+### 3.4 Facial blend-shape animation
+
+Track Blender/Faceit-authored shape keys, animated target weights, and runtime deformation in the
+independent [Real-Time Facial Animation Plan](realtime-facial-animation-plan.md). This is a separate
+asset and rendering capability; it may compose with skeletal animation but does not change the
+existing skeletal data contract.
 
 ## 4. Planning Rule
 
