@@ -164,15 +164,19 @@ function M.apply(meshD, operation, xf)
     -- centralize uses subset as an anchor but moves every subset in the selected frames.
     local whole = wholeMesh(xf) or (operation == 'centralize' and frame == 0)
     local skeletal = false
+    local facial = false
     if whole then
         local report = meshD:getSkeletonBindReport(false)
         skeletal = report ~= nil and report.canonical == true and (report.boneCount or 0) > 0
+        local facialData = meshD:getFacialExportData()
+        facial = type(facialData) == 'table' and type(facialData.targets) == 'table' and
+            #facialData.targets > 0 and (tonumber(facialData.vertexCount) or 0) > 0
     end
     -- Preflight the entire combined operation before touching any geometry or skeletal data.
     if skeletal and (rotate or translate or centralize) then
         error('mesh_debug_skeletal_transform_blocked', 0)
     end
-    if skeletal and scale then
+    if (skeletal or facial) and scale then
         local sx, sy, sz = xf.sx, xf.sy, xf.sz
         local tolerance = math.max(1, math.abs(sx), math.abs(sy), math.abs(sz)) * 0.000001
         if sx ~= sx or sy ~= sy or sz ~= sz or math.abs(sx) == math.huge or
@@ -183,7 +187,7 @@ function M.apply(meshD, operation, xf)
     end
     if rotate then meshD:rotateFrame(frame, xf.rx, xf.ry, xf.rz, subset) end
     if scale then
-        if skeletal then meshD:scaleSkeletalAsset(xf.sx)
+        if skeletal or facial then meshD:scaleSkeletalAsset(xf.sx)
         else meshD:scaleFrame(frame, xf.sx, xf.sy, xf.sz, subset) end
         if whole then scaleArticulatedData(meshD, xf.sx, xf.sy, xf.sz) end
     end

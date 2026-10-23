@@ -2229,23 +2229,27 @@ scaling all frames and subsets through its shared Transform operation. This is e
 a side effect of `scaleFrame`; partial edits remain geometry-only. Uniform Keep Ratio resizing
 preserves articulated animation proportions without changing rotations, key scale factors or timing.
 
-For a coordinate-unit change of a complete skeletal asset, use:
+For a coordinate-unit change of a complete skeletal or facial asset, use:
 
 ```lua
 meshD:scaleSkeletalAsset(scale)
 ```
 
-`scale` must be finite and greater than zero. The call transactionally scales every geometry
-frame, canonical bind-local translations, bone radius/length metadata, translation values in every
-skeletal clip key, and physics bounds; it recompiles inverse bind and validates skeleton/clips
-before committing. Weights, rotations, normals, and local scale channels are unchanged. Failure
-raises a Lua error without partially modifying the asset. Mesh Debug selects this operation
-automatically when its Transform node applies a positive uniform scale to all frames and subsets of
-a canonical skeletal mesh. Partial transforms remain geometry-only; negative or non-uniform
-whole-asset skeletal scaling is rejected. The editor uses the same policy for preview clones and
-batch operations. It blocks whole-mesh rotation, translation, and centralization on canonical
-skeletal assets, including combined transforms containing those operations; the underlying
-geometry-only API methods do not perform that editor policy check.
+`scale` must be finite and greater than zero. For a skeletal asset, the call transactionally scales
+every geometry frame, canonical bind-local translations, bone radius/length metadata, translation
+values in every skeletal clip key, and physics bounds; it recompiles inverse bind and validates
+skeleton/clips before committing. For a facial asset, it also scales the base geometry and every
+facial position delta, preserves normals and normal deltas, recalculates the facial geometry
+signature, and preserves target identities, weights, clips, indices, and vertex associations. A
+facial asset may contain skeletal data, in which case both payloads are scaled together. Weights,
+rotations, normals, and local scale channels are unchanged. Failure raises a Lua error without
+partially modifying the asset. Mesh Debug selects this operation automatically when its Transform
+node applies a positive uniform scale to all frames and subsets of a canonical skeletal or facial
+mesh. Partial transforms remain geometry-only; negative or non-uniform whole-asset skeletal/facial
+scaling is rejected. The editor uses the same policy for preview clones and batch operations. It
+blocks whole-mesh rotation, translation, and centralization on canonical skeletal assets, including
+combined transforms containing those operations; the underlying geometry-only API methods do not
+perform that editor policy check.
 
 ### Bind-pose diagnostics
 

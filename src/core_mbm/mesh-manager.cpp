@@ -5944,12 +5944,6 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::scaleSkeletalAsset(const float scale, char *errorOut, const int errorOutLen)
     {
-        if (impl->facialAsset.meshId)
-        {
-            ERROR_LOG("facial geometry edit unsupported: scaleSkeletalAsset");
-            return false;
-        }
-
         const auto fail = [errorOut, errorOutLen](const char *message)
         {
             if (errorOut && errorOutLen > 0)
@@ -5957,17 +5951,19 @@ namespace mbm
             return false;
         };
         if (!std::isfinite(scale) || scale <= 0.0f)
-            return fail("skeletal asset scale must be finite and greater than zero");
-        if (impl->canonicalSkeleton.skeletonId == 0)
-            return fail("mesh has no canonical skeleton to scale");
+            return fail("asset scale must be finite and greater than zero");
+        const bool hasFacialAsset = impl->facialAsset.meshId != 0;
+        const bool hasSkeletalAsset = impl->canonicalSkeleton.skeletonId != 0;
+        if (!hasFacialAsset && !hasSkeletalAsset)
+            return fail("mesh has no canonical skeleton or facial geometry to scale");
 
         skeletal::CANONICAL_SKELETON scaledSkeleton;
         skeletal::CANONICAL_ANIMATIONS scaledAnimations;
-        if (!skeletal::buildUniformlyScaledCanonicalAsset(impl->canonicalSkeleton,
-                                                           impl->canonicalAnimations,
-                                                           scale,
-                                                           scaledSkeleton,
-                                                           scaledAnimations))
+        if (hasSkeletalAsset && !skeletal::buildUniformlyScaledCanonicalAsset(impl->canonicalSkeleton,
+                                                                                impl->canonicalAnimations,
+                                                                                scale,
+                                                                                scaledSkeleton,
+                                                                                scaledAnimations))
         {
             if (!scaledSkeleton.compiled.diagnostics.empty())
             {
@@ -5979,6 +5975,53 @@ namespace mbm
                 return false;
             }
             return fail("scaled canonical animation would be invalid");
+        }
+
+        facial::ASSET scaledFacial;
+        std::vector<VEC3> scaledFacialPositions;
+        if (hasFacialAsset)
+        {
+            if (impl->buffer.size() != 1 || impl->typeMe != util::TYPE_MESH_3D ||
+                !impl->articulatedParts.empty())
+                return fail("facial geometry scale requires one unchanged 3D frame");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[0];
+            if (!frame || !frame->position || frame->headerFrame.stride != 3 ||
+                frame->headerFrame.sizeVertexBuffer != static_cast<int32_t>(impl->facialAsset.vertexCount))
+                return fail("facial geometry scale requires matching frame topology");
+            const VEC3 *normals = impl->headerMesh.hasNorText[0] == HAS_NOR_NO ? nullptr :
+                reinterpret_cast<const VEC3 *>(frame->normal);
+            if (impl->headerMesh.hasNorText[0] != HAS_NOR_NO && !normals)
+                return fail("facial geometry scale requires base normals");
+            scaledFacial = impl->facialAsset;
+            scaledFacialPositions.resize(impl->facialAsset.vertexCount);
+            const VEC3 *positions = reinterpret_cast<const VEC3 *>(frame->position);
+            for (uint32_t vertex = 0; vertex < impl->facialAsset.vertexCount; ++vertex)
+            {
+                const VEC3 &source = positions[vertex];
+                scaledFacialPositions[vertex] = VEC3(source.x * scale, source.y * scale, source.z * scale);
+                if (!std::isfinite(scaledFacialPositions[vertex].x) ||
+                    !std::isfinite(scaledFacialPositions[vertex].y) ||
+                    !std::isfinite(scaledFacialPositions[vertex].z))
+                    return fail("scaled facial mesh vertex would not be finite");
+            }
+            for (facial::TARGET &target : scaledFacial.targets)
+            {
+                for (VEC3 &delta : target.positions)
+                {
+                    delta.x *= scale; delta.y *= scale; delta.z *= scale;
+                    if (!std::isfinite(delta.x) || !std::isfinite(delta.y) || !std::isfinite(delta.z))
+                        return fail("scaled facial target delta would not be finite");
+                }
+            }
+            scaledFacial.geometrySignature = facial::geometrySignature(
+                scaledFacialPositions.data(), normals, scaledFacial.vertexCount,
+                frame->indexBuffer, static_cast<uint32_t>(std::max(0, frame->headerFrame.sizeIndexBuffer)));
+            std::string facialError;
+            if (!facial::validateGeometry(scaledFacial, scaledFacialPositions.data(), normals,
+                                          scaledFacial.vertexCount, frame->indexBuffer,
+                                          static_cast<uint32_t>(std::max(0, frame->headerFrame.sizeIndexBuffer)),
+                                          facialError))
+                return fail(facialError.c_str());
         }
 
         const auto validProduct = [scale](const float value)
@@ -6025,7 +6068,14 @@ namespace mbm
                 return fail("scaled triangle position would not be finite");
         }
 
-        scaleFrame(-1, -1, scale, scale, scale);
+        if (hasFacialAsset)
+        {
+            VEC3 *positions = reinterpret_cast<VEC3 *>(impl->buffer[0]->position);
+            std::copy(scaledFacialPositions.begin(), scaledFacialPositions.end(), positions);
+            impl->facialAsset = std::move(scaledFacial);
+        }
+        else
+            scaleFrame(-1, -1, scale, scale, scale);
         for (CUBE *cube : impl->infoPhysics.lsCube)
         {
             cube->halfDim.x *= scale; cube->halfDim.y *= scale; cube->halfDim.z *= scale;
@@ -6049,8 +6099,11 @@ namespace mbm
             }
             triangle->position.x *= scale; triangle->position.y *= scale;
         }
-        impl->canonicalSkeleton = std::move(scaledSkeleton);
-        impl->canonicalAnimations = std::move(scaledAnimations);
+        if (hasSkeletalAsset)
+        {
+            impl->canonicalSkeleton = std::move(scaledSkeleton);
+            impl->canonicalAnimations = std::move(scaledAnimations);
+        }
         return true;
     }
 

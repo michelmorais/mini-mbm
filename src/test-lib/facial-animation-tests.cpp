@@ -194,6 +194,36 @@ namespace
         expect(mesh.getFacialTargetDelta(0,2,&targetDelta,&targetNormal) &&
             targetDelta.y==-60.0f && targetNormal.z==0.0f,
             "debug facial target deltas");
+        MESH_MBM_DEBUG scaledMesh;
+        expect(scaledMesh.loadV11((directory/"indexed.msh").string().c_str()),
+            "load facial asset for uniform scaling");
+        char scaleError[512]={};
+        expect(scaledMesh.scaleSkeletalAsset(2.0f,scaleError,sizeof(scaleError)),
+            "scale skeletal and facial asset together");
+        auto *scaledFrame=scaledMesh.getFrameBuffer(0);
+        expect(scaledFrame && reinterpret_cast<VEC3 *>(scaledFrame->position)[0].x==-100.0f,
+            "uniform scaling updates facial base geometry");
+        expect(scaledMesh.getFacialTargetDelta(0,2,&targetDelta,&targetNormal) &&
+            targetDelta.y==-120.0f && targetNormal.z==0.0f,
+            "uniform scaling updates facial position deltas only");
+        expect(scaledMesh.getFacialGeometrySignature()==facial::geometrySignature(
+            reinterpret_cast<VEC3 *>(scaledFrame->position),reinterpret_cast<VEC3 *>(scaledFrame->normal),
+            3,scaledFrame->indexBuffer,scaledFrame->headerFrame.sizeIndexBuffer),
+            "uniform scaling refreshes facial geometry signature");
+        SKELETAL_KEY_INFO scaledKey;
+        expect(scaledMesh.getSkeletalKey(0,0,1,scaledKey) &&
+            scaledKey.localTranslation.x==200.0f,
+            "uniform scaling updates skeletal translation keys");
+        expect(save(scaledMesh,"scaled.msh"),"save uniformly scaled facial asset");
+        MESH_MBM_DEBUG scaledReload;
+        expect(scaledReload.loadV11((directory/"scaled.msh").string().c_str()) &&
+            scaledReload.getFacialGeometrySignature()==scaledMesh.getFacialGeometrySignature(),
+            "reload uniformly scaled facial asset");
+        MESH_MBM_DEBUG facialOnly;
+        expect(facialOnly.loadV11((directory/"vertices.msh").string().c_str()),
+            "load facial-only asset for uniform scaling");
+        expect(facialOnly.scaleSkeletalAsset(2.0f,scaleError,sizeof(scaleError)),
+            "scale facial-only asset without a skeleton");
         float clipTime=0.0f, clipWeights[2]={};
         expect(mesh.getFacialClipId(0)==90 && mesh.getFacialClipInfo(0,nullptr,nullptr,nullptr,nullptr) &&
             mesh.getFacialClipKey(0,1,&clipTime,clipWeights,2) && clipTime==1.0f &&

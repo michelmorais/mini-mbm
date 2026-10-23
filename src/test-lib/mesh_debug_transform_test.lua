@@ -22,13 +22,16 @@
 
 package.path = 'editor/?.lua;' .. package.path
 local Transform = require 'mesh_debug_transform'
-local function fixture(skeletal)
+local function fixture(skeletal, facial)
     local calls = {}
     local mesh = { getTotalArticulatedParts = function() return 0 end,
         getTotalArticulatedAnimations = function() return 0 end,
         getModeDraw = function() return 'TRIANGLES' end, getSkeletonBindReport = function(_, dependencies)
         assert(dependencies == false)
         if skeletal then return {canonical=true, boneCount=2} end
+        return nil
+    end, getFacialExportData = function()
+        if facial then return {vertexCount=3, targets={{name='jawOpen'}}} end
         return nil
     end }
     for _, name in ipairs({'rotateFrame','translateFrame','scaleFrame','scaleSkeletalAsset','centralize','centralizeItself'}) do
@@ -58,6 +61,11 @@ for _, scale in ipairs({{2,1,2},{-1,-1,-1},{0,0,0},{math.huge,math.huge,math.hug
 end
 for _, operation in ipairs({'scale','combined'}) do
     local mesh,calls=fixture(true)
+    Transform.apply(mesh,operation,values({sx=2,sy=2,sz=2}))
+    assert(#calls==1 and calls[1][1]=='scaleSkeletalAsset' and calls[1][2]==2)
+end
+for _, operation in ipairs({'scale','combined'}) do
+    local mesh,calls=fixture(false,true)
     Transform.apply(mesh,operation,values({sx=2,sy=2,sz=2}))
     assert(#calls==1 and calls[1][1]=='scaleSkeletalAsset' and calls[1][2]==2)
 end
