@@ -2960,9 +2960,12 @@ function showBlenderImportDialog()
     st.bImportFacialNormalDeltas = tImGui.Checkbox(
         tLang.L('blender_import_facial_normal_deltas'), st.bImportFacialNormalDeltas == true)
     tImGui.PushItemWidth(180)
+    -- InputText's optional third argument is an ImGuiInputTextFlags value, not a max length.
     local facialConventionChanged, facialConvention = tImGui.InputText(
-        tLang.L('blender_import_facial_convention'), st.sImportFacialConvention or '', 128)
-    if facialConventionChanged and facialConvention then st.sImportFacialConvention = facialConvention end
+        tLang.L('blender_import_facial_convention'), st.sImportFacialConvention or '')
+    if facialConventionChanged and facialConvention then
+        st.sImportFacialConvention = facialConvention:sub(1, 128)
+    end
     tImGui.PopItemWidth()
     tImGui.EndDisabled()
     tImGui.EndDisabled()
