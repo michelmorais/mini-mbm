@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 5 capture naming contract complete; sparse CPU optimization, facial-plus-skeletal validation, and Blender facial-curve interchange are complete; no live transport is bundled**
+Status: **Phase 6 deterministic capture replay adapter complete; naming contract, sparse CPU optimization, facial-plus-skeletal validation, and Blender facial-curve interchange are complete; no external live transport is bundled**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -15,6 +15,7 @@ The Phase 3 editor decision and implementation slice are in
 [Blender import and Mesh Debug preview](realtime-facial-animation-phase3.md).
 The first Phase 4 performance profile is in [CPU performance profile](realtime-facial-animation-phase4.md).
 The Phase 5 producer contract is in [Live capture naming contract](realtime-facial-animation-phase5.md).
+The Phase 6 producer contract is in [Deterministic capture replay](realtime-facial-animation-phase6.md).
 
 ## 1. Purpose
 
@@ -164,8 +165,22 @@ epsilon, so a later capture loop does not upload unchanged weights every frame.
 
 The module has no camera, network, or vendor SDK dependency. A future OSC, webcam, or native
 capture adapter can feed a name-to-weight table into the same contract without changing the .msh
-format or the core renderer. The remaining capture milestone is to select and test one concrete
-producer and transport against this contract.
+format or the core renderer. Phase 6 supplies a deterministic file-backed producer; a live transport
+remains a separate integration milestone.
+
+### Phase 6: Deterministic capture replay adapter
+
+**Completed for the file-backed packet and replay slice on 2026-10-23.**
+
+editor/facial_capture_stream.lua now accepts a strict line-oriented JSON packet format with a
+timestamp, optional sequence, and named finite weights. It provides a deterministic replay clock,
+ordered packet validation, looping, end-of-stream state, and optional reset-on-disconnect behavior.
+The adapter calls the Phase 5 mapping contract and remains independent of camera, network, and
+vendor SDKs.
+
+This gives the editor and runtime a reproducible capture source for regression tests and manual
+facial-plus-skeletal review. The next transport milestone can implement OSC or webcam input by
+producing the same validated packet table.
 
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
 rigged facial-plus-skeletal asset. If the measured cost still requires it, add GPU morph evaluation

@@ -54,6 +54,6 @@ It covers canonical names, Faceit side aliases, required-target diagnostics, exa
 precedence, clamping, non-finite rejection, sparse updates, clearing missing values, and mesh
 discovery. No capture device or network service is required.
 
-This milestone deliberately does not claim a live capture producer. The next decision is which
-producer/transport to support first and how its packet cadence and disconnect behavior should be
-handled by an editor or game script.
+This milestone deliberately does not claim a live capture producer. The deterministic file-backed
+producer and replay lifecycle are defined in Phase 6; a future OSC or webcam adapter can produce
+the same packet table without changing this mapping contract.
