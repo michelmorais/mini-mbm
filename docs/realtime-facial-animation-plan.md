@@ -200,13 +200,13 @@ separate Lua entry point. The skeletal animation editor remains focused on bones
 timelines, skeletal masks, and skeletal playback. Mesh Debug keeps the compact facial
 playback/import preview.
 
-The facial editor will expose only facial workspaces: setup and object roles, landmarks,
+The facial editor will expose only facial workspaces: setup and object roles, face position, landmarks,
 masks/regions, facial rig preview/binding, expressions, and facial playback. Skeletal timelines,
 general skin painting, and unrelated skeletal controls stay out of its UI; a small shared binding
 helper is allowed only where facial geometry needs it.
 
 The workflow is intentionally compatible with Faceit concepts without depending on Faceit internal
-files: register facial objects, place a face reference origin, position landmarks, assign semantic regions, generate a facial rig,
+files: register facial objects, place a face reference origin in its dedicated worktree, position landmarks, assign semantic regions, generate a facial rig,
 bind geometry, author expressions, and export ARKit-compatible named targets and clips. Faceit
 compatibility means compatible names, regions, landmarks, weights, and Blender/MSH interchange;
 it does not mean reproducing Blender add-on internals.

@@ -25,6 +25,7 @@ Project.setTopology(project,topology)
 assert(not project.faceOrigin.placed)
 assert(Project.setFaceOrigin(project,{x=0,y=0,z=0},1,1))
 assert(project.faceOrigin.placed and project.faceOrigin.vertexIndex==1)
+assert(not project.landmarks[1].placed, 'placing the face origin must not place landmarks')
 local mask=Project.addMask(project,'face',1)
 mask.vertices={1,2}
 project.landmarks[1].placed=true

@@ -108,13 +108,16 @@ animation editor, because the workflows have different primary data and validati
 workspaces are limited to facial authoring:
 
 1. **Setup** - load the mesh, register objects, assign facial roles, and inspect the base pose.
-2. **Landmarks** - place, edit, snap, and validate facial landmarks in the 3D viewport. The face
-   bounds near the forehead and chin area are reference boundaries; the chin landmark is separate.
-3. **Masks/regions** - create and validate stable vertex or object regions after the facial reference
+2. **Face position** - place the facial reference wireframe on the mesh and move its origin with
+   the X/Y/Z gizmo. This worktree owns the reference transform independently from landmarks.
+3. **Landmarks** - place, edit, snap, and validate facial landmarks in the 3D viewport. The face
+   combo contains only landmarks; the face bounds near the forehead and chin area are reference
+   boundaries, and the chin landmark is separate.
+4. **Masks/regions** - create and validate stable vertex or object regions after the facial reference
    points are established.
-4. **Rig** - preview and validate the generated facial rig and binding description.
-5. **Expressions** - author, mirror, correct, and inspect facial targets and clips.
-6. **Preview** - review target weights, facial clips, and deterministic capture replay.
+5. **Rig** - preview and validate the generated facial rig and binding description.
+6. **Expressions** - author, mirror, correct, and inspect facial targets and clips.
+7. **Preview** - review target weights, facial clips, and deterministic capture replay.
 
 Skeletal-only features remain outside this editor: bone animation timelines, skeletal animation
 layers, general skin-weight painting, and skeletal playback controls. A narrowly scoped shared
@@ -164,7 +167,7 @@ The second implementation slice now provides:
 - a TreeNode workspace navigator with one facial worktree open at a time;
 - fixed-size authoring and camera panels so localized labels and input fields keep a stable layout;
 - localized landmark names, side labels, and validation diagnostics in English and Portuguese;
-- a face-position option that anchors the facial reference wireframe to a mesh point such as the nose;
+- a dedicated Face position worktree that anchors the facial reference wireframe to a mesh point such as the nose;
 - an always-on-top 3D facial wireframe with selectable joints and X/Y/Z translation axes;
 - landmark coordinates stored relative to the face reference origin while preserving mesh-local positions;
 - click-to-select placed landmarks and click-to-snap the selected landmark to the nearest visible mesh vertex;
