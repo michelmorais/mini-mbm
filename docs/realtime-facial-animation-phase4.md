@@ -75,5 +75,6 @@ targets, so its visible result is a composite rather than a single-target isolat
 The Mixamo Megan FBX was prepared as a second fixture with six procedural facial targets on the
 body mesh (`jawOpen`, `mouthSmile`, `mouthPucker`, `eyeBlinkLeft`, `eyeBlinkRight`, and `browUp`).
 Its exported MSH preserves 65 canonical bones, the original 211-frame skeletal clip, 34,164 facial
-vertices, and a 211-frame facial clip. The FBX uses custom normals, so this fixture intentionally
-exports position-only facial deltas; the facial renderer continues to exclude normal-map slots.
+vertices, and a 211-frame facial clip. The FBX custom normals were cleared in the preparation blend,
+allowing all six targets to carry position and normal deltas; the facial renderer continues to
+exclude normal-map slots.
