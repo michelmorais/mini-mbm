@@ -1623,6 +1623,27 @@ def restore_facial_source(source: dict[str, Any], state: dict[str, Any]) -> None
     bpy.context.view_layer.update()
 
 
+def align_facial_vertices(base_vertices: list[dict[str, Any]], evaluated_vertices: list[dict[str, Any]],
+                          object_name: str, target_name: str) -> list[dict[str, Any]]:
+    """Restore base emitted-vertex order after a shape key changes normal-based deduplication."""
+    by_association: dict[tuple[Any, Any, Any], dict[str, Any]] = {}
+    for vertex in evaluated_vertices:
+        association = (vertex.get("sourceObject"), vertex.get("sourceVertex"), vertex.get("sourceLoop"))
+        if any(value is None for value in association):
+            raise RuntimeError(f"{object_name}/{target_name}: evaluated vertex is missing source association")
+        if association in by_association:
+            raise RuntimeError(f"{object_name}/{target_name}: duplicate evaluated vertex association")
+        by_association[association] = vertex
+    aligned: list[dict[str, Any]] = []
+    for vertex in base_vertices:
+        association = (vertex.get("sourceObject"), vertex.get("sourceVertex"), vertex.get("sourceLoop"))
+        target = by_association.get(association)
+        if target is None:
+            raise RuntimeError(f"{object_name}/{target_name}: evaluated vertex association changed")
+        aligned.append(target)
+    return aligned
+
+
 def build_facial_asset(scene: Any, source: dict[str, Any], base_subsets: list[dict[str, Any]],
                        facial_clips: list[dict[str, Any]], args: argparse.Namespace,
                        rotation_deg: tuple[float, float, float] | None, canonical_coordinates: bool,
@@ -1640,13 +1661,12 @@ def build_facial_asset(scene: Any, source: dict[str, Any], base_subsets: list[di
         evaluated_subsets = export_frame_subsets(
             scene, rotation_deg, output_dir, False, canonical_coordinates, uniform_scale,
             args.normalize_textures, output_stem, excluded_texture_roles, True)
-        evaluated_vertices = [vertex for subset in evaluated_subsets for vertex in (subset.get("vertices") or [])]
-        if len(evaluated_vertices) != len(base_vertices):
+        raw_evaluated_vertices = [vertex for subset in evaluated_subsets
+                                  for vertex in (subset.get("vertices") or [])]
+        if len(raw_evaluated_vertices) != len(base_vertices):
             raise RuntimeError(f"{obj.name}/{key.name}: evaluated topology changed while extracting target")
-        for base, evaluated in zip(base_vertices, evaluated_vertices):
-            for field in ("sourceObject", "sourceVertex", "sourceLoop"):
-                if base.get(field) != evaluated.get(field):
-                    raise RuntimeError(f"{obj.name}/{key.name}: evaluated vertex association changed")
+        evaluated_vertices = align_facial_vertices(
+            base_vertices, raw_evaluated_vertices, obj.name, key.name)
         position_deltas = [
             (float(evaluated["x"]) - float(base["x"]), float(evaluated["y"]) - float(base["y"]),
              float(evaluated["z"]) - float(base["z"]))

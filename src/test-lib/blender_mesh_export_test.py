@@ -139,6 +139,15 @@ class BlenderMeshExportTests(unittest.TestCase):
         self.assertIn("normal", EXPORTER.effective_excluded_texture_roles(explicit_args))
         self.assertNotIn("normal", EXPORTER.effective_excluded_texture_roles(static_fallback_args, False))
 
+    def test_facial_vertices_align_by_source_association_after_reordering(self) -> None:
+        base = [
+            {"sourceObject": "Body", "sourceVertex": 1, "sourceLoop": 11, "x": 1.0},
+            {"sourceObject": "Body", "sourceVertex": 2, "sourceLoop": 12, "x": 2.0},
+        ]
+        evaluated = [dict(base[1], x=20.0), dict(base[0], x=10.0)]
+        aligned = EXPORTER.align_facial_vertices(base, evaluated, "Body", "jawOpen")
+        self.assertEqual([v["x"] for v in aligned], [10.0, 20.0])
+
     def test_material_ignores_image_node_without_pixel_data_or_file(self) -> None:
         image = SimpleNamespace(has_data=False, filepath="", packed_file=None)
         image.save = mock.Mock(side_effect=AssertionError("empty image must not be saved"))

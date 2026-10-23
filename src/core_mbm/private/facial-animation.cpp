@@ -58,6 +58,25 @@ namespace mbm::facial
         { return util::le_io::readF32LE(c,v.x) && util::le_io::readF32LE(c,v.y) && util::le_io::readF32LE(c,v.z); }
         bool writeVector(FILE *f, const VEC3 &v)
         { return util::le_io::writeF32LE(f,v.x) && util::le_io::writeF32LE(f,v.y) && util::le_io::writeF32LE(f,v.z); }
+        void buildSparseIndex(TARGET &target)
+        {
+            target.activeVertices.clear();
+            target.activeVertices.reserve(target.positions.size());
+            for (uint32_t index = 0; index < target.positions.size(); ++index)
+            {
+                const VEC3 &position = target.positions[index];
+                const bool positionChanged = position.x != 0.0f || position.y != 0.0f || position.z != 0.0f;
+                bool normalChanged = false;
+                if (!target.normals.empty())
+                {
+                    const VEC3 &normal = target.normals[index];
+                    normalChanged = normal.x != 0.0f || normal.y != 0.0f || normal.z != 0.0f;
+                }
+                if (positionChanged || normalChanged) target.activeVertices.push_back(index);
+            }
+            target.sparseReady = true;
+            target.activeVertices.shrink_to_fit();
+        }
     }
 
     uint64_t geometrySignature(const VEC3 *p, const VEC3 *n, uint32_t count,
@@ -162,6 +181,7 @@ namespace mbm::facial
             if (flags) t.normals.resize(a.vertexCount);
             for (VEC3 &v : t.positions) if (!readVector(c,v)) return fail(error,"facial-truncated-delta");
             for (VEC3 &v : t.normals) if (!readVector(c,v)) return fail(error,"facial-truncated-normal");
+            buildSparseIndex(t);
             a.targets.push_back(std::move(t));
         }
         if (c.pos!=c.size) return fail(error,"facial-trailing-target-bytes");
@@ -290,10 +310,21 @@ namespace mbm::facial
             const float w=weights[target];
             if (w==0) continue;
             active=true;
-            for (size_t i=0;i<p.size();++i)
+            if (t.sparseReady)
             {
-                p[i]+=t.positions[i]*w;
-                if (!n.empty()) n[i]+=t.normals[i]*w;
+                for (const uint32_t i : t.activeVertices)
+                {
+                    p[i] += t.positions[i] * w;
+                    if (!n.empty()) n[i] += t.normals[i] * w;
+                }
+            }
+            else
+            {
+                for (size_t i=0;i<p.size();++i)
+                {
+                    p[i]+=t.positions[i]*w;
+                    if (!n.empty()) n[i]+=t.normals[i]*w;
+                }
             }
         }
         for (size_t i=0;i<p.size();++i)

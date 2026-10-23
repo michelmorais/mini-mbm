@@ -24,15 +24,23 @@ p95 milliseconds plus dense position/normal delta memory. The command returns su
 reference path produces the expected vertex count; it intentionally does not enforce a universal
 time threshold because this is hardware and build dependent.
 
-The development Linux run on 2026-10-23 measured approximately 1.3 ms, 9.6 ms, and 19.1 ms median
-for the three profiles. The medium profile uses about 24.96 MB of dense position and normal delta
-storage. These measurements establish the comparison point for future changes and do not claim a
-GPU capacity or a frame-rate guarantee.
+The development Linux Debug run on 2026-10-23 measured the following dense versus sparse medians:
 
-The reference loop already skips the vertex pass for zero-weight targets. A follow-up two-pass
-active-target experiment did not show a measurable improvement in the medium profile in the same
-debug build, so it was not retained. The next CPU optimization should target a measurable source of
-work rather than duplicate this existing guard.
+| Profile | Dense median | Sparse median | Dense p95 | Sparse p95 |
+| --- | ---: | ---: | ---: | ---: |
+| small | 1.282 ms | 0.464 ms | 1.490 ms | 0.513 ms |
+| medium | 8.992 ms | 2.454 ms | 11.018 ms | 2.548 ms |
+| large | 17.270 ms | 4.867 ms | 17.690 ms | 5.255 ms |
+
+The synthetic sparse profiles keep about one eighth of each target's vertices active. The medium
+profile still uses about 24.96 MB of dense position and normal delta storage; the sparse index adds
+only one 32-bit entry per changed vertex. These measurements are hardware and build dependent and
+do not claim a GPU capacity or a frame-rate guarantee.
+
+The reference loop already skips the vertex pass for zero-weight targets. This milestone adds a
+runtime sparse index for targets decoded from MSH files: only vertices with a non-zero position or
+normal delta are accumulated. Hand-built targets retain the dense compatibility path, and output
+normalization still scans the complete output buffer so untouched normals remain valid.
 
 ## Representative high-poly fixture
 
@@ -49,15 +57,23 @@ allowing high-poly meshes whose deduplicated vertex count remains below 65,535.
 
 ## Decision
 
-The CPU reference remains the default path. A GPU morph implementation should be proposed only when
-a representative game mesh, capture workload, or target backend demonstrates that CPU deformation is
-the limiting cost. The next optimization milestone should retain this command and compare CPU/GPU
-results against the same target weights and output tolerance.
+The sparse CPU reference remains the default path. A GPU morph implementation should be proposed
+only when a representative game mesh, capture workload, or target backend demonstrates that CPU
+deformation is still the limiting cost. The benchmark command now compares dense and sparse output
+against the same target weights; both paths must retain the same output tolerance.
 
-The Fuzzy Fury fixture provides that representative high-poly measurement: its 57,746-vertex, six-
-target dense deformation measured approximately 19.4 ms per evaluation in the current Linux Debug
-build and 1.0 ms in an otherwise equivalent optimized standalone profile on the same machine. The
-Debug result is therefore unsuitable as a frame-rate estimate, but it confirms that continuously
-playing a high-poly facial clip performs a full CPU morph and normal update every frame. The preview
-clip intentionally overlaps several targets, so its visible result is a composite rather than a
-single-target isolation test.
+The Fuzzy Fury fixture provides that representative high-poly measurement: its 57,746-vertex,
+six-target deformation measured approximately 20.7 ms dense and 5.9 ms sparse per evaluation in
+the current Linux Debug build. The Debug result is unsuitable as a frame-rate estimate, but the
+rough 3.5x reduction confirms that the dense vertex pass was a significant cost. Its active index
+contains about 29,156 changed vertices across the six targets. An optimized standalone profile
+remains useful for later backend comparisons. The preview clip intentionally overlaps several
+targets, so its visible result is a composite rather than a single-target isolation test.
+
+## Facial-plus-skeletal fixture
+
+The Mixamo Megan FBX was prepared as a second fixture with six procedural facial targets on the
+body mesh (`jawOpen`, `mouthSmile`, `mouthPucker`, `eyeBlinkLeft`, `eyeBlinkRight`, and `browUp`).
+Its exported MSH preserves 65 canonical bones, the original 211-frame skeletal clip, 34,164 facial
+vertices, and a 211-frame facial clip. The FBX uses custom normals, so this fixture intentionally
+exports position-only facial deltas; the facial renderer continues to exclude normal-map slots.

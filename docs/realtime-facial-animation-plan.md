@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 4 CPU performance profile complete; GPU morph path not yet justified; FBX facial-curve round trip pending**
+Status: **Phase 4 sparse CPU optimization complete; GPU morph path not yet justified; FBX facial-curve round trip pending**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -122,23 +122,28 @@ target identity or animation curves.
 
 ### Phase 4: Backend optimization and capture workflows
 
-**Initial CPU profile completed on 2026-10-23.** The testLib benchmark now measures small, medium,
-and large synthetic profiles and reports median/p95 timings and dense delta memory. The current
-reference path is approximately 9.6 ms median for 20,000 vertices, 52 targets, and 8 active targets
-on the development Linux build. This is evidence for a later decision, not a hardware-independent
-budget. The reference loop already skips zero-weight targets; a measured two-pass active-target
-experiment did not improve the medium profile, so GPU morph evaluation remains deferred until
-representative game meshes or a target backend show that the CPU path is insufficient.
+**Initial CPU profile and sparse target optimization completed on 2026-10-23.** The testLib benchmark
+now measures small, medium, and large synthetic profiles and reports dense versus sparse median/p95
+timings and dense delta memory. For 20,000 vertices, 52 targets, and 8 active targets, the Debug
+reference measured approximately 8.992 ms dense versus 2.454 ms sparse. Targets decoded from MSH files now carry
+indices for vertices with non-zero position or normal deltas; manually constructed fixtures retain
+the dense compatibility path. This is evidence for a later decision, not a hardware-independent
+budget. GPU morph evaluation remains deferred until representative game meshes or a target backend
+show that the optimized CPU path is insufficient.
 
 A local Fuzzy Fury fixture now provides that representative geometry: approximately 57.7k exported
 vertices, six facial targets, and one clip. It is currently a procedural facial test fixture without
 an armature; use it to measure the isolated CPU morph path before deciding whether a GPU path is
-needed. A separate rigged asset remains necessary for the facial-plus-skeletal composition test.
+needed. A Megan Mixamo fixture now provides the composition test asset: 65 canonical bones, 34,164
+facial vertices, six facial targets, one 211-frame facial clip, and the original 211-frame skeletal
+clip. The next validation step is to preview this asset in MeshDebug and verify isolated and
+simultaneous facial-plus-skeletal playback.
 
-Measure the CPU reference path on representative face meshes and target counts. If the measured cost
-requires it, add GPU morph evaluation for explicitly selected backends, with CPU fallback where
-supported. Establish limits for active targets, vertex counts, buffer memory, and shader resources;
-do not assume one backend's capacity applies to all others.
+Measure the optimized CPU path on representative face meshes and target counts, then validate a
+rigged facial-plus-skeletal asset. If the measured cost still requires it, add GPU morph evaluation
+for explicitly selected backends, with CPU fallback where supported. Establish limits for active
+targets, vertex counts, buffer memory, and shader resources; do not assume one backend's capacity
+applies to all others.
 
 After offline import and runtime controls are stable, evaluate ARKit-compatible live capture and
 audio-driven generation such as Audio2Face as producers of named weights. Keep capture transport and

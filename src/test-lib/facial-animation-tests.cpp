@@ -158,6 +158,19 @@ namespace
         expect(makeFixture(false,false,"vertices.msh"),"create VB facial fixture");
         FILE_DATA original;
         if (!read(directory/"indexed.msh",original)) { expect(false,"read fixture"); return; }
+        const auto targetSection=std::find_if(original.sections.begin(),original.sections.end(),
+            [](const SECTION &section){ return section.header.type==util::SECTION_FACIAL_TARGETS; });
+        facial::ASSET decoded;
+        std::string decodeError;
+        if (targetSection!=original.sections.end())
+        {
+            util::MEM_CURSOR_V11 targetCursor{targetSection->bytes.data(),targetSection->bytes.size(),0};
+            expect(facial::readTargets(targetCursor,1,decoded,decodeError) && decoded.targets.size()==2 &&
+                decoded.targets[0].sparseReady && decoded.targets[0].activeVertices.size()==1 &&
+                decoded.targets[0].activeVertices[0]==2,
+                "decoded facial targets build sparse vertex index");
+        }
+        else expect(false,"facial target section is present for sparse decode");
         MESH_MBM_DEBUG mesh;
         expect(mesh.loadV11((directory/"indexed.msh").string().c_str()),"load facial sections before geometry");
         expect(mesh.getFacialMeshId()==123 && mesh.getFacialVertexCount()==3 &&
@@ -222,6 +235,19 @@ namespace
         invalid=a; invalid.targets[0].normals.clear();
         expect(facial::validate(invalid,error),"optional normal data is valid for storage");
         std::vector<VEC3> base={{-50,-50,0},{0,50,0},{50,-50,0}}, normals(3,VEC3(0,0,-1)),p,n;
+        auto denseDecoded=decoded;
+        for (facial::TARGET &target : denseDecoded.targets)
+        {
+            target.activeVertices.clear();
+            target.sparseReady=false;
+        }
+        std::vector<VEC3> sparsePositions, sparseNormals, densePositions, denseNormals;
+        expect(facial::deform(decoded,base,normals,{1,0},sparsePositions,sparseNormals,error) &&
+            facial::deform(denseDecoded,base,normals,{1,0},densePositions,denseNormals,error) &&
+            sparsePositions.size()==densePositions.size() && sparseNormals.size()==denseNormals.size() &&
+            std::memcmp(sparsePositions.data(),densePositions.data(),sparsePositions.size()*sizeof(VEC3))==0 &&
+            std::memcmp(sparseNormals.data(),denseNormals.data(),sparseNormals.size()*sizeof(VEC3))==0,
+            "sparse facial deformation matches dense output");
         expect(facial::deform(a,base,normals,{0,0},p,n,error) && std::memcmp(p.data(),base.data(),sizeof(VEC3)*3)==0,"zero weights reproduce base");
         expect(facial::deform(a,base,normals,{.5f,.25f},p,n,error) && p[2].x==70 && p[2].y==-80,"simultaneous targets add from immutable base");
         expect(!facial::deform(invalid,base,normals,{0,0},p,n,error),"lit profile rejects missing normals even at zero");
@@ -278,18 +304,24 @@ int runFacialPerformanceBenchmark()
     bool passed = true;
     for (const PROFILE &profile : profiles)
     {
-        facial::ASSET asset;
-        asset.meshId = 1;
-        asset.geometrySignature = 1;
-        asset.vertexCount = profile.vertices;
-        asset.targets.resize(profile.targets);
+        facial::ASSET sparseAsset;
+        sparseAsset.meshId = 1;
+        sparseAsset.geometrySignature = 1;
+        sparseAsset.vertexCount = profile.vertices;
+        sparseAsset.targets.resize(profile.targets);
         for (uint32_t targetIndex = 0; targetIndex < profile.targets; ++targetIndex)
         {
-            facial::TARGET &target = asset.targets[targetIndex];
+            facial::TARGET &target = sparseAsset.targets[targetIndex];
             target.id = targetIndex + 1;
             target.name = std::to_string(targetIndex);
-            target.positions.assign(profile.vertices, VEC3(0.001f, 0.0f, 0.0f));
+            target.positions.assign(profile.vertices, VEC3());
             target.normals.assign(profile.vertices, VEC3());
+            for (uint32_t vertex = targetIndex % 8; vertex < profile.vertices; vertex += 8)
+            {
+                target.positions[vertex] = VEC3(0.001f, 0.0f, 0.0f);
+                target.activeVertices.push_back(vertex);
+            }
+            target.sparseReady = true;
         }
         std::vector<VEC3> base(profile.vertices, VEC3());
         std::vector<VEC3> normals(profile.vertices, VEC3(0.0f, 0.0f, 1.0f));
@@ -297,37 +329,43 @@ int runFacialPerformanceBenchmark()
         std::fill_n(weights.begin(), profile.active, 0.5f);
         std::vector<VEC3> positions, outputNormals;
         std::string error;
-        for (unsigned warmup = 0; warmup < 3; ++warmup)
+        facial::ASSET denseAsset = sparseAsset;
+        for (facial::TARGET &target : denseAsset.targets)
         {
-            if (!facial::deform(asset, base, normals, weights, positions, outputNormals, error))
-            {
-                std::fprintf(stderr, "FACIAL PERF FAIL profile=%s error=%s\n", profile.name,
-                             error.c_str());
-                return 1;
-            }
+            target.activeVertices.clear();
+            target.sparseReady = false;
         }
-        std::vector<double> samples;
-        samples.reserve(12);
-        for (unsigned sample = 0; sample < 12; ++sample)
+        const auto measure = [&](const facial::ASSET &asset, double &median, double &p95) {
+            for (unsigned warmup = 0; warmup < 3; ++warmup)
+            {
+                if (!facial::deform(asset, base, normals, weights, positions, outputNormals, error)) return false;
+            }
+            std::vector<double> samples;
+            samples.reserve(12);
+            for (unsigned sample = 0; sample < 12; ++sample)
+            {
+                const auto start = std::chrono::steady_clock::now();
+                if (!facial::deform(asset, base, normals, weights, positions, outputNormals, error)) return false;
+                samples.push_back(std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - start).count());
+            }
+            std::sort(samples.begin(), samples.end());
+            median = samples[samples.size() / 2];
+            p95 = samples[std::min(samples.size() - 1, (samples.size() * 95) / 100)];
+            return true;
+        };
+        double denseMedian = 0, denseP95 = 0, sparseMedian = 0, sparseP95 = 0;
+        if (!measure(denseAsset, denseMedian, denseP95) || !measure(sparseAsset, sparseMedian, sparseP95))
         {
-            const auto start = std::chrono::steady_clock::now();
-            if (!facial::deform(asset, base, normals, weights, positions, outputNormals, error))
-            {
-                std::fprintf(stderr, "FACIAL PERF FAIL profile=%s error=%s\n", profile.name,
-                             error.c_str());
-                return 1;
-            }
-            samples.push_back(std::chrono::duration<double, std::milli>(
-                std::chrono::steady_clock::now() - start).count());
+            std::fprintf(stderr, "FACIAL PERF FAIL profile=%s error=%s\n", profile.name, error.c_str());
+            return 1;
         }
-        std::sort(samples.begin(), samples.end());
-        const double median = samples[samples.size() / 2];
-        const double p95 = samples[std::min(samples.size() - 1, (samples.size() * 95) / 100)];
         const uint64_t deltaBytes = static_cast<uint64_t>(profile.vertices) * profile.targets *
             static_cast<uint64_t>(sizeof(VEC3)) * 2u;
-        std::printf("FACIAL PERF profile=%s vertices=%u targets=%u active=%u medianMs=%.3f p95Ms=%.3f "
-                    "deltaBytes=%llu reference=cpu\n", profile.name, profile.vertices,
-                    profile.targets, profile.active, median, p95,
+        std::printf("FACIAL PERF profile=%s vertices=%u targets=%u active=%u denseMedianMs=%.3f "
+                    "sparseMedianMs=%.3f denseP95Ms=%.3f sparseP95Ms=%.3f deltaBytes=%llu reference=cpu\n",
+                    profile.name, profile.vertices, profile.targets, profile.active, denseMedian,
+                    sparseMedian, denseP95, sparseP95,
                     static_cast<unsigned long long>(deltaBytes));
         passed = passed && !positions.empty() && positions.size() == profile.vertices;
     }

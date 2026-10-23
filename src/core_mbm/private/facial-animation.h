@@ -43,6 +43,10 @@ namespace mbm::facial
         float defaultWeight = 0;
         std::vector<VEC3> positions;
         std::vector<VEC3> normals;
+        // Populated when targets are decoded from a mesh file. Hand-built test
+        // assets leave this disabled and use the dense compatibility path.
+        std::vector<uint32_t> activeVertices;
+        bool sparseReady = false;
     };
     struct KEY
     {
