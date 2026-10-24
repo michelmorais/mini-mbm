@@ -1275,7 +1275,10 @@ M.en = {
     fre_show_mesh = "Show mesh",
     fre_camera_distance_fmt = "Camera distance: %.3f",
     fre_camera_help = "Left drag: orbit. Right drag: move in the camera plane. Click an axis to snap the view. Wheel: zoom.",
-    fre_binding_summary_fmt = "Binding preview: %d roles | %d masks | %d landmarks | %d vertices",
+    fre_binding_roles_fmt = "Roles: %d",
+    fre_binding_masks_fmt = "Masks: %d",
+    fre_binding_landmarks_fmt = "Landmarks: %d",
+    fre_binding_vertices_fmt = "Vertices: %d",
     fre_binding_preview_help = "This is a review-only binding description. It does not generate weights or modify the mesh.",
     -- Skeletal Animation Editor / Skin Weight Lab
     swl_title = "Skeletal Animation Editor",
@@ -5236,7 +5239,10 @@ M.pt_br = {
     fre_show_mesh = "Mostrar mesh",
     fre_camera_distance_fmt = "Distancia da camera: %.3f",
     fre_camera_help = "Arraste esquerdo: orbita. Arraste direito: move no plano da camera. Clique em um eixo para ajustar a vista. Roda: aproxima.",
-    fre_binding_summary_fmt = "Previa de vinculacao: %d papeis | %d mascaras | %d marcos faciais | %d vertices",
+    fre_binding_roles_fmt = "Papeis: %d",
+    fre_binding_masks_fmt = "Mascaras: %d",
+    fre_binding_landmarks_fmt = "Marcos faciais: %d",
+    fre_binding_vertices_fmt = "Vertices: %d",
     fre_binding_preview_help = "Esta e uma descricao de revisao da vinculacao. Ela ainda nao gera pesos nem altera a mesh.",
     -- Editor de Animação Esquelética / Laboratório de Pesos
     swl_title = "Editor de Animação Esquelética",

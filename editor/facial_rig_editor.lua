@@ -908,6 +908,7 @@ local function showMasks()
         end
         tImGui.PopItemWidth()
         local roleNames=tFacialProject.roleNames()
+        tImGui.SetNextItemWidth(240)
         local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
         showHelpTooltip(tLang.L('fre_mask_role_tooltip'))
         if roleChanged then
@@ -1190,8 +1191,10 @@ local function showRig()
     showProjectMessages(report)
     local binding=tFacialProject.bindingDescription(state.project,state.topology)
     tImGui.Separator()
-    tImGui.Text(string.format(tLang.L('fre_binding_summary_fmt'),#binding.roles,#binding.masks,
-        #binding.landmarks,binding.vertexCount))
+    tImGui.Text(string.format(tLang.L('fre_binding_roles_fmt'),#binding.roles))
+    tImGui.Text(string.format(tLang.L('fre_binding_masks_fmt'),#binding.masks))
+    tImGui.Text(string.format(tLang.L('fre_binding_landmarks_fmt'),#binding.landmarks))
+    tImGui.Text(string.format(tLang.L('fre_binding_vertices_fmt'),binding.vertexCount))
     tImGui.TextWrapped(tLang.L('fre_binding_preview_help'))
     tImGui.Separator()
     tImGui.TextWrapped(tLang.L('fre_rig_not_implemented'))
@@ -1262,12 +1265,14 @@ local function showCameraPanel()
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_frame_face')) then frameFaceCamera() end
         tImGui.Separator()
-        local selectedLandmark=state.project.landmarks[state.selectedLandmark]
-        local canFrameLandmark=selectedLandmark and selectedLandmark.placed and selectedLandmark.position
-        tImGui.BeginDisabled(not canFrameLandmark)
-        if tImGui.Button(tLang.L('fre_frame_landmark')) then frameLandmarkCamera() end
-        tImGui.EndDisabled()
-        tImGui.SameLine()
+        if state.workspace=='landmarks' then
+            local selectedLandmark=state.project.landmarks[state.selectedLandmark]
+            local canFrameLandmark=selectedLandmark and selectedLandmark.placed and selectedLandmark.position
+            tImGui.BeginDisabled(not canFrameLandmark)
+            if tImGui.Button(tLang.L('fre_frame_landmark')) then frameLandmarkCamera() end
+            tImGui.EndDisabled()
+            tImGui.SameLine()
+        end
         local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),state.mesh and state.mesh.visible or false)
         if state.mesh and visible~=state.mesh.visible then state.mesh.visible=visible; markLandmarkMarkersDirty() end
         tImGui.Separator()
