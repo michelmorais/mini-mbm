@@ -42,10 +42,10 @@ namespace mbm::skeletal
         source += std::to_string(textureWidth);
         source += ".0,(row+0.5)/";
         source += std::to_string(textureHeight);
-        source += ".0)); } vec4 facialPosition=aPosition;";
+        source += ".0)); } void applyFacialMorph(inout vec4 facialPosition";
         if (includeNormals)
-            source += " vec3 facialNormal=aNormal;";
-        source += " for (int facialTarget=0; facialTarget<";
+            source += ",inout vec3 facialNormal";
+        source += ") { for (int facialTarget=0; facialTarget<";
         source += std::to_string(targetCount);
         source += "; ++facialTarget) { float facialWeight=facialMorphWeights[facialTarget]; if (abs(facialWeight)>0.000001) { facialPosition += sampleFacialDelta(aFacialVertexId,float(facialTarget),0.0)*facialWeight;";
         if (includeNormals)
@@ -57,6 +57,7 @@ namespace mbm::skeletal
         source += " } }";
         if (includeNormals)
             source += " facialNormal=normalize(facialNormal);";
+        source += " }";
     }
 
     inline void appendGlesSkeletalFunctions(std::string &source, const uint32_t paletteSize,

@@ -1310,6 +1310,8 @@ namespace mbm
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault() ||
             (ptrVshader == nullptr && ptrPshader && ptrPshader->fileName == "lit textured.ps");
+        const bool useFacialMorphNormals = useFacialMorph && facialMorphHasNormals && hasNormal &&
+            useReservedLightScaffolding;
         const bool canUsePointLight2D = useReservedLightScaffolding && (this->vShader == nullptr);
 
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1613,7 +1615,7 @@ namespace mbm
             skeletal::appendGlesFacialMorphFunctions(defaultCodeVs, facialMorphTargetCount,
                                                      facialMorphTextureWidth, facialMorphTextureHeight,
                                                      facialMorphRowsPerTarget,
-                                                     facialMorphHasNormals && hasNormal && useReservedLightScaffolding);
+                                                     useFacialMorphNormals);
         if (skeletalLbsPaletteSize > 0)
         {
             defaultCodeVs += " attribute vec4 aBoneIndices; attribute vec4 aBoneWeights;";
@@ -1629,6 +1631,16 @@ namespace mbm
             defaultCodeVs += " attribute vec4 aTangent; varying vec4 vTangentView;";
 #endif
         defaultCodeVs += " void main() {";
+        if (useFacialMorph)
+        {
+            defaultCodeVs += " vec4 facialPosition=aPosition;";
+            if (useFacialMorphNormals)
+                defaultCodeVs += " vec3 facialNormal=aNormal;";
+            defaultCodeVs += " applyFacialMorph(facialPosition";
+            if (useFacialMorphNormals)
+                defaultCodeVs += ",facialNormal";
+            defaultCodeVs += ");";
+        }
         if (skeletalLbsPaletteSize > 0)
         {
             skeletal::appendGlesSkeletalDeformation(defaultCodeVs, skeletalMethod,
@@ -1661,12 +1673,22 @@ namespace mbm
 #endif
 #if USE_NORMAL_MAPPING_3D
         if (!usesNormalMappingVariant() && hasNormal && hasUV && useReservedLightScaffolding && skeletalLbsPaletteSize == 0)
-            defaultCodeVs += R"GLSL(
-                mat3 m = mat3(mvMatrix);
-                vec3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
-                float det = dot(m[0],c0);
-                vNormalView = abs(det) > 0.00000001 ? (mat3(c0,c1,c2) * aNormal) / det : aNormal;
-            )GLSL";
+        {
+            if (useFacialMorph && useFacialMorphNormals)
+                defaultCodeVs += R"GLSL(
+                    mat3 m = mat3(mvMatrix);
+                    vec3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
+                    float det = dot(m[0],c0);
+                    vNormalView = abs(det) > 0.00000001 ? (mat3(c0,c1,c2) * facialNormal) / det : facialNormal;
+                )GLSL";
+            else
+                defaultCodeVs += R"GLSL(
+                    mat3 m = mat3(mvMatrix);
+                    vec3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
+                    float det = dot(m[0],c0);
+                    vNormalView = abs(det) > 0.00000001 ? (mat3(c0,c1,c2) * aNormal) / det : aNormal;
+                )GLSL";
+        }
 #endif
         if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * skinnedPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
