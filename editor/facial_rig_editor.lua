@@ -886,26 +886,20 @@ local function faceRegionVertices()
     minX,maxX=minX-xMargin,maxX+xMargin
     minY,maxY=minY-yMargin,maxY+yMargin
     minZ,maxZ=minZ-zMargin,maxZ+zMargin
-    local okSubset,subsetCount=dpCall(function() return state.meshDebug:getTotalSubset(1) end)
-    if not okSubset or not subsetCount then return nil,'mesh subsets are unavailable' end
-    local vertices,offset={},0
-    for subset=1,subsetCount do
-        local okCount,count=dpCall(function() return state.meshDebug:getTotalVertex(1,subset) end)
-        if not okCount or not count then return nil,'mesh vertex count is unavailable' end
-        if count>0 then
-            local okPoints,subsetPoints=dpCall(function()
-                return state.meshDebug:getVertex(1,subset,1,count)
-            end)
-            if not okPoints or type(subsetPoints)~='table' then return nil,'mesh vertex positions are unavailable' end
-            for localIndex,point in ipairs(subsetPoints) do
-                if point.x>=minX and point.x<=maxX and point.y>=minY and point.y<=maxY and
-                        point.z>=minZ and point.z<=maxZ then
-                    vertices[#vertices+1]=offset+localIndex
-                end
-            end
+    -- Use the topology snapshot that was produced by facial_rig_landmarks.inspect().
+    -- Its order is the canonical global order used by project masks (subset-local
+    -- vertex calls concatenated in subset order).  Re-reading ranges through the
+    -- MeshDebug binding here used to make it possible for a malformed/partial Lua
+    -- table to produce an out-of-range or repeated project index.
+    local vertices,seen={},{}
+    for index,point in ipairs(state.topology.vertices or {}) do
+        if point.x>=minX and point.x<=maxX and point.y>=minY and point.y<=maxY and
+                point.z>=minZ and point.z<=maxZ and not seen[index] then
+            seen[index]=true
+            vertices[#vertices+1]=index
         end
-        offset=offset+count
     end
+    table.sort(vertices)
     if #vertices==0 then return nil,'face landmark bounds selected no mesh vertices' end
     return vertices,nil
 end

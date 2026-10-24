@@ -199,7 +199,20 @@ function M.normalize(project)
         else
             mask.name=type(mask.name)=='string' and mask.name~='' and mask.name or ('region_' .. index)
             mask.roleIndex=math.max(1,math.floor(tonumber(mask.roleIndex) or 1))
-            mask.vertices=type(mask.vertices)=='table' and mask.vertices or {}
+            -- Normalize the serialized list before any read-only review runs. Older
+            -- editor versions could leave boolean set-members in this array while
+            -- calculating a binding review; discard those malformed values and keep
+            -- one canonical integer entry for each vertex.
+            local normalizedVertices,seenVertices={},{}
+            for _,rawIndex in ipairs(type(mask.vertices)=='table' and mask.vertices or {}) do
+                local vertexIndex=tonumber(rawIndex)
+                if vertexIndex and vertexIndex>=1 and vertexIndex%1==0 and not seenVertices[vertexIndex] then
+                    seenVertices[vertexIndex]=true
+                    normalizedVertices[#normalizedVertices+1]=math.floor(vertexIndex)
+                end
+            end
+            table.sort(normalizedVertices)
+            mask.vertices=normalizedVertices
             mask.topologySignature=type(mask.topologySignature)=='string' and mask.topologySignature or ''
             mask.enabled=mask.enabled ~= false
         end
@@ -450,7 +463,7 @@ function M.bindingReview(project, topology)
             local item={index=roleIndex,name=role.name or '',object=role.object or '',
                 maskCount=0,maskVertexCount=0,objectVertexCount=0,vertexCount=0,vertexIndices={},
                 objectVertexVerified=false,mode='unassigned',status='unassigned',issues={}}
-            local vertices,maskVertices={},{}
+            local vertices,roleMaskVertices={},{}
             local sourceMap=project.sourceVertexMap and project.sourceVertexMap[item.object] or {}
             local sourceMapUsable=item.object~='' and #sourceMap>0 and topology and
                 project.sourceVertexMapSignature~='' and project.sourceVertexMapSignature==topology.signature
@@ -467,31 +480,33 @@ function M.bindingReview(project, topology)
             for maskIndex,mask in ipairs(project.masks or {}) do
                 if mask.enabled ~= false and (mask.roleIndex or 1)==roleIndex then
                     item.maskCount=item.maskCount+1
-                    local maskVertices=type(mask.vertices)=='table' and mask.vertices or {}
+                    local rawMaskVertices=type(mask.vertices)=='table' and mask.vertices or {}
                     if topology and (mask.topologySignature or '')~='' and mask.topologySignature~=topology.signature then
                         item.issues[#item.issues+1]='stale mask: ' .. tostring(mask.name or maskIndex)
                     end
                     local seen={}
-                    for _,rawIndex in ipairs(maskVertices) do
+                    for _,rawIndex in ipairs(rawMaskVertices) do
                         local index=tonumber(rawIndex)
                         if not index or index<1 or index%1~=0 or
                                 topology and index>topology.vertexCount or seen[index] then
                             item.issues[#item.issues+1]='invalid mask vertex: ' .. tostring(mask.name or maskIndex)
                         else
                             seen[index]=true
-                            maskVertices[index]=true
+                            -- Keep the serialized mask array untouched. This set is
+                            -- only for review accounting and overlap detection.
+                            roleMaskVertices[index]=true
                             vertices[index]=true
                         end
                     end
                 end
             end
-            for index in pairs(maskVertices) do item.maskVertexCount=item.maskVertexCount+1 end
+            for index in pairs(roleMaskVertices) do item.maskVertexCount=item.maskVertexCount+1 end
             if sourceMapIssue and item.maskVertexCount==0 then
                 item.issues[#item.issues+1]='source vertex map topology is stale or missing'
             end
             for index in pairs(vertices) do
                 item.vertexIndices[#item.vertexIndices+1]=index
-                if not maskVertices[index] then item.objectVertexCount=item.objectVertexCount+1 end
+                if not roleMaskVertices[index] then item.objectVertexCount=item.objectVertexCount+1 end
                 if not owners[index] then owners[index]={roleIndex=roleIndex,name=item.name} end
             end
             table.sort(item.vertexIndices)

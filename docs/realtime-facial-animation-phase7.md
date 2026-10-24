@@ -353,3 +353,11 @@ step.
 The first policy is intentionally deterministic and reviewable. It is a binding baseline for the
 Megan asset; later milestones can add region-specific falloffs and artist overrides without changing
 the transaction boundary.
+
+### Topology-order safety for generated masks
+
+The **Generate main face mask from landmarks** action now reads the canonical global topology
+snapshot already used by landmark placement. This keeps mask indices aligned with the flattened
+subset order and prevents generated masks from containing out-of-range or repeated vertex indices.
+The read-only binding review also keeps its overlap sets separate from the serialized mask array,
+so opening Rig cannot mutate valid vertex indices into boolean values.
