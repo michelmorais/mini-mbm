@@ -12682,6 +12682,7 @@ namespace mbm
                     state.gpuMorph = false;
                     state.gpuMorphShaderCompiled = false;
                     state.gpuMorphShaderOwner = nullptr;
+                    state.gpuMorphShaderPaletteSize = 0;
                     state.dirty = true;
                     state.uploadDirty = true;
                     state.morphExecutionPath = "cpu-reference";
@@ -12690,10 +12691,11 @@ namespace mbm
                 else
                     state.gpuMorphUploaded = true;
             }
-            if (state.gpuMorph && (!state.gpuMorphShaderCompiled || state.gpuMorphShaderOwner != shader))
+            const uint32_t desiredPaletteSize = state.gpuSkinning ? impl->gpuSkinningInput.requiredBoneCount : 0u;
+            if (state.gpuMorph && (!state.gpuMorphShaderCompiled || state.gpuMorphShaderOwner != shader ||
+                                   state.gpuMorphShaderPaletteSize != desiredPaletteSize))
             {
-                const uint32_t paletteSize = state.gpuSkinning
-                    ? static_cast<uint32_t>(state.palette.size() / 12u) : 0u;
+                const uint32_t paletteSize = desiredPaletteSize;
                 shader->releaseShader();
                 const bool compiled = shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf,
                     paletteSize, paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE,
@@ -12707,6 +12709,7 @@ namespace mbm
                     state.uploadDirty = true;
                     state.gpuMorphShaderCompiled = false;
                     state.gpuMorphShaderOwner = nullptr;
+                    state.gpuMorphShaderPaletteSize = 0;
                     state.morphExecutionPath = "cpu-reference";
                     state.morphStatus = "gpu-morph-shader-unavailable";
                     if (!shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf,
@@ -12718,6 +12721,7 @@ namespace mbm
                 {
                     state.gpuMorphShaderCompiled = true;
                     state.gpuMorphShaderOwner = shader;
+                    state.gpuMorphShaderPaletteSize = paletteSize;
                 }
             }
         }
@@ -12754,7 +12758,7 @@ namespace mbm
         DEVICE *device = DEVICE::getInstance();
         device->setRenderMaterial(impl->material);
         const bool result = shader->render(state.buffer.pBufferGL, owner, -1,
-                                           state.gpuSkinning ? state.palette.data() : nullptr,
+                                           state.gpuSkinning && !state.palette.empty() ? state.palette.data() : nullptr,
                                            state.gpuSkinning ? static_cast<uint32_t>(state.palette.size()) : 0u,
                                            state.gpuMorph ? state.weights.data() : nullptr,
                                            state.gpuMorph ? static_cast<uint32_t>(state.weights.size()) : 0u);
@@ -12764,13 +12768,13 @@ namespace mbm
             state.gpuMorph = false;
             state.gpuMorphShaderCompiled = false;
             state.gpuMorphShaderOwner = nullptr;
+            state.gpuMorphShaderPaletteSize = 0;
             state.dirty = true;
             state.uploadDirty = true;
             state.morphExecutionPath = "cpu-reference";
             state.morphStatus = "gpu-morph-draw-failed";
             shader->releaseShader();
-            const uint32_t paletteSize = state.gpuSkinning
-                ? static_cast<uint32_t>(state.palette.size() / 12u) : 0u;
+            const uint32_t paletteSize = state.gpuSkinning ? impl->gpuSkinningInput.requiredBoneCount : 0u;
             shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf, paletteSize,
                                   paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE);
         }

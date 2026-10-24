@@ -48,6 +48,7 @@ namespace mbm::facial
         bool hadSkin = false, gpuSkinning = false, gpuSkinningUploaded = false;
         bool gpuMorph = false, gpuMorphShaderCompiled = false, gpuMorphUploaded = false;
         const SHADER *gpuMorphShaderOwner = nullptr;
+        uint32_t gpuMorphShaderPaletteSize = 0;
         bool poseAdvancedForRender = false;
         RENDER_STATE() { bounds.lsCube.push_back(new CUBE()); }
     };
