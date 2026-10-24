@@ -1985,6 +1985,7 @@ local function showClips()
     if #poseNames>0 then
         tImGui.SetNextItemWidth(280)
         local poseChanged,poseIndex=tImGui.Combo(tLang.L('fre_clip_expression_source'),state.expressions.selectedPose,poseNames)
+        showHelpTooltip(tLang.L('fre_clip_expression_source_tooltip'))
         if poseChanged then
             state.expressions.selectedPose=poseIndex
             local selectedSource=state.project.expressions.poses[poseIndex]
@@ -2021,6 +2022,7 @@ local function showFacialClipTimelineWindow()
         tImGui.TextWrapped(tLang.L('fre_clip_timeline_help'))
         tImGui.SetNextItemWidth(420)
         local timeChanged,time=tImGui.SliderFloat(tLang.L('fre_clip_time')..'##freClipTimelineTime',state.clipEditor.time,0,clip.duration,'%.3f s')
+        showHelpTooltip(tLang.L('fre_clip_time_tooltip'))
         if timeChanged then
             state.clipEditor.time=time
             state.clipEditor.playing=false
@@ -2033,6 +2035,7 @@ local function showFacialClipTimelineWindow()
             tFacialClips.insertKey(clip,state.clipEditor.time,weights)
             state.clipEditor.keySelected=1; markModified(); state.clipEditor.dirty=true
         end
+        showHelpTooltip(tLang.L('fre_clip_insert_expression_key_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_clip_capture_key')..'##freClipTimelineCapture',{x=190,y=0}) then
             local weights={}
@@ -2042,8 +2045,10 @@ local function showFacialClipTimelineWindow()
             end
             pushUndoSnapshot(); tFacialClips.insertKey(clip,state.clipEditor.time,weights); markModified(); state.clipEditor.dirty=true
         end
+        showHelpTooltip(tLang.L('fre_clip_capture_key_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_clip_play')..'##freClipTimelinePlay',{x=110,y=0}) then state.clipEditor.playing=not state.clipEditor.playing end
+        showHelpTooltip(tLang.L('fre_clip_play_tooltip'))
         local keys=clip.keys or {}
         if tImGui.BeginTable('freFacialClipTimelineKeys',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
             tImGui.TableSetupColumn(tLang.L('fre_clip_key_column'))
@@ -2072,6 +2077,7 @@ local function showFacialClipTimelineWindow()
             state.clipEditor.keySelected=math.max(1,math.min(state.clipEditor.keySelected,#keys-1))
             markModified(); state.clipEditor.dirty=true
         end
+        showHelpTooltip(tLang.L('fre_clip_remove_key_tooltip'))
         tImGui.EndDisabled()
         local report=tFacialClips.validate(clip)
         if report.ok then
