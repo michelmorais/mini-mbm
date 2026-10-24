@@ -162,6 +162,15 @@ namespace
         const auto unavailableMorph = facial::calculateGpuMorphCapability(0, 4096, true);
         expect(!unavailableMorph.measured && !unavailableMorph.supportsIndexedDeltas,
             "GPU morph capability rejects missing vertex texture units");
+        facial::ASSET layoutAsset;
+        layoutAsset.vertexCount = 34164;
+        layoutAsset.targets.resize(6);
+        facial::GPU_MORPH_LAYOUT layout;
+        std::string layoutError;
+        expect(facial::buildGpuMorphLayout(layoutAsset, morphCapability, true, layout, layoutError) &&
+            layout.valid && layout.textureWidth==4096 && layout.rowsPerVertexBlock==9 &&
+            layout.rowsPerTarget==18 && layout.textureHeight==108,
+            "GPU morph layout tiles Megan-scale vertices and normals");
         expect(makeFixture(true,true,"indexed.msh"),"create indexed skinned facial fixture");
         expect(makeFixture(false,false,"vertices.msh"),"create VB facial fixture");
         FILE_DATA original;

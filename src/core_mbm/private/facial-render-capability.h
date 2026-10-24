@@ -16,6 +16,9 @@
 #define FACIAL_RENDER_CAPABILITY_H
 
 #include <cstdint>
+#include <string>
+
+#include "facial-animation.h"
 
 namespace mbm::facial
 {
@@ -28,6 +31,18 @@ namespace mbm::facial
         bool measured = false;
     };
 
+    struct GPU_MORPH_LAYOUT
+    {
+        uint32_t textureWidth = 0;
+        uint32_t textureHeight = 0;
+        uint32_t rowsPerVertexBlock = 0;
+        uint32_t rowsPerTarget = 0;
+        uint32_t targetCount = 0;
+        uint32_t vertexCount = 0;
+        bool hasNormals = false;
+        bool valid = false;
+    };
+
     GPU_MORPH_CAPABILITY calculateGpuMorphCapability(uint32_t maxVertexTextureUnits,
                                                        uint32_t maxTextureSize,
                                                        bool hasFloatTexture) noexcept;
@@ -35,6 +50,8 @@ namespace mbm::facial
                                        uint32_t maxTextureSize,
                                        bool hasFloatTexture) noexcept;
     GPU_MORPH_CAPABILITY getMeasuredGpuMorphCapability() noexcept;
+    bool buildGpuMorphLayout(const ASSET &asset, const GPU_MORPH_CAPABILITY &capability,
+                             bool includeNormals, GPU_MORPH_LAYOUT &out, std::string &error) noexcept;
 }
 
 #endif
