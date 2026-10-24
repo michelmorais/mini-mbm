@@ -37,15 +37,27 @@ def scene_mesh_vertex_total(scene) -> int:
     return sum(len(obj.data.vertices) for obj in scene.objects if obj.type == "MESH")
 
 
+def read_json_property(obj, name: str) -> dict:
+    value = obj.get(name, "")
+    if not value:
+        return {}
+    try:
+        result = json.loads(value)
+        return result if isinstance(result, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
 class MBM_OT_import_facial_rig_bridge(Operator, ImportHelper):
     bl_idname = "mbm.import_facial_rig_bridge"
     bl_label = "Import Facial Rig Bridge"
     bl_description = "Create a read-only facial armature preview from a mini-mbm bridge file"
     filename_ext = ".lua"
     filter_glob: StringProperty(default="*.lua", options={"HIDDEN"})
-    angle_x: FloatProperty(name="X rotation", default=90.0)
-    angle_y: FloatProperty(name="Y rotation", default=0.0)
-    angle_z: FloatProperty(name="Z rotation", default=0.0)
+    angle_x: FloatProperty(name="Engine X rotation", default=90.0,
+                           description="Coordinate conversion from mini-mbm Y-up to Blender Z-up; keep 90")
+    angle_y: FloatProperty(name="Engine Y rotation", default=0.0)
+    angle_z: FloatProperty(name="Engine Z rotation", default=0.0)
     replace_preview: BoolProperty(name="Replace previous preview", default=True)
 
     def execute(self, context):
@@ -99,15 +111,25 @@ class MBM_PT_facial_rig_bridge(Panel):
             box.label(text=f"Scene mesh total: {total}")
             box.label(text="Use viewport alignment for merged assets.")
         box.label(text="Preview only: no weights assigned.", icon="INFO")
-        report_text = armature.get("mini_mbm_role_report", "")
-        if report_text:
-            try:
-                report = json.loads(report_text)
-                box.label(text=f"Role entries: {len(report.get('entries') or [])}")
-                for warning in report.get("warnings") or []:
-                    box.label(text=f"Warning: {warning}", icon="ERROR")
-            except (TypeError, ValueError):
-                box.label(text="Stored role report is invalid", icon="ERROR")
+        report = read_json_property(armature, "mini_mbm_role_report")
+        box.label(text=f"Role entries: {len(report.get('entries') or [])}")
+        for warning in report.get("warnings") or []:
+            box.label(text=f"Warning: {warning}", icon="ERROR")
+        binding = read_json_property(armature, "mini_mbm_binding_report")
+        roles = binding.get("roles") or []
+        if roles:
+            box.separator()
+            box.label(text="Role object review:")
+            for role in roles:
+                name = str(role.get("name") or "role")
+                object_name = str(role.get("object") or "")
+                target = bpy.data.objects.get(object_name) if object_name else None
+                if target is not None and target.type == "MESH":
+                    box.label(text=f"{name}: {object_name}", icon="CHECKMARK")
+                elif object_name:
+                    box.label(text=f"{name}: missing {object_name}", icon="ERROR")
+                else:
+                    box.label(text=f"{name}: unassigned", icon="INFO")
 
 
 CLASSES = (MBM_OT_import_facial_rig_bridge, MBM_PT_facial_rig_bridge)

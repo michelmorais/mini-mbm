@@ -238,5 +238,15 @@ currently open `.blend`, reports bone and vertex-count checks, and displays the 
 warnings. It uses the same Y-up to Z-up conversion as the headless importer and leaves saving to
 the user. The operator is still preview-only: it does not assign weights or edit mesh geometry.
 
+The panel also checks each bridge role against the names currently present in Blender. A missing
+object is reported explicitly, rather than being guessed from similar names; this is needed for
+assets such as Megan where the Blender objects and the merged MSH source use different names.
+
 The next milestone is a mesh-aware review of facial role objects and then an explicit, opt-in
 weight assignment design.
+
+In the Blender panel, `Engine X rotation = 90` is an import conversion setting, not a request to
+rotate the resulting armature object afterward. Click **Import Facial Rig Bridge** after selecting
+the bridge, then use Blender's normal **Save As** to save the `.blend`. Leave the armature object
+rotation at zero unless the viewport review proves that the source asset uses a different axis
+convention.
