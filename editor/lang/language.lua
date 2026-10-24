@@ -1350,6 +1350,7 @@ M.en = {
     fre_binding_plan_reason_no_bone = "The policy has no generated bone available.",
     fre_binding_plan_reason_empty_mask = "The role mask has no vertices.",
     fre_binding_plan_reason_overlap = "Vertex masks overlap across enabled roles.",
+    fre_binding_plan_reason_no_roles = "No enabled facial roles are available.",
     fre_warning_bridge_unassigned_fmt = "Role has no source object or mask: %s",
     -- Skeletal Animation Editor / Skin Weight Lab
     swl_title = "Skeletal Animation Editor",
@@ -5385,6 +5386,7 @@ M.pt_br = {
     fre_binding_plan_reason_no_bone = "A politica nao possui osso gerado disponivel.",
     fre_binding_plan_reason_empty_mask = "A mascara do papel nao possui vertices.",
     fre_binding_plan_reason_overlap = "As mascaras de vertices se sobrepoem entre papeis ativos.",
+    fre_binding_plan_reason_no_roles = "Nenhum papel facial ativo esta disponivel.",
     fre_warning_bridge_unassigned_fmt = "O papel nao possui objeto de origem nem mascara: %s",
     -- Editor de Animação Esquelética / Laboratório de Pesos
     swl_title = "Editor de Animação Esquelética",

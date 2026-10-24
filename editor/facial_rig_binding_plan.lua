@@ -89,7 +89,7 @@ function M.build(project,topology,rig,review)
         plan.valid=false
         plan.errors[#plan.errors+1]='no enabled facial roles are available'
     end
-    if review and review.overlapCount>0 then
+    if review and (review.overlapCount or 0)>0 then
         plan.valid=false
         plan.errors[#plan.errors+1]='vertex masks overlap across enabled roles'
     end

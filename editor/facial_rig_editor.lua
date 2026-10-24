@@ -236,7 +236,8 @@ local function localizedBindingPlanReason(reason)
         ['object vertices are not available in the merged MSH topology']='fre_binding_plan_reason_object_unverified',
         ['the selected policy has no generated bone']='fre_binding_plan_reason_no_bone',
         ['the role mask has no vertices']='fre_binding_plan_reason_empty_mask',
-        ['vertex masks overlap across enabled roles']='fre_binding_plan_reason_overlap'
+        ['vertex masks overlap across enabled roles']='fre_binding_plan_reason_overlap',
+        ['no enabled facial roles are available']='fre_binding_plan_reason_no_roles'
     }
     local translated=exact[reason] and tLang.L(exact[reason]) or reason
     return translated
