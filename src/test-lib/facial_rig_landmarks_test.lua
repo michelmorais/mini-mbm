@@ -20,13 +20,22 @@ assert(topology.signature~='')
 local hit=Landmarks.nearestVertex(topology,{x=-1,y=0,z=-5},{x=0,y=0,z=1},0.1)
 assert(hit and hit.index==1)
 local project=Project.new()
-assert(project.schemaVersion==4 and project.landmarkEditMode==1)
+assert(project.schemaVersion==5 and project.landmarkEditMode==1)
 project.landmarkEditMode=2
 project.language='pt_br'
 assert(Project.normalize(project).landmarkEditMode==2)
 assert(project.language=='pt_br')
 assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
     'legacy facial projects must default to independent side editing')
+assert(Project.addSourceObject(project,'Head')==1)
+assert(Project.addSourceObject(project,'Head')==1,
+    'source object catalog must remain unique')
+assert(Project.normalize(project).sourceObjects[1]=='Head')
+assert(Project.sourceObjectSuggestions('main_face')[1]=='Head')
+project.roles[1].object='UpperTeeth'
+Project.normalize(project)
+assert(project.sourceObjects[2]=='UpperTeeth',
+    'legacy role assignments must be included in the source object catalog')
 project.meshPath='fixture.msh'
 Project.setTopology(project,topology)
 assert(not project.faceOrigin.placed)

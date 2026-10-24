@@ -139,6 +139,16 @@ class BlenderMeshExportTests(unittest.TestCase):
         self.assertIn("normal", EXPORTER.effective_excluded_texture_roles(explicit_args))
         self.assertNotIn("normal", EXPORTER.effective_excluded_texture_roles(static_fallback_args, False))
 
+    def test_source_object_catalog_keeps_visible_mesh_names(self) -> None:
+        hidden = self._Object("Hidden")
+        hidden.visible_get = lambda: False
+        scene = SimpleNamespace(objects=[self._Object("Head"), self._Object("Head"), hidden,
+                                         self._Object("Eye.L")])
+
+        self.assertEqual(EXPORTER.source_object_names(scene), ["Eye.L", "Head"])
+        self.assertEqual(EXPORTER.source_object_catalog_path("/tmp/megan.msh"),
+                         "/tmp/megan_mbm_objects.lua")
+
     def test_facial_vertices_align_by_source_association_after_reordering(self) -> None:
         base = [
             {"sourceObject": "Body", "sourceVertex": 1, "sourceLoop": 11, "x": 1.0},

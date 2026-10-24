@@ -42,6 +42,7 @@ local state = {
     workspace='setup', modified=false,
     selectedRole=1, selectedLandmark=1, landmarkEditMode=1, status='', statusError=false,
     selectedMask=1, maskEditMode='add',
+    sourceObjectDraft='',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
     faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
@@ -76,6 +77,46 @@ local landmarkReferencePoints={
 
 local function shortName(path)
     return tUtil.getShortName(path or '', false) or path or ''
+end
+
+local function sourceObjectCatalogPath(meshPath)
+    local stem=(meshPath or ''):match('^(.*)%.[^%.]+$') or meshPath or ''
+    return stem .. '_mbm_objects.lua'
+end
+
+local function loadSourceObjectCatalog(meshPath)
+    local catalogPath=sourceObjectCatalogPath(meshPath)
+    local file=io.open(catalogPath,'rb')
+    if not file then return 0 end
+    file:close()
+    local chunk,errorMessage=loadfile(catalogPath)
+    if not chunk then
+        print('[facial_rig_editor] source object catalog load failed: ' .. tostring(errorMessage))
+        return 0
+    end
+    local ok,catalog=pcall(chunk)
+    if not ok or type(catalog)~='table' or type(catalog.objects)~='table' then return 0 end
+    local count=0
+    for _,objectName in ipairs(catalog.objects) do
+        if tFacialProject.addSourceObject(state.project,objectName) then count=count + 1 end
+    end
+    return count
+end
+
+local function sourceObjectOptions(roleName)
+    local labels={tLang.L('fre_unassigned')}
+    local values={''}
+    local known={['']=true}
+    local function append(objectName, suggested)
+        if type(objectName) ~= 'string' or objectName == '' or known[objectName] then return end
+        known[objectName]=true
+        values[#values + 1]=objectName
+        labels[#labels + 1]=suggested and (objectName .. tLang.L('fre_source_object_suggestion_suffix')) or objectName
+    end
+    for _, objectName in ipairs(tFacialProject.sourceObjects(state.project)) do append(objectName,false) end
+    for _, role in ipairs(state.project.roles or {}) do append(role.object,false) end
+    for _, objectName in ipairs(tFacialProject.sourceObjectSuggestions(roleName)) do append(objectName,true) end
+    return labels, values
 end
 
 local function localizedLandmarkName(name)
@@ -217,6 +258,23 @@ local function redoProject()
     local snapshot=table.remove(state.redoStack)
     state.undoStack[#state.undoStack+1]=current
     return restoreHistorySnapshot(snapshot)
+end
+
+local function sourceObjectCombo(role, id, labels, values)
+    local selected=1
+    for index, value in ipairs(values) do
+        if value == (role.object or '') then selected=index;break end
+    end
+    tImGui.SetNextItemWidth(-1)
+    local changed,index=tImGui.Combo('##freRoleObject' .. tostring(id),selected,labels)
+    if not changed then return false end
+    local objectName=values[index] or ''
+    if objectName == (role.object or '') then return false end
+    pushUndoSnapshot()
+    role.object=objectName
+    tFacialProject.addSourceObject(state.project,objectName)
+    markModified()
+    return true
 end
 
 local function destroyPreview()
@@ -592,6 +650,7 @@ local function loadMesh(path, preserveProject)
     state.topology=topology
     state.mesh.visible=true
     if not preserveProject then state.project=tFacialProject.new() end
+    loadSourceObjectCatalog(path)
     state.project.meshPath=path
     if not preserveProject or state.project.meshTopologySignature=='' then
         tFacialProject.setTopology(state.project,topology)
@@ -759,7 +818,8 @@ local function showMasks()
             local chosen=tImGui.Selectable(role.name,index==state.selectedRole)
             if chosen then state.selectedRole=index end
             tImGui.TableSetColumnIndex(1)
-            tImGui.Text(role.object~='' and role.object or tLang.L('fre_unassigned'))
+            local objectLabels,objectValues=sourceObjectOptions(role.name)
+            sourceObjectCombo(role,index,objectLabels,objectValues)
             tImGui.TableSetColumnIndex(2)
             tImGui.Text(role.enabled and tLang.L('fre_yes') or tLang.L('fre_no'))
         end
@@ -768,14 +828,21 @@ local function showMasks()
     if selected then
         tImGui.Separator()
         tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
+        tImGui.TextWrapped(tLang.L('fre_source_object_help'))
         tImGui.PushItemWidth(320)
-        local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',selected.object or '')
-        if changed then
-            pushUndoSnapshot()
-            selected.object=object
-            markModified()
-        end
+        local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',state.sourceObjectDraft or '')
+        if changed then state.sourceObjectDraft=object end
         tImGui.PopItemWidth()
+        if tImGui.Button(tLang.L('fre_register_object')) then
+            local objectName=(state.sourceObjectDraft or ''):match('^%s*(.-)%s*$')
+            if objectName ~= '' then
+                pushUndoSnapshot()
+                tFacialProject.addSourceObject(state.project,objectName)
+                selected.object=objectName
+                state.sourceObjectDraft=''
+                markModified()
+            end
+        end
         local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
         if enabled~=selected.enabled then
             pushUndoSnapshot()

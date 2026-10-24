@@ -27,6 +27,20 @@ local ROLE_NAMES = {
     'tongue', 'brows', 'nose', 'mouth', 'hair', 'accessory'
 }
 
+local SOURCE_OBJECT_SUGGESTIONS = {
+    main_face={'Head', 'Face', 'FaceMesh'},
+    left_eye={'Eye.L', 'LeftEye', 'eye_left'},
+    right_eye={'Eye.R', 'RightEye', 'eye_right'},
+    upper_teeth={'UpperTeeth', 'Teeth.Upper', 'Teeth'},
+    lower_teeth={'LowerTeeth', 'Teeth.Lower'},
+    tongue={'Tongue', 'tongue'},
+    brows={'Brows', 'Brow.L', 'Brow.R'},
+    nose={'Nose', 'nose'},
+    mouth={'Mouth', 'mouth', 'Lips'},
+    hair={'Hair', 'hair'},
+    accessory={'Accessory', 'accessory'}
+}
+
 local LANDMARK_NAMES = {
     {'face_left', 'left', true}, {'face_right', 'right', true},
     {'face_top', 'midline', true}, {'face_bottom', 'midline', true},
@@ -69,11 +83,12 @@ end
 
 function M.new()
     return {
-        schemaVersion=4,
+        schemaVersion=5,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
         roles=defaultRoles(),
+        sourceObjects={},
         masks={},
         landmarks=defaultLandmarks(),
         faceOrigin=defaultFaceOrigin(),
@@ -91,14 +106,23 @@ function M.roleNames()
     return result
 end
 
+function M.sourceObjectSuggestions(roleName)
+    local result={}
+    for _, objectName in ipairs(SOURCE_OBJECT_SUGGESTIONS[roleName] or {}) do
+        result[#result + 1]=objectName
+    end
+    return result
+end
+
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(4,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(5,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
         project.meshTopologySignature or ''
     project.roles=type(project.roles) == 'table' and project.roles or defaultRoles()
+    project.sourceObjects=type(project.sourceObjects) == 'table' and project.sourceObjects or {}
     project.masks=type(project.masks) == 'table' and project.masks or {}
     project.landmarks=type(project.landmarks) == 'table' and project.landmarks or defaultLandmarks()
     if type(project.faceOrigin) ~= 'table' then project.faceOrigin=defaultFaceOrigin() end
@@ -123,6 +147,25 @@ function M.normalize(project)
             role.enabled=role.enabled ~= false
         end
     end
+    local sourceObjects={}
+    local sourceObjectSet={}
+    for _, objectName in ipairs(project.sourceObjects) do
+        if type(objectName) == 'string' then
+            objectName=objectName:match('^%s*(.-)%s*$')
+            if objectName ~= '' and not sourceObjectSet[objectName] then
+                sourceObjectSet[objectName]=true
+                sourceObjects[#sourceObjects + 1]=objectName
+            end
+        end
+    end
+    for _, role in ipairs(project.roles) do
+        local objectName=role.object
+        if objectName ~= '' and not sourceObjectSet[objectName] then
+            sourceObjectSet[objectName]=true
+            sourceObjects[#sourceObjects + 1]=objectName
+        end
+    end
+    project.sourceObjects=sourceObjects
     for index, mask in ipairs(project.masks) do
         if type(mask) ~= 'table' then
             project.masks[index]={name='region_' .. index,roleIndex=1,vertices={},topologySignature='',enabled=true}
@@ -172,6 +215,26 @@ function M.addMask(project, name, roleIndex)
         vertices={}, topologySignature=project.meshTopologySignature or '', enabled=true}
     project.masks[#project.masks + 1] = mask
     return mask
+end
+
+function M.sourceObjects(project)
+    local result={}
+    for _, objectName in ipairs(project and project.sourceObjects or {}) do
+        result[#result + 1]=objectName
+    end
+    return result
+end
+
+function M.addSourceObject(project, objectName)
+    if type(project) ~= 'table' or type(objectName) ~= 'string' then return false end
+    objectName=objectName:match('^%s*(.-)%s*$')
+    if objectName == '' then return false end
+    project.sourceObjects=project.sourceObjects or {}
+    for index, current in ipairs(project.sourceObjects) do
+        if current == objectName then return index end
+    end
+    project.sourceObjects[#project.sourceObjects + 1]=objectName
+    return #project.sourceObjects
 end
 
 function M.setTopology(project, topology)

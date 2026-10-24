@@ -6,6 +6,7 @@ Writes a Lua intermediate file with baked mesh frames:
     - frames[i].subsets[j].vertices: [{x,y,z,u,v,nx,ny,nz}, ...]
     - frames[i].subsets[j].indices:  [1-based triangle indices]
   - frames[i].subsets[j].texture:  optional image filepath
+  - sourceObjects: visible Blender mesh-object names used by the export
   - animations: optional baked clip metadata
 """
 
@@ -100,6 +101,30 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def debug_print(enabled: bool, message: str) -> None:
     if enabled:
         print(f"[blender_export] {message}", flush=True)
+
+
+def source_object_names(scene: Any) -> list[str]:
+    """Return the visible Blender mesh-object names exported into the current mesh."""
+    names: list[str] = []
+    seen: set[str] = set()
+    for obj in getattr(scene, "objects", []):
+        if getattr(obj, "type", "") != "MESH":
+            continue
+        visible_get = getattr(obj, "visible_get", None)
+        if callable(visible_get) and not visible_get():
+            continue
+        name = str(getattr(obj, "name", "") or "").strip()
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    names.sort()
+    return names
+
+
+def source_object_catalog_path(mesh_path: str) -> str:
+    """Return the sidecar path that preserves Blender source-object names for an MSH."""
+    stem, _ = os.path.splitext(mesh_path)
+    return f"{stem}_mbm_objects.lua"
 
 
 def check_cancel_requested(cancel_file: str) -> None:
@@ -1773,6 +1798,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     import_source(source_path)
     scene = bpy.context.scene
     prepare_static_decimation(scene, args)
+    exported_source_objects = source_object_names(scene)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -1818,6 +1844,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
         "sampleStep": clips[0]["sampleStep"] if clips else 1,
         "frames": frames_out,
         "animations": animations,
+        "sourceObjects": exported_source_objects,
     }
 
 
@@ -1838,6 +1865,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
     import_source(source_path)
     scene = bpy.context.scene
     prepare_static_decimation(scene, args)
+    exported_source_objects = source_object_names(scene)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -1893,6 +1921,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
         "sampleStep": clips[0]["sampleStep"] if clips else 1,
         "frames": frames_manifest,
         "animations": animations,
+        "sourceObjects": exported_source_objects,
     }
 
 
@@ -2845,6 +2874,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     import_source(source_path)
     scene = bpy.context.scene
     cull_face = 0x0405 if scene_uses_backface_culling(scene) else 0x0408
+    exported_source_objects = source_object_names(scene)
     debug_print(args.debug_steps, "material culling: " + ("back" if cull_face == 0x0405 else "disabled"))
     prepare_static_decimation(scene, args)
     facial_source = discover_facial_source(scene, args)
@@ -3098,6 +3128,11 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             os.fsync(fp.fileno())
         check_cancel_requested(args.cancel_file)
         os.replace(tmp_out, out_path)
+        write_lua_atomic(source_object_catalog_path(out_path), {
+            "version": 1,
+            "source": source_path,
+            "objects": exported_source_objects,
+        })
         return len(frame_paths)
     finally:
         if facial_source and facial_state:

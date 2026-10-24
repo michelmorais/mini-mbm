@@ -43,7 +43,12 @@ each facial role. It is separate from a runtime expression weight:
 
 The first implementation should prefer stable frame-0 vertex indices and object references. It
 must reject masks whose topology no longer matches the registered mesh instead of silently
-assigning weights to a different vertex order.
+assigning weights to a different vertex order. Each role uses a registered source-object catalog:
+the role table selects `unassigned` or one of the known object names, while a small registration
+field adds an exact Blender object name when the imported mesh does not expose that catalog yet.
+Blender exports now write the visible mesh-object names to a sidecar named
+`<mesh>_mbm_objects.lua`; the facial editor merges that catalog into the project and still keeps
+manual entry and common naming suggestions for assets that were exported without the sidecar.
 
 ## Planned editor flow
 
@@ -144,8 +149,8 @@ The first implementation slice now provides:
 - `editor/facial_rig_editor.lua` as a standalone launcher entry following the skeletal editor shell;
 - `editor/facial_rig_project.lua` with versioned project state, role/mask/landmark persistence, and
   validation;
-- setup and masks/regions workspaces with mesh loading, role registration, object assignment, and
-  stable project-side mask records;
+- setup and masks/regions workspaces with mesh loading, role registration, a source-object combo
+  per role, and stable project-side mask records;
 - a landmarks workspace with the required landmark schema, local coordinates, placed state, and
   validation feedback;
 - rig, expressions, and preview workspaces reserved for the next authoring slices;

@@ -1879,6 +1879,32 @@ local function saveGeneratedMesh(meshD, outMshPath)
     return true
 end
 
+local function sourceObjectCatalogPath(meshPath)
+    local stem=(meshPath or ''):match('^(.*)%.[^%.]+$') or meshPath or ''
+    return stem .. '_mbm_objects.lua'
+end
+
+local function saveSourceObjectCatalog(meshPath, objectNames)
+    local names={}
+    local seen={}
+    for _,objectName in ipairs(objectNames or {}) do
+        objectName=tostring(objectName or ''):match('^%s*(.-)%s*$')
+        if objectName~='' and not seen[objectName] then
+            seen[objectName]=true
+            names[#names+1]=objectName
+        end
+    end
+    table.sort(names)
+    local lines={'-- mini-mbm Blender source object catalog','local sourceObjectCatalog = {}'}
+    tUtil.save('sourceObjectCatalog',{version=1,objects=names},lines)
+    lines[#lines+1]='return sourceObjectCatalog'
+    local file,errorMessage=io.open(sourceObjectCatalogPath(meshPath),'w')
+    if not file then return false,errorMessage end
+    file:write(table.concat(lines,'\n'),'\n')
+    file:close()
+    return true
+end
+
 local function buildMeshFromIntermediate(tData, outMshPath, options)
     local meshD = meshDebug:new()
     meshD:setType('mesh')
@@ -1911,7 +1937,9 @@ local function buildMeshFromIntermediate(tData, outMshPath, options)
     if not okAnim then return false, errAnim end
     local okTransform, transformError = applyGeneratedMeshOptions(meshD, options)
     if not okTransform then return false, transformError end
-    return saveGeneratedMesh(meshD, outMshPath)
+    local okSaved,saveError=saveGeneratedMesh(meshD,outMshPath)
+    if not okSaved then return false,saveError end
+    return saveSourceObjectCatalog(outMshPath,tData.sourceObjects)
 end
 
 local function buildMeshFromStreamManifest(manifestPath, outMshPath, options)
@@ -1973,7 +2001,9 @@ local function buildMeshFromStreamManifest(manifestPath, outMshPath, options)
     if not okAnim then return false, errAnim end
     local okTransform, transformError = applyGeneratedMeshOptions(meshD, options)
     if not okTransform then return false, transformError end
-    return saveGeneratedMesh(meshD, outMshPath)
+    local okSaved,saveError=saveGeneratedMesh(meshD,outMshPath)
+    if not okSaved then return false,saveError end
+    return saveSourceObjectCatalog(outMshPath,manifest.sourceObjects)
 end
 
 local function onOpenBlenderImportDialog()
@@ -2096,12 +2126,14 @@ local function blenderImportCoroutine()
         local outManifest = joinPath(outDir, 'manifest.lua')
         local oldOutLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
         local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
+        local outObjectCatalog = baseDir .. '/' .. getFileStem(src) .. '_mbm_objects.lua'
         local waitOutput = modeIntermediateOnly and outManifest or outMsh
         local dbgLog = baseDir .. '/' .. getFileStem(src) .. '_mbm_blender_debug.log'
         local cancelFile = baseDir .. '/' .. getFileStem(src) .. '_mbm_cancel'
         os.remove(oldOutLua)
         removePathRecursive(outDir)
         os.remove(outMsh)
+        os.remove(outObjectCatalog)
         os.remove(dbgLog)
         os.remove(cancelFile)
 
