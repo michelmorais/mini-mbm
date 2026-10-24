@@ -431,6 +431,16 @@ dedicated resizable timeline window anchored to the bottom of the screen. Closin
 not discard the clip; it can be reopened from the Clips worktree. The interpolation selector keeps
 a fixed width so its value remains readable independently of the main panel width.
 
+## Delivered eighteenth slice: project facial clip preview
+
+The Preview worktree now lists clips authored in the facial project separately from facial clips
+already embedded in the loaded MSH. Project clips can be selected, scrubbed, played, stopped, and
+validated directly against the visible mesh; selecting one starts at time zero. This preview uses
+the saved project target weights and does not require exporting a new MSH. MSH export remains gated
+by the Rig weight-assignment flow because it materializes mesh skeleton and weight changes, while
+project clip authoring remains safe metadata until a native MSH or Blender Shape Key export is
+explicitly requested.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

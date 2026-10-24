@@ -62,7 +62,8 @@ local state = {
     weightAssignment={dirty=true,data=nil,modified=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
     clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true},
-    preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1},
+    preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
+        authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false},
     blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
 }
@@ -404,6 +405,8 @@ local function restoreHistorySnapshot(snapshot)
     state.clipEditor.keySelected=snapshot.keySelected or 1
     state.clipEditor.time=snapshot.clipTime or 0
     state.clipEditor.playing=snapshot.clipPlaying==true
+    state.preview.authoredClipInitialized=false
+    state.preview.authoredClipPlaying=false
     state.project.selectedRole=state.selectedRole
     state.project.selectedLandmark=state.selectedLandmark
     state.project.selectedMask=state.selectedMask
@@ -1134,7 +1137,8 @@ local function loadMesh(path, preserveProject)
     state.expressions={catalogDirty=true,catalog={},selectedTarget=state.project.expressions.selectedTarget or 1,
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil,
-        skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
+        skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,authoredClipSelected=1,
+        authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
     state.clipEditor={selectedClip=state.project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
     frameCamera(bounds)
     if requestedPreserve and not projectCompatible then
@@ -1165,7 +1169,8 @@ local function newProject()
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
-    state.preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
+    state.preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
+        authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
     state.clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
     setStatus(tLang.L('fre_new_project'),false)
 end
@@ -1199,7 +1204,8 @@ local function openProject()
         state.expressions={catalogDirty=true,catalog={},selectedTarget=project.expressions.selectedTarget or 1,
             selectedPose=project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
         state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil,
-            skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
+            skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,authoredClipSelected=1,
+            authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
         state.clipEditor={selectedClip=project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
     end
     clearHistory()
@@ -2102,6 +2108,20 @@ local function updateFacialClipPlayback(delta)
     applyFacialWeights(tFacialClips.sample(clip,state.clipEditor.time,tFacialExpressions.targetNames(state.project.expressions)))
 end
 
+local function updatePreviewAuthoredClipPlayback(delta)
+    if state.workspace~='preview' or not state.preview.authoredClipPlaying or not state.mesh then return end
+    local clips=state.project.clips or {}
+    local clip=clips[state.preview.authoredClipSelected]
+    if not clip then state.preview.authoredClipPlaying=false; return end
+    state.preview.authoredClipTime=state.preview.authoredClipTime+math.max(tonumber(delta) or 0,0)
+    if state.preview.authoredClipTime>clip.duration then
+        if clip.loop then state.preview.authoredClipTime=state.preview.authoredClipTime%clip.duration
+        else state.preview.authoredClipTime=clip.duration; state.preview.authoredClipPlaying=false end
+    end
+    applyFacialWeights(tFacialClips.sample(clip,state.preview.authoredClipTime,
+        tFacialExpressions.targetNames(state.project.expressions)))
+end
+
 local function showPreview()
     tImGui.TextWrapped(tLang.L('fre_preview_help'))
     if not state.mesh then
@@ -2174,6 +2194,64 @@ local function showPreview()
             local active=0
             for _,value in pairs(selectedPose.weights or {}) do if (tonumber(value) or 0)>0.0001 then active=active+1 end end
             tImGui.Text(string.format(tLang.L('fre_preview_active_targets_fmt'),active))
+        end
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_preview_authored_clips_title'))
+    tImGui.TextWrapped(tLang.L('fre_preview_authored_clips_help'))
+    local authoredClips=state.project.clips or {}
+    if #authoredClips==0 then
+        tImGui.TextDisabled(tLang.L('fre_preview_authored_clips_none'))
+    else
+        local authoredNames={}
+        for _,clip in ipairs(authoredClips) do authoredNames[#authoredNames+1]=clip.name end
+        state.preview.authoredClipSelected=math.max(1,math.min(state.preview.authoredClipSelected or 1,#authoredNames))
+        tImGui.SetNextItemWidth(280)
+        local authoredChanged,authoredIndex=tImGui.Combo(tLang.L('fre_preview_authored_clip'),
+            state.preview.authoredClipSelected,authoredNames)
+        if authoredChanged then
+            state.preview.authoredClipSelected=authoredIndex
+            state.preview.authoredClipTime=0
+            state.preview.authoredClipPlaying=false
+            applyFacialWeights(tFacialClips.sample(authoredClips[authoredIndex],0,
+                tFacialExpressions.targetNames(state.project.expressions)))
+        end
+        local authoredClip=authoredClips[state.preview.authoredClipSelected]
+        if authoredClip then
+            if not state.preview.authoredClipInitialized then
+                state.preview.authoredClipTime=0
+                state.preview.authoredClipPlaying=false
+                applyFacialWeights(tFacialClips.sample(authoredClip,0,
+                    tFacialExpressions.targetNames(state.project.expressions)))
+                state.preview.authoredClipInitialized=true
+            end
+            tImGui.SetNextItemWidth(360)
+            local authoredTimeChanged,authoredTime=tImGui.SliderFloat(
+                tLang.L('fre_clip_time')..'##frePreviewAuthoredClipTime',state.preview.authoredClipTime,
+                0,authoredClip.duration,'%.3f s')
+            if authoredTimeChanged then
+                state.preview.authoredClipTime=authoredTime
+                state.preview.authoredClipPlaying=false
+                applyFacialWeights(tFacialClips.sample(authoredClip,authoredTime,
+                    tFacialExpressions.targetNames(state.project.expressions)))
+            end
+            if tImGui.Button(tLang.L('fre_clip_play')..'##frePreviewAuthoredClipPlay',{x=110,y=0}) then
+                state.preview.authoredClipPlaying=not state.preview.authoredClipPlaying
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('fre_preview_authored_clip_stop')..'##frePreviewAuthoredClipStop',{x=90,y=0}) then
+                state.preview.authoredClipPlaying=false
+                state.preview.authoredClipTime=0
+                applyFacialWeights(tFacialClips.sample(authoredClip,0,
+                    tFacialExpressions.targetNames(state.project.expressions)))
+            end
+            local authoredReport=tFacialClips.validate(authoredClip)
+            if authoredReport.ok then
+                textColoredWrapped({r=0.35,g=1,b=0.45,a=1},string.format(
+                    tLang.L('fre_clip_valid_fmt'),authoredReport.keyCount))
+            else
+                textColoredWrapped({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_clip_invalid'))
+            end
         end
     end
     tImGui.Separator()
@@ -2483,6 +2561,7 @@ end
 function onLoop(delta)
     updateCameraKeyboard(delta)
     updateFacialClipPlayback(delta)
+    updatePreviewAuthoredClipPlayback(delta)
     showMenu()
     showMainPanel()
     showCameraPanel()
