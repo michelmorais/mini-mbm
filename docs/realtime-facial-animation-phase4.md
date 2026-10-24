@@ -72,6 +72,13 @@ normal-map facial materials remain unsupported, and DQS facial composition is de
 slice can move the sparse target data and active weights into backend-specific shader resources, with
 the same CPU fallback and parity checks.
 
+The runtime now reports these two decisions separately. `morphExecutionPath` is currently
+`cpu-reference` and `morphStatus` is `gpu-morph-deferred-gles2` on the GLES2 backend. MeshDebug and
+the Lua report show this explicitly, so `gpu-skeletal-composite` is not mistaken for full GPU facial
+evaluation. A future backend must provide a texture-buffer, SSBO, or equivalent indexed resource
+before it can advertise a GPU morph path; vertex attributes alone cannot carry the Megan-scale delta
+set safely.
+
 The Fuzzy Fury fixture provides that representative high-poly measurement: its 57,746-vertex,
 six-target deformation measured approximately 20.7 ms dense and 5.9 ms sparse per evaluation in
 the current Linux Debug build. The Debug result is unsuitable as a frame-rate estimate, but the

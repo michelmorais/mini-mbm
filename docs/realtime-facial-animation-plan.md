@@ -192,6 +192,11 @@ The next optimization slice may add GPU morph evaluation for explicitly selected
 fallback where supported. Establish limits for active targets, vertex counts, buffer memory, and
 shader resources; do not assume one backend's capacity applies to all others.
 
+The current GLES2 runtime now exposes this boundary in `getFacialAnimationReport`: the skeletal
+stage may be `gpu-skeletal-composite`, while the morph stage remains `cpu-reference` with an explicit
+`gpu-morph-deferred-gles2` status. This diagnostic is a prerequisite for backend-specific GPU morph
+resources and prevents a partial GPU path from being reported as complete facial GPU evaluation.
+
 ### Phase 7: Dedicated facial rig authoring editor
 
 **The first shell/setup slice is implemented; the remaining rig and expression work is staged below.**

@@ -954,6 +954,8 @@ namespace mbm
             (facialState->ready ?
                 (getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::GPU
                     ? "gpu-skeletal-composite" : "cpu") : "unsupported");
+        out.morphExecutionPath = !facialState->targetCount ? "none" : facialState->morphExecutionPath;
+        out.morphStatus = !facialState->targetCount ? "no-facial-data" : facialState->morphStatus;
         out.status = facialState->status.c_str();
     }
 

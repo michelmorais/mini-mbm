@@ -38,6 +38,8 @@ namespace mbm::facial
         uint32_t clipIndex = UINT32_MAX;
         float clipTime = 0.0f, clipSpeed = 1.0f;
         uint64_t evaluations = 0, uploads = 0;
+        const char *morphExecutionPath = "cpu-reference";
+        const char *morphStatus = "gpu-morph-deferred-gles2";
         bool ready = false, dirty = true, uploadDirty = true, initialized = false;
         bool clipPlaying = false, clipPaused = false;
         bool hadSkin = false, gpuSkinning = false, gpuSkinningUploaded = false;

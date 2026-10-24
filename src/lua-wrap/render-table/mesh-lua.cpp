@@ -355,7 +355,7 @@ namespace mbm
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
         FACIAL_ANIMATION_REPORT report;
         mesh->getFacialAnimationReport(report);
-        lua_createtable(lua, 0, 14);
+        lua_createtable(lua, 0, 16);
         lua_pushinteger(lua, report.targetCount); lua_setfield(lua, -2, "targetCount");
         lua_pushinteger(lua, report.clipCount); lua_setfield(lua, -2, "clipCount");
         lua_pushinteger(lua, static_cast<lua_Integer>(report.deformationCount)); lua_setfield(lua, -2, "deformationCount");
@@ -370,6 +370,8 @@ namespace mbm
         if (report.clipName) lua_pushstring(lua, report.clipName); else lua_pushnil(lua);
         lua_setfield(lua, -2, "clipName");
         lua_pushstring(lua, report.executionPath); lua_setfield(lua, -2, "executionPath");
+        lua_pushstring(lua, report.morphExecutionPath); lua_setfield(lua, -2, "morphExecutionPath");
+        lua_pushstring(lua, report.morphStatus); lua_setfield(lua, -2, "morphStatus");
         lua_pushstring(lua, report.status); lua_setfield(lua, -2, "status");
         return 1;
     }

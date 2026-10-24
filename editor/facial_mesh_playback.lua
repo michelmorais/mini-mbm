@@ -152,9 +152,12 @@ function M.draw(entry, data, preview, ready, call)
 
     local report = state.report
     if type(report) == 'table' then
-        tImGui.TextDisabled(string.format('%s: %s | %s',
+        tImGui.TextDisabled(string.format('%s: %s | skin: %s | morph: %s',
             tLang.L('mesh_debug_facial_status'), report.status or 'unknown',
-            report.executionPath or 'none'))
+            report.executionPath or 'none', report.morphExecutionPath or 'none'))
+        if report.morphStatus and report.morphStatus ~= '' then
+            tImGui.TextWrapped(report.morphStatus)
+        end
     end
     if state.failed then
         tImGui.TextWrapped(tLang.L('mesh_debug_facial_failed'))

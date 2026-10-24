@@ -52,6 +52,8 @@ struct FACIAL_ANIMATION_REPORT
     float playbackSpeed = 1.0f;
     const char *clipName = nullptr;
     const char *executionPath = "none";
+    const char *morphExecutionPath = "none";
+    const char *morphStatus = "no-facial-data";
     const char *status = "no-facial-data";
 };
 
