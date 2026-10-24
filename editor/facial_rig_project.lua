@@ -297,6 +297,15 @@ function M.validate(project, meshLoaded, topology)
             end
         end
     end
+    for index, mask in ipairs(project.masks or {}) do
+        local role=project.roles and project.roles[mask.roleIndex or 0]
+        if not role then
+            description.valid=false
+            description.errors[#description.errors + 1]='mask has no target role: ' .. tostring(mask.name or index)
+        elseif role.enabled == false and mask.enabled ~= false then
+            description.warnings[#description.warnings + 1]='mask targets a disabled role: ' .. tostring(mask.name or index)
+        end
+    end
     report.maskCount=#(project.masks or {})
     for _, mask in ipairs(project.masks or {}) do
         if type(mask.name) ~= 'string' or mask.name == '' then
@@ -366,6 +375,120 @@ function M.bindingDescription(project, topology)
                 position={x=landmark.position.x,y=landmark.position.y,z=landmark.position.z},
                 relativePosition=landmark.relativePosition and copyPoint(landmark.relativePosition) or nil}
         end
+    end
+    return description
+end
+
+local function midpoint(a, b)
+    if not a and not b then return nil end
+    if not a then return copyPoint(b) end
+    if not b then return copyPoint(a) end
+    return {x=(a.x+b.x)*0.5, y=(a.y+b.y)*0.5, z=(a.z+b.z)*0.5}
+end
+
+local function landmarkPoint(project, name)
+    for _, landmark in ipairs(project.landmarks or {}) do
+        if landmark.name == name and landmark.placed and landmark.position then
+            return copyPoint(landmark.position)
+        end
+    end
+    return nil
+end
+
+local function appendBone(description, id, parent, head, tail, requiredLandmarks, kind)
+    if not head or not tail then return false end
+    description.bones[#description.bones + 1] = {
+        id=id, name=id, parent=parent, head=head, tail=tail,
+        kind=kind or 'facial', landmarks=requiredLandmarks or {}
+    }
+    return true
+end
+
+-- Build the deterministic, review-only rig contract used by the editor preview.
+-- Coordinates stay in mesh-local space so a later Blender bridge can consume the
+-- same data without depending on viewport state or generated engine objects.
+function M.rigDescription(project, topology)
+    local origin=project and project.faceOrigin or defaultFaceOrigin()
+    local description={version=1, valid=true, errors={}, warnings={}, bones={},
+        roleBindings={}, meshTopologySignature=project and project.meshTopologySignature or '',
+        vertexCount=topology and topology.vertexCount or project and project.meshVertexCount or 0,
+        origin={placed=origin.placed == true, position=copyPoint(origin.position),
+            scale=origin.scale, vertexIndex=origin.vertexIndex}}
+    local function requirePoint(name, label)
+        local point=landmarkPoint(project, name)
+        if not point then
+            description.valid=false
+            description.errors[#description.errors + 1]='rig landmark is missing: ' .. (label or name)
+        end
+        return point
+    end
+    if not description.origin.placed then
+        description.valid=false
+        description.errors[#description.errors + 1]='rig origin is not placed'
+    end
+    local rootHead=description.origin.position
+    local faceTop=landmarkPoint(project,'face_top')
+    appendBone(description,'face_root',nil,rootHead,faceTop or
+        {x=rootHead.x,y=rootHead.y+math.max(origin.scale or 1,0.1),z=rootHead.z},nil,'root')
+
+    local leftEye=requirePoint('left_eye_center','left_eye_center')
+    local rightEye=requirePoint('right_eye_center','right_eye_center')
+    local mouthLeft=requirePoint('mouth_left','mouth_left')
+    local mouthRight=requirePoint('mouth_right','mouth_right')
+    local chin=landmarkPoint(project,'chin')
+    local noseTip=landmarkPoint(project,'nose_tip')
+    local jawLeft=landmarkPoint(project,'jaw_hinge_left')
+    local jawRight=landmarkPoint(project,'jaw_hinge_right')
+    local browLeft=landmarkPoint(project,'brow_left')
+    local browRight=landmarkPoint(project,'brow_right')
+    local leftCorner=landmarkPoint(project,'left_eye_corner')
+    local rightCorner=landmarkPoint(project,'right_eye_corner')
+    local noseBridge=landmarkPoint(project,'nose_bridge')
+    local upperLip=landmarkPoint(project,'upper_lip')
+    local lowerLip=landmarkPoint(project,'lower_lip')
+
+    appendBone(description,'eye.L','face_root',leftEye,leftCorner or leftEye,{'left_eye_center'},'eye')
+    appendBone(description,'eye.R','face_root',rightEye,rightCorner or rightEye,{'right_eye_center'},'eye')
+    appendBone(description,'nose','face_root',noseBridge or noseTip,noseTip,{'nose_tip'},'nose')
+    local jawHead=midpoint(jawLeft,jawRight) or midpoint(mouthLeft,mouthRight)
+    local hasJaw=appendBone(description,'jaw','face_root',jawHead,chin,{'chin'},'jaw')
+    appendBone(description,'mouth',hasJaw and 'jaw' or 'face_root',midpoint(mouthLeft,mouthRight),lowerLip or upperLip or chin,
+        {'mouth_left','mouth_right'},'mouth')
+    appendBone(description,'brow.L','face_root',browLeft,leftEye,{'brow_left','left_eye_center'},'brow')
+    appendBone(description,'brow.R','face_root',browRight,rightEye,{'brow_right','right_eye_center'},'brow')
+
+    for _, role in ipairs(project.roles or {}) do
+        if role.enabled then
+            local masks={}
+            for index, mask in ipairs(project.masks or {}) do
+                if mask.enabled and mask.roleIndex == _ then masks[#masks + 1]=index end
+            end
+            description.roleBindings[#description.roleBindings + 1]={index=_, name=role.name,
+                object=role.object or '', maskIndices=masks,
+                binding=role.name == 'main_face' and 'facial_skeleton' or 'rigid_role'}
+            if role.name == 'main_face' and role.object == '' and #masks == 0 then
+                description.warnings[#description.warnings + 1]='main_face has no object or vertex mask'
+            end
+        end
+    end
+    if not leftCorner or not rightCorner then
+        description.warnings[#description.warnings + 1]='eye corner landmarks are optional; eye bones use their centers'
+    end
+    if not jawLeft or not jawRight then
+        description.warnings[#description.warnings + 1]='jaw hinge landmarks are optional; jaw uses the mouth center'
+    end
+    if not noseBridge and noseTip then
+        description.warnings[#description.warnings + 1]='nose_bridge is optional; nose starts at nose_tip'
+    end
+    if not noseTip then
+        description.warnings[#description.warnings + 1]='nose_tip is optional; the nose bone is omitted'
+    end
+    if not chin then
+        description.warnings[#description.warnings + 1]='chin is optional; the jaw bone is omitted'
+    end
+    description.landmarkCount=0
+    for _, landmark in ipairs(project.landmarks or {}) do
+        if landmark.placed then description.landmarkCount=description.landmarkCount+1 end
     end
     return description
 end

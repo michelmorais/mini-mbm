@@ -60,6 +60,13 @@ local report=Project.validate(project,true,topology)
 assert(report.ok and report.maskCount==1 and report.placedLandmarkCount>0)
 local binding=Project.bindingDescription(project,topology)
 assert(binding.faceOrigin.placed and #binding.roles==1 and #binding.masks==1 and #binding.landmarks==report.placedLandmarkCount)
+local rig=Project.rigDescription(project,topology)
+assert(rig.valid and #rig.bones>=3, 'required landmarks must produce a reviewable rig preview')
+assert(#rig.roleBindings==1 and rig.roleBindings[1].binding=='facial_skeleton')
+assert(#rig.warnings>=2, 'missing optional nose and jaw landmarks should be reported as warnings')
+project.landmarks[5].placed=false
+assert(not Project.rigDescription(project,topology).valid,
+    'missing eye center must block the canonical rig preview')
 project.faceOrigin.vertexIndex=99
 assert(not Project.validate(project,true,topology).ok)
 project.faceOrigin.vertexIndex=1

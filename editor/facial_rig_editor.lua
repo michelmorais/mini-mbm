@@ -47,6 +47,7 @@ local state = {
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
     faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
     faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
+    rigPreview={dirty=true,objects={},descriptor=nil},
     undoStack={}, redoStack={}, historyLimit=50
 }
 
@@ -159,6 +160,27 @@ local function localizedProjectMessage(message)
     return exact[lower] and tLang.L(exact[lower]) or text
 end
 
+local function localizedRigMessage(message)
+    local text=tostring(message or '')
+    local lower=text:lower()
+    local name=lower:match('^rig landmark is missing:?%s*(.+)$')
+    if name then return string.format(tLang.L('fre_error_rig_landmark_fmt'),localizedLandmarkName(name)) end
+    name=lower:match('^mask has no target role:?%s*(.+)$')
+    if name then return string.format(tLang.L('fre_error_rig_mask_role_fmt'),name) end
+    name=lower:match('^mask targets a disabled role:?%s*(.+)$')
+    if name then return string.format(tLang.L('fre_warning_rig_disabled_role_fmt'),name) end
+    local exact={
+        ['rig origin is not placed']='fre_error_rig_origin',
+        ['main_face has no object or vertex mask']='fre_warning_rig_main_face',
+        ['eye corner landmarks are optional; eye bones use their centers']='fre_warning_rig_eye_corners',
+        ['jaw hinge landmarks are optional; jaw uses the mouth center']='fre_warning_rig_jaw_hinges',
+        ['nose_bridge is optional; nose starts at nose_tip']='fre_warning_rig_nose_bridge',
+        ['nose_tip is optional; the nose bone is omitted']='fre_warning_rig_nose_tip',
+        ['chin is optional; the jaw bone is omitted']='fre_warning_rig_chin'
+    }
+    return exact[lower] and tLang.L(exact[lower]) or text
+end
+
 local function showProjectMessages(report)
     for _,message in ipairs(report.errors or {}) do
         tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedProjectMessage(message))
@@ -208,6 +230,7 @@ end
 
 local function markModified()
     state.modified=true
+    state.rigPreview.dirty=true
 end
 
 local function clearHistory()
@@ -241,6 +264,7 @@ local function restoreHistorySnapshot(snapshot)
     state.project.landmarkEditMode=state.landmarkEditMode
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
+    state.rigPreview.dirty=true
     return true
 end
 
@@ -277,7 +301,15 @@ local function sourceObjectCombo(role, id, labels, values)
     return true
 end
 
+local function destroyRigPreview()
+    for _,object in ipairs(state.rigPreview.objects or {}) do
+        dpCall(function() object:destroy() end)
+    end
+    state.rigPreview={dirty=true,objects={},descriptor=nil}
+end
+
 local function destroyPreview()
+    destroyRigPreview()
     for _,marker in ipairs(state.landmarkMarkers or {}) do
         dpCall(function() marker:destroy() end)
     end
@@ -570,6 +602,50 @@ local function refreshFaceGuide()
     state.faceGuideDirty=false
 end
 
+local function hideRigPreview()
+    for _,object in ipairs(state.rigPreview.objects or {}) do object.visible=false end
+end
+
+local function rigBoneColor(kind)
+    if kind=='root' then return {1,0.35,0.85,1} end
+    if kind=='eye' then return {0.25,0.9,1,1} end
+    if kind=='jaw' then return {1,0.55,0.2,1} end
+    if kind=='mouth' then return {1,0.3,0.45,1} end
+    if kind=='brow' then return {0.75,0.45,1,1} end
+    return {0.3,1,0.45,1}
+end
+
+local function refreshRigPreview()
+    local preview=state.rigPreview
+    if state.workspace~='rig' or not state.mesh then
+        hideRigPreview()
+        preview.descriptor=nil
+        preview.dirty=false
+        return
+    end
+    local descriptor=tFacialProject.rigDescription(state.project,state.topology)
+    preview.descriptor=descriptor
+    for index,bone in ipairs(descriptor.bones or {}) do
+        local object=preview.objects[index]
+        local dx,dy,dz=bone.tail.x-bone.head.x,bone.tail.y-bone.head.y,bone.tail.z-bone.head.z
+        if not object then
+            object=line:new('3d',0,0,0)
+            object.alwaysOnTop=true
+            object.alwaysOnTopPriority=5
+            preview.objects[index]=object
+        end
+        object:set({0,0,0,dx,dy,dz},1)
+        object:setPos(bone.head.x,bone.head.y,bone.head.z)
+        local color=rigBoneColor(bone.kind)
+        object:setColor(table.unpack(color))
+        object.visible=descriptor.valid
+    end
+    for index=#(descriptor.bones or {})+1,#preview.objects do
+        preview.objects[index].visible=false
+    end
+    preview.dirty=false
+end
+
 local function inspectMesh(meshDebugObject)
     local ok,topology=dpCall(function() return tFacialLandmarks.inspect(meshDebugObject) end)
     if not ok or not topology or not topology.bounds then return nil, 0, nil end
@@ -663,6 +739,7 @@ local function loadMesh(path, preserveProject)
     state.modified=preserveProject and state.modified or true
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
+    state.rigPreview.dirty=true
     frameCamera(bounds)
     setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
     return true
@@ -680,6 +757,7 @@ local function newProject()
     clearHistory()
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
+    state.rigPreview.dirty=true
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -1183,7 +1261,8 @@ end
 local function showRig()
     tImGui.TextWrapped(tLang.L('fre_rig_help'))
     local report=tFacialProject.validate(state.project,state.mesh~=nil,state.topology)
-    if report.ok then
+    local rig=tFacialProject.rigDescription(state.project,state.topology)
+    if report.ok and rig.valid then
         tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_validation_ok'))
     else
         tImGui.TextColored({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_validation_pending'))
@@ -1197,7 +1276,33 @@ local function showRig()
     tImGui.Text(string.format(tLang.L('fre_binding_vertices_fmt'),binding.vertexCount))
     tImGui.TextWrapped(tLang.L('fre_binding_preview_help'))
     tImGui.Separator()
-    tImGui.TextWrapped(tLang.L('fre_rig_not_implemented'))
+    for _,message in ipairs(rig.errors or {}) do
+        tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedRigMessage(message))
+    end
+    for _,message in ipairs(rig.warnings or {}) do
+        tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedRigMessage(message))
+    end
+    tImGui.Text(string.format(tLang.L('fre_rig_bones_fmt'),#(rig.bones or {})))
+    tImGui.Text(string.format(tLang.L('fre_rig_role_bindings_fmt'),#(rig.roleBindings or {})))
+    if rig.valid then
+        tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_rig_preview_ready'))
+        tImGui.TextWrapped(tLang.L('fre_rig_preview_help'))
+    else
+        tImGui.TextWrapped(tLang.L('fre_rig_preview_pending'))
+    end
+    if tImGui.TreeNode(tLang.L('fre_rig_bones')) then
+        for _,bone in ipairs(rig.bones or {}) do
+            tImGui.BulletText(bone.id .. '  (' .. (bone.parent or tLang.L('fre_rig_root')) .. ')')
+        end
+        tImGui.TreePop()
+    end
+    if tImGui.TreeNode(tLang.L('fre_rig_bindings')) then
+        for _,bindingRow in ipairs(rig.roleBindings or {}) do
+            local maskCount=#(bindingRow.maskIndices or {})
+            tImGui.BulletText(string.format('%s -> %s (%d)',bindingRow.name,bindingRow.binding,maskCount))
+        end
+        tImGui.TreePop()
+    end
 end
 
 local function showPlaceholder(key)
@@ -1311,6 +1416,7 @@ function onLoop(delta)
     showCameraPanel()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
     if state.faceGuideDirty then refreshFaceGuide() end
+    if state.rigPreview.dirty then refreshRigPreview() end
     tUtil.showOverlayMessage()
 end
 

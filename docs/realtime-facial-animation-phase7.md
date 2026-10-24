@@ -187,8 +187,18 @@ The second implementation slice now provides:
 - a review-only binding description summarizing enabled roles, masks, landmarks, and source topology;
 - regression coverage for topology inspection, ray picking, project validation, and binding summaries.
 
-This slice remains authoring data only. It does not generate facial bones, automatic weights, or
-runtime expression targets.
+## Delivered third slice: canonical rig preview
+
+The rig workspace now turns the validated authoring data into a deterministic, review-only rig
+description. It includes a face root, eye, brow, nose, jaw, and mouth bones whenever the required
+landmark groups are available, plus explicit role bindings and mask references. The generated bones
+are drawn in the 3D viewport with stable colors and are rebuilt only when project data changes.
+The preview remains read-only: it does not create weights, alter the mesh, or export an armature.
+Optional landmarks produce warnings and omit only the affected bone; missing core eye or mouth
+landmarks keep the rig preview pending.
+
+The landmark slice remains authoring data only. It does not generate automatic weights or runtime
+expression targets; the following rig-preview slice adds read-only generated bones.
 
 ## Next implementation milestone: rig preview and binding data
 
@@ -199,6 +209,7 @@ The delivered landmark slice moves the next implementation milestone to rig prev
 3. validate role masks and landmark groups against the generated rig;
 4. produce reviewable setup reports for the Fuzzy Fury and Megan fixtures.
 
-It will not yet claim automatic weight generation, full Faceit rig parity, live capture, or
-production-quality facial expressions. Those depend on the generated rig description being stable
-and reviewable first.
+The next implementation milestone is the Blender bridge/export of this canonical description and
+an explicit binding review report for the Fuzzy Fury and Megan fixtures. It will not yet claim
+automatic weight generation, full Faceit rig parity, live capture, or production-quality facial
+expressions. Those depend on the generated rig description being stable and reviewable first.
