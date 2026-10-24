@@ -31,6 +31,7 @@ tFacialBindingPlan = require "facial_rig_binding_plan"
 tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tFacialExpressions = require "facial_rig_expressions"
+tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
 
 -- Protected-call wrapper used by all editor operations that can cross the Lua/C++ boundary.
@@ -58,7 +59,8 @@ local state = {
     bindingPlan={dirty=true,data=nil},
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false},
-    expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft=''},
+    expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft=''},
+    preview={selectedPose=1,facialPlayback=nil},
     blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
 }
@@ -1029,6 +1031,17 @@ local function refreshExpressionCatalog()
     state.expressions.catalogDirty=false
 end
 
+local function applyExpressionPose(pose)
+    if not pose or not state.mesh then return false end
+    local weights=tFacialExpressions.applyPose(state.project.expressions,pose)
+    local success=true
+    for _,entry in ipairs(state.expressions.catalog or {}) do
+        local ok,applied=dpCall(function() return state.mesh:setFacialWeight(entry.name,weights[entry.name] or 0) end)
+        if not ok or applied==false then success=false end
+    end
+    return success
+end
+
 local function loadMesh(path, preserveProject)
     if not path or path=='' then return false end
     local directory=path:match('^(.*)[/\\][^/\\]+$')
@@ -1086,6 +1099,7 @@ local function loadMesh(path, preserveProject)
     state.weightAssignment={dirty=true,data=nil,modified=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=state.project.expressions.selectedTarget or 1,
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft=''}
+    state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil}
     frameCamera(bounds)
     if requestedPreserve and not projectCompatible then
         setStatus(tLang.L('fre_mesh_project_topology_mismatch'),true)
@@ -1115,6 +1129,7 @@ local function newProject()
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft=''}
+    state.preview={selectedPose=1,facialPlayback=nil}
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -1146,6 +1161,7 @@ local function openProject()
         destroyPreview()
         state.expressions={catalogDirty=true,catalog={},selectedTarget=project.expressions.selectedTarget or 1,
             selectedPose=project.expressions.selectedPose or 1,nameDraft='',renameDraft=''}
+        state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil}
     end
     clearHistory()
     setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
@@ -1742,6 +1758,7 @@ local function showExpressions()
             tImGui.TableSetColumnIndex(1)
             local ok,current=dpCall(function() return state.mesh:getFacialWeight(entry.name) end)
             current=ok and tonumber(current) or 0
+            tImGui.SetNextItemWidth(220)
             local changed,value=tImGui.SliderFloat('##freExpressionWeight' .. tostring(index),current,0,1,'%.3f')
             if changed then
                 local applied=dpCall(function() return state.mesh:setFacialWeight(entry.name,value) end)
@@ -1755,6 +1772,7 @@ local function showExpressions()
     local poseNames={}
     for _,pose in ipairs(expressions.poses or {}) do poseNames[#poseNames+1]=pose.name end
     if #poseNames>0 then
+        tImGui.SetNextItemWidth(280)
         local changed,index=tImGui.Combo(tLang.L('fre_expression_select'),state.expressions.selectedPose,poseNames)
         if changed then
             state.expressions.selectedPose=index
@@ -1765,11 +1783,10 @@ local function showExpressions()
     else
         tImGui.TextDisabled(tLang.L('fre_expressions_no_poses'))
     end
-    tImGui.PushItemWidth(250)
+    tImGui.SetNextItemWidth(250)
     local draftChanged,draft=tImGui.InputText(tLang.L('fre_expression_name') .. '##freExpressionName',state.expressions.nameDraft or '')
     if draftChanged then state.expressions.nameDraft=draft end
-    tImGui.PopItemWidth()
-    if tImGui.Button(tLang.L('fre_expression_add')) then
+    if tImGui.Button(tLang.L('fre_expression_add'),{x=190,y=0}) then
         pushUndoSnapshot()
         local pose,errorMessage=tFacialExpressions.addPose(expressions,state.expressions.nameDraft)
         if pose then
@@ -1786,8 +1803,7 @@ local function showExpressions()
     showHelpTooltip(tLang.L('fre_expression_add_tooltip'))
     local selectedPose=expressions.poses[state.expressions.selectedPose]
     if selectedPose then
-        tImGui.SameLine()
-        if tImGui.Button(tLang.L('fre_expression_capture')) then
+        if tImGui.Button(tLang.L('fre_expression_capture'),{x=230,y=0}) then
             local weights={}
             for _,entry in ipairs(catalog) do
                 local ok,value=dpCall(function() return state.mesh:getFacialWeight(entry.name) end)
@@ -1799,27 +1815,23 @@ local function showExpressions()
             setStatus(tLang.L('fre_expression_captured'),false)
         end
         showHelpTooltip(tLang.L('fre_expression_capture_tooltip'))
-        tImGui.SameLine()
-        if tImGui.Button(tLang.L('fre_expression_apply')) then
-            local weights=tFacialExpressions.applyPose(expressions,selectedPose)
-            for _,entry in ipairs(catalog) do
-                dpCall(function() return state.mesh:setFacialWeight(entry.name,weights[entry.name] or 0) end)
-            end
-            setStatus(tLang.L('fre_expression_applied'),false)
+        if tImGui.Button(tLang.L('fre_expression_apply'),{x=230,y=0}) then
+            if applyExpressionPose(selectedPose) then setStatus(tLang.L('fre_expression_applied'),false)
+            else setStatus(tLang.L('fre_expression_apply_failed'),true) end
         end
         showHelpTooltip(tLang.L('fre_expression_apply_tooltip'))
-        tImGui.SameLine()
-        if tImGui.Button(tLang.L('fre_expression_mirror')) then
+        if tImGui.Button(tLang.L('fre_expression_mirror'),{x=230,y=0}) then
             pushUndoSnapshot()
             tFacialExpressions.mirrorPose(expressions,selectedPose)
             markModified()
             setStatus(tLang.L('fre_expression_mirrored'),false)
         end
         showHelpTooltip(tLang.L('fre_expression_mirror_tooltip'))
+        tImGui.SetNextItemWidth(250)
         local renameChanged,rename=tImGui.InputText(tLang.L('fre_expression_rename') .. '##freExpressionRename',state.expressions.renameDraft or selectedPose.name or '')
         if renameChanged then state.expressions.renameDraft=rename end
         tImGui.SameLine()
-        if tImGui.Button(tLang.L('fre_expression_rename_button')) then
+        if tImGui.Button(tLang.L('fre_expression_rename_button'),{x=125,y=0}) then
             local candidate=(state.expressions.renameDraft or ''):match('^%s*(.-)%s*$')
             local duplicate=false
             for index,pose in ipairs(expressions.poses) do
@@ -1842,6 +1854,49 @@ local function showExpressions()
             for _,message in ipairs(report.errors) do tImGui.BulletText(message) end
         end
     end
+end
+
+local function showPreview()
+    tImGui.TextWrapped(tLang.L('fre_preview_help'))
+    if not state.mesh then
+        tImGui.TextDisabled(tLang.L('fre_no_mesh'))
+        return
+    end
+    if state.expressions.catalogDirty then refreshExpressionCatalog() end
+    local expressions=state.project.expressions or tFacialExpressions.new()
+    state.project.expressions=expressions
+    local poses=expressions.poses or {}
+    if #poses==0 then
+        tImGui.TextDisabled(tLang.L('fre_preview_no_expressions'))
+    else
+        local names={}
+        for _,pose in ipairs(poses) do names[#names+1]=pose.name end
+        state.preview.selectedPose=math.max(1,math.min(state.preview.selectedPose,#names))
+        tImGui.SetNextItemWidth(280)
+        local changed,index=tImGui.Combo(tLang.L('fre_preview_expression'),state.preview.selectedPose,names)
+        if changed then state.preview.selectedPose=index end
+        local selectedPose=poses[state.preview.selectedPose]
+        if selectedPose then
+            if tImGui.Button(tLang.L('fre_preview_apply_expression'),{x=230,y=0}) then
+                if applyExpressionPose(selectedPose) then setStatus(tLang.L('fre_preview_applied'),false)
+                else setStatus(tLang.L('fre_expression_apply_failed'),true) end
+            end
+            showHelpTooltip(tLang.L('fre_preview_apply_expression_tooltip'))
+            if tImGui.Button(tLang.L('fre_preview_reset_expression'),{x=230,y=0}) then
+                local ok,reset=dpCall(function() return state.mesh:resetFacialWeights() end)
+                if ok and reset~=false then setStatus(tLang.L('fre_preview_reset'),false)
+                else setStatus(tLang.L('fre_expression_apply_failed'),true) end
+            end
+            showHelpTooltip(tLang.L('fre_preview_reset_expression_tooltip'))
+            tImGui.Text(string.format(tLang.L('fre_preview_selected_fmt'),selectedPose.name))
+            local active=0
+            for _,value in pairs(selectedPose.weights or {}) do if (tonumber(value) or 0)>0.0001 then active=active+1 end end
+            tImGui.Text(string.format(tLang.L('fre_preview_active_targets_fmt'),active))
+        end
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_preview_runtime_title'))
+    tFacialPlayback.draw(state.preview,nil,state.mesh,true,dpCall)
 end
 
 local function showRig()
@@ -2062,7 +2117,7 @@ local function showWorkspaceTree()
                 elseif entry[1]=='landmarks' then showLandmarks()
                 elseif entry[1]=='rig' then showRig()
                 elseif entry[1]=='expressions' then showExpressions()
-                elseif entry[1]=='preview' then showPlaceholder('fre_preview_help') end
+                elseif entry[1]=='preview' then showPreview() end
             end
             tImGui.TreePop()
         end

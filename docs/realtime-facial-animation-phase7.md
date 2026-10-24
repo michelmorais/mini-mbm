@@ -380,7 +380,19 @@ pose names and references to targets that are not present in the loaded mesh. Me
 the MSH asset; the project stores only authoring metadata and weights.
 
 This slice intentionally does not edit vertex deltas or write facial clips. The Preview worktree
-will consume these named poses and the existing deterministic capture stream in the next slice.
+consumes these named poses and imported clips; deterministic capture replay remains a later input
+integration step.
+
+## Delivered fifteenth slice: expression and clip preview
+
+The Preview worktree now applies a selected saved expression to the visible mesh, reports the number
+of active targets in that pose, and provides an explicit reset action that does not alter saved
+project data. It also reuses the existing facial playback surface for imported facial clips,
+including clip selection, play/pause/resume/stop, playback time, and runtime execution status.
+
+Preview operations are event-driven: changing a pose or pressing Apply updates target weights once;
+the editor does not rebuild facial data while idle. The project remains the source of saved
+expressions, while MSH remains the source of target deltas and clips.
 
 ### Full-body skeleton compatibility
 
