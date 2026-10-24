@@ -27,6 +27,7 @@ tUtil = require "editor_utils"
 tFacialProject = require "facial_rig_project"
 tFacialLandmarks = require "facial_rig_landmarks"
 tFacialBridge = require "facial_rig_blender_bridge"
+tBlender = require "blender_cli_wrapper"
 
 -- Protected-call wrapper used by all editor operations that can cross the Lua/C++ boundary.
 local function dpCall(fn, ...)
@@ -49,6 +50,7 @@ local state = {
     faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
     faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
     rigPreview={dirty=true,objects={},descriptor=nil},
+    blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
 }
 
@@ -79,6 +81,25 @@ local landmarkReferencePoints={
 
 local function shortName(path)
     return tUtil.getShortName(path or '', false) or path or ''
+end
+
+local function pathExists(path)
+    if not path or path=='' then return false end
+    local file=io.open(path,'rb')
+    if not file then return false end
+    file:close()
+    return true
+end
+
+local function getEditorDir()
+    local source=debug.getinfo(1,'S').source or ''
+    if source:sub(1,1)=='@' then source=source:sub(2) end
+    return source:match('^(.*)[/\\]') or '.'
+end
+
+local function replaceExtension(path,extension)
+    if not path or path=='' then return '' end
+    return (path:gsub('%.[^%./\\]+$','')) .. extension
 end
 
 local function sourceObjectCatalogPath(meshPath)
@@ -756,6 +777,8 @@ local function newProject()
     destroyPreview()
     state.project=tFacialProject.new()
     state.projectPath=nil
+    state.blenderBridgePath=nil
+    state.blenderSourcePath=nil
     state.modified=false
     state.selectedRole=1
     state.selectedLandmark=1
@@ -784,6 +807,8 @@ local function openProject()
     if project.language then tLang.setLanguage(project.language) end
     state.project=project
     state.projectPath=path
+    state.blenderBridgePath=nil
+    state.blenderSourcePath=nil
     state.selectedRole=project.selectedRole or 1
     state.selectedLandmark=project.selectedLandmark or 1
     state.landmarkEditMode=project.landmarkEditMode or 1
@@ -844,7 +869,54 @@ local function exportBlenderBridge()
         setStatus(string.format(tLang.L('fre_bridge_export_failed_fmt'),tostring(errorMessage)),true)
         return false
     end
+    state.blenderBridgePath=path
     setStatus(string.format(tLang.L('fre_bridge_exported_fmt'),shortName(path)),false)
+    return true
+end
+
+local function chooseBlenderSource()
+    if pathExists(state.blenderSourcePath) then return state.blenderSourcePath end
+    local suggested=replaceExtension(state.project and state.project.meshPath or '', '.blend')
+    if pathExists(suggested) then
+        state.blenderSourcePath=suggested
+        return suggested
+    end
+    local path=mbm.openFile(suggested or '', '*.blend')
+    if path and path~='' then
+        state.blenderSourcePath=path
+        return path
+    end
+    return nil
+end
+
+local function launchBlenderFacialRig()
+    if not pathExists(state.blenderBridgePath) then
+        setStatus(tLang.L('fre_blender_bridge_export_required'),true)
+        return false
+    end
+    local sourcePath=chooseBlenderSource()
+    if not sourcePath then
+        setStatus(tLang.L('fre_blender_source_missing'),true)
+        return false
+    end
+    local addonPath=getEditorDir() .. '/facial_rig_blender_addon.py'
+    if not pathExists(addonPath) then
+        setStatus(tLang.L('fre_blender_addon_missing'),true)
+        return false
+    end
+    tBlender.resetDetection()
+    local blender=tBlender.detectBlender()
+    if not blender or not blender.found then
+        setStatus(tLang.L('fre_blender_not_found'),true)
+        return false
+    end
+    local command=tBlender.buildFacialRigPreviewCmd(sourcePath,addonPath)
+    if not command then
+        setStatus(tLang.L('fre_blender_command_failed'),true)
+        return false
+    end
+    tBlender.launchCmdAsync(command)
+    setStatus(string.format(tLang.L('fre_blender_opened_fmt'),shortName(sourcePath)),false)
     return true
 end
 
@@ -1330,6 +1402,15 @@ local function showRig()
         tImGui.BeginDisabled(not report.ok or not bridgeReport.valid)
         if tImGui.Button(tLang.L('fre_export_blender_bridge')) then exportBlenderBridge() end
         tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_export_blender_bridge_tooltip'))
+        local canOpenBlender=state.blenderBridgePath~=nil and pathExists(state.blenderBridgePath)
+        tImGui.BeginDisabled(not canOpenBlender)
+        if tImGui.Button(tLang.L('fre_open_blender_facial_workflow')) then launchBlenderFacialRig() end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_open_blender_facial_workflow_tooltip'))
+        if not canOpenBlender then
+            tImGui.TextDisabled(tLang.L('fre_blender_export_first_help'))
+        end
     else
         tImGui.TextWrapped(tLang.L('fre_rig_preview_pending'))
     end

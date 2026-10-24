@@ -486,6 +486,18 @@ function M.buildScanCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     return cmd
 end
 
+-- Builds the interactive command used by the facial rig editor. The addon is
+-- loaded into an existing .blend so the user can import the bridge from the
+-- Mini MBM sidebar and continue working in Blender's normal UI.
+function M.buildFacialRigPreviewCmd(sourcePath, addonScriptPath)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+    if not sourcePath or sourcePath == '' or not addonScriptPath or addonScriptPath == '' then
+        return nil
+    end
+    return table.concat({shellQuote(b.path), shellQuote(sourcePath), '--python', shellQuote(addonScriptPath)}, ' ')
+end
+
 function M.launchCmdAsync(cmd, logPath)
     local osName = M.getOS()
     debugPrint('launch async (%s): %s', osName, cmd)

@@ -250,3 +250,16 @@ rotate the resulting armature object afterward. Click **Import Facial Rig Bridge
 the bridge, then use Blender's normal **Save As** to save the `.blend`. Leave the armature object
 rotation at zero unless the viewport review proves that the source asset uses a different axis
 convention.
+
+## Delivered seventh slice: Blender workflow launcher
+
+The Rig workspace now keeps the exported bridge path and offers **Open Blender facial workflow**.
+The button finds the `.blend` next to the loaded `.msh` when possible, otherwise asks for the source
+`.blend`, detects Blender through the shared CLI wrapper, and starts Blender with
+`editor/facial_rig_blender_addon.py`. The addon still performs the explicit bridge import from the
+Mini MBM sidebar and the user saves the resulting `.blend` manually. The button tooltip contains the
+complete eight-step procedure, including the `X rotation = 90` conversion setting.
+
+This launcher does not assign weights. The Blender panel remains a preview-only armature import;
+weights or facial targets visible after a Mesh Debug round trip come from the source skeletal asset
+or the existing Mesh Debug import path, not from this launcher.
