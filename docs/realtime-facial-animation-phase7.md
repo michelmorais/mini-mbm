@@ -422,6 +422,15 @@ Action is optional interoperability, not a runtime requirement. Native MSH clip 
 separate follow-up slice; until it is implemented, imported MSH clips remain available in Preview
 and authored project clips can be reviewed directly in the editor.
 
+## Delivered seventeenth slice: dedicated facial clip timeline window
+
+Facial clip authoring now follows the existing animation-editor layout more closely. Clip metadata
+and expression-source selection remain in the Clips worktree, while time scrubbing, playback,
+expression-key insertion, weight capture, key selection, key removal, and validation live in a
+dedicated resizable timeline window anchored to the bottom of the screen. Closing that window does
+not discard the clip; it can be reopened from the Clips worktree. The interpolation selector keeps
+a fixed width so its value remains readable independently of the main panel width.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

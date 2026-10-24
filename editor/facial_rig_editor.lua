@@ -61,14 +61,15 @@ local state = {
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
-    clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false},
+    clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true},
     preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1},
     blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
 }
 
 local windows = {
-    main='facial_rig_main', camera='facial_rig_camera', report='facial_rig_report'
+    main='facial_rig_main', camera='facial_rig_camera', report='facial_rig_report',
+    clipTimeline='facial_clip_timeline'
 }
 
 local faceGuidePaths={
@@ -1134,7 +1135,7 @@ local function loadMesh(path, preserveProject)
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil,
         skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
-    state.clipEditor={selectedClip=state.project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false}
+    state.clipEditor={selectedClip=state.project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
     frameCamera(bounds)
     if requestedPreserve and not projectCompatible then
         setStatus(tLang.L('fre_mesh_project_topology_mismatch'),true)
@@ -1165,7 +1166,7 @@ local function newProject()
     state.weightAssignment={dirty=true,data=nil,modified=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
-    state.clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false}
+    state.clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -1199,7 +1200,7 @@ local function openProject()
             selectedPose=project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
         state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil,
             skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
-        state.clipEditor={selectedClip=project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false}
+        state.clipEditor={selectedClip=project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
     end
     clearHistory()
     setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
@@ -1919,6 +1920,7 @@ local function showClips()
             state.clipEditor.keySelected=1
             state.clipEditor.time=0
             state.clipEditor.renameDraft=clips[index].name
+            applyFacialWeights(tFacialClips.sample(clips[index],0,tFacialExpressions.targetNames(state.project.expressions)))
         end
     else
         tImGui.TextDisabled(tLang.L('fre_clips_no_clips'))
@@ -1970,12 +1972,9 @@ local function showClips()
     local loop=tImGui.Checkbox(tLang.L('fre_clip_loop'),clip.loop==true)
     if loop~=clip.loop then clip.loop=loop; markModified(); state.clipEditor.dirty=true end
     local interpolationLabels={tLang.L('fre_clip_interpolation_step'),tLang.L('fre_clip_interpolation_linear')}
+    tImGui.SetNextItemWidth(180)
     local interpolationChanged,interpolation=tImGui.Combo(tLang.L('fre_clip_interpolation'),clip.interpolation==0 and 1 or 2,interpolationLabels)
     if interpolationChanged then clip.interpolation=interpolation==1 and 0 or 1; markModified(); state.clipEditor.dirty=true end
-    tImGui.TextWrapped(tLang.L('fre_clip_timeline_help'))
-    tImGui.SetNextItemWidth(360)
-    local timeChanged,time=tImGui.SliderFloat(tLang.L('fre_clip_time'),state.clipEditor.time,0,clip.duration,'%.3f s')
-    if timeChanged then state.clipEditor.time=time; state.clipEditor.playing=false; applyFacialWeights(tFacialClips.sample(clip,time,tFacialExpressions.targetNames(state.project.expressions))) end
     local poseNames={}
     for _,pose in ipairs(state.project.expressions.poses or {}) do poseNames[#poseNames+1]=pose.name end
     if not state.clipEditor.sourceInitialized then
@@ -1992,49 +1991,97 @@ local function showClips()
             if selectedSource then applyExpressionPose(selectedSource) end
         end
     end
-    local selectedPose=state.project.expressions.poses[state.expressions.selectedPose]
-    if tImGui.Button(tLang.L('fre_clip_insert_expression_key'),{x=230,y=0}) then
-        pushUndoSnapshot()
-        local weights=selectedPose and tFacialExpressions.applyPose(state.project.expressions,selectedPose) or {}
-        tFacialClips.insertKey(clip,state.clipEditor.time,weights)
-        state.clipEditor.keySelected=1; markModified(); state.clipEditor.dirty=true
-    end
-    tImGui.SameLine()
-    if tImGui.Button(tLang.L('fre_clip_capture_key'),{x=190,y=0}) then
-        local weights={}
-        for _,entry in ipairs(state.expressions.catalog or {}) do
-            local ok,value=dpCall(function() return state.mesh:getFacialWeight(entry.name) end)
-            if ok then weights[entry.name]=tonumber(value) or 0 end
+    if not state.clipEditor.timelineVisible then
+        if tImGui.Button(tLang.L('fre_clip_show_timeline') .. '##freClipShowTimeline',{x=190,y=0}) then
+            state.clipEditor.timelineVisible=true
         end
-        pushUndoSnapshot(); tFacialClips.insertKey(clip,state.clipEditor.time,weights); markModified(); state.clipEditor.dirty=true
-    end
-    if tImGui.Button(tLang.L('fre_clip_play'),{x=110,y=0}) then state.clipEditor.playing=not state.clipEditor.playing end
-    local keys=clip.keys or {}
-    if tImGui.BeginTable('freFacialClipKeys',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
-        tImGui.TableSetupColumn(tLang.L('fre_clip_key_column'))
-        tImGui.TableSetupColumn(tLang.L('fre_clip_time_column'))
-        tImGui.TableSetupColumn(tLang.L('fre_clip_weight_count_column'))
-        tImGui.TableHeadersRow()
-        for index,key in ipairs(keys) do
-            tImGui.TableNextRow(); tImGui.TableSetColumnIndex(0)
-            if tImGui.Selectable(tLang.L('fre_clip_key') .. ' ' .. tostring(index),index==state.clipEditor.keySelected) then
-                state.clipEditor.keySelected=index; state.clipEditor.time=key.time; applyFacialWeights(tFacialClips.sample(clip,key.time,tFacialExpressions.targetNames(state.project.expressions)))
-            end
-            tImGui.TableSetColumnIndex(1); tImGui.Text(string.format('%.3f',key.time))
-            local count=0; for _,value in pairs(key.weights or {}) do if math.abs(tonumber(value) or 0)>0.0001 then count=count+1 end end
-            tImGui.TableSetColumnIndex(2); tImGui.Text(tostring(count))
-        end
-        tImGui.EndTable()
-    end
-    if #keys>0 and tImGui.Button(tLang.L('fre_clip_remove_key'),{x=150,y=0}) then
-        pushUndoSnapshot(); tFacialClips.removeKey(clip,state.clipEditor.keySelected); state.clipEditor.keySelected=math.max(1,math.min(state.clipEditor.keySelected,#keys-1)); markModified(); state.clipEditor.dirty=true
-    end
-    local report=tFacialClips.validate(clip)
-    if report.ok then textColoredWrapped({r=0.35,g=1,b=0.45,a=1},string.format(tLang.L('fre_clip_valid_fmt'),report.keyCount))
     else
-        textColoredWrapped({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_clip_invalid'))
-        for _,message in ipairs(report.errors) do tImGui.BulletText(message) end
+        tImGui.TextDisabled(tLang.L('fre_clip_timeline_help'))
     end
+end
+
+local function showFacialClipTimelineWindow()
+    if state.workspace~='clips' or not state.clipEditor.timelineVisible then return end
+    local clips=state.project.clips or {}
+    local clip=clips[state.clipEditor.selectedClip]
+    if not clip then return end
+    local screenWidth,screenHeight=mbm.getRealSizeScreen()
+    local windowHeight=280
+    local left=math.max(0,math.min(state.leftPanelRight or 440,screenWidth-420))
+    tImGui.SetNextWindowPos({x=left,y=math.max(0,screenHeight-windowHeight)},tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSize({x=math.max(420,screenWidth-left),y=windowHeight},tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSizeConstraints({x=420,y=210},{x=math.max(420,screenWidth),y=math.max(210,screenHeight)})
+    local opened,closed=tImGui.Begin(tLang.L('fre_clip_timeline_window')..'##'..windows.clipTimeline,true,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if closed then state.clipEditor.timelineVisible=false end
+    if opened then
+        tImGui.Text(string.format('%s: %s',tLang.L('fre_clip_select'),clip.name or ''))
+        tImGui.SameLine()
+        tImGui.Text(string.format(tLang.L('fre_clip_timeline_selection_fmt'),state.clipEditor.keySelected or 1))
+        tImGui.TextWrapped(tLang.L('fre_clip_timeline_help'))
+        tImGui.SetNextItemWidth(420)
+        local timeChanged,time=tImGui.SliderFloat(tLang.L('fre_clip_time')..'##freClipTimelineTime',state.clipEditor.time,0,clip.duration,'%.3f s')
+        if timeChanged then
+            state.clipEditor.time=time
+            state.clipEditor.playing=false
+            applyFacialWeights(tFacialClips.sample(clip,time,tFacialExpressions.targetNames(state.project.expressions)))
+        end
+        if tImGui.Button(tLang.L('fre_clip_insert_expression_key')..'##freClipTimelineInsert',{x=230,y=0}) then
+            local selectedPose=state.project.expressions.poses[state.expressions.selectedPose]
+            pushUndoSnapshot()
+            local weights=selectedPose and tFacialExpressions.applyPose(state.project.expressions,selectedPose) or {}
+            tFacialClips.insertKey(clip,state.clipEditor.time,weights)
+            state.clipEditor.keySelected=1; markModified(); state.clipEditor.dirty=true
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('fre_clip_capture_key')..'##freClipTimelineCapture',{x=190,y=0}) then
+            local weights={}
+            for _,entry in ipairs(state.expressions.catalog or {}) do
+                local ok,value=dpCall(function() return state.mesh:getFacialWeight(entry.name) end)
+                if ok then weights[entry.name]=tonumber(value) or 0 end
+            end
+            pushUndoSnapshot(); tFacialClips.insertKey(clip,state.clipEditor.time,weights); markModified(); state.clipEditor.dirty=true
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('fre_clip_play')..'##freClipTimelinePlay',{x=110,y=0}) then state.clipEditor.playing=not state.clipEditor.playing end
+        local keys=clip.keys or {}
+        if tImGui.BeginTable('freFacialClipTimelineKeys',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+            tImGui.TableSetupColumn(tLang.L('fre_clip_key_column'))
+            tImGui.TableSetupColumn(tLang.L('fre_clip_time_column'))
+            tImGui.TableSetupColumn(tLang.L('fre_clip_weight_count_column'))
+            tImGui.TableHeadersRow()
+            for index,key in ipairs(keys) do
+                tImGui.TableNextRow(); tImGui.TableSetColumnIndex(0)
+                if tImGui.Selectable(tLang.L('fre_clip_key')..' '..tostring(index)..'##freClipTimelineKey'..tostring(index),index==state.clipEditor.keySelected) then
+                    state.clipEditor.keySelected=index
+                    state.clipEditor.time=key.time
+                    state.clipEditor.playing=false
+                    applyFacialWeights(tFacialClips.sample(clip,key.time,tFacialExpressions.targetNames(state.project.expressions)))
+                end
+                tImGui.TableSetColumnIndex(1); tImGui.Text(string.format('%.3f',key.time))
+                local count=0
+                for _,value in pairs(key.weights or {}) do if math.abs(tonumber(value) or 0)>0.0001 then count=count+1 end end
+                tImGui.TableSetColumnIndex(2); tImGui.Text(tostring(count))
+            end
+            tImGui.EndTable()
+        end
+        tImGui.BeginDisabled(#keys==0)
+        if tImGui.Button(tLang.L('fre_clip_remove_key')..'##freClipTimelineRemove',{x=150,y=0}) then
+            pushUndoSnapshot()
+            tFacialClips.removeKey(clip,state.clipEditor.keySelected)
+            state.clipEditor.keySelected=math.max(1,math.min(state.clipEditor.keySelected,#keys-1))
+            markModified(); state.clipEditor.dirty=true
+        end
+        tImGui.EndDisabled()
+        local report=tFacialClips.validate(clip)
+        if report.ok then
+            textColoredWrapped({r=0.35,g=1,b=0.45,a=1},string.format(tLang.L('fre_clip_valid_fmt'),report.keyCount))
+        else
+            textColoredWrapped({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_clip_invalid'))
+            for _,message in ipairs(report.errors) do tImGui.BulletText(message) end
+        end
+    end
+    tImGui.End()
 end
 
 local function updateFacialClipPlayback(delta)
@@ -2433,6 +2480,7 @@ function onLoop(delta)
     showMenu()
     showMainPanel()
     showCameraPanel()
+    showFacialClipTimelineWindow()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
     if state.faceGuideDirty then refreshFaceGuide() end
     if state.rigPreview.dirty then refreshRigPreview() end
