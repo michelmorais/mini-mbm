@@ -52,7 +52,7 @@ namespace mbm::skeletal
         {
             source += " facialNormal += sampleFacialDelta(aFacialVertexId,float(facialTarget),";
             source += std::to_string(rowsPerTarget / 2u);
-            source += ".0)*facialWeight;";
+            source += ".0).xyz*facialWeight;";
         }
         source += " } }";
         if (includeNormals)
