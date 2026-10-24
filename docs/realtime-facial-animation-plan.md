@@ -131,8 +131,9 @@ timings and dense delta memory. For 20,000 vertices, 52 targets, and 8 active ta
 reference measured approximately 8.992 ms dense versus 2.454 ms sparse. Targets decoded from MSH files now carry
 indices for vertices with non-zero position or normal deltas; manually constructed fixtures retain
 the dense compatibility path. This is evidence for a later decision, not a hardware-independent
-budget. GPU morph evaluation remains deferred until representative game meshes or a target backend
-show that the optimized CPU path is insufficient.
+budget. GPU morph evaluation is enabled for the measured OpenGL ES 2 backend after the representative
+Megan/Fuzzy Fury profiles established the texture capacity and layout contract. Other backends keep
+the CPU reference until they provide an equivalent indexed resource.
 
 A local Fuzzy Fury fixture now provides that representative geometry: approximately 57.7k exported
 vertices, six facial targets, and one clip. It is currently a procedural facial test fixture without
@@ -184,18 +185,18 @@ facial-plus-skeletal review. The next transport milestone can implement OSC or w
 producing the same validated packet table.
 
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
-rigged facial-plus-skeletal asset. The first GPU composition slice now keeps morph evaluation on the
-CPU and reuses the existing GPU LBS shader for the skeletal stage, avoiding a second CPU deformation
-pass while preserving the morph-then-skin contract. It is selected only for valid LBS data and a
-backend with measured palette capacity; the CPU path remains explicit and is the fallback.
-The next optimization slice may add GPU morph evaluation for explicitly selected backends, with CPU
-fallback where supported. Establish limits for active targets, vertex counts, buffer memory, and
-shader resources; do not assume one backend's capacity applies to all others.
+rigged facial-plus-skeletal asset. The first GPU composition slice reuses the existing GPU LBS shader
+for the skeletal stage, avoiding a second CPU deformation pass while preserving the morph-then-skin
+contract. The GLES2 morph slice now uploads indexed position/normal deltas to a float texture and
+samples them in the vertex shader with per-frame weights. It is selected only after capability and
+layout validation; failed uploads or shader specialization fall back to CPU. Establish limits for
+active targets, vertex counts, buffer memory, and shader resources; do not assume one backend's
+capacity applies to all others.
 
-The current GLES2 runtime now exposes this boundary in `getFacialAnimationReport`: the skeletal
-stage may be `gpu-skeletal-composite`, while the morph stage remains `cpu-reference` with an explicit
-`gpu-morph-deferred-gles2` status. This diagnostic is a prerequisite for backend-specific GPU morph
-resources and prevents a partial GPU path from being reported as complete facial GPU evaluation.
+The current GLES2 runtime exposes both stages in `getFacialAnimationReport`: the skeletal stage may
+be `gpu-skeletal-composite`, while the morph stage reports `gpu-indexed-deltas` and
+`gpu-morph-ready` when the texture/shader path is active. Fallback statuses are explicit, so a
+partial or failed GPU path is not reported as complete facial GPU evaluation.
 At graphics initialization, GLES2 now measures vertex texture units, maximum texture size, and
 floating-point texture support. These prerequisites are recorded independently from implementation
 readiness so a future indexed-delta shader can be enabled only after parity tests pass.

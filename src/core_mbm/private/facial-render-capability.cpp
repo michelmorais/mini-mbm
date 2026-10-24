@@ -38,7 +38,9 @@ namespace mbm::facial
         // The resource prerequisites are measured separately from implementation support.
         // The GLES2 shader path still reports this as deferred until indexed delta sampling
         // is implemented and parity-tested.
-        result.supportsIndexedDeltas = result.measured && hasFloatTexture;
+        // Texture unit 6 is reserved for the morph stream; stages 0-5 remain
+        // available for the material and animation textures.
+        result.supportsIndexedDeltas = result.measured && hasFloatTexture && maxVertexTextureUnits >= 7u;
         return result;
     }
 

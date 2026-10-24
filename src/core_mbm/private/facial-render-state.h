@@ -42,9 +42,12 @@ namespace mbm::facial
         const char *morphExecutionPath = "cpu-reference";
         const char *morphStatus = "gpu-morph-deferred-gles2";
         GPU_MORPH_CAPABILITY morphCapability;
+        GPU_MORPH_LAYOUT morphLayout;
         bool ready = false, dirty = true, uploadDirty = true, initialized = false;
         bool clipPlaying = false, clipPaused = false;
         bool hadSkin = false, gpuSkinning = false, gpuSkinningUploaded = false;
+        bool gpuMorph = false, gpuMorphShaderCompiled = false, gpuMorphUploaded = false;
+        const SHADER *gpuMorphShaderOwner = nullptr;
         bool poseAdvancedForRender = false;
         RENDER_STATE() { bounds.lsCube.push_back(new CUBE()); }
     };

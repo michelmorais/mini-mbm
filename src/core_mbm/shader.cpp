@@ -556,10 +556,16 @@ namespace mbm
     }
 
     bool SHADER::compileShader(BASE_SHADER *pixel, BASE_SHADER *vertex, FVF_PROVIDE_BY_ENGINE fvf,
-                               uint32_t paletteSize, SKELETAL_SHADER_METHOD method)
+                               uint32_t paletteSize, SKELETAL_SHADER_METHOD method,
+                               uint32_t facialMorphTargetCount, uint32_t facialMorphTextureWidth,
+                               uint32_t facialMorphTextureHeight, uint32_t facialMorphRowsPerTarget,
+                               bool facialMorphHasNormals)
     {
         resetNormalMappingVariant();
-        const bool compiled = compileBackend(pixel, vertex, fvf, paletteSize, method);
+        const bool compiled = compileBackend(pixel, vertex, fvf, paletteSize, method,
+                                             facialMorphTargetCount, facialMorphTextureWidth,
+                                             facialMorphTextureHeight, facialMorphRowsPerTarget,
+                                             facialMorphHasNormals);
 #if USE_NORMAL_MAPPING_3D
         if (compiled && backendData)
         {
@@ -573,7 +579,8 @@ namespace mbm
     }
 
     bool SHADER::render(const BUFFER_GL *buffer, const RENDERIZABLE *owner, int32_t subset,
-                        const float *palette, uint32_t paletteSize) const
+                        const float *palette, uint32_t paletteSize,
+                        const float *facialMorphWeights, uint32_t facialMorphWeightCount) const
     {
 #if USE_NORMAL_MAPPING_3D
         if (backendData && backendData->canSelectNormalMapping && (!owner || owner->is3DObject()) &&
@@ -582,7 +589,8 @@ namespace mbm
             LIGHT_TARGET target = LIGHT_TARGET_3D;
             DEVICE::getInstance()->getLightTargetForCurrentRender(target);
             if (target != LIGHT_TARGET_3D)
-                return renderBackend(buffer, owner, subset, palette, paletteSize);
+                return renderBackend(buffer, owner, subset, palette, paletteSize,
+                                     facialMorphWeights, facialMorphWeightCount);
             const uint32_t first = subset < 0 ? 0u : static_cast<uint32_t>(subset);
             const uint32_t last = subset < 0 ? buffer->totalSubset : first + 1u;
             if (last > buffer->totalSubset) return false;
@@ -595,26 +603,31 @@ namespace mbm
                     auto mapped = std::make_unique<SHADER>();
                     mapped->setUseReservedLightDefault(backendData->useReservedLightDefault);
                     mapped->backendData->normalMappingVariant = true;
-                    if (!mapped->compileBackend(pShader, vShader, backendData->fvf, 0, SKELETAL_SHADER_METHOD::NONE))
+                    if (!mapped->compileBackend(pShader, vShader, backendData->fvf, 0, SKELETAL_SHADER_METHOD::NONE,
+                                                0, 0, 0, 0, false))
                         return false;
                     backendData->mapped = std::move(mapped);
                 }
                 const SHADER *mapped = backendData->mapped.get();
                 if (!mapped->hasNormalMappingInterface())
-                    return renderBackend(buffer, owner, subset, palette, paletteSize);
+                    return renderBackend(buffer, owner, subset, palette, paletteSize,
+                                         facialMorphWeights, facialMorphWeightCount);
                 if (!normal_map::ensureUploaded(buffer)) return false;
                 if (mappedCount == last - first)
-                    return mapped->renderBackend(buffer, owner, subset, palette, paletteSize);
+                    return mapped->renderBackend(buffer, owner, subset, palette, paletteSize,
+                                                 facialMorphWeights, facialMorphWeightCount);
                 for (uint32_t i = first; i < last; ++i)
                 {
                     const SHADER *selected = normal_map::isActive(buffer, i) ? mapped : this;
-                    if (!selected->renderBackend(buffer, owner, static_cast<int32_t>(i), palette, paletteSize)) return false;
+                    if (!selected->renderBackend(buffer, owner, static_cast<int32_t>(i), palette, paletteSize,
+                                                 facialMorphWeights, facialMorphWeightCount)) return false;
                 }
                 return true;
             }
         }
 #endif
-        return renderBackend(buffer, owner, subset, palette, paletteSize);
+        return renderBackend(buffer, owner, subset, palette, paletteSize,
+                             facialMorphWeights, facialMorphWeightCount);
     }
 
     bool SHADER::usesPureDefaultShaderPair() const noexcept

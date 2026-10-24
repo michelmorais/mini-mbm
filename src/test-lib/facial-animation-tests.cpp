@@ -155,13 +155,16 @@ namespace
     { for (unsigned i=0;i<4;++i) bytes[offset+i]=static_cast<uint8_t>(v>>(8*i)); }
     void foundations()
     {
-        const auto morphCapability = facial::calculateGpuMorphCapability(4, 4096, true);
+        const auto morphCapability = facial::calculateGpuMorphCapability(8, 4096, true);
         expect(morphCapability.measured && morphCapability.supportsIndexedDeltas &&
-            morphCapability.maxVertexTextureUnits==4 && morphCapability.maxTextureSize==4096,
+            morphCapability.maxVertexTextureUnits==8 && morphCapability.maxTextureSize==4096,
             "GPU morph capability prerequisites are measured");
         const auto unavailableMorph = facial::calculateGpuMorphCapability(0, 4096, true);
         expect(!unavailableMorph.measured && !unavailableMorph.supportsIndexedDeltas,
             "GPU morph capability rejects missing vertex texture units");
+        const auto insufficientUnits = facial::calculateGpuMorphCapability(6, 4096, true);
+        expect(insufficientUnits.measured && !insufficientUnits.supportsIndexedDeltas,
+            "GPU morph capability reserves texture unit 6 for indexed deltas");
         facial::ASSET layoutAsset;
         layoutAsset.vertexCount = 34164;
         layoutAsset.targets.resize(6);

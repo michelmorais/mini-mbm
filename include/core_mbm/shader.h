@@ -245,12 +245,19 @@ namespace mbm
         API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader,
                                     FVF_PROVIDE_BY_ENGINE fvf,
                                     uint32_t skeletalPaletteSize = 0,
-                                    SKELETAL_SHADER_METHOD skeletalMethod = SKELETAL_SHADER_METHOD::LBS);
+                                    SKELETAL_SHADER_METHOD skeletalMethod = SKELETAL_SHADER_METHOD::LBS,
+                                    uint32_t facialMorphTargetCount = 0,
+                                    uint32_t facialMorphTextureWidth = 0,
+                                    uint32_t facialMorphTextureHeight = 0,
+                                    uint32_t facialMorphRowsPerTarget = 0,
+                                    bool facialMorphHasNormals = false);
         API_IMPL bool isLoad() const noexcept;
         API_IMPL bool render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner = nullptr,
                              const int32_t subsetIndex = -1,
                              const float *skeletalPaletteRows = nullptr,
-                             uint32_t skeletalPaletteFloatCount = 0) const;
+                             uint32_t skeletalPaletteFloatCount = 0,
+                             const float *facialMorphWeights = nullptr,
+                             uint32_t facialMorphWeightCount = 0) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
         // 3D fluid tests scene depth without writing transparent quad depth.
@@ -260,9 +267,10 @@ namespace mbm
         API_IMPL void update();
       private:
         bool compileBackend(BASE_SHADER *, BASE_SHADER *, FVF_PROVIDE_BY_ENGINE,
-                            uint32_t, SKELETAL_SHADER_METHOD);
+                            uint32_t, SKELETAL_SHADER_METHOD,
+                            uint32_t, uint32_t, uint32_t, uint32_t, bool);
         bool renderBackend(const BUFFER_GL *, const RENDERIZABLE *, int32_t,
-                           const float *, uint32_t) const;
+                           const float *, uint32_t, const float *, uint32_t) const;
         bool usesNormalMappingVariant() const noexcept;
         bool hasNormalMappingInterface() const noexcept;
         void resetNormalMappingVariant() noexcept;

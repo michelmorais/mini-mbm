@@ -52,7 +52,7 @@ namespace
             "attribute vec4 aBoneWeights;attribute float aSample;";
         appendGlesSkeletalFunctions(vertexSource, paletteSize, method);
         vertexSource += "varying vec3 vPosition;varying vec3 vNormal;void main(){";
-        appendGlesSkeletalDeformation(vertexSource, method, true);
+        appendGlesSkeletalDeformation(vertexSource, method, true, false);
         vertexSource += "vPosition=skinnedPosition.xyz;vNormal=skinnedNormal;"
             "gl_Position=vec4(aSample,0.0,0.0,1.0);gl_PointSize=1.0;}";
         const char *fragmentSource =

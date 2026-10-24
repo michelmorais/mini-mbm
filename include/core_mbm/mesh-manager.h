@@ -855,7 +855,7 @@ namespace mbm
         bool advanceFacial(facial::RENDER_STATE &state, float delta) const;
         bool prepareFacial(facial::RENDER_STATE &state, const SKELETAL_ANIMATION_PLAYER *player,
                            bool useGpuSkinning) const;
-        bool renderFacial(facial::RENDER_STATE &state, const SHADER *shader, const RENDERIZABLE *owner) const;
+        bool renderFacial(facial::RENDER_STATE &state, SHADER *shader, const RENDERIZABLE *owner) const;
         uint32_t findFacialTarget(const char *name) const noexcept;
         uint32_t findFacialClip(const char *name) const noexcept;
         uint32_t getTotalFacialTargets() const noexcept;

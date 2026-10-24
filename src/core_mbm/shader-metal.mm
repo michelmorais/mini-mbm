@@ -1341,7 +1341,8 @@ namespace mbm
 
     bool SHADER::compileBackend(BASE_SHADER* ptrPshader, BASE_SHADER* ptrVshader,
                                FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
-                               const SKELETAL_SHADER_METHOD skeletalMethod)
+                               const SKELETAL_SHADER_METHOD skeletalMethod,
+                               const uint32_t, const uint32_t, const uint32_t, const uint32_t, const bool)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE) return false;
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1500,7 +1501,8 @@ namespace mbm
 
     bool SHADER::renderBackend(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
-                        const uint32_t skeletalPaletteFloatCount) const
+                        const uint32_t skeletalPaletteFloatCount,
+                        const float *, const uint32_t) const
     {
         const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();

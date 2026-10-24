@@ -261,6 +261,14 @@ GLint checkAttribLocationOptional(const GLint location, const char* name);
 #endif
 
 #ifdef _DEBUG
+#define GLUniform1fv(location, count, value)                                                                              \
+    glUniform1fv(location, count, value);                                                                                 \
+    log_util::checkGlError(__FILE__, __LINE__);
+#else
+    #define GLUniform1fv(location, count, value) glUniform1fv(location, count, value);
+#endif
+
+#ifdef _DEBUG
 #define GLUniform2f(location, x, y)                                                                                      \
     glUniform2f(location, x, y);                                                                                         \
     log_util::checkGlError(__FILE__, __LINE__);

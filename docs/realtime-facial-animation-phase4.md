@@ -57,35 +57,36 @@ allowing high-poly meshes whose deduplicated vertex count remains below 65,535.
 
 ## Decision
 
-The sparse CPU reference remains the reference for morph evaluation. The first GPU composition slice
-is now implemented (2026-10-24) for the existing OpenGL ES skeletal backend: the CPU evaluates morph deltas once
-per facial change, then the regular GPU LBS shader applies the skeletal palette to that morphed buffer.
-This removes the second CPU pass observed on the Megan fixture without introducing a second draw. The
-path is selected automatically when the mesh has a valid LBS canonical skeleton and the backend has
-palette capacity; an explicit CPU request remains available and unsupported cases fall back safely.
+The sparse CPU reference remains the parity oracle for morph evaluation. The first GPU composition
+slice is implemented (2026-10-24) for the existing OpenGL ES skeletal backend. Its GPU morph variant
+samples indexed position/normal deltas and its GPU LBS variant applies the skeletal palette in the
+same vertex stage, preserving morph-then-skin without a second draw. The CPU path remains available
+for parity checks and safe fallback when a resource or shader prerequisite is unavailable.
 The benchmark command still compares dense and sparse morph output against the same target weights;
 both paths must retain the same output tolerance.
 
-The GPU composition report is exposed as `gpu-skeletal-composite`. It is not yet full GPU morph
-evaluation: target deltas and normals are still produced on the CPU, custom vertex shaders and
-normal-map facial materials remain unsupported, and DQS facial composition is deferred. The next
-slice can move the sparse target data and active weights into backend-specific shader resources, with
-the same CPU fallback and parity checks.
+The GPU composition report remains exposed as `gpu-skeletal-composite` for the skeletal stage. The
+next GLES2 slice now moves dense position and normal deltas into a measured floating-point texture,
+indexes them with a canonical vertex-ID stream, and sends current target weights to the vertex
+shader. The morph report is `gpu-indexed-deltas` with `gpu-morph-ready` while this path is active.
+Custom vertex shaders, normal-map facial materials, and DQS facial composition remain unsupported.
+If texture creation or shader specialization fails, the renderer switches back to the CPU reference
+path and reports the reason instead of dropping the mesh.
 
-The runtime now reports these two decisions separately. `morphExecutionPath` is currently
-`cpu-reference` and `morphStatus` is `gpu-morph-deferred-gles2` on the GLES2 backend when the
-prerequisites are measured. If initialization cannot measure vertex texture units or floating-point
-texture support, the report says `gpu-morph-capability-unmeasured` or
-`gpu-morph-resource-unavailable`. MeshDebug and the Lua report show this explicitly, so
-`gpu-skeletal-composite` is not mistaken for full GPU facial evaluation. A future backend must
-provide a texture-buffer, SSBO, or equivalent indexed resource before it can advertise a GPU morph
-path; vertex attributes alone cannot carry the Megan-scale delta set safely.
+The runtime reports the skeletal and morph stages separately. `morphExecutionPath` is
+`gpu-indexed-deltas` when the GLES2 texture/shader path is active and `cpu-reference` after a safe
+fallback. `morphStatus` distinguishes `gpu-morph-ready`, capability/layout failures, upload
+failures, and shader failures. If initialization cannot measure vertex texture units or
+floating-point texture support, the report still says `gpu-morph-capability-unmeasured` or
+`gpu-morph-resource-unavailable`. MeshDebug and the Lua report show this explicitly. Other backends
+still need an equivalent indexed resource before advertising GPU morph evaluation.
 
-The GPU morph layout planner is now covered before any shader upload. It tiles a target's vertex
+The GPU morph layout planner is covered independently from rendering. It tiles a target's vertex
 deltas across the measured texture width, reserves a second row block for normal deltas, and rejects
 layouts whose total height exceeds the device limit. The Megan fixture (34,164 vertices, six targets,
 position and normal deltas) produces a 4,096 x 108 layout on the representative test capability.
-This deterministic layout is the handoff for the next shader/upload slice.
+The GLES2 upload and shader path consume this layout without changing mesh topology or creating a
+second draw.
 
 The Fuzzy Fury fixture provides that representative high-poly measurement: its 57,746-vertex,
 six-target deformation measured approximately 20.7 ms dense and 5.9 ms sparse per evaluation in

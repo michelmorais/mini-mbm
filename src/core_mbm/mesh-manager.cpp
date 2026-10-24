@@ -21,6 +21,7 @@
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
 #include "private/facial-render-state.h"
+#include "private/facial-gpu-upload.h"
 #include "private/skeletal-parity-asset.h"
 #include "private/normal-map-upload.h"
 #include "private/mesh-simplifier.h"
@@ -12372,6 +12373,21 @@ namespace mbm
             if (impl->skeletalBindHasNormals && target.normals.empty()) return fail("facial-normal-deltas-required");
             state.weights.push_back(target.defaultWeight);
         }
+        state.morphLayout = {};
+        state.gpuMorph = false;
+        if (state.morphCapability.supportsIndexedDeltas)
+        {
+            std::string layoutError;
+            if (facial::buildGpuMorphLayout(asset, state.morphCapability, impl->skeletalBindHasNormals,
+                                             state.morphLayout, layoutError))
+            {
+                state.gpuMorph = true;
+                state.morphExecutionPath = "gpu-indexed-deltas";
+                state.morphStatus = "gpu-morph-ready";
+            }
+            else
+                state.morphStatus = "gpu-morph-layout-unavailable";
+        }
         state.manualOverrides.assign(asset.targets.size(), 0);
         state.sampledWeights.resize(asset.targets.size());
         state.clipIndex = UINT32_MAX;
@@ -12519,11 +12535,12 @@ namespace mbm
         const auto fail = [&state](const char *reason) { state.status = reason; return false; };
         if (skin && player->impl->resolvedSkinningMethod != SKELETAL_SHADER_METHOD::LBS)
             return fail("facial-requires-lbs");
-        const bool geometryChanged = state.dirty || state.gpuSkinning != useGpuSkinning;
+        const bool geometryChanged = state.positions.empty() || (!state.gpuMorph && state.dirty) ||
+            state.gpuSkinning != useGpuSkinning;
         const bool poseChanged = skin != state.hadSkin || (skin && state.palette != player->impl->paletteRows) ||
             state.gpuSkinning != useGpuSkinning;
         if (!state.dirty && !poseChanged) return true;
-        if (state.dirty && !facial::deform(impl->facialAsset, impl->skeletalBindPositions,
+        if (state.dirty && !state.gpuMorph && !facial::deform(impl->facialAsset, impl->skeletalBindPositions,
                 impl->skeletalBindNormals, state.weights, state.morphPositions, state.morphNormals, state.status))
             return false;
         if (skin && !gpuSkin)
@@ -12536,8 +12553,8 @@ namespace mbm
         }
         else if (geometryChanged)
         {
-            state.positions = state.morphPositions;
-            state.normals = state.morphNormals;
+            state.positions = state.gpuMorph ? impl->skeletalBindPositions : state.morphPositions;
+            state.normals = state.gpuMorph ? impl->skeletalBindNormals : state.morphNormals;
         }
         // A centered conservative bound also covers engines/callers that consume only dimensions.
         // A GPU-only palette change does not alter the uploaded morph geometry, so avoid rescanning
@@ -12553,6 +12570,22 @@ namespace mbm
                 extent.y = std::max(extent.y, std::fabs(p.y));
                 extent.z = std::max(extent.z, std::fabs(p.z));
             }
+            if (state.gpuMorph)
+            {
+                for (const facial::TARGET &target : impl->facialAsset.targets)
+                {
+                    if (target.positions.size() != impl->skeletalBindPositions.size())
+                        return fail("facial-gpu-bound-mismatch");
+                    for (size_t vertex = 0; vertex < impl->skeletalBindPositions.size(); ++vertex)
+                    {
+                        const VEC3 &base = impl->skeletalBindPositions[vertex];
+                        const VEC3 &delta = target.positions[vertex];
+                        extent.x = std::max(extent.x, std::fabs(base.x) + std::fabs(delta.x));
+                        extent.y = std::max(extent.y, std::fabs(base.y) + std::fabs(delta.y));
+                        extent.z = std::max(extent.z, std::fabs(base.z) + std::fabs(delta.z));
+                    }
+                }
+            }
             state.bounds.lsCube[0]->halfDim = extent;
         }
         state.hadSkin = skin;
@@ -12563,13 +12596,13 @@ namespace mbm
         if (skin) state.palette = player->impl->paletteRows;
         else state.palette.clear();
         state.dirty = false;
-        if (geometryChanged) state.uploadDirty = true;
+        if (geometryChanged) state.uploadDirty = !state.gpuMorph;
         if (geometryChanged || (!gpuSkin && poseChanged)) ++state.evaluations;
         state.status = "ready";
         return true;
     }
 
-    bool MESH_MBM::renderFacial(facial::RENDER_STATE &state, const SHADER *shader, const RENDERIZABLE *owner) const
+    bool MESH_MBM::renderFacial(facial::RENDER_STATE &state, SHADER *shader, const RENDERIZABLE *owner) const
     {
         if (!state.ready || !shader || state.status != "ready") return false;
         const uint32_t vertexCount = static_cast<uint32_t>(state.positions.size());
@@ -12598,9 +12631,16 @@ namespace mbm
                     indexStart[subsetIndex] = source.subset[subsetIndex].indexStart;
                     indexCount[subsetIndex] = source.subset[subsetIndex].indexCount;
                 }
-                ok = state.buffer.pBufferGL->loadBufferDynamic(impl->skeletalBindIndices.data(),
-                    source.totalSubset, indexStart.data(), indexCount.data(),
-                    impl->skeletalBindHasNormals, impl->skeletalBindHasUvs, &impl->info_mode);
+                if (state.gpuMorph)
+                    ok = state.buffer.pBufferGL->loadBuffer(impl->skeletalBindPositions.data(),
+                        impl->skeletalBindHasNormals ? impl->skeletalBindNormals.data() : nullptr,
+                        impl->skeletalBindHasUvs ? impl->skeletalBindUvs.data() : nullptr,
+                        vertexCount, impl->skeletalBindIndices.data(), source.totalSubset,
+                        indexStart.data(), indexCount.data(), &impl->info_mode);
+                else
+                    ok = state.buffer.pBufferGL->loadBufferDynamic(impl->skeletalBindIndices.data(),
+                        source.totalSubset, indexStart.data(), indexCount.data(),
+                        impl->skeletalBindHasNormals, impl->skeletalBindHasUvs, &impl->info_mode);
             }
             else
             {
@@ -12632,9 +12672,59 @@ namespace mbm
             state.initialized = true;
         }
 
+        if (state.gpuMorph)
+        {
+            if (!state.gpuMorphUploaded)
+            {
+                if (!facial::uploadGpuMorphStream(state.buffer.pBufferGL, impl->facialAsset,
+                                                  state.morphLayout))
+                {
+                    state.gpuMorph = false;
+                    state.gpuMorphShaderCompiled = false;
+                    state.gpuMorphShaderOwner = nullptr;
+                    state.dirty = true;
+                    state.uploadDirty = true;
+                    state.morphExecutionPath = "cpu-reference";
+                    state.morphStatus = "gpu-morph-upload-failed";
+                }
+                else
+                    state.gpuMorphUploaded = true;
+            }
+            if (state.gpuMorph && (!state.gpuMorphShaderCompiled || state.gpuMorphShaderOwner != shader))
+            {
+                const uint32_t paletteSize = state.gpuSkinning
+                    ? static_cast<uint32_t>(state.palette.size() / 12u) : 0u;
+                shader->releaseShader();
+                const bool compiled = shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf,
+                    paletteSize, paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE,
+                    state.morphLayout.targetCount, state.morphLayout.textureWidth,
+                    state.morphLayout.textureHeight, state.morphLayout.rowsPerTarget,
+                    state.morphLayout.hasNormals);
+                if (!compiled)
+                {
+                    state.gpuMorph = false;
+                    state.dirty = true;
+                    state.uploadDirty = true;
+                    state.gpuMorphShaderCompiled = false;
+                    state.gpuMorphShaderOwner = nullptr;
+                    state.morphExecutionPath = "cpu-reference";
+                    state.morphStatus = "gpu-morph-shader-unavailable";
+                    if (!shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf,
+                                               paletteSize,
+                                               paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE))
+                        return false;
+                }
+                else
+                {
+                    state.gpuMorphShaderCompiled = true;
+                    state.gpuMorphShaderOwner = shader;
+                }
+            }
+        }
+
         // The facial buffer uses the same bind-vertex order as the canonical skeletal
-        // weights. Upload these attributes once so the existing GPU LBS shader can skin
-        // the CPU-morphed positions without a second CPU deformation pass.
+        // weights. Upload these attributes once so the GPU path can apply either the
+        // indexed morph texture or the CPU-morphed positions before skeletal skinning.
         if (state.gpuSkinning && !impl->gpuSkinningInput.ready())
         {
             state.status = "facial-gpu-skinning-input-unavailable";
@@ -12665,8 +12755,25 @@ namespace mbm
         device->setRenderMaterial(impl->material);
         const bool result = shader->render(state.buffer.pBufferGL, owner, -1,
                                            state.gpuSkinning ? state.palette.data() : nullptr,
-                                           state.gpuSkinning ? static_cast<uint32_t>(state.palette.size()) : 0u);
+                                           state.gpuSkinning ? static_cast<uint32_t>(state.palette.size()) : 0u,
+                                           state.gpuMorph ? state.weights.data() : nullptr,
+                                           state.gpuMorph ? static_cast<uint32_t>(state.weights.size()) : 0u);
         device->clearRenderMaterial();
+        if (!result && state.gpuMorph)
+        {
+            state.gpuMorph = false;
+            state.gpuMorphShaderCompiled = false;
+            state.gpuMorphShaderOwner = nullptr;
+            state.dirty = true;
+            state.uploadDirty = true;
+            state.morphExecutionPath = "cpu-reference";
+            state.morphStatus = "gpu-morph-draw-failed";
+            shader->releaseShader();
+            const uint32_t paletteSize = state.gpuSkinning
+                ? static_cast<uint32_t>(state.palette.size() / 12u) : 0u;
+            shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf, paletteSize,
+                                  paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE);
+        }
         if (!result) state.status = "facial-draw-failed";
         return result;
     }

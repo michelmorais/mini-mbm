@@ -1045,7 +1045,10 @@ namespace mbm
         if (facialState && facialState->targetCount)
         {
             if (fx.fxVS->getCurrentShader() || fx.fxPS->getCurrentShader())
-            { facialState->status = "facial-custom-shader-unsupported"; return false; }
+            {
+                facialState->status = "facial-custom-shader-unsupported";
+                return false;
+            }
             rendered = this->mesh->renderFacial(*facialState, &fx.shader, this);
         }
         else if (hasSkeletal)
