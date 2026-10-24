@@ -31,6 +31,7 @@ tFacialBindingPlan = require "facial_rig_binding_plan"
 tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tFacialExpressions = require "facial_rig_expressions"
+tFacialClips = require "facial_rig_clips"
 tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
 
@@ -60,6 +61,7 @@ local state = {
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft=''},
+    clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true},
     preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1},
     blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
@@ -375,7 +377,9 @@ local function historySnapshot()
         selectedRole=state.selectedRole,selectedLandmark=state.selectedLandmark,
         selectedMask=state.selectedMask,landmarkEditMode=state.landmarkEditMode,
         selectedExpressionTarget=state.expressions.selectedTarget,
-        selectedExpressionPose=state.expressions.selectedPose}
+        selectedExpressionPose=state.expressions.selectedPose,
+        selectedClip=state.clipEditor.selectedClip,keySelected=state.clipEditor.keySelected,
+        clipTime=state.clipEditor.time,clipPlaying=state.clipEditor.playing}
 end
 
 local function pushUndoSnapshot()
@@ -395,6 +399,10 @@ local function restoreHistorySnapshot(snapshot)
     state.expressions.selectedTarget=snapshot.selectedExpressionTarget or 1
     state.expressions.selectedPose=snapshot.selectedExpressionPose or 1
     state.expressions.renameDraft=''
+    state.clipEditor.selectedClip=snapshot.selectedClip or 1
+    state.clipEditor.keySelected=snapshot.keySelected or 1
+    state.clipEditor.time=snapshot.clipTime or 0
+    state.clipEditor.playing=snapshot.clipPlaying==true
     state.project.selectedRole=state.selectedRole
     state.project.selectedLandmark=state.selectedLandmark
     state.project.selectedMask=state.selectedMask
@@ -1031,15 +1039,19 @@ local function refreshExpressionCatalog()
     state.expressions.catalogDirty=false
 end
 
-local function applyExpressionPose(pose)
-    if not pose or not state.mesh then return false end
-    local weights=tFacialExpressions.applyPose(state.project.expressions,pose)
+local function applyFacialWeights(weights)
+    if not state.mesh then return false end
     local success=true
     for _,entry in ipairs(state.expressions.catalog or {}) do
         local ok,applied=dpCall(function() return state.mesh:setFacialWeight(entry.name,weights[entry.name] or 0) end)
         if not ok or applied==false then success=false end
     end
     return success
+end
+
+local function applyExpressionPose(pose)
+    if not pose then return false end
+    return applyFacialWeights(tFacialExpressions.applyPose(state.project.expressions,pose))
 end
 
 local function refreshPreviewSkeletalCatalog()
@@ -1122,6 +1134,7 @@ local function loadMesh(path, preserveProject)
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft=''}
     state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil,
         skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
+    state.clipEditor={selectedClip=state.project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true}
     frameCamera(bounds)
     if requestedPreserve and not projectCompatible then
         setStatus(tLang.L('fre_mesh_project_topology_mismatch'),true)
@@ -1152,6 +1165,7 @@ local function newProject()
     state.weightAssignment={dirty=true,data=nil,modified=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft=''}
     state.preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
+    state.clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true}
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -1185,6 +1199,7 @@ local function openProject()
             selectedPose=project.expressions.selectedPose or 1,nameDraft='',renameDraft=''}
         state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil,
             skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
+        state.clipEditor={selectedClip=project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true}
     end
     clearHistory()
     setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
@@ -1200,6 +1215,7 @@ local function saveProject(path)
     state.project.expressions=state.project.expressions or tFacialExpressions.new()
     state.project.expressions.selectedTarget=state.expressions.selectedTarget or 1
     state.project.expressions.selectedPose=state.expressions.selectedPose or 1
+    state.project.selectedClip=state.clipEditor.selectedClip or 1
     state.project.language=tLang.getLanguage()
     local saved,errorMessage=tFacialProject.save(state.project,path,tUtil.save)
     if not saved then
@@ -1879,6 +1895,148 @@ local function showExpressions()
     end
 end
 
+local function showClips()
+    tImGui.TextWrapped(tLang.L('fre_clips_help'))
+    if state.expressions.catalogDirty then refreshExpressionCatalog() end
+    if state.clipEditor.dirty then
+        state.project.clips=tFacialClips.normalize({clips=state.project.clips}).clips
+        state.clipEditor.dirty=false
+    end
+    local clips=state.project.clips
+    local names={}
+    for _,clip in ipairs(clips) do names[#names+1]=clip.name end
+    if #names>0 then
+        state.clipEditor.selectedClip=math.max(1,math.min(state.clipEditor.selectedClip,#names))
+        state.project.selectedClip=state.clipEditor.selectedClip
+        tImGui.SetNextItemWidth(280)
+        local changed,index=tImGui.Combo(tLang.L('fre_clip_select'),state.clipEditor.selectedClip,names)
+        if changed then
+            state.clipEditor.selectedClip=index
+            state.project.selectedClip=index
+            state.clipEditor.keySelected=1
+            state.clipEditor.time=0
+            state.clipEditor.renameDraft=clips[index].name
+        end
+    else
+        tImGui.TextDisabled(tLang.L('fre_clips_no_clips'))
+    end
+    tImGui.SetNextItemWidth(250)
+    local draftChanged,draft=tImGui.InputText(tLang.L('fre_clip_name') .. '##freClipName',state.clipEditor.nameDraft or '')
+    if draftChanged then state.clipEditor.nameDraft=draft end
+    if tImGui.Button(tLang.L('fre_clip_add'),{x=190,y=0}) then
+        pushUndoSnapshot()
+        local clipState={clips=clips,selectedClip=state.clipEditor.selectedClip}
+        local clip,errorMessage=tFacialClips.addClip(clipState,state.clipEditor.nameDraft)
+        if clip then
+            state.project.clips=clipState.clips
+            clips=state.project.clips
+            state.clipEditor.selectedClip=#clips
+            state.project.selectedClip=state.clipEditor.selectedClip
+            state.clipEditor.nameDraft=''
+            state.clipEditor.renameDraft=clip.name
+            state.clipEditor.keySelected=1
+            state.clipEditor.time=0
+            markModified(); state.clipEditor.dirty=true
+        else
+            table.remove(state.undoStack)
+            setStatus(tLang.L('fre_clip_add_failed') .. ': ' .. tostring(errorMessage or ''),true)
+        end
+    end
+    local clip=clips[state.clipEditor.selectedClip]
+    if not clip then return end
+    if state.clipEditor.renameDraft=='' then state.clipEditor.renameDraft=clip.name end
+    tImGui.Separator()
+    tImGui.SetNextItemWidth(250)
+    local renameChanged,rename=tImGui.InputText(tLang.L('fre_clip_rename') .. '##freClipRename',state.clipEditor.renameDraft or clip.name or '')
+    if renameChanged then state.clipEditor.renameDraft=rename end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('fre_clip_apply_name'),{x=125,y=0}) then
+        local candidate=(state.clipEditor.renameDraft or clip.name or ''):match('^%s*(.-)%s*$')
+        if candidate=='' then
+            setStatus(tLang.L('fre_clip_name_invalid'),true)
+        else
+            pushUndoSnapshot(); clip.name=candidate; state.clipEditor.renameDraft=candidate; markModified(); state.clipEditor.dirty=true
+        end
+    end
+    tImGui.SetNextItemWidth(160)
+    local durationChanged,duration=tImGui.DragFloat(tLang.L('fre_clip_duration'),clip.duration,0.01,0.001,0,'%.3f')
+    if durationChanged then clip.duration=math.max(duration,0.001); state.clipEditor.time=math.min(state.clipEditor.time,clip.duration); markModified(); state.clipEditor.dirty=true end
+    tImGui.SetNextItemWidth(160)
+    local fpsChanged,fps=tImGui.DragFloat(tLang.L('fre_clip_fps'),clip.fps,0.1,1,240,'%.1f')
+    if fpsChanged then clip.fps=math.max(fps,1); markModified(); state.clipEditor.dirty=true end
+    local loop=tImGui.Checkbox(tLang.L('fre_clip_loop'),clip.loop==true)
+    if loop~=clip.loop then clip.loop=loop; markModified(); state.clipEditor.dirty=true end
+    local interpolationLabels={tLang.L('fre_clip_interpolation_step'),tLang.L('fre_clip_interpolation_linear')}
+    local interpolationChanged,interpolation=tImGui.Combo(tLang.L('fre_clip_interpolation'),clip.interpolation==0 and 1 or 2,interpolationLabels)
+    if interpolationChanged then clip.interpolation=interpolation==1 and 0 or 1; markModified(); state.clipEditor.dirty=true end
+    tImGui.TextWrapped(tLang.L('fre_clip_timeline_help'))
+    tImGui.SetNextItemWidth(360)
+    local timeChanged,time=tImGui.SliderFloat(tLang.L('fre_clip_time'),state.clipEditor.time,0,clip.duration,'%.3f s')
+    if timeChanged then state.clipEditor.time=time; state.clipEditor.playing=false; applyFacialWeights(tFacialClips.sample(clip,time,tFacialExpressions.targetNames(state.project.expressions))) end
+    local poseNames={}
+    for _,pose in ipairs(state.project.expressions.poses or {}) do poseNames[#poseNames+1]=pose.name end
+    if #poseNames>0 then
+        tImGui.SetNextItemWidth(280)
+        local poseChanged,poseIndex=tImGui.Combo(tLang.L('fre_clip_expression_source'),state.expressions.selectedPose,poseNames)
+        if poseChanged then state.expressions.selectedPose=poseIndex end
+    end
+    local selectedPose=state.project.expressions.poses[state.expressions.selectedPose]
+    if tImGui.Button(tLang.L('fre_clip_insert_expression_key'),{x=230,y=0}) then
+        pushUndoSnapshot()
+        local weights=selectedPose and tFacialExpressions.applyPose(state.project.expressions,selectedPose) or {}
+        tFacialClips.insertKey(clip,state.clipEditor.time,weights)
+        state.clipEditor.keySelected=1; markModified(); state.clipEditor.dirty=true
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('fre_clip_capture_key'),{x=190,y=0}) then
+        local weights={}
+        for _,entry in ipairs(state.expressions.catalog or {}) do
+            local ok,value=dpCall(function() return state.mesh:getFacialWeight(entry.name) end)
+            if ok then weights[entry.name]=tonumber(value) or 0 end
+        end
+        pushUndoSnapshot(); tFacialClips.insertKey(clip,state.clipEditor.time,weights); markModified(); state.clipEditor.dirty=true
+    end
+    if tImGui.Button(tLang.L('fre_clip_play'),{x=110,y=0}) then state.clipEditor.playing=not state.clipEditor.playing end
+    local keys=clip.keys or {}
+    if tImGui.BeginTable('freFacialClipKeys',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+        tImGui.TableSetupColumn(tLang.L('fre_clip_key_column'))
+        tImGui.TableSetupColumn(tLang.L('fre_clip_time_column'))
+        tImGui.TableSetupColumn(tLang.L('fre_clip_weight_count_column'))
+        tImGui.TableHeadersRow()
+        for index,key in ipairs(keys) do
+            tImGui.TableNextRow(); tImGui.TableSetColumnIndex(0)
+            if tImGui.Selectable(tLang.L('fre_clip_key') .. ' ' .. tostring(index),index==state.clipEditor.keySelected) then
+                state.clipEditor.keySelected=index; state.clipEditor.time=key.time; applyFacialWeights(tFacialClips.sample(clip,key.time,tFacialExpressions.targetNames(state.project.expressions)))
+            end
+            tImGui.TableSetColumnIndex(1); tImGui.Text(string.format('%.3f',key.time))
+            local count=0; for _,value in pairs(key.weights or {}) do if math.abs(tonumber(value) or 0)>0.0001 then count=count+1 end end
+            tImGui.TableSetColumnIndex(2); tImGui.Text(tostring(count))
+        end
+        tImGui.EndTable()
+    end
+    if #keys>0 and tImGui.Button(tLang.L('fre_clip_remove_key'),{x=150,y=0}) then
+        pushUndoSnapshot(); tFacialClips.removeKey(clip,state.clipEditor.keySelected); state.clipEditor.keySelected=math.max(1,math.min(state.clipEditor.keySelected,#keys-1)); markModified(); state.clipEditor.dirty=true
+    end
+    local report=tFacialClips.validate(clip)
+    if report.ok then textColoredWrapped({r=0.35,g=1,b=0.45,a=1},string.format(tLang.L('fre_clip_valid_fmt'),report.keyCount))
+    else
+        textColoredWrapped({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_clip_invalid'))
+        for _,message in ipairs(report.errors) do tImGui.BulletText(message) end
+    end
+end
+
+local function updateFacialClipPlayback(delta)
+    if state.workspace~='clips' or not state.clipEditor.playing or not state.mesh then return end
+    local clip=state.project.clips and state.project.clips[state.clipEditor.selectedClip]
+    if not clip then state.clipEditor.playing=false; return end
+    state.clipEditor.time=state.clipEditor.time+math.max(tonumber(delta) or 0,0)
+    if state.clipEditor.time>clip.duration then
+        if clip.loop then state.clipEditor.time=state.clipEditor.time%clip.duration
+        else state.clipEditor.time=clip.duration; state.clipEditor.playing=false end
+    end
+    applyFacialWeights(tFacialClips.sample(clip,state.clipEditor.time,tFacialExpressions.targetNames(state.project.expressions)))
+end
+
 local function showPreview()
     tImGui.TextWrapped(tLang.L('fre_preview_help'))
     if not state.mesh then
@@ -2160,7 +2318,7 @@ local function showWorkspaceTree()
     tImGui.Text(tLang.L('fre_workspaces'))
     local workspaces={
         {'setup','fre_setup'}, {'face_position','fre_face_position'}, {'landmarks','fre_landmarks'}, {'masks','fre_masks'},
-        {'rig','fre_rig'}, {'expressions','fre_expressions'}, {'preview','fre_preview'}
+        {'rig','fre_rig'}, {'expressions','fre_expressions'}, {'clips','fre_clips'}, {'preview','fre_preview'}
     }
     for _,entry in ipairs(workspaces) do
         local label=tLang.L(entry[2])
@@ -2176,6 +2334,7 @@ local function showWorkspaceTree()
                 elseif entry[1]=='landmarks' then showLandmarks()
                 elseif entry[1]=='rig' then showRig()
                 elseif entry[1]=='expressions' then showExpressions()
+                elseif entry[1]=='clips' then showClips()
                 elseif entry[1]=='preview' then showPreview() end
             end
             tImGui.TreePop()
@@ -2258,6 +2417,7 @@ end
 
 function onLoop(delta)
     updateCameraKeyboard(delta)
+    updateFacialClipPlayback(delta)
     showMenu()
     showMainPanel()
     showCameraPanel()

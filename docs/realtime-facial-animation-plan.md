@@ -1,7 +1,7 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 7 expression and preview slices complete; runtime, Blender interchange, and capture naming foundations are complete**
-Last reviewed: **2026-10-23**
+Status: **Phase 7 facial clip authoring slice complete; runtime, Blender interchange, and capture naming foundations are complete**
+Last reviewed: **2026-10-24**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
 [Blender interchange and initial design](realtime-facial-animation-phase0.md). Phase 1 evidence,
@@ -213,7 +213,7 @@ timelines, skeletal masks, and skeletal playback. Mesh Debug keeps the compact f
 playback/import preview.
 
 The facial editor will expose only facial workspaces: setup and object roles, face position, landmarks,
-masks/regions, facial rig preview/binding, expressions, and facial playback. Skeletal timelines,
+masks/regions, facial rig preview/binding, expressions, facial clips, and preview. Skeletal timelines,
 general skin painting, and unrelated skeletal controls stay out of its UI; a small shared binding
 helper is allowed only where facial geometry needs it.
 
@@ -230,10 +230,15 @@ bridge remains the handoff used for Blender-side armature and weight work.
 
 The Expressions worktree now authors named target-weight poses from existing MSH facial targets,
 including bounded preview sliders, capture/apply, side mirroring, rename, persistence, and validation.
-The Preview worktree now reviews saved poses, imported facial clips, and skeletal clips together,
+The Clips worktree now authors temporal facial clips from expression poses and target-weight keys.
+The Preview worktree reviews saved poses, imported facial clips, authored project clips, and skeletal clips together,
 while GPU morph parity for
 DirectX and Metal remains a separate backend milestone; those
 backends keep the CPU reference path until an equivalent indexed resource is implemented.
+
+Exporting authored clips to Blender Shape Key Actions is optional interoperability. The native MSH
+serialization of authored clips is a separate runtime milestone; Blender is not required to play
+finished assets.
 
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the

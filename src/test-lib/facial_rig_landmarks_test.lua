@@ -4,6 +4,7 @@ local Landmarks=require 'facial_rig_landmarks'
 local Project=require 'facial_rig_project'
 local Bridge=require 'facial_rig_blender_bridge'
 local Expressions=require 'facial_rig_expressions'
+local Clips=require 'facial_rig_clips'
 
 local points={
     [1]={{x=-1,y=0,z=0},{x=1,y=0,z=0}},
@@ -22,7 +23,7 @@ assert(topology.signature~='')
 local hit=Landmarks.nearestVertex(topology,{x=-1,y=0,z=-5},{x=0,y=0,z=1},0.1)
 assert(hit and hit.index==1)
 local project=Project.new()
-assert(project.schemaVersion==7 and project.landmarkEditMode==1)
+assert(project.schemaVersion==8 and project.landmarkEditMode==1)
 project.landmarkEditMode=2
 project.language='pt_br'
 assert(Project.normalize(project).landmarkEditMode==2)
@@ -37,6 +38,14 @@ expression.weights['eye.L']=0.75
 Expressions.mirrorPose(project.expressions,expression)
 assert(expression.weights['eye.R']==0.75,
     'expression side mirroring must preserve paired weights')
+local clipState=Clips.new()
+local clip=assert(Clips.addClip(clipState,'blink_clip'))
+Clips.insertKey(clip,0,{['eye.L']=0,['eye.R']=0})
+Clips.insertKey(clip,1,{['eye.L']=1,['eye.R']=1})
+assert(Clips.validate(clip).ok)
+local sampled=Clips.sample(clip,0.5,{'eye.L','eye.R'})
+assert(math.abs(sampled['eye.L']-0.5)<0.0001 and math.abs(sampled['eye.R']-0.5)<0.0001,
+    'facial clips must interpolate target weights')
 assert(Project.addSourceObject(project,'Head')==1)
 assert(Project.addSourceObject(project,'Head')==1,
     'source object catalog must remain unique')

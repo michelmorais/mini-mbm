@@ -121,8 +121,9 @@ workspaces are limited to facial authoring:
 4. **Masks/regions** - create and validate stable vertex or object regions after the facial reference
    points are established.
 5. **Rig** - preview and validate the generated facial rig and binding description.
-6. **Expressions** - author, mirror, correct, and inspect facial targets and clips.
-7. **Preview** - review target weights, facial clips, and deterministic capture replay.
+6. **Expressions** - author, mirror, correct, and inspect facial targets and static poses.
+7. **Clips** - author temporal facial clips from expressions and target weights.
+8. **Preview** - review target weights, facial clips, and skeletal/facial composition.
 
 Skeletal-only features remain outside this editor: bone animation timelines, skeletal animation
 layers, general skin-weight painting, and skeletal playback controls. A narrowly scoped shared
@@ -399,7 +400,21 @@ in its bind T-pose.
 
 An individual target is a reusable geometry channel (for example `browUp`); an expression is a
 named static combination of target weights. Start/end times belong to a clip, not to the static
-expression pose. Temporal expression authoring and keyframe editing remain a later slice.
+expression pose.
+
+## Delivered sixteenth slice: facial clip authoring timeline
+
+The Clips worktree now provides a project-side timeline for authored facial animation. A clip stores
+its name, duration, FPS, loop flag, interpolation mode, and ordered target-weight keys. The editor
+can create and rename clips, move a time cursor, insert a key from a saved expression, capture the
+current mesh weights, remove keys, scrub the result on the visible mesh, and play the authored clip
+while the editor is open. Validation requires an ordered key at time zero and an end key at the clip
+duration, matching the runtime facial clip contract.
+
+This project representation is transport-independent. Exporting a clip to Blender as a Shape Key
+Action is optional interoperability, not a runtime requirement. Native MSH clip serialization is a
+separate follow-up slice; until it is implemented, imported MSH clips remain available in Preview
+and authored project clips can be reviewed directly in the editor.
 
 ### Full-body skeleton compatibility
 
