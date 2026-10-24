@@ -1899,20 +1899,20 @@ local function showPreview()
             tLang.L('fre_preview_skeletal_clip'),state.preview.selectedSkeletal,skeletalAnimations)
         if skeletalChanged then state.preview.selectedSkeletal=skeletalIndex end
         local skeletalName=skeletalAnimations[state.preview.selectedSkeletal]
-        if tImGui.Button(tLang.L('fre_preview_skeletal_play'),{x=230,y=0}) then
+        if tImGui.Button(tLang.L('fre_preview_skeletal_play') .. '##frePreviewSkeletalPlay',{x=230,y=0}) then
             local ok,played=dpCall(function() return state.mesh:playSkeletalAnimation(skeletalName) end)
             if ok and played~=false then setStatus(string.format(tLang.L('fre_preview_skeletal_played_fmt'),skeletalName),false)
             else setStatus(tLang.L('fre_preview_skeletal_failed'),true) end
         end
-        if tImGui.Button(tLang.L('fre_preview_skeletal_pause'),{x=90,y=0}) then
+        if tImGui.Button(tLang.L('fre_preview_skeletal_pause') .. '##frePreviewSkeletalPause',{x=90,y=0}) then
             dpCall(function() return state.mesh:pauseSkeletalAnimation() end)
         end
         tImGui.SameLine()
-        if tImGui.Button(tLang.L('fre_preview_skeletal_resume'),{x=100,y=0}) then
+        if tImGui.Button(tLang.L('fre_preview_skeletal_resume') .. '##frePreviewSkeletalResume',{x=100,y=0}) then
             dpCall(function() return state.mesh:resumeSkeletalAnimation() end)
         end
         tImGui.SameLine()
-        if tImGui.Button(tLang.L('fre_preview_skeletal_stop'),{x=90,y=0}) then
+        if tImGui.Button(tLang.L('fre_preview_skeletal_stop') .. '##frePreviewSkeletalStop',{x=90,y=0}) then
             dpCall(function() return state.mesh:stopSkeletalAnimation() end)
         end
         local durationOk,duration=dpCall(function()
@@ -1936,12 +1936,12 @@ local function showPreview()
         if changed then state.preview.selectedPose=index end
         local selectedPose=poses[state.preview.selectedPose]
         if selectedPose then
-            if tImGui.Button(tLang.L('fre_preview_apply_expression'),{x=230,y=0}) then
+            if tImGui.Button(tLang.L('fre_preview_apply_expression') .. '##frePreviewApplyExpression',{x=230,y=0}) then
                 if applyExpressionPose(selectedPose) then setStatus(tLang.L('fre_preview_applied'),false)
                 else setStatus(tLang.L('fre_expression_apply_failed'),true) end
             end
             showHelpTooltip(tLang.L('fre_preview_apply_expression_tooltip'))
-            if tImGui.Button(tLang.L('fre_preview_reset_expression'),{x=230,y=0}) then
+            if tImGui.Button(tLang.L('fre_preview_reset_expression') .. '##frePreviewResetExpression',{x=230,y=0}) then
                 local ok,reset=dpCall(function() return state.mesh:resetFacialWeights() end)
                 if ok and reset~=false then setStatus(tLang.L('fre_preview_reset'),false)
                 else setStatus(tLang.L('fre_expression_apply_failed'),true) end
