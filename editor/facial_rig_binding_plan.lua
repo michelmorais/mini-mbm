@@ -20,7 +20,8 @@
    Facial rig binding plan.
 
    Builds a deterministic, read-only assignment plan from validated facial roles, masks, and
-   generated bones. It deliberately does not mutate mesh data or create weights.
+   generated bones. It deliberately does not mutate mesh data or create weights. Object roles
+   become eligible only after the exporter provides verified flattened vertex indices.
 ]]--
 
 local M={}
@@ -65,11 +66,13 @@ function M.build(project,topology,rig,review)
         local policy=POLICIES[reviewEntry.name] or {method='opt_in',bones={}}
         local entry={index=reviewEntry.index,name=reviewEntry.name,object=reviewEntry.object or '',
             mode=reviewEntry.mode,method=policy.method,bones=copyAvailableBones(policy,rig),
-            vertexCount=reviewEntry.maskVertexCount or 0,status='blocked',reasons={}}
+            vertexCount=reviewEntry.vertexCount or reviewEntry.maskVertexCount or 0,
+            vertexIndices={},status='blocked',reasons={}}
+        for _,index in ipairs(reviewEntry.vertexIndices or {}) do entry.vertexIndices[#entry.vertexIndices+1]=index end
         for _,issue in ipairs(reviewEntry.issues or {}) do entry.reasons[#entry.reasons+1]=issue end
         if entry.mode=='unassigned' then
             entry.reasons[#entry.reasons+1]='role has no object or vertex mask'
-        elseif entry.mode=='object' then
+        elseif entry.mode=='object' and reviewEntry.objectVertexVerified~=true then
             entry.reasons[#entry.reasons+1]='object vertices are not available in the merged MSH topology'
         elseif #entry.bones==0 then
             entry.reasons[#entry.reasons+1]='the selected policy has no generated bone'

@@ -83,12 +83,14 @@ end
 
 function M.new()
     return {
-        schemaVersion=5,
+        schemaVersion=6,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
         roles=defaultRoles(),
         sourceObjects={},
+        sourceVertexMap={},
+        sourceVertexMapSignature='',
         masks={},
         landmarks=defaultLandmarks(),
         faceOrigin=defaultFaceOrigin(),
@@ -116,13 +118,16 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(5,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(6,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
         project.meshTopologySignature or ''
     project.roles=type(project.roles) == 'table' and project.roles or defaultRoles()
     project.sourceObjects=type(project.sourceObjects) == 'table' and project.sourceObjects or {}
+    project.sourceVertexMap=type(project.sourceVertexMap) == 'table' and project.sourceVertexMap or {}
+    project.sourceVertexMapSignature=type(project.sourceVertexMapSignature)=='string' and
+        project.sourceVertexMapSignature or ''
     project.masks=type(project.masks) == 'table' and project.masks or {}
     project.landmarks=type(project.landmarks) == 'table' and project.landmarks or defaultLandmarks()
     if type(project.faceOrigin) ~= 'table' then project.faceOrigin=defaultFaceOrigin() end
@@ -166,6 +171,28 @@ function M.normalize(project)
         end
     end
     project.sourceObjects=sourceObjects
+    local sourceVertexMap={}
+    for objectName,indices in pairs(project.sourceVertexMap) do
+        if type(objectName)=='string' and type(indices)=='table' then
+            local copied,seen={},{}
+            for _,rawIndex in ipairs(indices) do
+                local index=tonumber(rawIndex)
+                if index and index>=1 and index%1==0 and not seen[index] then
+                    seen[index]=true
+                    copied[#copied+1]=math.floor(index)
+                end
+            end
+            table.sort(copied)
+            if #copied>0 then sourceVertexMap[objectName]=copied end
+        end
+    end
+    project.sourceVertexMap=sourceVertexMap
+    for objectName in pairs(sourceVertexMap) do
+        if not sourceObjectSet[objectName] then
+            sourceObjectSet[objectName]=true
+            project.sourceObjects[#project.sourceObjects+1]=objectName
+        end
+    end
     for index, mask in ipairs(project.masks) do
         if type(mask) ~= 'table' then
             project.masks[index]={name='region_' .. index,roleIndex=1,vertices={},topologySignature='',enabled=true}
@@ -221,6 +248,38 @@ function M.sourceObjects(project)
     local result={}
     for _, objectName in ipairs(project and project.sourceObjects or {}) do
         result[#result + 1]=objectName
+    end
+    return result
+end
+
+function M.setSourceVertexMap(project, vertexMap, topologySignature)
+    if type(project)~='table' or type(vertexMap)~='table' then return false end
+    project.sourceVertexMap={}
+    project.sourceVertexMapSignature=type(topologySignature)=='string' and topologySignature or ''
+    for objectName,indices in pairs(vertexMap) do
+        if type(objectName)=='string' and type(indices)=='table' then
+            local copied,seen={},{}
+            for _,rawIndex in ipairs(indices) do
+                local index=tonumber(rawIndex)
+                if index and index>=1 and index%1==0 and not seen[index] then
+                    seen[index]=true
+                    copied[#copied+1]=math.floor(index)
+                end
+            end
+            table.sort(copied)
+            if #copied>0 then
+                project.sourceVertexMap[objectName]=copied
+                M.addSourceObject(project,objectName)
+            end
+        end
+    end
+    return true
+end
+
+function M.sourceVertexIndices(project, objectName)
+    local result={}
+    for _,index in ipairs(project and project.sourceVertexMap and project.sourceVertexMap[objectName] or {}) do
+        result[#result+1]=index
     end
     return result
 end
@@ -379,19 +438,32 @@ function M.bindingDescription(project, topology)
     return description
 end
 
--- Produces a mesh-aware, read-only binding review. Object-only roles cannot be
--- counted after an MSH merge because the runtime topology has no Blender object
--- boundaries; their source name is therefore reported as unverified. Explicit
--- vertex masks can be checked against the loaded topology and are counted here.
+-- Produces a mesh-aware, read-only binding review. Object-only roles are verified when the
+-- Blender sidecar provides their flattened MSH vertex indices; old sidecars without that map
+-- remain unverified. Explicit vertex masks are checked against the loaded topology as well.
 function M.bindingReview(project, topology)
     local review={valid=true,roles={},overlapCount=0,totalMaskedVertices=0,
         topologySignature=topology and topology.signature or '',vertexCount=topology and topology.vertexCount or 0}
-    local owners={}
+    local owners,roleVertexSets={},{}
     for roleIndex,role in ipairs(project and project.roles or {}) do
         if role.enabled then
             local item={index=roleIndex,name=role.name or '',object=role.object or '',
-                maskCount=0,maskVertexCount=0,mode='unassigned',status='unassigned',issues={}}
-            local vertices={}
+                maskCount=0,maskVertexCount=0,objectVertexCount=0,vertexCount=0,vertexIndices={},
+                objectVertexVerified=false,mode='unassigned',status='unassigned',issues={}}
+            local vertices,maskVertices={},{}
+            local sourceMap=project.sourceVertexMap and project.sourceVertexMap[item.object] or {}
+            local sourceMapUsable=item.object~='' and #sourceMap>0 and topology and
+                project.sourceVertexMapSignature~='' and project.sourceVertexMapSignature==topology.signature
+            local sourceMapIssue=item.object~='' and #sourceMap>0 and not sourceMapUsable
+            local sourceVertices=sourceMapUsable and sourceMap or {}
+            for _,rawIndex in ipairs(sourceVertices) do
+                local index=tonumber(rawIndex)
+                if not index or index<1 or index%1~=0 or topology and index>topology.vertexCount then
+                    item.issues[#item.issues+1]='invalid source vertex map: ' .. tostring(item.object)
+                else
+                    vertices[index]=true
+                end
+            end
             for maskIndex,mask in ipairs(project.masks or {}) do
                 if mask.enabled ~= false and (mask.roleIndex or 1)==roleIndex then
                     item.maskCount=item.maskCount+1
@@ -407,13 +479,25 @@ function M.bindingReview(project, topology)
                             item.issues[#item.issues+1]='invalid mask vertex: ' .. tostring(mask.name or maskIndex)
                         else
                             seen[index]=true
+                            maskVertices[index]=true
                             vertices[index]=true
-                            if not owners[index] then owners[index]={roleIndex=roleIndex,name=item.name} end
                         end
                     end
                 end
             end
-            for _ in pairs(vertices) do item.maskVertexCount=item.maskVertexCount+1 end
+            for index in pairs(maskVertices) do item.maskVertexCount=item.maskVertexCount+1 end
+            if sourceMapIssue and item.maskVertexCount==0 then
+                item.issues[#item.issues+1]='source vertex map topology is stale or missing'
+            end
+            for index in pairs(vertices) do
+                item.vertexIndices[#item.vertexIndices+1]=index
+                if not maskVertices[index] then item.objectVertexCount=item.objectVertexCount+1 end
+                if not owners[index] then owners[index]={roleIndex=roleIndex,name=item.name} end
+            end
+            table.sort(item.vertexIndices)
+            item.vertexCount=#item.vertexIndices
+            roleVertexSets[roleIndex]=vertices
+            if item.object~='' and item.objectVertexCount>0 then item.objectVertexVerified=true end
             if item.object~='' and item.maskVertexCount>0 then
                 item.mode='object_and_mask'
             elseif item.object~='' then
@@ -430,6 +514,8 @@ function M.bindingReview(project, topology)
                     item.issues[#item.issues+1]='main face has no object or vertex mask'
                     review.valid=false
                 end
+            elseif item.mode=='object' and item.objectVertexVerified then
+                item.status='object_verified'
             elseif item.mode=='object' then
                 item.status='object_unverified'
             else
@@ -440,20 +526,13 @@ function M.bindingReview(project, topology)
     end
     local seenOverlap={}
     for _ in pairs(owners) do review.totalMaskedVertices=review.totalMaskedVertices+1 end
-    for roleIndex,role in ipairs(project and project.roles or {}) do
-        if role.enabled then
-            for _,mask in ipairs(project.masks or {}) do
-                if mask.enabled~=false and (mask.roleIndex or 1)==roleIndex then
-                    for _,rawIndex in ipairs(type(mask.vertices)=='table' and mask.vertices or {}) do
-                        local index=tonumber(rawIndex)
-                        local owner=owners[index]
-                        if owner and owner.roleIndex~=roleIndex and not seenOverlap[index] then
-                            seenOverlap[index]=true
-                            review.overlapCount=review.overlapCount+1
-                            review.valid=false
-                        end
-                    end
-                end
+    for roleIndex,vertices in pairs(roleVertexSets) do
+        for index in pairs(vertices) do
+            local owner=owners[index]
+            if owner and owner.roleIndex~=roleIndex and not seenOverlap[index] then
+                seenOverlap[index]=true
+                review.overlapCount=review.overlapCount+1
+                review.valid=false
             end
         end
     end

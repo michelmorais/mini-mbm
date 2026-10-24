@@ -51,6 +51,13 @@ end
 
 local function roleVertices(project,entry,topology)
     local vertices,seen={},{}
+    for _,rawIndex in ipairs(entry.vertexIndices or {}) do
+        local index=tonumber(rawIndex)
+        if not index or index<1 or index%1~=0 or topology and index>topology.vertexCount then
+            return nil,'role contains an invalid mapped vertex'
+        end
+        appendUnique(vertices,seen,math.floor(index))
+    end
     for _,mask in ipairs(project and project.masks or {}) do
         if mask.enabled~=false and (mask.roleIndex or 1)==entry.index then
             if topology and mask.topologySignature~='' and mask.topologySignature~=topology.signature then

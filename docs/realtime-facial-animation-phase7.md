@@ -290,12 +290,25 @@ confirmation and transactional assignment operation once the source vertices are
 ## Delivered tenth slice: explicit rigid mask assignment
 
 The Rig workspace now validates a safe first assignment operation against the loaded MeshDebug
-asset. It accepts only explicit vertex masks, existing canonical bones, and rigid role policies
-such as eyes and teeth. The operation builds a detached batch and sends it through the atomic
-`setSkeletalVertexWeightsBatch` API; facial-skeleton, bilateral, object-only, missing-bone, stale,
-and unweighted cases remain blocked with a visible reason. Applying changes memory only. A separate
+asset. It accepts only explicit vertex masks or verified source-object maps, existing canonical
+bones, and rigid role policies such as eyes and teeth. The operation builds a detached batch and sends it through the atomic
+`setSkeletalVertexWeightsBatch` API; facial-skeleton, bilateral, unverified object-only, missing-bone, stale,
+and unweighted cases remain blocked with a visible reason unless a later milestone adds their
+dedicated policy. Applying changes memory only. A separate
 Save As action writes a new MSH file, leaving the original asset untouched.
 
 This slice intentionally does not infer Blender object boundaries, generate heat-map weights, or
-create the canonical facial bones. Those operations require an explicit source-vertex mapping and
-will be addressed in a later milestone.
+create the canonical facial bones.
+
+## Delivered eleventh slice: Blender source-vertex map
+
+The direct Blender MSH exporter now writes `vertexMap` in `<mesh>_mbm_objects.lua`. It records the
+flattened one-based MSH vertex indices for each visible Blender mesh object, preserving the source
+boundary after material subsets are merged and split. The sidecar also stores the topology identity;
+the facial editor imports this map into the project, validates its identity and every index against
+the loaded topology, and marks object-only roles as verified when the map is present. Verified object
+roles can enter the rigid assignment plan; old sidecars without a map remain safely blocked.
+
+The map is metadata for validation and explicit assignment. It does not guess facial weights or
+replace the need for canonical facial bones for the main face, brows, mouth, or other articulated
+roles.

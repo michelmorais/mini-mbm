@@ -7,6 +7,8 @@ Writes a Lua intermediate file with baked mesh frames:
     - frames[i].subsets[j].indices:  [1-based triangle indices]
   - frames[i].subsets[j].texture:  optional image filepath
   - sourceObjects: visible Blender mesh-object names used by the export
+  - vertexMap: flattened MSH vertex indices grouped by source object
+  - topologySignature: the frame-0 topology identity used by the facial editor
   - animations: optional baked clip metadata
 """
 
@@ -125,6 +127,68 @@ def source_object_catalog_path(mesh_path: str) -> str:
     """Return the sidecar path that preserves Blender source-object names for an MSH."""
     stem, _ = os.path.splitext(mesh_path)
     return f"{stem}_mbm_objects.lua"
+
+
+def msh_topology_signature(subsets: list[dict[str, Any]]) -> str:
+    """Mirror facial_rig_landmarks.inspect()'s topology signature for sidecar validation."""
+    hash_value = 2166136261
+
+    def hash_byte(value: int) -> None:
+        nonlocal hash_value
+        # facial_rig_landmarks.lua runs in the bundled 32-bit-integer Lua build. Its
+        # math.tointeger() conversion of an out-of-range positive modulo result saturates to
+        # -2147483648, so preserve that historical signature exactly for sidecar validation.
+        mixed = ((int(hash_value) & 0xFFFFFFFF) ^ (value & 0xFF)) & 0xFFFFFFFF
+        if mixed & 0x80000000:
+            mixed -= 0x100000000
+        modulo = (mixed * 16777619) % 4294967296
+        hash_value = -2147483648 if modulo > 2147483647 else int(modulo)
+
+    def hash_number(value: float) -> None:
+        # The MSH frame stores positions as f32 before MeshDebug reconstructs the signature.
+        packed = struct.pack("<f", float(value or 0.0))
+        stored = struct.unpack("<f", packed)[0]
+        quantized = math.floor(stored * 100000.0 + 0.5)
+        for shift in (0, 8, 16, 24):
+            hash_byte((quantized >> shift) & 0xFF)
+
+    def hash_count(value: int) -> None:
+        value = max(0, int(value))
+        for shift in (0, 8, 16, 24):
+            hash_byte((value >> shift) & 0xFF)
+
+    hash_count(len(subsets or []))
+    vertex_count = 0
+    for subset in subsets or []:
+        vertices = subset.get("vertices") or []
+        indices = subset.get("indices") or []
+        hash_count(len(vertices))
+        hash_count(len(indices))
+        for index in indices:
+            hash_count(int(index))
+        for vertex in vertices:
+            hash_number(vertex.get("x", 0.0))
+            hash_number(vertex.get("y", 0.0))
+            hash_number(vertex.get("z", 0.0))
+        vertex_count += len(vertices)
+    return f"{hash_value & 0xFFFFFFFF:08x}:{vertex_count}"
+
+
+def source_vertex_map(subsets: list[dict[str, Any]]) -> dict[str, list[int]]:
+    """Return flattened 1-based MSH vertex indices grouped by Blender source object.
+
+    The direct MSH writer concatenates subset vertices in this order. The sidecar therefore keeps
+    the source boundary without depending on material names or on a runtime subset-name API.
+    """
+    result: dict[str, list[int]] = {}
+    mesh_index = 0
+    for subset in subsets or []:
+        for vertex in subset.get("vertices") or []:
+            mesh_index += 1
+            object_name = str(vertex.get("sourceObject") or "").strip()
+            if object_name:
+                result.setdefault(object_name, []).append(mesh_index)
+    return result
 
 
 def check_cancel_requested(cancel_file: str) -> None:
@@ -2966,7 +3030,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                                            normalize_textures=bool(args.normalize_textures),
                                            output_stem=output_stem,
                                            excluded_texture_roles=excluded_texture_roles,
-                                           capture_source_vertices=facial_source is not None)
+                                           capture_source_vertices=True)
             if not subsets:
                 raise RuntimeError(
                     "The Blender scene has no visible triangle faces to export. "
@@ -3128,11 +3192,17 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             os.fsync(fp.fileno())
         check_cancel_requested(args.cancel_file)
         os.replace(tmp_out, out_path)
-        write_lua_atomic(source_object_catalog_path(out_path), {
+        object_catalog = {
             "version": 1,
             "source": source_path,
             "objects": exported_source_objects,
-        })
+        }
+        if first_frame_subsets:
+            object_catalog["vertexMap"] = source_vertex_map(first_frame_subsets)
+            object_catalog["vertexCount"] = sum(len(subset.get("vertices") or [])
+                                                 for subset in first_frame_subsets)
+            object_catalog["topologySignature"] = msh_topology_signature(first_frame_subsets)
+        write_lua_atomic(source_object_catalog_path(out_path), object_catalog)
         return len(frame_paths)
     finally:
         if facial_source and facial_state:

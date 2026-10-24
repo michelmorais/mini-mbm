@@ -127,6 +127,9 @@ local function loadSourceObjectCatalog(meshPath)
     for _,objectName in ipairs(catalog.objects) do
         if tFacialProject.addSourceObject(state.project,objectName) then count=count + 1 end
     end
+    if type(catalog.vertexMap)=='table' then
+        tFacialProject.setSourceVertexMap(state.project,catalog.vertexMap,catalog.topologySignature)
+    end
     return count
 end
 
@@ -236,6 +239,7 @@ local function localizedBindingPlanReason(reason)
         ['canonical rig description is not valid']='fre_binding_plan_reason_rig',
         ['role has no object or vertex mask']='fre_binding_plan_reason_unassigned',
         ['object vertices are not available in the merged MSH topology']='fre_binding_plan_reason_object_unverified',
+        ['source vertex map topology is stale or missing']='fre_weight_reason_stale_source_map',
         ['the selected policy has no generated bone']='fre_binding_plan_reason_no_bone',
         ['the role mask has no vertices']='fre_binding_plan_reason_empty_mask',
         ['vertex masks overlap across enabled roles']='fre_binding_plan_reason_overlap',
@@ -260,9 +264,21 @@ local function localizedWeightAssignmentReason(reason)
         ['assignment contains a blocked role']='fre_weight_reason_plan_blocked',
         ['assignment contains overlapping vertices']='fre_weight_reason_overlap',
         ['assignment has no vertices']='fre_weight_reason_no_vertices',
+        ['role contains an invalid mapped vertex']='fre_weight_reason_invalid_mapped_vertex',
+        ['source vertex map topology is stale or missing']='fre_weight_reason_stale_source_map',
+        ['mask topology is stale:']='fre_weight_reason_stale_mask',
+        ['mask contains an invalid vertex:']='fre_weight_reason_invalid_mask',
         ['some enabled roles remain blocked; only ready rigid roles can be assigned']='fre_weight_reason_partial'
     }
-    return exact[reason] and tLang.L(exact[reason]) or tostring(reason or '')
+    if exact[reason] then return tLang.L(exact[reason]) end
+    local prefixKeys={
+        ['mask topology is stale:']='fre_weight_reason_stale_mask',
+        ['mask contains an invalid vertex:']='fre_weight_reason_invalid_mask'
+    }
+    for prefix,key in pairs(prefixKeys) do
+        if tostring(reason or ''):sub(1,#prefix)==prefix then return tLang.L(key) end
+    end
+    return tostring(reason or '')
 end
 
 local function showProjectMessages(report)
@@ -1109,6 +1125,12 @@ local function showSetup()
     end
     tImGui.Separator()
     tImGui.Text(string.format(tLang.L('fre_mesh_summary_fmt'),shortName(state.project.meshPath),state.meshVertexCount))
+    local mappedObjects,mappedVertices=0,0
+    for _,indices in pairs(state.project.sourceVertexMap or {}) do
+        mappedObjects=mappedObjects+1
+        mappedVertices=mappedVertices+#(indices or {})
+    end
+    tImGui.Text(string.format(tLang.L('fre_source_map_summary_fmt'),mappedObjects,mappedVertices))
     tImGui.TextWrapped(tLang.L('fre_setup_roles_help'))
     tImGui.Text(string.format(tLang.L('fre_role_summary_fmt'),#state.project.roles,#state.project.masks))
 end
@@ -1513,7 +1535,7 @@ local function showRig()
         for _,entry in ipairs(bindingReview.roles or {}) do
             local object=entry.object~='' and entry.object or tLang.L('fre_unassigned')
             tImGui.TextWrapped(string.format(tLang.L('fre_binding_review_role_fmt'),entry.name,
-                object,localizedBindingReviewMode(entry.mode),entry.maskVertexCount,
+                object,localizedBindingReviewMode(entry.mode),entry.vertexCount or entry.maskVertexCount,
                 localizedBindingReviewStatus(entry.status)))
             for _,issue in ipairs(entry.issues or {}) do
                 tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. issue)
