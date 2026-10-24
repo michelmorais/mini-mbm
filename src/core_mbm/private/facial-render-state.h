@@ -21,6 +21,7 @@
 #define FACIAL_RENDER_STATE_H
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/shapes.h>
+#include "facial-render-capability.h"
 #include <string>
 #include <vector>
 namespace mbm::facial
@@ -40,6 +41,7 @@ namespace mbm::facial
         uint64_t evaluations = 0, uploads = 0;
         const char *morphExecutionPath = "cpu-reference";
         const char *morphStatus = "gpu-morph-deferred-gles2";
+        GPU_MORPH_CAPABILITY morphCapability;
         bool ready = false, dirty = true, uploadDirty = true, initialized = false;
         bool clipPlaying = false, clipPaused = false;
         bool hadSkin = false, gpuSkinning = false, gpuSkinningUploaded = false;

@@ -12353,6 +12353,11 @@ namespace mbm
     {
         const auto &asset = impl->facialAsset;
         if (!asset.meshId) return true;
+        state.morphCapability = facial::getMeasuredGpuMorphCapability();
+        if (!state.morphCapability.measured)
+            state.morphStatus = "gpu-morph-capability-unmeasured";
+        else if (!state.morphCapability.supportsIndexedDeltas)
+            state.morphStatus = "gpu-morph-resource-unavailable";
         state.targetCount = static_cast<uint32_t>(asset.targets.size());
         state.clipCount = static_cast<uint32_t>(asset.clips.size());
         const auto fail = [&state](const char *reason) { state.status = reason; state.ready = false; return false; };

@@ -196,6 +196,9 @@ The current GLES2 runtime now exposes this boundary in `getFacialAnimationReport
 stage may be `gpu-skeletal-composite`, while the morph stage remains `cpu-reference` with an explicit
 `gpu-morph-deferred-gles2` status. This diagnostic is a prerequisite for backend-specific GPU morph
 resources and prevents a partial GPU path from being reported as complete facial GPU evaluation.
+At graphics initialization, GLES2 now measures vertex texture units, maximum texture size, and
+floating-point texture support. These prerequisites are recorded independently from implementation
+readiness so a future indexed-delta shader can be enabled only after parity tests pass.
 
 ### Phase 7: Dedicated facial rig authoring editor
 

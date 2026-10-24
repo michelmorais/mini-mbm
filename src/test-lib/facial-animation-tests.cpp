@@ -19,6 +19,7 @@
 
 #include "facial-animation-tests.h"
 #include <private/facial-animation.h>
+#include <private/facial-render-capability.h>
 #include <private/skeletal-animation-foundation.h>
 #include <mesh-v11-io.h>
 #include <core_mbm/mesh-manager.h>
@@ -154,6 +155,13 @@ namespace
     { for (unsigned i=0;i<4;++i) bytes[offset+i]=static_cast<uint8_t>(v>>(8*i)); }
     void foundations()
     {
+        const auto morphCapability = facial::calculateGpuMorphCapability(4, 4096, true);
+        expect(morphCapability.measured && morphCapability.supportsIndexedDeltas &&
+            morphCapability.maxVertexTextureUnits==4 && morphCapability.maxTextureSize==4096,
+            "GPU morph capability prerequisites are measured");
+        const auto unavailableMorph = facial::calculateGpuMorphCapability(0, 4096, true);
+        expect(!unavailableMorph.measured && !unavailableMorph.supportsIndexedDeltas,
+            "GPU morph capability rejects missing vertex texture units");
         expect(makeFixture(true,true,"indexed.msh"),"create indexed skinned facial fixture");
         expect(makeFixture(false,false,"vertices.msh"),"create VB facial fixture");
         FILE_DATA original;
