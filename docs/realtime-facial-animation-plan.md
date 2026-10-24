@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 7 project facial clip preview slice complete; runtime, Blender interchange, and capture naming foundations are complete**
+Status: **Phase 7 self-contained runtime MSH export workflow complete; runtime, Blender interchange, and capture naming foundations are complete**
 Last reviewed: **2026-10-24**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in

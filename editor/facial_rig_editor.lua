@@ -59,7 +59,8 @@ local state = {
     rigReview={dirty=true,data=nil},
     bindingPlan={dirty=true,data=nil},
     facialSkeleton={dirty=true,data=nil},
-    weightAssignment={dirty=true,data=nil,modified=false},
+    weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false},
+    exportWindow={open=false,target=1},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
     clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true},
     preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
@@ -798,8 +799,8 @@ local function refreshRigPreview()
     preview.dirty=false
 end
 
-local function refreshBindingPlan()
-    if state.workspace~='rig' or not state.mesh then return end
+local function refreshBindingPlan(force)
+    if (not force and state.workspace~='rig') or not state.mesh then return end
     local rig=tFacialProject.rigDescription(state.project,state.topology)
     local review=tFacialProject.bindingReview(state.project,state.topology)
     state.bindingPlan.data=tFacialBindingPlan.build(state.project,state.topology,rig,review)
@@ -822,15 +823,15 @@ local function refreshRigReview()
     state.rigReview.dirty=false
 end
 
-local function refreshFacialSkeletonBinding()
-    if state.workspace~='rig' or not state.meshDebug then return end
+local function refreshFacialSkeletonBinding(force)
+    if (not force and state.workspace~='rig') or not state.meshDebug then return end
     local rig=tFacialProject.rigDescription(state.project,state.topology)
     state.facialSkeleton.data=tFacialSkeletonBinding.inspect(state.meshDebug,rig)
     state.facialSkeleton.dirty=false
 end
 
 local function applyFacialSkeletonBinding()
-    if state.facialSkeleton.dirty then refreshFacialSkeletonBinding() end
+    if state.facialSkeleton.dirty then refreshFacialSkeletonBinding(true) end
     local binding=state.facialSkeleton.data
     if not binding or binding.valid~=true then
         setStatus(tLang.L('fre_facial_skeleton_blocked') .. ': ' ..
@@ -848,6 +849,7 @@ local function applyFacialSkeletonBinding()
     state.bindingPlan.dirty=true
     state.weightAssignment.dirty=true
     state.weightAssignment.modified=true
+    state.weightAssignment.facialWeightsApplied=false
     if repairedRoot then
         setStatus(tLang.L('fre_facial_skeleton_root_repaired'),false)
     else
@@ -856,10 +858,10 @@ local function applyFacialSkeletonBinding()
     return true
 end
 
-local function refreshWeightAssignment()
-    if state.workspace~='rig' or not state.meshDebug then return end
-    if state.bindingPlan.dirty then refreshBindingPlan() end
-    if state.facialSkeleton.dirty then refreshFacialSkeletonBinding() end
+local function refreshWeightAssignment(force)
+    if (not force and state.workspace~='rig') or not state.meshDebug then return end
+    if state.bindingPlan.dirty then refreshBindingPlan(force) end
+    if state.facialSkeleton.dirty then refreshFacialSkeletonBinding(force) end
     if state.facialSkeleton.data and state.facialSkeleton.data.rootParentNeedsRepair then
         state.weightAssignment.data={version=1,valid=false,entries={},readyCount=0,blockedCount=0,
             totalVertexCount=0,errors={'facial root is not attached to the body head'},warnings={}}
@@ -873,7 +875,7 @@ local function refreshWeightAssignment()
 end
 
 local function applyRigidFacialWeights()
-    if state.weightAssignment.dirty then refreshWeightAssignment() end
+    if state.weightAssignment.dirty then refreshWeightAssignment(true) end
     local assignment=state.weightAssignment.data
     if not assignment or assignment.valid~=true then
         local reason=assignment and assignment.errors and assignment.errors[1] or
@@ -887,13 +889,15 @@ local function applyRigidFacialWeights()
         return false
     end
     state.weightAssignment.modified=true
+    state.weightAssignment.facialWeightsApplied=true
     state.weightAssignment.dirty=true
     setStatus(string.format(tLang.L('fre_weight_assignment_applied_fmt'),count),false)
     return true
 end
 
 local function saveAssignedMesh()
-    if not state.meshDebug or not state.weightAssignment.modified then return false end
+    if not state.meshDebug or not state.weightAssignment.modified or
+            not state.weightAssignment.facialWeightsApplied then return false end
     local suggested=replaceExtension(state.project.meshPath or 'facial-rig','-facial-weighted.msh')
     local path=mbm.saveFile(suggested,'msh')
     if not path then return false end
@@ -908,6 +912,7 @@ local function saveAssignedMesh()
     state.project.meshPath=path
     state.modified=true
     state.weightAssignment.modified=false
+    state.weightAssignment.facialWeightsApplied=false
     setStatus(string.format(tLang.L('fre_weight_assignment_saved_fmt'),shortName(path)),false)
     return true
 end
@@ -1133,7 +1138,7 @@ local function loadMesh(path, preserveProject)
     state.rigReview={dirty=true,data=nil}
     state.bindingPlan.dirty=true
     state.facialSkeleton={dirty=true,data=nil}
-    state.weightAssignment={dirty=true,data=nil,modified=false}
+    state.weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=state.project.expressions.selectedTarget or 1,
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil,
@@ -1167,7 +1172,7 @@ local function newProject()
     state.rigReview={dirty=true,data=nil}
     state.bindingPlan.dirty=true
     state.facialSkeleton={dirty=true,data=nil}
-    state.weightAssignment={dirty=true,data=nil,modified=false}
+    state.weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
         authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
@@ -1347,6 +1352,7 @@ local function showMenu()
             saveProject()
         end
         if tImGui.MenuItem(tLang.L('fre_save_as'), nil, false, true) then saveProjectAs() end
+        if tImGui.MenuItem(tLang.L('fre_export_asset')) then state.exportWindow.open=true end
         if tImGui.MenuItem(tLang.L('fre_undo'), 'Ctrl+Z', false, #state.undoStack>0) then
             if undoProject() then setStatus(tLang.L('fre_undo_done'),false) end
         end
@@ -1368,6 +1374,89 @@ local function showMenu()
         tImGui.EndMenu()
     end
     tImGui.EndMainMenuBar()
+end
+
+local function showExportWindow()
+    if not state.exportWindow.open then return end
+    local screenWidth,screenHeight=mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x=math.max(0,(screenWidth-560)*0.5),y=math.max(0,(screenHeight-360)*0.5)},
+        tImGui.Flags('ImGuiCond_FirstUseEver'))
+    tImGui.SetNextWindowSize({x=560,y=360},tImGui.Flags('ImGuiCond_FirstUseEver'))
+    tImGui.SetNextWindowSizeConstraints({x=480,y=300},{x=900,y=720})
+    local opened,closed=tImGui.Begin(tLang.L('fre_export_window_title')..'##freExportWindow',true,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if closed then state.exportWindow.open=false end
+    if opened then
+        tImGui.TextWrapped(tLang.L('fre_export_window_help'))
+        tImGui.Separator()
+        local targets={tLang.L('fre_export_target_project'),tLang.L('fre_export_target_msh'),
+            tLang.L('fre_export_target_bridge')}
+        tImGui.SetNextItemWidth(300)
+        local targetChanged,target=tImGui.Combo(tLang.L('fre_export_target'),state.exportWindow.target,targets)
+        if targetChanged then state.exportWindow.target=target end
+        tImGui.Separator()
+        if state.exportWindow.target==1 then
+            tImGui.TextWrapped(tLang.L('fre_export_project_help'))
+            if tImGui.Button(tLang.L('fre_export_project_button'),{x=220,y=0}) then saveProjectAs() end
+            showHelpTooltip(tLang.L('fre_export_project_tooltip'))
+        elseif state.exportWindow.target==2 then
+            tImGui.TextWrapped(tLang.L('fre_export_msh_help'))
+            if not state.meshDebug then
+                tImGui.TextDisabled(tLang.L('fre_no_mesh'))
+            else
+                if state.facialSkeleton.dirty then refreshFacialSkeletonBinding(true) end
+                local skeleton=state.facialSkeleton.data
+                tImGui.Text(tLang.L('fre_export_msh_skeleton_title'))
+                if skeleton then
+                    tImGui.Text(string.format(tLang.L('fre_facial_skeleton_summary_fmt'),
+                        skeleton.existingCount or 0,skeleton.missingCount or 0))
+                    local needsSkeleton=skeleton.valid==true and
+                        ((skeleton.missingCount or 0)>0 or skeleton.rootParentNeedsRepair==true)
+                    tImGui.BeginDisabled(not needsSkeleton)
+                    local skeletonLabel=skeleton.rootParentNeedsRepair and
+                        tLang.L('fre_facial_skeleton_repair_root') or tLang.L('fre_facial_skeleton_apply')
+                    if tImGui.Button(skeletonLabel..'##freExportApplySkeleton',{x=260,y=0}) then
+                        applyFacialSkeletonBinding()
+                    end
+                    tImGui.EndDisabled()
+                    showHelpTooltip(tLang.L('fre_facial_skeleton_apply_tooltip'))
+                    if skeleton.valid~=true then
+                        tImGui.TextDisabled(tLang.L('fre_facial_skeleton_blocked'))
+                    elseif not needsSkeleton then
+                        tImGui.TextDisabled(tLang.L('fre_export_msh_skeleton_ready'))
+                    end
+                end
+                if state.weightAssignment.dirty then refreshWeightAssignment(true) end
+                local assignment=state.weightAssignment.data
+                tImGui.Text(tLang.L('fre_export_msh_weights_title'))
+                if assignment then
+                    tImGui.Text(string.format(tLang.L('fre_weight_assignment_summary_fmt'),
+                        assignment.readyCount or 0,assignment.blockedCount or 0,assignment.totalVertexCount or 0))
+                    tImGui.BeginDisabled(assignment.valid~=true)
+                    if tImGui.Button(tLang.L('fre_weight_assignment_apply')..'##freExportApplyWeights',{x=390,y=0}) then
+                        applyRigidFacialWeights()
+                    end
+                    tImGui.EndDisabled()
+                    showHelpTooltip(tLang.L('fre_weight_assignment_apply_tooltip'))
+                    if assignment.valid~=true then
+                        tImGui.TextDisabled(tLang.L('fre_export_msh_weights_blocked'))
+                    end
+                end
+            end
+            local canExport=state.weightAssignment.modified==true and
+                state.weightAssignment.facialWeightsApplied==true and state.meshDebug~=nil
+            tImGui.BeginDisabled(not canExport)
+            if tImGui.Button(tLang.L('fre_export_msh_button')..'##freExportSaveMsh',{x=220,y=0}) then saveAssignedMesh() end
+            tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_export_msh_tooltip'))
+            if not canExport then tImGui.TextDisabled(tLang.L('fre_export_msh_blocked')) end
+        else
+            tImGui.TextWrapped(tLang.L('fre_export_bridge_help'))
+            if tImGui.Button(tLang.L('fre_export_bridge_button'),{x=220,y=0}) then exportBlenderBridge() end
+            showHelpTooltip(tLang.L('fre_export_bridge_tooltip'))
+        end
+    end
+    tImGui.End()
 end
 
 local function selectWorkspace(workspace)
@@ -2401,10 +2490,11 @@ local function showRig()
                 tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedWeightAssignmentReason(reason))
             end
             tImGui.BeginDisabled(assignment.valid~=true)
-            if tImGui.Button(tLang.L('fre_weight_assignment_apply')) then applyRigidFacialWeights() end
+            if tImGui.Button(tLang.L('fre_weight_assignment_apply'),{x=390,y=0}) then applyRigidFacialWeights() end
             tImGui.EndDisabled()
             showHelpTooltip(tLang.L('fre_weight_assignment_apply_tooltip'))
-            tImGui.BeginDisabled(not state.weightAssignment.modified)
+            tImGui.BeginDisabled(not state.weightAssignment.modified or
+                not state.weightAssignment.facialWeightsApplied)
             if tImGui.Button(tLang.L('fre_weight_assignment_save')) then saveAssignedMesh() end
             tImGui.EndDisabled()
             showHelpTooltip(tLang.L('fre_weight_assignment_save_tooltip'))
@@ -2563,6 +2653,7 @@ function onLoop(delta)
     updateFacialClipPlayback(delta)
     updatePreviewAuthoredClipPlayback(delta)
     showMenu()
+    showExportWindow()
     showMainPanel()
     showCameraPanel()
     showFacialClipTimelineWindow()

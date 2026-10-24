@@ -441,6 +441,20 @@ by the Rig weight-assignment flow because it materializes mesh skeleton and weig
 project clip authoring remains safe metadata until a native MSH or Blender Shape Key export is
 explicitly requested.
 
+## Delivered nineteenth slice: explicit facial export destinations
+
+The File menu now opens an export panel that distinguishes the three supported destinations:
+the facial project Lua (which preserves expressions and authored clips without materializing weights),
+the optional Blender bridge Lua (which carries authoring and topology interchange data), and a
+runtime MSH (which requires the facial skeleton and weight assignment to have been applied in Rig).
+The runtime MSH option remains disabled until that materialization is complete, and the panel states
+that authored project clips are not embedded in MSH by the current native writer.
+
+The runtime MSH page also exposes the prerequisite operations directly: it inspects the canonical
+facial skeleton, adds missing facial bones, rebuilds the weight-assignment plan, applies the facial
+weight preview, and only then enables Save runtime MSH as. The user no longer needs to open the Rig
+worktree to materialize these requirements.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such
