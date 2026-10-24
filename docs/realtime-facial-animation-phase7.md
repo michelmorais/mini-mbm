@@ -241,7 +241,10 @@ The importer is also exposed through the Blender UI operator described below.
 sidebar. The panel opens a file picker for the bridge document, imports the preview into the
 currently open `.blend`, reports bone and vertex-count checks, and displays the stored role
 warnings. It uses the same Y-up to Z-up conversion as the headless importer and leaves saving to
-the user. The operator is still preview-only: it does not assign weights or edit mesh geometry.
+the user. When the source `.blend` already contains an armature, the preview inherits its object
+scale; this keeps engine coordinates aligned with Blender files whose source armature uses a
+uniform scale such as `0.01`. The operator is still preview-only: it does not assign weights or
+edit mesh geometry.
 
 The panel also checks each bridge role against the names currently present in Blender. A missing
 object is reported explicitly, rather than being guessed from similar names; this is needed for
@@ -262,9 +265,11 @@ convention.
 The Rig workspace now keeps the exported bridge path and offers **Open Blender facial workflow**.
 The button finds the `.blend` next to the loaded `.msh` when possible, otherwise asks for the source
 `.blend`, detects Blender through the shared CLI wrapper, and starts Blender with
-`editor/facial_rig_blender_addon.py`. The addon still performs the explicit bridge import from the
-Mini MBM sidebar and the user saves the resulting `.blend` manually. The button tooltip contains the
-complete eight-step procedure, including the `X rotation = 90` conversion setting.
+`editor/facial_rig_blender_addon.py -- --bridge <exported-bridge.lua>`. The addon imports that bridge
+once Blender has finished loading, selects the visible `FacialRigPreview` armature, and keeps the
+result and any error in the `Mini MBM` panel. The file-picker button remains available for manual
+imports, and the user saves the resulting `.blend` manually. The button tooltip still documents the
+manual eight-step procedure, including the `X rotation = 90` conversion setting.
 
 This launcher does not assign weights. The Blender panel remains a preview-only armature import;
 weights or facial targets visible after a Mesh Debug round trip come from the source skeletal asset

@@ -1042,7 +1042,7 @@ local function launchBlenderFacialRig()
         setStatus(tLang.L('fre_blender_not_found'),true)
         return false
     end
-    local command=tBlender.buildFacialRigPreviewCmd(sourcePath,addonPath)
+    local command=tBlender.buildFacialRigPreviewCmd(sourcePath,addonPath,state.blenderBridgePath)
     if not command then
         setStatus(tLang.L('fre_blender_command_failed'),true)
         return false

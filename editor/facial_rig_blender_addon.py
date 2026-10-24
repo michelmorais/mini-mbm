@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
+import traceback
 from pathlib import Path
 
 import bpy
@@ -48,6 +49,77 @@ def read_json_property(obj, name: str) -> dict:
         return {}
 
 
+def command_line_bridge() -> str:
+    """Return an optional bridge path passed after Blender's ``--`` separator."""
+    arguments = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    for index, argument in enumerate(arguments):
+        if argument == "--bridge" and index + 1 < len(arguments):
+            return arguments[index + 1]
+        if argument.startswith("--bridge="):
+            return argument.split("=", 1)[1]
+    return ""
+
+
+def set_import_status(scene, status: str, error: str = "", path: str = "") -> None:
+    scene["mini_mbm_facial_bridge_status"] = status
+    scene["mini_mbm_facial_bridge_error"] = error
+    if path:
+        scene["mini_mbm_facial_bridge_path"] = str(Path(path).expanduser().resolve())
+
+
+def source_armature_scale(scene):
+    """Find the source skeleton scale used by Blender's mesh import workflow."""
+    for obj in scene.objects:
+        if obj.type != "ARMATURE" or obj.name.startswith("FacialRigPreview"):
+            continue
+        return obj.scale.copy(), obj.name
+    return None, ""
+
+
+def import_bridge(context, filepath: str, angle_x: float = 90.0,
+                  angle_y: float = 0.0, angle_z: float = 0.0,
+                  replace_preview: bool = True):
+    """Import one bridge and leave a persistent status in the scene custom properties."""
+    if not filepath:
+        raise ValueError("no facial rig bridge file was selected")
+    scene = context.scene
+    try:
+        source_scale, source_name = source_armature_scale(scene)
+        if context.object and context.object.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+        data = parse_bridge(filepath)
+        armature, count = create_armature(
+            data,
+            (angle_x, angle_y, angle_z),
+            replace_preview,
+            False,
+        )
+        if source_scale is not None:
+            armature.scale = source_scale
+            armature["mini_mbm_source_armature"] = source_name
+            armature["mini_mbm_source_armature_scale"] = tuple(float(value) for value in source_scale)
+        # Keep the imported preview visible and make it the only selected object. This
+        # avoids the common case where the armature exists but remains hidden in a mesh
+        # selection, which looks like a no-op in the viewport.
+        for obj in context.selected_objects:
+            obj.select_set(False)
+        armature.hide_set(False)
+        armature.hide_viewport = False
+        armature.hide_render = False
+        context.view_layer.objects.active = armature
+        armature.select_set(True)
+        scene["mini_mbm_facial_bridge_schema"] = data["schema"]
+        scene["mini_mbm_facial_bridge_vertex_count"] = int(data.get("vertexCount") or 0)
+        set_import_status(scene, f"Imported facial rig preview ({count} bones).", "", filepath)
+        return armature, count
+    except Exception as error:
+        message = str(error)
+        set_import_status(scene, "Facial rig bridge import failed.", message, filepath)
+        print(f"[mini_mbm_facial] ERROR: {message}", file=sys.stderr, flush=True)
+        traceback.print_exc()
+        raise
+
+
 class MBM_OT_import_facial_rig_bridge(Operator, ImportHelper):
     bl_idname = "mbm.import_facial_rig_bridge"
     bl_label = "Import Facial Rig Bridge"
@@ -62,20 +134,14 @@ class MBM_OT_import_facial_rig_bridge(Operator, ImportHelper):
 
     def execute(self, context):
         try:
-            if context.object and context.object.mode != "OBJECT":
-                bpy.ops.object.mode_set(mode="OBJECT")
-            data = parse_bridge(self.filepath)
-            armature, count = create_armature(
-                data,
-                (self.angle_x, self.angle_y, self.angle_z),
+            _, count = import_bridge(
+                context,
+                self.filepath,
+                self.angle_x,
+                self.angle_y,
+                self.angle_z,
                 self.replace_preview,
-                False,
             )
-            context.view_layer.objects.active = armature
-            armature.select_set(True)
-            context.scene["mini_mbm_facial_bridge_path"] = str(Path(self.filepath).resolve())
-            context.scene["mini_mbm_facial_bridge_schema"] = data["schema"]
-            context.scene["mini_mbm_facial_bridge_vertex_count"] = int(data.get("vertexCount") or 0)
             self.report({"INFO"}, f"Imported facial rig preview ({count} bones). Save the .blend manually.")
             return {"FINISHED"}
         except Exception as error:
@@ -93,6 +159,16 @@ class MBM_PT_facial_rig_bridge(Panel):
     def draw(self, context):
         layout = self.layout
         layout.operator(MBM_OT_import_facial_rig_bridge.bl_idname, icon="ARMATURE_DATA")
+        status = context.scene.get("mini_mbm_facial_bridge_status", "")
+        error = context.scene.get("mini_mbm_facial_bridge_error", "")
+        if status:
+            status_box = layout.box()
+            status_box.label(text=status, icon="ERROR" if error else "CHECKMARK")
+            if error:
+                status_box.label(text=error[:180], icon="INFO")
+            bridge_path = context.scene.get("mini_mbm_facial_bridge_path", "")
+            if bridge_path:
+                status_box.label(text=Path(bridge_path).name)
         armature = context.scene.objects.get("FacialRigPreview")
         if armature is None or armature.type != "ARMATURE":
             layout.label(text="No facial rig preview imported.", icon="INFO")
@@ -135,9 +211,27 @@ class MBM_PT_facial_rig_bridge(Panel):
 CLASSES = (MBM_OT_import_facial_rig_bridge, MBM_PT_facial_rig_bridge)
 
 
+def auto_import_bridge():
+    filepath = command_line_bridge()
+    if not filepath:
+        return None
+    try:
+        import_bridge(bpy.context, filepath)
+        print(f"[mini_mbm_facial] imported bridge: {filepath}", flush=True)
+    except Exception:
+        # import_bridge already persisted and printed the useful diagnostic. Returning
+        # None keeps the timer from retrying the same broken file every frame.
+        pass
+    return None
+
+
 def register():
     for cls in CLASSES:
         bpy.utils.register_class(cls)
+    if command_line_bridge():
+        # Blender may still be creating the initial view layer while --python runs.
+        # A one-shot timer gives the normal UI context time to become available.
+        bpy.app.timers.register(auto_import_bridge, first_interval=0.25)
 
 
 def unregister():
