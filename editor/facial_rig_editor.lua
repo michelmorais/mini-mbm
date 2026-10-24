@@ -28,6 +28,7 @@ tFacialProject = require "facial_rig_project"
 tFacialLandmarks = require "facial_rig_landmarks"
 tFacialBridge = require "facial_rig_blender_bridge"
 tFacialBindingPlan = require "facial_rig_binding_plan"
+tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tBlender = require "blender_cli_wrapper"
 
@@ -53,6 +54,7 @@ local state = {
     faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
     rigPreview={dirty=true,objects={},descriptor=nil},
     bindingPlan={dirty=true,data=nil},
+    facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false},
     blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
@@ -279,6 +281,18 @@ local function localizedWeightAssignmentReason(reason)
         if tostring(reason or ''):sub(1,#prefix)==prefix then return tLang.L(key) end
     end
     return tostring(reason or '')
+end
+
+local function localizedFacialSkeletonReason(reason)
+    local exact={
+        ['canonical facial rig is not valid']='fre_facial_skeleton_reason_rig',
+        ['mesh has no canonical skeleton']='fre_facial_skeleton_reason_no_skeleton',
+        ['mesh skeleton is not canonical']='fre_facial_skeleton_reason_noncanonical',
+        ['canonical facial rig has no generated bones']='fre_facial_skeleton_reason_no_bones',
+        ['generated facial bone has no name']='fre_facial_skeleton_reason_no_name',
+        ['generated facial bone name is duplicated']='fre_facial_skeleton_reason_duplicate'
+    }
+    return exact[reason] and tLang.L(exact[reason]) or tostring(reason or '')
 end
 
 local function showProjectMessages(report)
@@ -759,6 +773,35 @@ local function refreshBindingPlan()
     state.weightAssignment.dirty=true
 end
 
+local function refreshFacialSkeletonBinding()
+    if state.workspace~='rig' or not state.meshDebug then return end
+    local rig=tFacialProject.rigDescription(state.project,state.topology)
+    state.facialSkeleton.data=tFacialSkeletonBinding.inspect(state.meshDebug,rig)
+    state.facialSkeleton.dirty=false
+end
+
+local function applyFacialSkeletonBinding()
+    if state.facialSkeleton.dirty then refreshFacialSkeletonBinding() end
+    local binding=state.facialSkeleton.data
+    if not binding or binding.valid~=true then
+        setStatus(tLang.L('fre_facial_skeleton_blocked') .. ': ' ..
+            localizedFacialSkeletonReason(binding and binding.errors and binding.errors[1] or ''),true)
+        return false
+    end
+    local rig=tFacialProject.rigDescription(state.project,state.topology)
+    local ok,count,errorMessage=tFacialSkeletonBinding.apply(state.meshDebug,rig)
+    if not ok then
+        setStatus(tLang.L('fre_facial_skeleton_failed') .. ': ' .. tostring(errorMessage or ''),true)
+        return false
+    end
+    state.facialSkeleton.dirty=true
+    state.bindingPlan.dirty=true
+    state.weightAssignment.dirty=true
+    state.weightAssignment.modified=true
+    setStatus(string.format(tLang.L('fre_facial_skeleton_applied_fmt'),count),false)
+    return true
+end
+
 local function refreshWeightAssignment()
     if state.workspace~='rig' or not state.meshDebug then return end
     if state.bindingPlan.dirty then refreshBindingPlan() end
@@ -897,6 +940,7 @@ local function loadMesh(path, preserveProject)
     markFaceGuideDirty()
     state.rigPreview.dirty=true
     state.bindingPlan.dirty=true
+    state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false}
     frameCamera(bounds)
     setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
@@ -919,6 +963,7 @@ local function newProject()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
     state.bindingPlan.dirty=true
+    state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false}
     setStatus(tLang.L('fre_new_project'),false)
 end
@@ -1564,6 +1609,33 @@ local function showRig()
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_runtime_help'))
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_purpose_help'))
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_limits_help'))
+    if state.facialSkeleton.dirty then refreshFacialSkeletonBinding() end
+    if tImGui.TreeNode(tLang.L('fre_facial_skeleton_title')) then
+        tImGui.TextWrapped(tLang.L('fre_facial_skeleton_help'))
+        local facialSkeleton=state.facialSkeleton.data
+        if facialSkeleton then
+            tImGui.Text(string.format(tLang.L('fre_facial_skeleton_summary_fmt'),
+                facialSkeleton.existingCount,facialSkeleton.missingCount))
+            for _,entry in ipairs(facialSkeleton.entries or {}) do
+                local status=entry.status=='existing' and tLang.L('fre_facial_skeleton_existing') or
+                    entry.status=='missing' and tLang.L('fre_facial_skeleton_missing') or
+                    tLang.L('fre_facial_skeleton_blocked_status')
+                tImGui.TextWrapped(string.format(tLang.L('fre_facial_skeleton_entry_fmt'),
+                    entry.name,status))
+                if entry.reason then
+                    tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedFacialSkeletonReason(entry.reason))
+                end
+            end
+            for _,reason in ipairs(facialSkeleton.errors or {}) do
+                tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedFacialSkeletonReason(reason))
+            end
+            tImGui.BeginDisabled(facialSkeleton.valid~=true or facialSkeleton.missingCount==0)
+            if tImGui.Button(tLang.L('fre_facial_skeleton_apply')) then applyFacialSkeletonBinding() end
+            tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_facial_skeleton_apply_tooltip'))
+        end
+        tImGui.TreePop()
+    end
     local plan=state.bindingPlan.data
     if tImGui.TreeNode(tLang.L('fre_binding_plan_title')) then
         tImGui.TextWrapped(tLang.L('fre_binding_plan_help'))

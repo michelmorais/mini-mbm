@@ -317,3 +317,15 @@ roles can enter the rigid assignment plan; old sidecars without a map remain saf
 The map is metadata for validation and explicit assignment. It does not guess facial weights or
 replace the need for canonical facial bones for the main face, brows, mouth, or other articulated
 roles.
+
+## Delivered twelfth slice: canonical facial skeleton materialization
+
+The Rig workspace now has an explicit **Canonical facial skeleton** operation. It compares the
+generated facial rig with the loaded MeshDebug canonical skeleton, reports existing and missing
+bones, appends only missing generated bones, and reparents them while preserving their global bind
+transforms. The operation keeps existing weights and animation tracks intact and removes newly
+added leaf bones if any later step fails. It changes memory only; **Save modified facial MSH as...** writes
+the result to a new file.
+
+This slice creates the canonical bone identities required by the next weight-authoring milestone.
+It does not infer facial influences or overwrite existing bone weights.
