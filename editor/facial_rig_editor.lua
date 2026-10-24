@@ -209,6 +209,18 @@ local function localizedBridgeMessage(message)
     return name and string.format(tLang.L('fre_warning_bridge_unassigned_fmt'),name) or text
 end
 
+local function localizedBindingReviewStatus(status)
+    local key='fre_binding_review_status_' .. tostring(status or '')
+    local translated=tLang.L(key)
+    return translated==key and tostring(status or '') or translated
+end
+
+local function localizedBindingReviewMode(mode)
+    local key='fre_binding_review_mode_' .. tostring(mode or '')
+    local translated=tLang.L(key)
+    return translated==key and tostring(mode or '') or translated
+end
+
 local function showProjectMessages(report)
     for _,message in ipairs(report.errors or {}) do
         tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedProjectMessage(message))
@@ -1376,12 +1388,31 @@ local function showRig()
     showProjectMessages(report)
     local binding=tFacialProject.bindingDescription(state.project,state.topology)
     local bridgeReport=tFacialBridge.bindingReport(state.project,rig,binding)
+    local bindingReview=tFacialProject.bindingReview(state.project,state.topology)
     tImGui.Separator()
     tImGui.Text(string.format(tLang.L('fre_binding_roles_fmt'),#binding.roles))
     tImGui.Text(string.format(tLang.L('fre_binding_masks_fmt'),#binding.masks))
     tImGui.Text(string.format(tLang.L('fre_binding_landmarks_fmt'),#binding.landmarks))
     tImGui.Text(string.format(tLang.L('fre_binding_vertices_fmt'),binding.vertexCount))
     tImGui.TextWrapped(tLang.L('fre_binding_preview_help'))
+    if tImGui.TreeNode(tLang.L('fre_binding_review_title')) then
+        tImGui.TextWrapped(tLang.L('fre_binding_review_help'))
+        tImGui.Text(string.format(tLang.L('fre_binding_review_summary_fmt'),
+            bindingReview.totalMaskedVertices,bindingReview.overlapCount))
+        for _,entry in ipairs(bindingReview.roles or {}) do
+            local object=entry.object~='' and entry.object or tLang.L('fre_unassigned')
+            tImGui.TextWrapped(string.format(tLang.L('fre_binding_review_role_fmt'),entry.name,
+                object,localizedBindingReviewMode(entry.mode),entry.maskVertexCount,
+                localizedBindingReviewStatus(entry.status)))
+            for _,issue in ipairs(entry.issues or {}) do
+                tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. issue)
+            end
+        end
+        if bindingReview.overlapCount>0 then
+            tImGui.TextWrapped(tLang.L('fre_binding_review_overlap_help'))
+        end
+        tImGui.TreePop()
+    end
     tImGui.Separator()
     for _,message in ipairs(rig.errors or {}) do
         tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedRigMessage(message))

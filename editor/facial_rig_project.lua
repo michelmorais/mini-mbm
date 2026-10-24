@@ -379,6 +379,87 @@ function M.bindingDescription(project, topology)
     return description
 end
 
+-- Produces a mesh-aware, read-only binding review. Object-only roles cannot be
+-- counted after an MSH merge because the runtime topology has no Blender object
+-- boundaries; their source name is therefore reported as unverified. Explicit
+-- vertex masks can be checked against the loaded topology and are counted here.
+function M.bindingReview(project, topology)
+    local review={valid=true,roles={},overlapCount=0,totalMaskedVertices=0,
+        topologySignature=topology and topology.signature or '',vertexCount=topology and topology.vertexCount or 0}
+    local owners={}
+    for roleIndex,role in ipairs(project and project.roles or {}) do
+        if role.enabled then
+            local item={index=roleIndex,name=role.name or '',object=role.object or '',
+                maskCount=0,maskVertexCount=0,mode='unassigned',status='unassigned',issues={}}
+            local vertices={}
+            for maskIndex,mask in ipairs(project.masks or {}) do
+                if mask.enabled ~= false and (mask.roleIndex or 1)==roleIndex then
+                    item.maskCount=item.maskCount+1
+                    local maskVertices=type(mask.vertices)=='table' and mask.vertices or {}
+                    if topology and (mask.topologySignature or '')~='' and mask.topologySignature~=topology.signature then
+                        item.issues[#item.issues+1]='stale mask: ' .. tostring(mask.name or maskIndex)
+                    end
+                    local seen={}
+                    for _,rawIndex in ipairs(maskVertices) do
+                        local index=tonumber(rawIndex)
+                        if not index or index<1 or index%1~=0 or
+                                topology and index>topology.vertexCount or seen[index] then
+                            item.issues[#item.issues+1]='invalid mask vertex: ' .. tostring(mask.name or maskIndex)
+                        else
+                            seen[index]=true
+                            vertices[index]=true
+                            if not owners[index] then owners[index]={roleIndex=roleIndex,name=item.name} end
+                        end
+                    end
+                end
+            end
+            for _ in pairs(vertices) do item.maskVertexCount=item.maskVertexCount+1 end
+            if item.object~='' and item.maskVertexCount>0 then
+                item.mode='object_and_mask'
+            elseif item.object~='' then
+                item.mode='object'
+            elseif item.maskVertexCount>0 then
+                item.mode='mask'
+            end
+            if #item.issues>0 then
+                item.status='invalid'
+                review.valid=false
+            elseif item.mode=='unassigned' then
+                item.status='unassigned'
+                if item.name=='main_face' then
+                    item.issues[#item.issues+1]='main face has no object or vertex mask'
+                    review.valid=false
+                end
+            elseif item.mode=='object' then
+                item.status='object_unverified'
+            else
+                item.status='mask_ready'
+            end
+            review.roles[#review.roles+1]=item
+        end
+    end
+    local seenOverlap={}
+    for _ in pairs(owners) do review.totalMaskedVertices=review.totalMaskedVertices+1 end
+    for roleIndex,role in ipairs(project and project.roles or {}) do
+        if role.enabled then
+            for _,mask in ipairs(project.masks or {}) do
+                if mask.enabled~=false and (mask.roleIndex or 1)==roleIndex then
+                    for _,rawIndex in ipairs(type(mask.vertices)=='table' and mask.vertices or {}) do
+                        local index=tonumber(rawIndex)
+                        local owner=owners[index]
+                        if owner and owner.roleIndex~=roleIndex and not seenOverlap[index] then
+                            seenOverlap[index]=true
+                            review.overlapCount=review.overlapCount+1
+                            review.valid=false
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return review
+end
+
 local function midpoint(a, b)
     if not a and not b then return nil end
     if not a then return copyPoint(b) end

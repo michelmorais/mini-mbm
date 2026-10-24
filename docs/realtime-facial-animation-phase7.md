@@ -269,3 +269,11 @@ complete eight-step procedure, including the `X rotation = 90` conversion settin
 This launcher does not assign weights. The Blender panel remains a preview-only armature import;
 weights or facial targets visible after a Mesh Debug round trip come from the source skeletal asset
 or the existing Mesh Debug import path, not from this launcher.
+
+## Delivered eighth slice: mesh-aware binding review
+
+The Rig workspace now includes a read-only binding review based on the loaded MSH topology. It
+reports each enabled role's source mode, mask vertex count, invalid or stale mask data, and
+cross-role vertex overlaps. Object-only roles are explicitly marked as having an unverified vertex
+count because a merged MSH does not retain Blender object boundaries. This review does not assign
+weights; it is the gate before designing an explicit weight-generation operation.
