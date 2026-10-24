@@ -277,3 +277,12 @@ reports each enabled role's source mode, mask vertex count, invalid or stale mas
 cross-role vertex overlaps. Object-only roles are explicitly marked as having an unverified vertex
 count because a merged MSH does not retain Blender object boundaries. This review does not assign
 weights; it is the gate before designing an explicit weight-generation operation.
+
+## Delivered ninth slice: explicit weight assignment plan
+
+The Rig workspace now derives a deterministic, review-only weight assignment plan from the generated
+bones, enabled roles, and binding review. The plan records the policy for each role (facial skeleton,
+rigid, bilateral, or manual opt-in), candidate bones, masked vertex counts, and blockers. Object-only
+roles remain blocked because a merged MSH does not expose their original Blender vertex boundaries.
+The plan is descriptive and does not mutate the mesh; the next implementation can add an explicit
+confirmation and transactional assignment operation once the source vertices are available.

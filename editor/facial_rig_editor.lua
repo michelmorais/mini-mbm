@@ -27,6 +27,7 @@ tUtil = require "editor_utils"
 tFacialProject = require "facial_rig_project"
 tFacialLandmarks = require "facial_rig_landmarks"
 tFacialBridge = require "facial_rig_blender_bridge"
+tFacialBindingPlan = require "facial_rig_binding_plan"
 tBlender = require "blender_cli_wrapper"
 
 -- Protected-call wrapper used by all editor operations that can cross the Lua/C++ boundary.
@@ -50,6 +51,7 @@ local state = {
     faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
     faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
     rigPreview={dirty=true,objects={},descriptor=nil},
+    bindingPlan={dirty=true,data=nil},
     blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
 }
@@ -221,6 +223,25 @@ local function localizedBindingReviewMode(mode)
     return translated==key and tostring(mode or '') or translated
 end
 
+local function localizedBindingPlanMethod(method)
+    local key='fre_binding_plan_method_' .. tostring(method or '')
+    local translated=tLang.L(key)
+    return translated==key and tostring(method or '') or translated
+end
+
+local function localizedBindingPlanReason(reason)
+    local exact={
+        ['canonical rig description is not valid']='fre_binding_plan_reason_rig',
+        ['role has no object or vertex mask']='fre_binding_plan_reason_unassigned',
+        ['object vertices are not available in the merged MSH topology']='fre_binding_plan_reason_object_unverified',
+        ['the selected policy has no generated bone']='fre_binding_plan_reason_no_bone',
+        ['the role mask has no vertices']='fre_binding_plan_reason_empty_mask',
+        ['vertex masks overlap across enabled roles']='fre_binding_plan_reason_overlap'
+    }
+    local translated=exact[reason] and tLang.L(exact[reason]) or reason
+    return translated
+end
+
 local function showProjectMessages(report)
     for _,message in ipairs(report.errors or {}) do
         tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedProjectMessage(message))
@@ -271,6 +292,7 @@ end
 local function markModified()
     state.modified=true
     state.rigPreview.dirty=true
+    state.bindingPlan.dirty=true
 end
 
 local function clearHistory()
@@ -305,6 +327,7 @@ local function restoreHistorySnapshot(snapshot)
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
     state.rigPreview.dirty=true
+    state.bindingPlan.dirty=true
     return true
 end
 
@@ -686,6 +709,14 @@ local function refreshRigPreview()
     preview.dirty=false
 end
 
+local function refreshBindingPlan()
+    if state.workspace~='rig' or not state.mesh then return end
+    local rig=tFacialProject.rigDescription(state.project,state.topology)
+    local review=tFacialProject.bindingReview(state.project,state.topology)
+    state.bindingPlan.data=tFacialBindingPlan.build(state.project,state.topology,rig,review)
+    state.bindingPlan.dirty=false
+end
+
 local function inspectMesh(meshDebugObject)
     local ok,topology=dpCall(function() return tFacialLandmarks.inspect(meshDebugObject) end)
     if not ok or not topology or not topology.bounds then return nil, 0, nil end
@@ -780,6 +811,7 @@ local function loadMesh(path, preserveProject)
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
+    state.bindingPlan.dirty=true
     frameCamera(bounds)
     setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
     return true
@@ -800,6 +832,7 @@ local function newProject()
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
+    state.bindingPlan.dirty=true
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -1378,6 +1411,7 @@ end
 
 local function showRig()
     tImGui.TextWrapped(tLang.L('fre_rig_help'))
+    if state.bindingPlan.dirty then refreshBindingPlan() end
     local report=tFacialProject.validate(state.project,state.mesh~=nil,state.topology)
     local rig=tFacialProject.rigDescription(state.project,state.topology)
     if report.ok and rig.valid then
@@ -1431,6 +1465,28 @@ local function showRig()
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_runtime_help'))
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_purpose_help'))
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_limits_help'))
+    local plan=state.bindingPlan.data
+    if tImGui.TreeNode(tLang.L('fre_binding_plan_title')) then
+        tImGui.TextWrapped(tLang.L('fre_binding_plan_help'))
+        if plan then
+            tImGui.Text(string.format(tLang.L('fre_binding_plan_summary_fmt'),plan.readyCount,plan.blockedCount))
+            for _,entry in ipairs(plan.entries or {}) do
+                tImGui.TextWrapped(string.format(tLang.L('fre_binding_plan_role_fmt'),entry.name,
+                    localizedBindingPlanMethod(entry.method),entry.vertexCount,
+                    entry.status=='ready' and tLang.L('fre_binding_plan_ready') or tLang.L('fre_binding_plan_blocked')))
+                if #entry.bones>0 then
+                    tImGui.TextWrapped(string.format(tLang.L('fre_binding_plan_bones_fmt'),table.concat(entry.bones,', ')))
+                end
+                for _,reason in ipairs(entry.reasons or {}) do
+                    tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedBindingPlanReason(reason))
+                end
+            end
+            for _,reason in ipairs(plan.errors or {}) do
+                tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedBindingPlanReason(reason))
+            end
+        end
+        tImGui.TreePop()
+    end
     if rig.valid then
         tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_rig_preview_ready'))
         tImGui.TextWrapped(tLang.L('fre_rig_preview_help'))
