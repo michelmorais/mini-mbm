@@ -1315,6 +1315,10 @@ M.en = {
     fre_blender_not_found = "Blender was not found. Configure Blender in the Mesh Debug editor first.",
     fre_blender_command_failed = "Could not build the Blender launch command.",
     fre_blender_opened_fmt = "Blender opened with facial workflow: %s",
+    fre_blender_workflow_title = "Blender handoff (optional)",
+    fre_blender_workflow_runtime_help = "The bridge is optional for the mini-mbm runtime. A finished .msh asset loads its facial targets, weights, and clips without this Lua file or Blender.",
+    fre_blender_workflow_purpose_help = "Use Blender to review the generated armature, continue compatible armature or weight work, and inspect object names and coordinate alignment before returning the asset through Mesh Debug.",
+    fre_blender_workflow_limits_help = "The current addon creates a preview armature only. It does not assign vertex weights, create vertex groups, generate facial targets, or author clips.",
     fre_warning_bridge_unassigned_fmt = "Role has no source object or mask: %s",
     -- Skeletal Animation Editor / Skin Weight Lab
     swl_title = "Skeletal Animation Editor",
@@ -5315,6 +5319,10 @@ M.pt_br = {
     fre_blender_not_found = "O Blender nao foi encontrado. Configure o Blender primeiro no editor Mesh Debug.",
     fre_blender_command_failed = "Nao foi possivel montar o comando para abrir o Blender.",
     fre_blender_opened_fmt = "Blender aberto com o fluxo facial: %s",
+    fre_blender_workflow_title = "Passagem pelo Blender (opcional)",
+    fre_blender_workflow_runtime_help = "A bridge e opcional para o runtime do mini-mbm. Um arquivo .msh final carrega targets faciais, pesos e clips sem este arquivo Lua ou o Blender.",
+    fre_blender_workflow_purpose_help = "Use o Blender para revisar o armature gerado, continuar trabalhos compativeis de armature ou pesos e conferir nomes de objetos e alinhamento de coordenadas antes de retornar o asset pelo Mesh Debug.",
+    fre_blender_workflow_limits_help = "O addon atual cria somente um armature de pre-visualizacao. Ele nao atribui pesos de vertices, cria grupos de vertices, gera targets faciais nem cria clips.",
     fre_warning_bridge_unassigned_fmt = "O papel nao possui objeto de origem nem mascara: %s",
     -- Editor de Animação Esquelética / Laboratório de Pesos
     swl_title = "Editor de Animação Esquelética",

@@ -1395,6 +1395,11 @@ local function showRig()
     for _,message in ipairs(bridgeReport.warnings or {}) do
         tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedBridgeMessage(message))
     end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_blender_workflow_title'))
+    tImGui.TextWrapped(tLang.L('fre_blender_workflow_runtime_help'))
+    tImGui.TextWrapped(tLang.L('fre_blender_workflow_purpose_help'))
+    tImGui.TextWrapped(tLang.L('fre_blender_workflow_limits_help'))
     if rig.valid then
         tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_rig_preview_ready'))
         tImGui.TextWrapped(tLang.L('fre_rig_preview_help'))
