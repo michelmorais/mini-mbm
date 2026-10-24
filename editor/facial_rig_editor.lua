@@ -747,6 +747,7 @@ end
 
 local function showHelpTooltip(message)
     if not message or message=='' or not tImGui.IsItemHovered(0) then return end
+    tImGui.SetNextWindowSizeConstraints({x=280,y=0},{x=440,y=360})
     tImGui.BeginTooltip()
     tImGui.TextWrapped(message)
     tImGui.EndTooltip()
