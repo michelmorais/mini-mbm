@@ -211,6 +211,11 @@ bind geometry, author expressions, and export ARKit-compatible named targets and
 compatibility means compatible names, regions, landmarks, weights, and Blender/MSH interchange;
 it does not mean reproducing Blender add-on internals.
 
+The Blender bridge is an optional authoring interchange artifact. The mini-mbm runtime consumes the
+facial sections, target weights, and clips stored in `.msh`; it does not require the bridge Lua file
+or Blender to load or play a finished asset. While native binding is still being implemented, the
+bridge remains the handoff used for Blender-side armature and weight work.
+
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the
 rigging workflow.

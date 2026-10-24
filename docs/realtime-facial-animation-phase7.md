@@ -160,6 +160,11 @@ The editor currently loads `.msh` assets for the initial setup workflow. Blender
 the established Mesh Debug path; the facial editor now exports its canonical rig description to a
 transactionally written Lua document for the Blender bridge.
 
+The Blender bridge is optional for the mini-mbm runtime. A finished game only needs the facial data
+stored in the `.msh` asset and the runtime target/clip APIs; it does not load the bridge Lua file or
+start Blender. The bridge is required only for the current Blender handoff and preview workflow,
+until native mesh binding and weight authoring are implemented in the facial editor.
+
 ## Delivered second slice: landmark viewport and binding data
 
 The second implementation slice now provides:
@@ -242,8 +247,9 @@ The panel also checks each bridge role against the names currently present in Bl
 object is reported explicitly, rather than being guessed from similar names; this is needed for
 assets such as Megan where the Blender objects and the merged MSH source use different names.
 
-The next milestone is a mesh-aware review of facial role objects and then an explicit, opt-in
-weight assignment design.
+The next milestone is a mesh-aware review of facial role objects and the loaded `.msh` topology.
+After that review, an explicit, opt-in weight assignment design can be implemented. This order keeps
+object-name or scale mismatches from silently producing weights for the wrong vertex order.
 
 In the Blender panel, `Engine X rotation = 90` is an import conversion setting, not a request to
 rotate the resulting armature object afterward. Click **Import Facial Rig Bridge** after selecting
