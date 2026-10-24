@@ -722,7 +722,7 @@ playing/paused state.
 | `obj:getFacialAnimationTime` | `()` | number or nil | Current active clip time |
 | `obj:setFacialAnimationPlaybackSpeed` | `(speed)` | bool | Set a finite non-negative per-instance playback multiplier |
 | `obj:getFacialAnimationPlaybackSpeed` | `()` | number | Current multiplier; defaults to `1` |
-| `obj:getFacialAnimationReport` | `()` | table | Target/clip counts, readiness, active clip state, evaluation/upload counters, execution path, and status |
+| `obj:getFacialAnimationReport` | `()` | table | Target/clip counts, readiness, active clip state, evaluation/upload counters, execution path (`cpu` or `gpu-skeletal-composite`), and status |
 
 ```lua
 local face = mesh:new("3d")

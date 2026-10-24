@@ -57,10 +57,20 @@ allowing high-poly meshes whose deduplicated vertex count remains below 65,535.
 
 ## Decision
 
-The sparse CPU reference remains the default path. A GPU morph implementation should be proposed
-only when a representative game mesh, capture workload, or target backend demonstrates that CPU
-deformation is still the limiting cost. The benchmark command now compares dense and sparse output
-against the same target weights; both paths must retain the same output tolerance.
+The sparse CPU reference remains the reference for morph evaluation. The first GPU composition slice
+is now implemented (2026-10-24) for the existing OpenGL ES skeletal backend: the CPU evaluates morph deltas once
+per facial change, then the regular GPU LBS shader applies the skeletal palette to that morphed buffer.
+This removes the second CPU pass observed on the Megan fixture without introducing a second draw. The
+path is selected automatically when the mesh has a valid LBS canonical skeleton and the backend has
+palette capacity; an explicit CPU request remains available and unsupported cases fall back safely.
+The benchmark command still compares dense and sparse morph output against the same target weights;
+both paths must retain the same output tolerance.
+
+The GPU composition report is exposed as `gpu-skeletal-composite`. It is not yet full GPU morph
+evaluation: target deltas and normals are still produced on the CPU, custom vertex shaders and
+normal-map facial materials remain unsupported, and DQS facial composition is deferred. The next
+slice can move the sparse target data and active weights into backend-specific shader resources, with
+the same CPU fallback and parity checks.
 
 The Fuzzy Fury fixture provides that representative high-poly measurement: its 57,746-vertex,
 six-target deformation measured approximately 20.7 ms dense and 5.9 ms sparse per evaluation in

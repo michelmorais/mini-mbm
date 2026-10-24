@@ -184,10 +184,13 @@ facial-plus-skeletal review. The next transport milestone can implement OSC or w
 producing the same validated packet table.
 
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
-rigged facial-plus-skeletal asset. If the measured cost still requires it, add GPU morph evaluation
-for explicitly selected backends, with CPU fallback where supported. Establish limits for active
-targets, vertex counts, buffer memory, and shader resources; do not assume one backend's capacity
-applies to all others.
+rigged facial-plus-skeletal asset. The first GPU composition slice now keeps morph evaluation on the
+CPU and reuses the existing GPU LBS shader for the skeletal stage, avoiding a second CPU deformation
+pass while preserving the morph-then-skin contract. It is selected only for valid LBS data and a
+backend with measured palette capacity; the CPU path remains explicit and is the fallback.
+The next optimization slice may add GPU morph evaluation for explicitly selected backends, with CPU
+fallback where supported. Establish limits for active targets, vertex counts, buffer memory, and
+shader resources; do not assume one backend's capacity applies to all others.
 
 ### Phase 7: Dedicated facial rig authoring editor
 

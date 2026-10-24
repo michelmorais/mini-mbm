@@ -144,10 +144,15 @@ namespace mbm
         this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
         this->resolveSkeletalExecutionPath();
         if (facialState->targetCount && (!this->is3DObject() ||
-            cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::GPU ||
-            getResolvedSkeletalSkinningMethod() == SKELETAL_SHADER_METHOD::DQS_RIGID))
+            (cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::GPU &&
+             (getResolvedSkeletalSkinningMethod() != SKELETAL_SHADER_METHOD::LBS ||
+              !this->mesh->supportsGpuSkeletalPath(SKELETAL_SHADER_METHOD::LBS))) ||
+            (getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU &&
+             getResolvedSkeletalSkinningMethod() != SKELETAL_SHADER_METHOD::LBS)))
         {
-            facialState->status = "facial-requires-3d-cpu-lbs";
+            facialState->status = !this->is3DObject() ? "facial-requires-3d" :
+                (cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::GPU
+                    ? "facial-gpu-skeletal-unsupported" : "facial-requires-lbs-or-gpu-composite");
             facialState->ready = false;
             this->mesh = nullptr;
             return false;
@@ -349,7 +354,14 @@ namespace mbm
         if (facialState && facialState->targetCount)
         {
             cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::CPU;
-            cpuSkeletalRenderState->executionReason = "facial-cpu-reference";
+            const SKELETAL_SHADER_METHOD method = getResolvedSkeletalSkinningMethod();
+            if (method == SKELETAL_SHADER_METHOD::LBS && mesh && mesh->supportsGpuSkeletalPath(method))
+            {
+                cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::GPU;
+                cpuSkeletalRenderState->executionReason = "facial-gpu-composite-auto";
+            }
+            else
+                cpuSkeletalRenderState->executionReason = "facial-cpu-reference";
             return;
         }
         const char *cpuReason = nullptr;
@@ -939,7 +951,9 @@ namespace mbm
             out.clipName = mesh->getFacialClipName(facialState->clipIndex);
         }
         out.executionPath = !facialState->targetCount ? "none" :
-            (facialState->ready ? "cpu" : "unsupported");
+            (facialState->ready ?
+                (getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::GPU
+                    ? "gpu-skeletal-composite" : "cpu") : "unsupported");
         out.status = facialState->status.c_str();
     }
 
@@ -955,7 +969,8 @@ namespace mbm
         const SKELETAL_ANIMATION_PLAYER *source = shared ?
             &skeletalPoseSharingState->source->getSkeletalAnimationPlayer() : &player;
         const uint64_t revision = facialState->evaluations;
-        if (!mesh->prepareFacial(*facialState, source)) return false;
+        const bool useGpuSkinning = getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::GPU;
+        if (!mesh->prepareFacial(*facialState, source, useGpuSkinning)) return false;
         if (revision != facialState->evaluations) updateAABB();
         return true;
     }

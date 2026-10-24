@@ -12382,7 +12382,7 @@ namespace mbm
             state.vertexCounts.push_back(impl->buffer[0].subset[i].vertexCount);
         }
         state.ready = true;
-        return prepareFacial(state, nullptr);
+        return prepareFacial(state, nullptr, false);
     }
 
     uint32_t MESH_MBM::findFacialTarget(const char *name) const noexcept
@@ -12504,20 +12504,24 @@ namespace mbm
         return refreshFacialWeights(state);
     }
 
-    bool MESH_MBM::prepareFacial(facial::RENDER_STATE &state, const SKELETAL_ANIMATION_PLAYER *player) const
+    bool MESH_MBM::prepareFacial(facial::RENDER_STATE &state, const SKELETAL_ANIMATION_PLAYER *player,
+                                 const bool useGpuSkinning) const
     {
         if (!state.targetCount) return true;
         if (!state.ready) return false;
         const bool skin = player && player->impl->active;
+        const bool gpuSkin = skin && useGpuSkinning;
         const auto fail = [&state](const char *reason) { state.status = reason; return false; };
         if (skin && player->impl->resolvedSkinningMethod != SKELETAL_SHADER_METHOD::LBS)
-            return fail("facial-requires-cpu-lbs");
-        const bool poseChanged = skin != state.hadSkin || (skin && state.palette != player->impl->paletteRows);
+            return fail("facial-requires-lbs");
+        const bool geometryChanged = state.dirty || state.gpuSkinning != useGpuSkinning;
+        const bool poseChanged = skin != state.hadSkin || (skin && state.palette != player->impl->paletteRows) ||
+            state.gpuSkinning != useGpuSkinning;
         if (!state.dirty && !poseChanged) return true;
         if (state.dirty && !facial::deform(impl->facialAsset, impl->skeletalBindPositions,
                 impl->skeletalBindNormals, state.weights, state.morphPositions, state.morphNormals, state.status))
             return false;
-        if (skin)
+        if (skin && !gpuSkin)
         {
             skeletal::SKELETAL_POSE pose;
             pose.globalTransforms = player->impl->evaluatedGlobalTransforms;
@@ -12525,28 +12529,37 @@ namespace mbm
                     pose, state.morphPositions, state.morphNormals, state.positions, state.normals))
                 return fail("facial-cpu-lbs-evaluation-failed");
         }
-        else
+        else if (geometryChanged)
         {
             state.positions = state.morphPositions;
             state.normals = state.morphNormals;
         }
         // A centered conservative bound also covers engines/callers that consume only dimensions.
-        VEC3 extent(0,0,0);
-        for (const VEC3 &p : state.positions)
+        // A GPU-only palette change does not alter the uploaded morph geometry, so avoid rescanning
+        // all vertices on every skeletal animation frame.
+        if (geometryChanged || (!gpuSkin && poseChanged))
         {
-            if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
-                return fail("facial-skinned-position-overflow");
-            extent.x = std::max(extent.x, std::fabs(p.x));
-            extent.y = std::max(extent.y, std::fabs(p.y));
-            extent.z = std::max(extent.z, std::fabs(p.z));
+            VEC3 extent(0,0,0);
+            for (const VEC3 &p : state.positions)
+            {
+                if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
+                    return fail("facial-skinned-position-overflow");
+                extent.x = std::max(extent.x, std::fabs(p.x));
+                extent.y = std::max(extent.y, std::fabs(p.y));
+                extent.z = std::max(extent.z, std::fabs(p.z));
+            }
+            state.bounds.lsCube[0]->halfDim = extent;
         }
-        state.bounds.lsCube[0]->halfDim = extent;
         state.hadSkin = skin;
+        // Keep this flag as the selected shader variant, even while the skeletal
+        // player is idle. The GPU variant still needs bone attributes so an identity
+        // palette can render the facial bind pose.
+        state.gpuSkinning = useGpuSkinning;
         if (skin) state.palette = player->impl->paletteRows;
         else state.palette.clear();
         state.dirty = false;
-        state.uploadDirty = true;
-        ++state.evaluations;
+        if (geometryChanged) state.uploadDirty = true;
+        if (geometryChanged || (!gpuSkin && poseChanged)) ++state.evaluations;
         state.status = "ready";
         return true;
     }
@@ -12614,6 +12627,25 @@ namespace mbm
             state.initialized = true;
         }
 
+        // The facial buffer uses the same bind-vertex order as the canonical skeletal
+        // weights. Upload these attributes once so the existing GPU LBS shader can skin
+        // the CPU-morphed positions without a second CPU deformation pass.
+        if (state.gpuSkinning && !impl->gpuSkinningInput.ready())
+        {
+            state.status = "facial-gpu-skinning-input-unavailable";
+            return false;
+        }
+        if (state.gpuSkinning && !state.gpuSkinningUploaded)
+        {
+            if (impl->skeletalBindFrameIndex != 0 ||
+                !skeletal::uploadSkinVertexStream(state.buffer.pBufferGL, impl->gpuSkinningInput))
+            {
+                state.status = "facial-gpu-skinning-upload-failed";
+                return false;
+            }
+            state.gpuSkinningUploaded = true;
+        }
+
         if (state.uploadDirty)
         {
             if (!state.buffer.pBufferGL->updateDynamic(state.positions.data(),
@@ -12626,7 +12658,9 @@ namespace mbm
         }
         DEVICE *device = DEVICE::getInstance();
         device->setRenderMaterial(impl->material);
-        const bool result = shader->render(state.buffer.pBufferGL, owner);
+        const bool result = shader->render(state.buffer.pBufferGL, owner, -1,
+                                           state.gpuSkinning ? state.palette.data() : nullptr,
+                                           state.gpuSkinning ? static_cast<uint32_t>(state.palette.size()) : 0u);
         device->clearRenderMaterial();
         if (!result) state.status = "facial-draw-failed";
         return result;

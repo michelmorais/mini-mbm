@@ -40,7 +40,8 @@ namespace mbm::facial
         uint64_t evaluations = 0, uploads = 0;
         bool ready = false, dirty = true, uploadDirty = true, initialized = false;
         bool clipPlaying = false, clipPaused = false;
-        bool hadSkin = false, poseAdvancedForRender = false;
+        bool hadSkin = false, gpuSkinning = false, gpuSkinningUploaded = false;
+        bool poseAdvancedForRender = false;
         RENDER_STATE() { bounds.lsCube.push_back(new CUBE()); }
     };
 }
