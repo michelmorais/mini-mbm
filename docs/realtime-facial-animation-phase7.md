@@ -318,6 +318,11 @@ The map is metadata for validation and explicit assignment. It does not guess fa
 replace the need for canonical facial bones for the main face, brows, mouth, or other articulated
 roles.
 
+Facial authoring metadata remains in the project Lua file. A binary MSH stores geometry, canonical
+bones, weights, and facial animation data, but it does not carry the editor's face origin, landmark,
+mask, or role tables. Opening a derived MSH while a project with the same topology is active keeps
+that project state; opening the MSH alone starts without those authoring tables.
+
 ## Delivered twelfth slice: canonical facial skeleton materialization
 
 The Rig workspace now has an explicit **Canonical facial skeleton** operation. It compares the

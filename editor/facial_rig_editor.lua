@@ -850,6 +850,11 @@ local function saveAssignedMesh()
         setStatus(tLang.L('fre_weight_assignment_save_failed'),true)
         return false
     end
+    -- Keep the authoring project attached to the derived MSH in memory. The facial
+    -- metadata lives in the project Lua, not in the binary MSH; saving the project
+    -- afterward persists this new asset path together with its landmarks and masks.
+    state.project.meshPath=path
+    state.modified=true
     state.weightAssignment.modified=false
     setStatus(string.format(tLang.L('fre_weight_assignment_saved_fmt'),shortName(path)),false)
     return true
@@ -928,6 +933,11 @@ local function loadMesh(path, preserveProject)
         setStatus(tLang.L('fre_mesh_inspection_failed'),true)
         return false
     end
+    local requestedPreserve=preserveProject==true
+    local projectCompatible=not requestedPreserve or state.project.meshTopologySignature=='' or
+        (state.project.meshTopologySignature==topology.signature and
+            (state.project.meshVertexCount==0 or state.project.meshVertexCount==topology.vertexCount))
+    if requestedPreserve and not projectCompatible then preserveProject=false end
     state.mesh=candidate
     state.meshDebug=inspector
     state.meshBounds=bounds
@@ -953,7 +963,11 @@ local function loadMesh(path, preserveProject)
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false}
     frameCamera(bounds)
-    setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
+    if requestedPreserve and not projectCompatible then
+        setStatus(tLang.L('fre_mesh_project_topology_mismatch'),true)
+    else
+        setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
+    end
     return true
 end
 
@@ -980,7 +994,7 @@ end
 
 local function openMesh()
     local path=mbm.openFile(state.project.meshPath or '', 'msh')
-    if path then loadMesh(path,false) end
+    if path then loadMesh(path,state.project.meshPath~='') end
 end
 
 local function openProject()
@@ -1171,6 +1185,7 @@ end
 
 local function showSetup()
     tImGui.TextWrapped(tLang.L('fre_setup_help'))
+    tImGui.TextWrapped(tLang.L('fre_project_mesh_persistence_help'))
     if tImGui.Button(tLang.L('fre_open_mesh')) then openMesh() end
     tImGui.SameLine()
     if tImGui.Button(tLang.L('fre_open_project')) then openProject() end
