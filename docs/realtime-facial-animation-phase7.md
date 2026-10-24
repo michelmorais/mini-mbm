@@ -380,6 +380,12 @@ and mirror recognized `Left`/`Right`, `.L`/`.R`, and `_l`/`_r` target pairs. Val
 pose names and references to targets that are not present in the loaded mesh. Mesh deltas remain in
 the MSH asset; the project stores only authoring metadata and weights.
 
+The Expressions worktree now exposes explicit `New expression`, `Edit expression`, and `Delete
+expression` modes. New mode accepts only a new name and creates a new pose from the current weights;
+it cannot overwrite an existing pose. Edit mode exposes the existing-pose combo, applies the selected
+pose to the mesh when selection changes, and persists changes only through the explicit Update action.
+Delete mode hides target editing and exposes only deletion of the selected pose.
+
 This slice intentionally does not edit vertex deltas or write facial clips. The Preview worktree
 consumes these named poses and imported clips; deterministic capture replay remains a later input
 integration step.

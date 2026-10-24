@@ -136,6 +136,14 @@ function M.addPose(expressions,name)
     return pose
 end
 
+function M.removePose(expressions,index)
+    if type(expressions)~='table' or type(expressions.poses)~='table' or
+            index<1 or index>#expressions.poses then return false end
+    table.remove(expressions.poses,index)
+    expressions.selectedPose=math.max(1,math.min(expressions.selectedPose or 1,math.max(1,#expressions.poses)))
+    return true
+end
+
 function M.capturePose(expressions,pose,weights)
     if not pose then return false end
     pose.weights=copyWeights(weights)
