@@ -455,6 +455,18 @@ facial skeleton, adds missing facial bones, rebuilds the weight-assignment plan,
 weight preview, and only then enables Save runtime MSH as. The user no longer needs to open the Rig
 worktree to materialize these requirements.
 
+## Delivered twentieth slice: facial playback reset and CPU/GPU comparison
+
+The facial clip timeline now has an explicit Stop button. It stops playback, returns the cursor to
+time zero, and applies the first key, including for non-looping clips that have already reached the
+end. Mesh loading also stops persisted skeletal autoplay so the facial editor always opens in the
+bind/T-pose; skeletal playback is opt-in from Preview.
+
+Preview can optionally create a synchronized CPU/GPU comparison. The primary loaded mesh remains on
+the GPU skeletal-composite path, while a second CPU execution preview is placed beside it. Facial
+weights and skeletal play/pause/stop commands are mirrored, and both facial execution reports are
+shown so morph and skin paths can be compared without changing the saved project.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

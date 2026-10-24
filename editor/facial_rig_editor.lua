@@ -61,6 +61,7 @@ local state = {
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false},
     exportWindow={open=false,target=1},
+    facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
     clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true},
     preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
@@ -463,6 +464,10 @@ end
 
 local function destroyPreview()
     destroyRigPreview()
+    if state.facialComparison and state.facialComparison.mesh then
+        dpCall(function() state.facialComparison.mesh:destroy() end)
+    end
+    state.facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false}
     for _,marker in ipairs(state.landmarkMarkers or {}) do
         dpCall(function() marker:destroy() end)
     end
@@ -994,7 +999,7 @@ end
 
 local function refreshLandmarkMarkers()
     if not state.topology or not state.mesh then return end
-    local bounds=state.meshBounds
+    local bounds=state.meshBounds or {minX=0,maxX=1,minY=0,maxY=1,minZ=0,maxZ=1}
     local extent=math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
         (bounds.maxZ-bounds.minZ)^2)
     local size=math.max(extent*0.012,0.001)
@@ -1048,6 +1053,15 @@ local function refreshExpressionCatalog()
     state.expressions.catalogDirty=false
 end
 
+local function syncFacialComparisonWeights()
+    local comparison=state.facialComparison and state.facialComparison.mesh
+    if not comparison or not state.mesh then return end
+    for _,entry in ipairs(state.expressions.catalog or {}) do
+        local ok,value=dpCall(function() return state.mesh:getFacialWeight(entry.name) end)
+        if ok then dpCall(function() return comparison:setFacialWeightByName(entry.name,tonumber(value) or 0) end) end
+    end
+end
+
 local function applyFacialWeights(weights)
     if not state.mesh then return false end
     local success=true
@@ -1055,12 +1069,76 @@ local function applyFacialWeights(weights)
         local ok,applied=dpCall(function() return state.mesh:setFacialWeight(entry.name,weights[entry.name] or 0) end)
         if not ok or applied==false then success=false end
     end
+    syncFacialComparisonWeights()
     return success
 end
 
 local function applyExpressionPose(pose)
     if not pose then return false end
     return applyFacialWeights(tFacialExpressions.applyPose(state.project.expressions,pose))
+end
+
+local function rebuildFacialComparison(enabled)
+    local comparison=state.facialComparison
+    if comparison.mesh then dpCall(function() comparison.mesh:destroy() end) end
+    comparison.mesh=nil
+    comparison.enabled=enabled==true
+    comparison.ready=false
+    comparison.layoutActive=false
+    if not comparison.enabled then
+        if state.mesh then dpCall(function() state.mesh:setPos(0,0,0) end) end
+        if state.meshBounds then frameCamera(state.meshBounds) end
+        return true
+    end
+    if not state.mesh or not state.project.meshPath or state.project.meshPath=='' then return false end
+    local primaryPathOk,primaryPath=dpCall(function() return state.mesh:getResolvedSkeletalExecutionPath() end)
+    if not primaryPathOk or primaryPath~='gpu' then return false end
+    local candidate=mesh:new('3d')
+    local cpuOk,cpuReady=dpCall(function() return candidate:setSkeletalExecutionPath('cpu') end)
+    local loadOk,loaded=false,false
+    if cpuOk and cpuReady~=false then loadOk,loaded=dpCall(function() return candidate:load(state.project.meshPath) end) end
+    if not cpuOk or cpuReady==false or not loadOk or loaded==false then
+        dpCall(function() candidate:destroy() end)
+        return false
+    end
+    dpCall(function() return candidate:stopSkeletalAnimation() end)
+    comparison.mesh=candidate
+    comparison.ready=true
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local separation=math.max(extent*0.65,0.1)
+    dpCall(function() state.mesh:setPos(-separation,0,0) end)
+    dpCall(function() candidate:setPos(separation,0,0) end)
+    comparison.layoutActive=true
+    candidate.visible=state.workspace=='preview' and state.mesh.visible
+    syncFacialComparisonWeights()
+    local expanded={minX=bounds.minX-separation,maxX=bounds.maxX+separation,
+        minY=bounds.minY,maxY=bounds.maxY,minZ=bounds.minZ,maxZ=bounds.maxZ}
+    frameCamera(expanded)
+    return true
+end
+
+local function updateFacialComparisonVisibility()
+    local comparison=state.facialComparison
+    if comparison and comparison.mesh then
+        local active=comparison.enabled and state.workspace=='preview'
+        if active and not comparison.layoutActive then
+            local bounds=state.meshBounds or {minX=0,maxX=1,minY=0,maxY=1,minZ=0,maxZ=1}
+            local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ)
+            local separation=math.max(extent*0.65,0.1)
+            dpCall(function() state.mesh:setPos(-separation,0,0) end)
+            dpCall(function() comparison.mesh:setPos(separation,0,0) end)
+            comparison.layoutActive=true
+            frameCamera({minX=bounds.minX-separation,maxX=bounds.maxX+separation,
+                minY=bounds.minY,maxY=bounds.maxY,minZ=bounds.minZ,maxZ=bounds.maxZ})
+        elseif not active and comparison.layoutActive then
+            dpCall(function() state.mesh:setPos(0,0,0) end)
+            dpCall(function() comparison.mesh:setPos(0,0,0) end)
+            comparison.layoutActive=false
+        end
+        comparison.mesh.visible=active and state.mesh and state.mesh.visible
+    end
 end
 
 local function refreshPreviewSkeletalCatalog()
@@ -1095,6 +1173,9 @@ local function loadMesh(path, preserveProject)
         setStatus(string.format(tLang.L('fre_load_failed_fmt'),shortName(path)),true)
         return false
     end
+    -- A mesh may persist a skeletal autoplay flag. The facial editor starts from a
+    -- deterministic bind/T-pose; playback is opt-in from Preview.
+    dpCall(function() return candidate:stopSkeletalAnimation() end)
     local inspector=meshDebug:new()
     local okInspected=dpCall(function() return inspector:load(path) end)
     if not okInspected then
@@ -2144,6 +2225,15 @@ local function showFacialClipTimelineWindow()
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_clip_play')..'##freClipTimelinePlay',{x=110,y=0}) then state.clipEditor.playing=not state.clipEditor.playing end
         showHelpTooltip(tLang.L('fre_clip_play_tooltip'))
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('fre_clip_stop')..'##freClipTimelineStop',{x=90,y=0}) then
+            state.clipEditor.playing=false
+            state.clipEditor.time=0
+            state.clipEditor.keySelected=1
+            applyFacialWeights(tFacialClips.sample(clip,0,
+                tFacialExpressions.targetNames(state.project.expressions)))
+        end
+        showHelpTooltip(tLang.L('fre_clip_stop_tooltip'))
         local keys=clip.keys or {}
         if tImGui.BeginTable('freFacialClipTimelineKeys',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
             tImGui.TableSetupColumn(tLang.L('fre_clip_key_column'))
@@ -2221,6 +2311,36 @@ local function showPreview()
     local expressions=state.project.expressions or tFacialExpressions.new()
     state.project.expressions=expressions
     if state.preview.skeletalDirty then refreshPreviewSkeletalCatalog() end
+    local compareChanged,compare=tImGui.Checkbox(tLang.L('fre_preview_gpu_cpu_compare'),
+        state.facialComparison.enabled==true)
+    if compareChanged then
+        if rebuildFacialComparison(compare) then
+            state.facialComparison.enabled=compare
+            setStatus(compare and tLang.L('fre_preview_gpu_cpu_enabled') or
+                tLang.L('fre_preview_gpu_cpu_disabled'),false)
+        else
+            state.facialComparison.enabled=false
+            setStatus(tLang.L('fre_preview_gpu_cpu_failed'),true)
+        end
+    end
+    showHelpTooltip(tLang.L('fre_preview_gpu_cpu_tooltip'))
+    if state.facialComparison.enabled and state.facialComparison.ready then
+        tImGui.TextWrapped(tLang.L('fre_preview_gpu_cpu_layout'))
+        local gpuOk,gpuReport=dpCall(function() return state.mesh:getFacialAnimationReport() end)
+        local cpuOk,cpuReport=dpCall(function()
+            return state.facialComparison.mesh:getFacialAnimationReport()
+        end)
+        if gpuOk and type(gpuReport)=='table' then
+            tImGui.Text(tLang.L('fre_preview_gpu_report_fmt'))
+            tImGui.Text(string.format(tLang.L('fre_preview_skin_fmt'),gpuReport.executionPath or 'unknown'))
+            tImGui.Text(string.format(tLang.L('fre_preview_morph_fmt'),gpuReport.morphExecutionPath or 'unknown'))
+        end
+        if cpuOk and type(cpuReport)=='table' then
+            tImGui.Text(tLang.L('fre_preview_cpu_report_fmt'))
+            tImGui.Text(string.format(tLang.L('fre_preview_skin_fmt'),cpuReport.executionPath or 'unknown'))
+            tImGui.Text(string.format(tLang.L('fre_preview_morph_fmt'),cpuReport.morphExecutionPath or 'unknown'))
+        end
+    end
     tImGui.Text(tLang.L('fre_preview_skeletal_title'))
     local skeletalAnimations=state.preview.skeletalAnimations or {}
     if #skeletalAnimations==0 then
@@ -2233,19 +2353,31 @@ local function showPreview()
         local skeletalName=skeletalAnimations[state.preview.selectedSkeletal]
         if tImGui.Button(tLang.L('fre_preview_skeletal_play') .. '##frePreviewSkeletalPlay',{x=230,y=0}) then
             local ok,played=dpCall(function() return state.mesh:playSkeletalAnimation(skeletalName) end)
+            if state.facialComparison.mesh then
+                dpCall(function() return state.facialComparison.mesh:playSkeletalAnimation(skeletalName) end)
+            end
             if ok and played~=false then setStatus(string.format(tLang.L('fre_preview_skeletal_played_fmt'),skeletalName),false)
             else setStatus(tLang.L('fre_preview_skeletal_failed'),true) end
         end
         if tImGui.Button(tLang.L('fre_preview_skeletal_pause') .. '##frePreviewSkeletalPause',{x=90,y=0}) then
             dpCall(function() return state.mesh:pauseSkeletalAnimation() end)
+            if state.facialComparison.mesh then
+                dpCall(function() return state.facialComparison.mesh:pauseSkeletalAnimation() end)
+            end
         end
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_preview_skeletal_resume') .. '##frePreviewSkeletalResume',{x=100,y=0}) then
             dpCall(function() return state.mesh:resumeSkeletalAnimation() end)
+            if state.facialComparison.mesh then
+                dpCall(function() return state.facialComparison.mesh:resumeSkeletalAnimation() end)
+            end
         end
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_preview_skeletal_stop') .. '##frePreviewSkeletalStop',{x=90,y=0}) then
             dpCall(function() return state.mesh:stopSkeletalAnimation() end)
+            if state.facialComparison.mesh then
+                dpCall(function() return state.facialComparison.mesh:stopSkeletalAnimation() end)
+            end
         end
         local durationOk,duration=dpCall(function()
             return state.mesh:getSkeletalAnimationDuration(state.preview.selectedSkeletal)
@@ -2652,6 +2784,7 @@ function onLoop(delta)
     updateCameraKeyboard(delta)
     updateFacialClipPlayback(delta)
     updatePreviewAuthoredClipPlayback(delta)
+    updateFacialComparisonVisibility()
     showMenu()
     showExportWindow()
     showMainPanel()
