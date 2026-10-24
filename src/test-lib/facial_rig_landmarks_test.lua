@@ -3,6 +3,7 @@ package.path='editor/?.lua;' .. package.path
 local Landmarks=require 'facial_rig_landmarks'
 local Project=require 'facial_rig_project'
 local Bridge=require 'facial_rig_blender_bridge'
+local Expressions=require 'facial_rig_expressions'
 
 local points={
     [1]={{x=-1,y=0,z=0},{x=1,y=0,z=0}},
@@ -21,13 +22,21 @@ assert(topology.signature~='')
 local hit=Landmarks.nearestVertex(topology,{x=-1,y=0,z=-5},{x=0,y=0,z=1},0.1)
 assert(hit and hit.index==1)
 local project=Project.new()
-assert(project.schemaVersion==5 and project.landmarkEditMode==1)
+assert(project.schemaVersion==7 and project.landmarkEditMode==1)
 project.landmarkEditMode=2
 project.language='pt_br'
 assert(Project.normalize(project).landmarkEditMode==2)
 assert(project.language=='pt_br')
 assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
     'legacy facial projects must default to independent side editing')
+project.expressions=Expressions.syncCatalog(project.expressions,
+    {{name='eye.L',convention='ARKit'},{name='eye.R',convention='ARKit'},{name='jawOpen'}})
+local expression=Expressions.addPose(project.expressions,'smile')
+assert(expression and Expressions.validate(project.expressions).ok)
+expression.weights['eye.L']=0.75
+Expressions.mirrorPose(project.expressions,expression)
+assert(expression.weights['eye.R']==0.75,
+    'expression side mirroring must preserve paired weights')
 assert(Project.addSourceObject(project,'Head')==1)
 assert(Project.addSourceObject(project,'Head')==1,
     'source object catalog must remain unique')

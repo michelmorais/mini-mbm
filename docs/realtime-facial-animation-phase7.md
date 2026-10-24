@@ -366,6 +366,22 @@ The Rig diagnostics and binding summary are cached behind a dirty flag. Large to
 the facial weight preview run when the project or mesh changes, not once per render frame while the
 Rig workspace is idle.
 
+## Delivered fourteenth slice: expression authoring
+
+The Expressions worktree is now an authoring surface for facial targets already present in the
+loaded MSH. It discovers target names and conventions once after a mesh change, exposes bounded
+0..1 weight sliders, and applies changed values directly to the preview mesh without scanning or
+re-uploading the full facial geometry every frame.
+
+Named expressions are stored in the facial project as target-name-to-weight poses. The editor can
+create a pose, capture the current target weights, apply a saved pose for visual review, rename it,
+and mirror recognized `Left`/`Right`, `.L`/`.R`, and `_l`/`_r` target pairs. Validation rejects duplicate
+pose names and references to targets that are not present in the loaded mesh. Mesh deltas remain in
+the MSH asset; the project stores only authoring metadata and weights.
+
+This slice intentionally does not edit vertex deltas or write facial clips. The Preview worktree
+will consume these named poses and the existing deterministic capture stream in the next slice.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

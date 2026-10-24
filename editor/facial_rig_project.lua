@@ -83,7 +83,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=6,
+        schemaVersion=7,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -98,6 +98,7 @@ function M.new()
         selectedLandmark=1,
         selectedMask=1,
         landmarkEditMode=1,
+        expressions={targets={},poses={},selectedTarget=1,selectedPose=1},
         language=nil
     }
 end
@@ -118,7 +119,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(6,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(7,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -141,6 +142,14 @@ function M.normalize(project)
     project.selectedMask=math.max(1, math.floor(tonumber(project.selectedMask) or 1))
     project.landmarkEditMode=math.max(1,math.min(2,
         math.floor(tonumber(project.landmarkEditMode) or 1)))
+    if type(project.expressions)~='table' then
+        project.expressions={targets={},poses={},selectedTarget=1,selectedPose=1}
+    else
+        project.expressions.targets=type(project.expressions.targets)=='table' and project.expressions.targets or {}
+        project.expressions.poses=type(project.expressions.poses)=='table' and project.expressions.poses or {}
+        project.expressions.selectedTarget=math.max(1,math.floor(tonumber(project.expressions.selectedTarget) or 1))
+        project.expressions.selectedPose=math.max(1,math.floor(tonumber(project.expressions.selectedPose) or 1))
+    end
     if project.language~='en' and project.language~='pt_br' then project.language=nil end
     for index, role in ipairs(project.roles) do
         if type(role) ~= 'table' then

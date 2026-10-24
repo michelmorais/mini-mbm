@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 7 landmark viewport and binding-data slice complete; runtime, Blender interchange, and capture naming foundations are complete**
+Status: **Phase 7 expression-authoring slice complete; runtime, Blender interchange, and capture naming foundations are complete**
 Last reviewed: **2026-10-23**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -227,6 +227,12 @@ The Blender bridge is an optional authoring interchange artifact. The mini-mbm r
 facial sections, target weights, and clips stored in `.msh`; it does not require the bridge Lua file
 or Blender to load or play a finished asset. While native binding is still being implemented, the
 bridge remains the handoff used for Blender-side armature and weight work.
+
+The Expressions worktree now authors named target-weight poses from existing MSH facial targets,
+including bounded preview sliders, capture/apply, side mirroring, rename, persistence, and validation.
+The next editor slice is the Preview worktree for reviewing saved poses, clips, and deterministic
+capture replay. GPU morph parity for DirectX and Metal remains a separate backend milestone; those
+backends keep the CPU reference path until an equivalent indexed resource is implemented.
 
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the
