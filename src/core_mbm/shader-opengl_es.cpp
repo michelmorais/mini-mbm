@@ -657,10 +657,14 @@ namespace mbm
     void BUFFER_SPECIFIC::releaseFacialMorph()
     {
         if (facialMorphTexture)
+        {
             GLDeleteTextures(1, &facialMorphTexture);
+        }
         facialMorphTexture = 0;
         if (vboFacialVertexIdIB)
+        {
             GLDeleteBuffers(1, &vboFacialVertexIdIB);
+        }
         vboFacialVertexIdIB = 0;
         if (vboFacialVertexIdVB)
         {
