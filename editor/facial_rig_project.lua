@@ -33,12 +33,12 @@ local SOURCE_OBJECT_SUGGESTIONS = {
     right_eye={'Eye.R', 'RightEye', 'eye_right'},
     upper_teeth={'UpperTeeth', 'Teeth.Upper', 'Teeth'},
     lower_teeth={'LowerTeeth', 'Teeth.Lower'},
-    tongue={'Tongue', 'tongue'},
+    tongue={'Tongue'},
     brows={'Brows', 'Brow.L', 'Brow.R'},
-    nose={'Nose', 'nose'},
-    mouth={'Mouth', 'mouth', 'Lips'},
-    hair={'Hair', 'hair'},
-    accessory={'Accessory', 'accessory'}
+    nose={'Nose'},
+    mouth={'Mouth', 'Lips'},
+    hair={'Hair'},
+    accessory={'Accessory'}
 }
 
 local LANDMARK_NAMES = {

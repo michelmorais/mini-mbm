@@ -745,6 +745,13 @@ local function showStatus()
     end
 end
 
+local function showHelpTooltip(message)
+    if not message or message=='' or not tImGui.IsItemHovered(0) then return end
+    tImGui.BeginTooltip()
+    tImGui.TextWrapped(message)
+    tImGui.EndTooltip()
+end
+
 local function showMenu()
     if not tImGui.BeginMainMenuBar() then return end
     if tImGui.BeginMenu(tLang.L('menu_file')) then
@@ -805,6 +812,7 @@ local function showMasks()
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
     end
+    tImGui.TextWrapped(tLang.L('fre_masks_object_mode_help'))
     local roles=state.project.roles
     local selected=roles[state.selectedRole] or roles[1]
     if tImGui.BeginTable('freRoles',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
@@ -820,6 +828,7 @@ local function showMasks()
             tImGui.TableSetColumnIndex(1)
             local objectLabels,objectValues=sourceObjectOptions(role.name)
             sourceObjectCombo(role,index,objectLabels,objectValues)
+            showHelpTooltip(tLang.L('fre_source_object_tooltip'))
             tImGui.TableSetColumnIndex(2)
             tImGui.Text(role.enabled and tLang.L('fre_yes') or tLang.L('fre_no'))
         end
@@ -829,6 +838,15 @@ local function showMasks()
         tImGui.Separator()
         tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
         tImGui.TextWrapped(tLang.L('fre_source_object_help'))
+        local selectedRoleMaskCount=0
+        for _,mask in ipairs(state.project.masks or {}) do
+            if (mask.roleIndex or 1)==state.selectedRole and mask.enabled~=false and #(mask.vertices or {})>0 then
+                selectedRoleMaskCount=selectedRoleMaskCount + 1
+            end
+        end
+        if selected.object~='' and selectedRoleMaskCount==0 then
+            tImGui.TextWrapped(string.format(tLang.L('fre_role_object_only_help'),selected.object))
+        end
         tImGui.PushItemWidth(320)
         local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',state.sourceObjectDraft or '')
         if changed then state.sourceObjectDraft=object end
@@ -843,7 +861,9 @@ local function showMasks()
                 markModified()
             end
         end
+        showHelpTooltip(tLang.L('fre_register_object_tooltip'))
         local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
+        showHelpTooltip(tLang.L('fre_role_enabled_tooltip'))
         if enabled~=selected.enabled then
             pushUndoSnapshot()
             selected.enabled=enabled
@@ -855,6 +875,7 @@ local function showMasks()
             state.selectedMask=#state.project.masks
             markModified()
         end
+        showHelpTooltip(tLang.L('fre_add_mask_tooltip'))
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_masks'))
@@ -887,6 +908,7 @@ local function showMasks()
         tImGui.PopItemWidth()
         local roleNames=tFacialProject.roleNames()
         local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
+        showHelpTooltip(tLang.L('fre_mask_role_tooltip'))
         if roleChanged then
             pushUndoSnapshot()
             selectedMask.roleIndex=roleIndex
@@ -894,16 +916,20 @@ local function showMasks()
         end
         tImGui.TextWrapped(tLang.L('fre_mask_edit_help'))
         local addPressed=tImGui.Button(tLang.L('fre_mask_add_vertices'))
+        showHelpTooltip(tLang.L('fre_mask_add_vertices_tooltip'))
         tImGui.SameLine()
         local removePressed=tImGui.Button(tLang.L('fre_mask_remove_vertices'))
+        showHelpTooltip(tLang.L('fre_mask_remove_vertices_tooltip'))
         if addPressed then state.maskEditMode='add' end
         if removePressed then state.maskEditMode='remove' end
         tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. state.maskEditMode)
+        tImGui.TextWrapped(tLang.L('fre_mask_edit_action_help'))
         if tImGui.Button(tLang.L('fre_mask_clear')) then
             pushUndoSnapshot()
             selectedMask.vertices={}
             markModified()
         end
+        showHelpTooltip(tLang.L('fre_mask_clear_tooltip'))
     end
 end
 

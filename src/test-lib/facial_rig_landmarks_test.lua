@@ -32,6 +32,12 @@ assert(Project.addSourceObject(project,'Head')==1,
     'source object catalog must remain unique')
 assert(Project.normalize(project).sourceObjects[1]=='Head')
 assert(Project.sourceObjectSuggestions('main_face')[1]=='Head')
+local tongueSuggestions=Project.sourceObjectSuggestions('tongue')
+assert(#tongueSuggestions==1 and tongueSuggestions[1]=='Tongue')
+local hairSuggestions=Project.sourceObjectSuggestions('hair')
+assert(#hairSuggestions==1 and hairSuggestions[1]=='Hair')
+local accessorySuggestions=Project.sourceObjectSuggestions('accessory')
+assert(#accessorySuggestions==1 and accessorySuggestions[1]=='Accessory')
 project.roles[1].object='UpperTeeth'
 Project.normalize(project)
 assert(project.sourceObjects[2]=='UpperTeeth',
