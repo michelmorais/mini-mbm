@@ -974,6 +974,12 @@ local function showStatus()
     end
 end
 
+local function textColoredWrapped(color,message)
+    tImGui.PushStyleColor('ImGuiCol_Text',color)
+    tImGui.TextWrapped(message)
+    tImGui.PopStyleColor(1)
+end
+
 local function showHelpTooltip(message)
     if not message or message=='' or not tImGui.IsItemHovered(0) then return end
     tImGui.SetNextWindowSizeConstraints({x=280,y=0},{x=440,y=360})
@@ -1415,9 +1421,9 @@ local function showRig()
     local report=tFacialProject.validate(state.project,state.mesh~=nil,state.topology)
     local rig=tFacialProject.rigDescription(state.project,state.topology)
     if report.ok and rig.valid then
-        tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_validation_ok'))
+        textColoredWrapped({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_validation_ok'))
     else
-        tImGui.TextColored({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_validation_pending'))
+        textColoredWrapped({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_validation_pending'))
     end
     showProjectMessages(report)
     local binding=tFacialProject.bindingDescription(state.project,state.topology)
@@ -1488,7 +1494,7 @@ local function showRig()
         tImGui.TreePop()
     end
     if rig.valid then
-        tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_rig_preview_ready'))
+        textColoredWrapped({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_rig_preview_ready'))
         tImGui.TextWrapped(tLang.L('fre_rig_preview_help'))
         tImGui.TextWrapped(tLang.L('fre_bridge_help'))
         tImGui.BeginDisabled(not report.ok or not bridgeReport.valid)
