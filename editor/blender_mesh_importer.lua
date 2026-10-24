@@ -188,6 +188,9 @@ function M.start(config)
     local importOptions = {
         directMshOutput = true,
         includeBones = options.includeBones ~= false,
+        includeFacial = options.includeFacial == true,
+        facialConvention = options.facialConvention,
+        facialNormalDeltas = options.facialNormalDeltas == true,
         unweightedMeshMode = options.unweightedMeshMode,
         uniformScale = options.uniformScale,
         normalizeTextures = options.normalizeTextures == true,

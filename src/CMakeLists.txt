@@ -2089,6 +2089,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias for normal_map"
         COMMAND cmake -E echo "alias for font_maker"
         COMMAND cmake -E echo "alias for mesh_debug"
+        COMMAND cmake -E echo "alias for facial_rig_editor"
         COMMAND cmake -E echo "alias for shader_editor"
         COMMAND cmake -E echo "alias for particle_editor"
         COMMAND cmake -E echo "alias for physic_editor"
@@ -2107,6 +2108,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias font_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/font_maker.lua  --nosplash --name font_maker'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_debug='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_debug.lua  --nosplash --name mesh_debug'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias facial_rig_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/facial_rig_editor.lua --nosplash --name facial_rig_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_to_sprite_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_to_sprite_editor.lua --nosplash --name mesh_to_sprite_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua  --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias particle_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/particle_editor.lua  --nosplash --name particle_editor'" >> ${PATH_BIN}/shortcuts.sh
@@ -2169,6 +2171,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         COMMAND cmake -E echo "alias for normal_map"
         COMMAND cmake -E echo "alias for font_maker"
         COMMAND cmake -E echo "alias for mesh_debug"
+        COMMAND cmake -E echo "alias for facial_rig_editor"
         COMMAND cmake -E echo "alias for shader_editor"
         COMMAND cmake -E echo "alias for particle_editor"
         COMMAND cmake -E echo "alias for physic_editor"
@@ -2187,6 +2190,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         COMMAND cmake -E echo "alias font_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/font_maker.lua  -w 1470 -h 900 --nosplash --name font_maker'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_debug='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_debug.lua -w 1470 -h 900 --nosplash --name mesh_debug'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua -w 1470 -h 900 --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias facial_rig_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/facial_rig_editor.lua -w 1470 -h 900 --nosplash --name facial_rig_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_to_sprite_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_to_sprite_editor.lua -w 1470 -h 900 --nosplash --name mesh_to_sprite_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua -w 1470 -h 900 --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias particle_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/particle_editor.lua  -w 1470 -h 900 --nosplash --name particle_editor'" >> ${PATH_BIN}/shortcuts.sh

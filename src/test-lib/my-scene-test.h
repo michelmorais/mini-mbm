@@ -136,6 +136,7 @@ class MY_SCENE : public mbm::SCENE
     // testElapsedSeconds reaches testTimeoutSeconds. Set via main()'s optional
     // <seconds> command-line argument so agent-driven test runs are not stuck
     // waiting forever in the render loop.
+    bool                    testFacialAnimation = false;
     float                   testTimeoutSeconds;
     float                   testElapsedSeconds;
 

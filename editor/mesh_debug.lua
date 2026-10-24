@@ -42,6 +42,11 @@ local Simplification = require "mesh_debug_simplification"
 local CaptureVolume = require "mesh_debug_capture_volume"
 tImageMeshWorktree = require "image_mesh_worktree"
 
+-- Preview creation runs before the bounds helpers below are defined. Forward-declare the
+-- helpers so the first selected mesh can receive a size-aware camera before it is rendered.
+local computeMeshVertexBoundsFrame1
+local fitCam3dToMesh
+
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
     local res = table.pack(pcall(fn, ...))
@@ -280,6 +285,9 @@ function onInitScene()
         nReducePolygonRatio = 0.5,
         bImportPreferSkeletal = true,
         bImportIncludeBones = true, -- legacy state name kept for older saved sessions
+        bImportIncludeFacial = true,
+        bImportFacialNormalDeltas = true,
+        sImportFacialConvention = 'ARKit',
         bNormalizeTextures = true,
         bIncludeTextureDiffuse = true,
         bIncludeTextureNormal = true,
@@ -1871,6 +1879,32 @@ local function saveGeneratedMesh(meshD, outMshPath)
     return true
 end
 
+local function sourceObjectCatalogPath(meshPath)
+    local stem=(meshPath or ''):match('^(.*)%.[^%.]+$') or meshPath or ''
+    return stem .. '_mbm_objects.lua'
+end
+
+local function saveSourceObjectCatalog(meshPath, objectNames)
+    local names={}
+    local seen={}
+    for _,objectName in ipairs(objectNames or {}) do
+        objectName=tostring(objectName or ''):match('^%s*(.-)%s*$')
+        if objectName~='' and not seen[objectName] then
+            seen[objectName]=true
+            names[#names+1]=objectName
+        end
+    end
+    table.sort(names)
+    local lines={'-- mini-mbm Blender source object catalog','local sourceObjectCatalog = {}'}
+    tUtil.save('sourceObjectCatalog',{version=1,objects=names},lines)
+    lines[#lines+1]='return sourceObjectCatalog'
+    local file,errorMessage=io.open(sourceObjectCatalogPath(meshPath),'w')
+    if not file then return false,errorMessage end
+    file:write(table.concat(lines,'\n'),'\n')
+    file:close()
+    return true
+end
+
 local function buildMeshFromIntermediate(tData, outMshPath, options)
     local meshD = meshDebug:new()
     meshD:setType('mesh')
@@ -1903,7 +1937,9 @@ local function buildMeshFromIntermediate(tData, outMshPath, options)
     if not okAnim then return false, errAnim end
     local okTransform, transformError = applyGeneratedMeshOptions(meshD, options)
     if not okTransform then return false, transformError end
-    return saveGeneratedMesh(meshD, outMshPath)
+    local okSaved,saveError=saveGeneratedMesh(meshD,outMshPath)
+    if not okSaved then return false,saveError end
+    return saveSourceObjectCatalog(outMshPath,tData.sourceObjects)
 end
 
 local function buildMeshFromStreamManifest(manifestPath, outMshPath, options)
@@ -1965,7 +2001,9 @@ local function buildMeshFromStreamManifest(manifestPath, outMshPath, options)
     if not okAnim then return false, errAnim end
     local okTransform, transformError = applyGeneratedMeshOptions(meshD, options)
     if not okTransform then return false, transformError end
-    return saveGeneratedMesh(meshD, outMshPath)
+    local okSaved,saveError=saveGeneratedMesh(meshD,outMshPath)
+    if not okSaved then return false,saveError end
+    return saveSourceObjectCatalog(outMshPath,manifest.sourceObjects)
 end
 
 local function onOpenBlenderImportDialog()
@@ -2088,12 +2126,14 @@ local function blenderImportCoroutine()
         local outManifest = joinPath(outDir, 'manifest.lua')
         local oldOutLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
         local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
+        local outObjectCatalog = baseDir .. '/' .. getFileStem(src) .. '_mbm_objects.lua'
         local waitOutput = modeIntermediateOnly and outManifest or outMsh
         local dbgLog = baseDir .. '/' .. getFileStem(src) .. '_mbm_blender_debug.log'
         local cancelFile = baseDir .. '/' .. getFileStem(src) .. '_mbm_cancel'
         os.remove(oldOutLua)
         removePathRecursive(outDir)
         os.remove(outMsh)
+        os.remove(outObjectCatalog)
         os.remove(dbgLog)
         os.remove(cancelFile)
 
@@ -2141,6 +2181,9 @@ local function blenderImportCoroutine()
         end
         importOptions.unweightedMeshMode = ({'fail', 'skip', 'bake'})[st.iUnweightedMeshMode or 1]
         importOptions.includeBones = tBlender.getPreferSkeletal()
+        importOptions.includeFacial = st.bImportIncludeFacial == true
+        importOptions.facialNormalDeltas = st.bImportFacialNormalDeltas == true
+        importOptions.facialConvention = st.sImportFacialConvention or ''
         importOptions.normalizeTextures = st.bNormalizeTextures
         importOptions.includeTextureDiffuse = st.bIncludeTextureDiffuse
         importOptions.includeTextureNormal = st.bIncludeTextureNormal
@@ -2946,6 +2989,23 @@ function showBlenderImportDialog()
     tImGui.SameLine()
     tImGui.HelpMarker(tLang.L('blender_import_unweighted_help'))
     tImGui.EndDisabled()
+    tImGui.BeginDisabled(st.bIntermediateOnly)
+    st.bImportIncludeFacial = tImGui.Checkbox(tLang.L('blender_import_include_facial'), st.bImportIncludeFacial == true)
+    tImGui.SameLine()
+    tImGui.HelpMarker(tLang.L('blender_import_include_facial_help'))
+    tImGui.BeginDisabled(not st.bImportIncludeFacial)
+    st.bImportFacialNormalDeltas = tImGui.Checkbox(
+        tLang.L('blender_import_facial_normal_deltas'), st.bImportFacialNormalDeltas == true)
+    tImGui.PushItemWidth(180)
+    -- InputText's optional third argument is an ImGuiInputTextFlags value, not a max length.
+    local facialConventionChanged, facialConvention = tImGui.InputText(
+        tLang.L('blender_import_facial_convention'), st.sImportFacialConvention or '')
+    if facialConventionChanged and facialConvention then
+        st.sImportFacialConvention = facialConvention:sub(1, 128)
+    end
+    tImGui.PopItemWidth()
+    tImGui.EndDisabled()
+    tImGui.EndDisabled()
     tImGui.Separator()
     st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
     tImGui.BeginDisabled(not st.bImportPostProcess)
@@ -3328,7 +3388,7 @@ function addMeshToTable(fileName,imageMeshProjectOwner,imageMeshRegion)
         bFrameSelectionDirty = false,
         framePreviewPath     = nil,
         bPreviewIsFiltered   = false,
-        cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
+        cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0, autoFit=true },
         tPendingOps          = {},
         tSimplifyState       = imageMeshProjectOwner and imageMeshRegion and
                               tImageMeshWorktree.simplifyState(imageMeshProjectOwner.project,imageMeshRegion) or
@@ -3593,7 +3653,8 @@ function selectMeshIndex(newIndex)
 
     local tOld = tLoadedMeshes[iSelectedMeshIndex]
     local tNew = tLoadedMeshes[newIndex]
-    if bCameraMode3D and isMesh3DType(tOld) and isMesh3DType(tNew) then
+    if bCameraMode3D and isMesh3DType(tOld) and isMesh3DType(tNew) and
+       not (tNew.cam3d and tNew.cam3d.autoFit) then
         local c = tOld.cam3d
         tNew.cam3d.azimuth   = c.azimuth
         tNew.cam3d.elevation = c.elevation
@@ -3698,6 +3759,9 @@ function updatePreviewMesh()
         -- straight to the origin is the correct fix rather than reading any stored value.
         if ok then
             tPreviewMesh:setPos(0, 0, 0)
+            if bCameraMode3D and tEntry.cam3d.autoFit then
+                fitCam3dToMesh(tEntry)
+            end
         end
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new(coordType)
@@ -3849,7 +3913,7 @@ end
 
 -- Computes the mesh's own bounding box from frame 1's vertex data only (not mesh:getSize()).
 -- Returns center/width/height/depth, or false if frame 1 has no vertices.
-function computeMeshVertexBoundsFrame1(meshD)
+computeMeshVertexBoundsFrame1 = function(meshD)
     local ok, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
     if not ok or not nSubsets then return false end
     local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
@@ -3874,6 +3938,23 @@ function computeMeshVertexBoundsFrame1(meshD)
         cx = (minX + maxX) * 0.5, cy = (minY + maxY) * 0.5, cz = (minZ + maxZ) * 0.5,
         width = maxX - minX, height = maxY - minY, depth = maxZ - minZ,
     }
+end
+
+-- Chooses a perspective distance from the actual frame-1 geometry. Imported assets use very
+-- different unit scales; a fixed distance of 500 makes a roughly two-unit head occupy only a
+-- handful of pixels while a 100-unit mesh looks normal.
+fitCam3dToMesh = function(tEntry)
+    if not tEntry or not tEntry.cam3d then return false end
+    local bounds = computeMeshVertexBoundsFrame1(tEntry.meshDebug)
+    if not bounds then return false end
+    local diagonal = math.sqrt(bounds.width * bounds.width + bounds.height * bounds.height +
+                               bounds.depth * bounds.depth)
+    if diagonal <= 0 or diagonal ~= diagonal then return false end
+    local c = tEntry.cam3d
+    c.fx, c.fy, c.fz = bounds.cx, bounds.cy, bounds.cz
+    c.distance = math.max(diagonal * 1.8, 0.5)
+    c.autoFit = false
+    return true
 end
 
 -- Physics-only bounding extent, unioned across every shape kind in a meshD:getPhysics() list --
@@ -5420,7 +5501,67 @@ local function writeMeshDebugJson(meshD, jsonPath)
         f:write('    ] }')
         f:write(clipIndex < #animations and ',\n' or '\n')
     end
-    f:write('  ] },\n  "mesh": {\n    "vertices": [\n')
+    local okFacial, facial = dpCall(function() return meshD:getFacialExportData() end)
+    if not okFacial then
+        return abortWrite(string.format('Facial export data failed: %s', tostring(facial)))
+    end
+    facial = type(facial) == 'table' and facial or nil
+    local facialTargets = facial and facial.targets or {}
+    local facialVertexCount = facial and tonumber(facial.vertexCount) or 0
+    if facial and #facialTargets > 0 and facialVertexCount > 0 then
+        f:write('  ] },\n  "facial": {\n')
+        f:write(string.format('    "meshId": %s, "geometrySignature": %s, "vertexCount": %d, ' ..
+            '"sampleRate": 30,\n', jsonStr(facial.meshId or '0'),
+            jsonStr(facial.geometrySignature or '0'), facialVertexCount))
+        f:write('    "targets": [\n')
+        for targetIndex, target in ipairs(facialTargets) do
+            f:write(string.format('      { "id": %s, "name": %s, "convention": %s, "defaultWeight": %.9g,\n',
+                jsonStr(target.id or '0'), jsonStr(target.name or ''),
+                jsonStr(target.convention or ''), tonumber(target.defaultWeight) or 0))
+            local function writeFacialDeltaArray(fieldName)
+                f:write(string.format('        "%s": [', fieldName))
+                local values = target[fieldName] or {}
+                for vertexIndex = 1, facialVertexCount do
+                    local value = values[vertexIndex] or {}
+                    f:write(string.format('[%.9g, %.9g, %.9g]', tonumber(value.x) or 0,
+                        tonumber(value.y) or 0, tonumber(value.z) or 0))
+                    if vertexIndex < facialVertexCount then f:write(', ') end
+                end
+                f:write(']')
+            end
+            writeFacialDeltaArray('positionDeltas')
+            f:write(',\n')
+            writeFacialDeltaArray('normalDeltas')
+            f:write('\n      }')
+            f:write(targetIndex < #facialTargets and ',\n' or '\n')
+        end
+        f:write('    ],\n    "clips": [\n')
+        local facialClips = facial.clips or {}
+        for clipIndex, clip in ipairs(facialClips) do
+            f:write(string.format('      { "id": %s, "name": %s, "duration": %.9g, "loop": %s, ' ..
+                '"interpolation": %d, "keys": [\n',
+                jsonStr(clip.id or '0'), jsonStr(clip.name or ''), tonumber(clip.duration) or 0,
+                clip.loop and 'true' or 'false', tonumber(clip.interpolation) or 1))
+            local keys = clip.keys or {}
+            for keyIndex, key in ipairs(keys) do
+                local weights = key.weights or {}
+                f:write(string.format('        { "time": %.9g, "weights": [%s] }',
+                    tonumber(key.time) or 0, table.concat((function()
+                        local serialized = {}
+                        for targetIndex = 1, #facialTargets do
+                            serialized[targetIndex] = string.format('%.9g', tonumber(weights[targetIndex]) or 0)
+                        end
+                        return serialized
+                    end)(), ', ')))
+                f:write(keyIndex < #keys and ',\n' or '\n')
+            end
+            f:write('      ] }')
+            f:write(clipIndex < #facialClips and ',\n' or '\n')
+        end
+        f:write('    ]\n  },\n  "mesh": {\n    "vertices": [\n')
+    else
+        f:write('  ] },\n  "mesh": {\n    "vertices": [\n')
+    end
 
     -- Canonical type-42 weights ride along on each vertex so Blender can restore the authored
     -- groups exactly. The API uses the same global, frame-wide, one-based vertex order written
@@ -9760,6 +9901,14 @@ function showMeshOptions(tEntry, index)
             meshD,
             index == iSelectedMeshIndex and tPreviewMesh or nil,
             index == iSelectedMeshIndex and tPreviewMesh ~= nil and not tEntry.modified, dpCall,onEdit)
+        tImGui.TreePop()
+    end
+
+    if openNode(tEntry, 'facial', tLang.L('mesh_debug_facial_animation'), 0, 'facial-' .. index) then
+        require('facial_mesh_playback').draw(tEntry,
+            meshD,
+            index == iSelectedMeshIndex and tPreviewMesh or nil,
+            index == iSelectedMeshIndex and tPreviewMesh ~= nil and not tEntry.modified, dpCall)
         tImGui.TreePop()
     end
 

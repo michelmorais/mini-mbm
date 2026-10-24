@@ -21,6 +21,45 @@
 
 namespace mbm::skeletal
 {
+    inline void appendGlesFacialMorphFunctions(std::string &source,
+                                                const uint32_t targetCount,
+                                                const uint32_t textureWidth,
+                                                const uint32_t textureHeight,
+                                                const uint32_t rowsPerTarget,
+                                                const bool includeNormals)
+    {
+        if (!targetCount || !textureWidth || !textureHeight || !rowsPerTarget)
+            return;
+        source += " attribute float aFacialVertexId; uniform sampler2D facialMorphTexture; uniform float facialMorphWeights[";
+        source += std::to_string(targetCount);
+        source += "]; vec4 sampleFacialDelta(float vertexId,float target,float normalOffset) { float block=floor(vertexId/";
+        source += std::to_string(textureWidth);
+        source += ".0); float column=mod(vertexId,";
+        source += std::to_string(textureWidth);
+        source += ".0); float row=target*";
+        source += std::to_string(rowsPerTarget);
+        source += ".0+block+normalOffset; return texture2D(facialMorphTexture,vec2((column+0.5)/";
+        source += std::to_string(textureWidth);
+        source += ".0,(row+0.5)/";
+        source += std::to_string(textureHeight);
+        source += ".0)); } void applyFacialMorph(inout vec4 facialPosition";
+        if (includeNormals)
+            source += ",inout vec3 facialNormal";
+        source += ") { for (int facialTarget=0; facialTarget<";
+        source += std::to_string(targetCount);
+        source += "; ++facialTarget) { float facialWeight=facialMorphWeights[facialTarget]; if (abs(facialWeight)>0.000001) { facialPosition += sampleFacialDelta(aFacialVertexId,float(facialTarget),0.0)*facialWeight;";
+        if (includeNormals)
+        {
+            source += " facialNormal += sampleFacialDelta(aFacialVertexId,float(facialTarget),";
+            source += std::to_string(rowsPerTarget / 2u);
+            source += ".0).xyz*facialWeight;";
+        }
+        source += " } }";
+        if (includeNormals)
+            source += " facialNormal=normalize(facialNormal);";
+        source += " }";
+    }
+
     inline void appendGlesSkeletalFunctions(std::string &source, const uint32_t paletteSize,
                                              const SKELETAL_SHADER_METHOD method)
     {
@@ -49,8 +88,11 @@ namespace mbm::skeletal
 
     inline void appendGlesSkeletalDeformation(std::string &source,
                                                const SKELETAL_SHADER_METHOD method,
-                                               const bool includeNormal)
+                                               const bool includeNormal,
+                                               const bool useFacialMorph)
     {
+        const char *position = useFacialMorph ? "facialPosition" : "aPosition";
+        const char *normal = useFacialMorph ? "facialNormal" : "aNormal";
         if (method == SKELETAL_SHADER_METHOD::DQS_RIGID)
         {
             source += " vec4 dqReal=vec4(0.0); vec4 dqDual=vec4(0.0);"
@@ -62,24 +104,38 @@ namespace mbm::skeletal
                 "float dqLength=length(dqReal); dqReal/=dqLength; dqDual/=dqLength;"
                 "dqDual-=dqReal*dot(dqReal,dqDual); vec4 dqConjugate=vec4(-dqReal.xyz,dqReal.w);"
                 "vec3 dqTranslation=2.0*qmul(dqDual,dqConjugate).xyz;"
-                "vec4 skinnedPosition=vec4(qrotate(aPosition.xyz,dqReal)+dqTranslation,1.0);";
+                "vec4 skinnedPosition=vec4(qrotate(";
+            source += position;
+            source += ".xyz,dqReal)+dqTranslation,1.0);";
             if (includeNormal)
-                source += " vec3 skinnedNormal=normalize(qrotate(aNormal,dqReal));";
+            {
+                source += " vec3 skinnedNormal=normalize(qrotate(";
+                source += normal;
+                source += ",dqReal));";
+            }
         }
         else
         {
-            source += " vec4 skinnedPosition = vec4("
-                "skinPoint(aPosition, aBoneIndices.x) * aBoneWeights.x +"
-                "skinPoint(aPosition, aBoneIndices.y) * aBoneWeights.y +"
-                "skinPoint(aPosition, aBoneIndices.z) * aBoneWeights.z +"
-                "skinPoint(aPosition, aBoneIndices.w) * aBoneWeights.w, 1.0);";
+            source += " vec4 skinnedPosition = vec4(skinPoint(";
+            source += position;
+            source += ", aBoneIndices.x) * aBoneWeights.x + skinPoint(";
+            source += position;
+            source += ", aBoneIndices.y) * aBoneWeights.y + skinPoint(";
+            source += position;
+            source += ", aBoneIndices.z) * aBoneWeights.z + skinPoint(";
+            source += position;
+            source += ", aBoneIndices.w) * aBoneWeights.w, 1.0);";
             if (includeNormal)
             {
-                source += " vec3 skinnedNormal = normalize("
-                    "skinVector(aNormal, aBoneIndices.x) * aBoneWeights.x +"
-                    "skinVector(aNormal, aBoneIndices.y) * aBoneWeights.y +"
-                    "skinVector(aNormal, aBoneIndices.z) * aBoneWeights.z +"
-                    "skinVector(aNormal, aBoneIndices.w) * aBoneWeights.w);";
+                source += " vec3 skinnedNormal = normalize(skinVector(";
+                source += normal;
+                source += ", aBoneIndices.x) * aBoneWeights.x + skinVector(";
+                source += normal;
+                source += ", aBoneIndices.y) * aBoneWeights.y + skinVector(";
+                source += normal;
+                source += ", aBoneIndices.z) * aBoneWeights.z + skinVector(";
+                source += normal;
+                source += ", aBoneIndices.w) * aBoneWeights.w);";
             }
         }
     }

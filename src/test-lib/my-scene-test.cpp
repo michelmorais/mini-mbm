@@ -1,3 +1,4 @@
+#include "facial-animation-tests.h"
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
 | Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
@@ -162,6 +163,7 @@ MY_SCENE::MY_SCENE()
 
 MY_SCENE::~MY_SCENE()
 {
+    if (testFacialAnimation) endFacialRuntimeTests();
     if(texBox)
         delete texBox;
     if(gif)
@@ -217,6 +219,12 @@ void MY_SCENE::onInitScene()
     device->setColorClearBackGround(backgroundColor);
 
     util::addPath(__FILE__);
+    if (testFacialAnimation)
+    {
+        automatedTestFailed = !beginFacialRuntimeTests(this);
+        if (automatedTestFailed) device->setRun(false);
+        return;
+    }
 
 #if defined(USE_DIRECTX11)
     if (testDirectX11BuiltinShaders)
@@ -932,6 +940,18 @@ void MY_SCENE::onInitScene()
 
 void MY_SCENE::onLoop()
 {
+    if (testFacialAnimation)
+    {
+        const int result = stepFacialRuntimeTests();
+        testElapsedSeconds += mbm::DEVICE::getInstance()->delta;
+        if (result || testElapsedSeconds >= testTimeoutSeconds)
+        {
+            automatedTestFailed = result != 1;
+            endFacialRuntimeTests();
+            mbm::DEVICE::getInstance()->setRun(false);
+        }
+        return;
+    }
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
 #if defined(__APPLE__)
     if (testMacOSInput)

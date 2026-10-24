@@ -690,6 +690,56 @@ silently switching to LBS.
 | `obj:getAutomaticSkeletalRootMotionBone` | `()` | table or nil | Return `{name, boneId, applyRotation}` for the currently enabled automatic root-motion bone, or `nil` when disabled |
 | `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
+#### Facial targets and clips (`mesh`, Phase 2)
+
+Facial controls are per mesh instance. Target arrays and authored clips remain immutable in the
+cached `.msh` asset; manual weights, the active clip, time, pause state, and playback speed belong
+to the individual `mesh` object. Target arguments accept either a 1-based target index or its
+unique name. Finite manual weights are clamped to `[0,1]`; a non-finite value returns `false`.
+Manual values override the sampled clip value for that target. Clearing one override or calling
+`resetFacialWeights` restores the clip/default contribution. Stopping a clip clears its sampled
+contribution while retaining manual overrides. Non-looping clips clamp at their duration and stop;
+looping clips wrap time. `seekFacialAnimation` clamps to the active clip interval and preserves its
+playing/paused state.
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `obj:getTotalFacialTargets` | `()` | int | Number of facial targets |
+| `obj:getFacialTargetName` | `(index: int)` | string or nil | Name of the 1-based target |
+| `obj:getFacialTargetInfo` | `(index: int)` | table or nil | `{id, name, convention, defaultWeight}`; `id` is a hexadecimal string |
+| `obj:setFacialWeight` | `(target: int\|string, weight)` | bool | Set a per-instance manual override, clamped to `[0,1]` |
+| `obj:getFacialWeight` | `(target: int\|string)` | number or nil | Current evaluated target weight |
+| `obj:clearFacialWeight` | `(target: int\|string)` | bool | Clear one manual override and restore clip/default contribution |
+| `obj:resetFacialWeights` | `()` | bool | Clear all manual overrides; returns `true` when no overrides are already active |
+| `obj:getTotalFacialClips` | `()` | int | Number of authored facial clips |
+| `obj:getFacialClipName` | `(index: int)` | string or nil | Name of the 1-based facial clip |
+| `obj:getFacialClipDuration` | `(index: int)` | number or nil | Duration in seconds |
+| `obj:playFacialAnimation` | `(name)` | bool | Start or restart a facial clip at time zero |
+| `obj:pauseFacialAnimation` | `()` | bool | Pause the active facial clip |
+| `obj:resumeFacialAnimation` | `()` | bool | Resume the active facial clip |
+| `obj:stopFacialAnimation` | `()` | bool | Stop the active clip and restore default/manual weights |
+| `obj:seekFacialAnimation` | `(time)` | bool | Seek the active clip, clamped to its duration |
+| `obj:getFacialAnimationTime` | `()` | number or nil | Current active clip time |
+| `obj:setFacialAnimationPlaybackSpeed` | `(speed)` | bool | Set a finite non-negative per-instance playback multiplier |
+| `obj:getFacialAnimationPlaybackSpeed` | `()` | number | Current multiplier; defaults to `1` |
+| `obj:getFacialAnimationReport` | `()` | table | Target/clip counts, readiness, active clip state, evaluation/upload counters, skin execution path (`cpu` or `gpu-skeletal-composite`), morph execution path (`cpu-reference` for the current GLES2 backend), morph capability status, and status |
+
+```lua
+local face = mesh:new("3d")
+assert(face:load("character-face.msh"))
+for index = 1, face:getTotalFacialTargets() do
+    local target = face:getFacialTargetInfo(index)
+    print(target.name, target.id, target.defaultWeight)
+end
+assert(face:setFacialWeight("jawOpen", 0.35))
+assert(face:playFacialAnimation("speech"))
+face:setFacialAnimationPlaybackSpeed(0.75)
+local report = face:getFacialAnimationReport()
+print(report.clipName, report.clipTime, report.status)
+face:clearFacialWeight("jawOpen")
+face:stopFacialAnimation()
+```
+
 ```lua
 local character = mesh:new("3d")
 assert(character:setSkeletalSkinningMethod("auto"))
@@ -2179,23 +2229,27 @@ scaling all frames and subsets through its shared Transform operation. This is e
 a side effect of `scaleFrame`; partial edits remain geometry-only. Uniform Keep Ratio resizing
 preserves articulated animation proportions without changing rotations, key scale factors or timing.
 
-For a coordinate-unit change of a complete skeletal asset, use:
+For a coordinate-unit change of a complete skeletal or facial asset, use:
 
 ```lua
 meshD:scaleSkeletalAsset(scale)
 ```
 
-`scale` must be finite and greater than zero. The call transactionally scales every geometry
-frame, canonical bind-local translations, bone radius/length metadata, translation values in every
-skeletal clip key, and physics bounds; it recompiles inverse bind and validates skeleton/clips
-before committing. Weights, rotations, normals, and local scale channels are unchanged. Failure
-raises a Lua error without partially modifying the asset. Mesh Debug selects this operation
-automatically when its Transform node applies a positive uniform scale to all frames and subsets of
-a canonical skeletal mesh. Partial transforms remain geometry-only; negative or non-uniform
-whole-asset skeletal scaling is rejected. The editor uses the same policy for preview clones and
-batch operations. It blocks whole-mesh rotation, translation, and centralization on canonical
-skeletal assets, including combined transforms containing those operations; the underlying
-geometry-only API methods do not perform that editor policy check.
+`scale` must be finite and greater than zero. For a skeletal asset, the call transactionally scales
+every geometry frame, canonical bind-local translations, bone radius/length metadata, translation
+values in every skeletal clip key, and physics bounds; it recompiles inverse bind and validates
+skeleton/clips before committing. For a facial asset, it also scales the base geometry and every
+facial position delta, preserves normals and normal deltas, recalculates the facial geometry
+signature, and preserves target identities, weights, clips, indices, and vertex associations. A
+facial asset may contain skeletal data, in which case both payloads are scaled together. Weights,
+rotations, normals, and local scale channels are unchanged. Failure raises a Lua error without
+partially modifying the asset. Mesh Debug selects this operation automatically when its Transform
+node applies a positive uniform scale to all frames and subsets of a canonical skeletal or facial
+mesh. Partial transforms remain geometry-only; negative or non-uniform whole-asset skeletal/facial
+scaling is rejected. The editor uses the same policy for preview clones and batch operations. It
+blocks whole-mesh rotation, translation, and centralization on canonical skeletal assets, including
+combined transforms containing those operations; the underlying geometry-only API methods do not
+perform that editor policy check.
 
 ### Bind-pose diagnostics
 

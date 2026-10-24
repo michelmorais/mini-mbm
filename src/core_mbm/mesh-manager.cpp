@@ -20,6 +20,8 @@
 #include <core_mbm/render-features.h>
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
+#include "private/facial-render-state.h"
+#include "private/facial-gpu-upload.h"
 #include "private/skeletal-parity-asset.h"
 #include "private/normal-map-upload.h"
 #include "private/mesh-simplifier.h"
@@ -138,6 +140,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        facial::ASSET facialAsset;
         normal_map::ASSET_FRAMES normalMapFrames;
         normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
@@ -182,6 +185,7 @@ namespace mbm
               canonicalSkeleton(std::move(other.canonicalSkeleton)),
               canonicalWeights(std::move(other.canonicalWeights)),
               canonicalAnimations(std::move(other.canonicalAnimations)),
+              facialAsset(std::move(other.facialAsset)),
               normalMapFrames(std::move(other.normalMapFrames)),
               normalMapMaterials(std::move(other.normalMapMaterials))
         {
@@ -209,6 +213,7 @@ namespace mbm
             canonicalSkeleton = std::move(other.canonicalSkeleton);
             canonicalWeights = std::move(other.canonicalWeights);
             canonicalAnimations = std::move(other.canonicalAnimations);
+            facialAsset = std::move(other.facialAsset);
             normalMapFrames = std::move(other.normalMapFrames);
             normalMapMaterials = std::move(other.normalMapMaterials);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
@@ -1033,6 +1038,29 @@ namespace
             static_cast<uint32_t>(frame.headerFrame.sizeIndexBuffer), mode, subsets, input, error);
     }
 
+    template <typename Sections>
+    bool readFacialSections(const Sections &sections, mbm::facial::ASSET &asset, std::string &error)
+    {
+        bool targets = false, clips = false;
+        for (const auto &section : sections)
+        {
+            if (section.header.type != util::SECTION_FACIAL_TARGETS) continue;
+            if (targets) { error = "duplicate facial target section"; return false; }
+            targets = true;
+            auto cursor = stage_payload_as_cursor(section.payload);
+            if (!mbm::facial::readTargets(cursor, section.header.sectionVersion, asset, error)) return false;
+        }
+        for (const auto &section : sections)
+        {
+            if (section.header.type != util::SECTION_FACIAL_CLIPS) continue;
+            if (!targets || clips) { error = "orphan or duplicate facial clip section"; return false; }
+            clips = true;
+            auto cursor = stage_payload_as_cursor(section.payload);
+            if (!mbm::facial::readClips(cursor, section.header.sectionVersion, asset, error)) return false;
+        }
+        return true;
+    }
+
     bool parse_v11_intermediate(const char *fileNamePath, mbm::MESH_LOAD_INTERMEDIATE_V11 &out, std::string &errorOut)
     {
         FILE *fp = util::fopenApp(fileNamePath, "rb");
@@ -1256,6 +1284,10 @@ namespace
                 { errorOut = "failed to parse SECTION_SKELETAL_ANIMATION"; return false; }
                 sawCanonicalAnimations = true;
             }
+            else if (staged.header.type == util::SECTION_FACIAL_TARGETS || staged.header.type == util::SECTION_FACIAL_CLIPS)
+            {
+                // Resolve after the frame stream, independent of section ordering.
+            }
             else if (staged.header.type == util::SECTION_NORMAL_MAP_MATERIALS)
             {
                 if (!out.normalMapMaterials.empty())
@@ -1278,6 +1310,15 @@ namespace
                 errorOut = "loadV11 does not support this section type";
                 return false;
             }
+        }
+        if (!readFacialSections(sections, out.facialAsset, errorOut)) return false;
+        if (out.facialAsset.meshId)
+        {
+            if (out.typeMe != util::TYPE_MESH_3D || out.frames.size() != 1 || !out.articulatedParts.empty())
+            { errorOut = "facial data requires one 3D frame without articulated parts"; return false; }
+            const auto &frame = out.frames[0];
+            if (!mbm::facial::validateGeometry(out.facialAsset, frame.position.get(), frame.normal.get(),
+                    frame.vertexCount, frame.index.get(), frame.indexCount, errorOut)) return false;
         }
         for (const auto &entry : out.normalMapMaterials)
         {
@@ -1621,6 +1662,12 @@ namespace mbm
     
     uint32_t MESH_MBM_DEBUG::addBuffer(const int stride )
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: addBuffer");
+            return UINT32_MAX;
+        }
+
         if ((stride == 3 || stride == 2))
         {
             auto pBuffer = new util::BUFFER_MESH_DEBUG();
@@ -1633,6 +1680,12 @@ namespace mbm
     
     uint32_t MESH_MBM_DEBUG::addSubset(uint32_t indexFrame)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: addSubset");
+            return UINT32_MAX;
+        }
+
         if (indexFrame < static_cast<uint32_t>(this->impl->buffer.size()))
         {
             this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)]->subset.push_back(new util::SUBSET_DEBUG());
@@ -2158,6 +2211,12 @@ namespace mbm
     
     void MESH_MBM_DEBUG::calculateNormals()
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: calculateNormals");
+            return ;
+        }
+
         impl->headerMesh.totalFrames = static_cast<int>(this->impl->buffer.size());
         for (int currentFrame = 0; currentFrame < impl->headerMesh.totalFrames; ++currentFrame)
         {
@@ -2236,6 +2295,12 @@ namespace mbm
     
     void MESH_MBM_DEBUG::removeNormals()
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: removeNormals");
+            return ;
+        }
+
         for (std::vector<util::BUFFER_MESH_DEBUG *>::size_type i = 0; i < this->impl->buffer.size(); ++i)
         {
             util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[i];
@@ -2250,6 +2315,12 @@ namespace mbm
     
     void MESH_MBM_DEBUG::addNormals()
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: addNormals");
+            return ;
+        }
+
         calculateNormals();
         impl->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
     }
@@ -2260,6 +2331,12 @@ namespace mbm
                                   const bool preserveDetails,
                                   const float boundaryCollapseThreshold)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: simplify");
+            return false;
+        }
+
         report = {};
         auto fail = [errorOut, errorOutLen](const std::string &message)
         {
@@ -3155,6 +3232,12 @@ namespace mbm
                                        const bool preserveDetails,
                                        const float boundaryCollapseThreshold)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: startSimplify");
+            return false;
+        }
+
         if (impl->simplifyState.load(std::memory_order_acquire) == MESH_SIMPLIFY_STATE::RUNNING)
             return false;
         if (impl->simplifyWorker.joinable())
@@ -3422,6 +3505,12 @@ namespace mbm
 
     void MESH_MBM_DEBUG::removeBuffer(uint32_t indexFrame)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: removeBuffer");
+            return ;
+        }
+
         if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
             return;
         delete this->impl->buffer[indexFrame];
@@ -3441,6 +3530,12 @@ namespace mbm
 
     void MESH_MBM_DEBUG::removeSubset(uint32_t indexFrame, uint32_t indexSubset)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: removeSubset");
+            return ;
+        }
+
         if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
             return;
         util::BUFFER_MESH_DEBUG *buf = this->impl->buffer[indexFrame];
@@ -3545,6 +3640,12 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::moveSubsetUp(uint32_t indexFrame, uint32_t indexSubset)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: moveSubsetUp");
+            return false;
+        }
+
         if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()) || indexSubset == 0)
             return false;
         util::BUFFER_MESH_DEBUG *buf = this->impl->buffer[indexFrame];
@@ -3575,6 +3676,12 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::mergeSubsets(uint32_t indexFrame, const std::vector<uint32_t> &subsetIndices)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: mergeSubsets");
+            return false;
+        }
+
         if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()) || subsetIndices.size() < 2)
             return false;
         util::BUFFER_MESH_DEBUG *buf = this->impl->buffer[indexFrame];
@@ -3771,6 +3878,12 @@ namespace mbm
 
     uint32_t MESH_MBM_DEBUG::copyBufferFrom(MESH_MBM_DEBUG &src, uint32_t srcFrameIdx)
     {
+        if (impl->facialAsset.meshId || src.impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: copyBufferFrom");
+            return UINT32_MAX;
+        }
+
         if (srcFrameIdx >= static_cast<uint32_t>(src.impl->buffer.size()))
             return 0;
         util::BUFFER_MESH_DEBUG *srcBuf = src.impl->buffer[srcFrameIdx];
@@ -3824,6 +3937,12 @@ namespace mbm
 
     uint32_t MESH_MBM_DEBUG::copySubsetFrom(uint32_t targetFrame, MESH_MBM_DEBUG &src, uint32_t srcFrame, uint32_t srcSubsetIdx)
     {
+        if (impl->facialAsset.meshId || src.impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: copySubsetFrom");
+            return UINT32_MAX;
+        }
+
         if (targetFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
             return 0;
         if (srcFrame >= static_cast<uint32_t>(src.impl->buffer.size()))
@@ -4006,6 +4125,22 @@ namespace mbm
         if (this->impl->buffer.size() == 0)
             return false;
 
+        if (impl->facialAsset.meshId)
+        {
+            std::string error;
+            const auto &frame = *impl->buffer[0];
+            if (recalculateNormal || impl->buffer.size() != 1 || impl->typeMe != util::TYPE_MESH_3D ||
+                !impl->articulatedParts.empty()) error = "facial save requires unchanged one-frame 3D geometry and normals";
+            else facial::validateGeometry(impl->facialAsset, reinterpret_cast<const VEC3 *>(frame.position),
+                impl->headerMesh.hasNorText[0] == HAS_NOR_NO ? nullptr : reinterpret_cast<const VEC3 *>(frame.normal),
+                frame.headerFrame.sizeVertexBuffer, frame.indexBuffer, frame.headerFrame.sizeIndexBuffer, error);
+            if (!error.empty())
+            {
+                if (errorOut && lenErrorOut > 0) snprintf(errorOut, lenErrorOut, "%s", error.c_str());
+                ERROR_LOG("%s", error.c_str());
+                return false;
+            }
+        }
         FILE *file = nullptr;
         impl->headerMesh.totalFrames = static_cast<int>(this->impl->buffer.size());
 
@@ -4158,6 +4293,8 @@ namespace mbm
                                      + (hasCanonicalSkeleton ? 1u : 0u)
                                      + (hasCanonicalWeights ? 1u : 0u)
                                      + (hasCanonicalAnimations ? 1u : 0u)
+                                     + (impl->facialAsset.meshId ? 1u : 0u)
+                                     + (impl->facialAsset.clips.empty() ? 0u : 1u)
                                      + (impl->articulatedParts.empty() ? 0u : 1u)
                                      + (impl->articulatedClips.empty() ? 0u : 1u)
                                      + (impl->autoplayAnimation.kind != util::AUTOPLAY_ANIMATION_NONE ? 1u : 0u)
@@ -4415,6 +4552,23 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_ANIMATION [%s]", fileOut);
+        }
+
+        if (impl->facialAsset.meshId)
+        {
+            util::SECTION_HEADER_V11 header;
+            header.type = util::SECTION_FACIAL_TARGETS;
+            header.sectionVersion = 1;
+            header.compression = compress ? util::SECTION_COMPRESSION_DEFLATE : util::SECTION_COMPRESSION_NONE;
+            if (!util::writeSectionV11Streamed(file, header, [this](FILE *fp) { return facial::writeTargets(fp, impl->facialAsset); }))
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write facial targets");
+            if (!impl->facialAsset.clips.empty())
+            {
+                header.type = util::SECTION_FACIAL_CLIPS;
+                header.compression = compress ? util::SECTION_COMPRESSION_DEFLATE : util::SECTION_COMPRESSION_NONE;
+                if (!util::writeSectionV11Streamed(file, header, [this](FILE *fp) { return facial::writeClips(fp, impl->facialAsset); }))
+                    return log_util::onFailed(file, __FILE__, __LINE__, "failed to write facial clips");
+            }
         }
 
         // SECTION_ARTICULATED_PARTS - optional rigid-part identities and pivots -----------------------
@@ -5016,6 +5170,14 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::loadV11(const char *fileNamePath)
     {
+        MESH_MBM_DEBUG candidate;
+        if (!candidate.loadV11InPlace(fileNamePath)) return false;
+        impl.swap(candidate.impl);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::loadV11InPlace(const char *fileNamePath)
+    {
         this->release();
         FILE *fp = util::openFile(fileNamePath, "rb");
         if (!fp)
@@ -5227,6 +5389,10 @@ namespace mbm
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_ANIMATION [%s]", fileNamePath);
                 sawCanonicalAnimations = true;
             }
+            else if (sectionHeader.type == util::SECTION_FACIAL_TARGETS || sectionHeader.type == util::SECTION_FACIAL_CLIPS)
+            {
+                // Parsed transactionally after geometry.
+            }
             else if (sectionHeader.type == util::SECTION_NORMAL_MAP_MATERIALS)
             {
                 util::MEM_CURSOR_V11 cursor = stage_payload_as_cursor(payload);
@@ -5255,6 +5421,19 @@ namespace mbm
             }
         }
 
+        std::string facialError;
+        if (!readFacialSections(sections, impl->facialAsset, facialError))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "%s [%s]", facialError.c_str(), fileNamePath);
+        if (impl->facialAsset.meshId)
+        {
+            if (impl->typeMe != util::TYPE_MESH_3D || impl->buffer.size() != 1 || !impl->articulatedParts.empty())
+                return log_util::onFailed(fp, __FILE__, __LINE__, "facial data requires one 3D frame without articulated parts");
+            const auto &frame = *impl->buffer[0];
+            if (!facial::validateGeometry(impl->facialAsset, reinterpret_cast<const VEC3 *>(frame.position),
+                    hasNormalFlag == HAS_NOR_NO ? nullptr : reinterpret_cast<const VEC3 *>(frame.normal),
+                    frame.headerFrame.sizeVertexBuffer, frame.indexBuffer, frame.headerFrame.sizeIndexBuffer, facialError))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "%s [%s]", facialError.c_str(), fileNamePath);
+        }
         for (const auto &entry : impl->normalMapMaterials)
         {
             if (entry.first.first >= impl->buffer.size() ||
@@ -5434,6 +5613,12 @@ namespace mbm
     
     void MESH_MBM_DEBUG::centralizeFrame(const int indexFrame, const int indexSubset)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: centralizeFrame");
+            return ;
+        }
+
         if (indexFrame < 0) //-1
         {
             for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
@@ -5558,6 +5743,12 @@ namespace mbm
 
     void MESH_MBM_DEBUG::centralizeFrameItself(const int indexFrame, const int indexSubset)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: centralizeFrameItself");
+            return ;
+        }
+
         if (indexFrame < 0)
         {
             for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
@@ -5647,6 +5838,12 @@ namespace mbm
 
     void MESH_MBM_DEBUG::rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: rotateFrame");
+            return ;
+        }
+
         if (indexFrame < 0)
         {
             for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
@@ -5705,6 +5902,12 @@ namespace mbm
 
     void MESH_MBM_DEBUG::scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: scaleFrame");
+            return ;
+        }
+
         if (indexFrame < 0)
         {
             for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
@@ -5749,17 +5952,19 @@ namespace mbm
             return false;
         };
         if (!std::isfinite(scale) || scale <= 0.0f)
-            return fail("skeletal asset scale must be finite and greater than zero");
-        if (impl->canonicalSkeleton.skeletonId == 0)
-            return fail("mesh has no canonical skeleton to scale");
+            return fail("asset scale must be finite and greater than zero");
+        const bool hasFacialAsset = impl->facialAsset.meshId != 0;
+        const bool hasSkeletalAsset = impl->canonicalSkeleton.skeletonId != 0;
+        if (!hasFacialAsset && !hasSkeletalAsset)
+            return fail("mesh has no canonical skeleton or facial geometry to scale");
 
         skeletal::CANONICAL_SKELETON scaledSkeleton;
         skeletal::CANONICAL_ANIMATIONS scaledAnimations;
-        if (!skeletal::buildUniformlyScaledCanonicalAsset(impl->canonicalSkeleton,
-                                                           impl->canonicalAnimations,
-                                                           scale,
-                                                           scaledSkeleton,
-                                                           scaledAnimations))
+        if (hasSkeletalAsset && !skeletal::buildUniformlyScaledCanonicalAsset(impl->canonicalSkeleton,
+                                                                                impl->canonicalAnimations,
+                                                                                scale,
+                                                                                scaledSkeleton,
+                                                                                scaledAnimations))
         {
             if (!scaledSkeleton.compiled.diagnostics.empty())
             {
@@ -5771,6 +5976,53 @@ namespace mbm
                 return false;
             }
             return fail("scaled canonical animation would be invalid");
+        }
+
+        facial::ASSET scaledFacial;
+        std::vector<VEC3> scaledFacialPositions;
+        if (hasFacialAsset)
+        {
+            if (impl->buffer.size() != 1 || impl->typeMe != util::TYPE_MESH_3D ||
+                !impl->articulatedParts.empty())
+                return fail("facial geometry scale requires one unchanged 3D frame");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[0];
+            if (!frame || !frame->position || frame->headerFrame.stride != 3 ||
+                frame->headerFrame.sizeVertexBuffer != static_cast<int32_t>(impl->facialAsset.vertexCount))
+                return fail("facial geometry scale requires matching frame topology");
+            const VEC3 *normals = impl->headerMesh.hasNorText[0] == HAS_NOR_NO ? nullptr :
+                reinterpret_cast<const VEC3 *>(frame->normal);
+            if (impl->headerMesh.hasNorText[0] != HAS_NOR_NO && !normals)
+                return fail("facial geometry scale requires base normals");
+            scaledFacial = impl->facialAsset;
+            scaledFacialPositions.resize(impl->facialAsset.vertexCount);
+            const VEC3 *positions = reinterpret_cast<const VEC3 *>(frame->position);
+            for (uint32_t vertex = 0; vertex < impl->facialAsset.vertexCount; ++vertex)
+            {
+                const VEC3 &source = positions[vertex];
+                scaledFacialPositions[vertex] = VEC3(source.x * scale, source.y * scale, source.z * scale);
+                if (!std::isfinite(scaledFacialPositions[vertex].x) ||
+                    !std::isfinite(scaledFacialPositions[vertex].y) ||
+                    !std::isfinite(scaledFacialPositions[vertex].z))
+                    return fail("scaled facial mesh vertex would not be finite");
+            }
+            for (facial::TARGET &target : scaledFacial.targets)
+            {
+                for (VEC3 &delta : target.positions)
+                {
+                    delta.x *= scale; delta.y *= scale; delta.z *= scale;
+                    if (!std::isfinite(delta.x) || !std::isfinite(delta.y) || !std::isfinite(delta.z))
+                        return fail("scaled facial target delta would not be finite");
+                }
+            }
+            scaledFacial.geometrySignature = facial::geometrySignature(
+                scaledFacialPositions.data(), normals, scaledFacial.vertexCount,
+                frame->indexBuffer, static_cast<uint32_t>(std::max(0, frame->headerFrame.sizeIndexBuffer)));
+            std::string facialError;
+            if (!facial::validateGeometry(scaledFacial, scaledFacialPositions.data(), normals,
+                                          scaledFacial.vertexCount, frame->indexBuffer,
+                                          static_cast<uint32_t>(std::max(0, frame->headerFrame.sizeIndexBuffer)),
+                                          facialError))
+                return fail(facialError.c_str());
         }
 
         const auto validProduct = [scale](const float value)
@@ -5817,7 +6069,14 @@ namespace mbm
                 return fail("scaled triangle position would not be finite");
         }
 
-        scaleFrame(-1, -1, scale, scale, scale);
+        if (hasFacialAsset)
+        {
+            VEC3 *positions = reinterpret_cast<VEC3 *>(impl->buffer[0]->position);
+            std::copy(scaledFacialPositions.begin(), scaledFacialPositions.end(), positions);
+            impl->facialAsset = std::move(scaledFacial);
+        }
+        else
+            scaleFrame(-1, -1, scale, scale, scale);
         for (CUBE *cube : impl->infoPhysics.lsCube)
         {
             cube->halfDim.x *= scale; cube->halfDim.y *= scale; cube->halfDim.z *= scale;
@@ -5841,13 +6100,22 @@ namespace mbm
             }
             triangle->position.x *= scale; triangle->position.y *= scale;
         }
-        impl->canonicalSkeleton = std::move(scaledSkeleton);
-        impl->canonicalAnimations = std::move(scaledAnimations);
+        if (hasSkeletalAsset)
+        {
+            impl->canonicalSkeleton = std::move(scaledSkeleton);
+            impl->canonicalAnimations = std::move(scaledAnimations);
+        }
         return true;
     }
 
     void MESH_MBM_DEBUG::translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: translateFrame");
+            return ;
+        }
+
         if (indexFrame < 0)
         {
             for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
@@ -5885,6 +6153,12 @@ namespace mbm
                         const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,
                         char *strErrorOut, const int strErrorOutLen)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: addIndex");
+            return false;
+        }
+
         if (indexFrame < this->impl->buffer.size() && indexSubset < this->impl->buffer[indexFrame]->subset.size())
         {
             util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[indexFrame];
@@ -5991,6 +6265,12 @@ namespace mbm
     
     bool MESH_MBM_DEBUG::addVertex(const uint32_t indexFrame, const uint32_t indexSubset, const uint32_t totalVertex)
     {
+        if (impl->facialAsset.meshId)
+        {
+            ERROR_LOG("facial geometry edit unsupported: addVertex");
+            return false;
+        }
+
         if (indexFrame < this->impl->buffer.size() && indexSubset < this->impl->buffer[indexFrame]->subset.size())
         {
             if (totalVertex == 0)
@@ -6397,6 +6677,118 @@ namespace mbm
     {
         return getSkeletalSharingCompatibilityImpl(impl->canonicalSkeleton,
                                                    other.impl->canonicalSkeleton, out);
+    }
+
+    uint64_t MESH_MBM_DEBUG::getFacialMeshId() const noexcept
+    {
+        return impl->facialAsset.meshId;
+    }
+
+    uint64_t MESH_MBM_DEBUG::getFacialGeometrySignature() const noexcept
+    {
+        return impl->facialAsset.geometrySignature;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getFacialVertexCount() const noexcept
+    {
+        return impl->facialAsset.vertexCount;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalFacialTargets() const noexcept
+    {
+        return static_cast<uint32_t>(impl->facialAsset.targets.size());
+    }
+
+    const char *MESH_MBM_DEBUG::getFacialTargetName(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ?
+            impl->facialAsset.targets[index].name.c_str() : nullptr;
+    }
+
+    uint64_t MESH_MBM_DEBUG::getFacialTargetId(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].id : 0;
+    }
+
+    const char *MESH_MBM_DEBUG::getFacialTargetConvention(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ?
+            impl->facialAsset.targets[index].convention.c_str() : nullptr;
+    }
+
+    float MESH_MBM_DEBUG::getFacialTargetDefaultWeight(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ?
+            impl->facialAsset.targets[index].defaultWeight : 0.0f;
+    }
+
+    bool MESH_MBM_DEBUG::getFacialTargetDelta(const uint32_t targetIndex, const uint32_t vertexIndex,
+                                               VEC3 *positionDelta, VEC3 *normalDelta) const noexcept
+    {
+        if (targetIndex >= impl->facialAsset.targets.size() ||
+            vertexIndex >= impl->facialAsset.vertexCount || (!positionDelta && !normalDelta))
+            return false;
+        const facial::TARGET &target = impl->facialAsset.targets[targetIndex];
+        if (positionDelta)
+        {
+            if (vertexIndex >= target.positions.size()) return false;
+            *positionDelta = target.positions[vertexIndex];
+        }
+        if (normalDelta)
+        {
+            if (target.normals.empty())
+                *normalDelta = VEC3();
+            else
+            {
+                if (vertexIndex >= target.normals.size()) return false;
+                *normalDelta = target.normals[vertexIndex];
+            }
+        }
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalFacialClips() const noexcept
+    {
+        return static_cast<uint32_t>(impl->facialAsset.clips.size());
+    }
+
+    const char *MESH_MBM_DEBUG::getFacialClipName(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.clips.size() ?
+            impl->facialAsset.clips[index].name.c_str() : nullptr;
+    }
+
+    uint64_t MESH_MBM_DEBUG::getFacialClipId(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.clips.size() ? impl->facialAsset.clips[index].id : 0;
+    }
+
+    bool MESH_MBM_DEBUG::getFacialClipInfo(const uint32_t index, float *duration, bool *loop,
+                                            uint8_t *interpolation, uint32_t *keyCount) const noexcept
+    {
+        if (index >= impl->facialAsset.clips.size()) return false;
+        const facial::CLIP &clip = impl->facialAsset.clips[index];
+        if (duration) *duration = clip.duration;
+        if (loop) *loop = clip.loop;
+        if (interpolation) *interpolation = static_cast<uint8_t>(clip.interpolation);
+        if (keyCount) *keyCount = static_cast<uint32_t>(clip.keys.size());
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getFacialClipKey(const uint32_t clipIndex, const uint32_t keyIndex,
+                                           float *time, float *weights,
+                                           const uint32_t weightCapacity) const noexcept
+    {
+        if (clipIndex >= impl->facialAsset.clips.size()) return false;
+        const facial::CLIP &clip = impl->facialAsset.clips[clipIndex];
+        if (keyIndex >= clip.keys.size()) return false;
+        const facial::KEY &key = clip.keys[keyIndex];
+        if (time) *time = key.time;
+        if (!weights) return true;
+        if (weightCapacity < key.weights.size()) return false;
+        for (uint32_t index = 0; index < key.weights.size(); ++index)
+            weights[index] = key.weights[index];
+        return true;
     }
 
     bool MESH_MBM::getSkeletalSharingCompatibility(
@@ -9603,6 +9995,7 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
+        impl->facialAsset = {};
         impl->normalMapFrames.clear();
         impl->normalMapMaterials.clear();
     }
@@ -9929,6 +10322,7 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
+        impl->facialAsset = {};
         impl->normalMapFrames.reset();
         impl->normalMapMaterials.clear();
         impl->gpuSkinningInput = {};
@@ -11956,6 +12350,438 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM::initializeFacial(facial::RENDER_STATE &state) const
+    {
+        const auto &asset = impl->facialAsset;
+        if (!asset.meshId) return true;
+        state.morphCapability = facial::getMeasuredGpuMorphCapability();
+        if (!state.morphCapability.measured)
+            state.morphStatus = "gpu-morph-capability-unmeasured";
+        else if (!state.morphCapability.supportsIndexedDeltas)
+            state.morphStatus = "gpu-morph-resource-unavailable";
+        state.targetCount = static_cast<uint32_t>(asset.targets.size());
+        state.clipCount = static_cast<uint32_t>(asset.clips.size());
+        const auto fail = [&state](const char *reason) { state.status = reason; state.ready = false; return false; };
+#if !defined(__linux__) || !defined(USE_OPENGL_ES)
+        return fail("facial-backend-unsupported");
+#endif
+        if (impl->info_mode.mode_draw != util::MODE_DRAW_TRIANGLES) return fail("facial-triangle-mode-required");
+        if (!impl->normalMapMaterials.empty() || (impl->normalMapFrames && !impl->normalMapFrames->empty()))
+            return fail("facial-normal-mapping-unsupported");
+        for (const auto &target : asset.targets)
+        {
+            if (impl->skeletalBindHasNormals && target.normals.empty()) return fail("facial-normal-deltas-required");
+            state.weights.push_back(target.defaultWeight);
+        }
+        state.morphLayout = {};
+        state.gpuMorph = false;
+        if (state.morphCapability.supportsIndexedDeltas)
+        {
+            std::string layoutError;
+            if (facial::buildGpuMorphLayout(asset, state.morphCapability, impl->skeletalBindHasNormals,
+                                             state.morphLayout, layoutError))
+            {
+                state.gpuMorph = true;
+                state.morphExecutionPath = "gpu-indexed-deltas";
+                state.morphStatus = "gpu-morph-ready";
+            }
+            else
+                state.morphStatus = "gpu-morph-layout-unavailable";
+        }
+        state.manualOverrides.assign(asset.targets.size(), 0);
+        state.sampledWeights.resize(asset.targets.size());
+        state.clipIndex = UINT32_MAX;
+        state.clipTime = 0.0f;
+        state.clipSpeed = 1.0f;
+        state.clipPlaying = false;
+        state.clipPaused = false;
+        state.vertexStarts.reserve(impl->buffer[0].totalSubset);
+        state.vertexCounts.reserve(impl->buffer[0].totalSubset);
+        for (uint32_t i=0;i<impl->buffer[0].totalSubset;++i)
+        {
+            state.vertexStarts.push_back(impl->buffer[0].subset[i].vertexStart);
+            state.vertexCounts.push_back(impl->buffer[0].subset[i].vertexCount);
+        }
+        state.ready = true;
+        return prepareFacial(state, nullptr, false);
+    }
+
+    uint32_t MESH_MBM::findFacialTarget(const char *name) const noexcept
+    {
+        if (!name || !name[0]) return UINT32_MAX;
+        for (uint32_t index = 0; index < impl->facialAsset.targets.size(); ++index)
+            if (impl->facialAsset.targets[index].name == name) return index;
+        return UINT32_MAX;
+    }
+
+    uint32_t MESH_MBM::findFacialClip(const char *name) const noexcept
+    {
+        if (!name || !name[0]) return UINT32_MAX;
+        for (uint32_t index = 0; index < impl->facialAsset.clips.size(); ++index)
+            if (impl->facialAsset.clips[index].name == name) return index;
+        return UINT32_MAX;
+    }
+
+    uint32_t MESH_MBM::getTotalFacialTargets() const noexcept
+    {
+        return static_cast<uint32_t>(impl->facialAsset.targets.size());
+    }
+
+    const char *MESH_MBM::getFacialTargetName(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].name.c_str() : nullptr;
+    }
+
+    uint64_t MESH_MBM::getFacialTargetId(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].id : 0;
+    }
+
+    const char *MESH_MBM::getFacialTargetConvention(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].convention.c_str() : nullptr;
+    }
+
+    float MESH_MBM::getFacialTargetDefaultWeight(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.targets.size() ? impl->facialAsset.targets[index].defaultWeight : 0.0f;
+    }
+
+    uint32_t MESH_MBM::getTotalFacialClips() const noexcept
+    {
+        return static_cast<uint32_t>(impl->facialAsset.clips.size());
+    }
+
+    const char *MESH_MBM::getFacialClipName(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.clips.size() ? impl->facialAsset.clips[index].name.c_str() : nullptr;
+    }
+
+    bool MESH_MBM::getFacialClipDuration(const uint32_t index, float *duration) const noexcept
+    {
+        if (!duration || index >= impl->facialAsset.clips.size()) return false;
+        *duration = impl->facialAsset.clips[index].duration;
+        return true;
+    }
+
+    float MESH_MBM::getFacialClipDurationValue(const uint32_t index) const noexcept
+    {
+        return index < impl->facialAsset.clips.size() ? impl->facialAsset.clips[index].duration : 0.0f;
+    }
+
+    bool MESH_MBM::refreshFacialWeights(facial::RENDER_STATE &state) const
+    {
+        if (!state.targetCount) return false;
+        std::vector<float> &next = state.sampledWeights;
+        next.assign(state.targetCount, 0.0f);
+        for (uint32_t index = 0; index < state.targetCount; ++index)
+            next[index] = impl->facialAsset.targets[index].defaultWeight;
+        if (state.clipIndex != UINT32_MAX)
+        {
+            std::string error;
+            if (!facial::sampleClip(impl->facialAsset, state.clipIndex, state.clipTime, next, error))
+            {
+                state.status = error;
+                return false;
+            }
+        }
+        for (uint32_t index = 0; index < state.targetCount; ++index)
+            if (index < state.manualOverrides.size() && state.manualOverrides[index])
+                next[index] = state.weights[index];
+        if (next != state.weights)
+        {
+            state.weights = next;
+            state.dirty = true;
+        }
+        return true;
+    }
+
+    bool MESH_MBM::advanceFacial(facial::RENDER_STATE &state, const float delta) const
+    {
+        if (!state.targetCount || state.clipIndex == UINT32_MAX || !state.clipPlaying || state.clipPaused)
+            return true;
+        if (!std::isfinite(delta) || delta <= 0.0f || !std::isfinite(state.clipSpeed) || state.clipSpeed < 0.0f)
+            return false;
+        const facial::CLIP &clip = impl->facialAsset.clips[state.clipIndex];
+        if (clip.duration <= 0.0f)
+        {
+            state.clipTime = 0.0f;
+            state.clipPlaying = false;
+            return refreshFacialWeights(state);
+        }
+        const float advance = delta * state.clipSpeed;
+        if (!std::isfinite(advance)) return false;
+        const float next = state.clipTime + advance;
+        if (!std::isfinite(next)) return false;
+        if (clip.loop)
+            state.clipTime = std::fmod(next, clip.duration);
+        else if (next >= clip.duration)
+        {
+            state.clipTime = clip.duration;
+            state.clipPlaying = false;
+        }
+        else
+            state.clipTime = next;
+        return refreshFacialWeights(state);
+    }
+
+    bool MESH_MBM::prepareFacial(facial::RENDER_STATE &state, const SKELETAL_ANIMATION_PLAYER *player,
+                                 const bool useGpuSkinning) const
+    {
+        if (!state.targetCount) return true;
+        if (!state.ready) return false;
+        const bool skin = player && player->impl->active;
+        const bool gpuSkin = skin && useGpuSkinning;
+        const auto fail = [&state](const char *reason) { state.status = reason; return false; };
+        if (skin && player->impl->resolvedSkinningMethod != SKELETAL_SHADER_METHOD::LBS)
+            return fail("facial-requires-lbs");
+        const bool geometryChanged = state.positions.empty() || (!state.gpuMorph && state.dirty) ||
+            state.gpuSkinning != useGpuSkinning;
+        const bool poseChanged = skin != state.hadSkin || (skin && state.palette != player->impl->paletteRows) ||
+            state.gpuSkinning != useGpuSkinning;
+        if (!state.dirty && !poseChanged) return true;
+        if (state.dirty && !state.gpuMorph && !facial::deform(impl->facialAsset, impl->skeletalBindPositions,
+                impl->skeletalBindNormals, state.weights, state.morphPositions, state.morphNormals, state.status))
+            return false;
+        if (skin && !gpuSkin)
+        {
+            skeletal::SKELETAL_POSE pose;
+            pose.globalTransforms = player->impl->evaluatedGlobalTransforms;
+            if (!skeletal::skinVerticesLbsReference(impl->canonicalSkeleton, impl->canonicalWeights,
+                    pose, state.morphPositions, state.morphNormals, state.positions, state.normals))
+                return fail("facial-cpu-lbs-evaluation-failed");
+        }
+        else if (geometryChanged)
+        {
+            state.positions = state.gpuMorph ? impl->skeletalBindPositions : state.morphPositions;
+            state.normals = state.gpuMorph ? impl->skeletalBindNormals : state.morphNormals;
+        }
+        // A centered conservative bound also covers engines/callers that consume only dimensions.
+        // A GPU-only palette change does not alter the uploaded morph geometry, so avoid rescanning
+        // all vertices on every skeletal animation frame.
+        if (geometryChanged || (!gpuSkin && poseChanged))
+        {
+            VEC3 extent(0,0,0);
+            for (const VEC3 &p : state.positions)
+            {
+                if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
+                    return fail("facial-skinned-position-overflow");
+                extent.x = std::max(extent.x, std::fabs(p.x));
+                extent.y = std::max(extent.y, std::fabs(p.y));
+                extent.z = std::max(extent.z, std::fabs(p.z));
+            }
+            if (state.gpuMorph)
+            {
+                for (const facial::TARGET &target : impl->facialAsset.targets)
+                {
+                    if (target.positions.size() != impl->skeletalBindPositions.size())
+                        return fail("facial-gpu-bound-mismatch");
+                    for (size_t vertex = 0; vertex < impl->skeletalBindPositions.size(); ++vertex)
+                    {
+                        const VEC3 &base = impl->skeletalBindPositions[vertex];
+                        const VEC3 &delta = target.positions[vertex];
+                        extent.x = std::max(extent.x, std::fabs(base.x) + std::fabs(delta.x));
+                        extent.y = std::max(extent.y, std::fabs(base.y) + std::fabs(delta.y));
+                        extent.z = std::max(extent.z, std::fabs(base.z) + std::fabs(delta.z));
+                    }
+                }
+            }
+            state.bounds.lsCube[0]->halfDim = extent;
+        }
+        state.hadSkin = skin;
+        // Keep this flag as the selected shader variant, even while the skeletal
+        // player is idle. The GPU variant still needs bone attributes so an identity
+        // palette can render the facial bind pose.
+        state.gpuSkinning = useGpuSkinning;
+        if (skin) state.palette = player->impl->paletteRows;
+        else state.palette.clear();
+        state.dirty = false;
+        if (geometryChanged) state.uploadDirty = !state.gpuMorph;
+        if (geometryChanged || (!gpuSkin && poseChanged)) ++state.evaluations;
+        state.status = "ready";
+        return true;
+    }
+
+    bool MESH_MBM::renderFacial(facial::RENDER_STATE &state, SHADER *shader, const RENDERIZABLE *owner) const
+    {
+        if (!state.ready || !shader || state.status != "ready") return false;
+        const uint32_t vertexCount = static_cast<uint32_t>(state.positions.size());
+        if (!state.initialized)
+        {
+            state.buffer.release();
+            const BUFFER_MESH &source = impl->buffer[0];
+            state.buffer.totalSubset = source.totalSubset;
+            state.buffer.subset = new util::SUBSET[source.totalSubset];
+            for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+            {
+                state.buffer.subset[subsetIndex] = source.subset[subsetIndex];
+                state.buffer.subset[subsetIndex].materialTextureSlotHeaders =
+                    source.subset[subsetIndex].materialTextureSlotHeaders;
+                state.buffer.subset[subsetIndex].materialTextures =
+                    source.subset[subsetIndex].materialTextures;
+            }
+            state.buffer.pBufferGL = new BUFFER_GL();
+            bool ok = false;
+            if (impl->skeletalBindHasIndices)
+            {
+                std::vector<int> indexStart(source.totalSubset);
+                std::vector<int> indexCount(source.totalSubset);
+                for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+                {
+                    indexStart[subsetIndex] = source.subset[subsetIndex].indexStart;
+                    indexCount[subsetIndex] = source.subset[subsetIndex].indexCount;
+                }
+                if (state.gpuMorph)
+                    ok = state.buffer.pBufferGL->loadBuffer(impl->skeletalBindPositions.data(),
+                        impl->skeletalBindHasNormals ? impl->skeletalBindNormals.data() : nullptr,
+                        impl->skeletalBindHasUvs ? impl->skeletalBindUvs.data() : nullptr,
+                        vertexCount, impl->skeletalBindIndices.data(), source.totalSubset,
+                        indexStart.data(), indexCount.data(), &impl->info_mode);
+                else
+                    ok = state.buffer.pBufferGL->loadBufferDynamic(impl->skeletalBindIndices.data(),
+                        source.totalSubset, indexStart.data(), indexCount.data(),
+                        impl->skeletalBindHasNormals, impl->skeletalBindHasUvs, &impl->info_mode);
+            }
+            else
+            {
+                std::vector<int> vertexStart(source.totalSubset);
+                std::vector<int> vertexCountSubset(source.totalSubset);
+                for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+                {
+                    vertexStart[subsetIndex] = source.subset[subsetIndex].vertexStart;
+                    vertexCountSubset[subsetIndex] = source.subset[subsetIndex].vertexCount;
+                }
+                ok = state.buffer.pBufferGL->loadBuffer(impl->skeletalBindPositions.data(),
+                    impl->skeletalBindHasNormals ? impl->skeletalBindNormals.data() : nullptr,
+                    impl->skeletalBindHasUvs ? impl->skeletalBindUvs.data() : nullptr,
+                    vertexCount, source.totalSubset, vertexStart.data(), vertexCountSubset.data(),
+                    &impl->info_mode, true);
+            }
+            if (!ok)
+            {
+                state.buffer.release();
+                return false;
+            }
+            for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)
+            {
+                state.buffer.pBufferGL->setTextureByStage(source.pBufferGL->getTextureByStage(0, subsetIndex), 0, subsetIndex);
+                for (uint32_t stage = 1; stage <= 5; ++stage)
+                    state.buffer.pBufferGL->setTextureByStage(source.pBufferGL->getTextureByStage(stage, subsetIndex), stage, subsetIndex);
+            }
+
+            state.initialized = true;
+        }
+
+        if (state.gpuMorph)
+        {
+            if (!state.gpuMorphUploaded)
+            {
+                if (!facial::uploadGpuMorphStream(state.buffer.pBufferGL, impl->facialAsset,
+                                                  state.morphLayout))
+                {
+                    state.gpuMorph = false;
+                    state.gpuMorphShaderCompiled = false;
+                    state.gpuMorphShaderOwner = nullptr;
+                    state.gpuMorphShaderPaletteSize = 0;
+                    state.dirty = true;
+                    state.uploadDirty = true;
+                    state.morphExecutionPath = "cpu-reference";
+                    state.morphStatus = "gpu-morph-upload-failed";
+                }
+                else
+                    state.gpuMorphUploaded = true;
+            }
+            const uint32_t desiredPaletteSize = state.gpuSkinning ? impl->gpuSkinningInput.requiredBoneCount : 0u;
+            if (state.gpuMorph && (!state.gpuMorphShaderCompiled || state.gpuMorphShaderOwner != shader ||
+                                   state.gpuMorphShaderPaletteSize != desiredPaletteSize))
+            {
+                const uint32_t paletteSize = desiredPaletteSize;
+                shader->releaseShader();
+                const bool compiled = shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf,
+                    paletteSize, paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE,
+                    state.morphLayout.targetCount, state.morphLayout.textureWidth,
+                    state.morphLayout.textureHeight, state.morphLayout.rowsPerTarget,
+                    state.morphLayout.hasNormals);
+                if (!compiled)
+                {
+                    state.gpuMorph = false;
+                    state.dirty = true;
+                    state.uploadDirty = true;
+                    state.gpuMorphShaderCompiled = false;
+                    state.gpuMorphShaderOwner = nullptr;
+                    state.gpuMorphShaderPaletteSize = 0;
+                    state.morphExecutionPath = "cpu-reference";
+                    state.morphStatus = "gpu-morph-shader-unavailable";
+                    if (!shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf,
+                                               paletteSize,
+                                               paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE))
+                        return false;
+                }
+                else
+                {
+                    state.gpuMorphShaderCompiled = true;
+                    state.gpuMorphShaderOwner = shader;
+                    state.gpuMorphShaderPaletteSize = paletteSize;
+                }
+            }
+        }
+
+        // The facial buffer uses the same bind-vertex order as the canonical skeletal
+        // weights. Upload these attributes once so the GPU path can apply either the
+        // indexed morph texture or the CPU-morphed positions before skeletal skinning.
+        if (state.gpuSkinning && !impl->gpuSkinningInput.ready())
+        {
+            state.status = "facial-gpu-skinning-input-unavailable";
+            return false;
+        }
+        if (state.gpuSkinning && !state.gpuSkinningUploaded)
+        {
+            if (impl->skeletalBindFrameIndex != 0 ||
+                !skeletal::uploadSkinVertexStream(state.buffer.pBufferGL, impl->gpuSkinningInput))
+            {
+                state.status = "facial-gpu-skinning-upload-failed";
+                return false;
+            }
+            state.gpuSkinningUploaded = true;
+        }
+
+        if (state.uploadDirty)
+        {
+            if (!state.buffer.pBufferGL->updateDynamic(state.positions.data(),
+                    state.normals.empty() ? nullptr : state.normals.data(),
+                    impl->skeletalBindHasUvs ? impl->skeletalBindUvs.data() : nullptr,
+                    state.vertexStarts.data(), state.vertexCounts.data()))
+            { state.status = "facial-buffer-upload-failed"; return false; }
+            state.uploadDirty = false;
+            ++state.uploads;
+        }
+        DEVICE *device = DEVICE::getInstance();
+        device->setRenderMaterial(impl->material);
+        const bool result = shader->render(state.buffer.pBufferGL, owner, -1,
+                                           state.gpuSkinning && !state.palette.empty() ? state.palette.data() : nullptr,
+                                           state.gpuSkinning ? static_cast<uint32_t>(state.palette.size()) : 0u,
+                                           state.gpuMorph ? state.weights.data() : nullptr,
+                                           state.gpuMorph ? static_cast<uint32_t>(state.weights.size()) : 0u);
+        device->clearRenderMaterial();
+        if (!result && state.gpuMorph)
+        {
+            state.gpuMorph = false;
+            state.gpuMorphShaderCompiled = false;
+            state.gpuMorphShaderOwner = nullptr;
+            state.gpuMorphShaderPaletteSize = 0;
+            state.dirty = true;
+            state.uploadDirty = true;
+            state.morphExecutionPath = "cpu-reference";
+            state.morphStatus = "gpu-morph-draw-failed";
+            shader->releaseShader();
+            const uint32_t paletteSize = state.gpuSkinning ? impl->gpuSkinningInput.requiredBoneCount : 0u;
+            shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf, paletteSize,
+                                  paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE);
+        }
+        if (!result) state.status = "facial-draw-failed";
+        return result;
+    }
+
     bool MESH_MBM::renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
                                      const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
                                      std::vector<VEC3> &positions, std::vector<VEC3> &normals,
@@ -12224,6 +13050,7 @@ namespace mbm
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
         impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
+        impl->facialAsset = std::move(in.facialAsset);
         impl->normalMapFrames = std::make_shared<const normal_map::ASSET_FRAMES>(std::move(in.normalMapFrames));
         impl->normalMapMaterials = std::move(in.normalMapMaterials);
         if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0)
@@ -12301,8 +13128,8 @@ namespace mbm
             impl->buffer[currentFrame].pBufferGL = new BUFFER_GL();
             const bool hasIndex                  = frame.indexCount > 0;
             bool       loadOk                    = false;
-            if (impl->canonicalWeights.skeletonId != 0 &&
-                currentFrame == impl->canonicalWeights.frameIndex)
+            if ((impl->canonicalWeights.skeletonId != 0 && currentFrame == impl->canonicalWeights.frameIndex) ||
+                (impl->facialAsset.meshId && currentFrame == 0))
             {
                 impl->skeletalBindFrameIndex = currentFrame;
                 impl->skeletalBindHasNormals = frame.hasNormal;
@@ -13295,6 +14122,13 @@ namespace mbm
         impl->normalMapFrames = meshMemory->impl->normalMapFrames ?
             *meshMemory->impl->normalMapFrames : normal_map::ASSET_FRAMES{};
         impl->normalMapMaterials = meshMemory->impl->normalMapMaterials;
+        impl->facialAsset = meshMemory->impl->facialAsset;
+        if (impl->facialAsset.meshId)
+        {
+            impl->canonicalSkeleton = meshMemory->impl->canonicalSkeleton;
+            impl->canonicalWeights = meshMemory->impl->canonicalWeights;
+            impl->canonicalAnimations = meshMemory->impl->canonicalAnimations;
+        }
         return true;
     }
 }

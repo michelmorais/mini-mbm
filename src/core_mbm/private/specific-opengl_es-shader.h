@@ -46,6 +46,14 @@ namespace mbm
         GLint samplerHandle3;
         GLint samplerHandle4;
         GLint samplerHandle5;
+        GLint facialMorphVertexIdHandle;
+        GLint facialMorphTextureHandle;
+        GLint facialMorphTextureWidthHandle;
+        GLint facialMorphTextureHeightHandle;
+        GLint facialMorphRowsPerTargetHandle;
+        GLint facialMorphWeightsHandle;
+        uint32_t facialMorphTargetCount;
+        bool facialMorphActive;
 
         GLuint programObject;
 

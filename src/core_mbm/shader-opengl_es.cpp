@@ -43,6 +43,30 @@ namespace mbm
     static uint32_t loadShaderProgram(BASE_SHADER* pShader, BASE_SHADER* vShader, void* ptrShaderSpecific, const char* vertShaderSrc, const char* fragShaderSrc);
     static uint32_t compileCodeShader(BASE_SHADER* ptrShader, const unsigned int type, const char* shaderSrc);
 
+    // CULL_FRONT_AND_BACK is the cross-backend mesh value for rendering both sides. OpenGL's
+    // glCullFace(GL_FRONT_AND_BACK) instead culls every triangle, so temporarily disable the
+    // capability and restore the previous state when this draw returns (including early exits).
+    struct ScopedMeshNoCulling
+    {
+        bool restore = false;
+
+        explicit ScopedMeshNoCulling(const uint32_t modeCullFace) noexcept
+        {
+            if (modeCullFace != util::CULL_FRONT_AND_BACK || glIsEnabled(GL_CULL_FACE) != GL_TRUE)
+                return;
+            GLDisable(GL_CULL_FACE);
+            restore = true;
+        }
+
+        ~ScopedMeshNoCulling() noexcept
+        {
+            if (restore)
+            {
+                GLEnable(GL_CULL_FACE);
+            }
+        }
+    };
+
     // Process-lifetime cache of compiled "pure default shader pair" programs (no custom .cfg
     // effect), keyed by the small set of flags that fully determine the generated GLSL source
     // (see SHADER::compileShader). Every placed instance of the same mesh type would otherwise
@@ -490,6 +514,22 @@ namespace mbm
         return true;
     }
 
+    static bool bindFacialMorph(const GLES_PS_VS *gles, const BUFFER_SPECIFIC *buffer,
+                                const float *weights, const uint32_t weightCount)
+    {
+        if (!gles->facialMorphActive)
+            return true;
+        if (!buffer || !buffer->facialMorphTexture || !weights ||
+            weightCount != gles->facialMorphTargetCount || gles->facialMorphTextureHandle < 0 ||
+            gles->facialMorphWeightsHandle < 0)
+            return false;
+        GLActiveTexture(GL_TEXTURE6);
+        GLBindTexture(GL_TEXTURE_2D, buffer->facialMorphTexture);
+        GLUniform1i(gles->facialMorphTextureHandle, 6);
+        GLUniform1fv(gles->facialMorphWeightsHandle, static_cast<GLsizei>(weightCount), weights);
+        return true;
+    }
+
     static GLenum getOpenGlEsModeDraw(const uint32_t mode_draw)
     {
         switch (mode_draw)
@@ -549,9 +589,10 @@ namespace mbm
         const int tex = useTexCoord && gles->texCoordHandle >= 0 ? gles->texCoordHandle : -1;
         const int boneIndices = gles->boneIndicesHandle;
         const int boneWeights = gles->boneWeightsHandle;
+        const int facialVertexId = gles->facialMorphVertexIdHandle;
         for (GLint a = 0; a < maxAttribs; ++a)
         {
-            if (a != pos && a != norm && a != tex && a != boneIndices && a != boneWeights)
+            if (a != pos && a != norm && a != tex && a != boneIndices && a != boneWeights && a != facialVertexId)
                 glDisableVertexAttribArray(static_cast<GLuint>(a));
         }
     }
@@ -594,7 +635,16 @@ namespace mbm
         vboBoneWeightsIB(0),
         vboBoneIndicesVB(nullptr),
         vboBoneWeightsVB(nullptr),
-        skinSubsetCount(0)
+        skinSubsetCount(0),
+        facialMorphTexture(0),
+        vboFacialVertexIdIB(0),
+        vboFacialVertexIdVB(nullptr),
+        facialMorphSubsetCount(0),
+        facialMorphTextureWidth(0),
+        facialMorphTextureHeight(0),
+        facialMorphRowsPerTarget(0),
+        facialMorphTargetCount(0),
+        facialMorphHasNormals(false)
     {
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
     }
@@ -602,6 +652,32 @@ namespace mbm
     BUFFER_SPECIFIC::~BUFFER_SPECIFIC()
     {
         this->release();
+    }
+
+    void BUFFER_SPECIFIC::releaseFacialMorph()
+    {
+        if (facialMorphTexture)
+        {
+            GLDeleteTextures(1, &facialMorphTexture);
+        }
+        facialMorphTexture = 0;
+        if (vboFacialVertexIdIB)
+        {
+            GLDeleteBuffers(1, &vboFacialVertexIdIB);
+        }
+        vboFacialVertexIdIB = 0;
+        if (vboFacialVertexIdVB)
+        {
+            GLDeleteBuffers(static_cast<GLsizei>(facialMorphSubsetCount), vboFacialVertexIdVB);
+            delete[] vboFacialVertexIdVB;
+        }
+        vboFacialVertexIdVB = nullptr;
+        facialMorphSubsetCount = 0;
+        facialMorphTextureWidth = 0;
+        facialMorphTextureHeight = 0;
+        facialMorphRowsPerTarget = 0;
+        facialMorphTargetCount = 0;
+        facialMorphHasNormals = false;
     }
 
 #if USE_NORMAL_MAPPING_3D
@@ -664,6 +740,7 @@ namespace mbm
         vboBoneIndicesVB = nullptr;
         vboBoneWeightsVB = nullptr;
         skinSubsetCount = 0;
+        releaseFacialMorph();
     }
 
     void BUFFER_GL::release()
@@ -1107,6 +1184,14 @@ namespace mbm
           samplerHandle3(-1),
           samplerHandle4(-1),
           samplerHandle5(-1),
+          facialMorphVertexIdHandle(-1),
+          facialMorphTextureHandle(-1),
+          facialMorphTextureWidthHandle(-1),
+          facialMorphTextureHeightHandle(-1),
+          facialMorphRowsPerTargetHandle(-1),
+          facialMorphWeightsHandle(-1),
+          facialMorphTargetCount(0),
+          facialMorphActive(false),
           programObject(0),
           isSharedProgram(false)
     {
@@ -1138,6 +1223,14 @@ namespace mbm
         samplerHandle3  = -1;
         samplerHandle4  = -1;
         samplerHandle5  = -1;
+        facialMorphVertexIdHandle = -1;
+        facialMorphTextureHandle = -1;
+        facialMorphTextureWidthHandle = -1;
+        facialMorphTextureHeightHandle = -1;
+        facialMorphRowsPerTargetHandle = -1;
+        facialMorphWeightsHandle = -1;
+        facialMorphTargetCount = 0;
+        facialMorphActive = false;
         // A shared program is owned by SHADER's process-lifetime default-program cache (see
         // getDefaultProgramCache()), not by this instance -- deleting it here would leave every
         // other instance (and the cache itself) holding a dangling program id.
@@ -1190,12 +1283,24 @@ namespace mbm
 
     bool SHADER::compileBackend(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalLbsPaletteSize,
-                               const SKELETAL_SHADER_METHOD skeletalMethod)
+                               const SKELETAL_SHADER_METHOD skeletalMethod,
+                               const uint32_t facialMorphTargetCount,
+                               const uint32_t facialMorphTextureWidth,
+                               const uint32_t facialMorphTextureHeight,
+                               const uint32_t facialMorphRowsPerTarget,
+                               const bool facialMorphHasNormals)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
             return false;
         this->pShader             = ptrPshader;
         this->vShader            = ptrVshader;
+        const bool useFacialMorph = facialMorphTargetCount > 0 && facialMorphTextureWidth > 0 &&
+            facialMorphTextureHeight > 0 && facialMorphRowsPerTarget > 0;
+        if (useFacialMorph && ptrVshader != nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "facial GLES2 morph does not support a custom vertex shader");
+            return false;
+        }
         if (skeletalLbsPaletteSize > 0 && ptrVshader != nullptr)
         {
             ERROR_AT(__LINE__, __FILE__, "canonical GLES2 skinning does not yet support a custom vertex shader");
@@ -1205,6 +1310,8 @@ namespace mbm
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault() ||
             (ptrVshader == nullptr && ptrPshader && ptrPshader->fileName == "lit textured.ps");
+        const bool useFacialMorphNormals = useFacialMorph && facialMorphHasNormals && hasNormal &&
+            useReservedLightScaffolding;
         const bool canUsePointLight2D = useReservedLightScaffolding && (this->vShader == nullptr);
 
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1212,13 +1319,15 @@ namespace mbm
         gles_shaderSpecific->skeletalLbsPaletteSize = skeletalLbsPaletteSize;
         gles_shaderSpecific->skeletalMethod = skeletalLbsPaletteSize > 0
             ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
+        gles_shaderSpecific->facialMorphTargetCount = useFacialMorph ? facialMorphTargetCount : 0;
+        gles_shaderSpecific->facialMorphActive = useFacialMorph;
 
         // Fast path: an earlier instance already compiled+linked this exact (fvf,
         // useReservedLightScaffolding, canUsePointLight2D) combination -- every placement of the
         // same mesh type after the first hits this branch, skipping GLSL source generation and the
         // real glCompileShader/glCreateProgram/glLinkProgram calls entirely (see comment on
         // getDefaultProgramCache() for why this matters on Windows specifically).
-        if (this->usesPureDefaultShaderPair())
+        if (this->usesPureDefaultShaderPair() && !useFacialMorph)
         {
             const uint64_t key = makeDefaultProgramCacheKey(
                 fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize,
@@ -1502,6 +1611,11 @@ namespace mbm
         std::string defaultCodeVs = "attribute vec4 aPosition;";
         if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
+        if (useFacialMorph)
+            skeletal::appendGlesFacialMorphFunctions(defaultCodeVs, facialMorphTargetCount,
+                                                     facialMorphTextureWidth, facialMorphTextureHeight,
+                                                     facialMorphRowsPerTarget,
+                                                     useFacialMorphNormals);
         if (skeletalLbsPaletteSize > 0)
         {
             defaultCodeVs += " attribute vec4 aBoneIndices; attribute vec4 aBoneWeights;";
@@ -1517,18 +1631,30 @@ namespace mbm
             defaultCodeVs += " attribute vec4 aTangent; varying vec4 vTangentView;";
 #endif
         defaultCodeVs += " void main() {";
+        if (useFacialMorph)
+        {
+            defaultCodeVs += " vec4 facialPosition=aPosition;";
+            if (useFacialMorphNormals)
+                defaultCodeVs += " vec3 facialNormal=aNormal;";
+            defaultCodeVs += " applyFacialMorph(facialPosition";
+            if (useFacialMorphNormals)
+                defaultCodeVs += ",facialNormal";
+            defaultCodeVs += ");";
+        }
         if (skeletalLbsPaletteSize > 0)
         {
             skeletal::appendGlesSkeletalDeformation(defaultCodeVs, skeletalMethod,
-                                                     hasNormal && useReservedLightScaffolding);
+                                                     hasNormal && useReservedLightScaffolding, useFacialMorph);
         }
         else
-            defaultCodeVs += " vec4 skinnedPosition = aPosition;";
+            defaultCodeVs += useFacialMorph ? " vec4 skinnedPosition = facialPosition;" :
+                " vec4 skinnedPosition = aPosition;";
         defaultCodeVs += " gl_Position = mvpMatrix * skinnedPosition;";
         if (hasNormal && useReservedLightScaffolding)
             defaultCodeVs += skeletalLbsPaletteSize > 0
                 ? " vNormalView = (mvMatrix * vec4(skinnedNormal, 0.0)).xyz;"
-                : " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
+                : (useFacialMorph ? " vNormalView = (mvMatrix * vec4(facialNormal, 0.0)).xyz;"
+                                   : " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;");
 #if USE_NORMAL_MAPPING_3D
         if (usesNormalMappingVariant() && hasNormal && hasUV && useReservedLightScaffolding)
         {
@@ -1547,12 +1673,22 @@ namespace mbm
 #endif
 #if USE_NORMAL_MAPPING_3D
         if (!usesNormalMappingVariant() && hasNormal && hasUV && useReservedLightScaffolding && skeletalLbsPaletteSize == 0)
-            defaultCodeVs += R"GLSL(
-                mat3 m = mat3(mvMatrix);
-                vec3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
-                float det = dot(m[0],c0);
-                vNormalView = abs(det) > 0.00000001 ? (mat3(c0,c1,c2) * aNormal) / det : aNormal;
-            )GLSL";
+        {
+            if (useFacialMorph && useFacialMorphNormals)
+                defaultCodeVs += R"GLSL(
+                    mat3 m = mat3(mvMatrix);
+                    vec3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
+                    float det = dot(m[0],c0);
+                    vNormalView = abs(det) > 0.00000001 ? (mat3(c0,c1,c2) * facialNormal) / det : facialNormal;
+                )GLSL";
+            else
+                defaultCodeVs += R"GLSL(
+                    mat3 m = mat3(mvMatrix);
+                    vec3 c0 = cross(m[1],m[2]), c1 = cross(m[2],m[0]), c2 = cross(m[0],m[1]);
+                    float det = dot(m[0],c0);
+                    vNormalView = abs(det) > 0.00000001 ? (mat3(c0,c1,c2) * aNormal) / det : aNormal;
+                )GLSL";
+        }
 #endif
         if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * skinnedPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
@@ -1644,6 +1780,19 @@ namespace mbm
             gles_shaderSpecific->bonePaletteHandle =
                 GLGetUniformLocation(gles_shaderSpecific->programObject, "bonePalette[0]");
         }
+        if (useFacialMorph)
+        {
+            gles_shaderSpecific->facialMorphVertexIdHandle =
+                GLGetAttribLocation(gles_shaderSpecific->programObject, "aFacialVertexId");
+            gles_shaderSpecific->facialMorphTextureHandle =
+                GLGetUniformLocation(gles_shaderSpecific->programObject, "facialMorphTexture");
+            gles_shaderSpecific->facialMorphWeightsHandle =
+                GLGetUniformLocation(gles_shaderSpecific->programObject, "facialMorphWeights[0]");
+            gles_shaderSpecific->facialMorphActive =
+                gles_shaderSpecific->facialMorphVertexIdHandle >= 0 &&
+                gles_shaderSpecific->facialMorphTextureHandle >= 0 &&
+                gles_shaderSpecific->facialMorphWeightsHandle >= 0;
+        }
         if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_DIFFUSE, textureNaming))
         {
             gles_shaderSpecific->samplerHandle0 = GLGetUniformLocation(
@@ -1681,7 +1830,7 @@ namespace mbm
                 getTextureRoleShaderName(TEXTURE_ROLE_MASK, textureNaming));
         }
 
-        if (this->usesPureDefaultShaderPair())
+        if (this->usesPureDefaultShaderPair() && !useFacialMorph)
         {
             DefaultProgramCacheEntry entry;
             entry.programObject   = gles_shaderSpecific->programObject;
@@ -1815,12 +1964,17 @@ namespace mbm
 
     bool SHADER::renderBackend(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
-                        const uint32_t skeletalPaletteFloatCount) const
+                        const uint32_t skeletalPaletteFloatCount,
+                        const float *facialMorphWeights, const uint32_t facialMorphWeightCount) const
     {
         const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
-        GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
+        const ScopedMeshNoCulling noCulling(pBufferId->mode_cull_face);
+        if (pBufferId->mode_cull_face != util::CULL_FRONT_AND_BACK)
+        {
+            GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029 (CullFaceMode)
+        }
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
@@ -1853,6 +2007,18 @@ namespace mbm
             if (!bindAndUploadLbsIndexed(gles_shaderSpecific, backendBuffer,
                                          skeletalPaletteRows, skeletalPaletteFloatCount))
                 return false;
+            if (!bindFacialMorph(gles_shaderSpecific, backendBuffer,
+                                 facialMorphWeights, facialMorphWeightCount))
+                return false;
+            if (gles_shaderSpecific->facialMorphActive)
+            {
+                if (gles_shaderSpecific->facialMorphVertexIdHandle < 0 || !backendBuffer->vboFacialVertexIdIB)
+                    return false;
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboFacialVertexIdIB);
+                GLEnableVertexAttribArray(gles_shaderSpecific->facialMorphVertexIdHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->facialMorphVertexIdHandle, 1, GL_FLOAT, GL_FALSE,
+                                      sizeof(float), nullptr);
+            }
             //-----------------------------------------------------------------------------------------------------------
             if (gles_shaderSpecific->mvpMatrixHandle != -1)
             {
@@ -1905,6 +2071,9 @@ namespace mbm
             if (!backendBuffer->vboVertexSubsetVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
+            if (!bindFacialMorph(gles_shaderSpecific, backendBuffer,
+                                 facialMorphWeights, facialMorphWeightCount))
+                return false;
             // See the index-buffer branch above - shared, not per-subset.
             bindTextureRoleOpenGlEs(pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
             const uint32_t firstSubset = subsetIndex >= 0 ? static_cast<uint32_t>(subsetIndex) : 0u;
@@ -1933,6 +2102,17 @@ namespace mbm
                 if (!bindAndUploadLbsSubset(gles_shaderSpecific, backendBuffer, i,
                                             skeletalPaletteRows, skeletalPaletteFloatCount))
                     return false;
+                if (gles_shaderSpecific->facialMorphActive)
+                {
+                    if (gles_shaderSpecific->facialMorphVertexIdHandle < 0 ||
+                        !backendBuffer->vboFacialVertexIdVB ||
+                        !backendBuffer->vboFacialVertexIdVB[i])
+                        return false;
+                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboFacialVertexIdVB[i]);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->facialMorphVertexIdHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->facialMorphVertexIdHandle, 1, GL_FLOAT, GL_FALSE,
+                                          sizeof(float), nullptr);
+                }
                 //-----------------------------------------------------------------------------------------------------------
                 if (gles_shaderSpecific->mvpMatrixHandle != -1)
                 {
@@ -1975,7 +2155,11 @@ namespace mbm
         const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
-        GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
+        const ScopedMeshNoCulling noCulling(pBufferId->mode_cull_face);
+        if (pBufferId->mode_cull_face != util::CULL_FRONT_AND_BACK)
+        {
+            GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK (CullFaceMode)
+        }
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();

@@ -86,6 +86,8 @@ enum SECTION_TYPE : uint16_t
     SECTION_SKELETAL_WEIGHTS   = 42,
     SECTION_SKELETAL_ANIMATION = 43,
     SECTION_AUTOPLAY_ANIMATION = 44,
+    SECTION_FACIAL_TARGETS     = 45, // dense frame-0 morph targets
+    SECTION_FACIAL_CLIPS       = 46, // sampled target weights
 };
 ```
 
@@ -662,6 +664,63 @@ The section is optional and appears at most once. A newly loaded `MESH` starts t
 articulated, or skeletal clip. `SPRITE` starts frame and articulated selections. Playback state
 remains per instance. The editor stores the selected animation kind and name here without changing
 the existing animation payloads. An unset selection is represented by omitting the section.
+
+### Facial sections 45-46, version 1
+
+Facial data is optional and is associated with the frame-0 vertex order. At most one target section
+and one clip section may occur. The two sections carry the same nonzero `meshId`, and the target
+section's `geometrySignature` must match the loaded frame-0 positions, normals, and indices. The
+signature is a 64-bit FNV-1a hash over the vertex/index counts, normal-presence flag, little-endian
+float bit patterns (signed zero canonicalized), and 16-bit index values. It detects changes to the
+bind topology and vertex order before facial data is exposed to a mesh instance.
+
+`SECTION_FACIAL_TARGETS = 45` stores dense deltas:
+
+```text
+uint64 meshId
+uint64 geometrySignature
+uint32 vertexCount
+uint32 targetCount             // 1..256
+repeat targetCount times:
+    uint64 targetId             // nonzero and unique within this mesh
+    string name                 // required and unique within this mesh
+    string convention           // optional authoring label, e.g. "ARKit"
+    float32 defaultWeight       // finite and in [0,1]
+    uint32 flags                 // bit 0 = normal deltas present; no other bits
+    float32 positionDelta[vertexCount][3]
+    float32 normalDelta[vertexCount][3] // present when flags bit 0 is set
+```
+
+`SECTION_FACIAL_CLIPS = 46` stores sampled weights and references the target section:
+
+```text
+uint64 meshId                   // must match SECTION_FACIAL_TARGETS
+uint32 clipCount                // 1..256
+repeat clipCount times:
+    uint64 clipId               // nonzero and unique within this mesh
+    string name                 // required and unique within this mesh
+    float32 duration             // finite and nonnegative
+    uint32 loop                  // 0 or 1
+    uint32 interpolation         // 0 = step, 1 = linear
+    uint32 keyCount              // at least 1
+    repeat keyCount times:
+        float32 time             // strictly increasing, within [0,duration]
+        float32 weight[targetCount] // each value in [0,1]
+```
+
+The first key time is exactly `0` and the final key time is exactly `duration`. Names and string
+payloads are validated as UTF-8. Section payloads are capped at 64 MiB, target count at 256,
+vertex count at 1,000,000, clip count at 256, and total sampled weights at 1,000,000. Unsupported
+versions, duplicate/orphan sections, invalid identities, non-finite values, topology mismatches,
+and truncated payloads are fatal load errors. Facial edits that would reorder, resize, or otherwise
+change frame-0 geometry are rejected until a remapping implementation exists; ordinary load/save
+preserves the sections byte-for-byte semantically.
+
+The CPU reference evaluator starts from immutable frame-0 geometry, adds all active position deltas,
+then adds and renormalizes normal deltas when normals are present. When skeletal animation is also
+active, the morphed bind geometry is skinned with the existing CPU linear-blend path. Weights,
+deformed buffers, bounds, and playback state are per `MESH` instance; target and clip arrays remain
+owned by the shared cached mesh asset.
 
 ### Reader compatibility
 

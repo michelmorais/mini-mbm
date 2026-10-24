@@ -264,6 +264,19 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, '--direct-msh-output')
     end
 
+    if options.includeFacial then
+        table.insert(args, '--include-facial')
+    end
+
+    if options.facialConvention and options.facialConvention ~= '' then
+        table.insert(args, '--facial-convention')
+        table.insert(args, shellQuote(options.facialConvention))
+    end
+
+    if options.facialNormalDeltas then
+        table.insert(args, '--facial-normal-deltas')
+    end
+
     if options.bakeAnimation then
         table.insert(args, '--bake-animation')
     end
@@ -471,6 +484,24 @@ function M.buildScanCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     local cmd = table.concat(args, ' ')
     debugPrint('build scan cmd: %s', cmd)
     return cmd
+end
+
+-- Builds the interactive command used by the facial rig editor. The addon is
+-- loaded into an existing .blend and receives the bridge path so it can import
+-- the preview once Blender's normal UI is ready.
+function M.buildFacialRigPreviewCmd(sourcePath, addonScriptPath, bridgePath)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+    if not sourcePath or sourcePath == '' or not addonScriptPath or addonScriptPath == '' then
+        return nil
+    end
+    local args = {shellQuote(b.path), shellQuote(sourcePath), '--python', shellQuote(addonScriptPath)}
+    if bridgePath and bridgePath ~= '' then
+        table.insert(args, '--')
+        table.insert(args, '--bridge')
+        table.insert(args, shellQuote(bridgePath))
+    end
+    return table.concat(args, ' ')
 end
 
 function M.launchCmdAsync(cmd, logPath)

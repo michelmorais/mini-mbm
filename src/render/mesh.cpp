@@ -29,6 +29,9 @@
 #include <algorithm>
 #include <vector>
 
+#include "private/facial-render-state.h"
+#include <cmath>
+
 namespace mbm
 {
     struct MESH::SKELETAL_POSE_SHARING_STATE
@@ -75,6 +78,7 @@ namespace mbm
     {
         this->detachSkeletalPoseSharingSource();
         this->detachSkeletalPoseSharingFollowers();
+        this->facialState.reset();
         this->releaseAnimation();
         this->releaseCpuSkeletalRenderState();
         this->setIndexAnimation(0);
@@ -129,8 +133,30 @@ namespace mbm
 
     bool MESH::finishLoad(const char *fileName)
     {
+        this->facialState = std::make_unique<facial::RENDER_STATE>();
+        if (!this->mesh->initializeFacial(*facialState))
+        {
+            ERROR_LOG("facial mesh initialization failed for [%s]: %s", fileName ? fileName : "<unknown>",
+                      facialState->status.c_str());
+            this->mesh = nullptr;
+            return false;
+        }
         this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
         this->resolveSkeletalExecutionPath();
+        if (facialState->targetCount && (!this->is3DObject() ||
+            (cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::GPU &&
+             (getResolvedSkeletalSkinningMethod() != SKELETAL_SHADER_METHOD::LBS ||
+              !this->mesh->supportsGpuSkeletalPath(SKELETAL_SHADER_METHOD::LBS))) ||
+            (getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU &&
+             getResolvedSkeletalSkinningMethod() != SKELETAL_SHADER_METHOD::LBS)))
+        {
+            facialState->status = !this->is3DObject() ? "facial-requires-3d" :
+                (cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::GPU
+                    ? "facial-gpu-skeletal-unsupported" : "facial-requires-lbs-or-gpu-composite");
+            facialState->ready = false;
+            this->mesh = nullptr;
+            return false;
+        }
         const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
         if (result == MeshLoadFinishResult::ANIMATION_FAILED)
         {
@@ -164,28 +190,8 @@ namespace mbm
                 return;
             }
             this->mesh = mesh;
-            this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
-            this->resolveSkeletalExecutionPath();
-            const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
-            if (result == MeshLoadFinishResult::ANIMATION_FAILED)
-            {
-                this->release();
-                if (callback)
-                    callback(false);
-                return;
-            }
-            else if (result != MeshLoadFinishResult::OK)
-            {
-                if (callback)
-                    callback(false);
-                return;
-            }
-            this->setInternalFileName(fileNameCopy.c_str());
-            this->restartAnimation();
-            this->startAutoplayAnimation();
-            this->updateAABB();
-            if (callback)
-                callback(true);
+            const bool finished = this->finishLoad(fileNameCopy.c_str());
+            if (callback) callback(finished);
         });
     }
 
@@ -343,6 +349,19 @@ namespace mbm
         {
             cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::CPU;
             cpuSkeletalRenderState->executionReason = "explicit-cpu";
+            return;
+        }
+        if (facialState && facialState->targetCount)
+        {
+            cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::CPU;
+            const SKELETAL_SHADER_METHOD method = getResolvedSkeletalSkinningMethod();
+            if (method == SKELETAL_SHADER_METHOD::LBS && mesh && mesh->supportsGpuSkeletalPath(method))
+            {
+                cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::GPU;
+                cpuSkeletalRenderState->executionReason = "facial-gpu-composite-auto";
+            }
+            else
+                cpuSkeletalRenderState->executionReason = "facial-cpu-reference";
             return;
         }
         const char *cpuReason = nullptr;
@@ -749,6 +768,215 @@ namespace mbm
                                                          boneIdCount, time, errorOut, errorOutLen);
     }
 
+    bool MESH::setFacialWeight(uint32_t target, float weight)
+    {
+        if (!mesh || !facialState || !facialState->ready || target >= facialState->weights.size() || !std::isfinite(weight)) return false;
+        const float clamped = std::max(0.0f, std::min(1.0f, weight));
+        facialState->weights[target] = clamped;
+        facialState->manualOverrides[target] = 1;
+        facialState->dirty = true;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::setFacialWeightByName(const char *name, float weight)
+    {
+        if (!mesh) return false;
+        const uint32_t index = mesh->findFacialTarget(name);
+        return index != UINT32_MAX && setFacialWeight(index, weight);
+    }
+
+    bool MESH::getFacialWeight(uint32_t target, float *weight) const noexcept
+    {
+        if (!weight || !facialState || target >= facialState->weights.size()) return false;
+        *weight = facialState->weights[target];
+        return true;
+    }
+
+    bool MESH::getFacialWeightByName(const char *name, float *weight) const noexcept
+    {
+        if (!mesh) return false;
+        const uint32_t index = mesh->findFacialTarget(name);
+        return index != UINT32_MAX && getFacialWeight(index, weight);
+    }
+
+    bool MESH::clearFacialWeight(uint32_t target)
+    {
+        if (!mesh || !facialState || target >= facialState->weights.size() ||
+            target >= facialState->manualOverrides.size() || !facialState->manualOverrides[target]) return false;
+        facialState->manualOverrides[target] = 0;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::clearFacialWeightByName(const char *name)
+    {
+        if (!mesh) return false;
+        const uint32_t index = mesh->findFacialTarget(name);
+        return index != UINT32_MAX && clearFacialWeight(index);
+    }
+
+    bool MESH::resetFacialWeights()
+    {
+        if (!mesh || !facialState || facialState->manualOverrides.empty()) return false;
+        bool changed = false;
+        for (uint8_t &overrideValue : facialState->manualOverrides)
+        {
+            changed = changed || overrideValue != 0;
+            overrideValue = 0;
+        }
+        if (!changed) return true;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    uint32_t MESH::getTotalFacialTargets() const noexcept
+    {
+        return mesh ? mesh->getTotalFacialTargets() : 0;
+    }
+
+    const char *MESH::getFacialTargetName(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialTargetName(index) : nullptr;
+    }
+
+    uint64_t MESH::getFacialTargetId(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialTargetId(index) : 0;
+    }
+
+    const char *MESH::getFacialTargetConvention(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialTargetConvention(index) : nullptr;
+    }
+
+    float MESH::getFacialTargetDefaultWeight(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialTargetDefaultWeight(index) : 0.0f;
+    }
+
+    uint32_t MESH::getTotalFacialClips() const noexcept
+    {
+        return mesh ? mesh->getTotalFacialClips() : 0;
+    }
+
+    const char *MESH::getFacialClipName(uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getFacialClipName(index) : nullptr;
+    }
+
+    bool MESH::getFacialClipDuration(uint32_t index, float *duration) const noexcept
+    {
+        return mesh && mesh->getFacialClipDuration(index, duration);
+    }
+
+    bool MESH::playFacialAnimation(const char *name)
+    {
+        if (!mesh || !facialState || !facialState->ready) return false;
+        const uint32_t index = mesh->findFacialClip(name);
+        if (index == UINT32_MAX) return false;
+        facialState->clipIndex = index;
+        facialState->clipTime = 0.0f;
+        facialState->clipPlaying = true;
+        facialState->clipPaused = false;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::pauseFacialAnimation() noexcept
+    {
+        if (!facialState || facialState->clipIndex == UINT32_MAX || !facialState->clipPlaying) return false;
+        facialState->clipPaused = true;
+        return true;
+    }
+
+    bool MESH::resumeFacialAnimation() noexcept
+    {
+        if (!facialState || facialState->clipIndex == UINT32_MAX || !facialState->clipPlaying) return false;
+        facialState->clipPaused = false;
+        return true;
+    }
+
+    bool MESH::stopFacialAnimation()
+    {
+        if (!mesh || !facialState || facialState->clipIndex == UINT32_MAX) return false;
+        facialState->clipIndex = UINT32_MAX;
+        facialState->clipTime = 0.0f;
+        facialState->clipPlaying = false;
+        facialState->clipPaused = false;
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::seekFacialAnimation(float time)
+    {
+        if (!mesh || !facialState || facialState->clipIndex == UINT32_MAX || !std::isfinite(time)) return false;
+        float duration = 0.0f;
+        if (!mesh->getFacialClipDuration(facialState->clipIndex, &duration)) return false;
+        facialState->clipTime = std::max(0.0f, std::min(duration, time));
+        return mesh->refreshFacialWeights(*facialState);
+    }
+
+    bool MESH::getFacialAnimationTime(float *time) const noexcept
+    {
+        if (!time || !facialState || facialState->clipIndex == UINT32_MAX) return false;
+        *time = facialState->clipTime;
+        return true;
+    }
+
+    bool MESH::setFacialAnimationPlaybackSpeed(float speed) noexcept
+    {
+        if (!facialState || !std::isfinite(speed) || speed < 0.0f) return false;
+        facialState->clipSpeed = speed;
+        return true;
+    }
+
+    float MESH::getFacialAnimationPlaybackSpeed() const noexcept
+    {
+        return facialState ? facialState->clipSpeed : 1.0f;
+    }
+
+    void MESH::getFacialAnimationReport(FACIAL_ANIMATION_REPORT &out) const noexcept
+    {
+        out = {};
+        if (!facialState) return;
+        out.targetCount = facialState->targetCount;
+        out.clipCount = facialState->clipCount;
+        out.deformationCount = facialState->evaluations;
+        out.uploadCount = facialState->uploads;
+        out.ready = facialState->ready && facialState->status == "ready";
+        out.playing = facialState->clipPlaying;
+        out.paused = facialState->clipPaused;
+        out.clipIndex = facialState->clipIndex;
+        out.clipTime = facialState->clipTime;
+        out.playbackSpeed = facialState->clipSpeed;
+        if (mesh && facialState->clipIndex < mesh->getTotalFacialClips())
+        {
+            out.clipDuration = mesh->getFacialClipDurationValue(facialState->clipIndex);
+            out.clipName = mesh->getFacialClipName(facialState->clipIndex);
+        }
+        out.executionPath = !facialState->targetCount ? "none" :
+            (facialState->ready ?
+                (getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::GPU
+                    ? "gpu-skeletal-composite" : "cpu") : "unsupported");
+        out.morphExecutionPath = !facialState->targetCount ? "none" : facialState->morphExecutionPath;
+        out.morphStatus = !facialState->targetCount ? "no-facial-data" : facialState->morphStatus;
+        out.status = facialState->status.c_str();
+    }
+
+    bool MESH::prepareFacial(bool advancePose)
+    {
+        const bool shared = canUseSkeletalPoseSharing(nullptr);
+        SKELETAL_ANIMATION_PLAYER &player = getSkeletalAnimationPlayer();
+        if (advancePose && !shared && mesh->hasActiveSkeletalAnimation(player) &&
+            !mesh->updateSkeletalAnimation(player, DEVICE::getInstance()->delta, this, getOnEndAnimation()))
+        { facialState->status = "facial-skeletal-update-failed"; return false; }
+        if (advancePose && !mesh->advanceFacial(*facialState, DEVICE::getInstance()->delta))
+        { facialState->status = "facial-clip-advance-failed"; return false; }
+        const SKELETAL_ANIMATION_PLAYER *source = shared ?
+            &skeletalPoseSharingState->source->getSkeletalAnimationPlayer() : &player;
+        const uint64_t revision = facialState->evaluations;
+        const bool useGpuSkinning = getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::GPU;
+        if (!mesh->prepareFacial(*facialState, source, useGpuSkinning)) return false;
+        if (revision != facialState->evaluations) updateAABB();
+        return true;
+    }
+
     bool MESH::render()
     {
         if (!mesh)
@@ -765,10 +993,16 @@ namespace mbm
         anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
         this->mesh->updateArticulatedAnimations(articulatedPlayer, device->delta,
                                                  this, this->getOnEndAnimation());
+        if (facialState && facialState->targetCount)
+        {
+            const bool prepared = prepareFacial(!facialState->poseAdvancedForRender);
+            facialState->poseAdvancedForRender = false;
+            if (!prepared) return false;
+        }
         const bool hasSharedSkeletal = this->canUseSkeletalPoseSharing(nullptr);
         const bool hasSkeletal = hasSharedSkeletal ||
             this->mesh->hasActiveSkeletalAnimation(skeletalPlayer);
-        if (!hasSharedSkeletal && hasSkeletal && !this->mesh->updateSkeletalAnimation(
+        if ((!facialState || !facialState->targetCount) && !hasSharedSkeletal && hasSkeletal && !this->mesh->updateSkeletalAnimation(
                 skeletalPlayer, device->delta, this, this->getOnEndAnimation()))
             return false;
         const VEC3 &position = this->getPosition();
@@ -808,7 +1042,16 @@ namespace mbm
         fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
         const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
         bool rendered = false;
-        if (hasSkeletal)
+        if (facialState && facialState->targetCount)
+        {
+            if (fx.fxVS->getCurrentShader() || fx.fxPS->getCurrentShader())
+            {
+                facialState->status = "facial-custom-shader-unsupported";
+                return false;
+            }
+            rendered = this->mesh->renderFacial(*facialState, &fx.shader, this);
+        }
+        else if (hasSkeletal)
         {
             const SKELETAL_ANIMATION_PLAYER *renderSkeletalPlayer = nullptr;
             if (hasSharedSkeletal)
@@ -855,6 +1098,7 @@ namespace mbm
             return MESH_EDITOR_ACCESS::loadPreview(*this, path.c_str());
         }
         this->releaseCpuSkeletalRenderState();
+        this->facialState.reset();
 		this->mesh = nullptr;
         const char *internalFileName = this->getInternalFileName();
         const bool ret = this->load(internalFileName);
@@ -877,6 +1121,11 @@ namespace mbm
     {
         if (this->mesh && this->mesh->isLoaded())
         {
+            if (facialState && facialState->targetCount)
+            {
+                if (!prepareFacial(true)) return false;
+                facialState->poseAdvancedForRender = true;
+            }
             IS_ON_FRUSTUM verify(this);
             bool ret = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
             if(ret == false)
@@ -887,7 +1136,7 @@ namespace mbm
                 this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
                                                          this, this->getOnEndAnimation());
                 const bool hasSharedSkeletal = this->canUseSkeletalPoseSharing(nullptr);
-                if (!hasSharedSkeletal &&
+                if ((!facialState || !facialState->targetCount) && !hasSharedSkeletal &&
                     this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer()))
                     this->mesh->updateSkeletalAnimation(this->getSkeletalAnimationPlayer(),
                                                         device->delta, this,
@@ -906,6 +1155,8 @@ namespace mbm
     
     const mbm::INFO_PHYSICS * MESH::getInfoPhysics() const
     {
+        if (facialState && facialState->targetCount && facialState->ready)
+            return &facialState->bounds;
         if (this->mesh)
             return &this->mesh->getPhysicsInfo();
         return nullptr;

@@ -38,6 +38,8 @@ namespace util
 
 namespace mbm
 {
+    namespace facial { struct RENDER_STATE; }
+
     enum class NORMAL_MAP_POLICY : uint8_t { PRESERVE, GENERATE, IMPORT };
     // Authoring value: one tangent per expanded triangle corner (not source vertex).
     struct NORMAL_MAP_CORNER { float x, y, z, sign; };
@@ -424,6 +426,25 @@ namespace mbm
         API_IMPL bool setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept;
         API_IMPL bool getSkeletalSharingCompatibility(const MESH_MBM_DEBUG &other,
                                                        SKELETAL_SHARING_COMPATIBILITY &out) const noexcept;
+        // Read-only facial authoring data for explicit round-trip/export operations. The asset
+        // remains PIMPL-owned; callers receive scalar values and caller-owned copy-outs only.
+        API_IMPL uint64_t getFacialMeshId() const noexcept;
+        API_IMPL uint64_t getFacialGeometrySignature() const noexcept;
+        API_IMPL uint32_t getFacialVertexCount() const noexcept;
+        API_IMPL uint32_t getTotalFacialTargets() const noexcept;
+        API_IMPL const char *getFacialTargetName(const uint32_t index) const noexcept;
+        API_IMPL uint64_t getFacialTargetId(const uint32_t index) const noexcept;
+        API_IMPL const char *getFacialTargetConvention(const uint32_t index) const noexcept;
+        API_IMPL float getFacialTargetDefaultWeight(const uint32_t index) const noexcept;
+        API_IMPL bool getFacialTargetDelta(const uint32_t targetIndex, const uint32_t vertexIndex,
+                                           VEC3 *positionDelta, VEC3 *normalDelta) const noexcept;
+        API_IMPL uint32_t getTotalFacialClips() const noexcept;
+        API_IMPL const char *getFacialClipName(const uint32_t index) const noexcept;
+        API_IMPL uint64_t getFacialClipId(const uint32_t index) const noexcept;
+        API_IMPL bool getFacialClipInfo(const uint32_t index, float *duration, bool *loop,
+                                        uint8_t *interpolation, uint32_t *keyCount) const noexcept;
+        API_IMPL bool getFacialClipKey(const uint32_t clipIndex, const uint32_t keyIndex,
+                                       float *time, float *weights, const uint32_t weightCapacity) const noexcept;
         // Read-only views of the canonical skeleton compiled and validated during load.
         API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
         API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out,
@@ -707,6 +728,7 @@ namespace mbm
       private:
         friend API_IMPL bool skeletal::copyCanonicalParityAsset(
             const MESH_MBM_DEBUG &mesh, skeletal::CANONICAL_PARITY_ASSET &out) noexcept;
+        bool loadV11InPlace(const char *fileNamePath);
         void fillAtLeastOneBound();
         bool fillInSubsetDebug(const MESH_MBM* meshMemory,
                                const int currentFrame,
@@ -828,6 +850,23 @@ namespace mbm
         bool canUseCpuSkeletalPath(SKELETAL_SHADER_METHOD method,
                                    const SKELETAL_ANIMATION_PLAYER *player = nullptr,
                                    const char **reason = nullptr) const noexcept;
+        bool initializeFacial(facial::RENDER_STATE &state) const;
+        bool refreshFacialWeights(facial::RENDER_STATE &state) const;
+        bool advanceFacial(facial::RENDER_STATE &state, float delta) const;
+        bool prepareFacial(facial::RENDER_STATE &state, const SKELETAL_ANIMATION_PLAYER *player,
+                           bool useGpuSkinning) const;
+        bool renderFacial(facial::RENDER_STATE &state, SHADER *shader, const RENDERIZABLE *owner) const;
+        uint32_t findFacialTarget(const char *name) const noexcept;
+        uint32_t findFacialClip(const char *name) const noexcept;
+        uint32_t getTotalFacialTargets() const noexcept;
+        const char *getFacialTargetName(uint32_t index) const noexcept;
+        uint64_t getFacialTargetId(uint32_t index) const noexcept;
+        const char *getFacialTargetConvention(uint32_t index) const noexcept;
+        float getFacialTargetDefaultWeight(uint32_t index) const noexcept;
+        uint32_t getTotalFacialClips() const noexcept;
+        const char *getFacialClipName(uint32_t index) const noexcept;
+        bool getFacialClipDuration(uint32_t index, float *duration) const noexcept;
+        float getFacialClipDurationValue(uint32_t index) const noexcept;
         bool renderCpuSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
                                const uint32_t indexFrame, BUFFER_MESH &dynamicBuffer,
                                std::vector<VEC3> &positions, std::vector<VEC3> &normals,

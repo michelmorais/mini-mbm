@@ -36,6 +36,27 @@ namespace mbm
 
 struct SKELETAL_SHARING_COMPATIBILITY;
 
+namespace facial { struct RENDER_STATE; }
+struct FACIAL_ANIMATION_REPORT
+{
+    uint32_t targetCount = 0;
+    uint32_t clipCount = 0;
+    uint64_t deformationCount = 0;
+    uint64_t uploadCount = 0;
+    bool ready = false;
+    bool playing = false;
+    bool paused = false;
+    uint32_t clipIndex = UINT32_MAX;
+    float clipTime = 0.0f;
+    float clipDuration = 0.0f;
+    float playbackSpeed = 1.0f;
+    const char *clipName = nullptr;
+    const char *executionPath = "none";
+    const char *morphExecutionPath = "none";
+    const char *morphStatus = "no-facial-data";
+    const char *status = "no-facial-data";
+};
+
 class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
 {
   public:
@@ -43,6 +64,31 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL virtual ~MESH();
     API_IMPL void release();
     API_IMPL bool load(const char *fileName);
+    // Phase-1 reference controls. Indices are zero-based; finite weights clamp to [0,1].
+    API_IMPL bool setFacialWeight(uint32_t target, float weight);
+    API_IMPL bool setFacialWeightByName(const char *name, float weight);
+    API_IMPL bool getFacialWeight(uint32_t target, float *weight) const noexcept;
+    API_IMPL bool getFacialWeightByName(const char *name, float *weight) const noexcept;
+    API_IMPL bool clearFacialWeight(uint32_t target);
+    API_IMPL bool clearFacialWeightByName(const char *name);
+    API_IMPL bool resetFacialWeights();
+    API_IMPL uint32_t getTotalFacialTargets() const noexcept;
+    API_IMPL const char *getFacialTargetName(uint32_t index) const noexcept;
+    API_IMPL uint64_t getFacialTargetId(uint32_t index) const noexcept;
+    API_IMPL const char *getFacialTargetConvention(uint32_t index) const noexcept;
+    API_IMPL float getFacialTargetDefaultWeight(uint32_t index) const noexcept;
+    API_IMPL uint32_t getTotalFacialClips() const noexcept;
+    API_IMPL const char *getFacialClipName(uint32_t index) const noexcept;
+    API_IMPL bool getFacialClipDuration(uint32_t index, float *duration) const noexcept;
+    API_IMPL bool playFacialAnimation(const char *name);
+    API_IMPL bool pauseFacialAnimation() noexcept;
+    API_IMPL bool resumeFacialAnimation() noexcept;
+    API_IMPL bool stopFacialAnimation();
+    API_IMPL bool seekFacialAnimation(float time);
+    API_IMPL bool getFacialAnimationTime(float *time) const noexcept;
+    API_IMPL bool setFacialAnimationPlaybackSpeed(float speed) noexcept;
+    API_IMPL float getFacialAnimationPlaybackSpeed() const noexcept;
+    API_IMPL void getFacialAnimationReport(FACIAL_ANIMATION_REPORT &out) const noexcept;
     // Background-thread-friendly equivalent of load(): does the file I/O + v11 parsing on a worker
     // thread (MESH_MANAGER::loadAsync), runs the exact same
     // finish logic load() runs, then invokes callback(success) - always from pumpAsyncLoads() on
@@ -141,6 +187,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     struct SKELETAL_POSE_SHARING_STATE;
     struct CPU_SKELETAL_RENDER_STATE;
     bool                     finishLoad(const char *fileName);
+    bool                     prepareFacial(bool advancePose);
+    std::unique_ptr<facial::RENDER_STATE> facialState;
     void                     startAutoplayAnimation();
     bool                     render() override;
     bool                     onRestoreDevice() override;

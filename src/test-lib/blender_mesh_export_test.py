@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import importlib.util
+import struct
 import tempfile
 import unittest
 from argparse import Namespace
@@ -33,6 +34,11 @@ SPEC = importlib.util.spec_from_file_location("blender_mesh_export", EXPORTER_PA
 assert SPEC and SPEC.loader
 EXPORTER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(EXPORTER)
+SKELETON_EXPORTER_PATH = Path(__file__).resolve().parents[2] / "editor" / "blender_mesh_skeleton_export.py"
+SKELETON_SPEC = importlib.util.spec_from_file_location("blender_mesh_skeleton_export", SKELETON_EXPORTER_PATH)
+assert SKELETON_SPEC and SKELETON_SPEC.loader
+SKELETON_EXPORTER = importlib.util.module_from_spec(SKELETON_SPEC)
+SKELETON_SPEC.loader.exec_module(SKELETON_EXPORTER)
 
 
 class BlenderMeshExportTests(unittest.TestCase):
@@ -121,6 +127,36 @@ class BlenderMeshExportTests(unittest.TestCase):
             self.assertEqual(chunk["texture"], "diffuse.png")
             self.assertEqual(chunk["extraTextures"], subset["extraTextures"])
             self.assertIsNot(chunk["extraTextures"], subset["extraTextures"])
+
+    def test_facial_export_excludes_normal_mapping_role(self) -> None:
+        static_args = Namespace(exclude_texture_role=[], include_facial=False)
+        facial_args = Namespace(exclude_texture_role=[], include_facial=True)
+        explicit_args = Namespace(exclude_texture_role=["normal"], include_facial=True)
+        static_fallback_args = Namespace(exclude_texture_role=[], include_facial=True)
+
+        self.assertNotIn("normal", EXPORTER.effective_excluded_texture_roles(static_args))
+        self.assertIn("normal", EXPORTER.effective_excluded_texture_roles(facial_args))
+        self.assertIn("normal", EXPORTER.effective_excluded_texture_roles(explicit_args))
+        self.assertNotIn("normal", EXPORTER.effective_excluded_texture_roles(static_fallback_args, False))
+
+    def test_source_object_catalog_keeps_visible_mesh_names(self) -> None:
+        hidden = self._Object("Hidden")
+        hidden.visible_get = lambda: False
+        scene = SimpleNamespace(objects=[self._Object("Head"), self._Object("Head"), hidden,
+                                         self._Object("Eye.L")])
+
+        self.assertEqual(EXPORTER.source_object_names(scene), ["Eye.L", "Head"])
+        self.assertEqual(EXPORTER.source_object_catalog_path("/tmp/megan.msh"),
+                         "/tmp/megan_mbm_objects.lua")
+
+    def test_facial_vertices_align_by_source_association_after_reordering(self) -> None:
+        base = [
+            {"sourceObject": "Body", "sourceVertex": 1, "sourceLoop": 11, "x": 1.0},
+            {"sourceObject": "Body", "sourceVertex": 2, "sourceLoop": 12, "x": 2.0},
+        ]
+        evaluated = [dict(base[1], x=20.0), dict(base[0], x=10.0)]
+        aligned = EXPORTER.align_facial_vertices(base, evaluated, "Body", "jawOpen")
+        self.assertEqual([v["x"] for v in aligned], [10.0, 20.0])
 
     def test_material_ignores_image_node_without_pixel_data_or_file(self) -> None:
         image = SimpleNamespace(has_data=False, filepath="", packed_file=None)
@@ -252,6 +288,56 @@ class BlenderMeshExportTests(unittest.TestCase):
         for invalid in (0.0, -0.1, 1.01, float("inf"), float("nan")):
             with self.subTest(ratio=invalid), self.assertRaisesRegex(RuntimeError, "Decimate ratio"):
                 EXPORTER.get_decimation_ratio(self._args(invalid))
+
+    def test_facial_geometry_signature_canonicalizes_signed_zero(self) -> None:
+        base = {
+            "vertices": [
+                {"x": 0.0, "y": 1.0, "z": 2.0, "nx": 0.0, "ny": 1.0, "nz": 0.0},
+                {"x": 1.0, "y": 0.0, "z": 2.0, "nx": 0.0, "ny": 1.0, "nz": 0.0},
+                {"x": 0.0, "y": 0.0, "z": 3.0, "nx": 0.0, "ny": 1.0, "nz": 0.0},
+            ],
+            "indices": [1, 2, 3],
+        }
+        signed_zero = {**base, "vertices": [dict(vertex) for vertex in base["vertices"]]}
+        signed_zero["vertices"][0]["x"] = struct.unpack("<f", b"\x00\x00\x00\x80")[0]
+        self.assertEqual(EXPORTER.facial_geometry_signature([base])[0],
+                         EXPORTER.facial_geometry_signature([signed_zero])[0])
+
+    def test_facial_payloads_write_target_and_clip_headers(self) -> None:
+        asset = {
+            "meshId": 11, "geometrySignature": 22, "vertexCount": 1,
+            "targets": [{"id": 33, "name": "jawOpen", "convention": "ARKit",
+                         "defaultWeight": 0.0, "positionDeltas": [(1.0, 2.0, 3.0)]}],
+            "clips": [{"id": 44, "name": "Face", "duration": 1.0, "loop": True,
+                       "interpolation": "linear", "keys": [
+                           {"time": 0.0, "weights": [0.0]},
+                           {"time": 1.0, "weights": [1.0]},
+                       ]}],
+        }
+        targets = EXPORTER.build_facial_targets_payload_v11(asset)
+        clips = EXPORTER.build_facial_clips_payload_v11(asset)
+        self.assertEqual(struct.unpack_from("<QQII", targets, 0), (11, 22, 1, 1))
+        self.assertEqual(struct.unpack_from("<QI", clips, 0), (11, 1))
+
+    def test_facial_reverse_metadata_ids_accept_hex_and_fallback(self) -> None:
+        self.assertEqual(EXPORTER.facial_metadata_id("0011223344556677", 0), 0x0011223344556677)
+        self.assertEqual(EXPORTER.facial_metadata_id(301, 0), 301)
+        self.assertEqual(EXPORTER.facial_metadata_id("not-an-id", 99), 99)
+        self.assertEqual(EXPORTER.facial_metadata_id(None, 101), 101)
+
+    def test_facial_reverse_delta_uses_canonical_reflection_and_rotation(self) -> None:
+        self.assertEqual(SKELETON_EXPORTER._facial_delta_to_blender(
+            [1.0, 2.0, 3.0], None, True), (-1.0, 2.0, 3.0))
+        rotated = SKELETON_EXPORTER._facial_delta_to_blender(
+            {"x": 1.0, "y": 0.0, "z": 0.0}, (0.0, 0.0, 90.0), False)
+        self.assertAlmostEqual(rotated[0], 0.0, places=6)
+        self.assertAlmostEqual(rotated[1], 1.0, places=6)
+
+    def test_facial_clip_interpolation_preserves_explicit_step_mode(self) -> None:
+        self.assertEqual(SKELETON_EXPORTER.facial_clip_interpolation({"interpolation": 0}), 0)
+        self.assertEqual(SKELETON_EXPORTER.facial_clip_interpolation({"interpolation": "0"}), 0)
+        self.assertEqual(SKELETON_EXPORTER.facial_clip_interpolation({"interpolation": 1}), 1)
+        self.assertEqual(SKELETON_EXPORTER.facial_clip_interpolation({}), 1)
 
 
 if __name__ == "__main__":

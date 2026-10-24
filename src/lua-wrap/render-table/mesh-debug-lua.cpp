@@ -3137,6 +3137,103 @@ namespace mbm
         return 1;
     }
 
+    int onGetFacialExportDataDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t targetCount = meshDebug->mesh.getTotalFacialTargets();
+        const uint32_t vertexCount = meshDebug->mesh.getFacialVertexCount();
+        const uint32_t clipCount = meshDebug->mesh.getTotalFacialClips();
+        lua_createtable(lua, 0, 5);
+        pushSkeletonBindId(lua, meshDebug->mesh.getFacialMeshId(), "meshId");
+        pushSkeletonBindId(lua, meshDebug->mesh.getFacialGeometrySignature(), "geometrySignature");
+        lua_pushinteger(lua, static_cast<lua_Integer>(vertexCount));
+        lua_setfield(lua, -2, "vertexCount");
+
+        lua_createtable(lua, static_cast<int>(targetCount), 0);
+        for (uint32_t targetIndex = 0; targetIndex < targetCount; ++targetIndex)
+        {
+            lua_createtable(lua, 0, 6);
+            pushSkeletonBindId(lua, meshDebug->mesh.getFacialTargetId(targetIndex), "id");
+            lua_pushstring(lua, meshDebug->mesh.getFacialTargetName(targetIndex));
+            lua_setfield(lua, -2, "name");
+            lua_pushstring(lua, meshDebug->mesh.getFacialTargetConvention(targetIndex));
+            lua_setfield(lua, -2, "convention");
+            lua_pushnumber(lua, meshDebug->mesh.getFacialTargetDefaultWeight(targetIndex));
+            lua_setfield(lua, -2, "defaultWeight");
+            lua_createtable(lua, static_cast<int>(vertexCount), 0);
+            for (uint32_t vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+            {
+                VEC3 positionDelta, normalDelta;
+                if (!meshDebug->mesh.getFacialTargetDelta(targetIndex, vertexIndex,
+                                                          &positionDelta, &normalDelta))
+                    return luaL_error(lua, "failed to read facial target delta");
+                lua_createtable(lua, 0, 3);
+                lua_pushnumber(lua, positionDelta.x); lua_setfield(lua, -2, "x");
+                lua_pushnumber(lua, positionDelta.y); lua_setfield(lua, -2, "y");
+                lua_pushnumber(lua, positionDelta.z); lua_setfield(lua, -2, "z");
+                lua_rawseti(lua, -2, static_cast<lua_Integer>(vertexIndex + 1));
+            }
+            lua_setfield(lua, -2, "positionDeltas");
+            lua_createtable(lua, static_cast<int>(vertexCount), 0);
+            for (uint32_t vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+            {
+                VEC3 normalDelta;
+                if (!meshDebug->mesh.getFacialTargetDelta(targetIndex, vertexIndex,
+                                                          nullptr, &normalDelta))
+                    return luaL_error(lua, "failed to read facial normal delta");
+                lua_createtable(lua, 0, 3);
+                lua_pushnumber(lua, normalDelta.x); lua_setfield(lua, -2, "x");
+                lua_pushnumber(lua, normalDelta.y); lua_setfield(lua, -2, "y");
+                lua_pushnumber(lua, normalDelta.z); lua_setfield(lua, -2, "z");
+                lua_rawseti(lua, -2, static_cast<lua_Integer>(vertexIndex + 1));
+            }
+            lua_setfield(lua, -2, "normalDeltas");
+            lua_rawseti(lua, -2, static_cast<lua_Integer>(targetIndex + 1));
+        }
+        lua_setfield(lua, -2, "targets");
+
+        lua_createtable(lua, static_cast<int>(clipCount), 0);
+        for (uint32_t clipIndex = 0; clipIndex < clipCount; ++clipIndex)
+        {
+            float duration = 0.0f;
+            bool loop = false;
+            uint8_t interpolation = 0;
+            uint32_t keyCount = 0;
+            if (!meshDebug->mesh.getFacialClipInfo(clipIndex, &duration, &loop,
+                                                   &interpolation, &keyCount))
+                return luaL_error(lua, "failed to read facial clip info");
+            lua_createtable(lua, 0, 7);
+            pushSkeletonBindId(lua, meshDebug->mesh.getFacialClipId(clipIndex), "id");
+            lua_pushstring(lua, meshDebug->mesh.getFacialClipName(clipIndex)); lua_setfield(lua, -2, "name");
+            lua_pushnumber(lua, duration); lua_setfield(lua, -2, "duration");
+            lua_pushboolean(lua, loop); lua_setfield(lua, -2, "loop");
+            lua_pushinteger(lua, interpolation); lua_setfield(lua, -2, "interpolation");
+            lua_createtable(lua, static_cast<int>(keyCount), 0);
+            std::vector<float> weights(vertexCount, 0.0f);
+            for (uint32_t keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+            {
+                float time = 0.0f;
+                if (!meshDebug->mesh.getFacialClipKey(clipIndex, keyIndex, &time,
+                                                       weights.data(), vertexCount))
+                    return luaL_error(lua, "failed to read facial clip key");
+                lua_createtable(lua, 0, 2);
+                lua_pushnumber(lua, time); lua_setfield(lua, -2, "time");
+                lua_createtable(lua, static_cast<int>(targetCount), 0);
+                for (uint32_t targetIndex = 0; targetIndex < targetCount; ++targetIndex)
+                {
+                    lua_pushnumber(lua, weights[targetIndex]);
+                    lua_rawseti(lua, -2, static_cast<lua_Integer>(targetIndex + 1));
+                }
+                lua_setfield(lua, -2, "weights");
+                lua_rawseti(lua, -2, static_cast<lua_Integer>(keyIndex + 1));
+            }
+            lua_setfield(lua, -2, "keys");
+            lua_rawseti(lua, -2, static_cast<lua_Integer>(clipIndex + 1));
+        }
+        lua_setfield(lua, -2, "clips");
+        return 1;
+    }
+
     int onAddSkeletalClipDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3778,6 +3875,7 @@ namespace mbm
                                           {"updateAnim", onUpdateAnimationDebugLua},
                                           {"getAnim", onGetDetailAnimationDebugLua},
                                           {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
+                                          {"getFacialExportData", onGetFacialExportDataDebugLua},
                                           {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
                                           {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
