@@ -361,3 +361,7 @@ snapshot already used by landmark placement. This keeps mask indices aligned wit
 subset order and prevents generated masks from containing out-of-range or repeated vertex indices.
 The read-only binding review also keeps its overlap sets separate from the serialized mask array,
 so opening Rig cannot mutate valid vertex indices into boolean values.
+
+The Rig diagnostics and binding summary are cached behind a dirty flag. Large topology scans and
+the facial weight preview run when the project or mesh changes, not once per render frame while the
+Rig workspace is idle.

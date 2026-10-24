@@ -53,6 +53,7 @@ local state = {
     faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
     faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
     rigPreview={dirty=true,objects={},descriptor=nil},
+    rigReview={dirty=true,data=nil},
     bindingPlan={dirty=true,data=nil},
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false},
@@ -354,6 +355,7 @@ end
 local function markModified()
     state.modified=true
     state.rigPreview.dirty=true
+    state.rigReview.dirty=true
     state.bindingPlan.dirty=true
     state.weightAssignment.dirty=true
 end
@@ -390,6 +392,7 @@ local function restoreHistorySnapshot(snapshot)
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
     state.rigPreview.dirty=true
+    state.rigReview.dirty=true
     state.bindingPlan.dirty=true
     state.weightAssignment.dirty=true
     return true
@@ -782,6 +785,21 @@ local function refreshBindingPlan()
     state.weightAssignment.dirty=true
 end
 
+local function refreshRigReview()
+    if not state.mesh or not state.topology then
+        state.rigReview.data=nil
+        state.rigReview.dirty=false
+        return
+    end
+    local report=tFacialProject.validate(state.project,true,state.topology)
+    local rig=tFacialProject.rigDescription(state.project,state.topology)
+    local binding=tFacialProject.bindingDescription(state.project,state.topology)
+    state.rigReview.data={report=report,rig=rig,binding=binding,
+        bridgeReport=tFacialBridge.bindingReport(state.project,rig,binding),
+        bindingReview=tFacialProject.bindingReview(state.project,state.topology)}
+    state.rigReview.dirty=false
+end
+
 local function refreshFacialSkeletonBinding()
     if state.workspace~='rig' or not state.meshDebug then return end
     local rig=tFacialProject.rigDescription(state.project,state.topology)
@@ -1027,6 +1045,7 @@ local function loadMesh(path, preserveProject)
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
+    state.rigReview={dirty=true,data=nil}
     state.bindingPlan.dirty=true
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false}
@@ -1054,6 +1073,7 @@ local function newProject()
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
+    state.rigReview={dirty=true,data=nil}
     state.bindingPlan.dirty=true
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false}
@@ -1653,17 +1673,21 @@ end
 local function showRig()
     tImGui.TextWrapped(tLang.L('fre_rig_help'))
     if state.bindingPlan.dirty then refreshBindingPlan() end
-    local report=tFacialProject.validate(state.project,state.mesh~=nil,state.topology)
-    local rig=tFacialProject.rigDescription(state.project,state.topology)
+    if state.rigReview.dirty then refreshRigReview() end
+    local reviewData=state.rigReview.data or {report={ok=false,errors={},warnings={}},
+        rig={valid=false,bones={},roleBindings={}},binding={roles={},masks={},landmarks={},vertexCount=0},
+        bridgeReport={entries={},warnings={}},bindingReview={roles={},totalMaskedVertices=0,overlapCount=0}}
+    local report=reviewData.report
+    local rig=reviewData.rig
+    local binding=reviewData.binding
+    local bridgeReport=reviewData.bridgeReport
+    local bindingReview=reviewData.bindingReview
     if report.ok and rig.valid then
         textColoredWrapped({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_validation_ok'))
     else
         textColoredWrapped({r=1,g=0.55,b=0.2,a=1},tLang.L('fre_validation_pending'))
     end
     showProjectMessages(report)
-    local binding=tFacialProject.bindingDescription(state.project,state.topology)
-    local bridgeReport=tFacialBridge.bindingReport(state.project,rig,binding)
-    local bindingReview=tFacialProject.bindingReview(state.project,state.topology)
     tImGui.Separator()
     tImGui.Text(string.format(tLang.L('fre_binding_roles_fmt'),#binding.roles))
     tImGui.Text(string.format(tLang.L('fre_binding_masks_fmt'),#binding.masks))
