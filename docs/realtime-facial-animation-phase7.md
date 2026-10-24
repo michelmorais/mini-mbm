@@ -392,7 +392,14 @@ including clip selection, play/pause/resume/stop, playback time, and runtime exe
 
 Preview operations are event-driven: changing a pose or pressing Apply updates target weights once;
 the editor does not rebuild facial data while idle. The project remains the source of saved
-expressions, while MSH remains the source of target deltas and clips.
+expressions, while MSH remains the source of target deltas and clips. Preview also exposes the
+available skeletal clips and their play/pause/resume/stop controls, so a clip such as `MeganWalk`
+can be reviewed together with a facial expression or facial clip instead of leaving the character
+in its bind T-pose.
+
+An individual target is a reusable geometry channel (for example `browUp`); an expression is a
+named static combination of target weights. Start/end times belong to a clip, not to the static
+expression pose. Temporal expression authoring and keyframe editing remain a later slice.
 
 ### Full-body skeleton compatibility
 

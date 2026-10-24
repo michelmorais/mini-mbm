@@ -60,7 +60,7 @@ local state = {
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft=''},
-    preview={selectedPose=1,facialPlayback=nil},
+    preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1},
     blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
 }
@@ -1042,6 +1042,27 @@ local function applyExpressionPose(pose)
     return success
 end
 
+local function refreshPreviewSkeletalCatalog()
+    state.preview.skeletalAnimations={}
+    state.preview.selectedSkeletal=math.max(1,state.preview.selectedSkeletal or 1)
+    if not state.mesh then
+        state.preview.skeletalDirty=false
+        return
+    end
+    local ok,total=dpCall(function() return state.mesh:getTotalSkeletalAnimations() end)
+    if ok then
+        for index=1,tonumber(total) or 0 do
+            local nameOk,name=dpCall(function() return state.mesh:getSkeletalAnimationName(index) end)
+            if nameOk and type(name)=='string' and name~='' then
+                state.preview.skeletalAnimations[#state.preview.skeletalAnimations+1]=name
+            end
+        end
+    end
+    state.preview.selectedSkeletal=math.max(1,math.min(state.preview.selectedSkeletal,
+        math.max(1,#state.preview.skeletalAnimations)))
+    state.preview.skeletalDirty=false
+end
+
 local function loadMesh(path, preserveProject)
     if not path or path=='' then return false end
     local directory=path:match('^(.*)[/\\][^/\\]+$')
@@ -1099,7 +1120,8 @@ local function loadMesh(path, preserveProject)
     state.weightAssignment={dirty=true,data=nil,modified=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=state.project.expressions.selectedTarget or 1,
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft=''}
-    state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil}
+    state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil,
+        skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
     frameCamera(bounds)
     if requestedPreserve and not projectCompatible then
         setStatus(tLang.L('fre_mesh_project_topology_mismatch'),true)
@@ -1129,7 +1151,7 @@ local function newProject()
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false}
     state.expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft=''}
-    state.preview={selectedPose=1,facialPlayback=nil}
+    state.preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -1161,7 +1183,8 @@ local function openProject()
         destroyPreview()
         state.expressions={catalogDirty=true,catalog={},selectedTarget=project.expressions.selectedTarget or 1,
             selectedPose=project.expressions.selectedPose or 1,nameDraft='',renameDraft=''}
-        state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil}
+        state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil,
+            skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1}
     end
     clearHistory()
     setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
@@ -1865,6 +1888,42 @@ local function showPreview()
     if state.expressions.catalogDirty then refreshExpressionCatalog() end
     local expressions=state.project.expressions or tFacialExpressions.new()
     state.project.expressions=expressions
+    if state.preview.skeletalDirty then refreshPreviewSkeletalCatalog() end
+    tImGui.Text(tLang.L('fre_preview_skeletal_title'))
+    local skeletalAnimations=state.preview.skeletalAnimations or {}
+    if #skeletalAnimations==0 then
+        tImGui.TextDisabled(tLang.L('fre_preview_no_skeletal'))
+    else
+        tImGui.SetNextItemWidth(280)
+        local skeletalChanged,skeletalIndex=tImGui.Combo(
+            tLang.L('fre_preview_skeletal_clip'),state.preview.selectedSkeletal,skeletalAnimations)
+        if skeletalChanged then state.preview.selectedSkeletal=skeletalIndex end
+        local skeletalName=skeletalAnimations[state.preview.selectedSkeletal]
+        if tImGui.Button(tLang.L('fre_preview_skeletal_play'),{x=230,y=0}) then
+            local ok,played=dpCall(function() return state.mesh:playSkeletalAnimation(skeletalName) end)
+            if ok and played~=false then setStatus(string.format(tLang.L('fre_preview_skeletal_played_fmt'),skeletalName),false)
+            else setStatus(tLang.L('fre_preview_skeletal_failed'),true) end
+        end
+        if tImGui.Button(tLang.L('fre_preview_skeletal_pause'),{x=90,y=0}) then
+            dpCall(function() return state.mesh:pauseSkeletalAnimation() end)
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('fre_preview_skeletal_resume'),{x=100,y=0}) then
+            dpCall(function() return state.mesh:resumeSkeletalAnimation() end)
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('fre_preview_skeletal_stop'),{x=90,y=0}) then
+            dpCall(function() return state.mesh:stopSkeletalAnimation() end)
+        end
+        local durationOk,duration=dpCall(function()
+            return state.mesh:getSkeletalAnimationDuration(state.preview.selectedSkeletal)
+        end)
+        local timeOk,time=dpCall(function() return state.mesh:getSkeletalAnimationTime() end)
+        if durationOk and timeOk and duration and time then
+            tImGui.Text(string.format(tLang.L('fre_preview_skeletal_time_fmt'),time,duration))
+        end
+    end
+    tImGui.Separator()
     local poses=expressions.poses or {}
     if #poses==0 then
         tImGui.TextDisabled(tLang.L('fre_preview_no_expressions'))

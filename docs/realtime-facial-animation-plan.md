@@ -230,7 +230,8 @@ bridge remains the handoff used for Blender-side armature and weight work.
 
 The Expressions worktree now authors named target-weight poses from existing MSH facial targets,
 including bounded preview sliders, capture/apply, side mirroring, rename, persistence, and validation.
-The Preview worktree now reviews saved poses and imported facial clips, while GPU morph parity for
+The Preview worktree now reviews saved poses, imported facial clips, and skeletal clips together,
+while GPU morph parity for
 DirectX and Metal remains a separate backend milestone; those
 backends keep the CPU reference path until an equivalent indexed resource is implemented.
 
