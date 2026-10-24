@@ -262,6 +262,7 @@ local function localizedWeightAssignmentReason(reason)
         ['role has no explicit vertex mask']='fre_weight_reason_mask_missing',
         ['mesh skeleton is not canonical']='fre_weight_reason_noncanonical',
         ['mesh has no canonical vertex weights']='fre_weight_reason_no_weights',
+        ['facial root is not attached to the body head']='fre_weight_reason_root_parent',
         ['mesh has no readable canonical skeleton']='fre_weight_reason_no_skeleton',
         ['mesh skeleton report API is unavailable']='fre_weight_reason_no_report',
         ['all enabled roles must be ready before assignment']='fre_weight_reason_all_ready',
@@ -821,17 +822,29 @@ local function applyFacialSkeletonBinding()
         setStatus(tLang.L('fre_facial_skeleton_failed') .. ': ' .. tostring(errorMessage or ''),true)
         return false
     end
+    local repairedRoot=binding.rootParentNeedsRepair==true
     state.facialSkeleton.dirty=true
     state.bindingPlan.dirty=true
     state.weightAssignment.dirty=true
     state.weightAssignment.modified=true
-    setStatus(string.format(tLang.L('fre_facial_skeleton_applied_fmt'),count),false)
+    if repairedRoot then
+        setStatus(tLang.L('fre_facial_skeleton_root_repaired'),false)
+    else
+        setStatus(string.format(tLang.L('fre_facial_skeleton_applied_fmt'),count),false)
+    end
     return true
 end
 
 local function refreshWeightAssignment()
     if state.workspace~='rig' or not state.meshDebug then return end
     if state.bindingPlan.dirty then refreshBindingPlan() end
+    if state.facialSkeleton.dirty then refreshFacialSkeletonBinding() end
+    if state.facialSkeleton.data and state.facialSkeleton.data.rootParentNeedsRepair then
+        state.weightAssignment.data={version=1,valid=false,entries={},readyCount=0,blockedCount=0,
+            totalVertexCount=0,errors={'facial root is not attached to the body head'},warnings={}}
+        state.weightAssignment.dirty=false
+        return
+    end
     local rig=tFacialProject.rigDescription(state.project,state.topology)
     state.weightAssignment.data=tFacialWeightAssignment.inspect(state.meshDebug,state.project,state.topology,
         state.bindingPlan.data,rig)
@@ -1737,6 +1750,10 @@ local function showRig()
         if facialSkeleton then
             tImGui.Text(string.format(tLang.L('fre_facial_skeleton_summary_fmt'),
                 facialSkeleton.existingCount,facialSkeleton.missingCount))
+            if facialSkeleton.rootParentName then
+                tImGui.TextWrapped(string.format(tLang.L('fre_facial_skeleton_parent_fmt'),
+                    facialSkeleton.rootParentName))
+            end
             for _,entry in ipairs(facialSkeleton.entries or {}) do
                 local status=entry.status=='existing' and tLang.L('fre_facial_skeleton_existing') or
                     entry.status=='missing' and tLang.L('fre_facial_skeleton_missing') or
@@ -1750,8 +1767,12 @@ local function showRig()
             for _,reason in ipairs(facialSkeleton.errors or {}) do
                 tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedFacialSkeletonReason(reason))
             end
-            tImGui.BeginDisabled(facialSkeleton.valid~=true or facialSkeleton.missingCount==0)
-            if tImGui.Button(tLang.L('fre_facial_skeleton_apply')) then applyFacialSkeletonBinding() end
+            local rootRepair=facialSkeleton.rootParentNeedsRepair==true
+            local canApply=facialSkeleton.valid==true and (facialSkeleton.missingCount>0 or rootRepair)
+            tImGui.BeginDisabled(not canApply)
+            local applyLabel=rootRepair and tLang.L('fre_facial_skeleton_repair_root') or
+                tLang.L('fre_facial_skeleton_apply')
+            if tImGui.Button(applyLabel) then applyFacialSkeletonBinding() end
             tImGui.EndDisabled()
             showHelpTooltip(tLang.L('fre_facial_skeleton_apply_tooltip'))
         end

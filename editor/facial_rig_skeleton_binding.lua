@@ -56,6 +56,40 @@ local function boneMap(skeletonReport)
     return byName
 end
 
+local function generatedBoneNames(rig)
+    local names={}
+    for _,bone in ipairs(rig and rig.bones or {}) do
+        local name=tostring(bone.id or bone.name or '')
+        if name~='' then names[name]=true end
+    end
+    return names
+end
+
+local function bodyBoneLeaf(name)
+    local leaf=tostring(name or ''):match('([^:|/\\]+)$') or tostring(name or '')
+    return leaf:lower()
+end
+
+-- Facial bones must follow an animated character head when they are added to an
+-- existing full-body skeleton. Prefer an existing body Head bone, then Neck; a
+-- standalone head asset has neither and correctly keeps face_root as a root.
+local function chooseBodyParent(skeletonReport,rig)
+    local generated=generatedBoneNames(rig)
+    local bestName,bestIndex,bestScore=nil,nil,math.huge
+    for _,bone in ipairs(skeletonReport and skeletonReport.bones or {}) do
+        local name=tostring(bone.name or '')
+        if name~='' and not generated[name] then
+            local leaf=bodyBoneLeaf(name)
+            local score=leaf=='head' and 0 or leaf=='neck' and 10 or
+                leaf:find('head',1,true) and 20 or leaf:find('neck',1,true) and 30 or nil
+            if score and (score<bestScore or score==bestScore and name<bestName) then
+                bestName,bestIndex,bestScore=name,bone.sourceIndex,score
+            end
+        end
+    end
+    return bestName,bestIndex
+end
+
 local function boneLength(bone)
     local head,tail=bone and bone.head,bone and bone.tail
     if type(head)~='table' or type(tail)~='table' then return 0.01 end
@@ -79,6 +113,15 @@ function M.inspect(meshDebug,rig)
         return result
     end
     local existing=boneMap(skeleton)
+    local rootParentName,rootParentIndex=chooseBodyParent(skeleton,rig)
+    result.rootParentName=rootParentName
+    result.rootParentNeedsRepair=false
+    for _,bone in ipairs(skeleton.bones or {}) do
+        if bone.name=='face_root' and rootParentName and rootParentIndex then
+            result.rootParentNeedsRepair=bone.parentIndex~=rootParentIndex
+            break
+        end
+    end
     local rigBones=rig and rig.bones or {}
     if #rigBones==0 then
         result.valid=false
@@ -120,8 +163,6 @@ end
 function M.apply(meshDebug,rig)
     local inspection=M.inspect(meshDebug,rig)
     if inspection.valid~=true then return false,0,inspection.errors[1] or 'facial skeleton binding is blocked' end
-    if inspection.missingCount==0 then return true,0,nil end
-
     local skeleton,errorMessage=report(meshDebug)
     if not skeleton then return false,0,errorMessage end
     local indices=boneMap(skeleton)
@@ -143,9 +184,19 @@ function M.apply(meshDebug,rig)
         end
     end
 
+    local rootParentName=chooseBodyParent(skeleton,rig)
     for _,bone in ipairs(rig.bones or {}) do
         local childName=tostring(bone.id or bone.name or '')
         local parentName=bone.parent
+        if childName=='face_root' and rootParentName then parentName=rootParentName end
+        if parentName then
+            local currentSkeleton,currentError=report(meshDebug)
+            if not currentSkeleton then
+                removeAdded(meshDebug,added)
+                return false,0,currentError
+            end
+            indices=boneMap(currentSkeleton)
+        end
         if parentName and indices[childName] and indices[parentName] and
                 indices[childName]~=indices[parentName] then
             local ok,_,errorValue=call(meshDebug,'reparentSkeletalBone',indices[childName],

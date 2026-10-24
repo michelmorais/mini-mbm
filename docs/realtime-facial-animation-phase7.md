@@ -365,3 +365,13 @@ so opening Rig cannot mutate valid vertex indices into boolean values.
 The Rig diagnostics and binding summary are cached behind a dirty flag. Large topology scans and
 the facial weight preview run when the project or mesh changes, not once per render frame while the
 Rig workspace is idle.
+
+### Full-body skeleton compatibility
+
+When an existing full-body skeleton exposes a body bone named `Head` (including common names such
+as `mixamorig2:Head`), the facial skeleton binding attaches `face_root` to that bone while
+preserving the generated global bind transform. This keeps facially weighted vertices moving with
+the animated character body. Head-only assets without a suitable body anchor continue to use a
+standalone facial root.
+When the body anchor is required but not yet repaired, the weight-assignment action remains
+blocked so a full-body mesh cannot be saved with a detached facial head.
